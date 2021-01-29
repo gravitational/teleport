@@ -2473,7 +2473,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				AuthServers:   cfg.AuthServers[0],
 				DomainName:    cfg.Hostname,
 				ProxyClient:   conn.Client,
-				DisableUI:     process.Config.Proxy.DisableWebInterface,
 				ProxySSHAddr:  cfg.Proxy.SSHAddr,
 				ProxyWebAddr:  cfg.Proxy.WebAddr,
 				ProxySettings: proxySettings,
