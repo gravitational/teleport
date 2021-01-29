@@ -22,12 +22,12 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/tstranex/u2f"
 )
 
 // AuthenticateUserRequest is a request to authenticate interactive user
@@ -64,7 +64,7 @@ type PassCreds struct {
 // U2FSignResponseCreds is a U2F signature sent by U2F device
 type U2FSignResponseCreds struct {
 	// SignResponse is a U2F sign resposne
-	SignResponse u2f.SignResponse `json:"sign_response"`
+	SignResponse u2f.AuthenticateChallengeResponse `json:"sign_response"`
 }
 
 // OTPCreds is a two factor authencication credentials

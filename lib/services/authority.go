@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -32,7 +33,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/tstranex/u2f"
 )
 
 // NewJWTAuthority creates and returns a services.CertAuthority with a new
@@ -227,7 +227,7 @@ type ChangePasswordReq struct {
 	// SecondFactorToken is user 2nd factor token
 	SecondFactorToken string `json:"second_factor_token"`
 	// U2FSignResponse is U2F sign response
-	U2FSignResponse *u2f.SignResponse `json:"u2f_sign_response"`
+	U2FSignResponse *u2f.AuthenticateChallengeResponse `json:"u2f_sign_response"`
 }
 
 // UserCertParams defines OpenSSH user certificate parameters

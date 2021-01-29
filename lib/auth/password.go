@@ -7,12 +7,12 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
-	"github.com/tstranex/u2f"
 
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
@@ -29,8 +29,8 @@ type ChangePasswordWithTokenRequest struct {
 	TokenID string `json:"token"`
 	// Password is user password
 	Password []byte `json:"password"`
-	// U2FRegisterResponse is U2F register response
-	U2FRegisterResponse u2f.RegisterResponse `json:"u2f_register_response"`
+	// U2FRegisterResponse is U2F registration challenge response.
+	U2FRegisterResponse u2f.RegisterChallengeResponse `json:"u2f_register_response"`
 }
 
 // ChangePasswordWithToken changes password with token
@@ -240,14 +240,15 @@ func (s *Server) CheckOTP(user string, otpToken string) error {
 	return nil
 }
 
-// CreateSignupU2FRegisterRequest creates U2F requests
-func (s *Server) CreateSignupU2FRegisterRequest(tokenID string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
+// CreateSignupU2FRegisterRequest initiates registration for a new U2F token.
+// The returned challenge should be sent to the client to sign.
+func (s *Server) CreateSignupU2FRegisterRequest(tokenID string) (*u2f.RegisterChallenge, error) {
 	cap, err := s.GetAuthPreference()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	universalSecondFactor, err := cap.GetU2F()
+	u2fConfig, err := cap.GetU2F()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -257,18 +258,11 @@ func (s *Server) CreateSignupU2FRegisterRequest(tokenID string) (u2fRegisterRequ
 		return nil, trace.Wrap(err)
 	}
 
-	c, err := u2f.NewChallenge(universalSecondFactor.AppID, universalSecondFactor.Facets)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = s.UpsertU2FRegisterChallenge(tokenID, c)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	request := c.RegisterRequest()
-	return request, nil
+	return u2f.RegisterInit(u2f.RegisterInitParams{
+		StorageKey: tokenID,
+		AppConfig:  *u2fConfig,
+		Storage:    s.Identity,
+	})
 }
 
 // getOTPType returns the type of OTP token used, HOTP or TOTP.
@@ -370,30 +364,12 @@ func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, Rese
 			return trace.Wrap(err)
 		}
 
-		challenge, err := s.GetU2FRegisterChallenge(req.TokenID)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		u2fRes := req.U2FRegisterResponse
-		reg, err := u2f.Register(u2fRes, *challenge, &u2f.Config{SkipAttestationVerify: true})
-		if err != nil {
-			// U2F is a 3rd party library and sends back a string based error. Wrap this error with a
-			// trace.BadParameter error to allow the Web UI to unmarshal it correctly.
-			return trace.BadParameter(err.Error())
-		}
-
-		err = s.UpsertU2FRegistration(username, reg)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		err = s.UpsertU2FRegistrationCounter(username, 0)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
+		return u2f.RegisterVerify(u2f.RegisterVerifyParams{
+			ChallengeStorageKey:    req.TokenID,
+			RegistrationStorageKey: username,
+			Resp:                   req.U2FRegisterResponse,
+			Storage:                s.Identity,
+		})
 	}
 
 	return trace.BadParameter("unknown second factor type %q", cap.GetSecondFactor())
