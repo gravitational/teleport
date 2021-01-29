@@ -162,10 +162,6 @@ var (
 	RotationPhaseRollback      = types.RotationPhaseRollback
 	RotationModeManual         = types.RotationModeManual
 	RotationModeAuto           = types.RotationModeAuto
-
-	RotatePhases    = types.RotatePhases
-	RemoveCASecrets = types.RemoveCASecrets
-	ParseSigningAlg = types.ParseSigningAlg
 )
 
 // clusterconfig.go
@@ -247,12 +243,7 @@ type (
 	ClaimMapping        = types.ClaimMapping
 )
 
-var (
-	NewOIDCConnector = types.NewOIDCConnector
-
-	GetClaimNames      = types.GetClaimNames
-	OIDCClaimsToTraits = types.OIDCClaimsToTraits
-)
+var NewOIDCConnector = types.NewOIDCConnector
 
 // plugin_data.go
 type PluginData = types.PluginData

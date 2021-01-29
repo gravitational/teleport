@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net/url"
 
+	"github.com/coreos/go-oidc/jose"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
@@ -50,6 +51,33 @@ func ValidateOIDCConnector(oc types.OIDCConnector) error {
 		}
 	}
 	return nil
+}
+
+// GetClaimNames returns a list of claim names from the claim values
+func GetClaimNames(claims jose.Claims) []string {
+	var out []string
+	for claim := range claims {
+		out = append(out, claim)
+	}
+	return out
+}
+
+// OIDCClaimsToTraits converts OIDC-style claims into teleport-specific trait format
+func OIDCClaimsToTraits(claims jose.Claims) map[string][]string {
+	traits := make(map[string][]string)
+
+	for claimName := range claims {
+		claimValue, ok, _ := claims.StringClaim(claimName)
+		if ok {
+			traits[claimName] = []string{claimValue}
+		}
+		claimValues, ok, _ := claims.StringsClaim(claimName)
+		if ok {
+			traits[claimName] = claimValues
+		}
+	}
+
+	return traits
 }
 
 // OIDCConnectorSpecV2Schema is a JSON Schema for OIDC Connector

@@ -28,11 +28,12 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/tstranex/u2f"
 )
 
@@ -95,10 +96,10 @@ func checkUserOrHostCA(ca CertAuthority) error {
 	if len(ca.GetTLSKeyPairs()) == 0 {
 		return trace.BadParameter("certificate authority missing TLS key pairs")
 	}
-	if _, err := ca.Checkers(); err != nil {
+	if _, err := sshutils.GetCheckers(ca); err != nil {
 		return trace.Wrap(err)
 	}
-	if _, err := ca.Signers(); err != nil {
+	if _, err := sshutils.GetSigners(ca); err != nil {
 		return trace.Wrap(err)
 	}
 	// This is to force users to migrate
