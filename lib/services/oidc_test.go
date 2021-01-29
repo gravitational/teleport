@@ -127,22 +127,22 @@ func TestOIDCUnmarshal(t *testing.T) {
 // that is set does not default to select_account
 func TestOIDCUnmarshalEmptyPrompt(t *testing.T) {
 	input := `
-      {	
-        "kind": "oidc",	
-        "version": "v2",	
-        "metadata": {	
-          "name": "google"	
-        },	
-        "spec": {	
-          "issuer_url": "https://accounts.google.com",	
-          "client_id": "id-from-google.apps.googleusercontent.com",	
-          "client_secret": "secret-key-from-google",	
-          "redirect_url": "https://localhost:3080/v1/webapi/oidc/callback",	
-          "display": "whatever",	
-          "scope": ["roles"],	
-          "prompt": ""	
-        }	
-      }	
+      {
+        "kind": "oidc",
+        "version": "v2",
+        "metadata": {
+          "name": "google"
+        },
+        "spec": {
+          "issuer_url": "https://accounts.google.com",
+          "client_id": "id-from-google.apps.googleusercontent.com",
+          "client_secret": "secret-key-from-google",
+          "redirect_url": "https://localhost:3080/v1/webapi/oidc/callback",
+          "display": "whatever",
+          "scope": ["roles"],
+          "prompt": ""
+        }
+      }
 	`
 
 	oc, err := UnmarshalOIDCConnector([]byte(input))
@@ -159,22 +159,22 @@ func TestOIDCUnmarshalEmptyPrompt(t *testing.T) {
 // TestUnmarshalOIDCPromptValue makes sure that prompt value is set properly
 func TestOIDCUnmarshalPromptValue(t *testing.T) {
 	input := `
-      {	
-        "kind": "oidc",	
-        "version": "v2",	
-        "metadata": {	
-          "name": "google"	
-        },	
-        "spec": {	
-          "issuer_url": "https://accounts.google.com",	
-          "client_id": "id-from-google.apps.googleusercontent.com",	
-          "client_secret": "secret-key-from-google",	
-          "redirect_url": "https://localhost:3080/v1/webapi/oidc/callback",	
-          "display": "whatever",	
-          "scope": ["roles"],	
-          "prompt": "consent login"	
-        }	
-      }	
+      {
+        "kind": "oidc",
+        "version": "v2",
+        "metadata": {
+          "name": "google"
+        },
+        "spec": {
+          "issuer_url": "https://accounts.google.com",
+          "client_id": "id-from-google.apps.googleusercontent.com",
+          "client_secret": "secret-key-from-google",
+          "redirect_url": "https://localhost:3080/v1/webapi/oidc/callback",
+          "display": "whatever",
+          "scope": ["roles"],
+          "prompt": "consent login"
+        }
+      }
 	`
 
 	oc, err := UnmarshalOIDCConnector([]byte(input))
@@ -191,25 +191,25 @@ func TestOIDCUnmarshalPromptValue(t *testing.T) {
 // TestOIDCUnmarshalInvalid unmarshals and fails validation of the connector
 func TestOIDCUnmarshalInvalid(t *testing.T) {
 	input := `
-      {	
-        "kind": "oidc",	
-        "version": "v2",	
-        "metadata": {	
-          "name": "google"	
-        },	
-        "spec": {	
-          "issuer_url": "https://accounts.google.com",	
-          "client_id": "id-from-google.apps.googleusercontent.com",	
-          "client_secret": "secret-key-from-google",	
-          "redirect_url": "https://localhost:3080/v1/webapi/oidc/callback",	
-          "display": "whatever",	
-          "scope": ["roles"],	
-          "claims_to_roles": [{	
-            "claim": "roles",	
-            "value": "teleport-user",	
-          }]	
-        }	
-      }	
+      {
+        "kind": "oidc",
+        "version": "v2",
+        "metadata": {
+          "name": "google"
+        },
+        "spec": {
+          "issuer_url": "https://accounts.google.com",
+          "client_id": "id-from-google.apps.googleusercontent.com",
+          "client_secret": "secret-key-from-google",
+          "redirect_url": "https://localhost:3080/v1/webapi/oidc/callback",
+          "display": "whatever",
+          "scope": ["roles"],
+          "claims_to_roles": [{
+            "claim": "roles",
+            "value": "teleport-user",
+          }]
+        }
+      }
 	`
 
 	_, err := UnmarshalOIDCConnector([]byte(input))

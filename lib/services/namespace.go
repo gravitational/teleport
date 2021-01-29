@@ -23,7 +23,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// NamespaceSpecSchema is JSON schema for NameSpaceSpec
+// NamespaceSpecSchema is JSON schema for NameSpace resource spec
 const NamespaceSpecSchema = `{
 	"type": "object",
 	"additionalProperties": false,
@@ -44,7 +44,7 @@ const NamespaceSchemaTemplate = `{
 	}
   }`
 
-// GetNamespaceSchema returns namespace schema
+// GetNamespaceSchema returns Namespace schema
 func GetNamespaceSchema() string {
 	return fmt.Sprintf(NamespaceSchemaTemplate, MetadataSchema, NamespaceSpecSchema)
 }
