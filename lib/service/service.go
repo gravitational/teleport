@@ -990,7 +990,7 @@ func initExternalLog(ctx context.Context, auditConfig services.AuditConfig, log 
 		return nil, nil
 	}
 
-	if !auditConfig.ShouldUploadSessions() && hasNonFileLog {
+	if !services.ShouldUploadSessions(auditConfig) && hasNonFileLog {
 		// if audit events are being exported, session recordings should
 		// be exported as well.
 		return nil, trace.BadParameter("please specify audit_sessions_uri when using external audit backends")
@@ -3152,7 +3152,7 @@ func validateConfig(cfg *Config) error {
 		}
 	}
 	for _, tun := range cfg.ReverseTunnels {
-		if err := tun.Check(); err != nil {
+		if err := services.ValidateReverseTunnel(tun); err != nil {
 			return trace.Wrap(err)
 		}
 	}

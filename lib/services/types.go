@@ -181,8 +181,6 @@ type ClusterConfig = types.ClusterConfig
 
 var (
 	NewClusterConfig          = types.NewClusterConfig
-	DefaultClusterConfig      = types.DefaultClusterConfig
-	AuditConfigFromObject     = types.AuditConfigFromObject
 	SetClusterConfigMarshaler = types.SetClusterConfigMarshaler
 	GetClusterConfigMarshaler = types.GetClusterConfigMarshaler
 
@@ -194,9 +192,6 @@ var (
 
 	HostKeyCheckYes = types.HostKeyCheckYes
 	HostKeyCheckNo  = types.HostKeyCheckNo
-
-	IsRecordAtProxy = types.IsRecordAtProxy
-	IsRecordSync    = types.IsRecordSync
 )
 
 // clustername.go

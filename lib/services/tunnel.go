@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,17 +14,24 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package utils
+package services
 
-// StringMapsEqual returns true if two strings maps are equal
-func StringMapsEqual(a, b map[string]string) bool {
-	if len(a) != len(b) {
-		return false
+import (
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/trace"
+)
+
+// ValidateReverseTunnel validates the OIDC connector and sets default values
+func ValidateReverseTunnel(rt types.ReverseTunnel) error {
+	if err := rt.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
 	}
-	for key := range a {
-		if a[key] != b[key] {
-			return false
+	for _, addr := range rt.GetDialAddrs() {
+		if _, err := utils.ParseAddr(addr); err != nil {
+			return trace.Wrap(err)
 		}
 	}
-	return true
+	return nil
 }

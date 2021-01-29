@@ -20,7 +20,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 
 	"github.com/gravitational/trace"
@@ -230,13 +230,13 @@ func (s *KeepAlive) IsEmpty() bool {
 func (s *KeepAlive) GetType() string {
 	switch s.Type {
 	case KeepAlive_NODE:
-		return teleport.KeepAliveNode
+		return constants.KeepAliveNode
 	case KeepAlive_APP:
-		return teleport.KeepAliveApp
+		return constants.KeepAliveApp
 	case KeepAlive_DATABASE:
-		return teleport.KeepAliveDatabase
+		return constants.KeepAliveDatabase
 	default:
-		return teleport.KeepAliveNode
+		return constants.KeepAliveNode
 	}
 }
 

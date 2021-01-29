@@ -122,7 +122,7 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*Context, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleNames, err := ca.CombinedMapping().Map(u.RemoteRoles)
+	roleNames, err := services.MapRoles(ca.CombinedMapping(), u.RemoteRoles)
 	if err != nil {
 		return nil, trace.AccessDenied("failed to map roles for remote user %q from cluster %q", u.Username, u.ClusterName)
 	}

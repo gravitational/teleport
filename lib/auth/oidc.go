@@ -490,7 +490,7 @@ func (a *Server) createOIDCUser(p *createUserParams) (services.User, error) {
 				User: services.UserRef{Name: teleport.UserSystem},
 				Time: a.clock.Now().UTC(),
 				Connector: &services.ConnectorRef{
-					Type:     teleport.ConnectorOIDC,
+					Type:     teleport.OIDC,
 					ID:       p.connectorName,
 					Identity: p.username,
 				},

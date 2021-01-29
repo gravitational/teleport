@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
 )

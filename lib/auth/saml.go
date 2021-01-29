@@ -187,7 +187,7 @@ func (a *Server) createSAMLUser(p *createUserParams) (services.User, error) {
 				},
 				Time: a.clock.Now().UTC(),
 				Connector: &services.ConnectorRef{
-					Type:     teleport.ConnectorSAML,
+					Type:     teleport.SAML,
 					ID:       p.connectorName,
 					Identity: p.username,
 				},
