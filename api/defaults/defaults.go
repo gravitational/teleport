@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
-	"gopkg.in/square/go-jose.v2"
 )
 
 const (
@@ -43,10 +42,6 @@ const (
 
 	// MaxCertDuration limits maximum duration of validity of issued cert
 	MaxCertDuration = 30 * time.Hour
-
-	// ApplicationTokenAlgorithm is the default algorithm used to sign
-	// application access tokens.
-	ApplicationTokenAlgorithm = jose.RS256
 
 	// KeepAliveInterval is interval at which Teleport will send keep-alive
 	// messages to the client. The default interval of 5 minutes (300 seconds) is

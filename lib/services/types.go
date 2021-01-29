@@ -269,9 +269,6 @@ var (
 	NewOIDCConnector          = types.NewOIDCConnector
 	SetOIDCConnectorMarshaler = types.SetOIDCConnectorMarshaler
 	GetOIDCConnectorMarshaler = types.GetOIDCConnectorMarshaler
-
-	GetClaimNames      = types.GetClaimNames
-	OIDCClaimsToTraits = types.OIDCClaimsToTraits
 )
 
 // plugin_data.go
