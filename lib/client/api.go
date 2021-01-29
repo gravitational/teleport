@@ -503,6 +503,18 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 	}, nil
 }
 
+// StatusCurrent returns the active profile status.
+func StatusCurrent(profileDir, proxyHost string) (*ProfileStatus, error) {
+	active, _, err := Status(profileDir, proxyHost)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if active == nil {
+		return nil, trace.NotFound("not logged in")
+	}
+	return active, nil
+}
+
 // Status returns the active profile as well as a list of available profiles.
 func Status(profileDir string, proxyHost string) (*ProfileStatus, []*ProfileStatus, error) {
 	var err error
