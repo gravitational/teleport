@@ -45,7 +45,7 @@ type Provisioner interface {
 
 // MustCreateProvisionToken returns a new valid provision token
 // or panics, used in testes
-func MustCreateProvisionToken(token string, roles types.TeleportRoles, expires time.Time) ProvisionToken {
+func MustCreateProvisionToken(token string, roles types.SystemRoles, expires time.Time) ProvisionToken {
 	t, err := NewProvisionToken(token, roles, expires)
 	if err != nil {
 		panic(err)
