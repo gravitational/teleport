@@ -17,7 +17,6 @@ limitations under the License.
 package services
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 
@@ -32,7 +31,6 @@ import (
 type SAMLSuite struct{}
 
 var _ = check.Suite(&SAMLSuite{})
-var _ = fmt.Printf
 
 func (s *SAMLSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())

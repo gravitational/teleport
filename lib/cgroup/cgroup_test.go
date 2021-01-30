@@ -19,7 +19,6 @@ limitations under the License.
 package cgroup
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
@@ -33,7 +32,6 @@ import (
 
 type Suite struct{}
 
-var _ = fmt.Printf
 var _ = check.Suite(&Suite{})
 
 func TestControlGroups(t *testing.T) { check.TestingT(t) }

@@ -18,7 +18,6 @@ package secret
 
 import (
 	"encoding/json"
-	"fmt"
 	"testing"
 
 	"github.com/gravitational/teleport/lib/utils"
@@ -31,7 +30,6 @@ func TestSecret(t *testing.T) { check.TestingT(t) }
 type SecretSuite struct{}
 
 var _ = check.Suite(&SecretSuite{})
-var _ = fmt.Printf
 
 func (s *SecretSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())

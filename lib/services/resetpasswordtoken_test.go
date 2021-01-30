@@ -16,7 +16,6 @@ limitations under the License.
 package services
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -28,7 +27,6 @@ import (
 type ResetPasswordTokenSuite struct{}
 
 var _ = check.Suite(&ResetPasswordTokenSuite{})
-var _ = fmt.Printf
 
 func (r *ResetPasswordTokenSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())
