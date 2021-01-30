@@ -1855,15 +1855,13 @@ func TestWebSessionsRenew(t *testing.T) {
 
 	// make sure we can use client to make authenticated requests
 	// before we issue this request, we will recover session id and bearer token
-	//
 	prevSessionCookie := *pack.cookies[0]
 	prevBearerToken := pack.session.Token
 	resp, err := pack.clt.PostJSON(context.TODO(), pack.clt.Endpoint("webapi", "sessions", "renew"), nil)
 	require.NoError(t, err)
 
-	newPack := env.authPackFromResponse(t, resp)
-
 	// new session is functioning
+	newPack := env.authPackFromResponse(t, resp)
 	_, err = newPack.clt.Get(context.TODO(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
 	require.NoError(t, err)
 
@@ -1875,6 +1873,14 @@ func TestWebSessionsRenew(t *testing.T) {
 	prevSessionID := decodeSessionCookie(t, prevSessionCookie.Value)
 	activeSessionID := decodeSessionCookie(t, sessionCookie.Value)
 	require.NotEmpty(t, cmp.Diff(prevSessionID, activeSessionID))
+	require.NotEmpty(t, cmp.Diff(pack.session.ExpiresIn, newPack.session.ExpiresIn))
+
+	s := auth.WebSession{
+		Expires: newPack.session.Session.Expires,
+		Roles:   []string{"foo"},
+	}
+	require.Equal(t, s, newPack.session.Session)
+	require.Equal(t, roundtrip.AuthBearer, newPack.session.Type)
 
 	// old session is still valid too (until it expires)
 	jar, err := cookiejar.New(nil)

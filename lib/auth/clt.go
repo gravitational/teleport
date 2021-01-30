@@ -1093,14 +1093,8 @@ func (c *Client) GetU2FSignRequest(user string, password []byte) (*u2f.Authentic
 
 // ExtendWebSession creates a new web session for a user based on another
 // valid web session
-func (c *Client) ExtendWebSession(user string, prevSessionID string, accessRequestID string) (services.WebSession, error) {
-	out, err := c.PostJSON(
-		c.Endpoint("users", user, "web", "sessions"),
-		createWebSessionReq{
-			PrevSessionID:   prevSessionID,
-			AccessRequestID: accessRequestID,
-		},
-	)
+func (c *Client) ExtendWebSession(req CreateWebSessionReq) (services.WebSession, error) {
+	out, err := c.PostJSON(c.Endpoint("users", req.User, "web", "sessions"), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1111,7 +1105,7 @@ func (c *Client) ExtendWebSession(user string, prevSessionID string, accessReque
 func (c *Client) CreateWebSession(user string) (services.WebSession, error) {
 	out, err := c.PostJSON(
 		c.Endpoint("users", user, "web", "sessions"),
-		createWebSessionReq{},
+		CreateWebSessionReq{User: user},
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2126,8 +2120,8 @@ type WebService interface {
 	// it is valid, or error otherwise.
 	GetWebSessionInfo(ctx context.Context, user, sessionID string) (types.WebSession, error)
 	// ExtendWebSession creates a new web session for a user based on another
-	// valid web session
-	ExtendWebSession(user, prevSessionID, accessRequestID string) (types.WebSession, error)
+	// valid web session.
+	ExtendWebSession(req CreateWebSessionReq) (types.WebSession, error)
 	// CreateWebSession creates a new web session for a user
 	CreateWebSession(user string) (types.WebSession, error)
 

@@ -867,12 +867,17 @@ func (a *Server) CheckU2FSignResponse(user string, response *u2f.AuthenticateCha
 }
 
 // ExtendWebSession creates a new web session for a user based on a valid previous session.
-// Additional roles are appended to initial roles if there is an approved access request.
-// The new session expiration time will not exceed the expiration time of the old session.
-func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, identity tlsca.Identity) (services.WebSession, error) {
+//
+// If there is an approved access request, additional roles are appended to the roles that were
+// extracted from identity. The new session expiration time will not exceed the expiration time
+// of the old session.
+//
+// If there is a switch back default request, the new session will be created based on these
+// request values.
+func (a *Server) ExtendWebSession(req CreateWebSessionReq, identity tlsca.Identity) (services.WebSession, error) {
 	prevSession, err := a.GetWebSession(context.TODO(), types.GetWebSessionRequest{
-		User:      user,
-		SessionID: prevSessionID,
+		User:      req.User,
+		SessionID: req.PrevSessionID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -891,8 +896,8 @@ func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, i
 		return nil, trace.Wrap(err)
 	}
 
-	if accessRequestID != "" {
-		newRoles, requestExpiry, err := a.getRolesAndExpiryFromAccessRequest(user, accessRequestID)
+	if req.AccessRequestID != "" {
+		newRoles, requestExpiry, err := a.getRolesAndExpiryFromAccessRequest(req.User, req.AccessRequestID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -906,9 +911,25 @@ func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, i
 		}
 	}
 
+	if req.SwitchBackDefaults != nil {
+		defaultRoles := req.SwitchBackDefaults.Roles
+		defaultExpiry := req.SwitchBackDefaults.Expires
+
+		if err := utils.StringSliceSubset(roles, defaultRoles); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if !defaultExpiry.IsZero() && defaultExpiry.Before(a.clock.Now().UTC()) {
+			return nil, trace.NotFound("web session has expired")
+		}
+
+		roles = req.SwitchBackDefaults.Roles
+		expiresAt = req.SwitchBackDefaults.Expires
+	}
+
 	sessionTTL := utils.ToTTL(a.clock, expiresAt)
 	sess, err := a.NewWebSession(types.NewWebSessionRequest{
-		User:       user,
+		User:       req.User,
 		Roles:      roles,
 		Traits:     traits,
 		SessionTTL: sessionTTL,
@@ -917,7 +938,7 @@ func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, i
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.upsertWebSession(context.TODO(), user, sess); err != nil {
+	if err := a.upsertWebSession(context.TODO(), req.User, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

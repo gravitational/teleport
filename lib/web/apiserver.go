@@ -237,7 +237,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.POST("/webapi/sessions/app", h.WithAuth(h.createAppSession))
 	h.DELETE("/webapi/sessions", h.WithAuth(h.deleteSession))
 	h.POST("/webapi/sessions/renew", h.WithAuth(h.renewSession))
-	h.POST("/webapi/sessions/renew/:requestId", h.WithAuth(h.renewSession))
 
 	h.GET("/webapi/users/password/token/:token", httplib.MakeHandler(h.getResetPasswordTokenHandle))
 	h.PUT("/webapi/users/password/token", httplib.WithCSRFProtection(h.changePasswordWithToken))
@@ -1174,6 +1173,8 @@ type CreateSessionResponse struct {
 	Token string `json:"token"`
 	// ExpiresIn sets seconds before this token is not valid
 	ExpiresIn int `json:"expires_in"`
+	// Session contains current web session expiry and roles assigned.
+	Session auth.WebSession `json:"session"`
 }
 
 func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
@@ -1181,27 +1182,41 @@ func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	token := ctx.getToken()
-	user, err := clt.GetUser(ctx.GetUser(), false)
+
+	cert, _, err := ctx.GetCertificates()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	extractedRoles, _, err := services.ExtractFromCertificate(clt, cert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	var roles services.RoleSet
-	for _, roleName := range user.GetRoles() {
+	for _, roleName := range extractedRoles {
 		role, err := clt.GetRole(roleName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		roles = append(roles, role)
 	}
+
 	_, err = roles.CheckLoginDuration(0)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	token := ctx.getToken()
+
 	return &CreateSessionResponse{
 		Type:      roundtrip.AuthBearer,
 		Token:     token.GetName(),
 		ExpiresIn: int(token.Expiry().Sub(ctx.parent.clock.Now()) / time.Second),
+		Session: auth.WebSession{
+			Expires: ctx.session.GetExpiryTime(),
+			Roles:   extractedRoles,
+		},
 	}, nil
 }
 
@@ -1294,13 +1309,45 @@ func (h *Handler) logout(w http.ResponseWriter, ctx *SessionContext) error {
 	return nil
 }
 
-// renewSession is called in two ways:
-// 	- Without requestId: Updates the existing session about to expire.
-// 	- With requestId: Updates existing session with additional roles assigned with approving access request.
-func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	requestID := params.ByName("requestId")
+type renewSessionRequest struct {
+	// AccessRequestID is the id of an approved access request.
+	AccessRequestID string `json:"requestId"`
+	// Expires defines when the new session should expire.
+	Expires time.Time `json:"expires"`
+	// Roles is the list of roles that the new session should be assigned.
+	Roles []string `json:"roles"`
+}
 
-	newSession, err := ctx.extendWebSession(requestID)
+// renewSession updates this existing session with a new session and sets cookie with the new session.
+//
+// Depending on request fields sent in with request, the new session creation can be modified:
+//   - requestId (opt): appends roles approved from access request to currently assigned roles or,
+//   - expires and roles (opt): values that were preserved from first session creation after web login.
+//     Allows users who assumed roles by approved access requests, to switch back to their default roles
+//     and this new session lives through remainining expiration time.
+func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	req := &renewSessionRequest{}
+	if r.Body != http.NoBody {
+		if err := httplib.ReadJSON(r, &req); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	var switchBackDefaults *auth.WebSession
+	if !req.Expires.IsZero() && len(req.Roles) > 0 {
+		switchBackDefaults = &auth.WebSession{
+			Expires: req.Expires,
+			Roles:   req.Roles,
+		}
+	}
+
+	newSession, err := ctx.extendWebSession(auth.CreateWebSessionReq{
+		User:               ctx.GetUser(),
+		PrevSessionID:      ctx.GetSessionID(),
+		AccessRequestID:    req.AccessRequestID,
+		SwitchBackDefaults: switchBackDefaults,
+	})
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -751,19 +751,41 @@ func (s *APIServer) u2fSignRequest(auth ClientI, w http.ResponseWriter, r *http.
 	return u2fSignReq, nil
 }
 
-type createWebSessionReq struct {
-	PrevSessionID   string `json:"prev_session_id"`
+// CreateWebSessionReq defines fields for requesting to create new web session.
+type CreateWebSessionReq struct {
+	// PrevSessionID is the id of a valid existing session.
+	PrevSessionID string `json:"prev_session_id"`
+	// AccessRequestID is an optional field that holds the id of an approved access request.
 	AccessRequestID string `json:"access_request_id"`
+	// User is the user name associated with the session id.
+	User string `json:"user"`
+	// SwitchBackDefaults is an optional field that defines default user roles and expiration values.
+	// These are the preserved values from first session creation after web login.
+	SwitchBackDefaults *WebSession `json:"session"`
+}
+
+// WebSession defines fields describing a session expiration and roles assigned to it.
+type WebSession struct {
+	// Expires is the time session expires.
+	Expires time.Time `json:"expires"`
+	// Roles is a list of roles assigned to session.
+	Roles []string `json:"roles"`
 }
 
 func (s *APIServer) createWebSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *createWebSessionReq
+	var req CreateWebSessionReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// DELETE IN 8.0: proxy v5.0 sends request with no user field.
+	// And since proxy v6.0, request will come with user field set, so grabbing user
+	// by param is not required.
 	user := p.ByName("user")
+	req.User = user
+
 	if req.PrevSessionID != "" {
-		sess, err := auth.ExtendWebSession(user, req.PrevSessionID, req.AccessRequestID)
+		sess, err := auth.ExtendWebSession(req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

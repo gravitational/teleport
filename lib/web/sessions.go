@@ -241,8 +241,8 @@ func (c *SessionContext) GetUser() string {
 
 // extendWebSession creates a new web session for this user
 // based on the previous session
-func (c *SessionContext) extendWebSession(accessRequestID string) (services.WebSession, error) {
-	session, err := c.clt.ExtendWebSession(c.user, c.session.GetName(), accessRequestID)
+func (c *SessionContext) extendWebSession(req auth.CreateWebSessionReq) (services.WebSession, error) {
+	session, err := c.clt.ExtendWebSession(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
