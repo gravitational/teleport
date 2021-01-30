@@ -131,6 +131,19 @@ var (
 	RequestStrategyAlways   = types.RequestStrategyAlways
 )
 
+// authentication.go
+type (
+	AuthPreference       = types.AuthPreference
+	AuthPreferenceV2     = types.AuthPreferenceV2
+	AuthPreferenceSpecV2 = types.AuthPreferenceSpecV2
+	U2F                  = types.U2F
+)
+
+var (
+	NewAuthPreference     = types.NewAuthPreference
+	DefaultAuthPreference = types.DefaultAuthPreference
+)
+
 // authority.go
 type (
 	CertAuthority = types.CertAuthority
