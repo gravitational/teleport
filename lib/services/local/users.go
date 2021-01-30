@@ -27,6 +27,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -34,7 +35,6 @@ import (
 	"github.com/gokyle/hotp"
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
-	"github.com/tstranex/u2f"
 )
 
 // IdentityService is responsible for managing web users and currently

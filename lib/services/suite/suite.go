@@ -23,7 +23,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
-	"fmt"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -32,6 +31,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -44,11 +44,8 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
-	"github.com/tstranex/u2f"
 	"gopkg.in/check.v1"
 )
-
-var _ = fmt.Printf
 
 // NewTestCA returns new test authority with a test key as a public and
 // signing key

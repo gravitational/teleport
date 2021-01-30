@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -58,7 +59,6 @@ import (
 	"github.com/pborman/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	saml2 "github.com/russellhaering/gosaml2"
-	"github.com/tstranex/u2f"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -807,13 +807,13 @@ func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (s
 	return sess.WithoutSecrets(), nil
 }
 
-func (a *Server) U2FSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
+func (a *Server) U2FSignRequest(user string, password []byte) (*u2f.AuthenticateChallenge, error) {
 	cap, err := a.GetAuthPreference()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	universalSecondFactor, err := cap.GetU2F()
+	u2fConfig, err := cap.GetU2F()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -824,26 +824,15 @@ func (a *Server) U2FSignRequest(user string, password []byte) (*u2f.SignRequest,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	registration, err := a.GetU2FRegistration(user)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	challenge, err := u2f.NewChallenge(universalSecondFactor.AppID, universalSecondFactor.Facets)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = a.UpsertU2FSignChallenge(user, challenge)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	u2fSignReq := challenge.SignRequest(*registration)
-
-	return u2fSignReq, nil
+	return u2f.AuthenticateInit(u2f.AuthenticateInitParams{
+		AppConfig:  *u2fConfig,
+		StorageKey: user,
+		Storage:    a.Identity,
+	})
 }
 
-func (a *Server) CheckU2FSignResponse(user string, response *u2f.SignResponse) error {
+func (a *Server) CheckU2FSignResponse(user string, response *u2f.AuthenticateChallengeResponse) error {
 	// before trying to register a user, see U2F is actually setup on the backend
 	cap, err := a.GetAuthPreference()
 	if err != nil {
@@ -854,32 +843,11 @@ func (a *Server) CheckU2FSignResponse(user string, response *u2f.SignResponse) e
 		return trace.Wrap(err)
 	}
 
-	reg, err := a.GetU2FRegistration(user)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	counter, err := a.GetU2FRegistrationCounter(user)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	challenge, err := a.GetU2FSignChallenge(user)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	newCounter, err := reg.Authenticate(*response, *challenge, counter)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = a.UpsertU2FRegistrationCounter(user, newCounter)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	return u2f.AuthenticateVerify(u2f.AuthenticateVerifyParams{
+		Resp:       *response,
+		StorageKey: user,
+		Storage:    a.Identity,
+	})
 }
 
 // ExtendWebSession creates a new web session for a user based on a valid previous sessionID.

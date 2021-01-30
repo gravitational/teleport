@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
@@ -75,8 +76,6 @@ import (
 	"github.com/pborman/uuid"
 	"github.com/pquerna/otp/totp"
 	"github.com/sirupsen/logrus"
-	"github.com/tstranex/u2f"
-	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
@@ -1399,7 +1398,7 @@ func (s *WebSuite) TestChangePasswordWithTokenU2F(c *C) {
 	re, err := clt.Get(context.Background(), clt.Endpoint("webapi", "u2f", "signuptokens", token.GetName()), url.Values{})
 	c.Assert(err, IsNil)
 
-	var u2fRegReq u2f.RegisterRequest
+	var u2fRegReq u2f.RegisterChallenge
 	c.Assert(json.Unmarshal(re.Bytes(), &u2fRegReq), IsNil)
 
 	u2fRegResp, err := s.mockU2F.RegisterResponse(&u2fRegReq)
@@ -1474,7 +1473,7 @@ func (s *WebSuite) TestU2FLogin(c *C) {
 		Pass: string(tempPass),
 	})
 	c.Assert(err, IsNil)
-	var u2fSignReq u2f.SignRequest
+	var u2fSignReq u2f.AuthenticateChallenge
 	c.Assert(json.Unmarshal(re.Bytes(), &u2fSignReq), IsNil)
 
 	u2fSignResp, err := s.mockU2F.SignResponse(&u2fSignReq)
@@ -1825,15 +1824,15 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		},
 	}
 	_, err := s.server.Auth().UpsertAppServer(context.Background(), server)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, IsNil)
 
 	// Extract the session ID and bearer token for the current session.
 	rawCookie := *pack.cookies[0]
 	cookieBytes, err := hex.DecodeString(rawCookie.Value)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, IsNil)
 	var sessionCookie SessionCookie
 	err = json.Unmarshal(cookieBytes, &sessionCookie)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, IsNil)
 
 	var tests = []struct {
 		inComment       CommentInterface
@@ -1884,7 +1883,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		// Make a request to create an application session for "panel".
 		endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
 		resp, err := pack.clt.PostJSON(context.Background(), endpoint, tt.inCreateRequest)
-		c.Assert(err != nil, check.Equals, tt.outError, tt.inComment)
+		c.Assert(err != nil, Equals, tt.outError, tt.inComment)
 		if tt.outError {
 			continue
 		}
@@ -1897,9 +1896,9 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		session, err := s.server.Auth().GetAppSession(context.Background(), services.GetAppSessionRequest{
 			SessionID: response.CookieValue,
 		})
-		c.Assert(err, check.IsNil)
-		c.Assert(session.GetUser(), check.Equals, tt.outUsername)
-		c.Assert(session.GetName(), check.Equals, response.CookieValue)
+		c.Assert(err, IsNil)
+		c.Assert(session.GetUser(), Equals, tt.outUsername)
+		c.Assert(session.GetName(), Equals, response.CookieValue)
 	}
 }
 
