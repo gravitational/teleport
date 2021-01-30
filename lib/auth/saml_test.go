@@ -18,7 +18,6 @@ package auth
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -38,7 +37,6 @@ type SAMLSuite struct {
 	c clockwork.FakeClock
 }
 
-var _ = fmt.Printf
 var _ = check.Suite(&SAMLSuite{})
 
 func (s *SAMLSuite) SetUpSuite(c *check.C) {

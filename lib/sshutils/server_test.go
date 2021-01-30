@@ -37,7 +37,6 @@ type ServerSuite struct {
 	signer ssh.Signer
 }
 
-var _ = fmt.Printf
 var _ = check.Suite(&ServerSuite{})
 
 func (s *ServerSuite) SetUpSuite(c *check.C) {

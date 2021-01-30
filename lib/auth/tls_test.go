@@ -61,8 +61,6 @@ type TLSSuite struct {
 }
 
 var _ = check.Suite(&TLSSuite{})
-var _ = testing.Verbose
-var _ = fmt.Printf
 
 func (s *TLSSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())

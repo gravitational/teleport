@@ -17,7 +17,6 @@ limitations under the License.
 package proxy
 
 import (
-	"fmt"
 	"os"
 	"testing"
 
@@ -31,7 +30,6 @@ func TestProxy(t *testing.T) { check.TestingT(t) }
 type ProxySuite struct{}
 
 var _ = check.Suite(&ProxySuite{})
-var _ = fmt.Printf
 
 func (s *ProxySuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())

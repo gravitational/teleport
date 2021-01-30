@@ -17,7 +17,6 @@ limitations under the License.
 package asciitable
 
 import (
-	"fmt"
 	"testing"
 
 	"gopkg.in/check.v1"
@@ -28,7 +27,6 @@ func TestAsciiTable(t *testing.T) { check.TestingT(t) }
 type TableTestSuite struct {
 }
 
-var _ = fmt.Printf
 var _ = check.Suite(&TableTestSuite{})
 
 const fullTable = `Name          Motto                            Age  
