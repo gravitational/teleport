@@ -22,7 +22,6 @@ import (
 	"crypto/x509"
 	"encoding/base32"
 	"encoding/base64"
-	"fmt"
 	"testing"
 	"time"
 
@@ -46,7 +45,6 @@ type ResourceSuite struct {
 	bk backend.Backend
 }
 
-var _ = fmt.Printf
 var _ = check.Suite(&ResourceSuite{})
 
 func (r *ResourceSuite) SetUpSuite(c *check.C) {

@@ -17,7 +17,6 @@ limitations under the License.
 package socks
 
 import (
-	"fmt"
 	"io"
 	"net"
 	"testing"
@@ -36,7 +35,6 @@ func TestSocks(t *testing.T) { check.TestingT(t) }
 type SOCKSSuite struct{}
 
 var _ = check.Suite(&SOCKSSuite{})
-var _ = fmt.Printf
 
 func (s *SOCKSSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())

@@ -17,7 +17,6 @@ limitations under the License.
 package services
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/gravitational/teleport"
@@ -30,7 +29,6 @@ import (
 type RoleMapSuite struct{}
 
 var _ = check.Suite(&RoleMapSuite{})
-var _ = fmt.Printf
 
 func (s *RoleMapSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())

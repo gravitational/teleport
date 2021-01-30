@@ -54,7 +54,6 @@ type KeyAgentTestSuite struct {
 }
 
 var _ = check.Suite(&KeyAgentTestSuite{})
-var _ = fmt.Printf
 
 func (s *KeyAgentTestSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())
