@@ -41,12 +41,12 @@ import (
 
 const (
 	defaultKeyDir      = client.ProfileDir
-	fileExtTLSCert     = "-x509.pem"
+	fileExtTLSCert     = client.FileExtTLSCert
 	fileExtCert        = "-cert.pub"
 	fileExtPub         = ".pub"
-	sessionKeyDir      = "keys"
+	sessionKeyDir      = client.SessionKeyDir
 	fileNameKnownHosts = "known_hosts"
-	fileNameTLSCerts   = "certs.pem"
+	fileNameTLSCerts   = client.FileNameTLSCerts
 	kubeDirSuffix      = "-kube"
 	dbDirSuffix        = "-db"
 

@@ -35,6 +35,17 @@ import (
 // currently active profile.
 const CurrentProfileFilename = "current-profile"
 
+const (
+	// ProfileDir is the default directory location where tsh profiles (and session keys) are stored.
+	ProfileDir = ".tsh"
+	// SessionKeyDir is the directory where session keys are stored (.tsh/keys).
+	SessionKeyDir = "keys"
+	// FileExtTLSCert is the filename extension/suffix of TLS certs stored in a profile (./tsh/keys/profilename/username-x509.pem).
+	FileExtTLSCert = "-x509.pem"
+	// FileNameTLSCerts is the filename of Cert Authorities stored in a profile (./tsh/keys/profilename/certs.pem).
+	FileNameTLSCerts = "certs.pem"
+)
+
 // Profile is a collection of most frequently used CLI flags
 // for "tsh".
 //
@@ -86,23 +97,23 @@ func (cp *Profile) Name() string {
 
 // TLS attempts to load credentials from the specified tls certificates path.
 func (cp *Profile) TLS() (*tls.Config, error) {
-	credsPath := filepath.Join(cp.Dir, sessionKeyDir, cp.Name())
+	credsPath := filepath.Join(cp.Dir, SessionKeyDir, cp.Name())
 
-	certFile := filepath.Join(credsPath, cp.Username+fileExtTLSCert)
-	keyFile := filepath.Join(credsPath, cp.Username)
-	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	certPath := filepath.Join(credsPath, cp.Username+FileExtTLSCert)
+	keyPath := filepath.Join(credsPath, cp.Username)
+	cert, err := tls.LoadX509KeyPair(certPath, keyPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	caCertsFile := filepath.Join(credsPath, fileNameTLSCerts)
-	caCerts, err := ioutil.ReadFile(caCertsFile)
+	certsPath := filepath.Join(credsPath, FileNameTLSCerts)
+	certs, err := ioutil.ReadFile(certsPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	pool := x509.NewCertPool()
-	if !pool.AppendCertsFromPEM(caCerts) {
+	if !pool.AppendCertsFromPEM(certs) {
 		return nil, trace.BadParameter("invalid CA cert PEM")
 	}
 

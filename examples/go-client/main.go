@@ -18,36 +18,52 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"log"
 
 	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/lib/auth"
-	log "github.com/sirupsen/logrus"
+	"github.com/gravitational/teleport/api/types"
+
+	"github.com/google/uuid"
 )
 
 func main() {
+	ctx := context.Background()
 	log.Printf("Starting Teleport client...")
-	config := client.Config{
-		Addrs: []string{"127.0.0.1:3025"},
-		// Credentials: client.PathCreds("certs/api-admin"),
+
+	clt, err := client.NewClient(client.Config{
+		// TODO: Can Addrs be loaded from somewhere?
+		Addrs:       []string{"proxy.example.com:3025"},
 		Credentials: client.ProfileCreds(),
 		// Credentials: client.IdentityCreds("/home/bjoerger/dev"),
-	}
-
-	client, err := auth.NewClient(config)
+		// Credentials: client.PathCreds("certs/api-admin"),
+	})
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
 	}
-	defer client.Close()
+	defer clt.Close()
 
-	ctx := context.Background()
+	// create a new access request for api-admin to use the admin role
+	accessReq, err := types.NewAccessRequest(uuid.New().String(), "access-admin", "admin")
+	if err != nil {
+		log.Panicf("Failed to make new access request: %v", err)
+	}
+	if err = clt.CreateAccessRequest(ctx, accessReq); err != nil {
+		log.Panicf("Failed to create access request: %v", err)
+	}
+	log.Printf("Created access request: %v", accessReq)
 
-	fmt.Println("")
-	roleCRUD(ctx, client)
+	defer func() {
+		if err = clt.DeleteAccessRequest(ctx, accessReq.GetName()); err != nil {
+			log.Panicf("Failed to delete access request: %v", err)
+		}
+		log.Println("Deleted access request")
+	}()
 
-	fmt.Println("")
-	tokenCRUD(ctx, client)
-
-	fmt.Println("")
-	accessWorkflow(ctx, client)
+	// approve the access request
+	if err = clt.SetAccessRequestState(ctx, types.AccessRequestUpdate{
+		RequestID: accessReq.GetName(),
+		State:     types.RequestState_APPROVED,
+	}); err != nil {
+		log.Printf("Failed to accept request: %v", err)
+	}
 }

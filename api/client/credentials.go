@@ -20,16 +20,9 @@ import (
 	"crypto/tls"
 
 	"github.com/gravitational/teleport/api/constants"
+
 	"github.com/gravitational/trace"
 	"golang.org/x/net/http2"
-)
-
-const (
-	// ProfileDir is the default directory location where tsh profiles (and session keys) are stored
-	ProfileDir       = ".tsh"
-	fileExtTLSCert   = "-x509.pem"
-	sessionKeyDir    = "keys"
-	fileNameTLSCerts = "certs.pem"
 )
 
 // Credentials are used to authenticate the client's connection to the server
@@ -41,7 +34,7 @@ type Credentials struct {
 	err error
 }
 
-// CheckAndSetDefaults checks and sets default credential values
+// CheckAndSetDefaults checks and sets default credential values.
 func (c *Credentials) CheckAndSetDefaults() error {
 	if c.err != nil {
 		return trace.WrapWithMessage(c.err, "error in loading API creds")
@@ -62,7 +55,7 @@ func (c *Credentials) TLS() *tls.Config {
 	return c.tls
 }
 
-// ProfileCreds attempts to load Teleport client.Credentials from ~/.tsh/profile,
+// ProfileCreds attempts to load Credentials from the default Profile,
 // which is set by logging in with `tsh login`.
 func ProfileCreds() Credentials {
 	profileDir := defaultProfilePath()
@@ -79,7 +72,7 @@ func ProfileCreds() Credentials {
 	return TLSCreds(tls)
 }
 
-// IdentityCreds attempts to load Teleport client.Credentials from the specified identity file's full path.
+// IdentityCreds attempts to load Credentials from the specified identity file's path.
 // You can create an identity file by running `tsh login --out=[full_file_path]`.
 func IdentityCreds(path string) Credentials {
 	idf, err := DecodeIdentityFile(path)
