@@ -27,4 +27,6 @@ type Services interface {
 	DynamicAccess
 	Presence
 	AppSession
+	WebSessionsGetter
+	WebTokensGetter
 }

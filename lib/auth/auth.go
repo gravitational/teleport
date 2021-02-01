@@ -154,6 +154,18 @@ type Services struct {
 	events.IAuditLog
 }
 
+// GetWebSession returns existing web session described by req.
+// Implements ReadAccessPoint
+func (r Services) GetWebSession(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
+	return r.Identity.WebSessions().Get(ctx, req)
+}
+
+// GetWebToken returns existing web token described by req.
+// Implements ReadAccessPoint
+func (r Services) GetWebToken(ctx context.Context, req services.GetWebTokenRequest) (services.WebToken, error) {
+	return r.Identity.WebTokens().Get(ctx, req)
+}
+
 var (
 	generateRequestsCount = prometheus.NewCounter(
 		prometheus.CounterOpts{
@@ -724,11 +736,15 @@ func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (s
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess, err := a.NewWebSession(user, roles, traits)
+	sess, err := a.NewWebSession(services.NewWebSessionRequest{
+		User:   user,
+		Roles:  roles,
+		Traits: traits,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.UpsertWebSession(user, sess); err != nil {
+	if err := a.upsertWebSession(context.TODO(), user, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return sess.WithoutSecrets(), nil
@@ -809,10 +825,14 @@ func (a *Server) CheckU2FSignResponse(user string, response *u2f.SignResponse) e
 	return nil
 }
 
-// ExtendWebSession creates a new web session for a user based on a valid previous sessionID.
+// ExtendWebSession creates a new web session for a user based on a valid previous session.
 // Additional roles are appended to initial roles if there is an approved access request.
+// The new session expiration time will not exceed the expiration time of the old session.
 func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, identity tlsca.Identity) (services.WebSession, error) {
-	prevSession, err := a.GetWebSession(user, prevSessionID)
+	prevSession, err := a.GetWebSession(context.TODO(), services.GetWebSessionRequest{
+		User:      user,
+		SessionID: prevSessionID,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -845,15 +865,18 @@ func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, i
 		}
 	}
 
-	sess, err := a.NewWebSession(user, roles, traits)
+	sessionTTL := utils.ToTTL(a.clock, expiresAt)
+	sess, err := a.NewWebSession(services.NewWebSessionRequest{
+		User:       user,
+		Roles:      roles,
+		Traits:     traits,
+		SessionTTL: sessionTTL,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sess.SetExpiryTime(expiresAt)
-	bearerTokenTTL := utils.MinTTL(utils.ToTTL(a.clock, expiresAt), BearerTokenTTL)
-	sess.SetBearerTokenExpiryTime(a.clock.Now().UTC().Add(bearerTokenTTL))
-	if err := a.UpsertWebSession(user, sess); err != nil {
+	if err := a.upsertWebSession(context.TODO(), user, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -907,11 +930,15 @@ func (a *Server) CreateWebSession(user string) (services.WebSession, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess, err := a.NewWebSession(user, u.GetRoles(), u.GetTraits())
+	sess, err := a.NewWebSession(services.NewWebSessionRequest{
+		User:   user,
+		Roles:  u.GetRoles(),
+		Traits: u.GetTraits(),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.UpsertWebSession(user, sess); err != nil {
+	if err := a.upsertWebSession(context.TODO(), user, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	sess, err = services.GetWebSessionMarshaler().GenerateWebSession(sess)
@@ -1420,27 +1447,30 @@ func (a *Server) GetTokens(opts ...services.MarshalOption) (tokens []services.Pr
 	return tokens, nil
 }
 
-func (a *Server) NewWebSession(username string, roles []string, traits wrappers.Traits) (services.WebSession, error) {
-	user, err := a.GetUser(username, false)
+// NewWebSession creates and returns a new web session for the specified request
+func (a *Server) NewWebSession(req services.NewWebSessionRequest) (services.WebSession, error) {
+	user, err := a.GetUser(req.User, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(roles, a.Access, traits)
+	checker, err := services.FetchRoles(req.Roles, a.Access, req.Traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	priv, pub, err := a.GetNewKeyPairFromPool()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sessionTTL := checker.AdjustSessionTTL(defaults.CertDuration)
+	sessionTTL := req.SessionTTL
+	if sessionTTL == 0 {
+		sessionTTL = checker.AdjustSessionTTL(defaults.CertDuration)
+	}
 	certs, err := a.generateUserCert(certRequest{
 		user:      user,
 		ttl:       sessionTTL,
 		publicKey: pub,
 		checker:   checker,
-		traits:    traits,
+		traits:    req.Traits,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1455,7 +1485,7 @@ func (a *Server) NewWebSession(username string, roles []string, traits wrappers.
 	}
 	bearerTokenTTL := utils.MinTTL(sessionTTL, BearerTokenTTL)
 	return services.NewWebSession(token, services.KindWebSession, services.KindWebSession, services.WebSessionSpecV2{
-		User:               user.GetName(),
+		User:               req.User,
 		Priv:               priv,
 		Pub:                certs.ssh,
 		TLSCert:            certs.tls,
@@ -1465,16 +1495,11 @@ func (a *Server) NewWebSession(username string, roles []string, traits wrappers.
 	}), nil
 }
 
-func (a *Server) UpsertWebSession(user string, sess services.WebSession) error {
-	return a.Identity.UpsertWebSession(user, sess.GetName(), sess)
-}
-
-func (a *Server) GetWebSession(userName string, id string) (services.WebSession, error) {
-	return a.Identity.GetWebSession(userName, id)
-}
-
-func (a *Server) GetWebSessionInfo(userName string, id string) (services.WebSession, error) {
-	sess, err := a.Identity.GetWebSession(userName, id)
+// GetWebSessionInfo returns the web session specified with sessionID for the given user.
+// The session is stripped of any authentication details.
+// Implements auth.WebUIService
+func (a *Server) GetWebSessionInfo(ctx context.Context, user, sessionID string) (services.WebSession, error) {
+	sess, err := a.Identity.WebSessions().Get(ctx, services.GetWebSessionRequest{User: user, SessionID: sessionID})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1493,10 +1518,6 @@ func (a *Server) DeleteNamespace(namespace string) error {
 		return trace.BadParameter("can't delete namespace %v that has %v registered nodes", namespace, len(nodes))
 	}
 	return a.Presence.DeleteNamespace(namespace)
-}
-
-func (a *Server) DeleteWebSession(user string, id string) error {
-	return trace.Wrap(a.Identity.DeleteWebSession(user, id))
 }
 
 // NewWatcher returns a new event watcher. In case of an auth server
@@ -1846,6 +1867,20 @@ func WithClock(clock clockwork.Clock) func(*Server) {
 	return func(s *Server) {
 		s.clock = clock
 	}
+}
+
+func (a *Server) upsertWebSession(ctx context.Context, user string, session services.WebSession) error {
+	if err := a.WebSessions().Upsert(ctx, session); err != nil {
+		return trace.Wrap(err)
+	}
+	token := services.NewWebToken(session.GetBearerTokenExpiryTime(), services.WebTokenSpecV3{
+		User:  session.GetUser(),
+		Token: session.GetBearerToken(),
+	})
+	if err := a.WebTokens().Upsert(ctx, token); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // authKeepAliver is a keep aliver using auth server directly

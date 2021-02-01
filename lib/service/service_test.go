@@ -49,6 +49,18 @@ func (s *ServiceTestSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())
 }
 
+func (s *ServiceTestSuite) TestDebugModeEnv(c *check.C) {
+	c.Assert(isDebugMode(), check.Equals, false)
+	os.Setenv(teleport.DebugEnvVar, "no")
+	c.Assert(isDebugMode(), check.Equals, false)
+	os.Setenv(teleport.DebugEnvVar, "0")
+	c.Assert(isDebugMode(), check.Equals, false)
+	os.Setenv(teleport.DebugEnvVar, "1")
+	c.Assert(isDebugMode(), check.Equals, true)
+	os.Setenv(teleport.DebugEnvVar, "true")
+	c.Assert(isDebugMode(), check.Equals, true)
+}
+
 func (s *ServiceTestSuite) TestSelfSignedHTTPS(c *check.C) {
 	fileExists := func(fp string) bool {
 		_, err := os.Stat(fp)

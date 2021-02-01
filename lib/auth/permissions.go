@@ -277,6 +277,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 						services.NewRule(services.KindClusterConfig, services.RO()),
 						services.NewRule(services.KindAppServer, services.RW()),
 						services.NewRule(services.KindWebSession, services.RO()),
+						services.NewRule(services.KindWebToken, services.RO()),
 						services.NewRule(services.KindJWT, services.RW()),
 					},
 				},
@@ -319,6 +320,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 							services.NewRule(services.KindSemaphore, services.RW()),
 							services.NewRule(services.KindAppServer, services.RO()),
 							services.NewRule(services.KindWebSession, services.RW()),
+							services.NewRule(services.KindWebToken, services.RW()),
 							services.NewRule(services.KindKubeService, services.RW()),
 							// this rule allows local proxy to update the remote cluster's host certificate authorities
 							// during certificates renewal
@@ -374,6 +376,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 						services.NewRule(services.KindSemaphore, services.RW()),
 						services.NewRule(services.KindAppServer, services.RO()),
 						services.NewRule(services.KindWebSession, services.RW()),
+						services.NewRule(services.KindWebToken, services.RW()),
 						services.NewRule(services.KindKubeService, services.RW()),
 						// this rule allows local proxy to update the remote cluster's host certificate authorities
 						// during certificates renewal
@@ -403,6 +406,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 					Namespaces: []string{services.Wildcard},
 					Rules: []services.Rule{
 						services.NewRule(services.KindWebSession, services.RW()),
+						services.NewRule(services.KindWebToken, services.RW()),
 						services.NewRule(services.KindSSHSession, services.RW()),
 						services.NewRule(services.KindAuthServer, services.RO()),
 						services.NewRule(services.KindUser, services.RO()),
