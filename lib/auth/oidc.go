@@ -469,7 +469,7 @@ func (a *Server) createOIDCUser(p *createUserParams) (services.User, error) {
 	expires := a.GetClock().Now().UTC().Add(p.sessionTTL)
 
 	log.Debugf("Generating dynamic OIDC identity %v/%v with roles: %v.", p.connectorName, p.username, p.roles)
-	user, err := services.GetUserMarshaler().GenerateUser(&services.UserV2{
+	user := &services.UserV2{
 		Kind:    services.KindUser,
 		Version: services.V2,
 		Metadata: services.Metadata{
@@ -490,15 +490,12 @@ func (a *Server) createOIDCUser(p *createUserParams) (services.User, error) {
 				User: services.UserRef{Name: teleport.UserSystem},
 				Time: a.clock.Now().UTC(),
 				Connector: &services.ConnectorRef{
-					Type:     teleport.ConnectorOIDC,
+					Type:     teleport.OIDC,
 					ID:       p.connectorName,
 					Identity: p.username,
 				},
 			},
 		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	// Get the user to check if it already exists or not.

@@ -19,7 +19,6 @@ package auth
 import (
 	"context"
 	"encoding/base32"
-	"fmt"
 	"math"
 	"sync"
 	"testing"
@@ -48,7 +47,6 @@ type PasswordSuite struct {
 	mockEmitter *events.MockEmitter
 }
 
-var _ = fmt.Printf
 var _ = Suite(&PasswordSuite{})
 
 func (s *PasswordSuite) SetUpSuite(c *C) {

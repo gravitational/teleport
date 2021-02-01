@@ -21,7 +21,6 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
-	"fmt"
 
 	"golang.org/x/crypto/ssh"
 
@@ -32,7 +31,6 @@ import (
 
 type CheckerSuite struct{}
 
-var _ = fmt.Printf
 var _ = check.Suite(&CheckerSuite{})
 
 // TestValidate checks what algorithm are supported in regular (non-FIPS) mode.

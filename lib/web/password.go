@@ -19,6 +19,7 @@ package web
 import (
 	"net/http"
 
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
@@ -26,7 +27,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/tstranex/u2f"
 )
 
 // changePasswordReq is a request to change user password
@@ -38,7 +38,7 @@ type changePasswordReq struct {
 	// SecondFactorToken is user 2nd factor token
 	SecondFactorToken string `json:"second_factor_token"`
 	// U2FSignResponse is U2F response
-	U2FSignResponse *u2f.SignResponse `json:"u2f_sign_response"`
+	U2FSignResponse *u2f.AuthenticateChallengeResponse `json:"u2f_sign_response"`
 }
 
 // changePassword updates users password based on the old password.

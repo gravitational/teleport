@@ -16,7 +16,6 @@ limitations under the License.
 package utils
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -27,7 +26,6 @@ import (
 type EnvironmentSuite struct{}
 
 var _ = check.Suite(&EnvironmentSuite{})
-var _ = fmt.Printf
 
 func (s *EnvironmentSuite) SetUpSuite(c *check.C) {
 	InitLoggerForTests(testing.Verbose())

@@ -2,7 +2,6 @@ package backend
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/jonboulle/clockwork"
@@ -13,7 +12,6 @@ type Suite struct {
 }
 
 var _ = check.Suite(&Suite{})
-var _ = fmt.Printf
 
 func (s *Suite) SetUpSuite(c *check.C) {
 }

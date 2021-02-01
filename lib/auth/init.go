@@ -210,10 +210,6 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	for i := range cfg.Authorities {
 		ca := cfg.Authorities[i]
-		ca, err = services.GetCertAuthorityMarshaler().GenerateCertAuthority(ca)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 		// Don't re-create CA if it already exists, otherwise
 		// the existing cluster configuration will be corrupted;
 		// this part of code is only used in tests.
@@ -343,7 +339,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 				ClusterName:  cfg.ClusterName.GetClusterName(),
 				Type:         services.UserCA,
 				SigningKeys:  [][]byte{priv},
-				SigningAlg:   services.ParseSigningAlg(sigAlg),
+				SigningAlg:   sshutils.ParseSigningAlg(sigAlg),
 				CheckingKeys: [][]byte{pub},
 				TLSKeyPairs:  []services.TLSKeyPair{{Cert: certPEM, Key: keyPEM}},
 			},
@@ -403,7 +399,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 				ClusterName:  cfg.ClusterName.GetClusterName(),
 				Type:         services.HostCA,
 				SigningKeys:  [][]byte{priv},
-				SigningAlg:   services.ParseSigningAlg(sigAlg),
+				SigningAlg:   sshutils.ParseSigningAlg(sigAlg),
 				CheckingKeys: [][]byte{pub},
 				TLSKeyPairs:  []services.TLSKeyPair{{Cert: certPEM, Key: keyPEM}},
 			},

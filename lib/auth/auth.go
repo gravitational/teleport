@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -58,7 +59,6 @@ import (
 	"github.com/pborman/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	saml2 "github.com/russellhaering/gosaml2"
-	"github.com/tstranex/u2f"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -394,7 +394,7 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 	// create and sign!
 	return a.Authority.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: caPrivateKey,
-		CASigningAlg:        ca.GetSigningAlg(),
+		CASigningAlg:        sshutils.GetSigningAlgName(ca),
 		PublicHostKey:       hostPublicKey,
 		HostID:              hostID,
 		NodeName:            nodeName,
@@ -634,7 +634,7 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	}
 	sshCert, err := a.Authority.GenerateUserCert(services.UserCertParams{
 		PrivateCASigningKey:   privateKey,
-		CASigningAlg:          ca.GetSigningAlg(),
+		CASigningAlg:          sshutils.GetSigningAlgName(ca),
 		PublicUserKey:         req.publicKey,
 		Username:              req.user.GetName(),
 		AllowedLogins:         allowedLogins,
@@ -807,13 +807,13 @@ func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (s
 	return sess.WithoutSecrets(), nil
 }
 
-func (a *Server) U2FSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
+func (a *Server) U2FSignRequest(user string, password []byte) (*u2f.AuthenticateChallenge, error) {
 	cap, err := a.GetAuthPreference()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	universalSecondFactor, err := cap.GetU2F()
+	u2fConfig, err := cap.GetU2F()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -824,26 +824,15 @@ func (a *Server) U2FSignRequest(user string, password []byte) (*u2f.SignRequest,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	registration, err := a.GetU2FRegistration(user)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	challenge, err := u2f.NewChallenge(universalSecondFactor.AppID, universalSecondFactor.Facets)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = a.UpsertU2FSignChallenge(user, challenge)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	u2fSignReq := challenge.SignRequest(*registration)
-
-	return u2fSignReq, nil
+	return u2f.AuthenticateInit(u2f.AuthenticateInitParams{
+		AppConfig:  *u2fConfig,
+		StorageKey: user,
+		Storage:    a.Identity,
+	})
 }
 
-func (a *Server) CheckU2FSignResponse(user string, response *u2f.SignResponse) error {
+func (a *Server) CheckU2FSignResponse(user string, response *u2f.AuthenticateChallengeResponse) error {
 	// before trying to register a user, see U2F is actually setup on the backend
 	cap, err := a.GetAuthPreference()
 	if err != nil {
@@ -854,32 +843,11 @@ func (a *Server) CheckU2FSignResponse(user string, response *u2f.SignResponse) e
 		return trace.Wrap(err)
 	}
 
-	reg, err := a.GetU2FRegistration(user)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	counter, err := a.GetU2FRegistrationCounter(user)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	challenge, err := a.GetU2FSignChallenge(user)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	newCounter, err := reg.Authenticate(*response, *challenge, counter)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = a.UpsertU2FRegistrationCounter(user, newCounter)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	return u2f.AuthenticateVerify(u2f.AuthenticateVerifyParams{
+		Resp:       *response,
+		StorageKey: user,
+		Storage:    a.Identity,
+	})
 }
 
 // ExtendWebSession creates a new web session for a user based on a valid previous sessionID.
@@ -930,7 +898,7 @@ func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, i
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err = services.GetWebSessionMarshaler().ExtendWebSession(sess)
+	sess, err = services.ExtendWebSession(sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -961,7 +929,7 @@ func (a *Server) getRolesAndExpiryFromAccessRequest(user, accessRequestID string
 		return nil, time.Time{}, trace.BadParameter("access request %q is awaiting approval", accessRequestID)
 	}
 
-	if err := services.ValidateAccessRequest(a, req); err != nil {
+	if err := services.ValidateAccessRequestForUser(a, req); err != nil {
 		return nil, time.Time{}, trace.Wrap(err)
 	}
 
@@ -985,10 +953,6 @@ func (a *Server) CreateWebSession(user string) (services.WebSession, error) {
 		return nil, trace.Wrap(err)
 	}
 	if err := a.UpsertWebSession(user, sess); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sess, err = services.GetWebSessionMarshaler().GenerateWebSession(sess)
-	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return sess, nil
@@ -1238,7 +1202,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	// generate hostSSH certificate
 	hostSSHCert, err := a.Authority.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: caPrivateKey,
-		CASigningAlg:        ca.GetSigningAlg(),
+		CASigningAlg:        sshutils.GetSigningAlgName(ca),
 		PublicHostKey:       pubSSHKey,
 		HostID:              req.HostID,
 		NodeName:            req.NodeName,
@@ -1661,7 +1625,7 @@ func (a *Server) upsertRole(ctx context.Context, role services.Role) error {
 }
 
 func (a *Server) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
-	err := services.ValidateAccessRequest(a, req,
+	err := services.ValidateAccessRequestForUser(a, req,
 		// if request is in state pending, role expansion must be applied
 		services.ExpandRoles(req.GetState().IsPending()),
 		// always apply system annotations before storing new requests
@@ -1915,7 +1879,7 @@ func (a *Server) GetAppSession(ctx context.Context, req services.GetAppSessionRe
 }
 
 // GetDatabaseServers returns all registers database proxy servers.
-func (a *Server) GetDatabaseServers(ctx context.Context, namespace string, opts ...types.MarshalOption) ([]types.DatabaseServer, error) {
+func (a *Server) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
 	return a.GetCache().GetDatabaseServers(ctx, namespace, opts...)
 }
 

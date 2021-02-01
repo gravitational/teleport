@@ -1,5 +1,5 @@
 /*
-Copyright 2016-2020 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,22 +17,13 @@ limitations under the License.
 package types
 
 import (
-	"bytes"
-	"crypto/ecdsa"
-	"crypto/x509"
-	"encoding/json"
 	"fmt"
 	"time"
 
-	"golang.org/x/crypto/bcrypt"
-
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/pquerna/otp/totp"
-	"github.com/tstranex/u2f"
 )
 
 // AuthPreference defines the authentication preferences for a specific
@@ -101,8 +92,8 @@ func DefaultAuthPreference() AuthPreference {
 			Namespace: defaults.Namespace,
 		},
 		Spec: AuthPreferenceSpecV2{
-			Type:         teleport.Local,
-			SecondFactor: teleport.OTP,
+			Type:         constants.Local,
+			SecondFactor: constants.OTP,
 		},
 	}
 }
@@ -242,22 +233,22 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 
 	// if nothing is passed in, set defaults
 	if c.Spec.Type == "" {
-		c.Spec.Type = teleport.Local
+		c.Spec.Type = constants.Local
 	}
 	if c.Spec.SecondFactor == "" {
-		c.Spec.SecondFactor = teleport.OTP
+		c.Spec.SecondFactor = constants.OTP
 	}
 
 	// make sure type makes sense
 	switch c.Spec.Type {
-	case teleport.Local, teleport.OIDC, teleport.SAML, teleport.Github:
+	case constants.Local, constants.OIDC, constants.SAML, constants.Github:
 	default:
 		return trace.BadParameter("authentication type %q not supported", c.Spec.Type)
 	}
 
 	// make sure second factor makes sense
 	switch c.Spec.SecondFactor {
-	case teleport.OFF, teleport.OTP, teleport.U2F:
+	case constants.OFF, constants.OTP, constants.U2F:
 	default:
 		return trace.BadParameter("second factor type %q not supported", c.Spec.SecondFactor)
 	}
@@ -293,247 +284,4 @@ type U2F struct {
 
 	// Facets returns the facets for universal second factor.
 	Facets []string `json:"facets,omitempty"`
-}
-
-// GetPubKeyDecoded decodes the DER encoded PubKey field into an `ecdsa.PublicKey` instance.
-func (reg *U2FRegistrationData) GetPubKeyDecoded() (*ecdsa.PublicKey, error) {
-	pubKeyI, err := x509.ParsePKIXPublicKey(reg.PubKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	pubKey, ok := pubKeyI.(*ecdsa.PublicKey)
-	if !ok {
-		return nil, trace.Errorf("expected *ecdsa.PublicKey, got %T", pubKeyI)
-	}
-	return pubKey, nil
-}
-
-// Check validates basic u2f registration values
-func (reg *U2FRegistrationData) Check() error {
-	if len(reg.KeyHandle) < 1 {
-		return trace.BadParameter("missing u2f key handle")
-	}
-	if len(reg.PubKey) < 1 {
-		return trace.BadParameter("missing u2f pubkey")
-	}
-	if _, err := reg.GetPubKeyDecoded(); err != nil {
-		return trace.BadParameter("invalid u2f pubkey")
-	}
-	return nil
-}
-
-// Equals checks equality (nil safe).
-func (reg *U2FRegistrationData) Equals(other *U2FRegistrationData) bool {
-	if (reg == nil) || (other == nil) {
-		return (reg == nil) && (other == nil)
-	}
-	if !bytes.Equal(reg.Raw, other.Raw) {
-		return false
-	}
-	if !bytes.Equal(reg.KeyHandle, other.KeyHandle) {
-		return false
-	}
-	return bytes.Equal(reg.PubKey, other.PubKey)
-}
-
-// GetU2FRegistration decodes the u2f registration data and builds the expected
-// registration object.  Returns (nil,nil) if no registration data is present.
-func (l *LocalAuthSecrets) GetU2FRegistration() (*u2f.Registration, error) {
-	if l.U2FRegistration == nil {
-		return nil, nil
-	}
-	pubKey, err := l.U2FRegistration.GetPubKeyDecoded()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &u2f.Registration{
-		Raw:       l.U2FRegistration.Raw,
-		KeyHandle: l.U2FRegistration.KeyHandle,
-		PubKey:    *pubKey,
-	}, nil
-}
-
-// SetU2FRegistration encodes and stores a u2f registration.  Use nil to
-// delete an existing registration.
-func (l *LocalAuthSecrets) SetU2FRegistration(reg *u2f.Registration) error {
-	if reg == nil {
-		l.U2FRegistration = nil
-		return nil
-	}
-	pubKeyDer, err := x509.MarshalPKIXPublicKey(&reg.PubKey)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	l.U2FRegistration = &U2FRegistrationData{
-		Raw:       reg.Raw,
-		KeyHandle: reg.KeyHandle,
-		PubKey:    pubKeyDer,
-	}
-	if err := l.U2FRegistration.Check(); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// Check validates local auth secret members.
-func (l *LocalAuthSecrets) Check() error {
-	if len(l.PasswordHash) > 0 {
-		if _, err := bcrypt.Cost(l.PasswordHash); err != nil {
-			return trace.BadParameter("invalid password hash")
-		}
-	}
-	if len(l.TOTPKey) > 0 {
-		if _, err := totp.GenerateCode(l.TOTPKey, time.Time{}); err != nil {
-			return trace.BadParameter("invalid TOTP key")
-		}
-	}
-	if l.U2FRegistration != nil {
-		if err := l.U2FRegistration.Check(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
-// Equals checks equality (nil safe).
-func (l *LocalAuthSecrets) Equals(other *LocalAuthSecrets) bool {
-	if (l == nil) || (other == nil) {
-		return (l == nil) && (other == nil)
-	}
-	if !bytes.Equal(l.PasswordHash, other.PasswordHash) {
-		return false
-	}
-	if !(l.TOTPKey == other.TOTPKey) {
-		return false
-	}
-	if !(l.U2FCounter == other.U2FCounter) {
-		return false
-	}
-	return l.U2FRegistration.Equals(other.U2FRegistration)
-}
-
-// AuthPreferenceSpecSchemaTemplate is JSON schema for AuthPreferenceSpec
-const AuthPreferenceSpecSchemaTemplate = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-		"type": {
-			"type": "string"
-		},
-		"second_factor": {
-			"type": "string"
-		},
-		"connector_name": {
-			"type": "string"
-		},
-		"u2f": {
-			"type": "object",
-			"additionalProperties": false,
-			"properties": {
-				"app_id": {
-					"type": "string"
-				},
-				"facets": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					}
-				}
-			}
-		}%v
-	}
-}`
-
-// LocalAuthSecretsSchema is a JSON schema for LocalAuthSecrets
-const LocalAuthSecretsSchema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-		"password_hash": {"type": "string"},
-		"totp_key": {"type": "string"},
-		"u2f_registration": {
-			"type": "object",
-			"additionalProperties": false,
-			"properties": {
-				"raw": {"type": "string"},
-				"key_handle": {"type": "string"},
-				"pubkey": {"type": "string"}
-			}
-		},
-		"u2f_counter": {"type": "number"}
-	}
-}`
-
-// GetAuthPreferenceSchema returns the schema with optionally injected
-// schema for extensions.
-func GetAuthPreferenceSchema(extensionSchema string) string {
-	var authPreferenceSchema string
-	if authPreferenceSchema == "" {
-		authPreferenceSchema = fmt.Sprintf(AuthPreferenceSpecSchemaTemplate, "")
-	} else {
-		authPreferenceSchema = fmt.Sprintf(AuthPreferenceSpecSchemaTemplate, ","+extensionSchema)
-	}
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, authPreferenceSchema, DefaultDefinitions)
-}
-
-// AuthPreferenceMarshaler implements marshal/unmarshal of AuthPreference implementations
-// mostly adds support for extended versions.
-type AuthPreferenceMarshaler interface {
-	Marshal(c AuthPreference, opts ...MarshalOption) ([]byte, error)
-	Unmarshal(bytes []byte, opts ...MarshalOption) (AuthPreference, error)
-}
-
-type teleportAuthPreferenceMarshaler struct{}
-
-// Unmarshal unmarshals role from JSON or YAML.
-func (t *teleportAuthPreferenceMarshaler) Unmarshal(bytes []byte, opts ...MarshalOption) (AuthPreference, error) {
-	var authPreference AuthPreferenceV2
-
-	if len(bytes) == 0 {
-		return nil, trace.BadParameter("missing resource data")
-	}
-
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if cfg.SkipValidation {
-		if err := utils.FastUnmarshal(bytes, &authPreference); err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-	} else {
-		err := utils.UnmarshalWithSchema(GetAuthPreferenceSchema(""), &authPreference, bytes)
-		if err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-	}
-	if cfg.ID != 0 {
-		authPreference.SetResourceID(cfg.ID)
-	}
-	if !cfg.Expires.IsZero() {
-		authPreference.SetExpiry(cfg.Expires)
-	}
-	return &authPreference, nil
-}
-
-// Marshal marshals role to JSON or YAML.
-func (t *teleportAuthPreferenceMarshaler) Marshal(c AuthPreference, opts ...MarshalOption) ([]byte, error) {
-	return json.Marshal(c)
-}
-
-var authPreferenceMarshaler AuthPreferenceMarshaler = &teleportAuthPreferenceMarshaler{}
-
-// SetAuthPreferenceMarshaler sets global AuthPreferenceMarshaler
-func SetAuthPreferenceMarshaler(m AuthPreferenceMarshaler) {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	authPreferenceMarshaler = m
-}
-
-// GetAuthPreferenceMarshaler returns currently set AuthPreferenceMarshaler
-func GetAuthPreferenceMarshaler() AuthPreferenceMarshaler {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	return authPreferenceMarshaler
 }

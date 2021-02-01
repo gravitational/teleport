@@ -77,10 +77,8 @@ The benefits are:
 
 ### Compatibility
 
-`vN.*.*` binaries are compatible with any other `vN.*.*` binaries.
-
-`vN.*.*` server binaries are compatible with `vN-1.*.*` client binaries (one
-major version back).
+`vN.*.*` binaries are compatible with any other `vN.*.*` or `vN-1.*.*` binaries
+(both client and server).
 
 Users are free to use any `vN.*.*` versions throughout their deployment, after
 upgrading everything from `vN-1.*.*`.
