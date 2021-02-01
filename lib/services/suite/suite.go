@@ -163,7 +163,7 @@ func userSlicesEqual(c *check.C, a []services.User, b []services.User) {
 
 func usersEqual(c *check.C, a services.User, b services.User) {
 	comment := check.Commentf("a: %#v b: %#v", a, b)
-	c.Assert(a.Equals(b), check.Equals, true, comment)
+	c.Assert(services.UsersEquals(a, b), check.Equals, true, comment)
 }
 
 func newUser(name string, roles []string) services.User {

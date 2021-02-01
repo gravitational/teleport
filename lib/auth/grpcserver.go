@@ -551,6 +551,10 @@ func (g *GRPCServer) CreateUser(ctx context.Context, req *services.UserV2) (*emp
 		return nil, trail.ToGRPC(err)
 	}
 
+	if err := services.ValidateUser(req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := auth.CreateUser(ctx, req); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
@@ -565,6 +569,10 @@ func (g *GRPCServer) UpdateUser(ctx context.Context, req *services.UserV2) (*emp
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
+	}
+
+	if err := services.ValidateUser(req); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if err := auth.UpdateUser(ctx, req); err != nil {
