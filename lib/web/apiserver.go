@@ -38,6 +38,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -58,7 +59,6 @@ import (
 	"github.com/julienschmidt/httprouter"
 	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/sirupsen/logrus"
-	"github.com/tstranex/u2f"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -1436,8 +1436,8 @@ func (h *Handler) u2fSignRequest(w http.ResponseWriter, r *http.Request, p httpr
 
 // A request from the client to send the signature from the U2F key
 type u2fSignResponseReq struct {
-	User            string           `json:"user"`
-	U2FSignResponse u2f.SignResponse `json:"u2f_sign_response"`
+	User            string                            `json:"user"`
+	U2FSignResponse u2f.AuthenticateChallengeResponse `json:"u2f_sign_response"`
 }
 
 // createSessionWithU2FSignResponse is called to sign in with a U2F signature

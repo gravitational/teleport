@@ -17,7 +17,6 @@ limitations under the License.
 package srv
 
 import (
-	"fmt"
 	"os"
 	"os/user"
 	"testing"
@@ -33,8 +32,6 @@ type TermSuite struct {
 }
 
 var _ = check.Suite(&TermSuite{})
-var _ = testing.Verbose
-var _ = fmt.Printf
 
 func (s *TermSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())

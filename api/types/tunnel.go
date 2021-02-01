@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
 )
@@ -179,39 +179,11 @@ func (r *ReverseTunnelV2) Check() error {
 	if strings.TrimSpace(r.Spec.ClusterName) == "" {
 		return trace.BadParameter("Reverse tunnel validation error: empty cluster name")
 	}
-
 	if len(r.Spec.DialAddrs) == 0 {
 		return trace.BadParameter("Invalid dial address for reverse tunnel '%v'", r.Spec.ClusterName)
 	}
-
-	for _, addr := range r.Spec.DialAddrs {
-		if _, err := utils.ParseAddr(addr); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	return nil
 }
-
-// TunnelType is the type of tunnel.
-type TunnelType string
-
-const (
-	// NodeTunnel is a tunnel where the node connects to the proxy (dial back).
-	NodeTunnel TunnelType = "node"
-
-	// ProxyTunnel is a tunnel where a proxy connects to the proxy (trusted cluster).
-	ProxyTunnel TunnelType = "proxy"
-
-	// AppTunnel is a tunnel where the application proxy dials back to the proxy.
-	AppTunnel TunnelType = "app"
-
-	// KubeTunnel is a tunnel where the kubernetes service dials back to the proxy.
-	KubeTunnel TunnelType = "kube"
-
-	// DatabaseTunnel is a tunnel where a database proxy dials back to the proxy.
-	DatabaseTunnel TunnelType = "db"
-)
 
 // GetReverseTunnelSchema returns role schema with optionally injected
 // schema for extensions

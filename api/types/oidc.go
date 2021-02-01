@@ -18,14 +18,12 @@ package types
 
 import (
 	"fmt"
-	"net/url"
 	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/utils"
 
-	"github.com/coreos/go-oidc/jose"
 	"github.com/gravitational/trace"
 )
 
@@ -132,7 +130,7 @@ func (o *OIDCConnectorV2) SetPrompt(p string) {
 // * and any non empty value, passed as is
 func (o *OIDCConnectorV2) GetPrompt() string {
 	if o.Spec.Prompt == nil {
-		return teleport.OIDCPromptSelectAccount
+		return constants.OIDCPromptSelectAccount
 	}
 	return *o.Spec.Prompt
 }
@@ -347,14 +345,8 @@ func (o *OIDCConnectorV2) Check() error {
 	if o.Metadata.Name == "" {
 		return trace.BadParameter("ID: missing connector name")
 	}
-	if o.Metadata.Name == teleport.Local {
-		return trace.BadParameter("ID: invalid connector name %v is a reserved name", teleport.Local)
-	}
-	if _, err := url.Parse(o.Spec.IssuerURL); err != nil {
-		return trace.BadParameter("IssuerURL: bad url: '%v'", o.Spec.IssuerURL)
-	}
-	if _, err := url.Parse(o.Spec.RedirectURL); err != nil {
-		return trace.BadParameter("RedirectURL: bad url: '%v'", o.Spec.RedirectURL)
+	if o.Metadata.Name == constants.Local {
+		return trace.BadParameter("ID: invalid connector name, %v is a reserved name", constants.Local)
 	}
 	if o.Spec.ClientID == "" {
 		return trace.BadParameter("ClientID: missing client id")
@@ -364,19 +356,6 @@ func (o *OIDCConnectorV2) Check() error {
 	for _, v := range o.Spec.ClaimsToRoles {
 		if len(v.Roles) == 0 {
 			return trace.BadParameter("add roles in claims_to_roles")
-		}
-	}
-
-	if o.Spec.GoogleServiceAccountURI != "" {
-		uri, err := utils.ParseSessionsURI(o.Spec.GoogleServiceAccountURI)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if uri.Scheme != teleport.SchemeFile {
-			return trace.BadParameter("only %v:// scheme is supported for google_service_account_uri", teleport.SchemeFile)
-		}
-		if o.Spec.GoogleAdminEmail == "" {
-			return trace.BadParameter("whenever google_service_account_uri is specified, google_admin_email should be set as well, read https://developers.google.com/identity/protocols/OAuth2ServiceAccount#delegatingauthority for more details")
 		}
 	}
 
@@ -436,15 +415,6 @@ type OIDCConnectorSpecV2 struct {
 	GoogleAdminEmail string `json:"google_admin_email,omitempty"`
 }
 
-// GetClaimNames returns a list of claim names from the claim values
-func GetClaimNames(claims jose.Claims) []string {
-	var out []string
-	for claim := range claims {
-		out = append(out, claim)
-	}
-	return out
-}
-
 // ClaimMapping is OIDC claim mapping that maps
 // claim name to teleport roles
 type ClaimMapping struct {
@@ -454,25 +424,6 @@ type ClaimMapping struct {
 	Value string `json:"value"`
 	// Roles is a list of static teleport roles to match.
 	Roles []string `json:"roles,omitempty"`
-}
-
-// OIDCClaimsToTraits converts OIDC-style claims into the standardized
-// teleport trait format.
-func OIDCClaimsToTraits(claims jose.Claims) map[string][]string {
-	traits := make(map[string][]string)
-
-	for claimName := range claims {
-		claimValue, ok, _ := claims.StringClaim(claimName)
-		if ok {
-			traits[claimName] = []string{claimValue}
-		}
-		claimValues, ok, _ := claims.StringsClaim(claimName)
-		if ok {
-			traits[claimName] = claimValues
-		}
-	}
-
-	return traits
 }
 
 // OIDCConnectorSpecV2Schema is a JSON Schema for OIDC Connector

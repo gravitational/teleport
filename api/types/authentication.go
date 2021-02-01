@@ -26,9 +26,9 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/pquerna/otp/totp"
@@ -101,8 +101,8 @@ func DefaultAuthPreference() AuthPreference {
 			Namespace: defaults.Namespace,
 		},
 		Spec: AuthPreferenceSpecV2{
-			Type:         teleport.Local,
-			SecondFactor: teleport.OTP,
+			Type:         constants.Local,
+			SecondFactor: constants.OTP,
 		},
 	}
 }
@@ -242,22 +242,22 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 
 	// if nothing is passed in, set defaults
 	if c.Spec.Type == "" {
-		c.Spec.Type = teleport.Local
+		c.Spec.Type = constants.Local
 	}
 	if c.Spec.SecondFactor == "" {
-		c.Spec.SecondFactor = teleport.OTP
+		c.Spec.SecondFactor = constants.OTP
 	}
 
 	// make sure type makes sense
 	switch c.Spec.Type {
-	case teleport.Local, teleport.OIDC, teleport.SAML, teleport.Github:
+	case constants.Local, constants.OIDC, constants.SAML, constants.Github:
 	default:
 		return trace.BadParameter("authentication type %q not supported", c.Spec.Type)
 	}
 
 	// make sure second factor makes sense
 	switch c.Spec.SecondFactor {
-	case teleport.OFF, teleport.OTP, teleport.U2F:
+	case constants.OFF, constants.OTP, constants.U2F:
 	default:
 		return trace.BadParameter("second factor type %q not supported", c.Spec.SecondFactor)
 	}

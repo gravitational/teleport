@@ -24,14 +24,15 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/trace"
-	"github.com/tstranex/u2f"
+	"github.com/jonboulle/clockwork"
 )
 
 // NewJWTAuthority creates and returns a services.CertAuthority with a new
@@ -93,17 +94,17 @@ func checkUserOrHostCA(ca CertAuthority) error {
 	if len(ca.GetTLSKeyPairs()) == 0 {
 		return trace.BadParameter("certificate authority missing TLS key pairs")
 	}
-	if _, err := ca.Checkers(); err != nil {
+	if _, err := sshutils.GetCheckers(ca); err != nil {
 		return trace.Wrap(err)
 	}
-	if _, err := ca.Signers(); err != nil {
+	if _, err := sshutils.GetSigners(ca); err != nil {
 		return trace.Wrap(err)
 	}
 	// This is to force users to migrate
 	if len(ca.GetRoles()) != 0 && len(ca.GetRoleMap()) != 0 {
 		return trace.BadParameter("should set either 'roles' or 'role_map', not both")
 	}
-	err := ca.GetRoleMap().Check()
+	_, err := parseRoleMap(ca.GetRoleMap())
 	return trace.Wrap(err)
 }
 
@@ -226,7 +227,7 @@ type ChangePasswordReq struct {
 	// SecondFactorToken is user 2nd factor token
 	SecondFactorToken string `json:"second_factor_token"`
 	// U2FSignResponse is U2F sign response
-	U2FSignResponse *u2f.SignResponse `json:"u2f_sign_response"`
+	U2FSignResponse *u2f.AuthenticateChallengeResponse `json:"u2f_sign_response"`
 }
 
 // UserCertParams defines OpenSSH user certificate parameters

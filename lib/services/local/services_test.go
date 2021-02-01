@@ -18,7 +18,6 @@ package local
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -37,7 +36,6 @@ type ServicesSuite struct {
 	suite *suite.ServicesTestSuite
 }
 
-var _ = fmt.Printf
 var _ = check.Suite(&ServicesSuite{})
 
 func (s *ServicesSuite) SetUpSuite(c *check.C) {
