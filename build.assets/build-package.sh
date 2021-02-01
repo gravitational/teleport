@@ -1,7 +1,8 @@
 #!/bin/bash
 set -e
 
-usage() { echo "Usage: $(basename $0) [-t <oss/ent>] [-v <version>] [-p <package type>] <-a [amd64/x86_64]|[386/i386]> <-r go1.9.7|fips> <-s tarball source dir> <-m tsh>" 1>&2; exit 1; }
+# shellcheck disable=SC2086
+usage() { echo "Usage: $(basename $0) [-t <oss/ent>] [-v <version>] [-p <package type>] <-a [amd64/x86_64]|[386/i386]|arm64> <-r go1.9.7|fips> <-s tarball source dir> <-m tsh>" 1>&2; exit 1; }
 while getopts ":t:v:p:a:r:s:m:" o; do
     case "${o}" in
         t)
@@ -17,7 +18,7 @@ while getopts ":t:v:p:a:r:s:m:" o; do
             ;;
         a)
             a=${OPTARG}
-            if [[ ${a} != "amd64" && ${a} != "x86_64" && ${a} != "386" && ${a} != "i386" ]]; then usage; fi
+            if [[ ${a} != "amd64" && ${a} != "x86_64" && ${a} != "386" && ${a} != "i386" && ${a} != "arm64" ]]; then usage; fi
             ;;
         r)
             r=${OPTARG}
@@ -62,11 +63,11 @@ LINUX_CONFIG_DIR=/etc
 LINUX_DATA_DIR=/var/lib/teleport
 
 # extra package information for linux
-MAINTAINER="info@gravitational.com"
+MAINTAINER="info@goteleport.com"
 LICENSE="Apache-2.0"
-VENDOR="Gravitational"
-DESCRIPTION="Gravitational Teleport is a gateway for managing access to clusters of Linux servers via SSH or the Kubernetes API"
-DOCS_URL="https://gravitational.com/teleport/docs"
+VENDOR="Teleport"
+DESCRIPTION="Teleport is a gateway for managing access to clusters of Linux servers via SSH or the Kubernetes API"
+DOCS_URL="https://goteleport.com/teleport/docs"
 
 # signing IDs to use for mac (must be pre-loaded into the keychain on the build box)
 DEVELOPER_ID_APPLICATION="Developer ID Application: Gravitational Inc." # used for signing binaries
@@ -95,22 +96,22 @@ if [[ "${PACKAGE_TYPE}" != "pkg" ]]; then
     fi
 fi
 
+# arch must be specified
+if [[ "${ARCH}" == "" ]]; then
+    usage
+fi
+
 # check that pkgbuild is installed if building for OS X and set variables appropriately
 if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
     if ! uname | grep -q Darwin; then
         echo "You must be running on OS X to build .pkg files"
         exit 4
     fi
-    if [[ "${ARCH}" != "" ]]; then
-        echo "arch parameter is ignored when building for OS X"
-        unset ARCH
-    fi
     if [[ "${RUNTIME}" != "" ]]; then
         echo "runtime parameter is ignored when building for OS X"
         unset RUNTIME
     fi
     PLATFORM="darwin"
-    ARCH="amd64"
     if [[ ! $(type pkgbuild) ]]; then
         echo "You need to install pkgbuild"
         echo "Run: xcode-select --install"
@@ -188,6 +189,16 @@ elif [[ "${ARCH}" == "amd64" ]]; then
     TEXT_ARCH="64-bit"
 fi
 
+# check that system arch matches requested arch on Darwin
+if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
+    SYSTEM_ARCH=$(uname -m)
+    if [[ "${ARCH}" != "${SYSTEM_ARCH}" ]]; then
+        echo "System arch '${SYSTEM_ARCH}' is different to requested arch '${ARCH}' - cannot continue."
+        echo "Make sure that you are running this script on the correct build box."
+        exit 12
+    fi
+fi
+
 # set optional runtime section for filename
 if [[ "${RUNTIME}" == "go1.9.7" ]]; then
     OPTIONAL_RUNTIME_SECTION="-go1.9.7"
@@ -229,21 +240,21 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
     # handle mac client-only builds
     if [[ "${BUILD_MODE}" == "tsh" ]]; then
         FILE_LIST="${TAR_PATH}/tsh"
-        BUNDLE_ID="com.gravitational.teleport.tsh"
+        BUNDLE_ID="com.goteleport.tsh"
         SIGN_PKG="true"
         NOTARIZE_PKG="true"
-        PKG_FILENAME="tsh-${TELEPORT_VERSION}.${PACKAGE_TYPE}"
+        PKG_FILENAME="tsh-${TELEPORT_VERSION}-${ARCH}.${PACKAGE_TYPE}"
     else
         FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport"
-        BUNDLE_ID="com.gravitational.teleport"
+        BUNDLE_ID="com.goteleport.teleport"
         # we can't sign/notarize full Teleport packages on Mac yet due to https://github.com/gravitational/teleport/issues/3158
         # TODO(gus): uncomment/fix this when the teleport binary is fixed
         SIGN_PKG="false"
         NOTARIZE_PKG="false"
         if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
-            PKG_FILENAME="teleport-ent-${TELEPORT_VERSION}.${PACKAGE_TYPE}"
+            PKG_FILENAME="teleport-ent-${TELEPORT_VERSION}-${ARCH}.${PACKAGE_TYPE}"
         else
-            PKG_FILENAME="teleport-${TELEPORT_VERSION}.${PACKAGE_TYPE}"
+            PKG_FILENAME="teleport-${TELEPORT_VERSION}-${ARCH}.${PACKAGE_TYPE}"
         fi
     fi
 else
@@ -277,14 +288,14 @@ pushd "$(mktemp -d)"
 PACKAGE_TEMPDIR=$(pwd)
 # automatically clean up on exit
 trap 'rm -rf ${PACKAGE_TEMPDIR}' EXIT
-mkdir -p ${PACKAGE_TEMPDIR}/buildroot
+mkdir -p "${PACKAGE_TEMPDIR}/buildroot"
 
 # implement a rudimentary download cache for repeat builds on the same host
-mkdir -p ${TARBALL_DIRECTORY}
-if [ ! -f ${TARBALL_DIRECTORY}/${TARBALL_FILENAME} ]; then
+mkdir -p "${TARBALL_DIRECTORY}"
+if [ ! -f "${TARBALL_DIRECTORY}/${TARBALL_FILENAME}" ]; then
     if [[ "${DOWNLOAD_IF_NEEDED}" == "true" ]]; then
         echo "Downloading ${URL} to ${TARBALL_DIRECTORY}"
-        curl -sL ${URL} -o ${TARBALL_DIRECTORY}/${TARBALL_FILENAME}
+        curl -sL "${URL}" -o "${TARBALL_DIRECTORY}/${TARBALL_FILENAME}"
     else
         echo "Can't find ${TARBALL_DIRECTORY}/${TARBALL_FILENAME}"
         echo "Downloading from ${DOWNLOAD_ROOT} is disabled when a path is provided with -s"
@@ -295,32 +306,36 @@ else
 fi
 
 # extract necessary files from tarball
-tar -C "$(pwd)" -xvzf ${TARBALL_DIRECTORY}/${TARBALL_FILENAME} ${FILE_LIST}
+# shellcheck disable=SC2086
+tar -C "$(pwd)" -xvzf "${TARBALL_DIRECTORY}/${TARBALL_FILENAME}" ${FILE_LIST}
 
 # move files into correct locations before building the package
 if [[ "${PACKAGE_TYPE}" != "pkg" ]]; then
     if [[ "${LINUX_BINARY_FILE_LIST}" != "" ]]; then
-        mkdir -p ${PACKAGE_TEMPDIR}/buildroot${LINUX_BINARY_DIR}
-        mv -v ${LINUX_BINARY_FILE_LIST} ${PACKAGE_TEMPDIR}/buildroot${LINUX_BINARY_DIR}
+        mkdir -p "${PACKAGE_TEMPDIR}/buildroot${LINUX_BINARY_DIR}"
+        # shellcheck disable=SC2086
+        mv -v ${LINUX_BINARY_FILE_LIST} "${PACKAGE_TEMPDIR}/buildroot${LINUX_BINARY_DIR}"
     fi
     if [[ "${LINUX_SYSTEMD_FILE_LIST}" != "" ]]; then
-        mkdir -p ${PACKAGE_TEMPDIR}/buildroot${LINUX_SYSTEMD_DIR}
-        mv -v ${LINUX_SYSTEMD_FILE_LIST} ${PACKAGE_TEMPDIR}/buildroot${LINUX_SYSTEMD_DIR}
+        mkdir -p "${PACKAGE_TEMPDIR}/buildroot${LINUX_SYSTEMD_DIR}"
+        # shellcheck disable=SC2086
+        mv -v ${LINUX_SYSTEMD_FILE_LIST} "${PACKAGE_TEMPDIR}/buildroot${LINUX_SYSTEMD_DIR}"
     fi
     if [[ "${LINUX_CONFIG_FILE}" != "" ]]; then
-        mkdir -p ${PACKAGE_TEMPDIR}/buildroot${LINUX_CONFIG_DIR}
-        mv -v ${LINUX_CONFIG_FILE} ${PACKAGE_TEMPDIR}/buildroot${LINUX_CONFIG_DIR}
+        mkdir -p "${PACKAGE_TEMPDIR}/buildroot${LINUX_CONFIG_DIR}"
+        # shellcheck disable=SC2086
+        mv -v ${LINUX_CONFIG_FILE} "${PACKAGE_TEMPDIR}/buildroot${LINUX_CONFIG_DIR}"
         CONFIG_FILE_STANZA="--config-files /src/buildroot${LINUX_CONFIG_DIR}/${LINUX_CONFIG_FILE} "
     fi
     # /var/lib/teleport
     # shellcheck disable=SC2174
-    mkdir -p -m0700 ${PACKAGE_TEMPDIR}/buildroot${LINUX_DATA_DIR}
+    mkdir -p -m0700 "${PACKAGE_TEMPDIR}/buildroot${LINUX_DATA_DIR}"
 fi
 popd
 
 if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
     # erase any existing versions of the package in the output directory first
-    rm -f ${PKG_FILENAME}
+    rm -f "${PKG_FILENAME}"
 
     if [[ "${SIGN_PKG}" == "true" ]]; then
         # run codesign to sign binaries
@@ -330,31 +345,31 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
                 -v \
                 --timestamp \
                 --options runtime \
-                ${PACKAGE_TEMPDIR}/${FILE}
+                "${PACKAGE_TEMPDIR}/${FILE}"
         done
     fi
 
     # build the package for OS X
     pkgbuild \
-        --root ${PACKAGE_TEMPDIR}/${TAR_PATH} \
+        --root "${PACKAGE_TEMPDIR}/${TAR_PATH}" \
         --identifier ${BUNDLE_ID} \
-        --version ${TELEPORT_VERSION} \
+        --version "${TELEPORT_VERSION}" \
         --install-location /usr/local/bin \
-        ${PKG_FILENAME}
+        "${PKG_FILENAME}"
 
     if [[ "${SIGN_PKG}" == "true" ]]; then
         # mark package as unsigned first
-        mv ${PKG_FILENAME} ${PKG_FILENAME}.unsigned
+        mv "${PKG_FILENAME}" "${PKG_FILENAME}.unsigned"
 
         # run productsign to sign package
         productsign \
             --sign "${DEVELOPER_ID_INSTALLER}" \
             --timestamp \
-            ${PKG_FILENAME}.unsigned \
-            ${PKG_FILENAME}
+            "${PKG_FILENAME}.unsigned" \
+            "${PKG_FILENAME}"
 
         # remove unsigned package after successful signing
-        rm -f ${PKG_FILENAME}.unsigned
+        rm -f "${PKG_FILENAME}.unsigned"
     fi
 
     # write gon config file
@@ -369,25 +384,26 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
                 \"username\": \"${APPLE_USERNAME}\",
                 \"password\": \"${APPLE_PASSWORD}\"
             }
-        }" > ${PACKAGE_TEMPDIR}/gon-config.json
+        }" > "${PACKAGE_TEMPDIR}/gon-config.json"
 
         # notarise built package using gon
-        gon ${PACKAGE_TEMPDIR}/gon-config.json
+        gon "${PACKAGE_TEMPDIR}/gon-config.json"
     fi
 
     # checksum created packages
     for PACKAGE in *."${PACKAGE_TYPE}"; do
-        shasum -a 256 ${PACKAGE} > ${PACKAGE}.sha256
+        shasum -a 256 "${PACKAGE}" > "${PACKAGE}.sha256"
     done
 else
     # erase any existing packages of the same type/version/arch in the output directory first
-    rm -vf ${OUTPUT_FILENAME}
+    rm -vf "${OUTPUT_FILENAME}"
 
     # build for other platforms
-    docker run -v ${PACKAGE_TEMPDIR}:/src --rm ${EXTRA_DOCKER_OPTIONS} ${DOCKER_IMAGE} \
+    # shellcheck disable=SC2086
+    docker run -v "${PACKAGE_TEMPDIR}:/src" --rm ${EXTRA_DOCKER_OPTIONS} ${DOCKER_IMAGE} \
         fpm \
         --input-type dir \
-        --output-type ${PACKAGE_TYPE} \
+        --output-type "${PACKAGE_TYPE}" \
         --name ${RPM_NAME} \
         --version "${TELEPORT_VERSION}" \
         --maintainer "${MAINTAINER}" \
@@ -396,7 +412,7 @@ else
         --vendor "${VENDOR}" \
         --description "${DESCRIPTION} ${TYPE_DESCRIPTION}" \
         --architecture ${ARCH} \
-        --package ${OUTPUT_FILENAME} \
+        --package "${OUTPUT_FILENAME}" \
         --chdir /src/buildroot \
         --directories ${LINUX_DATA_DIR} \
         --provides teleport \
@@ -407,10 +423,10 @@ else
         ${RPM_SIGN_STANZA} .
 
     # copy created package back to current directory
-    cp ${PACKAGE_TEMPDIR}/*."${PACKAGE_TYPE}" .
+    cp "${PACKAGE_TEMPDIR}/*.${PACKAGE_TYPE}" .
 
     # checksum created packages
     for FILE in *."${PACKAGE_TYPE}"; do
-        sha256sum ${FILE} > ${FILE}.sha256
+        sha256sum "${FILE}" > "${FILE}.sha256"
     done
 fi
