@@ -108,7 +108,7 @@ Teleport Database Access is available starting from `6.0.0-alpha.1` pre-release.
 Download the appropriate version of Teleport for your platform from the table
 below, or visit our [downloads page](https://goteleport.com/teleport/download).
 
-{% raw %}{{!docs/5.0/preview/releases-table.md!}}{% endraw %}
+{!docs/5.0/preview/releases-table.md!}
 
 !!! warning
 
@@ -358,7 +358,7 @@ Teleport Database Access is available starting from `6.0.0-alpha.1` pre-release.
 Download the appropriate version of Teleport for your platform from the table
 below, or visit our [downloads page](https://goteleport.com/teleport/download).
 
-{% raw %}{{!docs/5.0/preview/releases-table.md!}}{% endraw %}
+{!docs/5.0/preview/releases-table.md!}
 
 !!! warning
 
