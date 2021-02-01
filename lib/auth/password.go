@@ -169,13 +169,13 @@ func (s *Server) CheckPassword(user string, password []byte, otpToken string) er
 		return trace.Wrap(err)
 	}
 
-	err = s.CheckOTP(user, otpToken)
+	err = s.checkOTP(user, otpToken)
 	return trace.Wrap(err)
 }
 
-// CheckOTP determines the type of OTP token used (for legacy HOTP support), fetches the
+// checkOTP determines the type of OTP token used (for legacy HOTP support), fetches the
 // appropriate type from the backend, and checks if the token is valid.
-func (s *Server) CheckOTP(user string, otpToken string) error {
+func (s *Server) checkOTP(user string, otpToken string) error {
 	var err error
 
 	otpType, err := s.getOTPType(user)
@@ -202,57 +202,60 @@ func (s *Server) CheckOTP(user string, otpToken string) error {
 		}
 	case teleport.TOTP:
 		ctx := context.TODO()
-		devs, err := s.GetMFADevices(ctx, user)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		// TODO(awly): support multiple TOTP devices.
-		var otpDev *types.TOTPDevice
-		for _, dev := range devs {
-			if dev.GetTotp() != nil {
-				otpDev = dev.GetTotp()
-				break
-			}
-		}
-		if otpDev == nil {
-			return trace.NotFound("user has no TOTP devices registered")
-		}
-		otpSecret := otpDev.Key
 
 		// get the previously used token to mitigate token replay attacks
 		usedToken, err := s.GetUsedTOTPToken(user)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
 		// we use a constant time compare function to mitigate timing attacks
 		if subtle.ConstantTimeCompare([]byte(otpToken), []byte(usedToken)) == 1 {
 			return trace.BadParameter("previously used totp token")
 		}
 
-		// we use totp.ValidateCustom over totp.Validate so we can use
-		// a fake clock in tests to get reliable results
-		valid, err := totp.ValidateCustom(otpToken, otpSecret, s.clock.Now(), totp.ValidateOpts{
-			Period:    teleport.TOTPValidityPeriod,
-			Skew:      teleport.TOTPSkew,
-			Digits:    otp.DigitsSix,
-			Algorithm: otp.AlgorithmSHA1,
-		})
-		if err != nil {
-			log.Errorf("unable to validate token: %v", err)
-			return trace.BadParameter("unable to validate token")
-		}
-		if !valid {
-			return trace.BadParameter("invalid totp token")
-		}
-
-		// if we have a valid token, update the previously used token
-		err = s.UpsertUsedTOTPToken(user, otpToken)
+		devs, err := s.GetMFADevices(ctx, user)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		for _, dev := range devs {
+			totpDev := dev.GetTotp()
+			if totpDev == nil {
+				continue
+			}
+
+			if err := s.checkTOTP(user, otpToken, totpDev); err != nil {
+				log.WithError(err).Errorf("Using TOTP device %q", dev.GetName())
+				continue
+			}
+			return nil
+		}
+		return trace.AccessDenied("invalid totp token")
 	}
 
+	return nil
+}
+
+// checkTOTP and checks if the TOTP token is valid.
+func (s *Server) checkTOTP(user, otpToken string, totpDev *types.TOTPDevice) error {
+	// we use totp.ValidateCustom over totp.Validate so we can use
+	// a fake clock in tests to get reliable results
+	valid, err := totp.ValidateCustom(otpToken, totpDev.Key, s.clock.Now(), totp.ValidateOpts{
+		Period:    teleport.TOTPValidityPeriod,
+		Skew:      teleport.TOTPSkew,
+		Digits:    otp.DigitsSix,
+		Algorithm: otp.AlgorithmSHA1,
+	})
+	if err != nil {
+		return trace.AccessDenied("failed to validate TOTP code: %v", err)
+	}
+	if !valid {
+		return trace.AccessDenied("TOTP code not valid")
+	}
+	// if we have a valid token, update the previously used token
+	if err := s.UpsertUsedTOTPToken(user, otpToken); err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }
 
@@ -371,7 +374,7 @@ func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, Rese
 			return trace.Wrap(err)
 		}
 
-		err = s.CheckOTP(username, req.SecondFactorToken)
+		err = s.checkOTP(username, req.SecondFactorToken)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -383,7 +386,7 @@ func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, Rese
 			return trace.Wrap(err)
 		}
 
-		return u2f.RegisterVerify(ctx, u2f.RegisterVerifyParams{
+		_, err = u2f.RegisterVerify(ctx, u2f.RegisterVerifyParams{
 			DevName:                "u2f",
 			ChallengeStorageKey:    req.TokenID,
 			RegistrationStorageKey: username,
@@ -391,7 +394,8 @@ func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, Rese
 			Storage:                s.Identity,
 			Clock:                  s.GetClock(),
 		})
+		return trace.Wrap(err)
+	default:
+		return trace.BadParameter("unknown second factor type %q", cap.GetSecondFactor())
 	}
-
-	return trace.BadParameter("unknown second factor type %q", cap.GetSecondFactor())
 }

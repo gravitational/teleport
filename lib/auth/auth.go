@@ -36,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -808,6 +809,7 @@ func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (s
 }
 
 func (a *Server) U2FSignRequest(user string, password []byte) (*u2f.AuthenticateChallenge, error) {
+	ctx := context.TODO()
 	cap, err := a.GetAuthPreference()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -825,11 +827,23 @@ func (a *Server) U2FSignRequest(user string, password []byte) (*u2f.Authenticate
 		return nil, trace.Wrap(err)
 	}
 
-	return u2f.AuthenticateInit(context.TODO(), u2f.AuthenticateInitParams{
-		AppConfig:  *u2fConfig,
-		StorageKey: user,
-		Storage:    a.Identity,
-	})
+	// TODO(awly): support challenge with multiple devices.
+	devs, err := a.GetMFADevices(ctx, user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, dev := range devs {
+		if dev.GetU2F() == nil {
+			continue
+		}
+		return u2f.AuthenticateInit(ctx, u2f.AuthenticateInitParams{
+			Dev:        dev.GetU2F(),
+			AppConfig:  *u2fConfig,
+			StorageKey: user,
+			Storage:    a.Identity,
+		})
+	}
+	return nil, trace.NotFound("no U2F devices found for user %q", user)
 }
 
 func (a *Server) CheckU2FSignResponse(ctx context.Context, user string, response *u2f.AuthenticateChallengeResponse) error {
@@ -1897,6 +1911,115 @@ func (a *Server) GetAppSession(ctx context.Context, req services.GetAppSessionRe
 // GetDatabaseServers returns all registers database proxy servers.
 func (a *Server) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
 	return a.GetCache().GetDatabaseServers(ctx, namespace, opts...)
+}
+
+// mfaAuthChallenge constructs an MFAAuthenticateChallenge for all MFA devices
+// registered by the user.
+func (a *Server) mfaAuthChallenge(ctx context.Context, user string) (*proto.MFAAuthenticateChallenge, error) {
+	// Check what kind of MFA is enabled.
+	apref, err := a.GetAuthPreference()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var enableTOTP, enableU2F bool
+	switch apref.GetType() {
+	case teleport.TOTP:
+		enableTOTP, enableU2F = true, false
+	case teleport.U2F:
+		enableTOTP, enableU2F = false, true
+	default:
+		// Other AuthPreference types don't restrict us to a single MFA type,
+		// send all challenges.
+		enableTOTP, enableU2F = true, true
+	}
+	var u2fPref *types.U2F
+	if enableU2F {
+		u2fPref, err = apref.GetU2F()
+		if trace.IsNotFound(err) {
+			// If U2F parameters were not set in the auth server config,
+			// disable U2F challenges.
+			enableU2F = false
+		} else if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	devs, err := a.GetMFADevices(ctx, user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	challenge := new(proto.MFAAuthenticateChallenge)
+	for _, dev := range devs {
+		switch dd := dev.Device.(type) {
+		case *types.MFADevice_Totp:
+			if !enableTOTP {
+				continue
+			}
+			challenge.TOTP = new(proto.TOTPChallenge)
+		case *types.MFADevice_U2F:
+			if !enableU2F {
+				continue
+			}
+			ch, err := u2f.AuthenticateInit(ctx, u2f.AuthenticateInitParams{
+				AppConfig:  *u2fPref,
+				Dev:        dd.U2F,
+				Storage:    a.Identity,
+				StorageKey: user,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			challenge.U2F = append(challenge.U2F, &proto.U2FChallenge{
+				KeyHandle: ch.KeyHandle,
+				Challenge: ch.Challenge,
+				AppID:     ch.AppID,
+			})
+		default:
+			log.Warningf("skipping MFA device of unknown type %T", dev.Device)
+		}
+	}
+	return challenge, nil
+}
+
+func (a *Server) validateMFAAuthResponse(ctx context.Context, user string, resp *proto.MFAAuthenticateResponse) error {
+	switch res := resp.Response.(type) {
+	case *proto.MFAAuthenticateResponse_TOTP:
+		return a.checkOTP(user, res.TOTP.Code)
+	case *proto.MFAAuthenticateResponse_U2F:
+		return a.checkU2F(ctx, user, res.U2F)
+	default:
+		return trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
+	}
+}
+
+func (a *Server) checkU2F(ctx context.Context, user string, res *proto.U2FResponse) error {
+	devs, err := a.GetMFADevices(ctx, user)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, dev := range devs {
+		u2fDev := dev.GetU2F()
+		if u2fDev == nil {
+			continue
+		}
+		if err := u2f.AuthenticateVerify(ctx, u2f.AuthenticateVerifyParams{
+			Dev: dev,
+			Resp: u2f.AuthenticateChallengeResponse{
+				KeyHandle:     res.KeyHandle,
+				ClientData:    res.ClientData,
+				SignatureData: res.Signature,
+			},
+			Storage:    a.Identity,
+			StorageKey: user,
+			Clock:      a.clock,
+		}); err != nil {
+			log.WithError(err).Debugf("Failed validating U2F response")
+			continue
+		}
+		return nil
+	}
+	return trace.AccessDenied("U2F response validation failed")
 }
 
 // WithClock is a functional server option that sets the server's clock
