@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"crypto/x509"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -28,7 +27,6 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/pquerna/otp/totp"
@@ -410,130 +408,4 @@ func (l *LocalAuthSecrets) Equals(other *LocalAuthSecrets) bool {
 		return false
 	}
 	return l.U2FRegistration.Equals(other.U2FRegistration)
-}
-
-// AuthPreferenceSpecSchemaTemplate is JSON schema for AuthPreferenceSpec
-const AuthPreferenceSpecSchemaTemplate = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-		"type": {
-			"type": "string"
-		},
-		"second_factor": {
-			"type": "string"
-		},
-		"connector_name": {
-			"type": "string"
-		},
-		"u2f": {
-			"type": "object",
-			"additionalProperties": false,
-			"properties": {
-				"app_id": {
-					"type": "string"
-				},
-				"facets": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					}
-				}
-			}
-		}%v
-	}
-}`
-
-// LocalAuthSecretsSchema is a JSON schema for LocalAuthSecrets
-const LocalAuthSecretsSchema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-		"password_hash": {"type": "string"},
-		"totp_key": {"type": "string"},
-		"u2f_registration": {
-			"type": "object",
-			"additionalProperties": false,
-			"properties": {
-				"raw": {"type": "string"},
-				"key_handle": {"type": "string"},
-				"pubkey": {"type": "string"}
-			}
-		},
-		"u2f_counter": {"type": "number"}
-	}
-}`
-
-// GetAuthPreferenceSchema returns the schema with optionally injected
-// schema for extensions.
-func GetAuthPreferenceSchema(extensionSchema string) string {
-	var authPreferenceSchema string
-	if authPreferenceSchema == "" {
-		authPreferenceSchema = fmt.Sprintf(AuthPreferenceSpecSchemaTemplate, "")
-	} else {
-		authPreferenceSchema = fmt.Sprintf(AuthPreferenceSpecSchemaTemplate, ","+extensionSchema)
-	}
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, authPreferenceSchema, DefaultDefinitions)
-}
-
-// AuthPreferenceMarshaler implements marshal/unmarshal of AuthPreference implementations
-// mostly adds support for extended versions.
-type AuthPreferenceMarshaler interface {
-	Marshal(c AuthPreference, opts ...MarshalOption) ([]byte, error)
-	Unmarshal(bytes []byte, opts ...MarshalOption) (AuthPreference, error)
-}
-
-type teleportAuthPreferenceMarshaler struct{}
-
-// Unmarshal unmarshals role from JSON or YAML.
-func (t *teleportAuthPreferenceMarshaler) Unmarshal(bytes []byte, opts ...MarshalOption) (AuthPreference, error) {
-	var authPreference AuthPreferenceV2
-
-	if len(bytes) == 0 {
-		return nil, trace.BadParameter("missing resource data")
-	}
-
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if cfg.SkipValidation {
-		if err := utils.FastUnmarshal(bytes, &authPreference); err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-	} else {
-		err := utils.UnmarshalWithSchema(GetAuthPreferenceSchema(""), &authPreference, bytes)
-		if err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-	}
-	if cfg.ID != 0 {
-		authPreference.SetResourceID(cfg.ID)
-	}
-	if !cfg.Expires.IsZero() {
-		authPreference.SetExpiry(cfg.Expires)
-	}
-	return &authPreference, nil
-}
-
-// Marshal marshals role to JSON or YAML.
-func (t *teleportAuthPreferenceMarshaler) Marshal(c AuthPreference, opts ...MarshalOption) ([]byte, error) {
-	return json.Marshal(c)
-}
-
-var authPreferenceMarshaler AuthPreferenceMarshaler = &teleportAuthPreferenceMarshaler{}
-
-// SetAuthPreferenceMarshaler sets global AuthPreferenceMarshaler
-func SetAuthPreferenceMarshaler(m AuthPreferenceMarshaler) {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	authPreferenceMarshaler = m
-}
-
-// GetAuthPreferenceMarshaler returns currently set AuthPreferenceMarshaler
-func GetAuthPreferenceMarshaler() AuthPreferenceMarshaler {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	return authPreferenceMarshaler
 }

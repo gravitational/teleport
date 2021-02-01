@@ -74,15 +74,14 @@ func (r *ResetPasswordTokenSuite) TestUnmarshal(c *check.C) {
 		},
 	}
 
-	marshaler := GetResetPasswordTokenMarshaler()
 	for _, tc := range testCases {
 		comment := check.Commentf("test case %q", tc.description)
-		out, err := marshaler.Unmarshal([]byte(tc.input))
+		out, err := UnmarshalResetPasswordToken([]byte(tc.input))
 		c.Assert(err, check.IsNil, comment)
 		fixtures.DeepCompare(c, tc.expected, out)
-		data, err := marshaler.Marshal(out)
+		data, err := MarshalResetPasswordToken(out)
 		c.Assert(err, check.IsNil, comment)
-		out2, err := marshaler.Unmarshal(data)
+		out2, err := UnmarshalResetPasswordToken(data)
 		c.Assert(err, check.IsNil, comment)
 		fixtures.DeepCompare(c, tc.expected, out2)
 	}

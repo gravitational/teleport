@@ -22,6 +22,7 @@ import (
 	"github.com/coreos/go-oidc/jose"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -111,7 +112,7 @@ func TestOIDCUnmarshal(t *testing.T) {
       }
 	`
 
-	oc, err := GetOIDCConnectorMarshaler().UnmarshalOIDCConnector([]byte(input))
+	oc, err := UnmarshalOIDCConnector([]byte(input))
 	require.NoError(t, err)
 
 	require.Equal(t, "google", oc.GetName())
@@ -144,7 +145,7 @@ func TestOIDCUnmarshalEmptyPrompt(t *testing.T) {
       }
 	`
 
-	oc, err := GetOIDCConnectorMarshaler().UnmarshalOIDCConnector([]byte(input))
+	oc, err := UnmarshalOIDCConnector([]byte(input))
 	require.NoError(t, err)
 
 	require.Equal(t, "google", oc.GetName())
@@ -176,7 +177,7 @@ func TestOIDCUnmarshalPromptValue(t *testing.T) {
       }
 	`
 
-	oc, err := GetOIDCConnectorMarshaler().UnmarshalOIDCConnector([]byte(input))
+	oc, err := UnmarshalOIDCConnector([]byte(input))
 	require.NoError(t, err)
 
 	require.Equal(t, "google", oc.GetName())
@@ -211,6 +212,6 @@ func TestOIDCUnmarshalInvalid(t *testing.T) {
       }
 	`
 
-	_, err := GetOIDCConnectorMarshaler().UnmarshalOIDCConnector([]byte(input))
+	_, err := UnmarshalOIDCConnector([]byte(input))
 	require.Error(t, err)
 }

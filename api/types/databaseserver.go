@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
 )
@@ -295,108 +294,6 @@ func (s *DatabaseServerV3) Copy() DatabaseServer {
 		Metadata: s.Metadata,
 		Spec:     s.Spec,
 	}
-}
-
-// DatabaseServerSpecV3Schema is JSON schema for a database server spec.
-const DatabaseServerSpecV3Schema = `{
-  "type": "object",
-  "additionalProperties": false,
-  "properties": {
-    "description": {"type": "string"},
-    "protocol": {"type": "string"},
-    "uri": {"type": "string"},
-    "ca_cert": {"type": "string"},
-    "aws": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "region": {"type": "string"}
-      }
-    },
-    "version": {"type": "string"},
-    "hostname": {"type": "string"},
-    "host_id": {"type": "string"},
-    "dynamic_labels": {
-      "type": "object",
-      "additionalProperties": false,
-      "patternProperties": {
-        "^.*$": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["command"],
-          "properties": {
-            "command": {"type": "array", "items": {"type": "string"}},
-            "period": {"type": "string"},
-            "result": {"type": "string"}
-          }
-        }
-      }
-    },
-    "rotation": %v
-  }
-}`
-
-// GetDatabaseServerSchema returns full database server JSON schema.
-func GetDatabaseServerSchema() string {
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, fmt.Sprintf(DatabaseServerSpecV3Schema, RotationSchema), DefaultDefinitions)
-}
-
-// MarshalDatabaseServer marshals the database server resource.
-func MarshalDatabaseServer(s DatabaseServer, opts ...MarshalOption) ([]byte, error) {
-	if err := s.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	server := s
-	if !cfg.PreserveResourceID {
-		// Avoid modifying the original object to prevent unexpected
-		// data races.
-		server = s.Copy()
-		server.SetResourceID(0)
-	}
-	return utils.FastMarshal(server)
-}
-
-// UnmarshalDatabaseServer unmarshals the database server resource.
-func UnmarshalDatabaseServer(data []byte, opts ...MarshalOption) (DatabaseServer, error) {
-	if len(data) == 0 {
-		return nil, trace.BadParameter("missing database server data")
-	}
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var h ResourceHeader
-	if err := utils.FastUnmarshal(data, &h); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	switch h.Version {
-	case V3:
-		var s DatabaseServerV3
-		if cfg.SkipValidation {
-			if err := utils.FastUnmarshal(data, &s); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
-		} else {
-			if err := utils.UnmarshalWithSchema(GetDatabaseServerSchema(), &s, data); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
-		}
-		if err := s.CheckAndSetDefaults(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if cfg.ID != 0 {
-			s.SetResourceID(cfg.ID)
-		}
-		if !cfg.Expires.IsZero() {
-			s.SetExpiry(cfg.Expires)
-		}
-		return &s, nil
-	}
-	return nil, trace.BadParameter("database server resource version %q is not supported", h.Version)
 }
 
 const (

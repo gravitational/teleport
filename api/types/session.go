@@ -17,12 +17,10 @@ limitations under the License.
 package types
 
 import (
-	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
 )
@@ -282,134 +280,4 @@ func (r CreateAppSessionRequest) Check() error {
 // an application web session.
 type DeleteAppSessionRequest struct {
 	SessionID string `json:"session_id"`
-}
-
-// WebSessionSpecV2Schema is JSON schema for cert authority V2
-const WebSessionSpecV2Schema = `{
-  "type": "object",
-  "additionalProperties": false,
-  "required": ["pub", "bearer_token", "bearer_token_expires", "expires", "user"],
-  "properties": {
-    "user": {"type": "string"},
-    "pub": {"type": "string"},
-    "priv": {"type": "string"},
-    "tls_cert": {"type": "string"},
-    "bearer_token": {"type": "string"},
-    "bearer_token_expires": {"type": "string"},
-    "expires": {"type": "string"}%v
-  }
-}`
-
-// GetWebSessionSchema returns JSON Schema for web session
-func GetWebSessionSchema() string {
-	return GetWebSessionSchemaWithExtensions("")
-}
-
-// GetWebSessionSchemaWithExtensions returns JSON Schema for web session with user-supplied extensions
-func GetWebSessionSchemaWithExtensions(extension string) string {
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, fmt.Sprintf(WebSessionSpecV2Schema, extension), DefaultDefinitions)
-}
-
-// WebSessionMarshaler implements marshal/unmarshal of User implementations
-// mostly adds support for extended versions
-type WebSessionMarshaler interface {
-	// UnmarshalWebSession unmarhsals cert authority from binary representation
-	UnmarshalWebSession(bytes []byte, opts ...MarshalOption) (WebSession, error)
-	// MarshalWebSession to binary representation
-	MarshalWebSession(c WebSession, opts ...MarshalOption) ([]byte, error)
-	// GenerateWebSession generates new web session and is used to
-	// inject additional data in extenstions
-	GenerateWebSession(WebSession) (WebSession, error)
-	// ExtendWebSession extends web session and is used to
-	// inject additional data in extenstions when session is getting renewed
-	ExtendWebSession(WebSession) (WebSession, error)
-}
-
-type teleportWebSessionMarshaler struct{}
-
-// GenerateWebSession generates new web session and is used to
-// inject additional data in extenstions
-func (*teleportWebSessionMarshaler) GenerateWebSession(ws WebSession) (WebSession, error) {
-	return ws, nil
-}
-
-// ExtendWebSession renews web session and is used to
-// inject additional data in extenstions when session is getting renewed
-func (*teleportWebSessionMarshaler) ExtendWebSession(ws WebSession) (WebSession, error) {
-	return ws, nil
-}
-
-// UnmarshalWebSession unmarshals web session from on-disk byte format
-func (*teleportWebSessionMarshaler) UnmarshalWebSession(bytes []byte, opts ...MarshalOption) (WebSession, error) {
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var h ResourceHeader
-	err = json.Unmarshal(bytes, &h)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	switch h.Version {
-	case V2:
-		var ws WebSessionV2
-		if err := utils.UnmarshalWithSchema(GetWebSessionSchema(), &ws, bytes); err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-		utils.UTC(&ws.Spec.BearerTokenExpires)
-		utils.UTC(&ws.Spec.Expires)
-
-		if err := ws.CheckAndSetDefaults(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if cfg.ID != 0 {
-			ws.SetResourceID(cfg.ID)
-		}
-		if !cfg.Expires.IsZero() {
-			ws.SetExpiry(cfg.Expires)
-		}
-
-		return &ws, nil
-	}
-
-	return nil, trace.BadParameter("web session resource version %v is not supported", h.Version)
-}
-
-// MarshalWebSession marshals web session into on-disk representation
-func (*teleportWebSessionMarshaler) MarshalWebSession(ws WebSession, opts ...MarshalOption) ([]byte, error) {
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	switch webSession := ws.(type) {
-	case *WebSessionV2:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *webSession
-			copy.SetResourceID(0)
-			webSession = &copy
-		}
-		return utils.FastMarshal(webSession)
-	default:
-		return nil, trace.BadParameter("unrecognized web session version %T", ws)
-	}
-}
-
-var webSessionMarshaler WebSessionMarshaler = &teleportWebSessionMarshaler{}
-
-// SetWebSessionMarshaler sets global WebSessionMarshaler
-func SetWebSessionMarshaler(u WebSessionMarshaler) {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	webSessionMarshaler = u
-}
-
-// GetWebSessionMarshaler returns currently set WebSessionMarshaler
-func GetWebSessionMarshaler() WebSessionMarshaler {
-	marshalerMutex.RLock()
-	defer marshalerMutex.RUnlock()
-	return webSessionMarshaler
 }

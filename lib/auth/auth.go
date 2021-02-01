@@ -898,7 +898,7 @@ func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, i
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err = services.GetWebSessionMarshaler().ExtendWebSession(sess)
+	sess, err = services.ExtendWebSession(sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -953,10 +953,6 @@ func (a *Server) CreateWebSession(user string) (services.WebSession, error) {
 		return nil, trace.Wrap(err)
 	}
 	if err := a.UpsertWebSession(user, sess); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sess, err = services.GetWebSessionMarshaler().GenerateWebSession(sess)
-	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return sess, nil
@@ -1883,7 +1879,7 @@ func (a *Server) GetAppSession(ctx context.Context, req services.GetAppSessionRe
 }
 
 // GetDatabaseServers returns all registers database proxy servers.
-func (a *Server) GetDatabaseServers(ctx context.Context, namespace string, opts ...types.MarshalOption) ([]types.DatabaseServer, error) {
+func (a *Server) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
 	return a.GetCache().GetDatabaseServers(ctx, namespace, opts...)
 }
 

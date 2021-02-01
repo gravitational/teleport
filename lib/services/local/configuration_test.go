@@ -164,10 +164,10 @@ func (s *ClusterConfigurationSuite) TestClusterConfigMarshal(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	data, err := services.GetClusterConfigMarshaler().Marshal(clusterConfig)
+	data, err := services.MarshalClusterConfig(clusterConfig)
 	c.Assert(err, check.IsNil)
 
-	out, err := services.GetClusterConfigMarshaler().Unmarshal(data)
+	out, err := services.UnmarshalClusterConfig(data)
 	c.Assert(err, check.IsNil)
 	fixtures.DeepCompare(c, clusterConfig, out)
 
@@ -187,10 +187,10 @@ func (s *ClusterConfigurationSuite) TestClusterConfigMarshal(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	data, err = services.GetClusterConfigMarshaler().Marshal(clusterConfig)
+	data, err = services.MarshalClusterConfig(clusterConfig)
 	c.Assert(err, check.IsNil)
 
-	out, err = services.GetClusterConfigMarshaler().Unmarshal(data)
+	out, err = services.UnmarshalClusterConfig(data)
 	c.Assert(err, check.IsNil)
 	fixtures.DeepCompare(c, clusterConfig, out)
 }

@@ -2031,7 +2031,7 @@ func (a *ServerWithRoles) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) 
 }
 
 // GetDatabaseServers returns all registered database servers.
-func (a *ServerWithRoles) GetDatabaseServers(ctx context.Context, namespace string, opts ...types.MarshalOption) ([]types.DatabaseServer, error) {
+func (a *ServerWithRoles) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
 	if err := a.action(namespace, types.KindDatabaseServer, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
