@@ -497,10 +497,15 @@ func startNewRotation(req rotationReq, ca services.CertAuthority) error {
 		sshPublicKey = ssh.MarshalAuthorizedKey(signer.PublicKey())
 		sshPrivateKey = req.privateKey
 
-		tlsPrivateKey, tlsPublicKey, err = tlsca.GenerateSelfSignedCAWithPrivateKey(rsaKey.(*rsa.PrivateKey), pkix.Name{
-			CommonName:   ca.GetClusterName(),
-			Organization: []string{ca.GetClusterName()},
-		}, nil, defaults.CATTL)
+		tlsPrivateKey, tlsPublicKey, err = tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+			PrivateKey: rsaKey.(*rsa.PrivateKey),
+			Entity: pkix.Name{
+				CommonName:   ca.GetClusterName(),
+				Organization: []string{ca.GetClusterName()},
+			},
+			TTL:   defaults.CATTL,
+			Clock: req.clock,
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
