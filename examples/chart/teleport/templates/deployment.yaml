@@ -184,6 +184,8 @@ spec:
         ports:
         - name: authssh
           containerPort: {{ .Values.ports.authssh.containerPort }}
+        - name: metrics
+          containerPort: {{ .Values.ports.metrics.containerPort }}
         resources:
 {{ toYaml .Values.authresources | indent 10 }}
         volumeMounts:
