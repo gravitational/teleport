@@ -34,14 +34,16 @@ To use the API client, you need to create a role, a user with that role, and log
 
 You can test that flow here with the small example in `main.go`, where an `access-admin`, which only has priviledges for creating and updating access-requests, requests to use the `admin` role.
 
-First Create the user and role described using the commands below.
+First, create the user and role described using the commands below.
 
 ```bash
 $ tctl create -f access-admin.yaml
 $ tctl users add access-admin --roles=access-admin
 ```
 
-Next, choose one of the three authentication methods.
+Second, Replace the address `proxy.example.com:3025` with the address of your auth server.
+
+Third, choose one of the authentication methods.
 
 1. tsh profile (default):
 
@@ -51,7 +53,7 @@ Next, choose one of the three authentication methods.
 
 2. identity file:
 
-   In `main.go` replace `Credentials: client.ProfileCreds()` (line 35), with `Credentials: client.IdentityCreds("full_id_file_path")`.
+   In `main.go` replace `client.ProfileCreds()` (line 33), with `client.IdentityCreds("full_id_file_path")`.
 
    ```bash
    $ tsh login --user=access-admin --out=[full_id_file_path]
@@ -59,7 +61,7 @@ Next, choose one of the three authentication methods.
 
 3. generate certificates from auth server without login:
 
-   In `main.go` replace `Credentials: client.ProfileCreds()` (line 35), with `Credentials: client.PathCreds("certs/access-admin")`.
+   In `main.go` replace `client.ProfileCreds()` (line 33), with `client.PathCreds("certs/access-admin")`.
 
    ```bash
    $ mkdir -p certs
@@ -70,6 +72,6 @@ Next, choose one of the three authentication methods.
 
 Lastly, run the demo:
 
-```
+```bash
 $ go run .
 ```

@@ -31,94 +31,79 @@ import (
 // Credentials are used to authenticate the client's connection to the server
 type Credentials struct {
 	// TLS is the client's TLS config
-	tls *tls.Config
-	// err is used to propogate errors from credential loading. This allows
-	// users to chain credential loading inside of NewClient().
-	err error
+	TLS *tls.Config
 }
 
 // CheckAndSetDefaults checks and sets default credential values.
 func (c *Credentials) CheckAndSetDefaults() error {
-	if c.err != nil {
-		return trace.WrapWithMessage(c.err, "error in loading API creds")
-	}
-	if c.tls == nil {
+	if c.TLS == nil {
 		return trace.BadParameter("creds missing tls config")
 	}
-	c.tls = c.tls.Clone()
-	c.tls.NextProtos = []string{http2.NextProtoTLS}
-	if c.tls.ServerName == "" {
-		c.tls.ServerName = constants.APIDomain
+	c.TLS = c.TLS.Clone()
+	c.TLS.NextProtos = []string{http2.NextProtoTLS}
+	if c.TLS.ServerName == "" {
+		c.TLS.ServerName = constants.APIDomain
 	}
 	return nil
 }
 
-// TLS returns the Credentials' tls config
-func (c *Credentials) TLS() *tls.Config {
-	return c.tls
-}
-
 // ProfileCreds attempts to load Credentials from the default Profile,
 // which is set by logging in with `tsh login`.
-func ProfileCreds() Credentials {
+func ProfileCreds() (Credentials, error) {
 	profileDir := defaultProfilePath()
 	profile, err := ProfileFromDir(profileDir, "")
 	if err != nil {
-		return credentialsWithErr(trace.Wrap(err))
+		return Credentials{}, trace.Wrap(err)
 	}
 
 	tls, err := profile.TLS()
 	if err != nil {
-		return credentialsWithErr(trace.Wrap(err))
+		return Credentials{}, trace.Wrap(err)
 	}
 
-	return TLSCreds(tls)
+	return TLSCreds(tls), nil
 }
 
 // IdentityCreds attempts to load Credentials from the specified identity file's path.
 // You can create an identity file by running `tsh login --out=[full_file_path]`.
-func IdentityCreds(path string) Credentials {
+func IdentityCreds(path string) (Credentials, error) {
 	idf, err := DecodeIdentityFile(path)
 	if err != nil {
-		return credentialsWithErr(trace.BadParameter("identity file could not be decoded", err))
+		return Credentials{}, trace.BadParameter("identity file could not be decoded", err)
 	}
 
 	tls, err := idf.TLS()
 	if err != nil {
-		return credentialsWithErr(trace.Wrap(err))
+		return Credentials{}, trace.Wrap(err)
 	}
 
-	return TLSCreds(tls)
+	return TLSCreds(tls), nil
 }
 
 // PathCreds establishes a gRPC connection to an auth server.
-func PathCreds(path string) Credentials {
+func PathCreds(path string) (Credentials, error) {
 	cert, err := tls.LoadX509KeyPair(path+".crt", path+".key")
 	if err != nil {
-		return credentialsWithErr(trace.Wrap(err))
+		return Credentials{}, trace.Wrap(err)
 	}
 
 	caCerts, err := ioutil.ReadFile(path + ".cas")
 	if err != nil {
-		return credentialsWithErr(trace.Wrap(err))
+		return Credentials{}, trace.Wrap(err)
 	}
 
 	pool := x509.NewCertPool()
 	if ok := pool.AppendCertsFromPEM(caCerts); !ok {
-		return credentialsWithErr(fmt.Errorf("invalid CA cert PEM"))
+		return Credentials{}, fmt.Errorf("invalid CA cert PEM")
 	}
 
 	return TLSCreds(&tls.Config{
 		Certificates: []tls.Certificate{cert},
 		RootCAs:      pool,
-	})
+	}), nil
 }
 
 // TLSCreds returns Credentials with the given TLS config.
 func TLSCreds(tls *tls.Config) Credentials {
-	return Credentials{tls: tls}
-}
-
-func credentialsWithErr(err error) Credentials {
-	return Credentials{err: trace.Wrap(err)}
+	return Credentials{TLS: tls}
 }
