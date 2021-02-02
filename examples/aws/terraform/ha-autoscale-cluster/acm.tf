@@ -5,10 +5,12 @@
 // Terraform if they are deleted. In this instance we recommend setting up ACM on the proxy load balancer yourself.
 
 // Define an ACM cert we can use for the proxy
+// Add wildcard as a SAN for use with app_service
 resource "aws_acm_certificate" "cert" {
-  domain_name       = var.route53_domain
-  validation_method = "DNS"
-  count             = var.use_acm ? 1 : 0
+  domain_name               = var.route53_domain
+  subject_alternative_names = ["*.${var.route53_domain}"]
+  validation_method         = "DNS"
+  count                     = var.use_acm ? 1 : 0
 
   lifecycle {
     create_before_destroy = true
