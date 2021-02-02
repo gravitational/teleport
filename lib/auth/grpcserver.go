@@ -1065,6 +1065,81 @@ func (g *GRPCServer) DeleteAllKubeServices(ctx context.Context, req *proto.Delet
 	return &empty.Empty{}, nil
 }
 
+// GetRole retrieves a role by name.
+func (g *GRPCServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*types.RoleV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	role, err := auth.GetRole(req.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	roleV3, ok := role.(*types.RoleV3)
+	if !ok {
+		log.Warnf("expected type types.RoleV3, got %T for role %q", role, role.GetName())
+		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected role type"))
+	}
+	return roleV3, nil
+}
+
+// GetRoles retrieves all roles.
+func (g *GRPCServer) GetRoles(_ *empty.Empty, stream proto.AuthService_GetRolesServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+	roles, err := auth.GetRoles()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, role := range roles {
+		roleV3, ok := role.(*types.RoleV3)
+		if !ok {
+			log.Warnf("expected type types.RoleVe, got %T for role %q", role, role.GetName())
+			return trail.ToGRPC(trace.Errorf("encountered unexpected role type"))
+		}
+		if err := stream.Send(roleV3); err != nil {
+			return trail.ToGRPC(err)
+		}
+	}
+	return nil
+}
+
+// UpsertRole upserts a role.
+func (g *GRPCServer) UpsertRole(ctx context.Context, role *types.RoleV3) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err = services.ValidateRole(role); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = auth.UpsertRole(ctx, role)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	log.Infof("%q role upserted", role.GetName())
+
+	return &empty.Empty{}, nil
+}
+
+// DeleteRole deletes a role by name.
+func (g *GRPCServer) DeleteRole(ctx context.Context, req *proto.DeleteRoleRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err := auth.DeleteRole(ctx, req.Name); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	log.Infof("%q role deleted", req.GetName())
+
+	return &empty.Empty{}, nil
+}
+
 type grpcContext struct {
 	*Context
 	*ServerWithRoles

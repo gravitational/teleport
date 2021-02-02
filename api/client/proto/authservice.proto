@@ -479,6 +479,18 @@ message DatabaseCertResponse {
     repeated bytes CACerts = 2 [ (gogoproto.jsontag) = "ca_certs" ];
 }
 
+// GetRoleRequest is a the input value for the GetRole method.
+message GetRoleRequest {
+    // Name is the role name to get.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+}
+
+// DeleteRoleRequest is the input value for the DeleteRole method.
+message DeleteRoleRequest {
+    // Name is the role name to delete.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -491,9 +503,7 @@ service AuthService {
     // auth sign`.
     rpc GenerateUserCerts(UserCertsRequest) returns (Certs);
     // GetUser gets a user resource by name.
-    rpc GetUser(GetUserRequest) returns (types.UserV2);
-    // GetUsers gets all current user resources.
-    rpc GetUsers(GetUsersRequest) returns (stream types.UserV2);
+
     // GetAccessRequests gets all pending access requests.
     rpc GetAccessRequests(types.AccessRequestFilter) returns (AccessRequests);
     // CreateAccessRequest creates a new access request.
@@ -513,6 +523,7 @@ service AuthService {
     // to mimic the behavior of the proxy's Ping method, and may be used by
     // clients for verification or configuration on startup.
     rpc Ping(PingRequest) returns (PingResponse);
+
     // RotateResetPasswordTokenSecrets rotates token secrets for a given tokenID.
     rpc RotateResetPasswordTokenSecrets(RotateResetPasswordTokenSecretsRequest)
         returns (types.ResetPasswordTokenSecretsV3);
@@ -521,6 +532,10 @@ service AuthService {
     // CreateResetPasswordToken creates ResetPasswordToken.
     rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest)
         returns (types.ResetPasswordTokenV3);
+
+    rpc GetUser(GetUserRequest) returns (types.UserV2);
+    // GetUsers gets all current user resources.
+    rpc GetUsers(GetUsersRequest) returns (stream types.UserV2);
     // CreateUser inserts a new user entry to a backend.
     rpc CreateUser(types.UserV2) returns (google.protobuf.Empty);
     // UpdateUser updates an existing user in a backend.
@@ -595,4 +610,13 @@ service AuthService {
     // GenerateDatabaseCert generates client certificate used by a database
     // service to authenticate with the database instance.
     rpc GenerateDatabaseCert(DatabaseCertRequest) returns (DatabaseCertResponse);
+
+    // GetRole retrieves a role by name.
+    rpc GetRole(GetRoleRequest) returns (types.RoleV3);
+    // GetRole retrieves all roles.
+    rpc GetRoles(google.protobuf.Empty) returns (stream types.RoleV3);
+    // UpsertRole upserts a role in a backend.
+    rpc UpsertRole(types.RoleV3) returns (google.protobuf.Empty);
+    // DeleteRole deletes an existing role in a backend by name.
+    rpc DeleteRole(DeleteRoleRequest) returns (google.protobuf.Empty);
 }

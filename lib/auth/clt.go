@@ -1778,62 +1778,9 @@ func (c *Client) DeleteNamespace(name string) error {
 	return trace.Wrap(err)
 }
 
-// GetRoles returns a list of roles
-func (c *Client) GetRoles() ([]services.Role, error) {
-	out, err := c.Get(c.Endpoint("roles"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	roles := make([]services.Role, len(items))
-	for i, roleBytes := range items {
-		role, err := services.UnmarshalRole(roleBytes, services.SkipValidation())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		roles[i] = role
-	}
-	return roles, nil
-}
-
 // CreateRole not implemented: can only be called locally.
 func (c *Client) CreateRole(role services.Role) error {
 	return trace.NotImplemented(notImplementedMessage)
-}
-
-// UpsertRole creates or updates role
-func (c *Client) UpsertRole(ctx context.Context, role services.Role) error {
-	data, err := services.MarshalRole(role)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = c.PostJSON(c.Endpoint("roles"), &upsertRoleRawReq{Role: data})
-	return trace.Wrap(err)
-}
-
-// GetRole returns role by name
-func (c *Client) GetRole(name string) (services.Role, error) {
-	if name == "" {
-		return nil, trace.BadParameter("missing name")
-	}
-	out, err := c.Get(c.Endpoint("roles", name), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	role, err := services.UnmarshalRole(out.Bytes(), services.SkipValidation())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return role, nil
-}
-
-// DeleteRole deletes role by name
-func (c *Client) DeleteRole(ctx context.Context, name string) error {
-	_, err := c.Delete(c.Endpoint("roles", name))
-	return trace.Wrap(err)
 }
 
 // GetClusterConfig returns cluster level configuration information.

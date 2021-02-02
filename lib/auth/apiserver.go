@@ -184,7 +184,8 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.GET("/:version/namespaces/:namespace", srv.withAuth(srv.getNamespace))
 	srv.DELETE("/:version/namespaces/:namespace", srv.withAuth(srv.deleteNamespace))
 
-	// Roles
+	// Roles - Moved to grpc
+	// DELETE IN 7.0
 	srv.POST("/:version/roles", srv.withAuth(srv.upsertRole))
 	srv.GET("/:version/roles", srv.withAuth(srv.getRoles))
 	srv.GET("/:version/roles/:role", srv.withAuth(srv.getRole))

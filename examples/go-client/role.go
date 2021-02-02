@@ -57,6 +57,15 @@ func roleCRUD(ctx context.Context, client *auth.Client) {
 
 	log.Printf("Retrieved Role: %v", role.GetName())
 
+	// retrieve auditor role
+	_, err = client.GetRoles()
+	if err != nil {
+		log.Printf("Failed to retrieve role for updating: %v", err)
+		return
+	}
+
+	log.Printf("Retrieved Role: %v", role.GetName())
+
 	// update the auditor role's ttl to one day
 	role.SetOptions(services.RoleOptions{
 		MaxSessionTTL: services.Duration(time.Hour * 24),
