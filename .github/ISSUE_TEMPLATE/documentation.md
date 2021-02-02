@@ -1,14 +1,27 @@
 ---
 name: Documentation 📝
-about: Suggest better documentation for a particular tool or process. 
-labels: "type: documentation"
+about: Suggest improvements to Teleport's documentation site.
+labels: documentation
 ---
+## Details
+Describe the documentation improvements you wish to see.
 
-## Summary
-Describe the missing documentation. If it's a new feature, link to the feature ticket.
+### Category
+- [ ] New Feature
+- [x] Improve Existing
+- [ ] Remove Outdated
 
-### Audience
-Outline who this is for. e.g. CLI docs, new users, power users 
+### Which platform(s)
+- [ ] Teleport Open Source
+- [ ] Teleport Cloud
+- [x] Teleport Enterprise
+- [ ] Other
 
-### Location
-Should this docs update be a new guide, or an addition to an existing guide? 
+### Which component(s)
+- [x] Server Access
+- [ ] Kubernetes Access
+- [ ] Application Access
+- [ ] Database Access
+- [ ] CLI Clients
+- [ ] Web Clients
+- [ ] Other
