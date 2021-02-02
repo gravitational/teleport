@@ -1,3 +1,10 @@
+kind: user
+metadata:
+  name: access-admin-no-login
+spec:
+  roles: ['access-admin']
+version: v2
+---
 kind: role
 metadata:
   name: access-admin
@@ -5,7 +12,7 @@ spec:
   allow:
     rules:
       - resources: ['access_request']
-        verbs: ['create', 'list', 'read', 'update', 'delete']
+        verbs: ['create', 'update']
     request:
       roles: ['admin']
   deny:

@@ -31,11 +31,8 @@ func main() {
 	log.Printf("Starting Teleport client...")
 
 	clt, err := client.NewClient(client.Config{
-		// TODO: Can Addrs be loaded from somewhere?
 		Addrs:       []string{"proxy.example.com:3025"},
 		Credentials: client.ProfileCreds(),
-		// Credentials: client.IdentityCreds("/home/bjoerger/dev"),
-		// Credentials: client.PathCreds("certs/api-admin"),
 	})
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
