@@ -88,7 +88,7 @@ func (f *processState) update(event Event) {
 	s, ok := f.states[component]
 	if !ok {
 		// Register a new component.
-		s = &componentState{recoveryTime: f.process.Now(), state: stateStarting}
+		s = &componentState{recoveryTime: f.process.Clock.Now(), state: stateStarting}
 		f.states[component] = s
 	}
 
@@ -109,10 +109,10 @@ func (f *processState) update(event Event) {
 			f.process.Debugf("Teleport component %q has started.", component)
 		case stateDegraded:
 			s.state = stateRecovering
-			s.recoveryTime = f.process.Now()
+			s.recoveryTime = f.process.Clock.Now()
 			f.process.Infof("Teleport component %q is recovering from a degraded state.", component)
 		case stateRecovering:
-			if f.process.Now().Sub(s.recoveryTime) > defaults.HeartbeatCheckPeriod*2 {
+			if f.process.Clock.Now().Sub(s.recoveryTime) > defaults.HeartbeatCheckPeriod*2 {
 				s.state = stateOK
 				f.process.Infof("Teleport component %q has recovered from a degraded state.", component)
 			}

@@ -44,7 +44,7 @@ require (
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/iovisor/gobpf v0.0.1
 	github.com/johannesboyne/gofakes3 v0.0.0-20191228161223-9aee1c78a252
-	github.com/jonboulle/clockwork v0.2.1
+	github.com/jonboulle/clockwork v0.2.2
 	github.com/json-iterator/go v1.1.10
 	github.com/julienschmidt/httprouter v1.2.0
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0

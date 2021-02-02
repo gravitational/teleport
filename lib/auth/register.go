@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 // LocalRegister is used to generate host keys when a node or proxy is running
@@ -90,6 +91,16 @@ type RegisterParams struct {
 	CAPath string
 	// GetHostCredentials is a client that can fetch host credentials.
 	GetHostCredentials HostCredentials
+	// Clock specifies the time provider. Will be used to override the time anchor
+	// for TLS certificate verification.
+	// Defaults to real clock if unspecified
+	Clock clockwork.Clock
+}
+
+func (r *RegisterParams) setDefaults() {
+	if r.Clock == nil {
+		r.Clock = clockwork.NewRealClock()
+	}
 }
 
 // CredGetter is an interface for a client that can be used to get host
@@ -102,6 +113,7 @@ type HostCredentials func(context.Context, string, bool, RegisterUsingTokenReque
 // tokens to prove a valid auth server was used to issue the joining request
 // as well as a method for the node to validate the auth server.
 func Register(params RegisterParams) (*Identity, error) {
+	params.setDefaults()
 	// Read in the token. The token can either be passed in or come from a file
 	// on disk.
 	token, err := utils.ReadToken(params.Token)
@@ -218,6 +230,7 @@ func registerThroughAuth(token string, params RegisterParams) (*Identity, error)
 // Server it is connecting to.
 func insecureRegisterClient(params RegisterParams) (*Client, error) {
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
+	tlsConfig.Time = params.Clock.Now
 
 	cert, err := readCA(params)
 	if err != nil && !trace.IsNotFound(err) {
@@ -274,6 +287,7 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 	// an attacker were to MITM this connection the CA pin will not match below.
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
 	tlsConfig.InsecureSkipVerify = true
+	tlsConfig.Time = params.Clock.Now
 	client, err := NewTLSClient(ClientConfig{Addrs: params.Servers, TLS: tlsConfig})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -304,6 +318,7 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 	// Create another client, but this time with the CA provided to validate
 	// that the Auth Server was issued a certificate by the same CA.
 	tlsConfig = utils.TLSConfig(params.CipherSuites)
+	tlsConfig.Time = params.Clock.Now
 	certPool := x509.NewCertPool()
 	certPool.AddCert(tlsCA)
 	tlsConfig.RootCAs = certPool

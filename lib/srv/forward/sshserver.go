@@ -299,6 +299,7 @@ func New(c ServerConfig) (*Server, error) {
 		AccessPoint: c.AuthClient,
 		FIPS:        c.FIPS,
 		Emitter:     c.Emitter,
+		Clock:       c.Clock,
 	}
 
 	// Common term handlers.

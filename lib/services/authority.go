@@ -128,6 +128,7 @@ type UserCertParams struct {
 	ActiveRequests RequestIDs
 }
 
+// Check checks the user certificate parameters
 func (c UserCertParams) Check() error {
 	if len(c.PrivateCASigningKey) == 0 || c.CASigningAlg == "" {
 		return trace.BadParameter("PrivateCASigningKey and CASigningAlg are required")
@@ -240,7 +241,7 @@ type CertAuthority interface {
 	// GetTLSKeyPairs returns first PEM encoded TLS cert
 	GetTLSKeyPairs() []TLSKeyPair
 	// JWTSigner returns the active JWT key used to sign tokens.
-	JWTSigner() (*jwt.Key, error)
+	JWTSigner(clock clockwork.Clock) (*jwt.Key, error)
 	// GetJWTKeyPairs gets all JWT key pairs.
 	GetJWTKeyPairs() []JWTKeyPair
 	// SetJWTKeyPairs sets all JWT key pairs.
@@ -450,7 +451,7 @@ func (ca *CertAuthorityV2) GetTLSKeyPairs() []TLSKeyPair {
 }
 
 // JWTSigner returns the active JWT key used to sign tokens.
-func (ca *CertAuthorityV2) JWTSigner() (*jwt.Key, error) {
+func (ca *CertAuthorityV2) JWTSigner(clock clockwork.Clock) (*jwt.Key, error) {
 	if len(ca.Spec.JWTKeyPairs) == 0 {
 		return nil, trace.BadParameter("no JWT keypairs found")
 	}
@@ -462,6 +463,7 @@ func (ca *CertAuthorityV2) JWTSigner() (*jwt.Key, error) {
 		Algorithm:   defaults.ApplicationTokenAlgorithm,
 		ClusterName: ca.Spec.ClusterName,
 		PrivateKey:  privateKey,
+		Clock:       clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
