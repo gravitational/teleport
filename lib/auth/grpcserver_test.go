@@ -18,6 +18,8 @@ package auth
 
 import (
 	"context"
+	"encoding/base32"
+	"encoding/base64"
 	"sort"
 	"testing"
 	"time"
@@ -90,6 +92,7 @@ func TestMFADeviceManagement(t *testing.T) {
 					require.Empty(t, cmp.Diff(req, &proto.MFAAuthenticateChallenge{}))
 					return &proto.MFAAuthenticateResponse{}
 				},
+				checkAuthErr: require.NoError,
 				registerHandler: func(t *testing.T, req *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
 					totpRegisterChallenge := req.GetTOTP()
 					require.NotEmpty(t, totpRegisterChallenge)
@@ -108,6 +111,7 @@ func TestMFADeviceManagement(t *testing.T) {
 						}},
 					}
 				},
+				checkRegisterErr: require.NoError,
 				wantDev: func(t *testing.T) *types.MFADevice {
 					wantDev, err := services.NewTOTPDevice("totp-dev", totpSecrets["totp-dev"], clock.Now())
 					require.NoError(t, err)
@@ -132,6 +136,7 @@ func TestMFADeviceManagement(t *testing.T) {
 						Code: code,
 					}}}
 				},
+				checkAuthErr: require.NoError,
 				registerHandler: func(t *testing.T, req *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
 					u2fRegisterChallenge := req.GetU2F()
 					require.NotEmpty(t, u2fRegisterChallenge)
@@ -150,6 +155,7 @@ func TestMFADeviceManagement(t *testing.T) {
 						ClientData:       mresp.ClientData,
 					}}}
 				},
+				checkRegisterErr: require.NoError,
 				wantDev: func(t *testing.T) *types.MFADevice {
 					wantDev, err := u2f.NewDevice(
 						"u2f-dev",
@@ -162,6 +168,141 @@ func TestMFADeviceManagement(t *testing.T) {
 					require.NoError(t, err)
 					return wantDev
 				},
+			},
+		},
+		{
+			desc: "fail U2F auth challenge",
+			opts: mfaAddTestOpts{
+				initReq: &proto.AddMFADeviceRequestInit{
+					DeviceName: "fail-dev",
+					Type:       proto.AddMFADeviceRequestInit_U2F,
+				},
+				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+					require.Len(t, req.U2F, 1)
+					chal := req.U2F[0]
+
+					// Use a different, unregistered device, which should fail
+					// the authentication challenge.
+					keyHandle, err := base64.URLEncoding.WithPadding(base64.NoPadding).DecodeString(chal.KeyHandle)
+					require.NoError(t, err)
+					badDev, err := mocku2f.CreateWithKeyHandle(keyHandle)
+					require.NoError(t, err)
+					mresp, err := badDev.SignResponse(&u2f.AuthenticateChallenge{
+						Challenge: chal.Challenge,
+						KeyHandle: chal.KeyHandle,
+						AppID:     chal.AppID,
+					})
+					require.NoError(t, err)
+
+					return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_U2F{U2F: &proto.U2FResponse{
+						KeyHandle:  mresp.KeyHandle,
+						ClientData: mresp.ClientData,
+						Signature:  mresp.SignatureData,
+					}}}
+				},
+				checkAuthErr: require.Error,
+			},
+		},
+		{
+			desc: "fail TOTP auth challenge",
+			opts: mfaAddTestOpts{
+				initReq: &proto.AddMFADeviceRequestInit{
+					DeviceName: "fail-dev",
+					Type:       proto.AddMFADeviceRequestInit_U2F,
+				},
+				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+					require.NotNil(t, req.TOTP)
+
+					// Respond to challenge using an unregistered TOTP device,
+					// which should fail the auth challenge.
+					badDev, err := totp.Generate(totp.GenerateOpts{Issuer: "Teleport", AccountName: user.GetName()})
+					require.NoError(t, err)
+					code, err := totp.GenerateCode(badDev.Secret(), clock.Now())
+					require.NoError(t, err)
+
+					return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{TOTP: &proto.TOTPResponse{
+						Code: code,
+					}}}
+				},
+				checkAuthErr: require.Error,
+			},
+		},
+		{
+			desc: "fail a U2F registration challenge",
+			opts: mfaAddTestOpts{
+				initReq: &proto.AddMFADeviceRequestInit{
+					DeviceName: "fail-dev",
+					Type:       proto.AddMFADeviceRequestInit_U2F,
+				},
+				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+					// Respond to challenge using the existing TOTP device.
+					require.NotNil(t, req.TOTP)
+					code, err := totp.GenerateCode(totpSecrets["totp-dev"], clock.Now())
+					require.NoError(t, err)
+
+					return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{TOTP: &proto.TOTPResponse{
+						Code: code,
+					}}}
+				},
+				checkAuthErr: require.NoError,
+				registerHandler: func(t *testing.T, req *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
+					u2fRegisterChallenge := req.GetU2F()
+					require.NotEmpty(t, u2fRegisterChallenge)
+
+					mdev, err := mocku2f.Create()
+					require.NoError(t, err)
+					mresp, err := mdev.RegisterResponse(&u2f.RegisterChallenge{
+						Challenge: u2fRegisterChallenge.Challenge,
+						AppID:     "wrong app ID", // This should cause registration to fail.
+					})
+					require.NoError(t, err)
+
+					return &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{U2F: &proto.U2FRegisterResponse{
+						RegistrationData: mresp.RegistrationData,
+						ClientData:       mresp.ClientData,
+					}}}
+				},
+				checkRegisterErr: require.Error,
+			},
+		},
+		{
+			desc: "fail a TOTP registration challenge",
+			opts: mfaAddTestOpts{
+				initReq: &proto.AddMFADeviceRequestInit{
+					DeviceName: "fail-dev",
+					Type:       proto.AddMFADeviceRequestInit_TOTP,
+				},
+				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+					// Respond to challenge using the existing TOTP device.
+					require.NotNil(t, req.TOTP)
+					code, err := totp.GenerateCode(totpSecrets["totp-dev"], clock.Now())
+					require.NoError(t, err)
+
+					return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{TOTP: &proto.TOTPResponse{
+						Code: code,
+					}}}
+				},
+				checkAuthErr: require.NoError,
+				registerHandler: func(t *testing.T, req *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
+					totpRegisterChallenge := req.GetTOTP()
+					require.NotEmpty(t, totpRegisterChallenge)
+					require.Equal(t, totpRegisterChallenge.Algorithm, otp.AlgorithmSHA1.String())
+					// Use the wrong secret for registration, causing server
+					// validation to fail.
+					code, err := totp.GenerateCodeCustom(base32.StdEncoding.EncodeToString([]byte("wrong-secret")), clock.Now(), totp.ValidateOpts{
+						Period:    uint(totpRegisterChallenge.PeriodSeconds),
+						Digits:    otp.Digits(totpRegisterChallenge.Digits),
+						Algorithm: otp.AlgorithmSHA1,
+					})
+					require.NoError(t, err)
+
+					return &proto.MFARegisterResponse{
+						Response: &proto.MFARegisterResponse_TOTP{TOTP: &proto.TOTPRegisterResponse{
+							Code: code,
+						}},
+					}
+				},
+				checkRegisterErr: require.Error,
 			},
 		},
 	}
@@ -177,8 +318,10 @@ func TestMFADeviceManagement(t *testing.T) {
 	resp, err = cl.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
 	require.NoError(t, err)
 	deviceNames := make([]string, 0, len(resp.Devices))
+	deviceIDs := make(map[string]string)
 	for _, dev := range resp.Devices {
 		deviceNames = append(deviceNames, dev.GetName())
+		deviceIDs[dev.GetName()] = dev.Id
 	}
 	sort.Strings(deviceNames)
 	require.Equal(t, deviceNames, []string{"totp-dev", "u2f-dev"})
@@ -189,7 +332,80 @@ func TestMFADeviceManagement(t *testing.T) {
 		opts mfaDeleteTestOpts
 	}{
 		{
-			desc: "delete TOTP device",
+			desc: "fail to delete an unknown device",
+			opts: mfaDeleteTestOpts{
+				initReq: &proto.DeleteMFADeviceRequestInit{
+					DeviceName: "unknown-dev",
+				},
+				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+					require.NotNil(t, req.TOTP)
+					code, err := totp.GenerateCode(totpSecrets["totp-dev"], clock.Now())
+					require.NoError(t, err)
+
+					return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{TOTP: &proto.TOTPResponse{
+						Code: code,
+					}}}
+				},
+				checkErr: require.Error,
+			},
+		},
+		{
+			desc: "fail a TOTP auth challenge",
+			opts: mfaDeleteTestOpts{
+				initReq: &proto.DeleteMFADeviceRequestInit{
+					DeviceName: "totp-dev",
+				},
+				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+					require.NotNil(t, req.TOTP)
+
+					// Respond to challenge using an unregistered TOTP device,
+					// which should fail the auth challenge.
+					badDev, err := totp.Generate(totp.GenerateOpts{Issuer: "Teleport", AccountName: user.GetName()})
+					require.NoError(t, err)
+					code, err := totp.GenerateCode(badDev.Secret(), clock.Now())
+					require.NoError(t, err)
+
+					return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{TOTP: &proto.TOTPResponse{
+						Code: code,
+					}}}
+				},
+				checkErr: require.Error,
+			},
+		},
+		{
+			desc: "fail a U2F auth challenge",
+			opts: mfaDeleteTestOpts{
+				initReq: &proto.DeleteMFADeviceRequestInit{
+					DeviceName: "totp-dev",
+				},
+				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+					require.Len(t, req.U2F, 1)
+					chal := req.U2F[0]
+
+					// Use a different, unregistered device, which should fail
+					// the authentication challenge.
+					keyHandle, err := base64.URLEncoding.WithPadding(base64.NoPadding).DecodeString(chal.KeyHandle)
+					require.NoError(t, err)
+					badDev, err := mocku2f.CreateWithKeyHandle(keyHandle)
+					require.NoError(t, err)
+					mresp, err := badDev.SignResponse(&u2f.AuthenticateChallenge{
+						Challenge: chal.Challenge,
+						KeyHandle: chal.KeyHandle,
+						AppID:     chal.AppID,
+					})
+					require.NoError(t, err)
+
+					return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_U2F{U2F: &proto.U2FResponse{
+						KeyHandle:  mresp.KeyHandle,
+						ClientData: mresp.ClientData,
+						Signature:  mresp.SignatureData,
+					}}}
+				},
+				checkErr: require.Error,
+			},
+		},
+		{
+			desc: "delete TOTP device by name",
 			opts: mfaDeleteTestOpts{
 				initReq: &proto.DeleteMFADeviceRequestInit{
 					DeviceName: "totp-dev",
@@ -206,13 +422,14 @@ func TestMFADeviceManagement(t *testing.T) {
 						Code: code,
 					}}}
 				},
+				checkErr: require.NoError,
 			},
 		},
 		{
-			desc: "delete last U2F device",
+			desc: "delete last U2F device by ID",
 			opts: mfaDeleteTestOpts{
 				initReq: &proto.DeleteMFADeviceRequestInit{
-					DeviceName: "u2f-dev",
+					DeviceName: deviceIDs["u2f-dev"],
 				},
 				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					require.Len(t, req.U2F, 1)
@@ -233,26 +450,31 @@ func TestMFADeviceManagement(t *testing.T) {
 						Signature:  mresp.SignatureData,
 					}}}
 				},
+				checkErr: require.NoError,
 			},
 		},
 	}
 	for _, tt := range deleteTests {
 		t.Run(tt.desc, func(t *testing.T) {
 			testDeleteMFADevice(ctx, t, cl, tt.opts)
+			// Advance the time to roll TOTP tokens.
+			clock.Advance(30 * time.Second)
 		})
 	}
 
 	// Check the remaining number of devices
 	resp, err = cl.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
 	require.NoError(t, err)
-	require.Len(t, resp.Devices, len(addTests)-len(deleteTests))
+	require.Empty(t, resp.Devices)
 }
 
 type mfaAddTestOpts struct {
-	initReq         *proto.AddMFADeviceRequestInit
-	authHandler     func(*testing.T, *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse
-	registerHandler func(*testing.T, *proto.MFARegisterChallenge) *proto.MFARegisterResponse
-	wantDev         func(*testing.T) *types.MFADevice
+	initReq          *proto.AddMFADeviceRequestInit
+	authHandler      func(*testing.T, *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse
+	checkAuthErr     require.ErrorAssertionFunc
+	registerHandler  func(*testing.T, *proto.MFARegisterChallenge) *proto.MFARegisterResponse
+	checkRegisterErr require.ErrorAssertionFunc
+	wantDev          func(*testing.T) *types.MFADevice
 }
 
 func testAddMFADevice(ctx context.Context, t *testing.T, cl *Client, opts mfaAddTestOpts) {
@@ -268,13 +490,19 @@ func testAddMFADevice(ctx context.Context, t *testing.T, cl *Client, opts mfaAdd
 	require.NoError(t, err)
 
 	registerChallenge, err := addStream.Recv()
-	require.NoError(t, err)
+	opts.checkAuthErr(t, err)
+	if err != nil {
+		return
+	}
 	registerResp := opts.registerHandler(t, registerChallenge.GetNewMFARegisterChallenge())
 	err = addStream.Send(&proto.AddMFADeviceRequest{Request: &proto.AddMFADeviceRequest_NewMFARegisterResponse{NewMFARegisterResponse: registerResp}})
 	require.NoError(t, err)
 
 	registerAck, err := addStream.Recv()
-	require.NoError(t, err)
+	opts.checkRegisterErr(t, err)
+	if err != nil {
+		return
+	}
 	require.Empty(t, cmp.Diff(registerAck.GetAck(), &proto.AddMFADeviceResponseAck{
 		Device: opts.wantDev(t),
 	}, cmpopts.IgnoreFields(types.MFADevice{}, "Id")))
@@ -285,6 +513,7 @@ func testAddMFADevice(ctx context.Context, t *testing.T, cl *Client, opts mfaAdd
 type mfaDeleteTestOpts struct {
 	initReq     *proto.DeleteMFADeviceRequestInit
 	authHandler func(*testing.T, *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse
+	checkErr    require.ErrorAssertionFunc
 }
 
 func testDeleteMFADevice(ctx context.Context, t *testing.T, cl *Client, opts mfaDeleteTestOpts) {
@@ -300,7 +529,10 @@ func testDeleteMFADevice(ctx context.Context, t *testing.T, cl *Client, opts mfa
 	require.NoError(t, err)
 
 	deleteAck, err := deleteStream.Recv()
-	require.NoError(t, err)
+	opts.checkErr(t, err)
+	if err != nil {
+		return
+	}
 	require.Empty(t, cmp.Diff(deleteAck.GetAck(), &proto.DeleteMFADeviceResponseAck{}))
 
 	require.NoError(t, deleteStream.CloseSend())
