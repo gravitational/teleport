@@ -156,7 +156,7 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	apiClient, err := client.NewClient(cfg)
+	apiClient, err := client.New(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
