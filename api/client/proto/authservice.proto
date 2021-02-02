@@ -560,8 +560,8 @@ message TOTPRegisterChallenge {
     string Secret = 1;
     // Issuer is the name of the Teleport cluster.
     string Issuer = 2;
-    // Period is a period for TOTP code rotation, in seconds.
-    uint32 Period = 3;
+    // PeriodSeconds is a period for TOTP code rotation, in seconds.
+    uint32 PeriodSeconds = 3;
     // Algorithm is the TOTP hashing algorithm.
     string Algorithm = 4;
     // Digits is the number of digits in the TOTP code.
@@ -611,7 +611,7 @@ message AddMFADeviceRequestInit {
 }
 
 // AddMFADeviceResponseAck is a confirmation of successful device registration.
-message AddMFADeviceResponseAck { types.MFADevice device = 1; }
+message AddMFADeviceResponseAck { types.MFADevice Device = 1; }
 
 // DeleteMFADeviceRequest is a message sent by the client during
 // DeleteMFADevice RPC.

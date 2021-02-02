@@ -27,6 +27,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/subtle"
+	"encoding/base64"
 	"fmt"
 	"math/rand"
 	"net/url"
@@ -857,27 +858,7 @@ func (a *Server) CheckU2FSignResponse(ctx context.Context, user string, response
 		return trace.Wrap(err)
 	}
 
-	devs, err := a.GetMFADevices(ctx, user)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	for _, dev := range devs {
-		if dev.GetU2F() == nil {
-			continue
-		}
-		if err := u2f.AuthenticateVerify(ctx, u2f.AuthenticateVerifyParams{
-			Dev:        dev,
-			Resp:       *response,
-			StorageKey: user,
-			Storage:    a.Identity,
-			Clock:      a.GetClock(),
-		}); err != nil {
-			log.WithError(err).Debugf("Failed U2F challenge validation using device %q", dev.Id)
-			continue
-		}
-		return nil
-	}
-	return trace.AccessDenied("U2F validation failed")
+	return a.checkU2F(ctx, user, *response)
 }
 
 // ExtendWebSession creates a new web session for a user based on a valid previous sessionID.
@@ -1987,13 +1968,17 @@ func (a *Server) validateMFAAuthResponse(ctx context.Context, user string, resp 
 	case *proto.MFAAuthenticateResponse_TOTP:
 		return a.checkOTP(user, res.TOTP.Code)
 	case *proto.MFAAuthenticateResponse_U2F:
-		return a.checkU2F(ctx, user, res.U2F)
+		return a.checkU2F(ctx, user, u2f.AuthenticateChallengeResponse{
+			KeyHandle:     res.U2F.KeyHandle,
+			ClientData:    res.U2F.ClientData,
+			SignatureData: res.U2F.Signature,
+		})
 	default:
 		return trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
 	}
 }
 
-func (a *Server) checkU2F(ctx context.Context, user string, res *proto.U2FResponse) error {
+func (a *Server) checkU2F(ctx context.Context, user string, res u2f.AuthenticateChallengeResponse) error {
 	devs, err := a.GetMFADevices(ctx, user)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2003,23 +1988,25 @@ func (a *Server) checkU2F(ctx context.Context, user string, res *proto.U2FRespon
 		if u2fDev == nil {
 			continue
 		}
+
+		// U2F passes key handles around base64-encoded, without padding.
+		kh := base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(u2fDev.KeyHandle)
+		if kh != res.KeyHandle {
+			continue
+		}
 		if err := u2f.AuthenticateVerify(ctx, u2f.AuthenticateVerifyParams{
-			Dev: dev,
-			Resp: u2f.AuthenticateChallengeResponse{
-				KeyHandle:     res.KeyHandle,
-				ClientData:    res.ClientData,
-				SignatureData: res.Signature,
-			},
+			Dev:        dev,
+			Resp:       res,
 			Storage:    a.Identity,
 			StorageKey: user,
 			Clock:      a.clock,
 		}); err != nil {
-			log.WithError(err).Debugf("Failed validating U2F response")
-			continue
+			// Since key handles are unique, no need to check other devices.
+			return trace.AccessDenied("U2F response validation failed for device %q: %v", dev.GetName(), err)
 		}
 		return nil
 	}
-	return trace.AccessDenied("U2F response validation failed")
+	return trace.AccessDenied("U2F response validation failed: no device matches the response")
 }
 
 // WithClock is a functional server option that sets the server's clock

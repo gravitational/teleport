@@ -1067,13 +1067,10 @@ func (g *GRPCServer) DeleteAllKubeServices(ctx context.Context, req *proto.Delet
 }
 
 func (g *GRPCServer) AddMFADevice(stream proto.AuthService_AddMFADeviceServer) error {
-	ctx := stream.Context()
-	actx, err := g.authenticate(ctx)
+	actx, err := g.authenticate(stream.Context())
 	if err != nil {
 		return trail.ToGRPC(err)
 	}
-	auth := actx.authServer
-	user := actx.User.GetName()
 
 	// The RPC is streaming both ways and the message sequence is:
 	// (-> means client-to-server, <- means server-to-client)
@@ -1086,77 +1083,120 @@ func (g *GRPCServer) AddMFADevice(stream proto.AuthService_AddMFADeviceServer) e
 	// 6. <- Ack
 
 	// 1. receive client Init
-	req, err := stream.Recv()
+	initReq, err := addMFADeviceInit(actx, stream)
 	if err != nil {
 		return trail.ToGRPC(err)
+	}
+
+	// 2. send ExistingMFAChallenge
+	// 3. receive and validate ExistingMFAResponse
+	if err := addMFADeviceAuthChallenge(actx, stream); err != nil {
+		return trail.ToGRPC(err)
+	}
+
+	// 4. send MFARegisterChallenge
+	// 5. receive and validate MFARegisterResponse
+	dev, err := addMFADeviceRegisterChallenge(actx, stream, initReq)
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+
+	// 6. send Ack
+	if err := stream.Send(&proto.AddMFADeviceResponse{
+		Response: &proto.AddMFADeviceResponse_Ack{Ack: &proto.AddMFADeviceResponseAck{Device: dev}},
+	}); err != nil {
+		return trail.ToGRPC(err)
+	}
+	return nil
+}
+
+func addMFADeviceInit(gctx *grpcContext, stream proto.AuthService_AddMFADeviceServer) (*proto.AddMFADeviceRequestInit, error) {
+	req, err := stream.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	initReq := req.GetInit()
 	if initReq == nil {
-		return trail.ToGRPC(trace.BadParameter("expected AddMFADeviceRequestInit, got %T", req))
+		return nil, trace.BadParameter("expected AddMFADeviceRequestInit, got %T", req)
 	}
-	devs, err := auth.GetMFADevices(ctx, user)
+	devs, err := gctx.authServer.GetMFADevices(stream.Context(), gctx.User.GetName())
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	for _, d := range devs {
 		if d.Metadata.Name == initReq.DeviceName {
-			return trail.ToGRPC(trace.AlreadyExists("MFA device named %q already exists", d.Metadata.Name))
+			return nil, trace.AlreadyExists("MFA device named %q already exists", d.Metadata.Name)
 		}
 	}
+	return initReq, nil
+}
 
-	// 2. send MFAAuthenticateChallenge
+func addMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_AddMFADeviceServer) error {
+	auth := gctx.authServer
+	user := gctx.User.GetName()
+	ctx := stream.Context()
+
 	// Note: authChallenge may be empty if this user has no existing MFA devices.
+	//
+	// TODO(awly): store auth and registration challenges in memory and not the
+	// backend.
 	authChallenge, err := auth.mfaAuthChallenge(ctx, user)
 	if err != nil {
-		return trail.ToGRPC(err)
+		return trace.Wrap(err)
 	}
 	if err := stream.Send(&proto.AddMFADeviceResponse{
 		Response: &proto.AddMFADeviceResponse_ExistingMFAChallenge{ExistingMFAChallenge: authChallenge},
 	}); err != nil {
-		return trail.ToGRPC(err)
+		return trace.Wrap(err)
 	}
 
-	// 3. receive client MFAAuthenticateResponse
-	req, err = stream.Recv()
+	req, err := stream.Recv()
 	if err != nil {
-		return trail.ToGRPC(err)
+		return trace.Wrap(err)
 	}
 	authResp := req.GetExistingMFAResponse()
-	if initReq == nil {
-		return trail.ToGRPC(trace.BadParameter("expected MFAAuthenticateResponse, got %T", req))
+	if authResp == nil {
+		return trace.BadParameter("expected MFAAuthenticateResponse, got %T", req)
 	}
 	// Only validate if there was a challenge.
 	if authChallenge.TOTP != nil || len(authChallenge.U2F) > 0 {
 		if err := auth.validateMFAAuthResponse(ctx, user, authResp); err != nil {
-			return trail.ToGRPC(err)
+			return trace.Wrap(err)
 		}
 	}
+	return nil
+}
 
-	// 4. send MFARegisterChallenge
+func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_AddMFADeviceServer, initReq *proto.AddMFADeviceRequestInit) (*types.MFADevice, error) {
+	auth := gctx.authServer
+	user := gctx.User.GetName()
+	ctx := stream.Context()
+
+	// Send registration challenge for the requested device type.
 	regChallenge := new(proto.MFARegisterChallenge)
 	switch initReq.Type {
 	case proto.AddMFADeviceRequestInit_TOTP:
 		otpKey, otpOpts, err := auth.newTOTPKey(user)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		regChallenge.Request = &proto.MFARegisterChallenge_TOTP{TOTP: &proto.TOTPRegisterChallenge{
-			Secret:    otpKey.Secret(),
-			Issuer:    otpKey.Issuer(),
-			Period:    uint32(otpOpts.Period),
-			Algorithm: otpOpts.Algorithm.String(),
-			Digits:    uint32(otpOpts.Digits.Length()),
+			Secret:        otpKey.Secret(),
+			Issuer:        otpKey.Issuer(),
+			PeriodSeconds: uint32(otpOpts.Period),
+			Algorithm:     otpOpts.Algorithm.String(),
+			Digits:        uint32(otpOpts.Digits.Length()),
 		}}
 	case proto.AddMFADeviceRequestInit_U2F:
 		cap, err := auth.GetAuthPreference()
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		u2fConfig, err := cap.GetU2F()
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		challenge, err := u2f.RegisterInit(u2f.RegisterInitParams{
 			StorageKey: user,
@@ -1164,29 +1204,29 @@ func (g *GRPCServer) AddMFADevice(stream proto.AuthService_AddMFADeviceServer) e
 			Storage:    auth.Identity,
 		})
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		regChallenge.Request = &proto.MFARegisterChallenge_U2F{U2F: &proto.U2FRegisterChallenge{
 			Challenge: challenge.Challenge,
 			AppID:     challenge.AppID,
 		}}
 	default:
-		return trail.ToGRPC(trace.BadParameter("AddMFADeviceRequestInit sent an unknown DeviceType %v", initReq.Type))
+		return nil, trace.BadParameter("AddMFADeviceRequestInit sent an unknown DeviceType %v", initReq.Type)
 	}
 	if err := stream.Send(&proto.AddMFADeviceResponse{
 		Response: &proto.AddMFADeviceResponse_NewMFARegisterChallenge{NewMFARegisterChallenge: regChallenge},
 	}); err != nil {
-		return trail.ToGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// 5. receive client MFARegisterResponse
-	req, err = stream.Recv()
+	req, err := stream.Recv()
 	if err != nil {
-		return trail.ToGRPC(err)
+		return nil, trail.ToGRPC(err)
 	}
 	regResp := req.GetNewMFARegisterResponse()
 	if regResp == nil {
-		return trail.ToGRPC(trace.BadParameter("expected MFARegistrationResponse, got %T", req))
+		return nil, trace.BadParameter("expected MFARegistrationResponse, got %T", req)
 	}
 
 	// Validate MFARegisterResponse and upsert the new device on success.
@@ -1195,17 +1235,17 @@ func (g *GRPCServer) AddMFADevice(stream proto.AuthService_AddMFADeviceServer) e
 	case *proto.MFARegisterResponse_TOTP:
 		challenge := regChallenge.GetTOTP()
 		if challenge == nil {
-			return trail.ToGRPC(trace.BadParameter("got unexpected %T in response to %T", regResp.Response, regChallenge.Request))
+			return nil, trace.BadParameter("got unexpected %T in response to %T", regResp.Response, regChallenge.Request)
 		}
 		dev, err = services.NewTOTPDevice(initReq.DeviceName, challenge.Secret, auth.clock.Now())
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		if err := auth.checkTOTP(user, resp.TOTP.Code, dev.GetTotp()); err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		if err := auth.UpsertMFADevice(ctx, user, dev); err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	case *proto.MFARegisterResponse_U2F:
 		// u2f.RegisterVerify will upsert the new device internally.
@@ -1221,19 +1261,12 @@ func (g *GRPCServer) AddMFADevice(stream proto.AuthService_AddMFADeviceServer) e
 			Clock:                  auth.clock,
 		})
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	default:
-		return trail.ToGRPC(trace.BadParameter("MFARegisterResponse sent an unknown response type %v", regResp.Response))
+		return nil, trace.BadParameter("MFARegisterResponse sent an unknown response type %v", regResp.Response)
 	}
-
-	// 6. send Ack
-	if err := stream.Send(&proto.AddMFADeviceResponse{
-		Response: &proto.AddMFADeviceResponse_Ack{Ack: &proto.AddMFADeviceResponseAck{Device: dev}},
-	}); err != nil {
-		return trail.ToGRPC(err)
-	}
-	return nil
+	return dev, nil
 }
 
 func (g *GRPCServer) DeleteMFADevice(stream proto.AuthService_DeleteMFADeviceServer) error {
@@ -1264,26 +1297,8 @@ func (g *GRPCServer) DeleteMFADevice(stream proto.AuthService_DeleteMFADeviceSer
 	}
 
 	// 2. send MFAAuthenticateChallenge
-	authChallenge, err := auth.mfaAuthChallenge(ctx, user)
-	if err != nil {
-		return trail.ToGRPC(err)
-	}
-	if err := stream.Send(&proto.DeleteMFADeviceResponse{
-		Response: &proto.DeleteMFADeviceResponse_MFAChallenge{MFAChallenge: authChallenge},
-	}); err != nil {
-		return trail.ToGRPC(err)
-	}
-
-	// 3. receive client MFAAuthenticateResponse
-	req, err = stream.Recv()
-	if err != nil {
-		return trail.ToGRPC(err)
-	}
-	authResp := req.GetMFAResponse()
-	if initReq == nil {
-		return trail.ToGRPC(trace.BadParameter("expected MFAAuthenticateResponse, got %T", req))
-	}
-	if err := auth.validateMFAAuthResponse(ctx, user, authResp); err != nil {
+	// 3. receive and validate MFAAuthenticateResponse
+	if err := deleteMFADeviceAuthChallenge(actx, stream); err != nil {
 		return trail.ToGRPC(err)
 	}
 
@@ -1292,26 +1307,52 @@ func (g *GRPCServer) DeleteMFADevice(stream proto.AuthService_DeleteMFADeviceSer
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	var found bool
 	for _, d := range devs {
 		// Match device by name or ID.
-		if d.Metadata.Name == initReq.DeviceName || d.Id == initReq.DeviceName {
-			found = true
-			if err := auth.DeleteMFADevice(ctx, user, d.Id); err != nil {
-				return trail.ToGRPC(err)
-			}
-			break
+		if d.Metadata.Name != initReq.DeviceName && d.Id != initReq.DeviceName {
+			continue
 		}
+		if err := auth.DeleteMFADevice(ctx, user, d.Id); err != nil {
+			return trail.ToGRPC(err)
+		}
+		// 4. send Ack
+		if err := stream.Send(&proto.DeleteMFADeviceResponse{
+			Response: &proto.DeleteMFADeviceResponse_Ack{Ack: &proto.DeleteMFADeviceResponseAck{}},
+		}); err != nil {
+			return trail.ToGRPC(err)
+		}
+		return nil
 	}
-	if !found {
-		return trail.ToGRPC(trace.NotFound("MFA device %q does not exist", initReq.DeviceName))
+	return trail.ToGRPC(trace.NotFound("MFA device %q does not exist", initReq.DeviceName))
+}
+
+func deleteMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_DeleteMFADeviceServer) error {
+	ctx := stream.Context()
+	auth := gctx.authServer
+	user := gctx.User.GetName()
+
+	// TODO(awly): store auth challenge in memory and not the backend.
+	authChallenge, err := auth.mfaAuthChallenge(ctx, user)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := stream.Send(&proto.DeleteMFADeviceResponse{
+		Response: &proto.DeleteMFADeviceResponse_MFAChallenge{MFAChallenge: authChallenge},
+	}); err != nil {
+		return trace.Wrap(err)
 	}
 
-	// 6. send Ack
-	if err := stream.Send(&proto.DeleteMFADeviceResponse{
-		Response: &proto.DeleteMFADeviceResponse_Ack{Ack: &proto.DeleteMFADeviceResponseAck{}},
-	}); err != nil {
-		return trail.ToGRPC(err)
+	// 3. receive client MFAAuthenticateResponse
+	req, err := stream.Recv()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	authResp := req.GetMFAResponse()
+	if authResp == nil {
+		return trace.BadParameter("expected MFAAuthenticateResponse, got %T", req)
+	}
+	if err := auth.validateMFAAuthResponse(ctx, user, authResp); err != nil {
+		return trace.Wrap(err)
 	}
 	return nil
 }

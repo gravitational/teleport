@@ -236,7 +236,7 @@ func (s *Server) checkOTP(user string, otpToken string) error {
 	return nil
 }
 
-// checkTOTP and checks if the TOTP token is valid.
+// checkTOTP checks if the TOTP token is valid.
 func (s *Server) checkTOTP(user, otpToken string, totpDev *types.TOTPDevice) error {
 	// we use totp.ValidateCustom over totp.Validate so we can use
 	// a fake clock in tests to get reliable results

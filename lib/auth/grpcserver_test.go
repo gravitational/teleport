@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"sort"
 	"testing"
 	"time"
 
@@ -94,7 +95,7 @@ func TestMFADeviceManagement(t *testing.T) {
 					require.NotEmpty(t, totpRegisterChallenge)
 					require.Equal(t, totpRegisterChallenge.Algorithm, otp.AlgorithmSHA1.String())
 					code, err := totp.GenerateCodeCustom(totpRegisterChallenge.Secret, clock.Now(), totp.ValidateOpts{
-						Period:    uint(totpRegisterChallenge.Period),
+						Period:    uint(totpRegisterChallenge.PeriodSeconds),
 						Digits:    otp.Digits(totpRegisterChallenge.Digits),
 						Algorithm: otp.AlgorithmSHA1,
 					})
@@ -175,7 +176,12 @@ func TestMFADeviceManagement(t *testing.T) {
 	// Check that all new devices are registered.
 	resp, err = cl.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
 	require.NoError(t, err)
-	require.Len(t, resp.Devices, len(addTests))
+	deviceNames := make([]string, 0, len(resp.Devices))
+	for _, dev := range resp.Devices {
+		deviceNames = append(deviceNames, dev.GetName())
+	}
+	sort.Strings(deviceNames)
+	require.Equal(t, deviceNames, []string{"totp-dev", "u2f-dev"})
 
 	// Delete several of the MFA devices.
 	deleteTests := []struct {
