@@ -17,9 +17,13 @@ limitations under the License.
 package u2f
 
 import (
-	"github.com/gravitational/teleport/api/types"
+	"context"
+
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/tstranex/u2f"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // Registration sequence:
@@ -62,8 +66,7 @@ type RegistrationStorage interface {
 	UpsertU2FRegisterChallenge(key string, challenge *Challenge) error
 	GetU2FRegisterChallenge(key string) (*Challenge, error)
 
-	UpsertU2FRegistration(key string, reg *Registration) error
-	UpsertU2FRegistrationCounter(key string, counter uint32) error
+	UpsertMFADevice(ctx context.Context, key string, d *types.MFADevice) error
 }
 
 // RegisterInitParams are the parameters for initiating the registration
@@ -95,14 +98,16 @@ func RegisterInit(params RegisterInitParams) (*RegisterChallenge, error) {
 // RegisterChallengeResponse.
 type RegisterVerifyParams struct {
 	Resp                   RegisterChallengeResponse
+	DevName                string
 	ChallengeStorageKey    string
 	RegistrationStorageKey string
 	Storage                RegistrationStorage
+	Clock                  clockwork.Clock
 }
 
 // RegisterVerify is the last step in the registration sequence. It runs on the
 // server and verifies the RegisterChallengeResponse returned by the client.
-func RegisterVerify(params RegisterVerifyParams) error {
+func RegisterVerify(ctx context.Context, params RegisterVerifyParams) error {
 	challenge, err := params.Storage.GetU2FRegisterChallenge(params.ChallengeStorageKey)
 	if err != nil {
 		return trace.Wrap(err)
@@ -116,12 +121,13 @@ func RegisterVerify(params RegisterVerifyParams) error {
 		// trace.BadParameter error to allow the Web UI to unmarshal it correctly.
 		return trace.BadParameter(err.Error())
 	}
+	dev, err := NewDevice(params.DevName, reg, params.Clock.Now())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := params.Storage.UpsertMFADevice(ctx, params.RegistrationStorageKey, dev); err != nil {
+		return trace.Wrap(err)
+	}
 
-	if err := params.Storage.UpsertU2FRegistration(params.RegistrationStorageKey, reg); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := params.Storage.UpsertU2FRegistrationCounter(params.RegistrationStorageKey, 0); err != nil {
-		return trace.Wrap(err)
-	}
 	return nil
 }

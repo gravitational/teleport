@@ -225,11 +225,16 @@ func localAuthSecretsTestCase(c *check.C) services.LocalAuthSecrets {
 	var err error
 	auth.PasswordHash, err = bcrypt.GenerateFromPassword([]byte("insecure"), bcrypt.MinCost)
 	c.Assert(err, check.IsNil)
-	auth.TOTPKey = base32.StdEncoding.EncodeToString([]byte("abc123"))
-	auth.U2FCounter = 7
-	reg := u2fRegTestCase(c)
-	err = services.SetLocalAuthSecretsU2FRegistration(&auth, &reg)
+
+	dev, err := services.NewTOTPDevice("otp", base32.StdEncoding.EncodeToString([]byte("abc123")), time.Now())
 	c.Assert(err, check.IsNil)
+	auth.MFA = append(auth.MFA, dev)
+
+	reg := u2fRegTestCase(c)
+	dev, err = u2f.NewDevice("u2f", &reg, time.Now())
+	c.Assert(err, check.IsNil)
+	dev.GetU2F().Counter = 7
+	auth.MFA = append(auth.MFA, dev)
 	return auth
 }
 
