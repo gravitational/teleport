@@ -302,7 +302,41 @@ volumes:
 ---
 kind: pipeline
 type: kubernetes
+name: update-docs-webhook
+
+trigger:
+  event:
+    include:
+      - push
+    exclude:
+      - pull_request
+  branch:
+    include:
+      - master
+      - branch/*
+  repo:
+    include:
+      - gravitational/*
+
+clone:
+  disable: true
+
+steps:
+  - name: Trigger docs deployment
+    image: plugins/webhook
+    settings:
+      urls:
+        from_secret: DOCS_DEPLOY_HOOK
+
+---
+kind: pipeline
+type: kubernetes
 name: test-docs-internal
+
+environment:
+  RUNTIME: go1.15.5
+  UID: 1000
+  GID: 1000
 
 trigger:
   event:
@@ -3352,6 +3386,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 601146e3abd89a06e29f7ddb3ff3c9ee8231bdfab9ee489a35a39542d83585f8
+hmac: 1ca80e0df7558bac8459d031fa677022294716c5ec55292beb1005fbbe243cba
 
 ...
