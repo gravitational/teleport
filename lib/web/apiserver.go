@@ -141,6 +141,11 @@ type Config struct {
 	// StaticFS optionally specifies the HTTP file system to use.
 	// Enables web UI if set.
 	StaticFS http.FileSystem
+
+	// cachedSessionLingeringThreshold specifies the time the session will linger
+	// in the cache before getting purged after it has expired.
+	// Defaults to cachedSessionLingeringThreshold if unspecified.
+	cachedSessionLingeringThreshold *time.Duration
 }
 
 type RewritingHandler struct {
@@ -193,12 +198,18 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		}
 	}
 
+	sessionLingeringThreshold := cachedSessionLingeringThreshold
+	if cfg.cachedSessionLingeringThreshold != nil {
+		sessionLingeringThreshold = *cfg.cachedSessionLingeringThreshold
+	}
+
 	auth, err := newSessionCache(sessionCacheOptions{
-		proxyClient:  cfg.ProxyClient,
-		accessPoint:  cfg.AccessPoint,
-		servers:      []utils.NetAddr{cfg.AuthServers},
-		cipherSuites: cfg.CipherSuites,
-		clock:        h.clock,
+		proxyClient:               cfg.ProxyClient,
+		accessPoint:               cfg.AccessPoint,
+		servers:                   []utils.NetAddr{cfg.AuthServers},
+		cipherSuites:              cfg.CipherSuites,
+		clock:                     h.clock,
+		sessionLingeringThreshold: sessionLingeringThreshold,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

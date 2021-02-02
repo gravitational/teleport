@@ -341,7 +341,7 @@ func (c *SessionContext) expired(ctx context.Context) bool {
 	if err == nil {
 		return false
 	}
-	expiry := c.session.Expiry()
+	expiry := c.session.GetBearerTokenExpiryTime()
 	if expiry.IsZero() {
 		return false
 	}
@@ -354,7 +354,7 @@ func (c *SessionContext) expired(ctx context.Context) bool {
 	// cached site clients.
 	// This is a cheaper way to avoid race without introducing object
 	// reference counters.
-	return c.parent.clock.Since(expiry) > cachedSessionLingeringThreshold
+	return c.parent.clock.Since(expiry) > c.parent.sessionLingeringThreshold
 }
 
 // cachedSessionLingeringThreshold specifies the maximum amount of time the session cache
@@ -368,6 +368,9 @@ type sessionCacheOptions struct {
 	servers      []utils.NetAddr
 	cipherSuites []uint16
 	clock        clockwork.Clock
+	// sessionLingeringThreshold specifies the time the session will linger
+	// in the cache before getting purged after it has expired
+	sessionLingeringThreshold time.Duration
 }
 
 // newSessionCache returns new instance of the session cache
@@ -380,16 +383,17 @@ func newSessionCache(config sessionCacheOptions) (*sessionCache, error) {
 		config.clock = clockwork.NewRealClock()
 	}
 	cache := &sessionCache{
-		clusterName:  clusterName.GetClusterName(),
-		proxyClient:  config.proxyClient,
-		accessPoint:  config.accessPoint,
-		sessions:     make(map[string]*SessionContext),
-		resources:    make(map[string]*sessionResources),
-		authServers:  config.servers,
-		closer:       utils.NewCloseBroadcaster(),
-		cipherSuites: config.cipherSuites,
-		log:          newPackageLogger(),
-		clock:        config.clock,
+		clusterName:               clusterName.GetClusterName(),
+		proxyClient:               config.proxyClient,
+		accessPoint:               config.accessPoint,
+		sessions:                  make(map[string]*SessionContext),
+		resources:                 make(map[string]*sessionResources),
+		authServers:               config.servers,
+		closer:                    utils.NewCloseBroadcaster(),
+		cipherSuites:              config.cipherSuites,
+		log:                       newPackageLogger(),
+		clock:                     config.clock,
+		sessionLingeringThreshold: config.sessionLingeringThreshold,
 	}
 	// periodically close expired and unused sessions
 	go cache.expireSessions()
@@ -406,6 +410,9 @@ type sessionCache struct {
 	closer      *utils.CloseBroadcaster
 	clusterName string
 	clock       clockwork.Clock
+	// sessionLingeringThreshold specifies the time the session will linger
+	// in the cache before getting purged after it has expired
+	sessionLingeringThreshold time.Duration
 	// cipherSuites is the list of supported TLS cipher suites.
 	cipherSuites []uint16
 

@@ -260,10 +260,7 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn) (*client.TeleportClient
 
 	// Create a terminal stream that wraps/unwraps the envelope used to
 	// communicate over the websocket.
-	stream, err := t.asTerminalStream(ws)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	stream := t.asTerminalStream(ws)
 
 	clientConfig.ForwardAgent = true
 	clientConfig.HostLogin = t.params.Login
@@ -598,14 +595,11 @@ func (t *TerminalHandler) read(out []byte, ws *websocket.Conn) (n int, err error
 	}
 }
 
-func (t *TerminalHandler) asTerminalStream(ws *websocket.Conn) (*terminalStream, error) {
-	if ws == nil {
-		return nil, trace.BadParameter("missing parameter ws")
-	}
+func (t *TerminalHandler) asTerminalStream(ws *websocket.Conn) *terminalStream {
 	return &terminalStream{
 		ws:       ws,
 		terminal: t,
-	}, nil
+	}
 }
 
 type terminalStream struct {
