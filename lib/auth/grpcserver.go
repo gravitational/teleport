@@ -555,7 +555,7 @@ func (g *GRPCServer) CreateUser(ctx context.Context, req *services.UserV2) (*emp
 	}
 
 	if err := services.ValidateUser(req); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trail.ToGRPC(err)
 	}
 
 	if err := auth.CreateUser(ctx, req); err != nil {
@@ -575,7 +575,7 @@ func (g *GRPCServer) UpdateUser(ctx context.Context, req *services.UserV2) (*emp
 	}
 
 	if err := services.ValidateUser(req); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trail.ToGRPC(err)
 	}
 
 	if err := auth.UpdateUser(ctx, req); err != nil {
@@ -1073,7 +1073,7 @@ func (g *GRPCServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*t
 	}
 	role, err := auth.GetRole(req.Name)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trail.ToGRPC(err)
 	}
 	roleV3, ok := role.(*types.RoleV3)
 	if !ok {
@@ -1091,12 +1091,12 @@ func (g *GRPCServer) GetRoles(_ *empty.Empty, stream proto.AuthService_GetRolesS
 	}
 	roles, err := auth.GetRoles()
 	if err != nil {
-		return trace.Wrap(err)
+		return trail.ToGRPC(err)
 	}
 	for _, role := range roles {
 		roleV3, ok := role.(*types.RoleV3)
 		if !ok {
-			log.Warnf("expected type types.RoleVe, got %T for role %q", role, role.GetName())
+			log.Warnf("expected type types.RoleV3, got %T for role %q", role, role.GetName())
 			return trail.ToGRPC(trace.Errorf("encountered unexpected role type"))
 		}
 		if err := stream.Send(roleV3); err != nil {
@@ -1113,11 +1113,11 @@ func (g *GRPCServer) UpsertRole(ctx context.Context, role *types.RoleV3) (*empty
 		return nil, trail.ToGRPC(err)
 	}
 	if err = services.ValidateRole(role); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trail.ToGRPC(err)
 	}
 	err = auth.UpsertRole(ctx, role)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trail.ToGRPC(err)
 	}
 
 	log.Infof("%q role upserted", role.GetName())
@@ -1132,7 +1132,7 @@ func (g *GRPCServer) DeleteRole(ctx context.Context, req *proto.DeleteRoleReques
 		return nil, trail.ToGRPC(err)
 	}
 	if err := auth.DeleteRole(ctx, req.Name); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trail.ToGRPC(err)
 	}
 
 	log.Infof("%q role deleted", req.GetName())

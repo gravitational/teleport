@@ -502,7 +502,6 @@ service AuthService {
     // GenerateUserCerts generates a set of user certificates for use by `tctl
     // auth sign`.
     rpc GenerateUserCerts(UserCertsRequest) returns (Certs);
-    // GetUser gets a user resource by name.
 
     // GetAccessRequests gets all pending access requests.
     rpc GetAccessRequests(types.AccessRequestFilter) returns (AccessRequests);
@@ -533,6 +532,7 @@ service AuthService {
     rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest)
         returns (types.ResetPasswordTokenV3);
 
+    // GetUser gets a user resource by name.
     rpc GetUser(GetUserRequest) returns (types.UserV2);
     // GetUsers gets all current user resources.
     rpc GetUsers(GetUsersRequest) returns (stream types.UserV2);
