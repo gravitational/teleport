@@ -35,7 +35,7 @@ func (s *IdentityService) GetAppSession(ctx context.Context, req services.GetApp
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	session, err := services.GetWebSessionMarshaler().UnmarshalWebSession(item.Value, services.SkipValidation())
+	session, err := services.UnmarshalWebSession(item.Value, services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -52,7 +52,7 @@ func (s *IdentityService) GetAppSessions(ctx context.Context) ([]services.WebSes
 
 	out := make([]services.WebSession, len(result.Items))
 	for i, item := range result.Items {
-		session, err := services.GetWebSessionMarshaler().UnmarshalWebSession(item.Value, services.SkipValidation())
+		session, err := services.UnmarshalWebSession(item.Value, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -63,7 +63,7 @@ func (s *IdentityService) GetAppSessions(ctx context.Context) ([]services.WebSes
 
 // UpsertAppSession creates an application web session.
 func (s *IdentityService) UpsertAppSession(ctx context.Context, session services.WebSession) error {
-	value, err := services.GetWebSessionMarshaler().MarshalWebSession(session)
+	value, err := services.MarshalWebSession(session)
 	if err != nil {
 		return trace.Wrap(err)
 	}

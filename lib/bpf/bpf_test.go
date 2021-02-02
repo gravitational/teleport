@@ -41,7 +41,6 @@ import (
 
 type Suite struct{}
 
-var _ = fmt.Printf
 var _ = check.Suite(&Suite{})
 
 func TestBPF(t *testing.T) { check.TestingT(t) }

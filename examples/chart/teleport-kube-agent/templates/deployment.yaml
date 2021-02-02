@@ -1,3 +1,8 @@
+{{- if .Values.teleportVersionOverride }}
+  {{- $_ := set . "teleportVersion" .Values.teleportVersionOverride }}
+{{- else }}
+  {{- $_ := set . "teleportVersion" .Chart.AppVersion }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -20,7 +25,7 @@ spec:
     spec:
       containers:
       - name: "teleport"
-        image: "{{ .Values.image }}:{{ if .Values.teleportVersionOverride }}{{ .Values.teleportVersionOverride }}{{ else }}{{ .Chart.AppVersion }}{{ end }}"
+        image: "{{ if .Values.enterprise }}{{ .Values.enterpriseImage }}{{ else }}{{ .Values.image }}{{ end }}:{{ .teleportVersion }}"
         args:
         - "--diag-addr=0.0.0.0:3000"
         {{- if .Values.insecureSkipProxyTLSVerify }}

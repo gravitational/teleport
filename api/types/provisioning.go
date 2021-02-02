@@ -20,31 +20,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
-
-// Provisioner governs adding new nodes to the cluster
-type Provisioner interface {
-	// UpsertToken adds provisioning tokens for the auth server
-	UpsertToken(ProvisionToken) error
-
-	// GetToken finds and returns token by id
-	GetToken(token string) (ProvisionToken, error)
-
-	// DeleteToken deletes provisioning token
-	DeleteToken(token string) error
-
-	// DeleteAllTokens deletes all provisioning tokens
-	DeleteAllTokens() error
-
-	// GetTokens returns all non-expired tokens
-	GetTokens(opts ...MarshalOption) ([]ProvisionToken, error)
-}
 
 // ProvisionToken is a provisioning token
 type ProvisionToken interface {
@@ -54,9 +33,9 @@ type ProvisionToken interface {
 	// GetRoles returns a list of teleport roles
 	// that will be granted to the user of the token
 	// in the crendentials
-	GetRoles() teleport.Roles
+	GetRoles() SystemRoles
 	// SetRoles sets teleport roles
-	SetRoles(teleport.Roles)
+	SetRoles(SystemRoles)
 	// V1 returns V1 version of the resource
 	V1() *ProvisionTokenV1
 	// String returns user friendly representation of the resource
@@ -66,7 +45,7 @@ type ProvisionToken interface {
 }
 
 // NewProvisionToken returns a new instance of provision token resource
-func NewProvisionToken(token string, roles teleport.Roles, expires time.Time) (ProvisionToken, error) {
+func NewProvisionToken(token string, roles SystemRoles, expires time.Time) (ProvisionToken, error) {
 	t := &ProvisionTokenV2{
 		Kind:    KindToken,
 		Version: V2,
@@ -87,7 +66,7 @@ func NewProvisionToken(token string, roles teleport.Roles, expires time.Time) (P
 
 // MustCreateProvisionToken returns a new valid provision token
 // or panics, used in testes
-func MustCreateProvisionToken(token string, roles teleport.Roles, expires time.Time) ProvisionToken {
+func MustCreateProvisionToken(token string, roles SystemRoles, expires time.Time) ProvisionToken {
 	t, err := NewProvisionToken(token, roles, expires)
 	if err != nil {
 		panic(err)
@@ -105,7 +84,7 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 	if len(p.Spec.Roles) == 0 {
 		return trace.BadParameter("provisioning token is missing roles")
 	}
-	if err := teleport.Roles(p.Spec.Roles).Check(); err != nil {
+	if err := SystemRoles(p.Spec.Roles).Check(); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -119,12 +98,12 @@ func (p *ProvisionTokenV2) GetVersion() string {
 // GetRoles returns a list of teleport roles
 // that will be granted to the user of the token
 // in the crendentials
-func (p *ProvisionTokenV2) GetRoles() teleport.Roles {
+func (p *ProvisionTokenV2) GetRoles() SystemRoles {
 	return p.Spec.Roles
 }
 
 // SetRoles sets teleport roles
-func (p *ProvisionTokenV2) SetRoles(r teleport.Roles) {
+func (p *ProvisionTokenV2) SetRoles(r SystemRoles) {
 	p.Spec.Roles = r
 }
 
@@ -187,8 +166,10 @@ func (p *ProvisionTokenV2) Expiry() time.Time {
 	return p.Metadata.Expiry()
 }
 
-// SetTTL sets Expires header using realtime clock
-func (p *ProvisionTokenV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+// SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
+func (p *ProvisionTokenV2) SetTTL(clock Clock, ttl time.Duration) {
 	p.Metadata.SetTTL(clock, ttl)
 }
 
@@ -267,102 +248,4 @@ func (p ProvisionTokenV1) String() string {
 	}
 	return fmt.Sprintf("ProvisionToken(Roles=%v, Expires=%v)",
 		p.Roles, expires)
-}
-
-// ProvisionTokenSpecV2Schema is a JSON schema for provision token
-const ProvisionTokenSpecV2Schema = `{
-  "type": "object",
-  "additionalProperties": false,
-  "properties": {
-    "roles": {"type": "array", "items": {"type": "string"}}
-  }
-}`
-
-// GetProvisionTokenSchema returns provision token schema
-func GetProvisionTokenSchema() string {
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, ProvisionTokenSpecV2Schema, DefaultDefinitions)
-}
-
-// UnmarshalProvisionToken unmarshals provision token from JSON or YAML,
-// sets defaults and checks the schema
-func UnmarshalProvisionToken(data []byte, opts ...MarshalOption) (ProvisionToken, error) {
-	if len(data) == 0 {
-		return nil, trace.BadParameter("missing provision token data")
-	}
-
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var h ResourceHeader
-	err = utils.FastUnmarshal(data, &h)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	switch h.Version {
-	case "":
-		var p ProvisionTokenV1
-		err := utils.FastUnmarshal(data, &p)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		v2 := p.V2()
-		if cfg.ID != 0 {
-			v2.SetResourceID(cfg.ID)
-		}
-		return v2, nil
-	case V2:
-		var p ProvisionTokenV2
-		if cfg.SkipValidation {
-			if err := utils.FastUnmarshal(data, &p); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
-		} else {
-			if err := utils.UnmarshalWithSchema(GetProvisionTokenSchema(), &p, data); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
-		}
-		if err := p.CheckAndSetDefaults(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if cfg.ID != 0 {
-			p.SetResourceID(cfg.ID)
-		}
-		return &p, nil
-	}
-	return nil, trace.BadParameter("server resource version %v is not supported", h.Version)
-}
-
-// MarshalProvisionToken marshals provisioning token into JSON.
-func MarshalProvisionToken(t ProvisionToken, opts ...MarshalOption) ([]byte, error) {
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	type token1 interface {
-		V1() *ProvisionTokenV1
-	}
-	type token2 interface {
-		V2() *ProvisionTokenV2
-	}
-
-	version := cfg.GetVersion()
-	switch version {
-	case V1:
-		v, ok := t.(token1)
-		if !ok {
-			return nil, trace.BadParameter("don't know how to marshal %v", V1)
-		}
-		return utils.FastMarshal(v.V1())
-	case V2:
-		v, ok := t.(token2)
-		if !ok {
-			return nil, trace.BadParameter("don't know how to marshal %v", V2)
-		}
-		return utils.FastMarshal(v.V2())
-	default:
-		return nil, trace.BadParameter("version %v is not supported", version)
-	}
 }

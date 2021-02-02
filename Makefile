@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=6.0.0-dev
+VERSION=6.0.0-alpha.2
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
@@ -408,30 +408,30 @@ buildbox-grpc:
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/types/events \
-		--gofast_out=plugins=grpc:api/types/events \
+		--gogofast_out=plugins=grpc:api/types/events \
 		events.proto
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/types/wrappers \
-		--gofast_out=plugins=grpc:api/types/wrappers \
+		--gogofast_out=plugins=grpc:api/types/wrappers \
 		wrappers.proto
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/types \
-		--gofast_out=plugins=grpc:api/types \
+		--gogofast_out=plugins=grpc:api/types \
 		types.proto
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/client/proto \
-		--gofast_out=plugins=grpc:api/client/proto \
+		--gogofast_out=plugins=grpc:api/client/proto \
 		authservice.proto
 
 	cd lib/multiplexer/test && protoc -I=.:$$PROTO_INCLUDE \
-	  --gofast_out=plugins=grpc:.\
+	  --gogofast_out=plugins=grpc:.\
     *.proto
 
 	cd lib/web && protoc -I=.:$$PROTO_INCLUDE \
-	  --gofast_out=plugins=grpc:.\
+	  --gogofast_out=plugins=grpc:.\
     *.proto
 
 .PHONY: goinstall

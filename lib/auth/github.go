@@ -409,7 +409,7 @@ func (a *Server) createGithubUser(p *createUserParams) (services.User, error) {
 
 	expires := a.GetClock().Now().UTC().Add(p.sessionTTL)
 
-	user, err := services.GetUserMarshaler().GenerateUser(&services.UserV2{
+	user := &services.UserV2{
 		Kind:    services.KindUser,
 		Version: services.V2,
 		Metadata: services.Metadata{
@@ -428,15 +428,12 @@ func (a *Server) createGithubUser(p *createUserParams) (services.User, error) {
 				User: services.UserRef{Name: teleport.UserSystem},
 				Time: a.GetClock().Now().UTC(),
 				Connector: &services.ConnectorRef{
-					Type:     teleport.ConnectorGithub,
+					Type:     teleport.Github,
 					ID:       p.connectorName,
 					Identity: p.username,
 				},
 			},
 		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	existingUser, err := a.GetUser(p.username, false)

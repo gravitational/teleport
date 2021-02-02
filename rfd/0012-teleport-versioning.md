@@ -77,10 +77,8 @@ The benefits are:
 
 ### Compatibility
 
-`vN.*.*` binaries are compatible with any other `vN.*.*` binaries.
-
-`vN.*.*` server binaries are compatible with `vN-1.*.*` client binaries (one
-major version back).
+`vN.*.*` binaries are compatible with any other `vN.*.*` or `vN-1.*.*` binaries
+(both client and server).
 
 Users are free to use any `vN.*.*` versions throughout their deployment, after
 upgrading everything from `vN-1.*.*`.
@@ -141,3 +139,29 @@ story. We never want a `vN+1` that has no migration path other than "rebuild
 the cluster from scratch".
 
 So we don't want to freeze the major version forever this way.
+
+### Docker image tags
+
+Currently, we have 2 kinds of docker images:
+
+- `teleport:X.Y.Z` - immutable tag for a specific patch release (for example
+  `4.4.1`, `4.4.2`)
+- `teleport:X.Y` - mutable tag pointing at the latest patch release for `X.Y` (for
+  example `4.4` pointing at `4.4.2`)
+
+For new versioning, the following tags are created:
+
+- `teleport:X.Y.Z` - immutable tag for a specific patch release (for example
+  `5.1.0`, `5.1.1`)
+- `teleport:X` - mutable tag pointing at the latest patch release for major
+  version `X` (for example `5` pointing at `5.1.1`)
+
+In the above example, if we cut `v5.2.0`, the following tag changes happen:
+
+- new tag `5.2.0`
+- existing tag `5` updated to point at `5.2.0`
+
+The old `teleport:X.Y` tags will no longer be generated, since they are an
+inferior version of `teleport:X` and shouldn't be used. This may cause customer
+confusion and some support load during the transition, but it's less work than
+maintaining the `teleport:X.Y` tag.

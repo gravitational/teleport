@@ -17,14 +17,11 @@ limitations under the License.
 package utils
 
 import (
-	"fmt"
 	"net/http"
 	"testing"
 
 	"gopkg.in/check.v1"
 )
-
-var _ = fmt.Printf
 
 type WebLinksSuite struct {
 }

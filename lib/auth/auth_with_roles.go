@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -35,7 +36,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/sirupsen/logrus"
-	"github.com/tstranex/u2f"
 )
 
 // ServerWithRoles is a wrapper around auth service
@@ -765,13 +765,6 @@ func (a *ServerWithRoles) CheckPassword(user string, password []byte, otpToken s
 	return a.authServer.CheckPassword(user, password, otpToken)
 }
 
-func (a *ServerWithRoles) UpsertTOTP(user string, otpSecret string) error {
-	if err := a.currentUserAction(user); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.UpsertTOTP(user, otpSecret)
-}
-
 func (a *ServerWithRoles) PreAuthenticatedSignIn(user string) (services.WebSession, error) {
 	if err := a.currentUserAction(user); err != nil {
 		return nil, trace.Wrap(err)
@@ -779,7 +772,7 @@ func (a *ServerWithRoles) PreAuthenticatedSignIn(user string) (services.WebSessi
 	return a.authServer.PreAuthenticatedSignIn(user, a.context.Identity.GetIdentity())
 }
 
-func (a *ServerWithRoles) GetU2FSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
+func (a *ServerWithRoles) GetU2FSignRequest(user string, password []byte) (*u2f.AuthenticateChallenge, error) {
 	// we are already checking password here, no need to extra permission check
 	// anyone who has user's password can generate sign request
 	return a.authServer.U2FSignRequest(user, password)
@@ -1096,7 +1089,7 @@ func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserC
 				}
 				return nil, trace.AccessDenied("access-request %q is awaiting approval", reqID)
 			}
-			if err := services.ValidateAccessRequest(a.authServer, accessReq); err != nil {
+			if err := services.ValidateAccessRequestForUser(a.authServer, accessReq); err != nil {
 				return nil, trace.Wrap(err)
 			}
 			aexp := accessReq.GetAccessExpiry()
@@ -1154,7 +1147,7 @@ func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserC
 	}, nil
 }
 
-func (a *ServerWithRoles) GetSignupU2FRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
+func (a *ServerWithRoles) GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error) {
 	// signup token are their own authz resource
 	return a.authServer.CreateSignupU2FRegisterRequest(token)
 }
@@ -2031,7 +2024,7 @@ func (a *ServerWithRoles) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) 
 }
 
 // GetDatabaseServers returns all registered database servers.
-func (a *ServerWithRoles) GetDatabaseServers(ctx context.Context, namespace string, opts ...types.MarshalOption) ([]types.DatabaseServer, error) {
+func (a *ServerWithRoles) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
 	if err := a.action(namespace, types.KindDatabaseServer, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}

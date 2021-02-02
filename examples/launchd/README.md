@@ -5,8 +5,8 @@ Sample configuration of launchd for Teleport.
 ## Install
 
 ```
-sudo cp teleport.plist /Library/LaunchDaemons/
-sudo launchctl load /Library/LaunchDaemons/teleport.plist
+sudo cp com.goteleport.teleport.plist /Library/LaunchDaemons/
+sudo launchctl load /Library/LaunchDaemons/com.goteleport.teleport.plist
 ```
 
 ## Status
@@ -24,6 +24,6 @@ sudo tail -f /var/log/teleport-stderr.log
 ## Restart
 
 ```
-sudo launchctl unload /Library/LaunchDaemons/teleport.plist && \
-sudo launchctl load /Library/LaunchDaemons/teleport.plist
+sudo launchctl unload /Library/LaunchDaemons/com.goteleport.teleport.plist && \
+sudo launchctl load /Library/LaunchDaemons/com.teleport.teleport.plist
 ```

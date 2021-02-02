@@ -266,6 +266,7 @@ to write richer scripts that may change the system in other ways based on
 identity information.
 
 !!! note
+
     The `useradd` location can have a different path then the example below depending on your linux flavor.  Adjust to your particular system as needed from `which useradd` (Ex: `/usr/sbin/useradd` instead of the below example).
 
 ```bash

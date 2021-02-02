@@ -18,7 +18,6 @@ package srv
 
 import (
 	"context"
-	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -32,7 +31,6 @@ import (
 
 type KeepAliveSuite struct{}
 
-var _ = fmt.Printf
 var _ = check.Suite(&KeepAliveSuite{})
 
 func TestSrv(t *testing.T) { check.TestingT(t) }
