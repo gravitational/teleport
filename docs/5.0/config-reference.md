@@ -23,7 +23,8 @@ teleport:
     nodename: graviton
 
     # Data directory where Teleport daemon keeps its data.
-    # See "Filesystem Layout" section above for more details.
+    # See "Filesystem Layout" for more details
+    # (https://goteleport.com/teleport/docs/admin-guide/#filesystem-layout).
     data_dir: /var/lib/teleport
 
     # Invitation token used to join a cluster. it is not used on
@@ -31,7 +32,8 @@ teleport:
     auth_token: xxxx-token-xxxx
 
     # Optional CA pin of the auth server. This enables more secure way of adding new
-    # nodes to a cluster. See "Adding Nodes" section above.
+    # nodes to a cluster. See "Adding Nodes to the Cluster"
+    # (https://goteleport.com/teleport/docs/admin-guide/#adding-nodes-to-the-cluster).
     ca_pin: "sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1"
 
     # When running in multi-homed or NATed environments Teleport nodes need
@@ -63,9 +65,9 @@ teleport:
         severity: ERROR
 
     # Configuration for the storage back-end used for the cluster state and the
-    # audit log. Several back-end types are supported. See "High Availability"
-    # section of this Admin Manual below to learn how to configure DynamoDB,
-    # S3, etcd and other highly available back-ends.
+    # audit log. Several back-end types are supported. See the "High Availability"
+    # section of the Admin Manual (https://goteleport.com/teleport/docs/admin-guide/#high-availability) 
+    # to learn how to configure DynamoDB, S3, etcd and other highly available back-ends.
     storage:
         # By default teleport uses the `data_dir` directory on a local filesystem
         type: dir
@@ -79,7 +81,7 @@ teleport:
 
         # Use this setting to configure teleport to store the recorded sessions in
         # an AWS S3 bucket or use GCP Storage with 'gs://'. See "Using Amazon S3"
-        # chapter for more information.
+        # for more information (https://goteleport.com/teleport/docs/admin-guide/#using-amazon-s3).
         audit_sessions_uri: 's3://example.com/path/to/bucket?region=us-east-1'
 
         # DynamoDB Specific Section
@@ -179,12 +181,13 @@ auth_service:
     listen_addr: 0.0.0.0:3025
 
     # The optional DNS name the auth server if located behind a load balancer.
-    # (see public_addr section below)
+    # See the "Public Addr" section for more details
+    # (https://goteleport.com/teleport/docs/admin-guide/#public-addr).
     public_addr: auth.example.com:3025
 
     # Pre-defined tokens for adding new nodes to a cluster. Each token specifies
     # the role a new node will be allowed to assume. The more secure way to
-    # add nodes is to use `ttl node add --ttl` command to generate auto-expiring
+    # add nodes is to use `tctl nodes add --ttl` command to generate auto-expiring
     # tokens.
     #
     # We recommend to use tools like `pwgen` to generate sufficiently random
@@ -195,7 +198,8 @@ auth_service:
 
     # Optional setting for configuring session recording. Possible values are:
     #    "node"  : sessions will be recorded on the node level  (the default)
-    #    "proxy" : recording on the proxy level, see "recording proxy mode" section.
+    #    "proxy" : recording on the proxy level, see "Recording Proxy Mode" 
+    #              (https://goteleport.com/teleport/docs/architecture/proxy/#recording-proxy-mode).
     #    "off"   : session recording is turned off
     #
     # EXPERIMENTAL *-sync modes
@@ -209,7 +213,8 @@ auth_service:
     session_recording: "node"
 
     # This setting determines if a Teleport proxy performs strict host key checks.
-    # Only applicable if session_recording=proxy, see "recording proxy mode" for details.
+    # Only applicable if session_recording=proxy, see "Recording Proxy Mode" for details
+    # (https://goteleport.com/teleport/docs/architecture/proxy/#recording-proxy-mode).
     proxy_checks_host_keys: yes
 
     # Determines if SSH sessions to cluster nodes are forcefully terminated
@@ -254,24 +259,27 @@ ssh_service:
     listen_addr: 0.0.0.0:3022
 
     # The optional public address the SSH service. This is useful if administrators
-    # want to allow users to connect to nodes directly, bypassing a Teleport proxy
-    # (see public_addr section below)
+    # want to allow users to connect to nodes directly, bypassing a Teleport proxy.
+    # See the "Public Addr" section for more details
+    # (https://goteleport.com/teleport/docs/admin-guide/#public-addr).
     public_addr: node.example.com:3022
 
-    # See explanation of labels in "Labeling Nodes" section below
+    # See explanation of labels in "Labeling Nodes and Applications" section
+    # (https://goteleport.com/teleport/docs/admin-guide/#labeling-nodes-and-applications).
     labels:
         role: leader
         type: postgres
 
     # List of the commands to periodically execute. Their output will be used as node labels.
-    # See "Labeling Nodes" section below for more information and more examples.
+    # See "Labeling Nodes" section for more information and more examples
+    # (https://goteleport.com/teleport/docs/admin-guide/#labeling-nodes-and-applications).
     commands:
     # this command will add a label 'arch=x86_64' to a node
     - name: arch
       command: ['/bin/uname', '-p']
       period: 1h0m0s
 
-    # enables reading ~/.tsh/environment before creating a session. by default
+    # Enables reading ~/.tsh/environment before creating a session. By default
     # set to false, can be set true here or as a command line flag.
     permit_user_env: false
 
@@ -295,7 +303,8 @@ ssh_service:
        # /cgroup2.
        cgroup_path: /cgroup2
 
-    # configures PAM integration. see below for more details.
+    # Configures PAM integration. See our PAM guide for more details
+    # (https://goteleport.com/teleport/docs/features/ssh-pam/).
     pam:
         enabled: no
         service_name: teleport
@@ -322,7 +331,8 @@ proxy_service:
     # The DNS name of the proxy HTTPS endpoint as accessible by cluster users.
     # Defaults to the proxy's hostname if not specified. If running multiple
     # proxies behind a load balancer, this name must point to the load balancer
-    # (see public_addr section below)
+    # See the "Public Addr" section for more details
+    # (https://goteleport.com/teleport/docs/admin-guide/#public-addr).
     public_addr: proxy.example.com:3080
 
     # The DNS name of the proxy SSH endpoint as accessible by cluster clients.
