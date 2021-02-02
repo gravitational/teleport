@@ -101,7 +101,7 @@
   },{
       "inline": [
         "sudo cp /tmp/files/system/* /etc/systemd/system/",
-        "sudo cp /tmp/files/bin/* /usr/bin/"
+        "sudo cp /tmp/files/bin/* /usr/local/bin/"
       ],
       "type": "shell"
   },

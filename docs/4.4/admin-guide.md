@@ -517,7 +517,7 @@ or `node` .
 There are two ways to create invitation tokens:
 
 * **Static Tokens** are easy to use and somewhat less secure.
-* **Dynamic Tokens** are more secure but require more planning.
+* **Short-lived Dynamic Tokens** are more secure but require more planning.
 
 ### Static Tokens
 
@@ -536,7 +536,7 @@ auth_service:
     - "auth:/path/to/tokenfile"
 ```
 
-### Short-lived Tokens
+### Short-lived Dynamic Tokens
 
 A more secure way to add nodes to a cluster is to generate tokens as they are
 needed. Such token can be used multiple times until its time to live (TTL)
@@ -570,7 +570,7 @@ $ tctl tokens rm e94d68a8a1e5821dbd79d03a960644f0
 
 ### Using Node Invitation Tokens
 
-Both static and short-lived tokens are used the same way. Execute the following
+Both static and short-lived dynamic tokens are used the same way. Execute the following
 command on a new node to add it to a cluster:
 
 ``` bash
@@ -689,6 +689,7 @@ Token 696c0471453e75882ff70a761c1a8bfa has been deleted
 ## Adding a node located behind NAT
 
 !!! note
+
     This feature is sometimes called "Teleport IoT" or node tunneling.
 
 With the current setup, you've only been able to add nodes that have direct access to the
@@ -1048,6 +1049,7 @@ $ tctl rm users/admin
 ```
 
 !!! note
+
     Although `tctl get connectors` will show you every connector, when working with an individual
     connector you must use the correct `kind`, such as `saml` or `oidc`. You can see each
     connector's `kind` at the top of its YAML output from `tctl get connectors`.
@@ -1458,6 +1460,18 @@ teleport:
      # NOT RECOMMENDED: enables insecure etcd mode in which self-signed
      # certificate will be accepted
      insecure: false
+
+     # Optionally sets the limit on the client message size.
+     # This is usually used to increase the default which is 2MiB
+     # (1.5MiB server's default + gRPC overhead bytes).
+     # Make sure this does not exceed the value for the etcd
+     # server specified with `--max-request-bytes` (1.5MiB by default).
+     # Keep the two values in sync.
+     #
+     # See https://etcd.io/docs/v3.4.0/dev-guide/limit/ for details
+     #
+     # This bumps the size to 15MiB as an example:
+     etcd_max_client_msg_size_bytes: 15728640
 ```
 
 ### Using Amazon S3
@@ -1796,7 +1810,7 @@ the audit log, logged events have a TTL of 1 year.
 
 | Backend | Recommended backup strategy  |
 |-|-|
-| dir ( local filesystem )   | Backup `/var/lib/teleport/storage` directory and the output of `tctl get all`. |
+| dir ( local filesystem )   | Backup `/var/lib/teleport/storage` directory and the output of `tctl get all --with-secrets`. |
 | DynamoDB | [Follow AWS Guidelines for Backup & Restore](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/BackupRestore.html) |
 | etcd | [Follow etcD Guidleines for Disaster Recovery ](https://etcd.io/docs/v2/admin_guide) |
 | Firestore | [Follow GCP Guidlines for Automated Backups](https://firebase.google.com/docs/database/backups) |
@@ -1822,7 +1836,7 @@ As of version v4.1 you can now quickly export a collection of resources from
 Teleport. This feature was designed to help customers migrate from local storage
 to etcd.
 
-Using `tctl get all` will retrieve the below items:
+Using `tctl get all --with-secrets` will retrieve the below items:
 
 - Users
 - Certificate Authorities
@@ -1839,7 +1853,7 @@ When migrating backends, you should back up your auth server's `data_dir/storage
 
 ``` bash
 # export dynamic configuration state from old cluster
-$ tctl get all > state.yaml
+$ tctl get all --with-secrets > state.yaml
 
 # prepare a new uninitialized backend (make sure to port
 # any non-default config values from the old config file)
@@ -1861,6 +1875,7 @@ by auth server on first start), so it is safe for use in supervised/HA contexts.
 
 **Limitations**
 
+- The `--bootstrap` flag doesn't re-trigger trusted cluster handshakes, so trusted cluster resources need to be recreated manually.
 - All the same limitations around modifying the config file of an existing cluster also apply to a new cluster being bootstrapped from the state of an old cluster. Of particular note:
     - Changing cluster name will break your CAs (this will be caught and teleport will refuse to start).
     - Some user authentication mechanisms (e.g. u2f) require that the public endpoint of the web ui remains the same (this can't be caught by teleport, be careful!).

@@ -17,7 +17,6 @@ limitations under the License.
 package utils
 
 import (
-	"fmt"
 	"io/ioutil"
 
 	"github.com/gravitational/trace"
@@ -27,7 +26,6 @@ import (
 
 type CertsSuite struct{}
 
-var _ = fmt.Printf
 var _ = check.Suite(&CertsSuite{})
 
 func (s *CertsSuite) TestRejectsInvalidPEMData(c *check.C) {

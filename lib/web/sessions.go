@@ -29,8 +29,10 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/proto"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -42,7 +44,6 @@ import (
 
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
-	"github.com/tstranex/u2f"
 )
 
 // SessionContext is a context associated with users'
@@ -227,7 +228,7 @@ func (c *SessionContext) newRemoteTLSClient(cluster reversetunnel.RemoteSite) (a
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return auth.NewTLSClient(auth.ClientConfig{Dialer: clusterDialer(cluster), TLS: tlsConfig})
+	return auth.NewClient(apiclient.Config{Dialer: clusterDialer(cluster), TLS: tlsConfig})
 }
 
 // GetUser returns the authenticated teleport user
@@ -313,23 +314,27 @@ func (c *SessionContext) Close() error {
 }
 
 // newSessionCache returns new instance of the session cache
-func newSessionCache(proxyClient auth.ClientI, servers []utils.NetAddr, cipherSuites []uint16) (*sessionCache, error) {
-	clusterName, err := proxyClient.GetClusterName()
+func newSessionCache(config *sessionCache) (*sessionCache, error) {
+	clusterName, err := config.proxyClient.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	m, err := ttlmap.New(1024, ttlmap.CallOnExpire(closeContext))
+	if config.clock == nil {
+		config.clock = clockwork.NewRealClock()
+	}
+	m, err := ttlmap.New(1024, ttlmap.CallOnExpire(closeContext), ttlmap.Clock(config.clock))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	cache := &sessionCache{
 		clusterName:  clusterName.GetClusterName(),
-		proxyClient:  proxyClient,
+		proxyClient:  config.proxyClient,
 		contexts:     m,
-		authServers:  servers,
+		authServers:  config.authServers,
 		closer:       utils.NewCloseBroadcaster(),
-		cipherSuites: cipherSuites,
+		cipherSuites: config.cipherSuites,
 		log:          newPackageLogger(),
+		clock:        config.clock,
 	}
 	// periodically close expired and unused sessions
 	go cache.expireSessions()
@@ -346,6 +351,7 @@ type sessionCache struct {
 	authServers []utils.NetAddr
 	closer      *utils.CloseBroadcaster
 	clusterName string
+	clock       clockwork.Clock
 
 	// cipherSuites is the list of supported TLS cipher suites.
 	cipherSuites []uint16
@@ -415,11 +421,11 @@ func (s *sessionCache) AuthWithoutOTP(user, pass string) (services.WebSession, e
 	})
 }
 
-func (s *sessionCache) GetU2FSignRequest(user, pass string) (*u2f.SignRequest, error) {
+func (s *sessionCache) GetU2FSignRequest(user, pass string) (*u2f.AuthenticateChallenge, error) {
 	return s.proxyClient.GetU2FSignRequest(user, []byte(pass))
 }
 
-func (s *sessionCache) AuthWithU2FSignResponse(user string, response *u2f.SignResponse) (services.WebSession, error) {
+func (s *sessionCache) AuthWithU2FSignResponse(user string, response *u2f.AuthenticateChallengeResponse) (services.WebSession, error) {
 	return s.proxyClient.AuthenticateWebUser(auth.AuthenticateUserRequest{
 		Username: user,
 		U2F: &auth.U2FSignResponseCreds{
@@ -483,7 +489,7 @@ func (s *sessionCache) Ping(ctx context.Context) (proto.PingResponse, error) {
 	return s.proxyClient.Ping(ctx)
 }
 
-func (s *sessionCache) GetUserInviteU2FRegisterRequest(token string) (*u2f.RegisterRequest, error) {
+func (s *sessionCache) GetUserInviteU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error) {
 	return s.proxyClient.GetSignupU2FRegisterRequest(token)
 }
 
@@ -575,9 +581,10 @@ func (s *sessionCache) ValidateSession(user, sid string) (*SessionContext, error
 	tlsConfig.Certificates = []tls.Certificate{tlsCert}
 	tlsConfig.RootCAs = certPool
 	tlsConfig.ServerName = auth.EncodeClusterName(s.clusterName)
+	tlsConfig.Time = s.clock.Now
 
-	userClient, err := auth.NewTLSClient(auth.ClientConfig{
-		Addrs: s.authServers,
+	userClient, err := auth.NewClient(apiclient.Config{
+		Addrs: utils.NetAddrsToStrings(s.authServers),
 		TLS:   tlsConfig,
 	})
 	if err != nil {
@@ -596,7 +603,7 @@ func (s *sessionCache) ValidateSession(user, sid string) (*SessionContext, error
 		}),
 	}
 
-	ttl := utils.ToTTL(clockwork.NewRealClock(), sess.GetBearerTokenExpiryTime())
+	ttl := utils.ToTTL(s.clock, sess.GetBearerTokenExpiryTime())
 	out, err := s.insertContext(user, sid, c, ttl)
 	if err != nil {
 		// this means that someone has just inserted the context, so

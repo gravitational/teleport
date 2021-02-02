@@ -24,8 +24,9 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth/proto"
-	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -247,7 +248,7 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 		case <-watcher.Done():
 			return trail.ToGRPC(watcher.Error())
 		case event := <-watcher.Events():
-			out, err := eventToGRPC(event)
+			out, err := client.EventToGRPC(event)
 			if err != nil {
 				return trail.ToGRPC(err)
 			}
@@ -364,6 +365,9 @@ func (g *GRPCServer) CreateAccessRequest(ctx context.Context, req *services.Acce
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
+	if err := services.ValidateAccessRequest(req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
 	if err := auth.ServerWithRoles.CreateAccessRequest(ctx, req); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
@@ -399,6 +403,18 @@ func (g *GRPCServer) SetAccessRequestState(ctx context.Context, req *proto.Reque
 		return nil, trail.ToGRPC(err)
 	}
 	return &empty.Empty{}, nil
+}
+
+func (g *GRPCServer) GetAccessCapabilities(ctx context.Context, req *services.AccessCapabilitiesRequest) (*services.AccessCapabilities, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	caps, err := auth.ServerWithRoles.GetAccessCapabilities(ctx, *req)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return caps, nil
 }
 
 func (g *GRPCServer) CreateResetPasswordToken(ctx context.Context, req *proto.CreateResetPasswordTokenRequest) (*services.ResetPasswordTokenV3, error) {
@@ -538,6 +554,10 @@ func (g *GRPCServer) CreateUser(ctx context.Context, req *services.UserV2) (*emp
 		return nil, trail.ToGRPC(err)
 	}
 
+	if err := services.ValidateUser(req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := auth.CreateUser(ctx, req); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
@@ -552,6 +572,10 @@ func (g *GRPCServer) UpdateUser(ctx context.Context, req *services.UserV2) (*emp
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
+	}
+
+	if err := services.ValidateUser(req); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if err := auth.UpdateUser(ctx, req); err != nil {
@@ -647,6 +671,100 @@ func (g *GRPCServer) DeleteSemaphore(ctx context.Context, req *services.Semaphor
 		return nil, trail.ToGRPC(err)
 	}
 	return &empty.Empty{}, nil
+}
+
+// GetDatabaseServers returns all registered database proxy servers.
+func (g *GRPCServer) GetDatabaseServers(ctx context.Context, req *proto.GetDatabaseServersRequest) (*proto.GetDatabaseServersResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	var opts []services.MarshalOption
+	if req.GetSkipValidation() {
+		opts = append(opts, services.SkipValidation())
+	}
+	databaseServers, err := auth.GetDatabaseServers(ctx, req.GetNamespace(), opts...)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	var servers []*types.DatabaseServerV3
+	for _, s := range databaseServers {
+		server, ok := s.(*types.DatabaseServerV3)
+		if !ok {
+			return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", s))
+		}
+		servers = append(servers, server)
+	}
+	return &proto.GetDatabaseServersResponse{
+		Servers: servers,
+	}, nil
+}
+
+// UpsertDatabaseServer registers a new database proxy server.
+func (g *GRPCServer) UpsertDatabaseServer(ctx context.Context, req *proto.UpsertDatabaseServerRequest) (*services.KeepAlive, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	keepAlive, err := auth.UpsertDatabaseServer(ctx, req.GetServer())
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return keepAlive, nil
+}
+
+// DeleteDatabaseServer removes the specified database proxy server.
+func (g *GRPCServer) DeleteDatabaseServer(ctx context.Context, req *proto.DeleteDatabaseServerRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	err = auth.DeleteDatabaseServer(ctx, req.GetNamespace(), req.GetHostID(), req.GetName())
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// DeleteAllDatabaseServers removes all registered database proxy servers.
+func (g *GRPCServer) DeleteAllDatabaseServers(ctx context.Context, req *proto.DeleteAllDatabaseServersRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	err = auth.DeleteAllDatabaseServers(ctx, req.GetNamespace())
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// SignDatabaseCSR generates a client certificate used by proxy when talking
+// to a remote database service.
+func (g *GRPCServer) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequest) (*proto.DatabaseCSRResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	response, err := auth.SignDatabaseCSR(ctx, req)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return response, nil
+}
+
+// GenerateDatabaseCert generates client certificate used by a database
+// service to authenticate with the database instance.
+func (g *GRPCServer) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	response, err := auth.GenerateDatabaseCert(ctx, req)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return response, nil
 }
 
 // GetAppServers gets all application servers.
@@ -1043,172 +1161,4 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	proto.RegisterAuthServiceServer(authServer.server, authServer)
 	return authServer, nil
-}
-
-func eventToGRPC(in services.Event) (*proto.Event, error) {
-	eventType, err := eventTypeToGRPC(in.Type)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out := proto.Event{
-		Type: eventType,
-	}
-	if in.Type == backend.OpInit {
-		return &out, nil
-	}
-	switch r := in.Resource.(type) {
-	case *services.ResourceHeader:
-		out.Resource = &proto.Event_ResourceHeader{
-			ResourceHeader: r,
-		}
-	case *services.CertAuthorityV2:
-		out.Resource = &proto.Event_CertAuthority{
-			CertAuthority: r,
-		}
-	case *services.StaticTokensV2:
-		out.Resource = &proto.Event_StaticTokens{
-			StaticTokens: r,
-		}
-	case *services.ProvisionTokenV2:
-		out.Resource = &proto.Event_ProvisionToken{
-			ProvisionToken: r,
-		}
-	case *services.ClusterNameV2:
-		out.Resource = &proto.Event_ClusterName{
-			ClusterName: r,
-		}
-	case *services.ClusterConfigV3:
-		out.Resource = &proto.Event_ClusterConfig{
-			ClusterConfig: r,
-		}
-	case *services.UserV2:
-		out.Resource = &proto.Event_User{
-			User: r,
-		}
-	case *services.RoleV3:
-		out.Resource = &proto.Event_Role{
-			Role: r,
-		}
-	case *services.Namespace:
-		out.Resource = &proto.Event_Namespace{
-			Namespace: r,
-		}
-	case *services.ServerV2:
-		out.Resource = &proto.Event_Server{
-			Server: r,
-		}
-	case *services.ReverseTunnelV2:
-		out.Resource = &proto.Event_ReverseTunnel{
-			ReverseTunnel: r,
-		}
-	case *services.TunnelConnectionV2:
-		out.Resource = &proto.Event_TunnelConnection{
-			TunnelConnection: r,
-		}
-	case *services.AccessRequestV3:
-		out.Resource = &proto.Event_AccessRequest{
-			AccessRequest: r,
-		}
-	case *services.WebSessionV2:
-		if r.GetSubKind() != services.KindAppSession {
-			return nil, trace.BadParameter("only %v supported", services.KindAppSession)
-		}
-		out.Resource = &proto.Event_AppSession{
-			AppSession: r,
-		}
-	case *services.RemoteClusterV3:
-		out.Resource = &proto.Event_RemoteCluster{
-			RemoteCluster: r,
-		}
-	default:
-		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
-	}
-	return &out, nil
-}
-
-func eventTypeToGRPC(in backend.OpType) (proto.Operation, error) {
-	switch in {
-	case backend.OpInit:
-		return proto.Operation_INIT, nil
-	case backend.OpPut:
-		return proto.Operation_PUT, nil
-	case backend.OpDelete:
-		return proto.Operation_DELETE, nil
-	default:
-		return -1, trace.BadParameter("event type %v is not supported", in)
-	}
-}
-
-func eventFromGRPC(in proto.Event) (*services.Event, error) {
-	eventType, err := eventTypeFromGRPC(in.Type)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out := services.Event{
-		Type: eventType,
-	}
-	if eventType == backend.OpInit {
-		return &out, nil
-	}
-	if r := in.GetResourceHeader(); r != nil {
-		out.Resource = r
-		return &out, nil
-	} else if r := in.GetCertAuthority(); r != nil {
-		out.Resource = r
-		return &out, nil
-	} else if r := in.GetStaticTokens(); r != nil {
-		out.Resource = r
-		return &out, nil
-	} else if r := in.GetProvisionToken(); r != nil {
-		out.Resource = r
-		return &out, nil
-	} else if r := in.GetClusterName(); r != nil {
-		out.Resource = r
-		return &out, nil
-	} else if r := in.GetClusterConfig(); r != nil {
-		out.Resource = r
-		return &out, nil
-	} else if r := in.GetUser(); r != nil {
-		out.Resource = r
-		return &out, nil
-	} else if r := in.GetRole(); r != nil {
-		out.Resource = r
-		return &out, nil
-	} else if r := in.GetNamespace(); r != nil {
-		out.Resource = r
-		return &out, nil
-	} else if r := in.GetServer(); r != nil {
-		out.Resource = r
-		return &out, nil
-	} else if r := in.GetReverseTunnel(); r != nil {
-		out.Resource = r
-		return &out, nil
-	} else if r := in.GetTunnelConnection(); r != nil {
-		out.Resource = r
-		return &out, nil
-	} else if r := in.GetAccessRequest(); r != nil {
-		out.Resource = r
-		return &out, nil
-	} else if r := in.GetAppSession(); r != nil {
-		out.Resource = r
-		return &out, nil
-	} else if r := in.GetRemoteCluster(); r != nil {
-		out.Resource = r
-		return &out, nil
-	} else {
-		return nil, trace.BadParameter("received unsupported resource %T", in.Resource)
-	}
-}
-
-func eventTypeFromGRPC(in proto.Operation) (backend.OpType, error) {
-	switch in {
-	case proto.Operation_INIT:
-		return backend.OpInit, nil
-	case proto.Operation_PUT:
-		return backend.OpPut, nil
-	case proto.Operation_DELETE:
-		return backend.OpDelete, nil
-	default:
-		return -1, trace.BadParameter("unsupported operation type: %v", in)
-	}
 }

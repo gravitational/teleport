@@ -16,7 +16,7 @@ TEST_KUBE ?=
 
 OS ?= linux
 ARCH ?= amd64
-RUNTIME ?= go1.14.4
+RUNTIME ?= go1.15.5
 
 UID ?= $$(id -u)
 GID ?= $$(id -g)
@@ -147,7 +147,9 @@ clean:
 #
 .PHONY:test
 test: buildbox
-	docker run $(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) -t $(BUILDBOX) \
+	docker run \
+		--env TELEPORT_ETCD_TEST="yes" \
+		$(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c \
 		"examples/etcd/start-etcd.sh & sleep 1; \
 		ssh-agent > external.agent.tmp && source external.agent.tmp; \
@@ -171,7 +173,7 @@ lint: buildbox
 #
 .PHONY:docs
 docs: docsbox
-	docker run --rm=true -ti $(NOROOT) \
+	docker run --rm=true $(NOROOT) \
 		-v $$(pwd)/..:$(DOCSDIR) \
 		-v /tmp:/tmp \
 		-w $(DOCSDIR) \

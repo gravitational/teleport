@@ -101,6 +101,7 @@ Create the connector using `tctl` tool:
 ```bsh
 $ tctl create azure-connector.yaml
 ```
+
 !!! tip "FYI"
 
     Teleport will automatically transform the contents of the connector when viewed from the web UI.

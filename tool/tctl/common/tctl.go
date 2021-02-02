@@ -26,6 +26,7 @@ import (
 	"strconv"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/config"
@@ -138,7 +139,7 @@ func Run(commands []CLICommand, loadConfigExt LoadConfigFn) {
 
 	client, err := connectToAuthService(ctx, cfg, clientConfig)
 	if err != nil {
-		utils.Consolef(os.Stderr, teleport.ComponentClient,
+		utils.Consolef(os.Stderr, log.WithField(trace.Component, teleport.ComponentClient), teleport.ComponentClient,
 			"Cannot connect to the auth server: %v.\nIs the auth server running on %q?",
 			err, cfg.AuthServers[0].Addr)
 		os.Exit(1)
@@ -181,7 +182,7 @@ func connectToAuthService(ctx context.Context, cfg *service.Config, clientConfig
 	log.Debugf("Connecting to auth servers: %v.", cfg.AuthServers)
 
 	// Try connecting to the auth server directly over TLS.
-	client, err := auth.NewTLSClient(auth.ClientConfig{Addrs: cfg.AuthServers, TLS: clientConfig.TLS})
+	client, err := auth.NewClient(apiclient.Config{Addrs: utils.NetAddrsToStrings(cfg.AuthServers), TLS: clientConfig.TLS})
 	if err != nil {
 		return nil, trace.Wrap(err, "failed direct dial to auth server: %v", err)
 	}
@@ -214,7 +215,7 @@ func connectToAuthService(ctx context.Context, cfg *service.Config, clientConfig
 		log.Debugf("Attempting to connect using reverse tunnel address %v.", tunAddr)
 		// reversetunnel.TunnelAuthDialer will take care of creating a net.Conn
 		// within an SSH tunnel.
-		client, err = auth.NewTLSClient(auth.ClientConfig{
+		client, err = auth.NewClient(apiclient.Config{
 			Dialer: &reversetunnel.TunnelAuthDialer{
 				ProxyAddr:    tunAddr,
 				ClientConfig: clientConfig.SSH,

@@ -12,7 +12,7 @@ systemctl enable influxdb.service
 systemctl restart influxdb.service
 
 # Import dashboard and data source
-until $(curl --output /dev/null --silent --head --fail http://localhost:3000); do
+until curl --output /dev/null --silent --head --fail http://localhost:3000; do
     echo "waiting for grafana to respond"
     sleep 5
 done

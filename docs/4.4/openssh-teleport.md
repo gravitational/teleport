@@ -20,8 +20,8 @@ existing SSH implementations, such as OpenSSH. This section will cover:
 
   !!! warning
 
-    The minimum OpenSSH version which will work with Teleport is version 6.9.
-    You can view your OpenSSH version with `ssh -V`.
+      The minimum OpenSSH version which will work with Teleport is version 6.9.
+      You can view your OpenSSH version with `ssh -V`.
 
 ## Architecture
 ![Node Service ping API](img/openssh-proxy.svg)

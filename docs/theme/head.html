@@ -6,12 +6,13 @@
 
 <link rel="stylesheet" href="{{ base_url }}/src/docs.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons"  />
-<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Raleway:400,500,600,700,800,900" />
+<link href="https://fonts.googleapis.com/css?family=Lato:400,500,600,700,800,900" rel="stylesheet">
+
 {%- for path in extra_css %}
 <link href="{{ path }}" rel="stylesheet">
 {%- endfor %}
 
-<link rel="shortcut icon" href="https://gravitational.com/favicon.ico" type="image/x-icon" />
+<link rel="shortcut icon" href="https://goteleport.com/favicon.ico" type="image/x-icon" />
 
 {%- block extrahead %} {% endblock %}
 
@@ -25,7 +26,7 @@
 
 <link rel="canonical" href='{{ page.canonical_url }}'/>
 
-{% endblock %}
+<!-- MARKETO -->
+<script src="//app-ab44.marketo.com/js/forms2/js/forms2.min.js"></script>
 
-<!-- ZOHO PAGE SENSE-->
-<script type="text/javascript">(function(w,s){var e=document.createElement("script");e.type="text/javascript";e.async=true;e.src="https://cdn.pagesense.io/js/nbytqvvf/0607e6b1830a470b933a4028e91195ab.js";var x=document.getElementsByTagName("script")[0];x.parentNode.insertBefore(e,x);})(window,"script");</script>
+{% endblock %}

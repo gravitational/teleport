@@ -17,7 +17,7 @@ limitations under the License.
 package bpf
 
 import (
-	"fmt"
+	"testing"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
@@ -27,15 +27,11 @@ import (
 
 type CommonSuite struct{}
 
-var _ = fmt.Printf
 var _ = check.Suite(&CommonSuite{})
 
 func (s *CommonSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 }
-func (s *CommonSuite) TearDownSuite(c *check.C) {}
-func (s *CommonSuite) SetUpTest(c *check.C)     {}
-func (s *CommonSuite) TearDownTest(c *check.C)  {}
 
 // TestCheckAndSetDefaults makes sure defaults are set when the user does not
 // provide values for the page sizes and hard coded values (like zero or a

@@ -21,6 +21,7 @@ import (
 	"context"
 	"sort"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -96,6 +97,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch services.Watch) (s
 			parser = newRemoteClusterParser()
 		case services.KindKubeService:
 			parser = newKubeServiceParser()
+		case types.KindDatabaseServer:
+			parser = newDatabaseServerParser()
 		default:
 			return nil, trace.BadParameter("watcher on object kind %v is not supported", kind)
 		}
@@ -258,7 +261,7 @@ func (p *certAuthorityParser) parse(event backend.Event) (services.Resource, err
 			},
 		}, nil
 	case backend.OpPut:
-		ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(event.Item.Value,
+		ca, err := services.UnmarshalCertAuthority(event.Item.Value,
 			services.WithResourceID(event.Item.ID), services.WithExpires(event.Item.Expires), services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -320,7 +323,7 @@ func (p *staticTokensParser) parse(event backend.Event) (services.Resource, erro
 		h.SetName(services.MetaNameStaticTokens)
 		return h, nil
 	case backend.OpPut:
-		tokens, err := services.GetStaticTokensMarshaler().Unmarshal(event.Item.Value,
+		tokens, err := services.UnmarshalStaticTokens(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)
@@ -353,7 +356,7 @@ func (p *clusterConfigParser) parse(event backend.Event) (services.Resource, err
 		h.SetName(services.MetaNameClusterConfig)
 		return h, nil
 	case backend.OpPut:
-		clusterConfig, err := services.GetClusterConfigMarshaler().Unmarshal(
+		clusterConfig, err := services.UnmarshalClusterConfig(
 			event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
@@ -388,7 +391,7 @@ func (p *clusterNameParser) parse(event backend.Event) (services.Resource, error
 		h.SetName(services.MetaNameClusterName)
 		return h, nil
 	case backend.OpPut:
-		clusterName, err := services.GetClusterNameMarshaler().Unmarshal(event.Item.Value,
+		clusterName, err := services.UnmarshalClusterName(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)
@@ -456,7 +459,7 @@ func (p *roleParser) parse(event backend.Event) (services.Resource, error) {
 	case backend.OpDelete:
 		return resourceHeader(event, services.KindRole, services.V3, 1)
 	case backend.OpPut:
-		resource, err := services.GetRoleMarshaler().UnmarshalRole(event.Item.Value,
+		resource, err := services.UnmarshalRole(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)
@@ -542,7 +545,7 @@ func (p *userParser) parse(event backend.Event) (services.Resource, error) {
 	case backend.OpDelete:
 		return resourceHeader(event, services.KindUser, services.V2, 1)
 	case backend.OpPut:
-		resource, err := services.GetUserMarshaler().UnmarshalUser(event.Item.Value,
+		resource, err := services.UnmarshalUser(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)
@@ -694,7 +697,7 @@ func (p *webSessionParser) parse(event backend.Event) (services.Resource, error)
 	case backend.OpDelete:
 		return resourceHeader(event, services.KindWebSession, services.V2, 0)
 	case backend.OpPut:
-		resource, err := services.GetWebSessionMarshaler().UnmarshalWebSession(event.Item.Value,
+		resource, err := services.UnmarshalWebSession(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)
@@ -721,12 +724,49 @@ func (p *kubeServiceParser) parse(event backend.Event) (services.Resource, error
 	return parseServer(event, services.KindKubeService)
 }
 
+func newDatabaseServerParser() *databaseServerParser {
+	return &databaseServerParser{
+		baseParser: baseParser{matchPrefix: backend.Key(dbServersPrefix, defaults.Namespace)},
+	}
+}
+
+type databaseServerParser struct {
+	baseParser
+}
+
+func (p *databaseServerParser) parse(event backend.Event) (services.Resource, error) {
+	switch event.Type {
+	case backend.OpDelete:
+		hostID, name, err := baseTwoKeys(event.Item.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &types.DatabaseServerV3{
+			Kind:    types.KindDatabaseServer,
+			Version: types.V3,
+			Metadata: services.Metadata{
+				Name:        name,
+				Namespace:   defaults.Namespace,
+				Description: hostID, // Pass host ID via description field for the cache.
+			},
+		}, nil
+	case backend.OpPut:
+		return services.UnmarshalDatabaseServer(
+			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+			services.SkipValidation())
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
 func parseServer(event backend.Event, kind string) (services.Resource, error) {
 	switch event.Type {
 	case backend.OpDelete:
 		return resourceHeader(event, kind, services.V2, 0)
 	case backend.OpPut:
-		resource, err := services.GetServerMarshaler().UnmarshalServer(event.Item.Value,
+		resource, err := services.UnmarshalServer(event.Item.Value,
 			kind,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),

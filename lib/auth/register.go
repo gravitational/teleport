@@ -21,6 +21,7 @@ import (
 	"crypto/x509"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -28,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 // LocalRegister is used to generate host keys when a node or proxy is running
@@ -90,6 +92,16 @@ type RegisterParams struct {
 	CAPath string
 	// GetHostCredentials is a client that can fetch host credentials.
 	GetHostCredentials HostCredentials
+	// Clock specifies the time provider. Will be used to override the time anchor
+	// for TLS certificate verification.
+	// Defaults to real clock if unspecified
+	Clock clockwork.Clock
+}
+
+func (r *RegisterParams) setDefaults() {
+	if r.Clock == nil {
+		r.Clock = clockwork.NewRealClock()
+	}
 }
 
 // CredGetter is an interface for a client that can be used to get host
@@ -102,6 +114,7 @@ type HostCredentials func(context.Context, string, bool, RegisterUsingTokenReque
 // tokens to prove a valid auth server was used to issue the joining request
 // as well as a method for the node to validate the auth server.
 func Register(params RegisterParams) (*Identity, error) {
+	params.setDefaults()
 	// Read in the token. The token can either be passed in or come from a file
 	// on disk.
 	token, err := utils.ReadToken(params.Token)
@@ -109,37 +122,47 @@ func Register(params RegisterParams) (*Identity, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Attempt to register through the auth server, if it fails, try and
-	// register through the proxy server.
-	ident, err := registerThroughAuth(token, params)
-	if err != nil {
-		// If no params client was set this is a proxy and fail right away.
-		if params.GetHostCredentials == nil {
-			log.Debugf("Missing client, failing with error from Auth Server: %v.", err)
-			return nil, trace.Wrap(err)
-		}
+	log.WithField("auth-servers", params.Servers).Debugf("Registering node to the cluster.")
 
-		log.Errorf("Failed to register through auth server: %v; falling back to trying the proxy server", err)
+	type registerMethod struct {
+		call func(token string, params RegisterParams) (*Identity, error)
+		desc string
+	}
+	registerThroughAuth := registerMethod{registerThroughAuth, "with auth server"}
+	registerThroughProxy := registerMethod{registerThroughProxy, "via proxy server"}
 
-		// params.AuthServers could contain a proxy address, to deal with nodes
-		// behind NAT. Try registering using the proxy API.
-		ident, err = registerThroughProxy(token, params)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to register through proxy server: %v", err)
-		}
-
-		log.Debugf("Successfully registered through proxy server.")
-		return ident, nil
+	registerMethods := []registerMethod{registerThroughAuth, registerThroughProxy}
+	if params.GetHostCredentials == nil {
+		log.Debugf("Missing client, it is not possible to register through proxy.")
+		registerMethods = []registerMethod{registerThroughAuth}
+	} else if authServerIsProxy(params.Servers) {
+		log.Debugf("The first specified auth server appears to be a proxy.")
+		registerMethods = []registerMethod{registerThroughProxy, registerThroughAuth}
 	}
 
-	log.Debugf("Successfully registered through auth server.")
-	return ident, nil
+	var collectedErrs []error
+	for _, method := range registerMethods {
+		log.Infof("Attempting registration %s.", method.desc)
+		ident, err := method.call(token, params)
+		if err != nil {
+			collectedErrs = append(collectedErrs, err)
+			log.WithError(err).Debugf("Registration %s failed.", method.desc)
+			continue
+		}
+		log.Infof("Successfully registered %s.", method.desc)
+		return ident, nil
+	}
+	return nil, trace.NewAggregate(collectedErrs...)
+}
+
+// authServerIsProxy returns true if the first specified auth server
+// to register with appears to be a proxy.
+func authServerIsProxy(servers []utils.NetAddr) bool {
+	return len(servers) > 0 && servers[0].Port(0) == defaults.HTTPListenPort
 }
 
 // registerThroughProxy is used to register through the proxy server.
 func registerThroughProxy(token string, params RegisterParams) (*Identity, error) {
-	log.Debugf("Attempting to register through proxy server.")
-
 	if len(params.Servers) == 0 {
 		return nil, trace.BadParameter("no auth servers set")
 	}
@@ -167,8 +190,6 @@ func registerThroughProxy(token string, params RegisterParams) (*Identity, error
 
 // registerThroughAuth is used to register through the auth server.
 func registerThroughAuth(token string, params RegisterParams) (*Identity, error) {
-	log.Debugf("Attempting to register through auth server.")
-
 	var client *Client
 	var err error
 
@@ -210,6 +231,7 @@ func registerThroughAuth(token string, params RegisterParams) (*Identity, error)
 // Server it is connecting to.
 func insecureRegisterClient(params RegisterParams) (*Client, error) {
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
+	tlsConfig.Time = params.Clock.Now
 
 	cert, err := readCA(params)
 	if err != nil && !trace.IsNotFound(err) {
@@ -234,7 +256,7 @@ func insecureRegisterClient(params RegisterParams) (*Client, error) {
 		log.Infof("Joining remote cluster %v, validating connection with certificate on disk.", cert.Subject.CommonName)
 	}
 
-	client, err := NewTLSClient(ClientConfig{Addrs: params.Servers, TLS: tlsConfig})
+	client, err := NewClient(client.Config{Addrs: utils.NetAddrsToStrings(params.Servers), TLS: tlsConfig})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -266,15 +288,16 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 	// an attacker were to MITM this connection the CA pin will not match below.
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
 	tlsConfig.InsecureSkipVerify = true
-	client, err := NewTLSClient(ClientConfig{Addrs: params.Servers, TLS: tlsConfig})
+	tlsConfig.Time = params.Clock.Now
+	authClient, err := NewClient(client.Config{Addrs: utils.NetAddrsToStrings(params.Servers), TLS: tlsConfig})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer client.Close()
+	defer authClient.Close()
 
 	// Fetch the root CA from the Auth Server. The NOP role has access to the
 	// GetClusterCACert endpoint.
-	localCA, err := client.GetClusterCACert()
+	localCA, err := authClient.GetClusterCACert()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -296,16 +319,17 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 	// Create another client, but this time with the CA provided to validate
 	// that the Auth Server was issued a certificate by the same CA.
 	tlsConfig = utils.TLSConfig(params.CipherSuites)
+	tlsConfig.Time = params.Clock.Now
 	certPool := x509.NewCertPool()
 	certPool.AddCert(tlsCA)
 	tlsConfig.RootCAs = certPool
 
-	client, err = NewTLSClient(ClientConfig{Addrs: params.Servers, TLS: tlsConfig})
+	authClient, err = NewClient(client.Config{Addrs: utils.NetAddrsToStrings(params.Servers), TLS: tlsConfig})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return client, nil
+	return authClient, nil
 }
 
 // ReRegisterParams specifies parameters for re-registering

@@ -17,13 +17,11 @@ limitations under the License.
 package utils
 
 import (
-	"fmt"
 	"net/http"
+	"testing"
 
 	"gopkg.in/check.v1"
 )
-
-var _ = fmt.Printf
 
 type WebLinksSuite struct {
 }
@@ -31,7 +29,7 @@ type WebLinksSuite struct {
 var _ = check.Suite(&WebLinksSuite{})
 
 func (s *WebLinksSuite) SetUpSuite(c *check.C) {
-	InitLoggerForTests()
+	InitLoggerForTests(testing.Verbose())
 }
 
 func (s *WebLinksSuite) TestWebLinks(c *check.C) {

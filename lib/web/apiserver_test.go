@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
@@ -75,8 +76,6 @@ import (
 	"github.com/pborman/uuid"
 	"github.com/pquerna/otp/totp"
 	"github.com/sirupsen/logrus"
-	"github.com/tstranex/u2f"
-	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
@@ -99,12 +98,10 @@ type WebSuite struct {
 	mockU2F     *mocku2f.Key
 	server      *auth.TestTLSServer
 	proxyClient *auth.Client
-	clock       clockwork.Clock
+	clock       clockwork.FakeClock
 }
 
-var _ = Suite(&WebSuite{
-	clock: clockwork.NewFakeClock(),
-})
+var _ = Suite(&WebSuite{})
 
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise it will run tests as normal.
@@ -123,7 +120,6 @@ func TestMain(m *testing.M) {
 }
 
 func (s *WebSuite) SetUpSuite(c *C) {
-	var err error
 	os.Unsetenv(teleport.DebugEnvVar)
 	utils.InitLoggerForTests(testing.Verbose())
 
@@ -131,7 +127,7 @@ func (s *WebSuite) SetUpSuite(c *C) {
 	debugAssetsPath = "../../webassets/teleport"
 	os.Setenv(teleport.DebugEnvVar, "true")
 
-	//sessionStreamPollPeriod = time.Millisecond
+	var err error
 	s.mockU2F, err = mocku2f.Create()
 	c.Assert(err, IsNil)
 	c.Assert(s.mockU2F, NotNil)
@@ -145,11 +141,12 @@ func (s *WebSuite) SetUpTest(c *C) {
 	u, err := user.Current()
 	c.Assert(err, IsNil)
 	s.user = u.Username
+	s.clock = clockwork.NewFakeClock()
 
 	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		ClusterName: "localhost",
 		Dir:         c.MkDir(),
-		Clock:       clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC)),
+		Clock:       s.clock,
 	})
 	c.Assert(err, IsNil)
 	s.server, err = authServer.NewTestTLSServer()
@@ -192,6 +189,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		regular.SetEmitter(nodeClient),
 		regular.SetPAMConfig(&pam.Config{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
+		regular.SetClock(s.clock),
 	)
 	c.Assert(err, IsNil)
 	s.node = node
@@ -244,6 +242,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		regular.SetEmitter(s.proxyClient),
 		regular.SetNamespace(defaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
+		regular.SetClock(s.clock),
 	)
 	c.Assert(err, IsNil)
 
@@ -257,7 +256,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		Context:      context.Background(),
 		HostUUID:     proxyID,
 		Emitter:      s.proxyClient,
-	}, SetSessionStreamPollPeriod(200*time.Millisecond))
+	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(s.clock))
 	c.Assert(err, IsNil)
 
 	s.webServer = httptest.NewUnstartedServer(handler)
@@ -315,9 +314,7 @@ func (s *WebSuite) authPackFromResponse(c *C, re *roundtrip.Response) *authPack 
 	jar.SetCookies(s.url(), re.Cookies())
 
 	session, err := sess.response()
-	if err != nil {
-		panic(err)
-	}
+	c.Assert(err, IsNil)
 	if session.ExpiresIn < 0 {
 		c.Errorf("expected expiry time to be in the future but got %v", session.ExpiresIn)
 	}
@@ -347,7 +344,7 @@ func (s *WebSuite) authPack(c *C, user string) *authPack {
 	s.createUser(c, user, login, pass, otpSecret)
 
 	// create a valid otp token
-	validToken, err := totp.GenerateCode(otpSecret, time.Now())
+	validToken, err := totp.GenerateCode(otpSecret, s.clock.Now())
 	c.Assert(err, IsNil)
 
 	clt := s.client()
@@ -405,8 +402,12 @@ func (s *WebSuite) createUser(c *C, user string, login string, pass string, otpS
 	err = s.server.Auth().UpsertPassword(user, []byte(pass))
 	c.Assert(err, IsNil)
 
-	err = s.server.Auth().UpsertTOTP(user, otpSecret)
-	c.Assert(err, IsNil)
+	if otpSecret != "" {
+		dev, err := services.NewTOTPDevice("otp", otpSecret, s.clock.Now())
+		c.Assert(err, IsNil)
+		err = s.server.Auth().UpsertMFADevice(context.Background(), user, dev)
+		c.Assert(err, IsNil)
+	}
 }
 
 func (s *WebSuite) TestSAMLSuccess(c *C) {
@@ -418,9 +419,9 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	err := decoder.Decode(&raw)
 	c.Assert(err, IsNil)
 
-	connector, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(raw.Raw)
+	connector, err := services.UnmarshalSAMLConnector(raw.Raw)
 	c.Assert(err, IsNil)
-	err = connector.CheckAndSetDefaults()
+	err = services.ValidateSAMLConnector(connector)
 	c.Assert(err, IsNil)
 
 	role, err := services.NewRole(connector.GetAttributesToRoles()[0].Roles[0], services.RoleSpecV3{
@@ -591,10 +592,10 @@ func (s *WebSuite) TestCSRF(c *C) {
 
 func (s *WebSuite) TestPasswordChange(c *C) {
 	pack := s.authPack(c, "foo")
-	fakeClock := clockwork.NewFakeClock()
-	s.server.AuthServer.AuthServer.SetClock(fakeClock)
 
-	validToken, err := totp.GenerateCode(pack.otpSecret, fakeClock.Now())
+	// invalidate the token
+	s.clock.Advance(1 * time.Minute)
+	validToken, err := totp.GenerateCode(pack.otpSecret, s.clock.Now())
 	c.Assert(err, IsNil)
 
 	req := changePasswordReq{
@@ -653,7 +654,9 @@ func (s *WebSuite) TestWebSessionsBadInput(c *C) {
 	err := s.server.Auth().UpsertPassword(user, []byte(pass))
 	c.Assert(err, IsNil)
 
-	err = s.server.Auth().UpsertTOTP(user, otpSecret)
+	dev, err := services.NewTOTPDevice("otp", otpSecret, s.clock.Now())
+	c.Assert(err, IsNil)
+	err = s.server.Auth().UpsertMFADevice(context.Background(), user, dev)
 	c.Assert(err, IsNil)
 
 	// create valid token
@@ -1346,7 +1349,9 @@ func (s *WebSuite) TestChangePasswordWithTokenOTP(c *C) {
 	secrets, err := s.server.Auth().RotateResetPasswordTokenSecrets(context.TODO(), token.GetName())
 	c.Assert(err, IsNil)
 
-	secondFactorToken, err := totp.GenerateCode(secrets.GetOTPKey(), time.Now())
+	// Advance the clock to invalidate the TOTP token
+	s.clock.Advance(1 * time.Minute)
+	secondFactorToken, err := totp.GenerateCode(secrets.GetOTPKey(), s.clock.Now())
 	c.Assert(err, IsNil)
 
 	data, err := json.Marshal(auth.ChangePasswordWithTokenRequest{
@@ -1399,7 +1404,7 @@ func (s *WebSuite) TestChangePasswordWithTokenU2F(c *C) {
 	re, err := clt.Get(context.Background(), clt.Endpoint("webapi", "u2f", "signuptokens", token.GetName()), url.Values{})
 	c.Assert(err, IsNil)
 
-	var u2fRegReq u2f.RegisterRequest
+	var u2fRegReq u2f.RegisterChallenge
 	c.Assert(json.Unmarshal(re.Bytes(), &u2fRegReq), IsNil)
 
 	u2fRegResp, err := s.mockU2F.RegisterResponse(&u2fRegReq)
@@ -1474,7 +1479,7 @@ func (s *WebSuite) TestU2FLogin(c *C) {
 		Pass: string(tempPass),
 	})
 	c.Assert(err, IsNil)
-	var u2fSignReq u2f.SignRequest
+	var u2fSignReq u2f.AuthenticateChallenge
 	c.Assert(json.Unmarshal(re.Bytes(), &u2fSignReq), IsNil)
 
 	u2fSignResp, err := s.mockU2F.SignResponse(&u2fSignReq)
@@ -1816,7 +1821,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		Spec: services.ServerSpecV2{
 			Version: teleport.Version,
 			Apps: []*services.App{
-				&services.App{
+				{
 					Name:       "panel",
 					PublicAddr: "panel.example.com",
 					URI:        "http://127.0.0.1:8080",
@@ -1825,15 +1830,15 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		},
 	}
 	_, err := s.server.Auth().UpsertAppServer(context.Background(), server)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, IsNil)
 
 	// Extract the session ID and bearer token for the current session.
 	rawCookie := *pack.cookies[0]
 	cookieBytes, err := hex.DecodeString(rawCookie.Value)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, IsNil)
 	var sessionCookie SessionCookie
 	err = json.Unmarshal(cookieBytes, &sessionCookie)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, IsNil)
 
 	var tests = []struct {
 		inComment       CommentInterface
@@ -1884,7 +1889,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		// Make a request to create an application session for "panel".
 		endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
 		resp, err := pack.clt.PostJSON(context.Background(), endpoint, tt.inCreateRequest)
-		c.Assert(err != nil, check.Equals, tt.outError, tt.inComment)
+		c.Assert(err != nil, Equals, tt.outError, tt.inComment)
 		if tt.outError {
 			continue
 		}
@@ -1897,15 +1902,10 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		session, err := s.server.Auth().GetAppSession(context.Background(), services.GetAppSessionRequest{
 			SessionID: response.CookieValue,
 		})
-		c.Assert(err, check.IsNil)
-		c.Assert(session.GetUser(), check.Equals, tt.outUsername)
-		c.Assert(session.GetName(), check.Equals, response.CookieValue)
+		c.Assert(err, IsNil)
+		c.Assert(session.GetUser(), Equals, tt.outUsername)
+		c.Assert(session.GetName(), Equals, response.CookieValue)
 	}
-}
-
-// TestAppRouting verifies requests get routed correctly: either to the Web UI
-// or an application.
-func (s *WebSuite) TestRouting(c *C) {
 }
 
 type authProviderMock struct {

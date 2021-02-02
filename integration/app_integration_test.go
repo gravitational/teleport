@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/testlog"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/app"
 
@@ -78,6 +79,53 @@ func TestForward(t *testing.T) {
 			inCookie:      "D25C463CD27861559CC6A0A6AE54818079809AA8731CB18037B4B37A80C4FC6C",
 			outStatusCode: http.StatusFound,
 			outMessage:    "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			tt := tt
+			status, body, err := pack.makeRequest(tt.inCookie, http.MethodGet, "/")
+			require.NoError(t, err)
+			require.Equal(t, tt.outStatusCode, status)
+			require.Contains(t, body, tt.outMessage)
+		})
+	}
+}
+
+// TestForwardModes ensures that requests are forwarded to applications even
+// when the cluster is in proxy recording mode.
+func TestForwardModes(t *testing.T) {
+	// Create cluster, user, sessions, and credentials package.
+	pack := setup(t)
+
+	// Update root and leaf clusters to record sessions at the proxy.
+	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+		SessionRecording: services.RecordAtProxy,
+	})
+	require.NoError(t, err)
+	err = pack.rootCluster.Process.GetAuthServer().SetClusterConfig(clusterConfig)
+	require.NoError(t, err)
+	err = pack.leafCluster.Process.GetAuthServer().SetClusterConfig(clusterConfig)
+	require.NoError(t, err)
+
+	// Requests to root and leaf cluster are successful.
+	tests := []struct {
+		desc          string
+		inCookie      string
+		outStatusCode int
+		outMessage    string
+	}{
+		{
+			desc:          "root cluster, valid application session cookie, success",
+			inCookie:      pack.createAppSession(t, pack.rootAppPublicAddr, pack.rootAppClusterName),
+			outStatusCode: http.StatusOK,
+			outMessage:    pack.rootMessage,
+		},
+		{
+			desc:          "leaf cluster, valid application session cookie, success",
+			inCookie:      pack.createAppSession(t, pack.leafAppPublicAddr, pack.leafAppClusterName),
+			outStatusCode: http.StatusOK,
+			outMessage:    pack.leafMessage,
 		},
 	}
 	for _, tt := range tests {
@@ -191,6 +239,8 @@ func setup(t *testing.T) *pack {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
+	log := testlog.FailureOnly(t)
+
 	// Insecure development mode needs to be set because the web proxy uses a
 	// self-signed certificate during tests.
 	lib.SetInsecureDevMode(true)
@@ -245,6 +295,7 @@ func setup(t *testing.T) *pack {
 		Ports:       ports.PopIntSlice(5),
 		Priv:        privateKey,
 		Pub:         publicKey,
+		log:         log,
 	})
 
 	// Create a new Teleport instance with passed in configuration.
@@ -255,9 +306,12 @@ func setup(t *testing.T) *pack {
 		Ports:       ports.PopIntSlice(5),
 		Priv:        privateKey,
 		Pub:         publicKey,
+		log:         log,
 	})
 
 	rcConf := service.MakeDefaultConfig()
+	rcConf.Console = nil
+	rcConf.Log = log
 	rcConf.DataDir, err = ioutil.TempDir("", "cluster-"+p.rootCluster.Secrets.SiteName)
 	require.NoError(t, err)
 	t.Cleanup(func() { os.RemoveAll(rcConf.DataDir) })
@@ -270,6 +324,8 @@ func setup(t *testing.T) *pack {
 	rcConf.Apps.Enabled = false
 
 	lcConf := service.MakeDefaultConfig()
+	lcConf.Console = nil
+	lcConf.Log = log
 	lcConf.DataDir, err = ioutil.TempDir("", "cluster-"+p.leafCluster.Secrets.SiteName)
 	require.NoError(t, err)
 	t.Cleanup(func() { os.RemoveAll(lcConf.DataDir) })
@@ -298,6 +354,8 @@ func setup(t *testing.T) *pack {
 	})
 
 	raConf := service.MakeDefaultConfig()
+	raConf.Console = nil
+	raConf.Log = log
 	raConf.DataDir, err = ioutil.TempDir("", "app-server-"+p.rootCluster.Secrets.SiteName)
 	require.NoError(t, err)
 	t.Cleanup(func() { os.RemoveAll(raConf.DataDir) })
@@ -329,6 +387,8 @@ func setup(t *testing.T) *pack {
 	t.Cleanup(func() { p.rootAppServer.Close() })
 
 	laConf := service.MakeDefaultConfig()
+	laConf.Console = nil
+	laConf.Log = log
 	laConf.DataDir, err = ioutil.TempDir("", "app-server-"+p.leafCluster.Secrets.SiteName)
 	require.NoError(t, err)
 	t.Cleanup(func() { os.RemoveAll(laConf.DataDir) })

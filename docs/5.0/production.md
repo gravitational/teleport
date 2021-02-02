@@ -35,13 +35,15 @@ Teleport services listen on several ports. This table shows the default port num
 
 |Port      | Service    | Description | Ingress | Egress
 |----------|------------|-------------|---------|----------
-| 3080      | Proxy      | HTTPS port clients connect to. Used to authenticate `tsh` users and web users into the cluster. | Allow inbound connections from HTTP and SSH clients. | Allow outbound connections to HTTP and SSH clients.
-| 3023      | Proxy      | SSH port clients connect to after authentication. A proxy will forward this connection to port `3022` on the destination node. | Allow inbound traffic from SSH clients. | Allow outbound traffic to SSH clients.
-| 3022      | Node       | SSH port to the Node Service. This is Teleport's equivalent of port `22` for SSH. | Allow inbound traffic from proxy host. | Allow outbound traffic to the proxy host.
-| 3025      | Auth       | SSH port used by the Auth Service to serve its Auth API to other nodes in a cluster. | Allow inbound connections from all cluster nodes. | Allow outbound traffic to cluster nodes.
-| 3024      | Proxy      | SSH port used to create "reverse SSH tunnels" from behind-firewall environments into a trusted proxy server. | <TODO> | <TODO>
+| `3080`      | Proxy      | HTTPS port clients connect to. Used to authenticate `tsh` users and web users into the cluster. | Allow inbound connections from HTTP and SSH clients. | Allow outbound connections to HTTP and SSH clients.
+| `3023`      | Proxy      | SSH port clients connect to after authentication. A proxy will forward this connection to port `3022` on the destination node. | Allow inbound traffic from SSH clients. | Allow outbound traffic to SSH clients.
+| `3022`      | Node       | SSH port to the Node Service. This is Teleport's equivalent of port `22` for SSH. | Allow inbound traffic from proxy host. | Allow outbound traffic to the proxy host.
+| `3025`      | Auth       | SSH port used by the Auth Service to serve its Auth API to other nodes in a cluster. | Allow inbound connections from all cluster nodes. | Allow outbound traffic to cluster nodes.
+| `3024`      | Proxy      | SSH port used to create "reverse SSH tunnels" from behind-firewall environments into a trusted proxy server. | <!-- TODO --> | <!-- TODO -->
+| `3026`      | Kubernetes  | Port used for `kubectl` to access Teleport | <!-- TODO --> | <!-- TODO -->
 
-<!--TODO: Add several diagrams of firewall config examples-->
+
+<!-- TODO: Add several diagrams of firewall config examples -->
 
 ## Installation
 
@@ -155,9 +157,12 @@ privkey.pem
 
 The files that are needed for Teleport are these:
 
-```
-https_key_file: /path/to/certs/privkey.pem
-https_cert_file: /path/to/certs/fullchain.pem
+```yaml
+# proxy service
+# ...
+https_keypairs:
+- key_file: /var/lib/teleport/webproxy_key.pem
+  cert_file: /var/lib/teleport/webproxy_cert.pem
 ```
 
 If you already have a certificate these should be uploaded to the Teleport Proxy and
@@ -179,8 +184,9 @@ proxy_service:
 
     # TLS certificate for the HTTPS connection. Configuring these properly is
     # critical for Teleport security.
-    https_key_file: /var/lib/teleport/webproxy_key.pem
-    https_cert_file: /var/lib/teleport/webproxy_cert.pem
+    https_keypairs:
+    - key_file: /var/lib/teleport/webproxy_key.pem
+      cert_file: /var/lib/teleport/webproxy_cert.pem
 ```
 
 When setting up on Teleport on AWS or GCP, we recommend leveraging their certificate
@@ -197,8 +203,6 @@ setting up the proxy nodes start Teleport with:
 
 See [Teleport Proxy HA](admin-guide.md#teleport-proxy-ha) for more info.
 
-
-<!-- TODO Address vulns in quay? -->
 
 <!-- TODO SSL for Webproxy & Auth Section -->
 

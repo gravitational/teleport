@@ -936,6 +936,7 @@ Token 696c0471453e75882ff70a761c1a8bfa has been deleted
 ## Adding a node located behind NAT
 
 !!! note
+
     This feature is sometimes called "Teleport IoT" or node tunneling.
 
 With the current setup, you've only been able to add nodes that have direct access to the
@@ -1411,6 +1412,7 @@ $ tctl rm users/admin
 ```
 
 !!! note
+
     Although `tctl get connectors` will show you every connector, when working with an individual
     connector you must use the correct `kind`, such as `saml` or `oidc`. You can see each
     connector's `kind` at the top of its YAML output from `tctl get connectors`.
@@ -2525,7 +2527,7 @@ As of version v4.1 you can now quickly export a collection of resources from
 Teleport. This feature set works best for local and etcd, it's currently experimental
 for AWS/GCP.
 
-Using `tctl get all` will backup.
+Using `tctl get all --with-secrets` will backup.
 
 - Users
 - Certificate Authorities
@@ -2542,7 +2544,7 @@ When backing up Teleport you'll need to backup up your auth server's `data_dir/s
 
 ``` bash
 # export dynamic configuration state from old cluster
-$ tctl get all > state.yaml
+$ tctl get all --with-secrets > state.yaml
 
 # prepare a new uninitialized backend (make sure to port
 # any non-default config values from the old config file)
@@ -2563,7 +2565,7 @@ The `--bootstrap` flag has no effect, except during backend initialization (perf
 by auth server on first start), so it is safe for use in supervised/HA contexts.
 
 **Limitations**
-
+- The `--bootstrap` flag doesn't re-trigger trusted cluster handshakes, so trusted cluster resources need to be recreated manually.
 - All the same limitations around modifying the config file of an existing cluster also apply to a new cluster being bootstrapped from the state of an old cluster. Of particular note:
     - Changing cluster name will break your CAs (this will be caught and teleport will refuse to start).
     - Some user authentication mechanisms (e.g. u2f) require that the public endpoint of the web ui remains the same (this can't be caught by teleport, be careful!).

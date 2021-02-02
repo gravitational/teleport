@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
 )
 
@@ -35,7 +36,7 @@ type ConfigSuite struct {
 var _ = check.Suite(&ConfigSuite{})
 
 func (s *ConfigSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 }
 
 func (s *ConfigSuite) TestDefaultConfig(c *check.C) {
@@ -97,4 +98,122 @@ func (s *ConfigSuite) TestDefaultConfig(c *check.C) {
 	c.Assert(proxy.SSHAddr, check.DeepEquals, localProxyAddr)
 	c.Assert(proxy.Limiter.MaxConnections, check.Equals, int64(defaults.LimiterMaxConnections))
 	c.Assert(proxy.Limiter.MaxNumberOfUsers, check.Equals, defaults.LimiterMaxConcurrentUsers)
+}
+
+// TestAppName makes sure application names are valid subdomains.
+func (s *ConfigSuite) TestAppName(c *check.C) {
+	tests := []struct {
+		desc     check.CommentInterface
+		inName   string
+		outValid bool
+	}{
+		{
+			desc:     check.Commentf("valid subdomain"),
+			inName:   "foo",
+			outValid: true,
+		},
+		{
+			desc:     check.Commentf("subdomain cannot start with a dash"),
+			inName:   "-foo",
+			outValid: false,
+		},
+		{
+			desc:     check.Commentf(`subdomain cannot contain the exclamation mark character "!"`),
+			inName:   "foo!bar",
+			outValid: false,
+		},
+		{
+			desc:     check.Commentf("subdomain of length 63 characters is valid (maximum length)"),
+			inName:   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			outValid: true,
+		},
+		{
+			desc:     check.Commentf("subdomain of length 64 characters is invalid"),
+			inName:   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			outValid: false,
+		},
+	}
+
+	for _, tt := range tests {
+		a := App{
+			Name:       tt.inName,
+			URI:        "http://localhost:8080",
+			PublicAddr: "foo.example.com",
+		}
+		err := a.Check()
+		c.Assert(err == nil, check.Equals, tt.outValid, tt.desc)
+	}
+}
+
+func TestCheckDatabase(t *testing.T) {
+	tests := []struct {
+		desc       string
+		inDatabase Database
+		outErr     bool
+	}{
+		{
+			desc: "ok",
+			inDatabase: Database{
+				Name:     "example",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+			},
+			outErr: false,
+		},
+		{
+			desc: "empty database name",
+			inDatabase: Database{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+			},
+			outErr: true,
+		},
+		{
+			desc: "invalid database name",
+			inDatabase: Database{
+				Name:     "??--++",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+			},
+			outErr: true,
+		},
+		{
+			desc: "invalid database protocol",
+			inDatabase: Database{
+				Name:     "example",
+				Protocol: "unknown",
+				URI:      "localhost:5432",
+			},
+			outErr: true,
+		},
+		{
+			desc: "invalid database uri",
+			inDatabase: Database{
+				Name:     "example",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost",
+			},
+			outErr: true,
+		},
+		{
+			desc: "invalid database CA cert",
+			inDatabase: Database{
+				Name:     "example",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				CACert:   []byte("cert"),
+			},
+			outErr: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			err := test.inDatabase.Check()
+			if test.outErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }

@@ -29,8 +29,10 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
 
+	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -54,6 +56,11 @@ type AuthHandlers struct {
 	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
 	// configuration.
 	FIPS bool
+
+	// Clock specifies the time provider. Will be used to override the time anchor
+	// for TLS certificate verification.
+	// Defaults to real clock if unspecified
+	Clock clockwork.Clock
 }
 
 // CreateIdentityContext returns an IdentityContext populated with information
@@ -198,9 +205,14 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	// Check that the user certificate uses supported public key algorithms, was
 	// issued by Teleport, and check the certificate metadata (principals,
 	// timestamp, etc). Fallback to keys is not supported.
+	clock := time.Now
+	if h.Clock != nil {
+		clock = h.Clock.Now
+	}
 	certChecker := utils.CertChecker{
 		CertChecker: ssh.CertChecker{
 			IsUserAuthority: h.IsUserAuthority,
+			Clock:           clock,
 		},
 		FIPS: h.FIPS,
 	}
@@ -366,7 +378,7 @@ func (h *AuthHandlers) fetchRoleSet(cert *ssh.Certificate, ca services.CertAutho
 		if err != nil {
 			return nil, trace.AccessDenied("failed to parse certificate roles")
 		}
-		roleNames, err := ca.CombinedMapping().Map(roles)
+		roleNames, err := services.MapRoles(ca.CombinedMapping(), roles)
 		if err != nil {
 			return nil, trace.AccessDenied("failed to map roles")
 		}
@@ -397,7 +409,7 @@ func (h *AuthHandlers) authorityForCert(caType services.CertAuthType, key ssh.Pu
 	// find the one that signed our certificate
 	var ca services.CertAuthority
 	for i := range cas {
-		checkers, err := cas[i].Checkers()
+		checkers, err := sshutils.GetCheckers(cas[i])
 		if err != nil {
 			h.Warnf("%v", err)
 			return nil, trace.Wrap(err)

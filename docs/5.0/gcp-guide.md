@@ -84,7 +84,7 @@ teleport:
     collection_name: cluster-data
     project_id: EXAMPLE_gcp-proj-with-firestore-enabled
     credentials_path: /var/lib/teleport/firestore_creds.json
-    audit_events_uri: ['firestore://events_table_name']
+    audit_events_uri: ['firestore://events_table_name?projectID=example_Teleport-Project-Name&credentialsPath=/var/lib/teleport/gcs_creds.json']
 ```
 
 ### Storage: Google Cloud Storage
@@ -99,7 +99,7 @@ When setting up `audit_session_uri` use `gs://` session prefix.
 ```yaml
 storage:
     ...
-    audit_sessions_uri: 'gs://teleport-session-storage-2?credentialsPath=/var/lib/teleport/gcs_creds.json&projectID=EXAMPLE_gcp-proj-with-firestore-enabled'
+    audit_sessions_uri: 'gs://teleport-session-storage-2?projectID=EXAMPLE_gcp-proj-with-firestore-enabled&credentialsPath=/var/lib/teleport/gcs_creds.json'
     ...
 ```
 
@@ -162,8 +162,8 @@ teleport:
     # Credentials: Path to google service account file, used for Firestore and Google Storage.
     credentials_path: /var/lib/teleport/gcs_creds.json
     project_id: example_Teleport-Project-Name
-    audit_events_uri: 'firestore://events?projectID=example_Teleport-Project-Name&credentialsPath=/var/lib/teleport/gcs_creds'
-    audit_sessions_uri: 'gs://teleport-session-storage-2?credentialsPath=/var/lib/teleport/gcs_creds.json&projectID=example_Teleport-Project-Name'
+    audit_events_uri: 'firestore://events?projectID=example_Teleport-Project-Name&credentialsPath=/var/lib/teleport/gcs_creds.json'
+    audit_sessions_uri: 'gs://teleport-session-storage-2?projectID=example_Teleport-Project-Name&credentialsPath=/var/lib/teleport/gcs_creds.json'
 auth_service:
   enabled: yes
   auth_service:

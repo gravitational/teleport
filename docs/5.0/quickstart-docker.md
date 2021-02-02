@@ -12,9 +12,11 @@ We provide pre-built Docker images for every version of Teleport. These images a
 We currently only offer Docker images for `x86_64` architectures.
 
 !!! note
+
     You will need a recent version of [Docker](https://hub.docker.com/search?q=&type=edition&offering=community) installed to follow this section of the quick start guide.
 
 !!! warning
+
     This setup will not let you 'SSH into' the node that is running Teleport without additional configuration.
 
 ## Pick your image
@@ -35,6 +37,7 @@ For testing, we always recommend that you use the latest release version of Tele
 ## Quickstart using docker-compose
 
 !!! note
+
     You will need a recent version of [`docker-compose`](https://docs.docker.com/compose/install/) installed to follow this section of the quick start guide.
 
 The easiest way to start Teleport quickly is to use `docker-compose` with our [`teleport-quickstart.yml`](https://github.com/gravitational/teleport/blob/master/docker/teleport-quickstart.yml) file:
@@ -82,7 +85,7 @@ docker run --hostname localhost --name teleport \
 To create a user inside your Teleport container, use `docker exec`.
 
 This example command will create a Teleport user called `testuser` which is allowed to log in as either OS user `root` or `ubuntu`. Feel free to change these to suit your needs -
-[there are more instructions above in Step 3](quickstart.md#step-3-create-a-user-signup-token) if you'd like additional details):
+[there are more instructions above in Step 3](quickstart.md) if you'd like additional details):
 
 ```bash
 docker exec teleport tctl users add testuser root,ubuntu
@@ -97,5 +100,5 @@ https://localhost:3080/web/invite/4f2718a52ce107568b191f222ba069f7
 NOTE: Make sure localhost:3080 points at a Teleport proxy which users can access.
 ```
 
-You can now [follow this guide from Step 4 onwards](quickstart.md#step-4-register-a-user) to
+You can now [follow this guide from Step 4 onwards](quickstart.md) to
 create your user and log into Teleport.

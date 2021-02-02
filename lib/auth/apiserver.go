@@ -30,7 +30,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth/proto"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -338,7 +338,7 @@ func (s *APIServer) upsertServer(auth services.Presence, role teleport.Role, r *
 	default:
 		return nil, trace.BadParameter("upsertServer with unknown role: %q", role)
 	}
-	server, err := services.GetServerMarshaler().UnmarshalServer(req.Server, kind)
+	server, err := services.UnmarshalServer(req.Server, kind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -346,7 +346,7 @@ func (s *APIServer) upsertServer(auth services.Presence, role teleport.Role, r *
 	// on the socket, but keep the original port:
 	server.SetAddr(utils.ReplaceLocalhost(server.GetAddr(), r.RemoteAddr))
 	if req.TTL != 0 {
-		server.SetTTL(s, req.TTL)
+		server.SetExpiry(s.Now().UTC().Add(req.TTL))
 	}
 	switch role {
 	case teleport.RoleNode:
@@ -401,7 +401,7 @@ func (s *APIServer) upsertNodes(auth ClientI, w http.ResponseWriter, r *http.Req
 		return nil, trace.BadParameter("invalid namespace %q", req.Namespace)
 	}
 
-	nodes, err := services.GetServerMarshaler().UnmarshalServers(req.Nodes)
+	nodes, err := services.UnmarshalServers(req.Nodes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -524,7 +524,7 @@ func (s *APIServer) getAuthServers(auth ClientI, w http.ResponseWriter, r *http.
 func marshalServers(servers []services.Server, version string) (interface{}, error) {
 	items := make([]json.RawMessage, len(servers))
 	for i, server := range servers {
-		data, err := services.GetServerMarshaler().MarshalServer(server, services.WithVersion(version), services.PreserveResourceID())
+		data, err := services.MarshalServer(server, services.WithVersion(version), services.PreserveResourceID())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -544,12 +544,15 @@ func (s *APIServer) upsertReverseTunnel(auth ClientI, w http.ResponseWriter, r *
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tun, err := services.GetReverseTunnelMarshaler().UnmarshalReverseTunnel(req.ReverseTunnel)
+	tun, err := services.UnmarshalReverseTunnel(req.ReverseTunnel)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := services.ValidateReverseTunnel(tun); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if req.TTL != 0 {
-		tun.SetTTL(s, req.TTL)
+		tun.SetExpiry(s.Now().UTC().Add(req.TTL))
 	}
 	if err := auth.UpsertReverseTunnel(tun); err != nil {
 		return nil, trace.Wrap(err)
@@ -565,7 +568,7 @@ func (s *APIServer) getReverseTunnels(auth ClientI, w http.ResponseWriter, r *ht
 	}
 	items := make([]json.RawMessage, len(reverseTunnels))
 	for i, tunnel := range reverseTunnels {
-		data, err := services.GetReverseTunnelMarshaler().MarshalReverseTunnel(tunnel, services.WithVersion(version), services.PreserveResourceID())
+		data, err := services.MarshalReverseTunnel(tunnel, services.WithVersion(version), services.PreserveResourceID())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -594,17 +597,19 @@ func (s *APIServer) upsertTrustedCluster(auth ClientI, w http.ResponseWriter, r 
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	trustedCluster, err := services.GetTrustedClusterMarshaler().Unmarshal(req.TrustedCluster)
+	trustedCluster, err := services.UnmarshalTrustedCluster(req.TrustedCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
+	if err := services.ValidateTrustedCluster(trustedCluster); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	out, err := auth.UpsertTrustedCluster(r.Context(), trustedCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return rawMessage(services.GetTrustedClusterMarshaler().Marshal(out, services.WithVersion(version), services.PreserveResourceID()))
+	return rawMessage(services.MarshalTrustedCluster(out, services.WithVersion(version), services.PreserveResourceID()))
 }
 
 func (s *APIServer) validateTrustedCluster(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -685,37 +690,13 @@ func (s *APIServer) deleteWebSession(auth ClientI, w http.ResponseWriter, r *htt
 	return message(fmt.Sprintf("session '%v' for user '%v' deleted", sid, user)), nil
 }
 
-// sessionV1 is a V1 style web session, used in legacy v1 API
-type sessionV1 struct {
-	// ID is a session ID
-	ID string `json:"id"`
-	// Username is a user this session belongs to
-	Username string `json:"username"`
-	// ExpiresAt is an optional expiry time, if set
-	// that means this web session and all derived web sessions
-	// can not continue after this time, used in OIDC use case
-	// when expiry is set by external identity provider, so user
-	// has to relogin (or later on we'd need to refresh the token)
-	ExpiresAt time.Time `json:"expires_at"`
-	// WS is a private keypair used for signing requests
-	WS services.WebSessionV1 `json:"web"`
-}
-
 func (s *APIServer) getWebSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	user, sid := p.ByName("user"), p.ByName("sid")
 	sess, err := auth.GetWebSessionInfo(user, sid)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if version == services.V1 {
-		return &sessionV1{
-			ID:        sess.GetName(),
-			Username:  sess.GetUser(),
-			ExpiresAt: sess.GetExpiryTime(),
-			WS:        *(sess.V1()),
-		}, nil
-	}
-	return rawMessage(services.GetWebSessionMarshaler().MarshalWebSession(sess, services.WithVersion(version)))
+	return rawMessage(services.MarshalWebSession(sess, services.WithVersion(version)))
 }
 
 // DELETE IN: 4.2.0
@@ -788,7 +769,7 @@ func (s *APIServer) createWebSession(auth ClientI, w http.ResponseWriter, r *htt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return rawMessage(services.GetWebSessionMarshaler().MarshalWebSession(sess, services.WithVersion(version)))
+	return rawMessage(services.MarshalWebSession(sess, services.WithVersion(version)))
 }
 
 func (s *APIServer) authenticateWebUser(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -801,7 +782,7 @@ func (s *APIServer) authenticateWebUser(auth ClientI, w http.ResponseWriter, r *
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return rawMessage(services.GetWebSessionMarshaler().MarshalWebSession(sess, services.WithVersion(version)))
+	return rawMessage(services.MarshalWebSession(sess, services.WithVersion(version)))
 }
 
 func (s *APIServer) authenticateSSHUser(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -855,7 +836,7 @@ func (s *APIServer) upsertUser(auth ClientI, w http.ResponseWriter, r *http.Requ
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user, err := services.GetUserMarshaler().UnmarshalUser(req.User)
+	user, err := services.UnmarshalUser(req.User)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -891,7 +872,7 @@ func (s *APIServer) getUser(auth ClientI, w http.ResponseWriter, r *http.Request
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return rawMessage(services.GetUserMarshaler().MarshalUser(user, services.WithVersion(version), services.PreserveResourceID()))
+	return rawMessage(services.MarshalUser(user, services.WithVersion(version), services.PreserveResourceID()))
 }
 
 func rawMessage(data []byte, err error) (interface{}, error) {
@@ -909,7 +890,7 @@ func (s *APIServer) getUsers(auth ClientI, w http.ResponseWriter, r *http.Reques
 	}
 	out := make([]json.RawMessage, len(users))
 	for i, user := range users {
-		data, err := services.GetUserMarshaler().MarshalUser(user, services.WithVersion(version), services.PreserveResourceID())
+		data, err := services.MarshalUser(user, services.WithVersion(version), services.PreserveResourceID())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1055,12 +1036,15 @@ func (s *APIServer) upsertCertAuthority(auth ClientI, w http.ResponseWriter, r *
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(req.CA)
+	ca, err := services.UnmarshalCertAuthority(req.CA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if req.TTL != 0 {
-		ca.SetTTL(s, req.TTL)
+		ca.SetExpiry(s.Now().UTC().Add(req.TTL))
+	}
+	if err = services.ValidateCertAuthority(ca); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	if err := auth.UpsertCertAuthority(ca); err != nil {
 		return nil, trace.Wrap(err)
@@ -1077,7 +1061,7 @@ func (s *APIServer) rotateExternalCertAuthority(auth ClientI, w http.ResponseWri
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(req.CA)
+	ca, err := services.UnmarshalCertAuthority(req.CA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1099,7 +1083,7 @@ func (s *APIServer) getCertAuthorities(auth ClientI, w http.ResponseWriter, r *h
 	}
 	items := make([]json.RawMessage, len(certs))
 	for i, cert := range certs {
-		data, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(cert, services.WithVersion(version), services.PreserveResourceID())
+		data, err := services.MarshalCertAuthority(cert, services.WithVersion(version), services.PreserveResourceID())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1121,7 +1105,7 @@ func (s *APIServer) getCertAuthority(auth ClientI, w http.ResponseWriter, r *htt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return rawMessage(services.GetCertAuthorityMarshaler().MarshalCertAuthority(ca, services.WithVersion(version), services.PreserveResourceID()))
+	return rawMessage(services.MarshalCertAuthority(ca, services.WithVersion(version), services.PreserveResourceID()))
 }
 
 func (s *APIServer) getDomainName(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -1154,7 +1138,7 @@ func (s *APIServer) changePasswordWithToken(auth ClientI, w http.ResponseWriter,
 		return nil, trace.Wrap(err)
 	}
 
-	return rawMessage(services.GetWebSessionMarshaler().MarshalWebSession(webSession, services.WithVersion(version)))
+	return rawMessage(services.MarshalWebSession(webSession, services.WithVersion(version)))
 }
 
 // getU2FAppID returns the U2F AppID in the auth configuration
@@ -1279,12 +1263,15 @@ func (s *APIServer) upsertOIDCConnector(auth ClientI, w http.ResponseWriter, r *
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connector, err := services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(req.Connector)
+	connector, err := services.UnmarshalOIDCConnector(req.Connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if req.TTL != 0 {
-		connector.SetTTL(s, req.TTL)
+		connector.SetExpiry(s.Now().UTC().Add(req.TTL))
+	}
+	if err = services.ValidateOIDCConnector(connector); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	err = auth.UpsertOIDCConnector(r.Context(), connector)
 	if err != nil {
@@ -1302,7 +1289,7 @@ func (s *APIServer) getOIDCConnector(auth ClientI, w http.ResponseWriter, r *htt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return rawMessage(services.GetOIDCConnectorMarshaler().MarshalOIDCConnector(connector, services.WithVersion(version)))
+	return rawMessage(services.MarshalOIDCConnector(connector, services.WithVersion(version)))
 }
 
 func (s *APIServer) deleteOIDCConnector(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -1324,7 +1311,7 @@ func (s *APIServer) getOIDCConnectors(auth ClientI, w http.ResponseWriter, r *ht
 	}
 	items := make([]json.RawMessage, len(connectors))
 	for i, connector := range connectors {
-		data, err := services.GetOIDCConnectorMarshaler().MarshalOIDCConnector(connector, services.WithVersion(version))
+		data, err := services.MarshalOIDCConnector(connector, services.WithVersion(version))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1390,7 +1377,7 @@ func (s *APIServer) validateOIDCAuthCallback(auth ClientI, w http.ResponseWriter
 		Req:      response.Req,
 	}
 	if response.Session != nil {
-		rawSession, err := services.GetWebSessionMarshaler().MarshalWebSession(response.Session, services.WithVersion(version))
+		rawSession, err := services.MarshalWebSession(response.Session, services.WithVersion(version))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1398,7 +1385,7 @@ func (s *APIServer) validateOIDCAuthCallback(auth ClientI, w http.ResponseWriter
 	}
 	raw.HostSigners = make([]json.RawMessage, len(response.HostSigners))
 	for i, ca := range response.HostSigners {
-		data, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(ca, services.WithVersion(version))
+		data, err := services.MarshalCertAuthority(ca, services.WithVersion(version))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1416,8 +1403,11 @@ func (s *APIServer) createSAMLConnector(auth ClientI, w http.ResponseWriter, r *
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connector, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(req.Connector)
+	connector, err := services.UnmarshalSAMLConnector(req.Connector)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := services.ValidateSAMLConnector(connector); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	err = auth.CreateSAMLConnector(r.Context(), connector)
@@ -1436,8 +1426,11 @@ func (s *APIServer) upsertSAMLConnector(auth ClientI, w http.ResponseWriter, r *
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connector, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(req.Connector)
+	connector, err := services.UnmarshalSAMLConnector(req.Connector)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := services.ValidateSAMLConnector(connector); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	err = auth.UpsertSAMLConnector(r.Context(), connector)
@@ -1456,7 +1449,7 @@ func (s *APIServer) getSAMLConnector(auth ClientI, w http.ResponseWriter, r *htt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return rawMessage(services.GetSAMLConnectorMarshaler().MarshalSAMLConnector(connector, services.WithVersion(version)))
+	return rawMessage(services.MarshalSAMLConnector(connector, services.WithVersion(version)))
 }
 
 func (s *APIServer) deleteSAMLConnector(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -1478,7 +1471,7 @@ func (s *APIServer) getSAMLConnectors(auth ClientI, w http.ResponseWriter, r *ht
 	}
 	items := make([]json.RawMessage, len(connectors))
 	for i, connector := range connectors {
-		data, err := services.GetSAMLConnectorMarshaler().MarshalSAMLConnector(connector, services.WithVersion(version))
+		data, err := services.MarshalSAMLConnector(connector, services.WithVersion(version))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1544,7 +1537,7 @@ func (s *APIServer) validateSAMLResponse(auth ClientI, w http.ResponseWriter, r 
 		TLSCert:  response.TLSCert,
 	}
 	if response.Session != nil {
-		rawSession, err := services.GetWebSessionMarshaler().MarshalWebSession(response.Session, services.WithVersion(version))
+		rawSession, err := services.MarshalWebSession(response.Session, services.WithVersion(version))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1552,7 +1545,7 @@ func (s *APIServer) validateSAMLResponse(auth ClientI, w http.ResponseWriter, r 
 	}
 	raw.HostSigners = make([]json.RawMessage, len(response.HostSigners))
 	for i, ca := range response.HostSigners {
-		data, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(ca, services.WithVersion(version))
+		data, err := services.MarshalCertAuthority(ca, services.WithVersion(version))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1578,7 +1571,7 @@ func (s *APIServer) createGithubConnector(auth ClientI, w http.ResponseWriter, r
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connector, err := services.GetGithubConnectorMarshaler().Unmarshal(req.Connector)
+	connector, err := services.UnmarshalGithubConnector(req.Connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1605,7 +1598,7 @@ func (s *APIServer) upsertGithubConnector(auth ClientI, w http.ResponseWriter, r
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connector, err := services.GetGithubConnectorMarshaler().Unmarshal(req.Connector)
+	connector, err := services.UnmarshalGithubConnector(req.Connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1632,7 +1625,7 @@ func (s *APIServer) getGithubConnectors(auth ClientI, w http.ResponseWriter, r *
 	}
 	items := make([]json.RawMessage, len(connectors))
 	for i, connector := range connectors {
-		cbytes, err := services.GetGithubConnectorMarshaler().Marshal(connector, services.PreserveResourceID())
+		cbytes, err := services.MarshalGithubConnector(connector, services.PreserveResourceID())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1656,7 +1649,7 @@ func (s *APIServer) getGithubConnector(auth ClientI, w http.ResponseWriter, r *h
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return rawMessage(services.GetGithubConnectorMarshaler().Marshal(connector, services.PreserveResourceID()))
+	return rawMessage(services.MarshalGithubConnector(connector, services.PreserveResourceID()))
 }
 
 /* deleteGithubConnector deletes the specified Github connector
@@ -1745,7 +1738,7 @@ func (s *APIServer) validateGithubAuthCallback(auth ClientI, w http.ResponseWrit
 		Req:      response.Req,
 	}
 	if response.Session != nil {
-		rawSession, err := services.GetWebSessionMarshaler().MarshalWebSession(
+		rawSession, err := services.MarshalWebSession(
 			response.Session, services.WithVersion(version), services.PreserveResourceID())
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1754,7 +1747,7 @@ func (s *APIServer) validateGithubAuthCallback(auth ClientI, w http.ResponseWrit
 	}
 	raw.HostSigners = make([]json.RawMessage, len(response.HostSigners))
 	for i, ca := range response.HostSigners {
-		data, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(
+		data, err := services.MarshalCertAuthority(
 			ca, services.WithVersion(version), services.PreserveResourceID())
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2115,8 +2108,11 @@ func (s *APIServer) upsertRole(auth ClientI, w http.ResponseWriter, r *http.Requ
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	role, err := services.GetRoleMarshaler().UnmarshalRole(req.Role)
+	role, err := services.UnmarshalRole(req.Role)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = services.ValidateRole(role); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	err = auth.UpsertRole(r.Context(), role)
@@ -2131,7 +2127,7 @@ func (s *APIServer) getRole(auth ClientI, w http.ResponseWriter, r *http.Request
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return rawMessage(services.GetRoleMarshaler().MarshalRole(role, services.WithVersion(version), services.PreserveResourceID()))
+	return rawMessage(services.MarshalRole(role, services.WithVersion(version), services.PreserveResourceID()))
 }
 
 func (s *APIServer) getRoles(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -2141,7 +2137,7 @@ func (s *APIServer) getRoles(auth ClientI, w http.ResponseWriter, r *http.Reques
 	}
 	out := make([]json.RawMessage, len(roles))
 	for i, role := range roles {
-		raw, err := services.GetRoleMarshaler().MarshalRole(role, services.WithVersion(version), services.PreserveResourceID())
+		raw, err := services.MarshalRole(role, services.WithVersion(version), services.PreserveResourceID())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2164,7 +2160,7 @@ func (s *APIServer) getClusterConfig(auth ClientI, w http.ResponseWriter, r *htt
 		return nil, trace.Wrap(err)
 	}
 
-	return rawMessage(services.GetClusterConfigMarshaler().Marshal(cc, services.WithVersion(version), services.PreserveResourceID()))
+	return rawMessage(services.MarshalClusterConfig(cc, services.WithVersion(version), services.PreserveResourceID()))
 }
 
 type setClusterConfigReq struct {
@@ -2179,7 +2175,7 @@ func (s *APIServer) setClusterConfig(auth ClientI, w http.ResponseWriter, r *htt
 		return nil, trace.Wrap(err)
 	}
 
-	cc, err := services.GetClusterConfigMarshaler().Unmarshal(req.ClusterConfig)
+	cc, err := services.UnmarshalClusterConfig(req.ClusterConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2198,7 +2194,7 @@ func (s *APIServer) getClusterName(auth ClientI, w http.ResponseWriter, r *http.
 		return nil, trace.Wrap(err)
 	}
 
-	return rawMessage(services.GetClusterNameMarshaler().Marshal(cn, services.WithVersion(version), services.PreserveResourceID()))
+	return rawMessage(services.MarshalClusterName(cn, services.WithVersion(version), services.PreserveResourceID()))
 }
 
 type setClusterNameReq struct {
@@ -2213,7 +2209,7 @@ func (s *APIServer) setClusterName(auth ClientI, w http.ResponseWriter, r *http.
 		return nil, trace.Wrap(err)
 	}
 
-	cn, err := services.GetClusterNameMarshaler().Unmarshal(req.ClusterName)
+	cn, err := services.UnmarshalClusterName(req.ClusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2232,7 +2228,7 @@ func (s *APIServer) getStaticTokens(auth ClientI, w http.ResponseWriter, r *http
 		return nil, trace.Wrap(err)
 	}
 
-	return rawMessage(services.GetStaticTokensMarshaler().Marshal(st, services.WithVersion(version), services.PreserveResourceID()))
+	return rawMessage(services.MarshalStaticTokens(st, services.WithVersion(version), services.PreserveResourceID()))
 }
 
 func (s *APIServer) deleteStaticTokens(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -2255,7 +2251,7 @@ func (s *APIServer) setStaticTokens(auth ClientI, w http.ResponseWriter, r *http
 		return nil, trace.Wrap(err)
 	}
 
-	st, err := services.GetStaticTokensMarshaler().Unmarshal(req.StaticTokens)
+	st, err := services.UnmarshalStaticTokens(req.StaticTokens)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2274,7 +2270,7 @@ func (s *APIServer) getClusterAuthPreference(auth ClientI, w http.ResponseWriter
 		return nil, trace.Wrap(err)
 	}
 
-	return rawMessage(services.GetAuthPreferenceMarshaler().Marshal(cap, services.WithVersion(version), services.PreserveResourceID()))
+	return rawMessage(services.MarshalAuthPreference(cap, services.WithVersion(version), services.PreserveResourceID()))
 }
 
 type setClusterAuthPreferenceReq struct {
@@ -2289,7 +2285,7 @@ func (s *APIServer) setClusterAuthPreference(auth ClientI, w http.ResponseWriter
 		return nil, trace.Wrap(err)
 	}
 
-	cap, err := services.GetAuthPreferenceMarshaler().Unmarshal(req.ClusterAuthPreference)
+	cap, err := services.UnmarshalAuthPreference(req.ClusterAuthPreference)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

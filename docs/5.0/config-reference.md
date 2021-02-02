@@ -82,6 +82,23 @@ teleport:
         # chapter for more information.
         audit_sessions_uri: 's3://example.com/path/to/bucket?region=us-east-1'
 
+        # DynamoDB Specific Section
+        # continuous_backups is used to enable continuous backups.
+        continuous_backups: [true|false]
+
+        # DynamoDB Specific Section
+        # auto_scaling is used to enable (and define settings for) auto scaling.
+        # default: false
+        auto_scaling:  [true|false]
+        # minimum/maximum read capacity in units
+        read_min_capacity: int
+        read_max_capacity: int
+        read_target_value: float
+        # minimum/maximum write capacity in units
+        write_min_capacity: int
+        write_max_capacity: int
+        write_target_value: float
+
     # CA Signing algorithm used for OpenSSH Certificates
     # Defaults to rsa-sha2-512 in 4.3 and above.
     # valid values are: ssh-rsa, rsa-sha2-256, rsa-sha2-512; ssh-rsa is SHA1
@@ -182,13 +199,13 @@ auth_service:
     #    "off"   : session recording is turned off
     #
     # EXPERIMENTAL *-sync modes
-    # Proxy and node send logs directly to S3 or other
-#    storage without storing the records on disk at all. *-sync requires all
-#    nodes to be upgraded to 4.4
-#
-#    "node-sync" : sessions recording will be streamed from node -> auth -> storage service
-#    "proxy-sync : sessions recording will be streamed from proxy -> auth -> storage service
-#
+    # Proxy and node send logs directly to S3 or other storage without
+    # storing the records on disk at all. *-sync requires all nodes to be
+    # upgraded to 4.4.
+    #
+    #    "node-sync" : session recordings will be streamed from node -> auth -> storage service
+    #    "proxy-sync : session recordings will be streamed from proxy -> auth -> storage service
+    #
     session_recording: "node"
 
     # This setting determines if a Teleport proxy performs strict host key checks.
@@ -323,24 +340,72 @@ proxy_service:
 
     # TLS certificate for the HTTPS connection. Configuring these properly is
     # critical for Teleport security.
-    https_key_file: /var/lib/teleport/webproxy_key.pem
-    https_cert_file: /var/lib/teleport/webproxy_cert.pem
+    https_keypairs:
+    - key_file: /var/lib/teleport/webproxy_key.pem
+      cert_file: /var/lib/teleport/webproxy_cert.pem
+    - key_file: /etc/letsencrypt/live/*.teleport.example.com/privkey.pem
+      cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
 
-    # This section configures the Kubernetes proxy service
-    kubernetes:
-        # Turns 'kubernetes' proxy on. Default is 'no'
-        enabled: yes
+    kube_listen_addr: 0.0.0.0:3026
 
-        # Kubernetes proxy listen address.
-        listen_addr: 0.0.0.0:3026
+# This section configures the 'application service'
+app_service:
+    # Turns 'app' role on. Default is 'no'
+    enabled: yes
+    # Teleport contains a small debug app that can be used to make sure Application
+    # Access is working correctly. The app outputs JWTs so it can be useful
+    # when extending your application.
+    debug_app: true
+    apps:
+    - name: "kubernetes-dashboard"
+      # URI and Port of Application.
+      uri: "http://10.0.1.27:8000"
+      # Optional Public Addr
+      public_addr: "example.com"
+      # Optional Label: These can be used in combination with RBAC rules
+      # to limit access to applications
+      labels:
+         env: "prod"
+      # Optional Dynamic Labels
+      commands:
+      - name: "os"
+        command: ["/usr/bin/uname"]
+        period: "5s"
 
-        # The DNS name of the Kubernetes proxy server that is accessible by cluster clients.
-        # If running multiple proxies behind  a load balancer, this name must point to the
-        # load balancer.
-        public_addr: ['kube.example.com:3026']
 
-        # This setting is not required if the Teleport proxy service is
-        # deployed inside a Kubernetes cluster. Otherwise, Teleport proxy
-        # will use the credentials from this file:
-        kubeconfig_file: /path/to/kube/config
+## This section configures the 'kubernetes service'
+kubernetes_service:
+    enabled: yes
+    # Optional Public & Listen Addr: Set these if you are connecting to
+    # Teleport running inside a Kubernetes cluster instead of using a
+    # reverse tunnel.
+    #
+    # Optional Public Addr
+    public_addr: [k8s.example.com:3026]
+    # Optional Listen Addr
+    listen_addr: 0.0.0.0:3026
+    # Optional kubeconfig_file and kube_cluster_name. Exactly one of these must be set.
+    #
+    # When running teleport outside of the kubernetes cluster, use kubeconfig_file to provide
+    # teleport with cluster credentials.
+    #
+    # When running teleport inside of the kubernetes cluster pod, use kube_cluster_name to
+    # provide a user-visible name. Teleport uses the pod service account credentials to authenticate
+    # to its local kubernetes API.
+    kubeconfig_file: /secrets/kubeconfig
+    kube_cluster_name:
+    # Optional labels: These can be used in combination with RBAC rules
+    # to limit access to applications.
+    # When using kubeconfig_file above, these labels apply to all kubernetes
+    # clusters specified in the kubeconfig.
+    labels:
+      env: "prod"
+    # Optional Dynamic Labels
+    - name: "os"
+       command: ["/usr/bin/uname"]
+       period: "5s"
+    # Get cluster name on GKE.
+    - name: cluster-name
+      command: ['curl', 'http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-name', '-H', 'Metadata-Flavor: Google']
+      period: 1m0s
 ```

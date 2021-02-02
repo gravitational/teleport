@@ -3,7 +3,6 @@ title: Teleport FAQ
 description: Frequently Asked Questions about using Teleport for SSH and Kubernetes access
 ---
 
-
 # FAQ
 
 ## Community FAQ
@@ -50,7 +49,7 @@ Yes, Teleport supports tunnel multiplexing on a single port.  Set the `tunnel_li
 
 We recommend setting up Teleport with a [High Availability configuration](admin-guide.md#high-availability). Below is our
 recommended hardware for the Proxy and Auth server. If you plan to connect more than 10,000 nodes, please
-[get in touch](mailto:info@gravitational.com) and we can help architect the best solution for you.
+[get in touch](mailto:info@goteleport.com) and we can help architect the best solution for you.
 
 Scenario | Max Recommended Count | Proxy | Auth server
 ------------ | -------------|---------|-------
@@ -61,9 +60,10 @@ Teleport nodes connected to proxy server (IoT) | 2,000* | 2x 2-4 vCPUs/8GB RAM |
 
 | Release       | Long Term Support | Release Date         | Supported Until      | Min tsh version  |
 | --------------|-----| -------------------- | -------------------- | -------------------- |
+| 5.0           | Yes | November 24th, 2020  | November 24th, 2021  | 3.x                  |
 | 4.4           | Yes | October 20th, 2020   | October 20th, 2021   | 3.x                  |
 | 4.3           | Yes | July 8th, 2020       | July 8th, 2021       | 3.x                  |
-| 4.2           | Yes | December 19th, 2019  | December 19th, 2020  | 3.x                  |
+| 4.2 (EOL)     | Yes | December 19th, 2019  | December 19th, 2020  | 3.x                  |
 | 4.1 (EOL)     | Yes | October 1st, 2019    | October 1st, 2020    | 3.x                  |
 | 4.0 (EOL)     | Yes | June 18th, 2019      | June 18th, 2020      | 3.x                  |
 
@@ -127,5 +127,5 @@ information contains the following:
 This allows Teleport Pro to print a warning if users are exceeding the usage limits
 of their license. The reporting library code is [on Github](https://github.com/gravitational/reporting).
 
-Reach out to `sales@gravitational.com` if you have questions about the commercial
+Reach out to `sales@goteleport.com` if you have questions about the commercial
 edition of Teleport.

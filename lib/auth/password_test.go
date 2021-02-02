@@ -19,9 +19,9 @@ package auth
 import (
 	"context"
 	"encoding/base32"
-	"fmt"
 	"math"
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -38,6 +38,7 @@ import (
 
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
+	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 )
 
@@ -47,14 +48,10 @@ type PasswordSuite struct {
 	mockEmitter *events.MockEmitter
 }
 
-var _ = fmt.Printf
 var _ = Suite(&PasswordSuite{})
 
 func (s *PasswordSuite) SetUpSuite(c *C) {
-	utils.InitLoggerForTests()
-}
-
-func (s *PasswordSuite) TearDownSuite(c *C) {
+	utils.InitLoggerForTests(testing.Verbose())
 }
 
 func (s *PasswordSuite) SetUpTest(c *C) {
@@ -208,12 +205,15 @@ func (s *PasswordSuite) TestChangePasswordWithOTP(c *C) {
 	req, err := s.prepareForPasswordChange("user2", []byte("abc123"), teleport.OTP)
 	c.Assert(err, IsNil)
 
-	otpSecret := base32.StdEncoding.EncodeToString([]byte("def456"))
-	err = s.a.UpsertTOTP(req.User, otpSecret)
-	c.Assert(err, IsNil)
-
 	fakeClock := clockwork.NewFakeClock()
 	s.a.SetClock(fakeClock)
+
+	otpSecret := base32.StdEncoding.EncodeToString([]byte("def456"))
+	dev, err := services.NewTOTPDevice("otp", otpSecret, fakeClock.Now())
+	c.Assert(err, check.IsNil)
+	ctx := context.Background()
+	err = s.a.UpsertMFADevice(ctx, req.User, dev)
+	c.Assert(err, check.IsNil)
 
 	validToken, err := totp.GenerateCode(otpSecret, s.a.GetClock().Now())
 	c.Assert(err, IsNil)

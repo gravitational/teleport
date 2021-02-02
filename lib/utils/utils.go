@@ -18,7 +18,6 @@ package utils
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -176,19 +175,6 @@ func AsBool(v string) bool {
 	}
 	out, _ := ParseBool(v)
 	return out
-}
-
-// ParseBool parses string as boolean value,
-// returns error in case if value is not recognized
-func ParseBool(value string) (bool, error) {
-	switch strings.ToLower(value) {
-	case "yes", "yeah", "y", "true", "1", "on":
-		return true, nil
-	case "no", "nope", "n", "false", "0", "off":
-		return false, nil
-	default:
-		return false, trace.BadParameter("unsupported value: %q", value)
-	}
 }
 
 // ParseAdvertiseAddr validates advertise address,
@@ -456,37 +442,6 @@ func PrintVersion() {
 	modules.GetModules().PrintVersion()
 }
 
-// HumanTimeFormat formats time as recognized by humans
-func HumanTimeFormat(d time.Time) string {
-	return d.Format(HumanTimeFormatString)
-}
-
-// Deduplicate deduplicates list of strings
-func Deduplicate(in []string) []string {
-	if len(in) == 0 {
-		return in
-	}
-	out := make([]string, 0, len(in))
-	seen := make(map[string]bool, len(in))
-	for _, val := range in {
-		if _, ok := seen[val]; !ok {
-			out = append(out, val)
-			seen[val] = true
-		}
-	}
-	return out
-}
-
-// SliceContainsStr returns 'true' if the slice contains the given value
-func SliceContainsStr(slice []string, value string) bool {
-	for i := range slice {
-		if slice[i] == value {
-			return true
-		}
-	}
-	return false
-}
-
 // StringSliceSubset returns true if b is a subset of a.
 func StringSliceSubset(a []string, b []string) error {
 	aset := make(map[string]bool)
@@ -551,72 +506,8 @@ func CheckCertificateFormatFlag(s string) (string, error) {
 	}
 }
 
-// Strings is a list of string that can unmarshal from list of strings
-// or a scalar string from scalar yaml or json property
-type Strings []string
-
-// UnmarshalJSON unmarshals scalar string or strings slice to Strings
-func (s *Strings) UnmarshalJSON(data []byte) error {
-	if len(data) == 0 {
-		return nil
-	}
-	var stringVar string
-	if err := json.Unmarshal(data, &stringVar); err == nil {
-		*s = []string{stringVar}
-		return nil
-	}
-	var stringsVar []string
-	if err := json.Unmarshal(data, &stringsVar); err != nil {
-		return trace.Wrap(err)
-	}
-	*s = stringsVar
-	return nil
-}
-
-// UnmarshalYAML is used to allow Strings to unmarshal from
-// scalar string value or from the list
-func (s *Strings) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	// try unmarshal as string
-	var val string
-	err := unmarshal(&val)
-	if err == nil {
-		*s = []string{val}
-		return nil
-	}
-
-	// try unmarshal as slice
-	var slice []string
-	err = unmarshal(&slice)
-	if err == nil {
-		*s = slice
-		return nil
-	}
-
-	return err
-}
-
-// MarshalJSON marshals to scalar value
-// if there is only one value in the list
-// to list otherwise
-func (s Strings) MarshalJSON() ([]byte, error) {
-	if len(s) == 1 {
-		return json.Marshal(s[0])
-	}
-	return json.Marshal([]string(s))
-}
-
-// MarshalYAML marshals to scalar value
-// if there is only one value in the list,
-// marshals to list otherwise
-func (s Strings) MarshalYAML() (interface{}, error) {
-	if len(s) == 1 {
-		return s[0], nil
-	}
-	return []string(s), nil
-}
-
-// Addrs returns strings list converted to address list
-func (s Strings) Addrs(defaultPort int) ([]NetAddr, error) {
+// AddrsFromStrings returns strings list converted to address list
+func AddrsFromStrings(s Strings, defaultPort int) ([]NetAddr, error) {
 	addrs := make([]NetAddr, len(s))
 	for i, val := range s {
 		addr, err := ParseHostPortAddr(val, defaultPort)
@@ -629,8 +520,6 @@ func (s Strings) Addrs(defaultPort int) ([]NetAddr, error) {
 }
 
 const (
-	// HumanTimeFormatString is a human readable date formatting
-	HumanTimeFormatString = "Mon Jan _2 15:04 UTC"
 	// CertTeleportUser specifies teleport user
 	CertTeleportUser = "x-teleport-user"
 	// CertTeleportUserCA specifies teleport certificate authority

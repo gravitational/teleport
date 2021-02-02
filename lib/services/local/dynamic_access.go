@@ -41,7 +41,7 @@ func NewDynamicAccessService(backend backend.Backend) *DynamicAccessService {
 
 // CreateAccessRequest stores a new access request.
 func (s *DynamicAccessService) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
-	if err := req.CheckAndSetDefaults(); err != nil {
+	if err := services.ValidateAccessRequest(req); err != nil {
 		return trace.Wrap(err)
 	}
 	item, err := itemFromAccessRequest(req)
@@ -170,7 +170,7 @@ func (s *DynamicAccessService) GetAccessRequests(ctx context.Context, filter ser
 			// same namespace.
 			continue
 		}
-		req, err := itemToAccessRequest(item)
+		req, err := itemToAccessRequest(item, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -199,7 +199,7 @@ func (s *DynamicAccessService) DeleteAllAccessRequests(ctx context.Context) erro
 }
 
 func (s *DynamicAccessService) UpsertAccessRequest(ctx context.Context, req services.AccessRequest) error {
-	if err := req.CheckAndSetDefaults(); err != nil {
+	if err := services.ValidateAccessRequest(req); err != nil {
 		return trace.Wrap(err)
 	}
 	item, err := itemFromAccessRequest(req)
@@ -367,7 +367,7 @@ func (s *DynamicAccessService) updateAccessRequestPluginData(ctx context.Context
 }
 
 func itemFromAccessRequest(req services.AccessRequest) (backend.Item, error) {
-	value, err := services.GetAccessRequestMarshaler().MarshalAccessRequest(req)
+	value, err := services.MarshalAccessRequest(req)
 	if err != nil {
 		return backend.Item{}, trace.Wrap(err)
 	}
@@ -379,11 +379,15 @@ func itemFromAccessRequest(req services.AccessRequest) (backend.Item, error) {
 	}, nil
 }
 
-func itemToAccessRequest(item backend.Item) (services.AccessRequest, error) {
-	req, err := services.GetAccessRequestMarshaler().UnmarshalAccessRequest(
-		item.Value,
+func itemToAccessRequest(item backend.Item, opts ...services.MarshalOption) (services.AccessRequest, error) {
+	opts = append(
+		opts,
 		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),
+	)
+	req, err := services.UnmarshalAccessRequest(
+		item.Value,
+		opts...,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -392,7 +396,7 @@ func itemToAccessRequest(item backend.Item) (services.AccessRequest, error) {
 }
 
 func itemFromPluginData(data services.PluginData) (backend.Item, error) {
-	value, err := services.GetPluginDataMarshaler().MarshalPluginData(data)
+	value, err := services.MarshalPluginData(data)
 	if err != nil {
 		return backend.Item{}, trace.Wrap(err)
 	}
@@ -410,7 +414,7 @@ func itemFromPluginData(data services.PluginData) (backend.Item, error) {
 }
 
 func itemToPluginData(item backend.Item) (services.PluginData, error) {
-	data, err := services.GetPluginDataMarshaler().UnmarshalPluginData(
+	data, err := services.UnmarshalPluginData(
 		item.Value,
 		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),

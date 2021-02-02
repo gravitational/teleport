@@ -37,14 +37,12 @@ type ServerSuite struct {
 	signer ssh.Signer
 }
 
-var _ = fmt.Printf
 var _ = check.Suite(&ServerSuite{})
 
 func (s *ServerSuite) SetUpSuite(c *check.C) {
+	utils.InitLoggerForTests(testing.Verbose())
+
 	var err error
-
-	utils.InitLoggerForTests()
-
 	_, s.signer, err = utils.CreateCertificate("foo", ssh.HostCert)
 	c.Assert(err, check.IsNil)
 }

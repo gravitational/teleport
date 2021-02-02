@@ -22,19 +22,20 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth/proto"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/wrappers"
 
 	"github.com/gravitational/trace"
 
 	"github.com/sirupsen/logrus"
-	"github.com/tstranex/u2f"
 )
 
 // ServerWithRoles is a wrapper around auth service
@@ -408,12 +409,12 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle services.K
 	if err != nil {
 		return trace.AccessDenied("access denied")
 	}
-	if serverName != handle.Name {
-		return trace.AccessDenied("access denied")
-	}
 
 	switch handle.GetType() {
 	case teleport.KeepAliveNode:
+		if serverName != handle.Name {
+			return trace.AccessDenied("access denied")
+		}
 		if !a.hasBuiltinRole(string(teleport.RoleNode)) {
 			return trace.AccessDenied("access denied")
 		}
@@ -421,10 +422,26 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle services.K
 			return trace.Wrap(err)
 		}
 	case teleport.KeepAliveApp:
+		if serverName != handle.Name {
+			return trace.AccessDenied("access denied")
+		}
 		if !a.hasBuiltinRole(string(teleport.RoleApp)) {
 			return trace.AccessDenied("access denied")
 		}
 		if err := a.action(defaults.Namespace, services.KindAppServer, services.VerbUpdate); err != nil {
+			return trace.Wrap(err)
+		}
+	case teleport.KeepAliveDatabase:
+		// There can be multiple database servers per host so they send their
+		// host ID in a separate field because unlike SSH nodes the resource
+		// name cannot be the host ID.
+		if serverName != handle.HostID {
+			return trace.AccessDenied("access denied")
+		}
+		if !a.hasBuiltinRole(string(teleport.RoleDatabase)) {
+			return trace.AccessDenied("access denied")
+		}
+		if err := a.action(defaults.Namespace, types.KindDatabaseServer, services.VerbUpdate); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
@@ -474,6 +491,10 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch services.Watch) 
 			}
 		case services.KindRemoteCluster:
 			if err := a.action(defaults.Namespace, services.KindRemoteCluster, services.VerbRead); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		case types.KindDatabaseServer:
+			if err := a.action(defaults.Namespace, types.KindDatabaseServer, services.VerbRead); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		default:
@@ -744,13 +765,6 @@ func (a *ServerWithRoles) CheckPassword(user string, password []byte, otpToken s
 	return a.authServer.CheckPassword(user, password, otpToken)
 }
 
-func (a *ServerWithRoles) UpsertTOTP(user string, otpSecret string) error {
-	if err := a.currentUserAction(user); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.UpsertTOTP(user, otpSecret)
-}
-
 func (a *ServerWithRoles) PreAuthenticatedSignIn(user string) (services.WebSession, error) {
 	if err := a.currentUserAction(user); err != nil {
 		return nil, trace.Wrap(err)
@@ -758,7 +772,7 @@ func (a *ServerWithRoles) PreAuthenticatedSignIn(user string) (services.WebSessi
 	return a.authServer.PreAuthenticatedSignIn(user, a.context.Identity.GetIdentity())
 }
 
-func (a *ServerWithRoles) GetU2FSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
+func (a *ServerWithRoles) GetU2FSignRequest(user string, password []byte) (*u2f.AuthenticateChallenge, error) {
 	// we are already checking password here, no need to extra permission check
 	// anyone who has user's password can generate sign request
 	return a.authServer.U2FSignRequest(user, password)
@@ -826,6 +840,28 @@ func (a *ServerWithRoles) SetAccessRequestState(ctx context.Context, params serv
 	return a.authServer.SetAccessRequestState(ctx, params)
 }
 
+func (a *ServerWithRoles) GetAccessCapabilities(ctx context.Context, req services.AccessCapabilitiesRequest) (*services.AccessCapabilities, error) {
+	// default to checking the capabilities of the caller
+	if req.User == "" {
+		req.User = a.context.User.GetName()
+	}
+
+	// all users can check their own capabilities
+	if a.currentUserAction(req.User) != nil {
+		if err := a.action(defaults.Namespace, services.KindUser, services.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := a.action(defaults.Namespace, services.KindRole, services.VerbList); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := a.action(defaults.Namespace, services.KindRole, services.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return a.authServer.GetAccessCapabilities(ctx, req)
+}
+
 // GetPluginData loads all plugin data matching the supplied filter.
 func (a *ServerWithRoles) GetPluginData(ctx context.Context, filter services.PluginDataFilter) ([]services.PluginData, error) {
 	switch filter.Kind {
@@ -868,23 +904,6 @@ func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) 
 		ClusterName:   cn.GetClusterName(),
 		ServerVersion: teleport.Version,
 	}, nil
-}
-
-// WithDelegator creates a child context with the AccessRequestDelegator
-// value set.  Optionally used by AuthServer.SetAccessRequestState to log
-// a delegating identity.
-func WithDelegator(ctx context.Context, delegator string) context.Context {
-	return context.WithValue(ctx, ContextDelegator, delegator)
-}
-
-// getDelegator attempts to load the context value AccessRequestDelegator,
-// returning the empty string if no value was found.
-func getDelegator(ctx context.Context) string {
-	delegator, ok := ctx.Value(ContextDelegator).(string)
-	if !ok {
-		return ""
-	}
-	return delegator
 }
 
 func (a *ServerWithRoles) DeleteAccessRequest(ctx context.Context, name string) error {
@@ -1070,7 +1089,7 @@ func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserC
 				}
 				return nil, trace.AccessDenied("access-request %q is awaiting approval", reqID)
 			}
-			if err := services.ValidateAccessRequest(a.authServer, accessReq); err != nil {
+			if err := services.ValidateAccessRequestForUser(a.authServer, accessReq); err != nil {
 				return nil, trace.Wrap(err)
 			}
 			aexp := accessReq.GetAccessExpiry()
@@ -1108,6 +1127,10 @@ func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserC
 		overrideRoleTTL:   a.hasBuiltinRole(string(teleport.RoleAdmin)),
 		routeToCluster:    req.RouteToCluster,
 		kubernetesCluster: req.KubernetesCluster,
+		dbService:         req.RouteToDatabase.ServiceName,
+		dbProtocol:        req.RouteToDatabase.Protocol,
+		dbUser:            req.RouteToDatabase.Username,
+		dbName:            req.RouteToDatabase.Database,
 		checker:           checker,
 		traits:            traits,
 		activeRequests: services.RequestIDs{
@@ -1124,7 +1147,7 @@ func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserC
 	}, nil
 }
 
-func (a *ServerWithRoles) GetSignupU2FRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
+func (a *ServerWithRoles) GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error) {
 	// signup token are their own authz resource
 	return a.authServer.CreateSignupU2FRegisterRequest(token)
 }
@@ -1998,6 +2021,84 @@ func (a *ServerWithRoles) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) 
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
 	return a.authServer.ProcessKubeCSR(req)
+}
+
+// GetDatabaseServers returns all registered database servers.
+func (a *ServerWithRoles) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
+	if err := a.action(namespace, types.KindDatabaseServer, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(namespace, types.KindDatabaseServer, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers, err := a.authServer.GetDatabaseServers(ctx, namespace, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Filter out databases the caller doesn't have access to from each server.
+	var filtered []types.DatabaseServer
+	for _, server := range servers {
+		err := a.context.Checker.CheckAccessToDatabaseServer(server)
+		if err != nil && !trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err)
+		} else if err == nil {
+			filtered = append(filtered, server)
+		}
+	}
+	return filtered, nil
+}
+
+// UpsertDatabaseServer creates or updates a new database proxy server.
+func (a *ServerWithRoles) UpsertDatabaseServer(ctx context.Context, server types.DatabaseServer) (*types.KeepAlive, error) {
+	if err := a.action(server.GetNamespace(), types.KindDatabaseServer, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(server.GetNamespace(), types.KindDatabaseServer, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.UpsertDatabaseServer(ctx, server)
+}
+
+// DeleteDatabaseServer removes the specified database proxy server.
+func (a *ServerWithRoles) DeleteDatabaseServer(ctx context.Context, namespace, hostID, name string) error {
+	if err := a.action(namespace, types.KindDatabaseServer, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteDatabaseServer(ctx, namespace, hostID, name)
+}
+
+// DeleteAllDatabaseServers removes all registered database proxy servers.
+func (a *ServerWithRoles) DeleteAllDatabaseServers(ctx context.Context, namespace string) error {
+	if err := a.action(namespace, types.KindDatabaseServer, types.VerbList); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(namespace, types.KindDatabaseServer, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteAllDatabaseServers(ctx, namespace)
+}
+
+// SignDatabaseCSR generates a client certificate used by proxy when talking
+// to a remote database service.
+func (a *ServerWithRoles) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequest) (*proto.DatabaseCSRResponse, error) {
+	// Only proxy is allowed to request this certificate when proxying
+	// database client connection to a remote database service.
+	if !a.hasBuiltinRole(string(teleport.RoleProxy)) {
+		return nil, trace.AccessDenied("this request can only be executed by a proxy service")
+	}
+	return a.authServer.SignDatabaseCSR(ctx, req)
+}
+
+// GenerateDatabaseCert generates a certificate used by a database service
+// to authenticate with the database instance
+func (a *ServerWithRoles) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
+	// This certificate can be requested only by a database service when
+	// initiating connection to a database instance, or by an admin when
+	// generating certificates for a database instance.
+	if !a.hasBuiltinRole(string(teleport.RoleDatabase)) && !a.hasBuiltinRole(string(teleport.RoleAdmin)) {
+		return nil, trace.AccessDenied("this request can only be executed by a database service or an admin")
+	}
+	return a.authServer.GenerateDatabaseCert(ctx, req)
 }
 
 // GetAppServers gets all application servers.

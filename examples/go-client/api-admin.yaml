@@ -13,6 +13,12 @@ spec:
   # allowed for the users of this role. By default nothing is allowed.
   allow:
     rules:
+      # these rules are intentionally overly permissive to allow all crud operations
+      # for the api examples, but in practice, you should have as few rules/verbs
+      # as possible in a role. Be especially careful with cert_authority, as it
+      # is responsible for maintaining your Teleport cluster's security.
+      - resources: ['cert_authority']
+        verbs: ['create', 'list', 'read', 'update', 'delete']
       - resources: ['role']
         verbs: ['create', 'list', 'read', 'update', 'delete']
       - resources: ['token']

@@ -71,6 +71,7 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	c.Assert(userContext.ACL.Users, check.DeepEquals, denied)
 	c.Assert(userContext.ACL.Tokens, check.DeepEquals, denied)
 	c.Assert(userContext.ACL.Nodes, check.DeepEquals, denied)
+	c.Assert(userContext.ACL.AccessRequests, check.DeepEquals, denied)
 	c.Assert(userContext.ACL.SSHLogins, check.DeepEquals, []string{"a", "b", "d"})
 	c.Assert(userContext.AccessStrategy, check.DeepEquals, accessStrategy{
 		Type:   services.RequestStrategyOptional,

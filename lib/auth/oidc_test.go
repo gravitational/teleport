@@ -18,7 +18,7 @@ package auth
 
 import (
 	"context"
-	"fmt"
+	"testing"
 	"time"
 
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -37,16 +37,14 @@ type OIDCSuite struct {
 	c clockwork.FakeClock
 }
 
-var _ = fmt.Printf
 var _ = check.Suite(&OIDCSuite{})
 
 func (s *OIDCSuite) SetUpSuite(c *check.C) {
-	var err error
-
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 
 	s.c = clockwork.NewFakeClockAt(time.Now())
 
+	var err error
 	s.b, err = lite.NewWithConfig(context.Background(), lite.Config{
 		Path:             c.MkDir(),
 		PollStreamPeriod: 200 * time.Millisecond,

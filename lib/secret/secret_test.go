@@ -18,7 +18,6 @@ package secret
 
 import (
 	"encoding/json"
-	"fmt"
 	"testing"
 
 	"github.com/gravitational/teleport/lib/utils"
@@ -31,14 +30,10 @@ func TestSecret(t *testing.T) { check.TestingT(t) }
 type SecretSuite struct{}
 
 var _ = check.Suite(&SecretSuite{})
-var _ = fmt.Printf
 
 func (s *SecretSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 }
-func (s *SecretSuite) TearDownSuite(c *check.C) {}
-func (s *SecretSuite) SetUpTest(c *check.C)     {}
-func (s *SecretSuite) TearDownTest(c *check.C)  {}
 
 // TestKey checks a various key operations like new key generation and parsing.
 func (s *SecretSuite) TestKey(c *check.C) {

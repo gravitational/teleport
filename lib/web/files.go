@@ -17,7 +17,6 @@ limitations under the License.
 package web
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/gravitational/teleport/lib/auth"
@@ -104,7 +103,7 @@ func (f *fileTransfer) download(req fileTransferRequest, httpReq *http.Request, 
 		return trace.Wrap(err)
 	}
 
-	err = tc.ExecuteSCP(context.TODO(), cmd)
+	err = tc.ExecuteSCP(httpReq.Context(), cmd)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -128,7 +127,7 @@ func (f *fileTransfer) upload(req fileTransferRequest, httpReq *http.Request) er
 		return trace.Wrap(err)
 	}
 
-	err = tc.ExecuteSCP(context.TODO(), cmd)
+	err = tc.ExecuteSCP(httpReq.Context(), cmd)
 	if err != nil {
 		return trace.Wrap(err)
 	}

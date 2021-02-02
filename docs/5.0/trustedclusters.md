@@ -107,7 +107,6 @@ This setup works as follows:
     not use sticky load balancing algorithms (a.k.a. "session affinity" or "sticky sessions") with
     Teleport proxies.
 
-
 ## Join Tokens
 
 Lets start with the diagram of how connection between two clusters is established:
@@ -140,10 +139,18 @@ to look like this:
 auth_service:
   enabled: true
   tokens:
-  - trusted_cluster:join-token
+  # If using static tokens we recommend using tools like `pwgen -s 32`
+  # to generate sufficiently random tokens of 32+ byte length
+  - trusted_cluster:mk9JgEVqsgz6pSsHf4kJPAHdVDVtpuE0
 ```
 
-This token can be used unlimited number of times.
+This token can be used an unlimited number of times.
+
+### Security Implications
+
+Consider the security implications when deciding which token method to use.
+Short lived tokens decrease the window for attack, but will require any automation
+which uses these tokens to refresh them on a regular basis.
 
 ### Dynamic Join Tokens
 
@@ -155,11 +162,15 @@ To create a token using the CLI tool, execute this command on the _auth server_
 of cluster "root":
 
 ```bsh
-# generates a new token to allow an inbound from a trusting cluster:
+# generates a trusted cluster token to allow an inbound connection from a leaf cluster:
 $ tctl tokens add --type=trusted_cluster --ttl=5m
+# Example output
+# The cluster invite token: ba4825847f0378bcdfe18113c4998498
+# This token will expire in 5 minutes
 
-The cluster invite token: ba4825847f0378bcdfe18113c4998498
-This token will expire in 5 minutes
+# generates a trusted cluster token with labels:
+# every cluster joined using this token will inherit env:prod labels.
+$ tctl tokens add --type=trusted_cluster --labels=env=prod
 
 # you can also list the outstanding non-expired tokens:
 $ tctl tokens ls
@@ -218,12 +229,6 @@ At this point the users of the "root" cluster should be able to see "leaf" in th
     `--insecure` CLI flag to accept self-signed certificates. Make sure to configure
     HTTPS properly and remove the insecure flag for production use.
 
-### Security Implications
-
-Consider the security implications when deciding which token method to use.
-Short lived tokens decrease the window for attack but make automation a bit
-more complicated.
-
 ## RBAC
 
 !!! warning "Version Warning"
@@ -233,8 +238,8 @@ more complicated.
 
 When a _leaf_ cluster "leaf" from the diagram above establishes trust with
 the _root_ cluster "root", it needs a way to configure which users from
-"root" should be allowed in and what permissions should they have. Teleport
-Enterprise uses _role mapping_ to achieve this.
+"root" should be allowed in and what permissions should they have. Teleport offers
+two methods of limiting access, by using role mapping or cluster labels.
 
 Consider the following:
 
@@ -253,7 +258,7 @@ Lets make a few assumptions for this example:
 
 * We want administrators from "root" (but not regular users!) to have
   restricted access to "leaf". We want to deny them access to machines
-  with "environment=production" label.
+  with "environment=production" and any Government cluster labeled "customer=gov"
 
 First, we need to create a special role for root users on "leaf":
 
@@ -268,9 +273,19 @@ spec:
   allow:
     node_labels:
       '*': '*'
+    # Cluster labels control what clusters user can connect to. The wildcard ('*') means
+    # any cluster. If no role in the role set is using labels and the cluster is not labeled,
+    # the cluster labels check is not applied. Otherwise, cluster labels are always enforced.
+    # This makes the feature backwards-compatible.
+    cluster_labels:
+      'env': 'staging'
   deny:
+    # cluster labels control what clusters user can connect to. The wildcard ('*') means
+    # any cluster. By default none is set in deny rules to preserve backwards compatibility
+    cluster_labels:
+      'customer': 'gov'
     node_labels:
-      "environment": "production"
+      'environment': 'production'
 ```
 
 Now, we need to establish trust between roles "root:admin" and "leaf:admin". This is
@@ -326,6 +341,7 @@ role name and use reference it to name the local role:
 with `^` and ends with `$`
 
 ### Trusted Cluster UI
+
 For customers using Teleport Enterprise, they can easily configure _leaf_ nodes using the
 Teleport Proxy UI.
 
@@ -344,6 +360,49 @@ Then following updating the role map, we can re-create the cluster by executing:
 
 ```bsh
 $ tctl create root-user-updated-role.yaml
+```
+
+### Updating Cluster Labels
+
+Teleport gives administrators of root clusters the ability to control cluster labels.
+Allowing leaf clusters to propagate their own labels could create a problem with
+rogue clusters updating their labels to bad values.
+
+An administrator of a root cluster can control a remote/leaf cluster's
+labels using the remote cluster API without any fear of override:
+
+```bash
+$ tctl get rc
+
+kind: remote_cluster
+metadata:
+  name: two
+status:
+  connection: online
+  last_heartbeat: "2020-09-14T03:13:59.35518164Z"
+version: v3
+```
+
+Using `tctl` to update the labels on the remote/leaf cluster:
+
+```
+$ tctl update rc/two --set-labels=env=prod
+
+cluster two has been updated
+```
+
+Using `tctl` to confirm that the updated labels have been set:
+
+```bash
+$ tctl get rc
+kind: remote_cluster
+metadata:
+   labels:
+    env: prod
+  name: two
+ status:
+  connection: online
+  last_heartbeat: "2020-09-14T03:13:59.35518164Z"
 ```
 
 ## Using Trusted Clusters
@@ -408,7 +467,7 @@ the following:
 
 Remove the relationship from the root cluster: `tctl rm rc/leaf.example.com`.
 
-!!! Note
+!!! note
 
     The `leaf.example.com` cluster will continue to try and ping the root cluster,
     but will not be able to connect. To re-establish the trusted cluster relationship,

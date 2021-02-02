@@ -18,7 +18,6 @@ package native
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -41,10 +40,9 @@ type NativeSuite struct {
 }
 
 var _ = check.Suite(&NativeSuite{})
-var _ = fmt.Printf
 
 func (s *NativeSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 
 	fakeClock := clockwork.NewFakeClockAt(time.Date(2016, 9, 8, 7, 6, 5, 0, time.UTC))
 

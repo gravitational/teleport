@@ -23,6 +23,7 @@ This guide is only meant to demonstrate how to run Teleport in a sandbox or demo
 environment, and showcase a few basic tasks you can do with Teleport. For additional configuration examples, see [teleport/examples](https://github.com/gravitational/teleport/tree/master/examples), within the Teleport Github repository.
 
 !!! note "IMPORTANT"
+
     You should not follow this guide if you want to set up Teleport in production. Instead follow the [Production Guide](production.md).
 
 ## Step 1: Install Teleport
@@ -70,12 +71,14 @@ $ teleport start # if you are not `root` you may need `sudo`
 ```
 
 !!! tip "Background Process"
+
     Avoid suspending your current shell session by
     running the process in the background like so:
     `teleport start > teleport.log 2>&1 &`.
     Access the process logs with `less teleport.log`.
 
 !!! tip "Debugging/Verbose Output"
+
     If you encounter errors with any `teleport`, `tsh` or `tctl`
     command you can enable verbose logging with the `-d, --debug`
     flag.

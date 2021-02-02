@@ -8,8 +8,6 @@ description: How to configure Teleport in highly available (HA) mode for AWS dep
 This guide is designed to accompany our [reference Terraform code](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform/ha-autoscale-cluster#terraform-based-provisioning-example-amazon-single-ami)
 and describe how to use and administrate the resulting Teleport deployment.
 
-[TOC]
-
 ## Prerequisites
 
 Our code requires Terraform 0.12+. You can [download Terraform here](https://www.terraform.io/downloads.html). We will assume that you have
@@ -166,13 +164,14 @@ The AWS account ID which publishes these AMIs is `126027368216`. You can list th
 the example `awscli` commands below. The output is in JSON format by default.
 
 !!! tip "List Gravitational AMIs"
-    OSS AMIs<br>
+
+    OSS AMIs<br />
     `aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-oss*'`
 
-    Enterprise AMIs<br>
+    Enterprise AMIs<br />
     `aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-ent*'`
 
-    List Enterprise FIPS 140-2 AMIs<br>
+    List Enterprise FIPS 140-2 AMIs<br />
     `aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-ent*-fips'`
 
 
@@ -534,6 +533,7 @@ $ tsh ssh root@ip-172-31-11-69-ec2-internal
 ### LetsEncrypt
 
 !!! note
+
     You are using LetsEncrypt if your `use_acm` variable is set to `"false"`.
 
 #### Auth service
@@ -545,7 +545,7 @@ $ systemctl status teleport-auth.service
    Active: active (running) since Thu 2020-03-05 16:45:18 UTC; 4h 14min ago
  Main PID: 3766 (teleport)
    CGroup: /system.slice/teleport-auth.service
-           └─3766 /usr/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3434 --pid-file=/run/teleport/teleport.pid
+           └─3766 /usr/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3000 --pid-file=/run/teleport/teleport.pid
 
 Mar 05 17:54:58 ip-172-31-0-196.ec2.internal /usr/bin/teleport[3766]: INFO [CA]        Generating TLS certificate {0x3767920 0xc0012802f0 CN=teleport-admin,O=admin,POSTALCODE={\"kubernetes_groups\":null\,\"logins\":null},STREET=,L=root 2020-03-06 05:54:58.846233666 +0000 UTC []}. common_name:teleport-admin dns_name...
 Mar 05 18:04:39 ip-172-31-0-196.ec2.internal /usr/bin/teleport[3766]: INFO [CA]        Generating TLS certificate {0x3767920 0xc00155d200 CN=teleport-admin,O=admin,POSTALCODE={\"kubernetes_groups\":null\,\"logins\":null},STREET=,L=root 2020-03-06 06:04:39.844777551 +0000 UTC []}. common_name:teleport-admin dns_name...
@@ -578,7 +578,7 @@ $ systemctl status teleport-proxy.service
   Process: 4502 ExecStartPre=/usr/bin/teleport-ssm-get-token (code=exited, status=0/SUCCESS)
  Main PID: 4514 (teleport)
    CGroup: /system.slice/teleport-proxy.service
-           └─4514 /usr/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3434 --pid-file=/run/teleport/teleport.pid
+           └─4514 /usr/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3000 --pid-file=/run/teleport/teleport.pid
 
 Mar 05 20:58:25 ip-172-31-2-109.ec2.internal /usr/bin/teleport[4514]: ERRO             read tcp 172.31.2.109:3024->172.31.2.143:1577: read: connection reset by peer
 Mar 05 20:58:50 ip-172-31-2-109.ec2.internal /usr/bin/teleport[4514]: ERRO             read tcp 172.31.2.109:3023->172.31.2.143:38011: read: connection reset by peer
@@ -609,7 +609,7 @@ $ systemctl status teleport-node.service
   Process: 4444 ExecStartPre=/usr/bin/teleport-ssm-get-token (code=exited, status=0/SUCCESS)
  Main PID: 4456 (teleport)
    CGroup: /system.slice/teleport-node.service
-           └─4456 /usr/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3434 --pid-file=/run/teleport/teleport.pid
+           └─4456 /usr/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3000 --pid-file=/run/teleport/teleport.pid
 
 Mar 05 17:18:25 ip-172-31-11-69.ec2.internal /usr/bin/teleport[4456]: INFO [AUDIT:1]   Creating directory /var/lib/teleport/log/upload/sessions. ser...o:1630
 Mar 05 17:18:25 ip-172-31-11-69.ec2.internal /usr/bin/teleport[4456]: INFO [AUDIT:1]   Setting directory /var/lib/teleport/log/upload/sessions owner...o:1639
@@ -624,6 +624,7 @@ $ journalctl -u teleport-node.service
 ### ACM
 
 !!! note
+
     You are using ACM if your `use_acm` variable is set to `"true"`.
 
 When using ACM, the service name for the proxy is different (`teleport-proxy-acm.service` vs `teleport-proxy.service`).
@@ -637,7 +638,7 @@ $ systemctl status teleport-auth.service
    Active: active (running) since Thu 2020-03-05 16:45:18 UTC; 4h 14min ago
  Main PID: 3766 (teleport)
    CGroup: /system.slice/teleport-auth.service
-           └─3766 /usr/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3434 --pid-file=/run/teleport/teleport.pid
+           └─3766 /usr/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3000 --pid-file=/run/teleport/teleport.pid
 
 Mar 05 17:54:58 ip-172-31-0-196.ec2.internal /usr/bin/teleport[3766]: INFO [CA]        Generating TLS certificate {0x3767920 0xc0012802f0 CN=teleport-admin,O=admin,POSTALCODE={\"kubernetes_groups\":null\,\"logins\":null},STREET=,L=root 2020-03-06 05:54:58.846233666 +0000 UTC []}. common_name:teleport-admin dns_name...
 Mar 05 18:04:39 ip-172-31-0-196.ec2.internal /usr/bin/teleport[3766]: INFO [CA]        Generating TLS certificate {0x3767920 0xc00155d200 CN=teleport-admin,O=admin,POSTALCODE={\"kubernetes_groups\":null\,\"logins\":null},STREET=,L=root 2020-03-06 06:04:39.844777551 +0000 UTC []}. common_name:teleport-admin dns_name...
@@ -670,7 +671,7 @@ $ systemctl status teleport-proxy-acm.service
   Process: 4502 ExecStartPre=/usr/bin/teleport-ssm-get-token (code=exited, status=0/SUCCESS)
  Main PID: 4514 (teleport)
    CGroup: /system.slice/teleport-proxy-acm.service
-           └─4514 /usr/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3434 --pid-file=/run/teleport/teleport.pid
+           └─4514 /usr/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3000 --pid-file=/run/teleport/teleport.pid
 
 Mar 05 20:58:25 ip-172-31-2-109.ec2.internal /usr/bin/teleport[4514]: ERRO             read tcp 172.31.2.109:3024->172.31.2.143:1577: read: connection reset by peer
 Mar 05 20:58:50 ip-172-31-2-109.ec2.internal /usr/bin/teleport[4514]: ERRO             read tcp 172.31.2.109:3023->172.31.2.143:38011: read: connection reset by peer
@@ -701,7 +702,7 @@ $ systemctl status teleport-node.service
   Process: 4444 ExecStartPre=/usr/bin/teleport-ssm-get-token (code=exited, status=0/SUCCESS)
  Main PID: 4456 (teleport)
    CGroup: /system.slice/teleport-node.service
-           └─4456 /usr/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3434 --pid-file=/run/teleport/teleport.pid
+           └─4456 /usr/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3000 --pid-file=/run/teleport/teleport.pid
 
 Mar 05 17:18:25 ip-172-31-11-69.ec2.internal /usr/bin/teleport[4456]: INFO [AUDIT:1]   Creating directory /var/lib/teleport/log/upload/sessions. ser...o:1630
 Mar 05 17:18:25 ip-172-31-11-69.ec2.internal /usr/bin/teleport[4456]: INFO [AUDIT:1]   Setting directory /var/lib/teleport/log/upload/sessions owner...o:1639

@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  type: LoadBalancer
+  ports:
+    - name: https
+      port: 443
+      targetPort: 3080
+      protocol: TCP
+    - name: sshproxy
+      port: 3023
+      targetPort: 3023
+      protocol: TCP
+    - name: k8s
+      port: 3026
+      targetPort: 3026
+      protocol: TCP
+    - name: sshtun
+      port: 3024
+      targetPort: 3024
+      protocol: TCP
+  selector:
+    app: {{ .Release.Name }}

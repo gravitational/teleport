@@ -106,7 +106,9 @@ numbers.
 |3024      | Proxy      | SSH port used to create "reverse SSH tunnels" from behind-firewall environments into a trusted proxy server.
 |3025      | Auth       | SSH port used by the Auth Service to serve its API to other nodes in a cluster.
 |3080      | Proxy      | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Web UI.
-|3026      | Kubernetes Proxy      | HTTPS Kubernetes proxy (if enabled)
+|3026      | Kubernetes       | HTTPS Kubernetes proxy `proxy_service.kube_listen_addr`
+|3027      | Kubernetes       | Kubernetes Service `kubernetes_service.listen_addr`
+
 
 ### Filesystem Layout
 
@@ -236,6 +238,9 @@ proxy_service:
   web_listen_addr: 0.0.0.0:3080
   tunnel_listen_addr: 0.0.0.0:3024
 
+  # Expose a k8s listening port on the proxy if using Kubernetes
+  kube_listen_addr: 0.0.0.0:3026
+
   # The DNS name of the proxy HTTPS endpoint as accessible by cluster users.
   # Defaults to the proxy's hostname if not specified. If running multiple
   # proxies behind a load balancer, this name must point to the load balancer
@@ -244,8 +249,9 @@ proxy_service:
 
   # TLS certificate for the HTTPS connection. Configuring these properly is
   # critical for Teleport security.
-  https_key_file: /etc/letsencrypt/live/TELEPORT_PUBLIC_DNS_NAME/privkey.pem
-  https_cert_file: /etc/letsencrypt/live/TELEPORT_PUBLIC_DNS_NAME/fullchain.pem
+  https_keypairs:
+    - key_file: /var/lib/teleport/webproxy_key.pem
+      cert_file: /var/lib/teleport/webproxy_cert.pem
 ```
 
 #### Public Addr
@@ -406,7 +412,7 @@ $ tsh --proxy <proxy-addr> ssh <hostname>
 
     External user identities are only supported in [Teleport Enterprise](enterprise/introduction.md).
 
-    Please reach out to [sales@gravitational.com](mailto:sales@gravitational.com) for more information.
+    Please reach out to [sales@goteleport.com](mailto:sales@goteleport.com) for more information.
 
 ## Adding and Deleting Users
 
@@ -517,7 +523,7 @@ or `node` .
 There are two ways to create invitation tokens:
 
 * **Static Tokens** are easy to use and somewhat less secure.
-* **Dynamic Tokens** are more secure but require more planning.
+* **Short-lived Dynamic Tokens** are more secure but require more planning.
 
 ### Static Tokens
 
@@ -536,7 +542,7 @@ auth_service:
     - "auth:/path/to/tokenfile"
 ```
 
-### Short-lived Tokens
+### Short-lived Dynamic Tokens
 
 A more secure way to add nodes to a cluster is to generate tokens as they are
 needed. Such token can be used multiple times until its time to live (TTL)
@@ -570,7 +576,7 @@ $ tctl tokens rm e94d68a8a1e5821dbd79d03a960644f0
 
 ### Using Node Invitation Tokens
 
-Both static and short-lived tokens are used the same way. Execute the following
+Both static and short-lived dynamic tokens are used the same way. Execute the following
 command on a new node to add it to a cluster:
 
 ``` bash
@@ -689,6 +695,7 @@ Token 696c0471453e75882ff70a761c1a8bfa has been deleted
 ## Adding a node located behind NAT
 
 !!! note
+
     This feature is sometimes called "Teleport IoT" or node tunneling.
 
 With the current setup, you've only been able to add nodes that have direct access to the
@@ -732,10 +739,10 @@ DEBU [PROC:1]    Setup Proxy: Reverse tunnel proxy and web proxy listen on the s
     uses round-robin or a similar balancing algorithm. Do not use sticky load
     balancing algorithms (a.k.a. "session affinity") with Teleport proxies.
 
-## Labeling Nodes
+## Labeling Nodes and Applications
 
 In addition to specifying a custom nodename, Teleport also allows for the
-application of arbitrary key:value pairs to each node, called labels. There are
+application of arbitrary key:value pairs to each node or app, called labels. There are
 two kinds of labels:
 
 1. `static labels` do not change over time, while [ `teleport` ](cli-docs.md#teleport)
@@ -764,7 +771,12 @@ Alternatively, you can update `labels` via a configuration file:
 ``` yaml
 ssh_service:
   enabled: "yes"
+  # ...
   # Static labels are simple key/value pairs:
+  labels:
+    environment: test
+app_service:
+  # ..
   labels:
     environment: test
 ```
@@ -785,6 +797,14 @@ ssh_service:
     # this setting tells teleport to execute the command above
     # once an hour. this value cannot be less than one minute.
     period: 1h0m0s
+app_service:
+  enabled: "yes"
+  # ...
+  # Dynamic labels (historically called "commands"):
+  commands:
+  - name: hostname
+    command: [hostname]
+    period: 1m0s
 ```
 
 `/path/to/executable` must be a valid executable command (i.e. executable bit
@@ -824,10 +844,10 @@ Refer to the ["Audit Log" chapter in the Teleport
 Architecture](architecture/authentication.md#audit-log) to learn more about how the audit log and
 session recording are designed.
 
-### SSH Events
+### Events
 
-Teleport supports multiple storage back-ends for storing the SSH events. The
-section below uses the `dir` backend as an example. `dir` backend uses the local
+Teleport supports multiple storage back-ends for storing the SSH, Application and Kubernetes events.
+The section below uses the `dir` backend as an example. `dir` backend uses the local
 filesystem of an auth server using the configurable `data_dir` directory.
 
 For highly available (HA) configurations, users can refer to our
@@ -901,7 +921,8 @@ The possible event types are:
 | scp           | Remote file copy has been executed. The following fields will be logged: `{"path": "/path/to/file.txt", "len": 32344, "action": "read" }` |
 | resize        | Terminal has been resized.|
 | user.login    | A user logged into web UI or via tsh. The following fields will be logged: `{"user": "alice@example.com", "method": "local"}` .|
-
+| app.session.start | A user accessed an application |
+| app.session.chunk | A record of activity during an app session |
 
 ### Recorded Sessions
 
@@ -1048,6 +1069,7 @@ $ tctl rm users/admin
 ```
 
 !!! note
+
     Although `tctl get connectors` will show you every connector, when working with an individual
     connector you must use the correct `kind`, such as `saml` or `oidc`. You can see each
     connector's `kind` at the top of its YAML output from `tctl get connectors`.
@@ -1077,7 +1099,7 @@ To learn more about Trusted Clusters please visit our [Trusted Cluster Guide](tr
 
 Teleport supports authentication and authorization via external identity
 providers such as Github. You can watch the video for how to configure
-[Github as an SSO provider](https://gravitational.com/resources/guides/github-sso-provider-kubernetes-ssh/),
+[Github as an SSO provider](https://goteleport.com/resources/guides/github-sso-provider-kubernetes-ssh/),
 or you can follow the documentation below.
 
 First, the Teleport auth service must be configured to use Github for
@@ -1188,31 +1210,7 @@ Environment="NO_PROXY=localhost,127.0.0.1,192.168.0.0/16,172.16.0.0/12,10.0.0.0/
 
 ## PAM Integration
 
-Teleport node service can be configured to integrate with
-[PAM](https://en.wikipedia.org/wiki/Linux_PAM). This allows Teleport to create
-user sessions using PAM session profiles.
-
-To enable PAM on a given Linux machine, update `/etc/teleport.yaml` with:
-
-```yaml
-teleport:
-   ssh_service:
-      pam:
-         # "no" by default
-         enabled: yes
-         # use /etc/pam.d/sshd configuration (the default)
-         service_name: "sshd"
-```
-
-Please note that most Linux distributions come with a number of PAM services in
-`/etc/pam.d` and Teleport will try to use `sshd` by default, which will be
-removed if you uninstall `openssh-server` package. We recommend creating your
-own PAM service file like `/etc/pam.d/teleport` and specifying it as
-`service_name` above.
-
-!!! tip "Note"
-
-    Teleport only supports the `account` and `session` stack. The `auth` PAM module is currently not supported with Teleport.
+Review our dedicated [Using Teleport with PAM](features/ssh-pam.md) guide.
 
 ## Using Teleport with OpenSSH
 
@@ -1227,7 +1225,7 @@ will show you how to implement certificate rotation in practice.
 The easiest way to start the rotation is to execute this command on a cluster's
 _auth server_:
 
-``` bash
+```bash
 $ tctl auth rotate
 ```
 
@@ -1236,7 +1234,7 @@ period_ of 48 hours.
 
 This can be customized, i.e.
 
-``` bash
+```bash
 # rotate only user certificates with a grace period of 200 hours:
 $ tctl auth rotate --type=user --grace-period=200h
 
@@ -1259,7 +1257,7 @@ certificate for itself before the grace period ends.
 
 To check the status of certificate rotation:
 
-``` bash
+```bash
 $ tctl status
 ```
 
@@ -1286,10 +1284,10 @@ scp_if_ssh = True
 
 Teleport can be configured as a compliance gateway for Kubernetes clusters.
 This allows users to authenticate against a Teleport proxy using [`tsh
-login`](cli-docs.md#tsh) command to retrieve credentials for both SSH and
+login`](cli-docs.md#tsh) and  [`tsh kube login`](cli-docs.md#tsh-kube-login) command to retrieve credentials for both SSH and
 Kubernetes API.
 
-Follow our [Kubernetes guide](kubernetes-ssh.md) which contains some more specific
+Follow our [Kubernetes guide](kubernetes-access.md) which contains some more specific
 examples and instructions.
 
 ## High Availability
@@ -1458,6 +1456,18 @@ teleport:
      # NOT RECOMMENDED: enables insecure etcd mode in which self-signed
      # certificate will be accepted
      insecure: false
+
+     # Optionally sets the limit on the client message size.
+     # This is usually used to increase the default which is 2MiB
+     # (1.5MiB server's default + gRPC overhead bytes).
+     # Make sure this does not exceed the value for the etcd
+     # server specified with `--max-request-bytes` (1.5MiB by default).
+     # Keep the two values in sync.
+     #
+     # See https://etcd.io/docs/v3.4.0/dev-guide/limit/ for details
+     #
+     # This bumps the size to 15MiB as an example:
+     etcd_max_client_msg_size_bytes: 15728640
 ```
 
 ### Using Amazon S3
@@ -1587,6 +1597,69 @@ teleport:
 }
 ```
 
+#### DynamoDB Autoscaling
+
+When setting up DynamoDB it's important to setup backup and autoscaling. We make
+setup simpler by allowing AWS DynamoDB settings to be set automatically
+during Teleport startup.
+
+**DynamoDB Continuous Backups**
+- [AWS Blog Post - Amazon DynamoDB Continuous Backup](https://aws.amazon.com/blogs/aws/new-amazon-dynamodb-continuous-backups-and-point-in-time-recovery-pitr/)
+
+**DynamoDB Autoscaling Options**
+- [AWS Docs - Managing Throughput Capacity Automatically with DynamoDB Auto Scaling](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/AutoScaling.html)
+
+```yaml
+# ...
+teleport:
+  storage:
+    type: "dynamodb"
+    [...]
+
+    # continuous_backups is used to optionally enable continuous backups.
+    # default: false
+    continuous_backups: [true|false]
+
+    # auto_scaling is used to optionally enable (and define settings for) auto scaling.
+    # default: false
+    auto_scaling:  [true|false]
+    # minimum/maximum read capacity in units
+    read_min_capacity: int
+    read_max_capacity: int
+    read_target_value: float
+    # minimum/maximum write capacity in units
+    write_min_capacity: int
+    write_max_capacity: int
+    write_target_value: float
+```
+
+To enable these options you will need to update the [IAM Role for Teleport](aws-oss-guide.md#iam)
+
+```json
+{
+    "Action": [
+        "application-autoscaling:PutScalingPolicy",
+        "application-autoscaling:RegisterScalableTarget"
+    ],
+    "Effect": "Allow",
+    "Resource": "*"
+},
+{
+    "Action": [
+        "iam:CreateServiceLinkedRole"
+    ],
+    "Condition": {
+        "StringEquals": {
+            "iam:AWSServiceName": [
+                "dynamodb.application-autoscaling.amazonaws.com"
+            ]
+        }
+    },
+    "Effect": "Allow",
+    "Resource": "*"
+}
+```
+
 ### Using GCS
 
 !!! tip "Tip"
@@ -1700,15 +1773,30 @@ version is recommended for production use.
 When running multiple binaries of Teleport within a cluster (nodes, proxies,
 clients, etc), the following rules apply:
 
-* Patch versions are always compatible, for example any 4.0.1 component will
-  work with any 4.0.3 component.
+**Before 5.0.0**
 
-* Other versions are always compatible with their **previous** release. This
-  means you must not attempt to upgrade from 4.1 straight to 4.3. You must
-  upgrade to 4.2 first.
+* **Only patch** versions are always compatible, for example any 4.0.1 component will
+work with any 4.0.3 component.
+
+* Minor versions are always compatible with the **previous** minor release. This
+  means you must not attempt to upgrade from 4.1.x straight to 4.3.x. You must
+  upgrade to 4.2.x first.
 
 * Teleport clients [`tsh`](cli-docs.md#tsh) for users and [`tctl`](cli-docs.md#tctl) for admins
   may not be compatible with different versions of the `teleport` service.
+
+**After 5.0.0**
+
+* **Patch and minor** versions are always compatible, for example any 5.0.1 component will
+work with any 5.0.3 component and 6.1.0 component will work with any 6.7.0 component.
+
+* Major versions are always compatible with the **previous** major release. This
+  means you must not attempt to upgrade from 5.x.x straight to 7.x.x. You must
+  upgrade to 6.x.x first.
+
+* The above applies to both clients and servers. For example, a 6.x.x proxy is
+  compatible with 5.x.x nodes and 5.x.x `tsh`. But we don't guarantee that a
+  7.x.x `tsh` will work with a 5.x.x proxy.
 
 As an extra precaution you might want to backup your application prior to upgrading. We provide more instructions in [Backup before upgrading](#backup-before-upgrading).
 
@@ -1796,7 +1884,7 @@ the audit log, logged events have a TTL of 1 year.
 
 | Backend | Recommended backup strategy  |
 |-|-|
-| dir ( local filesystem )   | Backup `/var/lib/teleport/storage` directory and the output of `tctl get all`. |
+| dir ( local filesystem )   | Backup `/var/lib/teleport/storage` directory and the output of `tctl get all --with-secrets`. |
 | DynamoDB | [Follow AWS Guidelines for Backup & Restore](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/BackupRestore.html) |
 | etcd | [Follow etcD Guidleines for Disaster Recovery ](https://etcd.io/docs/v2/admin_guide) |
 | Firestore | [Follow GCP Guidlines for Automated Backups](https://firebase.google.com/docs/database/backups) |
@@ -1822,7 +1910,7 @@ As of version v4.1 you can now quickly export a collection of resources from
 Teleport. This feature was designed to help customers migrate from local storage
 to etcd.
 
-Using `tctl get all` will retrieve the below items:
+Using `tctl get all --with-secrets` will retrieve the below items:
 
 - Users
 - Certificate Authorities
@@ -1839,7 +1927,7 @@ When migrating backends, you should back up your auth server's `data_dir/storage
 
 ``` bash
 # export dynamic configuration state from old cluster
-$ tctl get all > state.yaml
+$ tctl get all --with-secrets > state.yaml
 
 # prepare a new uninitialized backend (make sure to port
 # any non-default config values from the old config file)
@@ -1861,6 +1949,7 @@ by auth server on first start), so it is safe for use in supervised/HA contexts.
 
 **Limitations**
 
+- The `--bootstrap` flag doesn't re-trigger trusted cluster handshakes, so trusted cluster resources need to be recreated manually.
 - All the same limitations around modifying the config file of an existing cluster also apply to a new cluster being bootstrapped from the state of an old cluster. Of particular note:
     - Changing cluster name will break your CAs (this will be caught and teleport will refuse to start).
     - Some user authentication mechanisms (e.g. u2f) require that the public endpoint of the web ui remains the same (this can't be caught by teleport, be careful!).
@@ -1950,4 +2039,4 @@ If you need help, please ask on our [community forum](https://community.gravitat
 
 For commercial support, you can create a ticket through the [customer dashboard](https://dashboard.gravitational.com/web/login).
 
-For more information about custom features, or to try our [Enterprise edition](enterprise/introduction.md) of Teleport, please reach out to us at [sales@gravitational.com](mailto:sales@gravitational.com).
+For more information about custom features, or to try our [Enterprise edition](enterprise/introduction.md) of Teleport, please reach out to us at [sales@goteleport.com](mailto:sales@goteleport.com).

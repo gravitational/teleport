@@ -1,21 +1,25 @@
 terraform {
-  required_version = "~> 0.12.20"
+  required_version = "~> 0.13"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 2"
+    }
+    template = {
+      source  = "hashicorp/template"
+      version = "~> 2.2.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 2.2.1"
+    }
+  }
 }
 
-provider "random" {
-  version = "~> 2.2.1"
-}
-
-provider "template" {
-  version = "~> 2.1.2"
+provider "aws" {
+  region = var.region
 }
 
 variable "aws_max_retries" {
   default = 5
 }
-
-provider "aws" {
-  version = "~> 2.46"
-  region  = var.region
-}
-
