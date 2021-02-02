@@ -59,9 +59,9 @@ type Client struct {
 	closedFlag int32
 }
 
-// NewClient returns a new auth client that uses mutual TLS authentication and
+// New returns a new auth client that uses mutual TLS authentication and
 // connects to the remote server using the Dialer or Addrs given in Config.
-func NewClient(cfg Config) (*Client, error) {
+func New(cfg Config) (*Client, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

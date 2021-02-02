@@ -76,10 +76,14 @@ func TestProfileBasics(t *testing.T) {
 	// load and verify current profile
 	clone, err := ProfileFromDir(dir, "")
 	require.NoError(t, err)
+	// Dir is a random tmp file, so we can't check it to be equal
+	clone.Dir = ""
 	require.Equal(t, *p, *clone)
 
 	// load and verify directly
 	clone, err = ProfileFromDir(dir, p.Name())
 	require.NoError(t, err)
+	// Dir is a random tmp file, so we can't check it to be equal
+	clone.Dir = ""
 	require.Equal(t, *p, *clone)
 }

@@ -194,13 +194,11 @@ func FullProfilePath(dir string) string {
 
 // defaultProfilePath retrieves the default path the the .tsh profile.
 func defaultProfilePath() string {
-	var dirPath string
-	if u, err := user.Current(); err != nil {
-		dirPath = os.TempDir()
-	} else {
-		dirPath = u.HomeDir
+	home := os.TempDir()
+	if u, err := user.Current(); err == nil {
+		home = u.HomeDir
 	}
-	return filepath.Join(dirPath, ProfileDir)
+	return filepath.Join(home, ProfileDir)
 }
 
 // ProfileFromDir reads the user (yaml) profile from a given directory. If

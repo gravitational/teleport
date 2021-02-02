@@ -35,7 +35,7 @@ func main() {
 		log.Fatalf("Failed to create Credentials: %v", err)
 	}
 
-	clt, err := client.NewClient(client.Config{
+	clt, err := client.New(client.Config{
 		Addrs:       []string{"proxy.example.com:3025"},
 		Credentials: creds,
 	})
