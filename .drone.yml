@@ -333,11 +333,6 @@ kind: pipeline
 type: kubernetes
 name: test-docs-internal
 
-environment:
-  RUNTIME: go1.15.5
-  UID: 1000
-  GID: 1000
-
 trigger:
   event:
     include:
@@ -3386,6 +3381,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 1ca80e0df7558bac8459d031fa677022294716c5ec55292beb1005fbbe243cba
+hmac: da76b305fc2b8abb69c75de84cbe042d79401694d4e8039330af394a0781f504
 
 ...
