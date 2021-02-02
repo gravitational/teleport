@@ -40,7 +40,6 @@ import (
 )
 
 const (
-	defaultKeyDir      = client.ProfileDir
 	fileExtTLSCert     = client.FileExtTLSCert
 	fileExtCert        = "-cert.pub"
 	fileExtPub         = ".pub"

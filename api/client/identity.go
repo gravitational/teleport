@@ -47,9 +47,9 @@ func (idf *IdentityFile) TLS() (*tls.Config, error) {
 	}
 
 	pool := x509.NewCertPool()
-	for _, caCerts := range idf.CACerts.TLS {
+	for i, caCerts := range idf.CACerts.TLS {
 		if !pool.AppendCertsFromPEM(caCerts) {
-			return nil, trace.BadParameter("identity file contains invalid TLS CA cert (#%v)")
+			return nil, trace.BadParameter("identity file contains invalid TLS CA cert (#%v)", i+1)
 		}
 	}
 

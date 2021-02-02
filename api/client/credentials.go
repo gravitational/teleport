@@ -69,7 +69,7 @@ func ProfileCreds() (Credentials, error) {
 func IdentityCreds(path string) (Credentials, error) {
 	idf, err := DecodeIdentityFile(path)
 	if err != nil {
-		return Credentials{}, trace.BadParameter("identity file could not be decoded", err)
+		return Credentials{}, trace.BadParameter("identity file could not be decoded: %v", err)
 	}
 
 	tls, err := idf.TLS()
@@ -94,7 +94,7 @@ func PathCreds(path string) (Credentials, error) {
 
 	pool := x509.NewCertPool()
 	if ok := pool.AppendCertsFromPEM(caCerts); !ok {
-		return Credentials{}, fmt.Errorf("invalid CA cert PEM")
+		return Credentials{}, fmt.Errorf("invalid TLS CA cert PEM")
 	}
 
 	return TLSCreds(&tls.Config{
