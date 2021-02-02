@@ -23,44 +23,51 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 
-	"github.com/google/uuid"
+	"github.com/pborman/uuid"
 )
 
 func main() {
 	ctx := context.Background()
 	log.Printf("Starting Teleport client...")
 
+	creds, err := client.ProfileCreds()
+	if err != nil {
+		log.Fatalf("Failed to create Credentials: %v", err)
+	}
+
 	clt, err := client.NewClient(client.Config{
 		Addrs:       []string{"proxy.example.com:3025"},
-		Credentials: client.ProfileCreds(),
+		Credentials: creds,
 	})
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
 	}
 	defer clt.Close()
 
-	// create a new access request for api-admin to use the admin role
-	accessReq, err := types.NewAccessRequest(uuid.New().String(), "access-admin", "admin")
+	// Create a new access request for api-admin to use the admin role.
+	accessReq, err := types.NewAccessRequest(uuid.New(), "access-admin", "admin")
 	if err != nil {
-		log.Panicf("Failed to make new access request: %v", err)
+		log.Fatalf("Failed to make new access request: %v", err)
 	}
 	if err = clt.CreateAccessRequest(ctx, accessReq); err != nil {
-		log.Panicf("Failed to create access request: %v", err)
+		log.Fatalf("Failed to create access request: %v", err)
 	}
 	log.Printf("Created access request: %v", accessReq)
 
 	defer func() {
 		if err = clt.DeleteAccessRequest(ctx, accessReq.GetName()); err != nil {
-			log.Panicf("Failed to delete access request: %v", err)
+			log.Fatalf("Failed to delete access request: %v", err)
 		}
 		log.Println("Deleted access request")
 	}()
 
-	// approve the access request
+	// Approve the access request.
 	if err = clt.SetAccessRequestState(ctx, types.AccessRequestUpdate{
 		RequestID: accessReq.GetName(),
 		State:     types.RequestState_APPROVED,
 	}); err != nil {
-		log.Printf("Failed to accept request: %v", err)
+		// We use a panic here to ensure the deferred function still runs.
+		log.Panicf("Failed to accept request: %v", err)
 	}
+	log.Printf("Approved access request")
 }

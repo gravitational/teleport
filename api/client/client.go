@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2020-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -81,7 +81,7 @@ func NewClient(cfg Config) (*Client, error) {
 	var err error
 	if c.conn, err = grpc.Dial(constants.APIDomain,
 		dialer,
-		grpc.WithTransportCredentials(credentials.NewTLS(c.c.TLS())),
+		grpc.WithTransportCredentials(credentials.NewTLS(c.c.TLS)),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
 			Time:                c.c.KeepAlivePeriod,
 			Timeout:             c.c.KeepAlivePeriod * time.Duration(c.c.KeepAliveCount),
@@ -115,7 +115,7 @@ type Config struct {
 // CheckAndSetDefaults checks and sets default config values
 func (c *Config) CheckAndSetDefaults() error {
 	if err := c.Credentials.CheckAndSetDefaults(); err != nil {
-		return trace.WrapWithMessage(c.Credentials.err, "Error in loading API Creds")
+		return trace.WrapWithMessage(err, "invalid client credentials")
 	}
 	if len(c.Addrs) == 0 && c.Dialer == nil {
 		return trace.BadParameter("set parameter Addrs or Dialer")
