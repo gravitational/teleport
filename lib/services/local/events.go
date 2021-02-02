@@ -261,7 +261,7 @@ func (p *certAuthorityParser) parse(event backend.Event) (services.Resource, err
 			},
 		}, nil
 	case backend.OpPut:
-		ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(event.Item.Value,
+		ca, err := services.UnmarshalCertAuthority(event.Item.Value,
 			services.WithResourceID(event.Item.ID), services.WithExpires(event.Item.Expires), services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -323,7 +323,7 @@ func (p *staticTokensParser) parse(event backend.Event) (services.Resource, erro
 		h.SetName(services.MetaNameStaticTokens)
 		return h, nil
 	case backend.OpPut:
-		tokens, err := services.GetStaticTokensMarshaler().Unmarshal(event.Item.Value,
+		tokens, err := services.UnmarshalStaticTokens(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)
@@ -356,7 +356,7 @@ func (p *clusterConfigParser) parse(event backend.Event) (services.Resource, err
 		h.SetName(services.MetaNameClusterConfig)
 		return h, nil
 	case backend.OpPut:
-		clusterConfig, err := services.GetClusterConfigMarshaler().Unmarshal(
+		clusterConfig, err := services.UnmarshalClusterConfig(
 			event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
@@ -391,7 +391,7 @@ func (p *clusterNameParser) parse(event backend.Event) (services.Resource, error
 		h.SetName(services.MetaNameClusterName)
 		return h, nil
 	case backend.OpPut:
-		clusterName, err := services.GetClusterNameMarshaler().Unmarshal(event.Item.Value,
+		clusterName, err := services.UnmarshalClusterName(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)
@@ -459,7 +459,7 @@ func (p *roleParser) parse(event backend.Event) (services.Resource, error) {
 	case backend.OpDelete:
 		return resourceHeader(event, services.KindRole, services.V3, 1)
 	case backend.OpPut:
-		resource, err := services.GetRoleMarshaler().UnmarshalRole(event.Item.Value,
+		resource, err := services.UnmarshalRole(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)
@@ -545,7 +545,7 @@ func (p *userParser) parse(event backend.Event) (services.Resource, error) {
 	case backend.OpDelete:
 		return resourceHeader(event, services.KindUser, services.V2, 1)
 	case backend.OpPut:
-		resource, err := services.GetUserMarshaler().UnmarshalUser(event.Item.Value,
+		resource, err := services.UnmarshalUser(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)
@@ -697,7 +697,7 @@ func (p *webSessionParser) parse(event backend.Event) (services.Resource, error)
 	case backend.OpDelete:
 		return resourceHeader(event, services.KindWebSession, services.V2, 0)
 	case backend.OpPut:
-		resource, err := services.GetWebSessionMarshaler().UnmarshalWebSession(event.Item.Value,
+		resource, err := services.UnmarshalWebSession(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)
@@ -751,7 +751,7 @@ func (p *databaseServerParser) parse(event backend.Event) (services.Resource, er
 			},
 		}, nil
 	case backend.OpPut:
-		return types.UnmarshalDatabaseServer(
+		return services.UnmarshalDatabaseServer(
 			event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
@@ -766,7 +766,7 @@ func parseServer(event backend.Event, kind string) (services.Resource, error) {
 	case backend.OpDelete:
 		return resourceHeader(event, kind, services.V2, 0)
 	case backend.OpPut:
-		resource, err := services.GetServerMarshaler().UnmarshalServer(event.Item.Value,
+		resource, err := services.UnmarshalServer(event.Item.Value,
 			kind,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),

@@ -24,15 +24,14 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/client/pgservicefile"
-	"github.com/gravitational/teleport/lib/defaults"
+	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 )
 
-// onListDatabases handles "tsh db ls" command.
+// onListDatabases implements "tsh db ls" command.
 func onListDatabases(cf *CLIConf) {
 	tc, err := makeClient(cf, false)
 	if err != nil {
@@ -59,10 +58,10 @@ func onListDatabases(cf *CLIConf) {
 	sort.Slice(servers, func(i, j int) bool {
 		return servers[i].GetName() < servers[j].GetName()
 	})
-	showDatabases(servers, profile.Databases, cf.Verbose)
+	showDatabases(tc.SiteName, servers, profile.Databases, cf.Verbose)
 }
 
-// onDatabaseLogin handles "tsh db login" command.
+// onDatabaseLogin implements "tsh db login" command.
 func onDatabaseLogin(cf *CLIConf) {
 	tc, err := makeClient(cf, false)
 	if err != nil {
@@ -120,14 +119,10 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 	if err != nil {
 		utils.FatalError(err)
 	}
-	// Perform database-specific actions such as updating Postgres
-	// connection service file.
-	switch db.Protocol {
-	case defaults.ProtocolPostgres:
-		err := pgservicefile.Add(tc.SiteName, db.ServiceName, db.Username, db.Database, *profile, quiet)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	// Update the database-specific connection profile file.
+	err = dbprofile.Add(tc, db, *profile, quiet)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -136,8 +131,11 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 // access certificates for databases the current profile is logged into.
 func fetchDatabaseCreds(cf *CLIConf, tc *client.TeleportClient) error {
 	profile, err := client.StatusCurrent("", cf.Proxy)
-	if err != nil {
+	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
+	}
+	if trace.IsNotFound(err) {
+		return nil // No currently logged in profiles.
 	}
 	for _, db := range profile.Databases {
 		if err := databaseLogin(cf, tc, db, true); err != nil {
@@ -150,7 +148,7 @@ func fetchDatabaseCreds(cf *CLIConf, tc *client.TeleportClient) error {
 	return nil
 }
 
-// onDatabaseLogout handles "tsh db logout" command.
+// onDatabaseLogout implements "tsh db logout" command.
 func onDatabaseLogout(cf *CLIConf) {
 	tc, err := makeClient(cf, false)
 	if err != nil {
@@ -188,46 +186,92 @@ func onDatabaseLogout(cf *CLIConf) {
 }
 
 func databaseLogout(tc *client.TeleportClient, db tlsca.RouteToDatabase) error {
-	// First perform database-specific actions, such as remove connection
-	// information from Postgres service file.
-	switch db.Protocol {
-	case defaults.ProtocolPostgres:
-		err := pgservicefile.Delete(tc.SiteName, db.ServiceName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	// First remove respective connection profile.
+	err := dbprofile.Delete(tc, db)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 	// Then remove the certificate from the keystore.
-	err := tc.LogoutDatabase(db.ServiceName)
+	err = tc.LogoutDatabase(db.ServiceName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-// onDatabaseEnv handles "tsh db env" command.
+// onDatabaseEnv implements "tsh db env" command.
 func onDatabaseEnv(cf *CLIConf) {
-	profile, err := client.StatusCurrent("", cf.Proxy)
+	tc, err := makeClient(cf, false)
 	if err != nil {
 		utils.FatalError(err)
 	}
-	if len(profile.Databases) == 0 {
-		utils.FatalError(trace.BadParameter("Please login using 'tsh db login' first"))
+	database, err := pickActiveDatabase(cf)
+	if err != nil {
+		utils.FatalError(err)
 	}
-	database := cf.DatabaseService
-	if database == "" {
-		services := profile.DatabaseServices()
-		if len(services) > 1 {
-			utils.FatalError(trace.BadParameter("Multiple databases are available (%v), please select the one to print environment for via --db flag",
-				strings.Join(services, ", ")))
-		}
-		database = services[0]
-	}
-	env, err := pgservicefile.Env(profile.Cluster, database)
+	env, err := dbprofile.Env(tc, *database)
 	if err != nil {
 		utils.FatalError(err)
 	}
 	for k, v := range env {
 		fmt.Printf("export %v=%v\n", k, v)
 	}
+}
+
+// onDatabaseConfig implements "tsh db config" command.
+func onDatabaseConfig(cf *CLIConf) {
+	tc, err := makeClient(cf, false)
+	if err != nil {
+		utils.FatalError(err)
+	}
+	profile, err := client.StatusCurrent("", cf.Proxy)
+	if err != nil {
+		utils.FatalError(err)
+	}
+	database, err := pickActiveDatabase(cf)
+	if err != nil {
+		utils.FatalError(err)
+	}
+	host, port := tc.WebProxyHostPort()
+	fmt.Printf(`Name:      %v
+Host:      %v
+Port:      %v
+User:      %v
+Database:  %v
+CA:        %v
+Cert:      %v
+Key:       %v
+`,
+		database.ServiceName, host, port, database.Username,
+		database.Database, profile.CACertPath(),
+		profile.DatabaseCertPath(database.ServiceName), profile.KeyPath())
+}
+
+// pickActiveDatabase returns the database the current profile is logged into.
+//
+// If logged into multiple databases, returns an error unless one specified
+// explicily via --db flag.
+func pickActiveDatabase(cf *CLIConf) (*tlsca.RouteToDatabase, error) {
+	profile, err := client.StatusCurrent("", cf.Proxy)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(profile.Databases) == 0 {
+		return nil, trace.NotFound("Please login using 'tsh db login' first")
+	}
+	name := cf.DatabaseService
+	if name == "" {
+		services := profile.DatabaseServices()
+		if len(services) > 1 {
+			return nil, trace.BadParameter("Multiple databases are available (%v), please select one using --db flag",
+				strings.Join(services, ", "))
+		}
+		name = services[0]
+	}
+	for _, db := range profile.Databases {
+		if db.ServiceName == name {
+			return &db, nil
+		}
+	}
+	return nil, trace.NotFound("Not logged into database %q", name)
 }

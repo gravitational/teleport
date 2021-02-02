@@ -18,7 +18,6 @@ package auth
 
 import (
 	"context"
-	"fmt"
 	"net/url"
 	"testing"
 	"time"
@@ -42,7 +41,6 @@ type GithubSuite struct {
 	c           clockwork.FakeClock
 }
 
-var _ = fmt.Printf
 var _ = check.Suite(&GithubSuite{})
 
 func (s *GithubSuite) SetUpSuite(c *check.C) {

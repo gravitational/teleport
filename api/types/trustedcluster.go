@@ -20,12 +20,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // TrustedCluster holds information needed for a cluster that can not be directly
@@ -138,9 +136,6 @@ func (c *TrustedClusterV2) CheckAndSetDefaults() error {
 	if c.Spec.ReverseTunnelAddress == "" {
 		c.Spec.ReverseTunnelAddress = c.Spec.ProxyAddress
 	}
-	if err := c.Spec.RoleMap.Check(); err != nil {
-		return trace.Wrap(err)
-	}
 	return nil
 }
 
@@ -208,8 +203,10 @@ func (c *TrustedClusterV2) Expiry() time.Time {
 	return c.Metadata.Expiry()
 }
 
-// SetTTL sets Expires header using realtime clock
-func (c *TrustedClusterV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+// SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
+func (c *TrustedClusterV2) SetTTL(clock Clock, ttl time.Duration) {
 	c.Metadata.SetTTL(clock, ttl)
 }
 
@@ -338,95 +335,6 @@ func (r RoleMap) Equals(o RoleMap) bool {
 	return true
 }
 
-// String prints user friendly representation of role mapping
-func (r RoleMap) String() string {
-	values, err := r.parse()
-	if err != nil {
-		return fmt.Sprintf("<failed to parse: %v", err)
-	}
-	if len(values) != 0 {
-		return fmt.Sprintf("%v", values)
-	}
-	return "<empty>"
-}
-
-func (r RoleMap) parse() (map[string][]string, error) {
-	directMatch := make(map[string][]string)
-	for i := range r {
-		roleMap := r[i]
-		if roleMap.Remote == "" {
-			return nil, trace.BadParameter("missing 'remote' parameter for role_map")
-		}
-		_, err := utils.ReplaceRegexp(roleMap.Remote, "", "")
-		if trace.IsBadParameter(err) {
-			return nil, trace.BadParameter("failed to parse 'remote' parameter for role_map: %v", err.Error())
-		}
-		if len(roleMap.Local) == 0 {
-			return nil, trace.BadParameter("missing 'local' parameter for 'role_map'")
-		}
-		for _, local := range roleMap.Local {
-			if local == "" {
-				return nil, trace.BadParameter("missing 'local' property of 'role_map' entry")
-			}
-			if local == Wildcard {
-				return nil, trace.BadParameter("wildcard value is not supported for 'local' property of 'role_map' entry")
-			}
-		}
-		_, ok := directMatch[roleMap.Remote]
-		if ok {
-			return nil, trace.BadParameter("remote role '%v' match is already specified", roleMap.Remote)
-		}
-		directMatch[roleMap.Remote] = roleMap.Local
-	}
-	return directMatch, nil
-}
-
-// Map maps local roles to remote roles
-func (r RoleMap) Map(remoteRoles []string) ([]string, error) {
-	_, err := r.parse()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var outRoles []string
-	// when no remote roles are specified, assume that
-	// there is a single empty remote role (that should match wildcards)
-	if len(remoteRoles) == 0 {
-		remoteRoles = []string{""}
-	}
-	for _, mapping := range r {
-		expression := mapping.Remote
-		for _, remoteRole := range remoteRoles {
-			// never map default implicit role, it is always
-			// added by default
-			if remoteRole == teleport.DefaultImplicitRole {
-				continue
-			}
-			for _, replacementRole := range mapping.Local {
-				replacement, err := utils.ReplaceRegexp(expression, replacementRole, remoteRole)
-				switch {
-				case err == nil:
-					// empty replacement can occur when $2 expand refers
-					// to non-existing capture group in match expression
-					if replacement != "" {
-						outRoles = append(outRoles, replacement)
-					}
-				case trace.IsNotFound(err):
-					continue
-				default:
-					return nil, trace.Wrap(err)
-				}
-			}
-		}
-	}
-	return outRoles, nil
-}
-
-// Check checks RoleMap for errors
-func (r RoleMap) Check() error {
-	_, err := r.parse()
-	return trace.Wrap(err)
-}
-
 // SortedTrustedCluster sorts clusters by name
 type SortedTrustedCluster []TrustedCluster
 
@@ -443,135 +351,4 @@ func (s SortedTrustedCluster) Less(i, j int) bool {
 // Swap swaps two items in a list.
 func (s SortedTrustedCluster) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
-}
-
-// TrustedClusterSpecSchemaTemplate is a template for trusted cluster schema
-const TrustedClusterSpecSchemaTemplate = `{
-  "type": "object",
-  "additionalProperties": false,
-  "properties": {
-    "enabled": {"type": "boolean"},
-    "roles": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
-    "role_map": %v,
-    "token": {"type": "string"},
-    "web_proxy_addr": {"type": "string"},
-    "tunnel_addr": {"type": "string"}%v
-  }
-}`
-
-// RoleMapSchema is a schema for role mappings of trusted clusters
-const RoleMapSchema = `{
-  "type": "array",
-  "items": {
-    "type": "object",
-    "additionalProperties": false,
-    "properties": {
-      "local": {
-        "type": "array",
-        "items": {
-           "type": "string"
-        }
-      },
-      "remote": {"type": "string"}
-    }
-  }
-}`
-
-// GetTrustedClusterSchema returns the schema with optionally injected
-// schema for extensions.
-func GetTrustedClusterSchema(extensionSchema string) string {
-	var trustedClusterSchema string
-	if extensionSchema == "" {
-		trustedClusterSchema = fmt.Sprintf(TrustedClusterSpecSchemaTemplate, RoleMapSchema, "")
-	} else {
-		trustedClusterSchema = fmt.Sprintf(TrustedClusterSpecSchemaTemplate, RoleMapSchema, ","+extensionSchema)
-	}
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, trustedClusterSchema, DefaultDefinitions)
-}
-
-// TrustedClusterMarshaler implements marshal/unmarshal of TrustedCluster implementations
-// mostly adds support for extended versions.
-type TrustedClusterMarshaler interface {
-	Marshal(c TrustedCluster, opts ...MarshalOption) ([]byte, error)
-	Unmarshal(bytes []byte, opts ...MarshalOption) (TrustedCluster, error)
-}
-
-type teleportTrustedClusterMarshaler struct{}
-
-// Unmarshal unmarshals role from JSON or YAML.
-func (t *teleportTrustedClusterMarshaler) Unmarshal(bytes []byte, opts ...MarshalOption) (TrustedCluster, error) {
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var trustedCluster TrustedClusterV2
-
-	if len(bytes) == 0 {
-		return nil, trace.BadParameter("missing resource data")
-	}
-
-	if cfg.SkipValidation {
-		if err := utils.FastUnmarshal(bytes, &trustedCluster); err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-	} else {
-		err := utils.UnmarshalWithSchema(GetTrustedClusterSchema(""), &trustedCluster, bytes)
-		if err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-	}
-
-	err = trustedCluster.CheckAndSetDefaults()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if cfg.ID != 0 {
-		trustedCluster.SetResourceID(cfg.ID)
-	}
-	if !cfg.Expires.IsZero() {
-		trustedCluster.SetExpiry(cfg.Expires)
-	}
-	return &trustedCluster, nil
-}
-
-// Marshal marshals role to JSON or YAML.
-func (t *teleportTrustedClusterMarshaler) Marshal(c TrustedCluster, opts ...MarshalOption) ([]byte, error) {
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	switch resource := c.(type) {
-	case *TrustedClusterV2:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *resource
-			copy.SetResourceID(0)
-			resource = &copy
-		}
-		return utils.FastMarshal(resource)
-	default:
-		return nil, trace.BadParameter("unrecognized resource version %T", c)
-	}
-}
-
-var trustedClusterMarshaler TrustedClusterMarshaler = &teleportTrustedClusterMarshaler{}
-
-// SetTrustedClusterMarshaler sets global TrustedClusterMarshaler
-func SetTrustedClusterMarshaler(m TrustedClusterMarshaler) {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	trustedClusterMarshaler = m
-}
-
-// GetTrustedClusterMarshaler returns currently set TrustedClusterMarshaler
-func GetTrustedClusterMarshaler() TrustedClusterMarshaler {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	return trustedClusterMarshaler
 }

@@ -990,7 +990,7 @@ func initExternalLog(ctx context.Context, auditConfig services.AuditConfig, log 
 		return nil, nil
 	}
 
-	if !auditConfig.ShouldUploadSessions() && hasNonFileLog {
+	if !services.ShouldUploadSessions(auditConfig) && hasNonFileLog {
 		// if audit events are being exported, session recordings should
 		// be exported as well.
 		return nil, trace.BadParameter("please specify audit_sessions_uri when using external audit backends")
@@ -1331,7 +1331,7 @@ func (process *TeleportProcess) initAuthService() error {
 			} else {
 				srv.Spec.Rotation = state.Spec.Rotation
 			}
-			srv.SetTTL(process.Clock, defaults.ServerAnnounceTTL)
+			srv.SetExpiry(process.Clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
 			return &srv, nil
 		},
 		KeepAlivePeriod: defaults.ServerKeepAliveTTL,
@@ -3147,12 +3147,12 @@ func validateConfig(cfg *Config) error {
 		return trace.BadParameter("auth_servers is empty")
 	}
 	for i := range cfg.Auth.Authorities {
-		if err := cfg.Auth.Authorities[i].Check(); err != nil {
+		if err := services.ValidateCertAuthority(cfg.Auth.Authorities[i]); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	for _, tun := range cfg.ReverseTunnels {
-		if err := tun.Check(); err != nil {
+		if err := services.ValidateReverseTunnel(tun); err != nil {
 			return trace.Wrap(err)
 		}
 	}

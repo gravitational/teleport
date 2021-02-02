@@ -21,12 +21,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // SemaphoreKindConnection is the semaphore kind used by
@@ -132,7 +130,7 @@ func (c *SemaphoreV3) Acquire(leaseID string, params AcquireSemaphoreRequest) (*
 		return nil, trace.LimitExceeded("cannot acquire semaphore %s/%s (%s)",
 			c.GetSubKind(),
 			c.GetName(),
-			teleport.MaxLeases,
+			constants.MaxLeases,
 		)
 	}
 
@@ -264,8 +262,10 @@ func (c *SemaphoreV3) SetExpiry(expires time.Time) {
 	c.Metadata.SetExpiry(expires)
 }
 
-// SetTTL sets Expires header using realtime clock
-func (c *SemaphoreV3) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+// SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
+func (c *SemaphoreV3) SetTTL(clock Clock, ttl time.Duration) {
 	c.Metadata.SetTTL(clock, ttl)
 }
 
@@ -324,112 +324,4 @@ func (f *SemaphoreFilter) Match(sem Semaphore) bool {
 		return false
 	}
 	return true
-}
-
-// SemaphoreSpecSchemaTemplate is a template for Semaphore schema.
-const SemaphoreSpecSchemaTemplate = `{
-  "type": "object",
-  "additionalProperties": false,
-  "properties": {
-	"leases": {
-	  "type": "array",
-	  "items": {
-	  "type": "object",
-	  "properties": {
-		"lease_id": { "type": "string" },
-		"expires": { "type": "string" },
-		"holder": { "type": "string" }
-		}
-	  }
-	}
-  }
-}`
-
-// GetSemaphoreSchema returns the validation schema for this object
-func GetSemaphoreSchema() string {
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, SemaphoreSpecSchemaTemplate, DefaultDefinitions)
-}
-
-// SemaphoreMarshaler implements marshal/unmarshal of Semaphore implementations
-// mostly adds support for extended versions.
-type SemaphoreMarshaler interface {
-	Marshal(c Semaphore, opts ...MarshalOption) ([]byte, error)
-	Unmarshal(bytes []byte, opts ...MarshalOption) (Semaphore, error)
-}
-
-type teleportSemaphoreMarshaler struct{}
-
-// Unmarshal unmarshals Semaphore from JSON.
-func (t *teleportSemaphoreMarshaler) Unmarshal(bytes []byte, opts ...MarshalOption) (Semaphore, error) {
-	var semaphore SemaphoreV3
-
-	if len(bytes) == 0 {
-		return nil, trace.BadParameter("missing resource data")
-	}
-
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if cfg.SkipValidation {
-		if err := utils.FastUnmarshal(bytes, &semaphore); err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-	} else {
-		err = utils.UnmarshalWithSchema(GetSemaphoreSchema(), &semaphore, bytes)
-		if err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-	}
-
-	err = semaphore.CheckAndSetDefaults()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if cfg.ID != 0 {
-		semaphore.SetResourceID(cfg.ID)
-	}
-	if !cfg.Expires.IsZero() {
-		semaphore.SetExpiry(cfg.Expires)
-	}
-	return &semaphore, nil
-}
-
-// Marshal marshals Semaphore to JSON.
-func (t *teleportSemaphoreMarshaler) Marshal(c Semaphore, opts ...MarshalOption) ([]byte, error) {
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	switch resource := c.(type) {
-	case *SemaphoreV3:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *resource
-			copy.SetResourceID(0)
-			resource = &copy
-		}
-		return utils.FastMarshal(resource)
-	default:
-		return nil, trace.BadParameter("unrecognized resource version %T", c)
-	}
-}
-
-var semaphoreMarshaler SemaphoreMarshaler = &teleportSemaphoreMarshaler{}
-
-// SetSemaphoreMarshaler sets the marshaler.
-func SetSemaphoreMarshaler(m SemaphoreMarshaler) {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	semaphoreMarshaler = m
-}
-
-// GetSemaphoreMarshaler gets the marshaler.
-func GetSemaphoreMarshaler() SemaphoreMarshaler {
-	marshalerMutex.RLock()
-	defer marshalerMutex.RUnlock()
-	return semaphoreMarshaler
 }

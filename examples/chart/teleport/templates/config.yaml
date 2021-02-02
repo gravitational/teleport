@@ -77,9 +77,17 @@ data:
       web_listen_addr: {{ .Values.config.listen_addr }}:{{ .Values.ports.proxyweb.containerPort }}
       listen_addr:  {{ .Values.config.listen_addr }}:{{ .Values.ports.proxyssh.containerPort }}
       tunnel_listen_addr:  {{ .Values.config.listen_addr }}:{{ .Values.ports.proxytunnel.containerPort }}
-
+{{- if .Values.config.teleport.proxy_service.ssh_public_addr }}
+      ssh_public_addr: {{ .Values.config.teleport.proxy_service.ssh_public_addr }}{{ if not (contains ":" .Values.config.teleport.proxy_service.ssh_public_addr) }}:{{ .Values.service.ports.proxyssh.port }}{{ end }}
+{{- else }}
       ssh_public_addr: {{ .Values.config.public_address }}:{{ .Values.service.ports.proxyssh.port }}
+{{- end }}
+{{- if .Values.config.teleport.proxy_service.tunnel_public_addr }}
+      tunnel_public_addr: {{ .Values.config.teleport.proxy_service.tunnel_public_addr }}{{ if not (contains ":" .Values.config.teleport.proxy_service.tunnel_public_addr) }}:{{ .Values.service.ports.proxytunnel.port }}{{ end }}
+{{- else }}
       tunnel_public_addr: {{ .Values.config.public_address }}:{{ .Values.service.ports.proxytunnel.port }}
+{{- end }}
+
 {{- if .Values.proxy.tls.usetlssecret}}
       https_key_file: {{ .Values.config.teleport.proxy_service.https_key_file }}
       https_cert_file: {{ .Values.config.teleport.proxy_service.https_cert_file }}
@@ -89,7 +97,11 @@ data:
       # kubernetes proxy protocol support
       kubernetes:
         enabled: {{ .Values.config.teleport.proxy_service.kubernetes.enabled }}
+{{- if .Values.config.teleport.proxy_service.kubernetes.public_addr }}
+        public_addr: {{ .Values.config.teleport.proxy_service.kubernetes.public_addr }}{{ if not (contains ":" .Values.config.teleport.proxy_service.kubernetes.public_addr) }}:{{ .Values.service.ports.proxykube.port }}{{ end }}
+{{- else }}
         public_addr: {{ .Values.config.public_address }}:{{ .Values.service.ports.proxykube.port }}
+{{- end }}
         listen_addr: {{ .Values.config.listen_addr }}:{{ .Values.ports.proxykube.containerPort }}
 {{- end }}
 {{- if .Values.config.highAvailability }}
