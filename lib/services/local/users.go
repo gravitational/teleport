@@ -19,14 +19,13 @@ package local
 import (
 	"bytes"
 	"context"
-	"crypto/ecdsa"
-	"crypto/x509"
 	"encoding/json"
 	"sort"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -237,8 +236,8 @@ func (s *IdentityService) getUserWithSecrets(user string) (services.User, error)
 	}
 	var uitems userItems
 	for _, item := range result.Items {
-		suffix := trimToSuffix(string(item.Key))
-		uitems.Set(suffix, item) // Result of Set i
+		suffix := bytes.TrimPrefix(item.Key, append(startKey, byte(backend.Separator)))
+		uitems.Set(string(suffix), item) // Result of Set i
 	}
 	u, err := userFromUserItems(user, uitems)
 	if err != nil {
@@ -254,25 +253,8 @@ func (s *IdentityService) upsertLocalAuthSecrets(user string, auth services.Loca
 			return trace.Wrap(err)
 		}
 	}
-	if len(auth.TOTPKey) > 0 {
-		err := s.UpsertTOTP(user, auth.TOTPKey)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	if auth.U2FRegistration != nil {
-		reg, err := services.GetLocalAuthSecretsU2FRegistration(&auth)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		err = s.UpsertU2FRegistration(user, reg)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	if auth.U2FCounter > 0 || auth.U2FRegistration != nil {
-		err := s.UpsertU2FRegistrationCounter(user, auth.U2FCounter)
-		if err != nil {
+	for _, d := range auth.MFA {
+		if err := s.UpsertMFADevice(context.TODO(), user, d); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -379,7 +361,7 @@ func (s *IdentityService) GetPasswordHash(user string) ([]byte, error) {
 }
 
 // UpsertHOTP upserts HOTP state for user
-// Deprecated: HOTP use is deprecated, use UpsertTOTP instead.
+// Deprecated: HOTP use is deprecated, use UpsertMFADevice instead.
 func (s *IdentityService) UpsertHOTP(user string, otp *hotp.HOTP) error {
 	if user == "" {
 		return trace.BadParameter("missing user name")
@@ -403,7 +385,7 @@ func (s *IdentityService) UpsertHOTP(user string, otp *hotp.HOTP) error {
 }
 
 // GetHOTP gets HOTP token state for a user
-// Deprecated: HOTP use is deprecated, use GetTOTP instead.
+// Deprecated: HOTP use is deprecated, use GetMFADevices instead.
 func (s *IdentityService) GetHOTP(user string) (*hotp.HOTP, error) {
 	if user == "" {
 		return nil, trace.BadParameter("missing user name")
@@ -423,42 +405,6 @@ func (s *IdentityService) GetHOTP(user string) (*hotp.HOTP, error) {
 	}
 
 	return otp, nil
-}
-
-// UpsertTOTP upserts TOTP secret key for a user that can be used to generate and validate tokens.
-func (s *IdentityService) UpsertTOTP(user string, secretKey string) error {
-	if user == "" {
-		return trace.BadParameter("missing user name")
-	}
-
-	item := backend.Item{
-		Key:   backend.Key(webPrefix, usersPrefix, user, totpPrefix),
-		Value: []byte(secretKey),
-	}
-
-	_, err := s.Put(context.TODO(), item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// GetTOTP returns the secret key used by the TOTP algorithm to validate tokens
-func (s *IdentityService) GetTOTP(user string) (string, error) {
-	if user == "" {
-		return "", trace.BadParameter("missing user name")
-	}
-
-	item, err := s.Get(context.TODO(), backend.Key(webPrefix, usersPrefix, user, totpPrefix))
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return "", trace.NotFound("OTP key for user(%q) is not found", user)
-		}
-		return "", trace.Wrap(err)
-	}
-
-	return string(item.Value), nil
 }
 
 // UpsertUsedTOTPToken upserts a TOTP token to the backend so it can't be used again
@@ -668,111 +614,60 @@ func (s *IdentityService) GetU2FRegisterChallenge(token string) (*u2f.Challenge,
 	return &u2fChal, nil
 }
 
-// u2fRegistration is a marshallable version of u2f.Registration that cannot be
-// json marshalled due to the pointer in the public key
-type u2fRegistration struct {
-	Raw              []byte `json:"raw"`
-	KeyHandle        []byte `json:"keyhandle"`
-	MarshalledPubKey []byte `json:"marshalled_pubkey"`
-	// AttestationCert is not needed for authentication so we don't need to store it
-}
-
-func (s *IdentityService) UpsertU2FRegistration(user string, u2fReg *u2f.Registration) error {
+func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error {
+	// TODO(awly): ensure device name uniqueness.
 	if user == "" {
 		return trace.BadParameter("missing parameter user")
 	}
-
-	pubKeyValue, err := x509.MarshalPKIXPublicKey(&u2fReg.PubKey)
-	if err != nil {
-		return trace.Wrap(err)
+	if d.Id == "" {
+		return trace.BadParameter("missing ID in MFADevice")
 	}
-
-	value, err := json.Marshal(u2fRegistration{
-		Raw:              u2fReg.Raw,
-		KeyHandle:        u2fReg.KeyHandle,
-		MarshalledPubKey: pubKeyValue,
-	})
+	value, err := json.Marshal(d)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:   backend.Key(webPrefix, usersPrefix, user, u2fRegistrationPrefix),
+		Key:   backend.Key(webPrefix, usersPrefix, user, mfaDevicePrefix, d.Id),
 		Value: value,
 	}
 
-	_, err = s.Put(context.TODO(), item)
-	if err != nil {
+	if _, err := s.Put(ctx, item); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-func (s *IdentityService) GetU2FRegistration(user string) (*u2f.Registration, error) {
-	item, err := s.Get(context.TODO(), backend.Key(webPrefix, usersPrefix, user, u2fRegistrationPrefix))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var reg u2fRegistration
-	err = json.Unmarshal(item.Value, &reg)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	pubKeyI, err := x509.ParsePKIXPublicKey(reg.MarshalledPubKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	pubKey, ok := pubKeyI.(*ecdsa.PublicKey)
-	if !ok {
-		return nil, trace.BadParameter("failed to convert crypto.PublicKey back to ecdsa.PublicKey")
-	}
-
-	return &u2f.Registration{
-		Raw:       reg.Raw,
-		KeyHandle: reg.KeyHandle,
-		PubKey:    *pubKey,
-	}, nil
-}
-
-type u2fRegistrationCounter struct {
-	Counter uint32 `json:"counter"`
-}
-
-func (s *IdentityService) UpsertU2FRegistrationCounter(user string, counter uint32) error {
+func (s *IdentityService) DeleteMFADevice(ctx context.Context, user, id string) error {
 	if user == "" {
-		return trace.BadParameter("missing parameter")
+		return trace.BadParameter("missing parameter user")
 	}
-	value, err := json.Marshal(u2fRegistrationCounter{
-		Counter: counter,
-	})
-	if err != nil {
-		return trace.Wrap(err)
+	if id == "" {
+		return trace.BadParameter("missing parameter id")
 	}
 
-	item := backend.Item{
-		Key:   backend.Key(webPrefix, usersPrefix, user, u2fRegistrationCounterPrefix),
-		Value: value,
-	}
-	_, err = s.Put(context.TODO(), item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	err := s.Delete(ctx, backend.Key(webPrefix, usersPrefix, user, mfaDevicePrefix, id))
+	return trace.Wrap(err)
 }
 
-func (s *IdentityService) GetU2FRegistrationCounter(user string) (uint32, error) {
-	item, err := s.Get(context.TODO(), backend.Key(webPrefix, usersPrefix, user, u2fRegistrationCounterPrefix))
-	if err != nil {
-		return 0, trace.Wrap(err)
+func (s *IdentityService) GetMFADevices(ctx context.Context, user string) ([]*types.MFADevice, error) {
+	if user == "" {
+		return nil, trace.BadParameter("missing parameter user")
 	}
-	var counter u2fRegistrationCounter
-	err = json.Unmarshal(item.Value, &counter)
+
+	startKey := backend.Key(webPrefix, usersPrefix, user, mfaDevicePrefix)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
-		return 0, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return counter.Counter, nil
+	devices := make([]*types.MFADevice, 0, len(result.Items))
+	for _, item := range result.Items {
+		var d types.MFADevice
+		if err := json.Unmarshal(item.Value, &d); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		devices = append(devices, &d)
+	}
+	return devices, nil
 }
 
 func (s *IdentityService) UpsertU2FSignChallenge(user string, challenge *u2f.Challenge) error {
@@ -1202,22 +1097,26 @@ func (s *IdentityService) GetGithubAuthRequest(stateToken string) (*services.Git
 }
 
 const (
-	webPrefix                    = "web"
-	usersPrefix                  = "users"
-	sessionsPrefix               = "sessions"
-	attemptsPrefix               = "attempts"
-	pwdPrefix                    = "pwd"
-	hotpPrefix                   = "hotp"
+	webPrefix              = "web"
+	usersPrefix            = "users"
+	sessionsPrefix         = "sessions"
+	attemptsPrefix         = "attempts"
+	pwdPrefix              = "pwd"
+	hotpPrefix             = "hotp"
+	connectorsPrefix       = "connectors"
+	oidcPrefix             = "oidc"
+	samlPrefix             = "saml"
+	githubPrefix           = "github"
+	requestsPrefix         = "requests"
+	u2fRegChalPrefix       = "adduseru2fchallenges"
+	usedTOTPPrefix         = "used_totp"
+	usedTOTPTTL            = 30 * time.Second
+	mfaDevicePrefix        = "mfa"
+	u2fSignChallengePrefix = "u2fsignchallenge"
+
+	// DELETE IN 7.0: these prefixes are migrated to mfaDevicePrefix in 6.0 on
+	// first startup.
 	totpPrefix                   = "totp"
-	connectorsPrefix             = "connectors"
-	oidcPrefix                   = "oidc"
-	samlPrefix                   = "saml"
-	githubPrefix                 = "github"
-	requestsPrefix               = "requests"
-	u2fRegChalPrefix             = "adduseru2fchallenges"
-	usedTOTPPrefix               = "used_totp"
-	usedTOTPTTL                  = 30 * time.Second
 	u2fRegistrationPrefix        = "u2fregistration"
 	u2fRegistrationCounterPrefix = "u2fregistrationcounter"
-	u2fSignChallengePrefix       = "u2fsignchallenge"
 )

@@ -359,10 +359,8 @@ message ProvisionTokenV1 {
     // Roles is a list of roles associated with the token,
     // that will be converted to metadata in the SSH and X509
     // certificates issued to the user of the token
-    repeated string Roles = 1 [ 
-        (gogoproto.jsontag) = "roles",
-        (gogoproto.casttype) = "SystemRole"
-    ];
+    repeated string Roles = 1
+        [ (gogoproto.jsontag) = "roles", (gogoproto.casttype) = "SystemRole" ];
     // Expires is a global expiry time header can be set on any resource in the
     // system.
     google.protobuf.Timestamp Expires = 2 [
@@ -396,10 +394,8 @@ message ProvisionTokenSpecV2 {
     // Roles is a list of roles associated with the token,
     // that will be converted to metadata in the SSH and X509
     // certificates issued to the user of the token
-    repeated string Roles = 1 [
-        (gogoproto.jsontag) = "roles",
-        (gogoproto.casttype) = "SystemRole"
-    ];
+    repeated string Roles = 1
+        [ (gogoproto.jsontag) = "roles", (gogoproto.casttype) = "SystemRole" ];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.
@@ -1154,15 +1150,48 @@ message LocalAuthSecrets {
     // PasswordHash encodes a combined salt & hash for password verification.
     bytes PasswordHash = 1 [ (gogoproto.jsontag) = "password_hash,omitempty" ];
 
-    // TOTPKey is the key used for Time-based One Time Password varification.
+    // Deprecated 2nd factor fields, use MFA below instead.
     string TOTPKey = 2 [ (gogoproto.jsontag) = "totp_key,omitempty" ];
-
-    // U2FRegistration holds Universal Second Factor registration info.
     U2FRegistrationData U2FRegistration = 3 [ (gogoproto.jsontag) = "u2f_registration,omitempty" ];
-
-    // U2FCounter holds the highest seen Universal Second Factor registration
-    // count.
     uint32 U2FCounter = 4 [ (gogoproto.jsontag) = "u2f_counter,omitempty" ];
+
+    repeated MFADevice MFA = 5 [ (gogoproto.jsontag) = "mfa,omitempty" ];
+}
+
+// MFADevice is a multi-factor authentication device, such as a security key or
+// an OTP app.
+message MFADevice {
+    // Boilerplate for implementing the Resource interface.
+    string kind = 1;
+    string sub_kind = 2;
+    string version = 3;
+    Metadata metadata = 4 [ (gogoproto.nullable) = false ];
+
+    // ID is a UUID of this device.
+    string id = 5;
+
+    google.protobuf.Timestamp added_at = 6
+        [ (gogoproto.stdtime) = true, (gogoproto.nullable) = false ];
+    google.protobuf.Timestamp last_used = 7
+        [ (gogoproto.stdtime) = true, (gogoproto.nullable) = false ];
+
+    oneof device {
+        TOTPDevice totp = 8;
+        U2FDevice u2f = 9;
+    }
+}
+
+// TOTPDevice holds the TOTP-specific fields of MFADevice.
+message TOTPDevice { string key = 1; }
+
+// U2FDevice holds the U2F-specific fields of MFADevice.
+message U2FDevice {
+    // KeyHandle uniquely identifies a key on a device
+    bytes key_handle = 1;
+    // PubKey is an DER encoded ecdsa public key
+    bytes pub_key = 2;
+    // Counter is the latest seen value of the U2F usage counter.
+    uint32 counter = 3;
 }
 
 // ConnectorRef holds information about OIDC connector
