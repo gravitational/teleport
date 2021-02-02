@@ -2105,6 +2105,10 @@ func (c *Client) UpsertAppSession(ctx context.Context, session services.WebSessi
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+func (c *Client) GetUploadMetadata(sid session.ID) events.UploadMetadata {
+	return events.UploadMetadata{}
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if

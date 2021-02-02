@@ -165,6 +165,6 @@ func (e *MockEmitter) Close(ctx context.Context) error {
 }
 
 // Complete does nothing
-func (e *MockEmitter) Complete(ctx context.Context) (*UploadMetadata, error) {
-	return nil, nil
+func (e *MockEmitter) Complete(ctx context.Context) error {
+	return nil
 }

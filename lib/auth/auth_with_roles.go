@@ -1465,7 +1465,7 @@ func (s *streamWithRoles) Done() <-chan struct{} {
 }
 
 // Complete closes the stream and marks it finalized
-func (s *streamWithRoles) Complete(ctx context.Context) (*events.UploadMetadata, error) {
+func (s *streamWithRoles) Complete(ctx context.Context) error {
 	return s.stream.Complete(ctx)
 }
 
@@ -2240,6 +2240,9 @@ func (a *ServerWithRoles) DeleteAllKubeServices(ctx context.Context) error {
 	return a.authServer.DeleteAllKubeServices(ctx)
 }
 
+func (a *ServerWithRoles) GetUploadMetadata(sid session.ID) events.UploadMetadata {
+	return events.UploadMetadata{}
+}
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
 func NewAdminAuthServer(authServer *Server, sessions session.Service, alog events.IAuditLog) (ClientI, error) {

@@ -430,7 +430,6 @@ func (u *Uploader) startUpload(fileName string) error {
 	go func() {
 		if err := u.upload(upload); err != nil {
 			u.log.WithError(err).Warningf("Upload failed.")
-			u.log.WithFields(log.Fields{"duration": time.Since(start), "session-id": sessionID}).Warningf("Session upload failed: %v", trace.DebugReport(err))
 			u.emitEvent(events.UploadEvent{
 				SessionID: string(upload.sessionID),
 				Error:     err,
@@ -522,8 +521,7 @@ func (u *Uploader) upload(up *upload) error {
 		}
 	}
 
-	_, err = stream.Complete(u.ctx)
-	if err != nil {
+	if err = stream.Complete(u.ctx); err != nil {
 		u.log.WithError(err).Error("Failed to complete upload.")
 		return trace.Wrap(err)
 	}

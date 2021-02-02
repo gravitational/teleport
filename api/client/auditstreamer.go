@@ -92,8 +92,8 @@ func (s *auditStreamer) Close(ctx context.Context) error {
 }
 
 // Complete completes stream.
-func (s *auditStreamer) Complete(ctx context.Context) (*events.UploadMetadata, error) {
-	return nil, trail.FromGRPC(s.stream.Send(&proto.AuditStreamRequest{
+func (s *auditStreamer) Complete(ctx context.Context) error {
+	return trail.FromGRPC(s.stream.Send(&proto.AuditStreamRequest{
 		Request: &proto.AuditStreamRequest_CompleteStream{
 			CompleteStream: &proto.CompleteStream{},
 		},

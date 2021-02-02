@@ -160,6 +160,10 @@ func (s *ProtoStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, u
 		CompletedParts: parts,
 	})
 }
+// GetUploadMetadata gets the session upload metadata
+func (s *ProtoStreamer) GetUploadMetadata(sid session.ID) UploadMetadata {
+	return s.cfg.Uploader.GetUploadMetadata(sid)
+}
 
 // ProtoStreamConfig configures proto stream
 type ProtoStreamConfig struct {
@@ -389,18 +393,17 @@ func (s *ProtoStream) EmitAuditEvent(ctx context.Context, event AuditEvent) erro
 }
 
 // Complete completes the upload, waits for completion and returns all allocated resources.
-func (s *ProtoStream) Complete(ctx context.Context) (*UploadMetadata, error) {
-	m := s.cfg.Uploader.GetUploadMetadata(s.cfg.Upload.SessionID)
+func (s *ProtoStream) Complete(ctx context.Context) error {
 	s.complete()
 	select {
 	// wait for all in-flight uploads to complete and stream to be completed
 	case <-s.uploadsCtx.Done():
 		s.cancel()
-		return m, s.getCompleteResult()
+		return s.getCompleteResult()
 	case <-s.cancelCtx.Done():
-		return m, trace.ConnectionProblem(s.cancelCtx.Err(), "emitter has been closed")
+		return trace.ConnectionProblem(s.cancelCtx.Err(), "emitter has been closed")
 	case <-ctx.Done():
-		return m, trace.ConnectionProblem(ctx.Err(), "context has cancelled before complete could succeed")
+		return trace.ConnectionProblem(ctx.Err(), "context has cancelled before complete could succeed")
 	}
 }
 
@@ -1277,6 +1280,6 @@ func (m *MemoryUploader) Download(ctx context.Context, sessionID session.ID, wri
 	return nil
 }
 
-func (m *MemoryUploader) GetUploadMetadata(sessionID session.ID) *UploadMetadata {
-	return nil
+func (m *MemoryUploader) GetUploadMetadata(sid session.ID) UploadMetadata {
+	return UploadMetadata{}
 }

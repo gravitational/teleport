@@ -1813,6 +1813,11 @@ func (a *Server) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID
 	return streamer.ResumeAuditStream(ctx, sid, uploadID)
 }
 
+// GetUploadMetadata gets the session upload metadata
+func (a *Server) GetUploadMetadata(sid session.ID) events.UploadMetadata {
+	return events.UploadMetadata{}
+}
+
 // modeStreamer creates streamer based on the event mode
 func (a *Server) modeStreamer() (events.Streamer, error) {
 	clusterConfig, err := a.GetClusterConfig()

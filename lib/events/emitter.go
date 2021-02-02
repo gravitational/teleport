@@ -216,8 +216,8 @@ func (*DiscardStream) Close(ctx context.Context) error {
 }
 
 // Complete does nothing
-func (*DiscardStream) Complete(ctx context.Context) (*UploadMetadata, error) {
-	return nil, nil
+func (*DiscardStream) Complete(ctx context.Context) error {
+	return nil
 }
 
 // EmitAuditEvent discards audit event
@@ -249,6 +249,11 @@ func (*DiscardEmitter) CreateAuditStream(ctx context.Context, sid session.ID) (S
 // ResumeAuditStream resumes a stream that discards all events
 func (*DiscardEmitter) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (Stream, error) {
 	return &DiscardStream{}, nil
+}
+
+// GetUploadMetadata does nothing
+func (d *DiscardEmitter) GetUploadMetadata(sid session.ID) UploadMetadata {
+	return UploadMetadata{}
 }
 
 // NewWriterEmitter returns a new instance of emitter writing to writer
@@ -411,6 +416,10 @@ func (s *CheckingStreamer) ResumeAuditStream(ctx context.Context, sid session.ID
 	}, nil
 }
 
+// GetUploadMetadata gets session upload metadata
+func (s *CheckingStreamer) GetUploadMetadata(sid session.ID) UploadMetadata {
+	return UploadMetadata{SessionID: sid}
+}
 // CheckAndSetDefaults checks and sets default values
 func (w *CheckingStreamerConfig) CheckAndSetDefaults() error {
 	if w.Inner == nil {
@@ -451,7 +460,7 @@ func (s *CheckingStream) Status() <-chan StreamStatus {
 }
 
 // Complete closes the stream and marks it finalized
-func (s *CheckingStream) Complete(ctx context.Context) (*UploadMetadata, error) {
+func (s *CheckingStream) Complete(ctx context.Context) error {
 	return s.stream.Complete(ctx)
 }
 
@@ -497,6 +506,11 @@ func (t *TeeStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, upl
 	return &TeeStream{stream: stream, emitter: t.Emitter}, nil
 }
 
+// GetUploadMetadata gets session upload metadata
+func (t *TeeStreamer) GetUploadMetadata(sid session.ID) UploadMetadata {
+	return t.streamer.GetUploadMetadata(sid)
+}
+
 // TeeStreamer creates streams that forwards non print events
 // to emitter
 type TeeStreamer struct {
@@ -530,7 +544,7 @@ func (t *TeeStream) Close(ctx context.Context) error {
 }
 
 // Complete closes the stream and marks it finalized
-func (t *TeeStream) Complete(ctx context.Context) (*UploadMetadata, error) {
+func (t *TeeStream) Complete(ctx context.Context) error {
 	return t.stream.Complete(ctx)
 }
 
@@ -627,6 +641,11 @@ func (s *CallbackStreamer) ResumeAuditStream(ctx context.Context, sid session.ID
 	}, nil
 }
 
+// GetUploadMetadata gets session upload metadata
+func (s *CallbackStreamer) GetUploadMetadata(sid session.ID) UploadMetadata {
+	return UploadMetadata{SessionID: sid}
+}
+
 // CallbackStream call
 type CallbackStream struct {
 	stream    Stream
@@ -653,7 +672,7 @@ func (s *CallbackStream) Status() <-chan StreamStatus {
 }
 
 // Complete closes the stream and marks it finalized
-func (s *CallbackStream) Complete(ctx context.Context) (*UploadMetadata, error) {
+func (s *CallbackStream) Complete(ctx context.Context) error {
 	return s.stream.Complete(ctx)
 }
 
@@ -709,6 +728,11 @@ func (s *ReportingStreamer) ResumeAuditStream(ctx context.Context, sid session.I
 	}, nil
 }
 
+// GetUploadMetadata gets session upload metadata
+func (s *ReportingStreamer) GetUploadMetadata(sid session.ID) UploadMetadata {
+	return s.streamer.GetUploadMetadata(sid)
+}
+
 // ReportingStream reports status of uploads to the events channel
 type ReportingStream struct {
 	Stream
@@ -717,10 +741,10 @@ type ReportingStream struct {
 }
 
 // Complete closes the stream and marks it finalized
-func (s *ReportingStream) Complete(ctx context.Context) (*UploadMetadata, error) {
-	m, err := s.Stream.Complete(ctx)
+func (s *ReportingStream) Complete(ctx context.Context) error {
+	err := s.Stream.Complete(ctx)
 	if s.eventsC == nil {
-		return m, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	select {
 	case s.eventsC <- UploadEvent{
@@ -730,5 +754,5 @@ func (s *ReportingStream) Complete(ctx context.Context) (*UploadMetadata, error)
 	default:
 		log.Warningf("Skip send event on a blocked channel.")
 	}
-	return m, trace.Wrap(err)
+	return trace.Wrap(err)
 }

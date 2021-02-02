@@ -371,9 +371,8 @@ func (a *AuditWriter) Close(ctx context.Context) error {
 // Complete closes the stream and marks it finalized,
 // releases associated resources, in case of failure,
 // closes this stream on the client side
-func (a *AuditWriter) Complete(ctx context.Context) (*UploadMetadata, error) {
-	m, _ := a.stream.Complete(ctx)
-	return m, a.Close(ctx)
+func (a *AuditWriter) Complete(ctx context.Context) error {
+	return a.Close(ctx)
 }
 
 func (a *AuditWriter) processEvents() {
@@ -458,7 +457,7 @@ func (a *AuditWriter) closeStream(stream Stream) {
 func (a *AuditWriter) completeStream(stream Stream) {
 	ctx, cancel := context.WithTimeout(a.cfg.Context, defaults.NetworkBackoffDuration)
 	defer cancel()
-	_, err := stream.Complete(ctx)
+	err := stream.Complete(ctx)
 	if err != nil {
 		a.log.WithError(err).Warning("Failed to complete stream.")
 	}
