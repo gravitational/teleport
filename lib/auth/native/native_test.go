@@ -18,7 +18,6 @@ package native
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -41,7 +40,6 @@ type NativeSuite struct {
 }
 
 var _ = check.Suite(&NativeSuite{})
-var _ = fmt.Printf
 
 func (s *NativeSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())

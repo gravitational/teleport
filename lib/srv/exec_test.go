@@ -62,7 +62,6 @@ type ExecSuite struct {
 }
 
 var _ = check.Suite(&ExecSuite{})
-var _ = fmt.Printf
 
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise it will run tests as normal.

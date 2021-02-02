@@ -18,7 +18,6 @@ package utils
 
 import (
 	"archive/tar"
-	"fmt"
 	"testing"
 
 	"gopkg.in/check.v1"
@@ -26,7 +25,6 @@ import (
 
 type UnpackSuite struct{}
 
-var _ = fmt.Printf
 var _ = check.Suite(&UnpackSuite{})
 
 func (s *UnpackSuite) SetUpSuite(c *check.C) {

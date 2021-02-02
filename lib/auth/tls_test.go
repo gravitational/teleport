@@ -61,8 +61,6 @@ type TLSSuite struct {
 }
 
 var _ = check.Suite(&TLSSuite{})
-var _ = testing.Verbose
-var _ = fmt.Printf
 
 func (s *TLSSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())
@@ -1016,7 +1014,10 @@ func (s *TLSSuite) TestPasswordCRUD(c *check.C) {
 	err = clt.UpsertPassword("user1", pass)
 	c.Assert(err, check.IsNil)
 
-	err = s.server.Auth().UpsertTOTP("user1", otpSecret)
+	dev, err := services.NewTOTPDevice("otp", otpSecret, s.clock.Now())
+	c.Assert(err, check.IsNil)
+	ctx := context.Background()
+	err = s.server.Auth().UpsertMFADevice(ctx, "user1", dev)
 	c.Assert(err, check.IsNil)
 
 	validToken, err := totp.GenerateCode(otpSecret, s.server.Clock().Now())
@@ -1362,7 +1363,10 @@ func (s *TLSSuite) TestOTPCRUD(c *check.C) {
 	// upsert a password and totp secret
 	err = clt.UpsertPassword("user1", pass)
 	c.Assert(err, check.IsNil)
-	err = s.server.Auth().UpsertTOTP(user, otpSecret)
+	dev, err := services.NewTOTPDevice("otp", otpSecret, s.clock.Now())
+	c.Assert(err, check.IsNil)
+	ctx := context.Background()
+	err = s.server.Auth().UpsertMFADevice(ctx, user, dev)
 	c.Assert(err, check.IsNil)
 
 	// a completely invalid token should return access denied
@@ -2017,7 +2021,7 @@ func (s *TLSSuite) TestGenerateAppToken(c *check.C) {
 	}, true)
 	c.Assert(err, check.IsNil)
 
-	key, err := ca.JWTSigner(jwt.Config{Clock: s.clock})
+	key, err := services.GetJWTSigner(ca, s.clock)
 	c.Assert(err, check.IsNil)
 
 	var tests = []struct {
@@ -2188,7 +2192,10 @@ func (s *TLSSuite) TestAuthenticateWebUserOTP(c *check.C) {
 	err = s.server.Auth().UpsertPassword(user, pass)
 	c.Assert(err, check.IsNil)
 
-	err = s.server.Auth().UpsertTOTP(user, otpSecret)
+	dev, err := services.NewTOTPDevice("otp", otpSecret, s.clock.Now())
+	c.Assert(err, check.IsNil)
+	ctx := context.Background()
+	err = s.server.Auth().UpsertMFADevice(ctx, user, dev)
 	c.Assert(err, check.IsNil)
 
 	// create a valid otp token
@@ -2475,7 +2482,7 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 		Type:       services.HostCA,
 	}, false)
 	c.Assert(err, check.IsNil)
-	tlsCA, err := hostCA.TLSCA()
+	tlsCA, err := tlsca.FromAuthority(hostCA)
 	c.Assert(err, check.IsNil)
 	caPin := utils.CalculateSPKI(tlsCA.Cert)
 
@@ -2560,7 +2567,7 @@ func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 		Type:       services.HostCA,
 	}, false)
 	c.Assert(err, check.IsNil)
-	tlsCA, err := hostCA.TLSCA()
+	tlsCA, err := tlsca.FromAuthority(hostCA)
 	c.Assert(err, check.IsNil)
 	tlsBytes, err := tlsca.MarshalCertificatePEM(tlsCA.Cert)
 	c.Assert(err, check.IsNil)

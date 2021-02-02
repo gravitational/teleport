@@ -21,10 +21,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // ClusterName defines the name of the cluster. This is a configuration
@@ -110,8 +108,10 @@ func (c *ClusterNameV2) SetExpiry(expires time.Time) {
 	c.Metadata.SetExpiry(expires)
 }
 
-// SetTTL sets Expires header using realtime clock
-func (c *ClusterNameV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+// SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
+func (c *ClusterNameV2) SetTTL(clock Clock, ttl time.Duration) {
 	c.Metadata.SetTTL(clock, ttl)
 }
 
@@ -148,112 +148,4 @@ func (c *ClusterNameV2) CheckAndSetDefaults() error {
 // String represents a human readable version of the cluster name.
 func (c *ClusterNameV2) String() string {
 	return fmt.Sprintf("ClusterName(%v)", c.Spec.ClusterName)
-}
-
-// ClusterNameSpecSchemaTemplate is a template for ClusterName schema.
-const ClusterNameSpecSchemaTemplate = `{
-  "type": "object",
-  "additionalProperties": false,
-  "properties": {
-    "cluster_name": {
-      "type": "string"
-    }%v
-  }
-}`
-
-// GetClusterNameSchema returns the schema with optionally injected
-// schema for extensions.
-func GetClusterNameSchema(extensionSchema string) string {
-	var clusterNameSchema string
-	if clusterNameSchema == "" {
-		clusterNameSchema = fmt.Sprintf(ClusterNameSpecSchemaTemplate, "")
-	} else {
-		clusterNameSchema = fmt.Sprintf(ClusterNameSpecSchemaTemplate, ","+extensionSchema)
-	}
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, clusterNameSchema, DefaultDefinitions)
-}
-
-// ClusterNameMarshaler implements marshal/unmarshal of ClusterName implementations
-// mostly adds support for extended versions.
-type ClusterNameMarshaler interface {
-	Marshal(c ClusterName, opts ...MarshalOption) ([]byte, error)
-	Unmarshal(bytes []byte, opts ...MarshalOption) (ClusterName, error)
-}
-
-type teleportClusterNameMarshaler struct{}
-
-// Unmarshal unmarshals ClusterName from JSON.
-func (t *teleportClusterNameMarshaler) Unmarshal(bytes []byte, opts ...MarshalOption) (ClusterName, error) {
-	var clusterName ClusterNameV2
-
-	if len(bytes) == 0 {
-		return nil, trace.BadParameter("missing resource data")
-	}
-
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if cfg.SkipValidation {
-		if err := utils.FastUnmarshal(bytes, &clusterName); err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-	} else {
-		err = utils.UnmarshalWithSchema(GetClusterNameSchema(""), &clusterName, bytes)
-		if err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-	}
-
-	err = clusterName.CheckAndSetDefaults()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if cfg.ID != 0 {
-		clusterName.SetResourceID(cfg.ID)
-	}
-	if !cfg.Expires.IsZero() {
-		clusterName.SetExpiry(cfg.Expires)
-	}
-
-	return &clusterName, nil
-}
-
-// Marshal marshals ClusterName to JSON.
-func (t *teleportClusterNameMarshaler) Marshal(c ClusterName, opts ...MarshalOption) ([]byte, error) {
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	switch resource := c.(type) {
-	case *ClusterNameV2:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *resource
-			copy.SetResourceID(0)
-			resource = &copy
-		}
-		return utils.FastMarshal(resource)
-	default:
-		return nil, trace.BadParameter("unrecognized resource version %T", c)
-	}
-}
-
-var clusterNameMarshaler ClusterNameMarshaler = &teleportClusterNameMarshaler{}
-
-// SetClusterNameMarshaler sets the marshaler.
-func SetClusterNameMarshaler(m ClusterNameMarshaler) {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	clusterNameMarshaler = m
-}
-
-// GetClusterNameMarshaler gets the marshaler.
-func GetClusterNameMarshaler() ClusterNameMarshaler {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	return clusterNameMarshaler
 }

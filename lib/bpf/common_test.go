@@ -17,7 +17,6 @@ limitations under the License.
 package bpf
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/gravitational/teleport/lib/defaults"
@@ -28,7 +27,6 @@ import (
 
 type CommonSuite struct{}
 
-var _ = fmt.Printf
 var _ = check.Suite(&CommonSuite{})
 
 func (s *CommonSuite) SetUpSuite(c *check.C) {

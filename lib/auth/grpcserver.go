@@ -365,6 +365,9 @@ func (g *GRPCServer) CreateAccessRequest(ctx context.Context, req *services.Acce
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
+	if err := services.ValidateAccessRequest(req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
 	if err := auth.ServerWithRoles.CreateAccessRequest(ctx, req); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
@@ -551,6 +554,10 @@ func (g *GRPCServer) CreateUser(ctx context.Context, req *services.UserV2) (*emp
 		return nil, trail.ToGRPC(err)
 	}
 
+	if err := services.ValidateUser(req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := auth.CreateUser(ctx, req); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
@@ -565,6 +572,10 @@ func (g *GRPCServer) UpdateUser(ctx context.Context, req *services.UserV2) (*emp
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
+	}
+
+	if err := services.ValidateUser(req); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if err := auth.UpdateUser(ctx, req); err != nil {
@@ -668,7 +679,7 @@ func (g *GRPCServer) GetDatabaseServers(ctx context.Context, req *proto.GetDatab
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	var opts []types.MarshalOption
+	var opts []services.MarshalOption
 	if req.GetSkipValidation() {
 		opts = append(opts, services.SkipValidation())
 	}

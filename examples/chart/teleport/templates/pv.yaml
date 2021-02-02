@@ -14,6 +14,6 @@ spec:
     namespace: {{ .Release.Namespace }}
     name: {{ template "teleport.fullname" . }}-storage
   gcePersistentDisk:
-    pdName: {{ .Values.persistnce.pdName }}
+    pdName: {{ .Values.persistence.pdName }}
     fsType: {{ .Values.persistence.fsType }}
 {{- end }}

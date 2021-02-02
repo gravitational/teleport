@@ -978,6 +978,31 @@ func proxyConnection(ctx context.Context, conn net.Conn, remoteAddr string, dial
 	return trace.NewAggregate(errs...)
 }
 
+// acceptWithContext calls "Accept" on the listener but will unblock when the
+// context is canceled.
+func acceptWithContext(ctx context.Context, l net.Listener) (net.Conn, error) {
+	acceptCh := make(chan net.Conn, 1)
+	errorCh := make(chan error, 1)
+
+	go func() {
+		conn, err := l.Accept()
+		if err != nil {
+			errorCh <- err
+			return
+		}
+		acceptCh <- conn
+	}()
+
+	select {
+	case conn := <-acceptCh:
+		return conn, nil
+	case err := <-errorCh:
+		return nil, trace.Wrap(err)
+	case <-ctx.Done():
+		return nil, trace.Wrap(ctx.Err())
+	}
+}
+
 // listenAndForward listens on a given socket and forwards all incoming
 // commands to the remote address through the SSH tunnel.
 func (c *NodeClient) listenAndForward(ctx context.Context, ln net.Listener, remoteAddr string) {
@@ -986,7 +1011,7 @@ func (c *NodeClient) listenAndForward(ctx context.Context, ln net.Listener, remo
 
 	for {
 		// Accept connections from the client.
-		conn, err := ln.Accept()
+		conn, err := acceptWithContext(ctx, ln)
 		if err != nil {
 			log.Errorf("Port forwarding failed: %v.", err)
 			break

@@ -123,7 +123,7 @@ func (a *Server) getSAMLProvider(conn services.SAMLConnector) (*saml2.SAMLServic
 	}
 	delete(a.samlProviders, conn.GetName())
 
-	serviceProvider, err := conn.GetServiceProvider(a.clock)
+	serviceProvider, err := services.GetSAMLServiceProvider(conn, a.clock)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -143,7 +143,7 @@ func (a *Server) calculateSAMLUser(connector services.SAMLConnector, assertionIn
 
 	p.traits = services.SAMLAssertionsToTraits(assertionInfo)
 
-	p.roles = connector.GetTraitMappings().TraitsToRoles(p.traits)
+	p.roles = services.TraitsToRoles(connector.GetTraitMappings(), p.traits)
 	if len(p.roles) == 0 {
 		return nil, trace.AccessDenied("unable to map attributes to role for connector: %v", connector.GetName())
 	}
@@ -164,7 +164,7 @@ func (a *Server) createSAMLUser(p *createUserParams) (services.User, error) {
 
 	log.Debugf("Generating dynamic SAML identity %v/%v with roles: %v.", p.connectorName, p.username, p.roles)
 
-	user, err := services.GetUserMarshaler().GenerateUser(&services.UserV2{
+	user := &services.UserV2{
 		Kind:    services.KindUser,
 		Version: services.V2,
 		Metadata: services.Metadata{
@@ -187,15 +187,12 @@ func (a *Server) createSAMLUser(p *createUserParams) (services.User, error) {
 				},
 				Time: a.clock.Now().UTC(),
 				Connector: &services.ConnectorRef{
-					Type:     teleport.ConnectorSAML,
+					Type:     teleport.SAML,
 					ID:       p.connectorName,
 					Identity: p.username,
 				},
 			},
 		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	// Get the user to check if it already exists or not.

@@ -18,7 +18,6 @@ package lite
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -35,8 +34,6 @@ type LiteMemSuite struct {
 }
 
 var _ = check.Suite(&LiteMemSuite{})
-var _ = testing.Verbose
-var _ = fmt.Printf
 
 func (s *LiteMemSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())

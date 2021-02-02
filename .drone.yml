@@ -468,6 +468,35 @@ volumes:
 ---
 kind: pipeline
 type: kubernetes
+name: update-docs-webhook
+
+trigger:
+  event:
+    include:
+      - push
+    exclude:
+      - pull_request
+  branch:
+    include:
+      - master
+      - branch/*
+  repo:
+    include:
+      - gravitational/*
+
+clone:
+  disable: true
+
+steps:
+  - name: Trigger docs deployment
+    image: plugins/webhook
+    settings:
+      urls:
+        from_secret: DOCS_DEPLOY_HOOK
+
+---
+kind: pipeline
+type: kubernetes
 name: push-build-linux-i386
 
 environment:
@@ -1308,16 +1337,33 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_COMMIT}
+      - mkdir -p /go/chart
+      - cd /go/chart
+
+  - name: Download chart repo contents
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: PRODUCTION_CHARTS_AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: PRODUCTION_CHARTS_AWS_SECRET_ACCESS_KEY
+    commands:
+      - mkdir -p /go/chart
+      # download all previously packaged chart versions from the S3 bucket
+      - aws s3 sync s3://$AWS_S3_BUCKET/ /go/chart
 
   - name: Package helm charts
     image: alpine/helm:latest
     commands:
-      - mkdir -p /go/chart
       - cd /go/chart
       - helm package /go/src/github.com/gravitational/teleport/examples/chart/teleport
       - helm package /go/src/github.com/gravitational/teleport/examples/chart/teleport-kube-agent
       # copy index.html to root of the S3 bucket
       - cp /go/src/github.com/gravitational/teleport/examples/chart/index.html /go/chart
+      # this will index all previous versions of the charts downloaded from the S3 bucket,
+      # plus the just-packaged charts listed above
       - helm repo index /go/chart
 
   - name: Upload to S3
@@ -4040,6 +4086,6 @@ volumes:
 
 ---
 kind: signature
-hmac: a31d345fd4f889f01931451fc8226f87894abd875fdeafd0f4d46085a3c8dc88
+hmac: fba528ba4b524017a1d7ab8ffd1fad9adb80e96302490334f623d125de81f6c7
 
 ...

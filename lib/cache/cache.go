@@ -696,7 +696,7 @@ func (c *Cache) setTTL(r services.Resource) {
 		return
 	}
 	// set max TTL on the resources
-	r.SetTTL(c.Clock, c.PreferRecent.MaxTTL)
+	r.SetExpiry(c.Clock.Now().UTC().Add(c.PreferRecent.MaxTTL))
 }
 
 func (c *Cache) notify(ctx context.Context, event Event) {
@@ -1200,7 +1200,7 @@ func (c *Cache) GetAppSession(ctx context.Context, req services.GetAppSessionReq
 }
 
 // GetDatabaseServers returns all registered database proxy servers.
-func (c *Cache) GetDatabaseServers(ctx context.Context, namespace string, opts ...types.MarshalOption) ([]types.DatabaseServer, error) {
+func (c *Cache) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
