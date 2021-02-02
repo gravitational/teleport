@@ -18,6 +18,9 @@ package client
 
 import (
 	"crypto/tls"
+	"crypto/x509"
+	"fmt"
+	"io/ioutil"
 
 	"github.com/gravitational/teleport/api/constants"
 
@@ -86,6 +89,29 @@ func IdentityCreds(path string) Credentials {
 	}
 
 	return TLSCreds(tls)
+}
+
+// PathCreds establishes a gRPC connection to an auth server.
+func PathCreds(path string) Credentials {
+	cert, err := tls.LoadX509KeyPair(path+".crt", path+".key")
+	if err != nil {
+		return credentialsWithErr(trace.Wrap(err))
+	}
+
+	caCerts, err := ioutil.ReadFile(path + ".cas")
+	if err != nil {
+		return credentialsWithErr(trace.Wrap(err))
+	}
+
+	pool := x509.NewCertPool()
+	if ok := pool.AppendCertsFromPEM(caCerts); !ok {
+		return credentialsWithErr(fmt.Errorf("invalid CA cert PEM"))
+	}
+
+	return TLSCreds(&tls.Config{
+		Certificates: []tls.Certificate{cert},
+		RootCAs:      pool,
+	})
 }
 
 // TLSCreds returns Credentials with the given TLS config.
