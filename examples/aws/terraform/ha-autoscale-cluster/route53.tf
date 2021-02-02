@@ -19,10 +19,39 @@ resource "aws_route53_record" "proxy" {
   }
 }
 
+// letsencrypt wildcard
+resource "aws_route53_record" "proxy_wildcard" {
+  zone_id = data.aws_route53_zone.proxy.zone_id
+  name    = "*.${var.route53_domain}"
+  type    = "A"
+  count   = var.use_acm ? 0 : 1
+
+  alias {
+    name                   = aws_lb.proxy.dns_name
+    zone_id                = aws_lb.proxy.zone_id
+    evaluate_target_health = true
+  }
+}
+
+
 // ACM (ALB)
 resource "aws_route53_record" "proxy_acm" {
   zone_id = data.aws_route53_zone.proxy.zone_id
   name    = var.route53_domain
+  type    = "A"
+  count   = var.use_acm ? 1 : 0
+
+  alias {
+    name                   = aws_lb.proxy_acm[0].dns_name
+    zone_id                = aws_lb.proxy_acm[0].zone_id
+    evaluate_target_health = true
+  }
+}
+
+// ACM (ALB) wildcard
+resource "aws_route53_record" "proxy_acm_wildcard" {
+  zone_id = data.aws_route53_zone.proxy.zone_id
+  name    = "*.${var.route53_domain}"
   type    = "A"
   count   = var.use_acm ? 1 : 0
 
