@@ -304,13 +304,6 @@ type DeleteAppSessionRequest struct {
 	SessionID string `json:"session_id"`
 }
 
-// GetWebSessionRequest contains the parameters to request a regular
-// web session.
-type GetWebSessionRequest struct {
-	// SessionID is the session ID to request
-	SessionID string
-}
-
 // NewWebToken returns a new web token with the given expiration and spec
 func NewWebToken(expires time.Time, spec WebTokenSpecV3) WebToken {
 	return &WebTokenV3{
@@ -472,80 +465,6 @@ func (r *WebTokenV3) String() string {
 	return fmt.Sprintf("WebToken(kind=%v,user=%v,token=%v,expires=%v)",
 		r.GetKind(), r.GetUser(), r.GetToken(), r.Expiry())
 }
-
-// MarshalWebToken serializes the web token as JSON-encoded payload
-func MarshalWebToken(token WebToken, opts ...MarshalOption) ([]byte, error) {
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	version := cfg.GetVersion()
-	switch version {
-	case V3:
-		value, ok := token.(*WebTokenV3)
-		if !ok {
-			return nil, trace.BadParameter("don't know how to marshal web token %v", token)
-		}
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *value
-			copy.SetResourceID(0)
-			value = &copy
-		}
-		return utils.FastMarshal(value)
-	default:
-		return nil, trace.BadParameter("version %v is not supported", version)
-	}
-}
-
-// UnmarshalWebToken interprets bytes as JSON-encoded web token value
-func UnmarshalWebToken(bytes []byte, opts ...MarshalOption) (WebToken, error) {
-	config, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var hdr ResourceHeader
-	err = json.Unmarshal(bytes, &hdr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	switch hdr.Version {
-	case V3:
-		var token WebTokenV3
-		if err := utils.UnmarshalWithSchema(GetWebTokenSchema(), &token, bytes); err != nil {
-			return nil, trace.BadParameter("invalid web token: %v", err.Error())
-		}
-		if err := token.CheckAndSetDefaults(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if config.ID != 0 {
-			token.SetResourceID(config.ID)
-		}
-		if !config.Expires.IsZero() {
-			token.Metadata.SetExpiry(config.Expires)
-		}
-		utils.UTC(token.Metadata.Expires)
-		return &token, nil
-	}
-	return nil, trace.BadParameter("web token resource version %v is not supported", hdr.Version)
-}
-
-// GetWebTokenSchema returns JSON schema for the web token resource
-func GetWebTokenSchema() string {
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, WebTokenSpecV3Schema, "")
-}
-
-// WebTokenSpecV3Schema is JSON schema for the web token V3
-const WebTokenSpecV3Schema = `{
-  "type": "object",
-  "additionalProperties": false,
-  "required": ["token", "user"],
-  "properties": {
-    "user": {"type": "string"},
-    "token": {"type": "string"}
-  }
-}`
 
 // CheckAndSetDefaults validates the request and sets defaults.
 func (r *NewWebSessionRequest) CheckAndSetDefaults() error {

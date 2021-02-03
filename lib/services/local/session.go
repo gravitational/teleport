@@ -112,7 +112,7 @@ func (r *webSessions) Get(ctx context.Context, req types.GetWebSessionRequest) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	session, err := services.GetWebSessionMarshaler().UnmarshalWebSession(item.Value, services.SkipValidation())
+	session, err := services.UnmarshalWebSession(item.Value, services.SkipValidation())
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -132,7 +132,7 @@ func (r *webSessions) List(ctx context.Context) (out []types.WebSession, err err
 		return nil, trace.Wrap(err)
 	}
 	for _, item := range result.Items {
-		session, err := services.GetWebSessionMarshaler().UnmarshalWebSession(item.Value, services.SkipValidation())
+		session, err := services.UnmarshalWebSession(item.Value, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -149,7 +149,7 @@ func (r *webSessions) List(ctx context.Context) (out []types.WebSession, err err
 
 // Upsert updates the existing or inserts a new web session.
 func (r *webSessions) Upsert(ctx context.Context, session types.WebSession) error {
-	value, err := services.GetWebSessionMarshaler().MarshalWebSession(session)
+	value, err := services.MarshalWebSession(session)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -197,7 +197,7 @@ func (r *webSessions) listLegacySessions(ctx context.Context) ([]types.WebSessio
 		if suffix != sessionsPrefix {
 			continue
 		}
-		session, err := services.GetWebSessionMarshaler().UnmarshalWebSession(item.Value, services.SkipValidation())
+		session, err := services.UnmarshalWebSession(item.Value, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -225,7 +225,7 @@ func (r *webTokens) Get(ctx context.Context, req types.GetWebTokenRequest) (type
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	token, err := types.UnmarshalWebToken(item.Value, services.SkipValidation())
+	token, err := services.UnmarshalWebToken(item.Value, services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -240,7 +240,7 @@ func (r *webTokens) List(ctx context.Context) (out []types.WebToken, err error) 
 		return nil, trace.Wrap(err)
 	}
 	for _, item := range result.Items {
-		token, err := types.UnmarshalWebToken(item.Value, services.SkipValidation())
+		token, err := services.UnmarshalWebToken(item.Value, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -251,7 +251,7 @@ func (r *webTokens) List(ctx context.Context) (out []types.WebToken, err error) 
 
 // Upsert updates the existing or inserts a new web token.
 func (r *webTokens) Upsert(ctx context.Context, token types.WebToken) error {
-	bytes, err := types.MarshalWebToken(token, services.WithVersion(services.V3))
+	bytes, err := services.MarshalWebToken(token, services.WithVersion(services.V3))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -298,7 +298,7 @@ func getLegacyWebSession(ctx context.Context, backend backend.Backend, user, ses
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	session, err := services.GetWebSessionMarshaler().UnmarshalWebSession(item.Value, services.SkipValidation())
+	session, err := services.UnmarshalWebSession(item.Value, services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -332,7 +332,7 @@ func (c *SessionContext) getToken() types.WebToken {
 
 // expired returns whether this context has expired.
 // The context is considered expired when its bearer token TTL
-// is in the past
+// is in the past (subject to lingering threshold)
 func (c *SessionContext) expired(ctx context.Context) bool {
 	_, err := c.parent.readSession(ctx, types.GetWebSessionRequest{
 		User:      c.user,

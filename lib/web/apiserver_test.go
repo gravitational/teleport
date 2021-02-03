@@ -2287,7 +2287,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 		proxies = append(proxies, createProxy(t, proxyID, node, server, hostSigners, clock))
 	}
 
-	// Wait for proxy to fully register before starting the test.
+	// Wait for proxies to fully register before starting the test.
 	for start := time.Now(); ; {
 		proxies, err := proxies[0].client.GetProxies()
 		require.NoError(t, err)
@@ -2547,8 +2547,12 @@ func (r *proxy) createUser(ctx context.Context, t *testing.T, user, login, pass,
 	err = r.auth.Auth().UpsertPassword(user, []byte(pass))
 	require.NoError(t, err)
 
-	err = r.auth.Auth().UpsertTOTP(user, otpSecret)
-	require.NoError(t, err)
+	if otpSecret != "" {
+		dev, err := services.NewTOTPDevice("otp", otpSecret, r.clock.Now())
+		require.NoError(t, err)
+		err = r.auth.Auth().UpsertMFADevice(ctx, user, dev)
+		require.NoError(t, err)
+	}
 }
 
 func (r *proxy) newClient(t *testing.T, opts ...roundtrip.ClientParam) *client.WebClient {
