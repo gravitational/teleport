@@ -64,7 +64,7 @@ the [Auth Service](authentication.md#authentication-in-teleport).
    which defaults to 12 hours, but can be configured in
    [`tctl`](../cli-docs.md#tctl).
 4. The Proxy Server returns the user certificate to the client and client stores
-   it in `~/.tsh/keys/<proxy_host>`. The certificate is also added to the local SSH agent if
+   it in `~/.tsh/keys/example.com`. The certificate is also added to the local SSH agent if
    one is running.
 
 **Using Client Certificates**
