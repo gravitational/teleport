@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -405,37 +404,8 @@ func (s *AuthInitSuite) TestCASigningAlg(c *C) {
 
 func TestMigrateMFADevices(t *testing.T) {
 	ctx := context.Background()
+	as := newTestAuthServer(t)
 	clock := clockwork.NewFakeClock()
-
-	// Set up an auth server with all prerequisites.
-	bk, err := memory.New(memory.Config{Context: ctx})
-	require.NoError(t, err)
-	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
-		Type: "local",
-	})
-	require.NoError(t, err)
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: "foo",
-	})
-	require.NoError(t, err)
-	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
-		StaticTokens: []services.ProvisionTokenV1{},
-	})
-	require.NoError(t, err)
-	ac := InitConfig{
-		DataDir:        t.TempDir(),
-		HostUUID:       "00000000-0000-0000-0000-000000000000",
-		NodeName:       "foo",
-		Backend:        bk,
-		Authority:      testauthority.New(),
-		ClusterConfig:  services.DefaultClusterConfig(),
-		ClusterName:    clusterName,
-		StaticTokens:   staticTokens,
-		AuthPreference: authPreference,
-	}
-	as, err := Init(ac)
-	require.NoError(t, err)
-	defer as.Close()
 	as.SetClock(clock)
 
 	// Fake credentials and MFA secrets for migration.
@@ -474,7 +444,7 @@ func TestMigrateMFADevices(t *testing.T) {
 		require.NoError(t, err)
 
 		if localAuth != nil {
-			_, err = bk.Put(ctx, *localAuth)
+			_, err = as.bk.Put(ctx, *localAuth)
 			require.NoError(t, err)
 		}
 	}

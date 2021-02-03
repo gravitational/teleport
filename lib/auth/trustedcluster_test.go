@@ -1,15 +1,12 @@
 package auth
 
 import (
-	"context"
-	"io/ioutil"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/gravitational/teleport"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -89,11 +86,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 }
 
 func newTestAuthServer(t *testing.T) *Server {
-	// Create SQLite backend in a temp directory.
-	dataDir, err := ioutil.TempDir("", "teleport")
-	require.NoError(t, err)
-	t.Cleanup(func() { os.RemoveAll(dataDir) })
-	bk, err := lite.NewWithConfig(context.TODO(), lite.Config{Path: dataDir})
+	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 	t.Cleanup(func() { bk.Close() })
 
