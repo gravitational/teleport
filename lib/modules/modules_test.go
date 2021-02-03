@@ -31,6 +31,10 @@ type ModulesSuite struct{}
 
 var _ = check.Suite(&ModulesSuite{})
 
+func (s *ModulesSuite) TearDownTest(c *check.C) {
+	resetModules()
+}
+
 func (s *ModulesSuite) TestDefaultModules(c *check.C) {
 	err := GetModules().EmptyRolesHandler()
 	c.Assert(err, check.IsNil)
@@ -49,9 +53,9 @@ func (s *ModulesSuite) TestDefaultModules(c *check.C) {
 
 	traits := GetModules().TraitsFromLogins("alice", []string{"root"}, []string{"system:masters"}, []string{"alice@example.com"})
 	c.Assert(traits, check.DeepEquals, map[string][]string{
-		teleport.TraitLogins:     []string{"root"},
-		teleport.TraitKubeGroups: []string{"system:masters"},
-		teleport.TraitKubeUsers:  []string{"alice@example.com"},
+		teleport.TraitLogins:     {"root"},
+		teleport.TraitKubeGroups: {"system:masters"},
+		teleport.TraitKubeUsers:  {"alice@example.com"},
 	})
 
 	isBoring := GetModules().IsBoringBinary()

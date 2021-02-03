@@ -31,8 +31,6 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/jonboulle/clockwork"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -47,6 +45,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	. "gopkg.in/check.v1"
 )
@@ -75,7 +74,8 @@ func (s *AuthInitSuite) TearDownTest(c *C) {
 // TestReadIdentity makes parses identity from private key and certificate
 // and checks that all parameters are valid
 func (s *AuthInitSuite) TestReadIdentity(c *C) {
-	t := testauthority.New()
+	clock := clockwork.NewFakeClock()
+	t := testauthority.NewWithClock(clock)
 	priv, pub, err := t.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
@@ -99,8 +99,8 @@ func (s *AuthInitSuite) TestReadIdentity(c *C) {
 	c.Assert(id.KeyBytes, DeepEquals, priv)
 
 	// test TTL by converting the generated cert to text -> back and making sure ExpireAfter is valid
-	ttl := time.Second * 10
-	expiryDate := time.Now().Add(ttl)
+	ttl := 10 * time.Second
+	expiryDate := clock.Now().Add(ttl)
 	bytes, err := t.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: priv,
 		CASigningAlg:        defaults.CASignatureAlgorithm,
