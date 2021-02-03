@@ -765,13 +765,6 @@ func (a *ServerWithRoles) CheckPassword(user string, password []byte, otpToken s
 	return a.authServer.CheckPassword(user, password, otpToken)
 }
 
-func (a *ServerWithRoles) UpsertTOTP(user string, otpSecret string) error {
-	if err := a.currentUserAction(user); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.UpsertTOTP(user, otpSecret)
-}
-
 func (a *ServerWithRoles) PreAuthenticatedSignIn(user string) (services.WebSession, error) {
 	if err := a.currentUserAction(user); err != nil {
 		return nil, trace.Wrap(err)

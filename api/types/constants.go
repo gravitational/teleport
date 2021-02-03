@@ -181,6 +181,9 @@ const (
 	// KindKubeService is a kubernetes service resource
 	KindKubeService = "kube_service"
 
+	// KindMFADevice is an MFA device for a user.
+	KindMFADevice = "mfa_device"
+
 	// V3 is the third version of resources.
 	V3 = "v3"
 

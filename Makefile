@@ -408,30 +408,30 @@ buildbox-grpc:
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/types/events \
-		--gofast_out=plugins=grpc:api/types/events \
+		--gogofast_out=plugins=grpc:api/types/events \
 		events.proto
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/types/wrappers \
-		--gofast_out=plugins=grpc:api/types/wrappers \
+		--gogofast_out=plugins=grpc:api/types/wrappers \
 		wrappers.proto
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/types \
-		--gofast_out=plugins=grpc:api/types \
+		--gogofast_out=plugins=grpc:api/types \
 		types.proto
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/client/proto \
-		--gofast_out=plugins=grpc:api/client/proto \
+		--gogofast_out=plugins=grpc:api/client/proto \
 		authservice.proto
 
 	cd lib/multiplexer/test && protoc -I=.:$$PROTO_INCLUDE \
-	  --gofast_out=plugins=grpc:.\
+	  --gogofast_out=plugins=grpc:.\
     *.proto
 
 	cd lib/web && protoc -I=.:$$PROTO_INCLUDE \
-	  --gofast_out=plugins=grpc:.\
+	  --gogofast_out=plugins=grpc:.\
     *.proto
 
 .PHONY: goinstall

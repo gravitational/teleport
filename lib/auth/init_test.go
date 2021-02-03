@@ -18,6 +18,12 @@ package auth
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"encoding/base64"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -26,15 +32,22 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 	. "gopkg.in/check.v1"
 )
 
@@ -62,7 +75,8 @@ func (s *AuthInitSuite) TearDownTest(c *C) {
 // TestReadIdentity makes parses identity from private key and certificate
 // and checks that all parameters are valid
 func (s *AuthInitSuite) TestReadIdentity(c *C) {
-	t := testauthority.New()
+	clock := clockwork.NewFakeClock()
+	t := testauthority.NewWithClock(clock)
 	priv, pub, err := t.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
@@ -86,8 +100,8 @@ func (s *AuthInitSuite) TestReadIdentity(c *C) {
 	c.Assert(id.KeyBytes, DeepEquals, priv)
 
 	// test TTL by converting the generated cert to text -> back and making sure ExpireAfter is valid
-	ttl := time.Second * 10
-	expiryDate := time.Now().Add(ttl)
+	ttl := 10 * time.Second
+	expiryDate := clock.Now().Add(ttl)
 	bytes, err := t.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: priv,
 		CASigningAlg:        defaults.CASignatureAlgorithm,
@@ -387,4 +401,135 @@ func (s *AuthInitSuite) TestCASigningAlg(c *C) {
 	auth, err = Init(conf)
 	c.Assert(err, IsNil)
 	verifyCAs(auth, ssh.SigAlgoRSA)
+}
+
+func TestMigrateMFADevices(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	// Set up an auth server with all prerequisites.
+	bk, err := memory.New(memory.Config{Context: ctx})
+	require.NoError(t, err)
+	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type: "local",
+	})
+	require.NoError(t, err)
+	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+		ClusterName: "foo",
+	})
+	require.NoError(t, err)
+	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
+		StaticTokens: []services.ProvisionTokenV1{},
+	})
+	require.NoError(t, err)
+	ac := InitConfig{
+		DataDir:        t.TempDir(),
+		HostUUID:       "00000000-0000-0000-0000-000000000000",
+		NodeName:       "foo",
+		Backend:        bk,
+		Authority:      testauthority.New(),
+		ClusterConfig:  services.DefaultClusterConfig(),
+		ClusterName:    clusterName,
+		StaticTokens:   staticTokens,
+		AuthPreference: authPreference,
+	}
+	as, err := Init(ac)
+	require.NoError(t, err)
+	defer as.Close()
+	as.SetClock(clock)
+
+	// Fake credentials and MFA secrets for migration.
+	fakePasswordHash := []byte(`$2a$10$Yy.e6BmS2SrGbBDsyDLVkOANZmvjjMR890nUGSXFJHBXWzxe7T44m`)
+	totpKey := "totp-key"
+	u2fPrivKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	u2fPubKey := u2fPrivKey.PublicKey
+	u2fPubKeyBin, err := x509.MarshalPKIXPublicKey(&u2fPubKey)
+	require.NoError(t, err)
+	u2fKeyHandle := []byte("dummy handle")
+
+	// Create un-migrated users.
+	for name, localAuth := range map[string]*backend.Item{
+		"no-mfa-user": nil,
+		// Insert MFA data in the legacy format by manually writing to the
+		// backend. All the code for writing these in lib/services/local was
+		// removed.
+		"totp-user": {
+			Key:   []byte("/web/users/totp-user/totp"),
+			Value: []byte(totpKey),
+		},
+		"u2f-user": {
+			Key: []byte("/web/users/u2f-user/u2fregistration"),
+			Value: []byte(fmt.Sprintf(`{"keyhandle":%q,"marshalled_pubkey":%q}`,
+				base64.StdEncoding.EncodeToString(u2fKeyHandle),
+				base64.StdEncoding.EncodeToString(u2fPubKeyBin),
+			)),
+		},
+	} {
+		u, err := services.NewUser(name)
+		require.NoError(t, err)
+		// Set a fake but valid bcrypt password hash.
+		u.SetLocalAuth(&types.LocalAuthSecrets{PasswordHash: fakePasswordHash})
+		err = as.CreateUser(ctx, u)
+		require.NoError(t, err)
+
+		if localAuth != nil {
+			_, err = bk.Put(ctx, *localAuth)
+			require.NoError(t, err)
+		}
+	}
+
+	// Run the migration.
+	err = migrateMFADevices(ctx, as)
+	require.NoError(t, err)
+
+	// Generate expected users with migrated MFA.
+	requireNewDevice := func(d *types.MFADevice, err error) []*types.MFADevice {
+		require.NoError(t, err)
+		return []*types.MFADevice{d}
+	}
+	wantUsers := []services.User{
+		newUserWithAuth(t, "no-mfa-user", &types.LocalAuthSecrets{PasswordHash: fakePasswordHash}),
+		newUserWithAuth(t, "totp-user", &types.LocalAuthSecrets{
+			PasswordHash: fakePasswordHash,
+			TOTPKey:      totpKey,
+			MFA:          requireNewDevice(services.NewTOTPDevice("totp", totpKey, clock.Now())),
+		}),
+		newUserWithAuth(t, "u2f-user", &types.LocalAuthSecrets{
+			PasswordHash: fakePasswordHash,
+			U2FRegistration: &types.U2FRegistrationData{
+				KeyHandle: u2fKeyHandle,
+				PubKey:    u2fPubKeyBin,
+			},
+			MFA: requireNewDevice(u2f.NewDevice("u2f", &u2f.Registration{
+				KeyHandle: u2fKeyHandle,
+				PubKey:    u2fPubKey,
+			}, clock.Now())),
+		}),
+	}
+	cmpOpts := []cmp.Option{
+		cmpopts.IgnoreFields(types.UserSpecV2{}, "CreatedBy"),
+		cmpopts.IgnoreFields(types.MFADevice{}, "Id"),
+		cmpopts.SortSlices(func(a, b types.User) bool { return a.GetName() < b.GetName() }),
+	}
+
+	// Check the actual users from the backend.
+	users, err := as.GetUsers(true)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(users, wantUsers, cmpOpts...))
+
+	// A second migration should be a noop.
+	err = migrateMFADevices(ctx, as)
+	require.NoError(t, err)
+
+	users, err = as.GetUsers(true)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(users, wantUsers, cmpOpts...))
+}
+
+func newUserWithAuth(t *testing.T, name string, auth *types.LocalAuthSecrets) services.User {
+	u, err := services.NewUser(name)
+	require.NoError(t, err)
+	u.SetLocalAuth(auth)
+	return u
 }

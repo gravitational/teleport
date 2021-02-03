@@ -306,7 +306,7 @@ func (s *BackendSuite) Expiration(c *check.C) {
 	ExpectItems(c, items, []backend.Item{itemA})
 }
 
-// addSeconds adds seconds with a seconds precission
+// addSeconds adds seconds with a seconds precision
 // always rounding up to the next second,
 // because TTL engines are usually 1 second precision
 func addSeconds(t time.Time, seconds int64) time.Time {
@@ -337,7 +337,7 @@ func (s *BackendSuite) KeepAlive(c *check.C) {
 	err = s.B.KeepAlive(ctx, *lease, addSeconds(time.Now(), 2))
 	c.Assert(err, check.IsNil)
 
-	// should have expired if not keep alive
+	// should have expired if not kept alive
 	diff := time.Until(addSeconds(time.Now(), 1))
 	time.Sleep(diff + 100*time.Millisecond)
 
@@ -525,54 +525,54 @@ func (s *BackendSuite) WatchersClose(c *check.C) {
 }
 
 // Locking tests locking logic
-func (s *BackendSuite) Locking(c *check.C) {
+func (s *BackendSuite) Locking(c *check.C, bk backend.Backend) {
 	tok1 := "token1"
 	tok2 := "token2"
 	ttl := time.Second * 5
 
 	ctx := context.TODO()
 
-	err := backend.ReleaseLock(ctx, s.B, tok1)
+	err := backend.ReleaseLock(ctx, bk, tok1)
 	fixtures.ExpectNotFound(c, err)
 
-	c.Assert(backend.AcquireLock(ctx, s.B, tok1, ttl), check.IsNil)
+	c.Assert(backend.AcquireLock(ctx, bk, tok1, ttl), check.IsNil)
 	x := int32(7)
 
 	go func() {
 		atomic.StoreInt32(&x, 9)
-		c.Assert(backend.ReleaseLock(ctx, s.B, tok1), check.IsNil)
+		c.Assert(backend.ReleaseLock(ctx, bk, tok1), check.IsNil)
 	}()
-	c.Assert(backend.AcquireLock(ctx, s.B, tok1, ttl), check.IsNil)
+	c.Assert(backend.AcquireLock(ctx, bk, tok1, ttl), check.IsNil)
 	atomic.AddInt32(&x, 9)
 
 	c.Assert(atomic.LoadInt32(&x), check.Equals, int32(18))
-	c.Assert(backend.ReleaseLock(ctx, s.B, tok1), check.IsNil)
+	c.Assert(backend.ReleaseLock(ctx, bk, tok1), check.IsNil)
 
-	c.Assert(backend.AcquireLock(ctx, s.B, tok1, ttl), check.IsNil)
+	c.Assert(backend.AcquireLock(ctx, bk, tok1, ttl), check.IsNil)
 	atomic.StoreInt32(&x, 7)
 	go func() {
 		atomic.StoreInt32(&x, 9)
-		c.Assert(backend.ReleaseLock(ctx, s.B, tok1), check.IsNil)
+		c.Assert(backend.ReleaseLock(ctx, bk, tok1), check.IsNil)
 	}()
-	c.Assert(backend.AcquireLock(ctx, s.B, tok1, ttl), check.IsNil)
+	c.Assert(backend.AcquireLock(ctx, bk, tok1, ttl), check.IsNil)
 	atomic.AddInt32(&x, 9)
 	c.Assert(atomic.LoadInt32(&x), check.Equals, int32(18))
-	c.Assert(backend.ReleaseLock(ctx, s.B, tok1), check.IsNil)
+	c.Assert(backend.ReleaseLock(ctx, bk, tok1), check.IsNil)
 
 	y := int32(0)
-	c.Assert(backend.AcquireLock(ctx, s.B, tok1, ttl), check.IsNil)
-	c.Assert(backend.AcquireLock(ctx, s.B, tok2, ttl), check.IsNil)
+	c.Assert(backend.AcquireLock(ctx, bk, tok1, ttl), check.IsNil)
+	c.Assert(backend.AcquireLock(ctx, bk, tok2, ttl), check.IsNil)
 	go func() {
 		atomic.StoreInt32(&y, 15)
-		c.Assert(backend.ReleaseLock(ctx, s.B, tok1), check.IsNil)
-		c.Assert(backend.ReleaseLock(ctx, s.B, tok2), check.IsNil)
+		c.Assert(backend.ReleaseLock(ctx, bk, tok1), check.IsNil)
+		c.Assert(backend.ReleaseLock(ctx, bk, tok2), check.IsNil)
 	}()
 
-	c.Assert(backend.AcquireLock(ctx, s.B, tok1, ttl), check.IsNil)
+	c.Assert(backend.AcquireLock(ctx, bk, tok1, ttl), check.IsNil)
 	c.Assert(atomic.LoadInt32(&y), check.Equals, int32(15))
 
-	c.Assert(backend.ReleaseLock(ctx, s.B, tok1), check.IsNil)
-	err = backend.ReleaseLock(ctx, s.B, tok1)
+	c.Assert(backend.ReleaseLock(ctx, bk, tok1), check.IsNil)
+	err = backend.ReleaseLock(ctx, bk, tok1)
 	fixtures.ExpectNotFound(c, err)
 }
 
