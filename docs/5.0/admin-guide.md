@@ -1296,9 +1296,8 @@ examples and instructions.
 
 !!! tip "Tip"
 
-    Before continuing, please make sure to take a look at the
-    [Cluster State section](architecture/nodes.md#cluster-state) in the Teleport
-    Architecture documentation.
+    Before continuing, please make sure to take a look at the [Cluster State section](architecture/nodes.md#cluster-state)
+    in the Teleport Architecture documentation.
 
 Usually there are two ways to achieve high availability. You can "outsource"
 this function to the infrastructure. For example, using a highly available
@@ -1476,9 +1475,8 @@ teleport:
 
 !!! tip "Tip"
 
-    Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/nodes.md#cluster-state) in Teleport
-    Architecture documentation.
+    Before continuing, please make sure to take a look at the [Cluster State section](architecture/nodes.md#cluster-state)
+    in Teleport Architecture documentation.
 
 !!! tip "AWS Authentication"
 
@@ -1514,8 +1512,8 @@ running on an EC2 instance with an IAM role.
 
 !!! tip "Tip"
 
-    Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/nodes.md#cluster-state) in Teleport Architecture documentation.
+    Before continuing, please make sure to take a look at the [Cluster State section](architecture/nodes.md#cluster-state)
+    in Teleport Architecture documentation.
 
 If you are running Teleport on AWS, you can use
 [DynamoDB](https://aws.amazon.com/dynamodb/) as a storage back-end to achieve
@@ -1666,9 +1664,8 @@ To enable these options you will need to update the [IAM Role for Teleport](aws-
 
 !!! tip "Tip"
 
-    Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/nodes.md#cluster-state) in Teleport
-    Architecture documentation.
+    Before continuing, please make sure to take a look at the [Cluster State section](architecture/nodes.md#cluster-state)
+    in Teleport Architecture documentation.
 
 
 Google Cloud Storage (GCS) can only be used as a storage for the recorded
@@ -1689,8 +1686,8 @@ teleport:
 
 !!! tip "Tip"
 
-    Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/nodes.md#cluster-state) in Teleport Architecture documentation.
+    Before continuing, please make sure to take a look at the [Cluster State section](architecture/nodes.md#cluster-state)
+    in Teleport Architecture documentation.
 
 If you are running Teleport on GCP, you can use
 [Firestore](https://cloud.google.com/firestore/) as a storage back-end to achieve
