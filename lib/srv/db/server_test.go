@@ -18,9 +18,11 @@ package db
 
 import (
 	"context"
+	"sort"
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/stretchr/testify/require"
@@ -37,11 +39,11 @@ func TestDatabaseServerStart(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { testCtx.server.Close() })
 
-	labels, ok := testCtx.server.dynamicLabels[testCtx.dbServer.GetName()]
+	labels, ok := testCtx.server.dynamicLabels[testCtx.postgresDBServer.GetName()]
 	require.True(t, ok)
 	require.Equal(t, "test", labels.Get()["echo"].GetResult())
 
-	heartbeat, ok := testCtx.server.heartbeats[testCtx.dbServer.GetName()]
+	heartbeat, ok := testCtx.server.heartbeats[testCtx.postgresDBServer.GetName()]
 	require.True(t, ok)
 
 	err = heartbeat.ForceSend(time.Second)
@@ -49,14 +51,20 @@ func TestDatabaseServerStart(t *testing.T) {
 
 	servers, err := testCtx.authClient.GetDatabaseServers(ctx, defaults.Namespace)
 	require.NoError(t, err)
-	require.EqualValues(t, testCtx.server.getServers(), servers)
+	compareServersSorted(t, testCtx.server.getServers(), servers)
 
 	// Update the server, force the heartbeat and make sure it was re-announced.
-	testCtx.dbServer.SetStaticLabels(map[string]string{"a": "b"})
+	testCtx.postgresDBServer.SetStaticLabels(map[string]string{"a": "b"})
 	err = heartbeat.ForceSend(time.Second)
 	require.NoError(t, err)
 
 	servers, err = testCtx.authClient.GetDatabaseServers(ctx, defaults.Namespace)
 	require.NoError(t, err)
-	require.EqualValues(t, testCtx.server.getServers(), servers)
+	compareServersSorted(t, testCtx.server.getServers(), servers)
+}
+
+func compareServersSorted(t *testing.T, setA, setB []types.DatabaseServer) {
+	sort.Sort(types.SortedDatabaseServers(setA))
+	sort.Sort(types.SortedDatabaseServers(setB))
+	require.EqualValues(t, setA, setB)
 }
