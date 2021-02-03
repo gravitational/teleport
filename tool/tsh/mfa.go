@@ -126,6 +126,7 @@ func printMFADevices(devs []*types.MFADevice, verbose bool) {
 
 type mfaAddCommand struct {
 	*kingpin.CmdClause
+	// TODO(awly): mfa: add --name and --type flags to skip prompts
 }
 
 func (c *mfaAddCommand) run(cf *CLIConf) error {
@@ -369,6 +370,7 @@ func promptRegisterChallenge(ctx context.Context, proxyAddr string, c *proto.MFA
 
 func promptTOTPRegisterChallenge(c *proto.TOTPRegisterChallenge) (*proto.MFARegisterResponse, error) {
 	// TODO(awly): mfa: use OS-specific image viewer to show a QR code.
+	// TODO(awly): mfa: print OTP URL
 	fmt.Println("Open your TOTP app and create a new manual entry with these fields:")
 	fmt.Printf("Name: %s\n", c.Account)
 	fmt.Printf("Issuer: %s\n", c.Issuer)

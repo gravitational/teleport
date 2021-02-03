@@ -2,8 +2,7 @@
 Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+you may not use this file except in compliance with the License.  You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
 
@@ -22,7 +21,10 @@ import (
 	"crypto/x509"
 	"time"
 
+	"github.com/flynn/u2f/u2fhid"
+	"github.com/flynn/u2f/u2ftoken"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
 
 	"github.com/gravitational/teleport/api/types"
@@ -96,4 +98,70 @@ func decodeDevicePubKey(d *types.U2FDevice) (*ecdsa.PublicKey, error) {
 		return nil, trace.BadParameter("expected *ecdsa.PublicKey, got %T", pubKeyI)
 	}
 	return pubKey, nil
+}
+
+// pollLocalDevices calls fn against all local U2F devices until one succeeds
+// (fn returns nil) or until the context is cancelled.
+func pollLocalDevices(ctx context.Context, fn func(t *u2ftoken.Token) error) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		default:
+		}
+		err := foreachLocalDevice(fn)
+		if err != nil {
+			// Don't spam the logs while we're waiting for a key to be plugged
+			// in or tapped.
+			if err != errAuthNoKeyOrUserPresence {
+				logrus.WithError(err).Debugf("Error polling U2F devices for registration")
+			}
+			time.Sleep(200 * time.Millisecond)
+			continue
+		}
+		return nil
+	}
+}
+
+// foreachLocalDevice runs fn against each currently available U2F device. It
+// stops when fn returns nil or when finished iterating against the available
+// devices.
+//
+// You most likely want to call pollLocalDevices instead.
+func foreachLocalDevice(fn func(t *u2ftoken.Token) error) error {
+	// Note: we fetch and open all devices on every polling iteration on
+	// purpose. This will handle the device that a user inserts after the
+	// polling has started.
+	devices, err := u2fhid.Devices()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	var errs []error
+	for _, d := range devices {
+		dev, err := u2fhid.Open(d)
+		if err != nil {
+			errs = append(errs, trace.Wrap(err))
+			continue
+		}
+		// There are usually 1-2 devices plugged in, so deferring closing all
+		// of them until the end of function is not too wasteful.
+		defer dev.Close()
+
+		t := u2ftoken.NewToken(dev)
+		// fn is usually t.Authenticate or t.Register. Both methods are
+		// non-blocking - the U2F device returns u2ftoken.ErrPresenceRequired
+		// immediately, unless the user has recently tapped the device.
+		if err := fn(t); err == u2ftoken.ErrPresenceRequired || err == errAuthNoKeyOrUserPresence {
+			continue
+		} else if err != nil {
+			errs = append(errs, trace.Wrap(err))
+			continue
+		}
+		return nil
+	}
+
+	if len(errs) > 0 {
+		return trace.NewAggregate(errs...)
+	}
+	return errAuthNoKeyOrUserPresence
 }
