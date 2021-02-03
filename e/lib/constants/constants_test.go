@@ -20,9 +20,7 @@ func (s *ConstantSuite) SetUpTest(c *check.C) {
 }
 
 func (s *ConstantSuite) TearDownTest(c *check.C) {
-	if s.houstonHost != "" {
-		os.Setenv(APIHostEnvVar, s.houstonHost)
-	}
+	os.Setenv(APIHostEnvVar, s.houstonHost)
 }
 
 func (s *ConstantSuite) TestFunctions(c *check.C) {
