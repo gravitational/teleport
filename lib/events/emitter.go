@@ -251,7 +251,6 @@ func (*DiscardEmitter) ResumeAuditStream(ctx context.Context, sid session.ID, up
 	return &DiscardStream{}, nil
 }
 
-
 // NewWriterEmitter returns a new instance of emitter writing to writer
 func NewWriterEmitter(w io.WriteCloser) *WriterEmitter {
 	return &WriterEmitter{
