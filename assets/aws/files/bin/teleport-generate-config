@@ -554,6 +554,10 @@ if [[ "${TELEPORT_ROLE}" == "auth" || "${TELEPORT_ROLE}" == "node" || "${TELEPOR
 [[inputs.mem]]
   # no configuration
 
+# Read metrics about network usage
+[[inputs.net]]
+  # no configuration
+
 # Get the number of processes and group them by status
 [[inputs.processes]]
   # no configuration

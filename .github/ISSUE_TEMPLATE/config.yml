@@ -3,9 +3,9 @@ contact_links:
   - name: Teleport Documentation
     url: https://goteleport.com/teleport/docs/
     about: Check out the Teleport documentation for answers to common questions
-  - name: Teleport Community
-    url: https://community.goteleport.com/c/teleport
+  - name: Teleport community forum
+    url: https://community.goteleport.com/
     about: Ask Teleport related questions, answered by the Team and community.
   - name: Request a Demo
     url: https://goteleport.com/get-started/
-    about: Want to see the full power of Teleport? Our team is happy to give a demo.
+    about: Want to see the full power of Teleport? Our team is happy to get you set up.
