@@ -1,6 +1,6 @@
 ---
 name: Documentation 📝
-about: Suggest improvements to Teleport's documentation site.
+about: Suggest improvements to Teleport's documentation.
 labels: documentation
 ---
 ## Details

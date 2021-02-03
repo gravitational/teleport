@@ -33,7 +33,7 @@ As minimally and precisely as possible, describe step-by-step how to reproduce t
 ### Debug Logs
 Please include or attach debug logs, when appropriate. Obfuscate sensitive information!
 - Start Teleport with --debug flag (`teleport --debug`)
-- Run Tsh with --debug flag (`tsh --debug`)
+- Run tsh with --debug flag (`tsh --debug`)
 
 
 ### Which platform(s)
