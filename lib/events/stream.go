@@ -161,12 +161,6 @@ func (s *ProtoStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, u
 	})
 }
 
-// GetUploadMetadata gets the session upload metadata
-// Implements events.UploadMetadataGetter
-func (s *ProtoStreamer) GetUploadMetadata(sid session.ID) *UploadMetadata {
-	return s.cfg.Uploader.GetUploadMetadata(sid)
-}
-
 // ProtoStreamConfig configures proto stream
 type ProtoStreamConfig struct {
 	// Upload is the upload this stream is handling
@@ -1283,8 +1277,8 @@ func (m *MemoryUploader) Download(ctx context.Context, sessionID session.ID, wri
 }
 
 // GetUploadMetadata gets the session upload metadata
-func (m *MemoryUploader) GetUploadMetadata(sid session.ID) *UploadMetadata {
-	return &UploadMetadata{
+func (m *MemoryUploader) GetUploadMetadata(sid session.ID) UploadMetadata {
+	return UploadMetadata{
 		URL:       "memory",
 		SessionID: sid,
 	}

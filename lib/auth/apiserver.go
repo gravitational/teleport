@@ -56,7 +56,8 @@ type APIConfig struct {
 	// KeepAliveCount specifies amount of missed keep alives
 	// to wait for until declaring connection as broken
 	KeepAliveCount int
-	// metadataGetter gets upload metadata
+	// MetadataGetter retrieves additional metadata about session uploads.
+	// Will be nil if audit logging is not enabled.
 	MetadataGetter events.UploadMetadataGetter
 }
 
