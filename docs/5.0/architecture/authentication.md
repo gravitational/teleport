@@ -100,7 +100,7 @@ servers registered in the cluster.
 ![Client obtains new certificate](../img/cert_invalid.svg)
 
 The Auth Server uses its User CA to issue user certificates. User certificates
-are stored on a user's machine in the `~/.tsh/keys/<proxy_host>` directory or also
+are stored on a user's machine in the `~/.tsh/keys/example.com` directory or also
 by the system's SSH agent if it is running.
 
 1. To get permission to join a cluster for the first time a user must provide
