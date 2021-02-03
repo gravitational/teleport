@@ -170,7 +170,7 @@ We recommend installing BCC tools using your distribution's package manager wher
     echo "Install is complete, try running /usr/share/bcc/tools/execsnoop to verify install."
     ```
 
-=== "CentOS"
+=== "CentOS (compile from source)"
 
     This script can be used to compile BCC tools from source on CentOS and RHEL hosts.
 
