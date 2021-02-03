@@ -2354,7 +2354,7 @@ func (a *ServerWithRoles) AddMFADevice(ctx context.Context) (proto.AuthService_A
 // DeleteMFADevice exists to satisfy auth.ClientI but is not implemented here.
 // Use auth.GRPCServer.DeleteMFADevice or client.Client.DeleteMFADevice instead.
 func (a *ServerWithRoles) DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error) {
-	return nil, trace.NotImplemented("bug: DeleteMFADevices must not be called on auth.ServerWithRoles")
+	return nil, trace.NotImplemented("bug: DeleteMFADevice must not be called on auth.ServerWithRoles")
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/mailgun/ttlmap"
+	"github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
 
 	"github.com/gravitational/teleport/api/types"
@@ -162,7 +163,9 @@ func RegisterSignChallenge(ctx context.Context, c RegisterChallenge, facet strin
 		// process. ProcessState will be empty until cmd.Wait or cmd.Run
 		// return.
 		if cmd.ProcessState == nil || !cmd.ProcessState.Exited() {
-			cmd.Process.Kill()
+			if err := cmd.Process.Kill(); err != nil {
+				logrus.WithError(err).Warningf("Failed cleaning up the spawned u2f-host process (PID %v)", cmd.ProcessState.Pid())
+			}
 		}
 	}()
 	_, err = stdin.Write(challengeRaw)

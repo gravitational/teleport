@@ -60,7 +60,7 @@ func newMFALSCommand(parent *kingpin.CmdClause) *mfaLSCommand {
 	c := &mfaLSCommand{
 		CmdClause: parent.Command("ls", "Get a list of registered MFA devices"),
 	}
-	c.Flag("verbose", "print more information about MFA devices").Short('v').BoolVar(&c.verbose)
+	c.Flag("verbose", "Print more information about MFA devices").Short('v').BoolVar(&c.verbose)
 	return c
 }
 
@@ -181,6 +181,8 @@ func (c *mfaAddCommand) addDeviceRPC(cf *CLIConf, devName string, devType proto.
 		}
 		defer aci.Close()
 
+		// TODO(awly): mfa: move this logic somewhere under /lib/auth/, closer
+		// to the server logic. The CLI layer should ideally be thin.
 		stream, err := aci.AddMFADevice(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)

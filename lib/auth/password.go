@@ -239,7 +239,7 @@ func (s *Server) checkOTP(user string, otpToken string) error {
 // checkTOTP checks if the TOTP token is valid.
 func (s *Server) checkTOTP(ctx context.Context, user, otpToken string, dev *types.MFADevice) error {
 	if dev.GetTotp() == nil {
-		return trace.BadParameter("bug: checkTOTP called with non-TOTP MFADevice %T", dev.Device)
+		return trace.BadParameter("checkTOTP called with non-TOTP MFADevice %T", dev.Device)
 	}
 	// we use totp.ValidateCustom over totp.Validate so we can use
 	// a fake clock in tests to get reliable results
