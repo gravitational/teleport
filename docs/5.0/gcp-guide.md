@@ -94,7 +94,7 @@ When creating the Bucket we would recommend setting it up as `Dual-region` and w
 `Standard` storage class. Provide access using a `Uniform` access control with a Google-managed
 key.
 
-When setting up `audit_session_uri` use `gs://` session prefix.
+When setting up `audit_sessions_uri` use `gs://` session prefix.
 
 ```yaml
 storage:
