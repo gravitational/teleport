@@ -74,7 +74,7 @@ certificate on a node makes it a cluster member.
 
 !!! tip "Token TTL"
 
-    When using dynamic tokens, their default time to live (TTL) is 15
+    When using dynamic tokens, their default time to live (TTL) is 30
     minutes, but it can be reduced (not increased) via
     [`tctl nodes add --ttl`](../cli-docs.md#tctl-nodes-add) flag.
 
