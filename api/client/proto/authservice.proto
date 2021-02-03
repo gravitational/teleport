@@ -479,6 +479,175 @@ message DatabaseCertResponse {
     repeated bytes CACerts = 2 [ (gogoproto.jsontag) = "ca_certs" ];
 }
 
+// MFAAuthenticateChallenge is a challenge for all MFA devices registered for a
+// user.
+message MFAAuthenticateChallenge {
+    // U2F contains one U2FChallenge per U2F device registered for a
+    // user. Each challenge is unique.
+    repeated U2FChallenge U2F = 1;
+    // TOTP is a challenge for all TOTP devices registered for a user. When
+    // this field is set, any TOTP device a user has registered can be used to
+    // respond.
+    TOTPChallenge TOTP = 2;
+}
+
+// MFAAuthenticateResponse is a response to MFAAuthenticateChallenge using one
+// of the MFA devices registered for a user.
+message MFAAuthenticateResponse {
+    oneof Response {
+        U2FResponse U2F = 1;
+        TOTPResponse TOTP = 2;
+    }
+}
+
+// U2FChallenge is a U2F auth challenge.
+message U2FChallenge {
+    string KeyHandle = 1;
+    string Challenge = 2;
+    string AppID = 3;
+}
+
+// U2FResponse is a U2F auth challenge response.
+message U2FResponse {
+    string KeyHandle = 1;
+    string ClientData = 2;
+    string Signature = 3;
+}
+
+// TOTPChallenge is a challenge for all TOTP devices registered for a user.
+message TOTPChallenge {
+    // TOTP protocol has no challenge per se, but the user has to provide a
+    // valid token in response. TOTPChallenge exists only to signal to the user
+    // that TOTP MFA is supported, which means that the user has a TOTP device
+    // registered.
+}
+
+// TOTPResponse is a response to TOTPChallenge.
+message TOTPResponse { string Code = 1; }
+
+// MFARegisterChallenge is a challenge for registering a new MFA device.
+message MFARegisterChallenge {
+    // Request depends on the type of the MFA device being registered.
+    oneof Request {
+        U2FRegisterChallenge U2F = 1;
+        TOTPRegisterChallenge TOTP = 2;
+    }
+}
+
+// MFARegisterResponse is a response to MFARegisterChallenge.
+message MFARegisterResponse {
+    oneof Response {
+        U2FRegisterResponse U2F = 1;
+        TOTPRegisterResponse TOTP = 2;
+    }
+}
+
+// U2FRegisterChallenge is a challenge for registering a new U2F device.
+message U2FRegisterChallenge {
+    string Challenge = 1;
+    string AppID = 2;
+}
+
+// U2FRegisterResponse is a response to U2FRegisterChallenge.
+message U2FRegisterResponse {
+    string RegistrationData = 1;
+    string ClientData = 2;
+}
+
+// TOTPRegisterChallenge is a challenge for registering a new TOTP device.
+message TOTPRegisterChallenge {
+    // Secret is a secret shared by client and server to generate codes.
+    string Secret = 1;
+    // Issuer is the name of the Teleport cluster.
+    string Issuer = 2;
+    // PeriodSeconds is a period for TOTP code rotation, in seconds.
+    uint32 PeriodSeconds = 3;
+    // Algorithm is the TOTP hashing algorithm.
+    string Algorithm = 4;
+    // Digits is the number of digits in the TOTP code.
+    uint32 Digits = 5;
+}
+
+// TOTPRegisterResponse is a response to TOTPRegisterChallenge.
+message TOTPRegisterResponse { string Code = 1; }
+
+// AddMFADeviceRequest is a message sent by the client during AddMFADevice RPC.
+message AddMFADeviceRequest {
+    oneof Request {
+        // Init describes the new device.
+        AddMFADeviceRequestInit Init = 1;
+        // ExistingMFAResponse is a response to ExistingMFAChallenge auth
+        // challenge.
+        MFAAuthenticateResponse ExistingMFAResponse = 2;
+        // NewMFARegisterResponse is a response to NewMFARegisterChallenge
+        // registration challenge.
+        MFARegisterResponse NewMFARegisterResponse = 3;
+    }
+}
+
+// AddMFADeviceResponse is a message sent by the server during AddMFADevice
+// RPC.
+message AddMFADeviceResponse {
+    oneof Response {
+        // ExistingMFAChallenge is an auth challenge using an existing MFA
+        // device.
+        MFAAuthenticateChallenge ExistingMFAChallenge = 1;
+        // NewMFARegisterChallenge is a registration challenge for a new MFA
+        // device.
+        MFARegisterChallenge NewMFARegisterChallenge = 2;
+        // Ack is a confirmation of successful device registration.
+        AddMFADeviceResponseAck Ack = 3;
+    }
+}
+
+// AddMFADeviceRequestInit describes the new MFA device.
+message AddMFADeviceRequestInit {
+    string DeviceName = 1;
+    enum DeviceType {
+        TOTP = 0;
+        U2F = 1;
+    }
+    DeviceType Type = 2;
+}
+
+// AddMFADeviceResponseAck is a confirmation of successful device registration.
+message AddMFADeviceResponseAck { types.MFADevice Device = 1; }
+
+// DeleteMFADeviceRequest is a message sent by the client during
+// DeleteMFADevice RPC.
+message DeleteMFADeviceRequest {
+    oneof Request {
+        // Init describes the device to be deleted.
+        DeleteMFADeviceRequestInit Init = 1;
+        // MFAResponse is a response to MFAChallenge auth challenge.
+        MFAAuthenticateResponse MFAResponse = 2;
+    }
+}
+
+message DeleteMFADeviceResponse {
+    oneof Response {
+        // MFAChallenge is an auth challenge using any existing MFA device.
+        MFAAuthenticateChallenge MFAChallenge = 1;
+        // Ack is a confirmation of successful device deletion.
+        DeleteMFADeviceResponseAck Ack = 2;
+    }
+}
+
+// DeleteMFADeviceRequestInit describes the device to be deleted.
+message DeleteMFADeviceRequestInit {
+    // DeviceName is an MFA device name or ID to be deleted.
+    string DeviceName = 1;
+}
+
+// DeleteMFADeviceResponseAck is a confirmation of successful device deletion.
+message DeleteMFADeviceResponseAck {}
+
+// GetMFADeviceRequest is a request for MFA devices for the calling user.
+message GetMFADevicesRequest {}
+
+// GetMFADeviceResponse is a response for GetMFADevices RPC.
+message GetMFADevicesResponse { repeated types.MFADevice Devices = 1; }
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -595,4 +764,28 @@ service AuthService {
     // GenerateDatabaseCert generates client certificate used by a database
     // service to authenticate with the database instance.
     rpc GenerateDatabaseCert(DatabaseCertRequest) returns (DatabaseCertResponse);
+
+    // AddMFADevice adds an MFA device for the user calling this RPC.
+    //
+    // The RPC is streaming both ways and the message sequence is:
+    // (-> means client-to-server, <- means server-to-client)
+    // -> Init
+    // <- ExistingMFAChallenge
+    // -> ExistingMFAResponse
+    // <- NewMFARegisterChallenge
+    // -> NewMFARegisterResponse
+    // <- Ack
+    rpc AddMFADevice(stream AddMFADeviceRequest) returns (stream AddMFADeviceResponse);
+    // DeleteMFADevice deletes an MFA device for the user calling this RPC.
+    //
+    // The RPC is streaming both ways and the message sequence is:
+    // (-> means client-to-server, <- means server-to-client)
+    // -> Init
+    // <- MFAChallenge
+    // -> MFAResponse
+    // <- Ack
+    rpc DeleteMFADevice(stream DeleteMFADeviceRequest) returns (stream DeleteMFADeviceResponse);
+    // GetMFADevices returns all MFA devices registered for the user calling
+    // this RPC.
+    rpc GetMFADevices(GetMFADevicesRequest) returns (GetMFADevicesResponse);
 }
