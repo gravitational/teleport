@@ -531,9 +531,9 @@ func readSessionIndex(dataDir string, authServers []string, namespace string, si
 		dataDir:   dataDir,
 		namespace: namespace,
 		enhancedEvents: map[string][]indexEntry{
-			SessionCommandEvent: []indexEntry{},
-			SessionDiskEvent:    []indexEntry{},
-			SessionNetworkEvent: []indexEntry{},
+			SessionCommandEvent: {},
+			SessionDiskEvent:    {},
+			SessionNetworkEvent: {},
 		},
 	}
 	for _, authServer := range authServers {

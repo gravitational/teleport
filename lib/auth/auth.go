@@ -538,7 +538,7 @@ func (a *Server) GenerateUserAppTestCert(publicKey []byte, username string, ttl 
 		// used to log into servers but SSH certificate generation code requires a
 		// principal be in the certificate.
 		traits: wrappers.Traits(map[string][]string{
-			teleport.TraitLogins: []string{uuid.New()},
+			teleport.TraitLogins: {uuid.New()},
 		}),
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},
@@ -1922,7 +1922,6 @@ func (a *Server) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID
 	}
 	return streamer.ResumeAuditStream(ctx, sid, uploadID)
 }
-
 
 // modeStreamer creates streamer based on the event mode
 func (a *Server) modeStreamer() (events.Streamer, error) {

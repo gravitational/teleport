@@ -142,8 +142,8 @@ func (r *ForwardRecorder) GetAuditLog() IAuditLog {
 	return r.AuditLog
 }
 
-func (r *Forwarder) EmitAuditEvent(ctx context.Context, event AuditEvent) error{
-	return nil 
+func (r *Forwarder) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+	return nil
 }
 
 // Write takes a chunk and writes it into the audit log
