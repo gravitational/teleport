@@ -87,8 +87,8 @@ var (
 			Help: "Number of times disk monitoring failed.",
 		},
 	)
-
-	auditFailedEmit = prometheus.NewCounter(
+	// AuditFailedEmit increments the counter if audit event failed to emit
+	AuditFailedEmit = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: "audit_failed_emit_events",
 			Help: "Number of times emitting audit event failed.",
@@ -101,7 +101,7 @@ func init() {
 	prometheus.MustRegister(auditOpenFiles)
 	prometheus.MustRegister(auditDiskUsed)
 	prometheus.MustRegister(auditFailedDisk)
-	prometheus.MustRegister(auditFailedEmit)
+	prometheus.MustRegister(AuditFailedEmit)
 }
 
 // AuditLog is a new combined facility to record Teleport events and
@@ -967,7 +967,7 @@ func (l *AuditLog) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
 	}
 	err := emitAuditEvent(ctx, event)
 	if err != nil {
-		auditFailedEmit.Inc()
+		AuditFailedEmit.Inc()
 		return trace.Wrap(err)
 	}
 	return nil
@@ -989,7 +989,7 @@ func (l *AuditLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
 	// incremented.
 	err := emitAuditEvent(event, fields)
 	if err != nil {
-		auditFailedEmit.Inc()
+		AuditFailedEmit.Inc()
 		return trace.Wrap(err)
 	}
 

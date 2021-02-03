@@ -2151,11 +2151,6 @@ func (c *Client) CreateAuditStream(ctx context.Context, sid session.ID) (events.
 	return c.APIClient.CreateAuditStream(ctx, string(sid))
 }
 
-// GetUploadMetadata gets session upload metadata
-func (c *Client) GetUploadMetadata(sid session.ID) *events.UploadMetadata {
-	return &events.UploadMetadata{SessionID: sid}
-}
-
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if

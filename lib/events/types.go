@@ -60,7 +60,6 @@ type (
 	SessionStart                    = events.SessionStart
 	SessionJoin                     = events.SessionJoin
 	SessionPrint                    = events.SessionPrint
-	SessionUpload                   = events.SessionUpload
 	SessionReject                   = events.SessionReject
 	Resize                          = events.Resize
 	SessionEnd                      = events.SessionEnd
@@ -107,7 +106,6 @@ type (
 	OneOf_UserDelete                = events.OneOf_UserDelete                //nolint
 	OneOf_UserPasswordChange        = events.OneOf_UserPasswordChange        //nolint
 	OneOf_SessionStart              = events.OneOf_SessionStart              //nolint
-	OneOf_SessionUpload             = events.OneOf_SessionUpload             //nolint
 	OneOf_SessionJoin               = events.OneOf_SessionJoin               //nolint
 	OneOf_SessionPrint              = events.OneOf_SessionPrint              //nolint
 	OneOf_SessionReject             = events.OneOf_SessionReject             //nolint

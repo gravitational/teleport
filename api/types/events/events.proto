@@ -1233,6 +1233,7 @@ message StreamStatus {
     google.protobuf.Timestamp LastUploadTime = 3
         [ (gogoproto.stdtime) = true, (gogoproto.nullable) = false ];
 }
+
 // SessionUpload is a session upload
 message SessionUpload {
     // Metadata is a common event metadata
