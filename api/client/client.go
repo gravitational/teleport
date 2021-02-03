@@ -59,8 +59,8 @@ type Client struct {
 	closedFlag int32
 }
 
-// New returns a new auth client that uses mutual TLS authentication and
-// connects to the remote server using the Dialer or Addrs given in Config.
+// New returns a new API client with an authenticated connection to a Teleport server,
+// using the Credentials and Dialer or Addrs given in Config.
 func New(cfg Config) (*Client, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

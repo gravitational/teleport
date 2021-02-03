@@ -39,7 +39,7 @@ type IdentityFile struct {
 	}
 }
 
-// TLS returns the identity file's associated tls config
+// TLS returns the identity file's associated tls config.
 func (idf *IdentityFile) TLS() (*tls.Config, error) {
 	cert, err := tls.X509KeyPair(idf.Certs.TLS, idf.PrivateKey)
 	if err != nil {
