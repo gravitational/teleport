@@ -251,10 +251,6 @@ func (*DiscardEmitter) ResumeAuditStream(ctx context.Context, sid session.ID, up
 	return &DiscardStream{}, nil
 }
 
-// GetUploadMetadata does nothing
-func (d *DiscardEmitter) GetUploadMetadata(sid session.ID) UploadMetadata {
-	return UploadMetadata{}
-}
 
 // NewWriterEmitter returns a new instance of emitter writing to writer
 func NewWriterEmitter(w io.WriteCloser) *WriterEmitter {
@@ -416,10 +412,6 @@ func (s *CheckingStreamer) ResumeAuditStream(ctx context.Context, sid session.ID
 	}, nil
 }
 
-// GetUploadMetadata gets session upload metadata
-func (s *CheckingStreamer) GetUploadMetadata(sid session.ID) UploadMetadata {
-	return UploadMetadata{SessionID: sid}
-}
 // CheckAndSetDefaults checks and sets default values
 func (w *CheckingStreamerConfig) CheckAndSetDefaults() error {
 	if w.Inner == nil {
@@ -504,11 +496,6 @@ func (t *TeeStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, upl
 		return nil, trace.Wrap(err)
 	}
 	return &TeeStream{stream: stream, emitter: t.Emitter}, nil
-}
-
-// GetUploadMetadata gets session upload metadata
-func (t *TeeStreamer) GetUploadMetadata(sid session.ID) UploadMetadata {
-	return t.streamer.GetUploadMetadata(sid)
 }
 
 // TeeStreamer creates streams that forwards non print events
@@ -641,11 +628,6 @@ func (s *CallbackStreamer) ResumeAuditStream(ctx context.Context, sid session.ID
 	}, nil
 }
 
-// GetUploadMetadata gets session upload metadata
-func (s *CallbackStreamer) GetUploadMetadata(sid session.ID) UploadMetadata {
-	return UploadMetadata{SessionID: sid}
-}
-
 // CallbackStream call
 type CallbackStream struct {
 	stream    Stream
@@ -726,11 +708,6 @@ func (s *ReportingStreamer) ResumeAuditStream(ctx context.Context, sid session.I
 		sessionID: sid,
 		eventsC:   s.eventsC,
 	}, nil
-}
-
-// GetUploadMetadata gets session upload metadata
-func (s *ReportingStreamer) GetUploadMetadata(sid session.ID) UploadMetadata {
-	return s.streamer.GetUploadMetadata(sid)
 }
 
 // ReportingStream reports status of uploads to the events channel

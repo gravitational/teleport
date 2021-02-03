@@ -2150,9 +2150,10 @@ func (c *Client) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID
 func (c *Client) CreateAuditStream(ctx context.Context, sid session.ID) (events.Stream, error) {
 	return c.APIClient.CreateAuditStream(ctx, string(sid))
 }
+
 // GetUploadMetadata gets session upload metadata
-func (c *Client) GetUploadMetadata(sid session.ID) events.UploadMetadata {
-	return events.UploadMetadata{}
+func (c *Client) GetUploadMetadata(sid session.ID) *events.UploadMetadata {
+	return &events.UploadMetadata{SessionID: sid}
 }
 
 // WebService implements features used by Web UI clients
