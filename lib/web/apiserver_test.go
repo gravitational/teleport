@@ -402,8 +402,12 @@ func (s *WebSuite) createUser(c *C, user string, login string, pass string, otpS
 	err = s.server.Auth().UpsertPassword(user, []byte(pass))
 	c.Assert(err, IsNil)
 
-	err = s.server.Auth().UpsertTOTP(user, otpSecret)
-	c.Assert(err, IsNil)
+	if otpSecret != "" {
+		dev, err := services.NewTOTPDevice("otp", otpSecret, s.clock.Now())
+		c.Assert(err, IsNil)
+		err = s.server.Auth().UpsertMFADevice(context.Background(), user, dev)
+		c.Assert(err, IsNil)
+	}
 }
 
 func (s *WebSuite) TestSAMLSuccess(c *C) {
@@ -650,7 +654,9 @@ func (s *WebSuite) TestWebSessionsBadInput(c *C) {
 	err := s.server.Auth().UpsertPassword(user, []byte(pass))
 	c.Assert(err, IsNil)
 
-	err = s.server.Auth().UpsertTOTP(user, otpSecret)
+	dev, err := services.NewTOTPDevice("otp", otpSecret, s.clock.Now())
+	c.Assert(err, IsNil)
+	err = s.server.Auth().UpsertMFADevice(context.Background(), user, dev)
 	c.Assert(err, IsNil)
 
 	// create valid token

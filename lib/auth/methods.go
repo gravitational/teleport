@@ -17,6 +17,7 @@ limitations under the License.
 package auth
 
 import (
+	"context"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -83,7 +84,7 @@ type SessionCreds struct {
 
 // AuthenticateUser authenticates user based on the request type
 func (s *Server) AuthenticateUser(req AuthenticateUserRequest) error {
-	err := s.authenticateUser(req)
+	err := s.authenticateUser(context.TODO(), req)
 	event := &events.UserLogin{
 		Metadata: events.Metadata{
 			Type: events.UserLoginEvent,
@@ -108,7 +109,7 @@ func (s *Server) AuthenticateUser(req AuthenticateUserRequest) error {
 	return err
 }
 
-func (s *Server) authenticateUser(req AuthenticateUserRequest) error {
+func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserRequest) error {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -140,7 +141,7 @@ func (s *Server) authenticateUser(req AuthenticateUserRequest) error {
 		// authenticate using U2F - code checks challenge response
 		// signed by U2F device of the user
 		err := s.WithUserLock(req.Username, func() error {
-			return s.CheckU2FSignResponse(req.Username, &req.U2F.SignResponse)
+			return s.CheckU2FSignResponse(ctx, req.Username, &req.U2F.SignResponse)
 		})
 		if err != nil {
 			// provide obscure message on purpose, while logging the real

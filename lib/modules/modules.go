@@ -131,6 +131,13 @@ func (p *defaultModules) IsBoringBinary() bool {
 	return false
 }
 
+// resetModules resets the modules interface to defaults
+func resetModules() {
+	mutex.Lock()
+	defer mutex.Unlock()
+	modules = &defaultModules{}
+}
+
 // DELETE IN: 5.1.0
 //
 // ExtendAdminUserRules returns true if the "AdminUserRules" set should be
@@ -141,6 +148,6 @@ func (p *defaultModules) ExtendAdminUserRules() bool {
 }
 
 var (
-	mutex           = &sync.Mutex{}
+	mutex   sync.Mutex
 	modules Modules = &defaultModules{}
 )

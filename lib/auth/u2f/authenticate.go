@@ -17,14 +17,17 @@ limitations under the License.
 package u2f
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os/exec"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/tstranex/u2f"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // Authentication sequence:
@@ -50,13 +53,11 @@ type (
 // AuthenticationStorage is the persistent storage needed to store state
 // (challenges and counters) during the authentication sequence.
 type AuthenticationStorage interface {
-	GetU2FRegistration(key string) (*Registration, error)
+	GetMFADevices(ctx context.Context, key string) ([]*types.MFADevice, error)
+	UpsertMFADevice(ctx context.Context, key string, d *types.MFADevice) error
 
 	UpsertU2FSignChallenge(key string, u2fChallenge *Challenge) error
 	GetU2FSignChallenge(key string) (*Challenge, error)
-
-	UpsertU2FRegistrationCounter(key string, counter uint32) error
-	GetU2FRegistrationCounter(key string) (uint32, error)
 }
 
 // AuthenticateInitParams are the parameters for initiating the authentication
@@ -70,8 +71,23 @@ type AuthenticateInitParams struct {
 // AuthenticateInit is the first step in the authentication sequence. It runs
 // on the server and the returned AuthenticateChallenge must be sent to the
 // client.
-func AuthenticateInit(params AuthenticateInitParams) (*AuthenticateChallenge, error) {
-	reg, err := params.Storage.GetU2FRegistration(params.StorageKey)
+func AuthenticateInit(ctx context.Context, params AuthenticateInitParams) (*AuthenticateChallenge, error) {
+	devs, err := params.Storage.GetMFADevices(ctx, params.StorageKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// TODO(awly): support multiple U2F device challenges.
+	var u2fDev *types.U2FDevice
+	for _, dev := range devs {
+		if dev.GetU2F() != nil {
+			u2fDev = dev.GetU2F()
+			break
+		}
+	}
+	if u2fDev == nil {
+		return nil, trace.NotFound("no U2F devices registered for the user")
+	}
+	reg, err := DeviceToRegistration(u2fDev)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -164,20 +180,22 @@ func AuthenticateSignChallenge(c AuthenticateChallenge, facet string) (*Authenti
 // AuthenticateVerifyParams are the parameters for verifying the
 // AuthenticationChallengeResponse.
 type AuthenticateVerifyParams struct {
+	Dev        *types.MFADevice
 	Resp       AuthenticateChallengeResponse
 	StorageKey string
 	Storage    AuthenticationStorage
+	Clock      clockwork.Clock
 }
 
 // AuthenticateVerify is the last step in the authentication sequence. It runs
 // on the server and verifies the AuthenticateChallengeResponse returned by the
 // client.
-func AuthenticateVerify(params AuthenticateVerifyParams) error {
-	reg, err := params.Storage.GetU2FRegistration(params.StorageKey)
-	if err != nil {
-		return trace.Wrap(err)
+func AuthenticateVerify(ctx context.Context, params AuthenticateVerifyParams) error {
+	dev := params.Dev.GetU2F()
+	if dev == nil {
+		return trace.BadParameter("provided MFADevice is not a U2FDevice: %T", params.Dev.Device)
 	}
-	counter, err := params.Storage.GetU2FRegistrationCounter(params.StorageKey)
+	reg, err := DeviceToRegistration(dev)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -185,11 +203,12 @@ func AuthenticateVerify(params AuthenticateVerifyParams) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	newCounter, err := reg.Authenticate(params.Resp, *challenge, counter)
+	dev.Counter, err = reg.Authenticate(params.Resp, *challenge, dev.Counter)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := params.Storage.UpsertU2FRegistrationCounter(params.StorageKey, newCounter); err != nil {
+	params.Dev.LastUsed = params.Clock.Now()
+	if err := params.Storage.UpsertMFADevice(ctx, params.StorageKey, params.Dev); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
