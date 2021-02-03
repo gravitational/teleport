@@ -439,8 +439,6 @@ type Streamer interface {
 	// ResumeAuditStream resumes the stream for session upload that
 	// has not been completed yet.
 	ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (Stream, error)
-
-	UploadMetadataGetter
 }
 
 // StreamPart represents uploaded stream part
@@ -492,7 +490,7 @@ type MultipartUploader interface {
 	// earlier uploads returned first
 	ListUploads(ctx context.Context) ([]StreamUpload, error)
 	// GetUploadMetadata gets the upload metadata
-	GetUploadMetadata(sessionID session.ID) UploadMetadata
+	GetUploadMetadata(sessionID session.ID) *UploadMetadata
 }
 
 // UploadMetadata contains data about the session upload
@@ -506,7 +504,7 @@ type UploadMetadata struct {
 
 // UploadMetadataGetter gets the metadata for session upload
 type UploadMetadataGetter interface {
-	GetUploadMetadata(sid session.ID) UploadMetadata
+	GetUploadMetadata(sid session.ID) *UploadMetadata
 }
 
 // StreamWriter implements io.Writer to be plugged into the multi-writer

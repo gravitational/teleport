@@ -160,8 +160,10 @@ func (s *ProtoStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, u
 		CompletedParts: parts,
 	})
 }
+
 // GetUploadMetadata gets the session upload metadata
-func (s *ProtoStreamer) GetUploadMetadata(sid session.ID) UploadMetadata {
+// Implements events.UploadMetadataGetter
+func (s *ProtoStreamer) GetUploadMetadata(sid session.ID) *UploadMetadata {
 	return s.cfg.Uploader.GetUploadMetadata(sid)
 }
 
@@ -1280,6 +1282,10 @@ func (m *MemoryUploader) Download(ctx context.Context, sessionID session.ID, wri
 	return nil
 }
 
-func (m *MemoryUploader) GetUploadMetadata(sid session.ID) UploadMetadata {
-	return UploadMetadata{}
+// GetUploadMetadata gets the session upload metadata
+func (m *MemoryUploader) GetUploadMetadata(sid session.ID) *UploadMetadata {
+	return &UploadMetadata{
+		URL:       "memory",
+		SessionID: sid,
+	}
 }

@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -139,7 +140,7 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 		u.log.Debugf("Completed upload %v.", upload)
 		completed++
 		uploadData := u.cfg.Uploader.GetUploadMetadata(upload.SessionID)
-		session := &SessionUpload{
+		session := &events.SessionUpload{
 			Metadata: Metadata{
 				Type:  SessionUploadEvent,
 				Code:  SessionUploadCode,

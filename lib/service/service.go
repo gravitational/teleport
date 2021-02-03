@@ -1015,6 +1015,7 @@ func (process *TeleportProcess) initAuthService() error {
 
 	var emitter events.Emitter
 	var streamer events.Streamer
+	var mdGetter events.UploadMetadataGetter
 	var uploadHandler events.MultipartHandler
 	// create the audit log, which will be consuming (and recording) all events
 	// and recording all sessions.
@@ -1048,13 +1049,14 @@ func (process *TeleportProcess) initAuthService() error {
 				return trace.Wrap(err)
 			}
 		}
-
-		streamer, err = events.NewProtoStreamer(events.ProtoStreamerConfig{
+		protoStreamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
 			Uploader: uploadHandler,
 		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		streamer = protoStreamer
+		mdGetter = protoStreamer
 		// initialize external loggers.  may return (nil, nil) if no
 		// external loggers have been defined.
 		externalLog, err := initExternalLog(process.ExitContext(), auditConfig, process.log)
@@ -1180,7 +1182,7 @@ func (process *TeleportProcess) initAuthService() error {
 		Authorizer:     authorizer,
 		AuditLog:       process.auditLog,
 		Emitter:        checkingEmitter,
-		MetadataGetter: streamer,
+		MetadataGetter: mdGetter,
 	}
 
 	var authCache auth.Cache

@@ -23,12 +23,12 @@ import (
 	"net"
 	"time"
 
-	"github.com/jonboulle/clockwork"
-
+	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -36,10 +36,9 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -180,22 +179,23 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 			if err != nil {
 				return trail.ToGRPC(err)
 			}
-			sessionData := g.APIConfig.MetadataGetter.GetUploadMetadata(sessionID)
-
-			session := &events.SessionUpload{
-				Metadata: events.Metadata{
-					Type:        events.SessionUploadEvent,
-					Code:        events.SessionUploadCode,
-					Index:       events.SessionUploadIndex,
-					ClusterName: h.GetClusterName(),
-				},
-				SessionMetadata: events.SessionMetadata{
-					SessionID: string(sessionData.SessionID),
-				},
-				SessionURL: sessionData.URL,
-			}
-			if err := g.Emitter.EmitAuditEvent(auth.CloseContext(), session); err != nil {
-				return trail.ToGRPC(err)
+			if g.APIConfig.MetadataGetter != nil {
+				sessionData := g.APIConfig.MetadataGetter.GetUploadMetadata(sessionID)
+				event := &apievents.SessionUpload{
+					Metadata: events.Metadata{
+						Type:        events.SessionUploadEvent,
+						Code:        events.SessionUploadCode,
+						Index:       events.SessionUploadIndex,
+						ClusterName: h.GetClusterName(),
+					},
+					SessionMetadata: events.SessionMetadata{
+						SessionID: string(sessionData.SessionID),
+					},
+					SessionURL: sessionData.URL,
+				}
+				if err := g.Emitter.EmitAuditEvent(auth.CloseContext(), event); err != nil {
+					return trail.ToGRPC(err)
+				}
 			}
 			g.Debugf("Completed stream: %v.", err)
 			if err != nil {
