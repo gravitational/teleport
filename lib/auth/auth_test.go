@@ -41,11 +41,12 @@ import (
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/trace"
 
 	"github.com/coreos/go-oidc/jose"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 	. "gopkg.in/check.v1"
 )
 
