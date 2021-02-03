@@ -1135,12 +1135,13 @@ func addMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_AddMF
 	auth := gctx.authServer
 	user := gctx.User.GetName()
 	ctx := stream.Context()
+	u2fStorage, err := u2f.InMemoryAuthenticationStorage(auth.Identity)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Note: authChallenge may be empty if this user has no existing MFA devices.
-	//
-	// TODO(awly): store auth and registration challenges in memory and not the
-	// backend.
-	authChallenge, err := auth.mfaAuthChallenge(ctx, user)
+	authChallenge, err := auth.mfaAuthChallenge(ctx, user, u2fStorage)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1160,7 +1161,7 @@ func addMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_AddMF
 	}
 	// Only validate if there was a challenge.
 	if authChallenge.TOTP != nil || len(authChallenge.U2F) > 0 {
-		if err := auth.validateMFAAuthResponse(ctx, user, authResp); err != nil {
+		if err := auth.validateMFAAuthResponse(ctx, user, authResp, u2fStorage); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1171,6 +1172,10 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 	auth := gctx.authServer
 	user := gctx.User.GetName()
 	ctx := stream.Context()
+	u2fStorage, err := u2f.InMemoryRegistrationStorage(auth.Identity)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// Send registration challenge for the requested device type.
 	regChallenge := new(proto.MFARegisterChallenge)
@@ -1187,6 +1192,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 			PeriodSeconds: uint32(otpOpts.Period),
 			Algorithm:     otpOpts.Algorithm.String(),
 			Digits:        uint32(otpOpts.Digits.Length()),
+			Account:       otpKey.AccountName(),
 		}}
 	case proto.AddMFADeviceRequestInit_U2F:
 		cap, err := auth.GetAuthPreference()
@@ -1201,7 +1207,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 		challenge, err := u2f.RegisterInit(u2f.RegisterInitParams{
 			StorageKey: user,
 			AppConfig:  *u2fConfig,
-			Storage:    auth.Identity,
+			Storage:    u2fStorage,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1241,7 +1247,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := auth.checkTOTP(user, resp.TOTP.Code, dev.GetTotp()); err != nil {
+		if err := auth.checkTOTP(ctx, user, resp.TOTP.Code, dev); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		if err := auth.UpsertMFADevice(ctx, user, dev); err != nil {
@@ -1257,7 +1263,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 			},
 			ChallengeStorageKey:    user,
 			RegistrationStorageKey: user,
-			Storage:                auth.Identity,
+			Storage:                u2fStorage,
 			Clock:                  auth.clock,
 		})
 		if err != nil {
@@ -1330,9 +1336,12 @@ func deleteMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_De
 	ctx := stream.Context()
 	auth := gctx.authServer
 	user := gctx.User.GetName()
+	u2fStorage, err := u2f.InMemoryAuthenticationStorage(auth.Identity)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-	// TODO(awly): store auth challenge in memory and not the backend.
-	authChallenge, err := auth.mfaAuthChallenge(ctx, user)
+	authChallenge, err := auth.mfaAuthChallenge(ctx, user, u2fStorage)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1351,7 +1360,7 @@ func deleteMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_De
 	if authResp == nil {
 		return trace.BadParameter("expected MFAAuthenticateResponse, got %T", req)
 	}
-	if err := auth.validateMFAAuthResponse(ctx, user, authResp); err != nil {
+	if err := auth.validateMFAAuthResponse(ctx, user, authResp, u2fStorage); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -1367,6 +1376,7 @@ func (g *GRPCServer) GetMFADevices(ctx context.Context, req *proto.GetMFADevices
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// TODO(awly): mfa: remove secrets from MFA devices.
 	return &proto.GetMFADevicesResponse{
 		Devices: devs,
 	}, nil

@@ -1,0 +1,487 @@
+/*
+Copyright 2021 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package main
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/auth/u2f"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/utils/prompt"
+)
+
+type mfaCommands struct {
+	ls  *mfaLSCommand
+	add *mfaAddCommand
+	rm  *mfaRemoveCommand
+}
+
+func newMFACommand(app *kingpin.Application) mfaCommands {
+	mfa := app.Command("mfa", "Manage multi-factor authentication (MFA) devices.")
+	return mfaCommands{
+		ls: newMFALSCommand(mfa),
+		add: &mfaAddCommand{
+			CmdClause: mfa.Command("add", "Add a new MFA device"),
+		},
+		rm: newMFARemoveCommand(mfa),
+	}
+}
+
+type mfaLSCommand struct {
+	*kingpin.CmdClause
+	verbose bool
+}
+
+func newMFALSCommand(parent *kingpin.CmdClause) *mfaLSCommand {
+	c := &mfaLSCommand{
+		CmdClause: parent.Command("ls", "Get a list of registered MFA devices"),
+	}
+	c.Flag("verbose", "print more information about MFA devices").Short('v').BoolVar(&c.verbose)
+	return c
+}
+
+func (c *mfaLSCommand) run(cf *CLIConf) error {
+	tc, err := makeClient(cf, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var devs []*types.MFADevice
+	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		pc, err := tc.ConnectToProxy(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer pc.Close()
+		aci, err := pc.ConnectToCurrentCluster(cf.Context, false)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer aci.Close()
+
+		resp, err := aci.GetMFADevices(cf.Context, &proto.GetMFADevicesRequest{})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		devs = resp.Devices
+		return nil
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	printMFADevices(devs, c.verbose)
+	return nil
+}
+
+func printMFADevices(devs []*types.MFADevice, verbose bool) {
+	if verbose {
+		t := asciitable.MakeTable([]string{"Name", "ID", "Type", "Added at", "Last used"})
+		for _, dev := range devs {
+			t.AddRow([]string{
+				dev.Metadata.Name,
+				dev.Id,
+				dev.MFAType(),
+				dev.AddedAt.Format(time.RFC1123),
+				dev.LastUsed.Format(time.RFC1123),
+			})
+		}
+		fmt.Println(t.AsBuffer().String())
+	} else {
+		t := asciitable.MakeTable([]string{"Name", "Type", "Added at", "Last used"})
+		for _, dev := range devs {
+			t.AddRow([]string{
+				dev.GetName(),
+				dev.MFAType(),
+				dev.AddedAt.Format(time.RFC1123),
+				dev.LastUsed.Format(time.RFC1123),
+			})
+		}
+		fmt.Println(t.AsBuffer().String())
+	}
+}
+
+type mfaAddCommand struct {
+	*kingpin.CmdClause
+}
+
+func (c *mfaAddCommand) run(cf *CLIConf) error {
+	devType, err := prompt.PickOne(os.Stdout, os.Stdin, "Choose device type", []string{"TOTP", "U2F"})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	var typ proto.AddMFADeviceRequestInit_DeviceType
+	switch devType {
+	case "TOTP":
+		typ = proto.AddMFADeviceRequestInit_TOTP
+	case "U2F":
+		typ = proto.AddMFADeviceRequestInit_U2F
+	default:
+		// prompt.PickOne should catch this for us.
+		return trace.BadParameter("unknown device type %q", devType)
+	}
+
+	devName, err := prompt.Input(os.Stdout, os.Stdin, "Enter device name")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	devName = strings.TrimSpace(devName)
+	if devName == "" {
+		return trace.BadParameter("device name can not be empty")
+	}
+
+	dev, err := c.addDeviceRPC(cf, devName, typ)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("MFA device %q added.\n", dev.Metadata.Name)
+	return nil
+}
+
+func (c *mfaAddCommand) addDeviceRPC(cf *CLIConf, devName string, devType proto.AddMFADeviceRequestInit_DeviceType) (*types.MFADevice, error) {
+	tc, err := makeClient(cf, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var dev *types.MFADevice
+	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		pc, err := tc.ConnectToProxy(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer pc.Close()
+		aci, err := pc.ConnectToCurrentCluster(cf.Context, false)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer aci.Close()
+
+		stream, err := aci.AddMFADevice(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// Init.
+		if err := stream.Send(&proto.AddMFADeviceRequest{Request: &proto.AddMFADeviceRequest_Init{
+			Init: &proto.AddMFADeviceRequestInit{
+				DeviceName: devName,
+				Type:       devType,
+			},
+		}}); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Auth challenge using existing device.
+		resp, err := stream.Recv()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		authChallenge := resp.GetExistingMFAChallenge()
+		if authChallenge == nil {
+			return trace.BadParameter("server bug: server sent %T when client expected AddMFADeviceResponse_ExistingMFAChallenge", resp.Response)
+		}
+		authResp, err := promptMFAChallenge(cf.Context, tc.Config.WebProxyAddr, authChallenge)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := stream.Send(&proto.AddMFADeviceRequest{Request: &proto.AddMFADeviceRequest_ExistingMFAResponse{
+			ExistingMFAResponse: authResp,
+		}}); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Registration challenge for new device.
+		resp, err = stream.Recv()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		regChallenge := resp.GetNewMFARegisterChallenge()
+		if regChallenge == nil {
+			return trace.BadParameter("server bug: server sent %T when client expected AddMFADeviceResponse_NewMFARegisterChallenge", resp.Response)
+		}
+		regResp, err := promptRegisterChallenge(cf.Context, tc.Config.WebProxyAddr, regChallenge)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := stream.Send(&proto.AddMFADeviceRequest{Request: &proto.AddMFADeviceRequest_NewMFARegisterResponse{
+			NewMFARegisterResponse: regResp,
+		}}); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Receive registered device ack.
+		resp, err = stream.Recv()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		ack := resp.GetAck()
+		if ack == nil {
+			return trace.BadParameter("server bug: server sent %T when client expected AddMFADeviceResponse_Ack", resp.Response)
+		}
+		dev = ack.Device
+		return nil
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return dev, nil
+}
+
+func promptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+	switch {
+	// No challenge.
+	case c.TOTP == nil && len(c.U2F) == 0:
+		return &proto.MFAAuthenticateResponse{}, nil
+	// TOTP only.
+	case c.TOTP != nil && len(c.U2F) == 0:
+		totpCode, err := prompt.Input(os.Stdout, os.Stdin, "Enter an OTP code from a *registered* device")
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{
+			TOTP: &proto.TOTPResponse{Code: totpCode},
+		}}, nil
+	// U2F only.
+	case c.TOTP == nil && len(c.U2F) > 0:
+		fmt.Println("Tap any *registered* security key")
+
+		return promptU2FChallenges(ctx, proxyAddr, c.U2F)
+	// Both TOTP and U2F.
+	case c.TOTP != nil && len(c.U2F) > 0:
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		type response struct {
+			kind string
+			resp *proto.MFAAuthenticateResponse
+			err  error
+		}
+		resCh := make(chan response)
+
+		go func() {
+			resp, err := promptU2FChallenges(ctx, proxyAddr, c.U2F)
+			select {
+			case resCh <- response{kind: "U2F", resp: resp, err: err}:
+			case <-ctx.Done():
+			}
+		}()
+
+		go func() {
+			totpCode, err := prompt.Input(os.Stdout, os.Stdin, "Tap any *registered* security key or enter an OTP code from a *registered* device")
+			res := response{kind: "TOTP", err: err}
+			if err == nil {
+				res.resp = &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{
+					TOTP: &proto.TOTPResponse{Code: totpCode},
+				}}
+			}
+
+			select {
+			case resCh <- res:
+			case <-ctx.Done():
+			}
+		}()
+
+		for i := 0; i < 2; i++ {
+			select {
+			case res := <-resCh:
+				if res.err != nil {
+					log.WithError(res.err).Debugf("%s authentication failed", res.kind)
+					continue
+				}
+
+				// Print a newline after the TOTP prompt, so that any future
+				// output doesn't print on the prompt line.
+				fmt.Println()
+
+				return res.resp, nil
+			case <-ctx.Done():
+				return nil, trace.Wrap(ctx.Err())
+			}
+		}
+		return nil, trace.Errorf("failed to authenticate using all U2F and TOTP devices, rerun the command with '-d' to see error details for each device")
+	default:
+		return nil, trace.BadParameter("bug: non-exhaustive switch in promptMFAChallenge")
+	}
+}
+
+func promptU2FChallenges(ctx context.Context, proxyAddr string, challenges []*proto.U2FChallenge) (*proto.MFAAuthenticateResponse, error) {
+	facet := proxyAddr
+	if !strings.HasPrefix(proxyAddr, "https://") {
+		facet = "https://" + facet
+	}
+	u2fChallenges := make([]u2f.AuthenticateChallenge, 0, len(challenges))
+	for _, chal := range challenges {
+		u2fChallenges = append(u2fChallenges, u2f.AuthenticateChallenge{
+			Challenge: chal.Challenge,
+			KeyHandle: chal.KeyHandle,
+			AppID:     chal.AppID,
+		})
+	}
+
+	resp, err := u2f.AuthenticateSignChallenge(ctx, facet, u2fChallenges...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_U2F{
+		U2F: &proto.U2FResponse{
+			KeyHandle:  resp.KeyHandle,
+			ClientData: resp.ClientData,
+			Signature:  resp.SignatureData,
+		},
+	}}, nil
+}
+
+func promptRegisterChallenge(ctx context.Context, proxyAddr string, c *proto.MFARegisterChallenge) (*proto.MFARegisterResponse, error) {
+	switch c.Request.(type) {
+	case *proto.MFARegisterChallenge_TOTP:
+		return promptTOTPRegisterChallenge(c.GetTOTP())
+	case *proto.MFARegisterChallenge_U2F:
+		return promptU2FRegisterChallenge(ctx, proxyAddr, c.GetU2F())
+	default:
+		return nil, trace.BadParameter("server bug: server sent %T when client expected either MFARegisterChallenge_TOTP or MFARegisterChallenge_U2F", c.Request)
+	}
+}
+
+func promptTOTPRegisterChallenge(c *proto.TOTPRegisterChallenge) (*proto.MFARegisterResponse, error) {
+	// TODO(awly): mfa: use OS-specific image viewer to show a QR code.
+	fmt.Println("Open your TOTP app and create a new manual entry with these fields:")
+	fmt.Printf("Name: %s\n", c.Account)
+	fmt.Printf("Issuer: %s\n", c.Issuer)
+	fmt.Printf("Algorithm: %s\n", c.Algorithm)
+	fmt.Printf("Number of digits: %d\n", c.Digits)
+	fmt.Printf("Period: %ds\n", c.PeriodSeconds)
+	fmt.Printf("Secret: %s\n", c.Secret)
+	fmt.Println()
+
+	totpCode, err := prompt.Input(os.Stdout, os.Stdin, "Once created, enter an OTP code generated by the app")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
+		TOTP: &proto.TOTPRegisterResponse{Code: totpCode},
+	}}, nil
+}
+
+func promptU2FRegisterChallenge(ctx context.Context, proxyAddr string, c *proto.U2FRegisterChallenge) (*proto.MFARegisterResponse, error) {
+	fmt.Println("Tap your *new* security key")
+
+	facet := proxyAddr
+	if !strings.HasPrefix(proxyAddr, "https://") {
+		facet = "https://" + facet
+	}
+	resp, err := u2f.RegisterSignChallenge(ctx, u2f.RegisterChallenge{
+		Challenge: c.Challenge,
+		AppID:     c.AppID,
+	}, facet)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{U2F: &proto.U2FRegisterResponse{
+		RegistrationData: resp.RegistrationData,
+		ClientData:       resp.ClientData,
+	}}}, nil
+}
+
+type mfaRemoveCommand struct {
+	*kingpin.CmdClause
+	name string
+}
+
+func newMFARemoveCommand(parent *kingpin.CmdClause) *mfaRemoveCommand {
+	c := &mfaRemoveCommand{
+		CmdClause: parent.Command("rm", "Remove a MFA device"),
+	}
+	c.Arg("name", "Name or ID of the MFA device to remove").Required().StringVar(&c.name)
+	return c
+}
+
+func (c *mfaRemoveCommand) run(cf *CLIConf) error {
+	tc, err := makeClient(cf, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		pc, err := tc.ConnectToProxy(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer pc.Close()
+		aci, err := pc.ConnectToCurrentCluster(cf.Context, false)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer aci.Close()
+
+		stream, err := aci.DeleteMFADevice(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// Init.
+		if err := stream.Send(&proto.DeleteMFADeviceRequest{Request: &proto.DeleteMFADeviceRequest_Init{
+			Init: &proto.DeleteMFADeviceRequestInit{
+				DeviceName: c.name,
+			},
+		}}); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Auth challenge.
+		resp, err := stream.Recv()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		authChallenge := resp.GetMFAChallenge()
+		if authChallenge == nil {
+			return trace.BadParameter("server bug: server sent %T when client expected DeleteMFADeviceResponse_MFAChallenge", resp.Response)
+		}
+		authResp, err := promptMFAChallenge(cf.Context, tc.Config.WebProxyAddr, authChallenge)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := stream.Send(&proto.DeleteMFADeviceRequest{Request: &proto.DeleteMFADeviceRequest_MFAResponse{
+			MFAResponse: authResp,
+		}}); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Receive deletion ack.
+		resp, err = stream.Recv()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		ack := resp.GetAck()
+		if ack == nil {
+			return trace.BadParameter("server bug: server sent %T when client expected DeleteMFADeviceResponse_Ack", resp.Response)
+		}
+		return nil
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("MFA device %q removed.\n", c.name)
+	return nil
+}

@@ -396,6 +396,8 @@ func Run(args []string) {
 
 	// Kubernetes subcommands.
 	kube := newKubeCommand(app)
+	// MFA subcommands.
+	mfa := newMFACommand(app)
 
 	// On Windows, hide the "ssh", "join", "play", "scp", and "bench" commands
 	// because they all use a terminal.
@@ -491,6 +493,12 @@ func Run(args []string) {
 		onDatabaseConfig(&cf)
 	case environment.FullCommand():
 		onEnvironment(&cf)
+	case mfa.ls.FullCommand():
+		err = mfa.ls.run(&cf)
+	case mfa.add.FullCommand():
+		err = mfa.add.run(&cf)
+	case mfa.rm.FullCommand():
+		err = mfa.rm.run(&cf)
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.BadParameter("command %q not configured", command)

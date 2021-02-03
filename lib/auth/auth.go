@@ -828,7 +828,7 @@ func (a *Server) U2FSignRequest(user string, password []byte) (*u2f.Authenticate
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(awly): support challenge with multiple devices.
+	// TODO(awly): mfa: support challenge with multiple devices.
 	devs, err := a.GetMFADevices(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -838,7 +838,7 @@ func (a *Server) U2FSignRequest(user string, password []byte) (*u2f.Authenticate
 			continue
 		}
 		return u2f.AuthenticateInit(ctx, u2f.AuthenticateInitParams{
-			Dev:        dev.GetU2F(),
+			Dev:        dev,
 			AppConfig:  *u2fConfig,
 			StorageKey: user,
 			Storage:    a.Identity,
@@ -858,7 +858,7 @@ func (a *Server) CheckU2FSignResponse(ctx context.Context, user string, response
 		return trace.Wrap(err)
 	}
 
-	return a.checkU2F(ctx, user, *response)
+	return a.checkU2F(ctx, user, *response, a.Identity)
 }
 
 // ExtendWebSession creates a new web session for a user based on a valid previous sessionID.
@@ -1896,7 +1896,7 @@ func (a *Server) GetDatabaseServers(ctx context.Context, namespace string, opts 
 
 // mfaAuthChallenge constructs an MFAAuthenticateChallenge for all MFA devices
 // registered by the user.
-func (a *Server) mfaAuthChallenge(ctx context.Context, user string) (*proto.MFAAuthenticateChallenge, error) {
+func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u2f.AuthenticationStorage) (*proto.MFAAuthenticateChallenge, error) {
 	// Check what kind of MFA is enabled.
 	apref, err := a.GetAuthPreference()
 	if err != nil {
@@ -1932,7 +1932,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string) (*proto.MFAA
 
 	challenge := new(proto.MFAAuthenticateChallenge)
 	for _, dev := range devs {
-		switch dd := dev.Device.(type) {
+		switch dev.Device.(type) {
 		case *types.MFADevice_Totp:
 			if !enableTOTP {
 				continue
@@ -1944,8 +1944,8 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string) (*proto.MFAA
 			}
 			ch, err := u2f.AuthenticateInit(ctx, u2f.AuthenticateInitParams{
 				AppConfig:  *u2fPref,
-				Dev:        dd.U2F,
-				Storage:    a.Identity,
+				Dev:        dev,
+				Storage:    u2fStorage,
 				StorageKey: user,
 			})
 			if err != nil {
@@ -1963,7 +1963,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string) (*proto.MFAA
 	return challenge, nil
 }
 
-func (a *Server) validateMFAAuthResponse(ctx context.Context, user string, resp *proto.MFAAuthenticateResponse) error {
+func (a *Server) validateMFAAuthResponse(ctx context.Context, user string, resp *proto.MFAAuthenticateResponse, u2fStorage u2f.AuthenticationStorage) error {
 	switch res := resp.Response.(type) {
 	case *proto.MFAAuthenticateResponse_TOTP:
 		return a.checkOTP(user, res.TOTP.Code)
@@ -1972,13 +1972,13 @@ func (a *Server) validateMFAAuthResponse(ctx context.Context, user string, resp 
 			KeyHandle:     res.U2F.KeyHandle,
 			ClientData:    res.U2F.ClientData,
 			SignatureData: res.U2F.Signature,
-		})
+		}, u2fStorage)
 	default:
 		return trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
 	}
 }
 
-func (a *Server) checkU2F(ctx context.Context, user string, res u2f.AuthenticateChallengeResponse) error {
+func (a *Server) checkU2F(ctx context.Context, user string, res u2f.AuthenticateChallengeResponse, u2fStorage u2f.AuthenticationStorage) error {
 	devs, err := a.GetMFADevices(ctx, user)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1997,7 +1997,7 @@ func (a *Server) checkU2F(ctx context.Context, user string, res u2f.Authenticate
 		if err := u2f.AuthenticateVerify(ctx, u2f.AuthenticateVerifyParams{
 			Dev:        dev,
 			Resp:       res,
-			Storage:    a.Identity,
+			Storage:    u2fStorage,
 			StorageKey: user,
 			Clock:      a.clock,
 		}); err != nil {

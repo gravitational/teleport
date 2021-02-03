@@ -2336,6 +2336,27 @@ func (a *ServerWithRoles) DeleteAllKubeServices(ctx context.Context) error {
 	return a.authServer.DeleteAllKubeServices(ctx)
 }
 
+// TODO(awly): decouple auth.ClientI from auth.ServerWithRoles, they exist on
+// opposite sides of the connection.
+
+// GetMFADevices exists to satisfy auth.ClientI but is not implemented here.
+// Use auth.GRPCServer.GetMFADevices or client.Client.GetMFADevices instead.
+func (a *ServerWithRoles) GetMFADevices(context.Context, *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error) {
+	return nil, trace.NotImplemented("bug: GetMFADevices must not be called on auth.ServerWithRoles")
+}
+
+// AddMFADevice exists to satisfy auth.ClientI but is not implemented here.
+// Use auth.GRPCServer.AddMFADevice or client.Client.AddMFADevice instead.
+func (a *ServerWithRoles) AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error) {
+	return nil, trace.NotImplemented("bug: AddMFADevice must not be called on auth.ServerWithRoles")
+}
+
+// DeleteMFADevice exists to satisfy auth.ClientI but is not implemented here.
+// Use auth.GRPCServer.DeleteMFADevice or client.Client.DeleteMFADevice instead.
+func (a *ServerWithRoles) DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error) {
+	return nil, trace.NotImplemented("bug: DeleteMFADevices must not be called on auth.ServerWithRoles")
+}
+
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
 func NewAdminAuthServer(authServer *Server, sessions session.Service, alog events.IAuditLog) (ClientI, error) {
