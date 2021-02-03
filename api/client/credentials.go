@@ -28,7 +28,7 @@ import (
 	"golang.org/x/net/http2"
 )
 
-// Credentials are used to authenticate the client's connection to the server
+// Credentials are used to authenticate the client's connection to the server.
 type Credentials struct {
 	// TLS is the client's TLS config
 	TLS *tls.Config
@@ -37,8 +37,9 @@ type Credentials struct {
 // CheckAndSetDefaults checks and sets default credential values.
 func (c *Credentials) CheckAndSetDefaults() error {
 	if c.TLS == nil {
-		return trace.BadParameter("creds missing tls config")
+		return trace.BadParameter("missing TLS config")
 	}
+	// clone to make sure it doesn't alter a TLS config used elsewhere (auth client)
 	c.TLS = c.TLS.Clone()
 	c.TLS.NextProtos = []string{http2.NextProtoTLS}
 	if c.TLS.ServerName == "" {
@@ -64,9 +65,9 @@ func ProfileCreds() (Credentials, error) {
 	return TLSCreds(tls), nil
 }
 
-// IdentityCreds attempts to load Credentials from the specified identity file's path.
-// You can create an identity file by running `tsh login --out=[full_file_path]`.
-func IdentityCreds(path string) (Credentials, error) {
+// IdentityFileCreds attempts to load Credentials from the specified identity file's path.
+// You can create an identity file by running `tsh login --out=identity_file_path`.
+func IdentityFileCreds(path string) (Credentials, error) {
 	idf, err := DecodeIdentityFile(path)
 	if err != nil {
 		return Credentials{}, trace.BadParameter("identity file could not be decoded: %v", err)
@@ -80,8 +81,10 @@ func IdentityCreds(path string) (Credentials, error) {
 	return TLSCreds(tls), nil
 }
 
-// PathCreds establishes a gRPC connection to an auth server.
-func PathCreds(path string) (Credentials, error) {
+// CertsPathCreds attempts to load Credentials from the specified certificates path. These
+// certs can be generated with `tctl auth sign --out=certs_file_path/certs_filename_suffix`.
+// For example, this path could be "/home/unix_username/certs/teleport_username".
+func CertsPathCreds(path string) (Credentials, error) {
 	cert, err := tls.LoadX509KeyPair(path+".crt", path+".key")
 	if err != nil {
 		return Credentials{}, trace.Wrap(err)

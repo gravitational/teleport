@@ -4,9 +4,9 @@
 
 This program demonstrates how to...
 
-1. Authenticate against the Auth API using the three different methods.
-2. Make API calls to issue CRUD requests for cluster join tokens, roles, and labels.
-3. Receive, allow, and deny access requests.
+1. Create a user and role, which the API client will act as.
+2. Authenticate against the API server using the four different methods.
+3. Create a new client and make API calls.
 
 ### API Authentication
 
@@ -17,24 +17,20 @@ Auth API clients must perform two-way authentication using x509 certificates:
 2. They must offer their x509 certificate, which has been previously issued
    by the auth sever.
 
-There are a few ways to generate the certificates needed to authenticate the client. This
-demo uses the default profile, which is generated with `tsh login`.
+There are a few simple ways to generate the certificates needed to authenticate the client, each of which is detailed in this demo.
 
-### API Authorization
+### Authorization
 
-The API will authorize requests based on the certs provided. Since these credentials
-are created by `tsh login`, the API will authorize requests based on that login.
+The Server will authorize requests based on the user associated with the certs used to authenticate the Client. 
+
+Therefore, to use the API client, you need to create a user and any roles it may need for your use case. The client will act as that user and have access to everything defined by the user's role(s).
 
 Note: role based access control is an enterprise feature. All users will be treated 
 as the `admin` role in non-enterprise instances of Teleport. 
 
 ### Run the Demo
 
-To use the API client, you need to create a role, a user with that role, and login as that user. That client will act as that user and have access to everything defined by the role.
-
-You can test that flow here with the small example in `main.go`, where an `access-admin`, which only has priviledges for creating and updating access-requests, requests to use the `admin` role.
-
-First, create the user and role described using the commands below.
+First, create the `access-admin` user and role using the commands below.
 
 ```bash
 $ tctl create -f access-admin.yaml
@@ -53,15 +49,15 @@ Third, choose one of the authentication methods.
 
 2. identity file:
 
-   In `main.go` replace `client.ProfileCreds()` (line 33), with `client.IdentityCreds("full_id_file_path")`.
+   In `main.go` replace `client.ProfileCreds()` (line 33), with `client.IdentityFileCreds("identity_file_path")`.
 
    ```bash
-   $ tsh login --user=access-admin --out=[full_id_file_path]
+   $ tsh login --user=access-admin --out=identity_file_path
    ```
 
 3. generate certificates from auth server without login:
 
-   In `main.go` replace `client.ProfileCreds()` (line 33), with `client.PathCreds("certs/access-admin")`.
+   In `main.go` replace `client.ProfileCreds()` (line 33), with `client.CertsPathCreds("certs/access-admin")`.
 
    ```bash
    $ mkdir -p certs
