@@ -66,7 +66,7 @@ teleport:
 
     # Configuration for the storage back-end used for the cluster state and the
     # audit log. Several back-end types are supported. See the "High Availability"
-    # section of the Admin Manual (https://goteleport.com/teleport/docs/admin-guide/#high-availability) 
+    # section of the Admin Manual (https://goteleport.com/teleport/docs/admin-guide/#high-availability)
     # to learn how to configure DynamoDB, S3, etcd and other highly available back-ends.
     storage:
         # By default teleport uses the `data_dir` directory on a local filesystem
@@ -198,7 +198,7 @@ auth_service:
 
     # Optional setting for configuring session recording. Possible values are:
     #    "node"  : sessions will be recorded on the node level  (the default)
-    #    "proxy" : recording on the proxy level, see "Recording Proxy Mode" 
+    #    "proxy" : recording on the proxy level, see "Recording Proxy Mode"
     #              (https://goteleport.com/teleport/docs/architecture/proxy/#recording-proxy-mode).
     #    "off"   : session recording is turned off
     #
