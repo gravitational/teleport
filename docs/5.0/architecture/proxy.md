@@ -16,7 +16,7 @@ Teleport cluster:
    from client to Node.
 
 3. It serves a Web UI which is used by cluster users to sign up and configure
-   their accounts, explore nodes in a cluster, log into remote nodes, join
+   their accounts, explore Nodes in a cluster, log into remote Nodes, join
    existing SSH sessions or replay recorded sessions.
 
 ## Connecting to a Node
@@ -34,9 +34,9 @@ client SSH connection:
 3. If Auth Server accepts credentials, it generates a new web session and
    generates a special ssh keypair associated with this web session. Auth server
    starts serving [OpenSSH ssh-agent
-   protocol](https://github.com/openssh/openssh-portable/blob/master/PROTOCOL.agent)
+   protocol](https://tools.ietf.org/html/draft-miller-ssh-agent-04)
    to the proxy.
-4. The User obtains an SSH session in the Web UI and can interact with the node
+4. The User obtains an SSH session in the Web UI and can interact with the Node
    on a web-based terminal. From the Node's perspective, it's a regular SSH
    client connection that is authenticated using an OpenSSH certificate, so no
    special logic is needed.
@@ -64,7 +64,7 @@ the [Auth Service](authentication.md#authentication-in-teleport).
    which defaults to 12 hours, but can be configured in
    [`tctl`](../cli-docs.md#tctl).
 4. The Proxy Server returns the user certificate to the client and client stores
-   it in `~/.tsh/keys`. The certificate is also added to the local SSH agent if
+   it in `~/.tsh/keys/<proxy_host>`. The certificate is also added to the local SSH agent if
    one is running.
 
 **Using Client Certificates**
@@ -75,17 +75,17 @@ client `ssh` or using `tsh`:
 
 ![Teleport Proxy Web](../img/proxy-ssh-2.svg)
 
-1. A client connects to the Proxy Server and provides target node's host and
+1. A client connects to the Proxy Server and provides target Node's host and
    port location. There are three lookup mechanisms a proxy uses to find the
-   node's IP address:
+   Node's IP address:
 
     * Use DNS to resolve the name requested by the client.
     * Asks the Auth Service if there is a Node registered with this `nodename`.
-    * Asks the Auth Service to find a node (or nodes) with a label that matches
+    * Asks the Auth Service to find a Node (or Nodes) with a label that matches
       the requested name.
 
-2. If the node is located, the Proxy establishes an SSH connection to the
-   requested node and starts forwarding traffic from Node to client.
+2. If the Node is located, the Proxy establishes an SSH tunnel to the
+   requested Node and starts forwarding traffic from Node to client.
 3. The client uses the established SSH tunnel from Proxy to Node to open a new
    SSH connection. The client authenticates with the target Node using its
    client certificate.
@@ -113,17 +113,17 @@ We consider the "recording proxy mode" to be less secure for two reasons:
 1. It grants additional privileges to the Teleport proxy. In the default mode,
    the proxy stores no secrets and cannot "see" the decrypted data. This makes a
    proxy less critical to the security of the overall cluster. But if an
-   attacker gains physical access to a proxy node running in the "recording"
+   attacker gains physical access to a proxy Node running in the "recording"
    mode, they will be able to see the decrypted traffic and client keys stored
    in proxy's process memory.
 2. Recording proxy mode requires the SSH agent forwarding. Agent forwarding is
    required because without it, a proxy will not be able to establish the 2nd
-   connection to the destination node.
+   connection to the destination Node.
 
 However, there are advantages of proxy-based session recording too. When
-sessions are recorded at the nodes, a root user can add iptables rules to
+sessions are recorded at the Nodes, a root user can add iptables rules to
 prevent sessions logs from reaching the Auth Service. With sessions recorded at
-the proxy, users with root privileges on nodes have no way of disabling the
+the proxy, users with root privileges on Nodes have no way of disabling the
 audit.
 
 See the [admin guide](../admin-guide.md#recorded-sessions) to learn how to turn
