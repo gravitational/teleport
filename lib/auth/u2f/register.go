@@ -107,10 +107,10 @@ type RegisterVerifyParams struct {
 
 // RegisterVerify is the last step in the registration sequence. It runs on the
 // server and verifies the RegisterChallengeResponse returned by the client.
-func RegisterVerify(ctx context.Context, params RegisterVerifyParams) error {
+func RegisterVerify(ctx context.Context, params RegisterVerifyParams) (*types.MFADevice, error) {
 	challenge, err := params.Storage.GetU2FRegisterChallenge(params.ChallengeStorageKey)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Set SkipAttestationVerify because we don't yet know what vendor CAs to
@@ -119,15 +119,15 @@ func RegisterVerify(ctx context.Context, params RegisterVerifyParams) error {
 	if err != nil {
 		// U2F is a 3rd party library and sends back a string based error. Wrap this error with a
 		// trace.BadParameter error to allow the Web UI to unmarshal it correctly.
-		return trace.BadParameter(err.Error())
+		return nil, trace.BadParameter(err.Error())
 	}
 	dev, err := NewDevice(params.DevName, reg, params.Clock.Now())
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if err := params.Storage.UpsertMFADevice(ctx, params.RegistrationStorageKey, dev); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return nil
+	return dev, nil
 }

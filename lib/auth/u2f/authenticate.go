@@ -53,7 +53,6 @@ type (
 // AuthenticationStorage is the persistent storage needed to store state
 // (challenges and counters) during the authentication sequence.
 type AuthenticationStorage interface {
-	GetMFADevices(ctx context.Context, key string) ([]*types.MFADevice, error)
 	UpsertMFADevice(ctx context.Context, key string, d *types.MFADevice) error
 
 	UpsertU2FSignChallenge(key string, u2fChallenge *Challenge) error
@@ -64,6 +63,7 @@ type AuthenticationStorage interface {
 // sequence.
 type AuthenticateInitParams struct {
 	AppConfig  types.U2F
+	Dev        *types.U2FDevice
 	StorageKey string
 	Storage    AuthenticationStorage
 }
@@ -72,22 +72,7 @@ type AuthenticateInitParams struct {
 // on the server and the returned AuthenticateChallenge must be sent to the
 // client.
 func AuthenticateInit(ctx context.Context, params AuthenticateInitParams) (*AuthenticateChallenge, error) {
-	devs, err := params.Storage.GetMFADevices(ctx, params.StorageKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// TODO(awly): support multiple U2F device challenges.
-	var u2fDev *types.U2FDevice
-	for _, dev := range devs {
-		if dev.GetU2F() != nil {
-			u2fDev = dev.GetU2F()
-			break
-		}
-	}
-	if u2fDev == nil {
-		return nil, trace.NotFound("no U2F devices registered for the user")
-	}
-	reg, err := DeviceToRegistration(u2fDev)
+	reg, err := DeviceToRegistration(params.Dev)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -191,6 +176,9 @@ type AuthenticateVerifyParams struct {
 // on the server and verifies the AuthenticateChallengeResponse returned by the
 // client.
 func AuthenticateVerify(ctx context.Context, params AuthenticateVerifyParams) error {
+	if params.Dev == nil {
+		return trace.BadParameter("no MFADevice provided")
+	}
 	dev := params.Dev.GetU2F()
 	if dev == nil {
 		return trace.BadParameter("provided MFADevice is not a U2FDevice: %T", params.Dev.Device)
