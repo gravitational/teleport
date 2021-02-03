@@ -133,6 +133,7 @@ We recommend installing BCC tools using your distribution's package manager wher
     This script can be used to compile BCC tools from source on Ubuntu and Debian hosts.
 
     !!! warning
+
         We recommend this method only as a last resort if installing the `bpfcc-tools` package does not work.
         Compiling from source can take a long time and may break if your kernel version changes.
 
@@ -169,11 +170,12 @@ We recommend installing BCC tools using your distribution's package manager wher
     echo "Install is complete, try running /usr/share/bcc/tools/execsnoop to verify install."
     ```
 
-=== "CentOS"
+=== "CentOS (compile from source)"
 
     This script can be used to compile BCC tools from source on CentOS and RHEL hosts.
 
     !!! warning
+
         We recommend this method only as a last resort if installing the `bcc-tools` package does not work.
         Compiling from source can take a long time and may break if your kernel version changes.
 
