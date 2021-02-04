@@ -366,8 +366,9 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 	}
 
 	var sessionMeta events.SessionMetadata
-	if ctx.session != nil {
-		sessionMeta.SessionID = string(ctx.session.id)
+	sessionID := string(ctx.SessionID())
+	if sessionID != "" {
+		sessionMeta.SessionID = sessionID
 	}
 
 	userMeta := events.UserMetadata{

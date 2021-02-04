@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -35,7 +36,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/sirupsen/logrus"
-	"github.com/tstranex/u2f"
 )
 
 // ServerWithRoles is a wrapper around auth service
@@ -125,8 +125,8 @@ func (a *ServerWithRoles) hasLocalUserRole(checker services.AccessChecker) bool 
 	return true
 }
 
-// AuthenticateWebUser authenticates web user, creates and  returns web session
-// in case if authentication is successful
+// AuthenticateWebUser authenticates web user, creates and returns a web session
+// in case authentication is successful
 func (a *ServerWithRoles) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebSession, error) {
 	// authentication request has it's own authentication, however this limits the requests
 	// types to proxies to make it harder to break
@@ -489,6 +489,10 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch services.Watch) 
 			if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbRead); err != nil {
 				return nil, trace.Wrap(err)
 			}
+		case services.KindWebToken:
+			if err := a.action(defaults.Namespace, services.KindWebToken, services.VerbRead); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		case services.KindRemoteCluster:
 			if err := a.action(defaults.Namespace, services.KindRemoteCluster, services.VerbRead); err != nil {
 				return nil, trace.Wrap(err)
@@ -765,13 +769,6 @@ func (a *ServerWithRoles) CheckPassword(user string, password []byte, otpToken s
 	return a.authServer.CheckPassword(user, password, otpToken)
 }
 
-func (a *ServerWithRoles) UpsertTOTP(user string, otpSecret string) error {
-	if err := a.currentUserAction(user); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.UpsertTOTP(user, otpSecret)
-}
-
 func (a *ServerWithRoles) PreAuthenticatedSignIn(user string) (services.WebSession, error) {
 	if err := a.currentUserAction(user); err != nil {
 		return nil, trace.Wrap(err)
@@ -779,12 +776,13 @@ func (a *ServerWithRoles) PreAuthenticatedSignIn(user string) (services.WebSessi
 	return a.authServer.PreAuthenticatedSignIn(user, a.context.Identity.GetIdentity())
 }
 
-func (a *ServerWithRoles) GetU2FSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
+func (a *ServerWithRoles) GetU2FSignRequest(user string, password []byte) (*u2f.AuthenticateChallenge, error) {
 	// we are already checking password here, no need to extra permission check
 	// anyone who has user's password can generate sign request
 	return a.authServer.U2FSignRequest(user, password)
 }
 
+// CreateWebSession creates a new web session for the specified user
 func (a *ServerWithRoles) CreateWebSession(user string) (services.WebSession, error) {
 	if err := a.currentUserAction(user); err != nil {
 		return nil, trace.Wrap(err)
@@ -792,6 +790,9 @@ func (a *ServerWithRoles) CreateWebSession(user string) (services.WebSession, er
 	return a.authServer.CreateWebSession(user)
 }
 
+// ExtendWebSession creates a new web session for a user based on a valid previous session.
+// Additional roles are appended to initial roles if there is an approved access request.
+// The new session expiration time will not exceed the expiration time of the old session.
 func (a *ServerWithRoles) ExtendWebSession(user, prevSessionID, accessRequestID string) (services.WebSession, error) {
 	if err := a.currentUserAction(user); err != nil {
 		return nil, trace.Wrap(err)
@@ -799,18 +800,148 @@ func (a *ServerWithRoles) ExtendWebSession(user, prevSessionID, accessRequestID 
 	return a.authServer.ExtendWebSession(user, prevSessionID, accessRequestID, a.context.Identity.GetIdentity())
 }
 
-func (a *ServerWithRoles) GetWebSessionInfo(user string, sid string) (services.WebSession, error) {
+// GetWebSessionInfo returns the web session for the given user specified with sid.
+// The session is stripped of any authentication details.
+// Implements auth.WebUIService
+func (a *ServerWithRoles) GetWebSessionInfo(ctx context.Context, user, sessionID string) (services.WebSession, error) {
 	if err := a.currentUserAction(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetWebSessionInfo(user, sid)
+	return a.authServer.GetWebSessionInfo(ctx, user, sessionID)
 }
 
-func (a *ServerWithRoles) DeleteWebSession(user string, sid string) error {
-	if err := a.currentUserAction(user); err != nil {
+// GetWebSession returns the web session specified with req.
+// Implements auth.ReadAccessPoint.
+func (a *ServerWithRoles) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
+	return a.WebSessions().Get(ctx, req)
+}
+
+// WebSessions returns the web session manager.
+// Implements services.WebSessionsGetter.
+func (a *ServerWithRoles) WebSessions() types.WebSessionInterface {
+	return &webSessionsWithRoles{c: a, ws: a.authServer.WebSessions()}
+}
+
+// Get returns the web session specified with req.
+func (r *webSessionsWithRoles) Get(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
+	if err := r.c.currentUserAction(req.User); err != nil {
+		if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return r.ws.Get(ctx, req)
+}
+
+// List returns the list of all web sessions.
+func (r *webSessionsWithRoles) List(ctx context.Context) ([]services.WebSession, error) {
+	if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return r.ws.List(ctx)
+}
+
+// Upsert creates a new or updates the existing web session from the specified session.
+// TODO(dmitri): this is currently only implemented for local invocations. This needs to be
+// moved into a more appropriate API
+func (*webSessionsWithRoles) Upsert(ctx context.Context, session services.WebSession) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// Delete removes the web session specified with req.
+func (r *webSessionsWithRoles) Delete(ctx context.Context, req types.DeleteWebSessionRequest) error {
+	if err := r.c.currentUserAction(req.User); err != nil {
+		if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbDelete); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return r.ws.Delete(ctx, req)
+}
+
+// DeleteAll removes all web sessions.
+func (r *webSessionsWithRoles) DeleteAll(ctx context.Context) error {
+	if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbList); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteWebSession(user, sid)
+	if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return r.ws.DeleteAll(ctx)
+}
+
+// GetWebToken returns the web token specified with req.
+// Implements auth.ReadAccessPoint.
+func (a *ServerWithRoles) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
+	return a.WebTokens().Get(ctx, req)
+}
+
+type webSessionsWithRoles struct {
+	c  accessChecker
+	ws types.WebSessionInterface
+}
+
+// WebTokens returns the web token manager.
+// Implements services.WebTokensGetter.
+func (a *ServerWithRoles) WebTokens() types.WebTokenInterface {
+	return &webTokensWithRoles{c: a, t: a.authServer.WebTokens()}
+}
+
+// Get returns the web token specified with req.
+func (r *webTokensWithRoles) Get(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
+	if err := r.c.currentUserAction(req.User); err != nil {
+		if err := r.c.action(defaults.Namespace, services.KindWebToken, services.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return r.t.Get(ctx, req)
+}
+
+// List returns the list of all web tokens.
+func (r *webTokensWithRoles) List(ctx context.Context) ([]types.WebToken, error) {
+	if err := r.c.action(defaults.Namespace, services.KindWebToken, services.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return r.t.List(ctx)
+}
+
+// Upsert creates a new or updates the existing web token from the specified token.
+// TODO(dmitri): this is currently only implemented for local invocations. This needs to be
+// moved into a more appropriate API
+func (*webTokensWithRoles) Upsert(ctx context.Context, session types.WebToken) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// Delete removes the web token specified with req.
+func (r *webTokensWithRoles) Delete(ctx context.Context, req types.DeleteWebTokenRequest) error {
+	if err := r.c.currentUserAction(req.User); err != nil {
+		if err := r.c.action(defaults.Namespace, services.KindWebToken, services.VerbDelete); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return r.t.Delete(ctx, req)
+}
+
+// DeleteAll removes all web tokens.
+func (r *webTokensWithRoles) DeleteAll(ctx context.Context) error {
+	if err := r.c.action(defaults.Namespace, services.KindWebToken, services.VerbList); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := r.c.action(defaults.Namespace, services.KindWebToken, services.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return r.t.DeleteAll(ctx)
+}
+
+type webTokensWithRoles struct {
+	c accessChecker
+	t types.WebTokenInterface
+}
+
+type accessChecker interface {
+	action(namespace, resource, action string) error
+	currentUserAction(user string) error
 }
 
 func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter services.AccessRequestFilter) ([]services.AccessRequest, error) {
@@ -1096,7 +1227,7 @@ func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserC
 				}
 				return nil, trace.AccessDenied("access-request %q is awaiting approval", reqID)
 			}
-			if err := services.ValidateAccessRequest(a.authServer, accessReq); err != nil {
+			if err := services.ValidateAccessRequestForUser(a.authServer, accessReq); err != nil {
 				return nil, trace.Wrap(err)
 			}
 			aexp := accessReq.GetAccessExpiry()
@@ -1154,7 +1285,7 @@ func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserC
 	}, nil
 }
 
-func (a *ServerWithRoles) GetSignupU2FRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
+func (a *ServerWithRoles) GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error) {
 	// signup token are their own authz resource
 	return a.authServer.CreateSignupU2FRegisterRequest(token)
 }
@@ -2031,7 +2162,7 @@ func (a *ServerWithRoles) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) 
 }
 
 // GetDatabaseServers returns all registered database servers.
-func (a *ServerWithRoles) GetDatabaseServers(ctx context.Context, namespace string, opts ...types.MarshalOption) ([]types.DatabaseServer, error) {
+func (a *ServerWithRoles) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
 	if err := a.action(namespace, types.KindDatabaseServer, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2341,6 +2472,27 @@ func (a *ServerWithRoles) DeleteAllKubeServices(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteAllKubeServices(ctx)
+}
+
+// TODO(awly): decouple auth.ClientI from auth.ServerWithRoles, they exist on
+// opposite sides of the connection.
+
+// GetMFADevices exists to satisfy auth.ClientI but is not implemented here.
+// Use auth.GRPCServer.GetMFADevices or client.Client.GetMFADevices instead.
+func (a *ServerWithRoles) GetMFADevices(context.Context, *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error) {
+	return nil, trace.NotImplemented("bug: GetMFADevices must not be called on auth.ServerWithRoles")
+}
+
+// AddMFADevice exists to satisfy auth.ClientI but is not implemented here.
+// Use auth.GRPCServer.AddMFADevice or client.Client.AddMFADevice instead.
+func (a *ServerWithRoles) AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error) {
+	return nil, trace.NotImplemented("bug: AddMFADevice must not be called on auth.ServerWithRoles")
+}
+
+// DeleteMFADevice exists to satisfy auth.ClientI but is not implemented here.
+// Use auth.GRPCServer.DeleteMFADevice or client.Client.DeleteMFADevice instead.
+func (a *ServerWithRoles) DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error) {
+	return nil, trace.NotImplemented("bug: DeleteMFADevice must not be called on auth.ServerWithRoles")
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

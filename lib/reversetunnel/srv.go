@@ -69,7 +69,7 @@ func init() {
 
 // server is a "reverse tunnel server". it exposes the cluster capabilities
 // (like access to a cluster's auth) to remote trusted clients
-// (also known as 'reverse tunnel agents'.
+// (also known as 'reverse tunnel agents').
 type server struct {
 	sync.RWMutex
 	Config
@@ -704,7 +704,7 @@ func (s *server) getTrustedCAKeysByID(id services.CertAuthID) ([]ssh.PublicKey, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ca.Checkers()
+	return sshutils.GetCheckers(ca)
 }
 
 func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Permissions, err error) {

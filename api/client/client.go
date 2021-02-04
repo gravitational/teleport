@@ -28,12 +28,11 @@ import (
 
 	"golang.org/x/net/http2"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/jwt"
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/trace"
@@ -83,7 +82,7 @@ func NewClient(cfg Config) (*Client, error) {
 	})
 
 	var err error
-	if c.conn, err = grpc.Dial(teleport.APIDomain,
+	if c.conn, err = grpc.Dial(constants.APIDomain,
 		dialer,
 		grpc.WithTransportCredentials(credentials.NewTLS(c.c.TLS)),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
@@ -142,7 +141,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	c.TLS.NextProtos = []string{http2.NextProtoTLS}
 	if c.TLS.ServerName == "" {
-		c.TLS.ServerName = teleport.APIDomain
+		c.TLS.ServerName = constants.APIDomain
 	}
 
 	return nil
@@ -484,15 +483,10 @@ func (c *Client) GetKubeServices(ctx context.Context) ([]types.Server, error) {
 }
 
 // GetAppServers gets all application servers.
-func (c *Client) GetAppServers(ctx context.Context, namespace string, opts ...types.MarshalOption) ([]types.Server, error) {
-	cfg, err := types.CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+func (c *Client) GetAppServers(ctx context.Context, namespace string, skipValidation bool) ([]types.Server, error) {
 	resp, err := c.grpc.GetAppServers(ctx, &proto.GetAppServersRequest{
 		Namespace:      namespace,
-		SkipValidation: cfg.SkipValidation,
+		SkipValidation: skipValidation,
 	})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -596,7 +590,7 @@ func (c *Client) DeleteAllAppSessions(ctx context.Context) error {
 }
 
 // GenerateAppToken creates a JWT token with application access.
-func (c *Client) GenerateAppToken(ctx context.Context, req jwt.GenerateAppTokenRequest) (string, error) {
+func (c *Client) GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error) {
 	resp, err := c.grpc.GenerateAppToken(ctx, &proto.GenerateAppTokenRequest{
 		Username: req.Username,
 		Roles:    req.Roles,
@@ -625,14 +619,10 @@ func (c *Client) DeleteAllKubeServices(ctx context.Context) error {
 }
 
 // GetDatabaseServers returns all registered database proxy servers.
-func (c *Client) GetDatabaseServers(ctx context.Context, namespace string, opts ...types.MarshalOption) ([]types.DatabaseServer, error) {
-	cfg, err := types.CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func (c *Client) GetDatabaseServers(ctx context.Context, namespace string, skipValidation bool) ([]types.DatabaseServer, error) {
 	resp, err := c.grpc.GetDatabaseServers(ctx, &proto.GetDatabaseServersRequest{
 		Namespace:      namespace,
-		SkipValidation: cfg.SkipValidation,
+		SkipValidation: skipValidation,
 	})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -697,6 +687,30 @@ func (c *Client) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 // service to authenticate with the database instance.
 func (c *Client) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
 	resp, err := c.grpc.GenerateDatabaseCert(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+func (c *Client) AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error) {
+	stream, err := c.grpc.AddMFADevice(ctx)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return stream, nil
+}
+
+func (c *Client) DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error) {
+	stream, err := c.grpc.DeleteMFADevice(ctx)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return stream, nil
+}
+
+func (c *Client) GetMFADevices(ctx context.Context, in *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error) {
+	resp, err := c.grpc.GetMFADevices(ctx, in)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}

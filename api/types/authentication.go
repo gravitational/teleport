@@ -1,5 +1,5 @@
 /*
-Copyright 2016-2020 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,22 +18,15 @@ package types
 
 import (
 	"bytes"
-	"crypto/ecdsa"
-	"crypto/x509"
-	"encoding/json"
 	"fmt"
 	"time"
 
-	"golang.org/x/crypto/bcrypt"
-
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/pquerna/otp/totp"
-	"github.com/tstranex/u2f"
+	"github.com/pborman/uuid"
 )
 
 // AuthPreference defines the authentication preferences for a specific
@@ -102,8 +95,8 @@ func DefaultAuthPreference() AuthPreference {
 			Namespace: defaults.Namespace,
 		},
 		Spec: AuthPreferenceSpecV2{
-			Type:         teleport.Local,
-			SecondFactor: teleport.OTP,
+			Type:         constants.Local,
+			SecondFactor: constants.OTP,
 		},
 	}
 }
@@ -152,7 +145,9 @@ func (c *AuthPreferenceV2) Expiry() time.Time {
 }
 
 // SetTTL sets Expires header using the provided clock.
-func (c *AuthPreferenceV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
+func (c *AuthPreferenceV2) SetTTL(clock Clock, ttl time.Duration) {
 	c.Metadata.SetTTL(clock, ttl)
 }
 
@@ -241,22 +236,22 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 
 	// if nothing is passed in, set defaults
 	if c.Spec.Type == "" {
-		c.Spec.Type = teleport.Local
+		c.Spec.Type = constants.Local
 	}
 	if c.Spec.SecondFactor == "" {
-		c.Spec.SecondFactor = teleport.OTP
+		c.Spec.SecondFactor = constants.OTP
 	}
 
 	// make sure type makes sense
 	switch c.Spec.Type {
-	case teleport.Local, teleport.OIDC, teleport.SAML, teleport.Github:
+	case constants.Local, constants.OIDC, constants.SAML, constants.Github:
 	default:
 		return trace.BadParameter("authentication type %q not supported", c.Spec.Type)
 	}
 
 	// make sure second factor makes sense
 	switch c.Spec.SecondFactor {
-	case teleport.OFF, teleport.OTP, teleport.U2F:
+	case constants.OFF, constants.OTP, constants.U2F:
 	default:
 		return trace.BadParameter("second factor type %q not supported", c.Spec.SecondFactor)
 	}
@@ -294,245 +289,81 @@ type U2F struct {
 	Facets []string `json:"facets,omitempty"`
 }
 
-// GetPubKeyDecoded decodes the DER encoded PubKey field into an `ecdsa.PublicKey` instance.
-func (reg *U2FRegistrationData) GetPubKeyDecoded() (*ecdsa.PublicKey, error) {
-	pubKeyI, err := x509.ParsePKIXPublicKey(reg.PubKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
+// NewMFADevice creates a new MFADevice with the given name. Caller must set
+// the Device field in the returned MFADevice.
+func NewMFADevice(name string, addedAt time.Time) *MFADevice {
+	return &MFADevice{
+		Kind: KindMFADevice,
+		Metadata: Metadata{
+			Name: name,
+		},
+		Id:       uuid.New(),
+		AddedAt:  addedAt,
+		LastUsed: addedAt,
 	}
-	pubKey, ok := pubKeyI.(*ecdsa.PublicKey)
-	if !ok {
-		return nil, trace.Errorf("expected *ecdsa.PublicKey, got %T", pubKeyI)
-	}
-	return pubKey, nil
 }
 
-// Check validates basic u2f registration values
-func (reg *U2FRegistrationData) Check() error {
-	if len(reg.KeyHandle) < 1 {
-		return trace.BadParameter("missing u2f key handle")
-	}
-	if len(reg.PubKey) < 1 {
-		return trace.BadParameter("missing u2f pubkey")
-	}
-	if _, err := reg.GetPubKeyDecoded(); err != nil {
-		return trace.BadParameter("invalid u2f pubkey")
-	}
-	return nil
-}
-
-// Equals checks equality (nil safe).
-func (reg *U2FRegistrationData) Equals(other *U2FRegistrationData) bool {
-	if (reg == nil) || (other == nil) {
-		return (reg == nil) && (other == nil)
-	}
-	if !bytes.Equal(reg.Raw, other.Raw) {
-		return false
-	}
-	if !bytes.Equal(reg.KeyHandle, other.KeyHandle) {
-		return false
-	}
-	return bytes.Equal(reg.PubKey, other.PubKey)
-}
-
-// GetU2FRegistration decodes the u2f registration data and builds the expected
-// registration object.  Returns (nil,nil) if no registration data is present.
-func (l *LocalAuthSecrets) GetU2FRegistration() (*u2f.Registration, error) {
-	if l.U2FRegistration == nil {
-		return nil, nil
-	}
-	pubKey, err := l.U2FRegistration.GetPubKeyDecoded()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &u2f.Registration{
-		Raw:       l.U2FRegistration.Raw,
-		KeyHandle: l.U2FRegistration.KeyHandle,
-		PubKey:    *pubKey,
-	}, nil
-}
-
-// SetU2FRegistration encodes and stores a u2f registration.  Use nil to
-// delete an existing registration.
-func (l *LocalAuthSecrets) SetU2FRegistration(reg *u2f.Registration) error {
-	if reg == nil {
-		l.U2FRegistration = nil
-		return nil
-	}
-	pubKeyDer, err := x509.MarshalPKIXPublicKey(&reg.PubKey)
-	if err != nil {
+// CheckAndSetDefaults validates MFADevice fields and populates empty fields
+// with default values.
+func (d *MFADevice) CheckAndSetDefaults() error {
+	if err := d.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	l.U2FRegistration = &U2FRegistrationData{
-		Raw:       reg.Raw,
-		KeyHandle: reg.KeyHandle,
-		PubKey:    pubKeyDer,
+	if d.Kind == "" {
+		return trace.BadParameter("MFADevice missing Kind field")
 	}
-	if err := l.U2FRegistration.Check(); err != nil {
-		return trace.Wrap(err)
+	if d.Version == "" {
+		d.Version = V1
 	}
-	return nil
-}
-
-// Check validates local auth secret members.
-func (l *LocalAuthSecrets) Check() error {
-	if len(l.PasswordHash) > 0 {
-		if _, err := bcrypt.Cost(l.PasswordHash); err != nil {
-			return trace.BadParameter("invalid password hash")
-		}
+	if d.Id == "" {
+		return trace.BadParameter("MFADevice missing ID field")
 	}
-	if len(l.TOTPKey) > 0 {
-		if _, err := totp.GenerateCode(l.TOTPKey, time.Time{}); err != nil {
-			return trace.BadParameter("invalid TOTP key")
-		}
+	if d.AddedAt.IsZero() {
+		return trace.BadParameter("MFADevice missing AddedAt field")
 	}
-	if l.U2FRegistration != nil {
-		if err := l.U2FRegistration.Check(); err != nil {
-			return trace.Wrap(err)
-		}
+	if d.LastUsed.IsZero() {
+		return trace.BadParameter("MFADevice missing LastUsed field")
+	}
+	if d.LastUsed.Before(d.AddedAt) {
+		return trace.BadParameter("MFADevice LastUsed field must be earlier than AddedAt")
+	}
+	if d.Device == nil {
+		return trace.BadParameter("MFADevice missing Device field")
 	}
 	return nil
 }
 
-// Equals checks equality (nil safe).
-func (l *LocalAuthSecrets) Equals(other *LocalAuthSecrets) bool {
-	if (l == nil) || (other == nil) {
-		return (l == nil) && (other == nil)
+func (d *MFADevice) GetKind() string                       { return d.Kind }
+func (d *MFADevice) GetSubKind() string                    { return d.SubKind }
+func (d *MFADevice) SetSubKind(sk string)                  { d.SubKind = sk }
+func (d *MFADevice) GetVersion() string                    { return d.Version }
+func (d *MFADevice) GetMetadata() Metadata                 { return d.Metadata }
+func (d *MFADevice) GetName() string                       { return d.Metadata.GetName() }
+func (d *MFADevice) SetName(n string)                      { d.Metadata.SetName(n) }
+func (d *MFADevice) GetResourceID() int64                  { return d.Metadata.ID }
+func (d *MFADevice) SetResourceID(id int64)                { d.Metadata.SetID(id) }
+func (d *MFADevice) Expiry() time.Time                     { return d.Metadata.Expiry() }
+func (d *MFADevice) SetExpiry(exp time.Time)               { d.Metadata.SetExpiry(exp) }
+func (d *MFADevice) SetTTL(clock Clock, ttl time.Duration) { d.Metadata.SetTTL(clock, ttl) }
+
+// MFAType returns the human-readable name of the MFA protocol of this device.
+func (d *MFADevice) MFAType() string {
+	switch d.Device.(type) {
+	case *MFADevice_Totp:
+		return "TOTP"
+	case *MFADevice_U2F:
+		return "U2F"
+	default:
+		return "unknown"
 	}
-	if !bytes.Equal(l.PasswordHash, other.PasswordHash) {
-		return false
-	}
-	if !(l.TOTPKey == other.TOTPKey) {
-		return false
-	}
-	if !(l.U2FCounter == other.U2FCounter) {
-		return false
-	}
-	return l.U2FRegistration.Equals(other.U2FRegistration)
 }
 
-// AuthPreferenceSpecSchemaTemplate is JSON schema for AuthPreferenceSpec
-const AuthPreferenceSpecSchemaTemplate = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-		"type": {
-			"type": "string"
-		},
-		"second_factor": {
-			"type": "string"
-		},
-		"connector_name": {
-			"type": "string"
-		},
-		"u2f": {
-			"type": "object",
-			"additionalProperties": false,
-			"properties": {
-				"app_id": {
-					"type": "string"
-				},
-				"facets": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					}
-				}
-			}
-		}%v
-	}
-}`
-
-// LocalAuthSecretsSchema is a JSON schema for LocalAuthSecrets
-const LocalAuthSecretsSchema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-		"password_hash": {"type": "string"},
-		"totp_key": {"type": "string"},
-		"u2f_registration": {
-			"type": "object",
-			"additionalProperties": false,
-			"properties": {
-				"raw": {"type": "string"},
-				"key_handle": {"type": "string"},
-				"pubkey": {"type": "string"}
-			}
-		},
-		"u2f_counter": {"type": "number"}
-	}
-}`
-
-// GetAuthPreferenceSchema returns the schema with optionally injected
-// schema for extensions.
-func GetAuthPreferenceSchema(extensionSchema string) string {
-	var authPreferenceSchema string
-	if authPreferenceSchema == "" {
-		authPreferenceSchema = fmt.Sprintf(AuthPreferenceSpecSchemaTemplate, "")
-	} else {
-		authPreferenceSchema = fmt.Sprintf(AuthPreferenceSpecSchemaTemplate, ","+extensionSchema)
-	}
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, authPreferenceSchema, DefaultDefinitions)
+func (d *MFADevice) MarshalJSON() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	err := (&jsonpb.Marshaler{}).Marshal(buf, d)
+	return buf.Bytes(), trace.Wrap(err)
 }
 
-// AuthPreferenceMarshaler implements marshal/unmarshal of AuthPreference implementations
-// mostly adds support for extended versions.
-type AuthPreferenceMarshaler interface {
-	Marshal(c AuthPreference, opts ...MarshalOption) ([]byte, error)
-	Unmarshal(bytes []byte, opts ...MarshalOption) (AuthPreference, error)
-}
-
-type teleportAuthPreferenceMarshaler struct{}
-
-// Unmarshal unmarshals role from JSON or YAML.
-func (t *teleportAuthPreferenceMarshaler) Unmarshal(bytes []byte, opts ...MarshalOption) (AuthPreference, error) {
-	var authPreference AuthPreferenceV2
-
-	if len(bytes) == 0 {
-		return nil, trace.BadParameter("missing resource data")
-	}
-
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if cfg.SkipValidation {
-		if err := utils.FastUnmarshal(bytes, &authPreference); err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-	} else {
-		err := utils.UnmarshalWithSchema(GetAuthPreferenceSchema(""), &authPreference, bytes)
-		if err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-	}
-	if cfg.ID != 0 {
-		authPreference.SetResourceID(cfg.ID)
-	}
-	if !cfg.Expires.IsZero() {
-		authPreference.SetExpiry(cfg.Expires)
-	}
-	return &authPreference, nil
-}
-
-// Marshal marshals role to JSON or YAML.
-func (t *teleportAuthPreferenceMarshaler) Marshal(c AuthPreference, opts ...MarshalOption) ([]byte, error) {
-	return json.Marshal(c)
-}
-
-var authPreferenceMarshaler AuthPreferenceMarshaler = &teleportAuthPreferenceMarshaler{}
-
-// SetAuthPreferenceMarshaler sets global AuthPreferenceMarshaler
-func SetAuthPreferenceMarshaler(m AuthPreferenceMarshaler) {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	authPreferenceMarshaler = m
-}
-
-// GetAuthPreferenceMarshaler returns currently set AuthPreferenceMarshaler
-func GetAuthPreferenceMarshaler() AuthPreferenceMarshaler {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	return authPreferenceMarshaler
+func (d *MFADevice) UnmarshalJSON(buf []byte) error {
+	return jsonpb.Unmarshal(bytes.NewReader(buf), d)
 }

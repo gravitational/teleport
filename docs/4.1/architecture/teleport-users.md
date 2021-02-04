@@ -2,10 +2,6 @@
 
 <!-- TODO: This doc is incomplete, pending addition of Enterprise topics -->
 
-**Table of Contents**
-
-[TOC]
-
 ## Types of Users
 
 Unlike traditional SSH, Teleport introduces the concept of a User Account. A

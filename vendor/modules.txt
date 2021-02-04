@@ -162,6 +162,13 @@ github.com/docker/spdystream/spdy
 # github.com/dustin/go-humanize v1.0.0
 ## explicit
 github.com/dustin/go-humanize
+# github.com/flynn/hid v0.0.0-20190502022136-f1b9b6cc019a
+## explicit
+github.com/flynn/hid
+# github.com/flynn/u2f v0.0.0-20180613185708-15554eb68e5d
+## explicit
+github.com/flynn/u2f/u2fhid
+github.com/flynn/u2f/u2ftoken
 # github.com/fsouza/fake-gcs-server v1.11.6
 ## explicit
 github.com/fsouza/fake-gcs-server/fakestorage
@@ -341,7 +348,7 @@ github.com/mattn/go-isatty
 # github.com/mattn/go-runewidth v0.0.4
 ## explicit
 github.com/mattn/go-runewidth
-# github.com/mattn/go-sqlite3 v1.10.0
+# github.com/mattn/go-sqlite3 v1.14.6
 ## explicit
 github.com/mattn/go-sqlite3
 # github.com/matttproud/golang_protobuf_extensions v1.0.1

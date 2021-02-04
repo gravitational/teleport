@@ -19,19 +19,15 @@ package types
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/parse"
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/vulcand/predicate"
 )
 
 // Role contains a set of permissions or settings
@@ -228,8 +224,10 @@ func (r *RoleV3) Expiry() time.Time {
 	return r.Metadata.Expiry()
 }
 
-// SetTTL sets TTL header using realtime clock.
-func (r *RoleV3) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+// SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
+func (r *RoleV3) SetTTL(clock Clock, ttl time.Duration) {
 	r.Metadata.SetTTL(clock, ttl)
 }
 
@@ -502,7 +500,7 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 
 	// Make sure all fields have defaults.
 	if r.Spec.Options.CertificateFormat == "" {
-		r.Spec.Options.CertificateFormat = teleport.CertificateFormatStandard
+		r.Spec.Options.CertificateFormat = constants.CertificateFormatStandard
 	}
 	if r.Spec.Options.MaxSessionTTL.Value() == 0 {
 		r.Spec.Options.MaxSessionTTL = NewDuration(defaults.MaxCertDuration)
@@ -552,24 +550,12 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 
 	// Validate that enhanced recording options are all valid.
 	for _, opt := range r.Spec.Options.BPF {
-		if opt == teleport.EnhancedRecordingCommand ||
-			opt == teleport.EnhancedRecordingDisk ||
-			opt == teleport.EnhancedRecordingNetwork {
+		if opt == constants.EnhancedRecordingCommand ||
+			opt == constants.EnhancedRecordingDisk ||
+			opt == constants.EnhancedRecordingNetwork {
 			continue
 		}
 		return trace.BadParameter("found invalid option in session_recording: %v", opt)
-	}
-
-	// if we find {{ or }} but the syntax is invalid, the role is invalid
-	for _, condition := range []RoleConditionType{Allow, Deny} {
-		for _, login := range r.GetLogins(condition) {
-			if strings.Contains(login, "{{") || strings.Contains(login, "}}") {
-				_, err := parse.NewExpression(login)
-				if err != nil {
-					return trace.BadParameter("invalid login found: %v", login)
-				}
-			}
-		}
 	}
 
 	// check and correct the session ttl
@@ -689,105 +675,6 @@ func (r *Rule) CheckAndSetDefaults() error {
 	}
 	if len(r.Verbs) == 0 {
 		return trace.BadParameter("missing verbs")
-	}
-	if len(r.Where) != 0 {
-		parser, err := GetWhereParserFn()(&Context{})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		_, err = parser.Parse(r.Where)
-		if err != nil {
-			return trace.BadParameter("could not parse 'where' rule: %q, error: %v", r.Where, err)
-		}
-	}
-	if len(r.Actions) != 0 {
-		parser, err := GetActionsParserFn()(&Context{})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		for i, action := range r.Actions {
-			_, err = parser.Parse(action)
-			if err != nil {
-				return trace.BadParameter("could not parse action %v %q, error: %v", i, action, err)
-			}
-		}
-	}
-	return nil
-}
-
-// score is a sorting score of the rule, the larger the score, the more
-// specific the rule is
-func (r *Rule) score() int {
-	score := 0
-	// wildcard rules are less specific
-	if utils.SliceContainsStr(r.Resources, Wildcard) {
-		score -= 4
-	} else if len(r.Resources) == 1 {
-		// rules that match specific resource are more specific than
-		// fields that match several resources
-		score += 2
-	}
-	// rules that have wildcard verbs are less specific
-	if utils.SliceContainsStr(r.Verbs, Wildcard) {
-		score -= 2
-	}
-	// rules that supply 'where' or 'actions' are more specific
-	// having 'where' or 'actions' is more important than
-	// whether the rules are wildcard or not, so here we have +8 vs
-	// -4 and -2 score penalty for wildcards in resources and verbs
-	if len(r.Where) > 0 {
-		score += 8
-	}
-	// rules featuring actions are more specific
-	if len(r.Actions) > 0 {
-		score += 8
-	}
-	return score
-}
-
-// IsMoreSpecificThan returns true if the rule is more specific than the other.
-//
-// * nRule matching wildcard resource is less specific
-// than same rule matching specific resource.
-// * Rule that has wildcard verbs is less specific
-// than the same rules matching specific verb.
-// * Rule that has where section is more specific
-// than the same rule without where section.
-// * Rule that has actions list is more specific than
-// rule without actions list.
-func (r *Rule) IsMoreSpecificThan(o Rule) bool {
-	return r.score() > o.score()
-}
-
-// MatchesWhere returns true if Where rule matches
-// Empty Where block always matches
-func (r *Rule) MatchesWhere(parser predicate.Parser) (bool, error) {
-	if r.Where == "" {
-		return true, nil
-	}
-	ifn, err := parser.Parse(r.Where)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	fn, ok := ifn.(predicate.BoolPredicate)
-	if !ok {
-		return false, trace.BadParameter("unsupported type: %T", ifn)
-	}
-	return fn(), nil
-}
-
-// ProcessActions processes actions specified for this rule
-func (r *Rule) ProcessActions(parser predicate.Parser) error {
-	for _, action := range r.Actions {
-		ifn, err := parser.Parse(action)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fn, ok := ifn.(predicate.BoolPredicate)
-		if !ok {
-			return trace.BadParameter("unsupported type: %T", ifn)
-		}
-		fn()
 	}
 	return nil
 }
@@ -1097,242 +984,4 @@ func ProcessNamespace(namespace string) string {
 		return defaults.Namespace
 	}
 	return namespace
-}
-
-// RoleSpecV3SchemaTemplate is JSON schema for RoleSpecV3
-const RoleSpecV3SchemaTemplate = `{
-  "type": "object",
-  "additionalProperties": false,
-  "properties": {
-	"max_session_ttl": { "type": "string" },
-	"options": {
-	  "type": "object",
-	  "additionalProperties": false,
-	  "properties": {
-		"forward_agent": { "type": ["boolean", "string"] },
-		"permit_x11_forwarding": { "type": ["boolean", "string"] },
-		"max_session_ttl": { "type": "string" },
-		"port_forwarding": { "type": ["boolean", "string"] },
-		"cert_format": { "type": "string" },
-		"client_idle_timeout": { "type": "string" },
-		"disconnect_expired_cert": { "type": ["boolean", "string"] },
-		"enhanced_recording": {
-		  "type": "array",
-		  "items": { "type": "string" }
-		},
-		"max_connections": { "type": "number" },
-		"max_sessions": {"type": "number"},
-		"request_access": { "type": "string" },
-		"request_prompt": { "type": "string" }
-	  }
-	},
-	"allow": { "$ref": "#/definitions/role_condition" },
-	"deny": { "$ref": "#/definitions/role_condition" }%v
-  }
-}`
-
-// RoleSpecV3SchemaDefinitions is JSON schema for RoleSpecV3 definitions
-const RoleSpecV3SchemaDefinitions = `
-	"definitions": {
-	  "role_condition": {
-		"namespaces": {
-		  "type": "array",
-		  "items": { "type": "string" }
-		},
-		"node_labels": {
-		  "type": "object",
-		  "additionalProperties": false,
-		  "patternProperties": {
-			"^[a-zA-Z/.0-9_*-]+$": { "anyOf": [{"type": "string"}, { "type": "array", "items": {"type": "string"}}]}
-		  }
-		},
-		"cluster_labels": {
-		  "type": "object",
-		  "additionalProperties": false,
-		  "patternProperties": {
-			"^[a-zA-Z/.0-9_*-]+$": { "anyOf": [{"type": "string"}, { "type": "array", "items": {"type": "string"}}]}
-		  }
-		},
-		"logins": {
-		  "type": "array",
-		  "items": { "type": "string" }
-		},
-		"kubernetes_groups": {
-		  "type": "array",
-		  "items": { "type": "string" }
-		},
-		"db_labels": {
-		  "type": "object",
-		  "additionalProperties": false,
-		  "patternProperties": {
-			"^[a-zA-Z/.0-9_*-]+$": {"anyOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}}]}
-		  }
-		},
-		"db_names": {
-		  "type": "array",
-		  "items": {"type": "string"}
-		},
-		"db_users": {
-		  "type": "array",
-		  "items": {"type": "string"}
-		},
-		"request": {
-		  "type": "object",
-		  "additionalProperties": false,
-		  "properties": {
-			"roles": {
-			  "type": "array",
-			  "items": { "type": "string" }
-			},
-			"claims_to_roles": {
-			  "type": "object",
-			  "additionalProperties": false,
-			  "properties": {
-				"claim": {"type": "string"},
-				"value": {"type": "string"},
-				"roles": {
-				  "type": "array",
-				  "items": {
-					"type": "string"
-				  }
-				}
-			  }
-			}
-		  }
-		},
-		"rules": {
-		  "type": "array",
-		  "items": {
-			"type": "object",
-			"additionalProperties": false,
-			"properties": {
-			  "resources": {
-				"type": "array",
-				"items": { "type": "string" }
-			  },
-			  "verbs": {
-				"type": "array",
-				"items": { "type": "string" }
-			  },
-			  "where": {
-				 "type": "string"
-			  },
-			  "actions": {
-				"type": "array",
-				"items": { "type": "string" }
-			  }
-			}
-		  }
-		}
-	  }
-	}
-  `
-
-// GetRoleSchema returns role schema for the version requested with optionally
-// injected schema for extensions.
-func GetRoleSchema(version string, extensionSchema string) string {
-	schemaDefinitions := "," + RoleSpecV3SchemaDefinitions
-	schemaTemplate := RoleSpecV3SchemaTemplate
-
-	schema := fmt.Sprintf(schemaTemplate, ``)
-	if extensionSchema != "" {
-		schema = fmt.Sprintf(schemaTemplate, ","+extensionSchema)
-	}
-
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, schema, schemaDefinitions)
-}
-
-// UnmarshalRole unmarshals role from JSON, sets defaults, and checks schema.
-func UnmarshalRole(data []byte, opts ...MarshalOption) (*RoleV3, error) {
-	var h ResourceHeader
-	err := json.Unmarshal(data, &h)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	switch h.Version {
-	case V3:
-		var role RoleV3
-		if cfg.SkipValidation {
-			if err := utils.FastUnmarshal(data, &role); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
-		} else {
-			if err := utils.UnmarshalWithSchema(GetRoleSchema(V3, ""), &role, data); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
-		}
-
-		if err := role.CheckAndSetDefaults(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if cfg.ID != 0 {
-			role.SetResourceID(cfg.ID)
-		}
-		if !cfg.Expires.IsZero() {
-			role.SetExpiry(cfg.Expires)
-		}
-		return &role, nil
-	}
-
-	return nil, trace.BadParameter("role version %q is not supported", h.Version)
-}
-
-// RoleMarshaler implements marshal/unmarshal of Role implementations
-// mostly adds support for extended versions
-type RoleMarshaler interface {
-	// UnmarshalRole from binary representation
-	UnmarshalRole(bytes []byte, opts ...MarshalOption) (Role, error)
-	// MarshalRole to binary representation
-	MarshalRole(u Role, opts ...MarshalOption) ([]byte, error)
-}
-
-type teleportRoleMarshaler struct{}
-
-// UnmarshalRole unmarshals role from JSON.
-func (*teleportRoleMarshaler) UnmarshalRole(bytes []byte, opts ...MarshalOption) (Role, error) {
-	return UnmarshalRole(bytes, opts...)
-}
-
-// MarshalRole marshals role into JSON.
-func (*teleportRoleMarshaler) MarshalRole(r Role, opts ...MarshalOption) ([]byte, error) {
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	switch role := r.(type) {
-	case *RoleV3:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *role
-			copy.SetResourceID(0)
-			role = &copy
-		}
-		return utils.FastMarshal(role)
-	default:
-		return nil, trace.BadParameter("unrecognized role version %T", r)
-	}
-}
-
-var roleMarshaler RoleMarshaler = &teleportRoleMarshaler{}
-
-// SetRoleMarshaler sets the global RoleMarshaler
-func SetRoleMarshaler(m RoleMarshaler) {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	roleMarshaler = m
-}
-
-// GetRoleMarshaler returns currently set RoleMarshaler
-func GetRoleMarshaler() RoleMarshaler {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	return roleMarshaler
 }

@@ -21,17 +21,21 @@ release.
 
 ## Teleport 6.0 "San Diego"
 
-The team open sources role based access controls, implements Database Access, Session Termination
-and Access Workflows UI.
-
+The team open sources role based access controls, adds API with Go client and implements Database Access.
 
 ### Release Schedule
 
 | Version              | Date              | Description
 |----------------------|-------------------|---------------------------
 | First alpha          | Jan 15th, 2021    | Good for testing and demos.
-| First beta           | Feb 1st, 2021     | Deploy on staging.
+| First beta           | Feb 15th, 2021    | Deploy on staging.
 | Release              | March 1st, 2021   | Good to go for production.
+
+!!! warning
+
+    We pushed beta release date to Feb 15th 2021.
+    We moved U2F and Access Workflows to 6.1 release to reduce scope and match the promised
+    March 1st release date.
 
 ### Features
 
@@ -43,10 +47,30 @@ You can find the full list of fixes and features in the
 | Database Access                     | All               | SSO into PostgreSQL or MySQL. Use AWS Aurora RDS or on-premises. Read [more here](./database-access.md).
 | OSS RBAC                            | OSS               | Open source role based access controls. Check out the [design doc](https://github.com/gravitational/teleport/blob/master/rfd/0007-rbac-oss.md) and [issue 4136](https://github.com/gravitational/teleport/issues/4136).
 | Terraform Provider                  | All               | Configure Teleport without UI using Terraform provider. More details [here](https://github.com/gravitational/teleport-plugins/projects/3#card-49866475).
+| Client libraries and API            | All               | Use Go to create access workflows. Review the [design doc](https://github.com/gravitational/teleport/pull/4746) and [issue 4763](https://github.com/gravitational/teleport/issues/4763).
+
+## Teleport 6.1 "New York"
+
+The team adds per session U2F support, Dual Authorization and Access Workflows UI.
+
+### Release Schedule
+
+| Version              | Date              | Description
+|----------------------|-------------------|---------------------------
+| First alpha          | March 15th, 2021  | Good for testing and demos.
+| First beta           | March 31st, 2021  | Deploy on staging.
+| Release              | April 7th, 2021   | Good to go for production.
+
+### Features
+
+You can find the full list of fixes and features in the
+[Github milestone](https://github.com/gravitational/teleport/milestone/50).
+
+|Feature                              | Editions          | Description
+|-------------------------------------|-------------------|-----------------------------------
 | Dual Authorization Workflows        | Enterprise, Cloud | Request multiple users to review and approve access requests. Find out more in [issue 5007](https://github.com/gravitational/teleport/issues/5007).
 | U2F for Kubernetes and SSH sessions | All               | Adds an option to authorize with 2nd factor when connecting to a node/k8s cluster. Details in [issue 3828](https://github.com/gravitational/teleport/issues/3878).
 | Access Workflows UI                 | Enterprise, Cloud | Review access requests and assume roles in the UI. Some mockups are in [issue 4937](https://github.com/gravitational/teleport/issues/4937).
-| Client libraries and API            | All               | Use Go to create access workflows. Review the [design doc](https://github.com/gravitational/teleport/pull/4746) and [issue 4763](https://github.com/gravitational/teleport/issues/4763).
 
 ## Semantic Versioning
 

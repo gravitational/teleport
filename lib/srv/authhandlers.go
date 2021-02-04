@@ -378,7 +378,7 @@ func (h *AuthHandlers) fetchRoleSet(cert *ssh.Certificate, ca services.CertAutho
 		if err != nil {
 			return nil, trace.AccessDenied("failed to parse certificate roles")
 		}
-		roleNames, err := ca.CombinedMapping().Map(roles)
+		roleNames, err := services.MapRoles(ca.CombinedMapping(), roles)
 		if err != nil {
 			return nil, trace.AccessDenied("failed to map roles")
 		}
@@ -409,7 +409,7 @@ func (h *AuthHandlers) authorityForCert(caType services.CertAuthType, key ssh.Pu
 	// find the one that signed our certificate
 	var ca services.CertAuthority
 	for i := range cas {
-		checkers, err := cas[i].Checkers()
+		checkers, err := sshutils.GetCheckers(cas[i])
 		if err != nil {
 			h.Warnf("%v", err)
 			return nil, trace.Wrap(err)

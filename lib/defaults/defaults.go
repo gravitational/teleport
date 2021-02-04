@@ -27,7 +27,9 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
+	"gopkg.in/square/go-jose.v2"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -420,13 +422,12 @@ const (
 )
 
 const (
-	// MinCertDuration specifies minimum duration of validity of issued cert
+	// MinCertDuration specifies minimum duration of validity of issued certificate
 	MinCertDuration = time.Minute
-	// MaxCertDuration limits maximum duration of validity of issued cert
+	// MaxCertDuration limits maximum duration of validity of issued certificate
 	MaxCertDuration = defaults.MaxCertDuration
-	// CertDuration is a default certificate duration
-	// 12 is default as it' longer than average working day (I hope so)
-	CertDuration = 12 * time.Hour
+	// CertDuration is a default certificate duration.
+	CertDuration = defaults.CertDuration
 	// RotationGracePeriod is a default rotation period for graceful
 	// certificate rotations, by default to set to maximum allowed user
 	// cert duration
@@ -450,7 +451,7 @@ const (
 	// RoleApp is an application proxy.
 	RoleApp = "app"
 	// RoleDatabase is a database proxy role.
-	RoleDatabase = "database"
+	RoleDatabase = "db"
 )
 
 const (
@@ -627,7 +628,7 @@ const (
 	ApplicationTokenKeyType = "RSA"
 	// ApplicationTokenAlgorithm is the default algorithm used to sign
 	// application access tokens.
-	ApplicationTokenAlgorithm = defaults.ApplicationTokenAlgorithm
+	ApplicationTokenAlgorithm = jose.RS256
 )
 
 // WindowsOpenSSHNamedPipe is the address of the named pipe that the

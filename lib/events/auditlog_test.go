@@ -311,11 +311,10 @@ func (a *AuditTestSuite) TestSessionRecordingOff(c *check.C) {
 }
 
 func (a *AuditTestSuite) TestBasicLogging(c *check.C) {
-	now := time.Now().In(time.UTC).Round(time.Second)
 	// create audit log, write a couple of events into it, close it
-	alog, err := a.makeLog(c, a.dataDir, true)
+	clock := clockwork.NewFakeClock()
+	alog, err := a.makeLogWithClock(c, a.dataDir, true, clock)
 	c.Assert(err, check.IsNil)
-	alog.Clock = clockwork.NewFakeClockAt(now)
 
 	// emit regular event:
 	err = alog.EmitAuditEventLegacy(Event{Name: "user.joined"}, EventFields{"apples?": "yes"})
@@ -327,7 +326,8 @@ func (a *AuditTestSuite) TestBasicLogging(c *check.C) {
 	bytes, err := ioutil.ReadFile(logfile)
 	c.Assert(err, check.IsNil)
 	c.Assert(string(bytes), check.Equals,
-		fmt.Sprintf("{\"apples?\":\"yes\",\"event\":\"user.joined\",\"time\":\"%s\",\"uid\":\"%s\"}\n", now.Format(time.RFC3339), fixtures.UUID))
+		fmt.Sprintf("{\"apples?\":\"yes\",\"event\":\"user.joined\",\"time\":\"%s\",\"uid\":\"%s\"}\n",
+			clock.Now().Format(time.RFC3339), fixtures.UUID))
 }
 
 // TestLogRotation makes sure that logs are rotated

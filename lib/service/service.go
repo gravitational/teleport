@@ -990,7 +990,7 @@ func initExternalLog(ctx context.Context, auditConfig services.AuditConfig, log 
 		return nil, nil
 	}
 
-	if !auditConfig.ShouldUploadSessions() && hasNonFileLog {
+	if !services.ShouldUploadSessions(auditConfig) && hasNonFileLog {
 		// if audit events are being exported, session recordings should
 		// be exported as well.
 		return nil, trace.BadParameter("please specify audit_sessions_uri when using external audit backends")
@@ -1331,7 +1331,7 @@ func (process *TeleportProcess) initAuthService() error {
 			} else {
 				srv.Spec.Rotation = state.Spec.Rotation
 			}
-			srv.SetTTL(process.Clock, defaults.ServerAnnounceTTL)
+			srv.SetExpiry(process.Clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
 			return &srv, nil
 		},
 		KeepAlivePeriod: defaults.ServerKeepAliveTTL,
@@ -1493,6 +1493,8 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		DynamicAccess:   cfg.services,
 		Presence:        cfg.services,
 		AppSession:      cfg.services,
+		WebSession:      cfg.services.WebSessions(),
+		WebToken:        cfg.services.WebTokens(),
 		Component:       teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
 		MetricComponent: teleport.Component(append(cfg.cacheName, teleport.ComponentCache)...),
 	}))
@@ -2458,13 +2460,19 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if len(cfg.Proxy.Kube.PublicAddrs) > 0 {
 			proxySettings.Kube.PublicAddr = cfg.Proxy.Kube.PublicAddrs[0].String()
 		}
+		var fs http.FileSystem
+		if !process.Config.Proxy.DisableWebInterface {
+			fs, err = newHTTPFileSystem()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
 		webHandler, err = web.NewHandler(
 			web.Config{
 				Proxy:         tsrv,
 				AuthServers:   cfg.AuthServers[0],
 				DomainName:    cfg.Hostname,
 				ProxyClient:   conn.Client,
-				DisableUI:     process.Config.Proxy.DisableWebInterface,
 				ProxySSHAddr:  cfg.Proxy.SSHAddr,
 				ProxyWebAddr:  cfg.Proxy.WebAddr,
 				ProxySettings: proxySettings,
@@ -2474,6 +2482,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Emitter:       streamEmitter,
 				HostUUID:      process.Config.HostUUID,
 				Context:       process.ExitContext(),
+				StaticFS:      fs,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3147,12 +3156,12 @@ func validateConfig(cfg *Config) error {
 		return trace.BadParameter("auth_servers is empty")
 	}
 	for i := range cfg.Auth.Authorities {
-		if err := cfg.Auth.Authorities[i].Check(); err != nil {
+		if err := services.ValidateCertAuthority(cfg.Auth.Authorities[i]); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	for _, tun := range cfg.ReverseTunnels {
-		if err := tun.Check(); err != nil {
+		if err := services.ValidateReverseTunnel(tun); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -3307,4 +3316,29 @@ func findPublicAddr(authClient auth.AccessPoint, a App) (string, error) {
 		return "", trace.Wrap(err)
 	}
 	return fmt.Sprintf("%v.%v", a.Name, cn.GetClusterName()), nil
+}
+
+// newHTTPFileSystem creates a new HTTP file system for the web handler.
+// It uses external configuration to make the decision
+func newHTTPFileSystem() (http.FileSystem, error) {
+	if !isDebugMode() {
+		fs, err := web.NewStaticFileSystem()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return fs, nil
+	}
+	// Use debug HTTP file system with default assets path
+	fs, err := web.NewDebugFileSystem("")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return fs, nil
+}
+
+// isDebugMode determines if teleport is running in a "debug" mode.
+// It looks at DEBUG environment variable
+func isDebugMode() bool {
+	v, _ := strconv.ParseBool(os.Getenv(teleport.DebugEnvVar))
+	return v
 }

@@ -17,27 +17,13 @@ limitations under the License.
 package types
 
 import (
-	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/base64"
-	"encoding/xml"
-	"fmt"
-	"io/ioutil"
-	"net/http"
-	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	saml2 "github.com/russellhaering/gosaml2"
-	"github.com/russellhaering/gosaml2/types"
-	dsig "github.com/russellhaering/goxmldsig"
-	log "github.com/sirupsen/logrus"
 )
 
 // SAMLConnector specifies configuration for SAML 2.0 identity providers
@@ -93,8 +79,6 @@ type SAMLConnector interface {
 	GetAudience() string
 	// SetAudience sets audience
 	SetAudience(v string)
-	// GetServiceProvider initialises service provider spec from settings
-	GetServiceProvider(clock clockwork.Clock) (*saml2.SAMLServiceProvider, error)
 	// GetAssertionConsumerService returns assertion consumer service URL
 	GetAssertionConsumerService() string
 	// SetAssertionConsumerService sets assertion consumer service URL
@@ -308,8 +292,10 @@ func (o *SAMLConnectorV2) Expiry() time.Time {
 	return o.Metadata.Expiry()
 }
 
-// SetTTL sets Expires header using realtime clock
-func (o *SAMLConnectorV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+// SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
+func (o *SAMLConnectorV2) SetTTL(clock Clock, ttl time.Duration) {
 	o.Metadata.SetTTL(clock, ttl)
 }
 
@@ -383,143 +369,6 @@ func (o *SAMLConnectorV2) GetTraitMappings() TraitMappingSet {
 	return TraitMappingSet(tms)
 }
 
-// GetServiceProvider initialises service provider spec from settings
-func (o *SAMLConnectorV2) GetServiceProvider(clock clockwork.Clock) (*saml2.SAMLServiceProvider, error) {
-	if o.Metadata.Name == "" {
-		return nil, trace.BadParameter("ID: missing connector name, name your connector to refer to internally e.g. okta1")
-	}
-	if o.Metadata.Name == teleport.Local {
-		return nil, trace.BadParameter("ID: invalid connector name %v is a reserved name", teleport.Local)
-	}
-	if o.Spec.AssertionConsumerService == "" {
-		return nil, trace.BadParameter("missing acs - assertion consumer service parameter, set service URL that will receive POST requests from SAML")
-	}
-	if o.Spec.ServiceProviderIssuer == "" {
-		o.Spec.ServiceProviderIssuer = o.Spec.AssertionConsumerService
-	}
-	if o.Spec.Audience == "" {
-		o.Spec.Audience = o.Spec.AssertionConsumerService
-	}
-	certStore := dsig.MemoryX509CertificateStore{
-		Roots: []*x509.Certificate{},
-	}
-	// if we have a entity descriptor url, fetch it first
-	if o.Spec.EntityDescriptorURL != "" {
-		resp, err := http.Get(o.Spec.EntityDescriptorURL)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if resp.StatusCode != http.StatusOK {
-			return nil, trace.BadParameter("status code %v when fetching from %q", resp.StatusCode, o.Spec.EntityDescriptorURL)
-		}
-		defer resp.Body.Close()
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		o.Spec.EntityDescriptor = string(body)
-		log.Debugf("[SAML] Successfully fetched entity descriptor from %q", o.Spec.EntityDescriptorURL)
-	}
-	if o.Spec.EntityDescriptor != "" {
-		metadata := &types.EntityDescriptor{}
-		err := xml.Unmarshal([]byte(o.Spec.EntityDescriptor), metadata)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to parse entity_descriptor")
-		}
-
-		for _, kd := range metadata.IDPSSODescriptor.KeyDescriptors {
-			for _, samlCert := range kd.KeyInfo.X509Data.X509Certificates {
-				certData, err := base64.StdEncoding.DecodeString(strings.TrimSpace(samlCert.Data))
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				cert, err := x509.ParseCertificate(certData)
-				if err != nil {
-					return nil, trace.Wrap(err, "failed to parse certificate in metadata")
-				}
-				certStore.Roots = append(certStore.Roots, cert)
-			}
-		}
-		o.Spec.Issuer = metadata.EntityID
-		if len(metadata.IDPSSODescriptor.SingleSignOnServices) > 0 {
-			o.Spec.SSO = metadata.IDPSSODescriptor.SingleSignOnServices[0].Location
-		}
-	}
-	if o.Spec.Issuer == "" {
-		return nil, trace.BadParameter("no issuer or entityID set, either set issuer as a parameter or via entity_descriptor spec")
-	}
-	if o.Spec.SSO == "" {
-		return nil, trace.BadParameter("no SSO set either explicitly or via entity_descriptor spec")
-	}
-	if o.Spec.Cert != "" {
-		cert, err := tlsca.ParseCertificatePEM([]byte(o.Spec.Cert))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		certStore.Roots = append(certStore.Roots, cert)
-	}
-	if len(certStore.Roots) == 0 {
-		return nil, trace.BadParameter(
-			"no identity provider certificate provided, either set certificate as a parameter or via entity_descriptor")
-	}
-	if o.Spec.SigningKeyPair == nil {
-		keyPEM, certPEM, err := utils.GenerateSelfSignedSigningCert(pkix.Name{
-			Organization: []string{"Teleport OSS"},
-			CommonName:   "teleport.localhost.localdomain",
-		}, nil, 10*365*24*time.Hour)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		o.Spec.SigningKeyPair = &SigningKeyPair{
-			PrivateKey: string(keyPEM),
-			Cert:       string(certPEM),
-		}
-	}
-	keyStore, err := utils.ParseSigningKeyStorePEM(o.Spec.SigningKeyPair.PrivateKey, o.Spec.SigningKeyPair.Cert)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// make sure claim mappings have either roles or a role template
-	for _, v := range o.Spec.AttributesToRoles {
-		if len(v.Roles) == 0 {
-			return nil, trace.BadParameter("need roles field in attributes_to_roles")
-		}
-	}
-	log.Debugf("[SAML] SSO: %v", o.Spec.SSO)
-	log.Debugf("[SAML] Issuer: %v", o.Spec.Issuer)
-	log.Debugf("[SAML] ACS: %v", o.Spec.AssertionConsumerService)
-
-	sp := &saml2.SAMLServiceProvider{
-		IdentityProviderSSOURL:         o.Spec.SSO,
-		IdentityProviderIssuer:         o.Spec.Issuer,
-		ServiceProviderIssuer:          o.Spec.ServiceProviderIssuer,
-		AssertionConsumerServiceURL:    o.Spec.AssertionConsumerService,
-		SignAuthnRequests:              true,
-		SignAuthnRequestsCanonicalizer: dsig.MakeC14N11Canonicalizer(),
-		AudienceURI:                    o.Spec.Audience,
-		IDPCertificateStore:            &certStore,
-		SPKeyStore:                     keyStore,
-		Clock:                          dsig.NewFakeClock(clock),
-		NameIdFormat:                   "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified",
-	}
-
-	// adfs specific settings
-	if o.Spec.Provider == teleport.ADFS {
-		if sp.SignAuthnRequests {
-			// adfs does not support C14N11, we have to use the C14N10 canonicalizer
-			sp.SignAuthnRequestsCanonicalizer = dsig.MakeC14N10ExclusiveCanonicalizerWithPrefixList(dsig.DefaultPrefix)
-
-			// at a minimum we require password protected transport
-			sp.RequestedAuthnContext = &saml2.RequestedAuthnContext{
-				Comparison: "minimum",
-				Contexts:   []string{"urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport"},
-			}
-		}
-	}
-
-	return sp, nil
-}
-
 // GetSigningKeyPair returns signing key pair
 func (o *SAMLConnectorV2) GetSigningKeyPair() *SigningKeyPair {
 	return o.Spec.SigningKeyPair
@@ -532,16 +381,31 @@ func (o *SAMLConnectorV2) SetSigningKeyPair(k *SigningKeyPair) {
 
 // CheckAndSetDefaults checks and sets default values
 func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
-	err := o.Metadata.CheckAndSetDefaults()
-	if err != nil {
+	if err := o.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-
-	_, err = o.GetServiceProvider(clockwork.NewRealClock())
-	if err != nil {
-		return trace.Wrap(err)
+	if o.Metadata.Name == constants.Local {
+		return trace.BadParameter("ID: invalid connector name, %v is a reserved name", constants.Local)
 	}
-
+	if o.Spec.AssertionConsumerService == "" {
+		return trace.BadParameter("missing acs - assertion consumer service parameter, set service URL that will receive POST requests from SAML")
+	}
+	if o.Spec.ServiceProviderIssuer == "" {
+		o.Spec.ServiceProviderIssuer = o.Spec.AssertionConsumerService
+	}
+	if o.Spec.Audience == "" {
+		o.Spec.Audience = o.Spec.AssertionConsumerService
+	}
+	// Issuer and SSO can be automatically set later if EntityDescriptor is provided
+	if o.Spec.EntityDescriptorURL == "" && o.Spec.EntityDescriptor == "" && (o.Spec.Issuer == "" || o.Spec.SSO == "") {
+		return trace.BadParameter("no entity_descriptor set, either provide entity_descriptor or entity_descriptor_url in spec")
+	}
+	// make sure claim mappings have either roles or a role template
+	for _, v := range o.Spec.AttributesToRoles {
+		if len(v.Roles) == 0 {
+			return trace.BadParameter("need roles field in attributes_to_roles")
+		}
+	}
 	return nil
 }
 
@@ -577,15 +441,6 @@ type SAMLConnectorSpecV2 struct {
 	Provider string `json:"provider,omitempty"`
 }
 
-// GetAttributeNames returns a list of claim names from the claim values
-func GetAttributeNames(attributes map[string]types.Attribute) []string {
-	var out []string
-	for _, attr := range attributes {
-		out = append(out, attr.Name)
-	}
-	return out
-}
-
 // AttributeMapping is SAML Attribute statement mapping
 // from SAML attribute statements to roles
 type AttributeMapping struct {
@@ -597,184 +452,10 @@ type AttributeMapping struct {
 	Roles []string `json:"roles,omitempty"`
 }
 
-// SAMLAssertionsToTraits converts saml assertions to traits
-func SAMLAssertionsToTraits(assertions saml2.AssertionInfo) map[string][]string {
-	traits := make(map[string][]string, len(assertions.Values))
-
-	for _, assr := range assertions.Values {
-		vals := make([]string, 0, len(assr.Values))
-		for _, value := range assr.Values {
-			vals = append(vals, value.Value)
-		}
-		traits[assr.Name] = vals
-	}
-
-	return traits
-}
-
 // SigningKeyPair is a key pair used to sign SAML AuthnRequest
 type SigningKeyPair struct {
 	// PrivateKey is PEM encoded x509 private key
 	PrivateKey string `json:"private_key"`
 	// Cert is certificate in OpenSSH authorized keys format
 	Cert string `json:"cert"`
-}
-
-// SAMLConnectorV2SchemaTemplate is a template JSON Schema for SAMLConnector
-const SAMLConnectorV2SchemaTemplate = `{
-  "type": "object",
-  "additionalProperties": false,
-  "required": ["kind", "spec", "metadata", "version"],
-  "properties": {
-	"kind": {"type": "string"},
-	"version": {"type": "string", "default": "v1"},
-	"metadata": %v,
-	"spec": %v
-  }
-}`
-
-// SAMLConnectorSpecV2Schema is a JSON Schema for SAML Connector
-var SAMLConnectorSpecV2Schema = fmt.Sprintf(`{
-  "type": "object",
-  "additionalProperties": false,
-  "required": ["acs"],
-  "properties": {
-    "issuer": {"type": "string"},
-    "sso": {"type": "string"},
-    "cert": {"type": "string"},
-    "provider": {"type": "string"},
-    "display": {"type": "string"},
-    "acs": {"type": "string"},
-    "audience": {"type": "string"},
-    "service_provider_issuer": {"type": "string"},
-    "entity_descriptor": {"type": "string"},
-    "entity_descriptor_url": {"type": "string"},
-    "attributes_to_roles": {
-      "type": "array",
-	  "items": %v
-	},
-	"signing_key_pair": %v
-  }
-}`, AttributeMappingSchema, SigningKeyPairSchema)
-
-// AttributeMappingSchema is JSON schema for claim mapping
-var AttributeMappingSchema = `{
-  "type": "object",
-  "additionalProperties": false,
-  "required": ["name", "value" ],
-  "properties": {
-	"name": {"type": "string"},
-	"value": {"type": "string"},
-	"roles": {
-	  "type": "array",
-	  "items": {
-		"type": "string"
-	  }
-	}
-  }
-}`
-
-// SigningKeyPairSchema is the JSON schema for signing key pair.
-var SigningKeyPairSchema = `{
-  "type": "object",
-  "additionalProperties": false,
-  "properties": {
-	"private_key": {"type": "string"},
-	"cert": {"type": "string"}
-  }
-}`
-
-// SAMLConnectorMarshaler implements marshal/unmarshal of SAMLConnector implementations
-// mostly adds support for extended versions
-type SAMLConnectorMarshaler interface {
-	// UnmarshalSAMLConnector unmarshals connector from binary representation
-	UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (SAMLConnector, error)
-	// MarshalSAMLConnector marshals connector to binary representation
-	MarshalSAMLConnector(c SAMLConnector, opts ...MarshalOption) ([]byte, error)
-}
-
-// GetSAMLConnectorSchema returns schema for SAMLConnector
-func GetSAMLConnectorSchema() string {
-	return fmt.Sprintf(SAMLConnectorV2SchemaTemplate, MetadataSchema, SAMLConnectorSpecV2Schema)
-}
-
-type teleportSAMLConnectorMarshaler struct{}
-
-// UnmarshalSAMLConnector unmarshals connector from
-func (*teleportSAMLConnectorMarshaler) UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (SAMLConnector, error) {
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var h ResourceHeader
-	err = utils.FastUnmarshal(bytes, &h)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	switch h.Version {
-	case V2:
-		var c SAMLConnectorV2
-		if cfg.SkipValidation {
-			if err := utils.FastUnmarshal(bytes, &c); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
-		} else {
-			if err := utils.UnmarshalWithSchema(GetSAMLConnectorSchema(), &c, bytes); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
-		}
-
-		if err := c.Metadata.CheckAndSetDefaults(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if cfg.ID != 0 {
-			c.SetResourceID(cfg.ID)
-		}
-		if !cfg.Expires.IsZero() {
-			c.SetExpiry(cfg.Expires)
-		}
-
-		return &c, nil
-	}
-
-	return nil, trace.BadParameter("SAML connector resource version %v is not supported", h.Version)
-}
-
-// MarshalSAMLConnector marshals SAML connector into JSON
-func (*teleportSAMLConnectorMarshaler) MarshalSAMLConnector(c SAMLConnector, opts ...MarshalOption) ([]byte, error) {
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	switch connector := c.(type) {
-	case *SAMLConnectorV2:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *connector
-			copy.SetResourceID(0)
-			connector = &copy
-		}
-		return utils.FastMarshal(connector)
-	default:
-		return nil, trace.BadParameter("unrecognized SAMLConnector version %T", c)
-	}
-}
-
-var samlConnectorMarshaler SAMLConnectorMarshaler = &teleportSAMLConnectorMarshaler{}
-
-// SetSAMLConnectorMarshaler sets global SAMLConnectorMarshaler
-func SetSAMLConnectorMarshaler(m SAMLConnectorMarshaler) {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	samlConnectorMarshaler = m
-}
-
-// GetSAMLConnectorMarshaler returns currently set SAMLConnectorMarshaler
-func GetSAMLConnectorMarshaler() SAMLConnectorMarshaler {
-	marshalerMutex.RLock()
-	defer marshalerMutex.RUnlock()
-	return samlConnectorMarshaler
 }
