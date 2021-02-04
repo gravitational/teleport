@@ -335,6 +335,12 @@ auth_service:
     type: saml
 ```
 
+!!! tip "Version Warning"
+
+    External user identities are only supported in [Teleport Enterprise](enterprise/introduction.md).
+
+    Please reach out to [sales@goteleport.com](mailto:sales@goteleport.com) for more information.
+
 ### OIDC
 
 Teleport implements OpenID Connect (OIDC) authentication, which is similar to
@@ -348,6 +354,12 @@ auth_service:
     type: oidc
 ```
 
+!!! tip "Version Warning"
+
+    External user identities are only supported in [Teleport Enterprise](enterprise/introduction.md).
+
+    Please reach out to [sales@goteleport.com](mailto:sales@goteleport.com) for more information.
+
 ### Hardware Keys - YubiKey FIDO U2F
 
 Teleport supports [FIDO U2F](https://www.yubico.com/about/background/fido/)
@@ -356,10 +368,8 @@ start using U2F:
 
 * Enable U2F in Teleport configuration `/etc/teleport.yaml` .
 
-* For CLI-based logins you have to install [u2f-host](https://developers.yubico.com/libu2f-host/) utility.
-
-* For web-based logins you have to use Google Chrome and Firefox 67 or greater, are the only
-   supported U2F browsers at this time.
+* For web-based logins, check that your browser [supports
+  U2F](https://caniuse.com/u2f).
 
 ``` yaml
 # snippet from /etc/teleport.yaml to show an example configuration of U2F:
@@ -393,28 +403,11 @@ pointing to a JSON file that mirrors `facets` in the auth config.
 
 **Logging in with U2F**
 
-For logging in via the CLI, you must first install
-[u2f-host](https://developers.yubico.com/libu2f-host/). Installing:
-
-``` bash
-# OSX:
-$ brew install libu2f-host
-
-# Ubuntu 16.04 LTS:
-$ apt-get install u2f-host
-```
-
-Then invoke `tsh ssh` as usual to authenticate:
+Invoke `tsh ssh` as usual to authenticate:
 
 ``` bash
 $ tsh --proxy <proxy-addr> ssh <hostname>
 ```
-
-!!! tip "Version Warning"
-
-    External user identities are only supported in [Teleport Enterprise](enterprise/introduction.md).
-
-    Please reach out to [sales@goteleport.com](mailto:sales@goteleport.com) for more information.
 
 ## Adding and Deleting Users
 
