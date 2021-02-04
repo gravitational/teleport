@@ -1034,6 +1034,10 @@ func (p *proxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// ensure the target host is accessible.
 	dconn, err := net.Dial("tcp", r.Host)
 	if err != nil {
+		log.WithFields(log.Fields{
+			log.ErrorKey: err,
+			"addr": r.Host,
+		}).Warn("Failed to dial.")
 		trace.WriteError(w, err)
 		return
 	}

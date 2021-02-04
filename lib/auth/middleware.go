@@ -289,7 +289,8 @@ func (a *AuthMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	user, err := a.GetUser(r)
 	if err != nil {
-		trace.WriteError(w, err)
+		log.WithError(err).Warn("Failed to query user.")
+		trace.WriteError(w, trace.Unwrap(err))
 		return
 	}
 
