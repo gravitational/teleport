@@ -18,14 +18,14 @@ package u2f
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
-	"io"
-	"os/exec"
 
+	"github.com/flynn/u2f/u2ftoken"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/mailgun/ttlmap"
-	"github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
 
 	"github.com/gravitational/teleport/api/types"
@@ -136,73 +136,45 @@ func RegisterInit(params RegisterInitParams) (*RegisterChallenge, error) {
 //
 // Note: the caller must prompt the user to tap the U2F token.
 func RegisterSignChallenge(ctx context.Context, c RegisterChallenge, facet string) (*RegisterChallengeResponse, error) {
-	// Pass the JSON-encoded data undecoded to the u2f-host binary
-	challengeRaw, err := json.Marshal(c)
+	// Convert from JS-centric github.com/tstranex/u2f format to a more
+	// wire-centric github.com/flynn/u2f format.
+	appHash := sha256.Sum256([]byte(c.AppID))
+	cd := u2f.ClientData{
+		Challenge: c.Challenge,
+		Origin:    facet,
+		Typ:       "navigator.id.finishEnrollment",
+	}
+	cdRaw, err := json.Marshal(cd)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cmd := exec.CommandContext(ctx, "u2f-host", "--action=register", "--origin="+facet)
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	chHash := sha256.Sum256(cdRaw)
+	regReq := u2ftoken.RegisterRequest{
+		Challenge:   chHash[:],
+		Application: appHash[:],
 	}
 
-	if err := cmd.Start(); err != nil {
+	var regRespRaw []byte
+	if err := pollLocalDevices(ctx, func(t *u2ftoken.Token) error {
+		var err error
+		regRespRaw, err = t.Register(regReq)
+		return err
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer func() {
-		// If we returned before cmd.Wait was called, clean up the spawned
-		// process. ProcessState will be empty until cmd.Wait or cmd.Run
-		// return.
-		if cmd.ProcessState == nil || !cmd.ProcessState.Exited() {
-			if err := cmd.Process.Kill(); err != nil {
-				logrus.WithError(err).Warningf("Failed cleaning up the spawned u2f-host process (PID %v)", cmd.ProcessState.Pid())
-			}
-		}
-	}()
-	_, err = stdin.Write(challengeRaw)
-	stdin.Close()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if len(regRespRaw) == 0 {
+		// This shouldn't happen if the loop above works correctly, but check
+		// just in case.
+		return nil, trace.CompareFailed("failed getting a registration response from a U2F device")
 	}
 
-	// 16kB ought to be enough for anybody.
-	signResponseBuf := make([]byte, 16*1024)
-	n, err := io.ReadFull(stdout, signResponseBuf)
-	// unexpected EOF means we have read the data completely.
-	if err == nil {
-		return nil, trace.LimitExceeded("u2f sign response exceeded buffer size")
-	}
-	signResponse := signResponseBuf[:n]
-
-	// Read error message (if any). 1kB is more than enough for any error message u2f-host outputs
-	errMsgBuf := make([]byte, 1024)
-	n, err = io.ReadFull(stderr, errMsgBuf)
-	if err == nil {
-		return nil, trace.LimitExceeded("u2f error message exceeded buffer size")
-	}
-	errMsg := string(errMsgBuf[:n])
-
-	err = cmd.Wait()
-	if err != nil {
-		return nil, trace.AccessDenied("u2f-host returned error: %s", errMsg)
-	} else if len(signResponse) == 0 {
-		return nil, trace.NotFound("u2f-host returned no error and no sign response")
-	}
-
-	var resp RegisterChallengeResponse
-	if err := json.Unmarshal(signResponse, &resp); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &resp, nil
+	// Convert back from github.com/flynn/u2f to github.com/tstranex/u2f
+	// format.
+	base64 := base64.URLEncoding.WithPadding(base64.NoPadding)
+	return &RegisterChallengeResponse{
+		RegistrationData: base64.EncodeToString(regRespRaw),
+		ClientData:       base64.EncodeToString(cdRaw),
+	}, nil
 }
 
 // RegisterInitParams are the parameters for verifying the
