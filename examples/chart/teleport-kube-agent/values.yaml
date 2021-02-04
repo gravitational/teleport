@@ -2,7 +2,7 @@
 # Values that must always be provided by the user.
 ################################################################
 
-# Join token for the cluster.
+# Join token for the cluster. (Required when useExistingSecret is false)
 authToken:
 # Address of the teleport proxy with port (usually :3080).
 proxyAddr:
@@ -72,3 +72,5 @@ clusterRoleBindingName: teleport-kube-agent
 serviceAccountName: teleport-kube-agent
 # Name of the Secret to store the teleport join token.
 secretName: teleport-kube-agent-join-token
+# Use existing secret instead of creating one
+useExistingSecret: false
