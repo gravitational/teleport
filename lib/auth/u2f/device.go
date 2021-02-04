@@ -103,23 +103,24 @@ func decodeDevicePubKey(d *types.U2FDevice) (*ecdsa.PublicKey, error) {
 // pollLocalDevices calls fn against all local U2F devices until one succeeds
 // (fn returns nil) or until the context is cancelled.
 func pollLocalDevices(ctx context.Context, fn func(t *u2ftoken.Token) error) error {
+	tick := time.NewTicker(200 * time.Millisecond)
+	defer tick.Stop()
 	for {
+		err := foreachLocalDevice(fn)
+		if err == nil {
+			return nil
+		}
+		// Don't spam the logs while we're waiting for a key to be plugged
+		// in or tapped.
+		if err != errAuthNoKeyOrUserPresence {
+			logrus.WithError(err).Debugf("Error polling U2F devices for registration")
+		}
+
 		select {
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
-		default:
+		case <-tick.C:
 		}
-		err := foreachLocalDevice(fn)
-		if err != nil {
-			// Don't spam the logs while we're waiting for a key to be plugged
-			// in or tapped.
-			if err != errAuthNoKeyOrUserPresence {
-				logrus.WithError(err).Debugf("Error polling U2F devices for registration")
-			}
-			time.Sleep(200 * time.Millisecond)
-			continue
-		}
-		return nil
 	}
 }
 
