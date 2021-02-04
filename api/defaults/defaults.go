@@ -40,8 +40,11 @@ const (
 	// disconnected. The max count mirrors ClientAliveCountMax of sshd.
 	KeepAliveCountMax = 3
 
-	// MaxCertDuration limits maximum duration of validity of issued cert
+	// MaxCertDuration limits maximum duration of validity of issued certificate
 	MaxCertDuration = 30 * time.Hour
+
+	// CertDuration is a default certificate duration.
+	CertDuration = 12 * time.Hour
 
 	// KeepAliveInterval is interval at which Teleport will send keep-alive
 	// messages to the client. The default interval of 5 minutes (300 seconds) is

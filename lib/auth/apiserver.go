@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -259,7 +260,7 @@ type HandlerWithAuthFunc func(auth ClientI, w http.ResponseWriter, r *http.Reque
 func (s *APIServer) withAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 	const accessDeniedMsg = "auth API: access denied "
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-		// HTTPS server expects auth  context to be set by the auth middleware
+		// HTTPS server expects auth context to be set by the auth middleware
 		authContext, err := s.Authorizer.Authorize(r.Context())
 		if err != nil {
 			// propagate connection problem error so we can differentiate
@@ -682,17 +683,20 @@ func (s *APIServer) deleteToken(auth ClientI, w http.ResponseWriter, r *http.Req
 }
 
 func (s *APIServer) deleteWebSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	user, sid := p.ByName("user"), p.ByName("sid")
-	err := auth.DeleteWebSession(user, sid)
+	user, sessionID := p.ByName("user"), p.ByName("sid")
+	err := auth.WebSessions().Delete(r.Context(), types.DeleteWebSessionRequest{
+		User:      user,
+		SessionID: sessionID,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return message(fmt.Sprintf("session '%v' for user '%v' deleted", sid, user)), nil
+	return message(fmt.Sprintf("session %q for user %q deleted", sessionID, user)), nil
 }
 
 func (s *APIServer) getWebSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	user, sid := p.ByName("user"), p.ByName("sid")
-	sess, err := auth.GetWebSessionInfo(user, sid)
+	sess, err := auth.GetWebSessionInfo(r.Context(), user, sid)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

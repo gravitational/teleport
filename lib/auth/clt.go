@@ -1152,16 +1152,16 @@ func (c *Client) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 
 // GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
 // it is valid, or error otherwise.
-func (c *Client) GetWebSessionInfo(user string, sid string) (services.WebSession, error) {
+func (c *Client) GetWebSessionInfo(ctx context.Context, user, sessionID string) (services.WebSession, error) {
 	out, err := c.Get(
-		c.Endpoint("users", user, "web", "sessions", sid), url.Values{})
+		c.Endpoint("users", user, "web", "sessions", sessionID), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return services.UnmarshalWebSession(out.Bytes())
 }
 
-// DeleteWebSession deletes a web session for this user by id
+// DeleteWebSession deletes the web session specified with sid for the given user
 func (c *Client) DeleteWebSession(user string, sid string) error {
 	_, err := c.Delete(c.Endpoint("users", user, "web", "sessions", sid))
 	return trace.Wrap(err)
@@ -2155,14 +2155,12 @@ func (c *Client) CreateAuditStream(ctx context.Context, sid session.ID) (events.
 type WebService interface {
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
 	// it is valid, or error otherwise.
-	GetWebSessionInfo(user string, sid string) (services.WebSession, error)
+	GetWebSessionInfo(ctx context.Context, user, sessionID string) (types.WebSession, error)
 	// ExtendWebSession creates a new web session for a user based on another
 	// valid web session
-	ExtendWebSession(user string, prevSessionID string, accessRequestID string) (services.WebSession, error)
+	ExtendWebSession(user, prevSessionID, accessRequestID string) (types.WebSession, error)
 	// CreateWebSession creates a new web session for a user
-	CreateWebSession(user string) (services.WebSession, error)
-	// DeleteWebSession deletes a web session for this user by id
-	DeleteWebSession(user string, sid string) error
+	CreateWebSession(user string) (types.WebSession, error)
 
 	// AppSession defines application session features.
 	services.AppSession
@@ -2349,6 +2347,9 @@ type ClientI interface {
 	services.ClusterConfiguration
 	services.Events
 
+	types.WebSessionsGetter
+	types.WebTokensGetter
+
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (services.KeepAliver, error)
 
@@ -2395,4 +2396,12 @@ type ClientI interface {
 	// GenerateDatabaseCert generates client certificate used by a database
 	// service to authenticate with the database instance.
 	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
+
+	// GetWebSession queries the existing web session described with req.
+	// Implements ReadAccessPoint.
+	GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error)
+
+	// GetWebToken queries the existing web token described with req.
+	// Implements ReadAccessPoint.
+	GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
 }
