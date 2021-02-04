@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2020-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -83,6 +83,9 @@ const (
 
 	// KindWebSession is a web session resource
 	KindWebSession = "web_session"
+
+	// KindWebToken is a web token resource
+	KindWebToken = "web_token"
 
 	// KindAppSession represents an application specific web session.
 	KindAppSession = "app_session"
@@ -181,6 +184,9 @@ const (
 	// KindKubeService is a kubernetes service resource
 	KindKubeService = "kube_service"
 
+	// KindMFADevice is an MFA device for a user.
+	KindMFADevice = "mfa_device"
+
 	// V3 is the third version of resources.
 	V3 = "v3"
 
@@ -214,4 +220,57 @@ const (
 	// VerbRotate is used to rotate certificate authorities
 	// used only internally
 	VerbRotate = "rotate"
+)
+
+// WebSessionSubKinds lists subkinds of web session resources
+var WebSessionSubKinds = []string{KindAppSession, KindWebSession}
+
+const (
+	// RecordAtNode is the default. Sessions are recorded at Teleport nodes.
+	RecordAtNode = "node"
+
+	// RecordAtProxy enables the recording proxy which intercepts and records
+	// all sessions.
+	RecordAtProxy = "proxy"
+
+	// RecordOff is used to disable session recording completely.
+	RecordOff = "off"
+
+	// RecordAtNodeSync enables the nodes to stream sessions in sync mode
+	// to the auth server
+	RecordAtNodeSync = "node-sync"
+
+	// RecordAtProxySync enables the recording proxy which intercepts and records
+	// all sessions, streams the records synchronously
+	RecordAtProxySync = "proxy-sync"
+)
+
+const (
+	// HostKeyCheckYes is the default. The proxy will check the host key of the
+	// target node it connects to.
+	HostKeyCheckYes = "yes"
+
+	// HostKeyCheckNo is used to disable host key checking. This is a insecure
+	// settings which makes MITM possible with no indications, use with caution.
+	HostKeyCheckNo = "no"
+)
+
+// TunnelType is the type of tunnel.
+type TunnelType string
+
+const (
+	// NodeTunnel is a tunnel where the node connects to the proxy (dial back).
+	NodeTunnel TunnelType = "node"
+
+	// ProxyTunnel is a tunnel where a proxy connects to the proxy (trusted cluster).
+	ProxyTunnel TunnelType = "proxy"
+
+	// AppTunnel is a tunnel where the application proxy dials back to the proxy.
+	AppTunnel TunnelType = "app"
+
+	// KubeTunnel is a tunnel where the kubernetes service dials back to the proxy.
+	KubeTunnel TunnelType = "kube"
+
+	// DatabaseTunnel is a tunnel where a database proxy dials back to the proxy.
+	DatabaseTunnel TunnelType = "db"
 )

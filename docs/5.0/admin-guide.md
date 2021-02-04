@@ -173,7 +173,8 @@ teleport:
   auth_token: xxxx-token-xxxx
 
   # Optional CA pin of the auth server. This enables more secure way of adding new
-  # nodes to a cluster. See "Adding Nodes" section above.
+  # nodes to a cluster. See "Adding Nodes to the Cluster"
+  # (https://goteleport.com/teleport/docs/admin-guide/#adding-nodes-to-the-cluster).
   ca_pin: "sha256:ca-pin-hash-goes-here"
 
   # list of auth servers in a cluster. you will have more than one auth server
@@ -244,7 +245,8 @@ proxy_service:
   # The DNS name of the proxy HTTPS endpoint as accessible by cluster users.
   # Defaults to the proxy's hostname if not specified. If running multiple
   # proxies behind a load balancer, this name must point to the load balancer
-  # (see public_addr section below)
+  # See the "Public Addr" section for more details
+  # (https://goteleport.com/teleport/docs/admin-guide/#public-addr).
   public_addr: TELEPORT_PUBLIC_DNS_NAME:3080
 
   # TLS certificate for the HTTPS connection. Configuring these properly is
@@ -1294,9 +1296,8 @@ examples and instructions.
 
 !!! tip "Tip"
 
-    Before continuing, please make sure to take a look at the
-    [Cluster State section](architecture/nodes.md#cluster-state) in the Teleport
-    Architecture documentation.
+    Before continuing, please make sure to take a look at the [Cluster State section](architecture/nodes.md#cluster-state)
+    in the Teleport Architecture documentation.
 
 Usually there are two ways to achieve high availability. You can "outsource"
 this function to the infrastructure. For example, using a highly available
@@ -1474,9 +1475,8 @@ teleport:
 
 !!! tip "Tip"
 
-    Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/nodes.md#cluster-state) in Teleport
-    Architecture documentation.
+    Before continuing, please make sure to take a look at the [Cluster State section](architecture/nodes.md#cluster-state)
+    in Teleport Architecture documentation.
 
 !!! tip "AWS Authentication"
 
@@ -1512,8 +1512,8 @@ running on an EC2 instance with an IAM role.
 
 !!! tip "Tip"
 
-    Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/nodes.md#cluster-state) in Teleport Architecture documentation.
+    Before continuing, please make sure to take a look at the [Cluster State section](architecture/nodes.md#cluster-state)
+    in Teleport Architecture documentation.
 
 If you are running Teleport on AWS, you can use
 [DynamoDB](https://aws.amazon.com/dynamodb/) as a storage back-end to achieve
@@ -1664,9 +1664,8 @@ To enable these options you will need to update the [IAM Role for Teleport](aws-
 
 !!! tip "Tip"
 
-    Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/nodes.md#cluster-state) in Teleport
-    Architecture documentation.
+    Before continuing, please make sure to take a look at the [Cluster State section](architecture/nodes.md#cluster-state)
+    in Teleport Architecture documentation.
 
 
 Google Cloud Storage (GCS) can only be used as a storage for the recorded
@@ -1687,8 +1686,8 @@ teleport:
 
 !!! tip "Tip"
 
-    Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/nodes.md#cluster-state) in Teleport Architecture documentation.
+    Before continuing, please make sure to take a look at the [Cluster State section](architecture/nodes.md#cluster-state)
+    in Teleport Architecture documentation.
 
 If you are running Teleport on GCP, you can use
 [Firestore](https://cloud.google.com/firestore/) as a storage back-end to achieve
@@ -1794,8 +1793,9 @@ work with any 5.0.3 component and 6.1.0 component will work with any 6.7.0 compo
   means you must not attempt to upgrade from 5.x.x straight to 7.x.x. You must
   upgrade to 6.x.x first.
 
-* Teleport clients [`tsh`](cli-docs.md#tsh) for users and [`tctl`](cli-docs.md#tctl) for admins
-  may not be compatible with different versions of the `teleport` service.
+* The above applies to both clients and servers. For example, a 6.x.x proxy is
+  compatible with 5.x.x nodes and 5.x.x `tsh`. But we don't guarantee that a
+  7.x.x `tsh` will work with a 5.x.x proxy.
 
 As an extra precaution you might want to backup your application prior to upgrading. We provide more instructions in [Backup before upgrading](#backup-before-upgrading).
 

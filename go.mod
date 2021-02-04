@@ -23,6 +23,8 @@ require (
 	github.com/docker/docker v17.12.0-ce-rc1.0.20180721085148-1ef1cc838816+incompatible
 	github.com/docker/spdystream v0.0.0-20170912183627-bc6354cbbc29 // indirect
 	github.com/dustin/go-humanize v1.0.0
+	github.com/flynn/hid v0.0.0-20190502022136-f1b9b6cc019a // indirect
+	github.com/flynn/u2f v0.0.0-20180613185708-15554eb68e5d
 	github.com/fsouza/fake-gcs-server v1.11.6
 	github.com/ghodss/yaml v1.0.0
 	github.com/gizak/termui v0.0.0-20190224181052-63c2a0d70943
@@ -58,7 +60,7 @@ require (
 	github.com/mailgun/timetools v0.0.0-20141028012446-7e6055773c51
 	github.com/mailgun/ttlmap v0.0.0-20150816203249-16b258d86efc
 	github.com/mattn/go-runewidth v0.0.4 // indirect
-	github.com/mattn/go-sqlite3 v1.10.0
+	github.com/mattn/go-sqlite3 v1.14.6
 	github.com/mdp/rsc v0.0.0-20160131164516-90f07065088d // indirect
 	github.com/mitchellh/go-wordwrap v1.0.0 // indirect
 	github.com/pborman/uuid v1.2.0

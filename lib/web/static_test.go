@@ -19,10 +19,7 @@ package web
 import (
 	"io"
 	"io/ioutil"
-	"os"
 	"strings"
-
-	"github.com/gravitational/teleport"
 
 	"gopkg.in/check.v1"
 )
@@ -32,24 +29,8 @@ type StaticSuite struct {
 
 var _ = check.Suite(&StaticSuite{})
 
-func (s *StaticSuite) SetUpSuite(c *check.C) {
-	debugAssetsPath = "../../webassets/teleport"
-}
-
-func (s *StaticSuite) TestDebugModeEnv(c *check.C) {
-	c.Assert(isDebugMode(), check.Equals, false)
-	os.Setenv(teleport.DebugEnvVar, "no")
-	c.Assert(isDebugMode(), check.Equals, false)
-	os.Setenv(teleport.DebugEnvVar, "0")
-	c.Assert(isDebugMode(), check.Equals, false)
-	os.Setenv(teleport.DebugEnvVar, "1")
-	c.Assert(isDebugMode(), check.Equals, true)
-	os.Setenv(teleport.DebugEnvVar, "true")
-	c.Assert(isDebugMode(), check.Equals, true)
-}
-
 func (s *StaticSuite) TestLocalFS(c *check.C) {
-	fs, err := NewStaticFileSystem(true)
+	fs, err := NewDebugFileSystem("../../webassets/teleport")
 	c.Assert(err, check.IsNil)
 	c.Assert(fs, check.NotNil)
 

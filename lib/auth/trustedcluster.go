@@ -595,7 +595,7 @@ func (v *ValidateTrustedClusterRequest) ToRaw() (*ValidateTrustedClusterRequestR
 	cas := [][]byte{}
 
 	for _, certAuthority := range v.CAs {
-		data, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(certAuthority)
+		data, err := services.MarshalCertAuthority(certAuthority)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -618,7 +618,7 @@ func (v *ValidateTrustedClusterRequestRaw) ToNative() (*ValidateTrustedClusterRe
 	cas := []services.CertAuthority{}
 
 	for _, rawCertAuthority := range v.CAs {
-		certAuthority, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(rawCertAuthority)
+		certAuthority, err := services.UnmarshalCertAuthority(rawCertAuthority)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -640,7 +640,7 @@ func (v *ValidateTrustedClusterResponse) ToRaw() (*ValidateTrustedClusterRespons
 	cas := [][]byte{}
 
 	for _, certAuthority := range v.CAs {
-		data, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(certAuthority)
+		data, err := services.MarshalCertAuthority(certAuthority)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -661,7 +661,7 @@ func (v *ValidateTrustedClusterResponseRaw) ToNative() (*ValidateTrustedClusterR
 	cas := []services.CertAuthority{}
 
 	for _, rawCertAuthority := range v.CAs {
-		certAuthority, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(rawCertAuthority)
+		certAuthority, err := services.UnmarshalCertAuthority(rawCertAuthority)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

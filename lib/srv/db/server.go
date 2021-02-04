@@ -368,15 +368,20 @@ func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.Stream
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	audit, err := common.NewAudit(common.AuditConfig{
+		StreamWriter: streamWriter,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	switch sessionCtx.Server.GetProtocol() {
 	case defaults.ProtocolPostgres:
 		return &postgres.Engine{
-			Auth:           auth,
-			OnSessionStart: s.emitSessionStartEventFn(streamWriter),
-			OnSessionEnd:   s.emitSessionEndEventFn(streamWriter),
-			OnQuery:        s.emitQueryEventFn(streamWriter),
-			Clock:          s.cfg.Clock,
-			Log:            sessionCtx.Log,
+			Auth:    auth,
+			Audit:   audit,
+			Context: s.closeContext,
+			Clock:   s.cfg.Clock,
+			Log:     sessionCtx.Log,
 		}, nil
 	}
 	return nil, trace.BadParameter("unsupported database protocol %q",
@@ -410,6 +415,7 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	id := uuid.New()
 	return &common.Session{
 		ID:                id,
+		ClusterName:       identity.RouteToCluster,
 		Server:            server,
 		Identity:          identity,
 		DatabaseUser:      identity.RouteToDatabase.Username,

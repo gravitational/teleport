@@ -359,10 +359,8 @@ message ProvisionTokenV1 {
     // Roles is a list of roles associated with the token,
     // that will be converted to metadata in the SSH and X509
     // certificates issued to the user of the token
-    repeated string Roles = 1 [
-        (gogoproto.jsontag) = "roles",
-        (gogoproto.casttype) = "github.com/gravitational/teleport.Role"
-    ];
+    repeated string Roles = 1
+        [ (gogoproto.jsontag) = "roles", (gogoproto.casttype) = "SystemRole" ];
     // Expires is a global expiry time header can be set on any resource in the
     // system.
     google.protobuf.Timestamp Expires = 2 [
@@ -396,10 +394,8 @@ message ProvisionTokenSpecV2 {
     // Roles is a list of roles associated with the token,
     // that will be converted to metadata in the SSH and X509
     // certificates issued to the user of the token
-    repeated string Roles = 1 [
-        (gogoproto.jsontag) = "roles",
-        (gogoproto.casttype) = "github.com/gravitational/teleport.Role"
-    ];
+    repeated string Roles = 1
+        [ (gogoproto.jsontag) = "roles", (gogoproto.casttype) = "SystemRole" ];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.
@@ -1154,15 +1150,48 @@ message LocalAuthSecrets {
     // PasswordHash encodes a combined salt & hash for password verification.
     bytes PasswordHash = 1 [ (gogoproto.jsontag) = "password_hash,omitempty" ];
 
-    // TOTPKey is the key used for Time-based One Time Password varification.
+    // Deprecated 2nd factor fields, use MFA below instead.
     string TOTPKey = 2 [ (gogoproto.jsontag) = "totp_key,omitempty" ];
-
-    // U2FRegistration holds Universal Second Factor registration info.
     U2FRegistrationData U2FRegistration = 3 [ (gogoproto.jsontag) = "u2f_registration,omitempty" ];
-
-    // U2FCounter holds the highest seen Universal Second Factor registration
-    // count.
     uint32 U2FCounter = 4 [ (gogoproto.jsontag) = "u2f_counter,omitempty" ];
+
+    repeated MFADevice MFA = 5 [ (gogoproto.jsontag) = "mfa,omitempty" ];
+}
+
+// MFADevice is a multi-factor authentication device, such as a security key or
+// an OTP app.
+message MFADevice {
+    // Boilerplate for implementing the Resource interface.
+    string kind = 1;
+    string sub_kind = 2;
+    string version = 3;
+    Metadata metadata = 4 [ (gogoproto.nullable) = false ];
+
+    // ID is a UUID of this device.
+    string id = 5;
+
+    google.protobuf.Timestamp added_at = 6
+        [ (gogoproto.stdtime) = true, (gogoproto.nullable) = false ];
+    google.protobuf.Timestamp last_used = 7
+        [ (gogoproto.stdtime) = true, (gogoproto.nullable) = false ];
+
+    oneof device {
+        TOTPDevice totp = 8;
+        U2FDevice u2f = 9;
+    }
+}
+
+// TOTPDevice holds the TOTP-specific fields of MFADevice.
+message TOTPDevice { string key = 1; }
+
+// U2FDevice holds the U2F-specific fields of MFADevice.
+message U2FDevice {
+    // KeyHandle uniquely identifies a key on a device
+    bytes key_handle = 1;
+    // PubKey is an DER encoded ecdsa public key
+    bytes pub_key = 2;
+    // Counter is the latest seen value of the U2F usage counter.
+    uint32 counter = 3;
 }
 
 // ConnectorRef holds information about OIDC connector
@@ -1414,4 +1443,64 @@ message KubernetesCluster {
     // Used for RBAC.
     map<string, CommandLabelV2> DynamicLabels = 3
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "dynamic_labels,omitempty" ];
+}
+
+// WebTokenV3 describes a web token. Web tokens are used as a transport to relay bearer tokens
+// to the client.
+// Initially bound to a web session, these have been factored out into a separate resource to
+// enable separate lifecycle management.
+message WebTokenV3 {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
+    // Kind is a resource kind
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is the resource version
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is resource metadata
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec defines the web token
+    WebTokenSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// WebTokenSpecV3 is a unique time-limited token bound to a user's web session
+message WebTokenSpecV3 {
+    // User specifies the user the token is bound to.
+    string User = 1 [ (gogoproto.jsontag) = "user" ];
+    // Token specifies the token's value.
+    string Token = 2 [ (gogoproto.jsontag) = "token" ];
+}
+
+// GetWebSessionRequest describes a request to query a web session
+message GetWebSessionRequest {
+    // User specifies the user the web session is for.
+    string User = 1 [ (gogoproto.jsontag) = "user" ];
+    // SessionID specifies the web session ID.
+    string SessionID = 2 [ (gogoproto.jsontag) = "session_id" ];
+}
+
+// DeleteWebSessionRequest describes a request to delete a web session
+message DeleteWebSessionRequest {
+    // User specifies the user the session is bound to
+    string User = 1 [ (gogoproto.jsontag) = "user" ];
+    // SessionID specifies the web session ID to delete.
+    string SessionID = 2 [ (gogoproto.jsontag) = "session_id" ];
+}
+
+// GetWebTokenRequest describes a request to query a web token
+message GetWebTokenRequest {
+    // User specifies the user the token is for.
+    string User = 1 [ (gogoproto.jsontag) = "user" ];
+    // Token specifies the token to get.
+    string Token = 2 [ (gogoproto.jsontag) = "token" ];
+}
+
+// DeleteWebTokenRequest describes a request to delete a web token
+message DeleteWebTokenRequest {
+    // User specifies the user the token is for.
+    string User = 1 [ (gogoproto.jsontag) = "user" ];
+    // Token specifies the token to delete.
+    string Token = 2 [ (gogoproto.jsontag) = "token" ];
 }

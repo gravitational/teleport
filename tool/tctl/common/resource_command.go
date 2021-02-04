@@ -265,7 +265,7 @@ func (rc *ResourceCommand) Create(client auth.ClientI) (err error) {
 
 // createTrustedCluster implements `tctl create cluster.yaml` command
 func (rc *ResourceCommand) createTrustedCluster(client auth.ClientI, raw services.UnknownResource) error {
-	tc, err := services.GetTrustedClusterMarshaler().Unmarshal(raw.Raw)
+	tc, err := services.UnmarshalTrustedCluster(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -303,7 +303,7 @@ func (rc *ResourceCommand) createTrustedCluster(client auth.ClientI, raw service
 
 // createCertAuthority creates certificate authority
 func (rc *ResourceCommand) createCertAuthority(client auth.ClientI, raw services.UnknownResource) error {
-	certAuthority, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(raw.Raw)
+	certAuthority, err := services.UnmarshalCertAuthority(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -316,7 +316,7 @@ func (rc *ResourceCommand) createCertAuthority(client auth.ClientI, raw services
 
 // createGithubConnector creates a Github connector
 func (rc *ResourceCommand) createGithubConnector(client auth.ClientI, raw services.UnknownResource) error {
-	connector, err := services.GetGithubConnectorMarshaler().Unmarshal(raw.Raw)
+	connector, err := services.UnmarshalGithubConnector(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -340,7 +340,7 @@ func (rc *ResourceCommand) createGithubConnector(client auth.ClientI, raw servic
 
 // createUser implements 'tctl create user.yaml' command.
 func (rc *ResourceCommand) createUser(client auth.ClientI, raw services.UnknownResource) error {
-	user, err := services.GetUserMarshaler().UnmarshalUser(raw.Raw)
+	user, err := services.UnmarshalUser(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
