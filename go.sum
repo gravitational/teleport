@@ -159,6 +159,10 @@ github.com/envoyproxy/protoc-gen-validate v0.1.0/go.mod h1:iSmxcyjqTsJpI2R4NaDN7
 github.com/evanphx/json-patch v4.9.0+incompatible/go.mod h1:50XU6AFN0ol/bzJsmQLiYLvXMP4fmwYFNcr97nuDLSk=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
 github.com/fatih/color v1.9.0/go.mod h1:eQcE1qtQxscV5RaZvpXrrb8Drkc3/DdQ+uUYCNjL+zU=
+github.com/flynn/hid v0.0.0-20190502022136-f1b9b6cc019a h1:fsyWnwbywFpHJS4T55vDW+UUeWP2WomJbB45/jf4If4=
+github.com/flynn/hid v0.0.0-20190502022136-f1b9b6cc019a/go.mod h1:Osz+xPHFsGWK9kZCEVcwXazcF/CHjscCVZosNFgwUIY=
+github.com/flynn/u2f v0.0.0-20180613185708-15554eb68e5d h1:2D6Rp/MRcrKnRFr7kfgBOJnJPFN0jPfc36ggct5MaK0=
+github.com/flynn/u2f v0.0.0-20180613185708-15554eb68e5d/go.mod h1:shcCQPgKtaJz4obqb6Si031WgtSrW+Tj+ZLq/mRNrM8=
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=
 github.com/fsnotify/fsnotify v1.4.9/go.mod h1:znqG4EE+3YCdAaPaxE2ZRY/06pZUdp0tY4IgpuI1SZQ=
 github.com/fsouza/fake-gcs-server v1.11.6 h1:xRjuDnNG1xqiHyw+K15yRlWGmzgvCd4q3KnVh9duYEE=

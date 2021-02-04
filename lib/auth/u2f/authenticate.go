@@ -18,12 +18,14 @@ package u2f
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
-	"os/exec"
 	"time"
 
+	"github.com/flynn/u2f/u2ftoken"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/mailgun/ttlmap"
@@ -148,78 +150,88 @@ func AuthenticateInit(ctx context.Context, params AuthenticateInitParams) (*Auth
 //
 // Note: the caller must prompt the user to tap the U2F token.
 func AuthenticateSignChallenge(ctx context.Context, facet string, challenges ...AuthenticateChallenge) (*AuthenticateChallengeResponse, error) {
-	// TODO(awly): mfa: u2f-host fails when running multiple processes in
-	// parallel.  This means that with u2f-host, teleport can't authenticate
-	// using multiple U2F devices. Replace u2f-host with a Go library that can
-	// prompt multiple devices at once.
-	c := challenges[0]
+	base64 := base64.URLEncoding.WithPadding(base64.NoPadding)
 
-	// Pass the JSON-encoded data undecoded to the u2f-host binary
-	challengeRaw, err := json.Marshal(c)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// Convert from JS-centric github.com/tstranex/u2f format to a more
+	// wire-centric github.com/flynn/u2f format.
+	type authenticateRequest struct {
+		orig       AuthenticateChallenge
+		clientData []byte
+		converted  u2ftoken.AuthenticateRequest
 	}
-	cmd := exec.CommandContext(ctx, "u2f-host", "-aauthenticate", "-o", facet)
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := cmd.Start(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer func() {
-		// If we returned before cmd.Wait was called, clean up the spawned
-		// process. ProcessState will be empty until cmd.Wait or cmd.Run
-		// return.
-		if cmd.ProcessState == nil || !cmd.ProcessState.Exited() {
-			cmd.Process.Kill()
+	authRequests := make([]authenticateRequest, 0, len(challenges))
+	for _, chal := range challenges {
+		kh, err := base64.DecodeString(chal.KeyHandle)
+		if err != nil {
+			return nil, trace.BadParameter("invalid KeyHandle %q in AuthenticateChallenge: %v", chal.KeyHandle, err)
 		}
-	}()
-	_, err = stdin.Write(challengeRaw)
-	stdin.Close()
-	if err != nil {
+		cd := u2f.ClientData{
+			Challenge: chal.Challenge,
+			Origin:    facet,
+			Typ:       "navigator.id.getAssertion",
+		}
+		cdRaw, err := json.Marshal(cd)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		chHash := sha256.Sum256(cdRaw)
+		appHash := sha256.Sum256([]byte(chal.AppID))
+		authRequests = append(authRequests, authenticateRequest{
+			orig:       chal,
+			clientData: cdRaw,
+			converted: u2ftoken.AuthenticateRequest{
+				KeyHandle:   kh,
+				Challenge:   chHash[:],
+				Application: appHash[:],
+			},
+		})
+	}
+
+	var matchedAuthReq *authenticateRequest
+	var authResp *u2ftoken.AuthenticateResponse
+	if err := pollLocalDevices(ctx, func(t *u2ftoken.Token) error {
+		var errs []error
+		for _, req := range authRequests {
+			if err := t.CheckAuthenticate(req.converted); err != nil {
+				if err != u2ftoken.ErrUnknownKeyHandle {
+					errs = append(errs, trace.Wrap(err))
+				}
+				continue
+			}
+			res, err := t.Authenticate(req.converted)
+			if err == u2ftoken.ErrPresenceRequired {
+				continue
+			} else if err != nil {
+				errs = append(errs, trace.Wrap(err))
+				continue
+			}
+			matchedAuthReq = &req
+			authResp = res
+			return nil
+		}
+		if len(errs) > 0 {
+			return trace.NewAggregate(errs...)
+		}
+		return errAuthNoKeyOrUserPresence
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// The origin URL is passed back base64-encoded and the keyHandle is passed back as is.
-	// A very long proxy hostname or keyHandle can overflow a fixed-size buffer.
-	signResponseLen := 500 + len(challengeRaw) + len(facet)*4/3
-	signResponseBuf := make([]byte, signResponseLen)
-	signResponseLen, err = io.ReadFull(stdout, signResponseBuf)
-	// unexpected EOF means we have read the data completely.
-	if err == nil {
-		return nil, trace.LimitExceeded("u2f sign response exceeded buffer size")
+	if authResp == nil || matchedAuthReq == nil {
+		// This shouldn't happen if the loop above works correctly, but check
+		// just in case.
+		return nil, trace.CompareFailed("failed getting an authentication response from a U2F device")
 	}
 
-	// Read error message (if any). 100 bytes is more than enough for any error message u2f-host outputs
-	errMsgBuf := make([]byte, 100)
-	errMsgLen, err := io.ReadFull(stderr, errMsgBuf)
-	if err == nil {
-		return nil, trace.LimitExceeded("u2f error message exceeded buffer size")
-	}
-
-	err = cmd.Wait()
-	if err != nil {
-		return nil, trace.AccessDenied("u2f-host returned error: " + string(errMsgBuf[:errMsgLen]))
-	} else if signResponseLen == 0 {
-		return nil, trace.NotFound("u2f-host returned no error and no sign response")
-	}
-
-	var resp AuthenticateChallengeResponse
-	if err := json.Unmarshal(signResponseBuf[:signResponseLen], &resp); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &resp, nil
+	// Convert back from github.com/flynn/u2f to github.com/tstranex/u2f
+	// format.
+	return &AuthenticateChallengeResponse{
+		KeyHandle:     matchedAuthReq.orig.KeyHandle,
+		SignatureData: base64.EncodeToString(authResp.RawResponse),
+		ClientData:    base64.EncodeToString(matchedAuthReq.clientData),
+	}, nil
 }
+
+var errAuthNoKeyOrUserPresence = errors.New("no U2F keys for the challenge found or user hasn't tapped the key yet")
 
 // AuthenticateVerifyParams are the parameters for verifying the
 // AuthenticationChallengeResponse.
