@@ -39,6 +39,7 @@ require (
 	github.com/gravitational/oxy v0.0.0-20200916204440-3eb06d921a1d
 	github.com/gravitational/reporting v0.0.0-20180907002058-ac7b85c75c4c
 	github.com/gravitational/roundtrip v1.0.0
+	github.com/gravitational/teleport/api v0.0.0
 	github.com/gravitational/trace v1.1.13
 	github.com/gravitational/ttlmap v0.0.0-20171116003245-91fd36b9004c
 	github.com/hashicorp/golang-lru v0.5.4
@@ -107,5 +108,6 @@ require (
 replace (
 	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.3
 	github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf
+	github.com/gravitational/teleport/api => ./api
 	github.com/iovisor/gobpf => github.com/gravitational/gobpf v0.0.1
 )
