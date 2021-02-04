@@ -43,10 +43,10 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace/trail"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"github.com/jonboulle/clockwork"
 )
 
@@ -2296,6 +2296,13 @@ type IdentityService interface {
 
 	// RotateResetPasswordTokenSecrets rotates token secrets for a given tokenID
 	RotateResetPasswordTokenSecrets(ctx context.Context, tokenID string) (services.ResetPasswordTokenSecrets, error)
+
+	// GetMFADevices fetches all MFA devices registered for the calling user.
+	GetMFADevices(ctx context.Context, in *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error)
+	// AddMFADevice adds a new MFA device for the calling user.
+	AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error)
+	// DeleteMFADevice deletes a MFA device for the calling user.
+	DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error)
 }
 
 // ProvisioningService is a service in control

@@ -566,6 +566,8 @@ message TOTPRegisterChallenge {
     string Algorithm = 4;
     // Digits is the number of digits in the TOTP code.
     uint32 Digits = 5;
+    // Account is the account name for this user.
+    string Account = 6;
 }
 
 // TOTPRegisterResponse is a response to TOTPRegisterChallenge.

@@ -17,6 +17,7 @@ limitations under the License.
 package u2f
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/x509"
 	"time"
@@ -26,6 +27,11 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 )
+
+// DeviceStorage is a persistent storage for MFA devices.
+type DeviceStorage interface {
+	UpsertMFADevice(ctx context.Context, key string, d *types.MFADevice) error
+}
 
 // NewDevice creates a U2F MFADevice object from a completed U2F registration.
 //

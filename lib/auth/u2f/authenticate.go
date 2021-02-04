@@ -22,9 +22,11 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/mailgun/ttlmap"
 	"github.com/tstranex/u2f"
 
 	"github.com/gravitational/teleport/api/types"
@@ -53,17 +55,62 @@ type (
 // AuthenticationStorage is the persistent storage needed to store state
 // (challenges and counters) during the authentication sequence.
 type AuthenticationStorage interface {
-	UpsertMFADevice(ctx context.Context, key string, d *types.MFADevice) error
+	DeviceStorage
 
-	UpsertU2FSignChallenge(key string, u2fChallenge *Challenge) error
-	GetU2FSignChallenge(key string) (*Challenge, error)
+	UpsertU2FSignChallenge(user, deviceID string, c *Challenge) error
+	GetU2FSignChallenge(user, deviceID string) (*Challenge, error)
+}
+
+const (
+	// Set capacity at 6000. With 60s TTLs on challenges, this allows roughly
+	// 100 U2F authentications/registration per second. Any larger burst or
+	// sustained rate will evict oldest challenges.
+	inMemoryChallengeCapacity = 6000
+	inMemoryChallengeTTL      = 60 * time.Second
+)
+
+type inMemoryAuthenticationStorage struct {
+	DeviceStorage
+	challenges *ttlmap.TtlMap
+}
+
+// InMemoryAuthenticationStorage returns a new AuthenticationStorage that
+// stores authentication challenges in the current process memory.
+//
+// Updates to existing devices are forwarded to ds.
+func InMemoryAuthenticationStorage(ds DeviceStorage) (AuthenticationStorage, error) {
+	m, err := ttlmap.NewMap(inMemoryChallengeCapacity)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return inMemoryAuthenticationStorage{DeviceStorage: ds, challenges: m}, nil
+}
+
+func (s inMemoryAuthenticationStorage) key(user, deviceID string) string {
+	return fmt.Sprintf("%s-%s", user, deviceID)
+}
+
+func (s inMemoryAuthenticationStorage) UpsertU2FSignChallenge(user, deviceID string, c *Challenge) error {
+	return s.challenges.Set(s.key(user, deviceID), c, int(inMemoryChallengeTTL.Seconds()))
+}
+
+func (s inMemoryAuthenticationStorage) GetU2FSignChallenge(user, deviceID string) (*Challenge, error) {
+	v, ok := s.challenges.Get(s.key(user, deviceID))
+	if !ok {
+		return nil, trace.NotFound("U2F challenge not found or expired")
+	}
+	c, ok := v.(*Challenge)
+	if !ok {
+		return nil, trace.NotFound("bug: U2F challenge storage returned %T instead of *u2f.Challenge", v)
+	}
+	return c, nil
 }
 
 // AuthenticateInitParams are the parameters for initiating the authentication
 // sequence.
 type AuthenticateInitParams struct {
 	AppConfig  types.U2F
-	Dev        *types.U2FDevice
+	Dev        *types.MFADevice
 	StorageKey string
 	Storage    AuthenticationStorage
 }
@@ -72,7 +119,14 @@ type AuthenticateInitParams struct {
 // on the server and the returned AuthenticateChallenge must be sent to the
 // client.
 func AuthenticateInit(ctx context.Context, params AuthenticateInitParams) (*AuthenticateChallenge, error) {
-	reg, err := DeviceToRegistration(params.Dev)
+	if params.Dev == nil {
+		return nil, trace.BadParameter("bug: missing Dev field in u2f.AuthenticateInitParams")
+	}
+	dev := params.Dev.GetU2F()
+	if dev == nil {
+		return nil, trace.BadParameter("bug: u2f.AuthenticateInit called with %T instead of MFADevice_U2F", params.Dev.Device)
+	}
+	reg, err := DeviceToRegistration(dev)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -81,7 +135,7 @@ func AuthenticateInit(ctx context.Context, params AuthenticateInitParams) (*Auth
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = params.Storage.UpsertU2FSignChallenge(params.StorageKey, challenge); err != nil {
+	if err = params.Storage.UpsertU2FSignChallenge(params.StorageKey, params.Dev.Id, challenge); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -92,14 +146,20 @@ func AuthenticateInit(ctx context.Context, params AuthenticateInitParams) (*Auth
 // It runs on the client and the returned AuthenticationChallengeResponse must
 // be sent to the server.
 //
-// Note: this function writes user interaction prompts to stdout.
-func AuthenticateSignChallenge(c AuthenticateChallenge, facet string) (*AuthenticateChallengeResponse, error) {
+// Note: the caller must prompt the user to tap the U2F token.
+func AuthenticateSignChallenge(ctx context.Context, facet string, challenges ...AuthenticateChallenge) (*AuthenticateChallengeResponse, error) {
+	// TODO(awly): mfa: u2f-host fails when running multiple processes in
+	// parallel.  This means that with u2f-host, teleport can't authenticate
+	// using multiple U2F devices. Replace u2f-host with a Go library that can
+	// prompt multiple devices at once.
+	c := challenges[0]
+
 	// Pass the JSON-encoded data undecoded to the u2f-host binary
 	challengeRaw, err := json.Marshal(c)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cmd := exec.Command("u2f-host", "-aauthenticate", "-o", facet)
+	cmd := exec.CommandContext(ctx, "u2f-host", "-aauthenticate", "-o", facet)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -129,7 +189,6 @@ func AuthenticateSignChallenge(c AuthenticateChallenge, facet string) (*Authenti
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	fmt.Println("Please press the button on your U2F key")
 
 	// The origin URL is passed back base64-encoded and the keyHandle is passed back as is.
 	// A very long proxy hostname or keyHandle can overflow a fixed-size buffer.
@@ -187,7 +246,7 @@ func AuthenticateVerify(ctx context.Context, params AuthenticateVerifyParams) er
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	challenge, err := params.Storage.GetU2FSignChallenge(params.StorageKey)
+	challenge, err := params.Storage.GetU2FSignChallenge(params.StorageKey, params.Dev.Id)
 	if err != nil {
 		return trace.Wrap(err)
 	}
