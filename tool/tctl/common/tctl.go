@@ -57,6 +57,10 @@ type GlobalCLIFlags struct {
 	// Insecure, when set, skips validation of server TLS certificate when
 	// connecting through a proxy (specified in AuthServerAddr).
 	Insecure bool
+	// IgnoreConfig inhibits the default behaviour of trying to read /etc/teleport.yaml
+	// from disk. This is useful when running tctl against a remote auth server on a machine
+	// which also has Teleport installed.
+	IgnoreConfig bool
 }
 
 // CLICommand interface must be implemented by every CLI command
@@ -112,6 +116,9 @@ func Run(commands []CLICommand, loadConfigExt LoadConfigFn) {
 		StringVar(&ccf.IdentityFilePath)
 	app.Flag("insecure", "When specifying a proxy address in --auth-server, do not verify its TLS certificate. Danger: any data you send can be intercepted or modified by an attacker.").
 		BoolVar(&ccf.Insecure)
+	app.Flag("ignore-config", fmt.Sprintf("Ignore Teleport config [%v] if present on disk.", defaults.ConfigFilePath)).
+		Short('z').
+		BoolVar(&ccf.IgnoreConfig)
 
 	// "version" command is always available:
 	ver := app.Command("version", "Print cluster version")
@@ -304,11 +311,18 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config, loadConfigExt LoadCon
 		log.Debugf("Debug logging has been enabled.")
 	}
 
-	// load /etc/teleport.yaml and apply its values:
-	fileConf, err := config.ReadConfigFile(ccf.ConfigFile)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var fileConf *config.FileConfig
+	var err error
+	// unless the config file is being ignored via CLI flag, load /etc/teleport.yaml and apply its values
+	if !ccf.IgnoreConfig {
+		fileConf, err = config.ReadConfigFile(ccf.ConfigFile)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		log.Debug("Not reading config file as requested via --ignore-config flag.")
 	}
+
 	// if configuration is passed as an environment variable,
 	// try to decode it and override the config file
 	if ccf.ConfigString != "" {
