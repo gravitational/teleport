@@ -69,7 +69,7 @@ func init() {
 
 // server is a "reverse tunnel server". it exposes the cluster capabilities
 // (like access to a cluster's auth) to remote trusted clients
-// (also known as 'reverse tunnel agents'.
+// (also known as 'reverse tunnel agents').
 type server struct {
 	sync.RWMutex
 	Config

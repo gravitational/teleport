@@ -34,18 +34,21 @@ import (
 	"github.com/gokyle/hotp"
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
+	"github.com/sirupsen/logrus"
 )
 
 // IdentityService is responsible for managing web users and currently
 // user accounts as well
 type IdentityService struct {
 	backend.Backend
+	log logrus.FieldLogger
 }
 
 // NewIdentityService returns a new instance of IdentityService object
 func NewIdentityService(backend backend.Backend) *IdentityService {
 	return &IdentityService{
 		Backend: backend,
+		log:     logrus.WithField(trace.Component, "identity"),
 	}
 }
 
@@ -450,26 +453,6 @@ func (s *IdentityService) DeleteUsedTOTPToken(user string) error {
 	return s.Delete(context.TODO(), backend.Key(webPrefix, usersPrefix, user, usedTOTPPrefix))
 }
 
-// UpsertWebSession updates or inserts a web session for a user and session id
-// the session will be created with bearer token expiry time TTL, because
-// it is expected to be extended by the client before then
-func (s *IdentityService) UpsertWebSession(user, sid string, session services.WebSession) error {
-	session.SetUser(user)
-	session.SetName(sid)
-	value, err := services.MarshalWebSession(session)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	sessionMetadata := session.GetMetadata()
-	item := backend.Item{
-		Key:     backend.Key(webPrefix, usersPrefix, user, sessionsPrefix, sid),
-		Value:   value,
-		Expires: backend.EarliestExpiry(session.GetBearerTokenExpiryTime(), sessionMetadata.Expiry()),
-	}
-	_, err = s.Put(context.TODO(), item)
-	return trace.Wrap(err)
-}
-
 // AddUserLoginAttempt logs user login attempt
 func (s *IdentityService) AddUserLoginAttempt(user string, attempt services.LoginAttempt, ttl time.Duration) error {
 	if err := attempt.Check(); err != nil {
@@ -519,41 +502,6 @@ func (s *IdentityService) DeleteUserLoginAttempts(user string) error {
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// GetWebSession returns a web session state for a given user and session id
-func (s *IdentityService) GetWebSession(user, sid string) (services.WebSession, error) {
-	if user == "" {
-		return nil, trace.BadParameter("missing username")
-	}
-	if sid == "" {
-		return nil, trace.BadParameter("missing session id")
-	}
-	item, err := s.Get(context.TODO(), backend.Key(webPrefix, usersPrefix, user, sessionsPrefix, sid))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	session, err := services.UnmarshalWebSession(item.Value)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// this is for backwards compatibility to ensure we
-	// always have these values
-	session.SetUser(user)
-	session.SetName(sid)
-	return session, nil
-}
-
-// DeleteWebSession deletes web session from the storage
-func (s *IdentityService) DeleteWebSession(user, sid string) error {
-	if user == "" {
-		return trace.BadParameter("missing username")
-	}
-	if sid == "" {
-		return trace.BadParameter("missing session id")
-	}
-	err := s.Delete(context.TODO(), backend.Key(webPrefix, usersPrefix, user, sessionsPrefix, sid))
-	return trace.Wrap(err)
 }
 
 // UpsertPassword upserts new password hash into a backend.
