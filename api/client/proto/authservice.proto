@@ -511,7 +511,7 @@ message DatabaseCertResponse {
 
 // GetRoleRequest is a request to query a role.
 message GetRoleRequest {
-    // Name is the role name to get.
+    // Name is the name of the role to get.
     string Name = 1 [ (gogoproto.jsontag) = "name" ];
 }
 
