@@ -8,13 +8,17 @@ environment:
   UID: 1000
   GID: 1000
 
+# TODO(gus): uncomment after testing
+# trigger:
+#   event:
+#     include:
+#       - pull_request
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
-  event:
-    include:
-      - pull_request
-  repo:
-    include:
-      - gravitational/*
+  cron:
+    - never
 
 workspace:
   path: /go
@@ -201,13 +205,17 @@ kind: pipeline
 type: kubernetes
 name: test-docs-internal
 
+# TODO(gus): uncomment after testing
+# trigger:
+#   event:
+#     include:
+#       - pull_request
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
-  event:
-    include:
-      - pull_request
-  repo:
-    include:
-      - gravitational/*
+  cron:
+    - never
 
 workspace:
   path: /go
@@ -286,13 +294,17 @@ kind: pipeline
 type: kubernetes
 name: test-docs-external
 
+# TODO(gus): uncomment after testing
+# trigger:
+#   event:
+#     include:
+#       - pull_request
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
-  event:
-    include:
-      - pull_request
-  repo:
-    include:
-      - gravitational/*
+  cron:
+    - never
 
 workspace:
   path: /go
@@ -889,6 +901,110 @@ steps:
         curl -sL -X POST -H 'Content-type: application/json' --data "{\"text\":\"Warning: \`$GOOS-$GOARCH\` artifact build failed - please investigate immediately!\nBranch: \`${DRONE_BRANCH}\`\nCommit: \`${DRONE_COMMIT_SHA}\`\nLink: $DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK
     when:
       status: [failure]
+
+---
+kind: pipeline
+type: exec
+name: push-build-darwin-arm64
+
+concurrency:
+  limit: 1
+
+platform:
+  os: darwin
+  arch: arm64
+
+trigger:
+  event:
+    include:
+      - push
+    # TODO(gus): uncomment after testing
+    #exclude:
+    #  - pull_request
+  #branch:
+  #  include:
+  #    - master
+  #    - branch/*
+  repo:
+    include:
+      - gravitational/*
+
+workspace:
+  path: /tmp/push-build-darwin-arm64
+
+clone:
+  disable: true
+
+steps:
+  - name: Set up exec runner storage
+    environment:
+      WORKSPACE_DIR: /tmp/push-build-darwin-arm64
+    commands:
+      - set -u
+      - mkdir -p $WORKSPACE_DIR
+      - chmod -R u+rw $WORKSPACE_DIR
+      - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
+
+  - name: Check out code
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+      WORKSPACE_DIR: /tmp/push-build-darwin-arm64
+    commands:
+      - set -u
+      - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+      - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+      # fetch enterprise submodules
+      # suppressing the newline on the end of the private key makes git operations fail on MacOS
+      # with an error like 'Load key "/path/.ssh/id_rsa": invalid format'
+      - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
+      - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
+      - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
+      - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init --recursive webassets || true
+      - rm -rf $WORKSPACE_DIR/.ssh
+      - mkdir -p $WORKSPACE_DIR/go/cache
+
+  - name: Build Mac artifacts
+    environment:
+      GOPATH: /tmp/push-build-darwin-arm64/go
+      GOCACHE: /tmp/push-build-darwin-arm64/go/cache
+      OS: darwin
+      ARCH: arm64
+      WORKSPACE_DIR: /tmp/push-build-darwin-arm64
+    commands:
+      - set -u
+      - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+      - make clean release OS=$OS ARCH=$ARCH
+      - hostname
+      - go version
+      - ./build/teleport version
+      - ./e/build/teleport version
+
+  - name: Clean up exec runner storage (post)
+    environment:
+      WORKSPACE_DIR: /tmp/push-build-darwin-arm64
+    commands:
+      - set -u
+      - chmod -R u+rw $WORKSPACE_DIR
+      - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
+
+  # TODO(gus): uncomment after testing
+  # - name: Send Slack notification (exec)
+  #   environment:
+  #     SLACK_WEBHOOK:
+  #       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
+  #   commands:
+  #     - |
+  #       export DRONE_BUILD_LINK="${DRONE_SYSTEM_PROTO}://${DRONE_SYSTEM_HOSTNAME}/${DRONE_REPO_OWNER}/${DRONE_REPO_NAME}/${DRONE_BUILD_NUMBER}"
+  #       export GOOS=$(go env GOOS)
+  #       export GOARCH=$(go env GOARCH)
+  #       curl -sL -X POST -H 'Content-type: application/json' --data "{\"text\":\"Warning: \`$GOOS-$GOARCH\` artifact build failed - please investigate immediately!\nBranch: \`${DRONE_BRANCH}\`\nCommit: \`${DRONE_COMMIT_SHA}\`\nLink: $DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK
+  #   when:
+  #     status: [failure]
 
 ---
 kind: pipeline
@@ -4472,6 +4588,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 33610b0b84080fbe409426628a3e270b79a3fb4fdf38d97515f467a7bfd49f59
+hmac: e1f77b43bf966e151c4a1c2f02fe4bb927e30cf64a6da56de9e24725cde06cc7
 
 ...
