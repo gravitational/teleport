@@ -1741,7 +1741,7 @@ func (a *Server) GetAccessCapabilities(ctx context.Context, req services.AccessC
 func (a *Server) calculateMaxAccessTTL(req services.AccessRequest) (time.Duration, error) {
 	minTTL := defaults.MaxAccessDuration
 	for _, roleName := range req.GetRoles() {
-		role, err := a.GetRole(roleName)
+		role, err := a.GetRole(context.TODO(), roleName)
 		if err != nil {
 			return 0, trace.Wrap(err)
 		}
@@ -1789,13 +1789,13 @@ func (a *Server) GetToken(token string) (services.ProvisionToken, error) {
 }
 
 // GetRoles is a part of auth.AccessPoint implementation
-func (a *Server) GetRoles() ([]services.Role, error) {
-	return a.GetCache().GetRoles()
+func (a *Server) GetRoles(ctx context.Context) ([]services.Role, error) {
+	return a.GetCache().GetRoles(ctx)
 }
 
 // GetRole is a part of auth.AccessPoint implementation
-func (a *Server) GetRole(name string) (services.Role, error) {
-	return a.GetCache().GetRole(name)
+func (a *Server) GetRole(ctx context.Context, name string) (services.Role, error) {
+	return a.GetCache().GetRole(ctx, name)
 }
 
 // GetNamespace returns namespace

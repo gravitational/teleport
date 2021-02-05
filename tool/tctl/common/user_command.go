@@ -270,7 +270,7 @@ func (u *UserCommand) Update(client auth.ClientI) error {
 	}
 	roles := strings.Split(u.roles, ",")
 	for _, role := range roles {
-		if _, err := client.GetRole(role); err != nil {
+		if _, err := client.GetRole(context.TODO(), role); err != nil {
 			return trace.Wrap(err)
 		}
 	}

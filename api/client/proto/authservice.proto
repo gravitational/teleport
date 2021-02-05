@@ -479,13 +479,19 @@ message DatabaseCertResponse {
     repeated bytes CACerts = 2 [ (gogoproto.jsontag) = "ca_certs" ];
 }
 
-// GetRoleRequest is a the input value for the GetRole method.
+// GetRoleRequest is a request to query a role.
 message GetRoleRequest {
     // Name is the role name to get.
     string Name = 1 [ (gogoproto.jsontag) = "name" ];
 }
 
-// DeleteRoleRequest is the input value for the DeleteRole method.
+// GetRolesResponse is a response to querying for all roles.
+message GetRolesResponse {
+    // Roles is a list of roles.
+    repeated types.RoleV3 Roles = 1 [ (gogoproto.jsontag) = "roles" ];
+}
+
+// DeleteRoleRequest is a request to delete a role.
 message DeleteRoleRequest {
     // Name is the role name to delete.
     string Name = 1 [ (gogoproto.jsontag) = "name" ];
@@ -611,12 +617,12 @@ service AuthService {
     // service to authenticate with the database instance.
     rpc GenerateDatabaseCert(DatabaseCertRequest) returns (DatabaseCertResponse);
 
-    // GetRole retrieves a role by name.
+    // GetRole retrieves a role described by the given request.
     rpc GetRole(GetRoleRequest) returns (types.RoleV3);
     // GetRole retrieves all roles.
-    rpc GetRoles(google.protobuf.Empty) returns (stream types.RoleV3);
+    rpc GetRoles(google.protobuf.Empty) returns (GetRolesResponse);
     // UpsertRole upserts a role in a backend.
     rpc UpsertRole(types.RoleV3) returns (google.protobuf.Empty);
-    // DeleteRole deletes an existing role in a backend by name.
+    // DeleteRole deletes an existing role in a backend described by the given request.
     rpc DeleteRole(DeleteRoleRequest) returns (google.protobuf.Empty);
 }

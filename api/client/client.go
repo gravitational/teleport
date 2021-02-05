@@ -694,11 +694,11 @@ func (c *Client) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 }
 
 // GetRole returns role by name
-func (c *Client) GetRole(name string) (types.Role, error) {
+func (c *Client) GetRole(ctx context.Context, name string) (types.Role, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing name")
 	}
-	resp, err := c.grpc.GetRole(context.TODO(), &proto.GetRoleRequest{Name: name})
+	resp, err := c.grpc.GetRole(ctx, &proto.GetRoleRequest{Name: name})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -706,24 +706,15 @@ func (c *Client) GetRole(name string) (types.Role, error) {
 }
 
 // GetRoles returns a list of roles
-func (c *Client) GetRoles() ([]types.Role, error) {
-	stream, err := c.grpc.GetRoles(context.TODO(), &empty.Empty{})
+func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
+	resp, err := c.grpc.GetRoles(ctx, &empty.Empty{})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
-
-	var roles []types.Role
-	for {
-		role, err := stream.Recv()
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return nil, trail.FromGRPC(err)
-		}
+	roles := make([]types.Role, 0, len(resp.GetRoles()))
+	for _, role := range resp.GetRoles() {
 		roles = append(roles, role)
 	}
-
 	return roles, nil
 }
 
@@ -739,6 +730,9 @@ func (c *Client) UpsertRole(ctx context.Context, role types.Role) error {
 
 // DeleteRole deletes role by name
 func (c *Client) DeleteRole(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("missing name")
+	}
 	_, err := c.grpc.DeleteRole(ctx, &proto.DeleteRoleRequest{Name: name})
 	return trail.FromGRPC(err)
 }

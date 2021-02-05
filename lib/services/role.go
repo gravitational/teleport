@@ -235,7 +235,7 @@ func RoleForCertAuthority(ca CertAuthority) Role {
 // Access service manages roles and permissions
 type Access interface {
 	// GetRoles returns a list of roles
-	GetRoles() ([]Role, error)
+	GetRoles(ctx context.Context) ([]Role, error)
 
 	// CreateRole creates a role
 	CreateRole(role Role) error
@@ -247,7 +247,7 @@ type Access interface {
 	DeleteAllRoles() error
 
 	// GetRole returns role by name
-	GetRole(name string) (Role, error)
+	GetRole(ctx context.Context, name string) (Role, error)
 
 	// DeleteRole deletes role by name
 	DeleteRole(ctx context.Context, name string) error
@@ -756,7 +756,7 @@ func ReadNoSecrets() []string {
 // RoleGetter is an interface that defines GetRole method
 type RoleGetter interface {
 	// GetRole returns role by name
-	GetRole(name string) (Role, error)
+	GetRole(ctx context.Context, name string) (Role, error)
 }
 
 // ExtractFromCertificate will extract roles and traits from a *ssh.Certificate
@@ -818,7 +818,7 @@ func FetchRoles(roleNames []string, access RoleGetter, traits map[string][]strin
 	var roles []Role
 
 	for _, roleName := range roleNames {
-		role, err := access.GetRole(roleName)
+		role, err := access.GetRole(context.TODO(), roleName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

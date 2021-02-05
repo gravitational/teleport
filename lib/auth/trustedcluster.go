@@ -167,7 +167,7 @@ func (a *Server) checkLocalRoles(roleMap services.RoleMap) error {
 			if utils.ContainsExpansion(localRole) {
 				continue
 			}
-			_, err := a.GetRole(localRole)
+			_, err := a.GetRole(context.TODO(), localRole)
 			if err != nil {
 				if trace.IsNotFound(err) {
 					return trace.NotFound("a role %q referenced in a mapping %v:%v is not defined", localRole, mapping.Remote, mapping.Local)

@@ -1071,39 +1071,39 @@ func (g *GRPCServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*t
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	role, err := auth.GetRole(req.Name)
+	role, err := auth.GetRole(ctx, req.Name)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 	roleV3, ok := role.(*types.RoleV3)
 	if !ok {
-		log.Warnf("expected type types.RoleV3, got %T for role %q", role, role.GetName())
 		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected role type"))
 	}
 	return roleV3, nil
 }
 
 // GetRoles retrieves all roles.
-func (g *GRPCServer) GetRoles(_ *empty.Empty, stream proto.AuthService_GetRolesServer) error {
-	auth, err := g.authenticate(stream.Context())
+func (g *GRPCServer) GetRoles(ctx context.Context, _ *empty.Empty) (*proto.GetRolesResponse, error) {
+	auth, err := g.authenticate(ctx)
 	if err != nil {
-		return trail.ToGRPC(err)
+		return nil, trail.ToGRPC(err)
 	}
-	roles, err := auth.GetRoles()
+	roles, err := auth.GetRoles(ctx)
 	if err != nil {
-		return trail.ToGRPC(err)
+		return nil, trail.ToGRPC(err)
 	}
-	for _, role := range roles {
-		roleV3, ok := role.(*types.RoleV3)
+	var rolesV3 []*types.RoleV3
+	for _, r := range roles {
+		role, ok := r.(*types.RoleV3)
 		if !ok {
-			log.Warnf("expected type types.RoleV3, got %T for role %q", role, role.GetName())
-			return trail.ToGRPC(trace.Errorf("encountered unexpected role type"))
+
+			return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", r))
 		}
-		if err := stream.Send(roleV3); err != nil {
-			return trail.ToGRPC(err)
-		}
+		rolesV3 = append(rolesV3, role)
 	}
-	return nil
+	return &proto.GetRolesResponse{
+		Roles: rolesV3,
+	}, nil
 }
 
 // UpsertRole upserts a role.
@@ -1120,7 +1120,7 @@ func (g *GRPCServer) UpsertRole(ctx context.Context, role *types.RoleV3) (*empty
 		return nil, trail.ToGRPC(err)
 	}
 
-	log.Infof("%q role upserted", role.GetName())
+	g.Debugf("%q role upserted", role.GetName())
 
 	return &empty.Empty{}, nil
 }
@@ -1135,7 +1135,7 @@ func (g *GRPCServer) DeleteRole(ctx context.Context, req *proto.DeleteRoleReques
 		return nil, trail.ToGRPC(err)
 	}
 
-	log.Infof("%q role deleted", req.GetName())
+	g.Debugf("%q role deleted", req.GetName())
 
 	return &empty.Empty{}, nil
 }

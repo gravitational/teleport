@@ -2124,7 +2124,7 @@ func (s *APIServer) upsertRole(auth ClientI, w http.ResponseWriter, r *http.Requ
 }
 
 func (s *APIServer) getRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	role, err := auth.GetRole(p.ByName("role"))
+	role, err := auth.GetRole(context.TODO(), p.ByName("role"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2132,7 +2132,7 @@ func (s *APIServer) getRole(auth ClientI, w http.ResponseWriter, r *http.Request
 }
 
 func (s *APIServer) getRoles(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	roles, err := auth.GetRoles()
+	roles, err := auth.GetRoles(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
