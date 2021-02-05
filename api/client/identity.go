@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"crypto/x509"
+	"io"
 	"os"
 
 	"github.com/gravitational/trace"
@@ -28,18 +29,25 @@ import (
 
 // IdentityFile represents the basic components of an identity file.
 type IdentityFile struct {
+	// PrivateKey is a PEM encoded key
 	PrivateKey []byte
-	Certs      struct {
+	// Certs contains PEM encoded certificates
+	Certs struct {
+		// SSH is a cert used for SSH
 		SSH []byte
+		// TLS is a cert used for TLS
 		TLS []byte
 	}
+	// CACerts contains PEM encoded CA certificates
 	CACerts struct {
+		// SSH are CA certs used for SSH
 		SSH [][]byte
+		// TLS are CA certs used for TLS
 		TLS [][]byte
 	}
 }
 
-// TLS returns the identity file's associated tls config.
+// TLS returns the identity file's associated TLS config.
 func (idf *IdentityFile) TLS() (*tls.Config, error) {
 	cert, err := tls.X509KeyPair(idf.Certs.TLS, idf.PrivateKey)
 	if err != nil {
@@ -47,9 +55,9 @@ func (idf *IdentityFile) TLS() (*tls.Config, error) {
 	}
 
 	pool := x509.NewCertPool()
-	for i, caCerts := range idf.CACerts.TLS {
+	for _, caCerts := range idf.CACerts.TLS {
 		if !pool.AppendCertsFromPEM(caCerts) {
-			return nil, trace.BadParameter("identity file contains invalid TLS CA cert (#%v)", i+1)
+			return nil, trace.BadParameter("invalid CA cert PEM")
 		}
 	}
 
@@ -59,16 +67,10 @@ func (idf *IdentityFile) TLS() (*tls.Config, error) {
 	}, nil
 }
 
-// DecodeIdentityFile attempts to break up the contents of an identity file
-// into its respective components.
-func DecodeIdentityFile(path string) (*IdentityFile, error) {
-	r, err := os.Open(path)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer r.Close()
-
-	scanner := bufio.NewScanner(r)
+// DecodeIdentity attempts to break up the contents of an identity file into its
+// respective components. An IdentityFile
+func DecodeIdentity(idFile io.Reader) (*IdentityFile, error) {
+	scanner := bufio.NewScanner(idFile)
 	var ident IdentityFile
 	// Subslice of scanner's buffer pointing to current line
 	// with leading and trailing whitespace trimmed.
@@ -83,7 +85,7 @@ func DecodeIdentityFile(path string) (*IdentityFile, error) {
 		return true
 	}
 	// Check if the current line starts with prefix `p`.
-	peekln := func(p string) bool {
+	hasPrefix := func(p string) bool {
 		return bytes.HasPrefix(line, []byte(p))
 	}
 	// Get an "owned" copy of the current line.
@@ -96,18 +98,18 @@ func DecodeIdentityFile(path string) (*IdentityFile, error) {
 	// are copied out of the scanner's buffer.  All others are ignored.
 	for scanln() {
 		switch {
-		case peekln("ssh"):
+		case hasPrefix("ssh"):
 			ident.Certs.SSH = cloneln()
-		case peekln("@cert-authority"):
+		case hasPrefix("@cert-authority"):
 			ident.CACerts.SSH = append(ident.CACerts.SSH, cloneln())
-		case peekln("-----BEGIN"):
+		case hasPrefix("-----BEGIN"):
 			// Current line marks the beginning of a PEM block.  Consume all
 			// lines until a corresponding END is found.
 			var pemBlock []byte
 			for {
 				pemBlock = append(pemBlock, line...)
 				pemBlock = append(pemBlock, '\n')
-				if peekln("-----END") {
+				if hasPrefix("-----END") {
 					break
 				}
 				if !scanln() {
@@ -135,4 +137,14 @@ func DecodeIdentityFile(path string) (*IdentityFile, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &ident, nil
+}
+
+// IdentityFileFromPath attempts to retrieve an IdentityFile from the specified path.
+func IdentityFileFromPath(path string) (*IdentityFile, error) {
+	r, err := os.Open(path)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer r.Close()
+	return DecodeIdentity(r)
 }

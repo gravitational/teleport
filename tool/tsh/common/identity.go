@@ -37,7 +37,7 @@ import (
 func LoadIdentity(idFn string) (*client.Key, error) {
 	logrus.Infof("Reading identity file: %v", idFn)
 
-	ident, err := apiclient.DecodeIdentityFile(idFn)
+	ident, err := apiclient.IdentityFileFromPath(idFn)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse identity file")
 	}

@@ -99,7 +99,7 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 	// This logic is necessary for the client to force client to always send
 	// a certificate regardless of the server setting. Otherwise the client may pick
 	// not to send the client certificate by looking at certificate request.
-	if cfgTLS := cfg.TLS; len(cfgTLS.Certificates) != 0 {
+	if cfgTLS := cfg.Creds.TLS; len(cfgTLS.Certificates) != 0 {
 		cert := cfgTLS.Certificates[0]
 		cfgTLS.Certificates = nil
 		cfgTLS.GetClientCertificate = func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
@@ -111,7 +111,7 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 	// Auth Server using a multiplexer for protocol detection. Unless next
 	// protocol is specified it will attempt to upgrade to HTTP2 and at that point
 	// there is no way to distinguish between HTTP2/JSON or GPRC.
-	tlsConfig := cfg.TLS.Clone()
+	tlsConfig := cfg.Creds.TLS.Clone()
 	tlsConfig.NextProtos = []string{teleport.HTTPNextProtoTLS}
 
 	transport := &http.Transport{
@@ -237,7 +237,7 @@ func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, e
 		DialTimeout:     cfg.DialTimeout,
 		KeepAlivePeriod: cfg.KeepAlivePeriod,
 		KeepAliveCount:  cfg.KeepAliveCount,
-		Credentials:     client.TLSCreds(cfg.TLS),
+		Creds:           client.TLSCreds(cfg.TLS),
 	}
 
 	return NewClient(c, params...)
