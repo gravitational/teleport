@@ -1426,7 +1426,7 @@ func (tc *TeleportClient) ExecuteSCP(ctx context.Context, cmd scp.Command) (err 
 		return trace.Wrap(err)
 	}
 
-	err = nodeClient.ExecuteSCP(cmd)
+	err = nodeClient.ExecuteSCP(ctx, cmd)
 	if err != nil {
 		// converts SSH error code to tc.ExitStatus
 		exitError, _ := trace.Unwrap(err).(*ssh.ExitError)
@@ -1488,6 +1488,7 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, flag
 		}
 		return err
 	}
+	var exitErr error
 	// upload:
 	if isRemoteDest(last) {
 		filesToUpload := args[:len(args)-1]
@@ -1513,6 +1514,10 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, flag
 			return trace.Wrap(err)
 		}
 
+		if len(filesToUpload) == 1 && utils.IsFile(filesToUpload[0]) {
+			flags.Recursive = false
+		}
+
 		// copy everything except the last arg (that's destination)
 		for _, src := range filesToUpload {
 			scpConfig := scp.Config{
@@ -1529,9 +1534,9 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, flag
 				return trace.Wrap(err)
 			}
 
-			err = client.ExecuteSCP(cmd)
+			err = client.ExecuteSCP(ctx, cmd)
 			if err != nil {
-				return onError(err)
+				exitErr = err
 			}
 		}
 	} else {
@@ -1563,13 +1568,13 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, flag
 				return trace.Wrap(err)
 			}
 
-			err = client.ExecuteSCP(cmd)
+			err = client.ExecuteSCP(ctx, cmd)
 			if err != nil {
-				return onError(err)
+				exitErr = err
 			}
 		}
 	}
-	return nil
+	return onError(exitErr)
 }
 
 func isRemoteDest(name string) bool {

@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
 
 	"github.com/google/go-cmp/cmp"
@@ -38,7 +39,7 @@ import (
 )
 
 func TestHTTPSendFile(t *testing.T) {
-	outDir := tempDir(t)
+	outDir := t.TempDir()
 
 	expectedBytes := []byte("hello")
 	buf := bytes.NewReader(expectedBytes)
@@ -65,7 +66,7 @@ func TestHTTPSendFile(t *testing.T) {
 }
 
 func TestHTTPReceiveFile(t *testing.T) {
-	source := filepath.Join(tempDir(t), "target")
+	source := filepath.Join(t.TempDir(), "target")
 
 	contents := []byte("hello, file contents!")
 	err := ioutil.WriteFile(source, contents, 0666)
@@ -112,7 +113,7 @@ func TestSend(t *testing.T) {
 			desc:   "regular file preserving the attributes",
 			config: newSourceConfig("file", Flags{PreserveAttrs: true}),
 			args:   args("-v", "-t", "-p"),
-			fs:     newTestFS(logger, newFile("file", modtime, atime, "file contents")),
+			fs:     newTestFS(logger, newFileTimes("file", modtime, atime, "file contents")),
 		},
 		{
 			desc:   "directory preserving the attributes",
@@ -121,10 +122,10 @@ func TestSend(t *testing.T) {
 			fs: newTestFS(
 				logger,
 				// Use timestamps extending backwards to test time application
-				newDir("dir", dirModtime.Add(1*time.Second), dirAtime.Add(2*time.Second),
-					newFile("dir/file", modtime.Add(1*time.Minute), atime.Add(2*time.Minute), "file contents"),
-					newDir("dir/dir2", dirModtime, dirAtime,
-						newFile("dir/dir2/file2", modtime, atime, "file2 contents")),
+				newDirTimes("dir", dirModtime.Add(1*time.Second), dirAtime.Add(2*time.Second),
+					newFileTimes("dir/file", modtime.Add(1*time.Minute), atime.Add(2*time.Minute), "file contents"),
+					newDirTimes("dir/dir2", dirModtime, dirAtime,
+						newFileTimes("dir/dir2/file2", modtime, atime, "file2 contents")),
 				),
 			),
 		},
@@ -136,7 +137,7 @@ func TestSend(t *testing.T) {
 			cmd, err := CreateCommand(tt.config)
 			require.NoError(t, err)
 
-			targetDir := tempDir(t)
+			targetDir := t.TempDir()
 			target := filepath.Join(targetDir, tt.config.Flags.Target[0])
 			args := append(tt.args, target)
 
@@ -153,7 +154,7 @@ func TestSend(t *testing.T) {
 
 			fs := newEmptyTestFS(logger)
 			fromOS(t, targetDir, &fs)
-			validateSCP(t, fs, tt.fs)
+			validateSCPTimes(t, fs, tt.fs)
 			validateSCPContents(t, fs, tt.fs)
 		})
 	}
@@ -177,7 +178,7 @@ func TestReceive(t *testing.T) {
 			desc:   "regular file preserving the attributes",
 			config: newTargetConfig("file", Flags{PreserveAttrs: true}),
 			args:   args("-v", "-f", "-p"),
-			fs:     newTestFS(logger, newFile("file", modtime, atime, "file contents")),
+			fs:     newTestFS(logger, newFileTimes("file", modtime, atime, "file contents")),
 		},
 		{
 			desc:   "directory preserving the attributes",
@@ -186,10 +187,10 @@ func TestReceive(t *testing.T) {
 			fs: newTestFS(
 				logger,
 				// Use timestamps extending backwards to test time application
-				newDir("dir", dirModtime.Add(1*time.Second), dirAtime.Add(2*time.Second),
-					newFile("dir/file", modtime.Add(1*time.Minute), atime.Add(2*time.Minute), "file contents"),
-					newDir("dir/dir2", dirModtime, dirAtime,
-						newFile("dir/dir2/file2", modtime, atime, "file2 contents")),
+				newDirTimes("dir", dirModtime.Add(1*time.Second), dirAtime.Add(2*time.Second),
+					newFileTimes("dir/file", modtime.Add(1*time.Minute), atime.Add(2*time.Minute), "file contents"),
+					newDirTimes("dir/dir2", dirModtime, dirAtime,
+						newFileTimes("dir/dir2/file2", modtime, atime, "file2 contents")),
 				),
 			),
 		},
@@ -201,7 +202,7 @@ func TestReceive(t *testing.T) {
 			cmd, err := CreateCommand(tt.config)
 			require.NoError(t, err)
 
-			sourceDir := tempDir(t)
+			sourceDir := t.TempDir()
 			source := filepath.Join(sourceDir, tt.config.Flags.Target[0])
 			args := append(tt.args, source)
 
@@ -209,8 +210,7 @@ func TestReceive(t *testing.T) {
 			err = runSCP(cmd, args...)
 			require.Regexp(t, ".*No such file or directory", err)
 
-			fs := newEmptyTestFS(logger)
-			tt.config.FileSystem = fs
+			tt.config.FileSystem = newEmptyTestFS(logger)
 			cmd, err = CreateCommand(tt.config)
 			require.NoError(t, err)
 
@@ -221,10 +221,60 @@ func TestReceive(t *testing.T) {
 			err = runSCP(cmd, args...)
 			require.NoError(t, err)
 
-			validateSCP(t, tt.fs, fs)
-			validateSCPContents(t, tt.fs, fs)
+			validateSCPTimes(t, tt.fs, tt.config.FileSystem)
+			validateSCPContents(t, tt.fs, tt.config.FileSystem)
+
 		})
 	}
+}
+
+// TestReceiveIntoExistingDirectory validates that the target remote directory
+// is respected during copy.
+//
+// See https://github.com/gravitational/teleport/issues/5497
+func TestReceiveIntoExistingDirectory(t *testing.T) {
+	utils.InitLoggerForTests(testing.Verbose())
+	logger := logrus.WithField("test", t.Name())
+	config := newTargetConfigWithFS("dir",
+		Flags{PreserveAttrs: true, Recursive: true},
+		newTestFS(logger, newDir("dir")),
+	)
+	sourceFS := newTestFS(
+		logger,
+		// Use timestamps extending backwards to test time application
+		newDir("dir",
+			newFile("dir/file", "file contents"),
+			newDir("dir/dir2",
+				newFile("dir/dir2/file2", "file2 contents")),
+		),
+	)
+	expectedFS := newTestFS(
+		logger,
+		// Use timestamps extending backwards to test time application
+		newDir("dir/dir",
+			newFile("dir/dir/file", "file contents"),
+			newDir("dir/dir/dir2",
+				newFile("dir/dir/dir2/file2", "file2 contents")),
+		),
+	)
+	cmd, err := CreateCommand(config)
+	require.NoError(t, err)
+
+	sourceDir := t.TempDir()
+	source := filepath.Join(sourceDir, config.Flags.Target[0])
+	args := append(args("-v", "-f", "-r", "-p"), source)
+
+	cmd, err = CreateCommand(config)
+	require.NoError(t, err)
+
+	writeData(t, sourceDir, sourceFS)
+	writeFileTimes(t, sourceDir, sourceFS)
+
+	err = runSCP(cmd, args...)
+	require.NoError(t, err)
+
+	validateSCP(t, expectedFS, config.FileSystem)
+	validateSCPContents(t, expectedFS, config.FileSystem)
 }
 
 func TestInvalidDir(t *testing.T) {
@@ -295,7 +345,7 @@ func TestInvalidDir(t *testing.T) {
 // directory.
 func TestVerifyDir(t *testing.T) {
 	// Create temporary directory with a file "target" in it.
-	dir := tempDir(t)
+	dir := t.TempDir()
 	target := filepath.Join(dir, "target")
 	err := ioutil.WriteFile(target, []byte{}, 0666)
 	require.NoError(t, err)
@@ -492,11 +542,24 @@ func validateSCPContents(t *testing.T, expected testFS, actual FileSystem) {
 }
 
 // validateSCP verifies that the specified pair of FileSystems match.
-// FileSystem match if their contents match incl. access/modification times
 func validateSCP(t *testing.T, expected testFS, actual FileSystem) {
 	for path, fileinfo := range expected.fs {
 		targetFileinfo, err := actual.GetFileInfo(path)
-		require.NoError(t, err)
+		require.NoError(t, err, "expected %v", path)
+		if fileinfo.IsDir() {
+			require.True(t, targetFileinfo.IsDir())
+		} else {
+			require.True(t, targetFileinfo.GetModePerm().IsRegular())
+		}
+	}
+}
+
+// validateSCPTimes verifies that the specified pair of FileSystems match.
+// FileSystem match if their contents match incl. access/modification times
+func validateSCPTimes(t *testing.T, expected testFS, actual FileSystem) {
+	for path, fileinfo := range expected.fs {
+		targetFileinfo, err := actual.GetFileInfo(path)
+		require.NoError(t, err, "expected %v", path)
 		if fileinfo.IsDir() {
 			require.True(t, targetFileinfo.IsDir())
 		} else {
@@ -691,13 +754,6 @@ type nopReadCloser struct {
 
 var errMissingFile = fmt.Errorf("no such file or directory")
 
-func tempDir(t *testing.T) (dir string) {
-	path, err := ioutil.TempDir("", "test")
-	require.NoError(t, err)
-	t.Cleanup(func() { os.RemoveAll(path) })
-	return path
-}
-
 func newSourceConfig(path string, flags Flags) Config {
 	flags.Source = true
 	flags.Target = []string{path}
@@ -705,6 +761,12 @@ func newSourceConfig(path string, flags Flags) Config {
 		User:  "test-user",
 		Flags: flags,
 	}
+}
+
+func newTargetConfigWithFS(path string, flags Flags, fs testFS) Config {
+	config := newTargetConfig(path, flags)
+	config.FileSystem = &fs
+	return config
 }
 
 func newTargetConfig(path string, flags Flags) Config {
@@ -716,7 +778,25 @@ func newTargetConfig(path string, flags Flags) Config {
 	}
 }
 
-func newDir(name string, modtime, atime time.Time, ents ...*testFileInfo) *testFileInfo {
+func newDir(name string, ents ...*testFileInfo) *testFileInfo {
+	return &testFileInfo{
+		path:  name,
+		ents:  ents,
+		dir:   true,
+		perms: 0755,
+	}
+}
+
+func newFile(name string, contents string) *testFileInfo {
+	return &testFileInfo{
+		path:     name,
+		perms:    0666,
+		size:     int64(len(contents)),
+		contents: bytes.NewBufferString(contents),
+	}
+}
+
+func newDirTimes(name string, modtime, atime time.Time, ents ...*testFileInfo) *testFileInfo {
 	return &testFileInfo{
 		path:    name,
 		ents:    ents,
@@ -727,7 +807,7 @@ func newDir(name string, modtime, atime time.Time, ents ...*testFileInfo) *testF
 	}
 }
 
-func newFile(name string, modtime, atime time.Time, contents string) *testFileInfo {
+func newFileTimes(name string, modtime, atime time.Time, contents string) *testFileInfo {
 	return &testFileInfo{
 		path:     name,
 		modtime:  modtime,
