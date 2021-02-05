@@ -111,7 +111,7 @@ $ helm install teleport-kube-agent . \
   --set authToken=${JOIN_TOKEN?} \
   --set "databases[0].name=${DB_NAME?}" \
   --set "databases[0].uri=${DB_URI?}" \
-  --set "databases[0].protocol=${DB_PROTOCOL}"
+  --set "databases[0].protocol=${DB_PROTOCOL?}"
 ```
 
 Set the values in the above command as appropriate for your setup.
