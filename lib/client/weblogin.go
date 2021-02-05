@@ -510,8 +510,9 @@ func SSHAgentU2FLogin(ctx context.Context, login SSHLoginU2F) (*auth.SSHLoginRes
 		return nil, trace.Wrap(err)
 	}
 
+	fmt.Println("Please press the button on your U2F key")
 	facet := "https://" + strings.ToLower(login.ProxyAddr)
-	challengeResp, err := u2f.AuthenticateSignChallenge(challenge, facet)
+	challengeResp, err := u2f.AuthenticateSignChallenge(ctx, facet, challenge)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -736,3 +736,27 @@ func (c *Client) DeleteRole(ctx context.Context, name string) error {
 	_, err := c.grpc.DeleteRole(ctx, &proto.DeleteRoleRequest{Name: name})
 	return trail.FromGRPC(err)
 }
+
+func (c *Client) AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error) {
+	stream, err := c.grpc.AddMFADevice(ctx)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return stream, nil
+}
+
+func (c *Client) DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error) {
+	stream, err := c.grpc.DeleteMFADevice(ctx)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return stream, nil
+}
+
+func (c *Client) GetMFADevices(ctx context.Context, in *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error) {
+	resp, err := c.grpc.GetMFADevices(ctx, in)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}

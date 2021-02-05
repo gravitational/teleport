@@ -346,6 +346,18 @@ func (d *MFADevice) Expiry() time.Time                     { return d.Metadata.E
 func (d *MFADevice) SetExpiry(exp time.Time)               { d.Metadata.SetExpiry(exp) }
 func (d *MFADevice) SetTTL(clock Clock, ttl time.Duration) { d.Metadata.SetTTL(clock, ttl) }
 
+// MFAType returns the human-readable name of the MFA protocol of this device.
+func (d *MFADevice) MFAType() string {
+	switch d.Device.(type) {
+	case *MFADevice_Totp:
+		return "TOTP"
+	case *MFADevice_U2F:
+		return "U2F"
+	default:
+		return "unknown"
+	}
+}
+
 func (d *MFADevice) MarshalJSON() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	err := (&jsonpb.Marshaler{}).Marshal(buf, d)

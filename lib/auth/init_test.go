@@ -31,15 +31,12 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/jonboulle/clockwork"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -48,6 +45,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	. "gopkg.in/check.v1"
 )
@@ -76,7 +74,8 @@ func (s *AuthInitSuite) TearDownTest(c *C) {
 // TestReadIdentity makes parses identity from private key and certificate
 // and checks that all parameters are valid
 func (s *AuthInitSuite) TestReadIdentity(c *C) {
-	t := testauthority.New()
+	clock := clockwork.NewFakeClock()
+	t := testauthority.NewWithClock(clock)
 	priv, pub, err := t.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
@@ -100,8 +99,8 @@ func (s *AuthInitSuite) TestReadIdentity(c *C) {
 	c.Assert(id.KeyBytes, DeepEquals, priv)
 
 	// test TTL by converting the generated cert to text -> back and making sure ExpireAfter is valid
-	ttl := time.Second * 10
-	expiryDate := time.Now().Add(ttl)
+	ttl := 10 * time.Second
+	expiryDate := clock.Now().Add(ttl)
 	bytes, err := t.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: priv,
 		CASigningAlg:        defaults.CASignatureAlgorithm,
@@ -405,37 +404,8 @@ func (s *AuthInitSuite) TestCASigningAlg(c *C) {
 
 func TestMigrateMFADevices(t *testing.T) {
 	ctx := context.Background()
+	as := newTestAuthServer(t)
 	clock := clockwork.NewFakeClock()
-
-	// Set up an auth server with all prerequisites.
-	bk, err := memory.New(memory.Config{Context: ctx})
-	require.NoError(t, err)
-	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
-		Type: "local",
-	})
-	require.NoError(t, err)
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: "foo",
-	})
-	require.NoError(t, err)
-	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
-		StaticTokens: []services.ProvisionTokenV1{},
-	})
-	require.NoError(t, err)
-	ac := InitConfig{
-		DataDir:        t.TempDir(),
-		HostUUID:       "00000000-0000-0000-0000-000000000000",
-		NodeName:       "foo",
-		Backend:        bk,
-		Authority:      testauthority.New(),
-		ClusterConfig:  services.DefaultClusterConfig(),
-		ClusterName:    clusterName,
-		StaticTokens:   staticTokens,
-		AuthPreference: authPreference,
-	}
-	as, err := Init(ac)
-	require.NoError(t, err)
-	defer as.Close()
 	as.SetClock(clock)
 
 	// Fake credentials and MFA secrets for migration.
@@ -474,7 +444,7 @@ func TestMigrateMFADevices(t *testing.T) {
 		require.NoError(t, err)
 
 		if localAuth != nil {
-			_, err = bk.Put(ctx, *localAuth)
+			_, err = as.bk.Put(ctx, *localAuth)
 			require.NoError(t, err)
 		}
 	}

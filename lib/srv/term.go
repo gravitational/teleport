@@ -634,7 +634,7 @@ func (t *remoteTerminal) prepareRemoteSession(session *ssh.Session, ctx *ServerC
 		teleport.SSHSessionWebproxyAddr: ctx.ProxyPublicAddress(),
 		teleport.SSHTeleportHostUUID:    ctx.srv.ID(),
 		teleport.SSHTeleportClusterName: ctx.ClusterName,
-		teleport.SSHSessionID:           string(ctx.session.id),
+		teleport.SSHSessionID:           string(ctx.SessionID()),
 	}
 
 	for k, v := range envs {

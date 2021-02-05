@@ -27,6 +27,12 @@ TELEPORT_DEBUG ?= no
 GITTAG=v$(VERSION)
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
 CGOFLAG ?= CGO_ENABLED=1
+# Windows requires extra parameters to cross-compile with CGO.
+ifeq ("$(OS)","windows")
+BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s' -buildmode=exe
+CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
+endif
+
 GO_LINTERS ?= "unused,govet,typecheck,deadcode,goimports,varcheck,structcheck,bodyclose,staticcheck,ineffassign,unconvert,misspell,gosimple,golint"
 
 OS ?= $(shell go env GOOS)
