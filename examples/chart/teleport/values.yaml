@@ -159,7 +159,7 @@ config:
         enabled: yes
         # Specify a different hostname for the k8s public address (if different to config.public_address)
         # public_addr: teleportkubernetes.example.com
-        
+
 
 # Alternatively you can provide your teleport configuration under teleportConfig with static text. No variable substitution.
 otherConfig:
