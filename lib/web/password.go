@@ -70,7 +70,7 @@ func (h *Handler) changePassword(w http.ResponseWriter, r *http.Request, p httpr
 
 // u2fChangePasswordRequest is called to get U2F challedge for changing a user password
 func (h *Handler) u2fChangePasswordRequest(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	var req *client.U2fSignRequestReq
+	var req *client.MFAChallengeRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -80,7 +80,7 @@ func (h *Handler) u2fChangePasswordRequest(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	u2fReq, err := clt.GetU2FSignRequest(ctx.GetUser(), []byte(req.Pass))
+	u2fReq, err := clt.GetMFAAuthenticateChallenge(ctx.GetUser(), []byte(req.Pass))
 	if err != nil && trace.IsAccessDenied(err) {
 		// logout in case of access denied
 		logoutErr := h.logout(w, ctx)
