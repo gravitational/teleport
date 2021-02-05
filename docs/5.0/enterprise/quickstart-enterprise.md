@@ -180,7 +180,7 @@ representation for brevity):
 ```yaml
 
 kind: role
-metadata:  
+metadata:
   name: admin
 spec:
   allow:
@@ -188,7 +188,7 @@ spec:
     - '{% raw %}{{internal.logins}}{% endraw %}'
     - root
     node_labels:
-      '*': '*'  
+      '*': '*'
     app_labels:
       '*': '*'
     kubernetes_groups:
@@ -207,7 +207,7 @@ spec:
     - resources: [session]
       verbs: [list, read]
     - resources: [event]
-      verbs: [list, read]      
+      verbs: [list, read]
     - resources: [trusted_cluster]
       verbs: [list, create, read, update, delete]
     - resources: [token]
