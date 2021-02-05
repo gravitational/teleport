@@ -214,10 +214,6 @@ spec:
       verbs: [list, create, read, update, delete]
   deny: {}
   options:
-    cert_format: standard
-    enhanced_recording:
-    - command
-    - network
     forward_agent: true
     max_session_ttl: 30h0m0s
     port_forwarding: true
