@@ -1389,7 +1389,7 @@ func onSCP(cf *CLIConf) {
 		PreserveAttrs: cf.PreserveAttrs,
 	}
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		return tc.SCP(context.TODO(), cf.CopySpec, int(cf.NodePort), flags, cf.Quiet)
+		return tc.SCP(cf.Context, cf.CopySpec, int(cf.NodePort), flags, cf.Quiet)
 	})
 	if err != nil {
 		// exit with the same exit status as the failed command:
