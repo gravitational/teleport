@@ -423,7 +423,7 @@ else
         ${RPM_SIGN_STANZA} .
 
     # copy created package back to current directory
-    cp "${PACKAGE_TEMPDIR}/*.${PACKAGE_TYPE}" .
+    cp ${PACKAGE_TEMPDIR}/*.${PACKAGE_TYPE} .
 
     # checksum created packages
     for FILE in *."${PACKAGE_TYPE}"; do
