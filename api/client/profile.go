@@ -36,7 +36,7 @@ import (
 const CurrentProfileFilename = "current-profile"
 
 const (
-	// ProfileDir is the default directory location where tsh profiles (and session keys) are stored.
+	// ProfileDir is the default directory where tsh profiles (and session keys) are stored.
 	ProfileDir = ".tsh"
 	// SessionKeyDir is the directory where session keys are stored (.tsh/keys).
 	SessionKeyDir = "keys"
@@ -95,7 +95,7 @@ func (cp *Profile) Name() string {
 	return addr
 }
 
-// TLS attempts to load credentials from the specified tls certificates path.
+// TLS attempts to load credentials from the specified TLS certificates path.
 func (cp *Profile) TLS() (*tls.Config, error) {
 	credsPath := filepath.Join(cp.Dir, SessionKeyDir, cp.Name())
 
@@ -192,7 +192,7 @@ func FullProfilePath(dir string) string {
 	return defaultProfilePath()
 }
 
-// defaultProfilePath retrieves the default path the the .tsh profile.
+// defaultProfilePath retrieves the default path of the TSH profile.
 func defaultProfilePath() string {
 	home := os.TempDir()
 	if u, err := user.Current(); err == nil {
@@ -215,12 +215,10 @@ func ProfileFromDir(dir string, name string) (*Profile, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-
 	cp, err := profileFromFile(filepath.Join(dir, name+".yaml"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cp.Dir = dir
 	return cp, nil
 }
 
@@ -234,11 +232,12 @@ func profileFromFile(filePath string) (*Profile, error) {
 	if err := yaml.Unmarshal(bytes, &cp); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	cp.Dir = filepath.Dir(filePath)
 	return cp, nil
 }
 
-// SaveToDir saves Profile to the target directory.
-// if makeCurrent is true, attempt to make it the current profile.
+// SaveToDir saves this profile to the specified directory.
+// If makeCurrent is true, it makes this profile current.
 func (cp *Profile) SaveToDir(dir string, makeCurrent bool) error {
 	if dir == "" {
 		return trace.BadParameter("cannot save profile: missing dir")
@@ -252,7 +251,7 @@ func (cp *Profile) SaveToDir(dir string, makeCurrent bool) error {
 	return nil
 }
 
-// SaveToFile saves Profile to the target file.
+// SaveToFile saves this profile to the specified file.
 func (cp *Profile) SaveToFile(filepath string) error {
 	bytes, err := yaml.Marshal(&cp)
 	if err != nil {

@@ -21,12 +21,11 @@ There are a few simple ways to generate the certificates needed to authenticate 
 
 ### Authorization
 
-The Server will authorize requests based on the user associated with the certs used to authenticate the Client. 
+The Server will authorize requests for the user associated with the certificates used to authenticate the client. 
 
 Therefore, to use the API client, you need to create a user and any roles it may need for your use case. The client will act as that user and have access to everything defined by the user's role(s).
 
-Note: role based access control is an enterprise feature. All users will be treated 
-as the `admin` role in non-enterprise instances of Teleport. 
+Note: role based access control is an enterprise feature. All users in the OSS versions of Teleport have the role `admin`.
 
 ### Run the Demo
 
@@ -39,32 +38,47 @@ $ tctl users add access-admin --roles=access-admin
 
 Second, Replace the address `proxy.example.com:3025` with the address of your auth server.
 
-Third, choose one of the authentication methods.
+Third, choose one of the authentication methods, and make the corresponding changes to `main.go`.
 
-1. tsh profile (default):
+1. login and generate tsh profile (default):
 
    ```bash 
    $ tsh login --user=access-admin
    ```
 
-2. identity file:
-
-   In `main.go` replace `client.ProfileCreds()` (line 33), with `client.IdentityFileCreds("identity_file_path")`.
+2. login and generate identity file:
 
    ```bash
    $ tsh login --user=access-admin --out=identity_file_path
    ```
 
-3. generate certificates from auth server without login:
+   In `main.go` replace `client.ProfileCreds`, with `client.IdentityFileCreds`.
 
-   In `main.go` replace `client.ProfileCreds()` (line 33), with `client.CertsPathCreds("certs/access-admin")`.
+   ```go
+   creds, err := client.IdentityFileCreds("identity_file_path")
+   ```
+
+3. generate certificates from auth server without login:
 
    ```bash
    $ mkdir -p certs
    $ tctl auth sign --format=tls --ttl=87600h --user=access-admin --out=certs/access-admin
    ```
 
-4. Generate the `tls.Config` yourself, and provide it directly to `NewClient` using `client.TLSCreds(tls.Config)`.
+   In `main.go` replace `client.ProfileCreds`, with `client.CertsPathCreds`.
+
+   ```go
+   creds, err := client.CertsPathCreds("certs/access-admin")
+   ```
+
+4. generate and gather TLS config manually.
+
+   Generate valid TLS certificates by whatever means desired. In `main.go`, provide valid credentials to create a `*tls.Config`, and replace `client.ProfileCreds` with `client.TLSCreds`.
+
+   ```go
+   tls := &tls.Config{...}
+   creds, err := client.TLSCreds(tls)
+   ```
 
 Lastly, run the demo:
 

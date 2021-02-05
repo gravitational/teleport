@@ -81,7 +81,7 @@ func New(cfg Config) (*Client, error) {
 	var err error
 	if c.conn, err = grpc.Dial(constants.APIDomain,
 		dialer,
-		grpc.WithTransportCredentials(credentials.NewTLS(c.c.TLS)),
+		grpc.WithTransportCredentials(credentials.NewTLS(c.c.Creds.TLS)),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
 			Time:                c.c.KeepAlivePeriod,
 			Timeout:             c.c.KeepAlivePeriod * time.Duration(c.c.KeepAliveCount),
@@ -108,14 +108,17 @@ type Config struct {
 	// KeepAliveCount specifies the amount of missed keep alives
 	// to wait for before declaring the connection as broken
 	KeepAliveCount int
-	// Credentials are used to authenticate the client's connection to the server
-	Credentials
+	// Creds are used to authenticate the client's connection to the server
+	Creds *Credentials
 }
 
 // CheckAndSetDefaults checks and sets default config values
 func (c *Config) CheckAndSetDefaults() error {
-	if err := c.Credentials.CheckAndSetDefaults(); err != nil {
-		return trace.WrapWithMessage(err, "invalid client credentials")
+	if c.Creds == nil {
+		return trace.Errorf("missing client credentials")
+	}
+	if err := c.Creds.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "invalid client credentials")
 	}
 	if len(c.Addrs) == 0 && c.Dialer == nil {
 		return trace.BadParameter("set parameter Addrs or Dialer")

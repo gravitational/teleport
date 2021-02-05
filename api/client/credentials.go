@@ -19,7 +19,6 @@ package client
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"fmt"
 	"io/ioutil"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -48,56 +47,57 @@ func (c *Credentials) CheckAndSetDefaults() error {
 	return nil
 }
 
-// ProfileCreds attempts to load Credentials from the default Profile,
+// ProfileCreds attempts to load credentials from the default profile,
 // which is set by logging in with `tsh login`.
-func ProfileCreds() (Credentials, error) {
-	profileDir := defaultProfilePath()
-	profile, err := ProfileFromDir(profileDir, "")
+func ProfileCreds() (*Credentials, error) {
+	profile, err := ProfileFromDir(defaultProfilePath(), "")
 	if err != nil {
-		return Credentials{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	tls, err := profile.TLS()
 	if err != nil {
-		return Credentials{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	return TLSCreds(tls), nil
 }
 
-// IdentityFileCreds attempts to load Credentials from the specified identity file's path.
-// You can create an identity file by running `tsh login --out=identity_file_path`.
-func IdentityFileCreds(path string) (Credentials, error) {
-	idf, err := DecodeIdentityFile(path)
+// IdentityFileCreds attempts to load credentials from the specified identity file's path.
+// An identity file can be saved to disk by running `tsh login --out=identity_file_path`.
+func IdentityFileCreds(path string) (*Credentials, error) {
+	idf, err := IdentityFileFromPath(path)
 	if err != nil {
-		return Credentials{}, trace.BadParameter("identity file could not be decoded: %v", err)
+		return nil, trace.BadParameter("identity file could not be decoded: %v", err)
 	}
 
 	tls, err := idf.TLS()
 	if err != nil {
-		return Credentials{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	return TLSCreds(tls), nil
 }
 
-// CertsPathCreds attempts to load Credentials from the specified certificates path. These
-// certs can be generated with `tctl auth sign --out=certs_file_path/certs_filename_suffix`.
-// For example, this path could be "/home/unix_username/certs/teleport_username".
-func CertsPathCreds(path string) (Credentials, error) {
+// CertsPathCreds attempts to load credentials from the specified certificates path. These
+// certs can be generated with `tctl auth sign --out=path`. The path should be the desired
+// dir path, plus a file name for generated certs. For example, if path=/certs/admin,
+// the keys will be generated in the /certs dir with the name "admin" and three different
+// file extensions (.key, .crt, and .cas).
+func CertsPathCreds(path string) (*Credentials, error) {
 	cert, err := tls.LoadX509KeyPair(path+".crt", path+".key")
 	if err != nil {
-		return Credentials{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	caCerts, err := ioutil.ReadFile(path + ".cas")
 	if err != nil {
-		return Credentials{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	pool := x509.NewCertPool()
 	if ok := pool.AppendCertsFromPEM(caCerts); !ok {
-		return Credentials{}, fmt.Errorf("invalid TLS CA cert PEM")
+		return nil, trace.Errorf("invalid TLS CA cert PEM")
 	}
 
 	return TLSCreds(&tls.Config{
@@ -107,6 +107,6 @@ func CertsPathCreds(path string) (Credentials, error) {
 }
 
 // TLSCreds returns Credentials with the given TLS config.
-func TLSCreds(tls *tls.Config) Credentials {
-	return Credentials{TLS: tls}
+func TLSCreds(tls *tls.Config) *Credentials {
+	return &Credentials{TLS: tls}
 }

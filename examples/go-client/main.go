@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 
+	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
 )
 
@@ -32,25 +33,29 @@ func main() {
 
 	creds, err := client.ProfileCreds()
 	if err != nil {
-		log.Fatalf("Failed to create Credentials: %v", err)
+		log.Fatalf("Failed to read credentials: %v", err)
 	}
 
 	clt, err := client.New(client.Config{
-		Addrs:       []string{"proxy.example.com:3025"},
-		Credentials: creds,
+		Addrs: []string{"proxy.example.com:3025"},
+		Creds: creds,
 	})
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
 	}
 	defer clt.Close()
 
+	demoClient(ctx, clt)
+}
+
+func demoClient(ctx context.Context, clt *client.Client) (err error) {
 	// Create a new access request for api-admin to use the admin role.
 	accessReq, err := types.NewAccessRequest(uuid.New(), "access-admin", "admin")
 	if err != nil {
-		log.Fatalf("Failed to make new access request: %v", err)
+		return trace.Wrap(err, "Failed to make new access request: %v")
 	}
 	if err = clt.CreateAccessRequest(ctx, accessReq); err != nil {
-		log.Fatalf("Failed to create access request: %v", err)
+		return trace.Wrap(err, "Failed to create access request: %v")
 	}
 	log.Printf("Created access request: %v", accessReq)
 
@@ -66,8 +71,9 @@ func main() {
 		RequestID: accessReq.GetName(),
 		State:     types.RequestState_APPROVED,
 	}); err != nil {
-		// We use a panic here to ensure the deferred function still runs.
-		log.Panicf("Failed to accept request: %v", err)
+		return trace.Wrap(err, "Failed to accept request: %v")
 	}
 	log.Printf("Approved access request")
+
+	return nil
 }
