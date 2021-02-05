@@ -178,34 +178,50 @@ The output will look like this (re-formatted here to use compact YAML
 representation for brevity):
 
 ```yaml
+
 kind: role
-version: v3
-metadata:
+metadata:  
   name: admin
 spec:
-  options:
-    cert_format: standard
-    forward_agent: true
-    max_session_ttl: 30h0m0s
-    port_forwarding: true
-  # allow rules:
   allow:
     logins:
     - '{% raw %}{{internal.logins}}{% endraw %}'
     - root
     node_labels:
+      '*': '*'  
+    app_labels:
       '*': '*'
+    kubernetes_groups:
+    - '{% raw %}{{internal.kubernetes_groups}}{% endraw %}'
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_users:
+    - '{% raw %}{{internal.kubernetes_users}}{% endraw %}'
     rules:
     - resources: [role]
       verbs: [list, create, read, update, delete]
     - resources: [auth_connector]
       verbs: [list, create, read, update, delete]
+    - resources: [user]
+      verbs: [list, create, read, update, delete]
     - resources: [session]
       verbs: [list, read]
+    - resources: [event]
+      verbs: [list, read]      
     - resources: [trusted_cluster]
       verbs: [list, create, read, update, delete]
-  # no deny rules are present, the admin role must have access to everything)
+    - resources: [token]
+      verbs: [list, create, read, update, delete]
   deny: {}
+  options:
+    cert_format: standard
+    enhanced_recording:
+    - command
+    - network
+    forward_agent: true
+    max_session_ttl: 30h0m0s
+    port_forwarding: true
+version: v3
 ```
 
 Pay attention to the _allow/logins_ field in the role definition: by default, this
@@ -226,6 +242,10 @@ to look like this:
 allow:
    logins: [admin]
 ```
+
+!!! note "Note"
+
+    See the [Kubernetes Guide](../kubernetes-access.md) and [Application Guide](../application-access.md) for enabling access to additional resources.
 
 Then send it back into Teleport:
 
