@@ -185,18 +185,18 @@ metadata:
 spec:
   allow:
     logins:
-    - '{% raw %}{{internal.logins}}{% endraw %}'
+    - '{{internal.logins}}'
     - root
     node_labels:
       '*': '*'
     app_labels:
       '*': '*'
     kubernetes_groups:
-    - '{% raw %}{{internal.kubernetes_groups}}{% endraw %}'
+    - '{{internal.kubernetes_groups}}'
     kubernetes_labels:
       '*': '*'
     kubernetes_users:
-    - '{% raw %}{{internal.kubernetes_users}}{% endraw %}'
+    - '{{internal.kubernetes_users}}'
     rules:
     - resources: [role]
       verbs: [list, create, read, update, delete]
@@ -225,7 +225,7 @@ role only allows SSH logins as `root@host`.
 
 !!! note "Note"
 
-    Ignore `{% raw %}{{internal.logins}}{% endraw %}` "allowed login" for now. It exists for
+    Ignore `{{internal.logins}}` "allowed login" for now. It exists for
     compatibility purposes when upgrading existing open source Teleport
     clusters.
 
