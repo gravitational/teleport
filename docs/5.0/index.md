@@ -1,45 +1,60 @@
 ---
 title: Introduction to Teleport
-description: How to install and quickly get up and running with Gravitational Teleport to set up SSH and Kubernetes access to cloud environments.
+description: How to install and quickly get up and running with Teleport to set up SSH and Kubernetes access to cloud environments.
 ---
 
 # Introduction
 
 ## What is Teleport?
 
-Gravitational Teleport is a gateway for managing access to clusters of Linux
-servers via SSH or the Kubernetes API. It is intended to be used instead of
-traditional OpenSSH for organizations that need to:
+Teleport is a Unified Access Plane for your infrastructure.
 
-* Secure their infrastructure and comply with security best-practices and
-  regulatory requirements.
-* Have complete visibility into activity happening across their infrastructure.
-* Reduce the operational overhead of privileged access management across both
-  traditional and cloud-native infrastructure.
+* Single sign-on access plane for all your SSH servers, Kubernetes, Databases and Web Apps.
+* List all environments and see which servers are online with a single CLI command or via a live view in a browser.
+* Customize access workflows and integrate access into existing DevOps tools or your own applications using your favorite programming language.
+* Define and enforce policy to handle idle sessions, concurrent sessions, and to share and record interactive sessions across all environments.
 
-=== "Teleport Demo"
+<iframe  width="712" height="400" src="https://www.youtube-nocookie.com/embed/0HlyGk8dihM?rel=0&modestbranding=1" frameBorder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>
 
-    <iframe  width="712" height="400" src="https://www.youtube-nocookie.com/embed/0HlyGk8dihM?rel=0&modestbranding=1" frameBorder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>
+## Why Use Teleport
 
-=== "Teleport Explainer Video"
+Here are some of the most popular use-cases for Teleport:
 
-    <iframe width="712" height="400" src="https://www.youtube-nocookie.com/embed/GvAD5aNcdBA?rel=0&modestbranding=1&widget_referrer=gravitational.com/teleport/docs" frameBorder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowullScreen></iframe>
-
-Teleport aims to be a cloud-native SSH solution, i.e. it makes it natural to think of
-environments, not servers. Below is a list of the most popular Teleport features:
-
-* Single SSH/Kubernetes access gateway for an entire organization.
-* SSH certificate based authentication instead of static keys.
-* Avoid key distribution and [trust on first use](https://en.wikipedia.org/wiki/Trust_on_first_use) issues by using auto-expiring keys signed by a cluster certificate authority (CA).
-* Enforce 2nd factor authentication.
-* Connect to clusters located behind firewalls without direct Internet access via SSH bastions.
+* Use short lived certificates instead of static keys for SSH, Kubernetes, Databases and Web Apps.
+* Structured events and session recording/replay for `ssh` and `kubectl`.
+* Centralized SSH and Kubernetes Certificate Authority.
+* Setup a unified access plane for an entire organization.
+* Enforce 2nd factor auth with U2F and TOTP.
+* Connect to computing resources located behind firewalls or without static IPs.
 * Collaboratively troubleshoot issues through [session sharing](user-manual.md#sharing-sessions).
 * Discover online servers and Docker containers within a cluster with [dynamic node labels](admin-guide.md#labeling-nodes-and-applications).
-* A single tool ("pane of glass") to manage RBAC for both SSH and Kubernetes.
-* Audit log with session recording/replay.
-* Kubernetes audit log, including the recording of interactive commands executed via `kubectl`.
-* Ability to run in "agentless" mode, i.e. most Teleport features are
-  available on clusters with pre-existing SSH daemons, usually `sshd`. See our [OpenSSH Guide](openssh-teleport.md)
+* Capture sessions and manage certificates for existing [OpenSSH fleet](openssh-teleport.md).
+* Secure access to internal web applications and services with [application access](application-access.md).
+
+## Teleport Open Source
+
+We host open source edition [on Github](https://github.com/gravitational/teleport).
+
+- [Getting Started](quickstart.md) - A good place to start if you want to jump right in.
+- [Teleport Architecture](architecture/overview.md) - A good place to learn about Teleport's design and how it works.
+- [User Manual](user-manual.md) - This manual expands on the Quickstart and
+  provides end users with all they need to know about how to use Teleport.
+- [Admin Manual](admin-guide.md) - This manual covers installation and
+  configuration of Teleport and the ongoing management of Teleport.
+- [FAQ](faq.md) - Common questions about Teleport.
+
+## Teleport Enterprise
+
+Teleport Enterprise is built around the open-source core in Teleport Open Source,
+with the added benefits of role-based access control (RBAC) and easy
+integration with identity managers for single sign-on (SSO).
+
+- [Teleport Enterprise Introduction](enterprise/introduction.md) - Overview of the additional capabilities of Teleport Enterprise.
+- [Teleport Enterprise Quick Start](enterprise/quickstart-enterprise.md) - A quick tutorial to show off the basic capabilities of Teleport Enterprise.
+A good place to start if you want to jump right in.
+- [RBAC for SSH](enterprise/ssh-rbac.md) - Details on how Teleport Enterprise provides Role-based Access Controls (RBAC) for SSH.
+- [SSO for SSH](enterprise/sso/ssh-sso.md) - Overview on how Teleport Enterprise works with external identity providers for single sign-on (SSO).
+
 
 Teleport is available through the free, open source edition ("Teleport Community Edition")
 or a commercial edition ("Teleport Enterprise Edition").
@@ -64,50 +79,9 @@ Windows [1]           |  yes [1]           | no
 [2] _Teleport is written in Go and it is theoretically possible to build it on
     any OS supported by the [Golang toolchain](https://github.com/golang/go/wiki/MinimumRequirements)_.
 
-## Teleport Community
+## Next Steps
 
-The Community Edition is [on Github](https://github.com/gravitational/teleport)
-if you want to dive into the
-code. This documentation is also available in [the Github
-repository](https://github.com/gravitational/teleport/tree/master/docs), so feel
-free to create an issue or pull request if you have comments.
-
-- [Quickstart Guide](quickstart.md) - A quick tutorial to show off the basic
-  capabilities of Teleport. A good place to start if you want to jump right in.
-- [Teleport Architecture](architecture/overview.md) - This section covers the underlying
-  design principles of Teleport and provides a detailed description of Teleport's
-  architecture. A good place to learn about Teleport's design and how it works.
-- [User Manual](user-manual.md) - This manual expands on the Quickstart and
-  provides end users with all they need to know about how to use Teleport.
-- [Admin Manual](admin-guide.md) - This manual covers installation and
-  configuration of Teleport and the ongoing management of Teleport.
-- [FAQ](faq.md) - Common questions about Teleport.
-
-## Teleport Enterprise
-
-Teleport Enterprise is built around the open-source core in Teleport Community,
-with the added benefits of role-based access control (RBAC) and easy
-integration with identity managers for single sign-on (SSO). Because the
-majority of documentation between the Community and Enterprise Editions overlap,
-we have separated out the documentation that is specific to Teleport Enterprise.
-
-- [Teleport Enterprise Introduction](enterprise/introduction.md) - Overview of the additional capabilities of Teleport Enterprise.
-- [Teleport Enterprise Quick Start](enterprise/quickstart-enterprise.md) - A quick tutorial to show off the basic capabilities of Teleport Enterprise.
-A good place to start if you want to jump right in.
-- [RBAC for SSH](enterprise/ssh-rbac.md) - Details on how Teleport Enterprise provides Role-based Access Controls (RBAC) for SSH.
-- [SSO for SSH](enterprise/sso/ssh-sso.md) - Overview on how Teleport Enterprise works with external identity providers for single sign-on (SSO).
-
-## Support and Contributing
-
-We offer a few different options for support. First, we try to provide clear and comprehensive documentation. Documentation is also available in [the Github repository](https://github.com/gravitational/teleport/tree/master/docs), so feel free to create a PR or file an issue if you think improvements can be made.
-
-If you still have questions after reviewing our docs, you can also:
-
-* Join the [Teleport Community](https://community.gravitational.com/c/teleport) to ask questions. Our engineers are available there to help you.
-* If you want to contribute to Teleport or file a bug report/issue, you can do so by creating an issue in [Github](https://github.com/gravitational/teleport/).
-* If you are interested in [Teleport Enterprise](enterprise/introduction.md) or more responsive support during a POC, we can also create a dedicated Slack channel for you during your POC. You can [reach out to us through our website](https://gravitational.com/teleport/) or email us at [sales@goteleport.com](mailto:sales@goteleport.com) to arrange for a POC.
-
-Teleport is made by [Gravitational](https://gravitational.com/), and we hope you
-enjoy using it. If you have comments or questions, feel free to reach out
-to the Gravitational Team:
-[info@goteleport.com](mailto:info@goteleport.com).
+* Install Teleport Open Source [in 5 minutes](quickstart.md).
+* Join the [Teleport Discussons](https://github.com/gravitational/teleport/discussions) and ask a question.
+* Create an issue in [Github](https://github.com/gravitational/teleport/).
+* Reach out for [Teleport Enterprise](https://goteleport.com/get-started).
