@@ -115,6 +115,7 @@ data:
     kubernetes_service:
 {{ toYaml .Values.config.teleport.kubernetes_service  | indent 6 }}
 {{- end }}
+{{- end }}
 
 {{- if .Values.config.highAvailability }}
 ---
