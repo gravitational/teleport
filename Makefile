@@ -284,7 +284,7 @@ integration:
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-go lint-sh
+lint: lint-sh lint-helm lint-go
 
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
@@ -317,6 +317,23 @@ lint-sh:
 		--exclude=SC2086 \
 		--exclude=SC1091 \
 		$(SH_LINT_FLAGS)
+
+# Lints all the Helm charts found in directories under examples/chart and exits on failure
+# If there is a .lint directory inside, the chart gets linted once for each .yaml file in that directory
+.PHONY: lint-helm
+lint-helm:
+	for CHART in $$(find examples/chart -mindepth 1 -maxdepth 1 -type d); do \
+		if [ -d $$CHART/.lint ]; then \
+			for VALUES in $$CHART/.lint/*.yaml; do \
+				echo "$$CHART: $$VALUES"; \
+				helm lint --strict $$CHART -f $$VALUES || exit 1; \
+				helm template test $$CHART -f $$VALUES 1>/dev/null || exit 1; \
+			done \
+		else \
+			helm lint --strict $$CHART || exit 1; \
+			helm template test $$CHART 1>/dev/null || exit 1; \
+		fi \
+	done
 
 # This rule triggers re-generation of version.go and gitref.go if Makefile changes
 $(VERSRC): Makefile
