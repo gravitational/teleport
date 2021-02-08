@@ -33,9 +33,10 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
+
+	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -227,12 +228,7 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 		Name: auth.User.GetName(),
 	}
 	for _, kind := range watch.Kinds {
-		servicesWatch.Kinds = append(servicesWatch.Kinds, services.WatchKind{
-			Name:        kind.Name,
-			Kind:        kind.Kind,
-			LoadSecrets: kind.LoadSecrets,
-			Filter:      kind.Filter,
-		})
+		servicesWatch.Kinds = append(servicesWatch.Kinds, proto.ToWatchKind(kind))
 	}
 	watcher, err := auth.NewWatcher(stream.Context(), servicesWatch)
 	if err != nil {
@@ -864,6 +860,156 @@ func (g GRPCServer) GenerateAppToken(ctx context.Context, req *proto.GenerateApp
 	}, nil
 }
 
+// GetWebSession gets a web session.
+func (g *GRPCServer) GetWebSession(ctx context.Context, req *services.GetWebSessionRequest) (*proto.GetWebSessionResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	session, err := auth.WebSessions().Get(ctx, *req)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	sess, ok := session.(*services.WebSessionV2)
+	if !ok {
+		return nil, trail.ToGRPC(trace.BadParameter("unexpected session type %T", session))
+	}
+
+	return &proto.GetWebSessionResponse{
+		Session: sess,
+	}, nil
+}
+
+// GetWebSessions gets all web sessions.
+func (g *GRPCServer) GetWebSessions(ctx context.Context, _ *empty.Empty) (*proto.GetWebSessionsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	sessions, err := auth.WebSessions().List(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	var out []*services.WebSessionV2
+	for _, session := range sessions {
+		sess, ok := session.(*services.WebSessionV2)
+		if !ok {
+			return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", session))
+		}
+		out = append(out, sess)
+	}
+
+	return &proto.GetWebSessionsResponse{
+		Sessions: out,
+	}, nil
+}
+
+// DeleteWebSession removes the web session given with req.
+func (g *GRPCServer) DeleteWebSession(ctx context.Context, req *services.DeleteWebSessionRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.WebSessions().Delete(ctx, *req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
+// DeleteAllWebSessions removes all web sessions.
+func (g *GRPCServer) DeleteAllWebSessions(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.WebSessions().DeleteAll(ctx); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
+// GetWebToken gets a web token.
+func (g *GRPCServer) GetWebToken(ctx context.Context, req *services.GetWebTokenRequest) (*proto.GetWebTokenResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	resp, err := auth.WebTokens().Get(ctx, *req)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	token, ok := resp.(*services.WebTokenV3)
+	if !ok {
+		return nil, trail.ToGRPC(trace.BadParameter("unexpected web token type %T", resp))
+	}
+
+	return &proto.GetWebTokenResponse{
+		Token: token,
+	}, nil
+}
+
+// GetWebTokens gets all web tokens.
+func (g *GRPCServer) GetWebTokens(ctx context.Context, _ *empty.Empty) (*proto.GetWebTokensResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	tokens, err := auth.WebTokens().List(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	var out []*services.WebTokenV3
+	for _, t := range tokens {
+		token, ok := t.(*services.WebTokenV3)
+		if !ok {
+			return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", t))
+		}
+		out = append(out, token)
+	}
+
+	return &proto.GetWebTokensResponse{
+		Tokens: out,
+	}, nil
+}
+
+// DeleteWebToken removes the web token given with req.
+func (g *GRPCServer) DeleteWebToken(ctx context.Context, req *services.DeleteWebTokenRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.WebTokens().Delete(ctx, *req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
+// DeleteAllWebTokens removes all web tokens.
+func (g *GRPCServer) DeleteAllWebTokens(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.WebTokens().DeleteAll(ctx); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
 // UpdateRemoteCluster updates remote cluster
 func (g *GRPCServer) UpdateRemoteCluster(ctx context.Context, req *services.RemoteClusterV3) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -966,7 +1112,7 @@ type grpcContext struct {
 
 // authenticate extracts authentication context and returns initialized auth server
 func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
-	// HTTPS server expects auth  context to be set by the auth middleware
+	// HTTPS server expects auth context to be set by the auth middleware
 	authContext, err := g.Authorizer.Authorize(ctx)
 	if err != nil {
 		// propagate connection problem error so we can differentiate
@@ -1122,11 +1268,21 @@ func eventToGRPC(in services.Event) (*proto.Event, error) {
 			AccessRequest: r,
 		}
 	case *services.WebSessionV2:
-		if r.GetSubKind() != services.KindAppSession {
-			return nil, trace.BadParameter("only %v supported", services.KindAppSession)
+		switch r.GetSubKind() {
+		case services.KindAppSession:
+			out.Resource = &proto.Event_AppSession{
+				AppSession: r,
+			}
+		case services.KindWebSession:
+			out.Resource = &proto.Event_WebSession{
+				WebSession: r,
+			}
+		default:
+			return nil, trace.BadParameter("only %q supported", services.WebSessionSubKinds)
 		}
-		out.Resource = &proto.Event_AppSession{
-			AppSession: r,
+	case *services.WebTokenV3:
+		out.Resource = &proto.Event_WebToken{
+			WebToken: r,
 		}
 	case *services.RemoteClusterV3:
 		out.Resource = &proto.Event_RemoteCluster{
@@ -1202,6 +1358,12 @@ func eventFromGRPC(in proto.Event) (*services.Event, error) {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetAppSession(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetWebSession(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetWebToken(); r != nil {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetRemoteCluster(); r != nil {

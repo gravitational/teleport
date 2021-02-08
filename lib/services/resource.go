@@ -99,6 +99,9 @@ const (
 	// KindWebSession is a web session resource
 	KindWebSession = "web_session"
 
+	// KindWebToken is a web token resource
+	KindWebToken = "web_token"
+
 	// KindAppSession represents an application specific web session.
 	KindAppSession = "app_session"
 
@@ -228,6 +231,9 @@ const (
 	VerbRotate = "rotate"
 )
 
+// WebSessionSubKinds lists subkinds of web session resources
+var WebSessionSubKinds = []string{KindAppSession, KindWebSession}
+
 // CollectOptions collects all options from functional arg and returns config
 func CollectOptions(opts []MarshalOption) (*MarshalConfig, error) {
 	var cfg MarshalConfig
@@ -306,7 +312,7 @@ type MarshalOption func(c *MarshalConfig) error
 func WithVersion(v string) MarshalOption {
 	return func(c *MarshalConfig) error {
 		switch v {
-		case V1, V2:
+		case V1, V2, V3:
 			c.Version = v
 			return nil
 		default:

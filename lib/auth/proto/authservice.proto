@@ -69,7 +69,13 @@ message Event {
         // RemoteCluster is a resource for remote clusters
         services.RemoteClusterV3 RemoteCluster = 16
             [ (gogoproto.jsontag) = "remote_cluster,omitempty" ];
+        // WebSession is a regular web session.
+        services.WebSessionV2 WebSession = 18 [ (gogoproto.jsontag) = "web_session,omitempty" ];
+        // WebToken is a web token.
+        services.WebTokenV3 WebToken = 19 [ (gogoproto.jsontag) = "web_token,omitempty" ];
     }
+    // Accounts for the addition of the DatabaseServerV3 event type
+    reserved 17;
 }
 
 // Watch specifies watch parameters
@@ -92,6 +98,8 @@ message WatchKind {
     // Filter is an optional mapping of custom filter parameters.
     // Valid values vary by resource kind.
     map<string, string> Filter = 4 [ (gogoproto.jsontag) = "filter,omitempty" ];
+    // SubKind is a resource subkind to watch
+    string SubKind = 5 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
 }
 
 // Set of certificates corresponding to a single public key.
@@ -367,6 +375,30 @@ message CreateAppSessionResponse {
 // DeleteAppSessionRequest contains the parameters used to remove an application web session.
 message DeleteAppSessionRequest { string SessionID = 1 [ (gogoproto.jsontag) = "session_id" ]; }
 
+// GetWebSessionResponse contains the requested web session.
+message GetWebSessionResponse {
+    // Session is the web session.
+    services.WebSessionV2 Session = 1 [ (gogoproto.jsontag) = "session" ];
+}
+
+// GetWebSessionsResponse contains all the requested web sessions.
+message GetWebSessionsResponse {
+    // Sessions is a list of web sessions.
+    repeated services.WebSessionV2 Sessions = 1 [ (gogoproto.jsontag) = "sessions" ];
+}
+
+// GetWebTokenResponse contains the requested web token.
+message GetWebTokenResponse {
+    // Token is the web token being requested.
+    services.WebTokenV3 Token = 1 [ (gogoproto.jsontag) = "token" ];
+}
+
+// GetWebTokensResponse contains all the requested web tokens.
+message GetWebTokensResponse {
+    // Tokens is a list of web tokens.
+    repeated services.WebTokenV3 Tokens = 1 [ (gogoproto.jsontag) = "tokens" ];
+}
+
 // GetKubeServicesRequest are the parameters used to request kubernetes services.
 message GetKubeServicesRequest {}
 
@@ -482,6 +514,24 @@ service AuthService {
     rpc DeleteAppSession(DeleteAppSessionRequest) returns (google.protobuf.Empty);
     // DeleteAllAppSessions removes all application web sessions.
     rpc DeleteAllAppSessions(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+    // GetWebSession gets a web session.
+    rpc GetWebSession(services.GetWebSessionRequest) returns (GetWebSessionResponse);
+    // GetWebSessions gets all web sessions.
+    rpc GetWebSessions(google.protobuf.Empty) returns (GetWebSessionsResponse);
+    // DeleteWebSession deletes a web session.
+    rpc DeleteWebSession(services.DeleteWebSessionRequest) returns (google.protobuf.Empty);
+    // DeleteAllWebSessions deletes all web sessions.
+    rpc DeleteAllWebSessions(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+    // GetWebToken gets a web token.
+    rpc GetWebToken(services.GetWebTokenRequest) returns (GetWebTokenResponse);
+    // GetWebTokens gets all web tokens.
+    rpc GetWebTokens(google.protobuf.Empty) returns (GetWebTokensResponse);
+    // DeleteWebToken deletes a web token.
+    rpc DeleteWebToken(services.DeleteWebTokenRequest) returns (google.protobuf.Empty);
+    // DeleteAllWebTokens deletes all web tokens.
+    rpc DeleteAllWebTokens(google.protobuf.Empty) returns (google.protobuf.Empty);
 
     // UpdateRemoteCluster updates remote cluster
     rpc UpdateRemoteCluster(services.RemoteClusterV3) returns (google.protobuf.Empty);

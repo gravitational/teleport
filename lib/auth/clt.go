@@ -48,10 +48,11 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
-	empty "github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
+
+	empty "github.com/golang/protobuf/ptypes/empty"
 	"github.com/jonboulle/clockwork"
 	"github.com/tstranex/u2f"
 	"google.golang.org/grpc"
@@ -829,12 +830,7 @@ func (c *Client) NewWatcher(ctx context.Context, watch services.Watch) (services
 	cancelCtx, cancel := context.WithCancel(ctx)
 	var protoWatch proto.Watch
 	for _, kind := range watch.Kinds {
-		protoWatch.Kinds = append(protoWatch.Kinds, proto.WatchKind{
-			Name:        kind.Name,
-			Kind:        kind.Kind,
-			LoadSecrets: kind.LoadSecrets,
-			Filter:      kind.Filter,
-		})
+		protoWatch.Kinds = append(protoWatch.Kinds, proto.FromWatchKind(kind))
 	}
 	stream, err := clt.WatchEvents(cancelCtx, &protoWatch)
 	if err != nil {
@@ -1491,16 +1487,16 @@ func (c *Client) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 
 // GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
 // it is valid, or error otherwise.
-func (c *Client) GetWebSessionInfo(user string, sid string) (services.WebSession, error) {
+func (c *Client) GetWebSessionInfo(ctx context.Context, user, sessionID string) (services.WebSession, error) {
 	out, err := c.Get(
-		c.Endpoint("users", user, "web", "sessions", sid), url.Values{})
+		c.Endpoint("users", user, "web", "sessions", sessionID), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return services.GetWebSessionMarshaler().UnmarshalWebSession(out.Bytes())
 }
 
-// DeleteWebSession deletes a web session for this user by id
+// DeleteWebSession deletes the web session specified with sid for the given user
 func (c *Client) DeleteWebSession(user string, sid string) error {
 	_, err := c.Delete(c.Endpoint("users", user, "web", "sessions", sid))
 	return trace.Wrap(err)
@@ -3175,6 +3171,158 @@ func (c *Client) DeleteAllAppSessions(ctx context.Context) error {
 	return nil
 }
 
+// GetWebSession returns the web session for the specified request.
+// Implements ReadAccessPoint
+func (c *Client) GetWebSession(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
+	return c.WebSessions().Get(ctx, req)
+}
+
+// WebSessions returns the web sessions controller
+func (c *Client) WebSessions() services.WebSessionInterface {
+	return &webSessions{c: c}
+}
+
+// Get returns the web session for the specified request
+func (r *webSessions) Get(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
+	clt, err := r.c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resp, err := clt.GetWebSession(ctx, &req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp.Session, nil
+}
+
+// List returns the list of all web sessions
+func (r *webSessions) List(ctx context.Context) ([]services.WebSession, error) {
+	clt, err := r.c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resp, err := clt.GetWebSessions(ctx, &empty.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	out := make([]services.WebSession, 0, len(resp.Sessions))
+	for _, session := range resp.Sessions {
+		out = append(out, session)
+	}
+	return out, nil
+}
+
+// Upsert not implemented: can only be called locally.
+func (r *webSessions) Upsert(ctx context.Context, session services.WebSession) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// Delete deletes the web session specified with the request
+func (r *webSessions) Delete(ctx context.Context, req services.DeleteWebSessionRequest) error {
+	clt, err := r.c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = clt.DeleteWebSession(ctx, &req)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// DeleteAll deletes all web sessions
+func (r *webSessions) DeleteAll(ctx context.Context) error {
+	clt, err := r.c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = clt.DeleteAllWebSessions(ctx, &empty.Empty{})
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+type webSessions struct {
+	c *Client
+}
+
+// GetWebToken returns the web token for the specified request.
+// Implements ReadAccessPoint
+func (c *Client) GetWebToken(ctx context.Context, req services.GetWebTokenRequest) (services.WebToken, error) {
+	return c.WebTokens().Get(ctx, req)
+}
+
+// WebTokens returns the web tokens controller
+func (c *Client) WebTokens() services.WebTokenInterface {
+	return &webTokens{c: c}
+}
+
+// Get returns the web token for the specified request
+func (r *webTokens) Get(ctx context.Context, req services.GetWebTokenRequest) (services.WebToken, error) {
+	clt, err := r.c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resp, err := clt.GetWebToken(ctx, &req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp.Token, nil
+}
+
+// List returns the list of all web tokens
+func (r *webTokens) List(ctx context.Context) ([]services.WebToken, error) {
+	clt, err := r.c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resp, err := clt.GetWebTokens(ctx, &empty.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	out := make([]services.WebToken, 0, len(resp.Tokens))
+	for _, token := range resp.Tokens {
+		out = append(out, token)
+	}
+	return out, nil
+}
+
+// Upsert not implemented: can only be called locally.
+func (r *webTokens) Upsert(ctx context.Context, token services.WebToken) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// Delete deletes the web token specified with the request
+func (r *webTokens) Delete(ctx context.Context, req services.DeleteWebTokenRequest) error {
+	clt, err := r.c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = clt.DeleteWebToken(ctx, &req)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// DeleteAll deletes all web tokens
+func (r *webTokens) DeleteAll(ctx context.Context) error {
+	clt, err := r.c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = clt.DeleteAllWebTokens(ctx, &empty.Empty{})
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+type webTokens struct {
+	c *Client
+}
+
 // GenerateAppToken creates a JWT token with application access.
 func (c *Client) GenerateAppToken(ctx context.Context, req jwt.GenerateAppTokenRequest) (string, error) {
 	clt, err := c.grpc()
@@ -3221,14 +3369,12 @@ func (c *Client) DeleteAllKubeServices(ctx context.Context) error {
 type WebService interface {
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
 	// it is valid, or error otherwise.
-	GetWebSessionInfo(user string, sid string) (services.WebSession, error)
+	GetWebSessionInfo(ctx context.Context, user, sessionID string) (services.WebSession, error)
 	// ExtendWebSession creates a new web session for a user based on another
 	// valid web session
 	ExtendWebSession(user string, prevSessionID string, accessRequestID string) (services.WebSession, error)
 	// CreateWebSession creates a new web session for a user
 	CreateWebSession(user string) (services.WebSession, error)
-	// DeleteWebSession deletes a web session for this user by id
-	DeleteWebSession(user string, sid string) error
 
 	// AppSession defines application session features.
 	services.AppSession
@@ -3408,6 +3554,9 @@ type ClientI interface {
 	services.ClusterConfiguration
 	services.Events
 
+	services.WebSessionsGetter
+	services.WebTokensGetter
+
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (services.KeepAliver, error)
 
@@ -3450,4 +3599,12 @@ type ClientI interface {
 	// CreateAppSession creates an application web session. Application web
 	// sessions represent a browser session the client holds.
 	CreateAppSession(context.Context, services.CreateAppSessionRequest) (services.WebSession, error)
+
+	// GetWebSession queries the existing web session described with req.
+	// Implements ReadAccessPoint.
+	GetWebSession(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error)
+
+	// GetWebToken queries the existing web token described with req.
+	// Implements ReadAccessPoint.
+	GetWebToken(ctx context.Context, req services.GetWebTokenRequest) (services.WebToken, error)
 }

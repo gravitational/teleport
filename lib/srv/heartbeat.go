@@ -131,7 +131,7 @@ func NewHeartbeat(cfg HeartbeatConfig) (*Heartbeat, error) {
 		Entry: log.WithFields(log.Fields{
 			trace.Component: teleport.Component(cfg.Component, "beat"),
 		}),
-		checkTicker: time.NewTicker(cfg.CheckPeriod),
+		checkTicker: cfg.Clock.NewTicker(cfg.CheckPeriod),
 		announceC:   make(chan struct{}, 1),
 		sendC:       make(chan struct{}, 1),
 	}
@@ -232,7 +232,7 @@ type Heartbeat struct {
 	nextKeepAlive time.Time
 	// checkTicker is a ticker for state transitions
 	// during which different checks are performed
-	checkTicker *time.Ticker
+	checkTicker clockwork.Ticker
 	// keepAliver sends keep alive updates
 	keepAliver services.KeepAliver
 	// announceC is event receives an event
@@ -257,7 +257,7 @@ func (h *Heartbeat) Run() error {
 		}
 		h.OnHeartbeat(err)
 		select {
-		case <-h.checkTicker.C:
+		case <-h.checkTicker.Chan():
 		case <-h.sendC:
 			h.Debugf("Asked check out of cycle")
 		case <-h.cancelCtx.Done():

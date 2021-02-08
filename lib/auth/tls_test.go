@@ -1453,7 +1453,7 @@ func (s *TLSSuite) TestWebSessionWithoutAccessRequest(c *check.C) {
 	web, err := s.server.NewClientFromWebSession(ws)
 	c.Assert(err, check.IsNil)
 
-	_, err = web.GetWebSessionInfo(user, ws.GetName())
+	_, err = web.GetWebSessionInfo(context.TODO(), user, ws.GetName())
 	c.Assert(err, check.IsNil)
 
 	new, err := web.ExtendWebSession(user, ws.GetName(), "")
@@ -1467,7 +1467,7 @@ func (s *TLSSuite) TestWebSessionWithoutAccessRequest(c *check.C) {
 	err = clt.DeleteWebSession(user, ws.GetName())
 	c.Assert(err, check.IsNil)
 
-	_, err = web.GetWebSessionInfo(user, ws.GetName())
+	_, err = web.GetWebSessionInfo(context.TODO(), user, ws.GetName())
 	c.Assert(err, check.NotNil)
 
 	_, err = web.ExtendWebSession(user, ws.GetName(), "")
@@ -2262,13 +2262,13 @@ func (s *TLSSuite) TestAuthenticateWebUserOTP(c *check.C) {
 	userClient, err := s.server.NewClientFromWebSession(ws)
 	c.Assert(err, check.IsNil)
 
-	_, err = userClient.GetWebSessionInfo(user, ws.GetName())
+	_, err = userClient.GetWebSessionInfo(context.TODO(), user, ws.GetName())
 	c.Assert(err, check.IsNil)
 
 	err = clt.DeleteWebSession(user, ws.GetName())
 	c.Assert(err, check.IsNil)
 
-	_, err = userClient.GetWebSessionInfo(user, ws.GetName())
+	_, err = userClient.GetWebSessionInfo(context.TODO(), user, ws.GetName())
 	c.Assert(err, check.NotNil)
 }
 
