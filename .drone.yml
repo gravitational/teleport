@@ -3007,15 +3007,11 @@ steps:
 
 ---
 kind: pipeline
-type: exec
-name: build-arm
+type: kubernetes
+name: build-linux-arm
 
-concurrency:
-  limit: 1
-
-platform:
-  os: linux
-  arch: arm
+environment:
+  RUNTIME: go1.15.5
 
 trigger:
   event:
@@ -3028,109 +3024,96 @@ trigger:
       - gravitational/*
 
 workspace:
-  path: /dev/shm/tmp
-
-# use ramfs for go build cache - saves wear and tear on the SD card, plus it's faster
-# note: declaring the WORKSPACE_DIR variable once in this block and then trying to
-# quote it in commands below doesn't seem to work; it has to be redeclared as part of
-# the environment inside every individual step. per-pipeline environments seem to be
-# inconsistently implemented across different drone runners and may well be deprecated
-environment:
-  TMPDIR: /dev/shm
+  path: /go
 
 clone:
   disable: true
 
 steps:
-  - name: Clean up exec runner storage (pre)
-    environment:
-      WORKSPACE_DIR: /dev/shm/tmp
-    commands:
-      - set -u
-      - chmod -R u+rw $WORKSPACE_DIR
-      - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
-
   - name: Check out code
+    image: docker:git
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
-      WORKSPACE_DIR: /dev/shm/tmp
     commands:
-      - set -u
-      - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-      - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
-      - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
-      - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
-      - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
-      - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init e
+      - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+      - git submodule update --init e
       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init --recursive webassets || true
-      - rm -rf $WORKSPACE_DIR/.ssh
-      - mkdir -p $WORKSPACE_DIR/go/artifacts $WORKSPACE_DIR/go/cache
-      - echo "${DRONE_TAG##v}" > $WORKSPACE_DIR/go/.version.txt
-      - cat $WORKSPACE_DIR/go/.version.txt
+      - git submodule update --init --recursive webassets || true
+      - rm -f /root/.ssh/id_rsa
+      # create necessary directories
+      - mkdir -p /go/cache /go/artifacts/e
+      # set version
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
-  - name: Build ARM release artifacts
+  - name: Build release artifacts
+    image: docker
     environment:
-      GOPATH: /dev/shm/tmp/go
-      GOCACHE: /dev/shm/tmp/go/cache
+      UID: 1000
+      GID: 1000
+      GOPATH: /go
       OS: linux
       ARCH: arm
-      WORKSPACE_DIR: /dev/shm/tmp
+    volumes:
+      - name: dockersock
+        path: /var/run
     commands:
-      - set -u
-      - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-      - make clean release OS=$OS ARCH=$ARCH
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker pull quay.io/gravitational/teleport-buildbox-arm:$RUNTIME || true
+      - cd /go/src/github.com/gravitational/teleport
+      - make -C build.assets release-arm
 
-  - name: Copy ARM artifacts
-    environment:
-      WORKSPACE_DIR: /dev/shm/tmp
+  - name: Copy artifacts
+    image: docker
     commands:
-      - set -u
-      - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
-      - cp teleport*.tar.gz $WORKSPACE_DIR/go/artifacts
-      - cp e/teleport-ent*.tar.gz $WORKSPACE_DIR/go/artifacts
+      - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
+      - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/e \;
+      # rename artifact
+      - export VERSION=$(cat /go/.version.txt)
       # generate checksums
-      - cd $WORKSPACE_DIR/go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
+      - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
   - name: Upload to S3
-    environment:
-      AWS_S3_BUCKET:
+    image: plugins/s3
+    settings:
+      bucket:
         from_secret: AWS_S3_BUCKET
-      AWS_ACCESS_KEY_ID:
+      access_key:
         from_secret: AWS_ACCESS_KEY_ID
-      AWS_SECRET_ACCESS_KEY:
+      secret_key:
         from_secret: AWS_SECRET_ACCESS_KEY
-      AWS_REGION: us-west-2
-      WORKSPACE_DIR: /dev/shm/tmp
-    commands:
-      - set -u
-      - cd $WORKSPACE_DIR/go/artifacts
-      - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+      region: us-west-2
+      source: /go/artifacts/*
+      target: teleport/tag/${DRONE_TAG##v}
+      strip_prefix: /go/artifacts/
 
-  - name: Clean up exec runner storage (post)
-    environment:
-      WORKSPACE_DIR: /dev/shm/tmp
-    commands:
-      - set -u
-      - chmod -R u+rw $WORKSPACE_DIR
-      - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
+services:
+  - name: Start Docker
+    image: docker:dind
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
 
 ---
 kind: pipeline
-type: exec
-name: build-arm64
+type: kubernetes
+name: build-linux-arm64
 
-concurrency:
-  limit: 1
-
-platform:
-  os: linux
-  arch: arm64
+environment:
+  RUNTIME: go1.15.5
 
 trigger:
   event:
@@ -3143,97 +3126,88 @@ trigger:
       - gravitational/*
 
 workspace:
-  path: /dev/shm/tmp
-
-# use ramfs for go build cache
-# note: declaring the WORKSPACE_DIR variable once in this block and then trying to
-# quote it in commands below doesn't seem to work; it has to be redeclared as part of
-# the environment inside every individual step. per-pipeline environments seem to be
-# inconsistently implemented across different drone runners and may well be deprecated
-environment:
-  TMPDIR: /dev/shm
+  path: /go
 
 clone:
   disable: true
 
 steps:
-  - name: Clean up exec runner storage (pre)
-    environment:
-      WORKSPACE_DIR: /dev/shm/tmp
-    commands:
-      - set -u
-      - chmod -R u+rw $WORKSPACE_DIR
-      - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
-
   - name: Check out code
+    image: docker:git
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
-      WORKSPACE_DIR: /dev/shm/tmp
     commands:
-      - set -u
-      - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-      - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
-      - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
-      - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
-      - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
-      - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init e
+      - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+      - git submodule update --init e
       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init --recursive webassets || true
-      - rm -rf $WORKSPACE_DIR/.ssh
-      - mkdir -p $WORKSPACE_DIR/go/artifacts $WORKSPACE_DIR/go/cache
-      - echo "${DRONE_TAG##v}" > $WORKSPACE_DIR/go/.version.txt
-      - cat $WORKSPACE_DIR/go/.version.txt
+      - git submodule update --init --recursive webassets || true
+      - rm -f /root/.ssh/id_rsa
+      # create necessary directories
+      - mkdir -p /go/cache /go/artifacts/e
+      # set version
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
-  - name: Build ARM64 release artifacts
+  - name: Build release artifacts
+    image: docker
     environment:
-      GOPATH: /dev/shm/tmp/go
-      GOCACHE: /dev/shm/tmp/go/cache
+      UID: 1000
+      GID: 1000
+      GOPATH: /go
       OS: linux
       ARCH: arm64
-      WORKSPACE_DIR: /dev/shm/tmp
+    volumes:
+      - name: dockersock
+        path: /var/run
     commands:
-      - set -u
-      - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-      - make clean release OS=$OS ARCH=$ARCH
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker pull quay.io/gravitational/teleport-buildbox-arm64:$RUNTIME || true
+      - cd /go/src/github.com/gravitational/teleport
+      - make -C build.assets release-arm64
 
-  - name: Copy ARM64 artifacts
-    environment:
-      WORKSPACE_DIR: /dev/shm/tmp
+  - name: Copy artifacts
+    image: docker
     commands:
-      - set -u
-      - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
-      - cp teleport*.tar.gz $WORKSPACE_DIR/go/artifacts
-      - cp e/teleport-ent*.tar.gz $WORKSPACE_DIR/go/artifacts
+      - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
+      - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/e \;
+      # rename artifact
+      - export VERSION=$(cat /go/.version.txt)
       # generate checksums
-      - cd $WORKSPACE_DIR/go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
+      - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
   - name: Upload to S3
-    environment:
-      AWS_S3_BUCKET:
+    image: plugins/s3
+    settings:
+      bucket:
         from_secret: AWS_S3_BUCKET
-      AWS_ACCESS_KEY_ID:
+      access_key:
         from_secret: AWS_ACCESS_KEY_ID
-      AWS_SECRET_ACCESS_KEY:
+      secret_key:
         from_secret: AWS_SECRET_ACCESS_KEY
-      AWS_REGION: us-west-2
-      WORKSPACE_DIR: /dev/shm/tmp
-    commands:
-      - set -u
-      - cd $WORKSPACE_DIR/go/artifacts
-      - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+      region: us-west-2
+      source: /go/artifacts/*
+      target: teleport/tag/${DRONE_TAG##v}
+      strip_prefix: /go/artifacts/
 
-  - name: Clean up exec runner storage (post)
-    environment:
-      WORKSPACE_DIR: /dev/shm/tmp
-    commands:
-      - set -u
-      - chmod -R u+rw $WORKSPACE_DIR
-      - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
+services:
+  - name: Start Docker
+    image: docker:dind
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
 
 ---
 kind: pipeline
@@ -4074,6 +4048,6 @@ volumes:
 
 ---
 kind: signature
-hmac: b50ac547583f279cc1bba00c9d086cc5d231c179718616d3ace7481dc192ef45
+hmac: 65947e4d5111f90fddd6ed2e90563b250a1f3af4fc157106ead26dd621f1a082
 
 ...
