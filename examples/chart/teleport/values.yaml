@@ -164,7 +164,7 @@ config:
     # kubernetes_service:
       # enabled: true            
       # labels:
-      #   type: staging        
+      #   example-label: example-value
       # listen_addr: 0.0.0.0:3027
       # Optionally use a volume mounted kubeconfig to connect to other clusters
       # kubeconfig_file: /var/lib/teleport/kubefiles/kubeconfig        
