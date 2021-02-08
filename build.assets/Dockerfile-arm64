@@ -1,5 +1,6 @@
 ARG RUNTIME
 FROM quay.io/gravitational/teleport-buildbox:$RUNTIME
 
-RUN apt-get install -y gcc-aarch64-linux-gnu && \
+RUN apt-get -y update && \
+    apt-get -y install gcc-aarch64-linux-gnu && \
     apt-get -y autoclean && apt-get -y clean

@@ -24,8 +24,6 @@ RUN apt-get update -y --fix-missing && \
         curl \
         gcc \
         gcc-multilib \
-        gcc-arm-linux-gnueabihf \
-        gcc-aarch64-linux-gnu \
         git \
         gzip \
         libbpfcc-dev \
