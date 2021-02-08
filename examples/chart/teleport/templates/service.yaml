@@ -16,7 +16,7 @@ spec:
 {{- if and .Values.service.loadBalancerSourceRanges (eq .Values.service.type "LoadBalancer") }}
   loadBalancerSourceRanges:
 {{ toYaml .Values.service.loadBalancerSourceRanges | indent 4 }}
-{{- end }}    
+{{- end }}
   ports:
 {{- range $key, $value := .Values.service.ports }}
 {{ if  or (not $.Values.config.highAvailability) (and ($.Values.config.highAvailability) (not (eq $key "authssh")))   }}
@@ -51,7 +51,7 @@ spec:
 {{- if and .Values.config.authService.loadBalancerSourceRanges (eq .Values.config.authService.type "LoadBalancer") }}
   loadBalancerSourceRanges:
 {{ toYaml .Values.config.authService.loadBalancerSourceRanges | indent 4 }}
-{{- end }}    
+{{- end }}
   ports:
     - name: authssh
       port: {{ .Values.ports.authssh.containerPort }}
