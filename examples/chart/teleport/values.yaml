@@ -169,6 +169,7 @@ config:
       # Optionally use a volume mounted kubeconfig to connect to other clusters
       # kubeconfig_file: /var/lib/teleport/kubefiles/kubeconfig        
 
+
 # Alternatively you can provide your teleport configuration under teleportConfig with static text. No variable substitution.
 otherConfig:
   useOtherConfig: false
