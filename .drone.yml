@@ -370,6 +370,35 @@ volumes:
 ---
 kind: pipeline
 type: kubernetes
+name: update-docs-webhook
+
+trigger:
+  event:
+    include:
+      - push
+    exclude:
+      - pull_request
+  branch:
+    include:
+      - master
+      - branch/*
+  repo:
+    include:
+      - gravitational/*
+
+clone:
+  disable: true
+
+steps:
+  - name: Trigger docs deployment
+    image: plugins/webhook
+    settings:
+      urls:
+        from_secret: DOCS_DEPLOY_HOOK
+
+---
+kind: pipeline
+type: kubernetes
 name: push-build-linux-amd64
 
 environment:
@@ -464,35 +493,6 @@ services:
 volumes:
   - name: dockersock
     temp: {}
-
----
-kind: pipeline
-type: kubernetes
-name: update-docs-webhook
-
-trigger:
-  event:
-    include:
-      - push
-    exclude:
-      - pull_request
-  branch:
-    include:
-      - master
-      - branch/*
-  repo:
-    include:
-      - gravitational/*
-
-clone:
-  disable: true
-
-steps:
-  - name: Trigger docs deployment
-    image: plugins/webhook
-    settings:
-      urls:
-        from_secret: DOCS_DEPLOY_HOOK
 
 ---
 kind: pipeline
@@ -904,8 +904,7 @@ trigger:
   event:
     include:
       - push
-    # TODO(gus): uncomment after testing
-    #exclude:
+    exclude:
       - pull_request
   branch:
     include:
@@ -961,23 +960,22 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets release-arm
 
-  # TODO(gus): uncomment after testing
-  # - name: Send Slack notification
-  #   image: plugins/slack
-  #   settings:
-  #     webhook:
-  #       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  #     channel: dev-teleport
-  #     template: |
-  #       *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-  #       `linux-arm` artifact build failed.
-  #       *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-  #       Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-  #       Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
-  #       Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-  #       <{{ build.link }}|Visit Drone build page ↗>
-  #   when:
-  #     status: [failure]
+  - name: Send Slack notification
+    image: plugins/slack
+    settings:
+      webhook:
+        from_secret: SLACK_WEBHOOK_DEV_TELEPORT
+      channel: dev-teleport
+      template: |
+        *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+        `linux-arm` artifact build failed.
+        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
+        Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+        <{{ build.link }}|Visit Drone build page ↗>
+    when:
+      status: [failure]
 
 services:
   - name: Start Docker
@@ -1004,8 +1002,7 @@ trigger:
   event:
     include:
       - push
-    # TODO(gus): uncomment after testing
-    #exclude:
+    exclude:
       - pull_request
   branch:
     include:
@@ -1061,23 +1058,22 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets release-arm64
 
-  # TODO(gus): uncomment after testing
-  # - name: Send Slack notification
-  #   image: plugins/slack
-  #   settings:
-  #     webhook:
-  #       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  #     channel: dev-teleport
-  #     template: |
-  #       *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-  #       `linux-arm64` artifact build failed.
-  #       *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-  #       Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-  #       Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
-  #       Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-  #       <{{ build.link }}|Visit Drone build page ↗>
-  #   when:
-  #     status: [failure]
+  - name: Send Slack notification
+    image: plugins/slack
+    settings:
+      webhook:
+        from_secret: SLACK_WEBHOOK_DEV_TELEPORT
+      channel: dev-teleport
+      template: |
+        *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+        `linux-arm64` artifact build failed.
+        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
+        Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+        <{{ build.link }}|Visit Drone build page ↗>
+    when:
+      status: [failure]
 
 services:
   - name: Start Docker
@@ -1104,8 +1100,7 @@ trigger:
   event:
     include:
       - push
-    # TODO(gus): uncomment after testing
-    #exclude:
+    exclude:
       - pull_request
   branch:
     include:
@@ -1161,23 +1156,22 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets release-arm64-fips
 
-  # TODO(gus): uncomment after testing
-  # - name: Send Slack notification
-  #   image: plugins/slack
-  #   settings:
-  #     webhook:
-  #       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  #     channel: dev-teleport
-  #     template: |
-  #       *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-  #       `linux-arm64` artifact build failed.
-  #       *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-  #       Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-  #       Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
-  #       Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-  #       <{{ build.link }}|Visit Drone build page ↗>
-  #   when:
-  #     status: [failure]
+  - name: Send Slack notification
+    image: plugins/slack
+    settings:
+      webhook:
+        from_secret: SLACK_WEBHOOK_DEV_TELEPORT
+      channel: dev-teleport
+      template: |
+        *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+        `linux-arm64-fips` artifact build failed.
+        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
+        Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+        <{{ build.link }}|Visit Drone build page ↗>
+    when:
+      status: [failure]
 
 services:
   - name: Start Docker
@@ -4298,6 +4292,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 99206886ba739a843f3b1a8afaed6471242bf86c7d83202c4bd000b53062cc24
+hmac: 2dd43a99937b3361554241781d67dc7e67789fad5674a08475d1c1e88bc99a2e
 
 ...
