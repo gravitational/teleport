@@ -241,7 +241,6 @@ func TestReceiveIntoExistingDirectory(t *testing.T) {
 	)
 	sourceFS := newTestFS(
 		logger,
-		// Use timestamps extending backwards to test time application
 		newDir("dir",
 			newFile("dir/file", "file contents"),
 			newDir("dir/dir2",
@@ -250,21 +249,18 @@ func TestReceiveIntoExistingDirectory(t *testing.T) {
 	)
 	expectedFS := newTestFS(
 		logger,
-		// Use timestamps extending backwards to test time application
+		// Source is copied into an existing directory
 		newDir("dir/dir",
 			newFile("dir/dir/file", "file contents"),
 			newDir("dir/dir/dir2",
 				newFile("dir/dir/dir2/file2", "file2 contents")),
 		),
 	)
-	cmd, err := CreateCommand(config)
-	require.NoError(t, err)
-
 	sourceDir := t.TempDir()
 	source := filepath.Join(sourceDir, config.Flags.Target[0])
 	args := append(args("-v", "-f", "-r", "-p"), source)
 
-	cmd, err = CreateCommand(config)
+	cmd, err := CreateCommand(config)
 	require.NoError(t, err)
 
 	writeData(t, sourceDir, sourceFS)

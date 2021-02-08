@@ -378,7 +378,7 @@ func (cmd *command) sendFile(r *reader, ch io.ReadWriter, fileInfo FileInfo) err
 func (cmd *command) sendErr(ch io.Writer, err error) {
 	out := fmt.Sprintf("%c%s\n", byte(ErrByte), err)
 	if _, err := ch.Write([]byte(out)); err != nil {
-		cmd.log.Debugf("failed sending SCP error message to the remote side: %v", err)
+		cmd.log.Debugf("Failed sending SCP error message to the remote side: %v.", err)
 	}
 }
 

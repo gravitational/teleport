@@ -1514,10 +1514,6 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, flag
 			return trace.Wrap(err)
 		}
 
-		if len(filesToUpload) == 1 && utils.IsFile(filesToUpload[0]) {
-			flags.Recursive = false
-		}
-
 		// copy everything except the last arg (that's destination)
 		for _, src := range filesToUpload {
 			scpConfig := scp.Config{

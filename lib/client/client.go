@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"io/ioutil"
 	"net"
@@ -905,7 +906,14 @@ func (c *NodeClient) ExecuteSCP(ctx context.Context, cmd scp.Command) error {
 
 	runC := make(chan error, 1)
 	go func() {
-		runC <- s.Run(shellCmd)
+		err := s.Run(shellCmd)
+		if err != nil && errors.Is(err, &ssh.ExitMissingError{}) {
+			// TODO(dmitri): currently, if the session is aborted with (*session).Close,
+			// the remote side cannot send exit-status and this error results.
+			// To abort the session properly, Teleport needs to support `signal` subsystem
+			err = nil
+		}
+		runC <- err
 	}()
 
 	var runErr error
