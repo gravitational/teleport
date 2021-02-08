@@ -274,7 +274,6 @@ release-centos6: buildbox-centos6
 
 #
 # Create a Teleport FIPS package for CentOS 6 using the build container.
-# This is a special case because it only builds and packages the Enterprise FIPS binaries, no OSS.
 #
 .PHONY:release-centos6-fips
 release-centos6-fips: buildbox-centos6-fips
@@ -309,7 +308,6 @@ release-arm64: buildbox-arm64
 
 #
 # Create an ARM64 FIPS Teleport package using the build container.
-# This is a special case because it only builds and packages the Enterprise FIPS binaries, no OSS.
 #
 .PHONY:release-arm64-fips
 release-arm64-fips: ARCH=arm64
