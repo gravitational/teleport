@@ -9,7 +9,6 @@ HOSTNAME=buildbox
 SRCDIR=/go/src/github.com/gravitational/teleport
 DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME)
 BCCFLAGS := -v "$$(pwd)/bcc:/usr/include/bcc"
-#ADDFLAGS=-ldflags -w
 ADDFLAGS ?=
 NOROOT=-u $$(id -u):$$(id -g)
 KUBECONFIG ?=
