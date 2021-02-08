@@ -9,7 +9,8 @@ HOSTNAME=buildbox
 SRCDIR=/go/src/github.com/gravitational/teleport
 DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME)
 BCCFLAGS := -v "$$(pwd)/bcc:/usr/include/bcc"
-ADDFLAGS=-ldflags -w
+#ADDFLAGS=-ldflags -w
+ADDFLAGS ?=
 NOROOT=-u $$(id -u):$$(id -g)
 KUBECONFIG ?=
 TEST_KUBE ?=
@@ -25,6 +26,9 @@ BUILDBOX=quay.io/gravitational/teleport-buildbox:$(RUNTIME)
 BUILDBOXFIPS=quay.io/gravitational/teleport-buildbox-fips:$(RUNTIME)
 BUILDBOXCENTOS6=quay.io/gravitational/teleport-buildbox-centos6:$(RUNTIME)
 BUILDBOXCENTOS6FIPS=quay.io/gravitational/teleport-buildbox-centos6-fips:$(RUNTIME)
+BUILDBOXARM=quay.io/gravitational/teleport-buildbox-arm:$(RUNTIME)
+BUILDBOXARM64=quay.io/gravitational/teleport-buildbox-arm64:$(RUNTIME)
+BUILDBOXARM64FIPS=quay.io/gravitational/teleport-buildbox-arm64-fips:$(RUNTIME)
 
 ifneq ("$(KUBECONFIG)","")
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(KUBECONFIG):/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=$(TEST_KUBE)
@@ -100,7 +104,7 @@ buildbox-fips:
 		--tag $(BUILDBOXFIPS) -f Dockerfile-fips .
 
 #
-# Builds a Docker container for CentOS 6 builds
+# Builds a Docker buildbox for CentOS 6 builds
 #
 .PHONY:buildbox-centos6
 buildbox-centos6:
@@ -122,6 +126,36 @@ buildbox-centos6-fips:
 		--build-arg RUNTIME=$(RUNTIME) \
 		--cache-from $(BUILDBOXCENTOS6FIPS) \
 		--tag $(BUILDBOXCENTOS6FIPS) -f Dockerfile-centos6-fips .
+
+#
+# Builds a Docker buildbox for ARM builds
+#
+.PHONY:buildbox-arm
+buildbox-arm: buildbox
+	docker build \
+		--build-arg RUNTIME=$(RUNTIME) \
+		--cache-from $(BUILDBOXARM) \
+		--tag $(BUILDBOXARM) -f Dockerfile-arm .
+
+#
+# Builds a Docker buildbox for ARM64 builds
+#
+.PHONY:buildbox-arm64
+buildbox-arm64: buildbox
+	docker build \
+		--build-arg RUNTIME=$(RUNTIME) \
+		--cache-from $(BUILDBOXARM64) \
+		--tag $(BUILDBOXARM64) -f Dockerfile-arm64 .
+
+#
+# Builds a Docker buildbox for ARM64 FIPS builds
+#
+.PHONY:buildbox-arm64-fips
+buildbox-arm64-fips: buildbox-fips
+	docker build \
+		--build-arg RUNTIME=$(RUNTIME) \
+		--cache-from $(BUILDBOXARM64FIPS) \
+		--tag $(BUILDBOXARM64FIPS) -f Dockerfile-arm64-fips .
 
 #
 # Builds a Docker container for building mkdocs documentation
@@ -255,3 +289,31 @@ release-centos6-fips: buildbox-centos6-fips
 release-windows: buildbox
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX) \
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=windows
+
+#
+# Create an ARM Teleport package using the build container.
+#
+.PHONY:release-arm
+release-arm: ARCH=arm
+release-arm: buildbox-arm
+	docker run $(DOCKERFLAGS) $(BCCFLAGS) -i $(NOROOT) $(BUILDBOXARM) \
+		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME)
+
+#
+# Create an ARM64 Teleport package using the build container.
+#
+.PHONY:release-arm64
+release-arm64: ARCH=arm64
+release-arm64: buildbox-arm64
+	docker run $(DOCKERFLAGS) $(BCCFLAGS) -i $(NOROOT) $(BUILDBOXARM64) \
+		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME)
+
+#
+# Create an ARM64 FIPS Teleport package using the build container.
+# This is a special case because it only builds and packages the Enterprise FIPS binaries, no OSS.
+#
+.PHONY:release-arm64-fips
+release-arm64-fips: ARCH=arm64
+release-arm64-fips: buildbox-arm64-fips
+	docker run $(DOCKERFLAGS) $(BCCFLAGS) -i $(NOROOT) $(BUILDBOXARM64FIPS) \
+		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) FIPS=yes

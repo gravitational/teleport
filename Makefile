@@ -32,19 +32,32 @@ ifeq ("$(OS)","windows")
 BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s' -buildmode=exe
 CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
 endif
+# ARM builds need to specify the correct C compiler
+ifeq ("$(OS)","linux")
+ifeq ("$(ARCH)","arm")
+CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
+endif
+endif
+# ARM64 builds need to specify the correct C compiler
+ifeq ("$(OS)","linux")
+ifeq ("$(ARCH)","arm64")
+CGOFLAG = CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc
+endif
+endif
 
 GO_LINTERS ?= "unused,govet,typecheck,deadcode,goimports,varcheck,structcheck,bodyclose,staticcheck,ineffassign,unconvert,misspell,gosimple,golint"
 
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
 FIPS ?=
-RELEASE=teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
+RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
 
 # FIPS support must be requested at build time.
 FIPS_MESSAGE := "without FIPS support"
 ifneq ("$(FIPS)","")
 FIPS_TAG := fips
 FIPS_MESSAGE := "with FIPS support"
+RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-fips-bin
 endif
 
 # PAM support will only be built into Teleport if headers exist at build time.
@@ -63,9 +76,13 @@ endif
 
 # BPF support will only be built into Teleport if headers exist at build time.
 BPF_MESSAGE := "without BPF support"
+
+# BPF cannot currently be compiled on ARM due to this bug: https://github.com/iovisor/gobpf/issues/272
+ifneq ("$(ARCH)","arm")
 ifneq ("$(wildcard /usr/include/bcc/libbpf.h)","")
 BPF_TAG := bpf
 BPF_MESSAGE := "with BPF support"
+endif
 endif
 
 # On Windows only build tsh. On all other platforms build teleport, tctl,
