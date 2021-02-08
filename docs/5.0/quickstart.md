@@ -134,10 +134,10 @@ Replace `teleport.example.com` with the domain name you configured above.
 # Replace `teleport.example.com` with your domain name.
 export TELEPORT_PUBLIC_DNS_NAME="teleport.example.com"
 cat >> /etc/teleport.yaml <<EOF
-  public_addr: $TELEPORT_PUBLIC_DNS_NAME:3080
-  https_keypairs:
-    - key_file: /etc/letsencrypt/live/$TELEPORT_PUBLIC_DNS_NAME/privkey.pem
-      cert_file: /etc/letsencrypt/live/$TELEPORT_PUBLIC_DNS_NAME/fullchain.pem
+    public_addr: $TELEPORT_PUBLIC_DNS_NAME:3080
+    https_keypairs:
+      - key_file: /etc/letsencrypt/live/$TELEPORT_PUBLIC_DNS_NAME/privkey.pem
+        cert_file: /etc/letsencrypt/live/$TELEPORT_PUBLIC_DNS_NAME/fullchain.pem
 EOF
 ```
 
