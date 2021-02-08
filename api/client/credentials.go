@@ -79,11 +79,9 @@ func IdentityFileCreds(path string) (*Credentials, error) {
 	return TLSCreds(tls), nil
 }
 
-// CertsPathCreds attempts to load credentials from the specified certificates path. These
-// certs can be generated with `tctl auth sign --out=path`. The path should be the desired
-// dir path, plus a file name for generated certs. For example, if path=/certs/admin,
-// the keys will be generated in the /certs dir with the name "admin" and three different
-// file extensions (.key, .crt, and .cas).
+// CertsPathCreds attempts to load credentials from the specified certificates path.
+// These certs can be generated with `tctl auth sign --out=path`.
+// EX: path=/certs/admin creates three files - /certs/admin.(key|crt|cas).
 func CertsPathCreds(path string) (*Credentials, error) {
 	cert, err := tls.LoadX509KeyPair(path+".crt", path+".key")
 	if err != nil {
