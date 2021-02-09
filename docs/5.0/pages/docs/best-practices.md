@@ -31,7 +31,7 @@ to create diagrams with a consistent design language.
 
 Mac users should use Quicktime's `Cmd-Shift-5` to record a small part of the screen:
 
-![quicktime](../img/docs/quicktime.webp)
+![quicktime](../../img/docs/quicktime.webp)
 
 **Convert Mov to MP4 and WebM**
 
@@ -55,7 +55,7 @@ Your browser does not support the video tag.
 </video>
 ```
 
-To test videos locally, add them to the `img/video` folder of the docs.
+To test videos locally, add them to the `../img/video` folder of the docs.
 For production, upload to the website and refer from there:
 
 ```html

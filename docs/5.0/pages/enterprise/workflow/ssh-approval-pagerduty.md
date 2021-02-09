@@ -77,10 +77,10 @@ The above sequence should result in three PEM encoded files being generated: aut
 In your Pagerduty dashboard, go to **Configuration → API Access → Create New API Key**, add a key description, and save the key. We'll use the key in the plugin config file later.
 
 **Create Pager Duty API Key**
-![Create a service account](../../img/enterprise/plugins/pagerduty/pagerduty-api-key.png)
+![Create a service account](../../../img/enterprise/plugins/pagerduty/pagerduty-api-key.png)
 
 **Create Service Account**
-![Create a service account](../../img/enterprise/plugins/pagerduty/create-new-service-pd.png)
+![Create a service account](../../../img/enterprise/plugins/pagerduty/create-new-service-pd.png)
 
 
 ## Downloading and installing the plugin

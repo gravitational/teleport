@@ -64,7 +64,7 @@ This guide will cover how to setup, configure and run Teleport on [AWS](https://
 We recommend setting up Teleport in high availability mode (HA). In HA mode DynamoDB
 stores the state of the system and S3 will store audit logs.
 
-![AWS Intro Image](img/aws/aws-intro.png)
+![AWS Intro Image](../img/aws/aws-intro.png)
 
 ### EC2 / Autoscale
 To run Teleport in a HA configuration we recommend using m4.large instances. It's best practice to separate the proxy and authentication server, using autoscaling groups for both machines. We have pre-built AMIs for both Teleport OSS and Enterprise editions. Instructions on using these [AMIs are below](#single-oss-teleport-amis-manual-gui-setup).
@@ -84,8 +84,8 @@ types of Teleport data:
 
 See [DynamoDB Admin Guide for more information](admin-guide.md#using-dynamodb)
 
-![AWS DynamoDB Tables](img/aws/dynamodb-tables.png)
-![Setting Streams](img/aws/setting-stream.png)
+![AWS DynamoDB Tables](../img/aws/dynamodb-tables.png)
+![Setting Streams](../img/aws/setting-stream.png)
 Setting Stream to `NEW IMAGE`
 
 For maintainability and ease of use, we recommend following our [Terraform example](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/dynamo.tf)

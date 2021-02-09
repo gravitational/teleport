@@ -196,7 +196,7 @@ The following diagram shows an example Database Access setup:
 * Node connects another on-premise PostgreSQL instance (perhaps, a
   metrics database) via tunnel to the root cluster.
 
-![Teleport database access diagram](../img/dbaccess.svg)
+![Teleport database access diagram](../../img/dbaccess.svg)
 
 ## Release Schedule
 

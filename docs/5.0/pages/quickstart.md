@@ -177,7 +177,7 @@ Here's a selection of compatible Two-Factor authentication apps:
  - [Google Authenticator](https://www.google.com/landing/2step/)
  - [Microsoft Authenticator](https://www.microsoft.com/en-us/account/authenticator)
 
-![Teleport User Registration](img/quickstart/login.png)
+![Teleport User Registration](../img/quickstart/login.png)
 
 !!! info "OS User Mappings"
 
@@ -188,7 +188,7 @@ Here's a selection of compatible Two-Factor authentication apps:
     in as. If you do not map to an existing OS user,  you will get authentication errors later on in
     this tutorial!
 
-![Teleport UI Dashboard](img/quickstart/teleport-nodes.png)
+![Teleport UI Dashboard](../img/quickstart/teleport-nodes.png)
 
 ## Step 2a: Install a Teleport client locally
 
