@@ -56,7 +56,7 @@ _permissions mapping_ takes place.
 
 Lets start with the diagram of how connection between two clusters is established:
 
-![Tunnels](img/tunnel.svg)
+![Tunnels](../img/tunnel.svg)
 
 The first step in establishing a secure tunnel between two clusters is for the
 _trusting_ cluster "east" to connect to the _trusted_ cluster "main". When this

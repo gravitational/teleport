@@ -13,7 +13,7 @@ ability to act as a compliance gateway for managing privileged access to Kuberne
   interactive commands are recorded as regular sessions that can be stored and replayed in the
   future.
 
-![ssh-kubernetes-integration](img/teleport-kube.png)
+![ssh-kubernetes-integration](../img/teleport-kube.png)
 
 This guide will walk you through the steps required to configure Teleport to
 work as a unified gateway for both SSH and Kubernetes. We will cover both the open

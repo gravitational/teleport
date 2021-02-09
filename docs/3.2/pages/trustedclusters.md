@@ -84,13 +84,13 @@ auth_service:
 
 Once set you'll be able to see the cluster name in the Teleport UI.
 
-![Cluster Name](img/cluster-name.png)
+![Cluster Name](../img/cluster-name.png)
 
 ## Join Tokens
 
 Lets start with the diagram of how connection between two clusters is established:
 
-![Tunnels](img/tunnel.svg)
+![Tunnels](../img/tunnel.svg)
 
 The first step in establishing a secure tunnel between two clusters is for the
 _trusting_ cluster "east" to connect to the _trusted_ cluster "main". When this

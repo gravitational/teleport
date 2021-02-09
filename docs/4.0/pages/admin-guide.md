@@ -1411,7 +1411,7 @@ world usage examples of this capability include:
 
 Let's take a look at how a connection is established between the "main" cluster and the "east" cluster:
 
-![Tunnels](/img/trusted-clusters/TrustedClusters-Simple.svg)
+![Tunnels](../img/trusted-clusters/TrustedClusters-Simple.svg)
 
 This setup works as follows:
 
