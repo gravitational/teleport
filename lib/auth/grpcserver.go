@@ -229,12 +229,7 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 		Name: auth.User.GetName(),
 	}
 	for _, kind := range watch.Kinds {
-		servicesWatch.Kinds = append(servicesWatch.Kinds, services.WatchKind{
-			Name:        kind.Name,
-			Kind:        kind.Kind,
-			LoadSecrets: kind.LoadSecrets,
-			Filter:      kind.Filter,
-		})
+		servicesWatch.Kinds = append(servicesWatch.Kinds, proto.ToWatchKind(kind))
 	}
 	watcher, err := auth.NewWatcher(stream.Context(), servicesWatch)
 	if err != nil {
@@ -971,6 +966,156 @@ func (g GRPCServer) GenerateAppToken(ctx context.Context, req *proto.GenerateApp
 	}, nil
 }
 
+// GetWebSession gets a web session.
+func (g *GRPCServer) GetWebSession(ctx context.Context, req *types.GetWebSessionRequest) (*proto.GetWebSessionResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	session, err := auth.WebSessions().Get(ctx, *req)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	sess, ok := session.(*services.WebSessionV2)
+	if !ok {
+		return nil, trail.ToGRPC(trace.BadParameter("unexpected session type %T", session))
+	}
+
+	return &proto.GetWebSessionResponse{
+		Session: sess,
+	}, nil
+}
+
+// GetWebSessions gets all web sessions.
+func (g *GRPCServer) GetWebSessions(ctx context.Context, _ *empty.Empty) (*proto.GetWebSessionsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	sessions, err := auth.WebSessions().List(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	var out []*services.WebSessionV2
+	for _, session := range sessions {
+		sess, ok := session.(*services.WebSessionV2)
+		if !ok {
+			return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", session))
+		}
+		out = append(out, sess)
+	}
+
+	return &proto.GetWebSessionsResponse{
+		Sessions: out,
+	}, nil
+}
+
+// DeleteWebSession removes the web session given with req.
+func (g *GRPCServer) DeleteWebSession(ctx context.Context, req *types.DeleteWebSessionRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.WebSessions().Delete(ctx, *req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
+// DeleteAllWebSessions removes all web sessions.
+func (g *GRPCServer) DeleteAllWebSessions(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.WebSessions().DeleteAll(ctx); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
+// GetWebToken gets a web token.
+func (g *GRPCServer) GetWebToken(ctx context.Context, req *types.GetWebTokenRequest) (*proto.GetWebTokenResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	resp, err := auth.WebTokens().Get(ctx, *req)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	token, ok := resp.(*types.WebTokenV3)
+	if !ok {
+		return nil, trail.ToGRPC(trace.BadParameter("unexpected web token type %T", resp))
+	}
+
+	return &proto.GetWebTokenResponse{
+		Token: token,
+	}, nil
+}
+
+// GetWebTokens gets all web tokens.
+func (g *GRPCServer) GetWebTokens(ctx context.Context, _ *empty.Empty) (*proto.GetWebTokensResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	tokens, err := auth.WebTokens().List(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	var out []*types.WebTokenV3
+	for _, t := range tokens {
+		token, ok := t.(*types.WebTokenV3)
+		if !ok {
+			return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", t))
+		}
+		out = append(out, token)
+	}
+
+	return &proto.GetWebTokensResponse{
+		Tokens: out,
+	}, nil
+}
+
+// DeleteWebToken removes the web token given with req.
+func (g *GRPCServer) DeleteWebToken(ctx context.Context, req *types.DeleteWebTokenRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.WebTokens().Delete(ctx, *req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
+// DeleteAllWebTokens removes all web tokens.
+func (g *GRPCServer) DeleteAllWebTokens(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.WebTokens().DeleteAll(ctx); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
 // UpdateRemoteCluster updates remote cluster
 func (g *GRPCServer) UpdateRemoteCluster(ctx context.Context, req *services.RemoteClusterV3) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -1135,12 +1280,13 @@ func addMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_AddMF
 	auth := gctx.authServer
 	user := gctx.User.GetName()
 	ctx := stream.Context()
+	u2fStorage, err := u2f.InMemoryAuthenticationStorage(auth.Identity)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Note: authChallenge may be empty if this user has no existing MFA devices.
-	//
-	// TODO(awly): store auth and registration challenges in memory and not the
-	// backend.
-	authChallenge, err := auth.mfaAuthChallenge(ctx, user)
+	authChallenge, err := auth.mfaAuthChallenge(ctx, user, u2fStorage)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1160,7 +1306,7 @@ func addMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_AddMF
 	}
 	// Only validate if there was a challenge.
 	if authChallenge.TOTP != nil || len(authChallenge.U2F) > 0 {
-		if err := auth.validateMFAAuthResponse(ctx, user, authResp); err != nil {
+		if err := auth.validateMFAAuthResponse(ctx, user, authResp, u2fStorage); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1171,6 +1317,10 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 	auth := gctx.authServer
 	user := gctx.User.GetName()
 	ctx := stream.Context()
+	u2fStorage, err := u2f.InMemoryRegistrationStorage(auth.Identity)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// Send registration challenge for the requested device type.
 	regChallenge := new(proto.MFARegisterChallenge)
@@ -1187,6 +1337,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 			PeriodSeconds: uint32(otpOpts.Period),
 			Algorithm:     otpOpts.Algorithm.String(),
 			Digits:        uint32(otpOpts.Digits.Length()),
+			Account:       otpKey.AccountName(),
 		}}
 	case proto.AddMFADeviceRequestInit_U2F:
 		cap, err := auth.GetAuthPreference()
@@ -1201,7 +1352,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 		challenge, err := u2f.RegisterInit(u2f.RegisterInitParams{
 			StorageKey: user,
 			AppConfig:  *u2fConfig,
-			Storage:    auth.Identity,
+			Storage:    u2fStorage,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1241,7 +1392,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := auth.checkTOTP(user, resp.TOTP.Code, dev.GetTotp()); err != nil {
+		if err := auth.checkTOTP(ctx, user, resp.TOTP.Code, dev); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		if err := auth.UpsertMFADevice(ctx, user, dev); err != nil {
@@ -1257,7 +1408,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 			},
 			ChallengeStorageKey:    user,
 			RegistrationStorageKey: user,
-			Storage:                auth.Identity,
+			Storage:                u2fStorage,
 			Clock:                  auth.clock,
 		})
 		if err != nil {
@@ -1330,9 +1481,12 @@ func deleteMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_De
 	ctx := stream.Context()
 	auth := gctx.authServer
 	user := gctx.User.GetName()
+	u2fStorage, err := u2f.InMemoryAuthenticationStorage(auth.Identity)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-	// TODO(awly): store auth challenge in memory and not the backend.
-	authChallenge, err := auth.mfaAuthChallenge(ctx, user)
+	authChallenge, err := auth.mfaAuthChallenge(ctx, user, u2fStorage)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1351,7 +1505,7 @@ func deleteMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_De
 	if authResp == nil {
 		return trace.BadParameter("expected MFAAuthenticateResponse, got %T", req)
 	}
-	if err := auth.validateMFAAuthResponse(ctx, user, authResp); err != nil {
+	if err := auth.validateMFAAuthResponse(ctx, user, authResp, u2fStorage); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -1367,6 +1521,7 @@ func (g *GRPCServer) GetMFADevices(ctx context.Context, req *proto.GetMFADevices
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// TODO(awly): mfa: remove secrets from MFA devices.
 	return &proto.GetMFADevicesResponse{
 		Devices: devs,
 	}, nil
@@ -1379,7 +1534,7 @@ type grpcContext struct {
 
 // authenticate extracts authentication context and returns initialized auth server
 func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
-	// HTTPS server expects auth  context to be set by the auth middleware
+	// HTTPS server expects auth context to be set by the auth middleware
 	authContext, err := g.Authorizer.Authorize(ctx)
 	if err != nil {
 		// propagate connection problem error so we can differentiate

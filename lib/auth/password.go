@@ -42,7 +42,7 @@ func (s *Server) ChangePasswordWithToken(ctx context.Context, req ChangePassword
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := s.createUserWebSession(user)
+	sess, err := s.createUserWebSession(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -224,7 +224,7 @@ func (s *Server) checkOTP(user string, otpToken string) error {
 				continue
 			}
 
-			if err := s.checkTOTP(user, otpToken, totpDev); err != nil {
+			if err := s.checkTOTP(ctx, user, otpToken, dev); err != nil {
 				log.WithError(err).Errorf("Using TOTP device %q", dev.GetName())
 				continue
 			}
@@ -237,10 +237,13 @@ func (s *Server) checkOTP(user string, otpToken string) error {
 }
 
 // checkTOTP checks if the TOTP token is valid.
-func (s *Server) checkTOTP(user, otpToken string, totpDev *types.TOTPDevice) error {
+func (s *Server) checkTOTP(ctx context.Context, user, otpToken string, dev *types.MFADevice) error {
+	if dev.GetTotp() == nil {
+		return trace.BadParameter("checkTOTP called with non-TOTP MFADevice %T", dev.Device)
+	}
 	// we use totp.ValidateCustom over totp.Validate so we can use
 	// a fake clock in tests to get reliable results
-	valid, err := totp.ValidateCustom(otpToken, totpDev.Key, s.clock.Now(), totp.ValidateOpts{
+	valid, err := totp.ValidateCustom(otpToken, dev.GetTotp().Key, s.clock.Now(), totp.ValidateOpts{
 		Period:    teleport.TOTPValidityPeriod,
 		Skew:      teleport.TOTPSkew,
 		Digits:    otp.DigitsSix,
@@ -254,6 +257,12 @@ func (s *Server) checkTOTP(user, otpToken string, totpDev *types.TOTPDevice) err
 	}
 	// if we have a valid token, update the previously used token
 	if err := s.UpsertUsedTOTPToken(user, otpToken); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Update LastUsed timestamp on the device.
+	dev.LastUsed = s.clock.Now()
+	if err := s.UpsertMFADevice(ctx, user, dev); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

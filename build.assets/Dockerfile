@@ -19,7 +19,26 @@ ENV LANGUAGE="en_US.UTF-8" \
 
 RUN apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
-    apt-get install -q -y apt-utils curl gcc gcc-multilib git gzip libbpfcc-dev libc6-dev libpam-dev libsqlite3-0 locales make net-tools tar tree zip shellcheck && \
+    apt-get install -q -y \
+        apt-utils \
+        curl \
+        gcc \
+        gcc-multilib \
+        git \
+        gzip \
+        libbpfcc-dev \
+        libc6-dev \
+        libpam-dev \
+        libsqlite3-0 \
+        locales \
+        make \
+        mingw-w64 \
+        net-tools \
+        shellcheck \
+        tar \
+        tree \
+        zip \
+        && \
     dpkg-reconfigure locales && \
     apt-get -y autoclean && apt-get -y clean
 
@@ -48,6 +67,11 @@ ENV GOPATH="/go" \
 RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.24.0/golangci-lint-1.24.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz && \
      cp golangci-lint-1.24.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ && \
      rm -r golangci-lint*)
+
+# Install helm.
+RUN (mkdir -p helm-tarball && curl -L https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
+     cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
+     rm -r helm-tarball*)
 
 # Install PAM module and policies for testing.
 COPY pam/ /opt/pam_teleport/
