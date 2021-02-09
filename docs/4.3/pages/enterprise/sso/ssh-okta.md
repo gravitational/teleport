@@ -37,11 +37,11 @@ auth_service:
 First, create a SAML 2.0 Web App in Okta configuration section
 
 #### 1. Switch to Classic UI
-![Switch to classic UI](../../img/sso/okta/switch-to-classic.gif)
+![Switch to classic UI](../../../img/sso/okta/switch-to-classic.gif)
 
 #### 2. Select Create New App
 Select Web Platform and SAML 2.0 Sign On Method.
-![Create APP](../../img/sso/okta/okta-saml-1.png)
+![Create APP](../../../img/sso/okta/okta-saml-1.png)
 
 ### Configure the App
 
@@ -60,10 +60,10 @@ GROUP ATTRIBUTE STATEMENTS
 - Name: `groups` | Name format: `Unspecified`
 -  Filter: `Matches regex` |  `.*`
 
-![Configure APP](../../img/sso/okta/setup-redirection.png)
+![Configure APP](../../../img/sso/okta/setup-redirection.png)
 
 #### Note: RegEx requires `.*`
-![Configure APP](../../img/sso/okta/regex.png)
+![Configure APP](../../../img/sso/okta/regex.png)
 
 !!! tip "tip"
 
@@ -77,20 +77,20 @@ GROUP ATTRIBUTE STATEMENTS
 
 We are going to create two groups: "okta-dev" and "okta-admin":
 
-![Create Group Devs](../../img/sso/okta/okta-saml-2.1.png)
+![Create Group Devs](../../../img/sso/okta/okta-saml-2.1.png)
 
 ...and the admin:
 
-![Create Group Devs](../../img/sso/okta/okta-saml-2.2.png)
+![Create Group Devs](../../../img/sso/okta/okta-saml-2.2.png)
 
 Assign groups and people to your SAML app:
 
-![Configure APP](../../img/sso/okta/okta-saml-3.1.png)
+![Configure APP](../../../img/sso/okta/okta-saml-3.1.png)
 
 Make sure to download the metadata in the form of an XML document. It will be used it to
 configure a Teleport connector:
 
-![Download metadata](../../img/sso/okta/okta-saml-4.png)
+![Download metadata](../../../img/sso/okta/okta-saml-4.png)
 
 
 ## Create a SAML Connector

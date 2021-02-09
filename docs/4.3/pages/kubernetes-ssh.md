@@ -72,7 +72,7 @@ $ helm install teleport teleport/teleport
 You will still need a correctly configured `values.yaml` file for this to work. See
 our [Helm Docs](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport#introduction) for more information.
 
-![teleport-kubernetes-inside](img/teleport-k8s-pod.svg)
+![teleport-kubernetes-inside](../img/teleport-k8s-pod.svg)
 
 ## Option 2: Deploy Outside of Kubernetes
 
@@ -98,7 +98,7 @@ proxy_service:
     kubeconfig_file: /path/to/.kube/config
 ```
 
-![teleport-ssh-kubernetes-integration](img/teleport-kubernetes-outside.svg)
+![teleport-ssh-kubernetes-integration](../img/teleport-kubernetes-outside.svg)
 
 To generate the `kubeconfig_file` for the Teleport proxy service:
 

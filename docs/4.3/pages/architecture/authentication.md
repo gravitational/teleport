@@ -33,7 +33,7 @@ banking system, or data in a filesystem. Before users are granted access to
 nodes, the Auth Service checks their identity against a stored mapping in a
 database.
 
-![Authentication and Authorization](../img/authn_authz.svg)
+![Authentication and Authorization](../../img/authn_authz.svg)
 
 ## SSH Certificates
 
@@ -65,7 +65,7 @@ Node Certificates identify a node within a cluster and establish the permissions
 of the node to access other Teleport services. The presence of a signed
 certificate on a node makes it a cluster member.
 
-![Node Joins Cluster](../img/node_join.svg)
+![Node Joins Cluster](../../img/node_join.svg)
 
 1. To join a cluster for the first time, a node must present a "join token" to
    the auth server. The token can be static (configured via config file) or a
@@ -85,7 +85,7 @@ certificate on a node makes it a cluster member.
 
 ### Using Node Certificates
 
-![Node Authorization](../img/node_cluster_auth.svg)
+![Node Authorization](../../img/node_cluster_auth.svg)
 
 All nodes in a cluster can connect to the [Auth Server's API](#auth-api) <!-- Docs about this -->
 implemented as an HTTP REST service running over the SSH
@@ -97,7 +97,7 @@ servers registered in the cluster.
 
 ### Issuing User Certificates
 
-![Client obtains new certificate](../img/cert_invalid.svg)
+![Client obtains new certificate](../../img/cert_invalid.svg)
 
 The Auth Server uses its User CA to issue user certificates. User certificates
 are stored on a user's machine in the `~/.tsh/<proxy_host>` directory or also
@@ -120,7 +120,7 @@ the CA signature.
 
 ### Using User Certificates
 
-![Client offers valid certificate](../img/user_auth.svg)
+![Client offers valid certificate](../../img/user_auth.svg)
 
 When a client requests access to a node cluster, the Auth Server first checks
 that a certificate exists and hasn't expired. If it has expired, the client must

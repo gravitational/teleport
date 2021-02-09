@@ -50,7 +50,7 @@ A cluster administrator must create account entries for every Teleport user with
 list of one or more machine-level OS usernames it can authenticate as during a
 login. This list is called "user mappings".
 
-![User Mappings](../img/user_mappings.svg)
+![User Mappings](../../img/user_mappings.svg)
 
 The diagram shows the following mappings. A couple of noteworthy things
 from this example:

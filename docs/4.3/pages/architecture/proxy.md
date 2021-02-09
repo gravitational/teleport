@@ -26,7 +26,7 @@ Teleport cluster:
 In this mode, Teleport Proxy implements WSS - secure web sockets - to proxy a
 client SSH connection:
 
-![Teleport Proxy Web](../img/proxy-web.svg)
+![Teleport Proxy Web](../../img/proxy-web.svg)
 
 1. User logs in to Web UI using username and password, and 2nd factor token if
    configured (2FA Tokens are not used with SSO providers).
@@ -53,7 +53,7 @@ Teleport Proxy implements a special method to let clients get short-lived
 authentication certificates signed by the Certificate Authority (CA) provided by
 the [Auth Service](authentication.md#authentication-in-teleport).
 
-![Teleport Proxy SSH](../img/proxy-ssh-1.svg)
+![Teleport Proxy SSH](../../img/proxy-ssh-1.svg)
 
 1. A [`tsh` client](../cli-docs.md#tsh) generates an OpenSSH keypair. It forwards
    the generated public key, username, password and second factor token to the
@@ -73,7 +73,7 @@ Once the client has obtained a certificate, it can use it to authenticate with
 any Node in the cluster. Users can use the certificate using a standard OpenSSH
 client `ssh` or using `tsh`:
 
-![Teleport Proxy Web](../img/proxy-ssh-2.svg)
+![Teleport Proxy Web](../../img/proxy-ssh-2.svg)
 
 1. A client connects to the Proxy Server and provides target node's host and
    port location. There are three lookup mechanisms a proxy uses to find the
@@ -102,7 +102,7 @@ its own SSH connection to the final destination server, effectively becoming an
 authorized "man in the middle". This allows the proxy server to forward SSH
 session data to the auth server to be recorded, as shown below:
 
-![recording-proxy](../img/recording-proxy.svg)
+![recording-proxy](../../img/recording-proxy.svg)
 
 The recording proxy mode, although _less secure_, was added to allow Teleport
 users to enable session recording for OpenSSH's servers running `sshd`, which is
