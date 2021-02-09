@@ -36,7 +36,7 @@ $ sudo mkdir -p /var/lib/teleport
 Gravitational Teleport provides a checksum from the Downloads page.  This can be used to
 verify the integrity of our binary.
 
-![Teleport Checksum](img/teleport-sha.png)
+![Teleport Checksum](../img/teleport-sha.png)
 
 **Checking Checksum on Mac OS**
 ```bash
@@ -1894,7 +1894,7 @@ clusters.  This allows users to authenticate against a Teleport proxy using
 Below is a high-level diagram of how Teleport can be deployed in front of
 a Kubernetes cluster:
 
-![teleport-kubernetes-integration](img/teleport-kube.png)
+![teleport-kubernetes-integration](../img/teleport-kube.png)
 
 For more detailed information, please take a look at [Kubernetes Integration with SSH](architecture.md#kubernetes-integration)
 section in the Architecture chapter.

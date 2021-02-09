@@ -9,7 +9,7 @@ capability include:
  - Large cloud software vendors manage multiple data centers using a common proxy.
 
 **Example of a MSP provider using trusted cluster to obtain access to clients clusters.**
-![MSP Example](img/trusted-clusters/TrustedClusters-MSP.svg)
+![MSP Example](../img/trusted-clusters/TrustedClusters-MSP.svg)
 
 
 If you haven't already looked at the introduction to [Trusted Clusters](admin-guide.md#trusted-clusters)
@@ -72,13 +72,13 @@ Leaf clusters also have their own restrictions on user access, i.e.
 _permissions mapping_ takes place.
 
 **Once connection has been established it's easy to switch from the "main" root cluster**
-![Teleport Cluster Switcher](img/trusted-clusters/Teleport-Cluster-switcher.png)
+![Teleport Cluster Switcher](../img/trusted-clusters/Teleport-Cluster-switcher.png)
 
 ## Join Tokens
 
 Lets start with the diagram of how connection between two clusters is established:
 
-![Tunnels](img/trusted-clusters/TrustedClusters-Simple.svg)
+![Tunnels](../img/trusted-clusters/TrustedClusters-Simple.svg)
 
 The first step in establishing a secure tunnel between two clusters is for the
 _leaf_ cluster "east" to connect to the _root_ cluster "main". When this
@@ -245,10 +245,10 @@ For customers using Teleport Enterprise, they can easily configure _leaf_ nodes 
 Teleport Proxy UI.
 
 **Creating Trust from the Leaf node to the root node.**
-![Tunnels](img/trusted-clusters/setting-up-trust.png)
+![Tunnels](../img/trusted-clusters/setting-up-trust.png)
 
 **The root cluster showing the cluster switching UI.**
-![Teleport Cluster Switcher](img/trusted-clusters/Teleport-Cluster-switcher.png)
+![Teleport Cluster Switcher](../img/trusted-clusters/Teleport-Cluster-switcher.png)
 
 ## Updating Trusted Cluster Role Map
 

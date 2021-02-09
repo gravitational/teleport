@@ -21,23 +21,23 @@ like:
 1. Obtain OAuth 2.0 credentials  [https://developers.google.com/identity/protocols/OpenIDConnect](https://developers.google.com/identity/protocols/OpenIDConnect)
 
 2. Create a new Project.
-![Create New Project](img/gsuite/gsuite-1-new-project.png)
+![Create New Project](../img/gsuite/gsuite-1-new-project.png)
 
 3. Select OAuth client ID.
-![Create OAuth Creds](img/gsuite/gsuite-2-created-creds.png)
+![Create OAuth Creds](../img/gsuite/gsuite-2-created-creds.png)
 
 4. Make Application Type Public & Setup Domain Verification
-![Setup Application Type](img/gsuite/gsuite-3-oauth.png)
+![Setup Application Type](../img/gsuite/gsuite-3-oauth.png)
 
 5. Copy OAuth Client ID and Client Secret for YAML Below.
 
 Note: The redirect_url: `https://teleport.example.com:3080/v1/webapi/oidc/callback`
 
-![Copy Client Secret](img/gsuite/gsuite-5-copy-client-id.png)
+![Copy Client Secret](../img/gsuite/gsuite-5-copy-client-id.png)
 
 6. To allow for fine grained role based access control (RBAC) you'll first need to
 open an admin API so Teleport can assign groups to roles. Allow Admin SDK via [google.com/apis/api/admin.googleapis.com/overview](https://console.developers.google.com/apis/api/admin.googleapis.com/overview)
-![Turn on Admin SDK](img/gsuite/gsuite-4-admin-sdk.png)
+![Turn on Admin SDK](../img/gsuite/gsuite-4-admin-sdk.png)
 
 
 
@@ -123,7 +123,7 @@ $ tctl create dev.yaml
 ```
 
 ## Testing
-![Login with Gsuite](img/gsuite/gsuite-6-loginwithgsuite.png)
+![Login with Gsuite](../img/gsuite/gsuite-6-loginwithgsuite.png)
 
 
 The Web UI will now contain a new button: "Login with GSuite". The CLI is
