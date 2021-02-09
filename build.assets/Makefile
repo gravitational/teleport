@@ -133,6 +133,7 @@ buildbox-centos6-fips:
 buildbox-arm: buildbox
 	docker build \
 		--build-arg RUNTIME=$(RUNTIME) \
+		--cache-from $(BUILDBOX) \
 		--cache-from $(BUILDBOXARM) \
 		--tag $(BUILDBOXARM) -f Dockerfile-arm .
 
@@ -143,6 +144,7 @@ buildbox-arm: buildbox
 buildbox-arm64: buildbox
 	docker build \
 		--build-arg RUNTIME=$(RUNTIME) \
+		--cache-from $(BUILDBOX) \
 		--cache-from $(BUILDBOXARM64) \
 		--tag $(BUILDBOXARM64) -f Dockerfile-arm64 .
 
@@ -153,6 +155,7 @@ buildbox-arm64: buildbox
 buildbox-arm64-fips: buildbox-fips
 	docker build \
 		--build-arg RUNTIME=$(RUNTIME) \
+		--cache-from $(BUILDBOXFIPS) \
 		--cache-from $(BUILDBOXARM64FIPS) \
 		--tag $(BUILDBOXARM64FIPS) -f Dockerfile-arm64-fips .
 
