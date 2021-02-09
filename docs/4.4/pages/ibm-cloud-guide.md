@@ -50,7 +50,7 @@ We recommend setting up Teleport in high availability mode (HA). In HA mode [etc
 stores the state of the system and [IBM Cloud Storage](https://www.ibm.com/cloud/storage)
 stores the audit logs.
 
-![GCP Intro Image](img/IBM/IBM_HA.svg)
+![GCP Intro Image](../img/IBM/IBM_HA.svg)
 
 ### IBM Cloud: Virtual Servers with Instance Groups
 
@@ -75,12 +75,12 @@ cluster.
 - CPU allocation: Shared
 - etcd version: 3.3
 
-![Creating IBM Server](img/IBM/cloud.ibm.com_catalog_services_databases-for-etcd.png)
+![Creating IBM Server](../img/IBM/cloud.ibm.com_catalog_services_databases-for-etcd.png)
 
 #### Saving Credentials
 
-![Creating IBM Server](img/IBM/etcd-pass.png)
-![etcd cert and host](img/IBM/etcd-cert-and-host.png)
+![Creating IBM Server](../img/IBM/etcd-pass.png)
+![etcd cert and host](../img/IBM/etcd-cert-and-host.png)
 
 
 ```yaml
@@ -118,7 +118,7 @@ When setting up `audit_session_uri` use `s3://` session prefix.
 
 The credentials are used from `~/.aws/credentials` and should be created with HMAC option:
 
-![Creating Service Creds](img/IBM/cloud.ibm.com_object-store-service-creds.png)
+![Creating Service Creds](../img/IBM/cloud.ibm.com_object-store-service-creds.png)
 
 ```json
 {

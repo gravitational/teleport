@@ -54,7 +54,7 @@ Optional:
 We recommend setting up Teleport in high availability mode (HA). In HA mode Firestore
 stores the state of the system and Google Cloud Storage stores the audit logs.
 
-![GCP Intro Image](img/gcp/gcp-teleport.svg)
+![GCP Intro Image](../img/gcp/gcp-teleport.svg)
 
 
 ### Compute Engine: VM Instances with Instance Groups
@@ -118,10 +118,10 @@ record is sufficient.
 The Authentication server will need to read and write to Firestore.  For this it'll need
 the correct permission via Server Accounts. Learn how to [enable and create service accounts for instances](https://cloud.google.com/compute/docs/access/create-enable-service-accounts-for-instances).
 
-![Service Account](img/gcp/gcp-permissions.png)
+![Service Account](../img/gcp/gcp-permissions.png)
 
 **Download JSON Service Key**
-![GCP Service Key](img/gcp/gcp-service-key.png)
+![GCP Service Key](../img/gcp/gcp-service-key.png)
 
 ## GCP Quickstart
 

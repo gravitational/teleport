@@ -24,7 +24,7 @@ existing SSH implementations, such as OpenSSH. This section will cover:
       You can view your OpenSSH version with `ssh -V`.
 
 ## Architecture
-![Node Service ping API](img/openssh-proxy.svg)
+![Node Service ping API](../img/openssh-proxy.svg)
 
 The recording proxy mode, although less secure, was added to allow Teleport users
 to enable session recording for OpenSSH's servers running `sshd`, which is helpful

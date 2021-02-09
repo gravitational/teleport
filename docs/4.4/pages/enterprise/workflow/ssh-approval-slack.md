@@ -95,9 +95,9 @@ Visit [https://api.slack.com/apps](https://api.slack.com/apps) to create a new S
 
 **App Name:** Teleport<br />
 **Development Slack Workspace:** Pick the workspace you'd like the requests to show up in. <br />
-**App Icon:** <a href="https://gravitational.com/teleport/docs/img/enterprise/plugins/teleport_bot@2x.png" download>Download Teleport Bot Icon</a>
+**App Icon:** <a href="../../../img/enterprise/plugins/teleport_bot@2x.png" download>Download Teleport Bot Icon</a>
 
-![Create Slack App](../../img/enterprise/plugins/slack/Create-a-Slack-App.png)
+![Create Slack App](../../../img/enterprise/plugins/slack/Create-a-Slack-App.png)
 
 #### Setup Interactive Components
 
@@ -105,28 +105,28 @@ This URL must match the URL setting in Teleport Plugin settings file (we'll cove
 
 For now, just think of the URL you'll use and set it in the Slack App's settings screen in Features > Interactive Components > Request URL.
 
-![Interactive Components](../../img/enterprise/plugins/slack/setup-interactive-component.png)
+![Interactive Components](../../../img/enterprise/plugins/slack/setup-interactive-component.png)
 
 #### Selecting OAuth Scopes
 On the App screen, go to “OAuth and Permissions” under Features in the sidebar menu. Then scroll to Scopes, and add `chat:write, incoming-webhook, users:read, users:read.email` scopes so that our plugin can post messages to your Slack channels.
 
-![API Scopes](../../img/enterprise/plugins/slack/api-scopes.png)
+![API Scopes](../../../img/enterprise/plugins/slack/api-scopes.png)
 
 #### Obtain OAuth Token
 
-![OAuth Tokens](../../img/enterprise/plugins/slack/OAuth.png)
+![OAuth Tokens](../../../img/enterprise/plugins/slack/OAuth.png)
 
 #### Getting the secret signing token
 In the sidebar of the app screen, click on Basic. Scroll to App Credentials section, and grab the app's Signing Secret. We'll use it in the config file later.
 
-![Secret Signing Token](../../img/enterprise/plugins/slack/SlackSigningSecret.png)
+![Secret Signing Token](../../../img/enterprise/plugins/slack/SlackSigningSecret.png)
 
 #### Add to Workspace
 
-![OAuth Tokens](../../img/enterprise/plugins/slack/Slackbot-Permissions.png)
+![OAuth Tokens](../../../img/enterprise/plugins/slack/Slackbot-Permissions.png)
 After adding to the workspace, you still need to invite the bot to the channel. Do this by using the @ command,
 and inviting them to the channel.
-![Invite bot to channel](../../img/enterprise/plugins/slack/invite-user-to-team.png)
+![Invite bot to channel](../../../img/enterprise/plugins/slack/invite-user-to-team.png)
 
 
 ## Installing the Teleport Slack Plugin
