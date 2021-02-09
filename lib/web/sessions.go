@@ -485,7 +485,7 @@ func (s *sessionCache) AuthWithoutOTP(user, pass string) (services.WebSession, e
 	})
 }
 
-func (s *sessionCache) GetU2FSignRequest(user, pass string) (*u2f.AuthenticateChallenge, error) {
+func (s *sessionCache) GetU2FSignRequest(user, pass string) (*auth.U2FAuthenticateChallenge, error) {
 	return s.proxyClient.GetU2FSignRequest(user, []byte(pass))
 }
 
