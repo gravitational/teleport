@@ -261,14 +261,14 @@ github.com/gravitational/reporting/types
 github.com/gravitational/roundtrip
 # github.com/gravitational/teleport/api v0.0.0 => ./api
 ## explicit
-./api/client
-./api/client/proto
-./api/constants
-./api/defaults
-./api/types
-./api/types/events
-./api/types/wrappers
-./api/utils
+github.com/gravitational/teleport/api/client
+github.com/gravitational/teleport/api/client/proto
+github.com/gravitational/teleport/api/constants
+github.com/gravitational/teleport/api/defaults
+github.com/gravitational/teleport/api/types
+github.com/gravitational/teleport/api/types/events
+github.com/gravitational/teleport/api/types/wrappers
+github.com/gravitational/teleport/api/utils
 # github.com/gravitational/trace v1.1.13
 ## explicit
 github.com/gravitational/trace

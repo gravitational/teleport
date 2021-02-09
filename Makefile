@@ -608,3 +608,4 @@ update-vendor:
 	go mod tidy
 	go mod vendor
 	rm -r vendor/github.com/gravitational/teleport/api
+	ln -s -r $(shell readlink -f api) vendor/github.com/gravitational/teleport
