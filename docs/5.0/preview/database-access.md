@@ -81,6 +81,7 @@ Teleport process will be using to allow it to connect to the database:
 ```
 
 !!! note "Resource ID"
+
     Database resource ID is shown on the Configuration tab of a particular
     database instance in RDS control panel, under "Resource id". For regular
     RDS database it starts with `db-` prefix. For Aurora, use the database
@@ -107,9 +108,10 @@ Teleport Database Access is available starting from `6.0.0-alpha.1` pre-release.
 Download the appropriate version of Teleport for your platform from the table
 below, or visit our [downloads page](https://goteleport.com/teleport/download).
 
-{% raw %}{{!docs/5.0/preview/releases-table.md!}}{% endraw %}
+{!docs/5.0/preview/releases-table.md!}
 
 !!! warning
+
     Note, pre-releases are not suitable for production usage!
 
 Start Teleport using the following command and point it to your Aurora database
@@ -125,6 +127,7 @@ sudo teleport start \
 ```
 
 !!! note "AWS credentials"
+
     The node where the Teleport process is started should have AWS credentials
     configured with the policy from [step 1](#step-13-setup-aurora).
 
@@ -355,9 +358,10 @@ Teleport Database Access is available starting from `6.0.0-alpha.1` pre-release.
 Download the appropriate version of Teleport for your platform from the table
 below, or visit our [downloads page](https://goteleport.com/teleport/download).
 
-{% raw %}{{!docs/5.0/preview/releases-table.md!}}{% endraw %}
+{!docs/5.0/preview/releases-table.md!}
 
 !!! warning
+
     Note, pre-releases are not suitable for production usage!
 
 Follow the installation [instructions](../installation.md).

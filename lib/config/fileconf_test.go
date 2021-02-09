@@ -18,7 +18,6 @@ package config
 
 import (
 	"encoding/base64"
-	"fmt"
 
 	"gopkg.in/check.v1"
 )
@@ -27,7 +26,6 @@ type FileTestSuite struct {
 }
 
 var _ = check.Suite(&FileTestSuite{})
-var _ = fmt.Printf
 
 func (s *FileTestSuite) SetUpSuite(c *check.C) {
 }

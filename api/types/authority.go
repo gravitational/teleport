@@ -17,16 +17,12 @@ limitations under the License.
 package types
 
 import (
-	"encoding/json"
 	"fmt"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
@@ -71,10 +67,6 @@ type CertAuthority interface {
 	SetCheckingKeys([][]byte) error
 	// AddRole adds a role to ca role list
 	AddRole(name string)
-	// Checkers returns public keys that can be used to check cert authorities
-	Checkers() ([]ssh.PublicKey, error)
-	// Signers returns a list of signers that could be used to sign keys
-	Signers() ([]ssh.Signer, error)
 	// String returns human readable version of the CertAuthority
 	String() string
 	// SetTLSKeyPairs sets TLS key pairs
@@ -90,9 +82,9 @@ type CertAuthority interface {
 	// SetRotation sets rotation state.
 	SetRotation(Rotation)
 	// GetSigningAlg returns the signing algorithm used by signing keys.
-	GetSigningAlg() string
+	GetSigningAlg() CertAuthoritySpecV2_SigningAlgType
 	// SetSigningAlg sets the signing algorithm used by signing keys.
-	SetSigningAlg(string)
+	SetSigningAlg(CertAuthoritySpecV2_SigningAlgType)
 	// Clone returns a copy of the cert authority object.
 	Clone() CertAuthority
 }
@@ -349,71 +341,14 @@ func (ca *CertAuthorityV2) ID() *CertAuthID {
 	return &CertAuthID{DomainName: ca.Spec.ClusterName, Type: ca.Spec.Type}
 }
 
-// Checkers returns public keys that can be used to check cert authorities
-func (ca *CertAuthorityV2) Checkers() ([]ssh.PublicKey, error) {
-	out := make([]ssh.PublicKey, 0, len(ca.Spec.CheckingKeys))
-	for _, keyBytes := range ca.Spec.CheckingKeys {
-		key, _, _, _, err := ssh.ParseAuthorizedKey(keyBytes)
-		if err != nil {
-			return nil, trace.BadParameter("invalid authority public key (len=%d): %v", len(keyBytes), err)
-		}
-		out = append(out, key)
-	}
-	return out, nil
-}
-
-// Signers returns a list of signers that could be used to sign keys.
-func (ca *CertAuthorityV2) Signers() ([]ssh.Signer, error) {
-	out := make([]ssh.Signer, 0, len(ca.Spec.SigningKeys))
-	for _, keyBytes := range ca.Spec.SigningKeys {
-		signer, err := ssh.ParsePrivateKey(keyBytes)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		signer = sshutils.AlgSigner(signer, ca.GetSigningAlg())
-		out = append(out, signer)
-	}
-	return out, nil
-}
-
 // GetSigningAlg returns the CA's signing algorithm type
-func (ca *CertAuthorityV2) GetSigningAlg() string {
-	switch ca.Spec.SigningAlg {
-	// UNKNOWN algorithm can come from a cluster that existed before SigningAlg
-	// field was added. Default to RSA-SHA1 to match the implicit algorithm
-	// used in those clusters.
-	case CertAuthoritySpecV2_RSA_SHA1, CertAuthoritySpecV2_UNKNOWN:
-		return ssh.SigAlgoRSA
-	case CertAuthoritySpecV2_RSA_SHA2_256:
-		return ssh.SigAlgoRSASHA2256
-	case CertAuthoritySpecV2_RSA_SHA2_512:
-		return ssh.SigAlgoRSASHA2512
-	default:
-		return ""
-	}
-}
-
-// ParseSigningAlg converts the SSH signature algorithm strings to the
-// corresponding proto enum value.
-//
-// alg should be one of ssh.SigAlgo*  If it's not one of those
-// constants, CertAuthoritySpecV2_UNKNOWN is returned.
-func ParseSigningAlg(alg string) CertAuthoritySpecV2_SigningAlgType {
-	switch alg {
-	case ssh.SigAlgoRSA:
-		return CertAuthoritySpecV2_RSA_SHA1
-	case ssh.SigAlgoRSASHA2256:
-		return CertAuthoritySpecV2_RSA_SHA2_256
-	case ssh.SigAlgoRSASHA2512:
-		return CertAuthoritySpecV2_RSA_SHA2_512
-	default:
-		return CertAuthoritySpecV2_UNKNOWN
-	}
+func (ca *CertAuthorityV2) GetSigningAlg() CertAuthoritySpecV2_SigningAlgType {
+	return ca.Spec.SigningAlg
 }
 
 // SetSigningAlg sets the CA's signing algorith type
-func (ca *CertAuthorityV2) SetSigningAlg(alg string) {
-	ca.Spec.SigningAlg = ParseSigningAlg(alg)
+func (ca *CertAuthorityV2) SetSigningAlg(alg CertAuthoritySpecV2_SigningAlgType) {
+	ca.Spec.SigningAlg = alg
 }
 
 // CheckAndSetDefaults checks and set default values for any missing fields.
@@ -491,7 +426,7 @@ func (r *Rotation) LastRotatedDescription() string {
 	if r.LastRotated.IsZero() {
 		return "never updated"
 	}
-	return fmt.Sprintf("last rotated %v", r.LastRotated.Format(teleport.HumanDateFormatSeconds))
+	return fmt.Sprintf("last rotated %v", r.LastRotated.Format(constants.HumanDateFormatSeconds))
 }
 
 // PhaseDescription returns human friendly description of a current rotation phase.
@@ -519,13 +454,13 @@ func (r *Rotation) String() string {
 		if r.LastRotated.IsZero() {
 			return "never updated"
 		}
-		return fmt.Sprintf("rotated %v", r.LastRotated.Format(teleport.HumanDateFormatSeconds))
+		return fmt.Sprintf("rotated %v", r.LastRotated.Format(constants.HumanDateFormatSeconds))
 	case RotationStateInProgress:
 		return fmt.Sprintf("%v (mode: %v, started: %v, ending: %v)",
 			r.PhaseDescription(),
 			r.Mode,
-			r.Started.Format(teleport.HumanDateFormatSeconds),
-			r.Started.Add(r.GracePeriod.Duration()).Format(teleport.HumanDateFormatSeconds),
+			r.Started.Format(constants.HumanDateFormatSeconds),
+			r.Started.Add(r.GracePeriod.Duration()).Format(constants.HumanDateFormatSeconds),
 		)
 	default:
 		return "unknown"
@@ -619,214 +554,4 @@ type CertRoles struct {
 	Version string `json:"version"`
 	// Roles is a list of roles
 	Roles []string `json:"roles"`
-}
-
-// CertRolesSchema defines cert roles schema
-const CertRolesSchema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-		"version": {"type": "string"},
-			"roles": {
-			"type": "array",
-			"items": {
-				"type": "string"
-			}
-		}
-	}
-}`
-
-// MarshalCertRoles marshal roles list to OpenSSH
-func MarshalCertRoles(roles []string) (string, error) {
-	out, err := json.Marshal(CertRoles{Version: V1, Roles: roles})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return string(out), err
-}
-
-// UnmarshalCertRoles marshals roles list to OpenSSH
-func UnmarshalCertRoles(data string) ([]string, error) {
-	var certRoles CertRoles
-	if err := utils.UnmarshalWithSchema(CertRolesSchema, &certRoles, []byte(data)); err != nil {
-		return nil, trace.BadParameter(err.Error())
-	}
-	return certRoles.Roles, nil
-}
-
-// CertAuthoritySpecV2Schema is JSON schema for cert authority V2
-const CertAuthoritySpecV2Schema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"required": ["type", "cluster_name"],
-	"properties": {
-		"type": {"type": "string"},
-		"cluster_name": {"type": "string"},
-		"checking_keys": {
-			"type": "array",
-			"items": {
-				"type": "string"
-			}
-		},
-		"signing_keys": {
-			"type": "array",
-			"items": {
-				"type": "string"
-			}
-		},
-		"roles": {
-			"type": "array",
-			"items": {
-				"type": "string"
-			}
-		},
-		"tls_key_pairs":  {
-			"type": "array",
-			"items": {
-				"type": "object",
-				"additionalProperties": false,
-				"properties": {
-					"cert": {"type": "string"},
-					"key": {"type": "string"}
-				}
-			}
-		},
-		"jwt_key_pairs":  {
-			"type": "array",
-			"items": {
-				"type": "object",
-				"additionalProperties": false,
-				"properties": {
-					"public_key": {"type": "string"},
-					"private_key": {"type": "string"}
-				}
-			}
-		},
-		"signing_alg": {"type": "integer"},
-		"rotation": %v,
-		"role_map": %v
-	}
-}`
-
-// RotationSchema is a JSON validation schema of the CA rotation state object.
-const RotationSchema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-		"state": {"type": "string"},
-		"phase": {"type": "string"},
-		"mode": {"type": "string"},
-		"current_id": {"type": "string"},
-		"started": {"type": "string"},
-		"grace_period": {"type": "string"},
-		"last_rotated": {"type": "string"},
-		"schedule": {
-			"type": "object",
-			"properties": {
-				"update_clients": {"type": "string"},
-				"update_servers": {"type": "string"},
-				"standby": {"type": "string"}
-			}
-		}
-	}
-}`
-
-// GetCertAuthoritySchema returns JSON Schema for cert authorities
-func GetCertAuthoritySchema() string {
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, fmt.Sprintf(CertAuthoritySpecV2Schema, RotationSchema, RoleMapSchema), DefaultDefinitions)
-}
-
-// CertAuthorityMarshaler implements marshal/unmarshal of User implementations
-// mostly adds support for extended versions
-type CertAuthorityMarshaler interface {
-	// UnmarshalCertAuthority unmarhsals cert authority from binary representation
-	UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (CertAuthority, error)
-	// MarshalCertAuthority to binary representation
-	MarshalCertAuthority(c CertAuthority, opts ...MarshalOption) ([]byte, error)
-	// GenerateCertAuthority is used to generate new cert authority
-	// based on standard teleport one and is used to add custom
-	// parameters and extend it in extensions of teleport
-	GenerateCertAuthority(CertAuthority) (CertAuthority, error)
-}
-
-type teleportCertAuthorityMarshaler struct{}
-
-// GenerateCertAuthority is used to generate new cert authority
-// based on standard teleport one and is used to add custom
-// parameters and extend it in extensions of teleport
-func (*teleportCertAuthorityMarshaler) GenerateCertAuthority(ca CertAuthority) (CertAuthority, error) {
-	return ca, nil
-}
-
-// UnmarshalCertAuthority unmarshals cert authority from JSON
-func (*teleportCertAuthorityMarshaler) UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (CertAuthority, error) {
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var h ResourceHeader
-	err = utils.FastUnmarshal(bytes, &h)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	switch h.Version {
-	case V2:
-		var ca CertAuthorityV2
-		if cfg.SkipValidation {
-			if err := utils.FastUnmarshal(bytes, &ca); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
-		} else {
-			if err := utils.UnmarshalWithSchema(GetCertAuthoritySchema(), &ca, bytes); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
-		}
-		if err := ca.CheckAndSetDefaults(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if cfg.ID != 0 {
-			ca.SetResourceID(cfg.ID)
-		}
-		return &ca, nil
-	}
-
-	return nil, trace.BadParameter("cert authority resource version %v is not supported", h.Version)
-}
-
-// MarshalCertAuthority marshalls cert authority into JSON
-func (*teleportCertAuthorityMarshaler) MarshalCertAuthority(ca CertAuthority, opts ...MarshalOption) ([]byte, error) {
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	switch authority := ca.(type) {
-	case *CertAuthorityV2:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *authority
-			copy.SetResourceID(0)
-			authority = &copy
-		}
-		return utils.FastMarshal(authority)
-	default:
-		return nil, trace.BadParameter("unrecognized certificate authority version %T", ca)
-	}
-}
-
-var certAuthorityMarshaler CertAuthorityMarshaler = &teleportCertAuthorityMarshaler{}
-
-// SetCertAuthorityMarshaler sets global user marshaler
-func SetCertAuthorityMarshaler(u CertAuthorityMarshaler) {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	certAuthorityMarshaler = u
-}
-
-// GetCertAuthorityMarshaler returns currently set user marshaler
-func GetCertAuthorityMarshaler() CertAuthorityMarshaler {
-	marshalerMutex.RLock()
-	defer marshalerMutex.RUnlock()
-	return certAuthorityMarshaler
 }

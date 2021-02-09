@@ -18,9 +18,18 @@ package types
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 )
+
+// String returns text description of this event
+func (r Event) String() string {
+	if r.Type == OpDelete {
+		return fmt.Sprintf("%v(%v/%v)", r.Type, r.Resource.GetKind(), r.Resource.GetSubKind())
+	}
+	return fmt.Sprintf("%v(%v)", r.Type, r.Resource)
+}
 
 // Event represents an event that happened in the backend
 type Event struct {
@@ -87,8 +96,12 @@ type Watch struct {
 type WatchKind struct {
 	// Kind is a resource kind to watch
 	Kind string
+	// SubKind optionally specifies the subkind of resource to watch.
+	// Some resource kinds are ambigious like web sessions, subkind in this case
+	// specifies the type of web session
+	SubKind string
 	// Name is an optional specific resource type to watch,
-	// if specified only the events with a specific resource
+	// if specified, only the events with the given resource
 	// name will be sent
 	Name string
 	// LoadSecrets specifies whether to load secrets

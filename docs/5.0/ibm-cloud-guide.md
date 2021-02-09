@@ -112,9 +112,9 @@ We recommend using [IBM Cloud File Storage](https://www.ibm.com/cloud/file-stora
 
 2. Create a new bucket.
 3. Setup [HMAC Credentials](https://cloud.ibm.com/docs/cloud-object-storage?topic=cloud-object-storage-uhc-hmac-credentials-main)
-4. Update audit session URI `audit_sessions_uri:` 's3://BUCKET-NAME/readonly/records?endpoint=s3.us-east.cloud-object-storage.appdomain.cloud&region=ibm'
+4. Update audit sessions URI: `audit_sessions_uri: 's3://BUCKET-NAME/readonly/records?endpoint=s3.us-east.cloud-object-storage.appdomain.cloud&region=ibm'`
 
-When setting up `audit_session_uri` use `s3://` session prefix.
+When setting up `audit_sessions_uri` use `s3://` session prefix.
 
 The credentials are used from `~/.aws/credentials` and should be created with HMAC option:
 

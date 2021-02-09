@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -164,7 +165,7 @@ func (a *Server) createSAMLUser(p *createUserParams) (services.User, error) {
 
 	log.Debugf("Generating dynamic SAML identity %v/%v with roles: %v.", p.connectorName, p.username, p.roles)
 
-	user, err := services.GetUserMarshaler().GenerateUser(&services.UserV2{
+	user := &services.UserV2{
 		Kind:    services.KindUser,
 		Version: services.V2,
 		Metadata: services.Metadata{
@@ -187,15 +188,12 @@ func (a *Server) createSAMLUser(p *createUserParams) (services.User, error) {
 				},
 				Time: a.clock.Now().UTC(),
 				Connector: &services.ConnectorRef{
-					Type:     teleport.ConnectorSAML,
+					Type:     teleport.SAML,
 					ID:       p.connectorName,
 					Identity: p.username,
 				},
 			},
 		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	// Get the user to check if it already exists or not.
@@ -406,7 +404,12 @@ func (a *Server) validateSAMLResponse(samlResponse string) (*samlAuthResponse, e
 
 	// If the request is coming from a browser, create a web session.
 	if request.CreateWebSession {
-		session, err := a.createWebSession(user, params.sessionTTL)
+		session, err := a.createWebSession(context.TODO(), types.NewWebSessionRequest{
+			User:       user.GetName(),
+			Roles:      user.GetRoles(),
+			Traits:     user.GetTraits(),
+			SessionTTL: params.sessionTTL,
+		})
 		if err != nil {
 			return re, trace.Wrap(err)
 		}

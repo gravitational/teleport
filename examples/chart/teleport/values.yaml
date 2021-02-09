@@ -96,7 +96,7 @@ config:
       # We recommend to use tools like `pwgen` to generate sufficiently random
       # tokens of 32+ byte length.
       tokens:
-      - proxy,node:dogs-are-much-nicer-than-cats
+      - proxy,node,kube:dogs-are-much-nicer-than-cats
       - trusted_cluster:trains-are-superior-to-cars
 
       # Determines if SSH sessions to cluster nodes are forcefully terminated
@@ -165,6 +165,15 @@ config:
         # Specify a different hostname for the k8s public address (if different to config.public_address)
         # public_addr: teleportkubernetes.example.com
         
+    # To use a kubernetes_service uncomment this section        
+    # kubernetes_service:
+      # enabled: true            
+      # labels:
+      #   example-label: example-value
+      # listen_addr: 0.0.0.0:3027
+      # Optionally use a volume mounted kubeconfig to connect to other clusters
+      # kubeconfig_file: /var/lib/teleport/kubefiles/kubeconfig        
+
 
 # Alternatively you can provide your teleport configuration under teleportConfig with static text. No variable substitution.
 otherConfig:

@@ -21,7 +21,6 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"net/url"
 	"os/exec"
@@ -31,13 +30,13 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 
 	"github.com/sirupsen/logrus"
-	"github.com/tstranex/u2f"
 )
 
 const (
@@ -123,7 +122,7 @@ type CreateSSHCertWithU2FReq struct {
 	User string `json:"user"`
 	// We only issue U2F sign requests after checking the password, so there's no need to check again.
 	// U2FSignResponse is the signature from the U2F device
-	U2FSignResponse u2f.SignResponse `json:"u2f_sign_response"`
+	U2FSignResponse u2f.AuthenticateChallengeResponse `json:"u2f_sign_response"`
 	// PubKey is a public key user wishes to sign
 	PubKey []byte `json:"pub_key"`
 	// TTL is a desired TTL for the cert (max is still capped by server,
@@ -490,16 +489,15 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginRes
 
 // SSHAgentU2FLogin requests a U2F sign request (authentication challenge) via
 // the proxy. If the credentials are valid, the proxy wiil return a challenge.
-// We then call the official u2f-host binary to perform the signing and pass
-// the signature to the proxy. If the authentication succeeds, we will get a
-// temporary certificate back.
+// We then perform the signing and pass the signature to the proxy. If the
+// authentication succeeds, we will get a temporary certificate back.
 func SSHAgentU2FLogin(ctx context.Context, login SSHLoginU2F) (*auth.SSHLoginResponse, error) {
 	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	u2fSignRequest, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "u2f", "signrequest"), U2fSignRequestReq{
+	challengeRaw, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "u2f", "signrequest"), U2fSignRequestReq{
 		User: login.User,
 		Pass: login.Password,
 	})
@@ -507,73 +505,21 @@ func SSHAgentU2FLogin(ctx context.Context, login SSHLoginU2F) (*auth.SSHLoginRes
 		return nil, trace.Wrap(err)
 	}
 
-	// Pass the JSON-encoded data undecoded to the u2f-host binary
-	facet := "https://" + strings.ToLower(login.ProxyAddr)
-	cmd := exec.Command("u2f-host", "-aauthenticate", "-o", facet)
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
+	var challenge u2f.AuthenticateChallenge
+	if err := json.Unmarshal(challengeRaw.Bytes(), &challenge); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := cmd.Start(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer func() {
-		// If we returned before cmd.Wait was called, clean up the spawned
-		// process. ProcessState will be empty until cmd.Wait or cmd.Run
-		// return.
-		if cmd.ProcessState == nil || !cmd.ProcessState.Exited() {
-			cmd.Process.Kill()
-		}
-	}()
-	_, err = stdin.Write(u2fSignRequest.Bytes())
-	stdin.Close()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	fmt.Println("Please press the button on your U2F key")
-
-	// The origin URL is passed back base64-encoded and the keyHandle is passed back as is.
-	// A very long proxy hostname or keyHandle can overflow a fixed-size buffer.
-	signResponseLen := 500 + len(u2fSignRequest.Bytes()) + len(login.ProxyAddr)*4/3
-	signResponseBuf := make([]byte, signResponseLen)
-	signResponseLen, err = io.ReadFull(stdout, signResponseBuf)
-	// unexpected EOF means we have read the data completely.
-	if err == nil {
-		return nil, trace.LimitExceeded("u2f sign response exceeded buffer size")
-	}
-
-	// Read error message (if any). 100 bytes is more than enough for any error message u2f-host outputs
-	errMsgBuf := make([]byte, 100)
-	errMsgLen, err := io.ReadFull(stderr, errMsgBuf)
-	if err == nil {
-		return nil, trace.LimitExceeded("u2f error message exceeded buffer size")
-	}
-
-	err = cmd.Wait()
-	if err != nil {
-		return nil, trace.AccessDenied("u2f-host returned error: " + string(errMsgBuf[:errMsgLen]))
-	} else if signResponseLen == 0 {
-		return nil, trace.NotFound("u2f-host returned no error and no sign response")
-	}
-
-	var u2fSignResponse *u2f.SignResponse
-	err = json.Unmarshal(signResponseBuf[:signResponseLen], &u2fSignResponse)
+	facet := "https://" + strings.ToLower(login.ProxyAddr)
+	challengeResp, err := u2f.AuthenticateSignChallenge(ctx, facet, challenge)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "u2f", "certs"), CreateSSHCertWithU2FReq{
 		User:              login.User,
-		U2FSignResponse:   *u2fSignResponse,
+		U2FSignResponse:   *challengeResp,
 		PubKey:            login.PubKey,
 		TTL:               login.TTL,
 		Compatibility:     login.Compatibility,

@@ -17,12 +17,11 @@ limitations under the License.
 package types
 
 import (
-	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
 )
@@ -45,8 +44,6 @@ type User interface {
 	GetRoles() []string
 	// String returns user
 	String() string
-	// Equals checks if user equals to another
-	Equals(other User) bool
 	// GetStatus return user login status
 	GetStatus() LoginStatus
 	// SetLocked sets login status to locked
@@ -193,41 +190,6 @@ func (u *UserV2) GetCreatedBy() CreatedBy {
 	return u.Spec.CreatedBy
 }
 
-// Equals checks if user equals to another
-func (u *UserV2) Equals(other User) bool {
-	if u.Metadata.Name != other.GetName() {
-		return false
-	}
-	otherIdentities := other.GetOIDCIdentities()
-	if len(u.Spec.OIDCIdentities) != len(otherIdentities) {
-		return false
-	}
-	for i := range u.Spec.OIDCIdentities {
-		if !u.Spec.OIDCIdentities[i].Equals(&otherIdentities[i]) {
-			return false
-		}
-	}
-	otherSAMLIdentities := other.GetSAMLIdentities()
-	if len(u.Spec.SAMLIdentities) != len(otherSAMLIdentities) {
-		return false
-	}
-	for i := range u.Spec.SAMLIdentities {
-		if !u.Spec.SAMLIdentities[i].Equals(&otherSAMLIdentities[i]) {
-			return false
-		}
-	}
-	otherGithubIdentities := other.GetGithubIdentities()
-	if len(u.Spec.GithubIdentities) != len(otherGithubIdentities) {
-		return false
-	}
-	for i := range u.Spec.GithubIdentities {
-		if !u.Spec.GithubIdentities[i].Equals(&otherGithubIdentities[i]) {
-			return false
-		}
-	}
-	return u.Spec.LocalAuth.Equals(other.GetLocalAuth())
-}
-
 // Expiry returns expiry time for temporary users. Prefer expires from
 // metadata, if it does not exist, fall back to expires in spec.
 func (u *UserV2) Expiry() time.Time {
@@ -314,11 +276,6 @@ func (u *UserV2) Check() error {
 			return trace.Wrap(err)
 		}
 	}
-	if localAuth := u.GetLocalAuth(); localAuth != nil {
-		if err := localAuth.Check(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
 	return nil
 }
 
@@ -358,202 +315,4 @@ func (i *ExternalIdentity) Check() error {
 		return trace.BadParameter("Username: missing username")
 	}
 	return nil
-}
-
-// UserSpecV2SchemaTemplate is JSON schema for V2 user
-const UserSpecV2SchemaTemplate = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-		"expires": {"type": "string"},
-		"roles": {
-			"type": "array",
-			"items": {
-				"type": "string"
-			}
-		},
-		"traits": {
-			"type": "object",
-			"additionalProperties": false,
-			"patternProperties": {
-				"^.+$": {
-					"type": ["array", "null"],
-					"items": {
-						"type": "string"
-					}
-				}
-			}
-		},
-		"oidc_identities": {
-			"type": "array",
-			"items": %v
-		},
-		"saml_identities": {
-			"type": "array",
-			"items": %v
-		},
-		"github_identities": {
-			"type": "array",
-			"items": %v
-		},
-		"status": %v,
-		"created_by": %v,
-		"local_auth": %v%v
-	}
-}`
-
-// CreatedBySchema is JSON schema for CreatedBy
-const CreatedBySchema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-		"connector": {
-			"additionalProperties": false,
-			"type": "object",
-			"properties": {
-			"type": {"type": "string"},
-			"id": {"type": "string"},
-			"identity": {"type": "string"}
-			}
-		},
-		"time": {"type": "string"},
-		"user": {
-			"type": "object",
-			"additionalProperties": false,
-			"properties": {"name": {"type": "string"}}
-		}
-	}
-}`
-
-// ExternalIdentitySchema is JSON schema for ExternalIdentity
-const ExternalIdentitySchema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-		"connector_id": {"type": "string"},
-		"username": {"type": "string"}
-	}
-}`
-
-// LoginStatusSchema is JSON schema for LoginStatus
-const LoginStatusSchema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-		"is_locked": {"type": "boolean"},
-		"locked_message": {"type": "string"},
-		"locked_time": {"type": "string"},
-		"lock_expires": {"type": "string"}
-	}
-}`
-
-// GetUserSchema returns role schema with optionally injected
-// schema for extensions
-func GetUserSchema(extensionSchema string) string {
-	var userSchema string
-	if extensionSchema == "" {
-		userSchema = fmt.Sprintf(UserSpecV2SchemaTemplate, ExternalIdentitySchema, ExternalIdentitySchema, ExternalIdentitySchema, LoginStatusSchema, CreatedBySchema, LocalAuthSecretsSchema, ``)
-	} else {
-		userSchema = fmt.Sprintf(UserSpecV2SchemaTemplate, ExternalIdentitySchema, ExternalIdentitySchema, ExternalIdentitySchema, LoginStatusSchema, CreatedBySchema, LocalAuthSecretsSchema, ", "+extensionSchema)
-	}
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, userSchema, DefaultDefinitions)
-}
-
-// UserMarshaler implements marshal/unmarshal of User implementations
-// mostly adds support for extended versions
-type UserMarshaler interface {
-	// UnmarshalUser from binary representation
-	UnmarshalUser(bytes []byte, opts ...MarshalOption) (User, error)
-	// MarshalUser to binary representation
-	MarshalUser(u User, opts ...MarshalOption) ([]byte, error)
-	// GenerateUser generates new user based on standard teleport user
-	// it gives external implementations to add more app-specific
-	// data to the user
-	GenerateUser(User) (User, error)
-}
-
-type teleportUserMarshaler struct{}
-
-// UnmarshalUser unmarshals user from JSON
-func (*teleportUserMarshaler) UnmarshalUser(bytes []byte, opts ...MarshalOption) (User, error) {
-	var h ResourceHeader
-	err := json.Unmarshal(bytes, &h)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	switch h.Version {
-	case V2:
-		var u UserV2
-		if cfg.SkipValidation {
-			if err := utils.FastUnmarshal(bytes, &u); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
-		} else {
-			if err := utils.UnmarshalWithSchema(GetUserSchema(""), &u, bytes); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
-		}
-
-		if err := u.CheckAndSetDefaults(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if cfg.ID != 0 {
-			u.SetResourceID(cfg.ID)
-		}
-		if !cfg.Expires.IsZero() {
-			u.SetExpiry(cfg.Expires)
-		}
-
-		return &u, nil
-	}
-	return nil, trace.BadParameter("user resource version %v is not supported", h.Version)
-}
-
-// MarshalUser marshalls user into JSON
-func (*teleportUserMarshaler) MarshalUser(u User, opts ...MarshalOption) ([]byte, error) {
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	switch user := u.(type) {
-	case *UserV2:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *user
-			copy.SetResourceID(0)
-			user = &copy
-		}
-		return utils.FastMarshal(user)
-	default:
-		return nil, trace.BadParameter("unrecognized user version %T", u)
-	}
-}
-
-// GenerateUser generates new user
-func (*teleportUserMarshaler) GenerateUser(in User) (User, error) {
-	return in, nil
-}
-
-var userMarshaler UserMarshaler = &teleportUserMarshaler{}
-
-// SetUserMarshaler sets global user marshaler
-func SetUserMarshaler(u UserMarshaler) {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	userMarshaler = u
-}
-
-// GetUserMarshaler returns currently set user marshaler
-func GetUserMarshaler() UserMarshaler {
-	marshalerMutex.RLock()
-	defer marshalerMutex.RUnlock()
-	return userMarshaler
 }

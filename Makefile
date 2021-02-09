@@ -27,6 +27,12 @@ TELEPORT_DEBUG ?= no
 GITTAG=v$(VERSION)
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
 CGOFLAG ?= CGO_ENABLED=1
+# Windows requires extra parameters to cross-compile with CGO.
+ifeq ("$(OS)","windows")
+BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s' -buildmode=exe
+CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
+endif
+
 GO_LINTERS ?= "unused,govet,typecheck,deadcode,goimports,varcheck,structcheck,bodyclose,staticcheck,ineffassign,unconvert,misspell,gosimple,golint"
 
 OS ?= $(shell go env GOOS)
@@ -278,7 +284,7 @@ integration:
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-go lint-sh
+lint: lint-sh lint-helm lint-go
 
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
@@ -311,6 +317,23 @@ lint-sh:
 		--exclude=SC2086 \
 		--exclude=SC1091 \
 		$(SH_LINT_FLAGS)
+
+# Lints all the Helm charts found in directories under examples/chart and exits on failure
+# If there is a .lint directory inside, the chart gets linted once for each .yaml file in that directory
+.PHONY: lint-helm
+lint-helm:
+	for CHART in $$(find examples/chart -mindepth 1 -maxdepth 1 -type d); do \
+		if [ -d $$CHART/.lint ]; then \
+			for VALUES in $$CHART/.lint/*.yaml; do \
+				echo "$$CHART: $$VALUES"; \
+				helm lint --strict $$CHART -f $$VALUES || exit 1; \
+				helm template test $$CHART -f $$VALUES 1>/dev/null || exit 1; \
+			done \
+		else \
+			helm lint --strict $$CHART || exit 1; \
+			helm template test $$CHART 1>/dev/null || exit 1; \
+		fi \
+	done
 
 # This rule triggers re-generation of version.go and gitref.go if Makefile changes
 $(VERSRC): Makefile
@@ -408,30 +431,30 @@ buildbox-grpc:
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/types/events \
-		--gofast_out=plugins=grpc:api/types/events \
+		--gogofast_out=plugins=grpc:api/types/events \
 		events.proto
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/types/wrappers \
-		--gofast_out=plugins=grpc:api/types/wrappers \
+		--gogofast_out=plugins=grpc:api/types/wrappers \
 		wrappers.proto
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/types \
-		--gofast_out=plugins=grpc:api/types \
+		--gogofast_out=plugins=grpc:api/types \
 		types.proto
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/client/proto \
-		--gofast_out=plugins=grpc:api/client/proto \
+		--gogofast_out=plugins=grpc:api/client/proto \
 		authservice.proto
 
 	cd lib/multiplexer/test && protoc -I=.:$$PROTO_INCLUDE \
-	  --gofast_out=plugins=grpc:.\
+	  --gogofast_out=plugins=grpc:.\
     *.proto
 
 	cd lib/web && protoc -I=.:$$PROTO_INCLUDE \
-	  --gofast_out=plugins=grpc:.\
+	  --gogofast_out=plugins=grpc:.\
     *.proto
 
 .PHONY: goinstall

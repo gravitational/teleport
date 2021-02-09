@@ -18,7 +18,6 @@ package auth
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -38,7 +37,6 @@ type OIDCSuite struct {
 	c clockwork.FakeClock
 }
 
-var _ = fmt.Printf
 var _ = check.Suite(&OIDCSuite{})
 
 func (s *OIDCSuite) SetUpSuite(c *check.C) {

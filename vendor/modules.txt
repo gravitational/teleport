@@ -157,6 +157,13 @@ github.com/docker/spdystream/spdy
 # github.com/dustin/go-humanize v1.0.0
 ## explicit
 github.com/dustin/go-humanize
+# github.com/flynn/hid v0.0.0-20190502022136-f1b9b6cc019a
+## explicit
+github.com/flynn/hid
+# github.com/flynn/u2f v0.0.0-20180613185708-15554eb68e5d
+## explicit
+github.com/flynn/u2f/u2fhid
+github.com/flynn/u2f/u2ftoken
 # github.com/fsouza/fake-gcs-server v1.11.6
 ## explicit
 github.com/fsouza/fake-gcs-server/fakestorage
@@ -310,7 +317,6 @@ github.com/julienschmidt/httprouter
 github.com/kardianos/osext
 # github.com/konsorten/go-windows-terminal-sequences v1.0.3
 github.com/konsorten/go-windows-terminal-sequences
-# github.com/kr/pty v1.1.1
 # github.com/kr/pty v1.1.8
 ## explicit
 github.com/kr/pty
@@ -340,7 +346,7 @@ github.com/mattermost/xml-roundtrip-validator
 # github.com/mattn/go-runewidth v0.0.4
 ## explicit
 github.com/mattn/go-runewidth
-# github.com/mattn/go-sqlite3 v1.10.0
+# github.com/mattn/go-sqlite3 v1.14.6
 ## explicit
 github.com/mattn/go-sqlite3
 # github.com/matttproud/golang_protobuf_extensions v1.0.1
@@ -401,8 +407,6 @@ github.com/russellhaering/goxmldsig/etreeutils
 github.com/russellhaering/goxmldsig/types
 # github.com/ryszard/goskiplist v0.0.0-20150312221310-2dfbae5fcf46
 github.com/ryszard/goskiplist/skiplist
-# github.com/satori/go.uuid v1.2.0
-github.com/satori/go.uuid
 # github.com/sergi/go-diff v1.1.0
 ## explicit
 # github.com/shabbyrobe/gocovmerge v0.0.0-20190829150210-3e036491d500

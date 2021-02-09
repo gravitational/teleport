@@ -20,6 +20,9 @@ import (
 	"testing"
 
 	"github.com/coreos/go-oidc/jose"
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -81,4 +84,134 @@ func TestOIDCRoleMapping(t *testing.T) {
 	roles := TraitsToRoles(oidcConnector.GetTraitMappings(), traits)
 	require.Len(t, roles, 1)
 	require.Equal(t, "user", roles[0])
+}
+
+// TestOIDCUnmarshal tests unmarshal of OIDC connector
+func TestOIDCUnmarshal(t *testing.T) {
+	utils.InitLoggerForTests(testing.Verbose())
+	input := `
+      {
+        "kind": "oidc",
+        "version": "v2",
+        "metadata": {
+          "name": "google"
+        },
+        "spec": {
+          "issuer_url": "https://accounts.google.com",
+          "client_id": "id-from-google.apps.googleusercontent.com",
+          "client_secret": "secret-key-from-google",
+          "redirect_url": "https://localhost:3080/v1/webapi/oidc/callback",
+          "display": "whatever",
+          "scope": ["roles"],
+          "claims_to_roles": [{
+            "claim": "roles",
+            "value": "teleport-user",
+            "roles": ["dictator"]
+          }]
+        }
+      }
+	`
+
+	oc, err := UnmarshalOIDCConnector([]byte(input))
+	require.NoError(t, err)
+
+	require.Equal(t, "google", oc.GetName())
+	require.Equal(t, "https://accounts.google.com", oc.GetIssuerURL())
+	require.Equal(t, "id-from-google.apps.googleusercontent.com", oc.GetClientID())
+	require.Equal(t, "https://localhost:3080/v1/webapi/oidc/callback", oc.GetRedirectURL())
+	require.Equal(t, "whatever", oc.GetDisplay())
+	require.Equal(t, teleport.OIDCPromptSelectAccount, oc.GetPrompt())
+}
+
+// TestOIDCUnmarshalEmptyPrompt makes sure that empty prompt value
+// that is set does not default to select_account
+func TestOIDCUnmarshalEmptyPrompt(t *testing.T) {
+	input := `
+      {
+        "kind": "oidc",
+        "version": "v2",
+        "metadata": {
+          "name": "google"
+        },
+        "spec": {
+          "issuer_url": "https://accounts.google.com",
+          "client_id": "id-from-google.apps.googleusercontent.com",
+          "client_secret": "secret-key-from-google",
+          "redirect_url": "https://localhost:3080/v1/webapi/oidc/callback",
+          "display": "whatever",
+          "scope": ["roles"],
+          "prompt": ""
+        }
+      }
+	`
+
+	oc, err := UnmarshalOIDCConnector([]byte(input))
+	require.NoError(t, err)
+
+	require.Equal(t, "google", oc.GetName())
+	require.Equal(t, "https://accounts.google.com", oc.GetIssuerURL())
+	require.Equal(t, "id-from-google.apps.googleusercontent.com", oc.GetClientID())
+	require.Equal(t, "https://localhost:3080/v1/webapi/oidc/callback", oc.GetRedirectURL())
+	require.Equal(t, "whatever", oc.GetDisplay())
+	require.Equal(t, "", oc.GetPrompt())
+}
+
+// TestUnmarshalOIDCPromptValue makes sure that prompt value is set properly
+func TestOIDCUnmarshalPromptValue(t *testing.T) {
+	input := `
+      {
+        "kind": "oidc",
+        "version": "v2",
+        "metadata": {
+          "name": "google"
+        },
+        "spec": {
+          "issuer_url": "https://accounts.google.com",
+          "client_id": "id-from-google.apps.googleusercontent.com",
+          "client_secret": "secret-key-from-google",
+          "redirect_url": "https://localhost:3080/v1/webapi/oidc/callback",
+          "display": "whatever",
+          "scope": ["roles"],
+          "prompt": "consent login"
+        }
+      }
+	`
+
+	oc, err := UnmarshalOIDCConnector([]byte(input))
+	require.NoError(t, err)
+
+	require.Equal(t, "google", oc.GetName())
+	require.Equal(t, "https://accounts.google.com", oc.GetIssuerURL())
+	require.Equal(t, "id-from-google.apps.googleusercontent.com", oc.GetClientID())
+	require.Equal(t, "https://localhost:3080/v1/webapi/oidc/callback", oc.GetRedirectURL())
+	require.Equal(t, "whatever", oc.GetDisplay())
+	require.Equal(t, "consent login", oc.GetPrompt())
+}
+
+// TestOIDCUnmarshalInvalid unmarshals and fails validation of the connector
+func TestOIDCUnmarshalInvalid(t *testing.T) {
+	input := `
+      {
+        "kind": "oidc",
+        "version": "v2",
+        "metadata": {
+          "name": "google"
+        },
+        "spec": {
+          "issuer_url": "https://accounts.google.com",
+          "client_id": "id-from-google.apps.googleusercontent.com",
+          "client_secret": "secret-key-from-google",
+          "redirect_url": "https://localhost:3080/v1/webapi/oidc/callback",
+          "display": "whatever",
+          "scope": ["roles"],
+          "claims_to_roles": [{
+            "claim": "roles",
+            "value": "teleport-user",
+          }]
+        }
+      }
+	`
+
+	_, err := UnmarshalOIDCConnector([]byte(input))
+	require.Error(t, err)
 }

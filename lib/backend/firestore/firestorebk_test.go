@@ -142,7 +142,7 @@ func (s *FirestoreSuite) TestWatchersClose(c *check.C) {
 }
 
 func (s *FirestoreSuite) TestLocking(c *check.C) {
-	s.suite.Locking(c)
+	s.suite.Locking(c, s.bk)
 }
 
 func (s *FirestoreSuite) TestReadLegacyRecord(c *check.C) {
