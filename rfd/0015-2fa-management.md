@@ -127,7 +127,8 @@ Can't remove the only remaining MFA device.
 Please add a replacement MFA device first using "tsh mfa add".
 ```
 
-#### web UI
+#### Web UI
+``
 
 Web UI management of 2FA devices should be logically similar to the CLI:
 - a page to see all enrolled devices
@@ -137,7 +138,7 @@ Web UI management of 2FA devices should be logically similar to the CLI:
 Web UI details, wireframes and implementation will be added later, when we have
 the capacity to do it. Initially, 2FA management is CLI-only.
 
-#### bootstrap
+#### Bootstrap
 
 Initially, a user account doesn't have a 2FA device. Depending on [cluster
 configuration](#configuration), use of 2FA devices might be required.
@@ -149,7 +150,7 @@ If 2FA is optional, a user can create an account and login without 2FA. They
 can then add 2FA devices as described above. If an existing user has at least
 one 2FA device registered, it's required during login.
 
-### configuration
+### Configuration
 
 The current 2FA configuration in Teleport only applies to local users and is
 always required. We need to allow this to be optional (for users to migrate)
@@ -169,7 +170,7 @@ New values for `auth_service.authentication.second_factor` for this:
 - `optional` (new) - users can enroll both OTP and U2F devices, and 2FA is
   required only for users with 2FA enrolled
 
-#### restricted device vendors
+#### Restricted device vendors
 
 Another new option is restrictions on U2F device manufacturers. This is done
 using attestation certificates presented by the device during enrollment. See
@@ -224,7 +225,7 @@ CAs, we would have to store the attestation cert of every enrolled key. This
 would impose extra storage costs, add complexity and create the risk of user
 lockout.
 
-### backend storage
+### Backend storage
 
 Each Teleport `User` object has a `LocalAuth` proto field:
 
@@ -276,12 +277,12 @@ message U2FDevice {
 }
 ```
 
-#### migration
+#### Migration
 
 The above `LocalAuthSecrets` will be migrated by Teleport at startup in v6.
 In v7, we will remove the deprecated MFA fields from `LocalAuthSecrets.`
 
-### audit log
+### Audit log
 
 All 2FA device operations (create/delete) will emit an audit log entry. The
 entry should contain the user, device UUID and device name at a minimum.
