@@ -57,7 +57,7 @@ This guide will cover how to setup, configure and run Teleport on [AWS](https://
 We recommend setting up Teleport in high availability mode (HA). In HA mode DynamoDB
 stores the state of the system and S3 will store audit logs.
 
-![AWS Intro Image](img/aws/aws-intro.png)
+![AWS Intro Image](../img/aws/aws-intro.png)
 
 ### EC2 / Autoscale
 To run Teleport in a HA configuration we recommend using m4.large instances. It's best practice to separate the proxy and authentication server, using autoscaling groups for both machines. We have pre-built AMIs for both Teleport OSS and Enterprise editions. Instructions on using these [AMIs are below](#single-oss-teleport-amis-manual-gui-setup).
@@ -77,8 +77,8 @@ types of Teleport data:
 
 See [DynamoDB Admin Guide for more information](https://gravitational.com/teleport/docs/admin-guide/#using-dynamodb)
 
-![AWS DynamoDB Tables](img/aws/dynamodb-tables.png)
-![Setting Streams](img/aws/setting-stream.png)
+![AWS DynamoDB Tables](../img/aws/dynamodb-tables.png)
+![Setting Streams](../img/aws/setting-stream.png)
 Setting Stream to `NEW IMAGE`
 
 For maintainability and ease of use, we recommend following our [Terraform example](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/dynamo.tf)
@@ -236,8 +236,8 @@ to be in the same place as the rest of your infrastructure. Click Continue to La
 4. _Launch this software_ Under Choose Action, select Launch through EC2.
 
 
-![AWS Marketplace Subscribe](img/aws/aws-marketplace-subscribe.png)
-![AWS Launch via EC2](img/aws/launch-through-ec2.png)
+![AWS Marketplace Subscribe](../img/aws/aws-marketplace-subscribe.png)
+![AWS Launch via EC2](../img/aws/launch-through-ec2.png)
 
 5. Launch through EC2. At this point AWS will take you from the marketplace and drop
 you into the EC2 panel. [Link: Shortcut to EC2 Wizard](https://console.aws.amazon.com/ec2/v2/home?region=us-east-1#LaunchInstanceWizard:ami=ami-04e79542e3e5fbf02;product=92c3dc07-bdfa-4e88-8c8b-e6187dac50af)
@@ -246,7 +246,7 @@ you into the EC2 panel. [Link: Shortcut to EC2 Wizard](https://console.aws.amazo
 #### Step 2: Build instance
 We recommend using an `m4.large`, but a `t2.medium` should be good for POC testing.
 
-![AWS Instance Size ](img/aws/aws-pick-instance-size.png)
+![AWS Instance Size ](../img/aws/aws-pick-instance-size.png)
 
 
 4. Make sure to write appropriate values to `/etc/teleport.d/conf` via user-data
@@ -265,7 +265,7 @@ EOF
 
 Screenshot of where to put it in via AWS console.
 
-![Config Instance Details](img/aws/adding-user-data.png)
+![Config Instance Details](../img/aws/adding-user-data.png)
 
 !!! note "Note"
 
@@ -285,7 +285,7 @@ assuming it's set when the server starts.
     - Create a DNS record for `teleport.acmeinc.com`
     - Point this to the public A record of the ALB as provided by Amazon.
 
-![Summary for AWS Load Balancer](img/aws/loadbalancer-review.png)
+![Summary for AWS Load Balancer](../img/aws/loadbalancer-review.png)
 
 
 3. You also need to set up a network load balancer (NLB) for the auth traffic:
@@ -336,14 +336,14 @@ https://teleport.acmeinc.com:443/web/newuser/cea9871a42e780dff86528fa1b53f382
 
 NOTE: Make sure teleport.acmeinc.com:443 points at a Teleport proxy which users can access.
 ```
-![Summary for AWS Load Balancer](img/aws/teleport-admin.png)
+![Summary for AWS Load Balancer](../img/aws/teleport-admin.png)
 
 Step 5: Finish
 You've now successfully setup a simple Teleport AMI, that uses local storage and
 has itself as a node. Next we'll look at using HA services to create a more scalable
 Teleport install.
 
-![Summary for AWS Load Balancer](img/aws/teleport-setup.png)
+![Summary for AWS Load Balancer](../img/aws/teleport-setup.png)
 
 
 #### Reconfiguring/using a pre-existing instance

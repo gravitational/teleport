@@ -49,7 +49,7 @@ Optional:
 We recommend setting up Teleport in high availability mode (HA). In HA mode Firestore
 stores the state of the system and Google Cloud Storage stores the audit logs.
 
-![GCP Intro Image](img/gcp/gcp-teleport.svg)
+![GCP Intro Image](../img/gcp/gcp-teleport.svg)
 
 
 ### Compute Engine: VM Instances with Instance Groups
@@ -118,10 +118,10 @@ The Service Account will require the following roles:
 - Storage Object Creator
 - Storage Object Viewer
 
-![Service Account](img/gcp/gcp-permissions.png)
+![Service Account](../img/gcp/gcp-permissions.png)
 
 **Download JSON Service Key**
-![GCP Service Key](img/gcp/gcp-service-key.png)
+![GCP Service Key](../img/gcp/gcp-service-key.png)
 
 ## GCP Quickstart
 

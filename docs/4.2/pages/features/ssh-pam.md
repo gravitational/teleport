@@ -88,7 +88,7 @@ ssh_service:
      enabled: false
 ```
 
-![Teleport SSH without MOTD](../img/motd/teleport-no-MOTD.png)
+![Teleport SSH without MOTD](../../img/motd/teleport-no-MOTD.png)
 
 ### Example node with PAM enabled
 ```yaml
@@ -109,7 +109,7 @@ ssh_service:
      enabled: true
 ```
 
-![Teleport SSH with MOTD](../img/motd/teleport-with-MOTD.png)
+![Teleport SSH with MOTD](../../img/motd/teleport-with-MOTD.png)
 
 When PAM is enabled it will use the default `sshd` config file. This can differ per
 distro, below is an example default sshd config from a Debian 9 machine.
@@ -202,7 +202,7 @@ $ cat /etc/motd
 WARNING: All activity on this node is being recorded by Teleport
 ```
 
-![Teleport SSH with updated MOTD](../img/motd/teleport-with-updated-MOTD.png)
+![Teleport SSH with updated MOTD](../../img/motd/teleport-with-updated-MOTD.png)
 
 
 ## Creating local users with Teleport

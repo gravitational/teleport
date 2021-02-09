@@ -6,14 +6,14 @@ A regular node becomes a Teleport Node when the node joins a cluster with a
 "join" token. Read about how nodes are issued certificates in the
 [Auth Guide](teleport-auth.md#issuing-node-certificates).
 
-![Node joins a cluster](../img/node_join.svg)
+![Node joins a cluster](../../img/node_join.svg)
 
 A Teleport Node runs the [`teleport`](../cli-docs.md#teleport) daemon with the
 `node` role. This process handles incoming connection requests, authentication,
 and remote command execution on the node, similar to the function of OpenSSH's
 `sshd`.
 
-![Node Service ping API](../img/node_service_api.svg)
+![Node Service ping API](../../img/node_service_api.svg)
 
 All cluster Nodes keep the Auth Server updated on their status with periodic
 ping messages. They report their IP addresses and values of their assigned
@@ -39,7 +39,7 @@ Each client is authenticated via the [Auth Service](teleport-auth.md#authenticat
 
 Node Identity is defined on the Cluster level by the certificate a node possesses.
 
-![Node Identity](../img/node_identity.svg)
+![Node Identity](../../img/node_identity.svg)
 
 This certificate contains information about the node including:
 
@@ -70,7 +70,7 @@ requested Node.
 There is a detailed walk-through of the steps needed to initiate a connection to
 a node in the [Architecture Overview](teleport-architecture-overview.md).
 
-![Proxy Connection between client and node](../img/proxy_client_connect.svg)
+![Proxy Connection between client and node](../../img/proxy_client_connect.svg)
 
 ## Cluster State
 
@@ -78,7 +78,7 @@ Cluster state is stored in a central storage location configured by the Auth
 Server. This means that each node is completely stateless and holds no secrets
 such as keys or passwords.
 
-![Cluster State](../img/cluster_state.svg)
+![Cluster State](../../img/cluster_state.svg)
 
 The cluster state information stored includes:
 
@@ -101,7 +101,7 @@ on the Teleport proxy server. This is not the case in default configuration
 because a proxy cannot see the encrypted traffic, it is encrypted end-to-end,
 i.e. from an SSH client to an SSH server/node, see the diagram below:
 
-![session-recording-diagram](../img/session-recording.svg)
+![session-recording-diagram](../../img/session-recording.svg)
 
 However, starting from Teleport 2.4, it is possible to configure the
 Teleport proxy to enable "recording proxy mode".

@@ -40,15 +40,15 @@ mapping of the LDAP Attribute `E-Mail-Addresses` to `Name ID`. A group
 membership claim should be used to map users to roles (for example to
 separate normal users and admins).
 
-![Name ID Configuration](../../img/adfs-1.png)
-![Group Configuration](../../img/adfs-2.png)
+![Name ID Configuration](../../../img/adfs-1.png)
+![Group Configuration](../../../img/adfs-2.png)
 
 In addition if you are using dynamic roles (see below), it may be useful to map
 the LDAP Attribute `SAM-Account-Name` to `Windows account name` and create
 another mapping of `E-Mail-Addresses` to `UPN`.
 
-![WAN Configuration](../../img/adfs-3.png)
-![UPN Configuration](../../img/adfs-4.png)
+![WAN Configuration](../../../img/adfs-3.png)
+![UPN Configuration](../../../img/adfs-4.png)
 
 You'll also need to create a Relying Party Trust, use the below information to
 help guide you through the Wizard. Note, for development purposes we recommend
