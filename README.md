@@ -3,19 +3,24 @@
 Teleport is a unified access plane for infrastructure:
 
 * [Clusters of Linux servers](https://goteleport.com/teleport/docs/quickstart/) via SSH or SSH-over-HTTPS in a browser
-* [Kubernetes clusters](https://goteleport.com/teleport/docs/kubernetes-ssh/)
+* [Kubernetes clusters](https://goteleport.com/teleport/docs/kubernetes-access/)
 * [Web Applications](https://goteleport.com/teleport/docs/application-access/)
 * [Databases - (Postgres Preview)](https://goteleport.com/teleport/docs/preview/teleport-database-access/)
 
-It is intended to be used instead or together with `sshd` for organizations who
-need:
+## Why Use Teleport
 
-* SSH audit with session recording/replay.
-* Kubernetes API Access with audit and `kubectl exec` recording/replay.
-* Easily manage trust between teams, organizations and data centers.
-* Application, SSH or Kubernetes access to behind-firewall clusters without any open ports.
-* Role-based access control (RBAC) for SSH protocol.
-* Unified RBAC for SSH and Kubernetes.
+Here are some of the most popular use-cases for Teleport:
+
+* Centralized SSH and Kubernetes Certificate Authority.
+* Capture sessions and manage certificates for existing [OpenSSH fleet](https://goteleport.com/teleport/docs/openssh-teleport).
+* Secure access to internal web applications and services with [application access](https://goteleport.com/teleport/docs/application-access).
+* Use short lived certificates instead of static keys for SSH, Kubernetes, Databases and Web Apps.
+* Structured events and session recording/replay for `ssh` and `kubectl`.
+* Setup a unified access plane for an entire organization.
+* Enforce 2nd factor auth with U2F and TOTP.
+* Connect to computing resources located behind firewalls or without static IPs.
+* Collaboratively troubleshoot issues through [session sharing](https://goteleport.com/teleport/docs/user-manual#sharing-sessions).
+* Discover online servers and Docker containers within a cluster with [dynamic node labels](https://goteleport.com/teleport/docs/admin-guide#labeling-nodes-and-applications).
 
 In addition to its hallmark features, Teleport is interesting for smaller teams
 because it facilitates easy adoption of the best infrastructure security
@@ -26,11 +31,9 @@ practices like:
 - Collaboratively troubleshoot issues through session sharing.
 - Single sign-on (SSO) for Applications, SSH/Kubernetes and your organization identities via
   Github Auth, OpenID Connect or SAML with endpoints like Okta or Active Directory.
-- Cluster introspection: every SSH node and its status can be queried via CLI and Web UI.
 
-Teleport is built on top of the high-quality [Golang SSH](https://godoc.org/golang.org/x/crypto/ssh)
-implementation and it is _fully compatible with OpenSSH_ and can be used with
-`sshd` servers and `ssh` clients.
+Teleport is built on top of [Golang SSH](https://godoc.org/golang.org/x/crypto/ssh)
+implementation and it can be used with `sshd` servers and `ssh` clients.
 
 |Project Links| Description
 |---|----
@@ -41,7 +44,7 @@ implementation and it is _fully compatible with OpenSSH_ and can be used with
 | [Blog](https://goteleport.com/blog/) | Our blog where we publish Teleport news |
 | [Community Forum](https://community.goteleport.com) | Teleport Community Forum|
 
-[![Teleport 4.3 Demo](/docs/4.3/img/readme/teleport-4.3-video-thumb.png)](https://www.youtube.com/watch?v=DUlTAlEJr5w)
+[![Teleport Demo](/docs/4.3/img/readme/teleport-4.3-video-thumb.png)](https://www.youtube.com/watch?v=0HlyGk8dihM)
 
 ## Installing and Running
 
@@ -125,17 +128,6 @@ $ DEBUG=1 ./build/teleport start -d
 
 Keep the server running in this mode, and make your UI changes in `/dist` directory.
 Refer to [the webapps README](https://github.com/gravitational/webapps/blob/master/README.md) for instructions on how to update the Web UI.
-
-### Updating Documentation
-
-TL;DR version:
-
-```bash
-make docs
-make run-docs
-```
-
-For more details, take a look at [docs/README](docs/README.md)
 
 ### Managing dependencies
 
