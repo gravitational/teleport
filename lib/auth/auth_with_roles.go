@@ -776,7 +776,7 @@ func (a *ServerWithRoles) PreAuthenticatedSignIn(user string) (services.WebSessi
 	return a.authServer.PreAuthenticatedSignIn(user, a.context.Identity.GetIdentity())
 }
 
-func (a *ServerWithRoles) GetU2FSignRequest(user string, password []byte) (*u2f.AuthenticateChallenge, error) {
+func (a *ServerWithRoles) GetU2FSignRequest(user string, password []byte) (*U2FAuthenticateChallenge, error) {
 	// we are already checking password here, no need to extra permission check
 	// anyone who has user's password can generate sign request
 	return a.authServer.U2FSignRequest(user, password)
