@@ -15,6 +15,9 @@ limitations under the License.
 */
 
 // Package prompt implements CLI prompts to the user.
+//
+// TODO(awly): mfa: support prompt cancellation (without losing data written
+// after cancellation)
 package prompt
 
 import (

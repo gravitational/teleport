@@ -2306,12 +2306,6 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, connectorID string, pub 
 
 // directLogin asks for a password and performs the challenge-response authentication
 func (tc *TeleportClient) u2fLogin(ctx context.Context, pub []byte) (*auth.SSHLoginResponse, error) {
-	// U2F login requires the official u2f-host executable
-	_, err := exec.LookPath("u2f-host")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	password, err := tc.AskPassword()
 	if err != nil {
 		return nil, trace.Wrap(err)
