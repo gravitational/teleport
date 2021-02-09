@@ -129,7 +129,7 @@ func (s *AuthInitSuite) TestBadIdentity(c *C) {
 	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%#v", err))
 
 	// missing authority domain
-	cert, err := t.GenerateHostCert(services.HostCertParams{
+	cert, err := t.GenerateHostCertWithoutValidation(services.HostCertParams{
 		PrivateCASigningKey: priv,
 		CASigningAlg:        defaults.CASignatureAlgorithm,
 		PublicHostKey:       pub,
@@ -145,7 +145,7 @@ func (s *AuthInitSuite) TestBadIdentity(c *C) {
 	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%#v", err))
 
 	// missing host uuid
-	cert, err = t.GenerateHostCert(services.HostCertParams{
+	cert, err = t.GenerateHostCertWithoutValidation(services.HostCertParams{
 		PrivateCASigningKey: priv,
 		CASigningAlg:        defaults.CASignatureAlgorithm,
 		PublicHostKey:       pub,
@@ -161,7 +161,7 @@ func (s *AuthInitSuite) TestBadIdentity(c *C) {
 	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%#v", err))
 
 	// unrecognized role
-	cert, err = t.GenerateHostCert(services.HostCertParams{
+	cert, err = t.GenerateHostCertWithoutValidation(services.HostCertParams{
 		PrivateCASigningKey: priv,
 		CASigningAlg:        defaults.CASignatureAlgorithm,
 		PublicHostKey:       pub,

@@ -438,6 +438,12 @@ const (
 	// CertExtensionTeleportActiveRequests is used to track which privilege
 	// escalation requests were used to construct the certificate.
 	CertExtensionTeleportActiveRequests = "teleport-active-requests"
+	// CertExtensionMFAVerified is use to mark certificates issued after an MFA
+	// check.
+	CertExtensionMFAVerified = "mfa-verified"
+	// CertExtensionClientIP is used to embed the IP of the client that created
+	// the certificate.
+	CertExtensionClientIP = "client-ip"
 )
 
 const (
@@ -685,3 +691,6 @@ const (
 	// AppCFHeader is a compatibility header.
 	AppCFHeader = "cf-access-token"
 )
+
+// UserSingleUseCertTTL is a TTL for per-connection user certificates.
+const UserSingleUseCertTTL = time.Minute

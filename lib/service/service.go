@@ -44,6 +44,8 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -77,7 +79,6 @@ import (
 	"github.com/gravitational/teleport/lib/system"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
-	"github.com/gravitational/trace"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/jonboulle/clockwork"
@@ -664,11 +665,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		if !cfg.Auth.Enabled && !cfg.Proxy.Enabled {
 			precomputeCount = 0
 		}
-		var err error
-		cfg.Keygen, err = native.New(process.ExitContext(), native.PrecomputeKeys(precomputeCount))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		cfg.Keygen = native.New(process.ExitContext(), native.PrecomputeKeys(precomputeCount))
 	}
 
 	// Produce global TeleportReadyEvent

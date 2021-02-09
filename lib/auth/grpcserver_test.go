@@ -30,6 +30,7 @@ import (
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -37,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func TestMFADeviceManagement(t *testing.T) {
@@ -536,4 +538,306 @@ func testDeleteMFADevice(ctx context.Context, t *testing.T, cl *Client, opts mfa
 	require.Empty(t, cmp.Diff(deleteAck.GetAck(), &proto.DeleteMFADeviceResponseAck{}))
 
 	require.NoError(t, deleteStream.CloseSend())
+}
+
+func TestGenerateUserSingleUseCert(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+	as, err := NewTestAuthServer(TestAuthServerConfig{
+		Dir:   t.TempDir(),
+		Clock: clock,
+	})
+	require.NoError(t, err)
+	srv, err := as.NewTestTLSServer()
+	require.NoError(t, err)
+
+	// Enable U2F support.
+	authPref, err := services.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type: teleport.Local,
+		U2F: &types.U2F{
+			AppID:  "teleport",
+			Facets: []string{"teleport"},
+		},
+	})
+	require.NoError(t, err)
+	err = as.AuthServer.SetAuthPreference(authPref)
+	require.NoError(t, err)
+
+	// Register a k8s cluster.
+	k8sSrv := &types.ServerV2{
+		Kind:    types.KindKubeService,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name: "kube-a",
+		},
+		Spec: types.ServerSpecV2{
+			KubernetesClusters: []*types.KubernetesCluster{{Name: "kube-a"}},
+		},
+	}
+	err = as.AuthServer.UpsertKubeService(ctx, k8sSrv)
+	require.NoError(t, err)
+
+	// Create a fake user.
+	user, _, err := CreateUserAndRole(as.AuthServer, "mfa-user", []string{"role"})
+	require.NoError(t, err)
+	cl, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	// Register a U2F device for the fake user.
+	u2fDev, err := mocku2f.Create()
+	require.NoError(t, err)
+	testAddMFADevice(ctx, t, cl, mfaAddTestOpts{
+		initReq: &proto.AddMFADeviceRequestInit{
+			DeviceName: "u2f-dev",
+			Type:       proto.AddMFADeviceRequestInit_U2F,
+		},
+		authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+			// The challenge should be empty for the first device.
+			require.Empty(t, cmp.Diff(req, &proto.MFAAuthenticateChallenge{}))
+			return &proto.MFAAuthenticateResponse{}
+		},
+		checkAuthErr: require.NoError,
+		registerHandler: func(t *testing.T, req *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
+			u2fRegisterChallenge := req.GetU2F()
+			require.NotEmpty(t, u2fRegisterChallenge)
+
+			mresp, err := u2fDev.RegisterResponse(&u2f.RegisterChallenge{
+				Challenge: u2fRegisterChallenge.Challenge,
+				AppID:     u2fRegisterChallenge.AppID,
+			})
+			require.NoError(t, err)
+
+			return &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{U2F: &proto.U2FRegisterResponse{
+				RegistrationData: mresp.RegistrationData,
+				ClientData:       mresp.ClientData,
+			}}}
+		},
+		checkRegisterErr: require.NoError,
+		wantDev: func(t *testing.T) *types.MFADevice {
+			wantDev, err := u2f.NewDevice(
+				"u2f-dev",
+				&u2f.Registration{
+					KeyHandle: u2fDev.KeyHandle,
+					PubKey:    u2fDev.PrivateKey.PublicKey,
+				},
+				clock.Now(),
+			)
+			require.NoError(t, err)
+			return wantDev
+		},
+	})
+	u2fChallengeHandler := func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+		require.Len(t, req.U2F, 1)
+		chal := req.U2F[0]
+
+		mresp, err := u2fDev.SignResponse(&u2f.AuthenticateChallenge{
+			Challenge: chal.Challenge,
+			KeyHandle: chal.KeyHandle,
+			AppID:     chal.AppID,
+		})
+		require.NoError(t, err)
+
+		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_U2F{U2F: &proto.U2FResponse{
+			KeyHandle:  mresp.KeyHandle,
+			ClientData: mresp.ClientData,
+			Signature:  mresp.SignatureData,
+		}}}
+	}
+	_, pub, err := as.AuthServer.GenerateKeyPair("")
+	require.NoError(t, err)
+
+	tests := []struct {
+		desc string
+		opts generateUserSingleUseCertTestOpts
+	}{
+		{
+			desc: "ssh",
+			opts: generateUserSingleUseCertTestOpts{
+				initReq: &proto.UserCertsRequest{
+					PublicKey: pub,
+					Username:  user.GetName(),
+					Expires:   clock.Now().Add(teleport.UserSingleUseCertTTL),
+					Usage:     proto.UserCertsRequest_SSH,
+					NodeName:  "node-a",
+				},
+				checkInitErr: require.NoError,
+				authHandler:  u2fChallengeHandler,
+				checkAuthErr: require.NoError,
+				validateCert: func(t *testing.T, c *proto.UserCert) {
+					crt := c.GetSSH()
+					require.NotEmpty(t, crt)
+
+					key, _, _, _, err := ssh.ParseAuthorizedKey(crt)
+					require.NoError(t, err)
+					cert, ok := key.(*ssh.Certificate)
+					require.True(t, ok)
+
+					require.Contains(t, cert.Extensions, teleport.CertExtensionMFAVerified)
+					require.Contains(t, cert.Extensions, teleport.CertExtensionClientIP)
+					require.Equal(t, cert.ValidBefore, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()))
+				},
+			},
+		},
+		{
+			desc: "k8s",
+			opts: generateUserSingleUseCertTestOpts{
+				initReq: &proto.UserCertsRequest{
+					PublicKey:         pub,
+					Username:          user.GetName(),
+					Expires:           clock.Now().Add(teleport.UserSingleUseCertTTL),
+					Usage:             proto.UserCertsRequest_Kubernetes,
+					KubernetesCluster: "kube-a",
+				},
+				checkInitErr: require.NoError,
+				authHandler:  u2fChallengeHandler,
+				checkAuthErr: require.NoError,
+				validateCert: func(t *testing.T, c *proto.UserCert) {
+					crt := c.GetTLS()
+					require.NotEmpty(t, crt)
+
+					cert, err := tlsca.ParseCertificatePEM(crt)
+					require.NoError(t, err)
+					require.Equal(t, cert.NotAfter, clock.Now().Add(teleport.UserSingleUseCertTTL))
+
+					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+					require.NoError(t, err)
+					require.True(t, identity.MFAVerified)
+					require.NotEmpty(t, identity.ClientIP)
+					require.Equal(t, identity.Usage, []string{teleport.UsageKubeOnly})
+					require.Equal(t, identity.KubernetesCluster, "kube-a")
+				},
+			},
+		},
+		{
+			desc: "db",
+			opts: generateUserSingleUseCertTestOpts{
+				initReq: &proto.UserCertsRequest{
+					PublicKey: pub,
+					Username:  user.GetName(),
+					Expires:   clock.Now().Add(teleport.UserSingleUseCertTTL),
+					Usage:     proto.UserCertsRequest_Database,
+					RouteToDatabase: proto.RouteToDatabase{
+						Database: "db-a",
+					},
+				},
+				checkInitErr: require.NoError,
+				authHandler:  u2fChallengeHandler,
+				checkAuthErr: require.NoError,
+				validateCert: func(t *testing.T, c *proto.UserCert) {
+					crt := c.GetTLS()
+					require.NotEmpty(t, crt)
+
+					cert, err := tlsca.ParseCertificatePEM(crt)
+					require.NoError(t, err)
+					require.Equal(t, cert.NotAfter, clock.Now().Add(teleport.UserSingleUseCertTTL))
+
+					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+					require.NoError(t, err)
+					require.True(t, identity.MFAVerified)
+					require.NotEmpty(t, identity.ClientIP)
+					require.Equal(t, identity.Usage, []string{teleport.UsageDatabaseOnly})
+					require.Equal(t, identity.RouteToDatabase.Database, "db-a")
+				},
+			},
+		},
+		{
+			desc: "fail - wrong usage",
+			opts: generateUserSingleUseCertTestOpts{
+				initReq: &proto.UserCertsRequest{
+					PublicKey: pub,
+					Username:  user.GetName(),
+					Expires:   clock.Now().Add(teleport.UserSingleUseCertTTL),
+					Usage:     proto.UserCertsRequest_All,
+					NodeName:  "node-a",
+				},
+				checkInitErr: require.Error,
+			},
+		},
+		{
+			desc: "ssh - adjusted expiry",
+			opts: generateUserSingleUseCertTestOpts{
+				initReq: &proto.UserCertsRequest{
+					PublicKey: pub,
+					Username:  user.GetName(),
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires:  clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:    proto.UserCertsRequest_SSH,
+					NodeName: "node-a",
+				},
+				checkInitErr: require.NoError,
+				authHandler:  u2fChallengeHandler,
+				checkAuthErr: require.NoError,
+				validateCert: func(t *testing.T, c *proto.UserCert) {
+					crt := c.GetSSH()
+					require.NotEmpty(t, crt)
+
+					key, _, _, _, err := ssh.ParseAuthorizedKey(crt)
+					require.NoError(t, err)
+					cert, ok := key.(*ssh.Certificate)
+					require.True(t, ok)
+
+					require.Contains(t, cert.Extensions, teleport.CertExtensionMFAVerified)
+					require.Contains(t, cert.Extensions, teleport.CertExtensionClientIP)
+					require.Equal(t, cert.ValidBefore, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()))
+				},
+			},
+		},
+		{
+			desc: "fail - mfa challenge fail",
+			opts: generateUserSingleUseCertTestOpts{
+				initReq: &proto.UserCertsRequest{
+					PublicKey: pub,
+					Username:  user.GetName(),
+					Expires:   clock.Now().Add(teleport.UserSingleUseCertTTL),
+					Usage:     proto.UserCertsRequest_SSH,
+					NodeName:  "node-a",
+				},
+				checkInitErr: require.NoError,
+				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+					// Return no challenge response.
+					return &proto.MFAAuthenticateResponse{}
+				},
+				checkAuthErr: require.Error,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			testGenerateUserSingleUseCert(ctx, t, cl, tt.opts)
+		})
+	}
+}
+
+type generateUserSingleUseCertTestOpts struct {
+	initReq      *proto.UserCertsRequest
+	checkInitErr require.ErrorAssertionFunc
+	authHandler  func(*testing.T, *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse
+	checkAuthErr require.ErrorAssertionFunc
+	validateCert func(*testing.T, *proto.UserCert)
+}
+
+func testGenerateUserSingleUseCert(ctx context.Context, t *testing.T, cl *Client, opts generateUserSingleUseCertTestOpts) {
+	stream, err := cl.GenerateUserSingleUseCerts(ctx)
+	require.NoError(t, err)
+	err = stream.Send(&proto.UserSingleUseCertsRequest{Request: &proto.UserSingleUseCertsRequest_Init{Init: opts.initReq}})
+	require.NoError(t, err)
+
+	authChallenge, err := stream.Recv()
+	opts.checkInitErr(t, err)
+	if err != nil {
+		return
+	}
+	authResp := opts.authHandler(t, authChallenge.GetMFAChallenge())
+	err = stream.Send(&proto.UserSingleUseCertsRequest{Request: &proto.UserSingleUseCertsRequest_MFAResponse{MFAResponse: authResp}})
+	require.NoError(t, err)
+
+	certs, err := stream.Recv()
+	opts.checkAuthErr(t, err)
+	if err != nil {
+		return
+	}
+	opts.validateCert(t, certs.GetCert())
+
+	require.NoError(t, stream.CloseSend())
 }
