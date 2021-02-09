@@ -35,31 +35,31 @@ Before you get started you’ll need:
 1. Obtain OAuth 2.0 credentials  [https://developers.google.com/identity/protocols/OpenIDConnect](https://developers.google.com/identity/protocols/OpenIDConnect)
 
 2. Create a new Project.
-![Create New Project](img/gsuite/gsuite-1-new-project.png)
+![Create New Project](../img/gsuite/gsuite-1-new-project.png)
 
 3. Select OAuth client ID.
-![Create OAuth Creds](img/gsuite/gsuite-2-created-creds.png)
+![Create OAuth Creds](../img/gsuite/gsuite-2-created-creds.png)
 
 4. Make Application Type Public & Setup Domain Verification
-![Setup Application Type](img/gsuite/gsuite-3-oauth.png)
+![Setup Application Type](../img/gsuite/gsuite-3-oauth.png)
 
 5. Copy OAuth Client ID and Client Secret for YAML Below.
    Note: The redirect_url: `https://teleport.example.com:3080/v1/webapi/oidc/callback`
 
-![Copy Client Secret](img/gsuite/gsuite-5-copy-client-id.png)
+![Copy Client Secret](../img/gsuite/gsuite-5-copy-client-id.png)
 
 ## Create a Service Account
 
-![Create OAuth Creds](img/gsuite/gsuite-5a-service-account.png)
+![Create OAuth Creds](../img/gsuite/gsuite-5a-service-account.png)
 Leave Service account users roles, and admin roles as blank.
-![Create OAuth Creds](img/gsuite/gsuite-5b-service-account.png)
+![Create OAuth Creds](../img/gsuite/gsuite-5b-service-account.png)
 Leave Service account permissions as blank.
-![Create OAuth Creds](img/gsuite/gsuite-5c-service-account.png)
+![Create OAuth Creds](../img/gsuite/gsuite-5c-service-account.png)
 ### Enable Account Delegation:
-![Create OAuth Creds](img/gsuite/gsuite-5d-service-account-delegation.png)
-![Create OAuth Creds](img/gsuite/gsuite-5e-enable-delegation.png)
+![Create OAuth Creds](../img/gsuite/gsuite-5d-service-account-delegation.png)
+![Create OAuth Creds](../img/gsuite/gsuite-5e-enable-delegation.png)
 ### Download Service Account JSON
-![Create OAuth Creds](img/gsuite/gsuite-5f-download-json.png)
+![Create OAuth Creds](../img/gsuite/gsuite-5f-download-json.png)
 
 This JSON file will need to be uploaded to the Authentication server, and will be later referenced by
 the OIDC Connector, under `google_service_account_uri`.
@@ -75,9 +75,9 @@ Client name: Use Email from Service account creation ( this will be converted to
 
 `https://www.googleapis.com/auth/admin.directory.group.member.readonly, https://www.googleapis.com/auth/admin.directory.group.readonly, https://www.googleapis.com/auth/admin.directory.user.readonly`
 
-![Manage API Client Access](img/gsuite/gsuite-6-manage-api-access.png)
+![Manage API Client Access](../img/gsuite/gsuite-6-manage-api-access.png)
 Once saved, Google with convert the Client Name into the Client ID.
-![Create OAuth Creds](img/gsuite/gsuite-6a-manage-access.png)
+![Create OAuth Creds](../img/gsuite/gsuite-6a-manage-access.png)
 
 
 ## Create a OIDC Connector
@@ -166,7 +166,7 @@ $ tctl create dev.yaml
 ```
 
 ## Testing
-![Login with Gsuite](img/gsuite/gsuite-7-loginwithgsuite.png)
+![Login with Gsuite](../img/gsuite/gsuite-7-loginwithgsuite.png)
 
 
 The Web UI will now contain a new button: "Login with GSuite". The CLI is

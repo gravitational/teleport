@@ -21,7 +21,7 @@ Teleport cluster:
 In this mode, Teleport Proxy implements WSS - secure web sockets - to proxy a
 client SSH connection:
 
-![Teleport Proxy Web](../img/proxy-web.svg)
+![Teleport Proxy Web](../../img/proxy-web.svg)
 
 1. User logs in to Web UI using username and password, and 2nd factor token if
    configured (2FA Tokens are not used with SSO providers).
@@ -48,7 +48,7 @@ Teleport Proxy implements a special method to let clients get short-lived
 authentication certificates signed by the [Auth Service User Certificate
 Authority (CA)](./auth/#authentication-in-teleport).:
 
-![Teleport Proxy SSH](../img/proxy-ssh-1.svg)
+![Teleport Proxy SSH](../../img/proxy-ssh-1.svg)
 
 1. A [`tsh` client](../cli-docs.md#tsh) generates an OpenSSH keypair. It forwards
    the generated public key, username, password and second factor token to the
@@ -68,7 +68,7 @@ Once the client has obtained a certificate, it can use it to authenticate with
 any Node in the cluster. Users can use the certificate using a standard OpenSSH
 client `ssh` or using `tsh`:
 
-![Teleport Proxy Web](../img/proxy-ssh-2.svg)
+![Teleport Proxy Web](../../img/proxy-ssh-2.svg)
 
 1. A client connects to the Proxy Server and provides target node's host and
    port location. There are three lookup mechanisms a proxy uses to find the

@@ -144,7 +144,7 @@ open this URL in a web browser to complete the registration process.
 
 <!-- Link to networking/production guide -->
 
-![Teleport User Registration](img/login.png)
+![Teleport User Registration](../img/login.png)
 
 Teleport enforces two-factor authentication by default <!-- Link to
 Configuration -->. If you do not already have [Google
@@ -155,7 +155,7 @@ Teleport login web page, pick a password and enter the two-factor token.
 
 After completing registration you will be logged in automatically
 
-![Teleport UI Dashboard](img/ui-dashboard.png)
+![Teleport UI Dashboard](../img/ui-dashboard.png)
 
 ## Step 5: Log in through the CLI
 
@@ -219,7 +219,7 @@ which has been authenticated by Teleport!
 
 Try a few things to get familiar with recorded sessions:
 
-![Sessions View](img/sessions.png)
+![Sessions View](../img/sessions.png)
 
 1. Navigate to `https://[HOST]:3080/web/sessions` in your web browser to see the
 
@@ -229,7 +229,7 @@ Try a few things to get familiar with recorded sessions:
 2. After you end a session, replay it in your browser.
 3. Join the session in your web browser.
 
-![Two Recorded Sessions](img/recorded-session.png)
+![Two Recorded Sessions](../img/recorded-session.png)
 
 Here we've started two recorded sessions on the node `grav-00` : one via the web
 browser and one in the command line. Notice that there are distinct SSH sessions

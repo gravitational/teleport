@@ -77,7 +77,7 @@ steps are explained below the diagram.
     client. The `--roles` flag has no relationship to concept of User Roles or
     permissions.
 
-![Teleport Overview](../img/overview.svg)
+![Teleport Overview](../../img/overview.svg)
 
 1. Initiate Client Connection
 2. Authenticate Client
@@ -99,7 +99,7 @@ Here is a detailed diagram of a Teleport Cluster.
 The numbers correspond to the steps needed to connect a client to a node. These
 steps are explained in detail below the diagram.
 
-![Teleport Everything](../img/everything.svg)
+![Teleport Everything](../../img/everything.svg)
 
 !!! note "Caution"
 
@@ -109,7 +109,7 @@ steps are explained in detail below the diagram.
 
 ### 1: Initiate Client Connection
 
-![Client offers certificate](../img/client_initiate.svg)
+![Client offers certificate](../../img/client_initiate.svg)
 
 The client tries to establish an SSH connection to a proxy using the CLI
 interface or a web browser. When establishing a connection, the client offers
@@ -123,12 +123,12 @@ its public key. Clients must always connect through a proxy for two reasons:
 
 ### 2: Authenticate Client Certificate
 
-![Client offers valid certificate](../img/cert_ok.svg)
+![Client offers valid certificate](../../img/cert_ok.svg)
 
 The proxy checks if the submitted certificate has been previously signed by the
 auth server.
 
-![Client obtains new certificate](../img/cert_invalid.svg)
+![Client obtains new certificate](../../img/cert_invalid.svg)
 
 If there was no key previously offered (first time login) or if the certificate
 has expired, the proxy denies the connection and asks the client to login
@@ -154,7 +154,7 @@ to another value by the cluster administrator.
 
 ### 3: Lookup Node
 
-![Node lookup](../img/node_lookup.svg)
+![Node lookup](../../img/node_lookup.svg)
 
 At this step, the proxy tries to locate the requested node in a cluster. There
 are three lookup mechanisms a proxy uses to find the node's IP address:
@@ -176,7 +176,7 @@ sending the session history to the auth server to be stored.
 
 ### 4: Authenticate Node Certificate
 
-![Node Membership Authentication](../img/node_cluster_auth.svg)
+![Node Membership Authentication](../../img/node_cluster_auth.svg)
 
 When the node receives a connection request, it checks with the Auth Server to
 validate the node's public key certificate and validate the Node's cluster
@@ -187,7 +187,7 @@ API which provides access to information about nodes and users in the cluster.
 
 ### 5: Grant User Node Access
 
-![User Granted Node Access](../img/user_node_access.svg)
+![User Granted Node Access](../../img/user_node_access.svg)
 
 The node requests the Auth Server to provide a list of [OS users (user
 mappings)](../admin-guide.md#adding-and-deleting-users) for the connecting client, to make sure the client is
@@ -195,7 +195,7 @@ authorized to use the requested OS login.
 
 Finally the client is authorized to create an SSH connection to a node.
 
-![Proxy Connection Established](../img/proxy_client_connect.svg)
+![Proxy Connection Established](../../img/proxy_client_connect.svg)
 
 ## Teleport CLI Tools
 
