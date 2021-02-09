@@ -58,7 +58,7 @@ func (cmd *ResourceCommandE) TryRun(selectedCommand string, c auth.ClientI) (mat
 // createConnector implements 'tctl create role.yaml' command
 func (cmd *ResourceCommandE) createRole(client auth.ClientI, raw services.UnknownResource) error {
 	ctx := context.TODO()
-	role, err := services.GetRoleMarshaler().UnmarshalRole(raw.Raw)
+	role, err := services.UnmarshalRole(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -94,7 +94,7 @@ func (cmd *ResourceCommandE) createConnector(client auth.ClientI, raw services.U
 	// SAML
 	case services.KindSAMLConnector:
 		// Create services.SAMLConnector from raw YAML to extract the connector name.
-		conn, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(raw.Raw)
+		conn, err := services.UnmarshalSAMLConnector(raw.Raw)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -128,7 +128,7 @@ func (cmd *ResourceCommandE) createConnector(client auth.ClientI, raw services.U
 
 	// OpenID connect
 	case services.KindOIDCConnector:
-		conn, err := services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(raw.Raw)
+		conn, err := services.UnmarshalOIDCConnector(raw.Raw)
 		if err != nil {
 			return trace.Wrap(err)
 		}

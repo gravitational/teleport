@@ -199,10 +199,9 @@ func deleteResource(ctx context.Context, resourceKind string, resourceName strin
 
 // getResourceByKind returns a collection of ConfigItem wrappers that contains resources of requested kind
 func getResourceByKind(kind string, client auth.ClientI) ([]ui.ConfigItem, error) {
-	if kind == "" {
-		return nil, trace.BadParameter("specify resource to list, e.g. 'tctl get roles'")
-	}
 	switch kind {
+	case "":
+		return nil, trace.BadParameter("specify resource to list, e.g. 'tctl get roles'")
 	case services.KindAuthConnector:
 		oidcConnectors, err := client.GetOIDCConnectors(true)
 		if err != nil {
@@ -258,7 +257,7 @@ func upsertResource(ctx context.Context, unknownRes services.UnknownResource, cl
 	json := unknownRes.Raw
 	switch unknownRes.Kind {
 	case services.KindSAMLConnector:
-		conn, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(json)
+		conn, err := services.UnmarshalSAMLConnector(json)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -274,7 +273,7 @@ func upsertResource(ctx context.Context, unknownRes services.UnknownResource, cl
 		}
 		return items, nil
 	case services.KindOIDCConnector:
-		conn, err := services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(json)
+		conn, err := services.UnmarshalOIDCConnector(json)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -287,7 +286,7 @@ func upsertResource(ctx context.Context, unknownRes services.UnknownResource, cl
 		}
 		return items, nil
 	case services.KindGithubConnector:
-		conn, err := services.GetGithubConnectorMarshaler().Unmarshal(json)
+		conn, err := services.UnmarshalGithubConnector(json)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -300,7 +299,7 @@ func upsertResource(ctx context.Context, unknownRes services.UnknownResource, cl
 		}
 		return items, nil
 	case services.KindRole:
-		role, err := services.GetRoleMarshaler().UnmarshalRole(json)
+		role, err := services.UnmarshalRole(json)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -317,7 +316,7 @@ func upsertResource(ctx context.Context, unknownRes services.UnknownResource, cl
 		}
 		return items, nil
 	case services.KindTrustedCluster:
-		tc, err := services.GetTrustedClusterMarshaler().Unmarshal(json)
+		tc, err := services.UnmarshalTrustedCluster(json)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
