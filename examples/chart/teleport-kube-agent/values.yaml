@@ -72,5 +72,5 @@ clusterRoleBindingName: teleport-kube-agent
 serviceAccountName: teleport-kube-agent
 # Name of the Secret to store the teleport join token.
 secretName: teleport-kube-agent-join-token
-# Use existing secret instead of creating one
+# Use existing secret instead of creating one. the key must be `auth-token`.
 useExistingSecret: false
