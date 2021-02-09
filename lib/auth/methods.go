@@ -17,11 +17,13 @@ limitations under the License.
 package auth
 
 import (
+	"context"
 	"time"
 
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -83,7 +85,7 @@ type SessionCreds struct {
 
 // AuthenticateUser authenticates user based on the request type
 func (s *Server) AuthenticateUser(req AuthenticateUserRequest) error {
-	err := s.authenticateUser(req)
+	err := s.authenticateUser(context.TODO(), req)
 	event := &events.UserLogin{
 		Metadata: events.Metadata{
 			Type: events.UserLoginEvent,
@@ -108,7 +110,7 @@ func (s *Server) AuthenticateUser(req AuthenticateUserRequest) error {
 	return err
 }
 
-func (s *Server) authenticateUser(req AuthenticateUserRequest) error {
+func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserRequest) error {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -140,7 +142,7 @@ func (s *Server) authenticateUser(req AuthenticateUserRequest) error {
 		// authenticate using U2F - code checks challenge response
 		// signed by U2F device of the user
 		err := s.WithUserLock(req.Username, func() error {
-			return s.CheckU2FSignResponse(req.Username, &req.U2F.SignResponse)
+			return s.CheckU2FSignResponse(ctx, req.Username, &req.U2F.SignResponse)
 		})
 		if err != nil {
 			// provide obscure message on purpose, while logging the real
@@ -165,10 +167,9 @@ func (s *Server) authenticateUser(req AuthenticateUserRequest) error {
 	}
 }
 
-// AuthenticateWebUser authenticates web user, creates and  returns web session
-// in case if authentication is successful. In case if existing session id
-// is used to authenticate, returns session associated with the existing session id
-// instead of creating the new one
+// AuthenticateWebUser authenticates web user, creates and returns a web session
+// if authentication is successful. In case the existing session ID is used to authenticate,
+// returns the existing session instead of creating a new one
 func (s *Server) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebSession, error) {
 	clusterConfig, err := s.GetClusterConfig()
 	if err != nil {
@@ -185,7 +186,10 @@ func (s *Server) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebS
 	}
 
 	if req.Session != nil {
-		session, err := s.GetWebSession(req.Username, req.Session.ID)
+		session, err := s.GetWebSession(context.TODO(), types.GetWebSessionRequest{
+			User:      req.Username,
+			SessionID: req.Session.ID,
+		})
 		if err != nil {
 			return nil, trace.AccessDenied("session is invalid or has expired")
 		}
@@ -201,7 +205,7 @@ func (s *Server) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebS
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := s.createUserWebSession(user)
+	sess, err := s.createUserWebSession(context.TODO(), user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -379,19 +383,14 @@ func (s *Server) emitNoLocalAuthEvent(username string) {
 	}
 }
 
-func (s *Server) createUserWebSession(user services.User) (services.WebSession, error) {
-	// It's safe to extract the roles and traits directly from services.User as	this method
+func (s *Server) createUserWebSession(ctx context.Context, user services.User) (services.WebSession, error) {
+	// It's safe to extract the roles and traits directly from services.User as this method
 	// is only used for local accounts.
-	sess, err := s.NewWebSession(user.GetName(), user.GetRoles(), user.GetTraits())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = s.UpsertWebSession(user.GetName(), sess)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return sess, nil
+	return s.createWebSession(ctx, types.NewWebSessionRequest{
+		User:   user.GetName(),
+		Roles:  user.GetRoles(),
+		Traits: user.GetTraits(),
+	})
 }
 
 const noLocalAuth = "local auth disabled"

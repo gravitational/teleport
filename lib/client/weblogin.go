@@ -505,13 +505,24 @@ func SSHAgentU2FLogin(ctx context.Context, login SSHLoginU2F) (*auth.SSHLoginRes
 		return nil, trace.Wrap(err)
 	}
 
-	var challenge u2f.AuthenticateChallenge
-	if err := json.Unmarshal(challengeRaw.Bytes(), &challenge); err != nil {
+	var res auth.U2FAuthenticateChallenge
+	if err := json.Unmarshal(challengeRaw.Bytes(), &res); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if len(res.Challenges) == 0 {
+		// Challenge sent by a pre-6.0 auth server, fall back to the old
+		// single-device format.
+		if res.AuthenticateChallenge == nil {
+			// This shouldn't happen with a well-behaved auth server, but check
+			// anyway.
+			return nil, trace.BadParameter("server sent no U2F challenges")
+		}
+		res.Challenges = []u2f.AuthenticateChallenge{*res.AuthenticateChallenge}
+	}
 
+	fmt.Println("Please press the button on your U2F key")
 	facet := "https://" + strings.ToLower(login.ProxyAddr)
-	challengeResp, err := u2f.AuthenticateSignChallenge(challenge, facet)
+	challengeResp, err := u2f.AuthenticateSignChallenge(ctx, facet, res.Challenges...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

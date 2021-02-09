@@ -17,13 +17,16 @@ limitations under the License.
 package types
 
 import (
+	"bytes"
 	"fmt"
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
+	"github.com/pborman/uuid"
 )
 
 // AuthPreference defines the authentication preferences for a specific
@@ -284,4 +287,83 @@ type U2F struct {
 
 	// Facets returns the facets for universal second factor.
 	Facets []string `json:"facets,omitempty"`
+}
+
+// NewMFADevice creates a new MFADevice with the given name. Caller must set
+// the Device field in the returned MFADevice.
+func NewMFADevice(name string, addedAt time.Time) *MFADevice {
+	return &MFADevice{
+		Kind: KindMFADevice,
+		Metadata: Metadata{
+			Name: name,
+		},
+		Id:       uuid.New(),
+		AddedAt:  addedAt,
+		LastUsed: addedAt,
+	}
+}
+
+// CheckAndSetDefaults validates MFADevice fields and populates empty fields
+// with default values.
+func (d *MFADevice) CheckAndSetDefaults() error {
+	if err := d.Metadata.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if d.Kind == "" {
+		return trace.BadParameter("MFADevice missing Kind field")
+	}
+	if d.Version == "" {
+		d.Version = V1
+	}
+	if d.Id == "" {
+		return trace.BadParameter("MFADevice missing ID field")
+	}
+	if d.AddedAt.IsZero() {
+		return trace.BadParameter("MFADevice missing AddedAt field")
+	}
+	if d.LastUsed.IsZero() {
+		return trace.BadParameter("MFADevice missing LastUsed field")
+	}
+	if d.LastUsed.Before(d.AddedAt) {
+		return trace.BadParameter("MFADevice LastUsed field must be earlier than AddedAt")
+	}
+	if d.Device == nil {
+		return trace.BadParameter("MFADevice missing Device field")
+	}
+	return nil
+}
+
+func (d *MFADevice) GetKind() string                       { return d.Kind }
+func (d *MFADevice) GetSubKind() string                    { return d.SubKind }
+func (d *MFADevice) SetSubKind(sk string)                  { d.SubKind = sk }
+func (d *MFADevice) GetVersion() string                    { return d.Version }
+func (d *MFADevice) GetMetadata() Metadata                 { return d.Metadata }
+func (d *MFADevice) GetName() string                       { return d.Metadata.GetName() }
+func (d *MFADevice) SetName(n string)                      { d.Metadata.SetName(n) }
+func (d *MFADevice) GetResourceID() int64                  { return d.Metadata.ID }
+func (d *MFADevice) SetResourceID(id int64)                { d.Metadata.SetID(id) }
+func (d *MFADevice) Expiry() time.Time                     { return d.Metadata.Expiry() }
+func (d *MFADevice) SetExpiry(exp time.Time)               { d.Metadata.SetExpiry(exp) }
+func (d *MFADevice) SetTTL(clock Clock, ttl time.Duration) { d.Metadata.SetTTL(clock, ttl) }
+
+// MFAType returns the human-readable name of the MFA protocol of this device.
+func (d *MFADevice) MFAType() string {
+	switch d.Device.(type) {
+	case *MFADevice_Totp:
+		return "TOTP"
+	case *MFADevice_U2F:
+		return "U2F"
+	default:
+		return "unknown"
+	}
+}
+
+func (d *MFADevice) MarshalJSON() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	err := (&jsonpb.Marshaler{}).Marshal(buf, d)
+	return buf.Bytes(), trace.Wrap(err)
+}
+
+func (d *MFADevice) UnmarshalJSON(buf []byte) error {
+	return jsonpb.Unmarshal(bytes.NewReader(buf), d)
 }

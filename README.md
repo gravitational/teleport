@@ -7,8 +7,6 @@ Teleport is a unified access plane for infrastructure:
 * [Web Applications](https://goteleport.com/teleport/docs/application-access/)
 * [Databases - (Postgres Preview)](https://goteleport.com/teleport/docs/preview/teleport-database-access/)
 
-Join our [OSS Slack Community](https://join.slack.com/t/goteleportworkspace/shared_invite/zt-lgpr8c6u-E2NXkxJyOkAXWk7H_7j4CA).
-
 It is intended to be used instead or together with `sshd` for organizations who
 need:
 

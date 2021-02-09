@@ -1014,7 +1014,10 @@ func (s *TLSSuite) TestPasswordCRUD(c *check.C) {
 	err = clt.UpsertPassword("user1", pass)
 	c.Assert(err, check.IsNil)
 
-	err = s.server.Auth().UpsertTOTP("user1", otpSecret)
+	dev, err := services.NewTOTPDevice("otp", otpSecret, s.clock.Now())
+	c.Assert(err, check.IsNil)
+	ctx := context.Background()
+	err = s.server.Auth().UpsertMFADevice(ctx, "user1", dev)
 	c.Assert(err, check.IsNil)
 
 	validToken, err := totp.GenerateCode(otpSecret, s.server.Clock().Now())
@@ -1360,7 +1363,10 @@ func (s *TLSSuite) TestOTPCRUD(c *check.C) {
 	// upsert a password and totp secret
 	err = clt.UpsertPassword("user1", pass)
 	c.Assert(err, check.IsNil)
-	err = s.server.Auth().UpsertTOTP(user, otpSecret)
+	dev, err := services.NewTOTPDevice("otp", otpSecret, s.clock.Now())
+	c.Assert(err, check.IsNil)
+	ctx := context.Background()
+	err = s.server.Auth().UpsertMFADevice(ctx, user, dev)
 	c.Assert(err, check.IsNil)
 
 	// a completely invalid token should return access denied
@@ -1428,7 +1434,7 @@ func (s *TLSSuite) TestWebSessionWithoutAccessRequest(c *check.C) {
 	web, err := s.server.NewClientFromWebSession(ws)
 	c.Assert(err, check.IsNil)
 
-	_, err = web.GetWebSessionInfo(user, ws.GetName())
+	_, err = web.GetWebSessionInfo(context.TODO(), user, ws.GetName())
 	c.Assert(err, check.IsNil)
 
 	new, err := web.ExtendWebSession(user, ws.GetName(), "")
@@ -1442,7 +1448,7 @@ func (s *TLSSuite) TestWebSessionWithoutAccessRequest(c *check.C) {
 	err = clt.DeleteWebSession(user, ws.GetName())
 	c.Assert(err, check.IsNil)
 
-	_, err = web.GetWebSessionInfo(user, ws.GetName())
+	_, err = web.GetWebSessionInfo(context.TODO(), user, ws.GetName())
 	c.Assert(err, check.NotNil)
 
 	_, err = web.ExtendWebSession(user, ws.GetName(), "")
@@ -2186,7 +2192,10 @@ func (s *TLSSuite) TestAuthenticateWebUserOTP(c *check.C) {
 	err = s.server.Auth().UpsertPassword(user, pass)
 	c.Assert(err, check.IsNil)
 
-	err = s.server.Auth().UpsertTOTP(user, otpSecret)
+	dev, err := services.NewTOTPDevice("otp", otpSecret, s.clock.Now())
+	c.Assert(err, check.IsNil)
+	ctx := context.Background()
+	err = s.server.Auth().UpsertMFADevice(ctx, user, dev)
 	c.Assert(err, check.IsNil)
 
 	// create a valid otp token
@@ -2237,13 +2246,13 @@ func (s *TLSSuite) TestAuthenticateWebUserOTP(c *check.C) {
 	userClient, err := s.server.NewClientFromWebSession(ws)
 	c.Assert(err, check.IsNil)
 
-	_, err = userClient.GetWebSessionInfo(user, ws.GetName())
+	_, err = userClient.GetWebSessionInfo(context.TODO(), user, ws.GetName())
 	c.Assert(err, check.IsNil)
 
 	err = clt.DeleteWebSession(user, ws.GetName())
 	c.Assert(err, check.IsNil)
 
-	_, err = userClient.GetWebSessionInfo(user, ws.GetName())
+	_, err = userClient.GetWebSessionInfo(context.TODO(), user, ws.GetName())
 	c.Assert(err, check.NotNil)
 }
 

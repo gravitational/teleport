@@ -173,7 +173,8 @@ teleport:
   auth_token: xxxx-token-xxxx
 
   # Optional CA pin of the auth server. This enables more secure way of adding new
-  # nodes to a cluster. See "Adding Nodes" section above.
+  # nodes to a cluster. See "Adding Nodes to the Cluster"
+  # (https://goteleport.com/teleport/docs/admin-guide/#adding-nodes-to-the-cluster).
   ca_pin: "sha256:ca-pin-hash-goes-here"
 
   # list of auth servers in a cluster. you will have more than one auth server
@@ -244,7 +245,8 @@ proxy_service:
   # The DNS name of the proxy HTTPS endpoint as accessible by cluster users.
   # Defaults to the proxy's hostname if not specified. If running multiple
   # proxies behind a load balancer, this name must point to the load balancer
-  # (see public_addr section below)
+  # See the "Public Addr" section for more details
+  # (https://goteleport.com/teleport/docs/admin-guide/#public-addr).
   public_addr: TELEPORT_PUBLIC_DNS_NAME:3080
 
   # TLS certificate for the HTTPS connection. Configuring these properly is
@@ -354,10 +356,8 @@ start using U2F:
 
 * Enable U2F in Teleport configuration `/etc/teleport.yaml` .
 
-* For CLI-based logins you have to install [u2f-host](https://developers.yubico.com/libu2f-host/) utility.
-
-* For web-based logins you have to use Google Chrome and Firefox 67 or greater, are the only
-   supported U2F browsers at this time.
+* For web-based logins, check that your browser [supports
+  U2F](https://caniuse.com/u2f).
 
 ``` yaml
 # snippet from /etc/teleport.yaml to show an example configuration of U2F:
@@ -391,28 +391,11 @@ pointing to a JSON file that mirrors `facets` in the auth config.
 
 **Logging in with U2F**
 
-For logging in via the CLI, you must first install
-[u2f-host](https://developers.yubico.com/libu2f-host/). Installing:
-
-``` bash
-# OSX:
-$ brew install libu2f-host
-
-# Ubuntu 16.04 LTS:
-$ apt-get install u2f-host
-```
-
-Then invoke `tsh ssh` as usual to authenticate:
+Invoke `tsh ssh` as usual to authenticate:
 
 ``` bash
 $ tsh --proxy <proxy-addr> ssh <hostname>
 ```
-
-!!! tip "Version Warning"
-
-    External user identities are only supported in [Teleport Enterprise](enterprise/introduction.md).
-
-    Please reach out to [sales@goteleport.com](mailto:sales@goteleport.com) for more information.
 
 ## Adding and Deleting Users
 
@@ -1294,9 +1277,8 @@ examples and instructions.
 
 !!! tip "Tip"
 
-    Before continuing, please make sure to take a look at the
-    [Cluster State section](architecture/nodes.md#cluster-state) in the Teleport
-    Architecture documentation.
+    Before continuing, please make sure to take a look at the [Cluster State section](architecture/nodes.md#cluster-state)
+    in the Teleport Architecture documentation.
 
 Usually there are two ways to achieve high availability. You can "outsource"
 this function to the infrastructure. For example, using a highly available
@@ -1474,9 +1456,8 @@ teleport:
 
 !!! tip "Tip"
 
-    Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/nodes.md#cluster-state) in Teleport
-    Architecture documentation.
+    Before continuing, please make sure to take a look at the [Cluster State section](architecture/nodes.md#cluster-state)
+    in Teleport Architecture documentation.
 
 !!! tip "AWS Authentication"
 
@@ -1512,8 +1493,8 @@ running on an EC2 instance with an IAM role.
 
 !!! tip "Tip"
 
-    Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/nodes.md#cluster-state) in Teleport Architecture documentation.
+    Before continuing, please make sure to take a look at the [Cluster State section](architecture/nodes.md#cluster-state)
+    in Teleport Architecture documentation.
 
 If you are running Teleport on AWS, you can use
 [DynamoDB](https://aws.amazon.com/dynamodb/) as a storage back-end to achieve
@@ -1664,9 +1645,8 @@ To enable these options you will need to update the [IAM Role for Teleport](aws-
 
 !!! tip "Tip"
 
-    Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/nodes.md#cluster-state) in Teleport
-    Architecture documentation.
+    Before continuing, please make sure to take a look at the [Cluster State section](architecture/nodes.md#cluster-state)
+    in Teleport Architecture documentation.
 
 
 Google Cloud Storage (GCS) can only be used as a storage for the recorded
@@ -1687,8 +1667,8 @@ teleport:
 
 !!! tip "Tip"
 
-    Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/nodes.md#cluster-state) in Teleport Architecture documentation.
+    Before continuing, please make sure to take a look at the [Cluster State section](architecture/nodes.md#cluster-state)
+    in Teleport Architecture documentation.
 
 If you are running Teleport on GCP, you can use
 [Firestore](https://cloud.google.com/firestore/) as a storage back-end to achieve

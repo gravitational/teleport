@@ -6,13 +6,15 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
@@ -40,7 +42,7 @@ func (s *Server) ChangePasswordWithToken(ctx context.Context, req ChangePassword
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := s.createUserWebSession(user)
+	sess, err := s.createUserWebSession(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -72,6 +74,7 @@ func (s *Server) ResetPassword(username string) (string, error) {
 
 // ChangePassword updates users password based on the old password.
 func (s *Server) ChangePassword(req services.ChangePasswordReq) error {
+	ctx := context.TODO()
 	// validate new password
 	if err := services.VerifyPassword(req.NewPassword); err != nil {
 		return trace.Wrap(err)
@@ -96,7 +99,7 @@ func (s *Server) ChangePassword(req services.ChangePasswordReq) error {
 				return trace.BadParameter("missing U2F sign response")
 			}
 
-			return s.CheckU2FSignResponse(userID, req.U2FSignResponse)
+			return s.CheckU2FSignResponse(ctx, userID, req.U2FSignResponse)
 		}
 
 		return trace.BadParameter("unsupported second factor method: %q", secondFactor)
@@ -166,13 +169,13 @@ func (s *Server) CheckPassword(user string, password []byte, otpToken string) er
 		return trace.Wrap(err)
 	}
 
-	err = s.CheckOTP(user, otpToken)
+	err = s.checkOTP(user, otpToken)
 	return trace.Wrap(err)
 }
 
-// CheckOTP determines the type of OTP token used (for legacy HOTP support), fetches the
+// checkOTP determines the type of OTP token used (for legacy HOTP support), fetches the
 // appropriate type from the backend, and checks if the token is valid.
-func (s *Server) CheckOTP(user string, otpToken string) error {
+func (s *Server) checkOTP(user string, otpToken string) error {
 	var err error
 
 	otpType, err := s.getOTPType(user)
@@ -198,45 +201,70 @@ func (s *Server) CheckOTP(user string, otpToken string) error {
 			return trace.Wrap(err)
 		}
 	case teleport.TOTP:
-		otpSecret, err := s.GetTOTP(user)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		ctx := context.TODO()
 
 		// get the previously used token to mitigate token replay attacks
 		usedToken, err := s.GetUsedTOTPToken(user)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
 		// we use a constant time compare function to mitigate timing attacks
 		if subtle.ConstantTimeCompare([]byte(otpToken), []byte(usedToken)) == 1 {
 			return trace.BadParameter("previously used totp token")
 		}
 
-		// we use totp.ValidateCustom over totp.Validate so we can use
-		// a fake clock in tests to get reliable results
-		valid, err := totp.ValidateCustom(otpToken, otpSecret, s.clock.Now(), totp.ValidateOpts{
-			Period:    teleport.TOTPValidityPeriod,
-			Skew:      teleport.TOTPSkew,
-			Digits:    otp.DigitsSix,
-			Algorithm: otp.AlgorithmSHA1,
-		})
-		if err != nil {
-			log.Errorf("unable to validate token: %v", err)
-			return trace.BadParameter("unable to validate token")
-		}
-		if !valid {
-			return trace.BadParameter("invalid totp token")
-		}
-
-		// if we have a valid token, update the previously used token
-		err = s.UpsertUsedTOTPToken(user, otpToken)
+		devs, err := s.GetMFADevices(ctx, user)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		for _, dev := range devs {
+			totpDev := dev.GetTotp()
+			if totpDev == nil {
+				continue
+			}
+
+			if err := s.checkTOTP(ctx, user, otpToken, dev); err != nil {
+				log.WithError(err).Errorf("Using TOTP device %q", dev.GetName())
+				continue
+			}
+			return nil
+		}
+		return trace.AccessDenied("invalid totp token")
 	}
 
+	return nil
+}
+
+// checkTOTP checks if the TOTP token is valid.
+func (s *Server) checkTOTP(ctx context.Context, user, otpToken string, dev *types.MFADevice) error {
+	if dev.GetTotp() == nil {
+		return trace.BadParameter("checkTOTP called with non-TOTP MFADevice %T", dev.Device)
+	}
+	// we use totp.ValidateCustom over totp.Validate so we can use
+	// a fake clock in tests to get reliable results
+	valid, err := totp.ValidateCustom(otpToken, dev.GetTotp().Key, s.clock.Now(), totp.ValidateOpts{
+		Period:    teleport.TOTPValidityPeriod,
+		Skew:      teleport.TOTPSkew,
+		Digits:    otp.DigitsSix,
+		Algorithm: otp.AlgorithmSHA1,
+	})
+	if err != nil {
+		return trace.AccessDenied("failed to validate TOTP code: %v", err)
+	}
+	if !valid {
+		return trace.AccessDenied("TOTP code not valid")
+	}
+	// if we have a valid token, update the previously used token
+	if err := s.UpsertUsedTOTPToken(user, otpToken); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Update LastUsed timestamp on the device.
+	dev.LastUsed = s.clock.Now()
+	if err := s.UpsertMFADevice(ctx, user, dev); err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }
 
@@ -337,22 +365,25 @@ func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, Rese
 		return trace.Wrap(err)
 	}
 
+	ctx := context.TODO()
 	switch cap.GetSecondFactor() {
 	case teleport.OFF:
 		return nil
 	case teleport.OTP, teleport.TOTP, teleport.HOTP:
-		secrets, err := s.Identity.GetResetPasswordTokenSecrets(context.TODO(), req.TokenID)
+		secrets, err := s.Identity.GetResetPasswordTokenSecrets(ctx, req.TokenID)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		// TODO: create a separate method to validate TOTP without inserting it first
-		err = s.UpsertTOTP(username, secrets.GetOTPKey())
+		dev, err := services.NewTOTPDevice("otp", secrets.GetOTPKey(), s.clock.Now())
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		if err := s.UpsertMFADevice(ctx, username, dev); err != nil {
+			return trace.Wrap(err)
+		}
 
-		err = s.CheckOTP(username, req.SecondFactorToken)
+		err = s.checkOTP(username, req.SecondFactorToken)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -364,13 +395,16 @@ func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, Rese
 			return trace.Wrap(err)
 		}
 
-		return u2f.RegisterVerify(u2f.RegisterVerifyParams{
+		_, err = u2f.RegisterVerify(ctx, u2f.RegisterVerifyParams{
+			DevName:                "u2f",
 			ChallengeStorageKey:    req.TokenID,
 			RegistrationStorageKey: username,
 			Resp:                   req.U2FRegisterResponse,
 			Storage:                s.Identity,
+			Clock:                  s.GetClock(),
 		})
+		return trace.Wrap(err)
+	default:
+		return trace.BadParameter("unknown second factor type %q", cap.GetSecondFactor())
 	}
-
-	return trace.BadParameter("unknown second factor type %q", cap.GetSecondFactor())
 }
