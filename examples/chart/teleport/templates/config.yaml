@@ -93,17 +93,30 @@ data:
       https_cert_file: {{ .Values.config.teleport.proxy_service.https_cert_file }}
 {{- end }}
 
+{{- if .Values.config.teleport.proxy_service.kubernetes }}
       # kubernetes section configures
       # kubernetes proxy protocol support
       kubernetes:
         enabled: {{ .Values.config.teleport.proxy_service.kubernetes.enabled }}
-{{- if .Values.config.teleport.proxy_service.kubernetes.public_addr }}
+   {{- if .Values.config.teleport.proxy_service.kubernetes.public_addr }}
         public_addr: {{ .Values.config.teleport.proxy_service.kubernetes.public_addr }}{{ if not (contains ":" .Values.config.teleport.proxy_service.kubernetes.public_addr) }}:{{ .Values.service.ports.proxykube.port }}{{ end }}
-{{- else }}
+   {{- else }}
         public_addr: {{ .Values.config.public_address }}:{{ .Values.service.ports.proxykube.port }}
-{{- end }}
+   {{- end }}
         listen_addr: {{ .Values.config.listen_addr }}:{{ .Values.ports.proxykube.containerPort }}
+
+
+{{- else if .Values.config.teleport.kubernetes_service }}
+      #kube_service declaration
+      kube_listen_addr: {{ .Values.config.listen_addr }}:{{ .Values.ports.proxykube.containerPort }}
 {{- end }}
+
+{{- if .Values.config.teleport.kubernetes_service }}
+    kubernetes_service:
+{{ toYaml .Values.config.teleport.kubernetes_service  | indent 6 }}
+{{- end }}
+{{- end }}
+
 {{- if .Values.config.highAvailability }}
 ---
 #Configuration for additional deployments used for high performance
