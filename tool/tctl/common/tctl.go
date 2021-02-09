@@ -57,10 +57,6 @@ type GlobalCLIFlags struct {
 	// Insecure, when set, skips validation of server TLS certificate when
 	// connecting through a proxy (specified in AuthServerAddr).
 	Insecure bool
-	// IgnoreConfig inhibits the default behaviour of trying to read /etc/teleport.yaml
-	// from disk. This is useful when running tctl against a remote auth server on a machine
-	// which also has Teleport installed.
-	IgnoreConfig bool
 }
 
 // CLICommand interface must be implemented by every CLI command
@@ -98,12 +94,21 @@ func Run(commands []CLICommand, loadConfigExt LoadConfigFn) {
 		commands[i].Initialize(app, cfg)
 	}
 
-	// these global flags apply to all commands
 	var ccf GlobalCLIFlags
+
+	// Initially, set the config file path to the default.
+	// If this is overridden by environment variable, update the path.
+	ccf.ConfigFile = defaults.ConfigFilePath
+	configFileEnvar, isSet := os.LookupEnv(defaults.ConfigFileEnvar)
+	if isSet {
+		ccf.ConfigFile = configFileEnvar
+	}
+
+	// these global flags apply to all commands
 	app.Flag("debug", "Enable verbose logging to stderr").
 		Short('d').
 		BoolVar(&ccf.Debug)
-	app.Flag("config", fmt.Sprintf("Path to a configuration file [%v]", defaults.ConfigFilePath)).
+	app.Flag("config", fmt.Sprintf("Path to a configuration file [%v]. Can also be set via the %v environment variable.", defaults.ConfigFilePath, defaults.ConfigFileEnvar)).
 		Short('c').
 		ExistingFileVar(&ccf.ConfigFile)
 	app.Flag("config-string",
@@ -116,9 +121,6 @@ func Run(commands []CLICommand, loadConfigExt LoadConfigFn) {
 		StringVar(&ccf.IdentityFilePath)
 	app.Flag("insecure", "When specifying a proxy address in --auth-server, do not verify its TLS certificate. Danger: any data you send can be intercepted or modified by an attacker.").
 		BoolVar(&ccf.Insecure)
-	app.Flag("ignore-config", fmt.Sprintf("Ignore Teleport config [%v] if present on disk.", defaults.ConfigFilePath)).
-		Short('z').
-		BoolVar(&ccf.IgnoreConfig)
 
 	// "version" command is always available:
 	ver := app.Command("version", "Print cluster version")
@@ -311,16 +313,14 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config, loadConfigExt LoadCon
 		log.Debugf("Debug logging has been enabled.")
 	}
 
+	// If the config file path provided is not a blank string, load the file and apply its values
 	var fileConf *config.FileConfig
 	var err error
-	// unless the config file is being ignored via CLI flag, load /etc/teleport.yaml and apply its values
-	if !ccf.IgnoreConfig {
+	if ccf.ConfigFile != "" {
 		fileConf, err = config.ReadConfigFile(ccf.ConfigFile)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	} else {
-		log.Debug("Not reading config file as requested via --ignore-config flag.")
 	}
 
 	// if configuration is passed as an environment variable,

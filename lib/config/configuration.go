@@ -124,7 +124,7 @@ type CommandLineFlags struct {
 	DatabaseAWSRegion string
 }
 
-// readConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
+// ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
 // and overrides values in 'cfg' structure
 func ReadConfigFile(cliConfigPath string) (*FileConfig, error) {
 	configFilePath := defaults.ConfigFilePath
