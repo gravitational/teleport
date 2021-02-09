@@ -335,12 +335,6 @@ auth_service:
     type: saml
 ```
 
-!!! tip "Version Warning"
-
-    External user identities are only supported in [Teleport Enterprise](enterprise/introduction.md).
-
-    Please reach out to [sales@goteleport.com](mailto:sales@goteleport.com) for more information.
-
 ### OIDC
 
 Teleport implements OpenID Connect (OIDC) authentication, which is similar to
@@ -353,12 +347,6 @@ auth_service:
   authentication:
     type: oidc
 ```
-
-!!! tip "Version Warning"
-
-    External user identities are only supported in [Teleport Enterprise](enterprise/introduction.md).
-
-    Please reach out to [sales@goteleport.com](mailto:sales@goteleport.com) for more information.
 
 ### Hardware Keys - YubiKey FIDO U2F
 
