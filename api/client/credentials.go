@@ -100,7 +100,7 @@ func ProfileCredsLoader(paths ...string) CredsLoaderFn {
 func IdentityFileCredsLoader(paths ...string) CredsLoaderFn {
 	return func() (*Credentials, error) {
 		if len(paths) == 0 {
-			return nil, trace.Errorf("must provide at least one path to paths parameter")
+			return nil, trace.BadParameter("must provide at least one path to paths parameter")
 		}
 
 		errs := []error{}

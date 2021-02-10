@@ -45,33 +45,37 @@ func main() {
 	}
 	defer clt.Close()
 
-	demoClient(ctx, clt)
+	if err := demoClient(ctx, clt); err != nil {
+		log.Printf("error(s) in demoClient: %v", err)
+	}
 }
 
 func demoClient(ctx context.Context, clt *client.Client) (err error) {
-	// Create a new access request for api-admin to use the admin role.
+	// Create a new access request for the `access-admin` user to use the `admin` role.
 	accessReq, err := types.NewAccessRequest(uuid.New(), "access-admin", "admin")
 	if err != nil {
-		return trace.Wrap(err, "Failed to make new access request: %v")
+		return trace.Wrap(err, "failed to make new access request: %v")
 	}
 	if err = clt.CreateAccessRequest(ctx, accessReq); err != nil {
-		return trace.Wrap(err, "Failed to create access request: %v")
+		return trace.Wrap(err, "failed to create access request: %v")
 	}
 	log.Printf("Created access request: %v", accessReq)
 
 	defer func() {
-		if err = clt.DeleteAccessRequest(ctx, accessReq.GetName()); err != nil {
-			log.Fatalf("Failed to delete access request: %v", err)
+		if err2 := clt.DeleteAccessRequest(ctx, accessReq.GetName()); err2 != nil {
+			err = trace.NewAggregate([]error{err, err2}...)
+			log.Println("Failed to delete access request")
+			return
 		}
 		log.Println("Deleted access request")
 	}()
 
-	// Approve the access request.
+	// Approve the access request as if this was another party.
 	if err = clt.SetAccessRequestState(ctx, types.AccessRequestUpdate{
 		RequestID: accessReq.GetName(),
 		State:     types.RequestState_APPROVED,
 	}); err != nil {
-		return trace.Wrap(err, "Failed to accept request: %v")
+		return trace.Wrap(err, "failed to accept request: %v")
 	}
 	log.Printf("Approved access request")
 
