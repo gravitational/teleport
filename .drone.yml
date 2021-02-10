@@ -1041,6 +1041,8 @@ steps:
       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
       - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
+      # set version
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
   - name: Build artifacts
     image: docker
@@ -1240,6 +1242,8 @@ steps:
       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
       - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
+      # set version
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
   - name: Build artifacts
     image: docker
@@ -4375,6 +4379,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 37e83e8ffbd66c7bbfab5ec15638e382aeb24cf6305fffa4891a626ec369736f
+hmac: 5e9d46aff4aa16acbb01dc118838415eeb2db7f89076a02c954dc06cdad72728
 
 ...
