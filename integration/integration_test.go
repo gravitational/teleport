@@ -5096,10 +5096,15 @@ func hasPAMPolicy() bool {
 	return true
 }
 
-// isRoot returns a boolean if the test is being run as root or not. Tests
-// for this package must be run as root.
+// isRoot returns a boolean if the test is being run as root or not.
+func isRoot() bool {
+	return os.Geteuid() == 0
+}
+
+// canTestBPF runs checks to determine whether BPF tests will run or not.
+// Tests for this package must be run as root.
 func canTestBPF() error {
-	if os.Geteuid() != 0 {
+	if !isRoot() {
 		return trace.BadParameter("not root")
 	}
 
@@ -5113,4 +5118,13 @@ func canTestBPF() error {
 
 func dumpGoroutineProfile() {
 	pprof.Lookup("goroutine").WriteTo(os.Stderr, 2)
+}
+
+// TestRootUser is an example test which will only be run when running as root.
+// Used to validate Makefile/build logic.
+// All tests which must run as root need a name starting with "TestRoot".
+func TestRootUser(t *testing.T) {
+	if !isRoot() {
+		t.Skipf("skipping %v because tests are not running as root", t.Name())
+	}
 }
