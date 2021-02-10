@@ -24,11 +24,6 @@ type ClusterConfiguration interface {
 	GetClusterName(opts ...MarshalOption) (ClusterName, error)
 	// SetClusterName sets services.ClusterName on the backend.
 	SetClusterName(ClusterName) error
-	// UpsertClusterName upserts cluster name
-	UpsertClusterName(ClusterName) error
-
-	// DeleteClusterName deletes cluster name resource
-	DeleteClusterName() error
 
 	// GetStaticTokens gets services.StaticTokens from the backend.
 	GetStaticTokens() (StaticTokens, error)
@@ -46,6 +41,18 @@ type ClusterConfiguration interface {
 	GetClusterConfig(opts ...MarshalOption) (ClusterConfig, error)
 	// SetClusterConfig sets services.ClusterConfig on the backend.
 	SetClusterConfig(ClusterConfig) error
+}
+
+// LocalClusterConfiguration manages cluster configuration on auth server
+type LocalClusterConfiguration interface {
+	ClusterConfiguration
+
+	// UpsertClusterName upserts cluster name
+	UpsertClusterName(ClusterName) error
+
 	// DeleteClusterConfig deletes cluster config resource
 	DeleteClusterConfig() error
+
+	// DeleteClusterName deletes cluster name resource
+	DeleteClusterName() error
 }

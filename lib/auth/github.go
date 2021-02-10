@@ -40,7 +40,7 @@ import (
 
 // CreateGithubAuthRequest creates a new request for Github OAuth2 flow
 func (a *Server) CreateGithubAuthRequest(req services.GithubAuthRequest) (*services.GithubAuthRequest, error) {
-	connector, err := a.Identity.GetGithubConnector(req.ConnectorID, true)
+	connector, err := a.Services.LocalIdentity.GetGithubConnector(req.ConnectorID, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -56,7 +56,7 @@ func (a *Server) CreateGithubAuthRequest(req services.GithubAuthRequest) (*servi
 	log.WithFields(logrus.Fields{trace.Component: "github"}).Debugf(
 		"Redirect URL: %v.", req.RedirectURL)
 	req.SetTTL(a.GetClock(), defaults.GithubAuthRequestTTL)
-	err = a.Identity.CreateGithubAuthRequest(req)
+	err = a.Services.LocalIdentity.CreateGithubAuthRequest(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -65,7 +65,7 @@ func (a *Server) CreateGithubAuthRequest(req services.GithubAuthRequest) (*servi
 
 // upsertGithubConnector creates or updates a Github connector.
 func (a *Server) upsertGithubConnector(ctx context.Context, connector services.GithubConnector) error {
-	if err := a.Identity.UpsertGithubConnector(connector); err != nil {
+	if err := a.Services.LocalIdentity.UpsertGithubConnector(connector); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(a.closeCtx, &events.GithubConnectorCreate{
@@ -88,7 +88,7 @@ func (a *Server) upsertGithubConnector(ctx context.Context, connector services.G
 
 // deleteGithubConnector deletes a Github connector by name.
 func (a *Server) deleteGithubConnector(ctx context.Context, connectorName string) error {
-	if err := a.Identity.DeleteGithubConnector(connectorName); err != nil {
+	if err := a.Services.LocalIdentity.DeleteGithubConnector(connectorName); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -197,11 +197,11 @@ func (a *Server) validateGithubAuthCallback(q url.Values) (*githubAuthResponse, 
 		return nil, trace.OAuth2(oauth2.ErrorInvalidRequest,
 			"missing state query param", q)
 	}
-	req, err := a.Identity.GetGithubAuthRequest(stateToken)
+	req, err := a.Services.LocalIdentity.GetGithubAuthRequest(stateToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connector, err := a.Identity.GetGithubConnector(req.ConnectorID, true)
+	connector, err := a.Services.LocalIdentity.GetGithubConnector(req.ConnectorID, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -323,7 +323,7 @@ func (a *Server) createSessionCert(user services.User, sessionTTL time.Duration,
 	// It's safe to extract the roles and traits directly from services.User
 	// because this occurs during the user creation process and services.User
 	// is not fetched from the backend.
-	checker, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
+	checker, err := services.FetchRoles(user.GetRoles(), a.Services.LocalAccess, user.GetTraits())
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -390,7 +390,7 @@ func (a *Server) calculateGithubUser(connector services.GithubConnector, claims 
 	p.traits = modules.GetModules().TraitsFromLogins(p.username, p.logins, p.kubeGroups, p.kubeUsers)
 
 	// Pick smaller for role: session TTL from role or requested TTL.
-	roles, err := services.FetchRoles(p.roles, a.Access, p.traits)
+	roles, err := services.FetchRoles(p.roles, a.Services.LocalAccess, p.traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

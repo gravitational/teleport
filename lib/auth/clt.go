@@ -397,11 +397,6 @@ func (c *Client) WaitForDelivery(context.Context) error {
 	return nil
 }
 
-// CreateCertAuthority not implemented: can only be called locally.
-func (c *Client) CreateCertAuthority(ca services.CertAuthority) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // RotateCertAuthority starts or restarts certificate authority rotation process.
 func (c *Client) RotateCertAuthority(req RotateRequest) error {
 	caType := "all"
@@ -497,16 +492,6 @@ func (c *Client) DeleteCertAuthority(id services.CertAuthID) error {
 	}
 	_, err := c.Delete(c.Endpoint("authorities", string(id.Type), id.DomainName))
 	return trace.Wrap(err)
-}
-
-// ActivateCertAuthority not implemented: can only be called locally.
-func (c *Client) ActivateCertAuthority(id services.CertAuthID) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeactivateCertAuthority not implemented: can only be called locally.
-func (c *Client) DeactivateCertAuthority(id services.CertAuthID) error {
-	return trace.NotImplemented(notImplementedMessage)
 }
 
 // GenerateToken creates a special provisioning token for a new SSH server
@@ -720,11 +705,6 @@ func (c *Client) UpsertReverseTunnel(tunnel services.ReverseTunnel) error {
 	return trace.Wrap(err)
 }
 
-// GetReverseTunnel not implemented: can only be called locally.
-func (c *Client) GetReverseTunnel(name string, opts ...services.MarshalOption) (services.ReverseTunnel, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
 // GetReverseTunnels returns the list of created reverse tunnels
 func (c *Client) GetReverseTunnels(opts ...services.MarshalOption) ([]services.ReverseTunnel, error) {
 	out, err := c.Get(c.Endpoint("reversetunnels"), url.Values{})
@@ -837,25 +817,10 @@ func (c *Client) DeleteTunnelConnections(clusterName string) error {
 	return trace.Wrap(err)
 }
 
-// DeleteAllTokens not implemented: can only be called locally.
-func (c *Client) DeleteAllTokens() error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // DeleteAllTunnelConnections deletes all tunnel connections
 func (c *Client) DeleteAllTunnelConnections() error {
 	_, err := c.Delete(c.Endpoint("tunnelconnections"))
 	return trace.Wrap(err)
-}
-
-// AddUserLoginAttempt logs user login attempt
-func (c *Client) AddUserLoginAttempt(user string, attempt services.LoginAttempt, ttl time.Duration) error {
-	panic("not implemented")
-}
-
-// GetUserLoginAttempts returns user login attempts
-func (c *Client) GetUserLoginAttempts(user string) ([]services.LoginAttempt, error) {
-	panic("not implemented")
 }
 
 // GetRemoteClusters returns a list of remote clusters
@@ -952,16 +917,6 @@ func (c *Client) GetAuthServers() ([]services.Server, error) {
 		re[i] = server
 	}
 	return re, nil
-}
-
-// DeleteAllAuthServers not implemented: can only be called locally.
-func (c *Client) DeleteAllAuthServers() error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAuthServer not implemented: can only be called locally.
-func (c *Client) DeleteAuthServer(name string) error {
-	return trace.NotImplemented(notImplementedMessage)
 }
 
 // UpsertProxy is used by proxies to report their presence
@@ -1799,11 +1754,6 @@ func (c *Client) GetRoles() ([]services.Role, error) {
 	return roles, nil
 }
 
-// CreateRole not implemented: can only be called locally.
-func (c *Client) CreateRole(role services.Role) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // UpsertRole creates or updates role
 func (c *Client) UpsertRole(ctx context.Context, role services.Role) error {
 	data, err := services.MarshalRole(role)
@@ -1897,11 +1847,6 @@ func (c *Client) SetClusterName(cn services.ClusterName) error {
 	return nil
 }
 
-// UpsertClusterName not implemented: can only be called locally.
-func (c *Client) UpsertClusterName(cn services.ClusterName) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // DeleteStaticTokens deletes static tokens
 func (c *Client) DeleteStaticTokens() error {
 	_, err := c.Delete(c.Endpoint("configuration", "static_tokens"))
@@ -1969,46 +1914,6 @@ func (c *Client) SetAuthPreference(cap services.AuthPreference) error {
 // GetLocalClusterName returns local cluster name
 func (c *Client) GetLocalClusterName() (string, error) {
 	return c.GetDomainName()
-}
-
-// DeleteClusterConfig not implemented: can only be called locally.
-func (c *Client) DeleteClusterConfig() error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteClusterName not implemented: can only be called locally.
-func (c *Client) DeleteClusterName() error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// UpsertLocalClusterName not implemented: can only be called locally.
-func (c *Client) UpsertLocalClusterName(string) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllCertAuthorities not implemented: can only be called locally.
-func (c *Client) DeleteAllCertAuthorities(caType services.CertAuthType) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllReverseTunnels not implemented: can only be called locally.
-func (c *Client) DeleteAllReverseTunnels() error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllCertNamespaces not implemented: can only be called locally.
-func (c *Client) DeleteAllNamespaces() error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllRoles not implemented: can only be called locally.
-func (c *Client) DeleteAllRoles() error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllUsers not implemented: can only be called locally.
-func (c *Client) DeleteAllUsers() error {
-	return trace.NotImplemented(notImplementedMessage)
 }
 
 func (c *Client) GetTrustedCluster(name string) (services.TrustedCluster, error) {
@@ -2130,11 +2035,6 @@ func (c *Client) GetDatabaseServers(ctx context.Context, namespace string, opts 
 	}
 
 	return resp, nil
-}
-
-// UpsertAppSession not implemented: can only be called locally.
-func (c *Client) UpsertAppSession(ctx context.Context, session services.WebSession) error {
-	return trace.NotImplemented(notImplementedMessage)
 }
 
 // ResumeAuditStream resumes existing audit stream.
@@ -2280,13 +2180,11 @@ type IdentityService interface {
 	// returns the resulting certificates.
 	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
 
-	// GenerateUserSingleUseCerts is like GenerateUserCerts but issues a
-	// certificate for a single session
-	// (https://github.com/gravitational/teleport/blob/3a1cf9111c2698aede2056513337f32bfc16f1f1/rfd/0014-session-2FA.md#sessions).
-	GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error)
-
-	// DeleteAllUsers deletes all users
-	DeleteAllUsers() error
+	// FIXME(dmitri): move me elsewhere
+	// // GenerateUserSingleUseCerts is like GenerateUserCerts but issues a
+	// // certificate for a single session
+	// // (https://github.com/gravitational/teleport/blob/3a1cf9111c2698aede2056513337f32bfc16f1f1/rfd/0014-session-2FA.md#sessions).
+	// GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error)
 
 	// CreateResetPasswordToken creates a new user reset token
 	CreateResetPasswordToken(ctx context.Context, req CreateResetPasswordTokenRequest) (services.ResetPasswordToken, error)
@@ -2299,6 +2197,14 @@ type IdentityService interface {
 
 	// RotateResetPasswordTokenSecrets rotates token secrets for a given tokenID
 	RotateResetPasswordTokenSecrets(ctx context.Context, tokenID string) (services.ResetPasswordTokenSecrets, error)
+}
+
+// LocalClient represents a client view of the auth server
+type LocalClient interface {
+	IdentityService
+
+	// NewKeepAliver returns a new instance of keep aliver
+	NewKeepAliver(ctx context.Context) (services.KeepAliver, error)
 
 	// GetMFADevices fetches all MFA devices registered for the calling user.
 	GetMFADevices(ctx context.Context, in *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error)
@@ -2306,6 +2212,16 @@ type IdentityService interface {
 	AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error)
 	// DeleteMFADevice deletes a MFA device for the calling user.
 	DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error)
+}
+
+// LocalCluster represents a client view of the auth server
+type LocalCluster interface {
+	// GetClusterCACert returns the CAs for the local cluster without signing keys.
+	GetClusterCACert() (*LocalCAResponse, error)
+
+	// ProcessKubeCSR processes CSR request against Kubernetes CA, returns
+	// signed certificate if successful.
+	ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error)
 }
 
 // ProvisioningService is a service in control
@@ -2321,9 +2237,6 @@ type ProvisioningService interface {
 	// could be a reset password token or a machine token
 	DeleteToken(token string) error
 
-	// DeleteAllTokens deletes all provisioning tokens
-	DeleteAllTokens() error
-
 	// UpsertToken adds provisioning tokens for the auth server
 	UpsertToken(services.ProvisionToken) error
 
@@ -2335,61 +2248,42 @@ type ProvisioningService interface {
 	RegisterNewAuthServer(token string) error
 }
 
-// ClientI is a client to Auth service
-type ClientI interface {
-	IdentityService
-	ProvisioningService
-	services.Trust
-	events.IAuditLog
-	events.Streamer
-	events.Emitter
-	services.Presence
-	services.Access
-	services.DynamicAccess
-	services.DynamicAccessOracle
-	WebService
-	session.Service
-	services.ClusterConfiguration
-	services.Events
-
-	types.WebSessionsGetter
-	types.WebTokensGetter
-
-	// NewKeepAliver returns a new instance of keep aliver
-	NewKeepAliver(ctx context.Context) (services.KeepAliver, error)
-
-	// RotateCertAuthority starts or restarts certificate authority rotation process.
-	RotateCertAuthority(req RotateRequest) error
-
-	// RotateExternalCertAuthority rotates external certificate authority,
-	// this method is used to update only public keys and certificates of the
-	// the certificate authorities of trusted clusters.
-	RotateExternalCertAuthority(ca services.CertAuthority) error
-
+type Validation interface {
 	// ValidateTrustedCluster validates trusted cluster token with
 	// main cluster, in case if validation is successful, main cluster
 	// adds remote cluster
 	ValidateTrustedCluster(*ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error)
+}
 
-	// GetDomainName returns auth server cluster name
-	GetDomainName() (string, error)
+// ClientI is a client to Auth service
+type ClientI interface {
+	LocalClient
+	KeepAliver
+	WebService
+	Validation
+	WebAuth
+	LocalCluster
+	ProvisioningService
+	DomainNameGetter
+	CertAuthorityRotator
+	KeyGenerator
 
-	// GetClusterCACert returns the CAs for the local cluster without signing keys.
-	GetClusterCACert() (*LocalCAResponse, error)
+	services.Trust
+	services.Presence
+	services.Access
+	services.DynamicAccess
+	services.DynamicAccessOracle
+	services.ClusterConfiguration
+	services.Events
 
-	// GenerateServerKeys generates new host private keys and certificates (signed
-	// by the host certificate authority) for a node
-	GenerateServerKeys(GenerateServerKeysRequest) (*PackedKeys, error)
-	// AuthenticateWebUser authenticates web user, creates and  returns web session
-	// in case if authentication is successful
-	AuthenticateWebUser(req AuthenticateUserRequest) (services.WebSession, error)
-	// AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
-	// short lived certificates as a result
-	AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error)
+	events.IAuditLog
+	events.Streamer
+	events.Emitter
 
-	// ProcessKubeCSR processes CSR request against Kubernetes CA, returns
-	// signed certificate if successful.
-	ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error)
+	session.Service
+
+	types.WebSessionsGetter
+	types.WebTokensGetter
 
 	// Ping gets basic info about the auth server.
 	Ping(ctx context.Context) (proto.PingResponse, error)
@@ -2409,4 +2303,18 @@ type ClientI interface {
 	// GetWebToken queries the existing web token described with req.
 	// Implements ReadAccessPoint.
 	GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
+}
+
+type DomainNameGetter interface {
+	// GetDomainName returns auth server cluster name
+	GetDomainName() (string, error)
+}
+
+type WebAuth interface {
+	// AuthenticateWebUser authenticates web user, creates and  returns web session
+	// in case if authentication is successful
+	AuthenticateWebUser(req AuthenticateUserRequest) (services.WebSession, error)
+	// AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
+	// short lived certificates as a result
+	AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error)
 }

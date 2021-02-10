@@ -46,14 +46,23 @@ type Announcer interface {
 	// or for the specified duration with second resolution if it's >= 1 second
 	UpsertKubeService(context.Context, services.Server) error
 
-	// NewKeepAliver returns a new instance of keep aliver
-	NewKeepAliver(ctx context.Context) (services.KeepAliver, error)
-
 	// UpsertAppServer adds an application server.
 	UpsertAppServer(context.Context, services.Server) (*services.KeepAlive, error)
 
 	// UpsertDatabaseServer registers a database proxy server.
 	UpsertDatabaseServer(context.Context, types.DatabaseServer) (*services.KeepAlive, error)
+}
+
+// LocalAnnouncer manages presence on auth server
+type LocalAnnouncer interface {
+	Announcer
+	KeepAliver
+}
+
+// KeepAliver creates new keep-alives
+type KeepAliver interface {
+	// NewKeepAliver returns a new instance of keep aliver
+	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
 }
 
 // ReadAccessPoint is an API interface implemented by a certificate authority (CA)
@@ -147,13 +156,19 @@ type AccessPoint interface {
 	events.Streamer
 
 	// Semaphores provides semaphore operations
-	services.Semaphores
+	types.Semaphores
 
 	// UpsertTunnelConnection upserts tunnel connection
 	UpsertTunnelConnection(conn services.TunnelConnection) error
 
 	// DeleteTunnelConnection deletes tunnel connection
 	DeleteTunnelConnection(clusterName, connName string) error
+}
+
+// ClientAccessPoint represents an AccessPoint for the client API
+type ClientAccessPoint interface {
+	AccessPoint
+	KeepAliver
 }
 
 // AccessCache is a subset of the interface working on the certificate authorities
@@ -189,8 +204,26 @@ type Cache interface {
 	NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error)
 }
 
+// CertAuthorityRotator manages rotation of cert authorities
+type CertAuthorityRotator interface {
+	// RotateCertAuthority starts or restarts certificate authority rotation process.
+	RotateCertAuthority(RotateRequest) error
+
+	// RotateExternalCertAuthority rotates external certificate authority,
+	// this method is used to update only public keys and certificates of the
+	// the certificate authorities of trusted clusters.
+	RotateExternalCertAuthority(services.CertAuthority) error
+}
+
+// KeyGenerator generates new server keys
+type KeyGenerator interface {
+	// GenerateServerKeys generates new host private keys and certificates (signed
+	// by the host certificate authority) for a node
+	GenerateServerKeys(GenerateServerKeysRequest) (*PackedKeys, error)
+}
+
 // NewWrapper returns new access point wrapper
-func NewWrapper(base AccessPoint, cache ReadAccessPoint) AccessPoint {
+func NewWrapper(base ClientAccessPoint, cache ReadAccessPoint) ClientAccessPoint {
 	return &Wrapper{
 		NoCache:         base,
 		ReadAccessPoint: cache,
@@ -201,7 +234,7 @@ func NewWrapper(base AccessPoint, cache ReadAccessPoint) AccessPoint {
 // so that reads of cached values can be intercepted.
 type Wrapper struct {
 	ReadAccessPoint
-	NoCache AccessPoint
+	NoCache ClientAccessPoint
 }
 
 // ResumeAuditStream resumes existing audit stream
@@ -299,7 +332,3 @@ type NewCachingAccessPoint func(clt ClientI, cacheName []string) (AccessPoint, e
 func NoCache(clt ClientI, cacheName []string) (AccessPoint, error) {
 	return clt, nil
 }
-
-// notImplementedMessage is the message to return for endpoints that are not
-// implemented. This is due to how service interfaces are used with Teleport.
-const notImplementedMessage = "not implemented: can only be called by auth locally"

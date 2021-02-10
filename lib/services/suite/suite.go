@@ -132,17 +132,20 @@ func NewTestCAWithConfig(config TestCAConfig) *services.CertAuthorityV2 {
 // for services. It is used for local implementations and implementations
 // using GRPC to guarantee consistency between local and remote services
 type ServicesTestSuite struct {
-	Access          services.Access
-	CAS             services.Trust
-	PresenceS       services.Presence
-	ProvisioningS   services.Provisioner
-	WebS            services.Identity
-	ConfigS         services.ClusterConfiguration
-	EventsS         services.Events
-	UsersS          services.UsersService
-	ChangesC        chan interface{}
-	Clock           clockwork.FakeClock
-	NewProxyWatcher services.NewProxyWatcherFunc
+	Access             services.Access
+	CAS                services.Trust
+	LocalTrust         services.LocalTrust
+	PresenceS          services.Presence
+	ProvisioningS      services.Provisioner
+	LocalProvisioningS services.LocalProvisioner
+	WebS               services.LocalIdentity
+	ConfigS            services.ClusterConfiguration
+	LocalConfigS       services.LocalClusterConfiguration
+	EventsS            services.Events
+	UsersS             services.UsersService
+	ChangesC           chan interface{}
+	Clock              clockwork.FakeClock
+	NewProxyWatcher    services.NewProxyWatcherFunc
 }
 
 func (s *ServicesTestSuite) Users() services.UsersService {
@@ -303,7 +306,7 @@ func (s *ServicesTestSuite) CertAuthCRUD(c *check.C) {
 
 	// test compare and swap
 	ca = NewTestCA(services.UserCA, "example.com")
-	c.Assert(s.CAS.CreateCertAuthority(ca), check.IsNil)
+	c.Assert(s.LocalTrust.CreateCertAuthority(ca), check.IsNil)
 
 	clock := clockwork.NewFakeClock()
 	newCA := *ca
@@ -650,7 +653,7 @@ func (s *ServicesTestSuite) TokenCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(tokens, check.HasLen, 2)
 
-	err = s.ProvisioningS.DeleteAllTokens()
+	err = s.LocalProvisioningS.DeleteAllTokens()
 	c.Assert(err, check.IsNil)
 
 	tokens, err = s.ProvisioningS.GetTokens()
@@ -1128,7 +1131,7 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	if CollectOptions(opts...).SkipDelete {
 		return
 	}
-	err = s.ConfigS.DeleteClusterConfig()
+	err = s.LocalConfigS.DeleteClusterConfig()
 	c.Assert(err, check.IsNil)
 
 	_, err = s.ConfigS.GetClusterConfig()
@@ -1147,13 +1150,13 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	clusterName.SetResourceID(gotName.GetResourceID())
 	fixtures.DeepCompare(c, clusterName, gotName)
 
-	err = s.ConfigS.DeleteClusterName()
+	err = s.LocalConfigS.DeleteClusterName()
 	c.Assert(err, check.IsNil)
 
 	_, err = s.ConfigS.GetClusterName()
 	fixtures.ExpectNotFound(c, err)
 
-	err = s.ConfigS.UpsertClusterName(clusterName)
+	err = s.LocalConfigS.UpsertClusterName(clusterName)
 	c.Assert(err, check.IsNil)
 
 	gotName, err = s.ConfigS.GetClusterName()
@@ -1689,7 +1692,7 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 				out, err := s.ConfigS.GetClusterConfig()
 				c.Assert(err, check.IsNil)
 
-				err = s.ConfigS.DeleteClusterConfig()
+				err = s.LocalConfigS.DeleteClusterConfig()
 				c.Assert(err, check.IsNil)
 
 				return out
@@ -1712,7 +1715,7 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 				out, err := s.ConfigS.GetClusterName()
 				c.Assert(err, check.IsNil)
 
-				err = s.ConfigS.DeleteClusterName()
+				err = s.LocalConfigS.DeleteClusterName()
 				c.Assert(err, check.IsNil)
 				return out
 			},

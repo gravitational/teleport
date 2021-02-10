@@ -1266,7 +1266,7 @@ func addMFADeviceInit(gctx *grpcContext, stream proto.AuthService_AddMFADeviceSe
 	if initReq == nil {
 		return nil, trace.BadParameter("expected AddMFADeviceRequestInit, got %T", req)
 	}
-	devs, err := gctx.authServer.GetMFADevices(stream.Context(), gctx.User.GetName())
+	devs, err := gctx.authServer.Services.GetMFADevices(stream.Context(), gctx.User.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1282,7 +1282,7 @@ func addMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_AddMF
 	auth := gctx.authServer
 	user := gctx.User.GetName()
 	ctx := stream.Context()
-	u2fStorage, err := u2f.InMemoryAuthenticationStorage(auth.Identity)
+	u2fStorage, err := u2f.InMemoryAuthenticationStorage(auth.Services.LocalIdentity)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1319,7 +1319,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 	auth := gctx.authServer
 	user := gctx.User.GetName()
 	ctx := stream.Context()
-	u2fStorage, err := u2f.InMemoryRegistrationStorage(auth.Identity)
+	u2fStorage, err := u2f.InMemoryRegistrationStorage(auth.Services.LocalIdentity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1342,7 +1342,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 			Account:       otpKey.AccountName(),
 		}}
 	case proto.AddMFADeviceRequestInit_U2F:
-		cap, err := auth.GetAuthPreference()
+		cap, err := auth.Services.GetAuthPreference()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1397,7 +1397,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 		if err := auth.checkTOTP(ctx, user, resp.TOTP.Code, dev); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := auth.UpsertMFADevice(ctx, user, dev); err != nil {
+		if err := auth.Services.UpsertMFADevice(ctx, user, dev); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case *proto.MFARegisterResponse_U2F:
@@ -1456,7 +1456,7 @@ func (g *GRPCServer) DeleteMFADevice(stream proto.AuthService_DeleteMFADeviceSer
 	}
 
 	// Find the device and delete it from backend.
-	devs, err := auth.GetMFADevices(ctx, user)
+	devs, err := auth.Services.GetMFADevices(ctx, user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1465,7 +1465,7 @@ func (g *GRPCServer) DeleteMFADevice(stream proto.AuthService_DeleteMFADeviceSer
 		if d.Metadata.Name != initReq.DeviceName && d.Id != initReq.DeviceName {
 			continue
 		}
-		if err := auth.DeleteMFADevice(ctx, user, d.Id); err != nil {
+		if err := auth.Services.DeleteMFADevice(ctx, user, d.Id); err != nil {
 			return trail.ToGRPC(err)
 		}
 		// 4. send Ack
@@ -1483,7 +1483,7 @@ func deleteMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_De
 	ctx := stream.Context()
 	auth := gctx.authServer
 	user := gctx.User.GetName()
-	u2fStorage, err := u2f.InMemoryAuthenticationStorage(auth.Identity)
+	u2fStorage, err := u2f.InMemoryAuthenticationStorage(auth.Services.LocalIdentity)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1519,7 +1519,7 @@ func (g *GRPCServer) GetMFADevices(ctx context.Context, req *proto.GetMFADevices
 		return nil, trace.Wrap(err)
 	}
 
-	devs, err := actx.authServer.GetMFADevices(ctx, actx.User.GetName())
+	devs, err := actx.authServer.Services.GetMFADevices(ctx, actx.User.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1692,7 +1692,7 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 			authServer: g.AuthServer,
 			context:    *authContext,
 			sessions:   g.SessionService,
-			alog:       g.AuthServer.IAuditLog,
+			alog:       g.AuthServer.Services.IAuditLog,
 		},
 	}, nil
 }

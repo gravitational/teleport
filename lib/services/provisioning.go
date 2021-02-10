@@ -36,11 +36,16 @@ type Provisioner interface {
 	// DeleteToken deletes provisioning token
 	DeleteToken(token string) error
 
-	// DeleteAllTokens deletes all provisioning tokens
-	DeleteAllTokens() error
-
 	// GetTokens returns all non-expired tokens
 	GetTokens(opts ...MarshalOption) ([]ProvisionToken, error)
+}
+
+// LocalProvisioner manages nodes and tokens on the auth server
+type LocalProvisioner interface {
+	Provisioner
+
+	// DeleteAllTokens deletes all provisioning tokens
+	DeleteAllTokens() error
 }
 
 // MustCreateProvisionToken returns a new valid provision token

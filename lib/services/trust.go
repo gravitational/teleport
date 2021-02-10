@@ -26,9 +26,6 @@ package services
 // Remote authorities have only public keys available, so they can
 // be only used to validate
 type Trust interface {
-	// CreateCertAuthority inserts a new certificate authority
-	CreateCertAuthority(ca CertAuthority) error
-
 	// UpsertCertAuthority updates or inserts a new certificate authority
 	UpsertCertAuthority(ca CertAuthority) error
 
@@ -40,9 +37,6 @@ type Trust interface {
 	// DeleteCertAuthority deletes particular certificate authority
 	DeleteCertAuthority(id CertAuthID) error
 
-	// DeleteAllCertAuthorities deletes cert authorities of a certain type
-	DeleteAllCertAuthorities(caType CertAuthType) error
-
 	// GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 	// controls if signing keys are loaded
 	GetCertAuthority(id CertAuthID, loadSigningKeys bool, opts ...MarshalOption) (CertAuthority, error)
@@ -50,6 +44,14 @@ type Trust interface {
 	// GetCertAuthorities returns a list of authorities of a given type
 	// loadSigningKeys controls whether signing keys should be loaded or not
 	GetCertAuthorities(caType CertAuthType, loadSigningKeys bool, opts ...MarshalOption) ([]CertAuthority, error)
+}
+
+// LocalTrust manages certificate authorities on the auth server
+type LocalTrust interface {
+	Trust
+
+	// CreateCertAuthority inserts a new certificate authority
+	CreateCertAuthority(ca CertAuthority) error
 
 	// ActivateCertAuthority moves a CertAuthority from the deactivated list to
 	// the normal list.
@@ -58,4 +60,7 @@ type Trust interface {
 	// DeactivateCertAuthority moves a CertAuthority from the normal list to
 	// the deactivated list.
 	DeactivateCertAuthority(id CertAuthID) error
+
+	// DeleteAllCertAuthorities deletes cert authorities of a certain type
+	DeleteAllCertAuthorities(caType CertAuthType) error
 }

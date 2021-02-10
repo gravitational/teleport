@@ -126,7 +126,7 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 	ttl := roles.AdjustSessionTTL(defaults.CertDuration)
 
 	// Generate the TLS certificate.
-	userCA, err := s.Trust.GetCertAuthority(services.CertAuthID{
+	userCA, err := s.Services.LocalTrust.GetCertAuthority(services.CertAuthID{
 		Type:       services.UserCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)

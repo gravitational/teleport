@@ -61,17 +61,23 @@ func (s *ServicesSuite) SetUpTest(c *check.C) {
 
 	eventsService := NewEventsService(s.bk)
 	presenceService := NewPresenceService(s.bk)
+	config := NewClusterConfigurationService(s.bk)
+	provisioner := NewProvisioningService(s.bk)
+	trust := NewCAService(s.bk)
 
 	s.suite = &suite.ServicesTestSuite{
-		CAS:           NewCAService(s.bk),
-		PresenceS:     presenceService,
-		ProvisioningS: NewProvisioningService(s.bk),
-		WebS:          NewIdentityService(s.bk),
-		Access:        NewAccessService(s.bk),
-		EventsS:       eventsService,
-		ChangesC:      make(chan interface{}),
-		ConfigS:       NewClusterConfigurationService(s.bk),
-		Clock:         clock,
+		CAS:                trust,
+		LocalTrust:         trust,
+		PresenceS:          presenceService,
+		ProvisioningS:      provisioner,
+		LocalProvisioningS: provisioner,
+		WebS:               NewIdentityService(s.bk),
+		Access:             NewAccessService(s.bk),
+		EventsS:            eventsService,
+		ChangesC:           make(chan interface{}),
+		ConfigS:            config,
+		LocalConfigS:       config,
+		Clock:              clock,
 		NewProxyWatcher: func() (*services.ProxyWatcher, error) {
 			return services.NewProxyWatcher(services.ProxyWatcherConfig{
 				Context:     context.TODO(),

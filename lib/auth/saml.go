@@ -37,7 +37,7 @@ import (
 
 // UpsertSAMLConnector creates or updates a SAML connector.
 func (a *Server) UpsertSAMLConnector(ctx context.Context, connector services.SAMLConnector) error {
-	if err := a.Identity.UpsertSAMLConnector(connector); err != nil {
+	if err := a.Services.LocalIdentity.UpsertSAMLConnector(connector); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &events.OIDCConnectorCreate{
@@ -60,7 +60,7 @@ func (a *Server) UpsertSAMLConnector(ctx context.Context, connector services.SAM
 
 // DeleteSAMLConnector deletes a SAML connector by name.
 func (a *Server) DeleteSAMLConnector(ctx context.Context, connectorName string) error {
-	if err := a.Identity.DeleteSAMLConnector(connectorName); err != nil {
+	if err := a.Services.LocalIdentity.DeleteSAMLConnector(connectorName); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &events.OIDCConnectorDelete{
@@ -82,7 +82,7 @@ func (a *Server) DeleteSAMLConnector(ctx context.Context, connectorName string) 
 }
 
 func (a *Server) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error) {
-	connector, err := a.Identity.GetSAMLConnector(req.ConnectorID, true)
+	connector, err := a.Services.LocalIdentity.GetSAMLConnector(req.ConnectorID, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -107,7 +107,7 @@ func (a *Server) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.
 		return nil, trace.Wrap(err)
 	}
 
-	err = a.Identity.CreateSAMLAuthRequest(req, defaults.SAMLAuthRequestTTL)
+	err = a.Services.LocalIdentity.CreateSAMLAuthRequest(req, defaults.SAMLAuthRequestTTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -150,7 +150,7 @@ func (a *Server) calculateSAMLUser(connector services.SAMLConnector, assertionIn
 	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.
-	roles, err := services.FetchRoles(p.roles, a.Access, p.traits)
+	roles, err := services.FetchRoles(p.roles, a.Services.LocalAccess, p.traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -197,7 +197,7 @@ func (a *Server) createSAMLUser(p *createUserParams) (services.User, error) {
 	}
 
 	// Get the user to check if it already exists or not.
-	existingUser, err := a.Identity.GetUser(p.username, false)
+	existingUser, err := a.Services.LocalIdentity.GetUser(p.username, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -335,11 +335,11 @@ func (a *Server) validateSAMLResponse(samlResponse string) (*samlAuthResponse, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	request, err := a.Identity.GetSAMLAuthRequest(requestID)
+	request, err := a.Services.LocalIdentity.GetSAMLAuthRequest(requestID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connector, err := a.Identity.GetSAMLConnector(request.ConnectorID, true)
+	connector, err := a.Services.LocalIdentity.GetSAMLConnector(request.ConnectorID, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

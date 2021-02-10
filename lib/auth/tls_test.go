@@ -2919,7 +2919,7 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 	err = s.server.Auth().SetClusterName(clusterName)
 	c.Assert(err, check.IsNil)
 
-	clusterNameResource, err = s.server.Auth().ClusterConfiguration.GetClusterName()
+	clusterNameResource, err = s.server.Auth().Services.LocalClusterConfiguration.GetClusterName()
 	c.Assert(err, check.IsNil)
 	suite.ExpectResource(c, w, 3*time.Second, clusterNameResource)
 }

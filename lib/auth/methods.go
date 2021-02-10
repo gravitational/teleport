@@ -115,7 +115,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 		return trace.Wrap(err)
 	}
 
-	authPreference, err := s.GetAuthPreference()
+	authPreference, err := s.Services.GetAuthPreference()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -186,7 +186,7 @@ func (s *Server) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebS
 	}
 
 	if req.Session != nil {
-		session, err := s.GetWebSession(context.TODO(), types.GetWebSessionRequest{
+		session, err := s.Services.GetWebSession(context.TODO(), types.GetWebSessionRequest{
 			User:      req.Username,
 			SessionID: req.Session.ID,
 		})

@@ -52,7 +52,7 @@ type Config struct {
 	// AuthClient is a client directly connected to the Auth server.
 	AuthClient *auth.Client
 	// AccessPoint is a caching client connected to the Auth Server.
-	AccessPoint auth.AccessPoint
+	AccessPoint auth.ClientAccessPoint
 	// StreamEmitter is a non-blocking audit events emitter.
 	StreamEmitter events.StreamEmitter
 	// TLSConfig is the *tls.Config for this server.

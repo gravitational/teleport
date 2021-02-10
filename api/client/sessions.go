@@ -21,7 +21,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 
-	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 
 	"github.com/golang/protobuf/ptypes/empty"
@@ -58,11 +57,6 @@ func (r *webSessions) List(ctx context.Context) ([]types.WebSession, error) {
 		out = append(out, session)
 	}
 	return out, nil
-}
-
-// Upsert not implemented: can only be called locally.
-func (r *webSessions) Upsert(ctx context.Context, session types.WebSession) error {
-	return trace.NotImplemented(notImplementedMessage)
 }
 
 // Delete deletes the web session specified with the request
@@ -120,11 +114,6 @@ func (r *webTokens) List(ctx context.Context) ([]types.WebToken, error) {
 	return out, nil
 }
 
-// Upsert not implemented: can only be called locally.
-func (r *webTokens) Upsert(ctx context.Context, token types.WebToken) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // Delete deletes the web token specified with the request
 func (r *webTokens) Delete(ctx context.Context, req types.DeleteWebTokenRequest) error {
 	_, err := r.c.grpc.DeleteWebToken(ctx, &req)
@@ -146,5 +135,3 @@ func (r *webTokens) DeleteAll(ctx context.Context) error {
 type webTokens struct {
 	c *Client
 }
-
-const notImplementedMessage = "not implemented: can only be called by auth locally"

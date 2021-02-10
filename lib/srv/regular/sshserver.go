@@ -73,7 +73,7 @@ type Server struct {
 	srv           *sshutils.Server
 	shell         string
 	getRotation   RotationGetter
-	authService   auth.AccessPoint
+	authService   auth.ClientAccessPoint
 	reg           *srv.SessionRegistry
 	sessionServer rsession.Service
 	limiter       *limiter.Limiter
@@ -473,7 +473,7 @@ func SetOnHeartbeat(fn func(error)) ServerOption {
 func New(addr utils.NetAddr,
 	hostname string,
 	signers []ssh.Signer,
-	authService auth.AccessPoint,
+	authService auth.ClientAccessPoint,
 	dataDir string,
 	advertiseAddr string,
 	proxyPublicAddr utils.NetAddr,

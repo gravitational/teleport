@@ -123,7 +123,7 @@ func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateResetPa
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = s.Identity.CreateResetPasswordToken(ctx, token)
+	_, err = s.Services.LocalIdentity.CreateResetPasswordToken(ctx, token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -145,7 +145,7 @@ func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateResetPa
 		log.WithError(err).Warn("Failed to emit create reset password token event.")
 	}
 
-	return s.GetResetPasswordToken(ctx, token.GetName())
+	return s.Services.GetResetPasswordToken(ctx, token.GetName())
 }
 
 // proxyDomainGetter is a reduced subset of the Auth API for formatAccountName.
@@ -196,7 +196,7 @@ func formatAccountName(s proxyDomainGetter, username string, authHostname string
 // extract the OTP key from the QR code, then allow the user to signup with
 // the same OTP token.
 func (s *Server) RotateResetPasswordTokenSecrets(ctx context.Context, tokenID string) (services.ResetPasswordTokenSecrets, error) {
-	token, err := s.GetResetPasswordToken(ctx, tokenID)
+	token, err := s.Services.GetResetPasswordToken(ctx, tokenID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -222,7 +222,7 @@ func (s *Server) RotateResetPasswordTokenSecrets(ctx context.Context, tokenID st
 	}
 	secrets.SetOTPKey(key.Secret())
 	secrets.SetQRCode(otpQRBuf.Bytes())
-	err = s.UpsertResetPasswordTokenSecrets(ctx, secrets)
+	err = s.Services.UpsertResetPasswordTokenSecrets(ctx, secrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -307,7 +307,7 @@ func formatResetPasswordTokenURL(proxyHost string, tokenID string, reqType strin
 }
 
 func (s *Server) deleteResetPasswordTokens(ctx context.Context, username string) error {
-	tokens, err := s.GetResetPasswordTokens(ctx)
+	tokens, err := s.Services.GetResetPasswordTokens(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -317,7 +317,7 @@ func (s *Server) deleteResetPasswordTokens(ctx context.Context, username string)
 			continue
 		}
 
-		err = s.DeleteResetPasswordToken(ctx, token.GetName())
+		err = s.Services.DeleteResetPasswordToken(ctx, token.GetName())
 		if err != nil {
 			return trace.Wrap(err)
 		}

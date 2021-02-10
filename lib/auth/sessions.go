@@ -38,7 +38,7 @@ import (
 // control is enforced.
 func (s *Server) CreateAppSession(ctx context.Context, req services.CreateAppSessionRequest, user services.User, checker services.AccessChecker) (services.WebSession, error) {
 	// Check that a matching parent web session exists in the backend.
-	parentSession, err := s.GetWebSession(ctx, types.GetWebSessionRequest{
+	parentSession, err := s.Services.GetWebSession(ctx, types.GetWebSessionRequest{
 		User:      req.Username,
 		SessionID: req.ParentSession,
 	})
@@ -88,7 +88,7 @@ func (s *Server) CreateAppSession(ctx context.Context, req services.CreateAppSes
 		TLSCert: certs.tls,
 		Expires: s.clock.Now().Add(ttl),
 	})
-	if err = s.Identity.UpsertAppSession(ctx, session); err != nil {
+	if err = s.Services.LocalIdentity.UpsertAppSession(ctx, session); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	log.Debugf("Generated application web session for %v with TTL %v.", req.Username, ttl)

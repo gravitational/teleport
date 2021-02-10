@@ -28,9 +28,6 @@ type Presence interface {
 	// Semaphores is responsible for semaphore handling
 	Semaphores
 
-	// UpsertLocalClusterName upserts local domain
-	UpsertLocalClusterName(name string) error
-
 	// GetLocalClusterName upserts local domain
 	GetLocalClusterName() (string, error)
 
@@ -65,12 +62,6 @@ type Presence interface {
 	// for the specified duration with second resolution if it's >= 1 second
 	UpsertAuthServer(server Server) error
 
-	// DeleteAuthServer deletes auth server by name
-	DeleteAuthServer(name string) error
-
-	// DeleteAllAuthServers deletes all auth servers
-	DeleteAllAuthServers() error
-
 	// UpsertProxy registers proxy server presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
 	UpsertProxy(server Server) error
@@ -87,26 +78,17 @@ type Presence interface {
 	// UpsertReverseTunnel upserts reverse tunnel entry temporarily or permanently
 	UpsertReverseTunnel(tunnel ReverseTunnel) error
 
-	// GetReverseTunnel returns reverse tunnel by name
-	GetReverseTunnel(name string, opts ...MarshalOption) (ReverseTunnel, error)
-
 	// GetReverseTunnels returns a list of registered servers
 	GetReverseTunnels(opts ...MarshalOption) ([]ReverseTunnel, error)
 
 	// DeleteReverseTunnel deletes reverse tunnel by it's domain name
 	DeleteReverseTunnel(domainName string) error
 
-	// DeleteAllReverseTunnels deletes all reverse tunnels
-	DeleteAllReverseTunnels() error
-
 	// GetNamespaces returns a list of namespaces
 	GetNamespaces() ([]Namespace, error)
 
 	// GetNamespace returns namespace by name
 	GetNamespace(name string) (*Namespace, error)
-
-	// DeleteAllNamespaces deletes all namespaces
-	DeleteAllNamespaces() error
 
 	// UpsertNamespace upserts namespace
 	UpsertNamespace(Namespace) error
@@ -197,4 +179,27 @@ type Presence interface {
 
 	// DeleteAllKubeServices deletes all registered kubernetes services.
 	DeleteAllKubeServices(context.Context) error
+}
+
+// LocalPresence manages Teleport components on the auth server
+type LocalPresence interface {
+	Presence
+
+	// DeleteAuthServer deletes auth server by name
+	DeleteAuthServer(name string) error
+
+	// DeleteAllAuthServers deletes all auth servers
+	DeleteAllAuthServers() error
+
+	// DeleteAllNamespaces deletes all namespaces
+	DeleteAllNamespaces() error
+
+	// DeleteAllReverseTunnels deletes all reverse tunnels
+	DeleteAllReverseTunnels() error
+
+	// GetReverseTunnel returns reverse tunnel by name
+	GetReverseTunnel(name string, opts ...MarshalOption) (ReverseTunnel, error)
+
+	// UpsertLocalClusterName upserts local domain
+	UpsertLocalClusterName(name string) error
 }

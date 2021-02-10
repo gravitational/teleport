@@ -125,15 +125,15 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		emitter:         cfg.Emitter,
 		streamer:        cfg.Streamer,
 		Services: Services{
-			Trust:                cfg.Trust,
-			Presence:             cfg.Presence,
-			Provisioner:          cfg.Provisioner,
-			Identity:             cfg.Identity,
-			Access:               cfg.Access,
-			DynamicAccess:        cfg.DynamicAccess,
-			ClusterConfiguration: cfg.ClusterConfiguration,
-			IAuditLog:            cfg.AuditLog,
-			Events:               cfg.Events,
+			LocalTrust:                cfg.Trust,
+			LocalPresence:             cfg.Presence,
+			LocalProvisioner:          cfg.Provisioner,
+			LocalIdentity:             cfg.Identity,
+			LocalAccess:               cfg.Access,
+			DynamicAccess:             cfg.DynamicAccess,
+			LocalClusterConfiguration: cfg.ClusterConfiguration,
+			IAuditLog:                 cfg.AuditLog,
+			Events:                    cfg.Events,
 		},
 	}
 	for _, o := range opts {
@@ -147,27 +147,29 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 }
 
 type Services struct {
-	services.Trust
-	services.Presence
-	services.Provisioner
-	services.Identity
-	services.Access
+	services.LocalTrust
+	services.LocalPresence
+	services.LocalProvisioner
+	services.LocalIdentity
+	services.LocalAccess
 	services.DynamicAccess
-	services.ClusterConfiguration
-	services.Events
+	services.LocalClusterConfiguration
+
+	types.Events
+
 	events.IAuditLog
 }
 
 // GetWebSession returns existing web session described by req.
 // Implements ReadAccessPoint
 func (r Services) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
-	return r.Identity.WebSessions().Get(ctx, req)
+	return r.LocalIdentity.WebSessions().Get(ctx, req)
 }
 
 // GetWebToken returns existing web token described by req.
 // Implements ReadAccessPoint
 func (r Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
-	return r.Identity.WebTokens().Get(ctx, req)
+	return r.LocalIdentity.WebTokens().Get(ctx, req)
 }
 
 var (
@@ -322,7 +324,7 @@ func (a *Server) SetClock(clock clockwork.Clock) {
 
 // SetAuditLog sets the server's audit log
 func (a *Server) SetAuditLog(auditLog events.IAuditLog) {
-	a.IAuditLog = auditLog
+	a.Services.IAuditLog = auditLog
 }
 
 // GetClusterConfig gets ClusterConfig from the backend.
@@ -391,7 +393,7 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 	}
 
 	// get the certificate authority that will be signing the public key of the host
-	ca, err := a.Trust.GetCertAuthority(services.CertAuthID{
+	ca, err := a.Services.LocalTrust.GetCertAuthority(services.CertAuthID{
 		Type:       services.HostCA,
 		DomainName: domainName,
 	}, true)
@@ -493,11 +495,11 @@ func certRequestClientIP(ip string) certRequestOption {
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
 func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster string) ([]byte, []byte, error) {
-	user, err := a.Identity.GetUser(username, false)
+	user, err := a.Services.LocalIdentity.GetUser(username, false)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
+	checker, err := services.FetchRoles(user.GetRoles(), a.Services.LocalAccess, user.GetTraits())
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -519,11 +521,11 @@ func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Dur
 // GenerateUserAppTestCert generates an application specific certificate, used
 // internally for tests.
 func (a *Server) GenerateUserAppTestCert(publicKey []byte, username string, ttl time.Duration, publicAddr string, clusterName string) ([]byte, error) {
-	user, err := a.Identity.GetUser(username, false)
+	user, err := a.Services.LocalIdentity.GetUser(username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
+	checker, err := services.FetchRoles(user.GetRoles(), a.Services.LocalAccess, user.GetTraits())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -568,11 +570,11 @@ type DatabaseTestCertRequest struct {
 // GenerateDatabaseTestCert generates a database access certificate for the
 // provided parameters. Used only internally in tests.
 func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, error) {
-	user, err := a.Identity.GetUser(req.Username, false)
+	user, err := a.Services.LocalIdentity.GetUser(req.Username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
+	checker, err := services.FetchRoles(user.GetRoles(), a.Services.LocalAccess, user.GetTraits())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -647,7 +649,7 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ca, err := a.Trust.GetCertAuthority(services.CertAuthID{
+	ca, err := a.Services.LocalTrust.GetCertAuthority(services.CertAuthID{
 		Type:       services.UserCA,
 		DomainName: clusterName,
 	}, true)
@@ -690,7 +692,7 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	// cluster. If this cert is targeting a trusted teleport cluster, leave all
 	// the kubernetes cluster validation up to them.
 	if req.routeToCluster == "" || req.routeToCluster == clusterName {
-		req.kubernetesCluster, err = kubeutils.CheckOrSetKubeCluster(a.closeCtx, a.Presence, req.kubernetesCluster, clusterName)
+		req.kubernetesCluster, err = kubeutils.CheckOrSetKubeCluster(a.closeCtx, a.Services.LocalPresence, req.kubernetesCluster, clusterName)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
@@ -762,7 +764,7 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 // In case if user exceeds defaults.MaxLoginAttempts
 // the user account will be locked for defaults.AccountLockInterval
 func (a *Server) WithUserLock(username string, authenticateFn func() error) error {
-	user, err := a.Identity.GetUser(username, false)
+	user, err := a.Services.LocalIdentity.GetUser(username, false)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			// If user is not found, still call authenticateFn. It should
@@ -780,7 +782,7 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 	fnErr := authenticateFn()
 	if fnErr == nil {
 		// upon successful login, reset the failed attempt counter
-		err = a.DeleteUserLoginAttempts(username)
+		err = a.Services.DeleteUserLoginAttempts(username)
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
@@ -793,12 +795,12 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 	}
 	// log failed attempt and possibly lock user
 	attempt := services.LoginAttempt{Time: a.clock.Now().UTC(), Success: false}
-	err = a.AddUserLoginAttempt(username, attempt, defaults.AttemptTTL)
+	err = a.Services.AddUserLoginAttempt(username, attempt, defaults.AttemptTTL)
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return trace.Wrap(fnErr)
 	}
-	loginAttempts, err := a.Identity.GetUserLoginAttempts(username)
+	loginAttempts, err := a.Services.LocalIdentity.GetUserLoginAttempts(username)
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return trace.Wrap(fnErr)
@@ -812,7 +814,7 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 		username, defaults.MaxLoginAttempts, utils.HumanTimeFormat(status.LockExpires))
 	log.Debug(message)
 	user.SetLocked(lockUntil, "user has exceeded maximum failed login attempts")
-	err = a.Identity.UpsertUser(user)
+	err = a.Services.LocalIdentity.UpsertUser(user)
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return trace.Wrap(fnErr)
@@ -854,7 +856,7 @@ type U2FAuthenticateChallenge struct {
 
 func (a *Server) U2FSignRequest(user string, password []byte) (*U2FAuthenticateChallenge, error) {
 	ctx := context.TODO()
-	cap, err := a.GetAuthPreference()
+	cap, err := a.Services.GetAuthPreference()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -871,7 +873,7 @@ func (a *Server) U2FSignRequest(user string, password []byte) (*U2FAuthenticateC
 		return nil, trace.Wrap(err)
 	}
 
-	devs, err := a.GetMFADevices(ctx, user)
+	devs, err := a.Services.GetMFADevices(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -884,7 +886,7 @@ func (a *Server) U2FSignRequest(user string, password []byte) (*U2FAuthenticateC
 			Dev:        dev,
 			AppConfig:  *u2fConfig,
 			StorageKey: user,
-			Storage:    a.Identity,
+			Storage:    a.Services.LocalIdentity,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -902,7 +904,7 @@ func (a *Server) U2FSignRequest(user string, password []byte) (*U2FAuthenticateC
 
 func (a *Server) CheckU2FSignResponse(ctx context.Context, user string, response *u2f.AuthenticateChallengeResponse) error {
 	// before trying to register a user, see U2F is actually setup on the backend
-	cap, err := a.GetAuthPreference()
+	cap, err := a.Services.GetAuthPreference()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -911,14 +913,14 @@ func (a *Server) CheckU2FSignResponse(ctx context.Context, user string, response
 		return trace.Wrap(err)
 	}
 
-	return a.checkU2F(ctx, user, *response, a.Identity)
+	return a.checkU2F(ctx, user, *response, a.Services.LocalIdentity)
 }
 
 // ExtendWebSession creates a new web session for a user based on a valid previous session.
 // Additional roles are appended to initial roles if there is an approved access request.
 // The new session expiration time will not exceed the expiration time of the old session.
 func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, identity tlsca.Identity) (services.WebSession, error) {
-	prevSession, err := a.GetWebSession(context.TODO(), types.GetWebSessionRequest{
+	prevSession, err := a.Services.GetWebSession(context.TODO(), types.GetWebSessionRequest{
 		User:      user,
 		SessionID: prevSessionID,
 	})
@@ -982,7 +984,7 @@ func (a *Server) getRolesAndExpiryFromAccessRequest(user, accessRequestID string
 		ID:   accessRequestID,
 	}
 
-	reqs, err := a.GetAccessRequests(context.TODO(), reqFilter)
+	reqs, err := a.Services.GetAccessRequests(context.TODO(), reqFilter)
 	if err != nil {
 		return nil, time.Time{}, trace.Wrap(err)
 	}
@@ -1082,7 +1084,7 @@ func (a *Server) GenerateToken(ctx context.Context, req GenerateTokenRequest) (s
 		token.SetMetadata(meta)
 	}
 
-	if err := a.Provisioner.UpsertToken(token); err != nil {
+	if err := a.Services.LocalProvisioner.UpsertToken(token); err != nil {
 		return "", trace.Wrap(err)
 	}
 
@@ -1463,7 +1465,7 @@ func (a *Server) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys,
 }
 
 func (a *Server) RegisterNewAuthServer(token string) error {
-	tok, err := a.Provisioner.GetToken(token)
+	tok, err := a.Services.LocalProvisioner.GetToken(token)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1489,11 +1491,11 @@ func (a *Server) DeleteToken(token string) (err error) {
 		}
 	}
 	// delete reset password token:
-	if err = a.Identity.DeleteResetPasswordToken(context.TODO(), token); err == nil {
+	if err = a.Services.LocalIdentity.DeleteResetPasswordToken(context.TODO(), token); err == nil {
 		return nil
 	}
 	// delete node token:
-	if err = a.Provisioner.DeleteToken(token); err == nil {
+	if err = a.Services.LocalProvisioner.DeleteToken(token); err == nil {
 		return nil
 	}
 	return trace.Wrap(err)
@@ -1503,7 +1505,7 @@ func (a *Server) DeleteToken(token string) (err error) {
 // tokens usually have "node roles", like auth,proxy,node and user invitation tokens have 'signup' role
 func (a *Server) GetTokens(opts ...services.MarshalOption) (tokens []services.ProvisionToken, err error) {
 	// get node tokens:
-	tokens, err = a.Provisioner.GetTokens()
+	tokens, err = a.Services.LocalProvisioner.GetTokens()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1516,7 +1518,7 @@ func (a *Server) GetTokens(opts ...services.MarshalOption) (tokens []services.Pr
 		tokens = append(tokens, tkns.GetStaticTokens()...)
 	}
 	// get reset password tokens:
-	resetPasswordTokens, err := a.Identity.GetResetPasswordTokens(context.TODO())
+	resetPasswordTokens, err := a.Services.LocalIdentity.GetResetPasswordTokens(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1538,7 +1540,7 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (services.WebSess
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(req.Roles, a.Access, req.Traits)
+	checker, err := services.FetchRoles(req.Roles, a.Services.LocalAccess, req.Traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1584,7 +1586,7 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (services.WebSess
 // The session is stripped of any authentication details.
 // Implements auth.WebUIService
 func (a *Server) GetWebSessionInfo(ctx context.Context, user, sessionID string) (services.WebSession, error) {
-	sess, err := a.Identity.WebSessions().Get(ctx, types.GetWebSessionRequest{User: user, SessionID: sessionID})
+	sess, err := a.Services.LocalIdentity.WebSessions().Get(ctx, types.GetWebSessionRequest{User: user, SessionID: sessionID})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1595,14 +1597,14 @@ func (a *Server) DeleteNamespace(namespace string) error {
 	if namespace == defaults.Namespace {
 		return trace.AccessDenied("can't delete default namespace")
 	}
-	nodes, err := a.Presence.GetNodes(namespace, services.SkipValidation())
+	nodes, err := a.Services.LocalPresence.GetNodes(namespace, services.SkipValidation())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if len(nodes) != 0 {
 		return trace.BadParameter("can't delete namespace %v that has %v registered nodes", namespace, len(nodes))
 	}
-	return a.Presence.DeleteNamespace(namespace)
+	return a.Services.LocalPresence.DeleteNamespace(namespace)
 }
 
 // NewWatcher returns a new event watcher. In case of an auth server
@@ -1615,7 +1617,7 @@ func (a *Server) NewWatcher(ctx context.Context, watch services.Watch) (services
 // DeleteRole deletes a role by name of the role.
 func (a *Server) DeleteRole(ctx context.Context, name string) error {
 	// check if this role is used by CA or Users
-	users, err := a.Identity.GetUsers(false)
+	users, err := a.Services.LocalIdentity.GetUsers(false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1631,7 +1633,7 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 	}
 	// check if it's used by some external cert authorities, e.g.
 	// cert authorities related to external cluster
-	cas, err := a.Trust.GetCertAuthorities(services.UserCA, false)
+	cas, err := a.Services.LocalTrust.GetCertAuthorities(services.UserCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1646,7 +1648,7 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 		}
 	}
 
-	if err := a.Access.DeleteRole(ctx, name); err != nil {
+	if err := a.Services.LocalAccess.DeleteRole(ctx, name); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1671,7 +1673,7 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 
 // UpsertRole creates or updates role.
 func (a *Server) upsertRole(ctx context.Context, role services.Role) error {
-	if err := a.UpsertRole(ctx, role); err != nil {
+	if err := a.Services.UpsertRole(ctx, role); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1724,7 +1726,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req services.AccessReq
 			req.SetExpiry(pexp)
 		}
 	}
-	if err := a.DynamicAccess.CreateAccessRequest(ctx, req); err != nil {
+	if err := a.Services.DynamicAccess.CreateAccessRequest(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}
 	err = a.emitter.EmitAuditEvent(a.closeCtx, &events.AccessRequestCreate{
@@ -1744,7 +1746,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req services.AccessReq
 }
 
 func (a *Server) SetAccessRequestState(ctx context.Context, params services.AccessRequestUpdate) error {
-	if err := a.DynamicAccess.SetAccessRequestState(ctx, params); err != nil {
+	if err := a.Services.DynamicAccess.SetAccessRequestState(ctx, params); err != nil {
 		return trace.Wrap(err)
 	}
 	event := &events.AccessRequestCreate{
@@ -1956,7 +1958,7 @@ func (a *Server) GetDatabaseServers(ctx context.Context, namespace string, opts 
 // registered by the user.
 func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u2f.AuthenticationStorage) (*proto.MFAAuthenticateChallenge, error) {
 	// Check what kind of MFA is enabled.
-	apref, err := a.GetAuthPreference()
+	apref, err := a.Services.GetAuthPreference()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1983,7 +1985,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u
 		}
 	}
 
-	devs, err := a.GetMFADevices(ctx, user)
+	devs, err := a.Services.GetMFADevices(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2037,7 +2039,7 @@ func (a *Server) validateMFAAuthResponse(ctx context.Context, user string, resp 
 }
 
 func (a *Server) checkU2F(ctx context.Context, user string, res u2f.AuthenticateChallengeResponse, u2fStorage u2f.AuthenticationStorage) error {
-	devs, err := a.GetMFADevices(ctx, user)
+	devs, err := a.Services.GetMFADevices(ctx, user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2075,14 +2077,14 @@ func WithClock(clock clockwork.Clock) func(*Server) {
 }
 
 func (a *Server) upsertWebSession(ctx context.Context, user string, session services.WebSession) error {
-	if err := a.WebSessions().Upsert(ctx, session); err != nil {
+	if err := a.Services.WebSessions().Upsert(ctx, session); err != nil {
 		return trace.Wrap(err)
 	}
 	token := types.NewWebToken(session.GetBearerTokenExpiryTime(), types.WebTokenSpecV3{
 		User:  session.GetUser(),
 		Token: session.GetBearerToken(),
 	})
-	if err := a.WebTokens().Upsert(ctx, token); err != nil {
+	if err := a.Services.WebTokens().Upsert(ctx, token); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -2112,7 +2114,7 @@ func (k *authKeepAliver) forwardKeepAlives() {
 		case <-k.ctx.Done():
 			return
 		case keepAlive := <-k.keepAlivesC:
-			err := k.a.KeepAliveServer(k.ctx, keepAlive)
+			err := k.a.Services.KeepAliveServer(k.ctx, keepAlive)
 			if err != nil {
 				k.closeWithError(err)
 				return

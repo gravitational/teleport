@@ -237,20 +237,25 @@ type Access interface {
 	// GetRoles returns a list of roles
 	GetRoles() ([]Role, error)
 
-	// CreateRole creates a role
-	CreateRole(role Role) error
-
 	// UpsertRole creates or updates role
 	UpsertRole(ctx context.Context, role Role) error
-
-	// DeleteAllRoles deletes all roles
-	DeleteAllRoles() error
 
 	// GetRole returns role by name
 	GetRole(name string) (Role, error)
 
 	// DeleteRole deletes role by name
 	DeleteRole(ctx context.Context, name string) error
+}
+
+// LocalAccess manages roles and permissions on the auth server
+type LocalAccess interface {
+	Access
+
+	// CreateRole creates a role
+	CreateRole(role Role) error
+
+	// DeleteAllRoles deletes all roles
+	DeleteAllRoles() error
 }
 
 const (

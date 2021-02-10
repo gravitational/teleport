@@ -478,7 +478,7 @@ func (s *AuthSuite) TestUserLock(c *C) {
 		c.Assert(err, NotNil)
 	}
 
-	user, err := s.a.Identity.GetUser(username, false)
+	user, err := s.a.LocalIdentity.GetUser(username, false)
 	c.Assert(err, IsNil)
 	c.Assert(user.GetStatus().IsLocked, Equals, true)
 
@@ -921,7 +921,7 @@ func (s *AuthSuite) TestTrustedClusterCRUDEventEmitted(c *C) {
 		ReverseTunnelAddress: "b",
 	})
 	c.Assert(err, IsNil)
-	_, err = s.a.Presence.UpsertTrustedCluster(ctx, tc)
+	_, err = s.a.LocalPresence.UpsertTrustedCluster(ctx, tc)
 	c.Assert(err, IsNil)
 
 	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(services.UserCA, "test")), IsNil)
@@ -1082,14 +1082,14 @@ func newTestServices(t *testing.T) Services {
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 	return Services{
-		Trust:                local.NewCAService(bk),
-		Presence:             local.NewPresenceService(bk),
-		Provisioner:          local.NewProvisioningService(bk),
-		Identity:             local.NewIdentityService(bk),
-		Access:               local.NewAccessService(bk),
-		DynamicAccess:        local.NewDynamicAccessService(bk),
-		ClusterConfiguration: local.NewClusterConfigurationService(bk),
-		Events:               local.NewEventsService(bk),
-		IAuditLog:            events.NewDiscardAuditLog(),
+		LocalTrust:                local.NewCAService(bk),
+		LocalPresence:             local.NewPresenceService(bk),
+		LocalProvisioner:          local.NewProvisioningService(bk),
+		LocalIdentity:             local.NewIdentityService(bk),
+		LocalAccess:               local.NewAccessService(bk),
+		DynamicAccess:             local.NewDynamicAccessService(bk),
+		LocalClusterConfiguration: local.NewClusterConfigurationService(bk),
+		Events:                    local.NewEventsService(bk),
+		IAuditLog:                 events.NewDiscardAuditLog(),
 	}
 }

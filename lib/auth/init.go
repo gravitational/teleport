@@ -93,19 +93,19 @@ type InitConfig struct {
 	OIDCConnectors []services.OIDCConnector
 
 	// Trust is a service that manages users and credentials
-	Trust services.Trust
+	Trust services.LocalTrust
 
 	// Presence service is a discovery and hearbeat tracker
-	Presence services.Presence
+	Presence services.LocalPresence
 
 	// Provisioner is a service that keeps track of provisioning tokens
-	Provisioner services.Provisioner
+	Provisioner services.LocalProvisioner
 
 	// Identity is a service that manages users and credentials
-	Identity services.Identity
+	Identity services.LocalIdentity
 
 	// Access is service controlling access to resources
-	Access services.Access
+	Access services.LocalAccess
 
 	// DynamicAccess is a service that manages dynamic RBAC.
 	DynamicAccess services.DynamicAccess
@@ -114,7 +114,7 @@ type InitConfig struct {
 	Events services.Events
 
 	// ClusterConfiguration is a services that holds cluster wide configuration.
-	ClusterConfiguration services.ClusterConfiguration
+	ClusterConfiguration services.LocalClusterConfiguration
 
 	// Roles is a set of roles to create
 	Roles []services.Role
@@ -205,7 +205,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	// same pattern as the rest of the configuration (they are not configuration
 	// singletons). However, we need to keep them around while Telekube uses them.
 	for _, role := range cfg.Roles {
-		if err := asrv.UpsertRole(ctx, role); err != nil {
+		if err := asrv.Services.UpsertRole(ctx, role); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		log.Infof("Created role: %v.", role)
@@ -215,7 +215,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		// Don't re-create CA if it already exists, otherwise
 		// the existing cluster configuration will be corrupted;
 		// this part of code is only used in tests.
-		if err := asrv.Trust.CreateCertAuthority(ca); err != nil {
+		if err := asrv.Services.LocalTrust.CreateCertAuthority(ca); err != nil {
 			if !trace.IsAlreadyExists(err) {
 				return nil, trace.Wrap(err)
 			}
@@ -224,7 +224,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 	for _, tunnel := range cfg.ReverseTunnels {
-		if err := asrv.UpsertReverseTunnel(tunnel); err != nil {
+		if err := asrv.Services.UpsertReverseTunnel(tunnel); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		log.Infof("Created reverse tunnel: %v.", tunnel)
@@ -242,13 +242,13 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	} else {
 		cfg.ClusterConfig.SetClusterID(uuid.New())
 	}
-	err = asrv.SetClusterConfig(cfg.ClusterConfig)
+	err = asrv.Services.SetClusterConfig(cfg.ClusterConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// The first Auth Server that starts gets to set the name of the cluster.
-	err = asrv.SetClusterName(cfg.ClusterName)
+	err = asrv.Services.SetClusterName(cfg.ClusterName)
 	if err != nil && !trace.IsAlreadyExists(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -256,7 +256,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	// is trying to change the name.
 	if trace.IsAlreadyExists(err) {
 		// Get current name of cluster from the backend.
-		cn, err := asrv.ClusterConfiguration.GetClusterName()
+		cn, err := asrv.Services.LocalClusterConfiguration.GetClusterName()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -276,20 +276,20 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	log.Debugf("Cluster configuration: %v.", cfg.ClusterName)
 
-	err = asrv.SetStaticTokens(cfg.StaticTokens)
+	err = asrv.Services.SetStaticTokens(cfg.StaticTokens)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	log.Infof("Updating cluster configuration: %v.", cfg.StaticTokens)
 
-	err = asrv.SetAuthPreference(cfg.AuthPreference)
+	err = asrv.Services.SetAuthPreference(cfg.AuthPreference)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	log.Infof("Updating cluster configuration: %v.", cfg.AuthPreference)
 
 	// always create the default namespace
-	err = asrv.UpsertNamespace(services.NewNamespace(defaults.Namespace))
+	err = asrv.Services.UpsertNamespace(services.NewNamespace(defaults.Namespace))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -297,7 +297,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 
 	// always create a default admin role
 	defaultRole := services.NewAdminRole()
-	err = asrv.CreateRole(defaultRole)
+	err = asrv.Services.CreateRole(defaultRole)
 	if err != nil && !trace.IsAlreadyExists(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -347,7 +347,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 			},
 		}
 
-		if err := asrv.Trust.UpsertCertAuthority(userCA); err != nil {
+		if err := asrv.Services.LocalTrust.UpsertCertAuthority(userCA); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	} else if len(userCA.GetTLSKeyPairs()) == 0 {
@@ -360,7 +360,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 		userCA.SetTLSKeyPairs([]services.TLSKeyPair{{Cert: certPEM, Key: keyPEM}})
-		if err := asrv.Trust.UpsertCertAuthority(userCA); err != nil {
+		if err := asrv.Services.LocalTrust.UpsertCertAuthority(userCA); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -406,7 +406,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 				TLSKeyPairs:  []services.TLSKeyPair{{Cert: certPEM, Key: keyPEM}},
 			},
 		}
-		if err := asrv.Trust.UpsertCertAuthority(hostCA); err != nil {
+		if err := asrv.Services.LocalTrust.UpsertCertAuthority(hostCA); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	} else if len(hostCA.GetTLSKeyPairs()) == 0 {
@@ -427,7 +427,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 		hostCA.SetTLSKeyPairs([]services.TLSKeyPair{{Cert: certPEM, Key: keyPEM}})
-		if err := asrv.Trust.UpsertCertAuthority(hostCA); err != nil {
+		if err := asrv.Services.LocalTrust.UpsertCertAuthority(hostCA); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -447,7 +447,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := asrv.Trust.UpsertCertAuthority(jwtSigner); err != nil {
+		if err := asrv.Services.LocalTrust.UpsertCertAuthority(jwtSigner); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -938,7 +938,7 @@ func migrateRemoteClusters(asrv *Server) error {
 			return trace.Wrap(err)
 		}
 		// the cert authority is associated with trusted cluster
-		_, err = asrv.GetTrustedCluster(certAuthority.GetName())
+		_, err = asrv.Services.GetTrustedCluster(certAuthority.GetName())
 		if err == nil {
 			log.Debugf("Migrations: trusted cluster resource exists for cert authority %q.", certAuthority.GetName())
 			continue
@@ -950,7 +950,7 @@ func migrateRemoteClusters(asrv *Server) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		err = asrv.CreateRemoteCluster(remoteCluster)
+		err = asrv.Services.CreateRemoteCluster(remoteCluster)
 		if err != nil {
 			if !trace.IsAlreadyExists(err) {
 				return trace.Wrap(err)
@@ -979,7 +979,7 @@ func migrateRoleOptions(ctx context.Context, asrv *Server) error {
 			continue
 		}
 		role.SetOptions(options)
-		err := asrv.UpsertRole(ctx, role)
+		err := asrv.Services.UpsertRole(ctx, role)
 		if err != nil {
 			return trace.Wrap(err)
 		}

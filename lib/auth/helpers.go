@@ -171,13 +171,13 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	err = srv.AuthServer.SetClusterConfig(services.DefaultClusterConfig())
+	err = srv.AuthServer.Services.SetClusterConfig(services.DefaultClusterConfig())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// set cluster name in the backend
-	err = srv.AuthServer.SetClusterName(clusterName)
+	err = srv.AuthServer.Services.SetClusterName(clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -188,7 +188,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = srv.AuthServer.SetAuthPreference(authPreference)
+	err = srv.AuthServer.Services.SetAuthPreference(authPreference)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -200,7 +200,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = srv.AuthServer.SetStaticTokens(staticTokens)
+	err = srv.AuthServer.Services.SetStaticTokens(staticTokens)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -208,27 +208,27 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	ctx := context.Background()
 
 	// create the default role
-	err = srv.AuthServer.UpsertRole(ctx, services.NewAdminRole())
+	err = srv.AuthServer.Services.UpsertRole(ctx, services.NewAdminRole())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Setup certificate and signing authorities.
-	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
+	if err = srv.AuthServer.Services.LocalTrust.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
 		Type:        services.HostCA,
 		ClusterName: srv.ClusterName,
 		Clock:       cfg.Clock,
 	})); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
+	if err = srv.AuthServer.Services.LocalTrust.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
 		Type:        services.UserCA,
 		ClusterName: srv.ClusterName,
 		Clock:       cfg.Clock,
 	})); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
+	if err = srv.AuthServer.Services.LocalTrust.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
 		Type:        services.JWTSigner,
 		ClusterName: srv.ClusterName,
 		Clock:       cfg.Clock,
@@ -236,7 +236,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	srv.Authorizer, err = NewAuthorizer(srv.AuthServer.Access, srv.AuthServer.Identity, srv.AuthServer.Trust)
+	srv.Authorizer, err = NewAuthorizer(srv.AuthServer.Services.LocalAccess, srv.AuthServer.Services.LocalIdentity, srv.AuthServer.Services.LocalTrust)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -344,7 +344,7 @@ func (a *TestAuthServer) Trust(remote *TestAuthServer, roleMap services.RoleMap)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = a.AuthServer.UpsertCertAuthority(remoteCA)
+	err = a.AuthServer.Services.LocalTrust.UpsertCertAuthority(remoteCA)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -356,7 +356,7 @@ func (a *TestAuthServer) Trust(remote *TestAuthServer, roleMap services.RoleMap)
 		return trace.Wrap(err)
 	}
 	remoteCA.SetRoleMap(roleMap)
-	err = a.AuthServer.UpsertCertAuthority(remoteCA)
+	err = a.AuthServer.Services.LocalTrust.UpsertCertAuthority(remoteCA)
 	if err != nil {
 		return trace.Wrap(err)
 	}

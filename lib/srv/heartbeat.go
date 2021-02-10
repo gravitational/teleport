@@ -157,7 +157,7 @@ type HeartbeatConfig struct {
 	// Component is a name of component used in logs
 	Component string
 	// Announcer is used to announce presence
-	Announcer auth.Announcer
+	Announcer auth.LocalAnnouncer
 	// GetServerInfo returns server information
 	GetServerInfo GetServerInfoFn
 	// ServerTTL is a server TTL used in announcements

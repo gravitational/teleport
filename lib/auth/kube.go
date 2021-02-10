@@ -113,7 +113,7 @@ func (s *Server) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	// Get the correct cert TTL based on roles.
 	ttl := roles.AdjustSessionTTL(defaults.CertDuration)
 
-	userCA, err := s.Trust.GetCertAuthority(services.CertAuthID{
+	userCA, err := s.Services.LocalTrust.GetCertAuthority(services.CertAuthID{
 		Type:       services.UserCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)

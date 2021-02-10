@@ -99,7 +99,7 @@ func (s *IdentityService) DeleteAllAppSessions(ctx context.Context) error {
 }
 
 // WebSessions returns the web sessions manager.
-func (s *IdentityService) WebSessions() types.WebSessionInterface {
+func (s *IdentityService) WebSessions() services.LocalWebSessions {
 	return &webSessions{backend: s.Backend, log: s.log}
 }
 
@@ -212,7 +212,7 @@ type webSessions struct {
 }
 
 // WebTokens returns the web token manager.
-func (s *IdentityService) WebTokens() types.WebTokenInterface {
+func (s *IdentityService) WebTokens() services.LocalWebTokens {
 	return &webTokens{backend: s.Backend, log: s.log}
 }
 

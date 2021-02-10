@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
@@ -1169,7 +1170,7 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	authorizer, err := auth.NewAuthorizer(authServer.Access, authServer.Identity, authServer.Trust)
+	authorizer, err := auth.NewAuthorizer(authServer.Services.LocalAccess, authServer.Services.LocalIdentity, authServer.Services.LocalTrust)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1184,7 +1185,7 @@ func (process *TeleportProcess) initAuthService() error {
 	var authCache auth.Cache
 	if process.Config.CachePolicy.Enabled {
 		cache, err := process.newAccessCache(accessCacheConfig{
-			services:  authServer.Services,
+			services:  cacheServices{Services: authServer.Services},
 			setup:     cache.ForAuth,
 			cacheName: []string{teleport.ComponentAuth},
 			inMemory:  true,
@@ -1401,6 +1402,24 @@ func (process *TeleportProcess) onExit(serviceName string, callback func(interfa
 	})
 }
 
+// WebSessions returns a new web session manager
+// Implements types.WebSessionsGetter
+func (r cacheServices) WebSessions() types.WebSessionInterface {
+	return r.Services.WebSessions()
+}
+
+// WebTokens returns a new web token manager
+// Implements types.WebTokensGetter
+func (r cacheServices) WebTokens() types.WebTokenInterface {
+	return r.Services.WebTokens()
+}
+
+// cacheServices is a wrapper for auth.Services that provides
+// services.Services interface
+type cacheServices struct {
+	auth.Services
+}
+
 // accessCacheConfig contains
 // configuration for access cache
 type accessCacheConfig struct {
@@ -1515,7 +1534,7 @@ func (process *TeleportProcess) setupCachePolicy(in cache.SetupConfigFn) cache.S
 }
 
 // newLocalCacheForProxy returns new instance of access point configured for a local proxy.
-func (process *TeleportProcess) newLocalCacheForProxy(clt auth.ClientI, cacheName []string) (auth.AccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForProxy(clt auth.ClientI, cacheName []string) (auth.ClientAccessPoint, error) {
 	return process.newLocalCache(clt, cache.ForProxy, cacheName)
 }
 
@@ -1534,7 +1553,7 @@ func (process *TeleportProcess) newLocalCacheForOldRemoteProxy(clt auth.ClientI,
 }
 
 // newLocalCache returns new instance of access point
-func (process *TeleportProcess) newLocalCache(clt auth.ClientI, setupConfig cache.SetupConfigFn, cacheName []string) (auth.AccessPoint, error) {
+func (process *TeleportProcess) newLocalCache(clt auth.ClientI, setupConfig cache.SetupConfigFn, cacheName []string) (auth.ClientAccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
 		return clt, nil
