@@ -721,7 +721,7 @@ type AccessChecker interface {
 	CheckDatabaseNamesAndUsers(ttl time.Duration, overrideTTL bool) (names []string, users []string, err error)
 	// CheckAccessToDatabase checks whether a user has access to the provided
 	// database server.
-	CheckAccessToDatabase(server types.DatabaseServer, matchers ...Matcher) error
+	CheckAccessToDatabase(server types.DatabaseServer, matchers ...RoleMatcher) error
 }
 
 // FromSpec returns new RoleSet created from spec
@@ -1416,16 +1416,16 @@ func (set RoleSet) CheckAccessToKubernetes(namespace string, kube *KubernetesClu
 	return trace.AccessDenied("access to kubernetes cluster denied")
 }
 
-// Matcher defines an interface for a generic role matcher.
-type Matcher interface {
+// RoleMatcher defines an interface for a generic role matcher.
+type RoleMatcher interface {
 	Match(Role, RoleConditionType) (bool, error)
 }
 
-// Matchers defines a list of matchers.
-type Matchers []Matcher
+// RoleMatchers defines a list of matchers.
+type RoleMatchers []RoleMatcher
 
 // MatchAll returns true if all matchers in the set match.
-func (m Matchers) MatchAll(role Role, condition RoleConditionType) (bool, error) {
+func (m RoleMatchers) MatchAll(role Role, condition RoleConditionType) (bool, error) {
 	for _, matcher := range m {
 		match, err := matcher.Match(role, condition)
 		if err != nil {
@@ -1441,7 +1441,7 @@ func (m Matchers) MatchAll(role Role, condition RoleConditionType) (bool, error)
 // MatchAny returns true if at least one of the matchers in the set matches.
 //
 // If the result is true, returns matcher that matched.
-func (m Matchers) MatchAny(role Role, condition RoleConditionType) (bool, Matcher, error) {
+func (m RoleMatchers) MatchAny(role Role, condition RoleConditionType) (bool, RoleMatcher, error) {
 	for _, matcher := range m {
 		match, err := matcher.Match(role, condition)
 		if err != nil {
@@ -1454,7 +1454,7 @@ func (m Matchers) MatchAny(role Role, condition RoleConditionType) (bool, Matche
 	return false, nil, nil
 }
 
-// DatabaseLabelsMatcher matches database server labels.
+// DatabaseLabelsMatcher matches a role against a list of database server labels.
 type DatabaseLabelsMatcher struct {
 	Labels map[string]string
 }
@@ -1465,7 +1465,12 @@ func (m *DatabaseLabelsMatcher) Match(role Role, condition RoleConditionType) (b
 	return match, trace.Wrap(err)
 }
 
-// DatabaseUserMatcher matches database account name.
+// String returns the matcher's string representation.
+func (m *DatabaseLabelsMatcher) String() string {
+	return fmt.Sprintf("DatabaseLabelsMatcher(Labels=%v)", m.Labels)
+}
+
+// DatabaseUserMatcher matches a role against database account name.
 type DatabaseUserMatcher struct {
 	User string
 }
@@ -1476,7 +1481,12 @@ func (m *DatabaseUserMatcher) Match(role Role, condition RoleConditionType) (boo
 	return match, nil
 }
 
-// DatabaseNameMatcher matches database name.
+// String returns the matcher's string representation.
+func (m *DatabaseUserMatcher) String() string {
+	return fmt.Sprintf("DatabaseUserMatcher(User=%v)", m.User)
+}
+
+// DatabaseNameMatcher matches a role against database name.
 type DatabaseNameMatcher struct {
 	Name string
 }
@@ -1487,11 +1497,16 @@ func (m *DatabaseNameMatcher) Match(role Role, condition RoleConditionType) (boo
 	return match, nil
 }
 
+// String returns the matcher's string representation.
+func (m *DatabaseNameMatcher) String() string {
+	return fmt.Sprintf("DatabaseNameMatcher(Name=%v)", m.Name)
+}
+
 // CheckAccessToDatabase checks if this role set has access to a particular database.
 //
-// The checker always checks the server namespace, other matches are supplied
+// The checker always checks the server namespace, other matchers are supplied
 // by the caller.
-func (set RoleSet) CheckAccessToDatabase(server types.DatabaseServer, matchers ...Matcher) error {
+func (set RoleSet) CheckAccessToDatabase(server types.DatabaseServer, matchers ...RoleMatcher) error {
 	log := log.WithField(trace.Component, teleport.ComponentRBAC)
 	// Check deny rules.
 	for _, role := range set {
@@ -1499,12 +1514,12 @@ func (set RoleSet) CheckAccessToDatabase(server types.DatabaseServer, matchers .
 		// Deny rules are greedy on purpose. They will always match if
 		// at least one of the matchers returns true.
 		if matchNamespace {
-			match, matcher, err := Matchers(matchers).MatchAny(role, Deny)
+			match, matcher, err := RoleMatchers(matchers).MatchAny(role, Deny)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			if match {
-				log.Debugf("Access to database %q denied, deny rule in role %q matched; %#v.",
+				log.Debugf("Access to database %q denied, deny rule in role %q matched; %s.",
 					server.GetName(), role.GetName(), matcher)
 				return trace.AccessDenied("access to database denied")
 			}
@@ -1516,7 +1531,7 @@ func (set RoleSet) CheckAccessToDatabase(server types.DatabaseServer, matchers .
 		// Allow rules are not greedy. They will match only if all of the
 		// matchers return true.
 		if matchNamespace {
-			match, err := Matchers(matchers).MatchAll(role, Allow)
+			match, err := RoleMatchers(matchers).MatchAll(role, Allow)
 			if err != nil {
 				return trace.Wrap(err)
 			}
