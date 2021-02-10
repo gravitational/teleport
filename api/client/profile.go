@@ -36,9 +36,9 @@ import (
 const CurrentProfileFilename = "current-profile"
 
 const (
-	// ProfileDir is the default directory where tsh profiles (and session keys) are stored.
+	// ProfileDir is the default root directory where tsh stores profiles.
 	ProfileDir = ".tsh"
-	// SessionKeyDir is the directory where session keys are stored (.tsh/keys).
+	// SessionKeyDir is the sub-directory where session keys are stored (.tsh/keys).
 	SessionKeyDir = "keys"
 	// FileExtTLSCert is the filename extension/suffix of TLS certs stored in a profile (./tsh/keys/profilename/username-x509.pem).
 	FileExtTLSCert = "-x509.pem"
