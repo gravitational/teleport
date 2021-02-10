@@ -1853,7 +1853,8 @@ steps:
       - chown -R $UID:$GID /go
       - docker pull quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
-      - make -C build.assets release-centos6-fips OS=$OS ARCH=$ARCH FIPS=$FIPS
+      - export VERSION=$(cat /go/.version.txt)
+      - make -C build.assets release-centos6-fips VERSION=$VERSION OS=$OS ARCH=$ARCH FIPS=$FIPS
 
   - name: Copy CentOS 6 FIPS artifacts
     image: docker
@@ -4271,6 +4272,6 @@ volumes:
 
 ---
 kind: signature
-hmac: a73b73e5a7afc4758ab0e6c1dbef4fb700d7dc8ff2074eb0aeabd41e3cdf1b38
+hmac: 7295f23f7dbd5274404c6a17433489e7a76c9218b34a12d7240d4d83090c98cd
 
 ...
