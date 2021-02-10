@@ -904,8 +904,7 @@ trigger:
   event:
     include:
       - push
-    # TODO(gus): uncomment
-    #exclude:
+    exclude:
       - pull_request
   branch:
     include:
@@ -1003,8 +1002,7 @@ trigger:
   event:
     include:
       - push
-    #TODO(gus): uncomment
-    #exclude:
+    exclude:
       - pull_request
   branch:
     include:
@@ -1105,8 +1103,7 @@ trigger:
   event:
     include:
       - push
-    # TODO(gus): uncomment
-    #exclude:
+    exclude:
       - pull_request
   branch:
     include:
@@ -1204,8 +1201,7 @@ trigger:
   event:
     include:
       - push
-    # TODO(gus): uncomment
-    #exclude:
+    exclude:
       - pull_request
   branch:
     include:
@@ -4379,6 +4375,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 5e9d46aff4aa16acbb01dc118838415eeb2db7f89076a02c954dc06cdad72728
+hmac: ba30a98313927c4b9783894aab0bf16e414fda3275355dae3b2190875dcee77a
 
 ...
