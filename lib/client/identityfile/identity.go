@@ -110,9 +110,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 				idFile.CACerts.SSH = append(idFile.CACerts.SSH, []byte(data))
 			}
 			// append tls ca certificates
-			for _, cert := range ca.TLSCertificates {
-				idFile.CACerts.TLS = append(idFile.CACerts.TLS, cert)
-			}
+			idFile.CACerts.TLS = append(idFile.CACerts.TLS, ca.TLSCertificates...)
 		}
 
 		if err := apiclient.WriteIdentityFile(idFile, cfg.OutputPath); err != nil {
