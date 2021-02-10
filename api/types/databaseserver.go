@@ -67,7 +67,7 @@ type DatabaseServer interface {
 	GetRegion() string
 	// GetType returns the database type, self-hosted or AWS RDS.
 	GetType() string
-	// IsRDS returns true if this an RDS/Aurora database.
+	// IsRDS returns true if this is an RDS/Aurora database.
 	IsRDS() bool
 	// CheckAndSetDefaults checks and set default values for any missing fields.
 	CheckAndSetDefaults() error
