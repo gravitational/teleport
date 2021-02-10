@@ -19,17 +19,20 @@ Teleport on Linux machine(s).
 There are several ways to install Teleport.
 Take a look at the [Teleport Installation](installation.md) page to pick the most convenient for you.
 
-=== "yum repo / AWS Linux 2"
+=== "yum repo"
 
     ```bash
     sudo yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
     sudo yum install teleport
-
-    # Optional:  Using DNF on newer distributions
-    # sudo dnf config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
-    # sudo dnf install teleport
     ```
 
+=== "deb repo"
+
+    ```bash
+    add-apt-repository 'deb https://deb.releases.teleport.dev/ stable main'
+    apt-update
+    apt install teleport
+    ```
 
 === "ARMv7 (32-bit)"
 
@@ -47,8 +50,6 @@ Take a look at the [Teleport Installation](installation.md) page to pick the mos
     tar -xzf teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz
     cd teleport
     sudo ./install
-    Teleport binaries have been copied to /usr/local/bin
-    To configure the systemd service for Teleport take a look at examples/systemd/README.md
     ```
 
 === "Linux Tarball"
@@ -58,8 +59,6 @@ Take a look at the [Teleport Installation](installation.md) page to pick the mos
     tar -xzf teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
     cd teleport
     sudo ./install
-    Teleport binaries have been copied to /usr/local/bin
-    To configure the systemd service for Teleport take a look at examples/systemd/README.md
     ```
 
 ## Step 1b: Configure Teleport
@@ -136,8 +135,8 @@ export TELEPORT_PUBLIC_DNS_NAME="teleport.example.com"
 cat >> /etc/teleport.yaml <<EOF
     public_addr: $TELEPORT_PUBLIC_DNS_NAME:3080
     https_keypairs:
-      - key_file: /etc/letsencrypt/live/$TELEPORT_PUBLIC_DNS_NAME/privkey.pem
-        cert_file: /etc/letsencrypt/live/$TELEPORT_PUBLIC_DNS_NAME/fullchain.pem
+    - key_file: /etc/letsencrypt/live/$TELEPORT_PUBLIC_DNS_NAME/privkey.pem
+      cert_file: /etc/letsencrypt/live/$TELEPORT_PUBLIC_DNS_NAME/fullchain.pem
 EOF
 ```
 
@@ -369,7 +368,7 @@ Armed with these details, we'll bootstrap a new host using
 
 ## Next Steps
 
-Congratulations! You've completed the Teleport Quickstart.
+Congratulations! You've completed the Teleport Quick start.
 
 In this guide, you've learned how to install Teleport on a single node and seen a
 few of the most useful features in action. When you're ready to learn how to set
@@ -386,5 +385,6 @@ common Teleport tasks.
 * [Install Teleport](installation.md)
 * [Share Sessions](user-manual.md#sharing-sessions)
 * [Manage Users](admin-guide.md#adding-and-deleting-users)
+* [Github SSO](admin-guide.md#github-oauth-20)
 * [Label Nodes](admin-guide.md#labeling-nodes-and-applications)
 * [Teleport with OpenSSH](admin-guide.md#using-teleport-with-openssh)
