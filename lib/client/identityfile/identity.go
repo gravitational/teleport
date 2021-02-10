@@ -18,13 +18,12 @@ limitations under the License.
 package identityfile
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"strings"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -63,11 +62,6 @@ const (
 // KnownFormats is a list of all above formats.
 var KnownFormats = []Format{FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase}
 
-const (
-	// The files created by Write will have these permissions.
-	writeFileMode = 0600
-)
-
 // WriteConfig holds the necessary information to write an identity file.
 type WriteConfig struct {
 	// OutputPath is the output path for the identity file. Note that some
@@ -97,19 +91,14 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 	switch cfg.Format {
 	// dump user identity into a single file:
 	case FormatFile:
-		buf := new(bytes.Buffer)
-		// write key:
-		if err := writeWithNewline(buf, cfg.Key.Priv); err != nil {
-			return nil, trace.Wrap(err)
+		idFile := &apiclient.IdentityFile{
+			PrivateKey: cfg.Key.Priv,
+			Certs: apiclient.Certs{
+				SSH: cfg.Key.Cert,
+				TLS: cfg.Key.TLSCert,
+			},
 		}
-		// append ssh cert:
-		if err := writeWithNewline(buf, cfg.Key.Cert); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		// append tls cert:
-		if err := writeWithNewline(buf, cfg.Key.TLSCert); err != nil {
-			return nil, trace.Wrap(err)
-		}
+
 		// append trusted host certificate authorities
 		for _, ca := range cfg.Key.TrustedCA {
 			// append ssh ca certificates
@@ -118,23 +107,20 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				if err := writeWithNewline(buf, []byte(data)); err != nil {
-					return nil, trace.Wrap(err)
-				}
+				idFile.CACerts.SSH = append(idFile.CACerts.SSH, []byte(data))
 			}
 			// append tls ca certificates
 			for _, cert := range ca.TLSCertificates {
-				if err := writeWithNewline(buf, cert); err != nil {
-					return nil, trace.Wrap(err)
-				}
+				idFile.CACerts.TLS = append(idFile.CACerts.TLS, cert)
 			}
+		}
+
+		if err := apiclient.WriteIdentityFile(idFile, cfg.OutputPath); err != nil {
+			return nil, trace.Wrap(err)
 		}
 
 		filesWritten = append(filesWritten, cfg.OutputPath)
 		if err := checkOverwrite(cfg.OverwriteDestination, filesWritten...); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if err := writeFile(cfg.OutputPath, buf.Bytes()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -147,12 +133,12 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			return nil, trace.Wrap(err)
 		}
 
-		err = writeFile(certPath, cfg.Key.Cert)
+		err = ioutil.WriteFile(certPath, cfg.Key.Cert, apiclient.IdentityFilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		err = writeFile(keyPath, cfg.Key.Priv)
+		err = ioutil.WriteFile(keyPath, cfg.Key.Priv, apiclient.IdentityFilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -166,12 +152,12 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			return nil, trace.Wrap(err)
 		}
 
-		err = writeFile(certPath, cfg.Key.TLSCert)
+		err = ioutil.WriteFile(certPath, cfg.Key.TLSCert, apiclient.IdentityFilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		err = writeFile(keyPath, cfg.Key.Priv)
+		err = ioutil.WriteFile(keyPath, cfg.Key.Priv, apiclient.IdentityFilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -181,7 +167,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 				caCerts = append(caCerts, cert...)
 			}
 		}
-		err = writeFile(casPath, caCerts)
+		err = ioutil.WriteFile(casPath, caCerts, apiclient.IdentityFilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -211,22 +197,6 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		return nil, trace.BadParameter("unsupported identity format: %q, use one of %q", cfg.Format, KnownFormats)
 	}
 	return filesWritten, nil
-}
-
-func writeWithNewline(w io.Writer, data []byte) error {
-	if _, err := w.Write(data); err != nil {
-		return trace.Wrap(err)
-	}
-	if !bytes.HasSuffix(data, []byte{'\n'}) {
-		if _, err := fmt.Fprintln(w); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
-func writeFile(path string, data []byte) error {
-	return trace.Wrap(ioutil.WriteFile(path, data, writeFileMode))
 }
 
 func checkOverwrite(force bool, paths ...string) error {

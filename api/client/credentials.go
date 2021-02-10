@@ -47,10 +47,104 @@ func (c *Credentials) CheckAndSetDefaults() error {
 	return nil
 }
 
+// DefaultCreds attempts to load credentials, and defaults to loading from profile.
+// LoadOptions can be provided to override the default behaviour, and instead attempt
+// the provided methods until one succeeds or none do.
+func DefaultCreds(opts ...CredsLoaderFn) (*Credentials, error) {
+	// Default to loading creds from profile
+	if len(opts) == 0 {
+		creds, err := ProfileCreds("")
+		return creds, trace.Wrap(err)
+	}
+
+	// Attempt to load credentials with the given load options.
+	errs := []error{}
+	for _, opt := range opts {
+		creds, err := opt()
+		if err == nil {
+			return creds, nil
+		}
+		errs = append(errs, err)
+	}
+
+	return nil, trace.Wrap(trace.NewAggregate(errs...), "failed to load credentials with given options")
+}
+
+// CredsLoaderFn A list of CredsLoaderFns can be given to the function DefaultCreds
+// to chain credential loading options.
+type CredsLoaderFn func() (*Credentials, error)
+
+// ProfileCredsLoader is a CredsLoaderFn for ProfileCreds. Multiple paths
+// can be provided in order to fall back if the first paths fail. If no path
+// is provided, this uses the default path.
+func ProfileCredsLoader(paths ...string) CredsLoaderFn {
+	return func() (*Credentials, error) {
+		if len(paths) == 0 {
+			return ProfileCreds("")
+		}
+
+		errs := []error{}
+		for _, path := range paths {
+			creds, err := ProfileCreds(path)
+			if err == nil {
+				return creds, err
+			}
+			errs = append(errs, err)
+		}
+		return nil, trace.NewAggregate(errs...)
+	}
+}
+
+// IdentityFileCredsLoader is a CredsLoaderFn for IdentityFileCreds. Multiple
+// paths can be provided in order to fall back if the first paths fail.
+func IdentityFileCredsLoader(paths ...string) CredsLoaderFn {
+	return func() (*Credentials, error) {
+		if len(paths) == 0 {
+			return nil, trace.Errorf("must provide at least one path to paths parameter")
+		}
+
+		errs := []error{}
+		for _, path := range paths {
+			creds, err := IdentityFileCreds(path)
+			if err == nil {
+				return creds, err
+			}
+			errs = append(errs, err)
+		}
+		return nil, trace.NewAggregate(errs...)
+	}
+}
+
+// CertFilesCredsLoader is a CredsLoaderFn for CertFilesCreds. Multiple
+// paths can be provided  in order to fall back if the first paths fail.
+func CertFilesCredsLoader(paths ...string) CredsLoaderFn {
+	return func() (*Credentials, error) {
+		errs := []error{}
+		for _, path := range paths {
+			creds, err := CertFilesCreds(path)
+			if err == nil {
+				return creds, err
+			}
+			errs = append(errs, err)
+		}
+		return nil, trace.NewAggregate(errs...)
+	}
+}
+
+// TLSCredsLoader is a CredsLoaderFn for TLSCreds
+func TLSCredsLoader(tls *tls.Config) CredsLoaderFn {
+	return func() (*Credentials, error) {
+		return TLSCreds(tls), nil
+	}
+}
+
 // ProfileCreds attempts to load credentials from the default profile,
 // which is set by logging in with `tsh login`.
-func ProfileCreds() (*Credentials, error) {
-	profile, err := ProfileFromDir(defaultProfilePath(), "")
+func ProfileCreds(path string) (*Credentials, error) {
+	if path == "" {
+		path = defaultProfilePath()
+	}
+	profile, err := ProfileFromDir(path, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -66,7 +160,7 @@ func ProfileCreds() (*Credentials, error) {
 // IdentityFileCreds attempts to load credentials from the specified identity file's path.
 // An identity file can be saved to disk by running `tsh login --out=identity_file_path`.
 func IdentityFileCreds(path string) (*Credentials, error) {
-	idf, err := IdentityFileFromPath(path)
+	idf, err := ReadIdentityFile(path)
 	if err != nil {
 		return nil, trace.BadParameter("identity file could not be decoded: %v", err)
 	}
@@ -79,10 +173,10 @@ func IdentityFileCreds(path string) (*Credentials, error) {
 	return TLSCreds(tls), nil
 }
 
-// CertsPathCreds attempts to load credentials from the specified certificates path.
+// CertFilesCreds attempts to load credentials from the specified certificates path.
 // These certs can be generated with `tctl auth sign --out=path`.
 // EX: path=/certs/admin creates three files - /certs/admin.(key|crt|cas).
-func CertsPathCreds(path string) (*Credentials, error) {
+func CertFilesCreds(path string) (*Credentials, error) {
 	cert, err := tls.LoadX509KeyPair(path+".crt", path+".key")
 	if err != nil {
 		return nil, trace.Wrap(err)

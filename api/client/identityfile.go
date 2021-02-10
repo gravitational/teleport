@@ -21,30 +21,41 @@ import (
 	"bytes"
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 
 	"github.com/gravitational/trace"
 )
 
+const (
+	// The files created by Write will have these permissions.
+	IdentityFilePermissions = 0600
+)
+
 // IdentityFile represents the basic components of an identity file.
 type IdentityFile struct {
-	// PrivateKey is a PEM encoded key
+	// PrivateKey is a PEM encoded key.
 	PrivateKey []byte
-	// Certs contains PEM encoded certificates
-	Certs struct {
-		// SSH is a cert used for SSH
-		SSH []byte
-		// TLS is a cert used for TLS
-		TLS []byte
-	}
-	// CACerts contains PEM encoded CA certificates
-	CACerts struct {
-		// SSH are CA certs used for SSH
-		SSH [][]byte
-		// TLS are CA certs used for TLS
-		TLS [][]byte
-	}
+	Certs      Certs
+	CACerts    CACerts
+}
+
+// Certs contains PEM encoded certificates.
+type Certs struct {
+	// SSH is a cert used for SSH.
+	SSH []byte
+	// TLS is a cert used for TLS.
+	TLS []byte
+}
+
+// CACerts contains PEM encoded CA certificates.
+type CACerts struct {
+	// SSH are CA certs used for SSH.
+	SSH [][]byte
+	// TLS are CA certs used for TLS.
+	TLS [][]byte
 }
 
 // TLS returns the identity file's associated TLS config.
@@ -67,9 +78,62 @@ func (idf *IdentityFile) TLS() (*tls.Config, error) {
 	}, nil
 }
 
-// DecodeIdentity attempts to break up the contents of an identity file into its
-// respective components. An IdentityFile
-func DecodeIdentity(idFile io.Reader) (*IdentityFile, error) {
+// WriteIdentityFile writes the given identityFile to the specified path.
+func WriteIdentityFile(idFile *IdentityFile, path string) error {
+	buf := new(bytes.Buffer)
+	// write key:
+	if err := writeWithNewline(buf, idFile.PrivateKey); err != nil {
+		return trace.Wrap(err)
+	}
+	// append ssh cert:
+	if err := writeWithNewline(buf, idFile.Certs.SSH); err != nil {
+		return trace.Wrap(err)
+	}
+	// append tls cert:
+	if err := writeWithNewline(buf, idFile.Certs.TLS); err != nil {
+		return trace.Wrap(err)
+	}
+	// append ssh ca certificates
+	for _, caCert := range idFile.CACerts.SSH {
+		if err := writeWithNewline(buf, caCert); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	// append tls ca certificates
+	for _, caCert := range idFile.CACerts.TLS {
+		if err := writeWithNewline(buf, caCert); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	err := ioutil.WriteFile(path, buf.Bytes(), IdentityFilePermissions)
+	return trace.Wrap(err)
+}
+
+func writeWithNewline(w io.Writer, data []byte) error {
+	if _, err := w.Write(data); err != nil {
+		return trace.Wrap(err)
+	}
+	if !bytes.HasSuffix(data, []byte{'\n'}) {
+		if _, err := fmt.Fprintln(w); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+// ReadIdentityFile reads an identityFile from the given path
+func ReadIdentityFile(path string) (*IdentityFile, error) {
+	r, err := os.Open(path)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer r.Close()
+	return decodeIdentityFile(r)
+}
+
+// decodeIdentityFile attempts to break up the contents of an identity file into its
+// respective components.
+func decodeIdentityFile(idFile io.Reader) (*IdentityFile, error) {
 	scanner := bufio.NewScanner(idFile)
 	var ident IdentityFile
 	// Subslice of scanner's buffer pointing to current line
@@ -137,14 +201,4 @@ func DecodeIdentity(idFile io.Reader) (*IdentityFile, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &ident, nil
-}
-
-// IdentityFileFromPath attempts to retrieve an IdentityFile from the specified path.
-func IdentityFileFromPath(path string) (*IdentityFile, error) {
-	r, err := os.Open(path)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer r.Close()
-	return DecodeIdentity(r)
 }

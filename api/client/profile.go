@@ -242,7 +242,7 @@ func (cp *Profile) SaveToDir(dir string, makeCurrent bool) error {
 	if dir == "" {
 		return trace.BadParameter("cannot save profile: missing dir")
 	}
-	if err := cp.SaveToFile(filepath.Join(dir, cp.Name()+".yaml")); err != nil {
+	if err := cp.saveToFile(filepath.Join(dir, cp.Name()+".yaml")); err != nil {
 		return trace.Wrap(err)
 	}
 	if makeCurrent {
@@ -251,8 +251,8 @@ func (cp *Profile) SaveToDir(dir string, makeCurrent bool) error {
 	return nil
 }
 
-// SaveToFile saves this profile to the specified file.
-func (cp *Profile) SaveToFile(filepath string) error {
+// saveToFile saves this profile to the specified file.
+func (cp *Profile) saveToFile(filepath string) error {
 	bytes, err := yaml.Marshal(&cp)
 	if err != nil {
 		return trace.Wrap(err)

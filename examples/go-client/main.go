@@ -31,7 +31,7 @@ func main() {
 	ctx := context.Background()
 	log.Printf("Starting Teleport client...")
 
-	creds, err := client.ProfileCreds()
+	creds, err := client.DefaultCreds()
 	if err != nil {
 		log.Fatalf("Failed to read credentials: %v", err)
 	}
