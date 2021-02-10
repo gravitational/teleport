@@ -30,23 +30,24 @@ import (
 )
 
 func TestDefaultCreds(t *testing.T) {
-
-	// DefaultCreds works without any input
-	creds, err := DefaultCreds()
+	expectedTLS, err := getExpectedTLS()
 	require.NoError(t, err)
-	_, err = New(Config{
-		Addrs: []string{"proxy.example.com"},
-		Creds: creds,
-	})
+
+	dir := t.TempDir()
+	p := &Profile{WebProxyAddr: "proxy", Username: "username"}
+	p.SaveToDir(dir, true)
+
+	err = writeProfileCerts(p, dir)
 	require.NoError(t, err)
 
 	// DefaultCreds attempts each loader, returning the first success.
-	creds, err = DefaultCreds(
+	creds, err := DefaultCreds(
 		IdentityFileCredsLoader("no-path"),
 		CertFilesCredsLoader("no-path"),
-		ProfileCredsLoader(""),
+		ProfileCredsLoader(dir),
 	)
 	require.NoError(t, err)
+	require.Equal(t, creds.TLS, expectedTLS)
 	_, err = New(Config{
 		Addrs: []string{"proxy.example.com"},
 		Creds: creds,
