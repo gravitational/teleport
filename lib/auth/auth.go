@@ -825,7 +825,18 @@ func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (s
 	return sess.WithoutSecrets(), nil
 }
 
-func (a *Server) U2FSignRequest(user string, password []byte) (*u2f.AuthenticateChallenge, error) {
+// U2FAuthenticateChallenge is a U2F authentication challenge sent on user
+// login.
+type U2FAuthenticateChallenge struct {
+	// Before 6.0 teleport would only send 1 U2F challenge. Embed the old
+	// challenge for compatibility with older clients. All new clients should
+	// ignore this and read Challenges instead.
+	*u2f.AuthenticateChallenge
+	// The list of U2F challenges, one for each registered device.
+	Challenges []u2f.AuthenticateChallenge `json:"challenges"`
+}
+
+func (a *Server) U2FSignRequest(user string, password []byte) (*U2FAuthenticateChallenge, error) {
 	ctx := context.TODO()
 	cap, err := a.GetAuthPreference()
 	if err != nil {
@@ -844,23 +855,33 @@ func (a *Server) U2FSignRequest(user string, password []byte) (*u2f.Authenticate
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(awly): mfa: support challenge with multiple devices.
 	devs, err := a.GetMFADevices(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	res := new(U2FAuthenticateChallenge)
 	for _, dev := range devs {
 		if dev.GetU2F() == nil {
 			continue
 		}
-		return u2f.AuthenticateInit(ctx, u2f.AuthenticateInitParams{
+		ch, err := u2f.AuthenticateInit(ctx, u2f.AuthenticateInitParams{
 			Dev:        dev,
 			AppConfig:  *u2fConfig,
 			StorageKey: user,
 			Storage:    a.Identity,
 		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		res.Challenges = append(res.Challenges, *ch)
+		if res.AuthenticateChallenge == nil {
+			res.AuthenticateChallenge = ch
+		}
 	}
-	return nil, trace.NotFound("no U2F devices found for user %q", user)
+	if len(res.Challenges) == 0 {
+		return nil, trace.NotFound("no U2F devices found for user %q", user)
+	}
+	return res, nil
 }
 
 func (a *Server) CheckU2FSignResponse(ctx context.Context, user string, response *u2f.AuthenticateChallengeResponse) error {

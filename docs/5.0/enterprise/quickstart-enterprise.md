@@ -178,34 +178,46 @@ The output will look like this (re-formatted here to use compact YAML
 representation for brevity):
 
 ```yaml
+
 kind: role
-version: v3
 metadata:
   name: admin
 spec:
-  options:
-    cert_format: standard
-    forward_agent: true
-    max_session_ttl: 30h0m0s
-    port_forwarding: true
-  # allow rules:
   allow:
     logins:
-    - '{% raw %}{{internal.logins}}{% endraw %}'
+    - '{{internal.logins}}'
     - root
     node_labels:
       '*': '*'
+    app_labels:
+      '*': '*'
+    kubernetes_groups:
+    - '{{internal.kubernetes_groups}}'
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_users:
+    - '{{internal.kubernetes_users}}'
     rules:
     - resources: [role]
       verbs: [list, create, read, update, delete]
     - resources: [auth_connector]
       verbs: [list, create, read, update, delete]
+    - resources: [user]
+      verbs: [list, create, read, update, delete]
     - resources: [session]
+      verbs: [list, read]
+    - resources: [event]
       verbs: [list, read]
     - resources: [trusted_cluster]
       verbs: [list, create, read, update, delete]
-  # no deny rules are present, the admin role must have access to everything)
+    - resources: [token]
+      verbs: [list, create, read, update, delete]
   deny: {}
+  options:
+    forward_agent: true
+    max_session_ttl: 30h0m0s
+    port_forwarding: true
+version: v3
 ```
 
 Pay attention to the _allow/logins_ field in the role definition: by default, this
@@ -213,7 +225,7 @@ role only allows SSH logins as `root@host`.
 
 !!! note "Note"
 
-    Ignore `{% raw %}{{internal.logins}}{% endraw %}` "allowed login" for now. It exists for
+    Ignore `{{internal.logins}}` "allowed login" for now. It exists for
     compatibility purposes when upgrading existing open source Teleport
     clusters.
 
@@ -226,6 +238,10 @@ to look like this:
 allow:
    logins: [admin]
 ```
+
+!!! note "Note"
+
+    See the [Kubernetes Guide](../kubernetes-access.md) and [Application Guide](../application-access.md) for enabling access to additional resources.
 
 Then send it back into Teleport:
 

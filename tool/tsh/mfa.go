@@ -43,11 +43,9 @@ type mfaCommands struct {
 func newMFACommand(app *kingpin.Application) mfaCommands {
 	mfa := app.Command("mfa", "Manage multi-factor authentication (MFA) devices.")
 	return mfaCommands{
-		ls: newMFALSCommand(mfa),
-		add: &mfaAddCommand{
-			CmdClause: mfa.Command("add", "Add a new MFA device"),
-		},
-		rm: newMFARemoveCommand(mfa),
+		ls:  newMFALSCommand(mfa),
+		add: newMFAAddCommand(mfa),
+		rm:  newMFARemoveCommand(mfa),
 	}
 }
 
@@ -58,7 +56,7 @@ type mfaLSCommand struct {
 
 func newMFALSCommand(parent *kingpin.CmdClause) *mfaLSCommand {
 	c := &mfaLSCommand{
-		CmdClause: parent.Command("ls", "Get a list of registered MFA devices"),
+		CmdClause: parent.Command("ls", "Get a list of registered MFA devices").Hidden(),
 	}
 	c.Flag("verbose", "Print more information about MFA devices").Short('v').BoolVar(&c.verbose)
 	return c
@@ -126,34 +124,50 @@ func printMFADevices(devs []*types.MFADevice, verbose bool) {
 
 type mfaAddCommand struct {
 	*kingpin.CmdClause
+	devName string
+	devType string
+}
+
+func newMFAAddCommand(parent *kingpin.CmdClause) *mfaAddCommand {
+	c := &mfaAddCommand{
+		CmdClause: parent.Command("add", "Add a new MFA device").Hidden(),
+	}
+	c.Flag("name", "Name of the new MFA device").StringVar(&c.devName)
+	c.Flag("type", "Type of the new MFA device (TOTP or U2F)").StringVar(&c.devType)
+	return c
 }
 
 func (c *mfaAddCommand) run(cf *CLIConf) error {
-	devType, err := prompt.PickOne(os.Stdout, os.Stdin, "Choose device type", []string{"TOTP", "U2F"})
-	if err != nil {
-		return trace.Wrap(err)
+	if c.devType == "" {
+		var err error
+		c.devType, err = prompt.PickOne(os.Stdout, os.Stdin, "Choose device type", []string{"TOTP", "U2F"})
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	var typ proto.AddMFADeviceRequestInit_DeviceType
-	switch devType {
+	switch strings.ToUpper(c.devType) {
 	case "TOTP":
 		typ = proto.AddMFADeviceRequestInit_TOTP
 	case "U2F":
 		typ = proto.AddMFADeviceRequestInit_U2F
 	default:
-		// prompt.PickOne should catch this for us.
-		return trace.BadParameter("unknown device type %q", devType)
+		return trace.BadParameter("unknown device type %q, must be either TOTP or U2F", c.devType)
 	}
 
-	devName, err := prompt.Input(os.Stdout, os.Stdin, "Enter device name")
-	if err != nil {
-		return trace.Wrap(err)
+	if c.devName == "" {
+		var err error
+		c.devName, err = prompt.Input(os.Stdout, os.Stdin, "Enter device name")
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
-	devName = strings.TrimSpace(devName)
-	if devName == "" {
+	c.devName = strings.TrimSpace(c.devName)
+	if c.devName == "" {
 		return trace.BadParameter("device name can not be empty")
 	}
 
-	dev, err := c.addDeviceRPC(cf, devName, typ)
+	dev, err := c.addDeviceRPC(cf, c.devName, typ)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -369,6 +383,7 @@ func promptRegisterChallenge(ctx context.Context, proxyAddr string, c *proto.MFA
 
 func promptTOTPRegisterChallenge(c *proto.TOTPRegisterChallenge) (*proto.MFARegisterResponse, error) {
 	// TODO(awly): mfa: use OS-specific image viewer to show a QR code.
+	// TODO(awly): mfa: print OTP URL
 	fmt.Println("Open your TOTP app and create a new manual entry with these fields:")
 	fmt.Printf("Name: %s\n", c.Account)
 	fmt.Printf("Issuer: %s\n", c.Issuer)
@@ -414,7 +429,7 @@ type mfaRemoveCommand struct {
 
 func newMFARemoveCommand(parent *kingpin.CmdClause) *mfaRemoveCommand {
 	c := &mfaRemoveCommand{
-		CmdClause: parent.Command("rm", "Remove a MFA device"),
+		CmdClause: parent.Command("rm", "Remove a MFA device").Hidden(),
 	}
 	c.Arg("name", "Name or ID of the MFA device to remove").Required().StringVar(&c.name)
 	return c
