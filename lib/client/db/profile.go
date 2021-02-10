@@ -19,6 +19,9 @@ limitations under the License.
 //
 // For Postgres it's the connection service file:
 //   https://www.postgresql.org/docs/current/libpq-pgservice.html
+//
+// For MySQL it's the option file:
+//   https://dev.mysql.com/doc/refman/8.0/en/option-files.html
 package db
 
 import (
@@ -26,6 +29,7 @@ import (
 	"os"
 
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/db/mysql"
 	"github.com/gravitational/teleport/lib/client/db/postgres"
 	"github.com/gravitational/teleport/lib/client/db/profile"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -40,7 +44,12 @@ func Add(tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile clie
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// Postgres proxy listens on web proxy port while MySQL proxy listens on
+	// a separate port due to the specifics of the protocol.
 	host, port := tc.WebProxyHostPort()
+	if db.Protocol == defaults.ProtocolMySQL {
+		host, port = tc.MySQLProxyHostPort()
+	}
 	connectProfile := profile.ConnectProfile{
 		Name:       profileName(tc.SiteName, db.ServiceName),
 		Host:       host,
@@ -62,6 +71,8 @@ func Add(tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile clie
 	switch db.Protocol {
 	case defaults.ProtocolPostgres:
 		return postgres.Message.Execute(os.Stdout, connectProfile)
+	case defaults.ProtocolMySQL:
+		return mysql.Message.Execute(os.Stdout, connectProfile)
 	}
 	return nil
 }
@@ -97,6 +108,8 @@ func load(db tlsca.RouteToDatabase) (profile.ConnectProfileFile, error) {
 	switch db.Protocol {
 	case defaults.ProtocolPostgres:
 		return postgres.Load()
+	case defaults.ProtocolMySQL:
+		return mysql.Load()
 	}
 	return nil, trace.BadParameter("unsupported database protocol %q",
 		db.Protocol)

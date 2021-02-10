@@ -1182,9 +1182,9 @@ func showDatabases(cluster string, servers []types.DatabaseServer, active []tlsc
 // formatConnectCommand formats an appropriate database connection command
 // for a user based on the provided database parameters.
 func formatConnectCommand(cluster string, active tlsca.RouteToDatabase) string {
+	service := fmt.Sprintf("%v-%v", cluster, active.ServiceName)
 	switch active.Protocol {
 	case defaults.ProtocolPostgres:
-		service := fmt.Sprintf("%v-%v", cluster, active.ServiceName)
 		switch {
 		case active.Username != "" && active.Database != "":
 			return fmt.Sprintf(`psql "service=%v"`, service)
@@ -1194,6 +1194,16 @@ func formatConnectCommand(cluster string, active tlsca.RouteToDatabase) string {
 			return fmt.Sprintf(`psql "service=%v user=<user>"`, service)
 		}
 		return fmt.Sprintf(`psql "service=%v user=<user> dbname=<database>"`, service)
+	case defaults.ProtocolMySQL:
+		switch {
+		case active.Username != "" && active.Database != "":
+			return fmt.Sprintf("mysql --defaults-group-suffix=_%v", service)
+		case active.Username != "":
+			return fmt.Sprintf("mysql --defaults-group-suffix=_%v --database=<database>", service)
+		case active.Database != "":
+			return fmt.Sprintf("mysql --defaults-group-suffix=_%v --user=<user>", service)
+		}
+		return fmt.Sprintf("mysql --defaults-group-suffix=_%v --user=<user> --database=<database>", service)
 	}
 	return ""
 }

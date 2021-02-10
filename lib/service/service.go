@@ -2192,6 +2192,7 @@ type proxyListeners struct {
 	reverseTunnel net.Listener
 	kube          net.Listener
 	db            net.Listener
+	mysql         net.Listener
 }
 
 func (l *proxyListeners) Close() {
@@ -2209,6 +2210,9 @@ func (l *proxyListeners) Close() {
 	}
 	if l.db != nil {
 		l.db.Close()
+	}
+	if l.mysql != nil {
+		l.mysql.Close()
 	}
 }
 
@@ -2231,6 +2235,15 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			return nil, trace.Wrap(err)
 		}
 		listeners.kube = listener
+	}
+
+	if !cfg.Proxy.MySQLAddr.IsEmpty() {
+		process.log.Debug("Setup Proxy: MySQL proxy address: %v.", cfg.Proxy.MySQLAddr.Addr)
+		listener, err := process.importOrCreateListener(listenerProxyMySQL, cfg.Proxy.MySQLAddr.Addr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		listeners.mysql = listener
 	}
 
 	switch {
@@ -2474,6 +2487,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if len(cfg.Proxy.Kube.PublicAddrs) > 0 {
 			proxySettings.Kube.PublicAddr = cfg.Proxy.Kube.PublicAddrs[0].String()
 		}
+		if !cfg.Proxy.MySQLAddr.IsEmpty() {
+			proxySettings.DB.MySQLListenAddr = cfg.Proxy.MySQLAddr.String()
+		}
 		var fs http.FileSystem
 		if !process.Config.Proxy.DisableWebInterface {
 			fs, err = newHTTPFileSystem()
@@ -2696,7 +2712,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// the database clients (such as psql or mysql), authenticating them, and
 	// then routing them to a respective database server over the reverse tunnel
 	// framework.
-	if listeners.db != nil && !process.Config.Proxy.DisableReverseTunnel {
+	if (listeners.db != nil || listeners.mysql != nil) && !process.Config.Proxy.DisableReverseTunnel {
 		authorizer, err := auth.NewAuthorizer(conn.Client, conn.Client, conn.Client)
 		if err != nil {
 			return trace.Wrap(err)
@@ -2716,14 +2732,25 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		process.RegisterCriticalFunc("proxy.db", func() error {
-			log := logrus.WithField(trace.Component, teleport.Component(teleport.ComponentDatabase))
-			log.Infof("Starting Database proxy server on %v.", cfg.Proxy.WebAddr.Addr)
-			if err := dbProxyServer.Serve(listeners.db); err != nil {
-				log.WithError(err).Warn("Database proxy server exited with error.")
-			}
-			return nil
-		})
+		log := process.log.WithField(trace.Component, teleport.Component(teleport.ComponentDatabase))
+		if listeners.db != nil {
+			process.RegisterCriticalFunc("proxy.db", func() error {
+				log.Infof("Starting Database proxy server on %v.", cfg.Proxy.WebAddr.Addr)
+				if err := dbProxyServer.Serve(listeners.db); err != nil {
+					log.WithError(err).Warn("Database proxy server exited with error.")
+				}
+				return nil
+			})
+		}
+		if listeners.mysql != nil {
+			process.RegisterCriticalFunc("proxy.mysql", func() error {
+				log.Infof("Starting MySQL proxy server on %v.", cfg.Proxy.MySQLAddr.Addr)
+				if err := dbProxyServer.ServeMySQL(listeners.mysql); err != nil {
+					log.WithError(err).Warn("MySQL proxy server exited with error.")
+				}
+				return nil
+			})
+		}
 	}
 
 	// execute this when process is asked to exit:

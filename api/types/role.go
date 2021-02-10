@@ -539,15 +539,6 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 		r.Spec.Deny.Namespaces = []string{defaults.Namespace}
 	}
 
-	// Database names/users won't have any effect unless labels are also
-	// specified. Set them to wildcard in this case to prevent users from
-	// accidentally creating deny rules that won't deny anything.
-	if len(r.Spec.Deny.DatabaseNames) > 0 || len(r.Spec.Deny.DatabaseUsers) > 0 {
-		if r.Spec.Deny.DatabaseLabels == nil {
-			r.Spec.Deny.DatabaseLabels = Labels{Wildcard: []string{Wildcard}}
-		}
-	}
-
 	// Validate that enhanced recording options are all valid.
 	for _, opt := range r.Spec.Options.BPF {
 		if opt == constants.EnhancedRecordingCommand ||
