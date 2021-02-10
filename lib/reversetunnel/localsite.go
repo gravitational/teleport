@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
@@ -38,7 +39,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func newlocalSite(srv *server, domainName string, client auth.ClientI) (*localSite, error) {
+func newlocalSite(srv *server, domainName string, client client.ClientI) (*localSite, error) {
 	accessPoint, err := srv.newAccessPoint(client, []string{"reverse", domainName})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -83,7 +84,7 @@ type localSite struct {
 	srv        *server
 
 	// client provides access to the Auth Server API of the local cluster.
-	client auth.ClientI
+	client client.ClientI
 	// accessPoint provides access to a cached subset of the Auth Server API of
 	// the local cluster.
 	accessPoint auth.AccessPoint
@@ -116,7 +117,7 @@ func (s *localSite) CachingAccessPoint() (auth.AccessPoint, error) {
 }
 
 // GetClient returns a client to the full Auth Server API.
-func (s *localSite) GetClient() (auth.ClientI, error) {
+func (s *localSite) GetClient() (client.ClientI, error) {
 	return s.client, nil
 }
 
@@ -172,7 +173,7 @@ func (s *localSite) Dial(params DialParams) (net.Conn, error) {
 		return nil, trace.Wrap(err)
 	}
 	if params.ConnType == services.NodeTunnel &&
-		services.IsRecordAtProxy(clusterConfig.GetSessionRecording()) {
+		auth.IsRecordAtProxy(clusterConfig.GetSessionRecording()) {
 		return s.dialWithAgent(params)
 	}
 

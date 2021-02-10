@@ -29,7 +29,9 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth"
+	libauth "github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/client"
+	auth "github.com/gravitational/teleport/lib/auth/server"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/services"
@@ -54,10 +56,10 @@ type Config struct {
 	DataDir string
 
 	// AuthClient is a client directly connected to the Auth server.
-	AuthClient *auth.Client
+	AuthClient *client.Client
 
 	// AccessPoint is a caching client connected to the Auth Server.
-	AccessPoint auth.AccessPoint
+	AccessPoint libauth.ClientAccessPoint
 
 	// TLSConfig is the *tls.Config for this server.
 	TLSConfig *tls.Config
@@ -378,7 +380,7 @@ func (s *Server) authorize(ctx context.Context, r *http.Request) (*tlsca.Identit
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	mfaParams := services.AccessMFAParams{
+	mfaParams := libauth.AccessMFAParams{
 		Verified:       identity.MFAVerified != "",
 		AlwaysRequired: ap.GetRequireSessionMFA(),
 	}
@@ -476,7 +478,7 @@ func (s *Server) getConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, err
 
 	// Try and extract the name of the cluster that signed the client's certificate.
 	if info.ServerName != "" {
-		clusterName, err = auth.DecodeClusterName(info.ServerName)
+		clusterName, err = libauth.DecodeClusterName(info.ServerName)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				s.log.Debugf("Ignoring unsupported cluster name %q.", info.ServerName)

@@ -25,6 +25,8 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/client"
+	"github.com/gravitational/teleport/lib/auth/server"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/labels"
@@ -52,15 +54,15 @@ type Config struct {
 	// DataDir is the path to the data directory for the server.
 	DataDir string
 	// AuthClient is a client directly connected to the Auth server.
-	AuthClient *auth.Client
+	AuthClient *client.Client
 	// AccessPoint is a caching client connected to the Auth Server.
-	AccessPoint auth.AccessPoint
+	AccessPoint auth.ClientAccessPoint
 	// StreamEmitter is a non-blocking audit events emitter.
 	StreamEmitter events.StreamEmitter
 	// TLSConfig is the *tls.Config for this server.
 	TLSConfig *tls.Config
 	// Authorizer is used to authorize requests coming from proxy.
-	Authorizer auth.Authorizer
+	Authorizer server.Authorizer
 	// GetRotation returns the certificate rotation state.
 	GetRotation func(role teleport.Role) (*services.Rotation, error)
 	// Servers contains a list of database servers this service proxies.
@@ -134,7 +136,7 @@ type Server struct {
 	// closeFunc is the cancel function of the close context.
 	closeFunc context.CancelFunc
 	// middleware extracts identity from client certificates.
-	middleware *auth.Middleware
+	middleware *server.Middleware
 	// dynamicLabels contains dynamic labels for database servers.
 	dynamicLabels map[string]*labels.Dynamic
 	// heartbeats holds hearbeats for database servers.
@@ -163,7 +165,7 @@ func New(ctx context.Context, config Config) (*Server, error) {
 		dynamicLabels: make(map[string]*labels.Dynamic),
 		heartbeats:    make(map[string]*srv.Heartbeat),
 		rdsCACerts:    make(map[string][]byte),
-		middleware: &auth.Middleware{
+		middleware: &server.Middleware{
 			AccessPoint:   config.AccessPoint,
 			AcceptedUsage: []string{teleport.UsageDatabaseOnly},
 		},
@@ -411,9 +413,9 @@ func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.Stream
 
 func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	// Only allow local and remote identities to proxy to a database.
-	userType := ctx.Value(auth.ContextUser)
+	userType := ctx.Value(server.ContextUser)
 	switch userType.(type) {
-	case auth.LocalUser, auth.RemoteUser:
+	case server.LocalUser, server.RemoteUser:
 	default:
 		return nil, trace.BadParameter("invalid identity: %T", userType)
 	}

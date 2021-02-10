@@ -6,13 +6,14 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/client"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 // accessWorkflow performs the necessary access management functions as an example
-func accessWorkflow(ctx context.Context, client *auth.Client) {
+func accessWorkflow(ctx context.Context, client *client.Client) {
 	// create access request for api-admin to temporarily use the admin role in the cluster
-	accessReq, err := services.NewAccessRequest("api-admin", "admin")
+	accessReq, err := auth.NewAccessRequest("api-admin", "admin")
 	if err != nil {
 		log.Printf("Failed to make new access request: %v", err)
 		return

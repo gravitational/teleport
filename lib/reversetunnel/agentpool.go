@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
 	"github.com/gravitational/teleport/lib/utils"
@@ -63,7 +64,7 @@ type AgentPool struct {
 type AgentPoolConfig struct {
 	// Client is client to the auth server this agent connects to receive
 	// a list of pools
-	Client auth.ClientI
+	Client client.ClientI
 	// AccessPoint is a lightweight access point
 	// that can optionally cache some values
 	AccessPoint auth.AccessPoint

@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/client"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -130,7 +131,7 @@ type Server struct {
 	// the server supports. If omitted the defaults will be used.
 	macAlgorithms []string
 
-	authClient      auth.ClientI
+	authClient      client.ClientI
 	authService     auth.AccessPoint
 	sessionRegistry *srv.SessionRegistry
 	sessionServer   session.Service
@@ -153,7 +154,7 @@ type Server struct {
 
 // ServerConfig is the configuration needed to create an instance of a Server.
 type ServerConfig struct {
-	AuthClient      auth.ClientI
+	AuthClient      client.ClientI
 	UserAgent       teleagent.Agent
 	TargetConn      net.Conn
 	SrcAddr         net.Addr

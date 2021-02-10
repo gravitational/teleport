@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,176 +14,106 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package auth implements certificate signing authority and access control server
-// Authority server is composed of several parts:
-//
-// * Authority server itself that implements signing and acl logic
-// * HTTP server wrapper for authority server
-// * HTTP client wrapper
-//
 package auth
 
 import (
-	"context"
-
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/services"
+	"bytes"
+	"time"
 
 	"github.com/gravitational/trace"
 )
 
-// CreateUser inserts a new user entry in a backend.
-func (s *Server) CreateUser(ctx context.Context, user services.User) error {
-	if user.GetCreatedBy().IsEmpty() {
-		user.SetCreatedBy(services.CreatedBy{
-			User: services.UserRef{Name: ClientUsername(ctx)},
-			Time: s.GetClock().Now().UTC(),
-		})
-	}
-
-	// TODO: ctx is being swallowed here because the current implementation of
-	// s.Identity.CreateUser is an older implementation that does not curently
-	// accept a context.
-	if err := s.Identity.CreateUser(user); err != nil {
+// ValidateUser validates the User and sets default values
+func ValidateUser(u User) error {
+	if err := u.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-
-	var connectorName string
-	if user.GetCreatedBy().Connector == nil {
-		connectorName = teleport.Local
-	} else {
-		connectorName = user.GetCreatedBy().Connector.ID
-	}
-
-	if err := s.emitter.EmitAuditEvent(ctx, &events.UserCreate{
-		Metadata: events.Metadata{
-			Type: events.UserCreateEvent,
-			Code: events.UserCreateCode,
-		},
-		UserMetadata: events.UserMetadata{
-			User:         user.GetCreatedBy().User.Name,
-			Impersonator: ClientImpersonator(ctx),
-		},
-		ResourceMetadata: events.ResourceMetadata{
-			Name:    user.GetName(),
-			Expires: user.Expiry(),
-		},
-		Connector: connectorName,
-		Roles:     user.GetRoles(),
-	}); err != nil {
-		log.WithError(err).Warn("Failed to emit user create event.")
-	}
-
-	return nil
-}
-
-// UpdateUser updates an existing user in a backend.
-func (s *Server) UpdateUser(ctx context.Context, user services.User) error {
-	if err := s.Identity.UpdateUser(ctx, user); err != nil {
-		return trace.Wrap(err)
-	}
-
-	var connectorName string
-	if user.GetCreatedBy().Connector == nil {
-		connectorName = teleport.Local
-	} else {
-		connectorName = user.GetCreatedBy().Connector.ID
-	}
-
-	if err := s.emitter.EmitAuditEvent(ctx, &events.UserCreate{
-		Metadata: events.Metadata{
-			Type: events.UserUpdatedEvent,
-			Code: events.UserUpdateCode,
-		},
-		UserMetadata: events.UserMetadata{
-			User:         ClientUsername(ctx),
-			Impersonator: ClientImpersonator(ctx),
-		},
-		ResourceMetadata: events.ResourceMetadata{
-			Name:    user.GetName(),
-			Expires: user.Expiry(),
-		},
-		Connector: connectorName,
-		Roles:     user.GetRoles(),
-	}); err != nil {
-		log.WithError(err).Warn("Failed to emit user update event.")
-	}
-
-	return nil
-}
-
-// UpsertUser updates a user.
-func (s *Server) UpsertUser(user services.User) error {
-	err := s.Identity.UpsertUser(user)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	var connectorName string
-	if user.GetCreatedBy().Connector == nil {
-		connectorName = teleport.Local
-	} else {
-		connectorName = user.GetCreatedBy().Connector.ID
-	}
-
-	if err := s.emitter.EmitAuditEvent(s.closeCtx, &events.UserCreate{
-		Metadata: events.Metadata{
-			Type: events.UserCreateEvent,
-			Code: events.UserCreateCode,
-		},
-		UserMetadata: events.UserMetadata{
-			User: user.GetName(),
-		},
-		ResourceMetadata: events.ResourceMetadata{
-			Name:    user.GetName(),
-			Expires: user.Expiry(),
-		},
-		Connector: connectorName,
-		Roles:     user.GetRoles(),
-	}); err != nil {
-		log.WithError(err).Warn("Failed to emit user upsert event.")
-	}
-
-	return nil
-}
-
-// DeleteUser deletes an existng user in a backend by username.
-func (s *Server) DeleteUser(ctx context.Context, user string) error {
-	role, err := s.Access.GetRole(ctx, services.RoleNameForUser(user))
-	if err != nil {
-		if !trace.IsNotFound(err) {
+	if localAuth := u.GetLocalAuth(); localAuth != nil {
+		if err := ValidateLocalAuthSecrets(localAuth); err != nil {
 			return trace.Wrap(err)
 		}
-	} else {
-		if err := s.Access.DeleteRole(ctx, role.GetName()); err != nil {
-			if !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
+	}
+	return nil
+}
+
+// LocalAuthSecretsEquals checks equality (nil safe).
+func LocalAuthSecretsEquals(l *LocalAuthSecrets, other *LocalAuthSecrets) bool {
+	if (l == nil) || (other == nil) {
+		return l == other
+	}
+	if !bytes.Equal(l.PasswordHash, other.PasswordHash) {
+		return false
+	}
+	if len(l.MFA) != len(other.MFA) {
+		return false
+	}
+	mfa := make(map[string]*MFADevice, len(l.MFA))
+	for i, d := range l.MFA {
+		mfa[d.Id] = l.MFA[i]
+	}
+	mfaOther := make(map[string]*MFADevice, len(other.MFA))
+	for i, d := range other.MFA {
+		mfaOther[d.Id] = other.MFA[i]
+	}
+	for id, d := range mfa {
+		od, ok := mfaOther[id]
+		if !ok {
+			return false
+		}
+		if !mfaDeviceEquals(d, od) {
+			return false
 		}
 	}
+	return true
+}
 
-	err = s.Identity.DeleteUser(ctx, user)
-	if err != nil {
-		return trace.Wrap(err)
+// UsersEquals checks if the users are equal
+func UsersEquals(u User, other User) bool {
+	if u.GetName() != other.GetName() {
+		return false
 	}
-
-	// If the user was successfully deleted, emit an event.
-	if err := s.emitter.EmitAuditEvent(s.closeCtx, &events.UserDelete{
-		Metadata: events.Metadata{
-			Type: events.UserDeleteEvent,
-			Code: events.UserDeleteCode,
-		},
-		UserMetadata: events.UserMetadata{
-			User:         ClientUsername(ctx),
-			Impersonator: ClientImpersonator(ctx),
-		},
-		ResourceMetadata: events.ResourceMetadata{
-			Name: user,
-		},
-	}); err != nil {
-		log.WithError(err).Warn("Failed to emit user delete event.")
+	otherIdentities := other.GetOIDCIdentities()
+	if len(u.GetOIDCIdentities()) != len(otherIdentities) {
+		return false
 	}
+	for i := range u.GetOIDCIdentities() {
+		if !u.GetOIDCIdentities()[i].Equals(&otherIdentities[i]) {
+			return false
+		}
+	}
+	otherSAMLIdentities := other.GetSAMLIdentities()
+	if len(u.GetSAMLIdentities()) != len(otherSAMLIdentities) {
+		return false
+	}
+	for i := range u.GetSAMLIdentities() {
+		if !u.GetSAMLIdentities()[i].Equals(&otherSAMLIdentities[i]) {
+			return false
+		}
+	}
+	otherGithubIdentities := other.GetGithubIdentities()
+	if len(u.GetGithubIdentities()) != len(otherGithubIdentities) {
+		return false
+	}
+	for i := range u.GetGithubIdentities() {
+		if !u.GetGithubIdentities()[i].Equals(&otherGithubIdentities[i]) {
+			return false
+		}
+	}
+	return LocalAuthSecretsEquals(u.GetLocalAuth(), other.GetLocalAuth())
+}
 
+// LoginAttempt represents successful or unsuccessful attempt for user to login
+type LoginAttempt struct {
+	// Time is time of the attempt
+	Time time.Time `json:"time"`
+	// Success indicates whether attempt was successful
+	Success bool `json:"bool"`
+}
+
+// Check checks parameters
+func (la *LoginAttempt) Check() error {
+	if la.Time.IsZero() {
+		return trace.BadParameter("missing parameter time")
+	}
 	return nil
 }

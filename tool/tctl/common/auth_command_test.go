@@ -12,6 +12,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/service"
@@ -199,7 +200,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 }
 
 type mockClient struct {
-	auth.ClientI
+	client.ClientI
 
 	clusterName    services.ClusterName
 	userCerts      *proto.Certs
@@ -210,19 +211,19 @@ type mockClient struct {
 	kubeServices   []services.Server
 }
 
-func (c mockClient) GetClusterName(...services.MarshalOption) (services.ClusterName, error) {
+func (c mockClient) GetClusterName(...auth.MarshalOption) (services.ClusterName, error) {
 	return c.clusterName, nil
 }
 func (c mockClient) GenerateUserCerts(context.Context, proto.UserCertsRequest) (*proto.Certs, error) {
 	return c.userCerts, nil
 }
-func (c mockClient) GetCertAuthorities(services.CertAuthType, bool, ...services.MarshalOption) ([]services.CertAuthority, error) {
+func (c mockClient) GetCertAuthorities(services.CertAuthType, bool, ...auth.MarshalOption) ([]services.CertAuthority, error) {
 	return c.cas, nil
 }
 func (c mockClient) GetProxies() ([]services.Server, error) {
 	return c.proxies, nil
 }
-func (c mockClient) GetRemoteClusters(opts ...services.MarshalOption) ([]services.RemoteCluster, error) {
+func (c mockClient) GetRemoteClusters(opts ...auth.MarshalOption) ([]services.RemoteCluster, error) {
 	return c.remoteClusters, nil
 }
 func (c mockClient) GetKubeServices(context.Context) ([]services.Server, error) {

@@ -14,8 +14,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/auth"
+	libauth "github.com/gravitational/teleport/lib/auth"
+	auth "github.com/gravitational/teleport/lib/auth/client"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/server"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -282,7 +284,7 @@ func (a *AuthCommand) GenerateAndSignKeys(clusterAPI auth.ClientI) error {
 
 // RotateCertAuthority starts or restarts certificate authority rotation process
 func (a *AuthCommand) RotateCertAuthority(client auth.ClientI) error {
-	req := auth.RotateRequest{
+	req := server.RotateRequest{
 		Type:        services.CertAuthType(a.rotateType),
 		GracePeriod: &a.rotateGracePeriod,
 		TargetPhase: a.rotateTargetPhase,
@@ -335,7 +337,7 @@ func (a *AuthCommand) generateHostKeys(clusterAPI auth.ClientI) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	key.TrustedCA = auth.AuthoritiesToTrustedCerts(hostCAs)
+	key.TrustedCA = server.AuthoritiesToTrustedCerts(hostCAs)
 
 	// if no name was given, take the first name on the list of principals
 	filePath := a.output
@@ -379,7 +381,7 @@ func (a *AuthCommand) generateDatabaseKeys(clusterAPI auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 	key.TLSCert = resp.Cert
-	key.TrustedCA = []auth.TrustedCerts{{TLSCertificates: resp.CACerts}}
+	key.TrustedCA = []server.TrustedCerts{{TLSCertificates: resp.CACerts}}
 	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
 		OutputPath:           a.output,
 		Key:                  key,
@@ -447,7 +449,7 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	key.TrustedCA = auth.AuthoritiesToTrustedCerts(hostCAs)
+	key.TrustedCA = server.AuthoritiesToTrustedCerts(hostCAs)
 
 	// write the cert+private key to the output:
 	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
@@ -587,7 +589,7 @@ func userCAFormat(ca services.CertAuthority, keyBytes []byte) (string, error) {
 //
 // URL encoding is used to pass the CA type and allowed logins into the comment field.
 func hostCAFormat(ca services.CertAuthority, keyBytes []byte, client auth.ClientI) (string, error) {
-	roles, err := services.FetchRoles(ca.GetRoles(), client, nil)
+	roles, err := libauth.FetchRoles(ca.GetRoles(), client, nil)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

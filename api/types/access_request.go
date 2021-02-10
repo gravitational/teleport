@@ -98,7 +98,7 @@ type AccessRequest interface {
 }
 
 // NewAccessRequest assembled an AccessRequest resource.
-func NewAccessRequest(name string, user string, roles ...string) (AccessRequest, error) {
+func NewAccessRequest(name, user, role string, additionalRoles ...string) (AccessRequest, error) {
 	req := AccessRequestV3{
 		Kind:    KindAccessRequest,
 		Version: V3,
@@ -107,7 +107,7 @@ func NewAccessRequest(name string, user string, roles ...string) (AccessRequest,
 		},
 		Spec: AccessRequestSpecV3{
 			User:  user,
-			Roles: roles,
+			Roles: append([]string{role}, additionalRoles...),
 			State: RequestState_PENDING,
 		},
 	}
@@ -313,6 +313,11 @@ func (r *AccessRequestV3) Check() error {
 	}
 	if len(r.GetRoles()) < 1 {
 		return trace.BadParameter("access request does not specify any roles")
+	}
+	for _, role := range r.GetRoles() {
+		if role == "" {
+			return trace.BadParameter("access request specifies an empty role")
+		}
 	}
 	if r.GetState().IsPending() {
 		if r.GetResolveReason() != "" {

@@ -22,10 +22,10 @@ import (
 	"text/template"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth"
+	auth "github.com/gravitational/teleport/lib/auth/client"
+	"github.com/gravitational/teleport/lib/auth/resource"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
@@ -65,7 +65,7 @@ func (c *DBCommand) TryRun(cmd string, client auth.ClientI) (match bool, err err
 // ListDatabases prints the list of database proxies that have recently sent
 // heartbeats to the cluster.
 func (c *DBCommand) ListDatabases(client auth.ClientI) error {
-	servers, err := client.GetDatabaseServers(context.TODO(), defaults.Namespace, services.SkipValidation())
+	servers, err := client.GetDatabaseServers(context.TODO(), defaults.Namespace, resource.SkipValidation())
 	if err != nil {
 		return trace.Wrap(err)
 	}

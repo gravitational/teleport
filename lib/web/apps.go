@@ -22,7 +22,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/server"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -172,7 +172,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 // waitForAppSession will block until the requested application session shows up in the
 // cache or a timeout occurs.
 func (h *Handler) waitForAppSession(ctx context.Context, sessionID, user string) error {
-	return auth.WaitForAppSession(ctx, sessionID, user, h.cfg.AccessPoint)
+	return server.WaitForAppSession(ctx, sessionID, user, h.cfg.AccessPoint)
 }
 
 func (h *Handler) validateAppSessionRequest(ctx context.Context, clt app.Getter, proxy reversetunnel.Tunnel, req *CreateAppSessionRequest) (*validateAppSessionResult, error) {

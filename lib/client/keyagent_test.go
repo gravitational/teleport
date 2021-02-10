@@ -31,10 +31,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 
@@ -249,7 +249,7 @@ func (s *KeyAgentTestSuite) TestHostCertVerification(c *check.C) {
 	c.Assert(err, check.IsNil)
 	roles, err := teleport.ParseRoles("node")
 	c.Assert(err, check.IsNil)
-	hostCertBytes, err := keygen.GenerateHostCert(services.HostCertParams{
+	hostCertBytes, err := keygen.GenerateHostCert(auth.HostCertParams{
 		PrivateCASigningKey: caPriv,
 		CASigningAlg:        defaults.CASignatureAlgorithm,
 		PublicHostKey:       hostPub,
@@ -444,7 +444,7 @@ func (s *KeyAgentTestSuite) makeKey(username string, allowedLogins []string, ttl
 		return nil, trace.BadParameter("RSA key not found in fixtures")
 	}
 
-	certificate, err := keygen.GenerateUserCert(services.UserCertParams{
+	certificate, err := keygen.GenerateUserCert(auth.UserCertParams{
 		PrivateCASigningKey:   pemBytes,
 		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         publicKey,

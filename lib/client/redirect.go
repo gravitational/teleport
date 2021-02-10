@@ -24,7 +24,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 
-	"github.com/gravitational/teleport/lib/auth"
+	auth "github.com/gravitational/teleport/lib/auth/server"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/utils"
 

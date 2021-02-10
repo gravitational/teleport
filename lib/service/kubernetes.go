@@ -21,7 +21,7 @@ import (
 	"net/http"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth"
+	auth "github.com/gravitational/teleport/lib/auth/server"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"

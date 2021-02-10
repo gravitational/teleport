@@ -38,7 +38,10 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth"
+	libauth "github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/client"
+	"github.com/gravitational/teleport/lib/auth/server"
+	test "github.com/gravitational/teleport/lib/auth/test/services"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -70,13 +73,13 @@ type SrvSuite struct {
 	up          *upack
 	signer      ssh.Signer
 	user        string
-	server      *auth.TestTLSServer
-	proxyClient *auth.Client
+	server      *test.TLSServer
+	proxyClient *client.Client
 	proxyID     string
-	nodeClient  *auth.Client
+	nodeClient  *client.Client
 	nodeID      string
-	adminClient *auth.Client
-	testServer  *auth.TestAuthServer
+	adminClient *client.Client
+	testServer  *test.AuthServer
 	clock       clockwork.FakeClock
 }
 
@@ -113,20 +116,20 @@ func (s *SrvSuite) SetUpTest(c *C) {
 
 	s.clock = clockwork.NewFakeClock()
 
-	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	authServer, err := test.NewAuthServer(test.AuthServerConfig{
 		ClusterName: "localhost",
 		Dir:         c.MkDir(),
 		Clock:       s.clock,
 	})
 	c.Assert(err, IsNil)
-	s.server, err = authServer.NewTestTLSServer()
+	s.server, err = authServer.NewTLSServer()
 	c.Assert(err, IsNil)
 	s.testServer = authServer
 
 	// create proxy client used in some tests
 	s.proxyID = uuid.New()
-	s.proxyClient, err = s.server.NewClient(auth.TestIdentity{
-		I: auth.BuiltinRole{
+	s.proxyClient, err = s.server.NewClient(test.Identity{
+		I: server.BuiltinRole{
 			Role:     teleport.RoleProxy,
 			Username: s.proxyID,
 		},
@@ -134,7 +137,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	// admin client is for admin actions, e.g. creating new users
-	s.adminClient, err = s.server.NewClient(auth.TestBuiltin(teleport.RoleAdmin))
+	s.adminClient, err = s.server.NewClient(test.Builtin(teleport.RoleAdmin))
 	c.Assert(err, IsNil)
 
 	// set up SSH client using the user private key for signing
@@ -142,7 +145,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	// set up host private key and certificate
-	certs, err := s.server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
+	certs, err := s.server.Auth().GenerateServerKeys(server.GenerateServerKeysRequest{
 		HostID:   hostID,
 		NodeName: s.server.ClusterName(),
 		Roles:    teleport.Roles{teleport.RoleNode},
@@ -154,8 +157,8 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.nodeID = uuid.New()
-	s.nodeClient, err = s.server.NewClient(auth.TestIdentity{
-		I: auth.BuiltinRole{
+	s.nodeClient, err = s.server.NewClient(test.Identity{
+		I: server.BuiltinRole{
 			Role:     teleport.RoleNode,
 			Username: s.nodeID,
 		},
@@ -191,7 +194,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.srv = srv
 	s.srv.isTestStub = true
-	c.Assert(auth.CreateUploaderDir(nodeDir), IsNil)
+	c.Assert(test.CreateUploaderDir(nodeDir), IsNil)
 	c.Assert(s.srv.Start(), IsNil)
 	c.Assert(s.srv.heartbeat.ForceSend(time.Second), IsNil)
 
@@ -299,7 +302,7 @@ func (s *SrvSuite) TestAdvertiseAddr(c *C) {
 func (s *SrvSuite) TestAgentForwardPermission(c *C) {
 	ctx := context.Background()
 	// make sure the role does not allow agent forwarding
-	roleName := services.RoleNameForUser(s.user)
+	roleName := libauth.RoleNameForUser(s.user)
 	role, err := s.server.Auth().GetRole(ctx, roleName)
 	c.Assert(err, IsNil)
 	roleOptions := role.GetOptions()
@@ -329,7 +332,7 @@ func (s *SrvSuite) TestMaxSessions(c *C) {
 	const maxSessions int64 = 2
 	ctx := context.Background()
 	// make sure the role does not allow agent forwarding
-	roleName := services.RoleNameForUser(s.user)
+	roleName := libauth.RoleNameForUser(s.user)
 	role, err := s.server.Auth().GetRole(ctx, roleName)
 	c.Assert(err, IsNil)
 	roleOptions := role.GetOptions()
@@ -373,7 +376,7 @@ func (s *SrvSuite) TestOpenExecSessionSetsSession(c *C) {
 // TestAgentForward tests agent forwarding via unix sockets
 func (s *SrvSuite) TestAgentForward(c *C) {
 	ctx := context.Background()
-	roleName := services.RoleNameForUser(s.user)
+	roleName := libauth.RoleNameForUser(s.user)
 	role, err := s.server.Auth().GetRole(ctx, roleName)
 	c.Assert(err, IsNil)
 	roleOptions := role.GetOptions()
@@ -692,7 +695,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	log.Infof("[TEST START] TestProxyReverseTunnel")
 
 	// Create host key and certificate for proxy.
-	proxyKeys, err := s.server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
+	proxyKeys, err := s.server.Auth().GenerateServerKeys(server.GenerateServerKeysRequest{
 		HostID:   hostID,
 		NodeName: s.server.ClusterName(),
 		Roles:    teleport.Roles{teleport.RoleProxy},
@@ -712,8 +715,8 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		HostSigners:                   []ssh.Signer{proxySigner},
 		LocalAuthClient:               s.proxyClient,
 		LocalAccessPoint:              s.proxyClient,
-		NewCachingAccessPoint:         auth.NoCache,
-		NewCachingAccessPointOldProxy: auth.NoCache,
+		NewCachingAccessPoint:         client.NoCache,
+		NewCachingAccessPointOldProxy: client.NoCache,
 		DirectClusters:                []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
 		DataDir:                       c.MkDir(),
 		Component:                     teleport.ComponentProxy,
@@ -880,8 +883,8 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		HostSigners:                   []ssh.Signer{s.signer},
 		LocalAuthClient:               s.proxyClient,
 		LocalAccessPoint:              s.proxyClient,
-		NewCachingAccessPoint:         auth.NoCache,
-		NewCachingAccessPointOldProxy: auth.NoCache,
+		NewCachingAccessPoint:         client.NoCache,
+		NewCachingAccessPointOldProxy: client.NoCache,
 		DirectClusters:                []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
 		DataDir:                       c.MkDir(),
 		Emitter:                       s.proxyClient,
@@ -989,8 +992,8 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 		HostSigners:                   []ssh.Signer{s.signer},
 		LocalAuthClient:               s.proxyClient,
 		LocalAccessPoint:              s.proxyClient,
-		NewCachingAccessPoint:         auth.NoCache,
-		NewCachingAccessPointOldProxy: auth.NoCache,
+		NewCachingAccessPoint:         client.NoCache,
+		NewCachingAccessPointOldProxy: client.NoCache,
 		DirectClusters:                []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
 		DataDir:                       c.MkDir(),
 		Emitter:                       s.proxyClient,
@@ -1128,7 +1131,7 @@ func (s *SrvSuite) TestLimiter(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(srv.Start(), IsNil)
 
-	c.Assert(auth.CreateUploaderDir(nodeStateDir), IsNil)
+	c.Assert(test.CreateUploaderDir(nodeStateDir), IsNil)
 	defer srv.Close()
 
 	// maxConnection = 3
@@ -1270,7 +1273,7 @@ func (s *SrvSuite) newRawNode(c *C) *rawNode {
 	c.Assert(err, IsNil)
 
 	// Create host key and certificate for node.
-	keys, err := s.server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
+	keys, err := s.server.Auth().GenerateServerKeys(server.GenerateServerKeysRequest{
 		HostID:               "raw-node",
 		NodeName:             "raw-node",
 		Roles:                teleport.Roles{teleport.RoleNode},
@@ -1488,9 +1491,9 @@ func (s *SrvSuite) newUpack(username string, allowedLogins []string, allowedLabe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	role := services.RoleForUser(user)
+	role := libauth.RoleForUser(user)
 	rules := role.GetRules(services.Allow)
-	rules = append(rules, services.NewRule(services.Wildcard, services.RW()))
+	rules = append(rules, services.NewRule(services.Wildcard, libauth.RW()))
 	role.SetRules(services.Allow, rules)
 	opts := role.GetOptions()
 	opts.PermitX11Forwarding = services.NewBool(true)

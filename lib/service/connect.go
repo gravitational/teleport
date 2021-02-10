@@ -27,7 +27,8 @@ import (
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/auth"
+	auth "github.com/gravitational/teleport/lib/auth/client"
+	"github.com/gravitational/teleport/lib/auth/server"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -158,7 +159,7 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 		case services.RotationPhaseUpdateClients:
 			// Clients should use updated credentials,
 			// while servers should use old credentials to answer auth requests.
-			newIdentity, err := process.storage.ReadIdentity(auth.IdentityReplacement, role)
+			newIdentity, err := process.storage.ReadIdentity(server.IdentityReplacement, role)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -180,7 +181,7 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 		case services.RotationPhaseUpdateServers:
 			// Servers and clients are using new identity credentials, but the
 			// identity is still set up to trust the old certificate authority certificates.
-			newIdentity, err := process.storage.ReadIdentity(auth.IdentityReplacement, role)
+			newIdentity, err := process.storage.ReadIdentity(server.IdentityReplacement, role)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -296,9 +297,9 @@ func (process *TeleportProcess) getCertAuthority(conn *Connector, id services.Ce
 // reRegister receives new identity credentials for proxy, node and auth.
 // In case if auth servers, the role is 'TeleportAdmin' and instead of using
 // TLS client this method uses the local auth server.
-func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals []string, dnsNames []string, rotation services.Rotation) (*auth.Identity, error) {
+func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals []string, dnsNames []string, rotation services.Rotation) (*server.Identity, error) {
 	if conn.ClientIdentity.ID.Role == teleport.RoleAdmin || conn.ClientIdentity.ID.Role == teleport.RoleAuth {
-		return auth.GenerateIdentity(process.localAuth, conn.ClientIdentity.ID, additionalPrincipals, dnsNames)
+		return server.GenerateIdentity(process.localAuth, conn.ClientIdentity.ID, additionalPrincipals, dnsNames)
 	}
 	const reason = "re-register"
 	keyPair, err := process.generateKeyPair(conn.ClientIdentity.ID.Role, reason)
@@ -323,7 +324,7 @@ func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals
 }
 
 func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector, error) {
-	id := auth.IdentityID{
+	id := server.IdentityID{
 		Role:     role,
 		HostUUID: process.Config.HostUUID,
 		NodeName: process.Config.Hostname,
@@ -332,7 +333,7 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var identity *auth.Identity
+	var identity *server.Identity
 	if process.getLocalAuth() != nil {
 		// Auth service is on the same host, no need to go though the invitation
 		// procedure.
@@ -403,13 +404,13 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 		return nil, trace.Wrap(err)
 	}
 
-	err = process.storage.WriteIdentity(auth.IdentityCurrent, *identity)
+	err = process.storage.WriteIdentity(server.IdentityCurrent, *identity)
 	if err != nil {
 		process.log.Warningf("Failed to write %v identity: %v.", role, err)
 	}
 
-	err = process.storage.WriteState(role, auth.StateV2{
-		Spec: auth.StateSpecV2{
+	err = process.storage.WriteState(role, server.StateV2{
+		Spec: server.StateSpecV2{
 			Rotation: ca.GetRotation(),
 		},
 	})
@@ -633,7 +634,7 @@ func checkServerIdentity(conn *Connector, additionalPrincipals []string, dnsName
 }
 
 // rotate is called to check if rotation should be triggered.
-func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2, remote services.Rotation) (*rotationStatus, error) {
+func (process *TeleportProcess) rotate(conn *Connector, localState server.StateV2, remote services.Rotation) (*rotationStatus, error) {
 	id := conn.ClientIdentity.ID
 	local := localState.Spec.Rotation
 
@@ -656,7 +657,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 
 	const outOfSync = "%v and cluster rotation state (%v) is out of sync with local (%v). Clear local state and re-register this %v."
 
-	writeStateAndIdentity := func(name string, identity *auth.Identity) error {
+	writeStateAndIdentity := func(name string, identity *server.Identity) error {
 		err = storage.WriteIdentity(name, *identity)
 		if err != nil {
 			return trace.Wrap(err)
@@ -682,7 +683,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				err = storage.WriteIdentity(auth.IdentityCurrent, *identity)
+				err = storage.WriteIdentity(server.IdentityCurrent, *identity)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -699,7 +700,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			err = writeStateAndIdentity(auth.IdentityCurrent, identity)
+			err = writeStateAndIdentity(server.IdentityCurrent, identity)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -736,7 +737,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 				return nil, trace.Wrap(err)
 			}
 			process.log.Debugf("Re-registered, received new identity %v.", identity)
-			err = writeStateAndIdentity(auth.IdentityReplacement, identity)
+			err = writeStateAndIdentity(server.IdentityReplacement, identity)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -749,11 +750,11 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 				return nil, trace.CompareFailed(outOfSync, id.Role, remote, local, id.Role)
 			}
 			// Write the replacement identity as a current identity and reload the server.
-			replacement, err := storage.ReadIdentity(auth.IdentityReplacement, id.Role)
+			replacement, err := storage.ReadIdentity(server.IdentityReplacement, id.Role)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			err = writeStateAndIdentity(auth.IdentityCurrent, replacement)
+			err = writeStateAndIdentity(server.IdentityCurrent, replacement)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -768,7 +769,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			err = writeStateAndIdentity(auth.IdentityCurrent, identity)
+			err = writeStateAndIdentity(server.IdentityCurrent, identity)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -784,7 +785,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 
 // newClient attempts to connect directly to the Auth Server. If it fails, it
 // falls back to trying to connect to the Auth Server through the proxy.
-func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity *auth.Identity) (*auth.Client, error) {
+func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity *server.Identity) (*auth.Client, error) {
 	directClient, err := process.newClientDirect(authServers, identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -873,7 +874,7 @@ func tunnelAddr(settings apiclient.ProxySettings) (string, error) {
 	return settings.SSH.TunnelListenAddr, nil
 }
 
-func (process *TeleportProcess) newClientThroughTunnel(servers []utils.NetAddr, identity *auth.Identity) (*auth.Client, error) {
+func (process *TeleportProcess) newClientThroughTunnel(servers []utils.NetAddr, identity *server.Identity) (*auth.Client, error) {
 	// Discover address of SSH reverse tunnel server.
 	proxyAddr, err := process.findReverseTunnel(servers)
 	if err != nil {
@@ -886,7 +887,7 @@ func (process *TeleportProcess) newClientThroughTunnel(servers []utils.NetAddr, 
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := auth.NewClient(apiclient.Config{
+	clt, err := auth.New(apiclient.Config{
 		Dialer: &reversetunnel.TunnelAuthDialer{
 			ProxyAddr:    proxyAddr,
 			ClientConfig: identity.SSHClientConfig(),
@@ -909,20 +910,20 @@ func (process *TeleportProcess) newClientThroughTunnel(servers []utils.NetAddr, 
 	return clt, nil
 }
 
-func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, identity *auth.Identity) (*auth.Client, error) {
+func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, identity *server.Identity) (*auth.Client, error) {
 	tlsConfig, err := identity.TLSConfig(process.Config.CipherSuites)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if process.Config.ClientTimeout != 0 {
-		return auth.NewClient(apiclient.Config{
+		return auth.New(apiclient.Config{
 			Addrs: utils.NetAddrsToStrings(authServers),
 			Credentials: []apiclient.Credentials{
 				apiclient.LoadTLS(tlsConfig),
 			},
-		}, auth.ClientTimeout(process.Config.ClientTimeout))
+		}, auth.Timeout(process.Config.ClientTimeout))
 	}
-	return auth.NewClient(apiclient.Config{
+	return auth.New(apiclient.Config{
 		Addrs: utils.NetAddrsToStrings(authServers),
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),

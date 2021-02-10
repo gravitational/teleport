@@ -23,7 +23,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gravitational/teleport/lib/auth"
+	auth "github.com/gravitational/teleport/lib/auth/server"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"

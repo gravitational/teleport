@@ -6,13 +6,14 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth"
+	auth "github.com/gravitational/teleport/lib/auth/client"
+	"github.com/gravitational/teleport/lib/auth/server"
 )
 
 // tokenCRUD performs each token crud function as an example.
 func tokenCRUD(ctx context.Context, client *auth.Client) {
 	// create a randomly generated token for proxy servers to join the cluster with
-	tokenString, err := client.GenerateToken(ctx, auth.GenerateTokenRequest{
+	tokenString, err := client.GenerateToken(ctx, server.GenerateTokenRequest{
 		Roles: teleport.Roles{teleport.RoleProxy},
 		TTL:   time.Hour,
 	})

@@ -18,8 +18,12 @@ package auth
 
 import (
 	"context"
+	"encoding/hex"
+	"fmt"
 	"io"
+	"strings"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -46,14 +50,17 @@ type Announcer interface {
 	// or for the specified duration with second resolution if it's >= 1 second
 	UpsertKubeService(context.Context, services.Server) error
 
-	// NewKeepAliver returns a new instance of keep aliver
-	NewKeepAliver(ctx context.Context) (services.KeepAliver, error)
-
 	// UpsertAppServer adds an application server.
 	UpsertAppServer(context.Context, services.Server) (*services.KeepAlive, error)
 
 	// UpsertDatabaseServer registers a database proxy server.
 	UpsertDatabaseServer(context.Context, types.DatabaseServer) (*services.KeepAlive, error)
+}
+
+// KeepAliver creates new keep-alives
+type KeepAliver interface {
+	// NewKeepAliver returns a new instance of keep aliver
+	NewKeepAliver(ctx context.Context) (services.KeepAliver, error)
 }
 
 // ReadAccessPoint is an API interface implemented by a certificate authority (CA)
@@ -65,13 +72,13 @@ type ReadAccessPoint interface {
 	NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error)
 
 	// GetReverseTunnels returns  a list of reverse tunnels
-	GetReverseTunnels(opts ...services.MarshalOption) ([]services.ReverseTunnel, error)
+	GetReverseTunnels(opts ...MarshalOption) ([]services.ReverseTunnel, error)
 
 	// GetClusterName returns cluster name
-	GetClusterName(opts ...services.MarshalOption) (services.ClusterName, error)
+	GetClusterName(opts ...MarshalOption) (services.ClusterName, error)
 
 	// GetClusterConfig returns cluster level configuration.
-	GetClusterConfig(opts ...services.MarshalOption) (services.ClusterConfig, error)
+	GetClusterConfig(opts ...MarshalOption) (services.ClusterConfig, error)
 
 	// GetAuthPreference returns the cluster authentication configuration.
 	GetAuthPreference() (services.AuthPreference, error)
@@ -83,7 +90,7 @@ type ReadAccessPoint interface {
 	GetNamespace(name string) (*services.Namespace, error)
 
 	// GetNodes returns a list of registered servers for this cluster.
-	GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error)
+	GetNodes(namespace string, opts ...MarshalOption) ([]services.Server, error)
 
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]services.Server, error)
@@ -92,10 +99,10 @@ type ReadAccessPoint interface {
 	GetAuthServers() ([]services.Server, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(id services.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (services.CertAuthority, error)
+	GetCertAuthority(id services.CertAuthID, loadKeys bool, opts ...MarshalOption) (services.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(caType services.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]services.CertAuthority, error)
+	GetCertAuthorities(caType services.CertAuthType, loadKeys bool, opts ...MarshalOption) ([]services.CertAuthority, error)
 
 	// GetUser returns a services.User for this cluster.
 	GetUser(name string, withSecrets bool) (services.User, error)
@@ -110,13 +117,13 @@ type ReadAccessPoint interface {
 	GetRoles(ctx context.Context) ([]services.Role, error)
 
 	// GetAllTunnelConnections returns all tunnel connections
-	GetAllTunnelConnections(opts ...services.MarshalOption) ([]services.TunnelConnection, error)
+	GetAllTunnelConnections(opts ...MarshalOption) ([]services.TunnelConnection, error)
 
 	// GetTunnelConnections returns tunnel connections for a given cluster
-	GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]services.TunnelConnection, error)
+	GetTunnelConnections(clusterName string, opts ...MarshalOption) ([]services.TunnelConnection, error)
 
 	// GetAppServers gets all application servers.
-	GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error)
+	GetAppServers(ctx context.Context, namespace string, opts ...MarshalOption) ([]services.Server, error)
 
 	// GetAppSession gets an application web session.
 	GetAppSession(context.Context, services.GetAppSessionRequest) (services.WebSession, error)
@@ -128,7 +135,7 @@ type ReadAccessPoint interface {
 	GetWebToken(context.Context, types.GetWebTokenRequest) (types.WebToken, error)
 
 	// GetRemoteClusters returns a list of remote clusters
-	GetRemoteClusters(opts ...services.MarshalOption) ([]services.RemoteCluster, error)
+	GetRemoteClusters(opts ...MarshalOption) ([]services.RemoteCluster, error)
 
 	// GetRemoteCluster returns a remote cluster by name
 	GetRemoteCluster(clusterName string) (services.RemoteCluster, error)
@@ -137,7 +144,7 @@ type ReadAccessPoint interface {
 	GetKubeServices(context.Context) ([]services.Server, error)
 
 	// GetDatabaseServers returns all registered database proxy servers.
-	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
+	GetDatabaseServers(ctx context.Context, namespace string, opts ...MarshalOption) ([]types.DatabaseServer, error)
 }
 
 // AccessPoint is an API interface implemented by a certificate authority (CA)
@@ -159,22 +166,28 @@ type AccessPoint interface {
 	DeleteTunnelConnection(clusterName, connName string) error
 }
 
+// ClientAccessPoint represents client side AccessPoint
+type ClientAccessPoint interface {
+	AccessPoint
+	KeepAliver
+}
+
 // AccessCache is a subset of the interface working on the certificate authorities
 type AccessCache interface {
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(id services.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (services.CertAuthority, error)
+	GetCertAuthority(id services.CertAuthID, loadKeys bool, opts ...MarshalOption) (services.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(caType services.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]services.CertAuthority, error)
+	GetCertAuthorities(caType services.CertAuthType, loadKeys bool, opts ...MarshalOption) ([]services.CertAuthority, error)
 
 	// GetClusterConfig returns cluster level configuration.
-	GetClusterConfig(opts ...services.MarshalOption) (services.ClusterConfig, error)
+	GetClusterConfig(opts ...MarshalOption) (services.ClusterConfig, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(opts ...services.MarshalOption) (services.ClusterName, error)
+	GetClusterName(opts ...MarshalOption) (services.ClusterName, error)
 }
 
-// Cache is a subset of the auth interface hanlding
+// Cache is a subset of the auth interface handling
 // access to the discovery API and static tokens
 type Cache interface {
 	ReadAccessPoint
@@ -183,7 +196,7 @@ type Cache interface {
 	GetStaticTokens() (services.StaticTokens, error)
 
 	// GetTokens returns all active (non-expired) provisioning tokens
-	GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]services.ProvisionToken, error)
+	GetTokens(ctx context.Context, opts ...MarshalOption) ([]services.ProvisionToken, error)
 
 	// GetToken finds and returns token by ID
 	GetToken(ctx context.Context, token string) (services.ProvisionToken, error)
@@ -193,7 +206,7 @@ type Cache interface {
 }
 
 // NewWrapper returns new access point wrapper
-func NewWrapper(base AccessPoint, cache ReadAccessPoint) AccessPoint {
+func NewWrapper(base ClientAccessPoint, cache ReadAccessPoint) ClientAccessPoint {
 	return &Wrapper{
 		NoCache:         base,
 		ReadAccessPoint: cache,
@@ -204,7 +217,7 @@ func NewWrapper(base AccessPoint, cache ReadAccessPoint) AccessPoint {
 // so that reads of cached values can be intercepted.
 type Wrapper struct {
 	ReadAccessPoint
-	NoCache AccessPoint
+	NoCache ClientAccessPoint
 }
 
 // ResumeAuditStream resumes existing audit stream
@@ -294,15 +307,29 @@ func (w *Wrapper) UpsertDatabaseServer(ctx context.Context, server types.Databas
 	return w.NoCache.UpsertDatabaseServer(ctx, server)
 }
 
-// NewCachingAcessPoint returns new caching access point using
-// access point policy
-type NewCachingAccessPoint func(clt ClientI, cacheName []string) (AccessPoint, error)
-
-// NoCache is a no cache used for access point
-func NoCache(clt ClientI, cacheName []string) (AccessPoint, error) {
-	return clt, nil
+// EncodeClusterName encodes cluster name in the SNI hostname
+func EncodeClusterName(clusterName string) string {
+	// hex is used to hide "." that will prevent wildcard *. entry to match
+	return fmt.Sprintf("%v.%v", hex.EncodeToString([]byte(clusterName)), teleport.APIDomain)
 }
 
-// notImplementedMessage is the message to return for endpoints that are not
-// implemented. This is due to how service interfaces are used with Teleport.
-const notImplementedMessage = "not implemented: can only be called by auth locally"
+// DecodeClusterName decodes cluster name, returns NotFound
+// if no cluster name is encoded (empty subdomain),
+// so servers can detect cases when no server name passed
+// returns BadParameter if encoding does not match
+func DecodeClusterName(serverName string) (string, error) {
+	if serverName == teleport.APIDomain {
+		return "", trace.NotFound("no cluster name is encoded")
+	}
+	const suffix = "." + teleport.APIDomain
+	if !strings.HasSuffix(serverName, suffix) {
+		return "", trace.NotFound("no cluster name is encoded")
+	}
+	clusterName := strings.TrimSuffix(serverName, suffix)
+
+	decoded, err := hex.DecodeString(clusterName)
+	if err != nil {
+		return "", trace.BadParameter("failed to decode cluster name: %v", err)
+	}
+	return string(decoded), nil
+}

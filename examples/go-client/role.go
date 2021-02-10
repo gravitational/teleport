@@ -6,11 +6,12 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/auth"
+	authclient "github.com/gravitational/teleport/lib/auth/client"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 // rolesCRUD performs each roles crud function as an example
-func roleCRUD(ctx context.Context, client *auth.Client) {
+func roleCRUD(ctx context.Context, client *authclient.Client) {
 	// create a new auditor role which has very limited permissions
 	role, err := services.NewRole("auditor", services.RoleSpecV3{
 		Options: services.RoleOptions{
@@ -19,7 +20,7 @@ func roleCRUD(ctx context.Context, client *auth.Client) {
 		Allow: services.RoleConditions{
 			Logins: []string{"auditor"},
 			Rules: []services.Rule{
-				services.NewRule(services.KindSession, services.RO()),
+				services.NewRule(services.KindSession, auth.RO()),
 			},
 		},
 		Deny: services.RoleConditions{

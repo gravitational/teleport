@@ -32,22 +32,6 @@ import (
 	"github.com/jonboulle/clockwork"
 )
 
-// ValidateServerMetadata checks that event server ID of the event
-// if present, matches the passed server ID and namespace has proper syntax
-func ValidateServerMetadata(event AuditEvent, serverID string) error {
-	getter, ok := event.(ServerMetadataGetter)
-	if !ok {
-		return nil
-	}
-	if getter.GetServerID() != serverID {
-		return trace.BadParameter("server %q can't emit event with server ID %q", serverID, getter.GetServerID())
-	}
-	if ns := getter.GetServerNamespace(); ns != "" && !services.IsValidNamespace(ns) {
-		return trace.BadParameter("invalid namespace %q", ns)
-	}
-	return nil
-}
-
 // UpdateEventFields updates passed event fields with additional information
 // common for all event types such as unique IDs, timestamps, codes, etc.
 //

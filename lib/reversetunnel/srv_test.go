@@ -62,7 +62,7 @@ func TestServerKeyAuth(t *testing.T) {
 		{
 			desc: "host cert",
 			key: func() ssh.PublicKey {
-				rawCert, err := ca.GenerateHostCert(services.HostCertParams{
+				rawCert, err := ca.GenerateHostCert(auth.HostCertParams{
 					PrivateCASigningKey: priv,
 					CASigningAlg:        defaults.CASignatureAlgorithm,
 					PublicHostKey:       pub,
@@ -87,7 +87,7 @@ func TestServerKeyAuth(t *testing.T) {
 		{
 			desc: "user cert",
 			key: func() ssh.PublicKey {
-				rawCert, err := ca.GenerateUserCert(services.UserCertParams{
+				rawCert, err := ca.GenerateUserCert(auth.UserCertParams{
 					PrivateCASigningKey: priv,
 					CASigningAlg:        defaults.CASignatureAlgorithm,
 					PublicUserKey:       pub,
@@ -145,6 +145,6 @@ type mockAccessPoint struct {
 	ca services.CertAuthority
 }
 
-func (ap mockAccessPoint) GetCertAuthority(id services.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (services.CertAuthority, error) {
+func (ap mockAccessPoint) GetCertAuthority(id services.CertAuthID, loadKeys bool, opts ...auth.MarshalOption) (services.CertAuthority, error) {
 	return ap.ca, nil
 }

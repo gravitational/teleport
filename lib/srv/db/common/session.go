@@ -20,7 +20,7 @@ import (
 	"fmt"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
+	services "github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/sirupsen/logrus"

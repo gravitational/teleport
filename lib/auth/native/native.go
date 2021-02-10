@@ -29,7 +29,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/resource"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -175,7 +176,7 @@ func (k *Keygen) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
 
 // GenerateHostCert generates a host certificate with the passed in parameters.
 // The private key of the CA to sign the certificate must be provided.
-func (k *Keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
+func (k *Keygen) GenerateHostCert(c auth.HostCertParams) ([]byte, error) {
 	if err := c.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -185,7 +186,7 @@ func (k *Keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
 
 // GenerateHostCertWithoutValidation generates a host certificate with the
 // passed in parameters without validating them. For use in tests only.
-func (k *Keygen) GenerateHostCertWithoutValidation(c services.HostCertParams) ([]byte, error) {
+func (k *Keygen) GenerateHostCertWithoutValidation(c auth.HostCertParams) ([]byte, error) {
 	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(c.PublicHostKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -236,7 +237,7 @@ func (k *Keygen) GenerateHostCertWithoutValidation(c services.HostCertParams) ([
 
 // GenerateUserCert generates a user certificate with the passed in parameters.
 // The private key of the CA to sign the certificate must be provided.
-func (k *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
+func (k *Keygen) GenerateUserCert(c auth.UserCertParams) ([]byte, error) {
 	if err := c.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err, "error validating UserCertParams")
 	}
@@ -245,7 +246,7 @@ func (k *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 
 // GenerateUserCertWithoutValidation generates a user certificate with the
 // passed in parameters without validating them. For use in tests only.
-func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([]byte, error) {
+func (k *Keygen) GenerateUserCertWithoutValidation(c auth.UserCertParams) ([]byte, error) {
 	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(c.PublicUserKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -300,7 +301,7 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 			cert.Permissions.Extensions[teleport.CertExtensionTeleportTraits] = string(traits)
 		}
 		if len(c.Roles) != 0 {
-			roles, err := services.MarshalCertRoles(c.Roles)
+			roles, err := resource.MarshalCertRoles(c.Roles)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

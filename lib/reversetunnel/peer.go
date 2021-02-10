@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/client"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
@@ -86,7 +87,7 @@ func (p *clusterPeers) CachingAccessPoint() (auth.AccessPoint, error) {
 	return peer.CachingAccessPoint()
 }
 
-func (p *clusterPeers) GetClient() (auth.ClientI, error) {
+func (p *clusterPeers) GetClient() (client.ClientI, error) {
 	peer, err := p.pickPeer()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -187,7 +188,7 @@ func (s *clusterPeer) CachingAccessPoint() (auth.AccessPoint, error) {
 	return nil, trace.ConnectionProblem(nil, "unable to fetch access point, this proxy %v has not been discovered yet, try again later", s)
 }
 
-func (s *clusterPeer) GetClient() (auth.ClientI, error) {
+func (s *clusterPeer) GetClient() (client.ClientI, error) {
 	return nil, trace.ConnectionProblem(nil, "unable to fetch client, this proxy %v has not been discovered yet, try again later", s)
 }
 
@@ -200,7 +201,7 @@ func (s *clusterPeer) String() string {
 func (s *clusterPeer) GetStatus() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return services.TunnelConnectionStatus(s.clock, s.connInfo, s.offlineThreshold)
+	return auth.TunnelConnectionStatus(s.clock, s.connInfo, s.offlineThreshold)
 }
 
 func (s *clusterPeer) GetName() string {

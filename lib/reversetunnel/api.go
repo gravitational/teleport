@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/client"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
 )
@@ -90,7 +91,7 @@ type RemoteSite interface {
 	// GetStatus returns status of this site (either offline or connected)
 	GetStatus() string
 	// GetClient returns client connected to remote auth server
-	GetClient() (auth.ClientI, error)
+	GetClient() (client.ClientI, error)
 	// CachingAccessPoint returns access point that is lightweight
 	// but is resilient to auth server crashes
 	CachingAccessPoint() (auth.AccessPoint, error)

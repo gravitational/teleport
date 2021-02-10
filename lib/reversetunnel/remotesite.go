@@ -26,10 +26,11 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/client"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
 
@@ -66,10 +67,10 @@ type remoteSite struct {
 
 	// localClient provides access to the Auth Server API of the cluster
 	// within which reversetunnel.Server is running.
-	localClient auth.ClientI
+	localClient client.ClientI
 	// remoteClient provides access to the Auth Server API of the remote cluster that
 	// this site belongs to.
-	remoteClient auth.ClientI
+	remoteClient client.ClientI
 	// localAccessPoint provides access to a cached subset of the Auth Server API of
 	// the local cluster.
 	localAccessPoint auth.AccessPoint
@@ -88,7 +89,7 @@ type remoteSite struct {
 	offlineThreshold time.Duration
 }
 
-func (s *remoteSite) getRemoteClient() (auth.ClientI, bool, error) {
+func (s *remoteSite) getRemoteClient() (client.ClientI, bool, error) {
 	// check if all cert authorities are initiated and if everything is OK
 	ca, err := s.srv.localAccessPoint.GetCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: s.domainName}, false)
 	if err != nil {
@@ -100,7 +101,7 @@ func (s *remoteSite) getRemoteClient() (auth.ClientI, bool, error) {
 	// has completed.
 	if len(keys) != 0 {
 		s.Debugf("Using TLS client to remote cluster.")
-		pool, err := services.CertPool(ca)
+		pool, err := auth.CertPool(ca)
 		if err != nil {
 			return nil, false, trace.Wrap(err)
 		}
@@ -110,10 +111,10 @@ func (s *remoteSite) getRemoteClient() (auth.ClientI, bool, error) {
 		// connecting to the remote one (it is used to find the right certificate
 		// authority to verify)
 		tlsConfig.ServerName = auth.EncodeClusterName(s.srv.ClusterName)
-		clt, err := auth.NewClient(client.Config{
-			Dialer: auth.ContextDialerFunc(s.authServerContextDialer),
-			Credentials: []client.Credentials{
-				client.LoadTLS(tlsConfig),
+		clt, err := client.New(apiclient.Config{
+			Dialer: client.ContextDialerFunc(s.authServerContextDialer),
+			Credentials: []apiclient.Credentials{
+				apiclient.LoadTLS(tlsConfig),
 			},
 		})
 		if err != nil {
@@ -138,7 +139,7 @@ func (s *remoteSite) CachingAccessPoint() (auth.AccessPoint, error) {
 	return s.remoteAccessPoint, nil
 }
 
-func (s *remoteSite) GetClient() (auth.ClientI, error) {
+func (s *remoteSite) GetClient() (client.ClientI, error) {
 	return s.remoteClient, nil
 }
 
@@ -264,7 +265,7 @@ func (s *remoteSite) GetStatus() string {
 	if err != nil {
 		return teleport.RemoteClusterStatusOffline
 	}
-	return services.TunnelConnectionStatus(s.clock, connInfo, s.offlineThreshold)
+	return auth.TunnelConnectionStatus(s.clock, connInfo, s.offlineThreshold)
 }
 
 func (s *remoteSite) copyConnInfo() services.TunnelConnection {
@@ -514,7 +515,7 @@ func (s *remoteSite) Dial(params DialParams) (net.Conn, error) {
 	// If the proxy is in recording mode and a SSH connection is being requested,
 	// use the agent to dial and build an in-memory forwarding server.
 	if params.ConnType == services.NodeTunnel &&
-		services.IsRecordAtProxy(clusterConfig.GetSessionRecording()) {
+		auth.IsRecordAtProxy(clusterConfig.GetSessionRecording()) {
 		return s.dialWithAgent(params)
 	}
 	return s.DialTCP(params)

@@ -21,6 +21,7 @@ import (
 	"math/rand"
 	"strings"
 
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -32,10 +33,10 @@ import (
 // Getter returns a list of registered apps and the local cluster name.
 type Getter interface {
 	// GetAppServers returns a list of app servers
-	GetAppServers(context.Context, string, ...services.MarshalOption) ([]services.Server, error)
+	GetAppServers(context.Context, string, ...auth.MarshalOption) ([]services.Server, error)
 
 	// GetClusterName returns cluster name
-	GetClusterName(opts ...services.MarshalOption) (services.ClusterName, error)
+	GetClusterName(opts ...auth.MarshalOption) (services.ClusterName, error)
 }
 
 // Match will match an application with the passed in matcher function. Matcher

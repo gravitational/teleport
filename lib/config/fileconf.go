@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1142,7 +1143,7 @@ func (t *ReverseTunnel) ConvertAndValidate() (services.ReverseTunnel, error) {
 	}
 
 	out := services.NewReverseTunnel(t.DomainName, t.Addresses)
-	if err := services.ValidateReverseTunnel(out); err != nil {
+	if err := auth.ValidateReverseTunnel(out); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return out, nil
@@ -1179,7 +1180,7 @@ func (a *Authority) Parse() (services.CertAuthority, services.Role, error) {
 	})
 
 	// transform old allowed logins into roles
-	role := services.RoleForCertAuthority(ca)
+	role := auth.RoleForCertAuthority(ca)
 	role.SetLogins(services.Allow, a.AllowedLogins)
 	ca.AddRole(role.GetName())
 

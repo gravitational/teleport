@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/client"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/google/go-cmp/cmp"
@@ -142,12 +143,12 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 }
 
 type mockAuthClient struct {
-	auth.ClientI
+	client.ClientI
 
 	reverseTunnels    []services.ReverseTunnel
 	reverseTunnelsErr error
 }
 
-func (c mockAuthClient) GetReverseTunnels(...services.MarshalOption) ([]services.ReverseTunnel, error) {
+func (c mockAuthClient) GetReverseTunnels(...auth.MarshalOption) ([]services.ReverseTunnel, error) {
 	return c.reverseTunnels, c.reverseTunnelsErr
 }

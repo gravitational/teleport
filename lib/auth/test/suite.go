@@ -24,8 +24,9 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/resource"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 
 	"golang.org/x/crypto/ssh"
@@ -66,7 +67,7 @@ func (s *AuthSuite) GenerateHostCert(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	cert, err := s.A.GenerateHostCert(
-		services.HostCertParams{
+		auth.HostCertParams{
 			PrivateCASigningKey: priv,
 			CASigningAlg:        defaults.CASignatureAlgorithm,
 			PublicHostKey:       pub,
@@ -94,7 +95,7 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 	priv, pub, err := s.A.GenerateKeyPair("")
 	c.Assert(err, check.IsNil)
 
-	cert, err := s.A.GenerateUserCert(services.UserCertParams{
+	cert, err := s.A.GenerateUserCert(auth.UserCertParams{
 		PrivateCASigningKey:   priv,
 		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
@@ -112,7 +113,7 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 	err = checkCertExpiry(cert, s.Clock.Now().Add(-1*time.Minute), s.Clock.Now().Add(1*time.Hour))
 	c.Assert(err, check.IsNil)
 
-	cert, err = s.A.GenerateUserCert(services.UserCertParams{
+	cert, err = s.A.GenerateUserCert(auth.UserCertParams{
 		PrivateCASigningKey:   priv,
 		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
@@ -127,7 +128,7 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 	err = checkCertExpiry(cert, s.Clock.Now().Add(-1*time.Minute), s.Clock.Now().Add(defaults.MinCertDuration))
 	c.Assert(err, check.IsNil)
 
-	_, err = s.A.GenerateUserCert(services.UserCertParams{
+	_, err = s.A.GenerateUserCert(auth.UserCertParams{
 		PrivateCASigningKey:   priv,
 		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
@@ -142,7 +143,7 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 	err = checkCertExpiry(cert, s.Clock.Now().Add(-1*time.Minute), s.Clock.Now().Add(defaults.MinCertDuration))
 	c.Assert(err, check.IsNil)
 
-	_, err = s.A.GenerateUserCert(services.UserCertParams{
+	_, err = s.A.GenerateUserCert(auth.UserCertParams{
 		PrivateCASigningKey:   priv,
 		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
@@ -157,7 +158,7 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 
 	inRoles := []string{"role-1", "role-2"}
 	impersonator := "alice"
-	cert, err = s.A.GenerateUserCert(services.UserCertParams{
+	cert, err = s.A.GenerateUserCert(auth.UserCertParams{
 		PrivateCASigningKey:   priv,
 		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
@@ -173,7 +174,7 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 	c.Assert(err, check.IsNil)
 	parsedCert, err := sshutils.ParseCertificate(cert)
 	c.Assert(err, check.IsNil)
-	outRoles, err := services.UnmarshalCertRoles(parsedCert.Extensions[teleport.CertExtensionTeleportRoles])
+	outRoles, err := resource.UnmarshalCertRoles(parsedCert.Extensions[teleport.CertExtensionTeleportRoles])
 	c.Assert(err, check.IsNil)
 	c.Assert(outRoles, check.DeepEquals, inRoles)
 

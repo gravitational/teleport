@@ -22,7 +22,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/services"
+	services "github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
 

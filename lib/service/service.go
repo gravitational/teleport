@@ -48,8 +48,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	authclient "github.com/gravitational/teleport/lib/auth/client"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/server"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
@@ -197,14 +200,14 @@ type RoleConfig struct {
 type Connector struct {
 	// ClientIdentity is the identity to be used in internal cluster
 	// clients to the auth service.
-	ClientIdentity *auth.Identity
+	ClientIdentity *server.Identity
 
 	// ServerIdentity is the identity to be used in servers - serving SSH
 	// and x509 certificates to clients.
-	ServerIdentity *auth.Identity
+	ServerIdentity *server.Identity
 
 	// Client is authenticated client with credentials from ClientIdenity.
-	Client *auth.Client
+	Client *authclient.Client
 }
 
 // TunnelProxy if non-empty, indicates that the client is connected to the Auth Server
@@ -247,14 +250,14 @@ type TeleportProcess struct {
 
 	// localAuth has local auth server listed in case if this process
 	// has started with auth server role enabled
-	localAuth *auth.Server
+	localAuth *server.Server
 	// backend is the process' backend
 	backend backend.Backend
 	// auditLog is the initialized audit log
 	auditLog events.IAuditLog
 
 	// identities of this process (credentials to auth sever, basically)
-	Identities map[teleport.Role]*auth.Identity
+	Identities map[teleport.Role]*server.Identity
 
 	// connectors is a list of connected clients and their identities
 	connectors map[teleport.Role]*Connector
@@ -272,7 +275,7 @@ type TeleportProcess struct {
 	forkedPIDs []int
 
 	// storage is a server local storage
-	storage *auth.ProcessStorage
+	storage *server.ProcessStorage
 
 	// id is a process id - used to identify different processes
 	// during in-process reloads.
@@ -310,7 +313,7 @@ func nextProcessID() int32 {
 }
 
 // GetAuthServer returns the process' auth server
-func (process *TeleportProcess) GetAuthServer() *auth.Server {
+func (process *TeleportProcess) GetAuthServer() *server.Server {
 	return process.localAuth
 }
 
@@ -324,7 +327,7 @@ func (process *TeleportProcess) GetBackend() backend.Backend {
 	return process.backend
 }
 
-func (process *TeleportProcess) findStaticIdentity(id auth.IdentityID) (*auth.Identity, error) {
+func (process *TeleportProcess) findStaticIdentity(id server.IdentityID) (*server.Identity, error) {
 	for i := range process.Config.Identities {
 		identity := process.Config.Identities[i]
 		if identity.ID.Equals(id) {
@@ -358,7 +361,7 @@ func (process *TeleportProcess) addConnector(connector *Connector) {
 // GetIdentity returns the process identity (credentials to the auth server) for a given
 // teleport Role. A teleport process can have any combination of 3 roles: auth, node, proxy
 // and they have their own identities
-func (process *TeleportProcess) GetIdentity(role teleport.Role) (i *auth.Identity, err error) {
+func (process *TeleportProcess) GetIdentity(role teleport.Role) (i *server.Identity, err error) {
 	var found bool
 
 	process.Lock()
@@ -368,8 +371,8 @@ func (process *TeleportProcess) GetIdentity(role teleport.Role) (i *auth.Identit
 	if found {
 		return i, nil
 	}
-	i, err = process.storage.ReadIdentity(auth.IdentityCurrent, role)
-	id := auth.IdentityID{
+	i, err = process.storage.ReadIdentity(server.IdentityCurrent, role)
+	id := server.IdentityID{
 		Role:     role,
 		HostUUID: process.Config.HostUUID,
 		NodeName: process.Config.Hostname,
@@ -386,7 +389,7 @@ func (process *TeleportProcess) GetIdentity(role teleport.Role) (i *auth.Identit
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			i, err = auth.GenerateIdentity(process.localAuth, id, principals, dnsNames)
+			i, err = server.GenerateIdentity(process.localAuth, id, principals, dnsNames)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -397,7 +400,7 @@ func (process *TeleportProcess) GetIdentity(role teleport.Role) (i *auth.Identit
 				return nil, trace.Wrap(err)
 			}
 			process.log.Infof("Found static identity %v in the config file, writing to disk.", &id)
-			if err = process.storage.WriteIdentity(auth.IdentityCurrent, *i); err != nil {
+			if err = process.storage.WriteIdentity(server.IdentityCurrent, *i); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		}
@@ -622,7 +625,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 
 	processID := fmt.Sprintf("%v", nextProcessID())
 	supervisor := NewSupervisor(processID, cfg.Log)
-	storage, err := auth.NewProcessStorage(supervisor.ExitContext(), filepath.Join(cfg.DataDir, teleport.ComponentProcess))
+	storage, err := server.NewProcessStorage(supervisor.ExitContext(), filepath.Join(cfg.DataDir, teleport.ComponentProcess))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -640,7 +643,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		Clock:               cfg.Clock,
 		Supervisor:          supervisor,
 		Config:              cfg,
-		Identities:          make(map[teleport.Role]*auth.Identity),
+		Identities:          make(map[teleport.Role]*server.Identity),
 		connectors:          make(map[teleport.Role]*Connector),
 		importedDescriptors: cfg.FileDescriptors,
 		storage:             storage,
@@ -809,13 +812,13 @@ func (process *TeleportProcess) notifyParent() {
 	}
 }
 
-func (process *TeleportProcess) setLocalAuth(a *auth.Server) {
+func (process *TeleportProcess) setLocalAuth(a *server.Server) {
 	process.Lock()
 	defer process.Unlock()
 	process.localAuth = a
 }
 
-func (process *TeleportProcess) getLocalAuth() *auth.Server {
+func (process *TeleportProcess) getLocalAuth() *server.Server {
 	process.Lock()
 	defer process.Unlock()
 	return process.localAuth
@@ -998,7 +1001,7 @@ func initExternalLog(ctx context.Context, auditConfig services.AuditConfig, log 
 		return nil, nil
 	}
 
-	if !services.ShouldUploadSessions(auditConfig) && hasNonFileLog {
+	if !auth.ShouldUploadSessions(auditConfig) && hasNonFileLog {
 		// if audit events are being exported, session recordings should
 		// be exported as well.
 		return nil, trace.BadParameter("please specify audit_sessions_uri when using external audit backends")
@@ -1135,7 +1138,7 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 
 	// first, create the AuthServer
-	authServer, err := auth.Init(auth.InitConfig{
+	authServer, err := server.Init(server.InitConfig{
 		Backend:              b,
 		Authority:            cfg.Keygen,
 		ClusterConfiguration: cfg.ClusterConfiguration,
@@ -1182,11 +1185,11 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	authorizer, err := auth.NewAuthorizer(cfg.Auth.ClusterName.GetClusterName(), authServer.Access, authServer.Identity, authServer.Trust)
+	authorizer, err := server.NewAuthorizer(cfg.Auth.ClusterName.GetClusterName(), authServer.Access, authServer.Identity, authServer.Trust)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	apiConf := &auth.APIConfig{
+	apiConf := &server.APIConfig{
 		AuthServer:     authServer,
 		SessionService: sessionService,
 		Authorizer:     authorizer,
@@ -1199,7 +1202,7 @@ func (process *TeleportProcess) initAuthService() error {
 	var authCache auth.Cache
 	if process.Config.CachePolicy.Enabled {
 		cache, err := process.newAccessCache(accessCacheConfig{
-			services:  authServer.Services,
+			services:  cacheServices{Services: authServer.Services},
 			setup:     cache.ForAuth,
 			cacheName: []string{teleport.ComponentAuth},
 			inMemory:  true,
@@ -1249,7 +1252,7 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	go mux.Serve()
-	tlsServer, err := auth.NewTLSServer(auth.TLSServerConfig{
+	tlsServer, err := server.NewTLSServer(server.TLSServerConfig{
 		TLS:           tlsConfig,
 		APIConfig:     *apiConf,
 		LimiterConfig: cfg.Auth.Limiter,
@@ -1416,12 +1419,32 @@ func (process *TeleportProcess) OnExit(serviceName string, callback func(interfa
 	})
 }
 
+// WebSessions returns a new web session manager
+// Implements types.WebSessionsGetter
+func (r cacheServices) WebSessions() types.WebSessionInterface {
+	return r.Services.WebSessions()
+}
+
+// WebTokens returns a new web token manager
+// Implements types.WebTokensGetter
+func (r cacheServices) WebTokens() types.WebTokenInterface {
+	return r.Services.WebTokens()
+}
+
+// cacheServices is a wrapper for auth.Services that provides
+// services.Services interface
+type cacheServices struct {
+	server.Services
+}
+
 // accessCacheConfig contains
 // configuration for access cache
 type accessCacheConfig struct {
 	// services is a collection
 	// of services to use as a cache base
-	services services.Services
+
+	services auth.Services
+
 	// setup is a function that takes
 	// cache configuration and modifies it
 	setup cache.SetupConfigFn
@@ -1530,13 +1553,13 @@ func (process *TeleportProcess) setupCachePolicy(in cache.SetupConfigFn) cache.S
 }
 
 // newLocalCacheForProxy returns new instance of access point configured for a local proxy.
-func (process *TeleportProcess) newLocalCacheForProxy(clt auth.ClientI, cacheName []string) (auth.AccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForProxy(clt authclient.ClientI, cacheName []string) (auth.ClientAccessPoint, error) {
 	return process.newLocalCache(clt, cache.ForProxy, cacheName)
 }
 
 // newLocalCacheForRemoteProxy returns new instance of access point configured
 // for a remote proxy.
-func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt auth.ClientI, cacheName []string) (auth.AccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt authclient.ClientI, cacheName []string) (auth.AccessPoint, error) {
 	return process.newLocalCache(clt, cache.ForRemoteProxy, cacheName)
 }
 
@@ -1544,12 +1567,12 @@ func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt auth.ClientI, ca
 //
 // newLocalCacheForOldRemoteProxy returns new instance of access point
 // configured for an old remote proxy.
-func (process *TeleportProcess) newLocalCacheForOldRemoteProxy(clt auth.ClientI, cacheName []string) (auth.AccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForOldRemoteProxy(clt authclient.ClientI, cacheName []string) (auth.AccessPoint, error) {
 	return process.newLocalCache(clt, cache.ForOldRemoteProxy, cacheName)
 }
 
 // newLocalCache returns new instance of access point
-func (process *TeleportProcess) newLocalCache(clt auth.ClientI, setupConfig cache.SetupConfigFn, cacheName []string) (auth.AccessPoint, error) {
+func (process *TeleportProcess) newLocalCache(clt authclient.ClientI, setupConfig cache.SetupConfigFn, cacheName []string) (auth.ClientAccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
 		return clt, nil
@@ -2603,7 +2626,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				// Build the client CA pool containing the cluster's user CA in
 				// order to be able to validate certificates provided by app
 				// access CLI clients.
-				tlsClone.ClientCAs, err = auth.ClientCertPool(accessPoint, clusterName)
+				tlsClone.ClientCAs, err = server.ClientCertPool(accessPoint, clusterName)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -2704,7 +2727,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	var kubeServer *kubeproxy.TLSServer
 	if listeners.kube != nil && !process.Config.Proxy.DisableReverseTunnel {
-		authorizer, err := auth.NewAuthorizer(clusterName, conn.Client, conn.Client, conn.Client)
+		authorizer, err := server.NewAuthorizer(clusterName, conn.Client, conn.Client, conn.Client)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2762,7 +2785,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// then routing them to a respective database server over the reverse tunnel
 	// framework.
 	if (listeners.db != nil || listeners.mysql != nil) && !process.Config.Proxy.DisableReverseTunnel {
-		authorizer, err := auth.NewAuthorizer(clusterName, conn.Client, conn.Client, conn.Client)
+		authorizer, err := server.NewAuthorizer(clusterName, conn.Client, conn.Client, conn.Client)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -3011,7 +3034,7 @@ func (process *TeleportProcess) initApps() {
 
 			applications = append(applications, a)
 		}
-		server := &services.ServerV2{
+		srv := &services.ServerV2{
 			Kind:    services.KindAppServer,
 			Version: services.V2,
 			Metadata: services.Metadata{
@@ -3026,7 +3049,7 @@ func (process *TeleportProcess) initApps() {
 		}
 		clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
 
-		authorizer, err := auth.NewAuthorizer(clusterName, conn.Client, conn.Client, conn.Client)
+		authorizer, err := server.NewAuthorizer(clusterName, conn.Client, conn.Client, conn.Client)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -3043,7 +3066,7 @@ func (process *TeleportProcess) initApps() {
 			TLSConfig:    tlsConfig,
 			CipherSuites: process.Config.CipherSuites,
 			GetRotation:  process.getRotation,
-			Server:       server,
+			Server:       srv,
 			OnHeartbeat: func(err error) {
 				if err != nil {
 					process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentApp})
@@ -3243,12 +3266,12 @@ func validateConfig(cfg *Config) error {
 		return trace.BadParameter("auth_servers is empty")
 	}
 	for i := range cfg.Auth.Authorities {
-		if err := services.ValidateCertAuthority(cfg.Auth.Authorities[i]); err != nil {
+		if err := auth.ValidateCertAuthority(cfg.Auth.Authorities[i]); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	for _, tun := range cfg.ReverseTunnels {
-		if err := services.ValidateReverseTunnel(tun); err != nil {
+		if err := auth.ValidateReverseTunnel(tun); err != nil {
 			return trace.Wrap(err)
 		}
 	}

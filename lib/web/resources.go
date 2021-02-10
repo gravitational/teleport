@@ -22,8 +22,8 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport/api/types"
+	services "github.com/gravitational/teleport/lib/auth/resource"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
 
 	"github.com/gravitational/trace"

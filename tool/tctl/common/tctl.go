@@ -27,7 +27,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/lib/auth"
+	auth "github.com/gravitational/teleport/lib/auth/client"
+	"github.com/gravitational/teleport/lib/auth/server"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -192,7 +193,7 @@ func connectToAuthService(ctx context.Context, cfg *service.Config, clientConfig
 	log.Debugf("Connecting to auth servers: %v.", cfg.AuthServers)
 
 	// Try connecting to the auth server directly over TLS.
-	client, err := auth.NewClient(apiclient.Config{
+	client, err := auth.New(apiclient.Config{
 		Addrs: utils.NetAddrsToStrings(cfg.AuthServers),
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(clientConfig.TLS),
@@ -230,7 +231,7 @@ func connectToAuthService(ctx context.Context, cfg *service.Config, clientConfig
 		log.Debugf("Attempting to connect using reverse tunnel address %v.", tunAddr)
 		// reversetunnel.TunnelAuthDialer will take care of creating a net.Conn
 		// within an SSH tunnel.
-		client, err = auth.NewClient(apiclient.Config{
+		client, err = auth.New(apiclient.Config{
 			Dialer: &reversetunnel.TunnelAuthDialer{
 				ProxyAddr:    tunAddr,
 				ClientConfig: clientConfig.SSH,
@@ -395,7 +396,7 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServiceClientCo
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		identity, err := auth.ReadLocalIdentity(filepath.Join(cfg.DataDir, teleport.ComponentProcess), auth.IdentityID{Role: teleport.RoleAdmin, HostUUID: cfg.HostUUID})
+		identity, err := server.ReadLocalIdentity(filepath.Join(cfg.DataDir, teleport.ComponentProcess), server.IdentityID{Role: teleport.RoleAdmin, HostUUID: cfg.HostUUID})
 		if err != nil {
 			// The "admin" identity is not present? This means the tctl is running
 			// NOT on the auth server

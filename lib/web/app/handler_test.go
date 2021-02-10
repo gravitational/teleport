@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/client"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -151,7 +152,7 @@ func (p *testServer) makeRequest(t *testing.T, method, endpoint, stateInCookie s
 }
 
 type mockAuthClient struct {
-	auth.ClientI
+	client.ClientI
 	sessionError error
 }
 
@@ -159,7 +160,7 @@ type mockClusterName struct {
 	services.ClusterName
 }
 
-func (c mockAuthClient) GetClusterName(opts ...services.MarshalOption) (services.ClusterName, error) {
+func (c mockAuthClient) GetClusterName(opts ...auth.MarshalOption) (services.ClusterName, error) {
 	return mockClusterName{}, nil
 }
 

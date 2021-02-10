@@ -34,6 +34,8 @@ import (
 	"github.com/gravitational/teleport"
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth"
+	authresource "github.com/gravitational/teleport/lib/auth/resource"
+	"github.com/gravitational/teleport/lib/auth/server"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -82,7 +84,7 @@ type TerminalRequest struct {
 
 // AuthProvider is a subset of the full Auth API.
 type AuthProvider interface {
-	GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error)
+	GetNodes(namespace string, opts ...auth.MarshalOption) ([]services.Server, error)
 	GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]events.EventFields, error)
 }
 
@@ -102,7 +104,7 @@ func NewTerminal(req TerminalRequest, authProvider AuthProvider, ctx *SessionCon
 		return nil, trace.BadParameter("term: bad term dimensions")
 	}
 
-	servers, err := authProvider.GetNodes(req.Namespace, services.SkipValidation())
+	servers, err := authProvider.GetNodes(req.Namespace, authresource.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -349,7 +351,7 @@ func (t *TerminalHandler) promptMFAChallenge(ws *websocket.Conn) client.PromptMF
 				AppID:     uc.AppID,
 			})
 		}
-		chal := &auth.MFAAuthenticateChallenge{
+		chal := &server.MFAAuthenticateChallenge{
 			AuthenticateChallenge: &u2f.AuthenticateChallenge{
 				// Get the common challenge fields from the first item.
 				// All of these fields should be identical for all u2fChals.

@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	auth "github.com/gravitational/teleport/lib/auth/server"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -736,10 +736,13 @@ func mockSSOLogin(t *testing.T, authServer *auth.Server, user types.User) client
 	return func(ctx context.Context, connectorID string, pub []byte, protocol string) (*auth.SSHLoginResponse, error) {
 		// generate certificates for our user
 		sshCert, tlsCert, err := authServer.GenerateUserTestCerts(
-			pub, user.GetName(), time.Hour,
-			teleport.CertificateFormatStandard,
-			"localhost",
-		)
+			auth.TestUserCertRequest{
+				Key:            pub,
+				User:           user.GetName(),
+				TTL:            time.Hour,
+				Compatibility:  teleport.CertificateFormatStandard,
+				RouteToCluster: "localhost",
+			})
 		require.NoError(t, err)
 
 		// load CA cert

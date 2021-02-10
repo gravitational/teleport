@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/server"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -669,7 +670,7 @@ func (p *pack) initUser(t *testing.T) {
 	user, err := services.NewUser(p.username)
 	require.NoError(t, err)
 
-	role := services.RoleForUser(user)
+	role := auth.RoleForUser(user)
 	role.SetLogins(services.Allow, []string{p.username})
 	err = p.rootCluster.Process.GetAuthServer().UpsertRole(context.Background(), role)
 	require.NoError(t, err)
@@ -813,7 +814,7 @@ func (p *pack) initCertPool(t *testing.T) {
 	}, false)
 	require.NoError(t, err)
 
-	pool, err := services.CertPool(ca)
+	pool, err := auth.CertPool(ca)
 	require.NoError(t, err)
 
 	p.rootCertPool = pool
@@ -832,7 +833,7 @@ func (p *pack) makeTLSConfig(t *testing.T, publicAddr, clusterName string) *tls.
 	require.NoError(t, err)
 
 	certificate, err := p.rootCluster.Process.GetAuthServer().GenerateUserAppTestCert(
-		auth.AppTestCertRequest{
+		server.AppTestCertRequest{
 			PublicKey:   publicKey,
 			Username:    p.user.GetName(),
 			TTL:         time.Hour,
@@ -859,7 +860,7 @@ func (p *pack) makeTLSConfigNoSession(t *testing.T, publicAddr, clusterName stri
 	require.NoError(t, err)
 
 	certificate, err := p.rootCluster.Process.GetAuthServer().GenerateUserAppTestCert(
-		auth.AppTestCertRequest{
+		server.AppTestCertRequest{
 			PublicKey:   publicKey,
 			Username:    p.user.GetName(),
 			TTL:         time.Hour,

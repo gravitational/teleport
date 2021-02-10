@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/server"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -62,7 +63,7 @@ type ExecSuite struct {
 	ctx        *ServerContext
 	localAddr  net.Addr
 	remoteAddr net.Addr
-	a          *auth.Server
+	a          *server.Server
 }
 
 var _ = check.Suite(&ExecSuite{})
@@ -94,7 +95,7 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	c.Assert(err, check.IsNil)
-	s.a, err = auth.NewServer(&auth.InitConfig{
+	s.a, err = server.New(&server.InitConfig{
 		Backend:     bk,
 		Authority:   authority.New(),
 		ClusterName: clusterName,

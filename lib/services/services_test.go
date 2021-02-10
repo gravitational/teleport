@@ -42,32 +42,6 @@ func TestServices(t *testing.T) { check.TestingT(t) }
 
 var _ = check.Suite(&ServicesSuite{})
 
-// TestOptions tests command options operations
-func (s *ServicesSuite) TestOptions(c *check.C) {
-	// test empty scenario
-	out := AddOptions(nil)
-	c.Assert(out, check.HasLen, 0)
-
-	// make sure original option list is not affected
-	in := []MarshalOption{}
-	out = AddOptions(in, WithResourceID(1))
-	c.Assert(out, check.HasLen, 1)
-	c.Assert(in, check.HasLen, 0)
-	cfg, err := CollectOptions(out)
-	c.Assert(err, check.IsNil)
-	c.Assert(cfg.ID, check.Equals, int64(1))
-
-	// Add a couple of other parameters
-	out = AddOptions(in, WithResourceID(2), SkipValidation(), WithVersion(V2))
-	c.Assert(out, check.HasLen, 3)
-	c.Assert(in, check.HasLen, 0)
-	cfg, err = CollectOptions(out)
-	c.Assert(err, check.IsNil)
-	c.Assert(cfg.ID, check.Equals, int64(2))
-	c.Assert(cfg.SkipValidation, check.Equals, true)
-	c.Assert(cfg.Version, check.Equals, V2)
-}
-
 // TestCommandLabels tests command labels
 func (s *ServicesSuite) TestCommandLabels(c *check.C) {
 	var l CommandLabels

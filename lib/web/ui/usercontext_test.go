@@ -3,6 +3,7 @@ package ui
 import (
 	"testing"
 
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"gopkg.in/check.v1"
@@ -27,7 +28,7 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	role1.SetRules(services.Allow, []services.Rule{
 		{
 			Resources: []string{services.KindAuthConnector},
-			Verbs:     services.RW(),
+			Verbs:     auth.RW(),
 		},
 	})
 
@@ -35,7 +36,7 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	role1.SetRules(services.Deny, []services.Rule{
 		{
 			Resources: []string{services.KindEvent},
-			Verbs:     services.RW(),
+			Verbs:     auth.RW(),
 		},
 	})
 
@@ -44,7 +45,7 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	role2.SetRules(services.Allow, []services.Rule{
 		{
 			Resources: []string{services.KindTrustedCluster},
-			Verbs:     services.RW(),
+			Verbs:     auth.RW(),
 		},
 	})
 

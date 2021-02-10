@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/server"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -102,7 +103,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	// authMiddleware authenticates request assuming TLS client authentication
 	// adds authentication information to the context
 	// and passes it to the API server
-	authMiddleware := &auth.Middleware{
+	authMiddleware := &server.Middleware{
 		AccessPoint:   cfg.AccessPoint,
 		AcceptedUsage: []string{teleport.UsageKubeOnly},
 	}
@@ -204,7 +205,7 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 			}
 		}
 	}
-	pool, err := auth.ClientCertPool(t.AccessPoint, clusterName)
+	pool, err := server.ClientCertPool(t.AccessPoint, clusterName)
 	if err != nil {
 		log.Errorf("failed to retrieve client pool: %v", trace.DebugReport(err))
 		// this falls back to the default config

@@ -24,7 +24,9 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/auth"
+	libauth "github.com/gravitational/teleport/lib/auth"
+	auth "github.com/gravitational/teleport/lib/auth/client"
+	"github.com/gravitational/teleport/lib/auth/server"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/services"
@@ -86,7 +88,7 @@ type TestClientConfig struct {
 	// AuthClient will be used to retrieve trusted CA.
 	AuthClient auth.ClientI
 	// AuthServer will be used to generate database access certificate for a user.
-	AuthServer *auth.Server
+	AuthServer *server.Server
 	// Address is the address to connect to (web proxy).
 	Address string
 	// Cluster is the Teleport cluster name.
@@ -105,7 +107,7 @@ func MakeTestClientTLSConfig(config TestClientConfig) (*tls.Config, error) {
 		return nil, trace.Wrap(err)
 	}
 	// Generate client certificate for the Teleport user.
-	cert, err := config.AuthServer.GenerateDatabaseTestCert(auth.DatabaseTestCertRequest{
+	cert, err := config.AuthServer.GenerateDatabaseTestCert(server.DatabaseTestCertRequest{
 		PublicKey:       key.Pub,
 		Cluster:         config.Cluster,
 		Username:        config.Username,
@@ -125,7 +127,7 @@ func MakeTestClientTLSConfig(config TestClientConfig) (*tls.Config, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	pool, err := services.CertPool(ca)
+	pool, err := libauth.CertPool(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

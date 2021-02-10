@@ -27,7 +27,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth"
+	auth "github.com/gravitational/teleport/lib/auth/client"
+	"github.com/gravitational/teleport/lib/auth/server"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
@@ -143,7 +144,7 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 	}
 
 	// Generate token.
-	token, err := client.GenerateToken(context.TODO(), auth.GenerateTokenRequest{
+	token, err := client.GenerateToken(context.TODO(), server.GenerateTokenRequest{
 		Roles:  roles,
 		TTL:    c.ttl,
 		Token:  c.value,

@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/resource"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -358,7 +359,7 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 		return trace.Wrap(err)
 	}
 	_, mfaVerified := cert.Extensions[teleport.CertExtensionMFAVerified]
-	mfaParams := services.AccessMFAParams{
+	mfaParams := auth.AccessMFAParams{
 		Verified:       mfaVerified,
 		AlwaysRequired: ap.GetRequireSessionMFA(),
 	}
@@ -372,18 +373,18 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 	return nil
 }
 
-// fetchRoleSet fetches the services.RoleSet assigned to a Teleport user.
-func (h *AuthHandlers) fetchRoleSet(cert *ssh.Certificate, ca services.CertAuthority, teleportUser string, clusterName string) (services.RoleSet, error) {
+// fetchRoleSet fetches the auth.RoleSet assigned to a Teleport user.
+func (h *AuthHandlers) fetchRoleSet(cert *ssh.Certificate, ca services.CertAuthority, teleportUser string, clusterName string) (auth.RoleSet, error) {
 	// for local users, go and check their individual permissions
-	var roleset services.RoleSet
+	var roleset auth.RoleSet
 	if clusterName == ca.GetClusterName() {
 		// Extract roles and traits either from the certificate or from
-		// services.User and create a services.RoleSet with all runtime roles.
-		roles, traits, err := services.ExtractFromCertificate(h.AccessPoint, cert)
+		// services.User and create a auth.RoleSet with all runtime roles.
+		roles, traits, err := resource.ExtractFromCertificate(h.AccessPoint, cert)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		roleset, err = services.FetchRoles(roles, h.AccessPoint, traits)
+		roleset, err = auth.FetchRoles(roles, h.AccessPoint, traits)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -392,7 +393,7 @@ func (h *AuthHandlers) fetchRoleSet(cert *ssh.Certificate, ca services.CertAutho
 		if err != nil {
 			return nil, trace.AccessDenied("failed to parse certificate roles")
 		}
-		roleNames, err := services.MapRoles(ca.CombinedMapping(), roles)
+		roleNames, err := auth.MapRoles(ca.CombinedMapping(), roles)
 		if err != nil {
 			return nil, trace.AccessDenied("failed to map roles")
 		}
@@ -401,7 +402,7 @@ func (h *AuthHandlers) fetchRoleSet(cert *ssh.Certificate, ca services.CertAutho
 		traits := map[string][]string{
 			teleport.TraitLogins: cert.ValidPrincipals,
 		}
-		roleset, err = services.FetchRoles(roleNames, h.AccessPoint, traits)
+		roleset, err = auth.FetchRoles(roleNames, h.AccessPoint, traits)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -468,5 +469,5 @@ func extractRolesFromCert(cert *ssh.Certificate) ([]string, error) {
 		// it's ok to not have any roles in the metadata
 		return nil, nil
 	}
-	return services.UnmarshalCertRoles(data)
+	return resource.UnmarshalCertRoles(data)
 }

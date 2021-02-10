@@ -30,6 +30,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/local"
+	"github.com/gravitational/teleport/lib/auth/server"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -70,7 +72,7 @@ type Config struct {
 
 	// Identities is an optional list of pre-generated key pairs
 	// for teleport roles, this is helpful when server is preconfigured
-	Identities []*auth.Identity
+	Identities []*server.Identity
 
 	// AdvertiseIP is used to "publish" an alternative IP address or hostname this node
 	// can be reached on, if running behind NAT
@@ -117,25 +119,25 @@ type Config struct {
 	PIDFile string
 
 	// Trust is a service that manages users and credentials
-	Trust services.Trust
+	Trust local.Trust
 
 	// Presence service is a discovery and hearbeat tracker
-	Presence services.Presence
+	Presence local.Presence
 
 	// Events is events service
 	Events services.Events
 
 	// Provisioner is a service that keeps track of provisioning tokens
-	Provisioner services.Provisioner
+	Provisioner local.Provisioner
 
 	// Trust is a service that manages users and credentials
-	Identity services.Identity
+	Identity local.Identity
 
 	// Access is a service that controls access
-	Access services.Access
+	Access local.Access
 
 	// ClusterConfiguration is a service that provides cluster configuration
-	ClusterConfiguration services.ClusterConfiguration
+	ClusterConfiguration local.ClusterConfiguration
 
 	// CipherSuites is a list of TLS ciphersuites that Teleport supports. If
 	// omitted, a Teleport selected list of defaults will be used.
@@ -754,8 +756,8 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.SSHAddr = *defaults.AuthListenAddr()
 	cfg.Auth.StorageConfig.Type = lite.GetName()
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
-	cfg.Auth.StaticTokens = services.DefaultStaticTokens()
-	cfg.Auth.ClusterConfig = services.DefaultClusterConfig()
+	cfg.Auth.StaticTokens = auth.DefaultStaticTokens()
+	cfg.Auth.ClusterConfig = auth.DefaultClusterConfig()
 	cfg.Auth.Preference = services.DefaultAuthPreference()
 	defaults.ConfigureLimiter(&cfg.Auth.Limiter)
 	cfg.Auth.LicenseFile = filepath.Join(cfg.DataDir, defaults.LicenseFile)

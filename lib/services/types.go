@@ -511,3 +511,10 @@ const (
 	VerbDelete                    = types.VerbDelete
 	VerbRotate                    = types.VerbRotate
 )
+
+const (
+	// Allow is the set of conditions that allow access.
+	Allow RoleConditionType = true
+	// Deny is the set of conditions that prevent access.
+	Deny RoleConditionType = false
+)

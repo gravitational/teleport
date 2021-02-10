@@ -26,14 +26,16 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/local"
+	"github.com/gravitational/teleport/lib/auth/test"
+	"github.com/gravitational/teleport/lib/auth/test/suite"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/google/go-cmp/cmp"
@@ -68,15 +70,15 @@ type testPack struct {
 	cacheBackend backend.Backend
 
 	eventsS        *proxyEvents
-	trustS         services.Trust
-	provisionerS   services.Provisioner
-	clusterConfigS services.ClusterConfiguration
+	trustS         local.Trust
+	provisionerS   local.Provisioner
+	clusterConfigS local.ClusterConfiguration
+	presenceS      local.Presence
 
-	usersS         services.UsersService
-	accessS        services.Access
-	dynamicAccessS services.DynamicAccessCore
-	presenceS      services.Presence
-	appSessionS    services.AppSession
+	usersS         auth.UsersService
+	accessS        auth.Access
+	dynamicAccessS auth.DynamicAccessCore
+	appSessionS    auth.AppSession
 	webSessionS    types.WebSessionInterface
 	webTokenS      types.WebTokenInterface
 }
@@ -199,7 +201,7 @@ func (s *CacheSuite) TestCA(c *check.C) {
 	p := s.newPackForAuth(c)
 	defer p.Close()
 
-	ca := suite.NewTestCA(services.UserCA, "example.com")
+	ca := test.NewCA(services.UserCA, "example.com")
 	c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
 
 	select {
@@ -266,7 +268,7 @@ func (s *CacheSuite) onlyRecentDisconnect(c *check.C) {
 	p := s.newPackForAuth(c)
 	defer p.Close()
 
-	ca := suite.NewTestCA(services.UserCA, "example.com")
+	ca := test.NewCA(services.UserCA, "example.com")
 	c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
 
 	select {
@@ -333,7 +335,7 @@ func (s *CacheSuite) TestWatchers(c *check.C) {
 		c.Fatalf("Timeout waiting for event.")
 	}
 
-	ca := suite.NewTestCA(services.UserCA, "example.com")
+	ca := test.NewCA(services.UserCA, "example.com")
 	c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
 
 	select {
@@ -345,7 +347,7 @@ func (s *CacheSuite) TestWatchers(c *check.C) {
 	}
 
 	// create an access request that matches the supplied filter
-	req, err := services.NewAccessRequest("alice", "dictator")
+	req, err := auth.NewAccessRequest("alice", "dictator")
 	c.Assert(err, check.IsNil)
 
 	c.Assert(p.dynamicAccessS.CreateAccessRequest(context.TODO(), req), check.IsNil)
@@ -369,7 +371,7 @@ func (s *CacheSuite) TestWatchers(c *check.C) {
 	}
 
 	// create an access request that does not match the supplied filter
-	req2, err := services.NewAccessRequest("bob", "dictator")
+	req2, err := auth.NewAccessRequest("bob", "dictator")
 	c.Assert(err, check.IsNil)
 
 	// create and then delete the non-matching request.
@@ -430,7 +432,7 @@ func (s *CacheSuite) TestCompletenessInit(c *check.C) {
 
 	// put lots of CAs in the backend
 	for i := 0; i < caCount; i++ {
-		ca := suite.NewTestCA(services.UserCA, fmt.Sprintf("%d.example.com", i))
+		ca := test.NewCA(services.UserCA, fmt.Sprintf("%d.example.com", i))
 		c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
 	}
 
@@ -499,7 +501,7 @@ func (s *CacheSuite) TestCompletenessReset(c *check.C) {
 
 	// put lots of CAs in the backend
 	for i := 0; i < caCount; i++ {
-		ca := suite.NewTestCA(services.UserCA, fmt.Sprintf("%d.example.com", i))
+		ca := test.NewCA(services.UserCA, fmt.Sprintf("%d.example.com", i))
 		c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
 	}
 
@@ -560,7 +562,7 @@ func (s *CacheSuite) TestTombstones(c *check.C) {
 
 	// put lots of CAs in the backend
 	for i := 0; i < caCount; i++ {
-		ca := suite.NewTestCA(services.UserCA, fmt.Sprintf("%d.example.com", i))
+		ca := test.NewCA(services.UserCA, fmt.Sprintf("%d.example.com", i))
 		c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
 	}
 
@@ -669,7 +671,7 @@ func (s *CacheSuite) preferRecent(c *check.C) {
 	_, err = p.cache.GetCertAuthorities(services.UserCA, false)
 	fixtures.ExpectConnectionProblem(c, err)
 
-	ca := suite.NewTestCA(services.UserCA, "example.com")
+	ca := test.NewCA(services.UserCA, "example.com")
 	// NOTE 1: this could produce event processed
 	// below, based on whether watcher restarts to get the event
 	// or not, which is normal, but has to be accounted below
@@ -727,7 +729,7 @@ func (s *CacheSuite) TestRecovery(c *check.C) {
 	p := s.newPackForAuth(c)
 	defer p.Close()
 
-	ca := suite.NewTestCA(services.UserCA, "example.com")
+	ca := test.NewCA(services.UserCA, "example.com")
 	c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
 
 	select {
@@ -751,7 +753,7 @@ func (s *CacheSuite) TestRecovery(c *check.C) {
 	}
 
 	// add modification and expect the resource to recover
-	ca2 := suite.NewTestCA(services.UserCA, "example2.com")
+	ca2 := test.NewCA(services.UserCA, "example2.com")
 	c.Assert(p.trustS.UpsertCertAuthority(ca2), check.IsNil)
 
 	// wait for watcher to receive an event

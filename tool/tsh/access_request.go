@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/auth/client"
 
 	"github.com/gravitational/trace"
 )
@@ -45,7 +45,7 @@ func onRequestList(cf *CLIConf) error {
 
 	var reqs []types.AccessRequest
 
-	err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+	err = tc.WithRootClusterClient(cf.Context, func(clt client.ClientI) error {
 		reqs, err = clt.GetAccessRequests(cf.Context, types.AccessRequestFilter{})
 		return trace.Wrap(err)
 	})
@@ -126,8 +126,8 @@ func onRequestShow(cf *CLIConf) error {
 	}
 
 	var req types.AccessRequest
-	err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
-		req, err = services.GetAccessRequest(cf.Context, clt, cf.RequestID)
+	err = tc.WithRootClusterClient(cf.Context, func(clt client.ClientI) error {
+		req, err = auth.GetAccessRequest(cf.Context, clt, cf.RequestID)
 		return trace.Wrap(err)
 	})
 	if err != nil {
@@ -242,7 +242,7 @@ func onRequestReview(cf *CLIConf) error {
 	}
 
 	var req types.AccessRequest
-	err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+	err = tc.WithRootClusterClient(cf.Context, func(clt client.ClientI) error {
 		req, err = clt.SubmitAccessReview(cf.Context, types.AccessReviewSubmission{
 			RequestID: cf.RequestID,
 			Review: types.AccessReview{

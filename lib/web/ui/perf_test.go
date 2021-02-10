@@ -26,13 +26,14 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/local"
+	"github.com/gravitational/teleport/lib/auth/resource"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
 
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
@@ -73,9 +74,9 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 			sb.StopTimer() // stop timer while running setup
 
 			// set up marshal options
-			var opts []services.MarshalOption
+			var opts []auth.MarshalOption
 			if !tt.validation {
-				opts = append(opts, services.SkipValidation())
+				opts = append(opts, resource.SkipValidation())
 			}
 
 			// configure the backend instance
@@ -119,7 +120,7 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 }
 
 // insertServers inserts a collection of servers into a backend.
-func insertServers(t assert.TestingT, svc services.Presence, kind string, count int) {
+func insertServers(t assert.TestingT, svc auth.Presence, kind string, count int) {
 	const labelCount = 10
 	labels := make(map[string]string, labelCount)
 	for i := 0; i < labelCount; i++ {
@@ -157,7 +158,7 @@ func insertServers(t assert.TestingT, svc services.Presence, kind string, count 
 	}
 }
 
-func benchmarkGetClusterDetails(b *testing.B, site reversetunnel.RemoteSite, nodes int, opts ...services.MarshalOption) {
+func benchmarkGetClusterDetails(b *testing.B, site reversetunnel.RemoteSite, nodes int, opts ...auth.MarshalOption) {
 	var cluster *Cluster
 	var err error
 	for i := 0; i < b.N; i++ {
@@ -194,7 +195,7 @@ type mockAccessPoint struct {
 	presence *local.PresenceService
 }
 
-func (m *mockAccessPoint) GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+func (m *mockAccessPoint) GetNodes(namespace string, opts ...auth.MarshalOption) ([]services.Server, error) {
 	return m.presence.GetNodes(namespace, opts...)
 }
 

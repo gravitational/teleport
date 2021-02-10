@@ -23,7 +23,7 @@ import (
 	"net"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
+	services "github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 
 	"github.com/jackc/pgconn"

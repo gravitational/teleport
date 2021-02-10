@@ -29,6 +29,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/auth/resource"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -304,7 +305,7 @@ func (t *proxySubsys) proxyToHost(
 	// going to "local" CA? lets use the caching 'auth service' directly and avoid
 	// hitting the reverse tunnel link (it can be offline if the CA is down)
 	if site.GetName() == localCluster.GetName() {
-		servers, err = t.srv.authService.GetNodes(t.namespace, services.SkipValidation())
+		servers, err = t.srv.authService.GetNodes(t.namespace, resource.SkipValidation())
 		if err != nil {
 			t.log.Warn(err)
 		}
@@ -314,7 +315,7 @@ func (t *proxySubsys) proxyToHost(
 		if err != nil {
 			t.log.Warn(err)
 		} else {
-			servers, err = siteClient.GetNodes(t.namespace, services.SkipValidation())
+			servers, err = siteClient.GetNodes(t.namespace, resource.SkipValidation())
 			if err != nil {
 				t.log.Warn(err)
 			}

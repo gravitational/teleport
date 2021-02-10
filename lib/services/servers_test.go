@@ -18,14 +18,11 @@ package services
 
 import (
 	"fmt"
-	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
 )
 
@@ -135,74 +132,4 @@ func (s *ServerSuite) TestGuessProxyHostAndVersion(c *check.C) {
 	c.Assert(host, check.Equals, proxyB.Spec.PublicAddr)
 	c.Assert(version, check.Equals, proxyB.Spec.Version)
 	c.Assert(err, check.IsNil)
-}
-
-func TestUnmarshalServerKubernetes(t *testing.T) {
-	// Regression test for
-	// https://github.com/gravitational/teleport/issues/4862
-	//
-	// Verifies unmarshaling succeeds, when provided a 4.4 server JSON
-	// definition.
-	tests := []struct {
-		desc string
-		in   string
-		want *ServerV2
-	}{
-		{
-			desc: "4.4 kubernetes_clusters field",
-			in: `{
-	"version": "v2",
-	"kind": "kube_service",
-	"metadata": {
-		"name": "foo"
-	},
-	"spec": {
-		"kubernetes_clusters": ["a", "b", "c"]
-	}
-}`,
-			want: &ServerV2{
-				Version: V2,
-				Kind:    KindKubeService,
-				Metadata: Metadata{
-					Name:      "foo",
-					Namespace: defaults.Namespace,
-				},
-			},
-		},
-		{
-			desc: "5.0 kubernetes_clusters field",
-			in: `{
-	"version": "v2",
-	"kind": "kube_service",
-	"metadata": {
-		"name": "foo"
-	},
-	"spec": {
-		"kube_clusters": [{"name": "a"}, {"name": "b"}, {"name": "c"}]
-	}
-}`,
-			want: &ServerV2{
-				Version: V2,
-				Kind:    KindKubeService,
-				Metadata: Metadata{
-					Name:      "foo",
-					Namespace: defaults.Namespace,
-				},
-				Spec: ServerSpecV2{
-					KubernetesClusters: []*KubernetesCluster{
-						{Name: "a"},
-						{Name: "b"},
-						{Name: "c"},
-					},
-				},
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.desc, func(t *testing.T) {
-			got, err := UnmarshalServer([]byte(tt.in), KindKubeService)
-			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(got, tt.want))
-		})
-	}
 }

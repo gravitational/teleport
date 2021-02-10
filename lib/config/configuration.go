@@ -37,6 +37,8 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/resource"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/client"
@@ -154,7 +156,7 @@ func ReadResources(filePath string) ([]services.Resource, error) {
 	decoder := kyaml.NewYAMLOrJSONDecoder(reader, defaults.LookaheadBufSize)
 	var resources []services.Resource
 	for {
-		var raw services.UnknownResource
+		var raw resource.UnknownResource
 		err := decoder.Decode(&raw)
 		if err != nil {
 			if err == io.EOF {
@@ -162,7 +164,7 @@ func ReadResources(filePath string) ([]services.Resource, error) {
 			}
 			return nil, trace.Wrap(err)
 		}
-		rsc, err := services.UnmarshalResource(raw.Kind, raw.Raw)
+		rsc, err := resource.UnmarshalResource(raw.Kind, raw.Raw)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -496,7 +498,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		log.Warnf(warningMessage)
 	}
 
-	auditConfig, err := services.AuditConfigFromObject(fc.Storage.Params)
+	auditConfig, err := auth.AuditConfigFromObject(fc.Storage.Params)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -940,7 +942,7 @@ func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (services.CertAut
 	})
 
 	// transform old allowed logins into roles
-	role := services.RoleForCertAuthority(ca)
+	role := auth.RoleForCertAuthority(ca)
 	role.SetLogins(services.Allow, allowedLogins)
 	ca.AddRole(role.GetName())
 
@@ -978,7 +980,7 @@ func parseKnownHosts(bytes []byte, allowedLogins []string) (services.CertAuthori
 	})
 
 	// transform old allowed logins into roles
-	role := services.RoleForCertAuthority(ca)
+	role := auth.RoleForCertAuthority(ca)
 	role.SetLogins(services.Allow, utils.CopyStrings(allowedLogins))
 	ca.AddRole(role.GetName())
 
@@ -1238,7 +1240,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			// If sessions are being recorded at the proxy host key checking must be
 			// enabled. This make sure the host certificate key algorithm is FIPS
 			// compliant.
-			if services.IsRecordAtProxy(cfg.Auth.ClusterConfig.GetSessionRecording()) &&
+			if auth.IsRecordAtProxy(cfg.Auth.ClusterConfig.GetSessionRecording()) &&
 				cfg.Auth.ClusterConfig.GetProxyChecksHostKeys() == services.HostKeyCheckNo {
 				return trace.BadParameter("non-FIPS compliant proxy settings: \"proxy_checks_host_keys\" must be true")
 			}

@@ -27,7 +27,8 @@ import (
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth"
+	auth "github.com/gravitational/teleport/lib/auth/client"
+	"github.com/gravitational/teleport/lib/auth/server"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
@@ -140,10 +141,10 @@ func (u *UserCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 
 // ResetPassword resets user password and generates a token to setup new password
 func (u *UserCommand) ResetPassword(client auth.ClientI) error {
-	req := auth.CreateResetPasswordTokenRequest{
+	req := server.CreateResetPasswordTokenRequest{
 		Name: u.login,
 		TTL:  u.ttl,
-		Type: auth.ResetPasswordTokenTypePassword,
+		Type: server.ResetPasswordTokenTypePassword,
 	}
 	token, err := client.CreateResetPasswordToken(context.TODO(), req)
 	if err != nil {
@@ -258,10 +259,10 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 
 	}
 
-	token, err := client.CreateResetPasswordToken(context.TODO(), auth.CreateResetPasswordTokenRequest{
+	token, err := client.CreateResetPasswordToken(context.TODO(), server.CreateResetPasswordTokenRequest{
 		Name: u.login,
 		TTL:  u.ttl,
-		Type: auth.ResetPasswordTokenTypeInvite,
+		Type: server.ResetPasswordTokenTypeInvite,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -315,10 +316,10 @@ Meanwhile we are going to assign user %q to role %q created during migration.
 		return trace.Wrap(err)
 	}
 
-	token, err := client.CreateResetPasswordToken(context.TODO(), auth.CreateResetPasswordTokenRequest{
+	token, err := client.CreateResetPasswordToken(context.TODO(), server.CreateResetPasswordTokenRequest{
 		Name: u.login,
 		TTL:  u.ttl,
-		Type: auth.ResetPasswordTokenTypeInvite,
+		Type: server.ResetPasswordTokenTypeInvite,
 	})
 	if err != nil {
 		return err

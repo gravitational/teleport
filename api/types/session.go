@@ -40,9 +40,6 @@ type WebSessionInterface interface {
 	// List gets all regular web sessions.
 	List(context.Context) ([]WebSession, error)
 
-	// Upsert updates existing or inserts a new web session.
-	Upsert(ctx context.Context, session WebSession) error
-
 	// Delete deletes the web session described by req.
 	Delete(ctx context.Context, req DeleteWebSessionRequest) error
 
@@ -326,9 +323,6 @@ type WebTokenInterface interface {
 
 	// List gets all web tokens.
 	List(context.Context) ([]WebToken, error)
-
-	// Upsert updates existing or inserts a new web token.
-	Upsert(ctx context.Context, token WebToken) error
 
 	// Delete deletes the web token described by req.
 	Delete(ctx context.Context, req DeleteWebTokenRequest) error

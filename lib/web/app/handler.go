@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/client"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -44,7 +45,7 @@ type HandlerConfig struct {
 	// Clock is used to control time in tests.
 	Clock clockwork.Clock
 	// AuthClient is a direct client to auth.
-	AuthClient auth.ClientI
+	AuthClient client.ClientI
 	// AccessPoint is caching client to auth.
 	AccessPoint auth.AccessPoint
 	// ProxyClient holds connections to leaf clusters.

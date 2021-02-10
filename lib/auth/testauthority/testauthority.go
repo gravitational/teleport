@@ -24,8 +24,8 @@ import (
 
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 type Keygen struct {
@@ -53,11 +53,11 @@ func (n *Keygen) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
 	return randomKey.Priv, randomKey.Pub, nil
 }
 
-func (n *Keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
+func (n *Keygen) GenerateHostCert(c auth.HostCertParams) ([]byte, error) {
 	return n.GenerateHostCertWithoutValidation(c)
 }
 
-func (n *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
+func (n *Keygen) GenerateUserCert(c auth.UserCertParams) ([]byte, error) {
 	return n.GenerateUserCertWithoutValidation(c)
 }
 

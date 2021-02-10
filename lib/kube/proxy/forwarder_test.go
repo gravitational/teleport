@@ -14,7 +14,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth"
+	libauth "github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/client"
+	auth "github.com/gravitational/teleport/lib/auth/server"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -386,7 +388,7 @@ func TestAuthenticate(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			f.cfg.ReverseTunnelSrv = tt.tunnel
 			ap.kubeServices = tt.kubeServices
-			roles, err := services.FromSpec("ops", services.RoleSpecV3{
+			roles, err := libauth.FromSpec("ops", services.RoleSpecV3{
 				Allow: services.RoleConditions{
 					KubeUsers:  tt.roleKubeUsers,
 					KubeGroups: tt.roleKubeGroups,
@@ -698,7 +700,7 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 // mockCSRClient to intercept ProcessKubeCSR requests, record them and return a
 // stub response.
 type mockCSRClient struct {
-	auth.ClientI
+	client.ClientI
 
 	ca       *tlsca.CertAuthority
 	gotCSR   auth.KubeCSR
@@ -753,13 +755,13 @@ type mockRemoteSite struct {
 func (s mockRemoteSite) GetName() string { return s.name }
 
 type mockAccessPoint struct {
-	auth.AccessPoint
+	libauth.AccessPoint
 
 	clusterConfig services.ClusterConfig
 	kubeServices  []services.Server
 }
 
-func (ap mockAccessPoint) GetClusterConfig(...services.MarshalOption) (services.ClusterConfig, error) {
+func (ap mockAccessPoint) GetClusterConfig(...libauth.MarshalOption) (services.ClusterConfig, error) {
 	return ap.clusterConfig, nil
 }
 

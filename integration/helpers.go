@@ -42,7 +42,9 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	authclient "github.com/gravitational/teleport/lib/auth/client"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/server"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -197,7 +199,7 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 	}, nil, defaults.CATTL)
 	fatalIf(err)
 
-	cert, err := keygen.GenerateHostCert(services.HostCertParams{
+	cert, err := keygen.GenerateHostCert(auth.HostCertParams{
 		PrivateCASigningKey: cfg.Priv,
 		CASigningAlg:        defaults.CASignatureAlgorithm,
 		PublicHostKey:       cfg.Pub,
@@ -259,7 +261,7 @@ func (s *InstanceSecrets) GetRoles() []services.Role {
 		if ca.GetType() != services.UserCA {
 			continue
 		}
-		role := services.RoleForCertAuthority(ca)
+		role := auth.RoleForCertAuthority(ca)
 		role.SetLogins(services.Allow, s.AllowedLogins())
 		roles = append(roles, role)
 	}
@@ -285,7 +287,7 @@ func (s *InstanceSecrets) GetCAs() []services.CertAuthority {
 		ClusterName:  s.SiteName,
 		SigningKeys:  [][]byte{s.PrivKey},
 		CheckingKeys: [][]byte{s.PubKey},
-		Roles:        []string{services.RoleNameForCertAuthority(s.SiteName)},
+		Roles:        []string{auth.RoleNameForCertAuthority(s.SiteName)},
 		SigningAlg:   services.CertAuthoritySpecV2_RSA_SHA2_512,
 	})
 	userCA.SetTLSKeyPairs([]services.TLSKeyPair{{Cert: s.TLSCACert, Key: s.PrivKey}})
@@ -322,8 +324,8 @@ func (s *InstanceSecrets) AsSlice() []*InstanceSecrets {
 	return []*InstanceSecrets{s}
 }
 
-func (s *InstanceSecrets) GetIdentity() *auth.Identity {
-	i, err := auth.ReadIdentityFromKeyPair(&auth.PackedKeys{
+func (s *InstanceSecrets) GetIdentity() *server.Identity {
+	i, err := server.ReadIdentityFromKeyPair(&server.PackedKeys{
 		Key:        s.PrivKey,
 		Cert:       s.Cert,
 		TLSCert:    s.TLSCert,
@@ -364,7 +366,7 @@ func (i *TeleInstance) GetPortMySQL() string {
 // GetSiteAPI() is a helper which returns an API endpoint to a site with
 // a given name. i endpoint implements HTTP-over-SSH access to the
 // site's auth server.
-func (i *TeleInstance) GetSiteAPI(siteName string) auth.ClientI {
+func (i *TeleInstance) GetSiteAPI(siteName string) authclient.ClientI {
 	siteTunnel, err := i.Tunnel.GetSite(siteName)
 	if err != nil {
 		log.Warn(err)
@@ -414,13 +416,13 @@ func SetupUserCreds(tc *client.TeleportClient, proxyHost string, creds UserCreds
 // SetupUser sets up user in the cluster
 func SetupUser(process *service.TeleportProcess, username string, roles []services.Role) error {
 	ctx := context.TODO()
-	auth := process.GetAuthServer()
+	authServer := process.GetAuthServer()
 	teleUser, err := services.NewUser(username)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if len(roles) == 0 {
-		role := services.RoleForUser(teleUser)
+		role := auth.RoleForUser(teleUser)
 		role.SetLogins(services.Allow, []string{username})
 
 		// allow tests to forward agent, still needs to be passed in client
@@ -428,21 +430,21 @@ func SetupUser(process *service.TeleportProcess, username string, roles []servic
 		roleOptions.ForwardAgent = services.NewBool(true)
 		role.SetOptions(roleOptions)
 
-		err = auth.UpsertRole(ctx, role)
+		err = authServer.UpsertRole(ctx, role)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		teleUser.AddRole(role.GetMetadata().Name)
 	} else {
 		for _, role := range roles {
-			err := auth.UpsertRole(ctx, role)
+			err := authServer.UpsertRole(ctx, role)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			teleUser.AddRole(role.GetName())
 		}
 	}
-	err = auth.UpsertUser(teleUser)
+	err = authServer.UpsertUser(teleUser)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -466,8 +468,8 @@ func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
 		return nil, trace.Wrap(err)
 	}
 	a := req.Process.GetAuthServer()
-	sshCert, x509Cert, err := a.GenerateUserTestCerts(
-		pub, req.Username, time.Hour, teleport.CertificateFormatStandard, req.RouteToCluster)
+	sshCert, x509Cert, err := a.GenerateUserTestCerts(server.TestUserCertRequest{
+		Key: pub, User: req.Username, TTL: time.Hour, Compatibility: teleport.CertificateFormatStandard, RouteToCluster: req.RouteToCluster})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -617,7 +619,7 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 	// if this instance contains an auth server, configure the auth server as well.
 	// create users and roles if they don't exist, or sign their keys if they're
 	// already present
-	auth := i.Process.GetAuthServer()
+	authServer := i.Process.GetAuthServer()
 
 	for _, user := range i.Secrets.Users {
 		teleUser, err := services.NewUser(user.Username)
@@ -627,7 +629,7 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 		// set hardcode traits to trigger new style certificates
 		teleUser.SetTraits(map[string][]string{"testing": {"integration"}})
 		if len(user.Roles) == 0 {
-			role := services.RoleForUser(teleUser)
+			role := auth.RoleForUser(teleUser)
 			role.SetLogins(services.Allow, user.AllowedLogins)
 
 			// allow tests to forward agent, still needs to be passed in client
@@ -635,21 +637,21 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 			roleOptions.ForwardAgent = services.NewBool(true)
 			role.SetOptions(roleOptions)
 
-			err = auth.UpsertRole(ctx, role)
+			err = authServer.UpsertRole(ctx, role)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			teleUser.AddRole(role.GetMetadata().Name)
 		} else {
 			for _, role := range user.Roles {
-				err := auth.UpsertRole(ctx, role)
+				err := authServer.UpsertRole(ctx, role)
 				if err != nil {
 					return trace.Wrap(err)
 				}
 				teleUser.AddRole(role.GetName())
 			}
 		}
-		err = auth.UpsertUser(teleUser)
+		err = authServer.UpsertUser(teleUser)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -663,7 +665,12 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 		}
 		// sign user's keys:
 		ttl := 24 * time.Hour
-		user.Key.Cert, user.Key.TLSCert, err = auth.GenerateUserTestCerts(user.Key.Pub, teleUser.GetName(), ttl, teleport.CertificateFormatStandard, "")
+		user.Key.Cert, user.Key.TLSCert, err = authServer.GenerateUserTestCerts(server.TestUserCertRequest{
+			Key:           user.Key.Pub,
+			User:          teleUser.GetName(),
+			TTL:           ttl,
+			Compatibility: teleport.CertificateFormatStandard,
+		})
 		if err != nil {
 			return err
 		}
@@ -788,7 +795,7 @@ func (i *TeleInstance) StartApp(conf *service.Config) (*service.TeleportProcess,
 }
 
 // StartDatabase starts the database access service with the provided config.
-func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportProcess, *auth.Client, error) {
+func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportProcess, *authclient.Client, error) {
 	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -829,7 +836,7 @@ func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportPro
 	}
 
 	// Retrieve auth server connector.
-	var client *auth.Client
+	var client *authclient.Client
 	for _, event := range receivedEvents {
 		if event.Name == service.DatabasesIdentityEvent {
 			conn, ok := (event.Payload).(*service.Connector)

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/server"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -300,7 +300,7 @@ func (s *KubeconfigSuite) genUserKey() (*client.Key, []byte, error) {
 		Priv:    priv,
 		Pub:     pub,
 		TLSCert: tlsCert,
-		TrustedCA: []auth.TrustedCerts{{
+		TrustedCA: []server.TrustedCerts{{
 			TLSCertificates: [][]byte{caCert},
 		}},
 	}, caCert, nil

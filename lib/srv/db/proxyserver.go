@@ -28,8 +28,10 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	libauth "github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/client"
 	"github.com/gravitational/teleport/lib/auth/native"
+	auth "github.com/gravitational/teleport/lib/auth/server"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -60,9 +62,9 @@ type ProxyServer struct {
 // ProxyServerConfig is the proxy configuration.
 type ProxyServerConfig struct {
 	// AuthClient is the authenticated client to the auth server.
-	AuthClient *auth.Client
+	AuthClient *client.Client
 	// AccessPoint is the caching client connected to the auth server.
-	AccessPoint auth.AccessPoint
+	AccessPoint libauth.AccessPoint
 	// Authorizer is responsible for authorizing user identities.
 	Authorizer auth.Authorizer
 	// Tunnel is the reverse tunnel server.
@@ -371,12 +373,12 @@ func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Ide
 	}, nil
 }
 
-func getConfigForClient(conf *tls.Config, ap auth.AccessPoint, log logrus.FieldLogger) func(*tls.ClientHelloInfo) (*tls.Config, error) {
+func getConfigForClient(conf *tls.Config, ap libauth.AccessPoint, log logrus.FieldLogger) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 		var clusterName string
 		var err error
 		if info.ServerName != "" {
-			clusterName, err = auth.DecodeClusterName(info.ServerName)
+			clusterName, err = libauth.DecodeClusterName(info.ServerName)
 			if err != nil && !trace.IsNotFound(err) {
 				log.Debugf("Ignoring unsupported cluster name %q.", info.ServerName)
 			}

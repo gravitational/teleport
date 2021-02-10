@@ -20,6 +20,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -84,7 +85,7 @@ func NewClustersFromRemote(remoteClusters []services.RemoteCluster) ([]Cluster, 
 }
 
 // GetClusterDetails retrieves and sets details about a cluster
-func GetClusterDetails(site reversetunnel.RemoteSite, opts ...services.MarshalOption) (*Cluster, error) {
+func GetClusterDetails(site reversetunnel.RemoteSite, opts ...auth.MarshalOption) (*Cluster, error) {
 	clt, err := site.CachingAccessPoint()
 	if err != nil {
 		return nil, trace.Wrap(err)

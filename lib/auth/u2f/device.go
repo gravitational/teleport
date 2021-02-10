@@ -37,9 +37,6 @@ type DeviceStorage interface {
 }
 
 // NewDevice creates a U2F MFADevice object from a completed U2F registration.
-//
-// This function is not in lib/services due to an import cycle (lib/services
-// depends on lib/auth/u2f).
 func NewDevice(name string, reg *Registration, addedAt time.Time) (*types.MFADevice, error) {
 	d := types.NewMFADevice(name, uuid.New(), addedAt)
 	pubKey, err := x509.MarshalPKIXPublicKey(&reg.PubKey)
@@ -60,9 +57,6 @@ func NewDevice(name string, reg *Registration, addedAt time.Time) (*types.MFADev
 }
 
 // ValidateMFADevice validates a U2F MFA device.
-//
-// This function is not in lib/services due to an import cycle (lib/services
-// depends on lib/auth/u2f).
 func ValidateDevice(d *types.U2FDevice) error {
 	if len(d.KeyHandle) == 0 {
 		return trace.BadParameter("U2FDevice missing KeyHandle field")

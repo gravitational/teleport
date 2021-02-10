@@ -32,7 +32,9 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth"
+	libauth "github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/client"
+	auth "github.com/gravitational/teleport/lib/auth/server"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
@@ -73,9 +75,9 @@ type ForwarderConfig struct {
 	// Authz authenticates user
 	Authz auth.Authorizer
 	// AuthClient is a auth server client.
-	AuthClient auth.ClientI
+	AuthClient client.ClientI
 	// CachingAuthClient is a caching auth server client for read-only access.
-	CachingAuthClient auth.AccessPoint
+	CachingAuthClient libauth.AccessPoint
 	// StreamEmitter is used to create audit streams
 	// and emit audit events
 	StreamEmitter events.StreamEmitter
@@ -588,7 +590,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	mfaParams := services.AccessMFAParams{
+	mfaParams := libauth.AccessMFAParams{
 		Verified:       actx.Identity.GetIdentity().MFAVerified != "",
 		AlwaysRequired: ap.GetRequireSessionMFA(),
 	}
@@ -621,7 +623,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 // async streamer buffers the events to disk and uploads the events later
 func (f *Forwarder) newStreamer(ctx *authContext) (events.Streamer, error) {
 	mode := ctx.clusterConfig.GetSessionRecording()
-	if services.IsRecordSync(mode) {
+	if libauth.IsRecordSync(mode) {
 		f.log.Debugf("Using sync streamer for session.")
 		return f.cfg.AuthClient, nil
 	}

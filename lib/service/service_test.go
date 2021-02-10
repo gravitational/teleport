@@ -28,7 +28,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth"
+	test "github.com/gravitational/teleport/lib/auth/test/services"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -184,11 +184,11 @@ func (s *ServiceTestSuite) TestCheckPrincipals(c *check.C) {
 
 	// Create a test auth server to extract the server identity (SSH and TLS
 	// certificates).
-	testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	testAuthServer, err := test.NewAuthServer(test.AuthServerConfig{
 		Dir: dataDir,
 	})
 	c.Assert(err, check.IsNil)
-	tlsServer, err := testAuthServer.NewTestTLSServer()
+	tlsServer, err := testAuthServer.NewTLSServer()
 	c.Assert(err, check.IsNil)
 	defer tlsServer.Close()
 

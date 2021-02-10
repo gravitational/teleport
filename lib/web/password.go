@@ -19,10 +19,10 @@ package web
 import (
 	"net/http"
 
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
 
@@ -53,7 +53,7 @@ func (h *Handler) changePassword(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	servicedReq := services.ChangePasswordReq{
+	servicedReq := auth.ChangePasswordReq{
 		User:              ctx.GetUser(),
 		OldPassword:       req.OldPassword,
 		NewPassword:       req.NewPassword,

@@ -211,7 +211,7 @@ func configureTLS(c *transportConfig) (*tls.Config, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certPool, err := services.CertPool(ca)
+	certPool, err := auth.CertPool(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

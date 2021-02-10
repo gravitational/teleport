@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
@@ -56,7 +57,7 @@ type remoteClusterKey struct {
 // RemoteClusterTunnelManager.
 type RemoteClusterTunnelManagerConfig struct {
 	// AuthClient is client to the auth server.
-	AuthClient auth.ClientI
+	AuthClient client.ClientI
 	// AccessPoint is a lightweight access point that can optionally cache some
 	// values.
 	AccessPoint auth.AccessPoint

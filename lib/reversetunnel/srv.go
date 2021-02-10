@@ -30,7 +30,9 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
+	libauth "github.com/gravitational/teleport/lib/auth"
+	auth "github.com/gravitational/teleport/lib/auth/client"
+	"github.com/gravitational/teleport/lib/auth/resource"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -81,7 +83,7 @@ type server struct {
 	localAuthClient auth.ClientI
 	// localAccessPoint provides access to a cached subset of the Auth
 	// Server API.
-	localAccessPoint auth.AccessPoint
+	localAccessPoint libauth.AccessPoint
 
 	// srv is the "base class" i.e. the underlying SSH server
 	srv     *sshutils.Server
@@ -112,7 +114,7 @@ type server struct {
 
 	// proxyWatcher monitors changes to the proxies
 	// and broadcasts updates
-	proxyWatcher *services.ProxyWatcher
+	proxyWatcher *libauth.ProxyWatcher
 
 	// offlineThreshold is how long to wait for a keep alive message before
 	// marking a reverse tunnel connection as invalid.
@@ -148,7 +150,7 @@ type Config struct {
 	// AccessPoint provides access to a subset of AuthClient of the cluster.
 	// AccessPoint caches values and can still return results during connection
 	// problems.
-	LocalAccessPoint auth.AccessPoint
+	LocalAccessPoint libauth.AccessPoint
 	// NewCachingAccessPoint returns new caching access points
 	// per remote cluster
 	NewCachingAccessPoint auth.NewCachingAccessPoint
@@ -267,7 +269,7 @@ func NewServer(cfg Config) (Server, error) {
 
 	ctx, cancel := context.WithCancel(cfg.Context)
 
-	proxyWatcher, err := services.NewProxyWatcher(services.ProxyWatcherConfig{
+	proxyWatcher, err := libauth.NewProxyWatcher(libauth.ProxyWatcherConfig{
 		Context:   ctx,
 		Component: cfg.Component,
 		Client:    cfg.LocalAuthClient,
@@ -418,7 +420,7 @@ func (s *server) fetchClusterPeers() error {
 		}
 
 		// Filter out tunnels which are not online.
-		if services.TunnelConnectionStatus(s.Clock, newConn, s.offlineThreshold) != teleport.RemoteClusterStatusOnline {
+		if libauth.TunnelConnectionStatus(s.Clock, newConn, s.offlineThreshold) != teleport.RemoteClusterStatusOnline {
 			continue
 		}
 
@@ -708,7 +710,7 @@ func (s *server) findLocalCluster(sconn *ssh.ServerConn) (*localSite, error) {
 }
 
 func (s *server) getTrustedCAKeysByID(id services.CertAuthID) ([]ssh.PublicKey, error) {
-	ca, err := s.localAccessPoint.GetCertAuthority(id, false, services.SkipValidation())
+	ca, err := s.localAccessPoint.GetCertAuthority(id, false, resource.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -758,7 +760,7 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 		if !ok || encRoles == "" {
 			return nil, trace.BadParameter("certificate missing %q extension; this SSH user certificate was not issued by Teleport or issued by an older version of Teleport; try upgrading your Teleport proxies/auth servers and logging in again (or exporting an identity file, if that's what you used)", teleport.CertExtensionTeleportRoles)
 		}
-		roles, err := services.UnmarshalCertRoles(encRoles)
+		roles, err := resource.UnmarshalCertRoles(encRoles)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

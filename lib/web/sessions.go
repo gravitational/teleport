@@ -34,13 +34,15 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
+	services "github.com/gravitational/teleport/lib/auth"
+	authclient "github.com/gravitational/teleport/lib/auth/client"
+	"github.com/gravitational/teleport/lib/auth/local"
+	authresource "github.com/gravitational/teleport/lib/auth/resource"
+	auth "github.com/gravitational/teleport/lib/auth/server"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -58,7 +60,7 @@ import (
 type SessionContext struct {
 	log    logrus.FieldLogger
 	user   string
-	clt    *auth.Client
+	clt    *authclient.Client
 	parent *sessionCache
 	// resources is persistent resource store this context is bound to.
 	// The store maintains a list of resources between session renewals
@@ -67,7 +69,7 @@ type SessionContext struct {
 	session services.WebSession
 
 	mu        sync.Mutex
-	remoteClt map[string]auth.ClientI
+	remoteClt map[string]authclient.ClientI
 }
 
 // String returns the text representation of this context
@@ -105,13 +107,13 @@ func (c *SessionContext) validateBearerToken(ctx context.Context, token string) 
 	return trace.Wrap(err)
 }
 
-func (c *SessionContext) addRemoteClient(siteName string, remoteClient auth.ClientI) {
+func (c *SessionContext) addRemoteClient(siteName string, remoteClient authclient.ClientI) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.remoteClt[siteName] = remoteClient
 }
 
-func (c *SessionContext) getRemoteClient(siteName string) (auth.ClientI, bool) {
+func (c *SessionContext) getRemoteClient(siteName string) (authclient.ClientI, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	remoteClt, ok := c.remoteClt[siteName]
@@ -119,7 +121,7 @@ func (c *SessionContext) getRemoteClient(siteName string) (auth.ClientI, bool) {
 }
 
 // GetClient returns the client connected to the auth server
-func (c *SessionContext) GetClient() (auth.ClientI, error) {
+func (c *SessionContext) GetClient() (authclient.ClientI, error) {
 	return c.clt, nil
 }
 
@@ -132,7 +134,7 @@ func (c *SessionContext) GetClientConnection() *grpc.ClientConn {
 // the requested site. If the site is local a client with the users local role
 // is returned. If the site is remote a client with the users remote role is
 // returned.
-func (c *SessionContext) GetUserClient(site reversetunnel.RemoteSite) (auth.ClientI, error) {
+func (c *SessionContext) GetUserClient(site reversetunnel.RemoteSite) (authclient.ClientI, error) {
 	// get the name of the current cluster
 	clusterName, err := c.clt.GetClusterName()
 	if err != nil {
@@ -165,7 +167,7 @@ func (c *SessionContext) GetUserClient(site reversetunnel.RemoteSite) (auth.Clie
 
 // newRemoteClient returns a client to a remote cluster with the role of
 // the logged in user.
-func (c *SessionContext) newRemoteClient(cluster reversetunnel.RemoteSite) (auth.ClientI, error) {
+func (c *SessionContext) newRemoteClient(cluster reversetunnel.RemoteSite) (authclient.ClientI, error) {
 	clt, err := c.tryRemoteTLSClient(cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -174,15 +176,15 @@ func (c *SessionContext) newRemoteClient(cluster reversetunnel.RemoteSite) (auth
 }
 
 // clusterDialer returns DialContext function using cluster's dial function
-func clusterDialer(remoteCluster reversetunnel.RemoteSite) auth.ContextDialer {
-	return auth.ContextDialerFunc(func(in context.Context, network, _ string) (net.Conn, error) {
+func clusterDialer(remoteCluster reversetunnel.RemoteSite) authclient.ContextDialer {
+	return authclient.ContextDialerFunc(func(in context.Context, network, _ string) (net.Conn, error) {
 		return remoteCluster.DialAuthServer()
 	})
 }
 
 // tryRemoteTLSClient tries creating TLS client and using it (the client may not be available
 // due to older clusters), returns client if it is working properly
-func (c *SessionContext) tryRemoteTLSClient(cluster reversetunnel.RemoteSite) (auth.ClientI, error) {
+func (c *SessionContext) tryRemoteTLSClient(cluster reversetunnel.RemoteSite) (authclient.ClientI, error) {
 	clt, err := c.newRemoteTLSClient(cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -228,17 +230,17 @@ func (c *SessionContext) ClientTLSConfig(clusterName ...string) (*tls.Config, er
 	}
 	tlsConfig.Certificates = []tls.Certificate{tlsCert}
 	tlsConfig.RootCAs = certPool
-	tlsConfig.ServerName = auth.EncodeClusterName(c.parent.clusterName)
+	tlsConfig.ServerName = services.EncodeClusterName(c.parent.clusterName)
 	tlsConfig.Time = c.parent.clock.Now
 	return tlsConfig, nil
 }
 
-func (c *SessionContext) newRemoteTLSClient(cluster reversetunnel.RemoteSite) (auth.ClientI, error) {
+func (c *SessionContext) newRemoteTLSClient(cluster reversetunnel.RemoteSite) (authclient.ClientI, error) {
 	tlsConfig, err := c.ClientTLSConfig(cluster.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return auth.NewClient(apiclient.Config{
+	return authclient.New(apiclient.Config{
 		Dialer: clusterDialer(cluster),
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
@@ -308,7 +310,7 @@ func (c *SessionContext) GetCertRoles() (services.RoleSet, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roles, traits, err := services.ExtractFromCertificate(c.clt, cert)
+	roles, traits, err := authresource.ExtractFromCertificate(c.clt, cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -384,8 +386,8 @@ func (c *SessionContext) expired(ctx context.Context) bool {
 const cachedSessionLingeringThreshold = 2 * time.Minute
 
 type sessionCacheOptions struct {
-	proxyClient  auth.ClientI
-	accessPoint  auth.ReadAccessPoint
+	proxyClient  authclient.ClientI
+	accessPoint  services.ReadAccessPoint
 	servers      []utils.NetAddr
 	cipherSuites []uint16
 	clock        clockwork.Clock
@@ -425,9 +427,9 @@ func newSessionCache(config sessionCacheOptions) (*sessionCache, error) {
 // and holds in-memory contexts associated with each session
 type sessionCache struct {
 	log         logrus.FieldLogger
-	proxyClient auth.ClientI
+	proxyClient authclient.ClientI
 	authServers []utils.NetAddr
-	accessPoint auth.ReadAccessPoint
+	accessPoint services.ReadAccessPoint
 	closer      *utils.CloseBroadcaster
 	clusterName string
 	clock       clockwork.Clock
@@ -729,7 +731,7 @@ func (s *sessionCache) newSessionContextFromSession(session services.WebSession)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	userClient, err := auth.NewClient(apiclient.Config{
+	userClient, err := authclient.New(apiclient.Config{
 		Addrs:       utils.NetAddrsToStrings(s.authServers),
 		Credentials: []apiclient.Credentials{apiclient.LoadTLS(tlsConfig)},
 	})
@@ -739,7 +741,7 @@ func (s *sessionCache) newSessionContextFromSession(session services.WebSession)
 
 	ctx := &SessionContext{
 		clt:       userClient,
-		remoteClt: make(map[string]auth.ClientI),
+		remoteClt: make(map[string]authclient.ClientI),
 		user:      session.GetUser(),
 		session:   session,
 		parent:    s,
@@ -780,7 +782,7 @@ func (s *sessionCache) tlsConfig(cert, privKey []byte) (*tls.Config, error) {
 	}
 	tlsConfig.Certificates = []tls.Certificate{tlsCert}
 	tlsConfig.RootCAs = certPool
-	tlsConfig.ServerName = auth.EncodeClusterName(s.clusterName)
+	tlsConfig.ServerName = services.EncodeClusterName(s.clusterName)
 	tlsConfig.Time = s.clock.Now
 	return tlsConfig, nil
 }

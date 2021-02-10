@@ -19,9 +19,9 @@ package web
 import (
 	"net/http"
 
+	services "github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/form"
 	"github.com/gravitational/trace"

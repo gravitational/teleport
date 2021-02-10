@@ -27,9 +27,11 @@ import (
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth"
+	libauth "github.com/gravitational/teleport/lib/auth"
+	auth "github.com/gravitational/teleport/lib/auth/client"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
@@ -214,7 +216,7 @@ func (c *AccessRequestCommand) splitRoles() []string {
 func (c *AccessRequestCommand) Approve(client auth.ClientI) error {
 	ctx := context.TODO()
 	if c.delegator != "" {
-		ctx = auth.WithDelegator(ctx, c.delegator)
+		ctx = apiclient.WithDelegator(ctx, c.delegator)
 	}
 	annotations, err := c.splitAnnotations()
 	if err != nil {
@@ -237,7 +239,7 @@ func (c *AccessRequestCommand) Approve(client auth.ClientI) error {
 func (c *AccessRequestCommand) Deny(client auth.ClientI) error {
 	ctx := context.TODO()
 	if c.delegator != "" {
-		ctx = auth.WithDelegator(ctx, c.delegator)
+		ctx = apiclient.WithDelegator(ctx, c.delegator)
 	}
 	annotations, err := c.splitAnnotations()
 	if err != nil {
@@ -257,14 +259,18 @@ func (c *AccessRequestCommand) Deny(client auth.ClientI) error {
 }
 
 func (c *AccessRequestCommand) Create(client auth.ClientI) error {
-	req, err := services.NewAccessRequest(c.user, c.splitRoles()...)
+	roles := c.splitRoles()
+	if len(roles) == 0 {
+		return trace.BadParameter("need at least one role")
+	}
+	req, err := libauth.NewAccessRequest(c.user, roles[0], roles[1:]...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	req.SetRequestReason(c.reason)
 
 	if c.dryRun {
-		err = services.ValidateAccessRequestForUser(client, req, services.ExpandVars(true))
+		err = libauth.ValidateAccessRequestForUser(client, req, libauth.ExpandVars(true))
 		if err != nil {
 			return trace.Wrap(err)
 		}

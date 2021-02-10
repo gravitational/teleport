@@ -24,7 +24,9 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth"
+	libauth "github.com/gravitational/teleport/lib/auth"
+	auth "github.com/gravitational/teleport/lib/auth/client"
+	"github.com/gravitational/teleport/lib/auth/resource"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
@@ -37,7 +39,7 @@ import (
 )
 
 // ResourceCreateHandler is the generic implementation of a resource creation handler
-type ResourceCreateHandler func(auth.ClientI, services.UnknownResource) error
+type ResourceCreateHandler func(auth.ClientI, resource.UnknownResource) error
 
 // ResourceKind is the string form of a resource, i.e. "oidc"
 type ResourceKind string
@@ -46,8 +48,8 @@ type ResourceKind string
 // Teleport resources
 type ResourceCommand struct {
 	config      *service.Config
-	ref         services.Ref
-	refs        services.Refs
+	ref         resource.Ref
+	refs        resource.Refs
 	format      string
 	namespace   string
 	withSecrets bool
@@ -151,7 +153,7 @@ func (rc *ResourceCommand) IsDeleteSubcommand(cmd string) bool {
 
 // GetRef returns the reference (basically type/name pair) of the resource
 // the command is operating on
-func (rc *ResourceCommand) GetRef() services.Ref {
+func (rc *ResourceCommand) GetRef() resource.Ref {
 	return rc.ref
 }
 
@@ -203,15 +205,15 @@ func (rc *ResourceCommand) GetMany(client auth.ClientI) error {
 
 func (rc *ResourceCommand) GetAll(client auth.ClientI) error {
 	rc.withSecrets = true
-	allKinds := services.GetResourceMarshalerKinds()
-	allRefs := make([]services.Ref, 0, len(allKinds))
+	allKinds := resource.GetResourceMarshalerKinds()
+	allRefs := make([]resource.Ref, 0, len(allKinds))
 	for _, kind := range allKinds {
-		ref := services.Ref{
+		ref := resource.Ref{
 			Kind: kind,
 		}
 		allRefs = append(allRefs, ref)
 	}
-	rc.refs = services.Refs(allRefs)
+	rc.refs = resource.Refs(allRefs)
 	return rc.GetMany(client)
 }
 
@@ -231,7 +233,7 @@ func (rc *ResourceCommand) Create(client auth.ClientI) (err error) {
 	decoder := kyaml.NewYAMLOrJSONDecoder(reader, defaults.LookaheadBufSize)
 	count := 0
 	for {
-		var raw services.UnknownResource
+		var raw resource.UnknownResource
 		err := decoder.Decode(&raw)
 		if err != nil {
 			if err == io.EOF {
@@ -265,9 +267,9 @@ func (rc *ResourceCommand) Create(client auth.ClientI) (err error) {
 }
 
 // createTrustedCluster implements `tctl create cluster.yaml` command
-func (rc *ResourceCommand) createTrustedCluster(client auth.ClientI, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createTrustedCluster(client auth.ClientI, raw resource.UnknownResource) error {
 	ctx := context.TODO()
-	tc, err := services.UnmarshalTrustedCluster(raw.Raw)
+	tc, err := resource.UnmarshalTrustedCluster(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -304,8 +306,8 @@ func (rc *ResourceCommand) createTrustedCluster(client auth.ClientI, raw service
 }
 
 // createCertAuthority creates certificate authority
-func (rc *ResourceCommand) createCertAuthority(client auth.ClientI, raw services.UnknownResource) error {
-	certAuthority, err := services.UnmarshalCertAuthority(raw.Raw)
+func (rc *ResourceCommand) createCertAuthority(client auth.ClientI, raw resource.UnknownResource) error {
+	certAuthority, err := resource.UnmarshalCertAuthority(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -317,9 +319,9 @@ func (rc *ResourceCommand) createCertAuthority(client auth.ClientI, raw services
 }
 
 // createGithubConnector creates a Github connector
-func (rc *ResourceCommand) createGithubConnector(client auth.ClientI, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createGithubConnector(client auth.ClientI, raw resource.UnknownResource) error {
 	ctx := context.TODO()
-	connector, err := services.UnmarshalGithubConnector(raw.Raw)
+	connector, err := resource.UnmarshalGithubConnector(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -342,9 +344,9 @@ func (rc *ResourceCommand) createGithubConnector(client auth.ClientI, raw servic
 }
 
 // createConnector implements 'tctl create role.yaml' command
-func (rc *ResourceCommand) createRole(client auth.ClientI, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createRole(client auth.ClientI, raw resource.UnknownResource) error {
 	ctx := context.TODO()
-	role, err := services.UnmarshalRole(raw.Raw)
+	role, err := resource.UnmarshalRole(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -353,7 +355,7 @@ func (rc *ResourceCommand) createRole(client auth.ClientI, raw services.UnknownR
 		return trace.Wrap(err)
 	}
 
-	if err := services.ValidateAccessPredicates(role); err != nil {
+	if err := libauth.ValidateAccessPredicates(role); err != nil {
 		// check for syntax errors in predicates
 		return trace.Wrap(err)
 	}
@@ -375,8 +377,8 @@ func (rc *ResourceCommand) createRole(client auth.ClientI, raw services.UnknownR
 }
 
 // createUser implements 'tctl create user.yaml' command.
-func (rc *ResourceCommand) createUser(client auth.ClientI, raw services.UnknownResource) error {
-	user, err := services.UnmarshalUser(raw.Raw)
+func (rc *ResourceCommand) createUser(client auth.ClientI, raw resource.UnknownResource) error {
+	user, err := resource.UnmarshalUser(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -559,14 +561,14 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollect
 	switch rc.ref.Kind {
 	// load user(s)
 	case services.KindUser:
-		var users services.Users
+		var users libauth.Users
 		// just one?
 		if !rc.ref.IsEmpty() {
 			user, err := client.GetUser(rc.ref.Name, rc.withSecrets)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			users = services.Users{user}
+			users = libauth.Users{user}
 			// all of them?
 		} else {
 			users, err = client.GetUsers(rc.withSecrets)
