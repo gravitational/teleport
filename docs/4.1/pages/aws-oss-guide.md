@@ -204,7 +204,7 @@ more than happy to help you architect, setup and deploy Teleport into your envir
 
 We have these options for you.
 
-- [Using AWS Marketplace (Manual Setup)](#single-oss-teleport-amis-manual-gui-setup)
+- [Using AWS Marketplace (Manual Setup)](#single-oss-teleport-amis-manual--gui-setup)
 - [Deploying with CloudFormation](#deploying-with-cloudformation)
 - [Deploying with Terraform HA + Monitoring](#deploying-with-terraform)
 

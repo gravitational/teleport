@@ -14,7 +14,7 @@ We have split this guide into:
 - [Teleport on AWS FAQ](#teleport-on-aws-faq)
 - [Authenticating to EKS Using GitHub Credentials with Teleport Community Edition](#using-teleport-with-eks)
 - [Setting up Teleport Enterprise on AWS](#running-teleport-enterprise-on-aws)
-- [Teleport AWS Tips & Tricks](#teleport-aws-tips-tricks)
+- [Teleport AWS Tips & Tricks](#teleport-aws-tips--tricks)
 - [AWS HA with Terraform](aws-terraform-guide.md)
 
 ### Teleport on AWS FAQ
@@ -52,7 +52,7 @@ This guide will cover how to setup, configure and run Teleport on [AWS](https://
 
 #### AWS Services required to run Teleport in HA
 
-- [EC2 / Autoscale](#ec2-autoscale)
+- [EC2 / Autoscale](#ec2--autoscale)
 - [DynamoDB](#dynamodb)
 - [S3](#s3)
 - [Route53](#route53)
@@ -67,7 +67,7 @@ stores the state of the system and S3 will store audit logs.
 ![AWS Intro Image](../img/aws/aws-intro.png)
 
 ### EC2 / Autoscale
-To run Teleport in a HA configuration we recommend using m4.large instances. It's best practice to separate the proxy and authentication server, using autoscaling groups for both machines. We have pre-built AMIs for both Teleport OSS and Enterprise editions. Instructions on using these [AMIs are below](#single-oss-teleport-amis-manual-gui-setup).
+To run Teleport in a HA configuration we recommend using m4.large instances. It's best practice to separate the proxy and authentication server, using autoscaling groups for both machines. We have pre-built AMIs for both Teleport OSS and Enterprise editions.
 
 ### DynamoDB
 DynamoDB is a key-value and document database that delivers single-digit millisecond
