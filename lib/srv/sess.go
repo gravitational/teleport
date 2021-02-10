@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -818,6 +819,38 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		err = ctx.srv.GetBPF().CloseSession(sessionContext)
 		if err != nil {
 			ctx.Errorf("Failed to close enhanced recording (interactive) session: %v: %v.", s.id, err)
+		}
+
+		if ctx.ExecRequest.GetCommand() != "" {
+			execEvent := &events.Exec{
+				Metadata: events.Metadata{
+					Type:        events.ExecEvent,
+					Code:        events.ExecCode,
+					ClusterName: ctx.ClusterConfig.GetName(),
+				},
+				ServerMetadata: events.ServerMetadata{
+					ServerID:        ctx.srv.HostUUID(),
+					ServerNamespace: ctx.srv.GetNamespace(),
+				},
+				SessionMetadata: events.SessionMetadata{
+					SessionID: string(s.id),
+				},
+				UserMetadata: events.UserMetadata{
+					User:  ctx.Identity.TeleportUser,
+					Login: ctx.Identity.Login,
+				},
+				ConnectionMetadata: events.ConnectionMetadata{
+					RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
+					LocalAddr:  ctx.ServerConn.LocalAddr().String(),
+				},
+				CommandMetadata: events.CommandMetadata{
+					Command:  ctx.ExecRequest.GetCommand(),
+					ExitCode: strconv.Itoa(exitCode(err)),
+				},
+			}
+			if err := s.recorder.EmitAuditEvent(ctx.srv.Context(), execEvent); err != nil {
+				s.log.WithError(err).Warn("Failed to emit exec event.")
+			}
 		}
 
 		if result != nil {
