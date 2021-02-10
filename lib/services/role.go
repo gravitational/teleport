@@ -659,7 +659,7 @@ type AccessChecker interface {
 	RoleNames() []string
 
 	// CheckAccessToServer checks access to server.
-	CheckAccessToServer(login string, server Server) error
+	CheckAccessToServer(login string, server Server, mfaVerified bool) error
 
 	// CheckAccessToRemoteCluster checks access to remote cluster
 	CheckAccessToRemoteCluster(cluster RemoteCluster) error
@@ -711,17 +711,17 @@ type AccessChecker interface {
 	EnhancedRecordingSet() map[string]bool
 
 	// CheckAccessToApp checks access to an application.
-	CheckAccessToApp(string, *App) error
+	CheckAccessToApp(login string, app *App, mfaVerified bool) error
 
 	// CheckAccessToKubernetes checks access to a kubernetes cluster.
-	CheckAccessToKubernetes(string, *KubernetesCluster) error
+	CheckAccessToKubernetes(login string, app *KubernetesCluster, mfaVerified bool) error
 
 	// CheckDatabaseNamesAndUsers returns database names and users this role
 	// is allowed to use.
 	CheckDatabaseNamesAndUsers(ttl time.Duration, overrideTTL bool) (names []string, users []string, err error)
 	// CheckAccessToDatabase checks whether a user has access to the provided
 	// database server.
-	CheckAccessToDatabase(server types.DatabaseServer, matchers ...RoleMatcher) error
+	CheckAccessToDatabase(server types.DatabaseServer, mfaVerified bool, matchers ...RoleMatcher) error
 }
 
 // FromSpec returns new RoleSet created from spec
@@ -1266,7 +1266,7 @@ func (set RoleSet) hasPossibleLogins() bool {
 // Note, logging in this function only happens in debug mode, this is because
 // adding logging to this function (which is called on every server returned
 // by GetNodes) can slow down this function by 50x for large clusters!
-func (set RoleSet) CheckAccessToServer(login string, s Server) error {
+func (set RoleSet) CheckAccessToServer(login string, s Server, mfaVerified bool) error {
 	var errs []error
 
 	// Check deny rules first: a single matching namespace, label, or login from
@@ -1289,6 +1289,7 @@ func (set RoleSet) CheckAccessToServer(login string, s Server) error {
 		}
 	}
 
+	allowed := false
 	// Check allow rules: namespace, label, and login have to all match in
 	// one role in the role set to be granted access.
 	for _, role := range set {
@@ -1299,13 +1300,28 @@ func (set RoleSet) CheckAccessToServer(login string, s Server) error {
 		}
 		matchLogin, loginMessage := MatchLogin(role.GetLogins(Allow), login)
 		if matchNamespace && matchLabels && matchLogin {
-			return nil
+			if role.GetOptions().RequireSessionMFA && !mfaVerified {
+				log.WithFields(log.Fields{
+					trace.Component: teleport.ComponentRBAC,
+				}).Debugf("Access to node %q denied, role %q requires per-session MFA; match(namespace=%v, label=%v, login=%v)",
+					s.GetHostname(), role.GetName(), namespaceMessage, labelsMessage, loginMessage)
+				return trace.AccessDenied("access to server requires MFA")
+			}
+			// Check all remaining roles, even if we found a match.
+			//
+			// Options like RequireSessionMFA are enforced when at least one
+			// role has it.
+			allowed = true
+			continue
 		}
 		if log.GetLevel() == log.DebugLevel {
 			deniedError := trace.AccessDenied("role=%v, match(namespace=%v, label=%v, login=%v)",
 				role.GetName(), namespaceMessage, labelsMessage, loginMessage)
 			errs = append(errs, deniedError)
 		}
+	}
+	if allowed {
+		return nil
 	}
 
 	if log.GetLevel() == log.DebugLevel {
@@ -1319,7 +1335,7 @@ func (set RoleSet) CheckAccessToServer(login string, s Server) error {
 // CheckAccessToApp checks if a role has access to an application. Deny rules
 // are checked first, then allow rules. Access to an application is determined by
 // namespaces and labels.
-func (set RoleSet) CheckAccessToApp(namespace string, app *App) error {
+func (set RoleSet) CheckAccessToApp(namespace string, app *App, mfaVerified bool) error {
 	var errs []error
 
 	// Check deny rules: a matching namespace and label in the deny section
@@ -1341,6 +1357,7 @@ func (set RoleSet) CheckAccessToApp(namespace string, app *App) error {
 		}
 	}
 
+	allowed := false
 	// Check allow rules: namespace and label both have to match to be granted access.
 	for _, role := range set {
 		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Allow), namespace)
@@ -1349,13 +1366,28 @@ func (set RoleSet) CheckAccessToApp(namespace string, app *App) error {
 			return trace.Wrap(err)
 		}
 		if matchNamespace && matchLabels {
-			return nil
+			if role.GetOptions().RequireSessionMFA && !mfaVerified {
+				log.WithFields(log.Fields{
+					trace.Component: teleport.ComponentRBAC,
+				}).Debugf("Access to app %q denied, role %q requires per-session MFA; match(namespace=%v, label=%v)",
+					app.Name, role.GetName(), namespaceMessage, labelsMessage)
+				return trace.AccessDenied("access to app requires MFA")
+			}
+			// Check all remaining roles, even if we found a match.
+			//
+			// Options like RequireSessionMFA are enforced when at least one
+			// role has it.
+			allowed = true
+			continue
 		}
 		if log.GetLevel() == log.DebugLevel {
 			deniedError := trace.AccessDenied("role=%v, match(namespace=%v, label=%v)",
 				role.GetName(), namespaceMessage, labelsMessage)
 			errs = append(errs, deniedError)
 		}
+	}
+	if allowed {
+		return nil
 	}
 
 	if log.GetLevel() == log.DebugLevel {
@@ -1369,7 +1401,7 @@ func (set RoleSet) CheckAccessToApp(namespace string, app *App) error {
 // CheckAccessToKubernetes checks if a role has access to a kubernetes cluster.
 // Deny rules are checked first, then allow rules. Access to a kubernetes
 // cluster is determined by namespaces and labels.
-func (set RoleSet) CheckAccessToKubernetes(namespace string, kube *KubernetesCluster) error {
+func (set RoleSet) CheckAccessToKubernetes(namespace string, kube *KubernetesCluster, mfaVerified bool) error {
 	var errs []error
 
 	// Check deny rules: a matching namespace and label in the deny section
@@ -1391,6 +1423,7 @@ func (set RoleSet) CheckAccessToKubernetes(namespace string, kube *KubernetesClu
 		}
 	}
 
+	allowed := false
 	// Check allow rules: namespace and label both have to match to be granted access.
 	for _, role := range set {
 		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Allow), namespace)
@@ -1399,13 +1432,28 @@ func (set RoleSet) CheckAccessToKubernetes(namespace string, kube *KubernetesClu
 			return trace.Wrap(err)
 		}
 		if matchNamespace && matchLabels {
-			return nil
+			if role.GetOptions().RequireSessionMFA && !mfaVerified {
+				log.WithFields(log.Fields{
+					trace.Component: teleport.ComponentRBAC,
+				}).Debugf("Access to kubernetes cluster %q denied, role %q requires per-session MFA; match(namespace=%v, label=%v)",
+					kube.Name, role.GetName(), namespaceMessage, labelsMessage)
+				return trace.AccessDenied("access to kubernetes cluster requires MFA")
+			}
+			// Check all remaining roles, even if we found a match.
+			//
+			// Options like RequireSessionMFA are enforced when at least one
+			// role has it.
+			allowed = true
+			continue
 		}
 		if log.GetLevel() == log.DebugLevel {
 			deniedError := trace.AccessDenied("role=%v, match(namespace=%v, label=%v)",
 				role.GetName(), namespaceMessage, labelsMessage)
 			errs = append(errs, deniedError)
 		}
+	}
+	if allowed {
+		return nil
 	}
 
 	if log.GetLevel() == log.DebugLevel {
@@ -1506,7 +1554,7 @@ func (m *DatabaseNameMatcher) String() string {
 //
 // The checker always checks the server namespace, other matchers are supplied
 // by the caller.
-func (set RoleSet) CheckAccessToDatabase(server types.DatabaseServer, matchers ...RoleMatcher) error {
+func (set RoleSet) CheckAccessToDatabase(server types.DatabaseServer, mfaVerified bool, matchers ...RoleMatcher) error {
 	log := log.WithField(trace.Component, teleport.ComponentRBAC)
 	// Check deny rules.
 	for _, role := range set {
@@ -1525,6 +1573,7 @@ func (set RoleSet) CheckAccessToDatabase(server types.DatabaseServer, matchers .
 			}
 		}
 	}
+	allowed := false
 	// Check allow rules.
 	for _, role := range set {
 		matchNamespace, _ := MatchNamespace(role.GetNamespaces(Allow), server.GetNamespace())
@@ -1536,12 +1585,25 @@ func (set RoleSet) CheckAccessToDatabase(server types.DatabaseServer, matchers .
 				return trace.Wrap(err)
 			}
 			if match {
+				if role.GetOptions().RequireSessionMFA && !mfaVerified {
+					log.Debugf("Access to database %q denied, role %q requires per-session MFA", server.GetName(), role.GetName())
+					return trace.AccessDenied("access to database requires MFA")
+				}
+				// Check all remaining roles, even if we found a match.
+				//
+				// Options like RequireSessionMFA are enforced when at least one
+				// role has it.
+				allowed = true
 				log.Debugf("Access to database %q granted, allow rule in role %q matched.",
 					server.GetName(), role.GetName())
-				return nil
+				continue
 			}
 		}
 	}
+	if allowed {
+		return nil
+	}
+
 	log.Debugf("Access to database %q denied, no allow rule matched.",
 		server.GetName())
 	return trace.AccessDenied("access to database denied")
