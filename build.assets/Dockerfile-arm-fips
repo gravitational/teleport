@@ -2,5 +2,5 @@ ARG RUNTIME
 FROM quay.io/gravitational/teleport-buildbox-fips:$RUNTIME
 
 RUN apt-get -y update && \
-    apt-get install -y gcc-aarch64-linux-gnu && \
+    apt-get -y install gcc-arm-linux-gnueabihf gcc-aarch64-linux-gnu && \
     apt-get -y autoclean && apt-get -y clean

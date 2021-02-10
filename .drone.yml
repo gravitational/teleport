@@ -464,7 +464,7 @@ steps:
       - chown -R $UID:$GID /go
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
-      - make -C build.assets release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
+      - make -C build.assets release OS=$OS ARCH=$ARCH
 
   - name: Send Slack notification
     image: plugins/slack
@@ -562,7 +562,7 @@ steps:
       - chown -R $UID:$GID /go
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
-      - make -C build.assets release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
+      - make -C build.assets release OS=$OS ARCH=$ARCH
 
   - name: Send Slack notification
     image: plugins/slack
@@ -664,7 +664,7 @@ steps:
       - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
-      - make -C build.assets release-fips VERSION=$VERSION OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME FIPS=$FIPS
+      - make -C build.assets release-fips VERSION=$VERSION OS=$OS ARCH=$ARCH FIPS=$FIPS
 
   - name: Send Slack notification
     image: plugins/slack
@@ -762,7 +762,7 @@ steps:
       - chown -R $UID:$GID /go
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
-      - make -C build.assets release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
+      - make -C build.assets release OS=$OS ARCH=$ARCH
 
   - name: Send Slack notification
     image: plugins/slack
@@ -1054,7 +1054,7 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
-      - docker pull quay.io/gravitational/teleport-buildbox-arm64:$RUNTIME || true
+      - docker pull quay.io/gravitational/teleport-buildbox-arm:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets release-arm64
 
@@ -1152,9 +1152,10 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
-      - docker pull quay.io/gravitational/teleport-buildbox-arm64-fips:$RUNTIME || true
+      - docker pull quay.io/gravitational/teleport-buildbox-arm-fips:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
-      - make -C build.assets release-arm64-fips
+      - export VERSION=$(cat /go/.version.txt)
+      - make -C build.assets release-arm64-fips VERSION=$VERSION OS=$OS ARCH=$ARCH FIPS=$FIPS
 
   - name: Send Slack notification
     image: plugins/slack
@@ -1546,7 +1547,7 @@ steps:
       - chown -R $UID:$GID /go
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
-      - make -C build.assets release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
+      - make -C build.assets release OS=$OS ARCH=$ARCH
 
   - name: Copy artifacts
     image: docker
@@ -1648,7 +1649,7 @@ steps:
       - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
-      - make -C build.assets release-fips VERSION=$VERSION OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME FIPS=$FIPS
+      - make -C build.assets release-fips VERSION=$VERSION OS=$OS ARCH=$ARCH FIPS=$FIPS
 
   - name: Copy FIPS artifacts
     image: docker
@@ -1747,7 +1748,7 @@ steps:
       - chown -R $UID:$GID /go
       - docker pull quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
-      - make -C build.assets release-centos6 OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
+      - make -C build.assets release-centos6 OS=$OS ARCH=$ARCH
 
   - name: Copy CentOS 6 artifacts
     image: docker
@@ -1852,7 +1853,7 @@ steps:
       - chown -R $UID:$GID /go
       - docker pull quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
-      - make -C build.assets release-centos6-fips OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME FIPS=$FIPS
+      - make -C build.assets release-centos6-fips OS=$OS ARCH=$ARCH FIPS=$FIPS
 
   - name: Copy CentOS 6 FIPS artifacts
     image: docker
@@ -2433,7 +2434,7 @@ steps:
       - chown -R $UID:$GID /go
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
-      - make -C build.assets release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
+      - make -C build.assets release OS=$OS ARCH=$ARCH
 
   - name: Copy artifacts
     image: docker
@@ -3255,7 +3256,7 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
-      - docker pull quay.io/gravitational/teleport-buildbox-arm64:$RUNTIME || true
+      - docker pull quay.io/gravitational/teleport-buildbox-arm:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets release-arm64
 
@@ -3356,10 +3357,10 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
-      - docker pull quay.io/gravitational/teleport-buildbox-arm64-fips:$RUNTIME || true
+      - docker pull quay.io/gravitational/teleport-buildbox-arm-fips:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
-      - make -C build.assets release-arm64-fips VERSION=$VERSION OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME FIPS=$FIPS
+      - make -C build.assets release-arm64-fips VERSION=$VERSION OS=$OS ARCH=$ARCH FIPS=$FIPS
 
   - name: Copy FIPS artifacts
     image: docker
@@ -3938,7 +3939,7 @@ steps:
       - make -C build.assets buildbox-arm
       - docker push quay.io/gravitational/teleport-buildbox-arm:$RUNTIME
 
-  - name: Build and push buildbox-arm64 container
+  - name: Build and push buildbox-arm-fips container
     image: docker
     environment:
       QUAYIO_DOCKER_USERNAME:
@@ -3952,27 +3953,9 @@ steps:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
       - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
-      - docker pull quay.io/gravitational/teleport-buildbox-arm64:$RUNTIME || true
-      - make -C build.assets buildbox-arm64
-      - docker push quay.io/gravitational/teleport-buildbox-arm64:$RUNTIME
-
-  - name: Build and push buildbox-arm64-fips container
-    image: docker
-    environment:
-      QUAYIO_DOCKER_USERNAME:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      QUAYIO_DOCKER_PASSWORD:
-        from_secret: QUAYIO_DOCKER_PASSWORD
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - apk add --no-cache make
-      - chown -R $UID:$GID /go
-      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
-      - docker pull quay.io/gravitational/teleport-buildbox-arm64-fips:$RUNTIME || true
-      - make -C build.assets buildbox-arm64-fips
-      - docker push quay.io/gravitational/teleport-buildbox-arm64-fips:$RUNTIME
+      - docker pull quay.io/gravitational/teleport-buildbox-arm-fips:$RUNTIME || true
+      - make -C build.assets buildbox-arm-fips
+      - docker push quay.io/gravitational/teleport-buildbox-arm-fips:$RUNTIME
 
 services:
   - name: Start Docker
@@ -4288,6 +4271,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 528d6b44363ae2a5d78cf319013ee11bb8a252cae3b2d0af18faec06e973ade9
+hmac: a73b73e5a7afc4758ab0e6c1dbef4fb700d7dc8ff2074eb0aeabd41e3cdf1b38
 
 ...

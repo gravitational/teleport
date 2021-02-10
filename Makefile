@@ -32,14 +32,13 @@ ifeq ("$(OS)","windows")
 BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s' -buildmode=exe
 CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
 endif
-# ARM builds need to specify the correct C compiler
+
 ifeq ("$(OS)","linux")
+# ARM builds need to specify the correct C compiler
 ifeq ("$(ARCH)","arm")
 CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
 endif
-endif
 # ARM64 builds need to specify the correct C compiler
-ifeq ("$(OS)","linux")
 ifeq ("$(ARCH)","arm64")
 CGOFLAG = CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc
 endif
@@ -77,7 +76,8 @@ endif
 # BPF support will only be built into Teleport if headers exist at build time.
 BPF_MESSAGE := "without BPF support"
 
-# BPF cannot currently be compiled on ARM due to this bug: https://github.com/iovisor/gobpf/issues/272
+# BPF cannot currently be compiled on ARMv7 due to this bug: https://github.com/iovisor/gobpf/issues/272
+# ARM64 builds are not affected.
 ifneq ("$(ARCH)","arm")
 ifneq ("$(wildcard /usr/include/bcc/libbpf.h)","")
 BPF_TAG := bpf
