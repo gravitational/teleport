@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/base32"
 	"encoding/base64"
+	"net"
 	"sort"
 	"testing"
 	"time"
@@ -663,7 +664,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 				checkInitErr: require.NoError,
 				authHandler:  u2fChallengeHandler,
 				checkAuthErr: require.NoError,
-				validateCert: func(t *testing.T, c *proto.UserCert) {
+				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
 					crt := c.GetSSH()
 					require.NotEmpty(t, crt)
 
@@ -673,7 +674,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					require.True(t, ok)
 
 					require.Contains(t, cert.Extensions, teleport.CertExtensionMFAVerified)
-					require.Contains(t, cert.Extensions, teleport.CertExtensionClientIP)
+					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionClientIP]).IsLoopback())
 					require.Equal(t, cert.ValidBefore, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()))
 				},
 			},
@@ -691,7 +692,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 				checkInitErr: require.NoError,
 				authHandler:  u2fChallengeHandler,
 				checkAuthErr: require.NoError,
-				validateCert: func(t *testing.T, c *proto.UserCert) {
+				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
 					crt := c.GetTLS()
 					require.NotEmpty(t, crt)
 
@@ -702,7 +703,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 					require.NoError(t, err)
 					require.True(t, identity.MFAVerified)
-					require.NotEmpty(t, identity.ClientIP)
+					require.True(t, net.ParseIP(identity.ClientIP).IsLoopback())
 					require.Equal(t, identity.Usage, []string{teleport.UsageKubeOnly})
 					require.Equal(t, identity.KubernetesCluster, "kube-a")
 				},
@@ -717,13 +718,13 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					Expires:   clock.Now().Add(teleport.UserSingleUseCertTTL),
 					Usage:     proto.UserCertsRequest_Database,
 					RouteToDatabase: proto.RouteToDatabase{
-						Database: "db-a",
+						ServiceName: "db-a",
 					},
 				},
 				checkInitErr: require.NoError,
 				authHandler:  u2fChallengeHandler,
 				checkAuthErr: require.NoError,
-				validateCert: func(t *testing.T, c *proto.UserCert) {
+				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
 					crt := c.GetTLS()
 					require.NotEmpty(t, crt)
 
@@ -734,9 +735,9 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 					require.NoError(t, err)
 					require.True(t, identity.MFAVerified)
-					require.NotEmpty(t, identity.ClientIP)
+					require.True(t, net.ParseIP(identity.ClientIP).IsLoopback())
 					require.Equal(t, identity.Usage, []string{teleport.UsageDatabaseOnly})
-					require.Equal(t, identity.RouteToDatabase.Database, "db-a")
+					require.Equal(t, identity.RouteToDatabase.ServiceName, "db-a")
 				},
 			},
 		},
@@ -768,7 +769,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 				checkInitErr: require.NoError,
 				authHandler:  u2fChallengeHandler,
 				checkAuthErr: require.NoError,
-				validateCert: func(t *testing.T, c *proto.UserCert) {
+				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
 					crt := c.GetSSH()
 					require.NotEmpty(t, crt)
 
@@ -778,7 +779,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					require.True(t, ok)
 
 					require.Contains(t, cert.Extensions, teleport.CertExtensionMFAVerified)
-					require.Contains(t, cert.Extensions, teleport.CertExtensionClientIP)
+					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionClientIP]).IsLoopback())
 					require.Equal(t, cert.ValidBefore, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()))
 				},
 			},
@@ -814,7 +815,7 @@ type generateUserSingleUseCertTestOpts struct {
 	checkInitErr require.ErrorAssertionFunc
 	authHandler  func(*testing.T, *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse
 	checkAuthErr require.ErrorAssertionFunc
-	validateCert func(*testing.T, *proto.UserCert)
+	validateCert func(*testing.T, *proto.SingleUseUserCert)
 }
 
 func testGenerateUserSingleUseCert(ctx context.Context, t *testing.T, cl *Client, opts generateUserSingleUseCertTestOpts) {

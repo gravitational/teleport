@@ -146,7 +146,7 @@ message UserCertsRequest {
 
     // NodeName is the name of the SSH node that this user certificate will be
     // scoped to.
-    string NodeName = 9 [ (gogoproto.jsontag) = "node_name, omitempty" ];
+    string NodeName = 9 [ (gogoproto.jsontag) = "node_name,omitempty" ];
 
     enum CertUsage {
         All = 0;
@@ -705,12 +705,12 @@ message UserSingleUseCertsRequest {
 message UserSingleUseCertsResponse {
     oneof Response {
         MFAAuthenticateChallenge MFAChallenge = 1;
-        UserCert Cert = 2;
+        SingleUseUserCert Cert = 2;
     }
 }
 
-// UserCert is a single user certificate, either SSH or TLS.
-message UserCert {
+// SingleUseUserCert is a single-use user certificate, either SSH or TLS.
+message SingleUseUserCert {
     oneof Cert {
         bytes SSH = 1;
         bytes TLS = 2;

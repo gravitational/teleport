@@ -25,6 +25,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 type Keygen struct {
@@ -46,9 +47,18 @@ func NewWithClock(clock clockwork.Clock) *Keygen {
 func (n *Keygen) GetNewKeyPairFromPool() ([]byte, []byte, error) {
 	return n.GenerateKeyPair("")
 }
+
 func (n *Keygen) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
 	randomKey := testPairs[(random.Int() % len(testPairs))]
 	return randomKey.Priv, randomKey.Pub, nil
+}
+
+func (n *Keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
+	return n.GenerateHostCertWithoutValidation(c)
+}
+
+func (n *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
+	return n.GenerateUserCertWithoutValidation(c)
 }
 
 type PreparedKeyPair struct {

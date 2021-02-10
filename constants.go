@@ -438,7 +438,7 @@ const (
 	// CertExtensionTeleportActiveRequests is used to track which privilege
 	// escalation requests were used to construct the certificate.
 	CertExtensionTeleportActiveRequests = "teleport-active-requests"
-	// CertExtensionMFAVerified is use to mark certificates issued after an MFA
+	// CertExtensionMFAVerified is used to mark certificates issued after an MFA
 	// check.
 	CertExtensionMFAVerified = "mfa-verified"
 	// CertExtensionClientIP is used to embed the IP of the client that created

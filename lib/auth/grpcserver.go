@@ -1588,8 +1588,8 @@ func validateUserSingleUseCertRequest(req *proto.UserCertsRequest, clock clockwo
 			return trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
 		}
 	case proto.UserCertsRequest_Database:
-		if req.RouteToDatabase.Database == "" {
-			return trace.BadParameter("missing Database field in a database-only UserCertsRequest")
+		if req.RouteToDatabase.ServiceName == "" {
+			return trace.BadParameter("missing ServiceName field in a database-only UserCertsRequest")
 		}
 	case proto.UserCertsRequest_All:
 		return trace.BadParameter("must specify a concrete Usage in UserCertsRequest, one of SSH, Kubernetes or Database")
@@ -1636,7 +1636,7 @@ func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService
 	return nil
 }
 
-func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req proto.UserCertsRequest) (*proto.UserCert, error) {
+func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req proto.UserCertsRequest) (*proto.SingleUseUserCert, error) {
 	// Get the client IP.
 	clientPeer, ok := peer.FromContext(ctx)
 	if !ok {
@@ -1652,12 +1652,12 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req prot
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	resp := new(proto.UserCert)
+	resp := new(proto.SingleUseUserCert)
 	switch req.Usage {
 	case proto.UserCertsRequest_SSH:
-		resp.Cert = &proto.UserCert_SSH{SSH: certs.SSH}
+		resp.Cert = &proto.SingleUseUserCert_SSH{SSH: certs.SSH}
 	case proto.UserCertsRequest_Kubernetes, proto.UserCertsRequest_Database:
-		resp.Cert = &proto.UserCert_TLS{TLS: certs.TLS}
+		resp.Cert = &proto.SingleUseUserCert_TLS{TLS: certs.TLS}
 	default:
 		return nil, trace.BadParameter("unknown certificate usage %q", req.Usage)
 	}

@@ -234,12 +234,18 @@ func (k *Keygen) GenerateHostCertWithoutValidation(c services.HostCertParams) ([
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
 
-// GenerateUserCert generates a host certificate with the passed in parameters.
+// GenerateUserCert generates a user certificate with the passed in parameters.
 // The private key of the CA to sign the certificate must be provided.
 func (k *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 	if err := c.Check(); err != nil {
 		return nil, trace.Wrap(err, "error validating UserCertParams")
 	}
+	return k.GenerateUserCertWithoutValidation(c)
+}
+
+// GenerateUserCertWithoutValidation generates a user certificate with the
+// passed in parameters without validating them. For use in tests only.
+func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([]byte, error) {
 	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(c.PublicUserKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
