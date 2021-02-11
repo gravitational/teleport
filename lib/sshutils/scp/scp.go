@@ -398,7 +398,7 @@ func (cmd *command) serveSink(ch io.ReadWriter) error {
 	}
 
 	rootDir := localDir
-	if len(cmd.Flags.Target) != 0 && cmd.FileSystem.IsDir(cmd.Flags.Target[0]) {
+	if cmd.hasTargetDir() {
 		rootDir = newPathFromDir(cmd.Flags.Target[0])
 	}
 
@@ -594,6 +594,10 @@ func (cmd *command) updateDirTimes(path pathSegments) error {
 		}
 	}
 	return nil
+}
+
+func (cmd *command) hasTargetDir() bool {
+	return len(cmd.Flags.Target) != 0 && cmd.FileSystem.IsDir(cmd.Flags.Target[0])
 }
 
 func (r newFileCmd) String() string {

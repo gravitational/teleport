@@ -1412,16 +1412,15 @@ func onSCP(cf *CLIConf) error {
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
 		return tc.SCP(cf.Context, cf.CopySpec, int(cf.NodePort), flags, cf.Quiet)
 	})
-	if err != nil {
-		// exit with the same exit status as the failed command:
-		if tc.ExitStatus != 0 {
-			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-			os.Exit(tc.ExitStatus)
-		} else {
-			return trace.Wrap(err)
-		}
+	if err == nil {
+		return nil
 	}
-	return nil
+	// exit with the same exit status as the failed command:
+	if tc.ExitStatus != 0 {
+		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
+		os.Exit(tc.ExitStatus)
+	}
+	return trace.Wrap(err)
 }
 
 // makeClient takes the command-line configuration and constructs & returns

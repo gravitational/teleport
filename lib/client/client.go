@@ -910,7 +910,7 @@ func (c *NodeClient) ExecuteSCP(ctx context.Context, cmd scp.Command) error {
 		if err != nil && errors.Is(err, &ssh.ExitMissingError{}) {
 			// TODO(dmitri): currently, if the session is aborted with (*session).Close,
 			// the remote side cannot send exit-status and this error results.
-			// To abort the session properly, Teleport needs to support `signal` subsystem
+			// To abort the session properly, Teleport needs to support `signal` request
 			err = nil
 		}
 		runC <- err
@@ -919,7 +919,9 @@ func (c *NodeClient) ExecuteSCP(ctx context.Context, cmd scp.Command) error {
 	var runErr error
 	select {
 	case <-ctx.Done():
-		s.Close()
+		if err := s.Close(); err != nil {
+			log.WithError(err).Debug("Failed to close the SSH session.")
+		}
 		err, runErr = <-execC, <-runC
 	case err = <-execC:
 		runErr = <-runC
