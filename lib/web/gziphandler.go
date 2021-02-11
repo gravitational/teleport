@@ -14,8 +14,9 @@ type gzipResponseWriter struct {
 
 // Write uses the Writer part of gzipResponseWriter to write the output.
 func (w gzipResponseWriter) Write(b []byte) (int, error) {
-	// Explicitly set Content-Type, otherwise the browser gets confused.
-	if "" == w.Header().Get("Content-Type") {
+	_, haveType := w.Header()["Content-Type"]
+	// Explicitly set Content-Type if it has not been set previously.
+	if !haveType {
 		// If no content type, apply sniffing algorithm to un-gzipped body.
 		w.Header().Set("Content-Type", http.DetectContentType(b))
 	}
@@ -40,20 +41,7 @@ func MakeGzipHandler(handler http.Handler) http.Handler {
 	})
 }
 
-// isCompressedImageRequest checks whether a request is for a png or jpeg
+// isCompressedImageRequest checks whether a request is for a png or jpg/jpeg
 func isCompressedImageRequest(r *http.Request) bool {
-	pathLen := len(r.URL.Path)
-
-	// Path must be at least 5 characters long to be asking for a compressed image
-	if pathLen < len("a.png") {
-		return false
-	}
-
-	b := pathLen
-	a := pathLen - len(".png") // or ".jpg"
-	if r.URL.Path[a:b] == ".png" || r.URL.Path[a:b] == ".jpg" || r.URL.Path[a-1:b] == ".jpeg" {
-		return true
-	}
-
-	return false
+	return strings.HasSuffix(r.URL.Path, ".png") || strings.HasSuffix(r.URL.Path, ".jpg") || strings.HasSuffix(r.URL.Path, ".jpeg")
 }
