@@ -14,57 +14,24 @@ The following examples install the 64-bit version of Teleport binaries, but
 Release](https://gravitational.com/teleport/download/) page for the most
 up-to-date information.
 
-=== "Tarball"
+=== "Debian/Ubuntu (DEB)"
 
     ```bash
-    $ curl https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz.sha256
-    # <checksum> <filename>
-    $ curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
-    $ shasum -a 256 teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
-    # Verify that the checksums match
-    $ tar -xzf teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
-    $ cd teleport
-    $ ./install
-    $ which teleport
-    /usr/local/bin/teleport
+    # Install our public key.
+    $ curl https://deb.releases.teleport.dev/teleport-pubkey.asc | sudo apt-key add -
+    # Add repo to APT
+    $ add-apt-repository 'deb https://deb.releases.teleport.dev/ stable main'
+    # Update APT Cache
+    $ apt-get
+    # Install Teleport
+    $ apt install teleport
     ```
 
-=== "DEB"
+=== "Amazon Linux 2/RHEL/Fedora (RPM)"
 
     ```bash
-    $ curl https://get.gravitational.com/teleport_{{ teleport.version }}_amd64.deb.sha256
-    # <checksum> <filename>
-    $ curl -O https://get.gravitational.com/teleport_{{ teleport.version }}_amd64.deb
-    $ sha256sum teleport_{{ teleport.version }}_amd64.deb
-    # Verify that the checksums match
-    $ dpkg -i teleport_{{ teleport.version }}_amd64.deb
-    $ which teleport
-    /usr/local/bin/teleport
-    ```
-
-=== "RPM"
-
-    ```bash
-    $ curl https://get.gravitational.com/teleport-{{ teleport.version }}-1.x86_64.rpm.sha256
-    # <checksum> <filename>
-    $ curl -O https://get.gravitational.com/teleport-{{ teleport.version }}-1.x86_64.rpm
-    $ sha256sum teleport-{{ teleport.version }}-1.x86_64.rpm
-    # Verify that the checksums match
-    $ rpm -i teleport-{{ teleport.version }}-1.x86_64.rpm
-    $ which teleport
-    /usr/local/bin/teleport
-    ```
-
-=== "Amazon Linux 2"
-
-    ```bash
-    $ yum install https://get.gravitational.com/teleport-{{ teleport.version }}-1.x86_64.rpm.sha256
-    $ which teleport
-    /usr/local/bin/teleport
-    $ cd teleport
-    $ sudo ./install
-    $ which teleport
-    /usr/local/bin/teleport
+    $ yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
+    $ yum install teleport
     ```
 
 === "ARMv7 (32-bit)"
@@ -78,8 +45,6 @@ up-to-date information.
     $ tar -xzf teleport-v{{ teleport.version }}-linux-arm-bin.tar.gz
     $ cd teleport
     $ ./install
-    $ which teleport
-    /usr/local/bin/teleport
     ```
 
 === "ARM64/ARMv8 (64-bit)"
@@ -93,13 +58,24 @@ up-to-date information.
     $ tar -xzf teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz
     $ cd teleport
     $ ./install
-    $ which teleport
-    /usr/local/bin/teleport
+    ```
+
+=== "Tarball"
+
+    ```bash
+    $ curl https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz.sha256
+    # <checksum> <filename>
+    $ curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
+    $ shasum -a 256 teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
+    # Verify that the checksums match
+    $ tar -xzf teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
+    $ cd teleport
+    $ ./install
     ```
 
 ## Docker
 
-Please follow our [OSS Docker Quickstart](quickstart-docker.md) or [Enterprise Docker Quickstart](enterprise/quickstart-enterprise.md#run-teleport-enterprise-using-docker) for install and setup instructions.
+Please follow our [Getting started with Teleport using Docker](quickstart-docker.md) or with [Teleport Enterprise using Docker](enterprise/quickstart-enterprise.md#run-teleport-enterprise-using-docker) for install and setup instructions.
 
 ```bash
 $ docker pull quay.io/gravitational/teleport:{{ teleport.version }}
