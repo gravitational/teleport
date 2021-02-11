@@ -17,7 +17,7 @@ and `auth servers`.
 - **Proxy servers** route client connection requests to the appropriate node and serve a
   Web UI which can also be used to log into SSH nodes. Every client-to-node
   connection in Teleport must be routed via a proxy.
-- **Nodes** provide access to resources including ssh, kubernetes, web applications
+- **Nodes** provide access to resources including SSH, Kubernetes, web applications
   and databases.  In this quick start guide we are highlighting the ssh service. This ssh service
   is similar to the `sshd` daemon you may be familiar
   with. When a node receives a connection request, the request is authenticated
