@@ -4855,53 +4855,6 @@ func (s *IntSuite) TestBPFSessionDifferentiation(c *check.C) {
 	c.Fatalf("Failed to find command events from two different sessions.")
 }
 
-// TestExecEvents tests if exec events were emitted with and without PTY allocated
-func (s *IntSuite) TestExecEvents(c *check.C) {
-	s.setUpTest(c)
-	defer s.tearDownTest(c)
-	tr := utils.NewTracer(utils.ThisFunction()).Start()
-	defer tr.Stop()
-
-	lsPath, err := exec.LookPath("ls")
-	c.Assert(err, check.IsNil)
-
-	// Creates new teleport cluster
-	main := s.newTeleport(c, nil, true)
-	defer main.StopAll()
-
-	var execTests = []struct {
-		isInteractive bool
-		outCommand    string
-	}{
-		{
-			isInteractive: true,
-			outCommand:    lsPath,
-		},
-		{
-			isInteractive: false,
-			outCommand:    lsPath,
-		},
-	}
-
-	for _, tt := range execTests {
-		// Create client for each test in grid tests
-		clientConfig := ClientConfig{
-			Login:       s.me.Username,
-			Cluster:     Site,
-			Host:        Host,
-			Port:        main.GetPortSSHInt(),
-			Interactive: tt.isInteractive,
-		}
-
-		_, err := runCommand(main, []string{lsPath}, clientConfig, 1)
-		c.Assert(err, check.IsNil)
-		// Make sure the exec event was emitted to the audit log.
-		eventFields, err := findEventInLog(main, events.ExecEvent)
-		c.Assert(err, check.IsNil)
-		c.Assert(eventFields.GetString(events.ExecEventCommand), check.Equals, tt.outCommand)
-	}
-}
-
 // findEventInLog polls the event log looking for an event of a particular type.
 func findEventInLog(t *TeleInstance, eventName string) (events.EventFields, error) {
 	for i := 0; i < 10; i++ {
