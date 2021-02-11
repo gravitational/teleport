@@ -1153,6 +1153,10 @@ func (a *ServerWithRoles) NewKeepAliver(ctx context.Context) (services.KeepAlive
 
 // GenerateUserCerts generates users certificates
 func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
+	return a.generateUserCerts(ctx, req)
+}
+
+func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserCertsRequest, opts ...certRequestOption) (*proto.Certs, error) {
 	var err error
 	var roles []string
 	var traits wrappers.Traits
@@ -1177,7 +1181,9 @@ func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserC
 			log.Warningf("Encountered identity with no expiry: %v and denied request. Must be internal logic error.", a.context.Identity)
 			return nil, trace.AccessDenied("access denied")
 		}
-		req.Expires = expires
+		if req.Expires.After(expires) {
+			req.Expires = expires
+		}
 		if req.Expires.Before(a.authServer.GetClock().Now()) {
 			return nil, trace.AccessDenied("access denied: client credentials have expired, please relogin.")
 		}
@@ -1257,7 +1263,7 @@ func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserC
 
 	// Generate certificate, note that the roles TTL will be ignored because
 	// the request is coming from "tctl auth sign" itself.
-	certs, err := a.authServer.generateUserCert(certRequest{
+	certReq := certRequest{
 		user:              user,
 		ttl:               req.Expires.Sub(a.authServer.GetClock().Now()),
 		compatibility:     req.Format,
@@ -1274,7 +1280,24 @@ func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserC
 		activeRequests: services.RequestIDs{
 			AccessRequests: req.AccessRequests,
 		},
-	})
+	}
+	switch req.Usage {
+	case proto.UserCertsRequest_Database:
+		certReq.usage = []string{teleport.UsageDatabaseOnly}
+	case proto.UserCertsRequest_Kubernetes:
+		certReq.usage = []string{teleport.UsageKubeOnly}
+	case proto.UserCertsRequest_SSH:
+		// SSH certs are ssh-only by definition, certReq.usage only applies to
+		// TLS certs.
+	case proto.UserCertsRequest_All:
+		// Unrestricted usage.
+	default:
+		return nil, trace.BadParameter("unsupported cert usage %q", req.Usage)
+	}
+	for _, o := range opts {
+		o(&certReq)
+	}
+	certs, err := a.authServer.generateUserCert(certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2494,6 +2517,15 @@ func (a *ServerWithRoles) AddMFADevice(ctx context.Context) (proto.AuthService_A
 // Use auth.GRPCServer.DeleteMFADevice or client.Client.DeleteMFADevice instead.
 func (a *ServerWithRoles) DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error) {
 	return nil, trace.NotImplemented("bug: DeleteMFADevice must not be called on auth.ServerWithRoles")
+}
+
+// GenerateUserSingleUseCerts exists to satisfy auth.ClientI but is not
+// implemented here.
+//
+// Use auth.GRPCServer.GenerateUserSingleUseCerts or
+// client.Client.GenerateUserSingleUseCerts instead.
+func (a *ServerWithRoles) GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error) {
+	return nil, trace.NotImplemented("bug: GenerateUserSingleUseCerts must not be called on auth.ServerWithRoles")
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

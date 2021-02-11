@@ -265,6 +265,11 @@ type UserCertParams struct {
 	// ActiveRequests tracks privilege escalation requests applied during
 	// certificate construction.
 	ActiveRequests RequestIDs
+	// MFAVerified is set when these cert parameters were provided by the auth
+	// server immediately after an MFA check.
+	MFAVerified bool
+	// ClientIP is an IP of the client to embed in the certificate.
+	ClientIP string
 }
 
 // Check checks the user certificate parameters
