@@ -88,7 +88,7 @@ $ sudo systemctl enable teleport
 
 ### Configuration File
 
-save the following configuration file as `/etc/teleport.yaml` on the _auth.example.com_:
+Save the following configuration file as `/etc/teleport.yaml` on the _auth.example.com_:
 
 ```yaml
 teleport:
