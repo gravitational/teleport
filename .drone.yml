@@ -1057,7 +1057,7 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
-      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+      - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
       - docker pull quay.io/gravitational/teleport-buildbox-arm-fips:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
@@ -1258,7 +1258,7 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
-      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+      - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
       - docker pull quay.io/gravitational/teleport-buildbox-arm-fips:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
@@ -3264,6 +3264,7 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
+      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - docker pull quay.io/gravitational/teleport-buildbox-arm:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets release-arm
@@ -3364,6 +3365,7 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
+      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - docker pull quay.io/gravitational/teleport-buildbox-arm:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets release-arm64
@@ -3465,6 +3467,7 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
+      - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
       - docker pull quay.io/gravitational/teleport-buildbox-arm-fips:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
@@ -4379,6 +4382,6 @@ volumes:
 
 ---
 kind: signature
-hmac: ae1c9456686b7053f9f0a24b30f42bceda00fff2905e2c081779966db4b40113
+hmac: 697517fea1b0909854f4f1cb39790a37a099b66c5dc2d38e7258de0b4c497cc2
 
 ...
