@@ -19,14 +19,14 @@ Teleport on Linux machine(s).
 There are several ways to install Teleport.
 Take a look at the [Teleport Installation](installation.md) page to pick the most convenient for you.
 
-=== "yum repo"
+=== "RPM repo (CentOS/RHEL/Fedora/Amazon Linux 2)"
 
     ```bash
     sudo yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
     sudo yum install teleport
     ```
 
-=== "deb repo"
+=== "DEB repo (Debian/Ubuntu/Linux Mint)"
 
     ```bash
     add-apt-repository 'deb https://deb.releases.teleport.dev/ stable main'

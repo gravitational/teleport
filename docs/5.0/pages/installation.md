@@ -14,7 +14,7 @@ The following examples install the 64-bit version of Teleport binaries, but
 Release](https://gravitational.com/teleport/download/) page for the most
 up-to-date information.
 
-=== "deb repo"
+=== "DEB repo (Debian/Ubuntu/Linux Mint)"
 
     ```bash
     # Install our public key. Fingerprint: 0c5e 8ba5 658e 320d 1b03 1179 c87e d53a 6282 c411
@@ -27,7 +27,7 @@ up-to-date information.
     $ apt install teleport
     ```
 
-=== "rpm repo & Amazon Linux 2"
+=== "RPM repo (CentOS/RHEL/Fedora/Amazon Linux 2)"
 
     ```bash
     $ yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
