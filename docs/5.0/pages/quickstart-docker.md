@@ -1,5 +1,5 @@
 ---
-title: Teleport Quick Start guide with Docker
+title: Getting started with Teleport using Docker
 description: How to get started with Teleport using Docker for SSH access
 ---
 
