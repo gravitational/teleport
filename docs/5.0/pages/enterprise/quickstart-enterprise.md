@@ -17,7 +17,7 @@ and `auth servers`.
 - **Proxy servers** route client connection requests to the appropriate node and serve a
   Web UI which can also be used to log into SSH nodes. Every client-to-node
   connection in Teleport must be routed via a proxy.
-- **Nodes** provide access to resources including ssh, kubernetes, web applications 
+- **Nodes** provide access to resources including ssh, kubernetes, web applications
   and databases.  In this quick start guide we are highlighting the ssh service. This ssh service
   is similar to the `sshd` daemon you may be familiar
   with. When a node receives a connection request, the request is authenticated
@@ -30,7 +30,7 @@ interact with it using Teleport's client-side tools:
 | Tool       | Description
 |------------|------------
 | tctl       | Cluster administration tool used to invite nodes to a cluster and manage user accounts.
-| tsh        | Allows users to authenticate and access resources via their local machine. `tsh`'s ssh functionality is similar in principle to OpenSSH's `ssh`. Users can login into remote SSH nodes, list and search for nodes in a cluster, securely upload/download files, etc. 
+| tsh        | Allows users to authenticate and access resources via their local machine. `tsh`'s ssh functionality is similar in principle to OpenSSH's `ssh`. Users can login into remote SSH nodes, list and search for nodes in a cluster, securely upload/download files, etc.
 | browser    | You can use your web browser to login into any Teleport node by opening `https://<proxy-host>:3080`.
 
 ## Prerequisites
@@ -43,7 +43,7 @@ the following DNS names and IPs:
 Server Name    |  IP Address    | Purpose
 ---------------|----------------|--------------
 _"auth.example.com"_  | 10.1.1.10      | This server will be used to run all three Teleport services: auth, proxy and ssh.
-_"node.example.com"_  | 10.1.1.11      | This server will only run the SSH service. 
+_"node.example.com"_  | 10.1.1.11      | This server will only run the SSH service.
 
 This Quick Start Guide assumes that both servers are running a [systemd-based](https://www.freedesktop.org/wiki/Software/systemd/)
 Linux distribution such as Debian, Ubuntu or a RHEL derivative.  The _node.example.com_ must be able to connect to the _auth.example.com_ `3025` port and the _auth.example.com_ must be able to connect to the 3022 port on _node.example.com_.
@@ -86,7 +86,7 @@ $ sudo systemctl daemon-reload
 $ sudo systemctl enable teleport
 ```
 
-### Configuration File 
+### Configuration File
 
 save the following configuration file as `/etc/teleport.yaml` on the _auth.example.com_:
 
@@ -99,7 +99,7 @@ teleport:
 proxy_service:
   # enable the proxy service
   enabled: true
-  
+
 auth_service:
   # enable the auth service:
   enabled: true
