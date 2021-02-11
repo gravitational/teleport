@@ -175,8 +175,8 @@ $ sudo systemctl status teleport
 You can review the logs of the Teleport service with `journalctl -fu teleport` and see its current status
 with `sudo systemctl status teleport`.
 
-You can use `netstat -lptne` to review the port
-listening on [TCP/IP ports](../admin-guide.md#ports). On _auth.example.com_, it should
+You can use `netstat -lptne` to review the port that Teleport is
+listening on - see [TCP/IP ports](../admin-guide.md#ports). On _auth.example.com_, it should
 look something like this:
 
 ```bsh
