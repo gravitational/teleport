@@ -3,8 +3,8 @@ contact_links:
   - name: Teleport Documentation
     url: https://goteleport.com/teleport/docs/
     about: Check out the Teleport documentation for answers to common questions
-  - name: Teleport Community Forum
-    url: https://community.goteleport.com/
+  - name: Teleport Discussions
+    url: https://github.com/gravitational/teleport/discussions
     about: Ask Teleport related questions, answered by the Team and community.
   - name: Request a Demo
     url: https://goteleport.com/get-started/
