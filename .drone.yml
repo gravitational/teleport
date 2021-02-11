@@ -66,8 +66,8 @@ steps:
           export PR_REPO=$(curl -Ls https://api.github.com/repos/gravitational/${DRONE_REPO_NAME}/pulls/${DRONE_PULL_REQUEST} | jq -r '.head.repo.full_name')
           echo "---> Source repo for PR ${DRONE_PULL_REQUEST}: $${PR_REPO}"
           # if the source repo for the PR matches DRONE_REPO, then this is not a PR raised from a fork
-          if [ "$${PR_REPO}" = "${DRONE_REPO}" ]; then
-            mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+          if [ "$${PR_REPO}" = "${DRONE_REPO}" ] || [ "${DRONE_REPO}" = "gravitational/teleport-private" ]; then
+            mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
             ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
             git submodule update --init e
             # do a recursive submodule checkout to get both webassets and webassets/e
@@ -4372,6 +4372,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 6b6af26602fd7de68f473e27ecf6bb98e37b2ef2d5df3484cd5e1d2f88c6655d
+hmac: 316386d14b171635c1189a65e7d840ac85fccc37a91c228d6b4f569043f7ab79
 
 ...
