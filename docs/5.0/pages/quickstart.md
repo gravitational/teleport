@@ -24,6 +24,10 @@ Take a look at the [Teleport Installation](installation.md) page to pick the mos
     ```bash
     sudo yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
     sudo yum install teleport
+
+    # Optional:  Using DNF on newer distributions
+    # $ sudo dnf config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
+    # $ sudo dnf install teleport
     ```
 
 === "DEB repo (Debian/Ubuntu/Linux Mint)"
