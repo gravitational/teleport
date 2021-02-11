@@ -14,20 +14,20 @@ The following examples install the 64-bit version of Teleport binaries, but
 Release](https://gravitational.com/teleport/download/) page for the most
 up-to-date information.
 
-=== "DEB repo (Debian/Ubuntu/Linux Mint)"
+=== "Debian/Ubuntu (DEB)"
 
     ```bash
-    # Install our public key. Fingerprint: 0c5e 8ba5 658e 320d 1b03 1179 c87e d53a 6282 c411
+    # Install our public key.
     $ curl https://deb.releases.teleport.dev/teleport-pubkey.asc | sudo apt-key add -
     # Add repo to APT
     $ add-apt-repository 'deb https://deb.releases.teleport.dev/ stable main'
     # Update APT Cache
-    $ apt update
+    $ apt-get
     # Install Teleport
     $ apt install teleport
     ```
 
-=== "RPM repo (CentOS/RHEL/Fedora/Amazon Linux 2)"
+=== "Amazon Linux 2/RHEL/Fedora (RPM)"
 
     ```bash
     $ yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
@@ -75,7 +75,7 @@ up-to-date information.
 
 ## Docker
 
-Please follow our [OSS Docker Quick Start](quickstart-docker.md) or [Enterprise Docker Quick Start](enterprise/quickstart-enterprise.md#run-teleport-enterprise-using-docker) for install and setup instructions.
+Please follow our [Getting started with Teleport using Docker](quickstart-docker.md) or with [Teleport Enterprise using Docker](enterprise/quickstart-enterprise.md#run-teleport-enterprise-using-docker) for install and setup instructions.
 
 ```bash
 $ docker pull quay.io/gravitational/teleport:{{ teleport.version }}

@@ -1,9 +1,9 @@
 ---
-title: Teleport Quick Start
-description: The quick start guide for how to set up modern SSH access to cloud or edge infrastructure.
+title: Getting started with Teleport
+description: The getting started with guide for how to set up modern SSH access to cloud or edge infrastructure.
 ---
 
-# Teleport Quick Start
+# Getting started with Teleport
 
 This tutorial will guide you through the steps needed to install and run
 Teleport on Linux machine(s).
@@ -19,7 +19,7 @@ Teleport on Linux machine(s).
 There are several ways to install Teleport.
 Take a look at the [Teleport Installation](installation.md) page to pick the most convenient for you.
 
-=== "RPM repo (CentOS/RHEL/Fedora/Amazon Linux 2)"
+=== "Amazon Linux 2/RHEL (RPM)"
 
     ```bash
     sudo yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
@@ -30,11 +30,11 @@ Take a look at the [Teleport Installation](installation.md) page to pick the mos
     # $ sudo dnf install teleport
     ```
 
-=== "DEB repo (Debian/Ubuntu/Linux Mint)"
+=== "Debian/Ubuntu (DEB)"
 
     ```bash
     add-apt-repository 'deb https://deb.releases.teleport.dev/ stable main'
-    apt-update
+    apt-get
     apt install teleport
     ```
 
@@ -76,7 +76,7 @@ teleport:
     data_dir: /var/lib/teleport
 auth_service:
     enabled: true
-    cluster_name: "teleport-quickstart"
+    cluster_name: "teleport"
     listen_addr: 0.0.0.0:3025
     tokens:
     - proxy,node,app:f7adb7ccdf04037bcd2b52ec6010fd6f0caec94ba190b765
@@ -297,7 +297,7 @@ Armed with these details, we'll bootstrap a new host using
     --roles=node \
     --auth-server=https://teleport.example.com:3080 \
     --token=f7adb7ccdf04037bcd2b52ec6010fd6f0caec94ba190b765 \
-    --labels=env=quickstart
+    --labels=env=demo
     ```
 
 === "cloud-config"
@@ -323,7 +323,7 @@ Armed with these details, we'll bootstrap a new host using
             ssh_service:
                 enabled: true
                 labels:
-                    env: quickstart
+                    env: demo
 
     runcmd:
     - 'mkdir -p /tmp/teleport'
