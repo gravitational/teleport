@@ -1607,7 +1607,7 @@ func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService
 	ctx := stream.Context()
 	auth := gctx.authServer
 	user := gctx.User.GetName()
-	u2fStorage, err := u2f.InMemoryAuthenticationStorage(auth.Identity)
+	u2fStorage, err := u2f.InMemoryAuthenticationStorage(auth.LocalIdentity)
 	if err != nil {
 		return trace.Wrap(err)
 	}

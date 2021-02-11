@@ -2423,15 +2423,6 @@ func (a *ServerWithRoles) DeleteAllKubeServices(ctx context.Context) error {
 	return a.authServer.Services.DeleteAllKubeServices(ctx)
 }
 
-// GenerateUserSingleUseCerts exists to satisfy auth.ClientI but is not
-// implemented here.
-//
-// Use auth.GRPCServer.GenerateUserSingleUseCerts or
-// client.Client.GenerateUserSingleUseCerts instead.
-func (a *ServerWithRoles) GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error) {
-	return nil, trace.NotImplemented("bug: GenerateUserSingleUseCerts must not be called on auth.ServerWithRoles")
-}
-
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
 func NewAdminAuthServer(authServer *Server, sessions session.Service, alog events.IAuditLog) (*ServerWithRoles, error) {

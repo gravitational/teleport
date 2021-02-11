@@ -2180,12 +2180,6 @@ type IdentityService interface {
 	// returns the resulting certificates.
 	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
 
-	// FIXME(dmitri): move me elsewhere
-	// // GenerateUserSingleUseCerts is like GenerateUserCerts but issues a
-	// // certificate for a single session
-	// // (https://github.com/gravitational/teleport/blob/3a1cf9111c2698aede2056513337f32bfc16f1f1/rfd/0014-session-2FA.md#sessions).
-	// GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error)
-
 	// CreateResetPasswordToken creates a new user reset token
 	CreateResetPasswordToken(ctx context.Context, req CreateResetPasswordTokenRequest) (services.ResetPasswordToken, error)
 
