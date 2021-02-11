@@ -155,7 +155,6 @@ teleport:
   # enable ssh service and disable auth and proxy:
 ssh_service:
   enabled: true
-
 auth_service:
   enabled: false
 proxy_service:
