@@ -14,144 +14,51 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package testauthority implements a wrapper around native.Keygen that uses
+// pre-computed keys.
 package testauthority
 
 import (
-	"crypto/rand"
+	"context"
 	random "math/rand"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"golang.org/x/crypto/ssh"
 )
 
 type Keygen struct {
 	clock clockwork.Clock
+	*native.Keygen
 }
 
 // New creates a new key generator with defaults
 func New() *Keygen {
-	return &Keygen{clock: clockwork.NewRealClock()}
+	return NewWithClock(clockwork.NewRealClock())
 }
 
 // NewWithClock creates a new key generator with the specified configuration
 func NewWithClock(clock clockwork.Clock) *Keygen {
-	return &Keygen{clock: clock}
-}
-
-func (n *Keygen) Close() {
+	inner := native.New(context.Background(), native.PrecomputeKeys(0), native.SetClock(clock))
+	return &Keygen{Keygen: inner, clock: clock}
 }
 
 func (n *Keygen) GetNewKeyPairFromPool() ([]byte, []byte, error) {
 	return n.GenerateKeyPair("")
 }
+
 func (n *Keygen) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
 	randomKey := testPairs[(random.Int() % len(testPairs))]
 	return randomKey.Priv, randomKey.Pub, nil
 }
 
 func (n *Keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
-	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(c.PublicHostKey)
-	if err != nil {
-		return nil, err
-	}
-	validBefore := uint64(ssh.CertTimeInfinity)
-	if c.TTL != 0 {
-		b := n.clock.Now().Add(c.TTL)
-		validBefore = uint64(b.Unix())
-	}
-	principals := native.BuildPrincipals(c.HostID, c.NodeName, c.ClusterName, c.Roles)
-	principals = append(principals, c.Principals...)
-	cert := &ssh.Certificate{
-		ValidPrincipals: principals,
-		Key:             pubKey,
-		ValidBefore:     validBefore,
-		CertType:        ssh.HostCert,
-	}
-	cert.Permissions.Extensions = make(map[string]string)
-	cert.Permissions.Extensions[utils.CertExtensionRole] = c.Roles.String()
-	cert.Permissions.Extensions[utils.CertExtensionAuthority] = c.ClusterName
-	signer, err := ssh.ParsePrivateKey(c.PrivateCASigningKey)
-	if err != nil {
-		return nil, err
-	}
-	signer = sshutils.AlgSigner(signer, c.CASigningAlg)
-	if err := cert.SignCert(rand.Reader, signer); err != nil {
-		return nil, err
-	}
-	return ssh.MarshalAuthorizedKey(cert), nil
+	return n.GenerateHostCertWithoutValidation(c)
 }
 
 func (n *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
-	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(c.PublicUserKey)
-	if err != nil {
-		return nil, err
-	}
-	validBefore := uint64(ssh.CertTimeInfinity)
-	if c.TTL != 0 {
-		b := n.clock.Now().Add(c.TTL)
-		validBefore = uint64(b.Unix())
-	}
-	cert := &ssh.Certificate{
-		KeyId:           c.Username,
-		ValidPrincipals: c.AllowedLogins,
-		Key:             pubKey,
-		ValidBefore:     validBefore,
-		CertType:        ssh.UserCert,
-	}
-	signer, err := ssh.ParsePrivateKey(c.PrivateCASigningKey)
-	if err != nil {
-		return nil, err
-	}
-	signer = sshutils.AlgSigner(signer, c.CASigningAlg)
-	cert.Permissions.Extensions = map[string]string{
-		teleport.CertExtensionPermitPTY:            "",
-		teleport.CertExtensionPermitPortForwarding: "",
-	}
-	if c.PermitX11Forwarding {
-		cert.Permissions.Extensions[teleport.CertExtensionPermitX11Forwarding] = ""
-	}
-	if c.PermitAgentForwarding {
-		cert.Permissions.Extensions[teleport.CertExtensionPermitAgentForwarding] = ""
-	}
-	if !c.PermitPortForwarding {
-		delete(cert.Permissions.Extensions, teleport.CertExtensionPermitPortForwarding)
-	}
-
-	// Add roles, traits, and route to cluster in the certificate extensions if
-	// the standard format was requested. Certificate extensions are not included
-	// legacy SSH certificates due to a bug in OpenSSH <= OpenSSH 7.1:
-	// https://bugzilla.mindrot.org/show_bug.cgi?id=2387
-	if c.CertificateFormat == teleport.CertificateFormatStandard {
-		traits, err := wrappers.MarshalTraits(&c.Traits)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if len(traits) > 0 {
-			cert.Permissions.Extensions[teleport.CertExtensionTeleportTraits] = string(traits)
-		}
-		if len(c.Roles) != 0 {
-			roles, err := services.MarshalCertRoles(c.Roles)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			cert.Permissions.Extensions[teleport.CertExtensionTeleportRoles] = roles
-		}
-		if c.RouteToCluster != "" {
-			cert.Permissions.Extensions[teleport.CertExtensionTeleportRouteToCluster] = c.RouteToCluster
-		}
-	}
-	if err := cert.SignCert(rand.Reader, signer); err != nil {
-		return nil, err
-	}
-	return ssh.MarshalAuthorizedKey(cert), nil
+	return n.GenerateUserCertWithoutValidation(c)
 }
 
 type PreparedKeyPair struct {
