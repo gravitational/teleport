@@ -181,7 +181,7 @@ session [success=ok ignore=ignore module_unknown=ignore default=bad]        pam_
 @include common-password
 ```
 
-The default `sshd` will call two `pam_motd` files, one dynamic. That prints the machine
+The default `sshd` will call two `pam_motd` files, one dynamic MOTD that prints the machine
 info, and a static MOTD that can be set by an admin.
 
 ```
