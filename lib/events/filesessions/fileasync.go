@@ -521,7 +521,7 @@ func (u *Uploader) upload(up *upload) error {
 		}
 	}
 
-	if err = stream.Complete(u.ctx); err != nil {
+	if err := stream.Complete(u.ctx); err != nil {
 		u.log.WithError(err).Error("Failed to complete upload.")
 		return trace.Wrap(err)
 	}
