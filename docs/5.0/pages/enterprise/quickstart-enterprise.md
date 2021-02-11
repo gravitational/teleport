@@ -18,7 +18,7 @@ and `auth servers`.
   Web UI which can also be used to log into SSH nodes. Every client-to-node
   connection in Teleport must be routed via a proxy.
 - **Nodes** provide access to resources including SSH, Kubernetes, web applications
-  and databases.  In this quick start guide we are highlighting the ssh service. This ssh service
+  and databases.  In this quick start guide we are highlighting the SSH service. This SSH service
   is similar to the `sshd` daemon you may be familiar
   with. When a node receives a connection request, the request is authenticated
   through the cluster's auth server.
