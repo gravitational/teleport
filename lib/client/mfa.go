@@ -36,10 +36,6 @@ import (
 // key" or "device". This is used to emphasize between different kinds of
 // devices, like registered vs new.
 func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge, promptDevicePrefix string) (*proto.MFAAuthenticateResponse, error) {
-	if promptDevicePrefix != "" {
-		promptDevicePrefix = strings.TrimSpace(promptDevicePrefix) + " "
-	}
-
 	switch {
 	// No challenge.
 	case c.TOTP == nil && len(c.U2F) == 0:
@@ -68,7 +64,7 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 			resp *proto.MFAAuthenticateResponse
 			err  error
 		}
-		resCh := make(chan response)
+		resCh := make(chan response, 1)
 
 		go func() {
 			resp, err := promptU2FChallenges(ctx, proxyAddr, c.U2F)
@@ -79,7 +75,7 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 		}()
 
 		go func() {
-			totpCode, err := prompt.Input(os.Stdout, os.Stdin, fmt.Sprintf("Tap any %ssecurity key or enter a code from an %sOTP device", promptDevicePrefix, promptDevicePrefix))
+			totpCode, err := prompt.Input(os.Stdout, os.Stdin, fmt.Sprintf("Tap any %[1]ssecurity key or enter a code from a %[1]sOTP device", promptDevicePrefix, promptDevicePrefix))
 			res := response{kind: "TOTP", err: err}
 			if err == nil {
 				res.resp = &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{

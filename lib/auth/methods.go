@@ -161,7 +161,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 			}
 			if len(devs) != 0 {
 				log.Warningf("MFA bypass attempt by user %q, access denied.", req.Username)
-				return trace.AccessDenied("missing second factor")
+				return trace.AccessDenied("missing second factor authentication")
 			}
 		default:
 			// Some form of MFA is required but none provided. Either client is

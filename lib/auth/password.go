@@ -33,7 +33,7 @@ type ChangePasswordWithTokenRequest struct {
 	// Password is user password
 	Password []byte `json:"password"`
 	// U2FRegisterResponse is U2F registration challenge response.
-	U2FRegisterResponse u2f.RegisterChallengeResponse `json:"u2f_register_response"`
+	U2FRegisterResponse *u2f.RegisterChallengeResponse `json:"u2f_register_response,omitempty"`
 }
 
 // ChangePasswordWithToken changes password with token
@@ -399,7 +399,7 @@ func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, toke
 	}
 	if req.SecondFactorToken != "" {
 		if secondFactor == constants.SecondFactorU2F {
-			return trace.BadParameter("user %q sent a TOTP token during password reset but cluster only allows U2F for second factor", username)
+			return trace.BadParameter("user %q sent an OTP token during password reset but cluster only allows U2F for second factor", username)
 		}
 		secrets, err := s.Identity.GetResetPasswordTokenSecrets(ctx, req.TokenID)
 		if err != nil {
@@ -419,8 +419,7 @@ func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, toke
 
 		return nil
 	}
-	// Wish this was a pointer...
-	if req.U2FRegisterResponse != (u2f.RegisterChallengeResponse{}) {
+	if req.U2FRegisterResponse != nil {
 		if secondFactor == constants.SecondFactorOTP {
 			return trace.BadParameter("user %q sent a U2F registration during password reset but cluster only allows OTP for second factor", username)
 		}
@@ -433,7 +432,7 @@ func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, toke
 			DevName:                "u2f",
 			ChallengeStorageKey:    req.TokenID,
 			RegistrationStorageKey: username,
-			Resp:                   req.U2FRegisterResponse,
+			Resp:                   *req.U2FRegisterResponse,
 			Storage:                s.Identity,
 			Clock:                  s.GetClock(),
 		})

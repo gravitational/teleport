@@ -123,7 +123,7 @@ type CreateSSHCertWithMFAReq struct {
 	// User is a teleport username
 	User string `json:"user"`
 	// Password for the user, to authenticate in case no MFA check was
-	// preformed.
+	// performed.
 	Password string `json:"password"`
 
 	// U2FSignResponse is the signature from the U2F device

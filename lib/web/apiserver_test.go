@@ -1363,7 +1363,7 @@ func (s *WebSuite) TestChangePasswordWithTokenU2F(c *C) {
 	data, err := json.Marshal(auth.ChangePasswordWithTokenRequest{
 		TokenID:             token.GetName(),
 		Password:            []byte("qweQWE"),
-		U2FRegisterResponse: *u2fRegResp,
+		U2FRegisterResponse: u2fRegResp,
 	})
 	c.Assert(err, IsNil)
 
@@ -1438,7 +1438,7 @@ func testU2FLogin(t *testing.T, secondFactor constants.SecondFactorType) {
 	tempPass := []byte("abc123")
 	_, err = env.proxies[0].client.ChangePasswordWithToken(context.TODO(), auth.ChangePasswordWithTokenRequest{
 		TokenID:             token.GetName(),
-		U2FRegisterResponse: *u2fRegResp,
+		U2FRegisterResponse: u2fRegResp,
 		Password:            tempPass,
 	})
 	require.NoError(t, err)
