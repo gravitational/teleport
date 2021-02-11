@@ -1300,7 +1300,10 @@ func (set RoleSet) CheckAccessToServer(login string, s Server, mfaVerified bool)
 		}
 		matchLogin, loginMessage := MatchLogin(role.GetLogins(Allow), login)
 		if matchNamespace && matchLabels && matchLogin {
-			if role.GetOptions().RequireSessionMFA && !mfaVerified {
+			if mfaVerified {
+				return nil
+			}
+			if role.GetOptions().RequireSessionMFA {
 				log.WithFields(log.Fields{
 					trace.Component: teleport.ComponentRBAC,
 				}).Debugf("Access to node %q denied, role %q requires per-session MFA; match(namespace=%v, label=%v, login=%v)",
@@ -1308,9 +1311,8 @@ func (set RoleSet) CheckAccessToServer(login string, s Server, mfaVerified bool)
 				return trace.AccessDenied("access to server requires MFA")
 			}
 			// Check all remaining roles, even if we found a match.
-			//
-			// Options like RequireSessionMFA are enforced when at least one
-			// role has it.
+			// RequireSessionMFA should be enforced when at least one role has
+			// it.
 			allowed = true
 			continue
 		}
@@ -1366,7 +1368,10 @@ func (set RoleSet) CheckAccessToApp(namespace string, app *App, mfaVerified bool
 			return trace.Wrap(err)
 		}
 		if matchNamespace && matchLabels {
-			if role.GetOptions().RequireSessionMFA && !mfaVerified {
+			if mfaVerified {
+				return nil
+			}
+			if role.GetOptions().RequireSessionMFA {
 				log.WithFields(log.Fields{
 					trace.Component: teleport.ComponentRBAC,
 				}).Debugf("Access to app %q denied, role %q requires per-session MFA; match(namespace=%v, label=%v)",
@@ -1374,9 +1379,8 @@ func (set RoleSet) CheckAccessToApp(namespace string, app *App, mfaVerified bool
 				return trace.AccessDenied("access to app requires MFA")
 			}
 			// Check all remaining roles, even if we found a match.
-			//
-			// Options like RequireSessionMFA are enforced when at least one
-			// role has it.
+			// RequireSessionMFA should be enforced when at least one role has
+			// it.
 			allowed = true
 			continue
 		}
@@ -1432,7 +1436,10 @@ func (set RoleSet) CheckAccessToKubernetes(namespace string, kube *KubernetesClu
 			return trace.Wrap(err)
 		}
 		if matchNamespace && matchLabels {
-			if role.GetOptions().RequireSessionMFA && !mfaVerified {
+			if mfaVerified {
+				return nil
+			}
+			if role.GetOptions().RequireSessionMFA {
 				log.WithFields(log.Fields{
 					trace.Component: teleport.ComponentRBAC,
 				}).Debugf("Access to kubernetes cluster %q denied, role %q requires per-session MFA; match(namespace=%v, label=%v)",
@@ -1440,9 +1447,8 @@ func (set RoleSet) CheckAccessToKubernetes(namespace string, kube *KubernetesClu
 				return trace.AccessDenied("access to kubernetes cluster requires MFA")
 			}
 			// Check all remaining roles, even if we found a match.
-			//
-			// Options like RequireSessionMFA are enforced when at least one
-			// role has it.
+			// RequireSessionMFA should be enforced when at least one role has
+			// it.
 			allowed = true
 			continue
 		}
@@ -1585,14 +1591,16 @@ func (set RoleSet) CheckAccessToDatabase(server types.DatabaseServer, mfaVerifie
 				return trace.Wrap(err)
 			}
 			if match {
-				if role.GetOptions().RequireSessionMFA && !mfaVerified {
+				if mfaVerified {
+					return nil
+				}
+				if role.GetOptions().RequireSessionMFA {
 					log.Debugf("Access to database %q denied, role %q requires per-session MFA", server.GetName(), role.GetName())
 					return trace.AccessDenied("access to database requires MFA")
 				}
 				// Check all remaining roles, even if we found a match.
-				//
-				// Options like RequireSessionMFA are enforced when at least one
-				// role has it.
+				// RequireSessionMFA should be enforced when at least one role has
+				// it.
 				allowed = true
 				log.Debugf("Access to database %q granted, allow rule in role %q matched.",
 					server.GetName(), role.GetName())

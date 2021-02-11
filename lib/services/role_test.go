@@ -561,12 +561,12 @@ func TestCheckAccessToServer(t *testing.T) {
 		hasAccess bool
 		login     string
 	}
-	serverA := &ServerV2{
+	serverNoLabels := &ServerV2{
 		Metadata: Metadata{
 			Name: "a",
 		},
 	}
-	serverB := &ServerV2{
+	serverWorker := &ServerV2{
 		Metadata: Metadata{
 			Name:      "b",
 			Namespace: defaults.Namespace,
@@ -574,14 +574,14 @@ func TestCheckAccessToServer(t *testing.T) {
 		},
 	}
 	namespaceC := "namespace-c"
-	serverC := &ServerV2{
+	serverDB := &ServerV2{
 		Metadata: Metadata{
 			Name:      "c",
 			Namespace: namespaceC,
 			Labels:    map[string]string{"role": "db", "status": "follower"},
 		},
 	}
-	serverC2 := &ServerV2{
+	serverDBWithSuffix := &ServerV2{
 		Metadata: Metadata{
 			Name:      "c2",
 			Namespace: namespaceC,
@@ -598,9 +598,9 @@ func TestCheckAccessToServer(t *testing.T) {
 			name:  "empty role set has access to nothing",
 			roles: []RoleV3{},
 			checks: []check{
-				{server: serverA, login: "root", hasAccess: false},
-				{server: serverB, login: "root", hasAccess: false},
-				{server: serverC, login: "root", hasAccess: false},
+				{server: serverNoLabels, login: "root", hasAccess: false},
+				{server: serverWorker, login: "root", hasAccess: false},
+				{server: serverDB, login: "root", hasAccess: false},
 			},
 		},
 		{
@@ -624,12 +624,12 @@ func TestCheckAccessToServer(t *testing.T) {
 				},
 			},
 			checks: []check{
-				{server: serverA, login: "root", hasAccess: false},
-				{server: serverA, login: "admin", hasAccess: true},
-				{server: serverB, login: "root", hasAccess: false},
-				{server: serverB, login: "admin", hasAccess: true},
-				{server: serverC, login: "root", hasAccess: false},
-				{server: serverC, login: "admin", hasAccess: false},
+				{server: serverNoLabels, login: "root", hasAccess: false},
+				{server: serverNoLabels, login: "admin", hasAccess: true},
+				{server: serverWorker, login: "root", hasAccess: false},
+				{server: serverWorker, login: "admin", hasAccess: true},
+				{server: serverDB, login: "root", hasAccess: false},
+				{server: serverDB, login: "admin", hasAccess: false},
 			},
 		},
 		{
@@ -653,12 +653,12 @@ func TestCheckAccessToServer(t *testing.T) {
 				},
 			},
 			checks: []check{
-				{server: serverA, login: "root", hasAccess: false},
-				{server: serverA, login: "admin", hasAccess: false},
-				{server: serverB, login: "root", hasAccess: false},
-				{server: serverB, login: "admin", hasAccess: true},
-				{server: serverC, login: "root", hasAccess: false},
-				{server: serverC, login: "admin", hasAccess: false},
+				{server: serverNoLabels, login: "root", hasAccess: false},
+				{server: serverNoLabels, login: "admin", hasAccess: false},
+				{server: serverWorker, login: "root", hasAccess: false},
+				{server: serverWorker, login: "admin", hasAccess: true},
+				{server: serverDB, login: "root", hasAccess: false},
+				{server: serverDB, login: "admin", hasAccess: false},
 			},
 		},
 		{
@@ -682,12 +682,12 @@ func TestCheckAccessToServer(t *testing.T) {
 				},
 			},
 			checks: []check{
-				{server: serverA, login: "root", hasAccess: false},
-				{server: serverA, login: "admin", hasAccess: false},
-				{server: serverB, login: "root", hasAccess: false},
-				{server: serverB, login: "admin", hasAccess: true},
-				{server: serverC, login: "root", hasAccess: false},
-				{server: serverC, login: "admin", hasAccess: false},
+				{server: serverNoLabels, login: "root", hasAccess: false},
+				{server: serverNoLabels, login: "admin", hasAccess: false},
+				{server: serverWorker, login: "root", hasAccess: false},
+				{server: serverWorker, login: "admin", hasAccess: true},
+				{server: serverDB, login: "root", hasAccess: false},
+				{server: serverDB, login: "admin", hasAccess: false},
 			},
 		},
 		{
@@ -711,12 +711,12 @@ func TestCheckAccessToServer(t *testing.T) {
 				},
 			},
 			checks: []check{
-				{server: serverA, login: "root", hasAccess: false},
-				{server: serverA, login: "admin", hasAccess: false},
-				{server: serverB, login: "root", hasAccess: false},
-				{server: serverB, login: "admin", hasAccess: false},
-				{server: serverC, login: "root", hasAccess: false},
-				{server: serverC, login: "admin", hasAccess: false},
+				{server: serverNoLabels, login: "root", hasAccess: false},
+				{server: serverNoLabels, login: "admin", hasAccess: false},
+				{server: serverWorker, login: "root", hasAccess: false},
+				{server: serverWorker, login: "admin", hasAccess: false},
+				{server: serverDB, login: "root", hasAccess: false},
+				{server: serverDB, login: "admin", hasAccess: false},
 			},
 		},
 		{
@@ -756,12 +756,12 @@ func TestCheckAccessToServer(t *testing.T) {
 				},
 			},
 			checks: []check{
-				{server: serverA, login: "root", hasAccess: true},
-				{server: serverA, login: "admin", hasAccess: true},
-				{server: serverB, login: "root", hasAccess: true},
-				{server: serverB, login: "admin", hasAccess: true},
-				{server: serverC, login: "root", hasAccess: true},
-				{server: serverC, login: "admin", hasAccess: true},
+				{server: serverNoLabels, login: "root", hasAccess: true},
+				{server: serverNoLabels, login: "admin", hasAccess: true},
+				{server: serverWorker, login: "root", hasAccess: true},
+				{server: serverWorker, login: "admin", hasAccess: true},
+				{server: serverDB, login: "root", hasAccess: true},
+				{server: serverDB, login: "admin", hasAccess: true},
 			},
 		},
 		{
@@ -785,14 +785,14 @@ func TestCheckAccessToServer(t *testing.T) {
 				},
 			},
 			checks: []check{
-				{server: serverA, login: "root", hasAccess: false},
-				{server: serverA, login: "admin", hasAccess: false},
-				{server: serverB, login: "root", hasAccess: false},
-				{server: serverB, login: "admin", hasAccess: false},
-				{server: serverC, login: "root", hasAccess: false},
-				{server: serverC, login: "admin", hasAccess: true},
-				{server: serverC2, login: "root", hasAccess: false},
-				{server: serverC2, login: "admin", hasAccess: true},
+				{server: serverNoLabels, login: "root", hasAccess: false},
+				{server: serverNoLabels, login: "admin", hasAccess: false},
+				{server: serverWorker, login: "root", hasAccess: false},
+				{server: serverWorker, login: "admin", hasAccess: false},
+				{server: serverDB, login: "root", hasAccess: false},
+				{server: serverDB, login: "admin", hasAccess: true},
+				{server: serverDBWithSuffix, login: "root", hasAccess: false},
+				{server: serverDBWithSuffix, login: "admin", hasAccess: true},
 			},
 		},
 		{
@@ -816,12 +816,12 @@ func TestCheckAccessToServer(t *testing.T) {
 				},
 			},
 			checks: []check{
-				{server: serverA, login: "root", hasAccess: false},
-				{server: serverA, login: "admin", hasAccess: false},
-				{server: serverB, login: "root", hasAccess: false},
-				{server: serverB, login: "admin", hasAccess: false},
-				{server: serverC, login: "root", hasAccess: false},
-				{server: serverC, login: "admin", hasAccess: false},
+				{server: serverNoLabels, login: "root", hasAccess: false},
+				{server: serverNoLabels, login: "admin", hasAccess: false},
+				{server: serverWorker, login: "root", hasAccess: false},
+				{server: serverWorker, login: "admin", hasAccess: false},
+				{server: serverDB, login: "root", hasAccess: false},
+				{server: serverDB, login: "admin", hasAccess: false},
 			},
 		},
 		{
@@ -863,9 +863,9 @@ func TestCheckAccessToServer(t *testing.T) {
 			},
 			mfaVerified: false,
 			checks: []check{
-				{server: serverA, login: "root", hasAccess: true},
-				{server: serverB, login: "root", hasAccess: false},
-				{server: serverC, login: "root", hasAccess: true},
+				{server: serverNoLabels, login: "root", hasAccess: true},
+				{server: serverWorker, login: "root", hasAccess: false},
+				{server: serverDB, login: "root", hasAccess: true},
 			},
 		},
 		{
@@ -907,9 +907,9 @@ func TestCheckAccessToServer(t *testing.T) {
 			},
 			mfaVerified: true,
 			checks: []check{
-				{server: serverA, login: "root", hasAccess: true},
-				{server: serverB, login: "root", hasAccess: true},
-				{server: serverC, login: "root", hasAccess: true},
+				{server: serverNoLabels, login: "root", hasAccess: true},
+				{server: serverWorker, login: "root", hasAccess: true},
+				{server: serverDB, login: "root", hasAccess: true},
 			},
 		},
 	}
