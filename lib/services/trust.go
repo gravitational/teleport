@@ -46,8 +46,8 @@ type Trust interface {
 	GetCertAuthorities(caType CertAuthType, loadSigningKeys bool, opts ...MarshalOption) ([]CertAuthority, error)
 }
 
-// LocalTrust manages certificate authorities on the auth server
-type LocalTrust interface {
+// ServerTrust manages certificate authorities on the auth server
+type ServerTrust interface {
 	Trust
 
 	// CreateCertAuthority inserts a new certificate authority

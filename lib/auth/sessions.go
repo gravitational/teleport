@@ -88,7 +88,7 @@ func (s *Server) CreateAppSession(ctx context.Context, req services.CreateAppSes
 		TLSCert: certs.tls,
 		Expires: s.clock.Now().Add(ttl),
 	})
-	if err = s.Services.LocalIdentity.UpsertAppSession(ctx, session); err != nil {
+	if err = s.Services.ServerIdentity.UpsertAppSession(ctx, session); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	log.Debugf("Generated application web session for %v with TTL %v.", req.Username, ttl)

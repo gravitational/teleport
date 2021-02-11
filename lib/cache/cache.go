@@ -269,16 +269,16 @@ type Cache struct {
 	// collections is a map of registered collections by resource Kind/SubKind
 	collections map[resourceKind]collection
 
-	trustCache         services.LocalTrust
-	clusterConfigCache services.LocalClusterConfiguration
-	provisionerCache   services.LocalProvisioner
-	usersCache         services.LocalUsers
-	accessCache        services.LocalAccess
+	trustCache         services.ServerTrust
+	clusterConfigCache services.ServerClusterConfiguration
+	provisionerCache   services.ServerProvisioner
+	usersCache         services.ServerUsers
+	accessCache        services.ServerAccess
 	dynamicAccessCache services.DynamicAccessExt
-	presenceCache      services.LocalPresence
-	appSessionCache    services.LocalAppSession
-	webSessionCache    services.LocalWebSessions
-	webTokenCache      services.LocalWebTokens
+	presenceCache      services.ServerPresence
+	appSessionCache    services.ServerAppSession
+	webSessionCache    services.ServerWebSessions
+	webTokenCache      services.ServerWebTokens
 	eventsFanout       *services.Fanout
 
 	// closed indicates that the cache has been closed

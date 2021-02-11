@@ -289,7 +289,7 @@ func (s *Server) CreateSignupU2FRegisterRequest(tokenID string) (*u2f.RegisterCh
 	return u2f.RegisterInit(u2f.RegisterInitParams{
 		StorageKey: tokenID,
 		AppConfig:  *u2fConfig,
-		Storage:    s.Services.LocalIdentity,
+		Storage:    s.Services.ServerIdentity,
 	})
 }
 
@@ -370,7 +370,7 @@ func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, Rese
 	case teleport.OFF:
 		return nil
 	case teleport.OTP, teleport.TOTP, teleport.HOTP:
-		secrets, err := s.Services.LocalIdentity.GetResetPasswordTokenSecrets(ctx, req.TokenID)
+		secrets, err := s.Services.ServerIdentity.GetResetPasswordTokenSecrets(ctx, req.TokenID)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -400,7 +400,7 @@ func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, Rese
 			ChallengeStorageKey:    req.TokenID,
 			RegistrationStorageKey: username,
 			Resp:                   req.U2FRegisterResponse,
-			Storage:                s.Services.LocalIdentity,
+			Storage:                s.Services.ServerIdentity,
 			Clock:                  s.GetClock(),
 		})
 		return trace.Wrap(err)

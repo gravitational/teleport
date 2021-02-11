@@ -93,19 +93,19 @@ type InitConfig struct {
 	OIDCConnectors []services.OIDCConnector
 
 	// Trust is a service that manages users and credentials
-	Trust services.LocalTrust
+	Trust services.ServerTrust
 
 	// Presence service is a discovery and hearbeat tracker
-	Presence services.LocalPresence
+	Presence services.ServerPresence
 
 	// Provisioner is a service that keeps track of provisioning tokens
-	Provisioner services.LocalProvisioner
+	Provisioner services.ServerProvisioner
 
 	// Identity is a service that manages users and credentials
-	Identity services.LocalIdentity
+	Identity services.ServerIdentity
 
 	// Access is service controlling access to resources
-	Access services.LocalAccess
+	Access services.ServerAccess
 
 	// DynamicAccess is a service that manages dynamic RBAC.
 	DynamicAccess services.DynamicAccess
@@ -114,7 +114,7 @@ type InitConfig struct {
 	Events services.Events
 
 	// ClusterConfiguration is a services that holds cluster wide configuration.
-	ClusterConfiguration services.LocalClusterConfiguration
+	ClusterConfiguration services.ServerClusterConfiguration
 
 	// Roles is a set of roles to create
 	Roles []services.Role
@@ -215,7 +215,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		// Don't re-create CA if it already exists, otherwise
 		// the existing cluster configuration will be corrupted;
 		// this part of code is only used in tests.
-		if err := asrv.Services.LocalTrust.CreateCertAuthority(ca); err != nil {
+		if err := asrv.Services.ServerTrust.CreateCertAuthority(ca); err != nil {
 			if !trace.IsAlreadyExists(err) {
 				return nil, trace.Wrap(err)
 			}
@@ -256,7 +256,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	// is trying to change the name.
 	if trace.IsAlreadyExists(err) {
 		// Get current name of cluster from the backend.
-		cn, err := asrv.Services.LocalClusterConfiguration.GetClusterName()
+		cn, err := asrv.Services.ServerClusterConfiguration.GetClusterName()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -347,7 +347,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 			},
 		}
 
-		if err := asrv.Services.LocalTrust.UpsertCertAuthority(userCA); err != nil {
+		if err := asrv.Services.ServerTrust.UpsertCertAuthority(userCA); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	} else if len(userCA.GetTLSKeyPairs()) == 0 {
@@ -360,7 +360,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 		userCA.SetTLSKeyPairs([]services.TLSKeyPair{{Cert: certPEM, Key: keyPEM}})
-		if err := asrv.Services.LocalTrust.UpsertCertAuthority(userCA); err != nil {
+		if err := asrv.Services.ServerTrust.UpsertCertAuthority(userCA); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -406,7 +406,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 				TLSKeyPairs:  []services.TLSKeyPair{{Cert: certPEM, Key: keyPEM}},
 			},
 		}
-		if err := asrv.Services.LocalTrust.UpsertCertAuthority(hostCA); err != nil {
+		if err := asrv.Services.ServerTrust.UpsertCertAuthority(hostCA); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	} else if len(hostCA.GetTLSKeyPairs()) == 0 {
@@ -427,7 +427,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 		hostCA.SetTLSKeyPairs([]services.TLSKeyPair{{Cert: certPEM, Key: keyPEM}})
-		if err := asrv.Services.LocalTrust.UpsertCertAuthority(hostCA); err != nil {
+		if err := asrv.Services.ServerTrust.UpsertCertAuthority(hostCA); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -447,7 +447,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := asrv.Services.LocalTrust.UpsertCertAuthority(jwtSigner); err != nil {
+		if err := asrv.Services.ServerTrust.UpsertCertAuthority(jwtSigner); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

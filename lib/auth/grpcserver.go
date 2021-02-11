@@ -1282,7 +1282,7 @@ func addMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_AddMF
 	auth := gctx.authServer
 	user := gctx.User.GetName()
 	ctx := stream.Context()
-	u2fStorage, err := u2f.InMemoryAuthenticationStorage(auth.Services.LocalIdentity)
+	u2fStorage, err := u2f.InMemoryAuthenticationStorage(auth.Services.ServerIdentity)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1319,7 +1319,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 	auth := gctx.authServer
 	user := gctx.User.GetName()
 	ctx := stream.Context()
-	u2fStorage, err := u2f.InMemoryRegistrationStorage(auth.Services.LocalIdentity)
+	u2fStorage, err := u2f.InMemoryRegistrationStorage(auth.Services.ServerIdentity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1483,7 +1483,7 @@ func deleteMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_De
 	ctx := stream.Context()
 	auth := gctx.authServer
 	user := gctx.User.GetName()
-	u2fStorage, err := u2f.InMemoryAuthenticationStorage(auth.Services.LocalIdentity)
+	u2fStorage, err := u2f.InMemoryAuthenticationStorage(auth.Services.ServerIdentity)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1607,7 +1607,7 @@ func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService
 	ctx := stream.Context()
 	auth := gctx.authServer
 	user := gctx.User.GetName()
-	u2fStorage, err := u2f.InMemoryAuthenticationStorage(auth.LocalIdentity)
+	u2fStorage, err := u2f.InMemoryAuthenticationStorage(auth.ServerIdentity)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -53,8 +53,8 @@ type UsersService interface {
 	GetUsers(withSecrets bool) ([]User, error)
 }
 
-// LocalUsers manages users on auth server
-type LocalUsers interface {
+// ServerUsers manages users on auth server
+type ServerUsers interface {
 	UsersService
 
 	// DeleteAllUsers deletes all users
@@ -214,36 +214,36 @@ type Identity interface {
 	GetResetPasswordTokenSecrets(ctx context.Context, tokenID string) (ResetPasswordTokenSecrets, error)
 }
 
-// LocalIdentity represents the Identity on the auth server
-type LocalIdentity interface {
+// ServerIdentity represents the Identity on the auth server
+type ServerIdentity interface {
 	Identity
-	LocalAppSession
-	LocalWebSessionsGetter
-	LocalWebTokensGetter
+	ServerAppSession
+	ServerWebSessionsGetter
+	ServerWebTokensGetter
 }
 
-// LocalWebSessionsGetter manages web sessions on auth server
-type LocalWebSessionsGetter interface {
+// ServerWebSessionsGetter manages web sessions on auth server
+type ServerWebSessionsGetter interface {
 	// WebSessions returns the web session manager
-	WebSessions() LocalWebSessions
+	WebSessions() ServerWebSessions
 }
 
-// LocalWebSessions manages web sessions on the auth server
-type LocalWebSessions interface {
+// ServerWebSessions manages web sessions on the auth server
+type ServerWebSessions interface {
 	types.WebSessionInterface
 
 	// Upsert updates existing or inserts a new web session.
 	Upsert(ctx context.Context, session types.WebSession) error
 }
 
-// LocalWebTokensGetter manages web tokens on auth server
-type LocalWebTokensGetter interface {
+// ServerWebTokensGetter manages web tokens on auth server
+type ServerWebTokensGetter interface {
 	// WebTokens returns the web token manager
-	WebTokens() LocalWebTokens
+	WebTokens() ServerWebTokens
 }
 
-// LocalWebTokens manages web session on the auth server
-type LocalWebTokens interface {
+// ServerWebTokens manages web session on the auth server
+type ServerWebTokens interface {
 	types.WebTokenInterface
 
 	// Upsert updates existing or inserts a new web token.
@@ -262,8 +262,8 @@ type AppSession interface {
 	DeleteAllAppSessions(context.Context) error
 }
 
-// LocalAppSession manages application sessions on auth server
-type LocalAppSession interface {
+// ServerAppSession manages application sessions on auth server
+type ServerAppSession interface {
 	AppSession
 
 	// UpsertAppSession upserts and application web session.

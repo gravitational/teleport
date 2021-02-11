@@ -134,13 +134,13 @@ func NewTestCAWithConfig(config TestCAConfig) *services.CertAuthorityV2 {
 type ServicesTestSuite struct {
 	Access             services.Access
 	CAS                services.Trust
-	LocalTrust         services.LocalTrust
+	LocalTrust         services.ServerTrust
 	PresenceS          services.Presence
 	ProvisioningS      services.Provisioner
-	LocalProvisioningS services.LocalProvisioner
-	WebS               services.LocalIdentity
+	LocalProvisioningS services.ServerProvisioner
+	WebS               services.ServerIdentity
 	ConfigS            services.ClusterConfiguration
-	LocalConfigS       services.LocalClusterConfiguration
+	LocalConfigS       services.ServerClusterConfiguration
 	EventsS            services.Events
 	UsersS             services.UsersService
 	ChangesC           chan interface{}

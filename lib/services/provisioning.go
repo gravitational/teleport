@@ -40,8 +40,8 @@ type Provisioner interface {
 	GetTokens(opts ...MarshalOption) ([]ProvisionToken, error)
 }
 
-// LocalProvisioner manages nodes and tokens on the auth server
-type LocalProvisioner interface {
+// ServerProvisioner manages nodes and tokens on the auth server
+type ServerProvisioner interface {
 	Provisioner
 
 	// DeleteAllTokens deletes all provisioning tokens

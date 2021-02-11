@@ -2792,7 +2792,7 @@ func waitForNodeCount(t *TeleInstance, clusterName string, count int) error {
 func waitForTunnelConnections(c *check.C, authServer *auth.Server, clusterName string, expectedCount int) {
 	var conns []services.TunnelConnection
 	for i := 0; i < 30; i++ {
-		conns, err := authServer.LocalPresence.GetTunnelConnections(clusterName)
+		conns, err := authServer.ServerPresence.GetTunnelConnections(clusterName)
 		if err != nil {
 			c.Fatal(err)
 		}

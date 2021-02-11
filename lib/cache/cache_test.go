@@ -65,14 +65,14 @@ type testPack struct {
 	cacheBackend backend.Backend
 
 	eventsS        *proxyEvents
-	trustS         services.LocalTrust
-	provisionerS   services.LocalProvisioner
-	clusterConfigS services.LocalClusterConfiguration
+	trustS         services.ServerTrust
+	provisionerS   services.ServerProvisioner
+	clusterConfigS services.ServerClusterConfiguration
 
 	usersS         services.UsersService
-	accessS        services.LocalAccess
+	accessS        services.ServerAccess
 	dynamicAccessS services.DynamicAccess
-	presenceS      services.LocalPresence
+	presenceS      services.ServerPresence
 	appSessionS    services.AppSession
 	webSessionS    types.WebSessionInterface
 	webTokenS      types.WebTokenInterface

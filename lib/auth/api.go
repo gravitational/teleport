@@ -53,14 +53,14 @@ type Announcer interface {
 	UpsertDatabaseServer(context.Context, types.DatabaseServer) (*services.KeepAlive, error)
 }
 
-// LocalAnnouncer manages presence on auth server
-type LocalAnnouncer interface {
+// ServerAnnouncer manages presence on auth server
+type ServerAnnouncer interface {
 	Announcer
-	KeepAliver
+	keepAliver
 }
 
-// KeepAliver creates new keep-alives
-type KeepAliver interface {
+// keepAliver creates new keep-alives
+type keepAliver interface {
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
 }
@@ -165,10 +165,10 @@ type AccessPoint interface {
 	DeleteTunnelConnection(clusterName, connName string) error
 }
 
-// ClientAccessPoint represents an AccessPoint for the client API
+// ClientAccessPoint represents client side AccessPoint
 type ClientAccessPoint interface {
 	AccessPoint
-	KeepAliver
+	keepAliver
 }
 
 // AccessCache is a subset of the interface working on the certificate authorities
@@ -202,24 +202,6 @@ type Cache interface {
 
 	// NewWatcher returns a new event watcher
 	NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error)
-}
-
-// CertAuthorityRotator manages rotation of cert authorities
-type CertAuthorityRotator interface {
-	// RotateCertAuthority starts or restarts certificate authority rotation process.
-	RotateCertAuthority(RotateRequest) error
-
-	// RotateExternalCertAuthority rotates external certificate authority,
-	// this method is used to update only public keys and certificates of the
-	// the certificate authorities of trusted clusters.
-	RotateExternalCertAuthority(services.CertAuthority) error
-}
-
-// KeyGenerator generates new server keys
-type KeyGenerator interface {
-	// GenerateServerKeys generates new host private keys and certificates (signed
-	// by the host certificate authority) for a node
-	GenerateServerKeys(GenerateServerKeysRequest) (*PackedKeys, error)
 }
 
 // NewWrapper returns new access point wrapper

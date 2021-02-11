@@ -181,8 +181,8 @@ type Presence interface {
 	DeleteAllKubeServices(context.Context) error
 }
 
-// LocalPresence manages Teleport components on the auth server
-type LocalPresence interface {
+// ServerPresence manages Teleport components on the auth server
+type ServerPresence interface {
 	Presence
 
 	// DeleteAuthServer deletes auth server by name

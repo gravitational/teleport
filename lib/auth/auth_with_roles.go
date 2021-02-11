@@ -224,7 +224,7 @@ func (a *ServerWithRoles) UpsertCertAuthority(ca services.CertAuthority) error {
 	if err := a.actionWithContext(ctx, defaults.Namespace, services.KindCertAuthority, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.Services.LocalTrust.UpsertCertAuthority(ca)
+	return a.authServer.Services.ServerTrust.UpsertCertAuthority(ca)
 }
 
 // CompareAndSwapCertAuthority updates existing cert authority if the existing cert authority
@@ -236,7 +236,7 @@ func (a *ServerWithRoles) CompareAndSwapCertAuthority(new, existing services.Cer
 	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.Services.LocalTrust.CompareAndSwapCertAuthority(new, existing)
+	return a.authServer.Services.ServerTrust.CompareAndSwapCertAuthority(new, existing)
 }
 
 func (a *ServerWithRoles) GetCertAuthorities(caType services.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]services.CertAuthority, error) {
@@ -296,7 +296,7 @@ func (a *ServerWithRoles) DeleteCertAuthority(id services.CertAuthID) error {
 	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.Services.LocalTrust.DeleteCertAuthority(id)
+	return a.authServer.Services.ServerTrust.DeleteCertAuthority(id)
 }
 
 // GenerateToken generates multi-purpose authentication token.
@@ -1088,7 +1088,7 @@ func (a *ServerWithRoles) GetUser(name string, withSecrets bool) (services.User,
 			}
 		}
 	}
-	return a.authServer.Services.LocalIdentity.GetUser(name, withSecrets)
+	return a.authServer.Services.ServerIdentity.GetUser(name, withSecrets)
 }
 
 // DeleteUser deletes an existng user in a backend by username.
@@ -1355,7 +1355,7 @@ func (a *ServerWithRoles) GetOIDCConnector(id string, withSecrets bool) (service
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.Services.LocalIdentity.GetOIDCConnector(id, withSecrets)
+	return a.authServer.Services.ServerIdentity.GetOIDCConnector(id, withSecrets)
 }
 
 func (a *ServerWithRoles) GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, error) {
@@ -1370,7 +1370,7 @@ func (a *ServerWithRoles) GetOIDCConnectors(withSecrets bool) ([]services.OIDCCo
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.Services.LocalIdentity.GetOIDCConnectors(withSecrets)
+	return a.authServer.Services.ServerIdentity.GetOIDCConnectors(withSecrets)
 }
 
 func (a *ServerWithRoles) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {
@@ -1419,7 +1419,7 @@ func (a *ServerWithRoles) GetSAMLConnector(id string, withSecrets bool) (service
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.Services.LocalIdentity.GetSAMLConnector(id, withSecrets)
+	return a.authServer.Services.ServerIdentity.GetSAMLConnector(id, withSecrets)
 }
 
 func (a *ServerWithRoles) GetSAMLConnectors(withSecrets bool) ([]services.SAMLConnector, error) {
@@ -1434,7 +1434,7 @@ func (a *ServerWithRoles) GetSAMLConnectors(withSecrets bool) ([]services.SAMLCo
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.Services.LocalIdentity.GetSAMLConnectors(withSecrets)
+	return a.authServer.Services.ServerIdentity.GetSAMLConnectors(withSecrets)
 }
 
 func (a *ServerWithRoles) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error) {
@@ -1484,7 +1484,7 @@ func (a *ServerWithRoles) GetGithubConnector(id string, withSecrets bool) (servi
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.Services.LocalIdentity.GetGithubConnector(id, withSecrets)
+	return a.authServer.Services.ServerIdentity.GetGithubConnector(id, withSecrets)
 }
 
 func (a *ServerWithRoles) GetGithubConnectors(withSecrets bool) ([]services.GithubConnector, error) {
@@ -1499,7 +1499,7 @@ func (a *ServerWithRoles) GetGithubConnectors(withSecrets bool) ([]services.Gith
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.Services.LocalIdentity.GetGithubConnectors(withSecrets)
+	return a.authServer.Services.ServerIdentity.GetGithubConnectors(withSecrets)
 }
 
 // DeleteGithubConnector deletes a Github connector by name.

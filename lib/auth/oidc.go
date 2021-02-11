@@ -146,7 +146,7 @@ func oidcConfig(conn services.OIDCConnector) oidc.ClientConfig {
 
 // UpsertOIDCConnector creates or updates an OIDC connector.
 func (a *Server) UpsertOIDCConnector(ctx context.Context, connector services.OIDCConnector) error {
-	if err := a.Services.LocalIdentity.UpsertOIDCConnector(connector); err != nil {
+	if err := a.Services.ServerIdentity.UpsertOIDCConnector(connector); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &events.OIDCConnectorCreate{
@@ -169,7 +169,7 @@ func (a *Server) UpsertOIDCConnector(ctx context.Context, connector services.OID
 
 // DeleteOIDCConnector deletes an OIDC connector by name.
 func (a *Server) DeleteOIDCConnector(ctx context.Context, connectorName string) error {
-	if err := a.Services.LocalIdentity.DeleteOIDCConnector(connectorName); err != nil {
+	if err := a.Services.ServerIdentity.DeleteOIDCConnector(connectorName); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &events.OIDCConnectorDelete{
@@ -190,7 +190,7 @@ func (a *Server) DeleteOIDCConnector(ctx context.Context, connectorName string) 
 }
 
 func (a *Server) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {
-	connector, err := a.Services.LocalIdentity.GetOIDCConnector(req.ConnectorID, true)
+	connector, err := a.Services.ServerIdentity.GetOIDCConnector(req.ConnectorID, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -229,7 +229,7 @@ func (a *Server) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.
 
 	log.Debugf("OIDC redirect URL: %v.", req.RedirectURL)
 
-	err = a.Services.LocalIdentity.CreateOIDCAuthRequest(req, defaults.OIDCAuthRequestTTL)
+	err = a.Services.ServerIdentity.CreateOIDCAuthRequest(req, defaults.OIDCAuthRequestTTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -307,12 +307,12 @@ func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, erro
 		return nil, trace.Wrap(err)
 	}
 
-	req, err := a.Services.LocalIdentity.GetOIDCAuthRequest(stateToken)
+	req, err := a.Services.ServerIdentity.GetOIDCAuthRequest(stateToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	connector, err := a.Services.LocalIdentity.GetOIDCConnector(req.ConnectorID, true)
+	connector, err := a.Services.ServerIdentity.GetOIDCConnector(req.ConnectorID, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -461,7 +461,7 @@ func (a *Server) calculateOIDCUser(connector services.OIDCConnector, claims jose
 	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.
-	roles, err := services.FetchRoles(p.roles, a.Services.LocalAccess, p.traits)
+	roles, err := services.FetchRoles(p.roles, a.Services.ServerAccess, p.traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -505,7 +505,7 @@ func (a *Server) createOIDCUser(p *createUserParams) (services.User, error) {
 	}
 
 	// Get the user to check if it already exists or not.
-	existingUser, err := a.Services.LocalIdentity.GetUser(p.username, false)
+	existingUser, err := a.Services.ServerIdentity.GetUser(p.username, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}

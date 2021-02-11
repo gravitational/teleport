@@ -1170,7 +1170,7 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	authorizer, err := auth.NewAuthorizer(authServer.Services.LocalAccess, authServer.Services.LocalIdentity, authServer.Services.LocalTrust)
+	authorizer, err := auth.NewAuthorizer(authServer.Services.ServerAccess, authServer.Services.ServerIdentity, authServer.Services.ServerTrust)
 	if err != nil {
 		return trace.Wrap(err)
 	}

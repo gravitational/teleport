@@ -336,14 +336,6 @@ type WebTokenInterface interface {
 	DeleteAll(context.Context) error
 }
 
-// LocalWebTokens manages web tokens on the auth server
-type LocalWebTokens interface {
-	WebTokenInterface
-
-	// Upsert updates existing or inserts a new web token.
-	Upsert(ctx context.Context, token WebToken) error
-}
-
 // WebToken is a time-limited unique token bound to a user's session
 type WebToken interface {
 	// Resource represents common properties for all resources.

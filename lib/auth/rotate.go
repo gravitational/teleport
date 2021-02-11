@@ -213,7 +213,7 @@ func (a *Server) RotateCertAuthority(req RotateRequest) error {
 
 	caTypes := req.Types()
 	for _, caType := range caTypes {
-		existing, err := a.Services.LocalTrust.GetCertAuthority(services.CertAuthID{
+		existing, err := a.Services.ServerTrust.GetCertAuthority(services.CertAuthID{
 			Type:       caType,
 			DomainName: clusterName.GetClusterName(),
 		}, true)
@@ -233,7 +233,7 @@ func (a *Server) RotateCertAuthority(req RotateRequest) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := a.Services.LocalTrust.CompareAndSwapCertAuthority(rotated, existing); err != nil {
+		if err := a.Services.ServerTrust.CompareAndSwapCertAuthority(rotated, existing); err != nil {
 			return trace.Wrap(err)
 		}
 		rotation := rotated.GetRotation()
@@ -265,7 +265,7 @@ func (a *Server) RotateExternalCertAuthority(ca services.CertAuthority) error {
 		return trace.BadParameter("can not rotate local certificate authority")
 	}
 
-	existing, err := a.Services.LocalTrust.GetCertAuthority(services.CertAuthID{
+	existing, err := a.Services.ServerTrust.GetCertAuthority(services.CertAuthID{
 		Type:       ca.GetType(),
 		DomainName: ca.GetClusterName(),
 	}, false)
@@ -283,7 +283,7 @@ func (a *Server) RotateExternalCertAuthority(ca services.CertAuthority) error {
 
 	// use compare and swap to protect from concurrent updates
 	// by trusted cluster API
-	if err := a.Services.LocalTrust.CompareAndSwapCertAuthority(updated, existing); err != nil {
+	if err := a.Services.ServerTrust.CompareAndSwapCertAuthority(updated, existing); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -299,7 +299,7 @@ func (a *Server) autoRotateCertAuthorities() error {
 		return trace.Wrap(err)
 	}
 	for _, caType := range []services.CertAuthType{services.HostCA, services.UserCA, services.JWTSigner} {
-		ca, err := a.Services.LocalTrust.GetCertAuthority(services.CertAuthID{
+		ca, err := a.Services.ServerTrust.GetCertAuthority(services.CertAuthID{
 			Type:       caType,
 			DomainName: clusterName.GetClusterName(),
 		}, true)
@@ -370,7 +370,7 @@ func (a *Server) autoRotate(ca services.CertAuthority) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.Services.LocalTrust.CompareAndSwapCertAuthority(rotated, ca); err != nil {
+	if err := a.Services.ServerTrust.CompareAndSwapCertAuthority(rotated, ca); err != nil {
 		return trace.Wrap(err)
 	}
 	logger.Infof("Cert authority rotation request is completed")

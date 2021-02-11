@@ -2051,23 +2051,45 @@ func (c *Client) CreateAuditStream(ctx context.Context, sid session.ID) (events.
 	return c.APIClient.CreateAuditStream(ctx, string(sid))
 }
 
-// WebService implements features used by Web UI clients
-type WebService interface {
+// webService implements features used by Web UI clients
+type webService interface {
+	// CreateAppSession creates an application web session. Application web
+	// sessions represent a browser session the client holds.
+	CreateAppSession(context.Context, services.CreateAppSessionRequest) (services.WebSession, error)
+
+	// GetWebSession queries the existing web session described with req.
+	// Implements ReadAccessPoint.
+	GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error)
+
+	// GetWebToken queries the existing web token described with req.
+	// Implements ReadAccessPoint.
+	GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
+
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
 	// it is valid, or error otherwise.
 	GetWebSessionInfo(ctx context.Context, user, sessionID string) (types.WebSession, error)
+
 	// ExtendWebSession creates a new web session for a user based on another
 	// valid web session
 	ExtendWebSession(user, prevSessionID, accessRequestID string) (types.WebSession, error)
+
 	// CreateWebSession creates a new web session for a user
 	CreateWebSession(user string) (types.WebSession, error)
+
+	// AuthenticateWebUser authenticates web user, creates and returns web session
+	// if authentication is successful
+	AuthenticateWebUser(req AuthenticateUserRequest) (services.WebSession, error)
+
+	// AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
+	// short lived certificates as a result
+	AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error)
 
 	// AppSession defines application session features.
 	services.AppSession
 }
 
-// IdentityService manages identities and users
-type IdentityService interface {
+// identityService manages identities and users
+type identityService interface {
 	// UpsertPassword updates web access password for the user
 	UpsertPassword(user string, password []byte) error
 
@@ -2191,11 +2213,23 @@ type IdentityService interface {
 
 	// RotateResetPasswordTokenSecrets rotates token secrets for a given tokenID
 	RotateResetPasswordTokenSecrets(ctx context.Context, tokenID string) (services.ResetPasswordTokenSecrets, error)
+
+	// RotateCertAuthority starts or restarts certificate authority rotation process.
+	RotateCertAuthority(RotateRequest) error
+
+	// RotateExternalCertAuthority rotates external certificate authority,
+	// this method is used to update only public keys and certificates of the
+	// the certificate authorities of trusted clusters.
+	RotateExternalCertAuthority(services.CertAuthority) error
+
+	// GenerateServerKeys generates new host private keys and certificates (signed
+	// by the host certificate authority) for a node
+	GenerateServerKeys(GenerateServerKeysRequest) (*PackedKeys, error)
 }
 
-// LocalClient represents a client view of the auth server
-type LocalClient interface {
-	IdentityService
+// clientIdentity represents a client view of the auth server
+type clientIdentity interface {
+	identityService
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (services.KeepAliver, error)
@@ -2208,19 +2242,31 @@ type LocalClient interface {
 	DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error)
 }
 
-// LocalCluster represents a client view of the auth server
-type LocalCluster interface {
+// clientCluster represents a client view of the auth server
+type clientCluster interface {
 	// GetClusterCACert returns the CAs for the local cluster without signing keys.
 	GetClusterCACert() (*LocalCAResponse, error)
 
 	// ProcessKubeCSR processes CSR request against Kubernetes CA, returns
 	// signed certificate if successful.
 	ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error)
+
+	// GenerateDatabaseCert generates client certificate used by a database
+	// service to authenticate with the database instance.
+	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
+
+	// GetDomainName returns auth server cluster name
+	GetDomainName() (string, error)
+
+	// ValidateTrustedCluster validates trusted cluster token with
+	// main cluster, in case if validation is successful, main cluster
+	// adds remote cluster
+	ValidateTrustedCluster(*ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error)
 }
 
-// ProvisioningService is a service in control
+// provisioningService is a service in control
 // of adding new nodes, auth servers and proxies to the cluster
-type ProvisioningService interface {
+type provisioningService interface {
 	// GetTokens returns a list of active invitation tokens for nodes and users
 	GetTokens(opts ...services.MarshalOption) (tokens []services.ProvisionToken, err error)
 
@@ -2242,25 +2288,13 @@ type ProvisioningService interface {
 	RegisterNewAuthServer(token string) error
 }
 
-type Validation interface {
-	// ValidateTrustedCluster validates trusted cluster token with
-	// main cluster, in case if validation is successful, main cluster
-	// adds remote cluster
-	ValidateTrustedCluster(*ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error)
-}
-
-// ClientI is a client to Auth service
+// ClientI is a client for the auth service
 type ClientI interface {
-	LocalClient
-	KeepAliver
-	WebService
-	Validation
-	WebAuth
-	LocalCluster
-	ProvisioningService
-	DomainNameGetter
-	CertAuthorityRotator
-	KeyGenerator
+	clientIdentity
+	clientCluster
+	keepAliver
+	webService
+	provisioningService
 
 	services.Trust
 	services.Presence
@@ -2281,34 +2315,4 @@ type ClientI interface {
 
 	// Ping gets basic info about the auth server.
 	Ping(ctx context.Context) (proto.PingResponse, error)
-
-	// CreateAppSession creates an application web session. Application web
-	// sessions represent a browser session the client holds.
-	CreateAppSession(context.Context, services.CreateAppSessionRequest) (services.WebSession, error)
-
-	// GenerateDatabaseCert generates client certificate used by a database
-	// service to authenticate with the database instance.
-	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
-
-	// GetWebSession queries the existing web session described with req.
-	// Implements ReadAccessPoint.
-	GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error)
-
-	// GetWebToken queries the existing web token described with req.
-	// Implements ReadAccessPoint.
-	GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
-}
-
-type DomainNameGetter interface {
-	// GetDomainName returns auth server cluster name
-	GetDomainName() (string, error)
-}
-
-type WebAuth interface {
-	// AuthenticateWebUser authenticates web user, creates and  returns web session
-	// in case if authentication is successful
-	AuthenticateWebUser(req AuthenticateUserRequest) (services.WebSession, error)
-	// AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
-	// short lived certificates as a result
-	AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error)
 }

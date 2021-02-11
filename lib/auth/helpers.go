@@ -214,21 +214,21 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 
 	// Setup certificate and signing authorities.
-	if err = srv.AuthServer.Services.LocalTrust.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
+	if err = srv.AuthServer.Services.ServerTrust.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
 		Type:        services.HostCA,
 		ClusterName: srv.ClusterName,
 		Clock:       cfg.Clock,
 	})); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = srv.AuthServer.Services.LocalTrust.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
+	if err = srv.AuthServer.Services.ServerTrust.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
 		Type:        services.UserCA,
 		ClusterName: srv.ClusterName,
 		Clock:       cfg.Clock,
 	})); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = srv.AuthServer.Services.LocalTrust.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
+	if err = srv.AuthServer.Services.ServerTrust.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
 		Type:        services.JWTSigner,
 		ClusterName: srv.ClusterName,
 		Clock:       cfg.Clock,
@@ -236,7 +236,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	srv.Authorizer, err = NewAuthorizer(srv.AuthServer.Services.LocalAccess, srv.AuthServer.Services.LocalIdentity, srv.AuthServer.Services.LocalTrust)
+	srv.Authorizer, err = NewAuthorizer(srv.AuthServer.Services.ServerAccess, srv.AuthServer.Services.ServerIdentity, srv.AuthServer.Services.ServerTrust)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -344,7 +344,7 @@ func (a *TestAuthServer) Trust(remote *TestAuthServer, roleMap services.RoleMap)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = a.AuthServer.Services.LocalTrust.UpsertCertAuthority(remoteCA)
+	err = a.AuthServer.Services.ServerTrust.UpsertCertAuthority(remoteCA)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -356,7 +356,7 @@ func (a *TestAuthServer) Trust(remote *TestAuthServer, roleMap services.RoleMap)
 		return trace.Wrap(err)
 	}
 	remoteCA.SetRoleMap(roleMap)
-	err = a.AuthServer.Services.LocalTrust.UpsertCertAuthority(remoteCA)
+	err = a.AuthServer.Services.ServerTrust.UpsertCertAuthority(remoteCA)
 	if err != nil {
 		return trace.Wrap(err)
 	}

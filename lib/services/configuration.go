@@ -43,8 +43,8 @@ type ClusterConfiguration interface {
 	SetClusterConfig(ClusterConfig) error
 }
 
-// LocalClusterConfiguration manages cluster configuration on auth server
-type LocalClusterConfiguration interface {
+// ServerClusterConfiguration manages cluster configuration on auth server
+type ServerClusterConfiguration interface {
 	ClusterConfiguration
 
 	// UpsertClusterName upserts cluster name

@@ -247,8 +247,8 @@ type Access interface {
 	DeleteRole(ctx context.Context, name string) error
 }
 
-// LocalAccess manages roles and permissions on the auth server
-type LocalAccess interface {
+// ServerAccess manages roles and permissions on the auth server
+type ServerAccess interface {
 	Access
 
 	// CreateRole creates a role

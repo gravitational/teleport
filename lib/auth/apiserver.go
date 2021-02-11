@@ -254,18 +254,14 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	)
 }
 
-// Auth defines the auth server as required by the API server
-type Auth interface {
+// apiServerAuth defines the auth server as required by the web-based APIServer
+type apiServerAuth interface {
 	AccessPoint
-	LocalCluster
-	Validation
-	ProvisioningService
-	WebService
-	IdentityService
-	WebAuth
-	DomainNameGetter
-	CertAuthorityRotator
-	KeyGenerator
+
+	identityService
+	clientCluster
+	provisioningService
+	webService
 
 	services.Presence
 	services.Trust
@@ -281,7 +277,7 @@ type Auth interface {
 }
 
 // HandlerWithAuthFunc is http handler with passed auth context
-type HandlerWithAuthFunc func(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error)
+type HandlerWithAuthFunc func(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error)
 
 func (s *APIServer) withAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 	const accessDeniedMsg = "auth API: access denied "
@@ -402,7 +398,7 @@ func (s *APIServer) upsertServer(auth services.Presence, role teleport.Role, r *
 }
 
 // keepAliveNode updates node TTL in the backend
-func (s *APIServer) keepAliveNode(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) keepAliveNode(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var handle services.KeepAlive
 	if err := httplib.ReadJSON(r, &handle); err != nil {
 		return nil, trace.Wrap(err)
@@ -419,7 +415,7 @@ type upsertNodesReq struct {
 }
 
 // upsertNodes is used to bulk insert nodes into the backend.
-func (s *APIServer) upsertNodes(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) upsertNodes(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req upsertNodesReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -442,12 +438,12 @@ func (s *APIServer) upsertNodes(auth Auth, w http.ResponseWriter, r *http.Reques
 }
 
 // upsertNode is called by remote SSH nodes when they ping back into the auth service
-func (s *APIServer) upsertNode(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) upsertNode(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	return s.upsertServer(auth, teleport.RoleNode, r, p)
 }
 
 // getNodes returns registered SSH nodes
-func (s *APIServer) getNodes(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getNodes(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	namespace := p.ByName("namespace")
 	if !services.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
@@ -469,7 +465,7 @@ func (s *APIServer) getNodes(auth Auth, w http.ResponseWriter, r *http.Request, 
 }
 
 // deleteAllNodes deletes all nodes
-func (s *APIServer) deleteAllNodes(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) deleteAllNodes(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	namespace := p.ByName("namespace")
 	if !services.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
@@ -482,7 +478,7 @@ func (s *APIServer) deleteAllNodes(auth Auth, w http.ResponseWriter, r *http.Req
 }
 
 // deleteNode deletes node
-func (s *APIServer) deleteNode(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) deleteNode(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	namespace := p.ByName("namespace")
 	if !services.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
@@ -499,12 +495,12 @@ func (s *APIServer) deleteNode(auth Auth, w http.ResponseWriter, r *http.Request
 }
 
 // upsertProxy is called by remote SSH nodes when they ping back into the auth service
-func (s *APIServer) upsertProxy(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) upsertProxy(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	return s.upsertServer(auth, teleport.RoleProxy, r, p)
 }
 
 // getProxies returns registered proxies
-func (s *APIServer) getProxies(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getProxies(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	servers, err := auth.GetProxies()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -513,7 +509,7 @@ func (s *APIServer) getProxies(auth Auth, w http.ResponseWriter, r *http.Request
 }
 
 // deleteAllProxies deletes all proxies
-func (s *APIServer) deleteAllProxies(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) deleteAllProxies(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	err := auth.DeleteAllProxies()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -522,7 +518,7 @@ func (s *APIServer) deleteAllProxies(auth Auth, w http.ResponseWriter, r *http.R
 }
 
 // deleteProxy deletes proxy
-func (s *APIServer) deleteProxy(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) deleteProxy(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	name := p.ByName("name")
 	if name == "" {
 		return nil, trace.BadParameter("missing proxy name")
@@ -535,12 +531,12 @@ func (s *APIServer) deleteProxy(auth Auth, w http.ResponseWriter, r *http.Reques
 }
 
 // upsertAuthServer is called by remote Auth servers when they ping back into the auth service
-func (s *APIServer) upsertAuthServer(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) upsertAuthServer(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	return s.upsertServer(auth, teleport.RoleAuth, r, p)
 }
 
 // getAuthServers returns registered auth servers
-func (s *APIServer) getAuthServers(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getAuthServers(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	servers, err := auth.GetAuthServers()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -566,7 +562,7 @@ type upsertReverseTunnelRawReq struct {
 }
 
 // upsertReverseTunnel is called by admin to create a reverse tunnel to remote proxy
-func (s *APIServer) upsertReverseTunnel(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) upsertReverseTunnel(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req upsertReverseTunnelRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -588,7 +584,7 @@ func (s *APIServer) upsertReverseTunnel(auth Auth, w http.ResponseWriter, r *htt
 }
 
 // getReverseTunnels returns a list of reverse tunnels
-func (s *APIServer) getReverseTunnels(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getReverseTunnels(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	reverseTunnels, err := auth.GetReverseTunnels()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -605,7 +601,7 @@ func (s *APIServer) getReverseTunnels(auth Auth, w http.ResponseWriter, r *http.
 }
 
 // deleteReverseTunnel deletes reverse tunnel
-func (s *APIServer) deleteReverseTunnel(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) deleteReverseTunnel(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	domainName := p.ByName("domain")
 	err := auth.DeleteReverseTunnel(domainName)
 	if err != nil {
@@ -619,7 +615,7 @@ type upsertTrustedClusterReq struct {
 }
 
 // upsertTrustedCluster creates or updates a trusted cluster.
-func (s *APIServer) upsertTrustedCluster(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) upsertTrustedCluster(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *upsertTrustedClusterReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -639,7 +635,7 @@ func (s *APIServer) upsertTrustedCluster(auth Auth, w http.ResponseWriter, r *ht
 	return rawMessage(services.MarshalTrustedCluster(out, services.WithVersion(version), services.PreserveResourceID()))
 }
 
-func (s *APIServer) validateTrustedCluster(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) validateTrustedCluster(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var validateRequestRaw ValidateTrustedClusterRequestRaw
 	if err := httplib.ReadJSON(r, &validateRequestRaw); err != nil {
 		return nil, trace.Wrap(err)
@@ -663,16 +659,16 @@ func (s *APIServer) validateTrustedCluster(auth Auth, w http.ResponseWriter, r *
 	return validateResponseRaw, nil
 }
 
-func (s *APIServer) getTrustedCluster(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getTrustedCluster(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	return auth.GetTrustedCluster(p.ByName("name"))
 }
 
-func (s *APIServer) getTrustedClusters(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getTrustedClusters(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	return auth.GetTrustedClusters()
 }
 
 // deleteTrustedCluster deletes a trusted cluster by name.
-func (s *APIServer) deleteTrustedCluster(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) deleteTrustedCluster(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	err := auth.DeleteTrustedCluster(r.Context(), p.ByName("name"))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -682,7 +678,7 @@ func (s *APIServer) deleteTrustedCluster(auth Auth, w http.ResponseWriter, r *ht
 }
 
 // getTokens returns a list of active provisioning tokens. expired (inactive) tokens are not returned
-func (s *APIServer) getTokens(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getTokens(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	tokens, err := auth.GetTokens()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -691,7 +687,7 @@ func (s *APIServer) getTokens(auth Auth, w http.ResponseWriter, r *http.Request,
 }
 
 // getTokens returns provisioning token by name
-func (s *APIServer) getToken(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getToken(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	token, err := auth.GetToken(p.ByName("token"))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -700,7 +696,7 @@ func (s *APIServer) getToken(auth Auth, w http.ResponseWriter, r *http.Request, 
 }
 
 // deleteToken deletes (revokes) a token by its value
-func (s *APIServer) deleteToken(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) deleteToken(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	token := p.ByName("token")
 	if err := auth.DeleteToken(token); err != nil {
 		return nil, trace.Wrap(err)
@@ -708,7 +704,7 @@ func (s *APIServer) deleteToken(auth Auth, w http.ResponseWriter, r *http.Reques
 	return message(fmt.Sprintf("Token %v deleted", token)), nil
 }
 
-func (s *APIServer) deleteWebSession(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) deleteWebSession(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	user, sessionID := p.ByName("user"), p.ByName("sid")
 	err := auth.WebSessions().Delete(r.Context(), types.DeleteWebSessionRequest{
 		User:      user,
@@ -720,7 +716,7 @@ func (s *APIServer) deleteWebSession(auth Auth, w http.ResponseWriter, r *http.R
 	return message(fmt.Sprintf("session %q for user %q deleted", sessionID, user)), nil
 }
 
-func (s *APIServer) getWebSession(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getWebSession(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	user, sid := p.ByName("user"), p.ByName("sid")
 	sess, err := auth.GetWebSessionInfo(r.Context(), user, sid)
 	if err != nil {
@@ -738,7 +734,7 @@ type generateUserCertReq struct {
 }
 
 // DELETE IN: 4.2.0
-func (s *APIServer) generateUserCert(auth Auth, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) generateUserCert(auth apiServerAuth, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
 	var req *generateUserCertReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -763,7 +759,7 @@ type signInReq struct {
 	Password string `json:"password"`
 }
 
-func (s *APIServer) u2fSignRequest(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) u2fSignRequest(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *signInReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -782,7 +778,7 @@ type createWebSessionReq struct {
 	AccessRequestID string `json:"access_request_id"`
 }
 
-func (s *APIServer) createWebSession(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) createWebSession(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *createWebSessionReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -802,7 +798,7 @@ func (s *APIServer) createWebSession(auth Auth, w http.ResponseWriter, r *http.R
 	return rawMessage(services.MarshalWebSession(sess, services.WithVersion(version)))
 }
 
-func (s *APIServer) authenticateWebUser(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) authenticateWebUser(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req AuthenticateUserRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -815,7 +811,7 @@ func (s *APIServer) authenticateWebUser(auth Auth, w http.ResponseWriter, r *htt
 	return rawMessage(services.MarshalWebSession(sess, services.WithVersion(version)))
 }
 
-func (s *APIServer) authenticateSSHUser(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) authenticateSSHUser(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req AuthenticateSSHRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -825,7 +821,7 @@ func (s *APIServer) authenticateSSHUser(auth Auth, w http.ResponseWriter, r *htt
 }
 
 // changePassword updates users password based on the old password.
-func (s *APIServer) changePassword(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) changePassword(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req services.ChangePasswordReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -842,7 +838,7 @@ type upsertPasswordReq struct {
 	Password string `json:"password"`
 }
 
-func (s *APIServer) upsertPassword(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) upsertPassword(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *upsertPasswordReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -861,7 +857,7 @@ type upsertUserRawReq struct {
 	User json.RawMessage `json:"user"`
 }
 
-func (s *APIServer) upsertUser(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) upsertUser(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *upsertUserRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -883,7 +879,7 @@ type checkPasswordReq struct {
 	OTPToken string `json:"otp_token"`
 }
 
-func (s *APIServer) checkPassword(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) checkPassword(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req checkPasswordReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -897,7 +893,7 @@ func (s *APIServer) checkPassword(auth Auth, w http.ResponseWriter, r *http.Requ
 	return message(fmt.Sprintf("%q user password matches", user)), nil
 }
 
-func (s *APIServer) getUser(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getUser(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	user, err := auth.GetUser(p.ByName("user"), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -913,7 +909,7 @@ func rawMessage(data []byte, err error) (interface{}, error) {
 	return &m, nil
 }
 
-func (s *APIServer) getUsers(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getUsers(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	users, err := auth.GetUsers(false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -930,7 +926,7 @@ func (s *APIServer) getUsers(auth Auth, w http.ResponseWriter, r *http.Request, 
 }
 
 // DELETE IN: 5.2 REST method is replaced by grpc method with context.
-func (s *APIServer) deleteUser(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) deleteUser(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	user := p.ByName("user")
 	if err := auth.DeleteUser(r.Context(), user); err != nil {
 		return nil, trace.Wrap(err)
@@ -947,7 +943,7 @@ type generateKeyPairResponse struct {
 	PubKey  string `json:"pubkey"`
 }
 
-func (s *APIServer) generateKeyPair(auth Auth, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) generateKeyPair(auth apiServerAuth, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
 	var req *generateKeyPairReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -970,7 +966,7 @@ type generateHostCertReq struct {
 	TTL         time.Duration  `json:"ttl"`
 }
 
-func (s *APIServer) generateHostCert(auth Auth, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) generateHostCert(auth apiServerAuth, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
 	var req *generateHostCertReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -984,7 +980,7 @@ func (s *APIServer) generateHostCert(auth Auth, w http.ResponseWriter, r *http.R
 	return string(cert), nil
 }
 
-func (s *APIServer) generateToken(auth Auth, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) generateToken(auth apiServerAuth, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
 	var req GenerateTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -996,7 +992,7 @@ func (s *APIServer) generateToken(auth Auth, w http.ResponseWriter, r *http.Requ
 	return token, nil
 }
 
-func (s *APIServer) registerUsingToken(auth Auth, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) registerUsingToken(auth apiServerAuth, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
 	var req RegisterUsingTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -1016,7 +1012,7 @@ type registerNewAuthServerReq struct {
 	Token string `json:"token"`
 }
 
-func (s *APIServer) registerNewAuthServer(auth Auth, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) registerNewAuthServer(auth apiServerAuth, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
 	var req *registerNewAuthServerReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -1028,7 +1024,7 @@ func (s *APIServer) registerNewAuthServer(auth Auth, w http.ResponseWriter, r *h
 	return message("ok"), nil
 }
 
-func (s *APIServer) generateServerKeys(auth Auth, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) generateServerKeys(auth apiServerAuth, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
 	var req GenerateServerKeysRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -1045,7 +1041,7 @@ func (s *APIServer) generateServerKeys(auth Auth, w http.ResponseWriter, r *http
 	return keys, nil
 }
 
-func (s *APIServer) rotateCertAuthority(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) rotateCertAuthority(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req RotateRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -1061,7 +1057,7 @@ type upsertCertAuthorityRawReq struct {
 	TTL time.Duration   `json:"ttl"`
 }
 
-func (s *APIServer) upsertCertAuthority(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) upsertCertAuthority(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *upsertCertAuthorityRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -1086,7 +1082,7 @@ type rotateExternalCertAuthorityRawReq struct {
 	CA json.RawMessage `json:"ca"`
 }
 
-func (s *APIServer) rotateExternalCertAuthority(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) rotateExternalCertAuthority(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req rotateExternalCertAuthorityRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -1101,7 +1097,7 @@ func (s *APIServer) rotateExternalCertAuthority(auth Auth, w http.ResponseWriter
 	return message("ok"), nil
 }
 
-func (s *APIServer) getCertAuthorities(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getCertAuthorities(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	loadKeys, _, err := httplib.ParseBool(r.URL.Query(), "load_keys")
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1122,7 +1118,7 @@ func (s *APIServer) getCertAuthorities(auth Auth, w http.ResponseWriter, r *http
 	return items, nil
 }
 
-func (s *APIServer) getCertAuthority(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getCertAuthority(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	loadKeys, _, err := httplib.ParseBool(r.URL.Query(), "load_keys")
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1138,7 +1134,7 @@ func (s *APIServer) getCertAuthority(auth Auth, w http.ResponseWriter, r *http.R
 	return rawMessage(services.MarshalCertAuthority(ca, services.WithVersion(version), services.PreserveResourceID()))
 }
 
-func (s *APIServer) getDomainName(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getDomainName(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	domain, err := auth.GetDomainName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1147,7 +1143,7 @@ func (s *APIServer) getDomainName(auth Auth, w http.ResponseWriter, r *http.Requ
 }
 
 // getClusterCACert returns the CAs for the local cluster without signing keys.
-func (s *APIServer) getClusterCACert(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getClusterCACert(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	localCA, err := auth.GetClusterCACert()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1156,7 +1152,7 @@ func (s *APIServer) getClusterCACert(auth Auth, w http.ResponseWriter, r *http.R
 	return localCA, nil
 }
 
-func (s *APIServer) changePasswordWithToken(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) changePasswordWithToken(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req ChangePasswordWithTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -1172,7 +1168,7 @@ func (s *APIServer) changePasswordWithToken(auth Auth, w http.ResponseWriter, r 
 }
 
 // getU2FAppID returns the U2F AppID in the auth configuration
-func (s *APIServer) getU2FAppID(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getU2FAppID(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	cap, err := auth.GetAuthPreference()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1187,7 +1183,7 @@ func (s *APIServer) getU2FAppID(auth Auth, w http.ResponseWriter, r *http.Reques
 	return universalSecondFactor.AppID, nil
 }
 
-func (s *APIServer) deleteCertAuthority(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) deleteCertAuthority(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	id := services.CertAuthID{
 		DomainName: p.ByName("domain"),
 		Type:       services.CertAuthType(p.ByName("type")),
@@ -1202,7 +1198,7 @@ type createSessionReq struct {
 	Session session.Session `json:"session"`
 }
 
-func (s *APIServer) createSession(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) createSession(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *createSessionReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -1222,7 +1218,7 @@ type updateSessionReq struct {
 	Update session.UpdateRequest `json:"update"`
 }
 
-func (s *APIServer) updateSession(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) updateSession(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *updateSessionReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -1238,7 +1234,7 @@ func (s *APIServer) updateSession(auth Auth, w http.ResponseWriter, r *http.Requ
 	return message("ok"), nil
 }
 
-func (s *APIServer) deleteSession(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) deleteSession(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	err := auth.DeleteSession(p.ByName("namespace"), session.ID(p.ByName("id")))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1246,7 +1242,7 @@ func (s *APIServer) deleteSession(auth Auth, w http.ResponseWriter, r *http.Requ
 	return message("ok"), nil
 }
 
-func (s *APIServer) getSessions(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getSessions(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	namespace := p.ByName("namespace")
 	if !services.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
@@ -1258,7 +1254,7 @@ func (s *APIServer) getSessions(auth Auth, w http.ResponseWriter, r *http.Reques
 	return sessions, nil
 }
 
-func (s *APIServer) getSession(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getSession(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	sid, err := session.ParseID(p.ByName("id"))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1274,7 +1270,7 @@ func (s *APIServer) getSession(auth Auth, w http.ResponseWriter, r *http.Request
 	return se, nil
 }
 
-func (s *APIServer) getSignupU2FRegisterRequest(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getSignupU2FRegisterRequest(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	token := p.ByName("token")
 	u2fRegReq, err := auth.GetSignupU2FRegisterRequest(token)
 	if err != nil {
@@ -1288,7 +1284,7 @@ type upsertOIDCConnectorRawReq struct {
 	TTL       time.Duration   `json:"ttl"`
 }
 
-func (s *APIServer) upsertOIDCConnector(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) upsertOIDCConnector(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *upsertOIDCConnectorRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -1310,7 +1306,7 @@ func (s *APIServer) upsertOIDCConnector(auth Auth, w http.ResponseWriter, r *htt
 	return message("ok"), nil
 }
 
-func (s *APIServer) getOIDCConnector(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getOIDCConnector(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	withSecrets, _, err := httplib.ParseBool(r.URL.Query(), "with_secrets")
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1322,7 +1318,7 @@ func (s *APIServer) getOIDCConnector(auth Auth, w http.ResponseWriter, r *http.R
 	return rawMessage(services.MarshalOIDCConnector(connector, services.WithVersion(version)))
 }
 
-func (s *APIServer) deleteOIDCConnector(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) deleteOIDCConnector(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	err := auth.DeleteOIDCConnector(r.Context(), p.ByName("id"))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1330,7 +1326,7 @@ func (s *APIServer) deleteOIDCConnector(auth Auth, w http.ResponseWriter, r *htt
 	return message("ok"), nil
 }
 
-func (s *APIServer) getOIDCConnectors(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getOIDCConnectors(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	withSecrets, _, err := httplib.ParseBool(r.URL.Query(), "with_secrets")
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1354,7 +1350,7 @@ type createOIDCAuthRequestReq struct {
 	Req services.OIDCAuthRequest `json:"req"`
 }
 
-func (s *APIServer) createOIDCAuthRequest(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) createOIDCAuthRequest(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *createOIDCAuthRequestReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -1390,7 +1386,7 @@ type oidcAuthRawResponse struct {
 	HostSigners []json.RawMessage `json:"host_signers"`
 }
 
-func (s *APIServer) validateOIDCAuthCallback(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) validateOIDCAuthCallback(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *validateOIDCAuthCallbackReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -1428,7 +1424,7 @@ type createSAMLConnectorRawReq struct {
 	Connector json.RawMessage `json:"connector"`
 }
 
-func (s *APIServer) createSAMLConnector(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) createSAMLConnector(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *createSAMLConnectorRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -1451,7 +1447,7 @@ type upsertSAMLConnectorRawReq struct {
 	Connector json.RawMessage `json:"connector"`
 }
 
-func (s *APIServer) upsertSAMLConnector(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) upsertSAMLConnector(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *upsertSAMLConnectorRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -1470,7 +1466,7 @@ func (s *APIServer) upsertSAMLConnector(auth Auth, w http.ResponseWriter, r *htt
 	return message("ok"), nil
 }
 
-func (s *APIServer) getSAMLConnector(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getSAMLConnector(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	withSecrets, _, err := httplib.ParseBool(r.URL.Query(), "with_secrets")
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1482,7 +1478,7 @@ func (s *APIServer) getSAMLConnector(auth Auth, w http.ResponseWriter, r *http.R
 	return rawMessage(services.MarshalSAMLConnector(connector, services.WithVersion(version)))
 }
 
-func (s *APIServer) deleteSAMLConnector(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) deleteSAMLConnector(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	err := auth.DeleteSAMLConnector(r.Context(), p.ByName("id"))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1490,7 +1486,7 @@ func (s *APIServer) deleteSAMLConnector(auth Auth, w http.ResponseWriter, r *htt
 	return message("ok"), nil
 }
 
-func (s *APIServer) getSAMLConnectors(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getSAMLConnectors(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	withSecrets, _, err := httplib.ParseBool(r.URL.Query(), "with_secrets")
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1514,7 +1510,7 @@ type createSAMLAuthRequestReq struct {
 	Req services.SAMLAuthRequest `json:"req"`
 }
 
-func (s *APIServer) createSAMLAuthRequest(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) createSAMLAuthRequest(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *createSAMLAuthRequestReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -1550,7 +1546,7 @@ type samlAuthRawResponse struct {
 	TLSCert []byte `json:"tls_cert,omitempty"`
 }
 
-func (s *APIServer) validateSAMLResponse(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) validateSAMLResponse(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *validateSAMLResponseReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -1596,7 +1592,7 @@ type createGithubConnectorRawReq struct {
 
    Success response: {"message": "ok"}
 */
-func (s *APIServer) createGithubConnector(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) createGithubConnector(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req createGithubConnectorRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -1623,7 +1619,7 @@ type upsertGithubConnectorRawReq struct {
 
    Success response: {"message": "ok"}
 */
-func (s *APIServer) upsertGithubConnector(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) upsertGithubConnector(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req upsertGithubConnectorRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -1644,7 +1640,7 @@ func (s *APIServer) upsertGithubConnector(auth Auth, w http.ResponseWriter, r *h
 
    Success response: []services.GithubConnector
 */
-func (s *APIServer) getGithubConnectors(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getGithubConnectors(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	withSecrets, _, err := httplib.ParseBool(r.URL.Query(), "with_secrets")
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1670,7 +1666,7 @@ func (s *APIServer) getGithubConnectors(auth Auth, w http.ResponseWriter, r *htt
 
    Success response: services.GithubConnector
 */
-func (s *APIServer) getGithubConnector(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getGithubConnector(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	withSecrets, _, err := httplib.ParseBool(r.URL.Query(), "with_secrets")
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1688,7 +1684,7 @@ func (s *APIServer) getGithubConnector(auth Auth, w http.ResponseWriter, r *http
 
    Success response: {"message": "ok"}
 */
-func (s *APIServer) deleteGithubConnector(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) deleteGithubConnector(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	if err := auth.DeleteGithubConnector(r.Context(), p.ByName("id")); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1707,7 +1703,7 @@ type createGithubAuthRequestReq struct {
 
    Success response: services.GithubAuthRequest
 */
-func (s *APIServer) createGithubAuthRequest(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) createGithubAuthRequest(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req createGithubAuthRequestReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -1751,7 +1747,7 @@ type githubAuthRawResponse struct {
 
    Success response: githubAuthRawResponse
 */
-func (s *APIServer) validateGithubAuthCallback(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) validateGithubAuthCallback(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req validateGithubAuthCallbackReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -1793,7 +1789,7 @@ func (s *APIServer) validateGithubAuthCallback(auth Auth, w http.ResponseWriter,
 //	'from'  : time filter in RFC3339 format
 //	'to'    : time filter in RFC3339 format
 //  ...     : other fields are passed directly to the audit backend
-func (s *APIServer) searchEvents(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) searchEvents(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var err error
 	to := time.Now().In(time.UTC)
 	from := to.AddDate(0, -1, 0) // one month ago
@@ -1834,7 +1830,7 @@ func (s *APIServer) searchEvents(auth Auth, w http.ResponseWriter, r *http.Reque
 }
 
 // searchSessionEvents only allows searching audit log for events related to session playback.
-func (s *APIServer) searchSessionEvents(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) searchSessionEvents(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var err error
 
 	// default values for "to" and "from" fields
@@ -1886,7 +1882,7 @@ type auditEventReq struct {
 }
 
 // HTTP	POST /:version/events
-func (s *APIServer) emitAuditEvent(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) emitAuditEvent(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req auditEventReq
 	err := httplib.ReadJSON(r, &req)
 	if err != nil {
@@ -1923,7 +1919,7 @@ func (s *APIServer) emitAuditEvent(auth Auth, w http.ResponseWriter, r *http.Req
 }
 
 // HTTP POST /:version/sessions/:id/slice
-func (s *APIServer) postSessionSlice(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) postSessionSlice(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	data, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1961,7 +1957,7 @@ func (s *APIServer) postSessionSlice(auth Auth, w http.ResponseWriter, r *http.R
 }
 
 // HTTP POST /:version/sessions/:id/recording
-func (s *APIServer) uploadSessionRecording(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) uploadSessionRecording(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var files form.Files
 	var namespace, sid string
 
@@ -2022,7 +2018,7 @@ func (s *APIServer) uploadSessionRecording(auth Auth, w http.ResponseWriter, r *
 // Query parameters:
 //   "offset"   : bytes from the beginning
 //   "bytes"    : number of bytes to read (it won't return more than 512Kb)
-func (s *APIServer) getSessionChunk(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getSessionChunk(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	sid, err := session.ParseID(p.ByName("id"))
 	if err != nil {
 		return nil, trace.BadParameter("missing parameter id")
@@ -2059,7 +2055,7 @@ func (s *APIServer) getSessionChunk(auth Auth, w http.ResponseWriter, r *http.Re
 // HTTP GET /:version/sessions/:id/events?maxage=n
 // Query:
 //    'after' : cursor value to return events newer than N. Defaults to 0, (return all)
-func (s *APIServer) getSessionEvents(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getSessionEvents(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	sid, err := session.ParseID(p.ByName("id"))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2084,7 +2080,7 @@ type upsertNamespaceReq struct {
 	Namespace services.Namespace `json:"namespace"`
 }
 
-func (s *APIServer) upsertNamespace(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) upsertNamespace(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *upsertNamespaceReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -2095,7 +2091,7 @@ func (s *APIServer) upsertNamespace(auth Auth, w http.ResponseWriter, r *http.Re
 	return message("ok"), nil
 }
 
-func (s *APIServer) getNamespaces(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getNamespaces(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	namespaces, err := auth.GetNamespaces()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2103,7 +2099,7 @@ func (s *APIServer) getNamespaces(auth Auth, w http.ResponseWriter, r *http.Requ
 	return namespaces, nil
 }
 
-func (s *APIServer) getNamespace(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getNamespace(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	name := p.ByName("namespace")
 	if !services.IsValidNamespace(name) {
 		return nil, trace.BadParameter("invalid namespace %q", name)
@@ -2116,7 +2112,7 @@ func (s *APIServer) getNamespace(auth Auth, w http.ResponseWriter, r *http.Reque
 	return namespace, nil
 }
 
-func (s *APIServer) deleteNamespace(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) deleteNamespace(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	name := p.ByName("namespace")
 	if !services.IsValidNamespace(name) {
 		return nil, trace.BadParameter("invalid namespace %q", name)
@@ -2133,7 +2129,7 @@ type upsertRoleRawReq struct {
 	Role json.RawMessage `json:"role"`
 }
 
-func (s *APIServer) upsertRole(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) upsertRole(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *upsertRoleRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -2152,7 +2148,7 @@ func (s *APIServer) upsertRole(auth Auth, w http.ResponseWriter, r *http.Request
 	return message(fmt.Sprintf("'%v' role upserted", role.GetName())), nil
 }
 
-func (s *APIServer) getRole(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getRole(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	role, err := auth.GetRole(p.ByName("role"))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2160,7 +2156,7 @@ func (s *APIServer) getRole(auth Auth, w http.ResponseWriter, r *http.Request, p
 	return rawMessage(services.MarshalRole(role, services.WithVersion(version), services.PreserveResourceID()))
 }
 
-func (s *APIServer) getRoles(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getRoles(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	roles, err := auth.GetRoles()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2176,7 +2172,7 @@ func (s *APIServer) getRoles(auth Auth, w http.ResponseWriter, r *http.Request, 
 	return out, nil
 }
 
-func (s *APIServer) deleteRole(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) deleteRole(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	role := p.ByName("role")
 	if err := auth.DeleteRole(r.Context(), role); err != nil {
 		return nil, trace.Wrap(err)
@@ -2184,7 +2180,7 @@ func (s *APIServer) deleteRole(auth Auth, w http.ResponseWriter, r *http.Request
 	return message(fmt.Sprintf("role %q deleted", role)), nil
 }
 
-func (s *APIServer) getClusterConfig(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getClusterConfig(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	cc, err := auth.GetClusterConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2197,7 +2193,7 @@ type setClusterConfigReq struct {
 	ClusterConfig json.RawMessage `json:"cluster_config"`
 }
 
-func (s *APIServer) setClusterConfig(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) setClusterConfig(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req setClusterConfigReq
 
 	err := httplib.ReadJSON(r, &req)
@@ -2218,7 +2214,7 @@ func (s *APIServer) setClusterConfig(auth Auth, w http.ResponseWriter, r *http.R
 	return message("cluster config set"), nil
 }
 
-func (s *APIServer) getClusterName(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getClusterName(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	cn, err := auth.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2231,7 +2227,7 @@ type setClusterNameReq struct {
 	ClusterName json.RawMessage `json:"cluster_name"`
 }
 
-func (s *APIServer) setClusterName(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) setClusterName(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req setClusterNameReq
 
 	err := httplib.ReadJSON(r, &req)
@@ -2252,7 +2248,7 @@ func (s *APIServer) setClusterName(auth Auth, w http.ResponseWriter, r *http.Req
 	return message(fmt.Sprintf("cluster name set: %+v", cn)), nil
 }
 
-func (s *APIServer) getStaticTokens(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getStaticTokens(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	st, err := auth.GetStaticTokens()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2261,7 +2257,7 @@ func (s *APIServer) getStaticTokens(auth Auth, w http.ResponseWriter, r *http.Re
 	return rawMessage(services.MarshalStaticTokens(st, services.WithVersion(version), services.PreserveResourceID()))
 }
 
-func (s *APIServer) deleteStaticTokens(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) deleteStaticTokens(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	err := auth.DeleteStaticTokens()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2273,7 +2269,7 @@ type setStaticTokensReq struct {
 	StaticTokens json.RawMessage `json:"static_tokens"`
 }
 
-func (s *APIServer) setStaticTokens(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) setStaticTokens(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req setStaticTokensReq
 
 	err := httplib.ReadJSON(r, &req)
@@ -2294,7 +2290,7 @@ func (s *APIServer) setStaticTokens(auth Auth, w http.ResponseWriter, r *http.Re
 	return message(fmt.Sprintf("static tokens set: %+v", st)), nil
 }
 
-func (s *APIServer) getClusterAuthPreference(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getClusterAuthPreference(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	cap, err := auth.GetAuthPreference()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2307,7 +2303,7 @@ type setClusterAuthPreferenceReq struct {
 	ClusterAuthPreference json.RawMessage `json:"cluster_auth_prerference"`
 }
 
-func (s *APIServer) setClusterAuthPreference(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) setClusterAuthPreference(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *setClusterAuthPreferenceReq
 
 	err := httplib.ReadJSON(r, &req)
@@ -2333,7 +2329,7 @@ type upsertTunnelConnectionRawReq struct {
 }
 
 // upsertTunnelConnection updates or inserts tunnel connection
-func (s *APIServer) upsertTunnelConnection(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) upsertTunnelConnection(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req upsertTunnelConnectionRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -2349,7 +2345,7 @@ func (s *APIServer) upsertTunnelConnection(auth Auth, w http.ResponseWriter, r *
 }
 
 // getTunnelConnections returns a list of tunnel connections from a cluster
-func (s *APIServer) getTunnelConnections(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getTunnelConnections(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	conns, err := auth.GetTunnelConnections(p.ByName("cluster"))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2366,7 +2362,7 @@ func (s *APIServer) getTunnelConnections(auth Auth, w http.ResponseWriter, r *ht
 }
 
 // getAllTunnelConnections returns a list of tunnel connections from a cluster
-func (s *APIServer) getAllTunnelConnections(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getAllTunnelConnections(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	conns, err := auth.GetAllTunnelConnections()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2383,7 +2379,7 @@ func (s *APIServer) getAllTunnelConnections(auth Auth, w http.ResponseWriter, r 
 }
 
 // deleteTunnelConnection deletes tunnel connection by name
-func (s *APIServer) deleteTunnelConnection(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) deleteTunnelConnection(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	err := auth.DeleteTunnelConnection(p.ByName("cluster"), p.ByName("conn"))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2392,7 +2388,7 @@ func (s *APIServer) deleteTunnelConnection(auth Auth, w http.ResponseWriter, r *
 }
 
 // deleteTunnelConnections deletes all tunnel connections for cluster
-func (s *APIServer) deleteTunnelConnections(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) deleteTunnelConnections(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	err := auth.DeleteTunnelConnections(p.ByName("cluster"))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2401,7 +2397,7 @@ func (s *APIServer) deleteTunnelConnections(auth Auth, w http.ResponseWriter, r 
 }
 
 // deleteAllTunnelConnections deletes all tunnel connections
-func (s *APIServer) deleteAllTunnelConnections(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) deleteAllTunnelConnections(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	err := auth.DeleteAllTunnelConnections()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2415,7 +2411,7 @@ type createRemoteClusterRawReq struct {
 }
 
 // createRemoteCluster creates remote cluster
-func (s *APIServer) createRemoteCluster(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) createRemoteCluster(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req createRemoteClusterRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -2431,7 +2427,7 @@ func (s *APIServer) createRemoteCluster(auth Auth, w http.ResponseWriter, r *htt
 }
 
 // getRemoteClusters returns a list of remote clusters
-func (s *APIServer) getRemoteClusters(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getRemoteClusters(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	clusters, err := auth.GetRemoteClusters()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2448,7 +2444,7 @@ func (s *APIServer) getRemoteClusters(auth Auth, w http.ResponseWriter, r *http.
 }
 
 // getRemoteCluster returns a remote cluster by name
-func (s *APIServer) getRemoteCluster(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getRemoteCluster(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	cluster, err := auth.GetRemoteCluster(p.ByName("cluster"))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2457,7 +2453,7 @@ func (s *APIServer) getRemoteCluster(auth Auth, w http.ResponseWriter, r *http.R
 }
 
 // deleteRemoteCluster deletes remote cluster by name
-func (s *APIServer) deleteRemoteCluster(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) deleteRemoteCluster(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	err := auth.DeleteRemoteCluster(p.ByName("cluster"))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2466,7 +2462,7 @@ func (s *APIServer) deleteRemoteCluster(auth Auth, w http.ResponseWriter, r *htt
 }
 
 // deleteAllRemoteClusters deletes all remote clusters
-func (s *APIServer) deleteAllRemoteClusters(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) deleteAllRemoteClusters(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	err := auth.DeleteAllRemoteClusters()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2474,7 +2470,7 @@ func (s *APIServer) deleteAllRemoteClusters(auth Auth, w http.ResponseWriter, r 
 	return message("ok"), nil
 }
 
-func (s *APIServer) processKubeCSR(auth Auth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) processKubeCSR(auth apiServerAuth, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req KubeCSR
 
 	if err := httplib.ReadJSON(r, &req); err != nil {

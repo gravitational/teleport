@@ -123,7 +123,7 @@ func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateResetPa
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = s.Services.LocalIdentity.CreateResetPasswordToken(ctx, token)
+	_, err = s.Services.ServerIdentity.CreateResetPasswordToken(ctx, token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

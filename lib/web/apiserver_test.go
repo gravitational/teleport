@@ -469,7 +469,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	// now swap the request id to the hardcoded one in fixtures
 	authRequest.ID = fixtures.SAMLOktaAuthRequestID
 	authRequest.CSRFToken = csrfToken
-	err = s.server.Auth().Services.LocalIdentity.CreateSAMLAuthRequest(*authRequest, backend.Forever)
+	err = s.server.Auth().Services.ServerIdentity.CreateSAMLAuthRequest(*authRequest, backend.Forever)
 	c.Assert(err, IsNil)
 
 	// now respond with pre-recorded request to the POST url

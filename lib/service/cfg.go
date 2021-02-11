@@ -116,25 +116,25 @@ type Config struct {
 	PIDFile string
 
 	// Trust is a service that manages users and credentials
-	Trust services.LocalTrust
+	Trust services.ServerTrust
 
 	// Presence service is a discovery and hearbeat tracker
-	Presence services.LocalPresence
+	Presence services.ServerPresence
 
 	// Events is events service
 	Events services.Events
 
 	// Provisioner is a service that keeps track of provisioning tokens
-	Provisioner services.LocalProvisioner
+	Provisioner services.ServerProvisioner
 
 	// Trust is a service that manages users and credentials
-	Identity services.LocalIdentity
+	Identity services.ServerIdentity
 
 	// Access is a service that controls access
-	Access services.LocalAccess
+	Access services.ServerAccess
 
 	// ClusterConfiguration is a service that provides cluster configuration
-	ClusterConfiguration services.LocalClusterConfiguration
+	ClusterConfiguration services.ServerClusterConfiguration
 
 	// CipherSuites is a list of TLS ciphersuites that Teleport supports. If
 	// omitted, a Teleport selected list of defaults will be used.
