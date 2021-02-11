@@ -25,7 +25,9 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
+
 	"github.com/gravitational/trace"
+
 	"github.com/julienschmidt/httprouter"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
@@ -294,11 +296,11 @@ type resourcesAPIGetter interface {
 	// UpsertRole creates or updates role
 	UpsertRole(ctx context.Context, role types.Role) error
 	// UpsertGithubConnector creates or updates a Github connector
-	UpsertGithubConnector(ctx context.Context, connector services.GithubConnector) error
+	UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error
 	// GetGithubConnectors returns all configured Github connectors
-	GetGithubConnectors(withSecrets bool) ([]services.GithubConnector, error)
+	GetGithubConnectors(withSecrets bool) ([]types.GithubConnector, error)
 	// GetGithubConnector returns the specified Github connector
-	GetGithubConnector(id string, withSecrets bool) (services.GithubConnector, error)
+	GetGithubConnector(id string, withSecrets bool) (types.GithubConnector, error)
 	// DeleteGithubConnector deletes the specified Github connector
 	DeleteGithubConnector(ctx context.Context, id string) error
 	// UpsertTrustedCluster creates or updates a TrustedCluster in the backend.

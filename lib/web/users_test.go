@@ -24,7 +24,9 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/lib/services"
+
 	"github.com/gravitational/trace"
+
 	"github.com/julienschmidt/httprouter"
 	"github.com/stretchr/testify/require"
 )

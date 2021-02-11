@@ -19,9 +19,11 @@ package ui
 import (
 	"fmt"
 
-	yaml "github.com/ghodss/yaml"
 	"github.com/gravitational/teleport/api/types"
+
 	"github.com/gravitational/trace"
+
+	yaml "github.com/ghodss/yaml"
 )
 
 // ResourceItem is UI representation of a resource (roles, trusted clusters, auth connectors).

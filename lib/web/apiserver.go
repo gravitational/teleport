@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -55,6 +56,7 @@ import (
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	lemma_secret "github.com/mailgun/lemma/secret"
@@ -329,20 +331,20 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	// Issue host credentials.
 	h.POST("/webapi/host/credentials", httplib.MakeHandler(h.hostCredentials))
 
-	h.GET("/webapi/resources/roles", h.WithAuth(h.getRolesHandle))
-	h.PUT("/webapi/resources/roles", h.WithAuth(h.upsertRoleHandle))
-	h.POST("/webapi/resources/roles", h.WithAuth(h.upsertRoleHandle))
-	h.DELETE("/webapi/resources/roles/:name", h.WithAuth(h.deleteRole))
+	h.GET("/webapi/roles", h.WithAuth(h.getRolesHandle))
+	h.PUT("/webapi/roles", h.WithAuth(h.upsertRoleHandle))
+	h.POST("/webapi/roles", h.WithAuth(h.upsertRoleHandle))
+	h.DELETE("/webapi/roles/:name", h.WithAuth(h.deleteRole))
 
-	h.GET("/webapi/resources/github", h.WithAuth(h.getGithubConnectorsHandle))
-	h.PUT("/webapi/resources/github", h.WithAuth(h.upsertGithubConnectorHandle))
-	h.POST("/webapi/resources/github", h.WithAuth(h.upsertGithubConnectorHandle))
-	h.DELETE("/webapi/resources/github/:name", h.WithAuth(h.deleteGithubConnector))
+	h.GET("/webapi/github", h.WithAuth(h.getGithubConnectorsHandle))
+	h.PUT("/webapi/github", h.WithAuth(h.upsertGithubConnectorHandle))
+	h.POST("/webapi/github", h.WithAuth(h.upsertGithubConnectorHandle))
+	h.DELETE("/webapi/github/:name", h.WithAuth(h.deleteGithubConnector))
 
-	h.GET("/webapi/resources/trustedcluster", h.WithAuth(h.getTrustedClustersHandle))
-	h.PUT("/webapi/resources/trustedcluster", h.WithAuth(h.upsertTrustedClusterHandle))
-	h.POST("/webapi/resources/trustedcluster", h.WithAuth(h.upsertTrustedClusterHandle))
-	h.DELETE("/webapi/resources/trustedcluster/:name", h.WithAuth(h.deleteTrustedCluster))
+	h.GET("/webapi/trustedcluster", h.WithAuth(h.getTrustedClustersHandle))
+	h.PUT("/webapi/trustedcluster", h.WithAuth(h.upsertTrustedClusterHandle))
+	h.POST("/webapi/trustedcluster", h.WithAuth(h.upsertTrustedClusterHandle))
+	h.DELETE("/webapi/trustedcluster/:name", h.WithAuth(h.deleteTrustedCluster))
 
 	// if Web UI is enabled, check the assets dir:
 	var indexPage *template.Template

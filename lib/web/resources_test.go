@@ -23,7 +23,9 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/web/ui"
+
 	"github.com/gravitational/trace"
+
 	"github.com/stretchr/testify/require"
 )
 
