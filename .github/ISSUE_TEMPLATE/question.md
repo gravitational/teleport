@@ -9,7 +9,7 @@ labels: question
   Useful Links:
   - Documentation: https://goteleport.com/teleport/docs/
 
-  - For Open Source users, please ask in our community forum: https://community.goteleport.com/c/teleport
+  - For Open Source users, please post your question in Github Discussions: https://github.com/gravitational/teleport/discussions
   - For Enterprise customers, please open a support ticket via the Enterprise support portal: https://dashboard.gravitational.com/web/
 -->
 ### What
