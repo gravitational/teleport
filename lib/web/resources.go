@@ -91,7 +91,7 @@ func upsertRole(ctx context.Context, clt resourcesAPIGetter, content, httpMethod
 		return nil, trace.Wrap(err)
 	}
 
-	role, err := services.GetRoleMarshaler().UnmarshalRole(extractedRes.Raw)
+	role, err := services.UnmarshalRole(extractedRes.Raw)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -164,7 +164,7 @@ func upsertGithubConnector(ctx context.Context, clt resourcesAPIGetter, content,
 		return nil, trace.Wrap(err)
 	}
 
-	connector, err := services.GetGithubConnectorMarshaler().Unmarshal(extractedRes.Raw)
+	connector, err := services.UnmarshalGithubConnector(extractedRes.Raw)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -237,7 +237,7 @@ func upsertTrustedCluster(ctx context.Context, clt resourcesAPIGetter, content, 
 		return nil, trace.Wrap(err)
 	}
 
-	tc, err := services.GetTrustedClusterMarshaler().Unmarshal(extractedRes.Raw)
+	tc, err := services.UnmarshalTrustedCluster(extractedRes.Raw)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
