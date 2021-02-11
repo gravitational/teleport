@@ -43,10 +43,10 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace/trail"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"github.com/jonboulle/clockwork"
 )
 
@@ -1075,7 +1075,7 @@ func (c *Client) CheckPassword(user string, password []byte, otpToken string) er
 }
 
 // GetU2FSignRequest generates request for user trying to authenticate with U2F token
-func (c *Client) GetU2FSignRequest(user string, password []byte) (*u2f.AuthenticateChallenge, error) {
+func (c *Client) GetU2FSignRequest(user string, password []byte) (*U2FAuthenticateChallenge, error) {
 	out, err := c.PostJSON(
 		c.Endpoint("u2f", "users", user, "sign"),
 		signInReq{
@@ -1085,7 +1085,7 @@ func (c *Client) GetU2FSignRequest(user string, password []byte) (*u2f.Authentic
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var signRequest *u2f.AuthenticateChallenge
+	var signRequest *U2FAuthenticateChallenge
 	if err := json.Unmarshal(out.Bytes(), &signRequest); err != nil {
 		return nil, err
 	}
@@ -1152,16 +1152,16 @@ func (c *Client) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 
 // GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
 // it is valid, or error otherwise.
-func (c *Client) GetWebSessionInfo(user string, sid string) (services.WebSession, error) {
+func (c *Client) GetWebSessionInfo(ctx context.Context, user, sessionID string) (services.WebSession, error) {
 	out, err := c.Get(
-		c.Endpoint("users", user, "web", "sessions", sid), url.Values{})
+		c.Endpoint("users", user, "web", "sessions", sessionID), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return services.UnmarshalWebSession(out.Bytes())
 }
 
-// DeleteWebSession deletes a web session for this user by id
+// DeleteWebSession deletes the web session specified with sid for the given user
 func (c *Client) DeleteWebSession(user string, sid string) error {
 	_, err := c.Delete(c.Endpoint("users", user, "web", "sessions", sid))
 	return trace.Wrap(err)
@@ -2155,14 +2155,12 @@ func (c *Client) CreateAuditStream(ctx context.Context, sid session.ID) (events.
 type WebService interface {
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
 	// it is valid, or error otherwise.
-	GetWebSessionInfo(user string, sid string) (services.WebSession, error)
+	GetWebSessionInfo(ctx context.Context, user, sessionID string) (types.WebSession, error)
 	// ExtendWebSession creates a new web session for a user based on another
 	// valid web session
-	ExtendWebSession(user string, prevSessionID string, accessRequestID string) (services.WebSession, error)
+	ExtendWebSession(user, prevSessionID, accessRequestID string) (types.WebSession, error)
 	// CreateWebSession creates a new web session for a user
-	CreateWebSession(user string) (services.WebSession, error)
-	// DeleteWebSession deletes a web session for this user by id
-	DeleteWebSession(user string, sid string) error
+	CreateWebSession(user string) (types.WebSession, error)
 
 	// AppSession defines application session features.
 	services.AppSession
@@ -2228,7 +2226,7 @@ type IdentityService interface {
 	ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error)
 
 	// GetU2FSignRequest generates request for user trying to authenticate with U2F token
-	GetU2FSignRequest(user string, password []byte) (*u2f.AuthenticateChallenge, error)
+	GetU2FSignRequest(user string, password []byte) (*U2FAuthenticateChallenge, error)
 
 	// GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite token
 	GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error)
@@ -2282,6 +2280,11 @@ type IdentityService interface {
 	// returns the resulting certificates.
 	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
 
+	// GenerateUserSingleUseCerts is like GenerateUserCerts but issues a
+	// certificate for a single session
+	// (https://github.com/gravitational/teleport/blob/3a1cf9111c2698aede2056513337f32bfc16f1f1/rfd/0014-session-2FA.md#sessions).
+	GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error)
+
 	// DeleteAllUsers deletes all users
 	DeleteAllUsers() error
 
@@ -2296,6 +2299,13 @@ type IdentityService interface {
 
 	// RotateResetPasswordTokenSecrets rotates token secrets for a given tokenID
 	RotateResetPasswordTokenSecrets(ctx context.Context, tokenID string) (services.ResetPasswordTokenSecrets, error)
+
+	// GetMFADevices fetches all MFA devices registered for the calling user.
+	GetMFADevices(ctx context.Context, in *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error)
+	// AddMFADevice adds a new MFA device for the calling user.
+	AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error)
+	// DeleteMFADevice deletes a MFA device for the calling user.
+	DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error)
 }
 
 // ProvisioningService is a service in control
@@ -2341,6 +2351,9 @@ type ClientI interface {
 	session.Service
 	services.ClusterConfiguration
 	services.Events
+
+	types.WebSessionsGetter
+	types.WebTokensGetter
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (services.KeepAliver, error)
@@ -2388,4 +2401,12 @@ type ClientI interface {
 	// GenerateDatabaseCert generates client certificate used by a database
 	// service to authenticate with the database instance.
 	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
+
+	// GetWebSession queries the existing web session described with req.
+	// Implements ReadAccessPoint.
+	GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error)
+
+	// GetWebToken queries the existing web token described with req.
+	// Implements ReadAccessPoint.
+	GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
 }

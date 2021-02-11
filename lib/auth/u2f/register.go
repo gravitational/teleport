@@ -18,9 +18,14 @@ package u2f
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
 
+	"github.com/flynn/u2f/u2ftoken"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/mailgun/ttlmap"
 	"github.com/tstranex/u2f"
 
 	"github.com/gravitational/teleport/api/types"
@@ -35,8 +40,6 @@ import (
 // RegisterSignChallenge()
 //                         -- RegisterChallengeResponse ->
 //                                                         RegisterVerify()
-//
-// TODO(awly): implement RegisterSignChallenge
 
 type (
 	// RegisterChallenge is the first message in registration sequence. It's
@@ -63,10 +66,43 @@ func NewChallenge(appID string, trustedFacets []string) (*Challenge, error) {
 // RegistrationStorage is the persistent storage needed to store temporary
 // state (challenge) during the registration sequence.
 type RegistrationStorage interface {
+	DeviceStorage
+
 	UpsertU2FRegisterChallenge(key string, challenge *Challenge) error
 	GetU2FRegisterChallenge(key string) (*Challenge, error)
+}
 
-	UpsertMFADevice(ctx context.Context, key string, d *types.MFADevice) error
+type inMemoryRegistrationStorage struct {
+	DeviceStorage
+	challenges *ttlmap.TtlMap
+}
+
+// InMemoryRegistrationStorage returns a new RegistrationStorage that stores
+// registration challenges in the current process memory.
+//
+// Updates to existing devices are forwarded to ds.
+func InMemoryRegistrationStorage(ds DeviceStorage) (RegistrationStorage, error) {
+	m, err := ttlmap.NewMap(inMemoryChallengeCapacity)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return inMemoryRegistrationStorage{DeviceStorage: ds, challenges: m}, nil
+}
+
+func (s inMemoryRegistrationStorage) UpsertU2FRegisterChallenge(key string, c *Challenge) error {
+	return s.challenges.Set(key, c, int(inMemoryChallengeTTL.Seconds()))
+}
+
+func (s inMemoryRegistrationStorage) GetU2FRegisterChallenge(key string) (*Challenge, error) {
+	v, ok := s.challenges.Get(key)
+	if !ok {
+		return nil, trace.NotFound("U2F challenge not found or expired")
+	}
+	c, ok := v.(*Challenge)
+	if !ok {
+		return nil, trace.NotFound("bug: U2F challenge storage returned %T instead of *u2f.Challenge", v)
+	}
+	return c, nil
 }
 
 // RegisterInitParams are the parameters for initiating the registration
@@ -94,6 +130,53 @@ func RegisterInit(params RegisterInitParams) (*RegisterChallenge, error) {
 	return request, nil
 }
 
+// RegisterSignChallenge is the second step in the registration sequence.  It
+// runs on the client and the returned RegisterChallengeResponse must be sent
+// to the server.
+//
+// Note: the caller must prompt the user to tap the U2F token.
+func RegisterSignChallenge(ctx context.Context, c RegisterChallenge, facet string) (*RegisterChallengeResponse, error) {
+	// Convert from JS-centric github.com/tstranex/u2f format to a more
+	// wire-centric github.com/flynn/u2f format.
+	appHash := sha256.Sum256([]byte(c.AppID))
+	cd := u2f.ClientData{
+		Challenge: c.Challenge,
+		Origin:    facet,
+		Typ:       "navigator.id.finishEnrollment",
+	}
+	cdRaw, err := json.Marshal(cd)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	chHash := sha256.Sum256(cdRaw)
+	regReq := u2ftoken.RegisterRequest{
+		Challenge:   chHash[:],
+		Application: appHash[:],
+	}
+
+	var regRespRaw []byte
+	if err := pollLocalDevices(ctx, func(t *u2ftoken.Token) error {
+		var err error
+		regRespRaw, err = t.Register(regReq)
+		return err
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(regRespRaw) == 0 {
+		// This shouldn't happen if the loop above works correctly, but check
+		// just in case.
+		return nil, trace.CompareFailed("failed getting a registration response from a U2F device")
+	}
+
+	// Convert back from github.com/flynn/u2f to github.com/tstranex/u2f
+	// format.
+	base64 := base64.URLEncoding.WithPadding(base64.NoPadding)
+	return &RegisterChallengeResponse{
+		RegistrationData: base64.EncodeToString(regRespRaw),
+		ClientData:       base64.EncodeToString(cdRaw),
+	}, nil
+}
+
 // RegisterInitParams are the parameters for verifying the
 // RegisterChallengeResponse.
 type RegisterVerifyParams struct {
@@ -107,10 +190,11 @@ type RegisterVerifyParams struct {
 
 // RegisterVerify is the last step in the registration sequence. It runs on the
 // server and verifies the RegisterChallengeResponse returned by the client.
-func RegisterVerify(ctx context.Context, params RegisterVerifyParams) error {
+func RegisterVerify(ctx context.Context, params RegisterVerifyParams) (*types.MFADevice, error) {
+	// TODO(awly): mfa: prevent the same key being registered twice.
 	challenge, err := params.Storage.GetU2FRegisterChallenge(params.ChallengeStorageKey)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Set SkipAttestationVerify because we don't yet know what vendor CAs to
@@ -119,15 +203,15 @@ func RegisterVerify(ctx context.Context, params RegisterVerifyParams) error {
 	if err != nil {
 		// U2F is a 3rd party library and sends back a string based error. Wrap this error with a
 		// trace.BadParameter error to allow the Web UI to unmarshal it correctly.
-		return trace.BadParameter(err.Error())
+		return nil, trace.BadParameter(err.Error())
 	}
 	dev, err := NewDevice(params.DevName, reg, params.Clock.Now())
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if err := params.Storage.UpsertMFADevice(ctx, params.RegistrationStorageKey, dev); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return nil
+	return dev, nil
 }

@@ -163,6 +163,9 @@ const (
 	// ComponentAppProxy is the application handler within the web proxy service.
 	ComponentAppProxy = "app:web"
 
+	// ComponentWebProxy is the web handler within the web proxy service.
+	ComponentWebProxy = "web"
+
 	// ComponentDiagnostic is a diagnostic service
 	ComponentDiagnostic = "diag"
 
@@ -435,6 +438,12 @@ const (
 	// CertExtensionTeleportActiveRequests is used to track which privilege
 	// escalation requests were used to construct the certificate.
 	CertExtensionTeleportActiveRequests = "teleport-active-requests"
+	// CertExtensionMFAVerified is used to mark certificates issued after an MFA
+	// check.
+	CertExtensionMFAVerified = "mfa-verified"
+	// CertExtensionClientIP is used to embed the IP of the client that created
+	// the certificate.
+	CertExtensionClientIP = "client-ip"
 )
 
 const (
@@ -682,3 +691,6 @@ const (
 	// AppCFHeader is a compatibility header.
 	AppCFHeader = "cf-access-token"
 )
+
+// UserSingleUseCertTTL is a TTL for per-connection user certificates.
+const UserSingleUseCertTTL = time.Minute

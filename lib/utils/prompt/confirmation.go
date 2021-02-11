@@ -15,6 +15,9 @@ limitations under the License.
 */
 
 // Package prompt implements CLI prompts to the user.
+//
+// TODO(awly): mfa: support prompt cancellation (without losing data written
+// after cancellation)
 package prompt
 
 import (
@@ -42,4 +45,35 @@ func Confirmation(out io.Writer, in io.Reader, question string) (bool, error) {
 	default:
 		return false, nil
 	}
+}
+
+// PickOne prompts the user to pick one of the provided string options.
+// The prompt is written to out and the answer is read from in.
+//
+// question should be a plain sentece without the list of provided options.
+func PickOne(out io.Writer, in io.Reader, question string, options []string) (string, error) {
+	fmt.Fprintf(out, "%s [%s]: ", question, strings.Join(options, ", "))
+	scan := bufio.NewScanner(in)
+	if !scan.Scan() {
+		return "", trace.WrapWithMessage(scan.Err(), "failed reading prompt response")
+	}
+	answerOrig := scan.Text()
+	answer := strings.ToLower(strings.TrimSpace(answerOrig))
+	for _, opt := range options {
+		if strings.ToLower(opt) == answer {
+			return opt, nil
+		}
+	}
+	return "", trace.BadParameter("%q is not a valid option, please specify one of [%s]", answerOrig, strings.Join(options, ", "))
+}
+
+// Input prompts the user for freeform text input.
+// The prompt is written to out and the answer is read from in.
+func Input(out io.Writer, in io.Reader, question string) (string, error) {
+	fmt.Fprintf(out, "%s: ", question)
+	scan := bufio.NewScanner(in)
+	if !scan.Scan() {
+		return "", trace.WrapWithMessage(scan.Err(), "failed reading prompt response")
+	}
+	return scan.Text(), nil
 }

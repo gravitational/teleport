@@ -38,14 +38,7 @@ black-list:
   - "./architecture/teleport-architecture.md"
   - "./quickstart__archive.md"
 files:
-  - path: "./aws-oss-guide.md"
-    config:
-      white-list-internal:
-        - "#teleport-aws-tips-tricks"
-        - "#ec2-autoscale"
-        - "#acm"
-        - "#single-oss-teleport-amis-manual-gui-setup"
-  - path: "./aws-terraform-guide.md"
+  - path: "./pages/aws-terraform-guide.md"
     config:
       white-list-internal:
         - "#cluster_name"
@@ -53,7 +46,3 @@ files:
         - "#route53_domain"
         - "#route53_zone"
         - "#s3_bucket_name"
-  - path: "./enterprise/index.md"
-    config:
-      white-list-internal:
-        - "#fedrampfips"

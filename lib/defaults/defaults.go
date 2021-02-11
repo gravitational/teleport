@@ -60,6 +60,9 @@ const (
 	// serve auth requests.
 	AuthListenPort = 3025
 
+	// MySQLListenPort is the default listen port for MySQL proxy.
+	MySQLListenPort = 3036
+
 	// Default DB to use for persisting state. Another options is "etcd"
 	BackendType = "bolt"
 
@@ -422,13 +425,12 @@ const (
 )
 
 const (
-	// MinCertDuration specifies minimum duration of validity of issued cert
+	// MinCertDuration specifies minimum duration of validity of issued certificate
 	MinCertDuration = time.Minute
-	// MaxCertDuration limits maximum duration of validity of issued cert
+	// MaxCertDuration limits maximum duration of validity of issued certificate
 	MaxCertDuration = defaults.MaxCertDuration
-	// CertDuration is a default certificate duration
-	// 12 is default as it' longer than average working day (I hope so)
-	CertDuration = 12 * time.Hour
+	// CertDuration is a default certificate duration.
+	CertDuration = defaults.CertDuration
 	// RotationGracePeriod is a default rotation period for graceful
 	// certificate rotations, by default to set to maximum allowed user
 	// cert duration
@@ -458,11 +460,14 @@ const (
 const (
 	// ProtocolPostgres is the PostgreSQL database protocol.
 	ProtocolPostgres = "postgres"
+	// ProtocolMySQL is the MySQL database protocol.
+	ProtocolMySQL = "mysql"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
 var DatabaseProtocols = []string{
 	ProtocolPostgres,
+	ProtocolMySQL,
 }
 
 const (

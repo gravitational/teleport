@@ -115,10 +115,10 @@ type Identity interface {
 	GetU2FRegisterChallenge(token string) (*u2f.Challenge, error)
 
 	// UpsertU2FSignChallenge upserts a U2F sign (auth) challenge
-	UpsertU2FSignChallenge(user string, u2fChallenge *u2f.Challenge) error
+	UpsertU2FSignChallenge(user, deviceID string, u2fChallenge *u2f.Challenge) error
 
 	// GetU2FSignChallenge returns a U2F sign (auth) challenge
-	GetU2FSignChallenge(user string) (*u2f.Challenge, error)
+	GetU2FSignChallenge(user, deviceID string) (*u2f.Challenge, error)
 
 	// UpsertMFADevice upserts an MFA device for the user.
 	UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error
@@ -207,16 +207,10 @@ type Identity interface {
 	// GetResetPasswordTokenSecrets returns token secrets
 	GetResetPasswordTokenSecrets(ctx context.Context, tokenID string) (ResetPasswordTokenSecrets, error)
 
-	// GetWebSession returns a web session state for a given user and session id
-	GetWebSession(user, sid string) (WebSession, error)
+	types.WebSessionsGetter
+	types.WebTokensGetter
 
-	// UpsertWebSession updates or inserts a web session for a user and session
-	UpsertWebSession(user, sid string, session WebSession) error
-
-	// DeleteWebSession deletes web session from the storage
-	DeleteWebSession(user, sid string) error
-
-	// AppSession defines session features.
+	// AppSession defines application session features.
 	AppSession
 }
 

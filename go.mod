@@ -23,6 +23,8 @@ require (
 	github.com/docker/docker v17.12.0-ce-rc1.0.20180721085148-1ef1cc838816+incompatible
 	github.com/docker/spdystream v0.0.0-20170912183627-bc6354cbbc29 // indirect
 	github.com/dustin/go-humanize v1.0.0
+	github.com/flynn/hid v0.0.0-20190502022136-f1b9b6cc019a // indirect
+	github.com/flynn/u2f v0.0.0-20180613185708-15554eb68e5d
 	github.com/fsouza/fake-gcs-server v1.11.6
 	github.com/ghodss/yaml v1.0.0
 	github.com/gizak/termui v0.0.0-20190224181052-63c2a0d70943
@@ -71,6 +73,7 @@ require (
 	github.com/russellhaering/goxmldsig v1.1.0
 	github.com/sergi/go-diff v1.1.0 // indirect
 	github.com/shabbyrobe/gocovmerge v0.0.0-20190829150210-3e036491d500 // indirect
+	github.com/siddontang/go-mysql v1.1.0
 	github.com/sirupsen/logrus v1.6.0
 	github.com/stretchr/testify v1.6.1
 	github.com/tstranex/u2f v0.0.0-20160508205855-eb799ce68da4
@@ -108,4 +111,5 @@ replace (
 	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.3
 	github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf
 	github.com/iovisor/gobpf => github.com/gravitational/gobpf v0.0.1
+	github.com/siddontang/go-mysql v1.1.0 => github.com/gravitational/go-mysql v1.1.1-0.20201221203007-8ef34676bbc0
 )

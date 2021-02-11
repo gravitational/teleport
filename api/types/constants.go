@@ -84,6 +84,9 @@ const (
 	// KindWebSession is a web session resource
 	KindWebSession = "web_session"
 
+	// KindWebToken is a web token resource
+	KindWebToken = "web_token"
+
 	// KindAppSession represents an application specific web session.
 	KindAppSession = "app_session"
 
@@ -218,6 +221,9 @@ const (
 	// used only internally
 	VerbRotate = "rotate"
 )
+
+// WebSessionSubKinds lists subkinds of web session resources
+var WebSessionSubKinds = []string{KindAppSession, KindWebSession}
 
 const (
 	// RecordAtNode is the default. Sessions are recorded at Teleport nodes.

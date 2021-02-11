@@ -162,6 +162,9 @@ type Config struct {
 	// KubeProxyAddr is the host:port the Kubernetes proxy can be accessed at.
 	KubeProxyAddr string
 
+	// MySQLProxyAddr is the host:port the MySQL proxy can be accessed at.
+	MySQLProxyAddr string
+
 	// KeyTTL is a time to live for the temporary SSH keypair to remain valid:
 	KeyTTL time.Duration
 
@@ -275,6 +278,9 @@ type Config struct {
 	// command/shell execution. This also requires Stdin to be an interactive
 	// terminal.
 	EnableEscapeSequences bool
+
+	// MockSSOLogin is used in tests for mocking the SSO login response.
+	MockSSOLogin SSOLoginFunc
 }
 
 // CachePolicy defines cache policy for local clients
@@ -698,6 +704,7 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 	c.KubeProxyAddr = cp.KubeProxyAddr
 	c.WebProxyAddr = cp.WebProxyAddr
 	c.SSHProxyAddr = cp.SSHProxyAddr
+	c.MySQLProxyAddr = cp.MySQLProxyAddr
 
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
 	if err != nil {
@@ -726,6 +733,7 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 	cp.WebProxyAddr = c.WebProxyAddr
 	cp.SSHProxyAddr = c.SSHProxyAddr
 	cp.KubeProxyAddr = c.KubeProxyAddr
+	cp.MySQLProxyAddr = c.MySQLProxyAddr
 	cp.ForwardedPorts = c.LocalForwardPorts.String()
 	cp.SiteName = c.SiteName
 
@@ -825,6 +833,18 @@ func (c *Config) SSHProxyHostPort() (string, int) {
 
 	webProxyHost, _ := c.WebProxyHostPort()
 	return webProxyHost, defaults.SSHProxyListenPort
+}
+
+// MySQLProxyHostPort returns the host and port of MySQL proxy.
+func (c *Config) MySQLProxyHostPort() (string, int) {
+	if c.MySQLProxyAddr != "" {
+		addr, err := utils.ParseAddr(c.MySQLProxyAddr)
+		if err == nil {
+			return addr.Host(), addr.Port(defaults.MySQLListenPort)
+		}
+	}
+	webProxyHost, _ := c.WebProxyHostPort()
+	return webProxyHost, defaults.MySQLListenPort
 }
 
 // ProxyHost returns the hostname of the proxy server (without any port numbers)
@@ -2186,6 +2206,18 @@ func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error 
 		tc.SSHProxyAddr = net.JoinHostPort(addr.Host(), strconv.Itoa(addr.Port(defaults.SSHProxyListenPort)))
 	}
 
+	// Read MySQL proxy settings if enabled on the server.
+	if proxySettings.DB.MySQLListenAddr != "" {
+		addr, err := utils.ParseAddr(proxySettings.DB.MySQLListenAddr)
+		if err != nil {
+			return trace.BadParameter(
+				"failed to parse value received from the server: %q, contact your administrator for help",
+				proxySettings.DB.MySQLListenAddr)
+		}
+		webProxyHost, _ := tc.WebProxyHostPort()
+		tc.MySQLProxyAddr = net.JoinHostPort(webProxyHost, strconv.Itoa(addr.Port(defaults.MySQLListenPort)))
+	}
+
 	return nil
 }
 
@@ -2281,9 +2313,15 @@ func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType stri
 	return response, trace.Wrap(err)
 }
 
+// SSOLoginFunc is a function used in tests to mock SSO logins.
+type SSOLoginFunc func(ctx context.Context, connectorID string, pub []byte, protocol string) (*auth.SSHLoginResponse, error)
+
 // samlLogin opens browser window and uses OIDC or SAML redirect cycle with browser
 func (tc *TeleportClient) ssoLogin(ctx context.Context, connectorID string, pub []byte, protocol string) (*auth.SSHLoginResponse, error) {
-	log.Debugf("samlLogin start")
+	if tc.MockSSOLogin != nil {
+		// sso login response is being mocked for testing purposes
+		return tc.MockSSOLogin(ctx, connectorID, pub, protocol)
+	}
 	// ask the CA (via proxy) to sign our public key:
 	response, err := SSHAgentSSOLogin(ctx, SSHLoginSSO{
 		SSHLogin: SSHLogin{
@@ -2306,12 +2344,6 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, connectorID string, pub 
 
 // directLogin asks for a password and performs the challenge-response authentication
 func (tc *TeleportClient) u2fLogin(ctx context.Context, pub []byte) (*auth.SSHLoginResponse, error) {
-	// U2F login requires the official u2f-host executable
-	_, err := exec.LookPath("u2f-host")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	password, err := tc.AskPassword()
 	if err != nil {
 		return nil, trace.Wrap(err)
