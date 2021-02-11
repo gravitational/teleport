@@ -3,9 +3,20 @@
 BUILDDIR ?= build
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s $(LDFLAGS)'
 CGOFLAG ?= CGO_ENABLED=1
-RELEASE := teleport-ent-$(GITTAG)-$(OS)-$(ARCH)-bin
+RELEASE_ENT = teleport-ent-$(GITTAG)-$(OS)-$(ARCH)-bin
 BINARIES ?= $(BUILDDIR)/tctl $(BUILDDIR)/teleport $(BUILDDIR)/tsh
 HOUSTON_DIR := "vendor/github.com/gravitational/houston/"
+
+ifeq ("$(OS)","linux")
+# ARM builds need to specify the correct C compiler
+ifeq ("$(ARCH)","arm")
+CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
+endif
+# ARM64 builds need to specify the correct C compiler
+ifeq ("$(ARCH)","arm64")
+CGOFLAG = CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc
+endif
+endif
 
 DOCKER_IMAGE_ENT ?= quay.io/gravitational/teleport-ent
 DOCKER_IMAGE_ENT_CI ?= quay.io/gravitational/teleport-ent-ci
@@ -13,9 +24,12 @@ DOCKER_IMAGE_ENT_CI ?= quay.io/gravitational/teleport-ent-ci
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
 
+FIPS_ENT_MESSAGE := "without FIPS support"
 # FIPS support must be requested at build time.
 ifneq ("$(FIPS)","")
 FIPS_TAG := fips
+FIPS_ENT_MESSAGE := "with FIPS support"
+RELEASE_ENT = teleport-ent-$(GITTAG)-$(OS)-$(ARCH)-fips-bin
 # See the comment in tool/modules/fips.go.hide for explanation.
 $(shell ln -sf fips.go.hide tool/modules/fips.go)
 else
@@ -23,15 +37,25 @@ else
 $(shell rm tool/modules/fips.go)
 endif
 
+PAM_ENT_MESSAGE := "without PAM support"
 # PAM support will only be built into Teleport if headers exist at build time.
 ifneq ("$(wildcard /usr/include/security/pam_appl.h)","")
 PAM_TAG = pam
+PAM_ENT_MESSAGE := "with PAM support"
 endif
 
-# PAM support will only be built into Teleport if headers exist at build time.
+BPF_ENT_MESSAGE := "without BPF support"
+# BPF cannot currently be compiled on ARMv7 due to this bug: https://github.com/iovisor/gobpf/issues/272
+# ARM64 builds are not affected.
+ifneq ("$(ARCH)","arm")
+# BPF support will only be built into Teleport if headers exist at build time.
 ifneq ("$(wildcard /usr/include/bcc/libbpf.h)","")
 BPF_TAG := bpf
+BPF_ENT_MESSAGE := "with BPF support"
 endif
+endif
+
+RELEASE_ENT_MESSAGE := "Building with GOOS=$(OS) GOARCH=$(ARCH) and $(PAM_ENT_MESSAGE) and $(FIPS_ENT_MESSAGE) and $(BPF_ENT_MESSAGE)."
 
 # All build Enterprise version of "teleport" and "tctl" binaries and copy
 # over tsh from OSS.
@@ -71,7 +95,7 @@ clean:
 export
 release:
 	@echo
-	@echo "---> $(RELEASE_MESSAGE)"
+	@echo "---> $(RELEASE_ENT_MESSAGE)"
 	$(MAKE) --no-print-directory release-unix
 
 # make release-unix - Produces a binary release tarball containing teleport,
@@ -85,9 +109,9 @@ release-unix: clean full
 	echo $(GITTAG) > $(BUILDDIR)/VERSION
 	cp -rf $(BUILDDIR) teleport-ent
 	cp -rf ../examples teleport-ent/
-	tar -czf $(RELEASE).tar.gz teleport-ent
+	tar -czf $(RELEASE_ENT).tar.gz teleport-ent
 	rm -rf teleport-ent
-	@echo "---> Created $(RELEASE).tar.gz."
+	@echo "---> Created $(RELEASE_ENT).tar.gz."
 
 # make full - produces a teleport binary with the web assets built-in
 .PHONY:full
