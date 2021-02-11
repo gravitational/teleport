@@ -384,7 +384,7 @@ trigger:
       - branch/*
   repo:
     include:
-      - gravitational/*
+      - gravitational/teleport
 
 clone:
   disable: true
@@ -1302,7 +1302,7 @@ trigger:
     - teleport-docker-cron
   repo:
     include:
-      - gravitational/*
+      - gravitational/teleport
 
 workspace:
   path: /go
@@ -1515,7 +1515,7 @@ trigger:
     - teleport-helm-cron
   repo:
     include:
-      - gravitational/*
+      - gravitational/teleport
 
 workspace:
   path: /go
@@ -3942,7 +3942,7 @@ trigger:
     - push
   repo:
     include:
-      - gravitational/*
+      - gravitational/teleport
 
 workspace:
   path: /go/src/github.com/gravitational/teleport
@@ -4382,6 +4382,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 697517fea1b0909854f4f1cb39790a37a099b66c5dc2d38e7258de0b4c497cc2
+hmac: 7b030b24bc7ef6305ac7f8e84fda5fb8d37d9f765dee6f8eb5e0672e654df72d
 
 ...
