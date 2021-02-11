@@ -477,6 +477,18 @@ type certRequest struct {
 	// dbName is the optional database name which, if provided, will be used
 	// as a default database.
 	dbName string
+	// mfaVerified is set when this certRequest was created immediately after
+	// an MFA check.
+	mfaVerified bool
+	// clientIP is an IP of the client requesting the certificate.
+	clientIP string
+}
+
+type certRequestOption func(*certRequest)
+
+func certRequestMFAVerified(r *certRequest) { r.mfaVerified = true }
+func certRequestClientIP(ip string) certRequestOption {
+	return func(r *certRequest) { r.clientIP = ip }
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
@@ -661,6 +673,8 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 		RouteToCluster:        req.routeToCluster,
 		Traits:                req.traits,
 		ActiveRequests:        req.activeRequests,
+		MFAVerified:           req.mfaVerified,
+		ClientIP:              req.clientIP,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -720,6 +734,8 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 		},
 		DatabaseNames: dbNames,
 		DatabaseUsers: dbUsers,
+		MFAVerified:   req.mfaVerified,
+		ClientIP:      req.clientIP,
 	}
 	subject, err := identity.Subject()
 	if err != nil {

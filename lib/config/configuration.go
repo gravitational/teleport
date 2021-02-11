@@ -550,6 +550,13 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.Proxy.ReverseTunnelListenAddr = *addr
 	}
+	if fc.Proxy.MySQLAddr != "" {
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.MySQLAddr, int(defaults.MySQLListenPort))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.MySQLAddr = *addr
+	}
 
 	// This is the legacy format. Continue to support it forever, but ideally
 	// users now use the list format below.

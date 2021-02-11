@@ -182,8 +182,7 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 		fatalIf(err)
 	}
 	// generate instance secrets (keys):
-	keygen, err := native.New(context.TODO(), native.PrecomputeKeys(0))
-	fatalIf(err)
+	keygen := native.New(context.TODO(), native.PrecomputeKeys(0))
 	if cfg.Priv == nil || cfg.Pub == nil {
 		cfg.Priv, cfg.Pub, _ = keygen.GenerateKeyPair("")
 	}

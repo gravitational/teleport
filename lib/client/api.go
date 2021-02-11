@@ -162,6 +162,9 @@ type Config struct {
 	// KubeProxyAddr is the host:port the Kubernetes proxy can be accessed at.
 	KubeProxyAddr string
 
+	// MySQLProxyAddr is the host:port the MySQL proxy can be accessed at.
+	MySQLProxyAddr string
+
 	// KeyTTL is a time to live for the temporary SSH keypair to remain valid:
 	KeyTTL time.Duration
 
@@ -701,6 +704,7 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 	c.KubeProxyAddr = cp.KubeProxyAddr
 	c.WebProxyAddr = cp.WebProxyAddr
 	c.SSHProxyAddr = cp.SSHProxyAddr
+	c.MySQLProxyAddr = cp.MySQLProxyAddr
 
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
 	if err != nil {
@@ -729,6 +733,7 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 	cp.WebProxyAddr = c.WebProxyAddr
 	cp.SSHProxyAddr = c.SSHProxyAddr
 	cp.KubeProxyAddr = c.KubeProxyAddr
+	cp.MySQLProxyAddr = c.MySQLProxyAddr
 	cp.ForwardedPorts = c.LocalForwardPorts.String()
 	cp.SiteName = c.SiteName
 
@@ -828,6 +833,18 @@ func (c *Config) SSHProxyHostPort() (string, int) {
 
 	webProxyHost, _ := c.WebProxyHostPort()
 	return webProxyHost, defaults.SSHProxyListenPort
+}
+
+// MySQLProxyHostPort returns the host and port of MySQL proxy.
+func (c *Config) MySQLProxyHostPort() (string, int) {
+	if c.MySQLProxyAddr != "" {
+		addr, err := utils.ParseAddr(c.MySQLProxyAddr)
+		if err == nil {
+			return addr.Host(), addr.Port(defaults.MySQLListenPort)
+		}
+	}
+	webProxyHost, _ := c.WebProxyHostPort()
+	return webProxyHost, defaults.MySQLListenPort
 }
 
 // ProxyHost returns the hostname of the proxy server (without any port numbers)
@@ -1409,7 +1426,7 @@ func (tc *TeleportClient) ExecuteSCP(ctx context.Context, cmd scp.Command) (err 
 		return trace.Wrap(err)
 	}
 
-	err = nodeClient.ExecuteSCP(cmd)
+	err = nodeClient.ExecuteSCP(ctx, cmd)
 	if err != nil {
 		// converts SSH error code to tc.ExitStatus
 		exitError, _ := trace.Unwrap(err).(*ssh.ExitError)
@@ -1446,21 +1463,24 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, flag
 	}
 	defer proxyClient.Close()
 
+	var progressWriter io.Writer
+	if !quiet {
+		progressWriter = tc.Stdout
+	}
+
 	// helper function connects to the src/target node:
-	connectToNode := func(addr string) (*NodeClient, error) {
+	connectToNode := func(addr, hostLogin string) (*NodeClient, error) {
 		// determine which cluster we're connecting to:
 		siteInfo, err := proxyClient.currentCluster()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		if hostLogin == "" {
+			hostLogin = tc.Config.HostLogin
+		}
 		return proxyClient.ConnectToNode(ctx,
 			NodeAddr{Addr: addr, Namespace: tc.Namespace, Cluster: siteInfo.Name},
-			tc.HostLogin, false)
-	}
-
-	var progressWriter io.Writer
-	if !quiet {
-		progressWriter = tc.Stdout
+			hostLogin, false)
 	}
 
 	// gets called to convert SSH error code to tc.ExitStatus
@@ -1471,88 +1491,102 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, flag
 		}
 		return err
 	}
+
+	tpl := scp.Config{
+		User:           tc.Username,
+		ProgressWriter: progressWriter,
+		Flags:          flags,
+	}
+
+	var config *scpConfig
 	// upload:
 	if isRemoteDest(last) {
-		filesToUpload := args[:len(args)-1]
-
-		// If more than a single file were provided, scp must be in directory mode
-		// and the target on the remote host needs to be a directory.
-		var directoryMode bool
-		if len(filesToUpload) > 1 {
-			directoryMode = true
-		}
-
-		dest, err := scp.ParseSCPDestination(last)
+		config, err = tc.uploadConfig(ctx, tpl, port, args)
 		if err != nil {
 			return trace.Wrap(err)
-		}
-		if dest.Login != "" {
-			tc.HostLogin = dest.Login
-		}
-		addr := net.JoinHostPort(dest.Host.Host(), strconv.Itoa(port))
-
-		client, err := connectToNode(addr)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		// copy everything except the last arg (that's destination)
-		for _, src := range filesToUpload {
-			scpConfig := scp.Config{
-				User:           tc.Username,
-				ProgressWriter: progressWriter,
-				RemoteLocation: dest.Path,
-				Flags:          flags,
-			}
-			scpConfig.Flags.Target = []string{src}
-			scpConfig.Flags.DirectoryMode = directoryMode
-
-			cmd, err := scp.CreateUploadCommand(scpConfig)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			err = client.ExecuteSCP(cmd)
-			if err != nil {
-				return onError(err)
-			}
 		}
 	} else {
-		// download:
-		src, err := scp.ParseSCPDestination(first)
+		config, err = tc.downloadConfig(ctx, tpl, port, args)
 		if err != nil {
 			return trace.Wrap(err)
-		}
-		addr := net.JoinHostPort(src.Host.Host(), strconv.Itoa(port))
-		if src.Login != "" {
-			tc.HostLogin = src.Login
-		}
-		client, err := connectToNode(addr)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		// copy everything except the last arg (that's destination)
-		for _, dest := range args[1:] {
-			scpConfig := scp.Config{
-				User:           tc.Username,
-				Flags:          flags,
-				RemoteLocation: src.Path,
-				ProgressWriter: progressWriter,
-			}
-			scpConfig.Flags.Target = []string{dest}
-
-			cmd, err := scp.CreateDownloadCommand(scpConfig)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			err = client.ExecuteSCP(cmd)
-			if err != nil {
-				return onError(err)
-			}
 		}
 	}
-	return nil
+
+	client, err := connectToNode(config.addr, config.hostLogin)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return onError(client.ExecuteSCP(ctx, config.cmd))
+}
+
+func (tc *TeleportClient) uploadConfig(ctx context.Context, tpl scp.Config, port int, args []string) (config *scpConfig, err error) {
+	filesToUpload := args[:len(args)-1]
+	// copy everything except the last arg (the destination)
+	destPath := args[len(args)-1]
+
+	// If more than a single file were provided, scp must be in directory mode
+	// and the target on the remote host needs to be a directory.
+	var directoryMode bool
+	if len(filesToUpload) > 1 {
+		directoryMode = true
+	}
+
+	dest, addr, err := getSCPDestination(destPath, port)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tpl.RemoteLocation = dest.Path
+	tpl.Flags.Target = filesToUpload
+	tpl.Flags.DirectoryMode = directoryMode
+
+	cmd, err := scp.CreateUploadCommand(tpl)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &scpConfig{
+		cmd:       cmd,
+		addr:      addr,
+		hostLogin: dest.Login,
+	}, nil
+}
+
+func (tc *TeleportClient) downloadConfig(ctx context.Context, tpl scp.Config, port int, args []string) (config *scpConfig, err error) {
+	src, addr, err := getSCPDestination(args[0], port)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tpl.RemoteLocation = src.Path
+	tpl.Flags.Target = args[1:]
+
+	cmd, err := scp.CreateDownloadCommand(tpl)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &scpConfig{
+		cmd:       cmd,
+		addr:      addr,
+		hostLogin: src.Login,
+	}, nil
+}
+
+type scpConfig struct {
+	cmd       scp.Command
+	addr      string
+	hostLogin string
+}
+
+func getSCPDestination(target string, port int) (dest *scp.Destination, addr string, err error) {
+	dest, err = scp.ParseSCPDestination(target)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	addr = net.JoinHostPort(dest.Host.Host(), strconv.Itoa(port))
+	return dest, addr, nil
 }
 
 func isRemoteDest(name string) bool {
@@ -2187,6 +2221,18 @@ func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error 
 				proxySettings.SSH.SSHPublicAddr)
 		}
 		tc.SSHProxyAddr = net.JoinHostPort(addr.Host(), strconv.Itoa(addr.Port(defaults.SSHProxyListenPort)))
+	}
+
+	// Read MySQL proxy settings if enabled on the server.
+	if proxySettings.DB.MySQLListenAddr != "" {
+		addr, err := utils.ParseAddr(proxySettings.DB.MySQLListenAddr)
+		if err != nil {
+			return trace.BadParameter(
+				"failed to parse value received from the server: %q, contact your administrator for help",
+				proxySettings.DB.MySQLListenAddr)
+		}
+		webProxyHost, _ := tc.WebProxyHostPort()
+		tc.MySQLProxyAddr = net.JoinHostPort(webProxyHost, strconv.Itoa(addr.Port(defaults.MySQLListenPort)))
 	}
 
 	return nil

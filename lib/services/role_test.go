@@ -2035,9 +2035,8 @@ func TestCheckAccessToDatabase(t *testing.T) {
 				DatabaseUsers:  []string{Wildcard},
 			},
 			Deny: RoleConditions{
-				Namespaces:     []string{defaults.Namespace},
-				DatabaseLabels: Labels{"env": []string{"stage"}},
-				DatabaseNames:  []string{"supersecret"},
+				Namespaces:    []string{defaults.Namespace},
+				DatabaseNames: []string{"supersecret"},
 			},
 		},
 	}
@@ -2078,12 +2077,12 @@ func TestCheckAccessToDatabase(t *testing.T) {
 	}
 	testCases := []struct {
 		name   string
-		roles  []*RoleV3
+		roles  RoleSet
 		access []access
 	}{
 		{
 			name:  "developer allowed any username/database in stage database except one database",
-			roles: []*RoleV3{roleDevStage, roleDevProd},
+			roles: RoleSet{roleDevStage, roleDevProd},
 			access: []access{
 				{server: dbStage, dbName: "superdb", dbUser: "superuser", access: true},
 				{server: dbStage, dbName: "test", dbUser: "dev", access: true},
@@ -2092,7 +2091,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 		},
 		{
 			name:  "developer allowed only specific username/database in prod database",
-			roles: []*RoleV3{roleDevStage, roleDevProd},
+			roles: RoleSet{roleDevStage, roleDevProd},
 			access: []access{
 				{server: dbProd, dbName: "superdb", dbUser: "superuser", access: false},
 				{server: dbProd, dbName: "test", dbUser: "dev", access: true},
@@ -2101,22 +2100,99 @@ func TestCheckAccessToDatabase(t *testing.T) {
 			},
 		},
 		{
-			name:  "deny role denies access to specific database",
-			roles: []*RoleV3{roleDeny},
+			name:  "deny role denies access to specific database and user",
+			roles: RoleSet{roleDeny},
 			access: []access{
 				{server: dbProd, dbName: "test", dbUser: "test", access: true},
-				{server: dbProd, dbName: "postgres", dbUser: "postgres", access: false},
+				{server: dbProd, dbName: "postgres", dbUser: "test", access: false},
+				{server: dbProd, dbName: "test", dbUser: "postgres", access: false},
 			},
 		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			var set RoleSet
-			for _, r := range tc.roles {
-				set = append(set, r)
-			}
 			for _, access := range tc.access {
-				err := set.CheckAccessToDatabase(access.server, access.dbName, access.dbUser)
+				err := tc.roles.CheckAccessToDatabase(access.server,
+					&DatabaseLabelsMatcher{Labels: access.server.GetAllLabels()},
+					&DatabaseUserMatcher{User: access.dbUser},
+					&DatabaseNameMatcher{Name: access.dbName})
+				if access.access {
+					require.NoError(t, err)
+				} else {
+					require.Error(t, err)
+					require.True(t, trace.IsAccessDenied(err))
+				}
+			}
+		})
+	}
+}
+
+func TestCheckAccessToDatabaseUser(t *testing.T) {
+	utils.InitLoggerForTests(testing.Verbose())
+	dbStage := types.NewDatabaseServerV3("stage",
+		map[string]string{"env": "stage"},
+		types.DatabaseServerSpecV3{})
+	dbProd := types.NewDatabaseServerV3("prod",
+		map[string]string{"env": "prod"},
+		types.DatabaseServerSpecV3{})
+	roleDevStage := &RoleV3{
+		Metadata: Metadata{Name: "dev-stage", Namespace: defaults.Namespace},
+		Spec: RoleSpecV3{
+			Allow: RoleConditions{
+				Namespaces:     []string{defaults.Namespace},
+				DatabaseLabels: Labels{"env": []string{"stage"}},
+				DatabaseUsers:  []string{Wildcard},
+			},
+			Deny: RoleConditions{
+				Namespaces:    []string{defaults.Namespace},
+				DatabaseUsers: []string{"superuser"},
+			},
+		},
+	}
+	roleDevProd := &RoleV3{
+		Metadata: Metadata{Name: "dev-prod", Namespace: defaults.Namespace},
+		Spec: RoleSpecV3{
+			Allow: RoleConditions{
+				Namespaces:     []string{defaults.Namespace},
+				DatabaseLabels: Labels{"env": []string{"prod"}},
+				DatabaseUsers:  []string{"dev"},
+			},
+		},
+	}
+	type access struct {
+		server types.DatabaseServer
+		dbUser string
+		access bool
+	}
+	testCases := []struct {
+		name   string
+		roles  RoleSet
+		access []access
+	}{
+		{
+			name:  "developer allowed any username in stage database except superuser",
+			roles: RoleSet{roleDevStage, roleDevProd},
+			access: []access{
+				{server: dbStage, dbUser: "superuser", access: false},
+				{server: dbStage, dbUser: "dev", access: true},
+				{server: dbStage, dbUser: "test", access: true},
+			},
+		},
+		{
+			name:  "developer allowed only specific username/database in prod database",
+			roles: RoleSet{roleDevStage, roleDevProd},
+			access: []access{
+				{server: dbProd, dbUser: "superuser", access: false},
+				{server: dbProd, dbUser: "dev", access: true},
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, access := range tc.access {
+				err := tc.roles.CheckAccessToDatabase(access.server,
+					&DatabaseLabelsMatcher{Labels: access.server.GetAllLabels()},
+					&DatabaseUserMatcher{User: access.dbUser})
 				if access.access {
 					require.NoError(t, err)
 				} else {
@@ -2167,7 +2243,7 @@ func TestCheckDatabaseNamesAndUsers(t *testing.T) {
 	}
 	testCases := []struct {
 		name         string
-		roles        []*RoleV3
+		roles        RoleSet
 		ttl          time.Duration
 		overrideTTL  bool
 		namesOut     []string
@@ -2177,38 +2253,34 @@ func TestCheckDatabaseNamesAndUsers(t *testing.T) {
 	}{
 		{
 			name:     "single role",
-			roles:    []*RoleV3{roleA},
+			roles:    RoleSet{roleA},
 			ttl:      time.Hour,
 			namesOut: []string{"postgres", "main"},
 			usersOut: []string{"postgres", "alice"},
 		},
 		{
 			name:     "combined roles",
-			roles:    []*RoleV3{roleA, roleB},
+			roles:    RoleSet{roleA, roleB},
 			ttl:      time.Hour,
 			namesOut: []string{"main", "metrics"},
 			usersOut: []string{"alice", "bob"},
 		},
 		{
 			name:         "ttl doesn't match",
-			roles:        []*RoleV3{roleA},
+			roles:        RoleSet{roleA},
 			ttl:          5 * time.Hour,
 			accessDenied: true,
 		},
 		{
 			name:     "empty role",
-			roles:    []*RoleV3{roleEmpty},
+			roles:    RoleSet{roleEmpty},
 			ttl:      time.Hour,
 			notFound: true,
 		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			var set RoleSet
-			for _, r := range tc.roles {
-				set = append(set, r)
-			}
-			names, users, err := set.CheckDatabaseNamesAndUsers(tc.ttl, tc.overrideTTL)
+			names, users, err := tc.roles.CheckDatabaseNamesAndUsers(tc.ttl, tc.overrideTTL)
 			if tc.accessDenied {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err))
@@ -2278,7 +2350,7 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 	}
 	testCases := []struct {
 		name   string
-		roles  []*RoleV3
+		roles  RoleSet
 		access []access
 	}{
 		{
@@ -2293,7 +2365,7 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 		},
 		{
 			name:  "intern doesn't have access to any databases",
-			roles: []*RoleV3{roleIntern},
+			roles: RoleSet{roleIntern},
 			access: []access{
 				{server: dbNoLabels, access: false},
 				{server: dbStage, access: false},
@@ -2303,7 +2375,7 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 		},
 		{
 			name:  "developer only has access to one of stage database",
-			roles: []*RoleV3{roleDev},
+			roles: RoleSet{roleDev},
 			access: []access{
 				{server: dbNoLabels, access: false},
 				{server: dbStage, access: true},
@@ -2313,7 +2385,7 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 		},
 		{
 			name:  "admin has access to all databases",
-			roles: []*RoleV3{roleAdmin},
+			roles: RoleSet{roleAdmin},
 			access: []access{
 				{server: dbNoLabels, access: true},
 				{server: dbStage, access: true},
@@ -2324,12 +2396,9 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			var set RoleSet
-			for _, r := range tc.roles {
-				set = append(set, r)
-			}
 			for _, access := range tc.access {
-				err := set.CheckAccessToDatabaseServer(access.server)
+				err := tc.roles.CheckAccessToDatabase(access.server,
+					&DatabaseLabelsMatcher{Labels: access.server.GetAllLabels()})
 				if access.access {
 					require.NoError(t, err)
 				} else {

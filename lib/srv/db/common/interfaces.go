@@ -32,7 +32,7 @@ type Proxy interface {
 // Service defines an interface for connecting to a remote database service.
 type Service interface {
 	// Connect is used to connect to remote database server over reverse tunnel.
-	Connect(context.Context) (net.Conn, error)
+	Connect(ctx context.Context, user, database string) (net.Conn, error)
 	// Proxy starts proxying between client and service connections.
 	Proxy(ctx context.Context, clientConn, serviceConn io.ReadWriteCloser) error
 }
