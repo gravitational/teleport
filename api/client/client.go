@@ -110,13 +110,7 @@ func (c *Client) connect() error {
 			continue
 		}
 
-		// ping to test the connection made with creds
 		c.grpc = proto.NewAuthServiceClient(c.conn)
-		if _, err = c.Ping(context.TODO()); err != nil {
-			errs = append(errs, trace.Wrap(err, "Credentials[%v]", i))
-			continue
-		}
-
 		c.c.TLS = creds.TLS
 		return nil
 	}
@@ -155,6 +149,9 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if len(c.Credentials) == 0 {
 		return trace.BadParameter("set parameter Credentials")
+	}
+	if err := c.Credentials.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
 	}
 	if c.KeepAlivePeriod == 0 {
 		c.KeepAlivePeriod = defaults.ServerKeepAliveTTL
