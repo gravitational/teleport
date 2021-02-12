@@ -1,4 +1,6 @@
-# Teleport Nodes
+---
+title: Teleport Nodes
+---
 
 ## The Node Service
 

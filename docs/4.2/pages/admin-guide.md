@@ -1,4 +1,6 @@
-# Teleport Admin Manual
+---
+title: Teleport Admin Manual
+---
 
 This manual covers the installation and configuration of Teleport and the
 ongoing management of a Teleport cluster. It assumes that the reader has good

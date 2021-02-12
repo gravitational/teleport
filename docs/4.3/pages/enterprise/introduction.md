@@ -3,8 +3,6 @@ title: Teleport Enterprise
 description: Introduction to features and benefits of using Teleport Enterprise. Why upgrade to Teleport Enterprise?
 ---
 
-# Teleport Enterprise
-
 This section will give an overview of Teleport Enterprise, the commercial product built around
 the open source Teleport Community core. For those that want to jump right in, you can play
 with the [Quick Start Guide for Teleport Enterprise](quickstart-enterprise.md).

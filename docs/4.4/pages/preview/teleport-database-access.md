@@ -1,4 +1,6 @@
-# Teleport Database Access Preview
+---
+title: Teleport Database Access Preview
+---
 
 Teleport Database Access allows organizations to use Teleport as a proxy to
 provide secure access to their databases while improving both visibility and

@@ -1,9 +1,8 @@
 ---
 title: Teleport CLI Reference
 description: The detailed guide for Teleport command line (CLI) tools
+h1: Command Line (CLI) Reference
 ---
-
-# Command Line (CLI) Reference
 
 Teleport is made up of three CLI tools.
 

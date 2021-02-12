@@ -1,9 +1,8 @@
 ---
 title: SSH Authentication with Active Directory (AD) on Azure
 description: How to configure SSH access with Active Directory (AD) on Azure using Teleport
+h1: SSH Authentication with Azure Active Directory (AD)
 ---
-
-# SSH Authentication with Azure Active Directory (AD)
 
 This guide will cover how to configure [Microsoft Azure Active Directory](https://azure.microsoft.com/en-us/services/active-directory/) to issue
 SSH credentials to specific groups of users with a SAML Authentication Connector. When used in combination with role

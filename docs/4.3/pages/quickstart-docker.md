@@ -1,9 +1,8 @@
 ---
 title: Teleport Quick Start guide with Docker
 description: How to get started with Teleport using Docker for SSH access
+h1: Run Teleport using Docker
 ---
-
-# Run Teleport using Docker
 
 We provide pre-built Docker images for every version of Teleport. These images are hosted on quay.io.
 

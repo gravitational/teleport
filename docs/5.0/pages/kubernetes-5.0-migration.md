@@ -1,9 +1,8 @@
 ---
 title: Kubernetes 5.0 Migration Guide
 description: How to migrate pre-5.0 Teleport clusters to new configuration
+h1: Migrating to Teleport Kubernetes Access 5.0
 ---
-
-# Migrating to Teleport Kubernetes Access 5.0
 
 In release 5.0, Teleport has changed the [Kubernetes
 integration](kubernetes-access.md) to improve configuration and user experience.

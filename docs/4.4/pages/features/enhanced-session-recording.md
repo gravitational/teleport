@@ -1,9 +1,9 @@
 ---
 title: Session Recording for SSH and Kubernetes
 description: How to record your SSH and Kubernetes sessions into the audit log.
+h1: Enhanced Session Recording
 ---
 
-# Enhanced Session Recording
 Teleport [SSH and Kubernetes session recording](../architecture/nodes.md#session-recording)
 feature captures what is echoed to a terminal.
 

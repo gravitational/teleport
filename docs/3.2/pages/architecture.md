@@ -1,4 +1,6 @@
-# Teleport Architecture
+---
+title: Teleport Architecture
+---
 
 This document covers the underlying design principles of Teleport and a
 detailed description of Teleport architecture.

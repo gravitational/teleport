@@ -1,4 +1,7 @@
-# FedRAMP / FIPS
+---
+title: FedRAMP / FIPS
+---
+
 With Teleport 4.0 we have built the foundation to meet FedRAMP requirements for
 the purposes of accessing infrastructure. This includes support for [FIPS 140-2](https://en.wikipedia.org/wiki/FIPS_140-2), also known as the Federal Information Processing Standard, which is the US government approved standard for cryptographic modules. This document outlines a high
 level overview of how Teleport FIPS mode works and how it can help your company to become FedRAMP certified.

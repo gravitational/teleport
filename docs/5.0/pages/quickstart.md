@@ -3,8 +3,6 @@ title: Getting started with Teleport
 description: The getting started with guide for how to set up modern SSH access to cloud or edge infrastructure.
 ---
 
-# Getting started with Teleport
-
 This tutorial will guide you through the steps needed to install and run
 Teleport on Linux machine(s).
 

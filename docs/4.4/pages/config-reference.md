@@ -3,8 +3,6 @@ title: Teleport Configuration Reference
 description: The detailed guide for configuring Teleport for SSH and Kubernetes access
 ---
 
-# Teleport Configuration Reference
-
 ## teleport.yaml
 
 Teleport uses the YAML file format for configuration. A full configuration reference

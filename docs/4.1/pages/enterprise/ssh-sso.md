@@ -1,4 +1,6 @@
-# Single Sign-On (SSO) for SSH
+---
+title: Single Sign-On (SSO) for SSH
+---
 
 ## Introduction
 
