@@ -149,6 +149,13 @@ func (c *Config) CheckAndSetDefaults() error {
 	if len(c.Addrs) == 0 && c.Dialer == nil {
 		return trace.BadParameter("set parameter Addrs or Dialer")
 	}
+	// TLS can be set directly for backwards compatibility with the auth client
+	if c.TLS != nil {
+		c.Credentials = append(CredentialsList{LoadTLS(c.TLS)}, c.Credentials...)
+	}
+	if len(c.Credentials) == 0 {
+		return trace.BadParameter("set parameter Credentials")
+	}
 	if c.KeepAlivePeriod == 0 {
 		c.KeepAlivePeriod = defaults.ServerKeepAliveTTL
 	}
