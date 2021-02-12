@@ -1,24 +1,6 @@
-/*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package client
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"io/ioutil"
 	"net"
 	"os"
@@ -31,20 +13,16 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// CurrentProfileSymlink is a filename which is a symlink to the
+// current profile, usually something like this:
+//
+// ~/.tsh/profile -> ~/.tsh/staging.yaml
+//
+const CurrentProfileSymlink = "profile"
+
 // CurrentProfileFilename is a file which stores the name of the
 // currently active profile.
 const CurrentProfileFilename = "current-profile"
-
-const (
-	// ProfileDir is the default root directory where tsh stores profiles.
-	ProfileDir = ".tsh"
-	// SessionKeyDir is the sub-directory where session keys are stored (.tsh/keys).
-	SessionKeyDir = "keys"
-	// FileExtTLSCert is the filename extension/suffix of TLS certs stored in a profile (./tsh/keys/profilename/username-x509.pem).
-	FileExtTLSCert = "-x509.pem"
-	// FileNameTLSCerts is the filename of Cert Authorities stored in a profile (./tsh/keys/profilename/certs.pem).
-	FileNameTLSCerts = "certs.pem"
-)
 
 // Profile is a collection of most frequently used CLI flags
 // for "tsh".
@@ -80,9 +58,6 @@ type Profile struct {
 	// DynamicForwardedPorts is a list of ports to use for dynamic port
 	// forwarding (SOCKS5).
 	DynamicForwardedPorts []string `yaml:"dynamic_forward_ports,omitempty"`
-
-	// Dir is the directory of this profile.
-	Dir string
 }
 
 // Name returns the name of the profile.
@@ -95,38 +70,63 @@ func (cp *Profile) Name() string {
 	return addr
 }
 
-// TLS attempts to load credentials from the specified TLS certificates path.
-func (cp *Profile) TLS() (*tls.Config, error) {
-	credsPath := filepath.Join(cp.Dir, SessionKeyDir, cp.Name())
-
-	certPath := filepath.Join(credsPath, cp.Username+FileExtTLSCert)
-	keyPath := filepath.Join(credsPath, cp.Username)
-	cert, err := tls.LoadX509KeyPair(certPath, keyPath)
+// migrateCurrentProfile makes a best-effort attempt to migrate
+// the old symlink based current-profile link to the new
+// file based current-profile link.
+//
+// DELETE IN: 6.0
+func migrateCurrentProfile(dir string) {
+	link := filepath.Join(dir, CurrentProfileSymlink)
+	linfo, err := os.Lstat(link)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return
+	}
+	if finfo, err := os.Stat(filepath.Join(dir, CurrentProfileFilename)); err == nil {
+		if linfo.ModTime().Before(finfo.ModTime()) {
+			// current-profile is as new or newer than the legacy symlink,
+			// no migration necessary.
+			return
+		}
+	}
+	linked, err := os.Readlink(link)
+	if err != nil || linked == "" {
+		return
+	}
+	name := strings.TrimSuffix(filepath.Base(linked), ".yaml")
+	if name == "" {
+		return
+	}
+	if err := SetCurrentProfileName(dir, name); err != nil {
+		return
 	}
 
-	certsPath := filepath.Join(credsPath, FileNameTLSCerts)
-	certs, err := ioutil.ReadFile(certsPath)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// TODO IN 5.2: Re-enable removal after verifying that nothing else
+	// relis on `link` (note: exact version that this happens doesn't matter
+	// too much, but it should happen at least one version prior to removal
+	// of the migration).
+	//
+	//os.Remove(link)
+}
 
-	pool := x509.NewCertPool()
-	if !pool.AppendCertsFromPEM(certs) {
-		return nil, trace.BadParameter("invalid CA cert PEM")
+// DELETE IN: 6.0
+func setLegacySymlink(dir string, name string) error {
+	link := filepath.Join(dir, CurrentProfileSymlink)
+	if err := os.Remove(link); err != nil && !os.IsNotExist(err) {
+		log.Warningf("Failed to remove legacy symlink: %v", err)
 	}
-
-	return &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		RootCAs:      pool,
-	}, nil
+	return trace.ConvertSystemError(os.Symlink(name+".yaml", link))
 }
 
 // SetCurrentProfileName attempts to set the current profile name.
 func SetCurrentProfileName(dir string, name string) error {
 	if dir == "" {
 		return trace.BadParameter("cannot set current profile: missing dir")
+	}
+
+	// set legacy symlink first so that the current-profile file will have
+	// a more recent modification time.
+	if err := setLegacySymlink(dir, name); err != nil {
+		log.Warningf("Failed to set legacy symlink: %v", err)
 	}
 
 	path := filepath.Join(dir, CurrentProfileFilename)
@@ -141,6 +141,8 @@ func GetCurrentProfileName(dir string) (name string, err error) {
 	if dir == "" {
 		return "", trace.BadParameter("cannot get current profile: missing dir")
 	}
+	// DELETE IN 6.0
+	migrateCurrentProfile(dir)
 
 	data, err := ioutil.ReadFile(filepath.Join(dir, CurrentProfileFilename))
 	if err != nil {
@@ -189,13 +191,10 @@ func FullProfilePath(dir string) string {
 	if dir != "" {
 		return dir
 	}
-	return defaultProfilePath()
-}
-
-// defaultProfilePath retrieves the default path of the TSH profile.
-func defaultProfilePath() string {
+	// get user home dir:
 	home := os.TempDir()
-	if u, err := user.Current(); err == nil {
+	u, err := user.Current()
+	if err == nil {
 		home = u.HomeDir
 	}
 	return filepath.Join(home, ProfileDir)
@@ -215,15 +214,12 @@ func ProfileFromDir(dir string, name string) (*Profile, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	cp, err := profileFromFile(filepath.Join(dir, name+".yaml"))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return cp, nil
+
+	return ProfileFromFile(filepath.Join(dir, name+".yaml"))
 }
 
-// profileFromFile loads the profile from a YAML file.
-func profileFromFile(filePath string) (*Profile, error) {
+// ProfileFromFile loads the profile from a YAML file
+func ProfileFromFile(filePath string) (*Profile, error) {
 	bytes, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
@@ -232,17 +228,14 @@ func profileFromFile(filePath string) (*Profile, error) {
 	if err := yaml.Unmarshal(bytes, &cp); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cp.Dir = filepath.Dir(filePath)
 	return cp, nil
 }
 
-// SaveToDir saves this profile to the specified directory.
-// If makeCurrent is true, it makes this profile current.
 func (cp *Profile) SaveToDir(dir string, makeCurrent bool) error {
 	if dir == "" {
 		return trace.BadParameter("cannot save profile: missing dir")
 	}
-	if err := cp.saveToFile(filepath.Join(dir, cp.Name()+".yaml")); err != nil {
+	if err := cp.SaveToFile(filepath.Join(dir, cp.Name()+".yaml")); err != nil {
 		return trace.Wrap(err)
 	}
 	if makeCurrent {
@@ -251,8 +244,8 @@ func (cp *Profile) SaveToDir(dir string, makeCurrent bool) error {
 	return nil
 }
 
-// saveToFile saves this profile to the specified file.
-func (cp *Profile) saveToFile(filepath string) error {
+// SaveToFile saves Profile to the target file.
+func (cp *Profile) SaveToFile(filepath string) error {
 	bytes, err := yaml.Marshal(&cp)
 	if err != nil {
 		return trace.Wrap(err)

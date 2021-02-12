@@ -45,7 +45,6 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -66,6 +65,11 @@ import (
 	"github.com/docker/docker/pkg/term"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+)
+
+const (
+	// ProfileDir is a directory location where tsh profiles (and session keys) are stored
+	ProfileDir = ".tsh"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -442,7 +446,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 	var err error
 
 	// Read in the profile for this proxy.
-	profile, err := client.ProfileFromDir(profileDir, profileName)
+	profile, err := ProfileFromDir(profileDir, profileName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -615,7 +619,7 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 	}
 
 	// Construct the full path to the profile requested and make sure it exists.
-	profileDir = client.FullProfilePath(profileDir)
+	profileDir = FullProfilePath(profileDir)
 	stat, err := os.Stat(profileDir)
 	if err != nil {
 		log.Debugf("Failed to stat file: %v.", err)
@@ -635,7 +639,7 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 	// no proxyHost was supplied.
 	profileName := proxyHost
 	if profileName == "" {
-		profileName, err = client.GetCurrentProfileName(profileDir)
+		profileName, err = GetCurrentProfileName(profileDir)
 		if err != nil {
 			if trace.IsNotFound(err) {
 				return nil, nil, trace.NotFound("not logged in")
@@ -658,7 +662,7 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 	}
 
 	// load the rest of the profiles
-	profiles, err := client.ListProfileNames(profileDir)
+	profiles, err := ListProfileNames(profileDir)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -686,9 +690,9 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 // profiles directory. If profileDir is an empty string, the default profile
 // directory ~/.tsh is used.
 func (c *Config) LoadProfile(profileDir string, proxyName string) error {
-	profileDir = client.FullProfilePath(profileDir)
+	profileDir = FullProfilePath(profileDir)
 	// read the profile:
-	cp, err := client.ProfileFromDir(profileDir, ProxyHost(proxyName))
+	cp, err := ProfileFromDir(profileDir, ProxyHost(proxyName))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil
@@ -723,9 +727,9 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 		return nil
 	}
 
-	dir = client.FullProfilePath(dir)
+	dir = FullProfilePath(dir)
 
-	var cp client.Profile
+	var cp Profile
 	cp.Username = c.Username
 	cp.WebProxyAddr = c.WebProxyAddr
 	cp.SSHProxyAddr = c.SSHProxyAddr

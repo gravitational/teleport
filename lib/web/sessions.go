@@ -708,8 +708,8 @@ func (s *sessionCache) newSessionContextFromSession(session services.WebSession)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	userClient, err := auth.NewClient(apiclient.Config{
-		Addrs: utils.NetAddrsToStrings(s.authServers),
+	userClient, err := auth.NewTLSClient(auth.ClientConfig{
+		Addrs: s.authServers,
 		TLS:   tlsConfig,
 	})
 	if err != nil {
