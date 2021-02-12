@@ -1985,15 +1985,24 @@ func printStatus(debug bool, p *client.ProfileStatus, isActive bool) {
 func onStatus(cf *CLIConf) error {
 	// Get the status of the active profile as well as the status
 	// of any other proxies the user is logged into.
+	//
+	// Return error if not logged in, no active profile, or expired.
 	profile, profiles, err := client.Status("", cf.Proxy)
 	if err != nil {
-		if trace.IsNotFound(err) {
-			fmt.Printf("Not logged in.\n")
-			return nil
-		}
 		return trace.Wrap(err)
 	}
+
 	printProfiles(cf.Debug, profile, profiles)
+
+	if profile == nil {
+		return trace.NotFound("no active profile")
+	}
+
+	duration := time.Until(profile.ValidUntil)
+	if duration.Nanoseconds() <= 0 {
+		return trace.NotFound("active profile expired")
+	}
+
 	return nil
 }
 
