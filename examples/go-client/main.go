@@ -31,7 +31,7 @@ func main() {
 	ctx := context.Background()
 	log.Printf("Starting Teleport client...")
 
-	var creds client.Credentials
+	var creds *client.Credentials
 	var err error
 
 	clt, err := client.New(client.Config{

@@ -63,8 +63,8 @@ type Client struct {
 // New returns a new API client with an authenticated connection to a Teleport server,
 // using the Credentials and Dialer or Addrs given in Config.
 func New(cfg Config) (*Client, error) {
-	if len(c.Credentials) == 0 {
-		return trace.BadParameter("Set parameter Credentials")
+	if len(cfg.Credentials) == 0 {
+		return nil, trace.BadParameter("Set parameter Credentials")
 	}
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
