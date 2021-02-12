@@ -2,29 +2,47 @@ package web
 
 import (
 	"compress/gzip"
-	"io"
+	"io/ioutil"
 	"net/http"
 	"strings"
+	"sync"
 )
 
+// writerPool is a sync.Pool for shared gzip writers.
+// each gzip writer allocates a lot of memory
+// so it makes sense to reset the writer and reuse the
+// internal buffers to avoid too many objects on the heap
+var writerPool = sync.Pool{
+	New: func() interface{} {
+		gz := gzip.NewWriter(ioutil.Discard)
+		return gz
+	},
+}
+
+func newGzipResponseWriter(w http.ResponseWriter) gzipResponseWriter {
+	gz := writerPool.Get().(*gzip.Writer)
+	gz.Reset(w)
+	return gzipResponseWriter{gz: gz, ResponseWriter: w}
+}
+
 type gzipResponseWriter struct {
-	io.Writer
+	gz *gzip.Writer
 	http.ResponseWriter
 }
 
 // Write uses the Writer part of gzipResponseWriter to write the output.
 func (w gzipResponseWriter) Write(b []byte) (int, error) {
 	_, haveType := w.Header()["Content-Type"]
-	// Explicitly set Content-Type if it has not been set previously.
+	// Explicitly set Content-Type if it has not been set previously
 	if !haveType {
 		// If no content type, apply sniffing algorithm to un-gzipped body.
 		w.Header().Set("Content-Type", http.DetectContentType(b))
 	}
-	return w.Writer.Write(b)
+	return w.gz.Write(b)
 }
 
-// MakeGzipHandler adds support for gzip compression for given handler.
-func MakeGzipHandler(handler http.Handler) http.Handler {
+// makeGzipHandler adds support for gzip compression for given handler.
+func makeGzipHandler(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check if the client can accept the gzip encoding and that this is not an image asset.
 		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") || isCompressedImageRequest(r) {
@@ -34,9 +52,8 @@ func MakeGzipHandler(handler http.Handler) http.Handler {
 
 		// Set the HTTP header indicating encoding.
 		w.Header().Set("Content-Encoding", "gzip")
-		gz := gzip.NewWriter(w)
-		defer gz.Close()
-		gzw := gzipResponseWriter{Writer: gz, ResponseWriter: w}
+		gzw := newGzipResponseWriter(w)
+		defer gzw.gz.Close()
 		handler.ServeHTTP(gzw, r)
 	})
 }
