@@ -18,7 +18,6 @@ package integration
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -29,6 +28,8 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -40,21 +41,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestDatabaseAccessRootCluster tests a scenario where a user connects to a
-// database service running in a root cluster.
-func TestDatabaseAccessRootCluster(t *testing.T) {
+// TestDatabaseAccessPostgresRootCluster tests a scenario where a user connects
+// to a Postgres database running in a root cluster.
+func TestDatabaseAccessPostgresRootCluster(t *testing.T) {
 	pack := setupDatabaseTest(t)
 
 	// Connect to the database service in root cluster.
-	client, err := postgres.MakeTestClient(context.Background(), postgres.TestClientConfig{
+	client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
 		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
 		AuthServer: pack.root.cluster.Process.GetAuthServer(),
-		Address:    fmt.Sprintf("%v:%v", Loopback, pack.root.cluster.GetPortWeb()),
+		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortWeb()),
 		Cluster:    pack.root.cluster.Secrets.SiteName,
 		Username:   pack.root.user.GetName(),
 		RouteToDatabase: tlsca.RouteToDatabase{
-			ServiceName: pack.root.dbService.Name,
-			Protocol:    pack.root.dbService.Protocol,
+			ServiceName: pack.root.postgresService.Name,
+			Protocol:    pack.root.postgresService.Protocol,
 			Username:    "postgres",
 			Database:    "test",
 		},
@@ -73,22 +74,22 @@ func TestDatabaseAccessRootCluster(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestDatabaseAccessLeafCluster tests a scenario where a user connects to a
-// database service running in a leaf cluster via a root cluster.
-func TestDatabaseAccessLeafCluster(t *testing.T) {
+// TestDatabaseAccessPostgresLeafCluster tests a scenario where a user connects
+// to a Postgres database running in a leaf cluster via a root cluster.
+func TestDatabaseAccessPostgresLeafCluster(t *testing.T) {
 	pack := setupDatabaseTest(t)
 	pack.waitForLeaf(t)
 
 	// Connect to the database service in leaf cluster via root cluster.
-	client, err := postgres.MakeTestClient(context.Background(), postgres.TestClientConfig{
+	client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
 		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
 		AuthServer: pack.root.cluster.Process.GetAuthServer(),
-		Address:    fmt.Sprintf("%v:%v", Loopback, pack.root.cluster.GetPortWeb()), // Connecting via root cluster.
+		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortWeb()), // Connecting via root cluster.
 		Cluster:    pack.leaf.cluster.Secrets.SiteName,
 		Username:   pack.root.user.GetName(),
 		RouteToDatabase: tlsca.RouteToDatabase{
-			ServiceName: pack.leaf.dbService.Name,
-			Protocol:    pack.leaf.dbService.Protocol,
+			ServiceName: pack.leaf.postgresService.Name,
+			Protocol:    pack.leaf.postgresService.Protocol,
 			Username:    "postgres",
 			Database:    "test",
 		},
@@ -107,20 +108,90 @@ func TestDatabaseAccessLeafCluster(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestDatabaseAccessMySQLRootCluster tests a scenario where a user connects
+// to a MySQL database running in a root cluster.
+func TestDatabaseAccessMySQLRootCluster(t *testing.T) {
+	pack := setupDatabaseTest(t)
+
+	// Connect to the database service in root cluster.
+	client, err := mysql.MakeTestClient(common.TestClientConfig{
+		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+		AuthServer: pack.root.cluster.Process.GetAuthServer(),
+		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortMySQL()),
+		Cluster:    pack.root.cluster.Secrets.SiteName,
+		Username:   pack.root.user.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: pack.root.mysqlService.Name,
+			Protocol:    pack.root.mysqlService.Protocol,
+			Username:    "root",
+			// With MySQL database name doesn't matter as it's not subject to RBAC atm.
+		},
+	})
+	require.NoError(t, err)
+
+	// Execute a query.
+	result, err := client.Execute("select 1")
+	require.NoError(t, err)
+	require.Equal(t, mysql.TestQueryResponse, result)
+	require.Equal(t, uint32(1), pack.root.mysql.QueryCount())
+	require.Equal(t, uint32(0), pack.leaf.mysql.QueryCount())
+
+	// Disconnect.
+	err = client.Close()
+	require.NoError(t, err)
+}
+
+// TestDatabaseAccessMySQLLeafCluster tests a scenario where a user connects
+// to a MySQL database running in a leaf cluster via a root cluster.
+func TestDatabaseAccessMySQLLeafCluster(t *testing.T) {
+	pack := setupDatabaseTest(t)
+	pack.waitForLeaf(t)
+
+	// Connect to the database service in leaf cluster via root cluster.
+	client, err := mysql.MakeTestClient(common.TestClientConfig{
+		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+		AuthServer: pack.root.cluster.Process.GetAuthServer(),
+		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortMySQL()), // Connecting via root cluster.
+		Cluster:    pack.leaf.cluster.Secrets.SiteName,
+		Username:   pack.root.user.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: pack.leaf.mysqlService.Name,
+			Protocol:    pack.leaf.mysqlService.Protocol,
+			Username:    "root",
+			// With MySQL database name doesn't matter as it's not subject to RBAC atm.
+		},
+	})
+	require.NoError(t, err)
+
+	// Execute a query.
+	result, err := client.Execute("select 1")
+	require.NoError(t, err)
+	require.Equal(t, mysql.TestQueryResponse, result)
+	require.Equal(t, uint32(1), pack.leaf.mysql.QueryCount())
+	require.Equal(t, uint32(0), pack.root.mysql.QueryCount())
+
+	// Disconnect.
+	err = client.Close()
+	require.NoError(t, err)
+}
+
 type databasePack struct {
 	root databaseClusterPack
 	leaf databaseClusterPack
 }
 
 type databaseClusterPack struct {
-	cluster      *TeleInstance
-	user         services.User
-	role         services.Role
-	dbService    service.Database
-	dbProcess    *service.TeleportProcess
-	dbAuthClient *auth.Client
-	postgresAddr string
-	postgres     *postgres.TestServer
+	cluster         *TeleInstance
+	user            services.User
+	role            services.Role
+	dbProcess       *service.TeleportProcess
+	dbAuthClient    *auth.Client
+	postgresService service.Database
+	postgresAddr    string
+	postgres        *postgres.TestServer
+	mysqlService    service.Database
+	mysqlAddr       string
+	mysql           *mysql.TestServer
 }
 
 func setupDatabaseTest(t *testing.T) *databasePack {
@@ -143,10 +214,12 @@ func setupDatabaseTest(t *testing.T) *databasePack {
 
 	p := &databasePack{
 		root: databaseClusterPack{
-			postgresAddr: fmt.Sprintf("localhost:%v", ports.PopInt()),
+			postgresAddr: net.JoinHostPort("localhost", ports.Pop()),
+			mysqlAddr:    net.JoinHostPort("localhost", ports.Pop()),
 		},
 		leaf: databaseClusterPack{
-			postgresAddr: fmt.Sprintf("localhost:%v", ports.PopInt()),
+			postgresAddr: net.JoinHostPort("localhost", ports.Pop()),
+			mysqlAddr:    net.JoinHostPort("localhost", ports.Pop()),
 		},
 	}
 
@@ -155,7 +228,7 @@ func setupDatabaseTest(t *testing.T) *databasePack {
 		ClusterName: "root.example.com",
 		HostID:      uuid.New(),
 		NodeName:    Host,
-		Ports:       ports.PopIntSlice(5),
+		Ports:       ports.PopIntSlice(6),
 		Priv:        privateKey,
 		Pub:         publicKey,
 		log:         log,
@@ -166,7 +239,7 @@ func setupDatabaseTest(t *testing.T) *databasePack {
 		ClusterName: "leaf.example.com",
 		HostID:      uuid.New(),
 		NodeName:    Host,
-		Ports:       ports.PopIntSlice(5),
+		Ports:       ports.PopIntSlice(6),
 		Priv:        privateKey,
 		Pub:         publicKey,
 		log:         log,
@@ -222,11 +295,16 @@ func setupDatabaseTest(t *testing.T) *databasePack {
 	err = p.leaf.cluster.Process.GetAuthServer().UpsertCertAuthority(ca)
 	require.NoError(t, err)
 
-	// Create and start database service in the root cluster.
-	p.root.dbService = service.Database{
+	// Create and start database services in the root cluster.
+	p.root.postgresService = service.Database{
 		Name:     "root-postgres",
 		Protocol: defaults.ProtocolPostgres,
 		URI:      p.root.postgresAddr,
+	}
+	p.root.mysqlService = service.Database{
+		Name:     "root-mysql",
+		Protocol: defaults.ProtocolMySQL,
+		URI:      p.root.mysqlAddr,
 	}
 	rdConf := service.MakeDefaultConfig()
 	rdConf.DataDir = t.TempDir()
@@ -238,18 +316,23 @@ func setupDatabaseTest(t *testing.T) *databasePack {
 		},
 	}
 	rdConf.Databases.Enabled = true
-	rdConf.Databases.Databases = []service.Database{p.root.dbService}
+	rdConf.Databases.Databases = []service.Database{p.root.postgresService, p.root.mysqlService}
 	p.root.dbProcess, p.root.dbAuthClient, err = p.root.cluster.StartDatabase(rdConf)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		p.root.dbProcess.Close()
 	})
 
-	// Create and start database service in the leaf cluster.
-	p.leaf.dbService = service.Database{
+	// Create and start database services in the leaf cluster.
+	p.leaf.postgresService = service.Database{
 		Name:     "leaf-postgres",
 		Protocol: defaults.ProtocolPostgres,
 		URI:      p.leaf.postgresAddr,
+	}
+	p.leaf.mysqlService = service.Database{
+		Name:     "leaf-mysql",
+		Protocol: defaults.ProtocolMySQL,
+		URI:      p.leaf.mysqlAddr,
 	}
 	ldConf := service.MakeDefaultConfig()
 	ldConf.DataDir = t.TempDir()
@@ -261,7 +344,7 @@ func setupDatabaseTest(t *testing.T) *databasePack {
 		},
 	}
 	ldConf.Databases.Enabled = true
-	ldConf.Databases.Databases = []service.Database{p.leaf.dbService}
+	ldConf.Databases.Databases = []service.Database{p.leaf.postgresService, p.leaf.mysqlService}
 	p.leaf.dbProcess, p.leaf.dbAuthClient, err = p.leaf.cluster.StartDatabase(ldConf)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -269,19 +352,51 @@ func setupDatabaseTest(t *testing.T) *databasePack {
 	})
 
 	// Create and start test Postgres in the root cluster.
-	p.root.postgres, err = postgres.MakeTestServer(p.root.dbAuthClient, p.root.dbService.Name, p.root.postgresAddr)
+	p.root.postgres, err = postgres.NewTestServer(common.TestServerConfig{
+		AuthClient: p.root.dbAuthClient,
+		Name:       p.root.postgresService.Name,
+		Address:    p.root.postgresAddr,
+	})
 	require.NoError(t, err)
 	go p.root.postgres.Serve()
 	t.Cleanup(func() {
 		p.root.postgres.Close()
 	})
 
+	// Create and start test MySQL in the root cluster.
+	p.root.mysql, err = mysql.NewTestServer(common.TestServerConfig{
+		AuthClient: p.root.dbAuthClient,
+		Name:       p.root.mysqlService.Name,
+		Address:    p.root.mysqlAddr,
+	})
+	require.NoError(t, err)
+	go p.root.mysql.Serve()
+	t.Cleanup(func() {
+		p.root.mysql.Close()
+	})
+
 	// Create and start test Postgres in the leaf cluster.
-	p.leaf.postgres, err = postgres.MakeTestServer(p.leaf.dbAuthClient, p.leaf.dbService.Name, p.leaf.postgresAddr)
+	p.leaf.postgres, err = postgres.NewTestServer(common.TestServerConfig{
+		AuthClient: p.leaf.dbAuthClient,
+		Name:       p.leaf.postgresService.Name,
+		Address:    p.leaf.postgresAddr,
+	})
 	require.NoError(t, err)
 	go p.leaf.postgres.Serve()
 	t.Cleanup(func() {
 		p.leaf.postgres.Close()
+	})
+
+	// Create and start test MySQL in the leaf cluster.
+	p.leaf.mysql, err = mysql.NewTestServer(common.TestServerConfig{
+		AuthClient: p.leaf.dbAuthClient,
+		Name:       p.leaf.mysqlService.Name,
+		Address:    p.leaf.mysqlAddr,
+	})
+	require.NoError(t, err)
+	go p.leaf.mysql.Serve()
+	t.Cleanup(func() {
+		p.leaf.mysql.Close()
 	})
 
 	return p
