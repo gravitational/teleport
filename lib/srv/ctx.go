@@ -639,7 +639,7 @@ func (c *ServerContext) SendExecResult(r ExecResult) {
 	select {
 	case c.ExecResultCh <- r:
 	default:
-		log.Infof("blocked on sending exec result %v", r)
+		c.Infof("Blocked on sending exec result %v.", r)
 	}
 }
 
@@ -649,7 +649,7 @@ func (c *ServerContext) SendSubsystemResult(r SubsystemResult) {
 	select {
 	case c.SubsystemResultCh <- r:
 	default:
-		c.Infof("blocked on sending subsystem result")
+		c.Info("Blocked on sending subsystem result.")
 	}
 }
 
