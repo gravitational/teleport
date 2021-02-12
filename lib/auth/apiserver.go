@@ -260,7 +260,7 @@ type apiServerAuth interface {
 
 	identityService
 	clientCluster
-	provisioningService
+	clientProvisioningService
 	webService
 
 	services.Presence

@@ -33,7 +33,7 @@ import (
 
 type ServicesSuite struct {
 	bk    backend.Backend
-	suite *suite.ServicesTestSuite
+	suite *suite.ServerServicesTestSuite
 }
 
 var _ = check.Suite(&ServicesSuite{})
@@ -65,31 +65,33 @@ func (s *ServicesSuite) SetUpTest(c *check.C) {
 	provisioner := NewProvisioningService(s.bk)
 	trust := NewCAService(s.bk)
 
-	s.suite = &suite.ServicesTestSuite{
-		CAS:                trust,
-		LocalTrust:         trust,
-		PresenceS:          presenceService,
-		ProvisioningS:      provisioner,
-		LocalProvisioningS: provisioner,
-		WebS:               NewIdentityService(s.bk),
-		Access:             NewAccessService(s.bk),
-		EventsS:            eventsService,
-		ChangesC:           make(chan interface{}),
-		ConfigS:            config,
-		LocalConfigS:       config,
-		Clock:              clock,
-		NewProxyWatcher: func() (*services.ProxyWatcher, error) {
-			return services.NewProxyWatcher(services.ProxyWatcherConfig{
-				Context:     context.TODO(),
-				Component:   "test",
-				RetryPeriod: 200 * time.Millisecond,
-				Client: &client{
-					PresenceService: presenceService,
-					EventsService:   eventsService,
-				},
-				ProxiesC: make(chan []services.Server, 10),
-			})
+	s.suite = &suite.ServerServicesTestSuite{
+		ServicesTestSuite: suite.ServicesTestSuite{
+			CAS:           trust,
+			PresenceS:     presenceService,
+			ProvisioningS: provisioner,
+			WebS:          NewIdentityService(s.bk),
+			Access:        NewAccessService(s.bk),
+			EventsS:       eventsService,
+			ChangesC:      make(chan interface{}),
+			ConfigS:       config,
+			Clock:         clock,
+			NewProxyWatcher: func() (*services.ProxyWatcher, error) {
+				return services.NewProxyWatcher(services.ProxyWatcherConfig{
+					Context:     context.TODO(),
+					Component:   "test",
+					RetryPeriod: 200 * time.Millisecond,
+					Client: &client{
+						PresenceService: presenceService,
+						EventsService:   eventsService,
+					},
+					ProxiesC: make(chan []services.Server, 10),
+				})
+			},
 		},
+		Trust:         trust,
+		ProvisioningS: provisioner,
+		ConfigS:       config,
 	}
 }
 

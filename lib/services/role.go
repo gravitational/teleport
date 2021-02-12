@@ -50,7 +50,7 @@ import (
 //
 // Once RBAC is open sourced, remove this and rename "ExtendedAdminUserRules" to
 // "AdminUserRules".
-var AdminUserRules = []Rule{
+var AdminUserRules = []types.Rule{
 	NewRule(KindRole, RW()),
 	NewRule(KindAuthConnector, RW()),
 	NewRule(KindSession, RO()),
@@ -60,7 +60,7 @@ var AdminUserRules = []Rule{
 
 // ExtendedAdminUserRules provides access to the default set of rules assigned to
 // all users.
-var ExtendedAdminUserRules = []Rule{
+var ExtendedAdminUserRules = []types.Rule{
 	NewRule(KindRole, RW()),
 	NewRule(KindAuthConnector, RW()),
 	NewRule(KindSession, RO()),
@@ -72,7 +72,7 @@ var ExtendedAdminUserRules = []Rule{
 
 // DefaultImplicitRules provides access to the default set of implicit rules
 // assigned to all roles.
-var DefaultImplicitRules = []Rule{
+var DefaultImplicitRules = []types.Rule{
 	NewRule(KindNode, RO()),
 	NewRule(KindProxy, RO()),
 	NewRule(KindAuthServer, RO()),
@@ -89,7 +89,7 @@ var DefaultImplicitRules = []Rule{
 
 // DefaultCertAuthorityRules provides access the minimal set of resources
 // needed for a certificate authority to function.
-var DefaultCertAuthorityRules = []Rule{
+var DefaultCertAuthorityRules = []types.Rule{
 	NewRule(KindSession, RO()),
 	NewRule(KindNode, RO()),
 	NewRule(KindAuthServer, RO()),
@@ -294,7 +294,7 @@ func ValidateRole(r Role) error {
 }
 
 // validateRule parses the where and action fields to validate the rule.
-func validateRule(r Rule) error {
+func validateRule(r types.Rule) error {
 	if len(r.Where) != 0 {
 		parser, err := NewWhereParser(&Context{})
 		if err != nil {
@@ -501,7 +501,7 @@ func applyValueTraits(val string, traits map[string][]string) ([]string, error) 
 
 // ruleScore is a sorting score of the rule, the larger the score, the more
 // specific the rule is
-func ruleScore(r *Rule) int {
+func ruleScore(r *types.Rule) int {
 	score := 0
 	// wildcard rules are less specific
 	if utils.SliceContainsStr(r.Resources, Wildcard) {
@@ -539,15 +539,15 @@ func ruleScore(r *Rule) int {
 // than the same rule without where section.
 // * Rule that has actions list is more specific than
 // rule without actions list.
-func CompareRuleScore(r *Rule, o *Rule) bool {
+func CompareRuleScore(r *types.Rule, o *types.Rule) bool {
 	return ruleScore(r) > ruleScore(o)
 }
 
 // RuleSet maps resource to a set of rules defined for it
-type RuleSet map[string][]Rule
+type RuleSet map[string][]types.Rule
 
 // MakeRuleSet creates a new rule set from a list
-func MakeRuleSet(rules []Rule) RuleSet {
+func MakeRuleSet(rules []types.Rule) RuleSet {
 	set := make(RuleSet)
 	for _, rule := range rules {
 		for _, resource := range rule.Resources {
@@ -615,7 +615,7 @@ func (set RuleSet) Match(whereParser predicate.Parser, actionsParser predicate.P
 
 // matchesWhere returns true if Where rule matches.
 // Empty Where block always matches.
-func matchesWhere(r *Rule, parser predicate.Parser) (bool, error) {
+func matchesWhere(r *types.Rule, parser predicate.Parser) (bool, error) {
 	if r.Where == "" {
 		return true, nil
 	}
@@ -631,7 +631,7 @@ func matchesWhere(r *Rule, parser predicate.Parser) (bool, error) {
 }
 
 // processActions processes actions specified for this rule
-func processActions(r *Rule, parser predicate.Parser) error {
+func processActions(r *types.Rule, parser predicate.Parser) error {
 	for _, action := range r.Actions {
 		ifn, err := parser.Parse(action)
 		if err != nil {
@@ -647,8 +647,8 @@ func processActions(r *Rule, parser predicate.Parser) error {
 }
 
 // Slice returns slice from a set
-func (set RuleSet) Slice() []Rule {
-	var out []Rule
+func (set RuleSet) Slice() []types.Rule {
+	var out []types.Rule
 	for _, rules := range set {
 		out = append(out, rules...)
 	}

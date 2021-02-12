@@ -1425,7 +1425,11 @@ type cacheServices struct {
 type accessCacheConfig struct {
 	// services is a collection
 	// of services to use as a cache base
+
+	// FIXME(dmitri):
+	// services auth.ClientServices
 	services services.Services
+
 	// setup is a function that takes
 	// cache configuration and modifies it
 	setup cache.SetupConfigFn

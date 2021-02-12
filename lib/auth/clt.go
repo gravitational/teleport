@@ -2264,9 +2264,9 @@ type clientCluster interface {
 	ValidateTrustedCluster(*ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error)
 }
 
-// provisioningService is a service in control
+// clientProvisioningService is a service in control
 // of adding new nodes, auth servers and proxies to the cluster
-type provisioningService interface {
+type clientProvisioningService interface {
 	// GetTokens returns a list of active invitation tokens for nodes and users
 	GetTokens(opts ...services.MarshalOption) (tokens []services.ProvisionToken, err error)
 
@@ -2292,9 +2292,9 @@ type provisioningService interface {
 type ClientI interface {
 	clientIdentity
 	clientCluster
+	clientProvisioningService
 	keepAliver
 	webService
-	provisioningService
 
 	services.Trust
 	services.Presence

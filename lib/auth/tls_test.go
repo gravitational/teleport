@@ -912,7 +912,7 @@ func (s *TLSSuite) TestClusterConfig(c *check.C) {
 	testSuite := &suite.ServicesTestSuite{
 		ConfigS: clt,
 	}
-	testSuite.ClusterConfig(c, suite.SkipDelete())
+	testSuite.ClusterConfig(c)
 }
 
 func (s *TLSSuite) TestTunnelConnectionsCRUD(c *check.C) {

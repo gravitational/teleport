@@ -64,7 +64,7 @@ func (s *IdentityService) GetAppSessions(ctx context.Context) ([]types.WebSessio
 }
 
 // UpsertAppSession creates an application web session.
-func (s *IdentityService) UpsertAppSession(ctx context.Context, session services.WebSession) error {
+func (s *IdentityService) UpsertAppSession(ctx context.Context, session types.WebSession) error {
 	value, err := services.MarshalWebSession(session)
 	if err != nil {
 		return trace.Wrap(err)
@@ -82,7 +82,7 @@ func (s *IdentityService) UpsertAppSession(ctx context.Context, session services
 }
 
 // DeleteAppSession removes an application web session.
-func (s *IdentityService) DeleteAppSession(ctx context.Context, req services.DeleteAppSessionRequest) error {
+func (s *IdentityService) DeleteAppSession(ctx context.Context, req types.DeleteAppSessionRequest) error {
 	if err := s.Delete(ctx, backend.Key(appsPrefix, sessionsPrefix, req.SessionID)); err != nil {
 		return trace.Wrap(err)
 	}

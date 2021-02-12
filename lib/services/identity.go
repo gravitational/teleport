@@ -217,6 +217,7 @@ type Identity interface {
 // ServerIdentity represents the Identity on the auth server
 type ServerIdentity interface {
 	Identity
+
 	ServerAppSession
 	ServerWebSessionsGetter
 	ServerWebTokensGetter
