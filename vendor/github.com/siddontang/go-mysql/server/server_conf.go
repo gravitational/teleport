@@ -8,8 +8,6 @@ import (
 	. "github.com/siddontang/go-mysql/mysql"
 )
 
-var defaultServer = NewDefaultServer()
-
 // Defines a basic MySQL server with configs.
 //
 // We do not aim at implementing the whole MySQL connection suite to have the best compatibilities for the clients.
