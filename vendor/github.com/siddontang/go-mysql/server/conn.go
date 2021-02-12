@@ -44,6 +44,8 @@ func NewConn(conn net.Conn, user string, password string, h Handler) (*Conn, err
 	p.AddUser(user, password)
 	salt, _ := RandomBuf(20)
 
+	defaultServer := NewDefaultServer()
+
 	var packetConn *packet.Conn
 	if defaultServer.tlsConfig != nil {
 		packetConn = packet.NewTLSConn(conn)
