@@ -68,7 +68,13 @@ func (h *Handler) handleFragment(w http.ResponseWriter, r *http.Request, p httpr
 			Value:    req.CookieValue,
 			HttpOnly: true,
 			Secure:   true,
-			SameSite: http.SameSiteLaxMode,
+			// Set Same-Site policy for the session cookie to None in order to
+			// support redirects that identity providers do during SSO auth.
+			// Otherwise the session cookie won't be sent and the user will
+			// get redirected to the application launcher.
+			//
+			// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie/SameSite
+			SameSite: http.SameSiteNoneMode,
 		})
 	default:
 		return trace.BadParameter("unsupported method %q", r.Method)
