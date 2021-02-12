@@ -92,11 +92,12 @@ var _ ClientI = &Client{}
 // NewClient returns a new client that uses mutual TLS authentication
 // and dials the remote server using dialer.
 func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, error) {
-	if cfg.TLS == nil {
-		return nil, trace.BadParameter("Set parameter TLS")
-	}
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if cfg.TLS == nil {
+		cfg.TLS = cfg.Credentials[0].TLS
 	}
 
 	// This logic is necessary for the client to force client to always send
