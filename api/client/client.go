@@ -60,12 +60,9 @@ type Client struct {
 	closedFlag int32
 }
 
-// New returns a new API client with an authenticated connection to a Teleport server,
+// New returns a new API client with an authenticated connection to a Teleport server
 // using the Credentials and Dialer or Addrs given in Config.
 func New(cfg Config) (*Client, error) {
-	if len(cfg.Credentials) == 0 {
-		return nil, trace.BadParameter("Set parameter Credentials")
-	}
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -111,10 +108,13 @@ func (c *Client) connect() error {
 		}
 
 		c.grpc = proto.NewAuthServiceClient(c.conn)
+		// TODO (Joeger): we can't test the authentication of the connection without pinging the server,
+		// but doing so here would break the current uses of Client (tests). This Credentials logic could
+		// instead be used to fallback to other credentials whenever a grpc request returns a connection error.
 		c.c.TLS = creds.TLS
 		return nil
 	}
-	return trail.FromGRPC(trace.Wrap(trace.NewAggregate(errs...), "all auth methods failed"))
+	return trace.Wrap(trace.NewAggregate(errs...), "all auth methods failed")
 }
 
 // Config contains configuration of the client

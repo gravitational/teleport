@@ -96,6 +96,8 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 		return nil, trace.Wrap(err)
 	}
 
+	// The http client requires TLS rather than Credentials,
+	// so set it to the first Credentials if it's nil
 	if cfg.TLS == nil {
 		cfg.TLS = cfg.Credentials[0].TLS
 	}
@@ -103,10 +105,10 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 	// This logic is necessary for the client to force client to always send
 	// a certificate regardless of the server setting. Otherwise the client may pick
 	// not to send the client certificate by looking at certificate request.
-	if cfgTLS := cfg.TLS; len(cfgTLS.Certificates) != 0 {
-		cert := cfgTLS.Certificates[0]
-		cfgTLS.Certificates = nil
-		cfgTLS.GetClientCertificate = func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
+	if len(cfg.TLS.Certificates) != 0 {
+		cert := cfg.TLS.Certificates[0]
+		cfg.TLS.Certificates = nil
+		cfg.TLS.GetClientCertificate = func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
 			return &cert, nil
 		}
 	}
