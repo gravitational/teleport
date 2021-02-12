@@ -379,12 +379,10 @@ func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, Rese
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := s.UpsertMFADevice(ctx, username, dev); err != nil {
+		if err := s.checkTOTP(ctx, username, req.SecondFactorToken, dev); err != nil {
 			return trace.Wrap(err)
 		}
-
-		err = s.checkOTP(username, req.SecondFactorToken)
-		if err != nil {
+		if err := s.UpsertMFADevice(ctx, username, dev); err != nil {
 			return trace.Wrap(err)
 		}
 

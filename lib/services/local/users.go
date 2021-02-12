@@ -563,13 +563,26 @@ func (s *IdentityService) GetU2FRegisterChallenge(token string) (*u2f.Challenge,
 }
 
 func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error {
-	// TODO(awly): mfa: ensure device name uniqueness.
 	if user == "" {
 		return trace.BadParameter("missing parameter user")
 	}
-	if d.Id == "" {
-		return trace.BadParameter("missing ID in MFADevice")
+	if err := d.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
 	}
+
+	// Check device Name for uniqueness.
+	devs, err := s.GetMFADevices(ctx, user)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, dd := range devs {
+		// Same ID and Name is OK - it means update existing resource.
+		// Different Id and same Name is not OK - it means a duplicate device.
+		if d.Metadata.Name == dd.Metadata.Name && d.Id != dd.Id {
+			return trace.AlreadyExists("MFA device with name %q already exists with ID %q", dd.Metadata.Name, dd.Id)
+		}
+	}
+
 	value, err := json.Marshal(d)
 	if err != nil {
 		return trace.Wrap(err)
