@@ -20,6 +20,7 @@ package client
 import (
 	"compress/gzip"
 	"context"
+	"crypto/tls"
 	"io"
 	"net"
 	"sync/atomic"
@@ -62,11 +63,22 @@ type Client struct {
 // New returns a new API client with an authenticated connection to a Teleport server,
 // using the Credentials and Dialer or Addrs given in Config.
 func New(cfg Config) (*Client, error) {
+	if len(c.Credentials) == 0 {
+		return trace.BadParameter("Set parameter Credentials")
+	}
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	c := &Client{c: cfg}
+	if err := c.connect(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return c, nil
+}
+
+func (c *Client) connect() error {
 	dialer := grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
 		if c.isClosed() {
 			return nil, trace.ConnectionProblem(nil, "client is closed")
@@ -78,21 +90,37 @@ func New(cfg Config) (*Client, error) {
 		return conn, nil
 	})
 
+	// Attempt to connect to the server with each of the Credentials
+	// and keep the first successful connection.
+	var errs []error
 	var err error
-	if c.conn, err = grpc.Dial(constants.APIDomain,
-		dialer,
-		grpc.WithTransportCredentials(credentials.NewTLS(c.c.Creds.TLS)),
-		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:                c.c.KeepAlivePeriod,
-			Timeout:             c.c.KeepAlivePeriod * time.Duration(c.c.KeepAliveCount),
-			PermitWithoutStream: true,
-		}),
-	); err != nil {
-		return nil, trail.FromGRPC(err)
-	}
+	for i, creds := range c.c.Credentials {
+		c.conn, err = grpc.Dial(constants.APIDomain,
+			dialer,
+			grpc.WithTransportCredentials(credentials.NewTLS(creds.TLS)),
+			grpc.WithKeepaliveParams(keepalive.ClientParameters{
+				Time:                c.c.KeepAlivePeriod,
+				Timeout:             c.c.KeepAlivePeriod * time.Duration(c.c.KeepAliveCount),
+				PermitWithoutStream: true,
+			}),
+		)
+		if err != nil {
+			// TODO (Joerger): if connecting to auth fails, try connecting via proxy
+			errs = append(errs, trace.Wrap(err, "Credentials[%v]", i))
+			continue
+		}
 
-	c.grpc = proto.NewAuthServiceClient(c.conn)
-	return c, nil
+		// ping to test the connection made with creds
+		c.grpc = proto.NewAuthServiceClient(c.conn)
+		if _, err = c.Ping(context.TODO()); err != nil {
+			errs = append(errs, trace.Wrap(err, "Credentials[%v]", i))
+			continue
+		}
+
+		c.c.TLS = creds.TLS
+		return nil
+	}
+	return trail.FromGRPC(trace.Wrap(trace.NewAggregate(errs...), "all auth methods failed"))
 }
 
 // Config contains configuration of the client
@@ -108,18 +136,16 @@ type Config struct {
 	// KeepAliveCount specifies the amount of missed keep alives
 	// to wait for before declaring the connection as broken
 	KeepAliveCount int
-	// Creds are used to authenticate the client's connection to the server
-	Creds *Credentials
+	// Credentials are used to authenticate the client's connection to the server. The
+	// first credentials in the list used to successfully dial the server are
+	// used and stored as the Client's TLS Config.
+	Credentials CredentialsList
+	// TLS is the client's TLS config
+	TLS *tls.Config
 }
 
 // CheckAndSetDefaults checks and sets default config values
 func (c *Config) CheckAndSetDefaults() error {
-	if c.Creds == nil {
-		return trace.Errorf("missing client credentials")
-	}
-	if err := c.Creds.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err, "invalid client credentials")
-	}
 	if len(c.Addrs) == 0 && c.Dialer == nil {
 		return trace.BadParameter("set parameter Addrs or Dialer")
 	}

@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	// The files created by Write will have these permissions.
+	// IdentityFilePermissions defines file permissions for Identity files.
 	IdentityFilePermissions = 0600
 )
 

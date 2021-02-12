@@ -396,7 +396,7 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 	if proxy.teleportClient.SkipLocalAuth {
 		return auth.NewClient(client.Config{
 			Dialer: dialer,
-			Creds:  client.TLSCreds(proxy.teleportClient.TLS),
+			TLS:    proxy.teleportClient.TLS,
 		})
 	}
 
@@ -411,7 +411,7 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 	}
 	clt, err := auth.NewClient(client.Config{
 		Dialer: dialer,
-		Creds:  client.TLSCreds(tlsConfig),
+		TLS:    tlsConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
