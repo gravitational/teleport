@@ -668,7 +668,7 @@ collect:
 	for {
 		if count > MaxPages {
 			warningMessage := "Truncating list of teams used to populate claims: " +
-				"hit maximum number pages that can be fetched from GSuite."
+				"hit maximum number pages that can be fetched from Google Workspace."
 
 			// Print warning to Teleport logs as well as the Audit Log.
 			log.Warnf(warningMessage)
@@ -714,7 +714,7 @@ func (g *gsuiteClient) fetchGroupsPage(pageToken string) (*gsuiteGroups, error) 
 	u.RawQuery = q.Encode()
 	endpoint := u.String()
 
-	log.Debugf("Fetching OIDC claims from GSuite groups endpoint: %q.", endpoint)
+	log.Debugf("Fetching OIDC claims from Google Workspace groups endpoint: %q.", endpoint)
 
 	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
@@ -835,32 +835,46 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector services.OIDCConne
 			return nil, trace.Wrap(err)
 		}
 
+    var config *jwt.Config
+		var jsonCredentials []byte
+
+ //load the google service account uri from
+    if(connector.GetGoogleServiceAccountURI()!="") {
+
 		serviceAccountURI := connector.GetGoogleServiceAccountURI()
 		if serviceAccountURI == "" {
 			return nil, trace.NotFound(
-				"the gsuite connector requires google_service_account_uri parameter to be specified and pointing to a valid google service account file with credentials, read this article for more details https://developers.google.com/admin-sdk/directory/v1/guides/delegation")
+				"the google workspace connector requires google_service_account_uri parameter to be specified and pointing to a valid google service account file with credentials, read this article for more details https://developers.google.com/admin-sdk/directory/v1/guides/delegation")
 		}
 
 		uri, err := utils.ParseSessionsURI(serviceAccountURI)
 		if err != nil {
 			return nil, trace.BadParameter("failed to parse google_service_account_uri: %v", err)
 		}
-
-		impersonateAdmin := connector.GetGoogleAdminEmail()
-		if impersonateAdmin == "" {
-			return nil, trace.NotFound(
-				"the gsuite connector requires google_admin_email user to impersonate, as service accounts can not be used directly https://developers.google.com/identity/protocols/OAuth2ServiceAccount#delegatingauthority")
-		}
-
-		jsonCredentials, err := ioutil.ReadFile(uri.Path)
+		jsonCredentials, err = ioutil.ReadFile(uri.Path)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		config, err := google.JWTConfigFromJSON(jsonCredentials, teleport.GSuiteGroupsScope)
-		if err != nil {
-			return nil, trace.BadParameter("unable to parse client secret file to config: %v", err)
-		}
+	}	else if(connector.GetGoogleServiceAccount()!="") {
+
+		 jsonCredentials = []byte(connector.GetGoogleServiceAccount())
+   }
+
+	 config, err = google.JWTConfigFromJSON(jsonCredentials, teleport.GSuiteGroupsScope)
+	if err != nil {
+		return nil, trace.BadParameter("unable to parse client secret file to config: %v", err)
+	}
+
+
+	 impersonateAdmin := connector.GetGoogleAdminEmail()
+	 if impersonateAdmin == "" {
+		 return nil, trace.NotFound(
+			 "the google workspace connector requires google_admin_email user to impersonate, as service accounts can not be used directly https://developers.google.com/identity/protocols/OAuth2ServiceAccount#delegatingauthority")
+	 }
+
+
+
 		// User should impersonate admin user, otherwise it won't work:
 		//
 		// https://developers.google.com/admin-sdk/directory/v1/guides/delegation
@@ -869,7 +883,7 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector services.OIDCConne
 		//
 		domain, exists, err := userInfoClaims.StringClaim(teleport.GSuiteDomainClaim)
 		if err != nil || !exists {
-			return nil, trace.BadParameter("hd is the required claim for GSuite")
+			return nil, trace.BadParameter("hd is the required claim for Google Workspace")
 		}
 		config.Subject = impersonateAdmin
 
@@ -878,10 +892,10 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector services.OIDCConne
 			if !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
 			}
-			log.Debugf("Found no GSuite claims.")
+			log.Debugf("Found no Google Workspace claims.")
 		} else {
 			if gsuiteClaims != nil {
-				log.Debugf("Got GSuiteclaims: %v.", gsuiteClaims)
+				log.Debugf("Got GoogleWorkspace claims: %v.", gsuiteClaims)
 			}
 			claims, err = mergeClaims(claims, gsuiteClaims)
 			if err != nil {
