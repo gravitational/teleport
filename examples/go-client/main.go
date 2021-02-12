@@ -31,24 +31,8 @@ func main() {
 	ctx := context.Background()
 	log.Printf("Starting Teleport client...")
 
-	creds1, err := client.LoadIdentityFile("/home/bjoerger/access-admin")
-	if err != nil {
-		log.Fatalf("Failed to load credentials: %v", err)
-	}
-	// creds1.TLS.Certificates[0] = tls.Certificate{}
-
-	// creds2, err := client.LoadKeyPair("certFilePath", "keyFilePath", "casFilePath")
-	// if err != nil {
-	// 	log.Fatalf("Failed to load credentials: %v", err)
-	// }
-
-	// creds3, err := client.LoadConfig(&tls.Config{
-	// 	Certificates: ...,
-	// 	RootCAs:      ...,
-	// })
-	// if err != nil {
-	// 	log.Fatalf("Failed to load credentials: %v", err)
-	// }
+	var creds client.Credentials
+	var err error
 
 	clt, err := client.New(client.Config{
 		// Addrs is the Auth Server address, only works locally.
@@ -57,9 +41,7 @@ func main() {
 		// Multiple credentials can be provided in order to fall back to to
 		// later credentials if the previous ones fail to authenticate the client.
 		Credentials: client.CredentialsList{
-			creds1,
-			// creds2,
-			// creds3,
+			creds,
 		},
 	})
 	if err != nil {
