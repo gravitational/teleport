@@ -92,6 +92,9 @@ var _ ClientI = &Client{}
 // NewClient returns a new client that uses mutual TLS authentication
 // and dials the remote server using dialer.
 func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, error) {
+	if cfg.TLS == nil {
+		return nil, trace.BadParameter("Set parameter TLS")
+	}
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -99,7 +102,7 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 	// This logic is necessary for the client to force client to always send
 	// a certificate regardless of the server setting. Otherwise the client may pick
 	// not to send the client certificate by looking at certificate request.
-	if cfgTLS := cfg.Creds.TLS; len(cfgTLS.Certificates) != 0 {
+	if cfgTLS := cfg.TLS; len(cfgTLS.Certificates) != 0 {
 		cert := cfgTLS.Certificates[0]
 		cfgTLS.Certificates = nil
 		cfgTLS.GetClientCertificate = func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
@@ -111,7 +114,7 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 	// Auth Server using a multiplexer for protocol detection. Unless next
 	// protocol is specified it will attempt to upgrade to HTTP2 and at that point
 	// there is no way to distinguish between HTTP2/JSON or GPRC.
-	tlsConfig := cfg.Creds.TLS.Clone()
+	tlsConfig := cfg.TLS.Clone()
 	tlsConfig.NextProtos = []string{teleport.HTTPNextProtoTLS}
 
 	transport := &http.Transport{
@@ -237,7 +240,7 @@ func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, e
 		DialTimeout:     cfg.DialTimeout,
 		KeepAlivePeriod: cfg.KeepAlivePeriod,
 		KeepAliveCount:  cfg.KeepAliveCount,
-		Creds:           client.TLSCreds(cfg.TLS),
+		TLS:             cfg.TLS,
 	}
 
 	return NewClient(c, params...)

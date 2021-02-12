@@ -31,14 +31,36 @@ func main() {
 	ctx := context.Background()
 	log.Printf("Starting Teleport client...")
 
-	creds, err := client.DefaultCreds()
+	creds1, err := client.LoadIdentityFile("/home/bjoerger/access-admin")
 	if err != nil {
-		log.Fatalf("Failed to read credentials: %v", err)
+		log.Fatalf("Failed to load credentials: %v", err)
 	}
+	// creds1.TLS.Certificates[0] = tls.Certificate{}
+
+	// creds2, err := client.LoadKeyPair("certFilePath", "keyFilePath", "casFilePath")
+	// if err != nil {
+	// 	log.Fatalf("Failed to load credentials: %v", err)
+	// }
+
+	// creds3, err := client.LoadConfig(&tls.Config{
+	// 	Certificates: ...,
+	// 	RootCAs:      ...,
+	// })
+	// if err != nil {
+	// 	log.Fatalf("Failed to load credentials: %v", err)
+	// }
 
 	clt, err := client.New(client.Config{
-		Addrs: []string{"proxy.example.com:3025"},
-		Creds: creds,
+		// Addrs is the Auth Server address, only works locally.
+		// TODO (Joerger): add support to connect via proxy.
+		Addrs: []string{"localhost:3025"},
+		// Multiple credentials can be provided in order to fall back to to
+		// later credentials if the previous ones fail to authenticate the client.
+		Credentials: client.CredentialsList{
+			creds1,
+			// creds2,
+			// creds3,
+		},
 	})
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)

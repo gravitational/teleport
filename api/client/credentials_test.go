@@ -21,7 +21,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -29,46 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDefaultCreds(t *testing.T) {
-	expectedTLS, err := getExpectedTLS()
-	require.NoError(t, err)
-
-	dir := t.TempDir()
-	p := &Profile{WebProxyAddr: "proxy", Username: "username"}
-	p.SaveToDir(dir, true)
-
-	err = writeProfileCerts(p, dir)
-	require.NoError(t, err)
-
-	// DefaultCreds attempts each loader, returning the first success.
-	creds, err := DefaultCreds(
-		IdentityFileCredsLoader("no-path"),
-		CertFilesCredsLoader("no-path"),
-		ProfileCredsLoader(dir),
-	)
-	require.NoError(t, err)
-	require.Equal(t, creds.TLS, expectedTLS)
-	_, err = New(Config{
-		Addrs: []string{"proxy.example.com"},
-		Creds: creds,
-	})
-	require.NoError(t, err)
-
-	// Should return error if all loaders fail.
-	creds, err = DefaultCreds(
-		IdentityFileCredsLoader("no-path"),
-		CertFilesCredsLoader("no-path"),
-		ProfileCredsLoader("no-path"),
-	)
-	require.Error(t, err)
-	require.Nil(t, creds)
-
-}
-
 func TestIdentityCreds(t *testing.T) {
-	expectedTLS, err := getExpectedTLS()
-	require.NoError(t, err)
-
 	path := filepath.Join(t.TempDir(), "file")
 	idFile := &IdentityFile{
 		PrivateKey: []byte(keyPEM),
@@ -79,106 +39,34 @@ func TestIdentityCreds(t *testing.T) {
 			TLS: [][]byte{[]byte(caCertPEM)},
 		},
 	}
-
-	// Write identity file
-	err = WriteIdentityFile(idFile, path)
+	err := WriteIdentityFile(idFile, path)
 	require.NoError(t, err)
 
-	// DefaultCreds attempts each loader, returning the first
-	// success, or returning an error if all fail.
-	creds, err := IdentityFileCreds(path)
+	creds, err := LoadIdentityFile(path)
 	require.NoError(t, err)
-	require.Equal(t, creds.TLS, expectedTLS)
-
-	// Create client from Creds
-	_, err = New(Config{
-		Addrs: []string{"proxy.example.com"},
-		Creds: creds,
-	})
+	expectedCreds, err := getExpectedCreds()
 	require.NoError(t, err)
+	require.Equal(t, creds, expectedCreds)
 }
 
-func TestProfileCreds(t *testing.T) {
-	expectedTLS, err := getExpectedTLS()
-	require.NoError(t, err)
-
-	dir := t.TempDir()
-	p := &Profile{WebProxyAddr: "proxy", Username: "username"}
-	p.SaveToDir(dir, true)
-
-	err = writeProfileCerts(p, dir)
-	require.NoError(t, err)
-
-	creds, err := ProfileCreds(dir)
-	require.NoError(t, err)
-	require.Equal(t, creds.TLS, expectedTLS)
-
-	// Create client from Creds
-	_, err = New(Config{
-		Addrs: []string{"proxy.example.com"},
-		Creds: creds,
-	})
-	require.NoError(t, err)
-}
-
-func TestCertsFilesCreds(t *testing.T) {
-	expectedTLS, err := getExpectedTLS()
-	require.NoError(t, err)
-
+func TestLoadKeyPair(t *testing.T) {
 	path := t.TempDir() + "username"
-	writeCertsFilesCerts(path)
-
-	creds, err := CertFilesCreds(path)
+	crtPath, keyPath, casPath := path+".crt", path+".key", path+".cas"
+	err := ioutil.WriteFile(crtPath, []byte(certPEM), 0600)
 	require.NoError(t, err)
-	require.Equal(t, creds.TLS, expectedTLS)
-
-	// Create client from Creds
-	_, err = New(Config{
-		Addrs: []string{"proxy.example.com"},
-		Creds: creds,
-	})
+	err = ioutil.WriteFile(keyPath, []byte(keyPEM), 0600)
 	require.NoError(t, err)
+	err = ioutil.WriteFile(casPath, []byte(caCertPEM), 0600)
+	require.NoError(t, err)
+
+	creds, err := LoadKeyPair(crtPath, keyPath, casPath)
+	require.NoError(t, err)
+	expectedCreds, err := getExpectedCreds()
+	require.NoError(t, err)
+	require.Equal(t, creds, expectedCreds)
 }
 
-func writeProfileCerts(p *Profile, dir string) error {
-	// Write creds to the correct path within profile.
-	keyDir := filepath.Join(dir, SessionKeyDir)
-	os.MkdirAll(keyDir, 0700)
-
-	userKeyDir := filepath.Join(keyDir, p.Name())
-	os.MkdirAll(userKeyDir, 0700)
-
-	certPath := filepath.Join(userKeyDir, p.Username+FileExtTLSCert)
-	if err := ioutil.WriteFile(certPath, []byte(certPEM), 0600); err != nil {
-		return trace.Wrap(err)
-	}
-	keyPath := filepath.Join(userKeyDir, p.Username)
-	if err := ioutil.WriteFile(keyPath, []byte(keyPEM), 0600); err != nil {
-		return trace.Wrap(err)
-	}
-	certsPath := filepath.Join(userKeyDir, FileNameTLSCerts)
-	if err := ioutil.WriteFile(certsPath, []byte(caCertPEM), 0600); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-func writeCertsFilesCerts(path string) error {
-	// Write creds to the correct path within profile.
-	if err := ioutil.WriteFile(path+".crt", []byte(certPEM), 0600); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := ioutil.WriteFile(path+".key", []byte(keyPEM), 0600); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := ioutil.WriteFile(path+".cas", []byte(caCertPEM), 0600); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-func getExpectedTLS() (*tls.Config, error) {
-	// set expectedTLS from PEM.
+func getTLS() (*tls.Config, error) {
 	cert, err := tls.X509KeyPair([]byte(certPEM), []byte(keyPEM))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -193,6 +81,15 @@ func getExpectedTLS() (*tls.Config, error) {
 		Certificates: []tls.Certificate{cert},
 		RootCAs:      pool,
 	}, nil
+}
+
+func getExpectedCreds() (*Credentials, error) {
+	tls, err := getTLS()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	creds := &Credentials{TLS: tls}
+	return creds, nil
 }
 
 var certPEM = `-----BEGIN CERTIFICATE-----
