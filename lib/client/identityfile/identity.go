@@ -91,6 +91,11 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 	switch cfg.Format {
 	// dump user identity into a single file:
 	case FormatFile:
+		filesWritten = append(filesWritten, cfg.OutputPath)
+		if err := checkOverwrite(cfg.OverwriteDestination, filesWritten...); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		idFile := &apiclient.IdentityFile{
 			PrivateKey: cfg.Key.Priv,
 			Certs: apiclient.Certs{
@@ -114,11 +119,6 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		}
 
 		if err := apiclient.WriteIdentityFile(idFile, cfg.OutputPath); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		filesWritten = append(filesWritten, cfg.OutputPath)
-		if err := checkOverwrite(cfg.OverwriteDestination, filesWritten...); err != nil {
 			return nil, trace.Wrap(err)
 		}
 

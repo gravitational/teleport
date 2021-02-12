@@ -81,32 +81,51 @@ func (idf *IdentityFile) TLS() (*tls.Config, error) {
 // WriteIdentityFile writes the given identityFile to the specified path.
 func WriteIdentityFile(idFile *IdentityFile, path string) error {
 	buf := new(bytes.Buffer)
+	if err := encodeIdentityFile(buf, idFile); err != nil {
+		return trace.Wrap(err)
+	}
+	err := ioutil.WriteFile(path, buf.Bytes(), IdentityFilePermissions)
+	return trace.Wrap(err)
+}
+
+// ReadIdentityFile reads an identityFile from the given path
+func ReadIdentityFile(path string) (*IdentityFile, error) {
+	r, err := os.Open(path)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer r.Close()
+	return decodeIdentityFile(r)
+}
+
+// encodeIdentityFile combines the components of an identity file in its file format.
+func encodeIdentityFile(w io.Writer, idFile *IdentityFile) error {
 	// write key:
-	if err := writeWithNewline(buf, idFile.PrivateKey); err != nil {
+	if err := writeWithNewline(w, idFile.PrivateKey); err != nil {
 		return trace.Wrap(err)
 	}
 	// append ssh cert:
-	if err := writeWithNewline(buf, idFile.Certs.SSH); err != nil {
+	if err := writeWithNewline(w, idFile.Certs.SSH); err != nil {
 		return trace.Wrap(err)
 	}
 	// append tls cert:
-	if err := writeWithNewline(buf, idFile.Certs.TLS); err != nil {
+	if err := writeWithNewline(w, idFile.Certs.TLS); err != nil {
 		return trace.Wrap(err)
 	}
 	// append ssh ca certificates
 	for _, caCert := range idFile.CACerts.SSH {
-		if err := writeWithNewline(buf, caCert); err != nil {
+		if err := writeWithNewline(w, caCert); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	// append tls ca certificates
 	for _, caCert := range idFile.CACerts.TLS {
-		if err := writeWithNewline(buf, caCert); err != nil {
+		if err := writeWithNewline(w, caCert); err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	err := ioutil.WriteFile(path, buf.Bytes(), IdentityFilePermissions)
-	return trace.Wrap(err)
+
+	return nil
 }
 
 func writeWithNewline(w io.Writer, data []byte) error {
@@ -119,16 +138,6 @@ func writeWithNewline(w io.Writer, data []byte) error {
 		}
 	}
 	return nil
-}
-
-// ReadIdentityFile reads an identityFile from the given path
-func ReadIdentityFile(path string) (*IdentityFile, error) {
-	r, err := os.Open(path)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer r.Close()
-	return decodeIdentityFile(r)
 }
 
 // decodeIdentityFile attempts to break up the contents of an identity file into its
