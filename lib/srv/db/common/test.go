@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// TestServerConfig combines parameters for a test MySQL server.
+// TestServerConfig combines parameters for a test Postgres/MySQL server.
 type TestServerConfig struct {
 	// AuthClient will be used to retrieve trusted CA.
 	AuthClient auth.ClientI
@@ -81,7 +81,7 @@ func MakeTestServerTLSConfig(config TestServerConfig) (*tls.Config, error) {
 	}, nil
 }
 
-// TestClientConfig combines parameters for a test Postgres client.
+// TestClientConfig combines parameters for a test Postgres/MySQL client.
 type TestClientConfig struct {
 	// AuthClient will be used to retrieve trusted CA.
 	AuthClient auth.ClientI

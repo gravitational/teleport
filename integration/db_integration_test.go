@@ -18,7 +18,6 @@ package integration
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -51,7 +50,7 @@ func TestDatabaseAccessPostgresRootCluster(t *testing.T) {
 	client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
 		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
 		AuthServer: pack.root.cluster.Process.GetAuthServer(),
-		Address:    fmt.Sprintf("%v:%v", Loopback, pack.root.cluster.GetPortWeb()),
+		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortWeb()),
 		Cluster:    pack.root.cluster.Secrets.SiteName,
 		Username:   pack.root.user.GetName(),
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -85,7 +84,7 @@ func TestDatabaseAccessPostgresLeafCluster(t *testing.T) {
 	client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
 		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
 		AuthServer: pack.root.cluster.Process.GetAuthServer(),
-		Address:    fmt.Sprintf("%v:%v", Loopback, pack.root.cluster.GetPortWeb()), // Connecting via root cluster.
+		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortWeb()), // Connecting via root cluster.
 		Cluster:    pack.leaf.cluster.Secrets.SiteName,
 		Username:   pack.root.user.GetName(),
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -118,7 +117,7 @@ func TestDatabaseAccessMySQLRootCluster(t *testing.T) {
 	client, err := mysql.MakeTestClient(common.TestClientConfig{
 		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
 		AuthServer: pack.root.cluster.Process.GetAuthServer(),
-		Address:    fmt.Sprintf("%v:%v", Loopback, pack.root.cluster.GetPortMySQL()),
+		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortMySQL()),
 		Cluster:    pack.root.cluster.Secrets.SiteName,
 		Username:   pack.root.user.GetName(),
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -152,7 +151,7 @@ func TestDatabaseAccessMySQLLeafCluster(t *testing.T) {
 	client, err := mysql.MakeTestClient(common.TestClientConfig{
 		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
 		AuthServer: pack.root.cluster.Process.GetAuthServer(),
-		Address:    fmt.Sprintf("%v:%v", Loopback, pack.root.cluster.GetPortMySQL()), // Connecting via root cluster.
+		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortMySQL()), // Connecting via root cluster.
 		Cluster:    pack.leaf.cluster.Secrets.SiteName,
 		Username:   pack.root.user.GetName(),
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -215,12 +214,12 @@ func setupDatabaseTest(t *testing.T) *databasePack {
 
 	p := &databasePack{
 		root: databaseClusterPack{
-			postgresAddr: fmt.Sprintf("localhost:%v", ports.PopInt()),
-			mysqlAddr:    fmt.Sprintf("localhost:%v", ports.PopInt()),
+			postgresAddr: net.JoinHostPort("localhost", ports.Pop()),
+			mysqlAddr:    net.JoinHostPort("localhost", ports.Pop()),
 		},
 		leaf: databaseClusterPack{
-			postgresAddr: fmt.Sprintf("localhost:%v", ports.PopInt()),
-			mysqlAddr:    fmt.Sprintf("localhost:%v", ports.PopInt()),
+			postgresAddr: net.JoinHostPort("localhost", ports.Pop()),
+			mysqlAddr:    net.JoinHostPort("localhost", ports.Pop()),
 		},
 	}
 

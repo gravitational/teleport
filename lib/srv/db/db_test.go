@@ -18,7 +18,6 @@ package db
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -160,18 +159,19 @@ func TestPostgresAccess(t *testing.T) {
 			if test.err != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), test.err)
-			} else {
-				require.NoError(t, err)
-
-				// Execute a query.
-				result, err := pgConn.Exec(ctx, "select 1").ReadAll()
-				require.NoError(t, err)
-				require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
-
-				// Disconnect.
-				err = pgConn.Close(ctx)
-				require.NoError(t, err)
+				return
 			}
+
+			require.NoError(t, err)
+
+			// Execute a query.
+			result, err := pgConn.Exec(ctx, "select 1").ReadAll()
+			require.NoError(t, err)
+			require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
+
+			// Disconnect.
+			err = pgConn.Close(ctx)
+			require.NoError(t, err)
 		})
 	}
 }
@@ -266,18 +266,19 @@ func TestMySQLAccess(t *testing.T) {
 			if test.err != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), test.err)
-			} else {
-				require.NoError(t, err)
-
-				// Execute a query.
-				result, err := mysqlConn.Execute("select 1")
-				require.NoError(t, err)
-				require.Equal(t, mysql.TestQueryResponse, result)
-
-				// Disconnect.
-				err = mysqlConn.Close()
-				require.NoError(t, err)
+				return
 			}
+
+			require.NoError(t, err)
+
+			// Execute a query.
+			result, err := mysqlConn.Execute("select 1")
+			require.NoError(t, err)
+			require.Equal(t, mysql.TestQueryResponse, result)
+
+			// Disconnect.
+			err = mysqlConn.Close()
+			require.NoError(t, err)
 		})
 	}
 }
@@ -386,11 +387,11 @@ func setupTestContext(ctx context.Context, t *testing.T) *testContext {
 	require.NoError(t, err)
 
 	// Create database servers for the test database services.
-	postgresDBServer := makeDatabaseServer(postgresServerName, fmt.Sprintf("localhost:%v", postgresServer.Port()), defaults.ProtocolPostgres, hostID)
+	postgresDBServer := makeDatabaseServer(postgresServerName, net.JoinHostPort("localhost", postgresServer.Port()), defaults.ProtocolPostgres, hostID)
 	_, err = dbAuthClient.UpsertDatabaseServer(ctx, postgresDBServer)
 	require.NoError(t, err)
 
-	mysqlDBServer := makeDatabaseServer(mysqlServerName, fmt.Sprintf("localhost:%v", mysqlServer.Port()), defaults.ProtocolMySQL, hostID)
+	mysqlDBServer := makeDatabaseServer(mysqlServerName, net.JoinHostPort("localhost", mysqlServer.Port()), defaults.ProtocolMySQL, hostID)
 	_, err = dbAuthClient.UpsertDatabaseServer(ctx, mysqlDBServer)
 	require.NoError(t, err)
 
