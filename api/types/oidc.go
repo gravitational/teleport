@@ -190,21 +190,18 @@ func (o *OIDCConnectorV2) SetResourceID(id int64) {
 
 // WithoutSecrets returns an instance of resource without secrets.
 func (o *OIDCConnectorV2) WithoutSecrets() Resource {
-	if (o.GetClientSecret() == "" && o.GetGoogleServiceAccount() == "" ) {
+	if o.GetClientSecret() == "" && o.GetGoogleServiceAccount() == "" {
 		return o
 	}
 	o2 := *o
 
-	if (o.GetClientSecret() != "") {
-	o2.SetClientSecret("")
-}
+	if o.GetClientSecret() != "" {
+		o2.SetClientSecret("")
+	}
 
-	if (o.GetGoogleServiceAccount() != "" ) {
-	//	emptyGoogleserviceaccount := ""
-
- 	o2.SetGoogleServiceAccount("")
-
-  }
+	if o.GetGoogleServiceAccount() != "" {
+		o2.SetGoogleServiceAccount("")
+	}
 
 	return &o2
 }

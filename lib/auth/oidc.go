@@ -835,45 +835,41 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector services.OIDCConne
 			return nil, trace.Wrap(err)
 		}
 
-    var config *jwt.Config
+		var config *jwt.Config
 		var jsonCredentials []byte
+		//load the google service account uri from
+		if connector.GetGoogleServiceAccountURI() != "" {
 
- //load the google service account uri from
-    if(connector.GetGoogleServiceAccountURI()!="") {
+			serviceAccountURI := connector.GetGoogleServiceAccountURI()
+			if serviceAccountURI == "" {
+				return nil, trace.NotFound(
+					"the google workspace connector requires google_service_account_uri parameter to be specified and pointing to a valid google service account file with credentials, read this article for more details https://developers.google.com/admin-sdk/directory/v1/guides/delegation")
+			}
 
-		serviceAccountURI := connector.GetGoogleServiceAccountURI()
-		if serviceAccountURI == "" {
+			uri, err := utils.ParseSessionsURI(serviceAccountURI)
+			if err != nil {
+				return nil, trace.BadParameter("failed to parse google_service_account_uri: %v", err)
+			}
+			jsonCredentials, err = ioutil.ReadFile(uri.Path)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+		} else if connector.GetGoogleServiceAccount() != "" {
+
+			jsonCredentials = []byte(connector.GetGoogleServiceAccount())
+		}
+
+		config, err = google.JWTConfigFromJSON(jsonCredentials, teleport.GSuiteGroupsScope)
+		if err != nil {
+			return nil, trace.BadParameter("unable to parse client secret file to config: %v", err)
+		}
+
+		impersonateAdmin := connector.GetGoogleAdminEmail()
+		if impersonateAdmin == "" {
 			return nil, trace.NotFound(
-				"the google workspace connector requires google_service_account_uri parameter to be specified and pointing to a valid google service account file with credentials, read this article for more details https://developers.google.com/admin-sdk/directory/v1/guides/delegation")
+				"the google workspace connector requires google_admin_email user to impersonate, as service accounts can not be used directly https://developers.google.com/identity/protocols/OAuth2ServiceAccount#delegatingauthority")
 		}
-
-		uri, err := utils.ParseSessionsURI(serviceAccountURI)
-		if err != nil {
-			return nil, trace.BadParameter("failed to parse google_service_account_uri: %v", err)
-		}
-		jsonCredentials, err = ioutil.ReadFile(uri.Path)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-	}	else if(connector.GetGoogleServiceAccount()!="") {
-
-		 jsonCredentials = []byte(connector.GetGoogleServiceAccount())
-   }
-
-	 config, err = google.JWTConfigFromJSON(jsonCredentials, teleport.GSuiteGroupsScope)
-	if err != nil {
-		return nil, trace.BadParameter("unable to parse client secret file to config: %v", err)
-	}
-
-
-	 impersonateAdmin := connector.GetGoogleAdminEmail()
-	 if impersonateAdmin == "" {
-		 return nil, trace.NotFound(
-			 "the google workspace connector requires google_admin_email user to impersonate, as service accounts can not be used directly https://developers.google.com/identity/protocols/OAuth2ServiceAccount#delegatingauthority")
-	 }
-
-
 
 		// User should impersonate admin user, otherwise it won't work:
 		//

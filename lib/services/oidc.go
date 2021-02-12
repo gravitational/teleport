@@ -39,11 +39,9 @@ func ValidateOIDCConnector(oc types.OIDCConnector) error {
 		return trace.BadParameter("RedirectURL: bad url: '%v'", oc.GetRedirectURL())
 	}
 
-
-
-	if ( (oc.GetGoogleServiceAccountURI() != "") &&    (oc.GetGoogleServiceAccount() != "") ) {
-		 return trace.BadParameter("google_service_account_uri or google_service_account is supported, not both")
-	 }
+	if (oc.GetGoogleServiceAccountURI() != "") && (oc.GetGoogleServiceAccount() != "") {
+		return trace.BadParameter("google_service_account_uri or google_service_account is supported, not both")
+	}
 
 	if oc.GetGoogleServiceAccountURI() != "" {
 		uri, err := utils.ParseSessionsURI(oc.GetGoogleServiceAccountURI())
