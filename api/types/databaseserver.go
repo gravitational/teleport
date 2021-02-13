@@ -302,3 +302,15 @@ const (
 	// DatabaseTypeRDS is AWS-hosted RDS or Aurora database.
 	DatabaseTypeRDS = "rds"
 )
+
+// SortedDatabaseServers implements sorter for database servers.
+type SortedDatabaseServers []DatabaseServer
+
+// Len returns the slice length.
+func (s SortedDatabaseServers) Len() int { return len(s) }
+
+// Less compares database servers by name.
+func (s SortedDatabaseServers) Less(i, j int) bool { return s[i].GetName() < s[j].GetName() }
+
+// Swap swaps two database servers.
+func (s SortedDatabaseServers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
