@@ -103,7 +103,7 @@ export function Roles(props: State) {
                 target="_blank"
                 href="https://goteleport.com/teleport/docs/enterprise/ssh-rbac/"
               >
-                cluster management (RBAC)
+                the cluster management (RBAC)
               </Text>{' '}
               section of online documentation.
             </Text>
