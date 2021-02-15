@@ -34,7 +34,7 @@ Take a look at the [Teleport Installation](installation.md) page to pick the mos
 
     ```bash
     add-apt-repository 'deb https://deb.releases.teleport.dev/ stable main'
-    apt-get
+    apt-get update
     apt install teleport
     ```
 

@@ -22,7 +22,7 @@ up-to-date information.
     # Add repo to APT
     $ add-apt-repository 'deb https://deb.releases.teleport.dev/ stable main'
     # Update APT Cache
-    $ apt-get
+    $ apt-get update
     # Install Teleport
     $ apt install teleport
     ```
