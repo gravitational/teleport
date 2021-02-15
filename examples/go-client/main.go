@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"log"
 
 	"github.com/gravitational/teleport/api/client"
@@ -31,17 +32,24 @@ func main() {
 	ctx := context.Background()
 	log.Printf("Starting Teleport client...")
 
-	var creds *client.Credentials
-	var err error
-
 	clt, err := client.New(client.Config{
 		// Addrs is the Auth Server address, only works locally.
-		// TODO (Joerger): add support to connect via proxy.
 		Addrs: []string{"localhost:3025"},
-		// Multiple credentials can be provided in order to fall back to to
-		// later credentials if the previous ones fail to authenticate the client.
-		Credentials: client.CredentialsList{
-			creds,
+		// Multiple credentials can be tried by providing credentialProviders. The first
+		// provider to provide valid credentials will be used to authenticate the client.
+		CredentialsProviders: []client.CredentialsProvider{
+			&client.KeyPairProvider{
+				CrtFile: "certs/access-admin.crt",
+				KeyFile: "certs/access-admin.key",
+				CAsFile: "certs/access-admin.cas",
+			},
+			&client.IdentityFileProvider{
+				Path: "certs/access-admin-identity",
+			},
+			&client.TLSProvider{
+				// Replace &tls.Config{} with a valid tls.Config
+				TLS: &tls.Config{},
+			},
 		},
 	})
 	if err != nil {

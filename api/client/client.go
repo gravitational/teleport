@@ -20,7 +20,6 @@ package client
 import (
 	"compress/gzip"
 	"context"
-	"crypto/tls"
 	"io"
 	"net"
 	"sync/atomic"
@@ -76,6 +75,22 @@ func New(cfg Config) (*Client, error) {
 }
 
 func (c *Client) connect() error {
+	// Attempt to load credentials from each provider, and keep the first valid credentials.
+	var errs []error
+	var err error
+	for i, provider := range c.c.CredentialsProviders {
+		c.c.Credentials, err = provider.Load()
+		if err == nil {
+			// TODO (Joerger): start goroutine to detect provider reloads asynchronously.
+			break
+		}
+		errs = append(errs, trace.Errorf("CredentialsProvider[%v]: %v", i, err))
+	}
+
+	if c.c.Credentials == nil {
+		return trace.Wrap(trace.NewAggregate(errs...), "all auth methods failed")
+	}
+
 	dialer := grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
 		if c.isClosed() {
 			return nil, trace.ConnectionProblem(nil, "client is closed")
@@ -84,37 +99,26 @@ func (c *Client) connect() error {
 		if err != nil {
 			return nil, trace.ConnectionProblem(err, "failed to dial")
 		}
+		// TODO (Joerger): if connecting to auth fails, try connecting via proxy
 		return conn, nil
 	})
 
-	// Attempt to connect to the server with each of the Credentials
-	// and keep the first successful connection.
-	var errs []error
-	var err error
-	for i, creds := range c.c.Credentials {
-		c.conn, err = grpc.Dial(constants.APIDomain,
-			dialer,
-			grpc.WithTransportCredentials(credentials.NewTLS(creds.TLS)),
-			grpc.WithKeepaliveParams(keepalive.ClientParameters{
-				Time:                c.c.KeepAlivePeriod,
-				Timeout:             c.c.KeepAlivePeriod * time.Duration(c.c.KeepAliveCount),
-				PermitWithoutStream: true,
-			}),
-		)
-		if err != nil {
-			// TODO (Joerger): if connecting to auth fails, try connecting via proxy
-			errs = append(errs, trace.Wrap(err, "Credentials[%v]", i))
-			continue
-		}
-
-		c.grpc = proto.NewAuthServiceClient(c.conn)
-		// TODO (Joeger): we can't test the authentication of the connection without pinging the server,
-		// but doing so here would break the current uses of Client (tests). This Credentials logic could
-		// instead be used to fallback to other credentials whenever a grpc request returns a connection error.
-		c.c.TLS = creds.TLS
-		return nil
+	if c.conn, err = grpc.Dial(
+		constants.APIDomain,
+		dialer,
+		grpc.WithTransportCredentials(credentials.NewTLS(c.c.Credentials.TLS)),
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:                c.c.KeepAlivePeriod,
+			Timeout:             c.c.KeepAlivePeriod * time.Duration(c.c.KeepAliveCount),
+			PermitWithoutStream: true,
+		}),
+	); err != nil {
+		return trace.Wrap(err)
 	}
-	return trace.Wrap(trace.NewAggregate(errs...), "all auth methods failed")
+
+	c.grpc = proto.NewAuthServiceClient(c.conn)
+	return nil
+
 }
 
 // Config contains configuration of the client
@@ -130,12 +134,12 @@ type Config struct {
 	// KeepAliveCount specifies the amount of missed keep alives
 	// to wait for before declaring the connection as broken
 	KeepAliveCount int
-	// Credentials are used to authenticate the client's connection to the server. The
-	// first credentials in the list used to successfully dial the server are
-	// used and stored as the Client's TLS Config.
-	Credentials CredentialsList
-	// TLS is the client's TLS config
-	TLS *tls.Config
+	// CredentialProviders are used to dynamically authenticate the client's connection
+	// to the server. The first credentials to be created successfully will be used to
+	// dial the server, and will be reloaded asyncronously if the provider is updated.
+	CredentialsProviders []CredentialsProvider
+	// Credentials is the client's current Credentials.
+	Credentials *Credentials
 }
 
 // CheckAndSetDefaults checks and sets default config values
@@ -143,15 +147,13 @@ func (c *Config) CheckAndSetDefaults() error {
 	if len(c.Addrs) == 0 && c.Dialer == nil {
 		return trace.BadParameter("set parameter Addrs or Dialer")
 	}
-	// TLS can be set directly for backwards compatibility with the auth client
-	if c.TLS != nil {
-		c.Credentials = append(CredentialsList{LoadTLS(c.TLS)}, c.Credentials...)
+	if len(c.CredentialsProviders) == 0 && c.Credentials == nil {
+		return trace.BadParameter("set parameter CredentialsProviders or Credentials")
 	}
-	if len(c.Credentials) == 0 {
-		return trace.BadParameter("set parameter Credentials")
-	}
-	if err := c.Credentials.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
+	if c.Credentials != nil {
+		if err := c.Credentials.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	if c.KeepAlivePeriod == 0 {
 		c.KeepAlivePeriod = defaults.ServerKeepAliveTTL

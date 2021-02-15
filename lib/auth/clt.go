@@ -96,19 +96,19 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 		return nil, trace.Wrap(err)
 	}
 
-	// The http client requires TLS rather than Credentials,
-	// so set it to the first Credentials if it's nil
-	if cfg.TLS == nil {
-		cfg.TLS = cfg.Credentials[0].TLS
+	// The http client does not support credentials providers,
+	// so Credentials must be provided directly.
+	if cfg.Credentials.TLS == nil {
+		return nil, trace.Errorf("must provide TLS config directly")
 	}
 
 	// This logic is necessary for the client to force client to always send
 	// a certificate regardless of the server setting. Otherwise the client may pick
 	// not to send the client certificate by looking at certificate request.
-	if len(cfg.TLS.Certificates) != 0 {
-		cert := cfg.TLS.Certificates[0]
-		cfg.TLS.Certificates = nil
-		cfg.TLS.GetClientCertificate = func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
+	if len(cfg.Credentials.TLS.Certificates) != 0 {
+		cert := cfg.Credentials.TLS.Certificates[0]
+		cfg.Credentials.TLS.Certificates = nil
+		cfg.Credentials.TLS.GetClientCertificate = func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
 			return &cert, nil
 		}
 	}
@@ -117,7 +117,7 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 	// Auth Server using a multiplexer for protocol detection. Unless next
 	// protocol is specified it will attempt to upgrade to HTTP2 and at that point
 	// there is no way to distinguish between HTTP2/JSON or GPRC.
-	tlsConfig := cfg.TLS.Clone()
+	tlsConfig := cfg.Credentials.TLS.Clone()
 	tlsConfig.NextProtos = []string{teleport.HTTPNextProtoTLS}
 
 	transport := &http.Transport{
@@ -243,7 +243,6 @@ func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, e
 		DialTimeout:     cfg.DialTimeout,
 		KeepAlivePeriod: cfg.KeepAlivePeriod,
 		KeepAliveCount:  cfg.KeepAliveCount,
-		TLS:             cfg.TLS,
 	}
 
 	return NewClient(c, params...)
