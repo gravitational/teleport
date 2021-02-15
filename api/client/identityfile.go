@@ -59,14 +59,14 @@ type CACerts struct {
 }
 
 // TLS returns the identity file's associated TLS config.
-func (idf *IdentityFile) TLS() (*tls.Config, error) {
-	cert, err := tls.X509KeyPair(idf.Certs.TLS, idf.PrivateKey)
+func (i *IdentityFile) TLS() (*tls.Config, error) {
+	cert, err := tls.X509KeyPair(i.Certs.TLS, i.PrivateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	pool := x509.NewCertPool()
-	for _, caCerts := range idf.CACerts.TLS {
+	for _, caCerts := range i.CACerts.TLS {
 		if !pool.AppendCertsFromPEM(caCerts) {
 			return nil, trace.BadParameter("invalid CA cert PEM")
 		}

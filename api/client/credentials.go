@@ -36,12 +36,12 @@ func (c *Credentials) CheckAndSetDefaults() error {
 	if c.TLS == nil {
 		return trace.BadParameter("missing TLS config")
 	}
-	if len(c.TLS.Certificates) == 0 {
-		return trace.BadParameter("invalid TLS, missing Certificates")
-	}
-	if c.TLS.RootCAs == nil {
-		return trace.BadParameter("invalid TLS, missing RootCAs")
-	}
+	// if len(c.TLS.Certificates) == 0 {
+	// 	return trace.BadParameter("invalid TLS, missing Certificates")
+	// }
+	// if c.TLS.RootCAs == nil {
+	// 	return trace.BadParameter("invalid TLS, missing RootCAs")
+	// }
 	c.TLS.NextProtos = []string{http2.NextProtoTLS}
 	if c.TLS.ServerName == "" {
 		c.TLS.ServerName = constants.APIDomain
@@ -174,7 +174,7 @@ func (p *TLSProvider) Load() (*Credentials, error) {
 
 // DetectReload detects if the provider's files have been updated.
 // TLSProvider used a pointer to TLS, so a reload already automatically
-// propogates to the client, so this always returns false.
+// propagates to the client, so this always returns false.
 func (p *TLSProvider) DetectReload() (bool, error) {
 	return false, nil
 }

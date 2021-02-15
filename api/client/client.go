@@ -75,22 +75,6 @@ func New(cfg Config) (*Client, error) {
 }
 
 func (c *Client) connect() error {
-	// Attempt to load credentials from each provider, and keep the first valid credentials.
-	var errs []error
-	var err error
-	for i, provider := range c.c.CredentialsProviders {
-		c.c.Credentials, err = provider.Load()
-		if err == nil {
-			// TODO (Joerger): start goroutine to detect provider reloads asynchronously.
-			break
-		}
-		errs = append(errs, trace.Errorf("CredentialsProvider[%v]: %v", i, err))
-	}
-
-	if c.c.Credentials == nil {
-		return trace.Wrap(trace.NewAggregate(errs...), "all auth methods failed")
-	}
-
 	dialer := grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
 		if c.isClosed() {
 			return nil, trace.ConnectionProblem(nil, "client is closed")
@@ -99,26 +83,40 @@ func (c *Client) connect() error {
 		if err != nil {
 			return nil, trace.ConnectionProblem(err, "failed to dial")
 		}
-		// TODO (Joerger): if connecting to auth fails, try connecting via proxy
 		return conn, nil
 	})
 
-	if c.conn, err = grpc.Dial(
-		constants.APIDomain,
-		dialer,
-		grpc.WithTransportCredentials(credentials.NewTLS(c.c.Credentials.TLS)),
-		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:                c.c.KeepAlivePeriod,
-			Timeout:             c.c.KeepAlivePeriod * time.Duration(c.c.KeepAliveCount),
-			PermitWithoutStream: true,
-		}),
-	); err != nil {
-		return trace.Wrap(err)
+	// Attempt to load credentials from each provider, and keep the first valid credentials.
+	var errs []error
+	var err error
+	for i, provider := range c.c.CredentialsProviders {
+		c.c.Credentials, err = provider.Load()
+		if err != nil {
+			errs = append(errs, trace.Errorf("CredentialsProvider[%v]: %v", i, err))
+			continue
+		}
+		if c.conn, err = grpc.Dial(
+			constants.APIDomain,
+			dialer,
+			grpc.WithTransportCredentials(credentials.NewTLS(c.c.Credentials.TLS)),
+			grpc.WithKeepaliveParams(keepalive.ClientParameters{
+				Time:                c.c.KeepAlivePeriod,
+				Timeout:             c.c.KeepAlivePeriod * time.Duration(c.c.KeepAliveCount),
+				PermitWithoutStream: true,
+			}),
+		); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// TODO (Joerger): Ping the server to check the dialer/credentials, and check the server version.
+		// TODO (Joerger): if connecting to auth fails, try connecting via proxy
+		// TODO (Joerger): start goroutine to detect provider reloads asynchronously.
+
+		c.grpc = proto.NewAuthServiceClient(c.conn)
+		return nil
 	}
 
-	c.grpc = proto.NewAuthServiceClient(c.conn)
-	return nil
-
+	return trace.Wrap(trace.NewAggregate(errs...), "all auth methods failed")
 }
 
 // Config contains configuration of the client
@@ -147,13 +145,12 @@ func (c *Config) CheckAndSetDefaults() error {
 	if len(c.Addrs) == 0 && c.Dialer == nil {
 		return trace.BadParameter("set parameter Addrs or Dialer")
 	}
+	if c.Credentials != nil {
+		tlsProvider := &TLSProvider{TLS: c.Credentials.TLS}
+		c.CredentialsProviders = append(c.CredentialsProviders, tlsProvider)
+	}
 	if len(c.CredentialsProviders) == 0 && c.Credentials == nil {
 		return trace.BadParameter("set parameter CredentialsProviders or Credentials")
-	}
-	if c.Credentials != nil {
-		if err := c.Credentials.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
 	}
 	if c.KeepAlivePeriod == 0 {
 		c.KeepAlivePeriod = defaults.ServerKeepAliveTTL
