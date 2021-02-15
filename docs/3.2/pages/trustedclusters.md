@@ -1,4 +1,6 @@
-# Trusted Clusters
+---
+title: Trusted Clusters
+---
 
 If you haven't already looked at the introduction to [Trusted Clusters](admin-guide.md#trusted-clusters)
 in the Admin Guide we recommend you review that for an overview before continuing with this guide.

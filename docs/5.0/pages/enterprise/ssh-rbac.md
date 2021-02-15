@@ -1,10 +1,8 @@
 ---
 title: Role Based Access Control for SSH and Kubernetes
 description: How to configure Teleport to provide unified Role Based Access Control for SSH and Kubernetes
+h1: Role Based Access Control for SSH & K8s
 ---
-
-# Role Based Access Control for SSH & K8s
-
 ## Introduction
 
 Role Based Access Control (RBAC) gives Teleport administrators more

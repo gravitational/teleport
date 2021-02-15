@@ -3,8 +3,6 @@ title: Teleport Cloud Preview
 description: Teleport hosted and managed by the Teleport team.
 ---
 
-# Teleport Cloud Preview
-
 Teleport Cloud is a hosted, managed Teleport cluster.
 Currently Teleport Cloud is in preview status and we are maintaining a
 wait-list of interested parties wanting access to the service.

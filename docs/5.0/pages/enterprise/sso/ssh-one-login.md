@@ -1,9 +1,8 @@
 ---
 title: SSH Authentication with One Login as an SSO provider
 description: How to configure SSH access using One Login as an SSO provider
+h1: SSH Authentication with OneLogin
 ---
-
-# SSH Authentication with OneLogin
 
 ## Using OneLogin as a single sign-on (SSO) provider for SSH
 

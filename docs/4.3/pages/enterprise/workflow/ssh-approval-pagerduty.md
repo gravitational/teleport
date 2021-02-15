@@ -1,9 +1,8 @@
 ---
 title: SSH login approval via Pager Duty
 description: How to configure SSH login approval using PagerDuty and Teleport
+h1: SSH Login Approval using PagerDuty
 ---
-
-# SSH Login Approval using PagerDuty
 
 ## Teleport Pagerduty Plugin Setup
 

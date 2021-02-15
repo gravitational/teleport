@@ -1,9 +1,8 @@
 ---
 title: SSH Authentication With ADFS How To
 description: How to configure SSH access with Active Directory (ADFS) using Teleport
+h1: SSH Authentication with ADFS
 ---
-
-# SSH Authentication with ADFS
 
 ## Active Directory as an SSO provider for SSH authentication
 

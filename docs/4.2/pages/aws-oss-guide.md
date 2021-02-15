@@ -1,4 +1,6 @@
-# Running Teleport on AWS
+---
+title: Running Teleport on AWS
+---
 
 We've created this guide to give customers a high level overview of how to use Teleport
 on Amazon Web Services (AWS). This guide provides a high level introduction leading to
