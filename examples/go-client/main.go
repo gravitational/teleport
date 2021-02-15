@@ -38,18 +38,14 @@ func main() {
 		// Multiple credentials can be tried by providing credentialProviders. The first
 		// provider to provide valid credentials will be used to authenticate the client.
 		CredentialsProviders: []client.CredentialsProvider{
-			&client.KeyPairProvider{
-				CrtFile: "certs/access-admin.crt",
-				KeyFile: "certs/access-admin.key",
-				CAsFile: "certs/access-admin.cas",
-			},
-			&client.IdentityFileProvider{
-				Path: "certs/access-admin-identity",
-			},
-			&client.TLSProvider{
-				// Replace &tls.Config{} with a valid tls.Config
-				TLS: &tls.Config{},
-			},
+			client.NewKeyPairProvider(
+				"certs/access-admin.crt",
+				"certs/access-admin.key",
+				"certs/access-admin.cas",
+			),
+			client.NewIdentityFileProvider("certs/access-admin-identity"),
+			// Replace &tls.Config{} with a valid tls.Config
+			client.NewTLSProvider(&tls.Config{}),
 		},
 	})
 	if err != nil {

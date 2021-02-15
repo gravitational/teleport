@@ -98,8 +98,8 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 
 	// The http client does not support credentials providers,
 	// so Credentials must be provided directly.
-	if cfg.Credentials.TLS == nil {
-		return nil, trace.Errorf("must provide TLS config directly")
+	if cfg.Credentials == nil || cfg.Credentials.TLS == nil {
+		return nil, trace.Errorf("must provide Credentials with valid TLS directly")
 	}
 
 	// This logic is necessary for the client to force client to always send
@@ -243,6 +243,7 @@ func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, e
 		DialTimeout:     cfg.DialTimeout,
 		KeepAlivePeriod: cfg.KeepAlivePeriod,
 		KeepAliveCount:  cfg.KeepAliveCount,
+		Credentials:     client.LoadTLS(cfg.TLS),
 	}
 
 	return NewClient(c, params...)

@@ -90,8 +90,7 @@ func (c *Client) connect() error {
 	var errs []error
 	var err error
 	for i, provider := range c.c.CredentialsProviders {
-		c.c.Credentials, err = provider.Load()
-		if err != nil {
+		if c.c.Credentials, err = provider.Load(); err != nil {
 			errs = append(errs, trace.Errorf("CredentialsProvider[%v]: %v", i, err))
 			continue
 		}
@@ -105,14 +104,18 @@ func (c *Client) connect() error {
 				PermitWithoutStream: true,
 			}),
 		); err != nil {
-			return trace.Wrap(err)
+			errs = append(errs, trace.Errorf("CredentialsProvider[%v]: %v", i, err))
+			continue
 		}
+		c.grpc = proto.NewAuthServiceClient(c.conn)
+		// if _, err := c.Ping(context.TODO()); err != nil {
+		// 	return trace.Wrap(err)
+		// }
 
 		// TODO (Joerger): Ping the server to check the dialer/credentials, and check the server version.
 		// TODO (Joerger): if connecting to auth fails, try connecting via proxy
 		// TODO (Joerger): start goroutine to detect provider reloads asynchronously.
 
-		c.grpc = proto.NewAuthServiceClient(c.conn)
 		return nil
 	}
 
@@ -145,12 +148,11 @@ func (c *Config) CheckAndSetDefaults() error {
 	if len(c.Addrs) == 0 && c.Dialer == nil {
 		return trace.BadParameter("set parameter Addrs or Dialer")
 	}
-	if c.Credentials != nil {
-		tlsProvider := &TLSProvider{TLS: c.Credentials.TLS}
-		c.CredentialsProviders = append(c.CredentialsProviders, tlsProvider)
-	}
-	if len(c.CredentialsProviders) == 0 && c.Credentials == nil {
-		return trace.BadParameter("set parameter CredentialsProviders or Credentials")
+	if len(c.CredentialsProviders) == 0 {
+		if c.Credentials == nil {
+			return trace.BadParameter("set parameter CredentialsProviders or Credentials")
+		}
+		c.CredentialsProviders = []CredentialsProvider{NewTLSProvider(c.Credentials.TLS)}
 	}
 	if c.KeepAlivePeriod == 0 {
 		c.KeepAlivePeriod = defaults.ServerKeepAliveTTL

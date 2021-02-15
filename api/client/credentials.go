@@ -36,12 +36,6 @@ func (c *Credentials) CheckAndSetDefaults() error {
 	if c.TLS == nil {
 		return trace.BadParameter("missing TLS config")
 	}
-	// if len(c.TLS.Certificates) == 0 {
-	// 	return trace.BadParameter("invalid TLS, missing Certificates")
-	// }
-	// if c.TLS.RootCAs == nil {
-	// 	return trace.BadParameter("invalid TLS, missing RootCAs")
-	// }
 	c.TLS.NextProtos = []string{http2.NextProtoTLS}
 	if c.TLS.ServerName == "" {
 		c.TLS.ServerName = constants.APIDomain
@@ -99,19 +93,20 @@ func LoadKeyPair(crtFile, keyFile, casFile string) (*Credentials, error) {
 type CredentialsProvider interface {
 	// Load attempts to load credentials from the provider
 	Load() (*Credentials, error)
-	// DetectReload detects if the provider's credentials source has been updated.
-	DetectReload() (bool, error)
 }
 
-// IdentityFileProvider uses an identity file to load credentials.
+// NewIdentityFileProvider returns a CredentialsProvider that uses an identity file to load credentials.
 // An identity file can be saved to disk by running `tsh login --out=identity_file_path`.
-type IdentityFileProvider struct {
-	Path string
+func NewIdentityFileProvider(path string) CredentialsProvider {
+	return &identityFileProvider{path}
 }
 
-// Load attempts to load credentials from the provider.
-func (p *IdentityFileProvider) Load() (*Credentials, error) {
-	creds, err := LoadIdentityFile(p.Path)
+type identityFileProvider struct {
+	path string
+}
+
+func (p *identityFileProvider) Load() (*Credentials, error) {
+	creds, err := LoadIdentityFile(p.path)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -121,25 +116,21 @@ func (p *IdentityFileProvider) Load() (*Credentials, error) {
 	return creds, nil
 }
 
-// DetectReload detects if the provider's identity file has been updated.
-// This can be used to spin up a goroutine that reloads credentials for the client.
-func (p *IdentityFileProvider) DetectReload() (bool, error) {
-	// TODO (Joerger)
-	return false, nil
-}
-
-// KeyPairProvider uses files of a certificate key pair and root CAs to load credentials.
-// These files can be saved to disk with `tctl auth sign --out=path`.
+// NewKeyPairProvider returns a CredentialsProvider that uses files of a certificate key pair and
+// root CAs to load credentials. These files can be saved to disk with `tctl auth sign --out=path`.
 // EX: path=/certs/admin creates three files - /certs/admin.(key|crt|cas).
-type KeyPairProvider struct {
-	CrtFile string
-	KeyFile string
-	CAsFile string
+func NewKeyPairProvider(crtFile, keyFile, casFile string) CredentialsProvider {
+	return &keyPairProvider{crtFile, keyFile, casFile}
 }
 
-// Load attempts to load credentials from the provider.
-func (p *KeyPairProvider) Load() (*Credentials, error) {
-	creds, err := LoadKeyPair(p.CrtFile, p.KeyFile, p.CAsFile)
+type keyPairProvider struct {
+	crtFile string
+	keyFile string
+	casFile string
+}
+
+func (p *keyPairProvider) Load() (*Credentials, error) {
+	creds, err := LoadKeyPair(p.crtFile, p.keyFile, p.casFile)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -149,32 +140,19 @@ func (p *KeyPairProvider) Load() (*Credentials, error) {
 	return creds, nil
 }
 
-// DetectReload detects if the provider's files have been updated.
-// This can be used to spin up a goroutine that reloads credentials for the client.
-func (p *KeyPairProvider) DetectReload() (bool, error) {
-	// TODO (Joerger)
-	return false, nil
+// NewTLSProvider returns a CredentialsProvider that uses a preloaded tls.Config to load credentials.
+func NewTLSProvider(tls *tls.Config) CredentialsProvider {
+	return &tlsProvider{tls}
 }
 
-// TLSProvider uses files of a certificate key pair and root CAs to load credentials.
-// These files can be generated with `tctl auth sign --out=path`.
-// EX: path=/certs/admin creates three files - /certs/admin.(key|crt|cas).
-type TLSProvider struct {
-	TLS *tls.Config
+type tlsProvider struct {
+	tls *tls.Config
 }
 
-// Load attempts to load credentials from the provider's certificate paths
-func (p *TLSProvider) Load() (*Credentials, error) {
-	creds := LoadTLS(p.TLS)
+func (p *tlsProvider) Load() (*Credentials, error) {
+	creds := LoadTLS(p.tls)
 	if err := creds.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return creds, nil
-}
-
-// DetectReload detects if the provider's files have been updated.
-// TLSProvider used a pointer to TLS, so a reload already automatically
-// propagates to the client, so this always returns false.
-func (p *TLSProvider) DetectReload() (bool, error) {
-	return false, nil
 }
