@@ -5096,10 +5096,15 @@ func hasPAMPolicy() bool {
 	return true
 }
 
-// isRoot returns a boolean if the test is being run as root or not. Tests
-// for this package must be run as root.
+// isRoot returns a boolean if the test is being run as root or not.
+func isRoot() bool {
+	return os.Geteuid() == 0
+}
+
+// canTestBPF runs checks to determine whether BPF tests will run or not.
+// Tests for this package must be run as root.
 func canTestBPF() error {
-	if os.Geteuid() != 0 {
+	if !isRoot() {
 		return trace.BadParameter("not root")
 	}
 

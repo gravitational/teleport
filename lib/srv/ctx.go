@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -120,6 +121,9 @@ type Server interface {
 
 	// Context returns server shutdown context
 	Context() context.Context
+
+	// GetUtmpPath returns the path of the user accounting database and log. Returns empty for system defaults.
+	GetUtmpPath() (utmp, wtmp string)
 }
 
 // IdentityContext holds all identity information associated with the user
@@ -722,6 +726,11 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		requestType = c.request.Type
 	}
 
+	uaccMetadata, err := newUaccMetadata(c)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Create the execCommand that will be sent to the child process.
 	return &ExecCommand{
 		Command:               command,
@@ -737,6 +746,7 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		ServiceName:           pamServiceName,
 		UsePAMAuth:            pamUseAuth,
 		IsTestStub:            c.IsTestStub,
+		UaccMetadata:          *uaccMetadata,
 	}, nil
 }
 
@@ -806,4 +816,21 @@ func closeAll(closers ...io.Closer) error {
 	}
 
 	return trace.NewAggregate(errs...)
+}
+
+func newUaccMetadata(c *ServerContext) (*UaccMetadata, error) {
+	hostname := c.srv.GetInfo().GetHostname()
+	remoteAddr := c.ConnectionContext.ServerConn.Conn.RemoteAddr()
+	preparedAddr, err := uacc.PrepareAddr(remoteAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	utmpPath, wtmpPath := c.srv.GetUtmpPath()
+
+	return &UaccMetadata{
+		Hostname:   hostname,
+		RemoteAddr: preparedAddr,
+		UtmpPath:   utmpPath,
+		WtmpPath:   wtmpPath,
+	}, nil
 }
