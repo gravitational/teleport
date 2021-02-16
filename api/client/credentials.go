@@ -64,8 +64,9 @@ func LoadIdentityFile(path string) (*Credentials, error) {
 	return LoadTLS(tls), nil
 }
 
-// LoadKeyPair attempts to load credentials from files of a certificate key pair and root CAs
-// These certs can be saved to disk with `tctl auth sign --out=path`.
+// LoadKeyPair attempts to load credentials from a certificate key pair and root CAs.
+// Those files can be saved to disk with `tctl auth sign --out=path`.
+// EX: path=/certs/admin creates three files - /certs/admin.(key|crt|cas).
 func LoadKeyPair(crtFile, keyFile, casFile string) (*Credentials, error) {
 	cert, err := tls.LoadX509KeyPair(crtFile, keyFile)
 	if err != nil {
@@ -88,15 +89,16 @@ func LoadKeyPair(crtFile, keyFile, casFile string) (*Credentials, error) {
 	}), nil
 }
 
-// CredentialsProvider allow the client to load credentials dynamically on client initilization
-// TODO(Joerger): and when the provider is updated asynchronously.
+// CredentialsProvider has a defined source of credentials, which can be dynamically loaded.
+// CredentialsProviders are used to load and test credentials during client initialization.
+// Use the function NewIdentityFileProvider or NewKeyPairProvider to create a CredentialLoader.
 type CredentialsProvider interface {
-	// Load attempts to load credentials from the provider
+	// Load attempts to load credentials from the provider.
 	Load() (*Credentials, error)
 }
 
 // NewIdentityFileProvider returns a CredentialsProvider that uses an identity file to load credentials.
-// An identity file can be saved to disk by running `tsh login --out=identity_file_path`.
+// An identity file can be saved to disk by running `tsh login --out=path`.
 func NewIdentityFileProvider(path string) CredentialsProvider {
 	return &identityFileProvider{path}
 }
@@ -116,8 +118,8 @@ func (p *identityFileProvider) Load() (*Credentials, error) {
 	return creds, nil
 }
 
-// NewKeyPairProvider returns a CredentialsProvider that uses files of a certificate key pair and
-// root CAs to load credentials. These files can be saved to disk with `tctl auth sign --out=path`.
+// NewKeyPairProvider returns a CredentialsProvider that uses a certificate key pair and root CAs
+// to load credentials. These files can be saved to disk with `tctl auth sign --out=path`.
 // EX: path=/certs/admin creates three files - /certs/admin.(key|crt|cas).
 func NewKeyPairProvider(crtFile, keyFile, casFile string) CredentialsProvider {
 	return &keyPairProvider{crtFile, keyFile, casFile}
@@ -141,6 +143,8 @@ func (p *keyPairProvider) Load() (*Credentials, error) {
 }
 
 // NewTLSProvider returns a CredentialsProvider that uses a preloaded tls.Config to load credentials.
+// The tls.Config given is stored as a pointer and can be updated dynamically, but the provided
+// Credentials won't be updated.
 func NewTLSProvider(tls *tls.Config) CredentialsProvider {
 	return &tlsProvider{tls}
 }
@@ -150,7 +154,8 @@ type tlsProvider struct {
 }
 
 func (p *tlsProvider) Load() (*Credentials, error) {
-	creds := LoadTLS(p.tls)
+	tls := p.tls.Clone()
+	creds := LoadTLS(tls)
 	if err := creds.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

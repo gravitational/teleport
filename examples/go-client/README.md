@@ -17,7 +17,11 @@ Auth API clients must perform two-way authentication using x509 certificates:
 2. They must offer their x509 certificate, which has been previously issued
    by the auth sever.
 
-There are a few ways to generate the certificates needed to authenticate the client, each of which is detailed in this demo.
+The client supports multiple `CredentialProviders`, which can gather credentials for client authentication from their defined source.
+
+Multiple providers can be specified in order to try multiple authentication methods. This is helpful for redundancy, especially in cases where some authentication methods are expected to fail/expire sometimes.
+
+This demo sets up a few `CredentialProviders` which can be easily tried out in the demo below.
 
 ### Authorization
 
@@ -38,72 +42,33 @@ $ tctl users add access-admin --roles=access-admin
 
 Second, replace the address `localhost:3025` with the address of your auth server. Note that the client only supports local connections, but support will be added for connecting through the proxy soon.
 
-Third, choose one of the authentication methods and make the corresponding changes to `main.go`.
+Third, choose at least one `CredentialProvider` to authenticate the client, and follow the steps below corresponding to the method. Multiple `CredentialsProvider` can ge specified and the first method to successfully load `Credentials` will be used to authenticate the client.
 
-1. login and generate identity file:
+1. Identity File Provider:
 
    ```bash
+   # login and generate identity file
    $ tsh login --user=access-admin --out=identity_file_path
    ```
 
-   In `main.go` place the following code before `client.New`:
-
-   ```go
-   creds, err = client.LoadIdentityFile("identity_file_path")
-	if err != nil {
-		log.Fatalf("Failed to load credentials: %v", err)
-	}
-	creds1.TLS.Certificates[0] = tls.Certificate{}
-   ```
-
-2. generate certificates from auth server without login:
+2. Key Pair Provider:
 
    ```bash
    $ mkdir -p certs
+   # Generate certificates from auth server without login
    $ tctl auth sign --format=tls --ttl=87600h --user=access-admin --out=certs/access-admin
    ```
 
-   In `main.go` place the following code before `client.New`:
+3. TLS Provider (manual):
+
+   Generate valid TLS certificates by whatever means desired. Replace the following comment in `main.go` with custom logic to load the certificates into the `*tls.Config`:
 
    ```go
-   creds, err = client.LoadKeyPair("certs/access-admin.crt", "certs/access-admin.key", "certs/access-admin.cas")
-	if err != nil {
-		log.Fatalf("Failed to load credentials: %v", err)
-	}
-   ```
-
-3. generate and gather TLS config manually.
-
-   Generate valid TLS certificates by whatever means desired. 
-   
-   In `main.go` place the following code before `client.New`, replacing the comment with your logic to load the certificates into the `*tls.Config`:
-
-
-   ```go
-   var tlsConfig *tls.Config
-   // load certificates into the tlsConfig here
-   creds, err = client.LoadConfig(tlsConfig)
-	if err != nil {
-		log.Fatalf("Failed to load credentials: %v", err)
-	}
+	var tlsConfig *tls.Config
+	// Create valid tlsConfig here to use TLS Provider
    ```
 
    Note that this is not the recommended strategy since the TLS config can be generated automatically with the methods above. However, some users may find this useful if they already have a TLS config defined or they have an irregular Teleport setup.
-
-4. generate multiple credentials and pass them all to the client:
-
-   It might be useful to provide multiple credentials to the client, in case they are expected to expire quickly, or just for redundancy. Just pass a list of credentials to `client.New`, and whichever credentials successfully authenticate the client first will be used.
-
-   Update the `Credentials` in main.go.
-
-   ```go
-   Credentials: client.CredentialsList{
-		creds1,
-      creds2,
-      creds3,
-      ...
-	},
-   ```
 
 Lastly, run the demo:
 

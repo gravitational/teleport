@@ -28,7 +28,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestIdentityCreds(t *testing.T) {
+func TestIdentityFile(t *testing.T) {
+	expectedCreds, err := getExpectedCreds()
+	require.NoError(t, err)
+
+	// Write Identity file from bytes
 	path := filepath.Join(t.TempDir(), "file")
 	idFile := &IdentityFile{
 		PrivateKey: []byte(keyPEM),
@@ -39,31 +43,73 @@ func TestIdentityCreds(t *testing.T) {
 			TLS: [][]byte{[]byte(caCertPEM)},
 		},
 	}
-	err := WriteIdentityFile(idFile, path)
+	err = WriteIdentityFile(idFile, path)
 	require.NoError(t, err)
 
-	creds, err := LoadIdentityFile(path)
+	// Load Credentials
+	creds1, err := LoadIdentityFile(path)
 	require.NoError(t, err)
-	expectedCreds, err := getExpectedCreds()
+	require.Equal(t, creds1, expectedCreds)
+
+	// Load Credentials with provider
+	provider := NewIdentityFileProvider(path)
+	creds2, err := provider.Load()
 	require.NoError(t, err)
-	require.Equal(t, creds, expectedCreds)
+
+	// Compare loaded credentials
+	require.NoError(t, creds1.CheckAndSetDefaults())
+	require.Equal(t, creds1, creds2)
 }
 
-func TestLoadKeyPair(t *testing.T) {
+func TestKeyPair(t *testing.T) {
+	expectedCreds, err := getExpectedCreds()
+	require.NoError(t, err)
+
+	// Write Key Pair and CAs files from bytes
 	path := t.TempDir() + "username"
 	crtPath, keyPath, casPath := path+".crt", path+".key", path+".cas"
-	err := ioutil.WriteFile(crtPath, []byte(certPEM), 0600)
+	err = ioutil.WriteFile(crtPath, []byte(certPEM), 0600)
 	require.NoError(t, err)
 	err = ioutil.WriteFile(keyPath, []byte(keyPEM), 0600)
 	require.NoError(t, err)
 	err = ioutil.WriteFile(casPath, []byte(caCertPEM), 0600)
 	require.NoError(t, err)
 
-	creds, err := LoadKeyPair(crtPath, keyPath, casPath)
+	// Load Credentials
+	creds1, err := LoadKeyPair(crtPath, keyPath, casPath)
 	require.NoError(t, err)
+	require.Equal(t, creds1, expectedCreds)
+
+	// Load Credentials with provider
+	provider := NewKeyPairProvider(crtPath, keyPath, casPath)
+	creds2, err := provider.Load()
+	require.NoError(t, err)
+
+	// Compare loaded credentials
+	require.NoError(t, creds1.CheckAndSetDefaults())
+	require.Equal(t, creds1, creds2)
+}
+
+func TestTLS(t *testing.T) {
 	expectedCreds, err := getExpectedCreds()
 	require.NoError(t, err)
-	require.Equal(t, creds, expectedCreds)
+
+	// Create TLS from bytes
+	tls, err := getTLS()
+	require.NoError(t, err)
+
+	// Load Credentials
+	creds1 := LoadTLS(tls)
+	require.Equal(t, creds1, expectedCreds)
+
+	// Load Credentials with provider
+	provider := NewTLSProvider(tls)
+	creds2, err := provider.Load()
+	require.NoError(t, err)
+
+	// Compare loaded credentials
+	require.NoError(t, creds1.CheckAndSetDefaults())
+	require.Equal(t, creds1, creds2)
 }
 
 func getTLS() (*tls.Config, error) {

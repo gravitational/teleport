@@ -31,12 +31,12 @@ func TestIdentityFileBasics(t *testing.T) {
 	writeIDFile := &IdentityFile{
 		PrivateKey: []byte("-----BEGIN RSA PRIVATE KEY-----\nkey\n-----END RSA PRIVATE KEY-----\n"),
 		Certs: Certs{
-			SSH: []byte("ssh-ssh"),
-			TLS: []byte("-----BEGIN CERTIFICATE-----\ntls\n-----END CERTIFICATE-----\n"),
+			SSH: []byte("ssh ssh-cert"),
+			TLS: []byte("-----BEGIN CERTIFICATE-----\ntls-cert\n-----END CERTIFICATE-----\n"),
 		},
 		CACerts: CACerts{
-			SSH: [][]byte{[]byte("@cert-authority-ca-ssh")},
-			TLS: [][]byte{[]byte("-----BEGIN CERTIFICATE-----\nca-tls\n-----END CERTIFICATE-----\n")},
+			SSH: [][]byte{[]byte("@cert-authority ssh-cacerts")},
+			TLS: [][]byte{[]byte("-----BEGIN CERTIFICATE-----\ntls-cacerts\n-----END CERTIFICATE-----\n")},
 		},
 	}
 

@@ -32,6 +32,9 @@ func main() {
 	ctx := context.Background()
 	log.Printf("Starting Teleport client...")
 
+	var tlsConfig *tls.Config
+	// Create valid tlsConfig here to use TLS Provider
+
 	clt, err := client.New(client.Config{
 		// Addrs is the Auth Server address, only works locally.
 		Addrs: []string{"localhost:3025"},
@@ -44,8 +47,7 @@ func main() {
 				"certs/access-admin.cas",
 			),
 			client.NewIdentityFileProvider("certs/access-admin-identity"),
-			// Replace &tls.Config{} with a valid tls.Config
-			client.NewTLSProvider(&tls.Config{}),
+			client.NewTLSProvider(tlsConfig),
 		},
 	})
 	if err != nil {
@@ -62,10 +64,10 @@ func demoClient(ctx context.Context, clt *client.Client) (err error) {
 	// Create a new access request for the `access-admin` user to use the `admin` role.
 	accessReq, err := types.NewAccessRequest(uuid.New(), "access-admin", "admin")
 	if err != nil {
-		return trace.Wrap(err, "failed to make new access request: %v")
+		return trace.Wrap(err, "failed to make new access request")
 	}
 	if err = clt.CreateAccessRequest(ctx, accessReq); err != nil {
-		return trace.Wrap(err, "failed to create access request: %v")
+		return trace.Wrap(err, "failed to create access request")
 	}
 	log.Printf("Created access request: %v", accessReq)
 
@@ -83,7 +85,7 @@ func demoClient(ctx context.Context, clt *client.Client) (err error) {
 		RequestID: accessReq.GetName(),
 		State:     types.RequestState_APPROVED,
 	}); err != nil {
-		return trace.Wrap(err, "failed to accept request: %v")
+		return trace.Wrap(err, "failed to accept request")
 	}
 	log.Printf("Approved access request")
 

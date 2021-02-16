@@ -88,7 +88,7 @@ func WriteIdentityFile(idFile *IdentityFile, path string) error {
 	return trace.Wrap(err)
 }
 
-// ReadIdentityFile reads an identityFile from the given path
+// ReadIdentityFile reads an identityFile from the given path.
 func ReadIdentityFile(path string) (*IdentityFile, error) {
 	r, err := os.Open(path)
 	if err != nil {

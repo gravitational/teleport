@@ -59,8 +59,10 @@ type Client struct {
 	closedFlag int32
 }
 
-// New returns a new API client with an authenticated connection to a Teleport server
-// using the Credentials and Dialer or Addrs given in Config.
+// New returns a new API client with an a connection to a Teleport server. The connection is
+// formed using the Dialer and CredentialsProviders given in config. If Addrs are provided, a
+// basic Dialer will be created. If Credentials are provided, a basic CredentialsProvider will
+// will be added to the list of CredentialsProviders.
 func New(cfg Config) (*Client, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -108,9 +110,6 @@ func (c *Client) connect() error {
 			continue
 		}
 		c.grpc = proto.NewAuthServiceClient(c.conn)
-		// if _, err := c.Ping(context.TODO()); err != nil {
-		// 	return trace.Wrap(err)
-		// }
 
 		// TODO (Joerger): Ping the server to check the dialer/credentials, and check the server version.
 		// TODO (Joerger): if connecting to auth fails, try connecting via proxy
@@ -135,11 +134,11 @@ type Config struct {
 	// KeepAliveCount specifies the amount of missed keep alives
 	// to wait for before declaring the connection as broken
 	KeepAliveCount int
-	// CredentialProviders are used to dynamically authenticate the client's connection
-	// to the server. The first credentials to be created successfully will be used to
-	// dial the server, and will be reloaded asyncronously if the provider is updated.
+	// CredentialProviders are used to authenticate the client's connection to the server.
+	// The first provider to provide valid credentials will be used to dial the server.
 	CredentialsProviders []CredentialsProvider
-	// Credentials is the client's current Credentials.
+	// Credentials is the client's current Credentials for authentication. If this is provided
+	// in client creation, it will be used to create a basic CredentialProvider.
 	Credentials *Credentials
 }
 
@@ -152,6 +151,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		if c.Credentials == nil {
 			return trace.BadParameter("set parameter CredentialsProviders or Credentials")
 		}
+		// Turn provided credentials into a basic TLS provider and add it to the provider list.
 		c.CredentialsProviders = []CredentialsProvider{NewTLSProvider(c.Credentials.TLS)}
 	}
 	if c.KeepAlivePeriod == 0 {
