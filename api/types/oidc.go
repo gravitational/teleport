@@ -143,7 +143,7 @@ func (o *OIDCConnectorV2) GetGoogleServiceAccountURI() string {
 	return o.Spec.GoogleServiceAccountURI
 }
 
-// GetGoogleServiceAccountURI returns an optional path to google service account file
+// GetGoogleServiceAccount returns a string representing a Google service account
 func (o *OIDCConnectorV2) GetGoogleServiceAccount() string {
 	return o.Spec.GoogleServiceAccount
 }
