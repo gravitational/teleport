@@ -203,11 +203,11 @@ spec:
 Pay attention to the _allow/logins_ field in the role definition: by default, this
 role only allows SSH logins as `root@host`.
 
-!!! note "Note"
-
-    Ignore `{{internal.logins}}` "allowed login" for now. It exists for
-    compatibility purposes when upgrading existing open source Teleport
-    clusters.
+<Admonition type="note" title="Note">
+Ignore `{{internal.logins}}` "allowed login" for now. It exists for
+compatibility purposes when upgrading existing open source Teleport
+clusters.
+</Admonition>
 
 You probably want to replace "root" with something else. Let's assume there will
 be a local UNIX account called "admin" on all hosts. In this case you can
@@ -271,16 +271,16 @@ Note that "--user=joe" part can be omitted if `$USER` environment variable is "j
 Notice that `tsh` client always needs `--proxy` flag because all client connections
 in Teleport always must to go through an SSH proxy, sometimes called an "SSH bastion".
 
-!!! warning "Warning"
+<Admonition type="warning" title="Warning">
+For the purposes of this quickstart we are using the `--insecure` flag which allows
+us to skip configuring the HTTP/TLS certificate for Teleport proxy. Your browser will
+throw a warning **Your connection is not private**. Click Advanced, and **Proceed to 0.0.0.0 (unsafe)**
+to preview the Teleport UI.
 
-    For the purposes of this quickstart we are using the `--insecure` flag which allows
-    us to skip configuring the HTTP/TLS certificate for Teleport proxy. Your browser will
-    throw a warning **Your connection is not private**. Click Advanced, and **Proceed to 0.0.0.0 (unsafe)**
-    to preview the Teleport UI.
-
-    Never use `--insecure` in production unless you terminate SSL at a load balancer. This will
-    apply to most cloud providers (AWS, GCP and Azure). You must configure a HTTP/TLS certificate for the Proxy.
-    This process has been made easier with Let's Encrypt. [We've instructions here](https://gravitational.com/blog/letsencrypt-teleport-ssh/).
+Never use `--insecure` in production unless you terminate SSL at a load balancer. This will
+apply to most cloud providers (AWS, GCP and Azure). You must configure a HTTP/TLS certificate for the Proxy.
+This process has been made easier with Let's Encrypt. [We've instructions here](https://gravitational.com/blog/letsencrypt-teleport-ssh/).
+</Admonition>
 
 If successful, `tsh login` command will receive Joe's user certificate and will
 store it in `~/.tsh/keys/<proxy>` directory.

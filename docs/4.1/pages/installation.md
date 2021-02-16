@@ -29,9 +29,9 @@ $ curl https://get.gravitational.com/teleport-$version-$os-$arch-bin.tar.gz.sha2
 
 ## Install Pre-built Binaries
 
-!!! info "sudo"
-
-    You may need to use `sudo` to run the installation commands.
+<Admonition type="tip" title="sudo">
+You may need to use `sudo` to run the installation commands.
+</Admonition>
 
 ### Linux
 

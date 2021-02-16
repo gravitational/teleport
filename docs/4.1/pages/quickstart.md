@@ -65,17 +65,17 @@ $ mkdir -p /var/lib/teleport
 
 Now we are ready to start Teleport.
 
-!!! tip "Background Process"
+<Admonition type="tip" title="Background Process">
+Avoid suspending your current shell session by
+running the process in the background like so: `teleport start >
+teleport.log 2>&1 & `. Access the process logs with ` less teleport.log`._
+</Admonition>
 
-    Avoid suspending your current shell session by
-    running the process in the background like so: `teleport start >
-    teleport.log 2>&1 & `. Access the process logs with ` less teleport.log`._
-
-!!! tip
-
-    "Debugging/Verbose Output" If you encounter errors with any `teleport,
-    tsh ` or ` tctl ` command you can enable verbose logging with the ` -d,--debug`
-    flag.
+<Admonition type="tip">
+"Debugging/Verbose Output" If you encounter errors with any `teleport,
+tsh ` or ` tctl ` command you can enable verbose logging with the ` -d,--debug`
+flag.
+</Admonition>
 
 ``` bash
 $ teleport start # if you are not `root` you may need `sudo`
@@ -100,14 +100,14 @@ We've got Teleport running but there are no users recognized by Teleport Auth
 yet. Let's create one for your OS user. In this example the OS user is
 `teleport` and the hostname of the node is `grav-00` .
 
-!!! info "OS User Mappings"
-
-    The OS user `teleport` must exist! On Linux, if it
-    does not already exist create it with `adduser teleport` . If you do not have
-    the permission to create new users on the VM, run `tctl users add teleport
-    <your-username> ` to explicitly map ` teleport` to an existing OS user. If you
-    do not map to a real OS user you will get authentication errors later on in
-    this tutorial!
+<Admonition type="tip" title="OS User Mappings">
+The OS user `teleport` must exist! On Linux, if it
+does not already exist create it with `adduser teleport` . If you do not have
+the permission to create new users on the VM, run `tctl users add teleport
+<your-username> ` to explicitly map ` teleport` to an existing OS user. If you
+do not map to a real OS user you will get authentication errors later on in
+this tutorial!
+</Admonition>
 
 ```bash
 # A new Teleport user will be assigned a
@@ -138,11 +138,11 @@ open this URL in a web browser to complete the registration process.
   Proxy via the host machine and port `3080` in a web browser. One simple way to
   do this is to temporarily append `[HOST_IP] grav-00` to `/etc/hosts`
 
-!!! warning "Warning"
-
-    We haven't provisioned any SSL certs for Teleport yet.
-    Your browser will throw a warning **Your connection is not private**. Click
-    Advanced, and **Proceed to [HOST_IP] (unsafe)** to preview the Teleport UI.
+<Admonition type="warning" title="Warning">
+We haven't provisioned any SSL certs for Teleport yet.
+Your browser will throw a warning **Your connection is not private**. Click
+Advanced, and **Proceed to [HOST_IP] (unsafe)** to preview the Teleport UI.
+</Admonition>
 
 <!-- Link to networking/production guide -->
 
@@ -165,17 +165,17 @@ Let's login using the `tsh` command line tool. Just as in the previous step, you
 will need to be able to resolve the **hostname** of the cluster to a network
 accessible IP.
 
-!!! warning "Warning"
+<Admonition type="warning" title="Warning">
+For the purposes of this quickstart we are using the
+`--insecure-no-tls` flag which allows us to skip configuring the HTTP/TLS
+certificate for Teleport proxy.
 
-    For the purposes of this quickstart we are using the
-    `--insecure-no-tls` flag which allows us to skip configuring the HTTP/TLS
-    certificate for Teleport proxy.
+**Caution**: the `--insecure-no-tls` flag does **not** skip TLS validation for the Auth Server. The self-signed Auth Server certificate expects to be accessed via one of a set of hostnames (ex. `grav-00` ). If you attempt to access via `localhost` you will probably get this error: `principal "localhost" not in the set of valid principals for given certificate` .
 
-    **Caution**: the `--insecure-no-tls` flag does **not** skip TLS validation for the Auth Server. The self-signed Auth Server certificate expects to be accessed via one of a set of hostnames (ex. `grav-00` ). If you attempt to access via `localhost` you will probably get this error: `principal "localhost" not in the set of valid principals for given certificate` .
+To resolve this error find your hostname with the `hostname` command and use that instead of `localhost` .
 
-    To resolve this error find your hostname with the `hostname` command and use that instead of `localhost` .
-
-    Never use `--insecure` in production unless you terminate SSL at a load balancer. You must configure a HTTP/TLS certificate for the Proxy.
+Never use `--insecure` in production unless you terminate SSL at a load balancer. You must configure a HTTP/TLS certificate for the Proxy.
+</Admonition>
 
 <!-- More on TLS in Prod Guide -->
 

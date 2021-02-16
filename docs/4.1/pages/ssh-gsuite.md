@@ -11,11 +11,11 @@ like:
 * Developers must never SSH into production servers.
 * ... and many others.
 
-!!! warning "Version Warning"
-
-    This guide requires an enterprise version of Teleport 4.1.4 or greater. The open source
-    edition of Teleport only supports [Github](admin-guide.md#github-oauth-20) as
-    an SSO provider.
+<Admonition type="warning" title="Version Warning">
+This guide requires an enterprise version of Teleport 4.1.4 or greater. The open source
+edition of Teleport only supports [Github](admin-guide.md#github-oauth-20) as
+an SSO provider.
+</Admonition>
 
 <iframe width="712" height="400" src="https://www.youtube.com/embed/DG97l8WJ6oU?rel=0&modestbranding=1&widget_referrer=gravitational.com/teleport/docs" frameBorder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>
 
@@ -66,10 +66,10 @@ Leave Service account permissions as blank.
 This JSON file will need to be uploaded to the Authentication server, and will be later referenced by
 the OIDC Connector, under `google_service_account_uri`.
 
-!!! note
-
-    Teleport requires the service account JSON to be uploaded to all Teleport authentication servers when setting
-    up in a HA config.
+<Admonition type="note">
+Teleport requires the service account JSON to be uploaded to all Teleport authentication servers when setting
+up in a HA config.
+</Admonition>
 
 ## API Scopes:
 
@@ -181,11 +181,10 @@ $ tsh --proxy=proxy.example.com login
 This command will print the SSO login URL (and will try to open it
 automatically in a browser).
 
-!!! tip "Tip"
-
-    Teleport can use multiple OIDC connectors. In this case a connector name
-    can be passed via `tsh login --auth=connector_name`
-
+<Admonition type="tip" title="Tip">
+Teleport can use multiple OIDC connectors. In this case a connector name
+can be passed via `tsh login --auth=connector_name`
+</Admonition>
 
 ## Troubleshooting
 

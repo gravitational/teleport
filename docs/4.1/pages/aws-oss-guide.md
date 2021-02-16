@@ -102,10 +102,10 @@ Teleport setup, S3 will provide storage for recorded sessions.
 
 We recommend using Amazon S3 Standard.
 
-!!! tip "Tip"
-
-    S3 provides [Amazon S3 Object Lock](https://docs.aws.amazon.com/AmazonS3/latest/dev/object-lock.html),
-    which is useful for customers deploying Teleport in regulated environments.
+<Admonition type="tip" title="Tip">
+S3 provides [Amazon S3 Object Lock](https://docs.aws.amazon.com/AmazonS3/latest/dev/object-lock.html),
+which is useful for customers deploying Teleport in regulated environments.
+</Admonition>
 
 ### Route53
 Route53 is a highly available Domain Name System (DNS) provided by AWS. It'll be
@@ -152,9 +152,10 @@ An example policy is shown below:
    ]
  }
 ```
-!!! note "Note"
 
-    `example.s3.bucket` will need to be replaced with your bucket name.
+<Admonition type="note" title="Note">
+`example.s3.bucket` will need to be replaced with your bucket name.
+</Admonition>
 
 #### IAM for DynamoDB
 
@@ -181,9 +182,10 @@ An example policy is shown below:
     ]
 }
 ```
-!!! note "Note"
 
-    `eu-west-1:123456789012:table/prod.teleport.auth` will need to be replaced with your DynamoDB instance.
+<Admonition type="note" title="Note">
+`eu-west-1:123456789012:table/prod.teleport.auth` will need to be replaced with your DynamoDB instance.
+</Admonition>
 
 ### ACM
 
@@ -267,11 +269,11 @@ Screenshot of where to put it in via AWS console.
 
 ![Config Instance Details](../img/aws/adding-user-data.png)
 
-!!! note "Note"
-
-    `TELEPORT_DOMAIN_NAME` and `TELEPORT_EXTERNAL_HOSTNAME` are more or less the
-    same thing but we keep them separate just in case you want to use a load balancer
-    on a different hostname.
+<Admonition type="note" title="Note">
+`TELEPORT_DOMAIN_NAME` and `TELEPORT_EXTERNAL_HOSTNAME` are more or less the
+same thing but we keep them separate just in case you want to use a load balancer
+on a different hostname.
+</Admonition>
 
 The CA certificates for the server will be generated to have `TELEPORT_EXTERNAL_HOSTNAME` as a CN,
 assuming it's set when the server starts.
