@@ -247,11 +247,11 @@ session   required   pam_motd.so
 session   required   pam_permit.so
 ```
 
-!!! note
-
-    Pay attention to the inclusion of `pam_motd.so` under the `session` facility. While `pam_motd.so` is
-    not required for user creation, Teleport requires at least one module to be set under both
-    the `account` and `session` facilities for it to work.
+<Admonition type="note">
+Pay attention to the inclusion of `pam_motd.so` under the `session` facility. While `pam_motd.so` is
+not required for user creation, Teleport requires at least one module to be set under both
+the `account` and `session` facilities for it to work.
+</Admonition>
 
 Next, create the script that will be run by `pam_exec.so` like below. This
 script will check if the user passed in `TELEPORT_LOGIN` exists and if it does

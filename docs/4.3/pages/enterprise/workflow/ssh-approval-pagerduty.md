@@ -11,9 +11,9 @@ Pagerduty integration  allows you to treat Teleport access and permission
 requests as Pagerduty incidents — notifying the appropriate team, and approve
 or deny the requests via Pagerduty special action.
 
-!!! warning
-
-    The Approval Workflow only works with Teleport Enterprise as it requires several roles.
+<Admonition type="warning">
+The Approval Workflow only works with Teleport Enterprise as it requires several roles.
+</Admonition>
 
 ## Setup
 ### Prerequisites
@@ -68,9 +68,9 @@ $ tctl auth sign --format=tls --user=access-plugin-pagerduty --out=auth --ttl=87
 
 The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference the auth.crt, auth.key, and auth.cas files later when [configuring the plugins](#editing-the-config-file).
 
-!!! note "Certificate Lifetime"
-
-     By default, [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign) produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
+<Admonition type="note" title="Certificate Lifetime">
+ By default, [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign) produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
+</Admonition>
 
 ### Setting up Pagerduty API key
 In your Pagerduty dashboard, go to **Configuration → API Access → Create New API Key**, add a key description, and save the key. We'll use the key in the plugin config file later.

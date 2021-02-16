@@ -162,17 +162,16 @@ FIPS 140-2 compatible AMIs (which deploy Teleport in FIPS 140-2 mode by default)
 The AWS account ID which publishes these AMIs is `126027368216`. You can list the available AMIs with
 the example `awscli` commands below. The output is in JSON format by default.
 
-!!! tip "List Gravitational AMIs"
+<Admonition type="tip" title="List Gravitational AMIs">
+OSS AMIs<br />
+`aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-oss*'`
 
-    OSS AMIs<br />
-    `aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-oss*'`
+Enterprise AMIs<br />
+`aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-ent*'`
 
-    Enterprise AMIs<br />
-    `aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-ent*'`
-
-    List Enterprise FIPS 140-2 AMIs<br />
-    `aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-ent*-fips'`
-
+List Enterprise FIPS 140-2 AMIs<br />
+`aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-ent*-fips'`
+</Admonition>
 
 ### key_name
 
@@ -325,12 +324,11 @@ the [`s3_bucket_name`](#s3_bucket_name) variable, under the `records` directory.
 
 In our example this would be `s3://example-cluster/records`
 
-!!! tip "Tip"
-
-    S3 provides [Amazon S3 Object Lock](https://docs.aws.amazon.com/AmazonS3/latest/dev/object-lock.html),
-    which is useful for customers deploying Teleport in regulated environments. Configuration of object lock is out of
-    the scope of this guide.
-
+<Admonition type="tip" title="Tip">
+S3 provides [Amazon S3 Object Lock](https://docs.aws.amazon.com/AmazonS3/latest/dev/object-lock.html),
+which is useful for customers deploying Teleport in regulated environments. Configuration of object lock is out of
+the scope of this guide.
+</Admonition>
 
 ### Cluster domain
 
@@ -531,9 +529,9 @@ $ tsh ssh root@ip-172-31-11-69-ec2-internal
 
 ### LetsEncrypt
 
-!!! note
-
-    You are using LetsEncrypt if your `use_acm` variable is set to `"false"`.
+<Admonition type="note">
+You are using LetsEncrypt if your `use_acm` variable is set to `"false"`.
+</Admonition>
 
 #### Auth service
 
@@ -622,9 +620,9 @@ $ journalctl -u teleport-node.service
 
 ### ACM
 
-!!! note
-
-    You are using ACM if your `use_acm` variable is set to `"true"`.
+<Admonition type="note">
+You are using ACM if your `use_acm` variable is set to `"true"`.
+</Admonition>
 
 When using ACM, the service name for the proxy is different (`teleport-proxy-acm.service` vs `teleport-proxy.service`).
 

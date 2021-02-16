@@ -100,16 +100,15 @@ Assuming approval, `tsh` will automatically manage a certificate re-issued with
 the newly requested roles applied. In this case `contractor` will now have have
 the permission of the `dba`.
 
-!!! warning
+<Admonition type="warning">
+Granting a role with administrative abilities could allow a user to **permanently**
+upgrade their privileges (e.g. if contractor was granted admin for some reason).
+We recommend only escalating to the next role of least privilege vs jumping directly
+to "Super Admin" role.
 
-    Granting a role with administrative abilities could allow a user to **permanently**
-    upgrade their privileges (e.g. if contractor was granted admin for some reason).
-    We recommend only escalating to the next role of least privilege vs jumping directly
-    to "Super Admin" role.
-
-    The `deny.request` block can help mitigate the risk of doing this by accident. See
-    Example Below.
-
+The `deny.request` block can help mitigate the risk of doing this by accident. See
+Example Below.
+</Admonition>
 
 ```yaml
 # Example role that explicitly denies a contractor from requesting the admin

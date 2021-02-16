@@ -8,9 +8,9 @@ h1: SSH login approvals using Jira
 
 This guide will talk through how to setup Teleport with Jira. Teleport to Jira integration allows you to treat Teleport access and permission requests using Jira tickets.
 
-!!! warning
-
-    The Approval Workflow only works with Teleport Enterprise as it requires several roles.
+<Admonition type="warning">
+The Approval Workflow only works with Teleport Enterprise as it requires several roles.
+</Admonition>
 
 ## Setup
 This guide assumes that you have:
@@ -64,9 +64,9 @@ $ tctl auth sign --format=tls --user=access-plugin --out=auth --ttl=8760h
 
 The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference the auth.crt, auth.key, and auth.cas files later when [configuring the plugins](#configuration-file).
 
-!!! note "Certificate Lifetime"
-
-     By default, [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign) produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
+<Admonition type="note" title="Certificate Lifetime">
+ By default, [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign) produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
+</Admonition>
 
 ## Setting up your Jira Project
 
@@ -105,11 +105,11 @@ For the webhook URL, use the URL that you'll run the plugin on. It needs to be a
 
 The Teleport Jira plugin webhook needs to be notified only about new issues being created, issues being updated, or deleted. You can leave all the other boxes empty.
 
-!!! note "Plugin Defaults"
+<Admonition type="note" title="Plugin Defaults">
+Jira Webhook will send updates about any issues in any projects in your Jira installation to the webhook.  We suggest that you use JQL filters to limit which issues are being sent to the plugin.
 
-    Jira Webhook will send updates about any issues in any projects in your Jira installation to the webhook.  We suggest that you use JQL filters to limit which issues are being sent to the plugin.
-
-    The Plugin's web server will run with TLS, but you can disable it with `--insecure-no-tls` to test things out in a dev environment.
+The Plugin's web server will run with TLS, but you can disable it with `--insecure-no-tls` to test things out in a dev environment.
+</Admonition>
 
 In the webhook settings page, make sure that the webhook will only send Issue Updated updates. It's not critical if anything else gets sent, the plugin will just ignore everything else.
 

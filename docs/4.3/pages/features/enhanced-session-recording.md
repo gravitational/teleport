@@ -23,11 +23,10 @@ ability for users to disable terminal echo. This is frequently used when request
 Furthermore, due to their unstructured nature, session recordings are difficult to
 ingest and perform monitoring/alerting on.
 
-!!! note
-
-    Enhanced Session Recording requires all parts of the Teleport system to be running
-    4.2+.
-
+<Admonition type="note">
+Enhanced Session Recording requires all parts of the Teleport system to be running
+4.2+.
+</Admonition>
 
 # Requirements:
 
@@ -35,10 +34,9 @@ ingest and perform monitoring/alerting on.
 Teleport 4.2+ with Enhanced Session Recording requires Linux kernel 4.18 (or above) as
 well as kernel headers.
 
-!!! tip
-
-    Our Standard Session Recording works with older Linux Kernels. View our [audit log docs](../architecture/authentication.md#audit-log) for more details.
-
+<Admonition type="tip">
+Our Standard Session Recording works with older Linux Kernels. View our [audit log docs](../architecture/authentication.md#audit-log) for more details.
+</Admonition>
 
 You can check your kernel version using the `uname` command. The output should look
 something like the following.
@@ -50,179 +48,175 @@ Linux ip-172-31-43-104.ec2.internal 4.19.72-25.58.amzn2.x86_64 x86_64 x86_64 x86
 
 ### Operating System and Kernel Status table
 
-=== "Ubuntu"
-
-    |       |                   | Kernel Version        |
-    |-------|-------------------|-----------------------|
-    | 18.10 | Cosmic Cuttlefish | 4.18 - Patch Kernel   |
-    | 19.04 | Disco Dingo       | 5.0 ✅        |
-    | 19.10 | Eoan Ermine       | 5.3 ✅        |
-
-=== "CentOS"
-
-    |               | Kernel Version         |
-    |---------------|------------------------|
-    | 8.0-1905	    |          4.18.0.80 ✅  |
-
-=== "Debian"
-
-    |     |                     | Kernel Version            |
-    |-----|---------------------|---------------------------|
-    | 9   | Debian Stretch      | 4.9.0-6 [Patch Kernel](https://wiki.debian.org/HowToUpgradeKernel) |
-    | 10  | Buster              | 4.19 ✅                   |
-
-=== "Red Hat"
-
-    |                     | Kernel Version         |
-    |---------------------|------------------------|
-    | Enterprise Linux 8  |          4.18.0-147 ✅ |
-
-=== "Amazon Linux"
-
-    We recommend using `Amazon Linux 2` to install and use Linux kernel 4.19 using
-    `sudo amazon-linux-extras install kernel-ng` and rebooting your instance.
-
-=== "archlinux"
-
-    |                     | Kernel Version         |
-    |---------------------|------------------------|
-    | 2019.12.01          |  5.3.13 ✅             |
+<Tabs>
+<TabItem label="Ubuntu">
+|       |                   | Kernel Version        |
+|-------|-------------------|-----------------------|
+| 18.10 | Cosmic Cuttlefish | 4.18 - Patch Kernel   |
+| 19.04 | Disco Dingo       | 5.0 ✅        |
+| 19.10 | Eoan Ermine       | 5.3 ✅        |
+</TabItem>
+<TabItem label="CentOS">
+|               | Kernel Version         |
+|---------------|------------------------|
+| 8.0-1905	    |          4.18.0.80 ✅  |
+</TabItem>
+<TabItem label="Debian">
+|     |                     | Kernel Version            |
+|-----|---------------------|---------------------------|
+| 9   | Debian Stretch      | 4.9.0-6 [Patch Kernel](https://wiki.debian.org/HowToUpgradeKernel) |
+| 10  | Buster              | 4.19 ✅                   |
+</TabItem>
+<TabItem label="Red Hat">
+|                     | Kernel Version         |
+|---------------------|------------------------|
+| Enterprise Linux 8  |          4.18.0-147 ✅ |
+</TabItem>
+<TabItem label="Amazon Linux">
+We recommend using `Amazon Linux 2` to install and use Linux kernel 4.19 using
+`sudo amazon-linux-extras install kernel-ng` and rebooting your instance.
+</TabItem>
+<TabItem label="archlinux">
+|                     | Kernel Version         |
+|---------------------|------------------------|
+| 2019.12.01          |  5.3.13 ✅             |
+</TabItem>
+</Tabs>
 
 ## 2. Install BCC Tools
 
 Run the following script to download the prerequisites to build BCC tools, building LLVM and Clang targeting BPF byte code, and then building and installing BCC tools.
 
-!!! note
-
-    We plan to soon support installing bcc-tools from packages instead of compiling them yourself to make taking advantage of enhanced session recording easier.
+<Admonition type="note">
+We plan to soon support installing bcc-tools from packages instead of compiling them yourself to make taking advantage of enhanced session recording easier.
+</Admonition>
 
 ### Script to Install BCC Tools
 
-=== "Ubuntu and Debian"
+<Tabs>
+<TabItem label="Ubuntu and Debian">
+```sh
+#!/bin/bash
 
-    ```sh
-    #!/bin/bash
+# Download LLVM and Clang from the Trusty Repos.
+VER=trusty
+echo "deb http://llvm.org/apt/$VER/ llvm-toolchain-$VER-3.7 main
+deb-src http://llvm.org/apt/$VER/ llvm-toolchain-$VER-3.7 main" | \
+  sudo tee /etc/apt/sources.list.d/llvm.list
+wget -O - http://llvm.org/apt/llvm-snapshot.gpg.key | sudo apt-key add -
+sudo apt-get update
 
-    # Download LLVM and Clang from the Trusty Repos.
-    VER=trusty
-    echo "deb http://llvm.org/apt/$VER/ llvm-toolchain-$VER-3.7 main
-    deb-src http://llvm.org/apt/$VER/ llvm-toolchain-$VER-3.7 main" | \
-      sudo tee /etc/apt/sources.list.d/llvm.list
-    wget -O - http://llvm.org/apt/llvm-snapshot.gpg.key | sudo apt-key add -
-    sudo apt-get update
+sudo apt-get -y install bison build-essential cmake flex git libedit-dev \
+  libllvm6.0 llvm-6.0-dev libclang-6.0-dev python zlib1g-dev libelf-dev
 
-    sudo apt-get -y install bison build-essential cmake flex git libedit-dev \
-      libllvm6.0 llvm-6.0-dev libclang-6.0-dev python zlib1g-dev libelf-dev
+# Install Linux Kernel Headers
+sudo apt-get install linux-headers-$(uname -r)
 
-    # Install Linux Kernel Headers
-    sudo apt-get install linux-headers-$(uname -r)
+# Install additional tools.
+sudo apt install arping iperf3 netperf git
 
-    # Install additional tools.
-    sudo apt install arping iperf3 netperf git
+# Install BCC.
+export MAKEFLAGS="-j16"
+git clone https://github.com/iovisor/bcc.git
+(cd bcc && git checkout v0.11.0)
+mkdir bcc/build; cd bcc/build
+cmake .. -DCMAKE_INSTALL_PREFIX=/usr
+make
+sudo make install
 
-    # Install BCC.
-    export MAKEFLAGS="-j16"
-    git clone https://github.com/iovisor/bcc.git
-    (cd bcc && git checkout v0.11.0)
-    mkdir bcc/build; cd bcc/build
-    cmake .. -DCMAKE_INSTALL_PREFIX=/usr
-    make
-    sudo make install
+# Install is done.
+echo "Install is complete, try running /usr/share/bcc/tools/execsnoop to verify install."
+```
+</TabItem>
+<TabItem label="CentOS">
+**Example Script to install relevant bcc packages for CentOS**
 
-    # Install is done.
-    echo "Install is complete, try running /usr/share/bcc/tools/execsnoop to verify install."
-    ```
+Follow [bcc documentation](https://github.com/iovisor/bcc/blob/master/INSTALL.md#debian---source) on how to install the relevant tooling for other operating systems.
 
-=== "CentOS"
+```sh
+#!/bin/bash
 
-    **Example Script to install relevant bcc packages for CentOS**
+set -e
 
-    Follow [bcc documentation](https://github.com/iovisor/bcc/blob/master/INSTALL.md#debian---source) on how to install the relevant tooling for other operating systems.
+if [[ $EUID -ne 0 ]]; then
+  echo "Please run this script as root or sudo."
+  exit 1
+fi
 
-    ```sh
-    #!/bin/bash
+# Create a temporary to build tooling in.
+BUILD_DIR=$(mktemp -d)
+cd $BUILD_DIR
+echo "Building in $BUILD_DIR."
 
-    set -e
+# Install Extra Packages for Enterprise Linux (EPEL)
+yum install -y epel-release
+yum update -y
 
-    if [[ $EUID -ne 0 ]]; then
-      echo "Please run this script as root or sudo."
-      exit 1
-    fi
+# Install development tools.
+yum groupinstall -y "Development tools"
+yum install -y elfutils-libelf-devel cmake3 git bison flex ncurses-devel
 
-    # Create a temporary to build tooling in.
-    BUILD_DIR=$(mktemp -d)
-    cd $BUILD_DIR
-    echo "Building in $BUILD_DIR."
+# Download and install LLVM and Clang. Build them with BPF target.
+curl  -LO  http://releases.llvm.org/7.0.1/llvm-7.0.1.src.tar.xz
+curl  -LO  http://releases.llvm.org/7.0.1/cfe-7.0.1.src.tar.xz
+tar -xf cfe-7.0.1.src.tar.xz
+tar -xf llvm-7.0.1.src.tar.xz
 
-    # Install Extra Packages for Enterprise Linux (EPEL)
-    yum install -y epel-release
-    yum update -y
+mkdir clang-build
+mkdir llvm-build
 
-    # Install development tools.
-    yum groupinstall -y "Development tools"
-    yum install -y elfutils-libelf-devel cmake3 git bison flex ncurses-devel
+cd llvm-build
+cmake3 -G "Unix Makefiles" -DLLVM_TARGETS_TO_BUILD="BPF;X86" \
+  -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr ../llvm-7.0.1.src
+make
+make install
+cd ..
 
-    # Download and install LLVM and Clang. Build them with BPF target.
-    curl  -LO  http://releases.llvm.org/7.0.1/llvm-7.0.1.src.tar.xz
-    curl  -LO  http://releases.llvm.org/7.0.1/cfe-7.0.1.src.tar.xz
-    tar -xf cfe-7.0.1.src.tar.xz
-    tar -xf llvm-7.0.1.src.tar.xz
+cd clang-build
+cmake3 -G "Unix Makefiles" -DLLVM_TARGETS_TO_BUILD="BPF;X86" \
+  -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr ../cfe-7.0.1.src
+make
+make install
+cd ..
 
-    mkdir clang-build
-    mkdir llvm-build
+# Install BCC.
+git clone https://github.com/iovisor/bcc.git
+cd bcc && git checkout v0.11.0
+mkdir bcc/build; cd bcc/build
+cmake3 .. -DCMAKE_INSTALL_PREFIX=/usr
+make
+make install
 
-    cd llvm-build
-    cmake3 -G "Unix Makefiles" -DLLVM_TARGETS_TO_BUILD="BPF;X86" \
-      -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr ../llvm-7.0.1.src
-    make
-    make install
-    cd ..
-
-    cd clang-build
-    cmake3 -G "Unix Makefiles" -DLLVM_TARGETS_TO_BUILD="BPF;X86" \
-      -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr ../cfe-7.0.1.src
-    make
-    make install
-    cd ..
-
-    # Install BCC.
-    git clone https://github.com/iovisor/bcc.git
-    cd bcc && git checkout v0.11.0
-    mkdir bcc/build; cd bcc/build
-    cmake3 .. -DCMAKE_INSTALL_PREFIX=/usr
-    make
-    make install
-
-    # Install is done.
-    rm -fr $BUILD_DIR
-    echo "Install is complete, try running /usr/share/bcc/tools/execsnoop to verify install."
-    ```
-
-=== "Amazon Linux"
-
-    **Example Script to install relevant bcc packages for Amazon 2 Linux**
+# Install is done.
+rm -fr $BUILD_DIR
+echo "Install is complete, try running /usr/share/bcc/tools/execsnoop to verify install."
+```
+</TabItem>
+<TabItem label="Amazon Linux">
+**Example Script to install relevant bcc packages for Amazon 2 Linux**
 
 
-    Make sure the the machine is at Kernel 4.19+/5+ (```uname -r```). Run the following script, sourced from [BCC github](https://github.com/iovisor/bcc/blob/master/INSTALL.md#amazon-linux-2---binary), to enable BCC in Amazon Linux Extras, install required kernel-devel package for the Kernel version and install the BCC tools.
+Make sure the the machine is at Kernel 4.19+/5+ (```uname -r```). Run the following script, sourced from [BCC github](https://github.com/iovisor/bcc/blob/master/INSTALL.md#amazon-linux-2---binary), to enable BCC in Amazon Linux Extras, install required kernel-devel package for the Kernel version and install the BCC tools.
 
-    ```sh
-    #!/bin/bash
-    #Enable BCC within the Amazon Linux Extras
-    sudo amazon-linux-extras enable BCC
-    #Install the kernal devel package for this kernel
-    sudo yum install -y kernel-devel-$(uname -r)
-    # Install BCC
-    sudo yum install -y bcc
-    ```
-    You should see output similar to below:
-    ```
-    Installed:
-    bcc.x86_64 0:0.10.0-1.amzn2.0.1
+```sh
+#!/bin/bash
+#Enable BCC within the Amazon Linux Extras
+sudo amazon-linux-extras enable BCC
+#Install the kernal devel package for this kernel
+sudo yum install -y kernel-devel-$(uname -r)
+# Install BCC
+sudo yum install -y bcc
+```
+You should see output similar to below:
+```
+Installed:
+bcc.x86_64 0:0.10.0-1.amzn2.0.1
 
-    Dependency Installed:
-      bcc-tools.x86_64 0:0.10.0-1.amzn2.0.1  python2-bcc.x86_64 0:0.10.0-1.amzn2.0.1
-    ```
-
+Dependency Installed:
+  bcc-tools.x86_64 0:0.10.0-1.amzn2.0.1  python2-bcc.x86_64 0:0.10.0-1.amzn2.0.1
+```
+</TabItem>
+</Tabs>
 
 ## 3. Install & Configure Teleport Node
 
@@ -317,34 +311,35 @@ To quickly check the status of the audit log, you can simply tail the logs with
 `tail -f /var/lib/teleport/log/events.log`, the resulting capture from Teleport will
 be a JSON log for each command and network request.
 
-=== "json"
-
-    ```json
-    {"argv":["google.com"],"cgroup_id":4294968064,"code":"T4000I","ei":5,"event":"session.command","login":"root","namespace":"default","path":"/bin/ping","pid":2653,"ppid":2660,"program":"ping","return_code":0,"server_id":"96f2bed2-ebd1-494a-945c-2fd57de41644","sid":"44c6cea8-362f-11ea-83aa-125400432324","time":"2020-01-13T18:05:53.919Z","uid":"734930bb-00e6-4ee6-8798-37f1e9473fac","user":"benarent"}
-    ```
-
-=== "json formatted"
-
-    ```json
-    {
-      "argv":[
-        "google.com"
-        ],
-      "cgroup_id":4294968064,
-      "code":"T4000I",
-      "ei":5,
-      "event":"session.command",
-      "login":"root",
-      "namespace":"default",
-      "path":"/bin/ping",
-      "pid":2653,
-      "ppid":2660,
-      "program":"ping",
-      "return_code":0,
-      "server_id":"96f2bed2-ebd1-494a-945c-2fd57de41644",
-      "sid":"44c6cea8-362f-11ea-83aa-125400432324",
-      "time":"2020-01-13T18:05:53.919Z",
-      "uid":"734930bb-00e6-4ee6-8798-37f1e9473fac",
-      "user":"benarent"
-    }
-    ```
+<Tabs>
+<TabItem label="json">
+```json
+{"argv":["google.com"],"cgroup_id":4294968064,"code":"T4000I","ei":5,"event":"session.command","login":"root","namespace":"default","path":"/bin/ping","pid":2653,"ppid":2660,"program":"ping","return_code":0,"server_id":"96f2bed2-ebd1-494a-945c-2fd57de41644","sid":"44c6cea8-362f-11ea-83aa-125400432324","time":"2020-01-13T18:05:53.919Z","uid":"734930bb-00e6-4ee6-8798-37f1e9473fac","user":"benarent"}
+```
+</TabItem>
+<TabItem label="json formatted">
+```json
+{
+  "argv":[
+    "google.com"
+    ],
+  "cgroup_id":4294968064,
+  "code":"T4000I",
+  "ei":5,
+  "event":"session.command",
+  "login":"root",
+  "namespace":"default",
+  "path":"/bin/ping",
+  "pid":2653,
+  "ppid":2660,
+  "program":"ping",
+  "return_code":0,
+  "server_id":"96f2bed2-ebd1-494a-945c-2fd57de41644",
+  "sid":"44c6cea8-362f-11ea-83aa-125400432324",
+  "time":"2020-01-13T18:05:53.919Z",
+  "uid":"734930bb-00e6-4ee6-8798-37f1e9473fac",
+  "user":"benarent"
+}
+```
+</TabItem>
+</Tabs>

@@ -15,11 +15,11 @@ to define policies like:
 * Developers must never SSH into production servers.
 * ... and many others.
 
-!!! warning "Version Warning"
-
-    This guide requires an enterprise version of Teleport 4.1.4 or greater. The open source
-    edition of Teleport only supports [Github](../../admin-guide.md#github-oauth-20) as
-    an SSO provider.
+<Admonition type="warning" title="Version Warning">
+This guide requires an enterprise version of Teleport 4.1.4 or greater. The open source
+edition of Teleport only supports [Github](../../admin-guide.md#github-oauth-20) as
+an SSO provider.
+</Admonition>
 
 <iframe width="712" height="400" src="https://www.youtube.com/embed/DG97l8WJ6oU?rel=0&modestbranding=1&widget_referrer=gravitational.com/teleport/docs" frameBorder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>
 
@@ -70,23 +70,23 @@ Leave Service account permissions as blank.
 This JSON file will need to be uploaded to the Authentication server, and will be later referenced by
 the OIDC Connector, under `google_service_account_uri`.
 
-!!! note
-
-    Teleport requires the service account JSON to be uploaded to all Teleport authentication servers when setting
-    up in a HA config.
+<Admonition type="note">
+Teleport requires the service account JSON to be uploaded to all Teleport authentication servers when setting
+up in a HA config.
+</Admonition>
 
 ## Manage API Scopes:
 Before setting the Manage API client access capture the client ID of the service account.
 
 Within GSuite to access the Manage API client access go to Security -> Settings.  Navigate to Advanced Settings and open Manage API client access.  Put the client ID in the Client Name field and the below permissions in the API scopes as a single comma separated line.  Press Authorize.
 
-!!! warning
+<Admonition type="warning">
+Do not use the email of the service account. The configuration display will look the same but the service account will not have the domain-wide delegation required. The `client_id` field must be the unique ID number captured from the admin UI. An indicator that this is misconfigured is if you see "Client is unauthorized to retrieve access tokens using this method, or client not authorized for any of the scopes requested." in your log.
+</Admonition>
 
-    Do not use the email of the service account. The configuration display will look the same but the service account will not have the domain-wide delegation required. The `client_id` field must be the unique ID number captured from the admin UI. An indicator that this is misconfigured is if you see "Client is unauthorized to retrieve access tokens using this method, or client not authorized for any of the scopes requested." in your log.
-
-!!! note
-
-    The email that you set for `google_admin_email` **must** be the email address of a user that has permission to list all groups, users, and group membership in your G Suite account. This user will generally need super admin privileges.
+<Admonition type="note">
+The email that you set for `google_admin_email` **must** be the email address of a user that has permission to list all groups, users, and group membership in your G Suite account. This user will generally need super admin privileges.
+</Admonition>
 
 **Client Name:** For Client Name: Use the Unique ID for the service account.  [See Video for instructions](https://youtu.be/DG97l8WJ6oU?t=281).
 
@@ -178,11 +178,10 @@ $ tsh --proxy=proxy.example.com login
 This command will print the SSO login URL (and will try to open it
 automatically in a browser).
 
-!!! tip "Tip"
-
-    Teleport can use multiple OIDC connectors. In this case a connector name
-    can be passed via `tsh login --auth=gsuite`
-
+<Admonition type="tip" title="Tip">
+Teleport can use multiple OIDC connectors. In this case a connector name
+can be passed via `tsh login --auth=gsuite`
+</Admonition>
 
 ## Troubleshooting
 

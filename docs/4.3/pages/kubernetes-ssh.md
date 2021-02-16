@@ -144,11 +144,11 @@ when leaving your company).
 
 ## Impersonation
 
-!!! note
-
-    If you used [the script from Option
-    2](https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh)
-    above, you can skip this step. The script already configured impersonation permissions.
+<Admonition type="note">
+If you used [the script from Option
+2](https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh)
+above, you can skip this step. The script already configured impersonation permissions.
+</Admonition>
 
 The next step is to configure the Teleport Proxy to be able to impersonate Kubernetes principals within a given group
 using [Kubernetes Impersonation Headers](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation).
@@ -291,10 +291,10 @@ $ kubectl exec -ti <pod-name>
 The `kubectl exec` request will be routed through the Teleport proxy and
 Teleport will log the audit record and record the session.
 
-!!! note
-
-    For more information on integrating Teleport with Github SSO, please see the
-    [Github section in the Admin Manual](admin-guide.md#github-oauth-20).
+<Admonition type="note">
+For more information on integrating Teleport with Github SSO, please see the
+[Github section in the Admin Manual](admin-guide.md#github-oauth-20).
+</Admonition>
 
 ### Okta Auth
 
@@ -330,23 +330,23 @@ $ tctl get roles/admin > admin.yaml
 $ tctl create -f admin.yaml
 ```
 
-!!! tip "Advanced Usage"
+<Admonition type="tip" title="Advanced Usage">
+`{% raw %}{{ external.trait_name }}{% endraw %}` example is shown to demonstrate how to fetch
+the Kubernetes groups dynamically from Okta during login. In this case, you
+need to define Kubernetes group membership in Okta (as a trait) and use
+that trait name in the Teleport role.
 
-    `{% raw %}{{ external.trait_name }}{% endraw %}` example is shown to demonstrate how to fetch
-    the Kubernetes groups dynamically from Okta during login. In this case, you
-    need to define Kubernetes group membership in Okta (as a trait) and use
-    that trait name in the Teleport role.
-
-    Teleport 4.3 has an option to extract the local part from an email claim. This can be helpful
-    since some operating systems don't support the @ symbol. This means by using `logins: ['{% raw %}{{email.local(external.email)}}{% endraw %}']` the resulting output will be `dave.smith` if the email was dave.smith@acme.com.
+Teleport 4.3 has an option to extract the local part from an email claim. This can be helpful
+since some operating systems don't support the @ symbol. This means by using `logins: ['{% raw %}{{email.local(external.email)}}{% endraw %}']` the resulting output will be `dave.smith` if the email was dave.smith@acme.com.
+</Admonition>
 
 Once setup is complete, when users execute `tsh login` and go through the usual Okta login
 sequence, their `kubeconfig` will be updated with their Kubernetes credentials.
 
-!!! note
-
-    For more information on integrating Teleport with Okta, please see the
-    [Okta integration guide](enterprise/sso/ssh-okta.md).
+<Admonition type="note">
+For more information on integrating Teleport with Okta, please see the
+[Okta integration guide](enterprise/sso/ssh-okta.md).
+</Admonition>
 
 ## Using Teleport Kubernetes with Automation
 
@@ -377,22 +377,22 @@ $ cat kubeconfig
 $ kubectl --kubeconfig /path/to/kubeconfig get pods
 ```
 
-!!! tip "How long should TTL be?"
+<Admonition type="tip" title="How long should TTL be?">
+In the above example we've provided two options. One with 1yr (8760h) time to live
+and one for just 25hrs. As proponents of short lived SSH certificates we recommend
+the same for automation.
 
-    In the above example we've provided two options. One with 1yr (8760h) time to live
-    and one for just 25hrs. As proponents of short lived SSH certificates we recommend
-    the same for automation.
+Handling secrets is out of scope of our docs, but at a high level we recommend
+using providers secrets managers. Such as [AWS Secrets Manager](https://aws.amazon.com/secrets-manager/),
+[GCP Secrets Manager](https://cloud.google.com/secret-manager), or on prem using
+a project like [Vault](https://www.vaultproject.io/).  Then running a nightly
+job on the auth server to sign and publish a new kubeconfig. In our example, we've
+added 1hr, and during this time both kubeconfigs will be valid.
 
-    Handling secrets is out of scope of our docs, but at a high level we recommend
-    using providers secrets managers. Such as [AWS Secrets Manager](https://aws.amazon.com/secrets-manager/),
-    [GCP Secrets Manager](https://cloud.google.com/secret-manager), or on prem using
-    a project like [Vault](https://www.vaultproject.io/).  Then running a nightly
-    job on the auth server to sign and publish a new kubeconfig. In our example, we've
-    added 1hr, and during this time both kubeconfigs will be valid.
-
-    Taking this a step further you could build a system to request a very short lived
-    token for each CI run. We plan to make this easier for operators to integrate in
-    the future by exposing and documenting more of our API.
+Taking this a step further you could build a system to request a very short lived
+token for each CI run. We plan to make this easier for operators to integrate in
+the future by exposing and documenting more of our API.
+</Admonition>
 
 ## AWS EKS
 
