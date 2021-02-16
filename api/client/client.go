@@ -76,7 +76,7 @@ func New(cfg Config) (*Client, error) {
 	return c, nil
 }
 
-// NewWithoutPing creates a new API client with a conneciton to a Teleport server,
+// NewWithoutPing creates a new API client with a connection to a Teleport server,
 // but does not check to see if the connection is open and authenticated.
 // For internal use only.
 func NewWithoutPing(cfg Config) (*Client, error) {
