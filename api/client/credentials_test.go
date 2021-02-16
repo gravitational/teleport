@@ -24,12 +24,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
-func TestIdentityFile(t *testing.T) {
-	expectedCreds, err := getExpectedCreds()
+func TestIdentityFileCredentials(t *testing.T) {
+	t.Parallel()
+	expectedCreds, err := getExpectedCreds(t)
 	require.NoError(t, err)
 
 	// Write Identity file from bytes
@@ -60,8 +60,9 @@ func TestIdentityFile(t *testing.T) {
 	require.Equal(t, creds1, creds2)
 }
 
-func TestKeyPair(t *testing.T) {
-	expectedCreds, err := getExpectedCreds()
+func TestKeyPairCredentials(t *testing.T) {
+	t.Parallel()
+	expectedCreds, err := getExpectedCreds(t)
 	require.NoError(t, err)
 
 	// Write Key Pair and CAs files from bytes
@@ -88,12 +89,13 @@ func TestKeyPair(t *testing.T) {
 	require.Equal(t, creds1, creds2)
 }
 
-func TestTLS(t *testing.T) {
-	expectedCreds, err := getExpectedCreds()
+func TestTLSCredentials(t *testing.T) {
+	t.Parallel()
+	expectedCreds, err := getExpectedCreds(t)
 	require.NoError(t, err)
 
 	// Create TLS from bytes
-	tls, err := getTLS()
+	tls, err := getTLS(t)
 	require.NoError(t, err)
 
 	// Load Credentials
@@ -110,16 +112,12 @@ func TestTLS(t *testing.T) {
 	require.Equal(t, creds1, creds2)
 }
 
-func getTLS() (*tls.Config, error) {
+func getTLS(t *testing.T) (*tls.Config, error) {
 	cert, err := tls.X509KeyPair([]byte(certPEM), []byte(keyPEM))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	require.NoError(t, err)
 
 	pool := x509.NewCertPool()
-	if !pool.AppendCertsFromPEM([]byte(caCertPEM)) {
-		return nil, trace.Errorf("invalid CA cert PEM")
-	}
+	require.True(t, pool.AppendCertsFromPEM([]byte(caCertPEM)))
 
 	return &tls.Config{
 		Certificates: []tls.Certificate{cert},
@@ -127,15 +125,13 @@ func getTLS() (*tls.Config, error) {
 	}, nil
 }
 
-func getExpectedCreds() (*Credentials, error) {
-	tls, err := getTLS()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func getExpectedCreds(t *testing.T) (*Credentials, error) {
+	tls, err := getTLS(t)
+	require.NoError(t, err)
+
 	creds := &Credentials{tls}
-	if err := creds.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
+	require.NoError(t, creds.CheckAndSetDefaults())
+
 	return creds, nil
 }
 

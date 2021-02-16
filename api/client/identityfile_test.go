@@ -27,6 +27,7 @@ import (
 // TestIdentityFileBasics verifies basic profile operations such as
 // load/store and setting current.
 func TestIdentityFileBasics(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "file")
 	writeIDFile := &IdentityFile{
 		PrivateKey: []byte("-----BEGIN RSA PRIVATE KEY-----\nkey\n-----END RSA PRIVATE KEY-----\n"),
