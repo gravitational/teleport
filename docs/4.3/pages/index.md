@@ -1,9 +1,8 @@
 ---
 title: Introduction to Teleport
 description: How to install and quickly get up and running with Gravitational Teleport to set up SSH and Kubernetes access to cloud environments.
+h1: Introduction
 ---
-
-# Introduction
 
 ## What is Teleport?
 

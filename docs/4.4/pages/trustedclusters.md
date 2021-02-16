@@ -1,9 +1,8 @@
 ---
 title: Teleport Trusted Clusters
 description: How to configure access and trust between two SSH and Kubernetes environments
+h1: Trusted Clusters
 ---
-
-# Trusted Clusters
 
 The design of trusted clusters allows Teleport users to connect to compute infrastructure
 located behind firewalls without any open TCP ports. The real world usage examples of this

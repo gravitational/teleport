@@ -1,4 +1,6 @@
-# Running Teleport on GCP
+---
+title: Running Teleport on GCP
+---
 
 We've created this guide to give customers a high level overview of how to use Teleport
 on [Google Cloud](https://cloud.google.com/gcp/) (GCP). This guide provides a high level

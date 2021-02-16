@@ -1,4 +1,6 @@
-# Installation
+---
+title: Installation
+---
 
 Teleport core service [`teleport`](cli-docs.md#teleport) and admin tool [`tctl`](cli-docs.md#tctl) have been designed to run on **Linux** and **Mac** operating systems.
 

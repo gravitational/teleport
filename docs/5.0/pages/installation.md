@@ -1,9 +1,8 @@
 ---
 title: Installing Teleport
 description: The guide for installing Teleport on servers and into Kubernetes clusters
+h1: Installation
 ---
-
-# Installation
 
 Teleport core service [`teleport`](cli-docs.md#teleport) and admin tool [`tctl`](cli-docs.md#tctl) have been designed to run on **Linux** and **Mac** operating systems. The Teleport user client [`tsh`](cli-docs.md#tsh) and UI are available for **Linux, Mac** and **Windows** operating systems.
 

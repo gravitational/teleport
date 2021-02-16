@@ -149,6 +149,25 @@ steps:
       - cd /tmpfs/go/src/github.com/gravitational/teleport
       - make -C build.assets test
 
+  # some integration tests can only be run as root, so we handle
+  # these separately using a build tag
+  - name: Run root-only integration tests
+    image: docker
+    environment:
+      GOCACHE: /tmpfs/go/cache
+      GOPATH: /tmpfs/go
+    volumes:
+      - name: dockersock
+        path: /var/run
+      - name: tmp-integration
+        path: /tmp
+      - name: tmpfs
+        path: /tmpfs
+    commands:
+      - apk add --no-cache make
+      - cd /tmpfs/go/src/github.com/gravitational/teleport
+      - make -C build.assets integration-root
+
   - name: Run integration tests
     image: docker
     environment:
@@ -167,7 +186,7 @@ steps:
         path: /tmpfs
     commands:
       - apk add --no-cache make
-      # write kubeconfig to disk for use in kube integrations tests
+      # write kubeconfig to disk for use in kube integration tests
       - echo "$INTEGRATION_CI_KUBECONFIG" > "$KUBECONFIG"
       - chown -R $UID:$GID /tmpfs/go
       - cd /tmpfs/go/src/github.com/gravitational/teleport
@@ -4372,6 +4391,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 316386d14b171635c1189a65e7d840ac85fccc37a91c228d6b4f569043f7ab79
+hmac: 6a5acaa383f34c9905f752bccae72b029386ff1536a6c45465c88b8fc6f611ca
 
 ...

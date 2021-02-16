@@ -1,9 +1,8 @@
 ---
 title: Teleport Architecture Overview
 description: Basic concepts and architecture of Teleport. What is an SSH cluster? How certificate-based SSH authentication works? How SSH audit works?
+h1: Architecture Introduction
 ---
-
-# Architecture Introduction
 
 This guide is for those looking for a deeper understanding of Teleport. If you
 are looking for hands-on instructions on how to set up Teleport for your team,

@@ -1,4 +1,6 @@
-# Quick Start Guide
+---
+title: Quick Start Guide
+---
 
 Welcome to the Teleport Quick Start Guide!
 

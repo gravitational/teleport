@@ -1,12 +1,12 @@
-# Quickstart
+---
+title: Quickstart
+---
 
 Welcome to the Teleport Quickstart!
 
 This tutorial will guide you through the steps needed to install and run
 Teleport on a single node, which could be your local machine but we recommend a
 VM.
-
-
 
 ### Prerequisites
 

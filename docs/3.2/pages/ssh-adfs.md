@@ -1,4 +1,6 @@
-# SSH Authentication with ADFS
+---
+title: SSH Authentication with ADFS
+---
 
 This guide will cover how to configure Active Directory Federation Services
 [ADFS](https://en.wikipedia.org/wiki/Active_Directory_Federation_Services) to issue

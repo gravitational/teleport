@@ -3,10 +3,7 @@ title: Teleport Users
 description: This chapter explains the concept of a Teleport User and how it's different from operating system (OS) users or Kubernetes users.
 ---
 
-# Teleport Users
-
 <!-- TODO: This doc is incomplete, pending addition of Enterprise topics -->
-
 
 ## Types of Users
 

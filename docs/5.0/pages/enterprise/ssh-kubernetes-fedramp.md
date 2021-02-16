@@ -1,10 +1,8 @@
 ---
 title: FedRAMP compliance for SSH and Kubernetes
 description: How to configure SSH and Kubernetes access to be FedRAMP compliant, including support for FIPS 140-2
+h1: FedRAMP for SSH and Kubernetes Access
 ---
-
-
-# FedRAMP for SSH and Kubernetes Access
 
 With Teleport 4.0 we have built the foundation to meet FedRAMP requirements for
 the purposes of accessing infrastructure. This includes support for [FIPS 140-2](https://en.wikipedia.org/wiki/FIPS_140-2), also known as the Federal Information Processing Standard, which is the US government approved standard for cryptographic modules. This document outlines a high

@@ -1,14 +1,12 @@
 ---
 title: Teleport Authentication Service, SSH and Kubernetes certificates
 description: This chapter explains the concept of a Teleport Auth Service and Certificate Authority (CA) to issue SSH and Kubernetes certificates.
+h1: Teleport Authentication Service
 ---
-
-# Teleport Authentication Service
 
 This document outlines the Teleport Authentication Service and Certificate
 Management. It explains how Users and Nodes are identified and granted access to
 Nodes and Services.
-
 
 ## Authentication vs. Authorization
 

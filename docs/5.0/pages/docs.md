@@ -1,4 +1,6 @@
-# Quickstart
+---
+title: Quickstart
+---
 
 Documentation is hard. Without structure over time it turns into a random collection of articles.
 

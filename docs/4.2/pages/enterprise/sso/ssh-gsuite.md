@@ -1,4 +1,6 @@
-# SSH Authentication with G Suite
+---
+title: SSH Authentication with G Suite
+---
 
 This guide will cover how to configure [G Suite](https://gsuite.google.com) to issue
 SSH credentials to specific groups of users. When used in combination with role

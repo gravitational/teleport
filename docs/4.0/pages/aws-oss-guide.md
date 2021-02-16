@@ -1,4 +1,6 @@
-# Running Teleport on AWS
+---
+title: Running Teleport on AWS
+---
 
 We've created this guide to give customers a high level overview of how to use Teleport
 on Amazon Web Services (AWS). This guide provides a high level introduction leading to
@@ -11,7 +13,8 @@ We have split this guide into:
 - [Setting up Teleport Enterprise on AWS](#running-teleport-enterprise-on-aws)
 - [Teleport AWS Tips & Tricks](#teleport-aws-tips-tricks)
 
-### Teleport on AWS FAQ
+## Teleport on AWS FAQ
+
 **Why would you want to use Teleport with AWS?**
 
 At some point you'll want to log into the system using SSH
@@ -43,7 +46,7 @@ for the below.
 
 This guide will cover how to setup, configure and run Teleport on [AWS](https://aws.amazon.com/).
 
-#### AWS Services required to run Teleport in HA
+### AWS Services required to run Teleport in HA
 
 - [EC2 / Autoscale](#ec2-autoscale)
 - [DynamoDB](#dynamodb)
