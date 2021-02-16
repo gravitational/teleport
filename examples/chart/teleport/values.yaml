@@ -52,6 +52,13 @@ config:
   # High availability configuration with proxy and auth servers. No configured SSH service.
   proxyCount: 2
   authCount: 2
+  
+  # Uncomment and set "auth_public_address_list" addresses if multiple domains resolve to same auth endpoint or
+  # if you want to add multiple SANs to the teleport cert
+  #auth_public_address_list:
+  #  - "auth1.example.com"
+  #  - "auth2.example.com"
+  
   auth_public_address: auth.example.com
   authService:
     type: ClusterIP
