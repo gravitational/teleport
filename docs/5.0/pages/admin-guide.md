@@ -1487,6 +1487,15 @@ teleport:
 The AWS authentication settings above can be omitted if the machine itself is
 running on an EC2 instance with an IAM role.
 
+These optional get paramaters control how teleport interacts with an S3 endpoint, including S3 compatible endpoints.
+
+`s3://bucket/path?region=us-east-1&endpoint=mys3.example.com&insecure=false&disablesse=false`
+
+* region=us-east-1 - set the amazon region to use.
+* endpoint=mys3.example.com - connect to a custom s3 endpoint.
+* insecure=true - set to ‘true’ or ‘false’. Don’t use TLS if true.
+* disablesse=true - set to ‘true’ or ‘false’ Disable S3 Server-Side Encryption if true. If false, aws:kms (Key Management Service) will be used for server-side encryption. Other SSE types are not supported at this time. 
+
 ### Using DynamoDB
 
 !!! tip "Tip"
