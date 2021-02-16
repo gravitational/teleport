@@ -36,16 +36,12 @@ func (c *Credentials) CheckAndSetDefaults() error {
 	if c.TLS == nil {
 		return trace.BadParameter("missing TLS config")
 	}
+	c.TLS = c.TLS.Clone()
 	c.TLS.NextProtos = []string{http2.NextProtoTLS}
 	if c.TLS.ServerName == "" {
 		c.TLS.ServerName = constants.APIDomain
 	}
 	return nil
-}
-
-// LoadTLS returns Credentials with the given TLS config.
-func LoadTLS(tls *tls.Config) *Credentials {
-	return &Credentials{TLS: tls}
 }
 
 // LoadIdentityFile attempts to load credentials from the specified identity file path.
@@ -61,7 +57,8 @@ func LoadIdentityFile(path string) (*Credentials, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return LoadTLS(tls), nil
+	creds, err := LoadTLS(tls)
+	return creds, trace.Wrap(err)
 }
 
 // LoadKeyPair attempts to load credentials from a certificate key pair and root CAs.
@@ -83,10 +80,20 @@ func LoadKeyPair(crtFile, keyFile, casFile string) (*Credentials, error) {
 		return nil, trace.Errorf("invalid TLS CA cert PEM")
 	}
 
-	return LoadTLS(&tls.Config{
+	creds, err := LoadTLS(&tls.Config{
 		Certificates: []tls.Certificate{cert},
 		RootCAs:      pool,
-	}), nil
+	})
+	return creds, trace.Wrap(err)
+}
+
+// LoadTLS returns Credentials with the given TLS config.
+func LoadTLS(tls *tls.Config) (*Credentials, error) {
+	creds := &Credentials{TLS: tls}
+	if err := creds.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return creds, nil
 }
 
 // CredentialsProvider has a defined source of credentials, which can be dynamically loaded.
@@ -109,13 +116,7 @@ type identityFileProvider struct {
 
 func (p *identityFileProvider) Load() (*Credentials, error) {
 	creds, err := LoadIdentityFile(p.path)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := creds.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return creds, nil
+	return creds, trace.Wrap(err)
 }
 
 // NewKeyPairProvider returns a CredentialsProvider that uses a certificate key pair and root CAs
@@ -133,13 +134,7 @@ type keyPairProvider struct {
 
 func (p *keyPairProvider) Load() (*Credentials, error) {
 	creds, err := LoadKeyPair(p.crtFile, p.keyFile, p.casFile)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := creds.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return creds, nil
+	return creds, trace.Wrap(err)
 }
 
 // NewTLSProvider returns a CredentialsProvider that uses a preloaded tls.Config to load credentials.
@@ -154,10 +149,6 @@ type tlsProvider struct {
 }
 
 func (p *tlsProvider) Load() (*Credentials, error) {
-	tls := p.tls.Clone()
-	creds := LoadTLS(tls)
-	if err := creds.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return creds, nil
+	creds, err := LoadTLS(p.tls)
+	return creds, trace.Wrap(err)
 }

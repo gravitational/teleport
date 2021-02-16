@@ -890,7 +890,7 @@ func (process *TeleportProcess) newClientThroughTunnel(servers []utils.NetAddr, 
 			ProxyAddr:    proxyAddr,
 			ClientConfig: identity.SSHClientConfig(),
 		},
-		Credentials: apiclient.LoadTLS(tlsConfig),
+		Credentials: &apiclient.Credentials{TLS: tlsConfig},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -914,8 +914,8 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, ide
 	if process.Config.ClientTimeout != 0 {
 		return auth.NewClient(apiclient.Config{
 			Addrs:       utils.NetAddrsToStrings(authServers),
-			Credentials: apiclient.LoadTLS(tlsConfig),
+			Credentials: &apiclient.Credentials{TLS: tlsConfig},
 		}, auth.ClientTimeout(process.Config.ClientTimeout))
 	}
-	return auth.NewClient(apiclient.Config{Addrs: utils.NetAddrsToStrings(authServers), Credentials: apiclient.LoadTLS(tlsConfig)})
+	return auth.NewClient(apiclient.Config{Addrs: utils.NetAddrsToStrings(authServers), Credentials: &apiclient.Credentials{TLS: tlsConfig}})
 }

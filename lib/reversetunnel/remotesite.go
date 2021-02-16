@@ -110,7 +110,7 @@ func (s *remoteSite) getRemoteClient() (auth.ClientI, bool, error) {
 		tlsConfig.ServerName = auth.EncodeClusterName(s.srv.ClusterName)
 		clt, err := auth.NewClient(client.Config{
 			Dialer:      auth.ContextDialerFunc(s.authServerContextDialer),
-			Credentials: client.LoadTLS(tlsConfig),
+			Credentials: &client.Credentials{TLS: tlsConfig},
 		})
 		if err != nil {
 			return nil, false, trace.Wrap(err)

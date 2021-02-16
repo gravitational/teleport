@@ -243,7 +243,7 @@ func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, e
 		DialTimeout:     cfg.DialTimeout,
 		KeepAlivePeriod: cfg.KeepAlivePeriod,
 		KeepAliveCount:  cfg.KeepAliveCount,
-		Credentials:     client.LoadTLS(cfg.TLS),
+		Credentials:     &client.Credentials{TLS: cfg.TLS},
 	}
 
 	return NewClient(c, params...)

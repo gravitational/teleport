@@ -57,7 +57,6 @@ func TestIdentityFile(t *testing.T) {
 	require.NoError(t, err)
 
 	// Compare loaded credentials
-	require.NoError(t, creds1.CheckAndSetDefaults())
 	require.Equal(t, creds1, creds2)
 }
 
@@ -86,7 +85,6 @@ func TestKeyPair(t *testing.T) {
 	require.NoError(t, err)
 
 	// Compare loaded credentials
-	require.NoError(t, creds1.CheckAndSetDefaults())
 	require.Equal(t, creds1, creds2)
 }
 
@@ -99,7 +97,8 @@ func TestTLS(t *testing.T) {
 	require.NoError(t, err)
 
 	// Load Credentials
-	creds1 := LoadTLS(tls)
+	creds1, err := LoadTLS(tls)
+	require.NoError(t, err)
 	require.Equal(t, creds1, expectedCreds)
 
 	// Load Credentials with provider
@@ -108,7 +107,6 @@ func TestTLS(t *testing.T) {
 	require.NoError(t, err)
 
 	// Compare loaded credentials
-	require.NoError(t, creds1.CheckAndSetDefaults())
 	require.Equal(t, creds1, creds2)
 }
 
@@ -134,7 +132,10 @@ func getExpectedCreds() (*Credentials, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	creds := &Credentials{TLS: tls}
+	creds := &Credentials{tls}
+	if err := creds.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return creds, nil
 }
 

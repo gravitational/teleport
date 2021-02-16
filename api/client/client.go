@@ -111,7 +111,12 @@ func (c *Client) connect() error {
 		}
 		c.grpc = proto.NewAuthServiceClient(c.conn)
 
-		// TODO (Joerger): Ping the server to check the dialer/credentials, and check the server version.
+		if _, err := c.Ping(context.TODO()); err != nil {
+			errs = append(errs, trace.Errorf("CredentialsProvider[%v]: %v", i, err))
+			continue
+		}
+
+		// TODO (Joerger): Check the server version with Ping response.
 		// TODO (Joerger): if connecting to auth fails, try connecting via proxy
 		// TODO (Joerger): start goroutine to detect provider reloads asynchronously.
 
