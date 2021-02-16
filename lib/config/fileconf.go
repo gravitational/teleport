@@ -186,6 +186,7 @@ var (
 		"debug_app":               false,
 		"acme":                    true,
 		"email":                   false,
+		"mysql_listen_addr":       false,
 	}
 )
 
@@ -991,6 +992,9 @@ type Proxy struct {
 
 	// ACME configures ACME protocol support
 	ACME ACME `yaml:"acme"`
+
+	// MySQLAddr is MySQL proxy listen address.
+	MySQLAddr string `yaml:"mysql_listen_addr,omitempty"`
 }
 
 // ACME configures ACME protocol - automatic X.509 certificates
