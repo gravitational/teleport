@@ -648,6 +648,20 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if req.routeToCluster != "" && clusterName != req.routeToCluster {
+		// Authorize access to a remote cluster.
+		rc, err := a.Presence.GetRemoteCluster(req.routeToCluster)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := req.checker.CheckAccessToRemoteCluster(rc); err != nil {
+			if trace.IsAccessDenied(err) {
+				return nil, trace.NotFound("remote cluster %q not found", req.routeToCluster)
+			}
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	ca, err := a.Trust.GetCertAuthority(services.CertAuthID{
 		Type:       services.UserCA,
 		DomainName: clusterName,
