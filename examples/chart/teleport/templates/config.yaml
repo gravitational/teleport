@@ -40,8 +40,11 @@ data:
 {{ toYaml .Values.config.teleport.auth_service.authentication | indent 8 }}
       tokens:
 {{ toYaml .Values.config.teleport.auth_service.tokens | indent 8 }}
-
+{{- if .Values.config.auth_public_address_list }}
+      public_addr: {{ .Values.config.auth_public_address_list }}
+{{- else }}
       public_addr: {{ .Values.config.public_address }}:{{ .Values.service.ports.authssh.port }}
+{{- end }}
       cluster_name: {{ .Values.config.public_address }}
       listen_addr: {{ .Values.config.listen_addr }}:{{ .Values.ports.authssh.containerPort }}
       client_idle_timeout: {{ .Values.config.teleport.auth_service.client_idle_timeout }}
@@ -155,8 +158,11 @@ data:
       tokens:
 {{ toYaml .Values.config.teleport.auth_service.tokens | indent 8 }}
 {{- end }}
-
+{{- if .Values.config.auth_public_address_list }}
+      public_addr: {{ .Values.config.auth_public_address_list }}
+{{- else }}
       public_addr: {{ .Values.config.auth_public_address }}:{{ .Values.service.ports.authssh.port }}
+{{- end }}
       cluster_name: {{ .Values.config.public_address }}
       listen_addr: {{ .Values.config.listen_addr }}:{{ .Values.ports.authssh.containerPort }}
       client_idle_timeout: {{ .Values.config.teleport.auth_service.client_idle_timeout }}
