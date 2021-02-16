@@ -12,11 +12,11 @@ like:
 * Developers must never SSH into production servers.
 * ... and many others.
 
-!!! warning "Version Warning"
-
-    This guide requires a commercial edition of Teleport. The open source
-    edition of Teleport only supports [Github](admin-guide/#github-oauth-20) as
-    an SSO provider.
+<Admonition type="warning" title="Version Warning">
+This guide requires a commercial edition of Teleport. The open source
+edition of Teleport only supports [Github](admin-guide/#github-oauth-20) as
+an SSO provider.
+</Admonition>
 
 ## Enable ADFS Authentication
 
@@ -184,16 +184,16 @@ $ tsh --proxy=proxy.example.com login
 This command will print the SSO login URL (and will try to open it
 automatically in a browser).
 
-!!! tip "Tip"
+<Admonition type="tip" title="Tip">
+Teleport can use multiple SAML connectors. In this case a connector name
+can be passed via `tsh login --auth=connector_name`
+</Admonition>
 
-    Teleport can use multiple SAML connectors. In this case a connector name
-    can be passed via `tsh login --auth=connector_name`
-
-!!! note "IMPORTANT"
-
-    Teleport only supports sending party initiated flows for SAML 2.0. This
-    means you can not initiate login from your identity provider, you have to
-    initiate login from either the Teleport Web UI or CLI.
+<Admonition type="note" title="IMPORTANT">
+Teleport only supports sending party initiated flows for SAML 2.0. This
+means you can not initiate login from your identity provider, you have to
+initiate login from either the Teleport Web UI or CLI.
+</Admonition>
 
 ## Troubleshooting
 

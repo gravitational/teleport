@@ -79,10 +79,11 @@ auth_service:
     # certificates and keys (may need to wipe out /var/lib/teleport directory)
     cluster_name: "production-aws"
 ```
-!!! warning "Warning"
 
-    If you change cluster_name, it will invalidate all generated
-    certificates and keys (may need to wipe out /var/lib/teleport directory)
+<Admonition type="warning" title="Warning">
+If you change cluster_name, it will invalidate all generated
+certificates and keys (may need to wipe out /var/lib/teleport directory)
+</Admonition>
 
 Once set you'll be able to see the cluster name in the Teleport UI.
 
@@ -104,11 +105,11 @@ This shared secret is called a "join token". There are two ways to create join
 tokens: to statically define them in a configuration file, or to create them on
 the fly using `tctl` tool.
 
-!!! tip "Important"
-
-    It is important to realize that join tokens are only used to establish the
-    connection for the first time. The clusters will exchange certificates and
-    won't be using the token to re-establish the connection in the future.
+<Admonition type="tip" title="Important">
+It is important to realize that join tokens are only used to establish the
+connection for the first time. The clusters will exchange certificates and
+won't be using the token to re-establish the connection in the future.
+</Admonition>
 
 ### Static Tokens
 
@@ -160,10 +161,10 @@ more complicated.
 
 ## RBAC
 
-!!! warning "Version Warning"
-
-    The RBAC section is applicable only to Teleport Enterprise. The open source
-    version does not suppport SSH roles.
+<Admonition type="warning" title="Version Warning">
+The RBAC section is applicable only to Teleport Enterprise. The open source
+version does not suppport SSH roles.
+</Admonition>
 
 When a _trusting_ cluster "east" from the diagram above establishes trust with
 the _trusted_ cluster "main", it needs a way to configure which users from
@@ -284,11 +285,10 @@ db2.east  3879d133-fe81-3212 10.0.5.3:3022  role=db-follower
 $ tsh ssh --cluster=east root@db1.east
 ```
 
-
-!!! tip "Note"
-
-    Trusted clusters work only one way. So, in the example above users from "east"
-    cannot see or connect to the nodes in "main".
+<Admonition type="tip" title="Note">
+Trusted clusters work only one way. So, in the example above users from "east"
+cannot see or connect to the nodes in "main".
+</Admonition>
 
 ### Disabling Trust
 
