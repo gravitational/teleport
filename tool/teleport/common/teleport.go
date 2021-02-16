@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2017 Gravitational, Inc.
+Copyright 2015-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package common
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -28,6 +29,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
@@ -64,11 +66,12 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 	// define global flags:
 	var ccf config.CommandLineFlags
 	var scpFlags scp.Flags
+	var dumpFlags dumpFlags
 
 	// define commands:
 	start := app.Command("start", "Starts the Teleport service.")
 	status := app.Command("status", "Print the status of the current SSH session.")
-	dump := app.Command("configure", "Print the sample config file into stdout.")
+	dump := app.Command("configure", "Generate a simple config file to get started.")
 	ver := app.Command("version", "Print the version.")
 	scpc := app.Command("scp", "Server-side implementation of SCP.").Hidden()
 	exec := app.Command("exec", "Used internally by Teleport to re-exec itself to run a command.").Hidden()
@@ -165,6 +168,17 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 	scpc.Flag("local-addr", "local address which accepted the request").StringVar(&scpFlags.LocalAddr)
 	scpc.Arg("target", "").StringsVar(&scpFlags.Target)
 
+	// dump flags
+	dump.Flag("cluster-name",
+		"Unique cluster name, e.g. example.com.").StringVar(&dumpFlags.ClusterName)
+	dump.Flag("output",
+		"Write to stdout with -o=stdout, default config file with -o=file or custom path with -o=file:///path").Short('o').Default(
+		teleport.SchemeStdout).StringVar(&dumpFlags.output)
+	dump.Flag("acme",
+		"Get automatic certificate from Letsencrypt.org using ACME.").BoolVar(&dumpFlags.ACMEEnabled)
+	dump.Flag("acme-email",
+		"Email to receive updates from Letsencrypt.org.").StringVar(&dumpFlags.ACMEEmail)
+
 	// parse CLI commands+flags:
 	command, err := app.Parse(options.Args)
 	if err != nil {
@@ -194,7 +208,7 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 	case status.FullCommand():
 		err = onStatus()
 	case dump.FullCommand():
-		err = onConfigDump()
+		err = onConfigDump(dumpFlags)
 	case exec.FullCommand():
 		err = onExec()
 	case forward.FullCommand():
@@ -237,13 +251,74 @@ func onStatus() error {
 	return nil
 }
 
+type dumpFlags struct {
+	config.SampleFlags
+	output string
+}
+
+func (flags *dumpFlags) CheckAndSetDefaults() error {
+	if flags.output == "" || flags.output == teleport.SchemeFile {
+		flags.output = teleport.SchemeFile + "://" + defaults.ConfigFilePath
+	} else if flags.output == teleport.SchemeStdout {
+		flags.output = teleport.SchemeStdout + "://"
+	}
+	return nil
+}
+
 // onConfigDump is the handler for "configure" CLI command
-func onConfigDump() error {
-	sfc, err := config.MakeSampleFileConfig()
+func onConfigDump(flags dumpFlags) error {
+	if err := flags.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	uri, err := url.Parse(flags.output)
+	if err != nil {
+		return trace.BadParameter("could not parse output value %q, use --output=%q",
+			flags.output, defaults.ConfigFilePath)
+	}
+
+	if modules.GetModules().BuildType() != modules.BuildOSS {
+		flags.LicensePath = filepath.Join(defaults.DataDir, "license.pem")
+	}
+
+	sfc, err := config.MakeSampleFileConfig(flags.SampleFlags)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("%s\n%s\n", sampleConfComment, sfc.DebugDumpToYAML())
+	switch uri.Scheme {
+	case teleport.SchemeStdout:
+		fmt.Printf("%s\n%s\n", sampleConfComment, sfc.DebugDumpToYAML())
+	case teleport.SchemeFile, "":
+		if uri.Path == "" {
+			return trace.BadParameter("missing path in --output=%q", uri)
+		}
+		if !filepath.IsAbs(uri.Path) {
+			return trace.BadParameter("please use absolute path for file %v", uri.Path)
+		}
+		f, err := os.OpenFile(uri.Path, os.O_RDWR|os.O_CREATE|os.O_EXCL, teleport.FileMaskOwnerOnly)
+		err = trace.ConvertSystemError(err)
+		if err != nil {
+			if trace.IsAlreadyExists(err) {
+				return trace.AlreadyExists("will not overwrite existing file %v, rm -f %v and try again", uri.Path, uri.Path)
+			}
+			return trace.Wrap(err, "could not write to config file, missing sudo?")
+		}
+		if _, err := f.Write([]byte(sfc.DebugDumpToYAML())); err != nil {
+			f.Close()
+			return trace.Wrap(trace.ConvertSystemError(err), "could not write to config file, missing sudo?")
+		}
+		if err := f.Close(); err != nil {
+			return trace.Wrap(err, "could not close file %v", uri.Path)
+		}
+		if modules.GetModules().BuildType() == modules.BuildOSS {
+			fmt.Printf("Wrote config to file %q. Now you can start the server. Happy Teleporting!\n", uri.Path)
+		} else {
+			fmt.Printf("Wrote config to file %q. Add your license file to %v and start the server. Happy Teleporting!\n", uri.Path, flags.LicensePath)
+		}
+	default:
+		return trace.BadParameter(
+			"unsupported --output=%v, use path for example --output=%v", uri.Scheme, defaults.ConfigFilePath)
+	}
+
 	return nil
 }
 

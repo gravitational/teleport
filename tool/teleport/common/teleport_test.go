@@ -1,5 +1,5 @@
 /*
-Copyright 2016 Gravitational, Inc.
+Copyright 2016-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,107 +22,121 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-	log "github.com/sirupsen/logrus"
 
-	"gopkg.in/check.v1"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 )
 
 // bootstrap check
-func TestTeleportMain(t *testing.T) { check.TestingT(t) }
-
-// register test suite
-type MainTestSuite struct {
-	hostname   string
-	configFile string
-}
-
-var _ = check.Suite(&MainTestSuite{})
-
-func (s *MainTestSuite) SetUpTest(c *check.C) {
+func TestTeleportMain(t *testing.T) {
 	utils.InitLoggerForTests(testing.Verbose())
-}
 
-func (s *MainTestSuite) SetUpSuite(c *check.C) {
-	var err error
 	// get the hostname
-	s.hostname, err = os.Hostname()
-	if err != nil {
-		panic(err)
-	}
-	// generate the fixture config file
-	dirname, err := ioutil.TempDir("", "teleport")
-	if err != nil {
-		panic(err)
-	}
-	s.configFile = filepath.Join(dirname, "teleport.yaml")
-	err = ioutil.WriteFile(s.configFile, []byte(YAMLConfig), 0770)
-	c.Assert(err, check.IsNil)
+	hostname, err := os.Hostname()
+	require.NoError(t, err)
 
-	// set imprtant defaults to test-mode (non-existing files&locations)
+	// generate the fixture config file
+	configFile := filepath.Join(t.TempDir(), "teleport.yaml")
+	err = ioutil.WriteFile(configFile, []byte(YAMLConfig), 0660)
+	require.NoError(t, err)
+
+	// set defaults to test-mode (non-existing files&locations)
 	defaults.ConfigFilePath = "/tmp/teleport/etc/teleport.yaml"
 	defaults.DataDir = "/tmp/teleport/var/lib/teleport"
+
+	t.Run("Default", func(t *testing.T) {
+		cmd, conf := Run(Options{
+			Args:     []string{"start"},
+			InitOnly: true,
+		})
+		require.Equal(t, "start", cmd)
+		require.Equal(t, hostname, conf.Hostname)
+		require.Equal(t, "/tmp/teleport/var/lib/teleport", conf.DataDir)
+		require.True(t, conf.Auth.Enabled)
+		require.True(t, conf.SSH.Enabled)
+		require.True(t, conf.Proxy.Enabled)
+		require.Equal(t, os.Stdout, conf.Console)
+		require.Equal(t, log.ErrorLevel, log.GetLevel())
+	})
+
+	t.Run("RolesFlag", func(t *testing.T) {
+		cmd, conf := Run(Options{
+			Args:     []string{"start", "--roles=node"},
+			InitOnly: true,
+		})
+		require.True(t, conf.SSH.Enabled)
+		require.False(t, conf.Auth.Enabled)
+		require.False(t, conf.Proxy.Enabled)
+		require.Equal(t, "start", cmd)
+
+		cmd, conf = Run(Options{
+			Args:     []string{"start", "--roles=proxy"},
+			InitOnly: true,
+		})
+		require.False(t, conf.SSH.Enabled)
+		require.False(t, conf.Auth.Enabled)
+		require.True(t, conf.Proxy.Enabled)
+		require.Equal(t, "start", cmd)
+
+		cmd, conf = Run(Options{
+			Args:     []string{"start", "--roles=auth"},
+			InitOnly: true,
+		})
+		require.False(t, conf.SSH.Enabled)
+		require.True(t, conf.Auth.Enabled)
+		require.False(t, conf.Proxy.Enabled)
+		require.Equal(t, "start", cmd)
+	})
+
+	t.Run("ConfigFile", func(t *testing.T) {
+		cmd, conf := Run(Options{
+			Args:     []string{"start", "--roles=node", "--labels=a=a1,b=b1", "--config=" + configFile},
+			InitOnly: true,
+		})
+		require.Equal(t, "start", cmd)
+		require.True(t, conf.SSH.Enabled)
+		require.False(t, conf.Auth.Enabled)
+		require.False(t, conf.Proxy.Enabled)
+		require.Equal(t, log.DebugLevel, conf.Log.GetLevel())
+		require.Equal(t, "hvostongo.example.org", conf.Hostname)
+		require.Equal(t, "xxxyyy", conf.Token)
+		require.Equal(t, "10.5.5.5", conf.AdvertiseIP)
+		require.Equal(t, map[string]string{"a": "a1", "b": "b1"}, conf.SSH.Labels)
+	})
 }
 
-func (s *MainTestSuite) TestDefault(c *check.C) {
-	cmd, conf := Run(Options{
-		Args:     []string{"start"},
-		InitOnly: true,
-	})
-	c.Assert(cmd, check.Equals, "start")
-	c.Assert(conf.Hostname, check.Equals, s.hostname)
-	c.Assert(conf.DataDir, check.Equals, "/tmp/teleport/var/lib/teleport")
-	c.Assert(conf.Auth.Enabled, check.Equals, true)
-	c.Assert(conf.SSH.Enabled, check.Equals, true)
-	c.Assert(conf.Proxy.Enabled, check.Equals, true)
-	c.Assert(conf.Console, check.Equals, os.Stdout)
-	c.Assert(log.GetLevel(), check.Equals, log.ErrorLevel)
-}
+func TestConfigure(t *testing.T) {
+	t.Run("Dump", func(t *testing.T) {
+		err := onConfigDump(dumpFlags{
+			// typo
+			output: "sddout",
+		})
+		require.IsType(t, trace.BadParameter(""), err)
 
-func (s *MainTestSuite) TestRolesFlag(c *check.C) {
-	cmd, conf := Run(Options{
-		Args:     []string{"start", "--roles=node"},
-		InitOnly: true,
-	})
-	c.Assert(conf.SSH.Enabled, check.Equals, true)
-	c.Assert(conf.Auth.Enabled, check.Equals, false)
-	c.Assert(conf.Proxy.Enabled, check.Equals, false)
-	c.Assert(cmd, check.Equals, "start")
+		err = onConfigDump(dumpFlags{
+			output: "file://" + filepath.Join(t.TempDir(), "test"),
+			SampleFlags: config.SampleFlags{
+				ClusterName: "example.com",
+			},
+		})
+		require.NoError(t, err)
 
-	cmd, conf = Run(Options{
-		Args:     []string{"start", "--roles=proxy"},
-		InitOnly: true,
+		// stdout
+		err = onConfigDump(dumpFlags{
+			output: "stdout",
+		})
+		require.NoError(t, err)
 	})
-	c.Assert(conf.SSH.Enabled, check.Equals, false)
-	c.Assert(conf.Auth.Enabled, check.Equals, false)
-	c.Assert(conf.Proxy.Enabled, check.Equals, true)
-	c.Assert(cmd, check.Equals, "start")
 
-	cmd, conf = Run(Options{
-		Args:     []string{"start", "--roles=auth"},
-		InitOnly: true,
+	t.Run("Defaults", func(t *testing.T) {
+		flags := dumpFlags{}
+		err := flags.CheckAndSetDefaults()
+		require.NoError(t, err)
 	})
-	c.Assert(conf.SSH.Enabled, check.Equals, false)
-	c.Assert(conf.Auth.Enabled, check.Equals, true)
-	c.Assert(conf.Proxy.Enabled, check.Equals, false)
-	c.Assert(cmd, check.Equals, "start")
-}
-
-func (s *MainTestSuite) TestConfigFile(c *check.C) {
-	cmd, conf := Run(Options{
-		Args:     []string{"start", "--roles=node", "--labels=a=a1,b=b1", "--config=" + s.configFile},
-		InitOnly: true,
-	})
-	c.Assert(cmd, check.Equals, "start")
-	c.Assert(conf.SSH.Enabled, check.Equals, true)
-	c.Assert(conf.Auth.Enabled, check.Equals, false)
-	c.Assert(conf.Proxy.Enabled, check.Equals, false)
-	c.Assert(conf.Log.GetLevel(), check.Equals, log.DebugLevel)
-	c.Assert(conf.Hostname, check.Equals, "hvostongo.example.org")
-	c.Assert(conf.Token, check.Equals, "xxxyyy")
-	c.Assert(conf.AdvertiseIP, check.DeepEquals, "10.5.5.5")
-	c.Assert(conf.SSH.Labels, check.DeepEquals, map[string]string{"a": "a1", "b": "b1"})
 }
 
 const YAMLConfig = `
