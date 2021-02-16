@@ -837,7 +837,7 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector services.OIDCConne
 
 		var config *jwt.Config
 		var jsonCredentials []byte
-		//load the google service account uri from
+		// load the google service account from uri
 		if connector.GetGoogleServiceAccountURI() != "" {
 
 			serviceAccountURI := connector.GetGoogleServiceAccountURI()
