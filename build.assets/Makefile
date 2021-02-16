@@ -188,6 +188,11 @@ integration: buildbox
 	docker run $(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration"
 
+.PHONY:integration-root
+integration-root: buildbox
+	docker run $(DOCKERFLAGS) $(BCCFLAGS) -t $(BUILDBOX) \
+		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration-root"
+
 #
 # Runs linters on new changes inside a build container.
 #

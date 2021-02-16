@@ -287,6 +287,7 @@ test: $(VERSRC)
 
 #
 # Integration tests. Need a TTY to work.
+# Any tests which need to run as root must be skipped during regular integration testing.
 #
 .PHONY: integration
 integration: FLAGS ?= -v -race
@@ -294,6 +295,17 @@ integration: PACKAGES := $(shell go list ./... | grep integration)
 integration:
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS)
+
+#
+# Integration tests which need to be run as root in order to complete successfully
+# are run separately to all other integration tests. Need a TTY to work.
+#
+INTEGRATION_ROOT_REGEX := ^TestRoot
+.PHONY: integration-root
+integration-root: FLAGS ?= -v -race
+integration-root: PACKAGES := $(shell go list ./... | grep integration)
+integration-root:
+	go test -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS)
 
 #
 # Lint the Go code.

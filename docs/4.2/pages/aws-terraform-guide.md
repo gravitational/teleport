@@ -1,4 +1,6 @@
-# Running Teleport Enterprise in HA mode on AWS
+---
+title: Running Teleport Enterprise in HA mode on AWS
+---
 
 This guide is designed to accompany our [reference Terraform code](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform/ha-autoscale-cluster#terraform-based-provisioning-example-amazon-single-ami)
 and describe how to use and administrate the resulting Teleport deployment.

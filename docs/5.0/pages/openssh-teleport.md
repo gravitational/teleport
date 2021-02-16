@@ -3,8 +3,6 @@ title: Using Teleport with OpenSSH
 description: How to use Teleport on legacy systems with OpenSSH and sshd
 ---
 
-# Using Teleport with OpenSSH
-
 Teleport is fully compatible with OpenSSH and can be quickly setup to record and
 audit all SSH activity. Using Teleport and OpenSSH has the advantage of getting you up
 and running, but in the long run we would recommend replacing `sshd` with `teleport`.

@@ -1,9 +1,8 @@
 ---
 title: Teleport integration with Mattermost
 description: This guide explains how to setup a Mattermost plugin for Teleport for privilege elevation approvals.
+h1: Teleport Mattermost Plugin Setup
 ---
-
-# Teleport Mattermost Plugin Setup
 
 This guide will talk through how to setup Teleport with Mattermost. Teleport to
 Mattermost integration allows teams to approve or deny Teleport access requests

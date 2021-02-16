@@ -1,4 +1,6 @@
-# Production Guide
+---
+title: Production Guide
+---
 
 This guide provides more in-depth details for running Teleport in Production.
 

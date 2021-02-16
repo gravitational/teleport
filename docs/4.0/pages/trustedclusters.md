@@ -1,4 +1,6 @@
-# Trusted Clusters
+---
+title: Trusted Clusters
+---
 
 The design of trusted clusters allows Teleport users to connect to compute infrastructure
 located behind firewalls without any open TCP ports. The real world usage examples of this

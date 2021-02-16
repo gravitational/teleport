@@ -66,8 +66,8 @@ steps:
           export PR_REPO=$(curl -Ls https://api.github.com/repos/gravitational/${DRONE_REPO_NAME}/pulls/${DRONE_PULL_REQUEST} | jq -r '.head.repo.full_name')
           echo "---> Source repo for PR ${DRONE_PULL_REQUEST}: $${PR_REPO}"
           # if the source repo for the PR matches DRONE_REPO, then this is not a PR raised from a fork
-          if [ "$${PR_REPO}" = "${DRONE_REPO}" ]; then
-            mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+          if [ "$${PR_REPO}" = "${DRONE_REPO}" ] || [ "${DRONE_REPO}" = "gravitational/teleport-private" ]; then
+            mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
             ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
             git submodule update --init e
             # do a recursive submodule checkout to get both webassets and webassets/e
@@ -149,6 +149,25 @@ steps:
       - cd /tmpfs/go/src/github.com/gravitational/teleport
       - make -C build.assets test
 
+  # some integration tests can only be run as root, so we handle
+  # these separately using a build tag
+  - name: Run root-only integration tests
+    image: docker
+    environment:
+      GOCACHE: /tmpfs/go/cache
+      GOPATH: /tmpfs/go
+    volumes:
+      - name: dockersock
+        path: /var/run
+      - name: tmp-integration
+        path: /tmp
+      - name: tmpfs
+        path: /tmpfs
+    commands:
+      - apk add --no-cache make
+      - cd /tmpfs/go/src/github.com/gravitational/teleport
+      - make -C build.assets integration-root
+
   - name: Run integration tests
     image: docker
     environment:
@@ -167,7 +186,7 @@ steps:
         path: /tmpfs
     commands:
       - apk add --no-cache make
-      # write kubeconfig to disk for use in kube integrations tests
+      # write kubeconfig to disk for use in kube integration tests
       - echo "$INTEGRATION_CI_KUBECONFIG" > "$KUBECONFIG"
       - chown -R $UID:$GID /tmpfs/go
       - cd /tmpfs/go/src/github.com/gravitational/teleport
@@ -384,7 +403,7 @@ trigger:
       - branch/*
   repo:
     include:
-      - gravitational/*
+      - gravitational/teleport
 
 clone:
   disable: true
@@ -471,13 +490,12 @@ steps:
     settings:
       webhook:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      channel: dev-teleport
       template: |
         *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        `linux-amd64` artifact build failed.
+        `${DRONE_STAGE_NAME}` artifact build failed.
         *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
         Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
+        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
         Author: <https://github.com/{{ build.author }}|{{ build.author }}>
         <{{ build.link }}|Visit Drone build page ↗>
     when:
@@ -569,13 +587,12 @@ steps:
     settings:
       webhook:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      channel: dev-teleport
       template: |
         *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        `linux-386` artifact build failed.
+        `${DRONE_STAGE_NAME}` artifact build failed.
         *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
         Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
+        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
         Author: <https://github.com/{{ build.author }}|{{ build.author }}>
         <{{ build.link }}|Visit Drone build page ↗>
     when:
@@ -671,13 +688,12 @@ steps:
     settings:
       webhook:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      channel: dev-teleport
       template: |
         *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        `linux-amd64-fips` artifact build failed.
+        `${DRONE_STAGE_NAME}` artifact build failed.
         *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
         Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
+        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
         Author: <https://github.com/{{ build.author }}|{{ build.author }}>
         <{{ build.link }}|Visit Drone build page ↗>
     when:
@@ -769,13 +785,12 @@ steps:
     settings:
       webhook:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      channel: dev-teleport
       template: |
         *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        `windows-amd64` artifact build failed.
+        `${DRONE_STAGE_NAME}` artifact build failed.
         *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
         Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
+        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
         Author: <https://github.com/{{ build.author }}|{{ build.author }}>
         <{{ build.link }}|Visit Drone build page ↗>
     when:
@@ -886,10 +901,9 @@ steps:
         export DRONE_BUILD_LINK="${DRONE_SYSTEM_PROTO}://${DRONE_SYSTEM_HOSTNAME}/${DRONE_REPO_OWNER}/${DRONE_REPO_NAME}/${DRONE_BUILD_NUMBER}"
         export GOOS=$(go env GOOS)
         export GOARCH=$(go env GOARCH)
-        curl -sL -X POST -H 'Content-type: application/json' --data "{\"text\":\"Warning: \`$GOOS-$GOARCH\` artifact build failed - please investigate immediately!\nBranch: \`${DRONE_BRANCH}\`\nCommit: \`${DRONE_COMMIT_SHA}\`\nLink: $DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK
+        curl -sL -X POST -H 'Content-type: application/json' --data "{\"text\":\"Warning: \`$GOOS-$GOARCH\` artifact build failed for [\`${DRONE_REPO_NAME}\`] - please investigate immediately!\nBranch: \`${DRONE_BRANCH}\`\nCommit: \`${DRONE_COMMIT_SHA}\`\nLink: $DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK
     when:
       status: [failure]
-
 ---
 kind: pipeline
 type: kubernetes
@@ -966,13 +980,12 @@ steps:
     settings:
       webhook:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      channel: dev-teleport
       template: |
         *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        `linux-arm` artifact build failed.
+        `${DRONE_STAGE_NAME}` artifact build failed.
         *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
         Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
+        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
         Author: <https://github.com/{{ build.author }}|{{ build.author }}>
         <{{ build.link }}|Visit Drone build page ↗>
     when:
@@ -1057,7 +1070,7 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
-      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+      - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
       - docker pull quay.io/gravitational/teleport-buildbox-arm-fips:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
@@ -1068,13 +1081,12 @@ steps:
     settings:
       webhook:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      channel: dev-teleport
       template: |
         *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        `linux-arm-fips` artifact build failed.
+        `${DRONE_STAGE_NAME}` artifact build failed.
         *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
         Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
+        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
         Author: <https://github.com/{{ build.author }}|{{ build.author }}>
         <{{ build.link }}|Visit Drone build page ↗>
     when:
@@ -1167,13 +1179,12 @@ steps:
     settings:
       webhook:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      channel: dev-teleport
       template: |
         *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        `linux-arm64` artifact build failed.
+        `${DRONE_STAGE_NAME}` artifact build failed.
         *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
         Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
+        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
         Author: <https://github.com/{{ build.author }}|{{ build.author }}>
         <{{ build.link }}|Visit Drone build page ↗>
     when:
@@ -1258,7 +1269,7 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
-      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+      - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
       - docker pull quay.io/gravitational/teleport-buildbox-arm-fips:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
@@ -1269,13 +1280,12 @@ steps:
     settings:
       webhook:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      channel: dev-teleport
       template: |
         *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        `linux-arm64-fips` artifact build failed.
+        `${DRONE_STAGE_NAME}` artifact build failed.
         *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
         Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
+        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
         Author: <https://github.com/{{ build.author }}|{{ build.author }}>
         <{{ build.link }}|Visit Drone build page ↗>
     when:
@@ -1302,7 +1312,7 @@ trigger:
     - teleport-docker-cron
   repo:
     include:
-      - gravitational/*
+      - gravitational/teleport
 
 workspace:
   path: /go
@@ -1515,7 +1525,7 @@ trigger:
     - teleport-helm-cron
   repo:
     include:
-      - gravitational/*
+      - gravitational/teleport
 
 workspace:
   path: /go
@@ -1580,7 +1590,6 @@ steps:
     settings:
       webhook:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      channel: dev-teleport
       template: |
         *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
         Details: The `teleport-helm-cron` job in Drone failed to publish Helm charts to S3. This is unusual and should be investigated.
@@ -3264,6 +3273,7 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
+      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - docker pull quay.io/gravitational/teleport-buildbox-arm:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets release-arm
@@ -3364,6 +3374,7 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
+      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - docker pull quay.io/gravitational/teleport-buildbox-arm:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets release-arm64
@@ -3465,6 +3476,7 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
+      - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
       - docker pull quay.io/gravitational/teleport-buildbox-arm-fips:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
@@ -3939,7 +3951,7 @@ trigger:
     - push
   repo:
     include:
-      - gravitational/*
+      - gravitational/teleport
 
 workspace:
   path: /go/src/github.com/gravitational/teleport
@@ -4379,6 +4391,6 @@ volumes:
 
 ---
 kind: signature
-hmac: ae1c9456686b7053f9f0a24b30f42bceda00fff2905e2c081779966db4b40113
+hmac: 6a5acaa383f34c9905f752bccae72b029386ff1536a6c45465c88b8fc6f611ca
 
 ...

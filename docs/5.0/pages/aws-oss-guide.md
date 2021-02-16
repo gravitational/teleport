@@ -3,8 +3,6 @@ title: Running Teleport on AWS
 description: How to install and configure Gravitational Teleport on AWS for SSH and Kubernetes access.
 ---
 
-# Running Teleport on AWS
-
 We've created this guide to give customers a high level overview of how to use Teleport
 on Amazon Web Services (AWS). This guide provides a high level introduction leading to
 a deep dive into how to setup and run Teleport in production.

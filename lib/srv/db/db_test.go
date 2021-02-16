@@ -18,7 +18,6 @@ package db
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -30,6 +29,8 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -40,7 +41,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDatabaseAccess(t *testing.T) {
+// TestPostgresAccess verifies access scenarios to a Postgres database based
+// on the configured RBAC rules.
+func TestPostgresAccess(t *testing.T) {
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t)
 	t.Cleanup(func() { testCtx.Close() })
@@ -140,14 +143,14 @@ func TestDatabaseAccess(t *testing.T) {
 			require.NoError(t, err)
 
 			// Try to connect to the database as this user.
-			pgConn, err := postgres.MakeTestClient(ctx, postgres.TestClientConfig{
+			pgConn, err := postgres.MakeTestClient(ctx, common.TestClientConfig{
 				AuthClient: testCtx.authClient,
 				AuthServer: testCtx.authServer,
 				Address:    testCtx.mux.DB().Addr().String(),
 				Cluster:    testCtx.clusterName,
 				Username:   test.user,
 				RouteToDatabase: tlsca.RouteToDatabase{
-					ServiceName: "test",
+					ServiceName: "postgres-test",
 					Protocol:    defaults.ProtocolPostgres,
 					Username:    test.dbUser,
 					Database:    test.dbName,
@@ -156,33 +159,144 @@ func TestDatabaseAccess(t *testing.T) {
 			if test.err != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), test.err)
-			} else {
-				require.NoError(t, err)
-
-				// Execute a query.
-				result, err := pgConn.Exec(ctx, "select 1").ReadAll()
-				require.NoError(t, err)
-				require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
-
-				// Disconnect.
-				err = pgConn.Close(ctx)
-				require.NoError(t, err)
+				return
 			}
+
+			require.NoError(t, err)
+
+			// Execute a query.
+			result, err := pgConn.Exec(ctx, "select 1").ReadAll()
+			require.NoError(t, err)
+			require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
+
+			// Disconnect.
+			err = pgConn.Close(ctx)
+			require.NoError(t, err)
+		})
+	}
+}
+
+// TestMySQLAccess verifies access scenarios to a MySQL database based
+// on the configured RBAC rules.
+func TestMySQLAccess(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t)
+	t.Cleanup(func() { testCtx.Close() })
+
+	// Start test MySQL server.
+	go testCtx.mysqlServer.Serve()
+	// Start MySQL proxy server.
+	go testCtx.proxyServer.ServeMySQL(testCtx.mysqlListener)
+	// Start database service server.
+	go func() {
+		for conn := range testCtx.proxyConn {
+			testCtx.server.HandleConnection(conn)
+		}
+	}()
+
+	tests := []struct {
+		// desc is the test case description.
+		desc string
+		// user is the Teleport local user name the test will use.
+		user string
+		// role is the Teleport role name to create and assign to the user.
+		role string
+		// allowDbUsers is the role's list of allowed database users.
+		allowDbUsers []string
+		// dbUser is the database user to simulate connect as.
+		dbUser string
+		// err is the expected test case error.
+		err string
+	}{
+		{
+			desc:         "has access to all database users",
+			user:         "alice",
+			role:         "admin",
+			allowDbUsers: []string{types.Wildcard},
+			dbUser:       "root",
+		},
+		{
+			desc:         "has access to nothing",
+			user:         "alice",
+			role:         "admin",
+			allowDbUsers: []string{},
+			dbUser:       "root",
+			err:          "access to database denied",
+		},
+		{
+			desc:         "access allowed to specific user",
+			user:         "alice",
+			role:         "admin",
+			allowDbUsers: []string{"alice"},
+			dbUser:       "alice",
+		},
+		{
+			desc:         "access denied to specific user",
+			user:         "alice",
+			role:         "admin",
+			allowDbUsers: []string{"alice"},
+			dbUser:       "root",
+			err:          "access to database denied",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			// Create user/role with the requested permissions.
+			_, role, err := auth.CreateUserAndRole(testCtx.tlsServer.Auth(), test.user, []string{test.role})
+			require.NoError(t, err)
+
+			role.SetDatabaseUsers(services.Allow, test.allowDbUsers)
+			err = testCtx.tlsServer.Auth().UpsertRole(ctx, role)
+			require.NoError(t, err)
+
+			// Try to connect to the database as this user.
+			mysqlConn, err := mysql.MakeTestClient(common.TestClientConfig{
+				AuthClient: testCtx.authClient,
+				AuthServer: testCtx.authServer,
+				Address:    testCtx.mysqlListener.Addr().String(),
+				Cluster:    testCtx.clusterName,
+				Username:   test.user,
+				RouteToDatabase: tlsca.RouteToDatabase{
+					ServiceName: "mysql-test",
+					Protocol:    defaults.ProtocolPostgres,
+					Username:    test.dbUser,
+				},
+			})
+			if test.err != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), test.err)
+				return
+			}
+
+			require.NoError(t, err)
+
+			// Execute a query.
+			result, err := mysqlConn.Execute("select 1")
+			require.NoError(t, err)
+			require.Equal(t, mysql.TestQueryResponse, result)
+
+			// Disconnect.
+			err = mysqlConn.Close()
+			require.NoError(t, err)
 		})
 	}
 }
 
 type testContext struct {
-	clusterName    string
-	tlsServer      *auth.TestTLSServer
-	authServer     *auth.Server
-	authClient     *auth.Client
-	postgresServer *postgres.TestServer
-	proxyServer    *ProxyServer
-	mux            *multiplexer.Mux
-	proxyConn      chan (net.Conn)
-	server         *Server
-	dbServer       types.DatabaseServer
+	clusterName      string
+	tlsServer        *auth.TestTLSServer
+	authServer       *auth.Server
+	authClient       *auth.Client
+	postgresServer   *postgres.TestServer
+	mysqlServer      *mysql.TestServer
+	proxyServer      *ProxyServer
+	mux              *multiplexer.Mux
+	mysqlListener    net.Listener
+	proxyConn        chan (net.Conn)
+	server           *Server
+	postgresDBServer types.DatabaseServer
+	mysqlDBServer    types.DatabaseServer
 }
 
 // Close closes all resources associated with the test context.
@@ -190,8 +304,14 @@ func (c *testContext) Close() error {
 	if c.mux != nil {
 		c.mux.Close()
 	}
+	if c.mysqlListener != nil {
+		c.mysqlListener.Close()
+	}
 	if c.postgresServer != nil {
 		c.postgresServer.Close()
+	}
+	if c.mysqlServer != nil {
+		c.mysqlServer.Close()
 	}
 	if c.server != nil {
 		c.server.Close()
@@ -203,13 +323,18 @@ func setupTestContext(ctx context.Context, t *testing.T) *testContext {
 	utils.InitLoggerForTests(testing.Verbose())
 
 	clusterName := "root.example.com"
-	dbServerName := "test"
+	postgresServerName := "postgres-test"
+	mysqlServerName := "mysql-test"
 	hostID := uuid.New()
 
 	// Create multiplexer.
 	listener, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 	mux, err := multiplexer.New(multiplexer.Config{ID: "test", Listener: listener})
+	require.NoError(t, err)
+
+	// Create MySQL proxy listener.
+	mysqlListener, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 
 	// Create and start test auth server.
@@ -248,12 +373,26 @@ func setupTestContext(ctx context.Context, t *testing.T) *testContext {
 	require.NoError(t, err)
 
 	// Fake Postgres server that speaks part of its wire protocol.
-	postgresServer, err := postgres.MakeTestServer(dbAuthClient, dbServerName, "")
+	postgresServer, err := postgres.NewTestServer(common.TestServerConfig{
+		AuthClient: dbAuthClient,
+		Name:       postgresServerName,
+	})
 	require.NoError(t, err)
 
-	// Create a database server for the test database service.
-	dbServer := makeDatabaseServer(dbServerName, fmt.Sprintf("localhost:%v", postgresServer.Port()), hostID)
-	_, err = dbAuthClient.UpsertDatabaseServer(ctx, dbServer)
+	// Test MySQL server.
+	mysqlServer, err := mysql.NewTestServer(common.TestServerConfig{
+		AuthClient: dbAuthClient,
+		Name:       mysqlServerName,
+	})
+	require.NoError(t, err)
+
+	// Create database servers for the test database services.
+	postgresDBServer := makeDatabaseServer(postgresServerName, net.JoinHostPort("localhost", postgresServer.Port()), defaults.ProtocolPostgres, hostID)
+	_, err = dbAuthClient.UpsertDatabaseServer(ctx, postgresDBServer)
+	require.NoError(t, err)
+
+	mysqlDBServer := makeDatabaseServer(mysqlServerName, net.JoinHostPort("localhost", mysqlServer.Port()), defaults.ProtocolMySQL, hostID)
+	_, err = dbAuthClient.UpsertDatabaseServer(ctx, mysqlDBServer)
 	require.NoError(t, err)
 
 	// Establish fake reversetunnel b/w database proxy and database service.
@@ -286,32 +425,35 @@ func setupTestContext(ctx context.Context, t *testing.T) *testContext {
 		AccessPoint:   dbAuthClient,
 		StreamEmitter: dbAuthClient,
 		Authorizer:    dbAuthorizer,
-		Servers:       []types.DatabaseServer{dbServer},
+		Servers:       []types.DatabaseServer{postgresDBServer, mysqlDBServer},
 		TLSConfig:     tlsConfig,
 		GetRotation:   func(teleport.Role) (*types.Rotation, error) { return &types.Rotation{}, nil },
 	})
 	require.NoError(t, err)
 
 	return &testContext{
-		clusterName:    clusterName,
-		mux:            mux,
-		proxyServer:    proxyServer,
-		proxyConn:      connCh,
-		postgresServer: postgresServer,
-		server:         server,
-		dbServer:       dbServer,
-		tlsServer:      tlsServer,
-		authServer:     tlsServer.Auth(),
-		authClient:     dbAuthClient,
+		clusterName:      clusterName,
+		mux:              mux,
+		mysqlListener:    mysqlListener,
+		proxyServer:      proxyServer,
+		proxyConn:        connCh,
+		postgresServer:   postgresServer,
+		mysqlServer:      mysqlServer,
+		server:           server,
+		postgresDBServer: postgresDBServer,
+		mysqlDBServer:    mysqlDBServer,
+		tlsServer:        tlsServer,
+		authServer:       tlsServer.Auth(),
+		authClient:       dbAuthClient,
 	}
 }
 
-func makeDatabaseServer(name, uri, hostID string) types.DatabaseServer {
+func makeDatabaseServer(name, uri, protocol, hostID string) types.DatabaseServer {
 	return types.NewDatabaseServerV3(
 		name,
 		nil,
 		types.DatabaseServerSpecV3{
-			Protocol: defaults.ProtocolPostgres,
+			Protocol: protocol,
 			URI:      uri,
 			Version:  teleport.Version,
 			Hostname: teleport.APIDomain,

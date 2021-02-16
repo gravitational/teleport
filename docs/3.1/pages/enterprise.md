@@ -1,4 +1,6 @@
-# Teleport Enterprise
+---
+title: Teleport Enterprise
+---
 
 This section will give an overview of Teleport Enterprise, the commercial product built around
 the open source Teleport Community core. For those that want to jump right in, you can play with

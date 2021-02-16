@@ -1,4 +1,6 @@
-# Kubernetes and SSH Integration Guide
+---
+title: Kubernetes and SSH Integration Guide
+---
 
 Teleport v.3.0+ has the
 ability to act as a compliance gateway for managing privileged access to Kubernetes clusters. This enables the following capabilities:

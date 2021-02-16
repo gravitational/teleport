@@ -1,9 +1,8 @@
 ---
 title: SSH Authentication With Google Apps (G Suite)
 description: How to configure SSH access with Google Apps (also known as G Suite) using Teleport
+h1: SSH Authentication with G Suite (Google Apps)
 ---
-
-# SSH Authentication with G Suite (Google Apps)
 
 ## Google Apps as SSO for SSH
 

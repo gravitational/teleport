@@ -19,21 +19,13 @@ package postgres
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
-	"crypto/x509/pkix"
 	"fmt"
 	"io"
 	"net"
 	"strings"
 	"sync/atomic"
-	"time"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgproto3/v2"
@@ -42,137 +34,24 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// TestClientConfig combines parameters for a test Postgres client.
-type TestClientConfig struct {
-	// AuthClient will be used to retrieve trusted CA.
-	AuthClient auth.ClientI
-	// AuthServer will be used to generate database access certificate for a user.
-	AuthServer *auth.Server
-	// Address is the address to connect to (web proxy).
-	Address string
-	// Cluster is the Teleport cluster name.
-	Cluster string
-	// Username is the Teleport user name.
-	Username string
-	// RouteToDatabase contains database routing information.
-	RouteToDatabase tlsca.RouteToDatabase
-}
-
 // MakeTestClient returns Postgres client connection according to the provided
 // parameters.
-func MakeTestClient(ctx context.Context, config TestClientConfig) (*pgconn.PgConn, error) {
+func MakeTestClient(ctx context.Context, config common.TestClientConfig) (*pgconn.PgConn, error) {
 	// Client will be connecting directly to the multiplexer address.
 	pgconnConfig, err := pgconn.ParseConfig(fmt.Sprintf("postgres://%v@%v/?database=%v",
 		config.RouteToDatabase.Username, config.Address, config.RouteToDatabase.Database))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	key, err := client.NewKey()
+	pgconnConfig.TLSConfig, err = common.MakeTestClientTLSConfig(config)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	// Generate client certificate for the Teleport user.
-	cert, err := config.AuthServer.GenerateDatabaseTestCert(
-		auth.DatabaseTestCertRequest{
-			PublicKey:       key.Pub,
-			Cluster:         config.Cluster,
-			Username:        config.Username,
-			RouteToDatabase: config.RouteToDatabase,
-		})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tlsCert, err := tls.X509KeyPair(cert, key.Priv)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	ca, err := config.AuthClient.GetCertAuthority(services.CertAuthID{
-		Type:       services.HostCA,
-		DomainName: config.Cluster,
-	}, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	pool, err := services.CertPool(ca)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	pgconnConfig.TLSConfig = &tls.Config{
-		RootCAs:            pool,
-		Certificates:       []tls.Certificate{tlsCert},
-		InsecureSkipVerify: true,
 	}
 	pgConn, err := pgconn.ConnectConfig(ctx, pgconnConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return pgConn, nil
-}
-
-// MakeTestServer returns a new configured and unstarted test Postgres server
-// for the provided cluster client.
-func MakeTestServer(authClient *auth.Client, name, address string) (*TestServer, error) {
-	privateKey, _, err := testauthority.New().GenerateKeyPair("")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	csr, err := tlsca.GenerateCertificateRequestPEM(pkix.Name{
-		CommonName: "localhost",
-	}, privateKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	resp, err := authClient.GenerateDatabaseCert(context.Background(),
-		&proto.DatabaseCertRequest{
-			CSR:        csr,
-			ServerName: "localhost",
-			TTL:        proto.Duration(time.Hour),
-		})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cert, err := tls.X509KeyPair(resp.Cert, privateKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	pool := x509.NewCertPool()
-	for _, ca := range resp.CACerts {
-		if ok := pool.AppendCertsFromPEM(ca); !ok {
-			return nil, trace.BadParameter("failed to append certificate pem")
-		}
-	}
-	return NewTestServer(TestServerConfig{
-		Name: name,
-		TLSConfig: &tls.Config{
-			ClientCAs:    pool,
-			Certificates: []tls.Certificate{cert},
-		},
-		Address: address,
-	})
-}
-
-// TestServerConfig is the test Postgres server configuration.
-type TestServerConfig struct {
-	// Name is used for identification purposes in the logs.
-	Name string
-	// TLSConfig is the server TLS config.
-	TLSConfig *tls.Config
-	// Address is the optional listen address.
-	Address string
-}
-
-// CheckAndSetDefaults validates the config and sets default values.
-func (c *TestServerConfig) CheckAndSetDefaults() error {
-	if c.Name == "" {
-		return trace.BadParameter("missing Name")
-	}
-	if c.TLSConfig == nil {
-		return trace.BadParameter("missing TLSConfig")
-	}
-	if c.Address == "" {
-		c.Address = "localhost:0"
-	}
-	return nil
 }
 
 // TestServer is a test Postgres server used in functional database
@@ -192,12 +71,12 @@ type TestServer struct {
 }
 
 // NewTestServer returns a new instance of a test Postgres server.
-func NewTestServer(config TestServerConfig) (*TestServer, error) {
-	err := config.CheckAndSetDefaults()
-	if err != nil {
-		return nil, trace.Wrap(err)
+func NewTestServer(config common.TestServerConfig) (*TestServer, error) {
+	address := "localhost:0"
+	if config.Address != "" {
+		address = config.Address
 	}
-	listener, err := net.Listen("tcp", config.Address)
+	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -205,10 +84,14 @@ func NewTestServer(config TestServerConfig) (*TestServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	tlsConfig, err := common.MakeTestServerTLSConfig(config)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &TestServer{
 		listener:  listener,
 		port:      port,
-		tlsConfig: config.TLSConfig,
+		tlsConfig: tlsConfig,
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: "postgres",
 			"name":          config.Name,
@@ -337,7 +220,7 @@ func (s *TestServer) Port() string {
 
 // QueryCount returns the number of queries the server has received.
 func (s *TestServer) QueryCount() uint32 {
-	return s.queryCount
+	return atomic.LoadUint32(&s.queryCount)
 }
 
 // Close closes the server listener.

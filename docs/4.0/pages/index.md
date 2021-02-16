@@ -1,4 +1,6 @@
-# Introduction
+---
+title: Introduction
+---
 
 ## What is Teleport?
 

@@ -1,9 +1,8 @@
 ---
 title: Teleport Proxy Service
 description: How Teleport implements SSH and Kubernetes access via a Proxy
+h1: The Proxy Service
 ---
-
-# The Proxy Service
 
 The proxy is a stateless service which performs three main functions in a
 Teleport cluster:

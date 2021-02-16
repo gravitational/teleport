@@ -3,8 +3,6 @@ title: Running Teleport on IBM Cloud
 description: How to install and configure Gravitational Teleport on IBM cloud for SSH and Kubernetes access.
 ---
 
-# Running Teleport on IBM Cloud
-
 We've created this guide to give customers a high level overview of how to use Teleport
 on the [IBM Cloud](https://www.ibm.com/cloud). This guide provides a high level
 introduction leading to a deep dive into how to setup and run Teleport in production.

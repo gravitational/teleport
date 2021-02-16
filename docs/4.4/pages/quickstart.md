@@ -3,8 +3,6 @@ title: Teleport Quick Start
 description: The quick start guide for how to set up modern SSH access to cloud or edge infrastructure.
 ---
 
-# Teleport Quick Start
-
 This tutorial will guide you through the steps needed to install and run
 Teleport on a single node, which could be your local machine but we recommend a
 VM.
