@@ -893,7 +893,7 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector services.OIDCConne
 			log.Debugf("Found no Google Workspace claims.")
 		} else {
 			if gsuiteClaims != nil {
-				log.Debugf("Got GoogleWorkspace claims: %v.", gsuiteClaims)
+				log.Debugf("Got gsuiteClaims claims from Google Workspace: %v.", gsuiteClaims)
 			}
 			claims, err = mergeClaims(claims, gsuiteClaims)
 			if err != nil {
