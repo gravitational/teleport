@@ -1900,7 +1900,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 		ClusterName:    clusterMain,
 		HostID:         HostID,
 		NodeName:       Host,
-		Ports:          s.getPorts(5),
+		Ports:          s.getPorts(6),
 		Priv:           s.priv,
 		Pub:            s.pub,
 		MultiplexProxy: test.multiplex,
@@ -4986,7 +4986,7 @@ func (s *IntSuite) newTeleportInstance(c *check.C) *TeleInstance {
 		ClusterName: Site,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.getPorts(5),
+		Ports:       s.getPorts(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
@@ -4998,7 +4998,7 @@ func (s *IntSuite) newNamedTeleportInstance(c *check.C, clusterName string) *Tel
 		ClusterName: clusterName,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.getPorts(5),
+		Ports:       s.getPorts(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
@@ -5096,10 +5096,15 @@ func hasPAMPolicy() bool {
 	return true
 }
 
-// isRoot returns a boolean if the test is being run as root or not. Tests
-// for this package must be run as root.
+// isRoot returns a boolean if the test is being run as root or not.
+func isRoot() bool {
+	return os.Geteuid() == 0
+}
+
+// canTestBPF runs checks to determine whether BPF tests will run or not.
+// Tests for this package must be run as root.
 func canTestBPF() error {
-	if os.Geteuid() != 0 {
+	if !isRoot() {
 		return trace.BadParameter("not root")
 	}
 

@@ -799,6 +799,19 @@ func (s *ServicesTestSuite) U2FCRUD(c *check.C) {
 	registrationOut, err := u2f.DeviceToRegistration(devs[0].GetU2F())
 	c.Assert(err, check.IsNil)
 	c.Assert(&registration, check.DeepEquals, registrationOut)
+
+	// Attempt to upsert the same device name with a different ID.
+	dev.Id = uuid.New()
+	err = s.WebS.UpsertMFADevice(ctx, user1, dev)
+	c.Assert(trace.IsAlreadyExists(err), check.Equals, true)
+
+	// Attempt to upsert a new device with different name and ID.
+	dev.Metadata.Name = "u2f-2"
+	err = s.WebS.UpsertMFADevice(ctx, user1, dev)
+	c.Assert(err, check.IsNil)
+	devs, err = s.WebS.GetMFADevices(ctx, user1)
+	c.Assert(err, check.IsNil)
+	c.Assert(devs, check.HasLen, 2)
 }
 
 func (s *ServicesTestSuite) SAMLCRUD(c *check.C) {

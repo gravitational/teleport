@@ -1,4 +1,6 @@
-# OAuth2 / OpenID Connect (OIDC) Authentication for SSH
+---
+title: OAuth2 / OpenID Connect (OIDC) Authentication for SSH
+---
 
 This guide will cover how to configure an SSO provider using [OpenID Connect](http://openid.net/connect/)
 (also known as OIDC) to issue SSH credentials to a specific groups of users.

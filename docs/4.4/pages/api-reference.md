@@ -3,8 +3,6 @@ title: Teleport API Reference
 description: The detailed guide to Teleport API
 ---
 
-# Teleport API Reference
-
 In most cases, you can interact with Teleport using our CLI tools, [tsh](cli-docs.md#tsh) and [tctl](cli-docs.md#tctl). However, there are some scenarios where you may need to interact with Teleport programmatically. For this purpose, you can directly use the same API that `tctl` and `tsh` use.
 
 !!! note

@@ -138,6 +138,8 @@ type InstanceSecrets struct {
 	ListenAddr string `json:"tunnel_addr"`
 	// WebProxyAddr is address for web proxy
 	WebProxyAddr string `json:"web_proxy_addr"`
+	// MySQLProxyAddr is the address of MySQL proxy.
+	MySQLProxyAddr string `json:"mysql_proxy_addr"`
 	// list of users i instance trusts (key in the map is username)
 	Users map[string]*User `json:"users"`
 }
@@ -232,15 +234,16 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 		log:           cfg.log,
 	}
 	secrets := InstanceSecrets{
-		SiteName:     cfg.ClusterName,
-		PrivKey:      cfg.Priv,
-		PubKey:       cfg.Pub,
-		Cert:         cert,
-		TLSCACert:    tlsCACert,
-		TLSCert:      tlsCert,
-		ListenAddr:   net.JoinHostPort(cfg.NodeName, i.GetPortReverseTunnel()),
-		WebProxyAddr: net.JoinHostPort(cfg.NodeName, i.GetPortWeb()),
-		Users:        make(map[string]*User),
+		SiteName:       cfg.ClusterName,
+		PrivKey:        cfg.Priv,
+		PubKey:         cfg.Pub,
+		Cert:           cert,
+		TLSCACert:      tlsCACert,
+		TLSCert:        tlsCert,
+		ListenAddr:     net.JoinHostPort(cfg.NodeName, i.GetPortReverseTunnel()),
+		WebProxyAddr:   net.JoinHostPort(cfg.NodeName, i.GetPortWeb()),
+		MySQLProxyAddr: net.JoinHostPort(cfg.NodeName, i.GetPortMySQL()),
+		Users:          make(map[string]*User),
 	}
 	if cfg.MultiplexProxy {
 		secrets.ListenAddr = secrets.WebProxyAddr
@@ -352,6 +355,10 @@ func (i *TeleInstance) GetPortWeb() string {
 
 func (i *TeleInstance) GetPortReverseTunnel() string {
 	return strconv.Itoa(i.Ports[4])
+}
+
+func (i *TeleInstance) GetPortMySQL() string {
+	return strconv.Itoa(i.Ports[5])
 }
 
 // GetSiteAPI() is a helper which returns an API endpoint to a site with
@@ -559,6 +566,7 @@ func (i *TeleInstance) GenerateConfig(trustedSecrets []*InstanceSecrets, tconf *
 	}
 	tconf.Proxy.SSHAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortProxy())
 	tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortWeb())
+	tconf.Proxy.MySQLAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortMySQL())
 	tconf.Proxy.PublicAddrs = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",

@@ -1,9 +1,8 @@
 ---
 title: SSH Authentication With Okta as an SSO provider
 description: How to configure SSH access using Okta for SSO
+h1: SSH Authentication with Okta
 ---
-
-# SSH Authentication with Okta
 
 ## How to use Okta as a single sign-on (SSO) provider for SSH
 

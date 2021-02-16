@@ -1,9 +1,8 @@
 ---
 title: Access Workflows for SSH and Kubernetes Access
 description: How to customize SSH and Kubernetes access using Teleport.
+h1: Teleport Access Workflows
 ---
-
-# Teleport Access Workflows
 
 #### Approving Workflow using an External Integration
 - [Integrating Teleport with Slack](ssh-approval-slack.md)

@@ -3,8 +3,6 @@ title: Teleport Nodes
 description: This chapter explains the concept of a Teleport Node and Teleport manages SSH and Kubernetes nodes.
 ---
 
-# Teleport Nodes
-
 Teleport calls any computing device (server, VM, AWS intance, etc) a "node".
 
 ## The Node Service

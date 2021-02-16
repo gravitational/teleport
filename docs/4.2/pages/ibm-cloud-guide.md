@@ -1,4 +1,6 @@
-# Running Teleport on IBM Cloud
+---
+title: Running Teleport on IBM Cloud
+---
 
 We've created this guide to give customers a high level overview of how to use Teleport
 on the [IBM Cloud](https://www.ibm.com/cloud). This guide provides a high level

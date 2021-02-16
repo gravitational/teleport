@@ -1,9 +1,8 @@
 ---
 title: Teleport Database Access
 description: Secure and Audited Access to Postgres Databases. Documentation to outline our preview.
+h1: Teleport Database Access Preview
 ---
-
-# Teleport Database Access Preview
 
 Teleport Database Access allows organizations to use Teleport as a proxy to
 provide secure access to their databases while improving both visibility and

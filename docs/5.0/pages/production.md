@@ -1,9 +1,8 @@
 ---
 title: Teleport Production Guide
 description: How to configure SSH and Kubernetes access with SSO on AWS, GCE and your own infrastructure.
+h1: Production Guide
 ---
-
-# Production Guide
 
 This guide provides more in-depth details for running Teleport in Production.
 

@@ -365,7 +365,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		// serve Web UI:
 		if strings.HasPrefix(r.URL.Path, "/web/app") {
 			httplib.SetStaticFileHeaders(w.Header())
-			http.StripPrefix("/web", http.FileServer(cfg.StaticFS)).ServeHTTP(w, r)
+			http.StripPrefix("/web", makeGzipHandler(http.FileServer(cfg.StaticFS))).ServeHTTP(w, r)
 		} else if strings.HasPrefix(r.URL.Path, "/web/") || r.URL.Path == "/web" {
 			csrfToken, err := csrf.AddCSRFProtection(w, r)
 			if err != nil {

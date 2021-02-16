@@ -3,8 +3,6 @@ title: Teleport Admin Manual
 description: Admin manual for how to configure identity-aware SSH, certificate-based SSH authentication, set up SSO for SSH, SSO for Kubernetes, and more.
 ---
 
-# Teleport Admin Manual
-
 This manual covers the installation and configuration of Teleport and the
 ongoing management of a Teleport cluster. It assumes that the reader has good
 understanding of Linux administration.
