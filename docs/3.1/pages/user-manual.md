@@ -125,11 +125,11 @@ Subsequent `tsh ssh` commands will run without asking for credentials
 until the temporary certificate expires. By default, Teleport issues user
 certificates with a TTL (time to live) of 12 hours.
 
-!!! tip "Tip"
-
-    It is recommended to always use `tsh login` before using any other `tsh` commands.
-    This allows users to omit `--proxy` flag in subsequent tsh commands. For example
-    `tsh ssh user@host` will work.
+<Admonition type="tip" title="Tip">
+It is recommended to always use `tsh login` before using any other `tsh` commands.
+This allows users to omit `--proxy` flag in subsequent tsh commands. For example
+`tsh ssh user@host` will work.
+</Admonition>
 
 A Teleport cluster can be configured for multiple user identity sources. For
 example, a cluster may have a local user called "admin" while regular users
@@ -446,9 +446,9 @@ Or you can share the session ID and she can join you through her terminal by typ
 $ tsh join 7645d523-60cb-436d-b732-99c5df14b7c4
 ```
 
-!!! note
-
-    Joining sessions is not supported in recording proxy mode (where `session_recording` is set to `proxy`).
+<Admonition type="note">
+Joining sessions is not supported in recording proxy mode (where `session_recording` is set to `proxy`).
+</Admonition>
 
 ## Connecting to SSH Clusters behind Firewalls
 
@@ -516,12 +516,12 @@ There are a few differences between Teleport's `tsh` and OpenSSH's `ssh` but mos
   use `tsh login` before `tsh ssh`, your Teleport username will be stored in
   `~/.tsh`
 
-!!! tip "Tip"
-
-    To avoid typing `tsh ssh user@host` when logging into servers, you can
-    create a symlink `ssh -> tsh` and execute the symlink. It will behave exactly
-    like a standard `ssh` command, i.e. `ssh login@host`. This is helpful with other
-    tools that expect `ssh` to just work.
+<Admonition type="tip" title="Tip">
+To avoid typing `tsh ssh user@host` when logging into servers, you can
+create a symlink `ssh -> tsh` and execute the symlink. It will behave exactly
+like a standard `ssh` command, i.e. `ssh login@host`. This is helpful with other
+tools that expect `ssh` to just work.
+</Admonition>
 
 Teleport is built using standard SSH constructs: keys, certificates and protocols.
 This means that a Teleport system is 100% compatible with both OpenSSH clients and servers.

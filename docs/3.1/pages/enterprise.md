@@ -15,10 +15,10 @@ benefits of Teleport Enterprise.
 |[Single Sign-On (SSO)](#sso)| Allows Teleport to integrate with existing enterprise identity systems. Examples include Active Directory, Github, Google Apps and numerous identity middleware solutions like Auth0, Okta, and so on. Teleport supports SAML and OAuth/OpenID Connect protocols to interact with them.
 |Commercial Support | In addition to these features, Teleport Enterprise also comes with a premium support SLA with guaranteed response times.
 
-!!! tip "Contact Information"
-
-    If you are interested in Teleport Enterprise, please reach out to
-    `sales@gravitational.com` for more information.
+<Admonition type="tip" title="Contact Information">
+If you are interested in Teleport Enterprise, please reach out to
+`sales@gravitational.com` for more information.
+</Admonition>
 
 ## RBAC
 
@@ -83,7 +83,6 @@ Moreover, SSO can be used in combination with role-based access control (RBAC)
 to enforce SSH access policies like _"developers must not touch production data"_.
 See the [SSO for SSH](ssh-sso.md) chapter for more details.
 
-
-!!! tip "Contact Information"
-
-    For more information about Teleport Enterprise or Telekube please reach out us to `sales@gravitational.com` or fill out the contact for on our [website](https://gravitational.com/demo)
+<Admonition type="tip" title="Contact Information">
+For more information about Teleport Enterprise or Telekube please reach out us to `sales@gravitational.com` or fill out the contact for on our [website](https://gravitational.com/demo)
+</Admonition>
