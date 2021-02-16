@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -32,18 +32,15 @@ import (
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
-	"gopkg.in/check.v1"
-
-	"github.com/gravitational/trace"
 )
 
 type testConfigFiles struct {
@@ -104,45 +101,40 @@ func TestMain(m *testing.M) {
 	os.Exit(res)
 }
 
-// bootstrap check
-func TestConfig(t *testing.T) { check.TestingT(t) }
-
-// register test suite
-type ConfigTestSuite struct {
-	testConfigFiles
-}
-
-var _ = check.Suite(&ConfigTestSuite{})
-
-func (s *ConfigTestSuite) SetUpSuite(c *check.C) {
+func TestConfig(t *testing.T) {
 	utils.InitLoggerForTests(testing.Verbose())
-	s.testConfigFiles = testConfigs
-}
 
-func (s *ConfigTestSuite) TestSampleConfig(c *check.C) {
-	// generate sample config and write it into a temp file:
-	sfc, err := MakeSampleFileConfig()
-	c.Assert(err, check.IsNil)
-	c.Assert(sfc, check.NotNil)
-	fn := filepath.Join(c.MkDir(), "default-config.yaml")
-	err = ioutil.WriteFile(fn, []byte(sfc.DebugDumpToYAML()), 0660)
-	c.Assert(err, check.IsNil)
+	t.Run("SampleConfig", func(t *testing.T) {
+		// generate sample config and write it into a temp file:
+		sfc, err := MakeSampleFileConfig(SampleFlags{
+			ClusterName: "cookie.localhost",
+			ACMEEnabled: true,
+			ACMEEmail:   "alice@example.com",
+			LicensePath: "/tmp/license.pem",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, sfc)
+		fn := filepath.Join(t.TempDir(), "default-config.yaml")
+		err = ioutil.WriteFile(fn, []byte(sfc.DebugDumpToYAML()), 0660)
+		require.NoError(t, err)
 
-	// make sure it could be parsed:
-	fc, err := ReadFromFile(fn)
-	c.Assert(err, check.IsNil)
+		// make sure it could be parsed:
+		fc, err := ReadFromFile(fn)
+		require.NoError(t, err)
 
-	// validate a couple of values:
-	c.Assert(fc.AuthServers, check.DeepEquals, []string{fmt.Sprintf("%s:%d", defaults.Localhost, defaults.AuthListenPort)})
-	c.Assert(fc.Global.DataDir, check.Equals, defaults.DataDir)
-	c.Assert(fc.Logger.Severity, check.Equals, "INFO")
+		// validate a couple of values:
+		require.Equal(t, defaults.DataDir, fc.Global.DataDir)
+		require.Equal(t, "INFO", fc.Logger.Severity)
+		require.Equal(t, fc.Auth.ClusterName, ClusterName("cookie.localhost"))
+		require.Equal(t, fc.Auth.LicenseFile, "/tmp/license.pem")
 
-	c.Assert(lib.IsInsecureDevMode(), check.Equals, false)
+		require.False(t, lib.IsInsecureDevMode())
+	})
 }
 
 // TestBooleanParsing tests that boolean options
 // are parsed properly
-func (s *ConfigTestSuite) TestBooleanParsing(c *check.C) {
+func TestBooleanParsing(t *testing.T) {
 	testCases := []struct {
 		s string
 		b bool
@@ -157,7 +149,7 @@ func (s *ConfigTestSuite) TestBooleanParsing(c *check.C) {
 		{s: "0", b: false},
 	}
 	for i, tc := range testCases {
-		comment := check.Commentf("test case %v", i)
+		msg := fmt.Sprintf("test case %v", i)
 		conf, err := ReadFromString(base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf(`
 teleport:
   advertise_ip: 10.10.10.1
@@ -165,14 +157,14 @@ auth_service:
   enabled: yes
   disconnect_expired_cert: %v
 `, tc.s))))
-		c.Assert(err, check.IsNil)
-		c.Assert(conf.Auth.DisconnectExpiredCert.Value(), check.Equals, tc.b, comment)
+		require.NoError(t, err, msg)
+		require.Equal(t, tc.b, conf.Auth.DisconnectExpiredCert.Value(), msg)
 	}
 }
 
 // TestDurationParsing tests that duration options
 // are parsed properly
-func (s *ConfigTestSuite) TestDuration(c *check.C) {
+func TestDuration(t *testing.T) {
 	testCases := []struct {
 		s string
 		d time.Duration
@@ -182,7 +174,7 @@ func (s *ConfigTestSuite) TestDuration(c *check.C) {
 		{s: "'1m'", d: time.Minute},
 	}
 	for i, tc := range testCases {
-		comment := check.Commentf("test case %v", i)
+		comment := fmt.Sprintf("test case %v", i)
 		conf, err := ReadFromString(base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf(`
 teleport:
   advertise_ip: 10.10.10.1
@@ -190,8 +182,8 @@ auth_service:
   enabled: yes
   client_idle_timeout: %v
 `, tc.s))))
-		c.Assert(err, check.IsNil)
-		c.Assert(conf.Auth.ClientIdleTimeout.Value(), check.Equals, tc.d, comment)
+		require.NoError(t, err, comment)
+		require.Equal(t, tc.d, conf.Auth.ClientIdleTimeout.Value(), comment)
 	}
 }
 
@@ -333,43 +325,43 @@ func TestConfigReading(t *testing.T) {
 	checkStaticConfig(t, conf)
 }
 
-func (s *ConfigTestSuite) TestLabelParsing(c *check.C) {
+func TestLabelParsing(t *testing.T) {
 	var conf service.SSHConfig
 	var err error
 	// empty spec. no errors, no labels
 	err = parseLabelsApply("", &conf)
-	c.Assert(err, check.IsNil)
-	c.Assert(conf.CmdLabels, check.IsNil)
-	c.Assert(conf.Labels, check.IsNil)
+	require.Nil(t, err)
+	require.Nil(t, conf.CmdLabels)
+	require.Nil(t, conf.Labels)
 
 	// simple static labels
 	err = parseLabelsApply(`key=value,more="much better"`, &conf)
-	c.Assert(err, check.IsNil)
-	c.Assert(conf.CmdLabels, check.NotNil)
-	c.Assert(conf.CmdLabels, check.HasLen, 0)
-	c.Assert(conf.Labels, check.DeepEquals, map[string]string{
+	require.NoError(t, err)
+	require.NotNil(t, conf.CmdLabels)
+	require.Len(t, conf.CmdLabels, 0)
+	require.Equal(t, map[string]string{
 		"key":  "value",
 		"more": "much better",
-	})
+	}, conf.Labels)
 
 	// static labels + command labels
 	err = parseLabelsApply(`key=value,more="much better",arch=[5m2s:/bin/uname -m "p1 p2"]`, &conf)
-	c.Assert(err, check.IsNil)
-	c.Assert(conf.Labels, check.DeepEquals, map[string]string{
+	require.Nil(t, err)
+	require.Equal(t, map[string]string{
 		"key":  "value",
 		"more": "much better",
-	})
-	c.Assert(conf.CmdLabels, check.DeepEquals, services.CommandLabels{
+	}, conf.Labels)
+	require.Equal(t, services.CommandLabels{
 		"arch": &services.CommandLabelV2{
 			Period:  services.NewDuration(time.Minute*5 + time.Second*2),
 			Command: []string{"/bin/uname", "-m", `"p1 p2"`},
 		},
-	})
+	}, conf.CmdLabels)
 }
 
-func (s *ConfigTestSuite) TestTrustedClusters(c *check.C) {
+func TestTrustedClusters(t *testing.T) {
 	err := readTrustedClusters(nil, nil)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	var conf service.Config
 	err = readTrustedClusters([]TrustedCluster{
@@ -379,24 +371,24 @@ func (s *ConfigTestSuite) TestTrustedClusters(c *check.C) {
 			TunnelAddr:    "one,two",
 		},
 	}, &conf)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	authorities := conf.Auth.Authorities
-	c.Assert(len(authorities), check.Equals, 2)
-	c.Assert(authorities[0].GetClusterName(), check.Equals, "cluster-a")
-	c.Assert(authorities[0].GetType(), check.Equals, services.HostCA)
-	c.Assert(len(authorities[0].GetCheckingKeys()), check.Equals, 1)
-	c.Assert(authorities[1].GetClusterName(), check.Equals, "cluster-a")
-	c.Assert(authorities[1].GetType(), check.Equals, services.UserCA)
-	c.Assert(len(authorities[1].GetCheckingKeys()), check.Equals, 1)
+	require.Len(t, authorities, 2)
+	require.Equal(t, "cluster-a", authorities[0].GetClusterName())
+	require.Equal(t, services.HostCA, authorities[0].GetType())
+	require.Len(t, authorities[0].GetCheckingKeys(), 1)
+	require.Equal(t, "cluster-a", authorities[1].GetClusterName())
+	require.Equal(t, services.UserCA, authorities[1].GetType())
+	require.Len(t, authorities[1].GetCheckingKeys(), 1)
 	_, _, _, _, err = ssh.ParseAuthorizedKey(authorities[1].GetCheckingKeys()[0])
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	tunnels := conf.ReverseTunnels
-	c.Assert(len(tunnels), check.Equals, 1)
-	c.Assert(tunnels[0].GetClusterName(), check.Equals, "cluster-a")
-	c.Assert(len(tunnels[0].GetDialAddrs()), check.Equals, 2)
-	c.Assert(tunnels[0].GetDialAddrs()[0], check.Equals, "tcp://one:3024")
-	c.Assert(tunnels[0].GetDialAddrs()[1], check.Equals, "tcp://two:3024")
+	require.Len(t, tunnels, 1)
+	require.Equal(t, "cluster-a", tunnels[0].GetClusterName())
+	require.Len(t, tunnels[0].GetDialAddrs(), 2)
+	require.Equal(t, "tcp://one:3024", tunnels[0].GetDialAddrs()[0])
+	require.Equal(t, "tcp://two:3024", tunnels[0].GetDialAddrs()[1])
 
 	// invalid data:
 	err = readTrustedClusters([]TrustedCluster{
@@ -406,15 +398,16 @@ func (s *ConfigTestSuite) TestTrustedClusters(c *check.C) {
 			TunnelAddr:    "one,two",
 		},
 	}, &conf)
-	c.Assert(err, check.NotNil)
-	c.Assert(err, check.ErrorMatches, "^.*reading trusted cluster keys.*$")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "reading trusted cluster keys")
 	err = readTrustedClusters([]TrustedCluster{
 		{
 			KeyFile:    "../../fixtures/trusted_clusters/cluster-a",
 			TunnelAddr: "one,two",
 		},
 	}, &conf)
-	c.Assert(err, check.ErrorMatches, ".*needs allow_logins parameter")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "needs allow_logins parameter")
 	conf.ReverseTunnels = nil
 	err = readTrustedClusters([]TrustedCluster{
 		{
@@ -423,12 +416,12 @@ func (s *ConfigTestSuite) TestTrustedClusters(c *check.C) {
 			TunnelAddr:    "",
 		},
 	}, &conf)
-	c.Assert(err, check.IsNil)
-	c.Assert(len(conf.ReverseTunnels), check.Equals, 0)
+	require.NoError(t, err)
+	require.Len(t, conf.ReverseTunnels, 0)
 }
 
 // TestFileConfigCheck makes sure we don't start with invalid settings.
-func (s *ConfigTestSuite) TestFileConfigCheck(c *check.C) {
+func TestFileConfigCheck(t *testing.T) {
 	tests := []struct {
 		desc     string
 		inConfig string
@@ -472,33 +465,34 @@ teleport:
 	}
 
 	for _, tt := range tests {
-		comment := check.Commentf(tt.desc)
+		comment := fmt.Sprintf(tt.desc)
 
 		_, err := ReadConfig(bytes.NewBufferString(tt.inConfig))
 		if tt.outError {
-			c.Assert(err, check.NotNil, comment)
+			require.Error(t, err, comment)
 		} else {
-			c.Assert(err, check.IsNil, comment)
+			require.NoError(t, err, comment)
 		}
 	}
 }
 
-func (s *ConfigTestSuite) TestApplyConfig(c *check.C) {
-	tokenPath := filepath.Join(s.tempDir, "small-config-token")
+func TestApplyConfig(t *testing.T) {
+	tempDir := t.TempDir()
+	tokenPath := filepath.Join(tempDir, "small-config-token")
 	err := ioutil.WriteFile(tokenPath, []byte("join-token"), 0644)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	conf, err := ReadConfig(bytes.NewBufferString(fmt.Sprintf(SmallConfigString, tokenPath)))
-	c.Assert(err, check.IsNil)
-	c.Assert(conf, check.NotNil)
-	c.Assert(conf.Proxy.PublicAddr, check.DeepEquals, utils.Strings{"web3:443"})
+	require.NoError(t, err)
+	require.NotNil(t, conf)
+	require.Equal(t, utils.Strings{"web3:443"}, conf.Proxy.PublicAddr)
 
 	cfg := service.MakeDefaultConfig()
 	err = ApplyFileConfig(conf, cfg)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
-	c.Assert(cfg.Token, check.Equals, "join-token")
-	c.Assert(cfg.Auth.StaticTokens.GetStaticTokens(), check.DeepEquals, services.ProvisionTokensFromV1([]services.ProvisionTokenV1{
+	require.Equal(t, "join-token", cfg.Token)
+	require.Equal(t, services.ProvisionTokensFromV1([]services.ProvisionTokenV1{
 		{
 			Token:   "xxx",
 			Roles:   teleport.Roles([]teleport.Role{"Proxy", "Node"}),
@@ -509,47 +503,46 @@ func (s *ConfigTestSuite) TestApplyConfig(c *check.C) {
 			Roles:   teleport.Roles([]teleport.Role{"Auth"}),
 			Expires: time.Unix(0, 0).UTC(),
 		},
-	}))
-	c.Assert(cfg.Auth.ClusterName.GetClusterName(), check.Equals, "magadan")
-	c.Assert(cfg.Auth.ClusterConfig.GetLocalAuth(), check.Equals, true)
-	c.Assert(cfg.AdvertiseIP, check.Equals, "10.10.10.1")
+	}), cfg.Auth.StaticTokens.GetStaticTokens())
+	require.Equal(t, "magadan", cfg.Auth.ClusterName.GetClusterName())
+	require.True(t, cfg.Auth.ClusterConfig.GetLocalAuth())
+	require.Equal(t, "10.10.10.1", cfg.AdvertiseIP)
 
-	c.Assert(cfg.Proxy.Enabled, check.Equals, true)
-	c.Assert(cfg.Proxy.WebAddr.FullAddress(), check.Equals, "tcp://webhost:3080")
-	c.Assert(cfg.Proxy.ReverseTunnelListenAddr.FullAddress(), check.Equals, "tcp://tunnelhost:1001")
+	require.True(t, cfg.Proxy.Enabled)
+	require.Equal(t, "tcp://webhost:3080", cfg.Proxy.WebAddr.FullAddress())
+	require.Equal(t, "tcp://tunnelhost:1001", cfg.Proxy.ReverseTunnelListenAddr.FullAddress())
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
 // it's fields are not read in.
-func (s *ConfigTestSuite) TestApplyConfigNoneEnabled(c *check.C) {
+func TestApplyConfigNoneEnabled(t *testing.T) {
 	conf, err := ReadConfig(bytes.NewBufferString(NoServicesConfigString))
-	c.Assert(err, check.IsNil)
-	c.Assert(conf, check.NotNil)
+	require.NoError(t, err)
 
 	cfg := service.MakeDefaultConfig()
 	err = ApplyFileConfig(conf, cfg)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
-	c.Assert(cfg.Auth.Enabled, check.Equals, false)
-	c.Assert(cfg.Auth.PublicAddrs, check.HasLen, 0)
-	c.Assert(cfg.Proxy.Enabled, check.Equals, false)
-	c.Assert(cfg.Proxy.PublicAddrs, check.HasLen, 0)
-	c.Assert(cfg.SSH.Enabled, check.Equals, false)
-	c.Assert(cfg.SSH.PublicAddrs, check.HasLen, 0)
-	c.Assert(cfg.Apps.Enabled, check.Equals, false)
-	c.Assert(cfg.Databases.Enabled, check.Equals, false)
+	require.False(t, cfg.Auth.Enabled)
+	require.Len(t, cfg.Auth.PublicAddrs, 0)
+	require.False(t, cfg.Proxy.Enabled)
+	require.Len(t, cfg.Proxy.PublicAddrs, 0)
+	require.False(t, cfg.SSH.Enabled)
+	require.Len(t, cfg.SSH.PublicAddrs, 0)
+	require.False(t, cfg.Apps.Enabled)
+	require.False(t, cfg.Databases.Enabled)
 }
 
-func (s *ConfigTestSuite) TestBackendDefaults(c *check.C) {
+func TestBackendDefaults(t *testing.T) {
 	read := func(val string) *service.Config {
 		// Default value is lite backend.
 		conf, err := ReadConfig(bytes.NewBufferString(val))
-		c.Assert(err, check.IsNil)
-		c.Assert(conf, check.NotNil)
+		require.NoError(t, err)
+		require.NotNil(t, conf)
 
 		cfg := service.MakeDefaultConfig()
 		err = ApplyFileConfig(conf, cfg)
-		c.Assert(err, check.IsNil)
+		require.NoError(t, err)
 		return cfg
 	}
 
@@ -557,8 +550,8 @@ func (s *ConfigTestSuite) TestBackendDefaults(c *check.C) {
 	cfg := read(`teleport:
   data_dir: /var/lib/teleport
 `)
-	c.Assert(cfg.Auth.StorageConfig.Type, check.Equals, lite.GetName())
-	c.Assert(cfg.Auth.StorageConfig.Params[defaults.BackendPath], check.Equals, filepath.Join("/var/lib/teleport", defaults.BackendDir))
+	require.Equal(t, cfg.Auth.StorageConfig.Type, lite.GetName())
+	require.Equal(t, cfg.Auth.StorageConfig.Params[defaults.BackendPath], filepath.Join("/var/lib/teleport", defaults.BackendDir))
 
 	// If no path is specified, the default is picked. In addition, internally
 	// dir gets converted into lite.
@@ -567,8 +560,8 @@ func (s *ConfigTestSuite) TestBackendDefaults(c *check.C) {
      storage:
        type: dir
 `)
-	c.Assert(cfg.Auth.StorageConfig.Type, check.Equals, lite.GetName())
-	c.Assert(cfg.Auth.StorageConfig.Params[defaults.BackendPath], check.Equals, filepath.Join("/var/lib/teleport", defaults.BackendDir))
+	require.Equal(t, cfg.Auth.StorageConfig.Type, lite.GetName())
+	require.Equal(t, cfg.Auth.StorageConfig.Params[defaults.BackendPath], filepath.Join("/var/lib/teleport", defaults.BackendDir))
 
 	// Support custom paths for dir/lite backends.
 	cfg = read(`teleport:
@@ -577,19 +570,19 @@ func (s *ConfigTestSuite) TestBackendDefaults(c *check.C) {
        type: dir
        path: /var/lib/teleport/mybackend
 `)
-	c.Assert(cfg.Auth.StorageConfig.Type, check.Equals, lite.GetName())
-	c.Assert(cfg.Auth.StorageConfig.Params[defaults.BackendPath], check.Equals, "/var/lib/teleport/mybackend")
+	require.Equal(t, cfg.Auth.StorageConfig.Type, lite.GetName())
+	require.Equal(t, cfg.Auth.StorageConfig.Params[defaults.BackendPath], "/var/lib/teleport/mybackend")
 
 	// Kubernetes proxy is disabled by default.
 	cfg = read(`teleport:
      data_dir: /var/lib/teleport
 `)
-	c.Assert(cfg.Proxy.Kube.Enabled, check.Equals, false)
+	require.False(t, cfg.Proxy.Kube.Enabled)
 }
 
 // TestParseKey ensures that keys are parsed correctly if they are in
 // authorized_keys format or known_hosts format.
-func (s *ConfigTestSuite) TestParseKey(c *check.C) {
+func TestParseKey(t *testing.T) {
 	tests := []struct {
 		inCABytes      []byte
 		outType        services.CertAuthType
@@ -617,16 +610,16 @@ func (s *ConfigTestSuite) TestParseKey(c *check.C) {
 
 	// run tests
 	for i, tt := range tests {
-		comment := check.Commentf("Test %v", i)
+		comment := fmt.Sprintf("Test %v", i)
 
 		ca, _, err := parseCAKey(tt.inCABytes, []string{"foo"})
-		c.Assert(err, check.IsNil, comment)
-		c.Assert(ca.GetType(), check.Equals, tt.outType)
-		c.Assert(ca.GetClusterName(), check.Equals, tt.outClusterName)
+		require.NoError(t, err, comment)
+		require.Equal(t, ca.GetType(), tt.outType)
+		require.Equal(t, ca.GetClusterName(), tt.outClusterName)
 	}
 }
 
-func (s *ConfigTestSuite) TestParseCachePolicy(c *check.C) {
+func TestParseCachePolicy(t *testing.T) {
 	tcs := []struct {
 		in  *CachePolicy
 		out *service.CachePolicy
@@ -641,13 +634,13 @@ func (s *ConfigTestSuite) TestParseCachePolicy(c *check.C) {
 		{in: &CachePolicy{Type: "memsql"}, err: trace.BadParameter("unsupported backend")},
 	}
 	for i, tc := range tcs {
-		comment := check.Commentf("test case #%v", i)
+		comment := fmt.Sprintf("test case #%v", i)
 		out, err := tc.in.Parse()
 		if tc.err != nil {
-			c.Assert(err, check.FitsTypeOf, err, comment)
+			require.IsType(t, tc.err, err, comment)
 		} else {
-			c.Assert(err, check.IsNil, comment)
-			fixtures.DeepCompare(c, out, tc.out)
+			require.NoError(t, err, comment)
+			require.Equal(t, out, tc.out, comment)
 		}
 	}
 }
@@ -860,7 +853,7 @@ func makeConfigFixture() string {
 	return conf.DebugDumpToYAML()
 }
 
-func (s *ConfigTestSuite) TestPermitUserEnvironment(c *check.C) {
+func TestPermitUserEnvironment(t *testing.T) {
 	tests := []struct {
 		inConfigString           string
 		inPermitUserEnvironment  bool
@@ -891,7 +884,7 @@ ssh_service:
 
 	// run tests
 	for i, tt := range tests {
-		comment := check.Commentf("Test %v", i)
+		comment := fmt.Sprintf("Test %v", i)
 
 		clf := CommandLineFlags{
 			ConfigString:          base64.StdEncoding.EncodeToString([]byte(tt.inConfigString)),
@@ -900,25 +893,24 @@ ssh_service:
 		cfg := service.MakeDefaultConfig()
 
 		err := Configure(&clf, cfg)
-		c.Assert(err, check.IsNil, comment)
-
-		c.Assert(cfg.SSH.PermitUserEnvironment, check.Equals, tt.outPermitUserEnvironment, comment)
+		require.NoError(t, err, comment)
+		require.Equal(t, tt.outPermitUserEnvironment, cfg.SSH.PermitUserEnvironment, comment)
 	}
 }
 
 // TestDebugFlag ensures that the debug command-line flag is correctly set in the config.
-func (s *ConfigTestSuite) TestDebugFlag(c *check.C) {
+func TestDebugFlag(t *testing.T) {
 	clf := CommandLineFlags{
 		Debug: true,
 	}
 	cfg := service.MakeDefaultConfig()
-	c.Assert(cfg.Debug, check.Equals, false)
+	require.False(t, cfg.Debug)
 	err := Configure(&clf, cfg)
-	c.Assert(err, check.IsNil)
-	c.Assert(cfg.Debug, check.Equals, true)
+	require.NoError(t, err)
+	require.True(t, cfg.Debug)
 }
 
-func (s *ConfigTestSuite) TestLicenseFile(c *check.C) {
+func TestLicenseFile(t *testing.T) {
 	testCases := []struct {
 		path   string
 		result string
@@ -941,22 +933,21 @@ func (s *ConfigTestSuite) TestLicenseFile(c *check.C) {
 	}
 
 	cfg := service.MakeDefaultConfig()
-	c.Assert(cfg.Auth.LicenseFile, check.Equals,
-		filepath.Join(defaults.DataDir, defaults.LicenseFile))
+	require.Equal(t, filepath.Join(defaults.DataDir, defaults.LicenseFile), cfg.Auth.LicenseFile)
 
 	for _, tc := range testCases {
 		fc := new(FileConfig)
-		c.Assert(fc.CheckAndSetDefaults(), check.IsNil)
+		require.NoError(t, fc.CheckAndSetDefaults())
 		fc.Auth.LicenseFile = tc.path
 		err := ApplyFileConfig(fc, cfg)
-		c.Assert(err, check.IsNil)
-		c.Assert(cfg.Auth.LicenseFile, check.Equals, tc.result)
+		require.NoError(t, err)
+		require.Equal(t, tc.result, cfg.Auth.LicenseFile)
 	}
 }
 
 // TestFIPS makes sure configuration is correctly updated/enforced when in
 // FedRAMP/FIPS 140-2 mode.
-func (s *ConfigTestSuite) TestFIPS(c *check.C) {
+func TestFIPS(t *testing.T) {
 	tests := []struct {
 		inConfigString string
 		inFIPSMode     bool
@@ -985,7 +976,7 @@ func (s *ConfigTestSuite) TestFIPS(c *check.C) {
 	}
 
 	for i, tt := range tests {
-		comment := check.Commentf("Test %v", i)
+		comment := fmt.Sprintf("Test %v", i)
 
 		clf := CommandLineFlags{
 			ConfigString: base64.StdEncoding.EncodeToString([]byte(tt.inConfigString)),
@@ -998,9 +989,9 @@ func (s *ConfigTestSuite) TestFIPS(c *check.C) {
 
 		err := Configure(&clf, cfg)
 		if tt.outError {
-			c.Assert(err, check.NotNil, comment)
+			require.Error(t, err, comment)
 		} else {
-			c.Assert(err, check.IsNil, comment)
+			require.NoError(t, err, comment)
 		}
 	}
 }
@@ -1091,10 +1082,10 @@ func TestProxyKube(t *testing.T) {
 	}
 }
 
-func (s *ConfigTestSuite) TestApps(c *check.C) {
+func TestApps(t *testing.T) {
 	tests := []struct {
 		inConfigString string
-		inComment      check.CommentInterface
+		inComment      string
 		outError       bool
 	}{
 		{
@@ -1107,7 +1098,7 @@ app_service:
       public_addr: "foo.example.com"
       uri: "http://127.0.0.1:8080"
 `,
-			inComment: check.Commentf("config is valid"),
+			inComment: "config is valid",
 			outError:  false,
 		},
 		{
@@ -1119,7 +1110,7 @@ app_service:
       public_addr: "foo.example.com"
       uri: "http://127.0.0.1:8080"
 `,
-			inComment: check.Commentf("config is missing name"),
+			inComment: "config is missing name",
 			outError:  true,
 		},
 		{
@@ -1131,7 +1122,7 @@ app_service:
       name: foo
       uri: "http://127.0.0.1:8080"
 `,
-			inComment: check.Commentf("config is valid"),
+			inComment: "config is valid",
 			outError:  false,
 		},
 		{
@@ -1143,7 +1134,7 @@ app_service:
       name: foo
       public_addr: "foo.example.com"
 `,
-			inComment: check.Commentf("config is missing internal address"),
+			inComment: "config is missing internal address",
 			outError:  true,
 		},
 	}
@@ -1155,55 +1146,55 @@ app_service:
 		cfg := service.MakeDefaultConfig()
 
 		err := Configure(&clf, cfg)
-		c.Assert(err != nil, check.Equals, tt.outError, tt.inComment)
+		require.Equal(t, err != nil, tt.outError, tt.inComment)
 	}
 }
 
 // TestAppsCLF checks that validation runs on application configuration passed
 // in on the command line.
-func (s *ConfigTestSuite) TestAppsCLF(c *check.C) {
+func TestAppsCLF(t *testing.T) {
 	tests := []struct {
-		desc      check.CommentInterface
+		desc      string
 		inRoles   string
 		inAppName string
 		inAppURI  string
 		outError  error
 	}{
 		{
-			desc:      check.Commentf("role provided, valid name and uri"),
+			desc:      "role provided, valid name and uri",
 			inRoles:   defaults.RoleApp,
 			inAppName: "foo",
 			inAppURI:  "http://localhost:8080",
 			outError:  nil,
 		},
 		{
-			desc:      check.Commentf("role provided, name not provided"),
+			desc:      "role provided, name not provided",
 			inRoles:   defaults.RoleApp,
 			inAppName: "",
 			inAppURI:  "http://localhost:8080",
 			outError:  trace.BadParameter(""),
 		},
 		{
-			desc:      check.Commentf("role provided, uri not provided"),
+			desc:      "role provided, uri not provided",
 			inRoles:   defaults.RoleApp,
 			inAppName: "foo",
 			inAppURI:  "",
 			outError:  trace.BadParameter(""),
 		},
 		{
-			desc:      check.Commentf("valid name and uri"),
+			desc:      "valid name and uri",
 			inAppName: "foo",
 			inAppURI:  "http://localhost:8080",
 			outError:  nil,
 		},
 		{
-			desc:      check.Commentf("invalid name"),
+			desc:      "invalid name",
 			inAppName: "-foo",
 			inAppURI:  "http://localhost:8080",
 			outError:  trace.BadParameter(""),
 		},
 		{
-			desc:      check.Commentf("missing uri"),
+			desc:      "missing uri",
 			inAppName: "foo",
 			outError:  trace.BadParameter(""),
 		},
@@ -1218,15 +1209,15 @@ func (s *ConfigTestSuite) TestAppsCLF(c *check.C) {
 		cfg := service.MakeDefaultConfig()
 		err := Configure(&clf, cfg)
 		if err != nil {
-			c.Assert(err, check.FitsTypeOf, tt.outError)
+			require.IsType(t, err, tt.outError, tt.desc)
 		} else {
-			c.Assert(err, check.IsNil)
+			require.NoError(t, err, tt.desc)
 		}
 		if tt.outError != nil {
 			continue
 		}
-		c.Assert(cfg.Apps.Enabled, check.Equals, true)
-		c.Assert(cfg.Apps.Apps, check.HasLen, 1)
+		require.True(t, cfg.Apps.Enabled, tt.desc)
+		require.Len(t, cfg.Apps.Apps, 1, tt.desc)
 	}
 }
 
