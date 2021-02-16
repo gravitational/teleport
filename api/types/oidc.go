@@ -432,7 +432,7 @@ type OIDCConnectorSpecV2 struct {
 	ClaimsToRoles []ClaimMapping `json:"claims_to_roles,omitempty"`
 	// GoogleServiceAccountURI is a path to google service account uri
 	GoogleServiceAccountURI string `json:"google_service_account_uri,omitempty"`
-	// GoogleServiceAccount is the contents of the google service account credentials
+	// GoogleServiceAccount is a string containing the google service account credentials
 	GoogleServiceAccount string `json:"google_service_account,omitempty"`
 
 	// GoogleAdminEmail is email of google admin to impersonate
