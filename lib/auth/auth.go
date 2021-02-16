@@ -850,10 +850,11 @@ type MFAAuthenticateChallenge struct {
 	// ignore this and read Challenges instead.
 	*u2f.AuthenticateChallenge
 
-	// The list of U2F challenges, one for each registered device.
+	// U2FChallenges is a list of U2F challenges, one for each registered
+	// device.
 	U2FChallenges []u2f.AuthenticateChallenge `json:"u2f_challenges"`
 	// TOTPChallenge specifies whether TOTP is supported for this user.
-	TOTPChallenge bool
+	TOTPChallenge bool `json:"totp_challenge"`
 }
 
 func (a *Server) GetMFAAuthenticateChallenge(user string, password []byte) (*MFAAuthenticateChallenge, error) {
