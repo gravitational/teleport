@@ -855,6 +855,7 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector services.OIDCConne
 				return nil, trace.Wrap(err)
 			}
 
+              // load the google service account from string
 		} else if connector.GetGoogleServiceAccount() != "" {
 
 			jsonCredentials = []byte(connector.GetGoogleServiceAccount())
