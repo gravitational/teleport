@@ -59,7 +59,7 @@ type Client struct {
 	closedFlag int32
 }
 
-// New returns a new API client with an a connection to a Teleport server. The connection is
+// New creates a new API client with a connection to a Teleport server. The connection is
 // formed using the Dialer and CredentialsProviders given in config. If Addrs are provided, a
 // basic Dialer will be created. If Credentials are provided, a basic CredentialsProvider will
 // will be added to the list of CredentialsProviders.
@@ -69,14 +69,30 @@ func New(cfg Config) (*Client, error) {
 	}
 
 	c := &Client{c: cfg}
-	if err := c.connect(); err != nil {
+	if err := c.connect(true); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return c, nil
 }
 
-func (c *Client) connect() error {
+// NewWithoutPing creates a new API client with a conneciton to a Teleport server,
+// but does not check to see if the connection is open and authenticated.
+// For internal use only.
+func NewWithoutPing(cfg Config) (*Client, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	c := &Client{c: cfg}
+	if err := c.connect(false); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return c, nil
+}
+
+func (c *Client) connect(withPing bool) error {
 	dialer := grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
 		if c.isClosed() {
 			return nil, trace.ConnectionProblem(nil, "client is closed")
@@ -96,7 +112,8 @@ func (c *Client) connect() error {
 			errs = append(errs, trace.Errorf("CredentialsProvider[%v]: %v", i, err))
 			continue
 		}
-		if c.conn, err = grpc.Dial(
+
+		c.conn, err = grpc.Dial(
 			constants.APIDomain,
 			dialer,
 			grpc.WithTransportCredentials(credentials.NewTLS(c.c.Credentials.TLS)),
@@ -105,11 +122,16 @@ func (c *Client) connect() error {
 				Timeout:             c.c.KeepAlivePeriod * time.Duration(c.c.KeepAliveCount),
 				PermitWithoutStream: true,
 			}),
-		); err != nil {
+		)
+		if err != nil {
 			errs = append(errs, trace.Errorf("CredentialsProvider[%v]: %v", i, err))
 			continue
 		}
 		c.grpc = proto.NewAuthServiceClient(c.conn)
+
+		if !withPing {
+			return nil
+		}
 
 		if _, err := c.Ping(context.TODO()); err != nil {
 			errs = append(errs, trace.Errorf("CredentialsProvider[%v]: %v", i, err))

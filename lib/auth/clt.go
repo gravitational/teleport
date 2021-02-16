@@ -162,7 +162,7 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	apiClient, err := client.New(cfg)
+	apiClient, err := client.NewWithoutPing(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
