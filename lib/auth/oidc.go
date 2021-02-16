@@ -837,9 +837,10 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector services.OIDCConne
 
 		var config *jwt.Config
 		var jsonCredentials []byte
+		var credentialLoadingMethod string
 		// load the google service account from uri
 		if connector.GetGoogleServiceAccountURI() != "" {
-
+			credentialLoadingMethod = "google_service_account_uri"
 			serviceAccountURI := connector.GetGoogleServiceAccountURI()
 			if serviceAccountURI == "" {
 				return nil, trace.NotFound(
@@ -855,15 +856,15 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector services.OIDCConne
 				return nil, trace.Wrap(err)
 			}
 
-              // load the google service account from string
+			// load the google service account from string
 		} else if connector.GetGoogleServiceAccount() != "" {
-
+			credentialLoadingMethod = "google_service_account"
 			jsonCredentials = []byte(connector.GetGoogleServiceAccount())
 		}
 
 		config, err = google.JWTConfigFromJSON(jsonCredentials, teleport.GSuiteGroupsScope)
 		if err != nil {
-			return nil, trace.BadParameter("unable to parse client secret file to config: %v", err)
+			return nil, trace.BadParameter("unable to parse google service account from %v: %v", credentialLoadingMethod, err)
 		}
 
 		impersonateAdmin := connector.GetGoogleAdminEmail()
