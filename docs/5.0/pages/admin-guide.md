@@ -1282,7 +1282,7 @@ stored data (size, read/write ratio, mutability, etc.).
 |-----------|-------------|----------------------------|
 | core cluster state | Cluster configuration (e.g. users, roles, auth connectors) and identity (e.g. certificate authorities, registered nodes, trusted clusters). | Local directory (SQLite), etcd, AWS DynamoDB, GCP Firestore |
 | audit events | JSON-encoded events from the audit log (e.g. user logins, RBAC changes) | Local directory, AWS DynamoDB, GCP Firestore |
-| session recordings | Raw terminal recordings of interactive user sessions | Local directory, AWS S3, GCP Cloud Storage |
+| session recordings | Raw terminal recordings of interactive user sessions | Local directory, AWS S3 (and any S3-compatible product), GCP Cloud Storage |
 | teleport instance state | ID and credentials of a non-auth teleport instance (e.g. node, proxy) | Local directory |
 
 The [High Availability](#high-availability) section describes how to configure
