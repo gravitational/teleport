@@ -19,11 +19,10 @@ ability for users to disable terminal echo. This is frequently used when request
 Furthermore, due to their unstructured nature, session recordings are difficult to
 ingest and perform monitoring/alerting on.
 
-!!! note
-
-    Enhanced Session Recording requires all parts of the Teleport system to be running
-    4.2+.
-
+<Admonition type="note">
+Enhanced Session Recording requires all parts of the Teleport system to be running
+4.2+.
+</Admonition>
 
 # Requirements:
 
@@ -31,10 +30,9 @@ ingest and perform monitoring/alerting on.
 Teleport 4.2+ with Enhanced Session Recording requires Linux kernel 4.18 (or above) as
 well as kernel headers.
 
-!!! tip
-
-    Our Standard Session Recording works with older Linux Kernels. View our [audit log docs](../architecture/teleport-auth.md#audit-log) for more details.
-
+<Admonition type="tip">
+Our Standard Session Recording works with older Linux Kernels. View our [audit log docs](../architecture/teleport-auth.md#audit-log) for more details.
+</Admonition>
 
 You can check your kernel version using the `uname` command. The output should look
 something like the following.
@@ -48,11 +46,12 @@ Linux ip-172-31-43-104.ec2.internal 4.19.72-25.58.amzn2.x86_64 x86_64 x86_64 x86
 |---------------|------------------------|
 | 8.0-1905	    |            4.18.0.80 ✅  |
 
-!!! note
 
-    At release we've only production tested Enhanced Session recording with CentOS
-    7 and 8. We welcome feedback for other Operating Systems, and simply require a
-    Linux kernel 4.18 (or above). Please send feedback to [ben@gravitational.com](mailto:ben@gravitational.com)
+<Admonition type="note">
+At release we've only production tested Enhanced Session recording with CentOS
+7 and 8. We welcome feedback for other Operating Systems, and simply require a
+Linux kernel 4.18 (or above). Please send feedback to [ben@gravitational.com](mailto:ben@gravitational.com)
+</Admonition>
 
 ### Ubuntu
 
@@ -113,10 +112,10 @@ Dependency Installed:
 BCC is now enabled and no reboot is required. Proceed to Step 3.
 
 
-!!! note
 
-    For the below Linux distributions we plan to soon support installing bcc-tools from packages instead of compiling them yourself to make taking advantage of enhanced session recording easier.
-
+<Admonition type="note">
+For the below Linux distributions we plan to soon support installing bcc-tools from packages instead of compiling them yourself to make taking advantage of enhanced session recording easier.
+</Admonition>
 
 ### Script to Install BCC Tools on Ubuntu and Debian
 **Example Script to install relevant bcc packages for Ubuntu and Debian**

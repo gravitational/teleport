@@ -22,9 +22,9 @@ VM.
 This guide is only meant to demonstrate how to run Teleport in a sandbox or demo
 environment, and showcase a few basic tasks you can do with Teleport. For additional configuration examples, see [teleport/examples](https://github.com/gravitational/teleport/tree/master/examples), within the Teleport Github repository.
 
-!!! note "IMPORTANT"
-
-    You should not follow this guide if you want to set up Teleport in production. Instead follow the [Production Guide](production.md).
+<Admonition type="note" title="IMPORTANT">
+You should not follow this guide if you want to set up Teleport in production. Instead follow the [Production Guide](production.md).
+</Admonition>
 
 ## Step 1: Install Teleport
 
@@ -70,18 +70,18 @@ Now we are ready to start Teleport. Start the `teleport` daemon:
 $ teleport start # if you are not `root` you may need `sudo`
 ```
 
-!!! tip "Background Process"
+<Admonition type="tip" title="Background Process">
+Avoid suspending your current shell session by
+running the process in the background like so:
+`teleport start > teleport.log 2>&1 &`.
+Access the process logs with `less teleport.log`.
+</Admonition>
 
-    Avoid suspending your current shell session by
-    running the process in the background like so:
-    `teleport start > teleport.log 2>&1 &`.
-    Access the process logs with `less teleport.log`.
-
-!!! tip "Debugging/Verbose Output"
-
-    If you encounter errors with any `teleport`, `tsh` or `tctl`
-    command you can enable verbose logging with the `-d, --debug`
-    flag.
+<Admonition type="tip" title="Debugging/Verbose Output">
+If you encounter errors with any `teleport`, `tsh` or `tctl`
+command you can enable verbose logging with the `-d, --debug`
+flag.
+</Admonition>
 
 By default, Teleport services bind to 0.0.0.0. If you ran Teleport without any
 configuration or flags you should see this output in your console or logfile:
@@ -106,17 +106,17 @@ For the following examples: `teleport@grav-00`, the **OS user** is
 
 Replace `OS user` and `hostname` as it fits your OS: `<your OS user>@<your hostname>`
 
-!!! info "OS User Mappings"
+<Admonition type="tip" title="OS User Mappings">
+If you intend to use `teleport` as OS user (as shown in our examples), OS user `teleport` must exist!
+And you must explicitly state user as `teleport` in some subsequent commands. (We will remind you).
 
-    If you intend to use `teleport` as OS user (as shown in our examples), OS user `teleport` must exist!
-    And you must explicitly state user as `teleport` in some subsequent commands. (We will remind you).
+On Linux, if it does not already exist, create it with `adduser teleport`. If you do not have
+the permission to create new users on the VM, run `tctl users add teleport
+<your-username> ` to explicitly map ` teleport` to an existing OS user.
 
-    On Linux, if it does not already exist, create it with `adduser teleport`. If you do not have
-    the permission to create new users on the VM, run `tctl users add teleport
-    <your-username> ` to explicitly map ` teleport` to an existing OS user.
-
-    If you do not map to a real OS user you will get authentication errors later on in
-    this tutorial!
+If you do not map to a real OS user you will get authentication errors later on in
+this tutorial!
+</Admonition>
 
 ``` bash
 # A new Teleport user will be assigned a
@@ -145,11 +145,11 @@ should be able to open the URL and connect to Teleport Proxy right away.
 Proxy via the host machine and port `3080` in a web browser. One simple way to
 do this is to temporarily append `[HOST_IP] grav-00` to `/etc/hosts`.
 
-!!! warning "Warning"
-
-    We haven't provisioned any SSL certs for Teleport yet.
-    Your browser will throw a warning: **Your connection is not private**. Click
-    **Advanced**, and **Proceed to [HOST_IP] (unsafe)** to preview the Teleport UI.
+<Admonition type="warning" title="Warning">
+We haven't provisioned any SSL certs for Teleport yet.
+Your browser will throw a warning: **Your connection is not private**. Click
+**Advanced**, and **Proceed to [HOST_IP] (unsafe)** to preview the Teleport UI.
+</Admonition>
 
 <!-- Link to networking/production guide -->
 
@@ -172,14 +172,13 @@ Let's login using the `tsh` command line tool. Just as in the previous step, you
 will need to be able to resolve the **hostname** of the cluster to a network
 accessible IP.
 
-!!! warning "Warning"
+<Admonition type="warning" title="Warning">
+For the purposes of this quickstart we are using the
+`--insecure` flag which allows us to skip configuring the HTTP/TLS
+certificate for Teleport proxy.
 
-    For the purposes of this quickstart we are using the
-    `--insecure` flag which allows us to skip configuring the HTTP/TLS
-    certificate for Teleport proxy.
-
-    Never use `--insecure` in production unless you terminate SSL at a load balancer. You must configure a HTTP/TLS certificate for the Proxy. [Learn more in our SSL/TLS for Teleport Proxy - Production Guide](production.md#ssltls-for-teleport-proxy)
-
+Never use `--insecure` in production unless you terminate SSL at a load balancer. You must configure a HTTP/TLS certificate for the Proxy. [Learn more in our SSL/TLS for Teleport Proxy - Production Guide](production.md#ssltls-for-teleport-proxy)
+</Admonition>
 
 ``` bash
 # here grav-00 is a resolvable hostname on the same network

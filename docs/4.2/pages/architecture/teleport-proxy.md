@@ -38,9 +38,9 @@ client SSH connection:
    client connection that is authenticated using an OpenSSH certificate, so no
    special logic is needed.
 
-!!! note "SSL Encryption"
-
-    When using the web UI, the Teleport Proxy terminates SSL traffic and re-encodes data for the SSH client connection.
+<Admonition type="note" title="SSL Encryption">
+When using the web UI, the Teleport Proxy terminates SSL traffic and re-encodes data for the SSH client connection.
+</Admonition>
 
 ### CLI to SSH Proxy
 
@@ -87,9 +87,9 @@ client `ssh` or using `tsh`:
    SSH connection. The client authenticates with the target Node using its
    client certificate.
 
-!!! tip "NOTE"
-
-    Teleport's proxy command makes it compatible with [SSH jump hosts](https://wiki.gentoo.org/wiki/SSH_jump_host) implemented using OpenSSH's `ProxyCommand`. It also supports OpenSSH's ProxyJump/ssh -J implementation as of Teleport 4.1. See [User Manual](../user-manual.md#ssh-proxy-configuration)
+<Admonition type="tip" title="NOTE">
+Teleport's proxy command makes it compatible with [SSH jump hosts](https://wiki.gentoo.org/wiki/SSH_jump_host) implemented using OpenSSH's `ProxyCommand`. It also supports OpenSSH's ProxyJump/ssh -J implementation as of Teleport 4.1. See [User Manual](../user-manual.md#ssh-proxy-configuration)
+</Admonition>
 
 ## Recording Proxy Mode
 

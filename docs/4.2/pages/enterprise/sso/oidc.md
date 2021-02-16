@@ -11,11 +11,11 @@ administrators to define policies like:
 * Developers must never SSH into production servers.
 * ... and many others.
 
-!!! warning "Version Warning"
-
-    This guide requires an Enterprise edition of Teleport. The Community
-    edition of Teleport only supports [Github](../../admin-guide.md#github-oauth-20) as
-    an SSO provider.
+<Admonition type="warning" title="Version Warning">
+This guide requires an Enterprise edition of Teleport. The Community
+edition of Teleport only supports [Github](../../admin-guide.md#github-oauth-20) as
+an SSO provider.
+</Admonition>
 
 ## Enable OIDC Authentication
 
@@ -39,10 +39,9 @@ documented on the identity providers website. Here are a few links:
    * [Google Identity Platform](https://developers.google.com/identity/protocols/OpenIDConnect)
    * [Keycloak Client Registration](https://www.keycloak.org/docs/latest/securing_apps/index.html#_client_registration)
 
-!!! note
-
-    For Auth0, the "OIDC Conformant" setting should be off in Advanced Settings -> OAuth or claims will not populate properly.
-
+<Admonition type="note">
+For Auth0, the "OIDC Conformant" setting should be off in Advanced Settings -> OAuth or claims will not populate properly.
+</Admonition>
 
 Add your OIDC connector information to `teleport.yaml`. A few examples are
 provided below.

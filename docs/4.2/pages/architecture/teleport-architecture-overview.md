@@ -73,11 +73,11 @@ authentication, and serves a [Web UI](teleport-proxy.md#web-to-ssh-proxy).
 The numbers correspond to the steps needed to connect a client to a node. These
 steps are explained below the diagram.
 
-!!! warning "Caution"
-
-    The teleport daemon calls services "roles" in the CLI
-    client. The `--roles` flag has no relationship to concept of User Roles or
-    permissions.
+<Admonition type="warning" title="Caution">
+The teleport daemon calls services "roles" in the CLI
+client. The `--roles` flag has no relationship to concept of User Roles or
+permissions.
+</Admonition>
 
 ![Teleport Overview](../../img/overview.svg)
 
@@ -86,13 +86,13 @@ steps are explained below the diagram.
 3. Connect to Node
 4. Authorize Client Access to Node
 
-!!! tip "Tip"
-
-    In the diagram above we show each Teleport service separately for
-    clarity, but Teleport services do not have to run on separate nodes.
-    Teleport can be run as a binary on a single-node cluster with no external
-    storage backend. We demonstrate this minimal setup in the [Quickstart
-    Guide](../quickstart.md).
+<Admonition type="tip" title="Tip">
+In the diagram above we show each Teleport service separately for
+clarity, but Teleport services do not have to run on separate nodes.
+Teleport can be run as a binary on a single-node cluster with no external
+storage backend. We demonstrate this minimal setup in the [Quickstart
+Guide](../quickstart.md).
+</Admonition>
 
 ## Detailed Architecture Overview
 
@@ -103,11 +103,11 @@ steps are explained in detail below the diagram.
 
 ![Teleport Everything](../../img/everything.svg)
 
-!!! note "Caution"
-
-    The Teleport Admin tool, `tctl` , must be physically present
-    on the same machine where Teleport Auth is running. Adding new nodes or
-    inviting new users to the cluster is only possible using this tool.
+<Admonition type="note" title="Caution">
+The Teleport Admin tool, `tctl` , must be physically present
+on the same machine where Teleport Auth is running. Adding new nodes or
+inviting new users to the cluster is only possible using this tool.
+</Admonition>
 
 ### 1: Initiate Client Connection
 
@@ -144,9 +144,9 @@ generator. The password + 2nd factor are submitted to a proxy via HTTPS,
 therefore it is critical for a secure configuration of Teleport to install a
 proper HTTPS certificate on a proxy.
 
-!!! warning "Warning"
-
-    Do not use self-signed SSL/HTTPS certificates in production!
+<Admonition type="warning" title="Warning">
+Do not use self-signed SSL/HTTPS certificates in production!
+</Admonition>
 
 If the credentials are correct, the auth server generates and signs a new
 certificate and returns it to the client via the proxy. The client stores this certificate
@@ -170,11 +170,11 @@ If the node is located, the proxy establishes the connection between the client
 and the requested node. The destination node then begins recording the session,
 sending the session history to the auth server to be stored.
 
-!!! note "Note"
-
-    Teleport may also be configured to have the session recording
-    occur on the proxy, see [Audit Log](../admin-guide.md#audit-log) for more
-    information.
+<Admonition type="note" title="Note">
+Teleport may also be configured to have the session recording
+occur on the proxy, see [Audit Log](../admin-guide.md#audit-log) for more
+information.
+</Admonition>
 
 ### 4: Authenticate Node Certificate
 

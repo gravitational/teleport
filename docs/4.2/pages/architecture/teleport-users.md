@@ -66,11 +66,11 @@ sandra | ops | grav-00, grav-01
 Teleport supports second factor authentication (2FA) when using a local auth
 connector and it is enforced by default.
 
-!!! info "2FA Support"
-
-    2FA is not supported with SSO providers such as Github or OKTA. To learn
-    more about SSO configuration check out the [SSO section of the Enterprise
-    Guide](../enterprise/index.md#sso)
+<Admonition type="tip" title="2FA Support">
+2FA is not supported with SSO providers such as Github or OKTA. To learn
+more about SSO configuration check out the [SSO section of the Enterprise
+Guide](../enterprise/index.md#sso)
+</Admonition>
 
  There are two types of 2FA supported:
 
@@ -89,11 +89,11 @@ External users are users stored elsewhere within an organization. Examples
 include Github, Active Directory (AD), OIDC, or any identity store with an
 OpenID/OAuth2 or SAML endpoint.
 
-!!! tip "Version Warning"
-
-    External user storage is only supported in Teleport
-    Enterprise. Please take a look at the [Teleport
-    Enterprise](../enterprise/index.md) chapter for more information.
+<Admonition type="tip" title="Version Warning">
+External user storage is only supported in Teleport
+Enterprise. Please take a look at the [Teleport
+Enterprise](../enterprise/index.md) chapter for more information.
+</Admonition>
 
 #### Multiple Identity Sources
 

@@ -177,9 +177,9 @@ $ kubectl exec -ti <pod-name>
 The `kubectl exec` request will be routed through the Teleport proxy and
 Teleport will log the audit record and record the session.
 
-!!! note
-
-    For more information on integrating Teleport with Github SSO, please see the [Github section in the Admin Manual](admin-guide.md#github-oauth-20).
+<Admonition type="note">
+For more information on integrating Teleport with Github SSO, please see the [Github section in the Admin Manual](admin-guide.md#github-oauth-20).
+</Admonition>
 
 ### Enterprise SSO - Okta Example
 
@@ -215,19 +215,17 @@ $ tctl get roles/admin > admin.yaml
 $ tctl create -f admin.yaml
 ```
 
-!!! tip "Advanced Usage"
-
-    `{% raw %}{{ external.trait_name }}{% endraw %}` example is shown to demonstrate how to fetch
-    the Kubernetes groups dynamically from Okta during login. In this case, you
-    need to define Kubernetes group membership in Okta (as a trait) and use
-    that trait name in the Teleport role.
+<Admonition type="tip" title="Advanced Usage">
+`{% raw %}{{ external.trait_name }}{% endraw %}` example is shown to demonstrate how to fetch
+the Kubernetes groups dynamically from Okta during login. In this case, you
+need to define Kubernetes group membership in Okta (as a trait) and use
+that trait name in the Teleport role.
+</Admonition>
 
 Once this is complete, when users execute `tsh login` and go through the usual Okta login
 sequence, their `kubeconfig` will be updated with their Kubernetes credentials.
 
-!!! note
-
-    For more information on integrating Teleport with Okta, please see the
-    [Okta integration guide](enterprise/sso/ssh-okta.md).
-
-
+<Admonition type="note">
+For more information on integrating Teleport with Okta, please see the
+[Okta integration guide](enterprise/sso/ssh-okta.md).
+</Admonition>

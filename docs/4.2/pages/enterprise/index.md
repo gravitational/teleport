@@ -15,10 +15,10 @@ The table below gives a quick overview of the benefits of Teleport Enterprise.
 |[FedRAMP/FIPS](#fedrampfips) | With Teleport 4.0, we have built out the foundation to help Teleport Enterprise customers build and meet the requirements in a FedRAMP System Security Plan (SSP). This includes a FIPS 140-2 friendly build of Teleport Enterprise as well as a variety of improvements to aid in complying with security controls even in FedRAMP High environments.
 |Commercial Support | In addition to these features, Teleport Enterprise also comes with a premium support SLA with guaranteed response times.
 
-!!! tip "Contact Information"
-
-    If you are interested in Teleport Enterprise, please reach out to
-    `sales@gravitational.com` for more information.
+<Admonition type="tip" title="Contact Information">
+If you are interested in Teleport Enterprise, please reach out to
+`sales@gravitational.com` for more information.
+</Admonition>
 
 ## RBAC
 
@@ -83,11 +83,9 @@ Moreover, SSO can be used in combination with role-based access control (RBAC)
 to enforce SSH access policies like _"developers must not touch production data"_.
 See the [SSO for SSH](ssh-sso.md) chapter for more details.
 
-
-!!! tip "Contact Information"
-
-    For more information about Teleport Enterprise or Gravity please reach out us to `sales@gravitational.com` or fill out the contact form on our [website](https://gravitational.com/demo).
-
+<Admonition type="tip" title="Contact Information">
+For more information about Teleport Enterprise or Gravity please reach out us to `sales@gravitational.com` or fill out the contact form on our [website](https://gravitational.com/demo).
+</Admonition>
 
 ## FedRAMP/FIPS
 
@@ -109,10 +107,10 @@ See our [Enterprise Guide for more information](ssh-fips.md)
 
 ## Approval Workflows
 
-!!! warning "Warning: Workflows are currently in Alpha"
-
-    This feature is currently in alpha.
-    If you have a question please post to our [community](https://community.gravitational.com/), or file bugs on [Github](https://github.com/gravitational/teleport/issues/new).
+<Admonition type="warning" title="Warning: Workflows are currently in Alpha">
+This feature is currently in alpha.
+If you have a question please post to our [community](https://community.gravitational.com/), or file bugs on [Github](https://github.com/gravitational/teleport/issues/new).
+</Admonition>
 
 With Teleport 4.2 we've introduced the ability for users to request additional roles. The workflow API makes it easy to dynamically approve or deny these requests.
 
@@ -199,11 +197,11 @@ $ tctl request approve bc8ca931-fec9-4b15-9a6f-20c13c5641a9
 Assuming approval, `tsh` will automatically manage a certificate re-issued with the newly requested roles applied. In this case `contractor` will now have have the permission of the
 `dba`.
 
-!!! warning
+<Admonition type="warning">
+Granting a role with administrative abilities could allow a user to **permanently** upgrade their privileges (e.g. if contractor was granted admin for some reason). We recommend only escalating to the next role of least privilege vs jumping directly to "Super Admin" role.
 
-    Granting a role with administrative abilities could allow a user to **permanently** upgrade their privileges (e.g. if contractor was granted admin for some reason). We recommend only escalating to the next role of least privilege vs jumping directly to "Super Admin" role.
-
-    The `deny.request` block can help mitigate the risk of doing this by accident.
+The `deny.request` block can help mitigate the risk of doing this by accident.
+</Admonition>
 
 ### Other features of Approval Workflows.
 
