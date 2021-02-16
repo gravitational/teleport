@@ -148,7 +148,7 @@ func (o *OIDCConnectorV2) GetGoogleServiceAccount() string {
 	return o.Spec.GoogleServiceAccount
 }
 
-// SetResourceID sets resource ID
+// SetGoogleServiceAccount sets a string representing a Google service account
 func (o *OIDCConnectorV2) SetGoogleServiceAccount(s string) {
 	o.Spec.GoogleServiceAccount = s
 }
