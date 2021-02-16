@@ -1,4 +1,6 @@
-# Teleport Enterprise Quick Start
+---
+title: Teleport Enterprise Quick Start
+---
 
 Welcome to the Quick Start Guide for Teleport Enterprise.
 

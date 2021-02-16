@@ -35,6 +35,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -466,7 +467,31 @@ func (f *fakeServer) GetClock() clockwork.Clock {
 }
 
 func (f *fakeServer) GetInfo() services.Server {
-	return nil
+	hostname, err := os.Hostname()
+	if err != nil {
+		hostname = "localhost"
+	}
+
+	return &services.ServerV2{
+		Kind:    services.KindNode,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Name:      "",
+			Namespace: "",
+			Labels:    make(map[string]string),
+		},
+		Spec: services.ServerSpecV2{
+			CmdLabels: make(map[string]types.CommandLabelV2),
+			Addr:      "",
+			Hostname:  hostname,
+			UseTunnel: false,
+			Version:   teleport.Version,
+		},
+	}
+}
+
+func (f *fakeServer) GetUtmpPath() (string, string) {
+	return "", ""
 }
 
 func (f *fakeServer) UseTunnel() bool {

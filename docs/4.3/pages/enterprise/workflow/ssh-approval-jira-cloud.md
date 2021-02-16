@@ -1,9 +1,8 @@
 ---
 title: SSH login approval using Jira and Teleport
 description: How to configure SSH login approval using Jira and Teleport
+h1: SSH login approvals using Jira
 ---
-
-# SSH login approvals using Jira
 
 ## Teleport Jira Plugin Setup
 

@@ -3,8 +3,6 @@ title: Getting started with Teleport
 description: The getting started with guide for how to set up modern SSH access to cloud or edge infrastructure.
 ---
 
-# Getting started with Teleport
-
 This tutorial will guide you through the steps needed to install and run
 Teleport on Linux machine(s).
 
@@ -33,9 +31,10 @@ Take a look at the [Teleport Installation](installation.md) page to pick the mos
 === "Debian/Ubuntu (DEB)"
 
     ```bash
-    add-apt-repository 'deb https://deb.releases.teleport.dev/ stable main'
-    apt-get
-    apt install teleport
+    curl https://deb.releases.teleport.dev/teleport-pubkey.asc | sudo apt-key add -
+    sudo add-apt-repository 'deb https://deb.releases.teleport.dev/ stable main'
+    sudo apt-get update
+    sudo apt-get install teleport
     ```
 
 === "ARMv7 (32-bit)"

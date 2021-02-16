@@ -1,4 +1,6 @@
-# Teleport Users
+---
+title: Teleport Users
+---
 
 <!-- TODO: This doc is incomplete, pending addition of Enterprise topics -->
 

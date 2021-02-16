@@ -1,4 +1,6 @@
-# Teleport Application Access Preview
+---
+title: Teleport Application Access Preview
+---
 
 Teleport is currently beta testing an application access proxy. Teleport Application Access has been designed to secure internal web applications, letting you provide secure access while improving both visibility and control for access.
 

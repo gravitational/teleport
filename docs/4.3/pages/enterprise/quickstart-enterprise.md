@@ -3,8 +3,6 @@ title: Teleport Enterprise Quick Start
 description: How to set up and configure Teleport Enterprise for SSH and Kubernetes access
 ---
 
-# Teleport Enterprise Quick Start
-
 Welcome to the Quick Start Guide for Teleport Enterprise.
 
 The goal of this document is to show off the basic capabilities of Teleport.

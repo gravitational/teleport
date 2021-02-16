@@ -1,4 +1,6 @@
-# Enhanced Session Recording
+---
+title: Enhanced Session Recording
+---
 
 Teleport [standard session recordings](https://gravitational.com/teleport/docs/architecture/nodes/#session-recording) only capture what is echoed to a terminal.
 This has inherent advantages, for example because no input is captured, Teleport

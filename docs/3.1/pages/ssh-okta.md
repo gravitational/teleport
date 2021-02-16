@@ -1,4 +1,6 @@
-# SSH Authentication with Okta
+---
+title: SSH Authentication with Okta
+---
 
 This guide will cover how to configure [Okta](https://www.okta.com/) to issue
 SSH credentials to specific groups of users. When used in combination with role

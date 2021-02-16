@@ -1,4 +1,6 @@
-# Quickstart
+---
+title: Quickstart
+---
 
 Welcome to the Teleport Quickstart!
 
