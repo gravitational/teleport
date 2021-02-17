@@ -195,13 +195,8 @@ func (o *OIDCConnectorV2) WithoutSecrets() Resource {
 	}
 	o2 := *o
 
-	if o.GetClientSecret() != "" {
-		o2.SetClientSecret("")
-	}
-
-	if o.GetGoogleServiceAccount() != "" {
-		o2.SetGoogleServiceAccount("")
-	}
+	o2.SetClientSecret("")
+	o2.SetGoogleServiceAccount("")
 
 	return &o2
 }
