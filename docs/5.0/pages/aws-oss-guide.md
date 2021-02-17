@@ -117,10 +117,10 @@ Teleport setup, S3 will provide storage for recorded sessions.
 
 We recommend using Amazon S3 Standard.
 
-!!! tip "Tip"
-
-    S3 provides [Amazon S3 Object Lock](https://docs.aws.amazon.com/AmazonS3/latest/dev/object-lock.html),
-    which is useful for customers deploying Teleport in regulated environments.
+<Admonition type="tip" title="Tip">
+S3 provides [Amazon S3 Object Lock](https://docs.aws.amazon.com/AmazonS3/latest/dev/object-lock.html),
+which is useful for customers deploying Teleport in regulated environments.
+</Admonition>
 
 ### Route53
 Route53 is a highly available Domain Name System (DNS) provided by AWS. It'll be
@@ -173,9 +173,9 @@ An example policy is shown below:
 
 ```
 
-!!! note "Note"
-
-    `example.s3.bucket` will need to be replaced with your bucket name.
+<Admonition type="note" title="Note">
+`example.s3.bucket` will need to be replaced with your bucket name.
+</Admonition>
 
 #### IAM for DynamoDB
 
@@ -238,9 +238,9 @@ An example policy is shown below:
 }
 ```
 
-!!! note "Note"
-
-    `arn:aws:dynamodb:<region>:<account_id>:table/<events_table_name>` and `<cluster_state_table_name>` will need to be replaced with your two DynamoDB tables.
+<Admonition type="note" title="Note">
+`arn:aws:dynamodb:<region>:<account_id>:table/<events_table_name>` and `<cluster_state_table_name>` will need to be replaced with your two DynamoDB tables.
+</Admonition>
 
 ### ACM
 
@@ -419,13 +419,13 @@ aws iam attach-role-policy --role-name teleport-role --policy-arn $POLICY_ARN
 
 This maps the IAM role **teleport-role** to the Kubernetes group **teleport-group**.
 
-!!! note
+<Admonition type="note">
+If you used eksctl to create your cluster, you may need to add the mapUsers section to the aws-auth ConfigMap before executing these commands.
 
-    If you used eksctl to create your cluster, you may need to add the mapUsers section to the aws-auth ConfigMap before executing these commands.
-
-    ```
-    eksctl create iamidentitymapping --cluster [cluster-name] --arn arn:aws:iam::[account-id]:role/teleport-role --group teleport-group --username teleport
-    ```
+```
+eksctl create iamidentitymapping --cluster [cluster-name] --arn arn:aws:iam::[account-id]:role/teleport-role --group teleport-group --username teleport
+```
+</Admonition>
 
 ```bash
 ROLE="    - userarn: arn:aws:iam::[account-id]:role/teleport-role\n      username: teleport\n      groups:\n        - teleport-group"

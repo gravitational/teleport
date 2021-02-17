@@ -30,11 +30,11 @@ The team open sources role based access controls, adds API with Go client and im
 | First beta           | Feb 15th, 2021    | Deploy on staging.
 | Release              | March 1st, 2021   | Good to go for production.
 
-!!! warning
-
-    We pushed beta release date to Feb 15th 2021.
-    We moved U2F and Access Workflows to 6.1 release to reduce scope and match the promised
-    March 1st release date.
+<Admonition type="warning">
+We pushed beta release date to Feb 15th 2021.
+We moved U2F and Access Workflows to 6.1 release to reduce scope and match the promised
+March 1st release date.
+</Admonition>
 
 ### Features
 

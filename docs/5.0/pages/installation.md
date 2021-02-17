@@ -13,64 +13,62 @@ The following examples install the 64-bit version of Teleport binaries, but
 Release](https://gravitational.com/teleport/download/) page for the most
 up-to-date information.
 
-=== "Debian/Ubuntu (DEB)"
-
-    ```bash
-    # Install our public key.
-    $ curl https://deb.releases.teleport.dev/teleport-pubkey.asc | sudo apt-key add -
-    # Add repo to APT
-    $ add-apt-repository 'deb https://deb.releases.teleport.dev/ stable main'
-    # Update APT Cache
-    $ apt-get
-    # Install Teleport
-    $ apt install teleport
-    ```
-
-=== "Amazon Linux 2/RHEL/Fedora (RPM)"
-
-    ```bash
-    $ yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
-    $ yum install teleport
-    ```
-
-=== "ARMv7 (32-bit)"
-
-    ```bash
-    $ curl https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-arm-bin.tar.gz.sha256
-    # <checksum> <filename>
-    $ curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-arm-bin.tar.gz
-    $ shasum -a 256 teleport-v{{ teleport.version }}-linux-arm-bin.tar.gz
-    # Verify that the checksums match
-    $ tar -xzf teleport-v{{ teleport.version }}-linux-arm-bin.tar.gz
-    $ cd teleport
-    $ ./install
-    ```
-
-=== "ARM64/ARMv8 (64-bit)"
-
-    ```bash
-    $ curl https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz.sha256
-    # <checksum> <filename>
-    $ curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz
-    $ shasum -a 256 teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz
-    # Verify that the checksums match
-    $ tar -xzf teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz
-    $ cd teleport
-    $ ./install
-    ```
-
-=== "Tarball"
-
-    ```bash
-    $ curl https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz.sha256
-    # <checksum> <filename>
-    $ curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
-    $ shasum -a 256 teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
-    # Verify that the checksums match
-    $ tar -xzf teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
-    $ cd teleport
-    $ ./install
-    ```
+<Tabs>
+<TabItem label="Debian/Ubuntu (DEB)">
+```bash
+# Install our public key.
+$ curl https://deb.releases.teleport.dev/teleport-pubkey.asc | sudo apt-key add -
+# Add repo to APT
+$ add-apt-repository 'deb https://deb.releases.teleport.dev/ stable main'
+# Update APT Cache
+$ apt-get
+# Install Teleport
+$ apt install teleport
+```
+</TabItem>
+<TabItem label="Amazon Linux 2/RHEL/Fedora (RPM)">
+```bash
+$ yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
+$ yum install teleport
+```
+</TabItem>
+<TabItem label="ARMv7 (32-bit)">
+```bash
+$ curl https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-arm-bin.tar.gz.sha256
+# <checksum> <filename>
+$ curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-arm-bin.tar.gz
+$ shasum -a 256 teleport-v{{ teleport.version }}-linux-arm-bin.tar.gz
+# Verify that the checksums match
+$ tar -xzf teleport-v{{ teleport.version }}-linux-arm-bin.tar.gz
+$ cd teleport
+$ ./install
+```
+</TabItem>
+<TabItem label="ARM64/ARMv8 (64-bit)">
+```bash
+$ curl https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz.sha256
+# <checksum> <filename>
+$ curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz
+$ shasum -a 256 teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz
+# Verify that the checksums match
+$ tar -xzf teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz
+$ cd teleport
+$ ./install
+```
+</TabItem>
+<TabItem label="Tarball">
+```bash
+$ curl https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz.sha256
+# <checksum> <filename>
+$ curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
+$ shasum -a 256 teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
+# Verify that the checksums match
+$ tar -xzf teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
+$ cd teleport
+$ ./install
+```
+</TabItem>
+</Tabs>
 
 ## Docker
 
@@ -90,58 +88,59 @@ $ helm install teleport teleport/teleport
 
 ## MacOS
 
-=== "Download"
+<Tabs>
+<TabItem label="Download">
+[Download MacOS .pkg installer](https://goteleport.com/teleport/download?os=macos) (tsh client only, signed) file, double-click to run the Installer.
 
-    [Download MacOS .pkg installer](https://goteleport.com/teleport/download?os=macos) (tsh client only, signed) file, double-click to run the Installer.
+<Admonition type="note">
+This method only installs the `tsh` client for interacting with Teleport clusters.
+If you need the `teleport` server or `tctl` admin tool, use the "Terminal" method instead.
+</Admonition>
+</TabItem>
+<TabItem label="Homebrew">
+```bash
+$ brew install teleport
+```
 
-    !!! note
-
-        This method only installs the `tsh` client for interacting with Teleport clusters.
-        If you need the `teleport` server or `tctl` admin tool, use the "Terminal" method instead.
-
-=== "Homebrew"
-
-    ```bash
-    $ brew install teleport
-    ```
-
-    !!! note
-
-        The Teleport package in Homebrew is not maintained by Teleport. We recommend the use of our [own Teleport packages](https://goteleport.com/teleport/download?os=macos).
-
-=== "Terminal"
-
-    ```bash
-    $ curl -O https://get.gravitational.com/teleport-{{ teleport.version }}.pkg
-    $ sudo installer -pkg teleport-{{ teleport.version }}.pkg -target / # Installs on Macintosh HD
-    Password:
-    installer: Package name is teleport-{{ teleport.version }}
-    installer: Upgrading at base path /
-    installer: The upgrade was successful.
-    $ which teleport
-    /usr/local/bin/teleport
-    ```
-
+<Admonition type="note">
+The Teleport package in Homebrew is not maintained by Teleport. We recommend the use of our [own Teleport packages](https://goteleport.com/teleport/download?os=macos).
+</Admonition>
+</TabItem>
+<TabItem label="Terminal">
+```bash
+$ curl -O https://get.gravitational.com/teleport-{{ teleport.version }}.pkg
+$ sudo installer -pkg teleport-{{ teleport.version }}.pkg -target / # Installs on Macintosh HD
+Password:
+installer: Package name is teleport-{{ teleport.version }}
+installer: Upgrading at base path /
+installer: The upgrade was successful.
+$ which teleport
+/usr/local/bin/teleport
+```
+</TabItem>
+</Tabs>
 
 ## Windows (tsh client only)
 
 As of version v3.0.1 we have `tsh` client binary available for Windows 64-bit
 architecture - `teleport` and `tctl` are not supported.
 
-=== "Powershell"
-
-    ```bash
-    > curl https://get.gravitational.com/teleport-v{{ teleport.version }}-windows-amd64-bin.zip.sha256
-    # <checksum> <filename>
-    > curl -O teleport-v{{ teleport.version }}-windows-amd64-bin.zip https://get.gravitational.com/teleport-v{{ teleport.version }}-windows-amd64-bin.zip
-    > echo %PATH% # Edit %PATH% if necessary
-    > certUtil -hashfile teleport-v{{ teleport.version }}-windows-amd64-bin.zip SHA256
-    SHA256 hash of teleport-v{{ teleport.version }}-windows-amd64-bin.zip:
-    # <checksum> <filename>
-    CertUtil: -hashfile command completed successfully.
-    # Verify that the checksums match
-    # Move `tsh` to your %PATH%
-    ```
+<Tabs>
+<TabItem label="Powershell">
+```bash
+> curl https://get.gravitational.com/teleport-v{{ teleport.version }}-windows-amd64-bin.zip.sha256
+# <checksum> <filename>
+> curl -O teleport-v{{ teleport.version }}-windows-amd64-bin.zip https://get.gravitational.com/teleport-v{{ teleport.version }}-windows-amd64-bin.zip
+> echo %PATH% # Edit %PATH% if necessary
+> certUtil -hashfile teleport-v{{ teleport.version }}-windows-amd64-bin.zip SHA256
+SHA256 hash of teleport-v{{ teleport.version }}-windows-amd64-bin.zip:
+# <checksum> <filename>
+CertUtil: -hashfile command completed successfully.
+# Verify that the checksums match
+# Move `tsh` to your %PATH%
+```
+</TabItem>
+</Tabs>
 
 ## Installing from Source
 

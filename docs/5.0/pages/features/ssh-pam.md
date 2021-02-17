@@ -249,11 +249,11 @@ session   required   pam_motd.so
 session   required   pam_permit.so
 ```
 
-!!! note
-
-    Pay attention to the inclusion of `pam_motd.so` under the `session` facility. While `pam_motd.so` is
-    not required for user creation, Teleport requires at least one module to be set under both
-    the `account` and `session` facilities for it to work.
+<Admonition type="note">
+Pay attention to the inclusion of `pam_motd.so` under the `session` facility. While `pam_motd.so` is
+not required for user creation, Teleport requires at least one module to be set under both
+the `account` and `session` facilities for it to work.
+</Admonition>
 
 Next, create the script that will be run by `pam_exec.so` like below. This
 script will check if the user passed in `TELEPORT_LOGIN` exists and if it does
@@ -263,9 +263,9 @@ not, it will create it. Any error from `useradd` will be written to
 to write richer scripts that may change the system in other ways based on
 identity information.
 
-!!! note
-
-    The `useradd` location can have a different path then the example below depending on your linux flavor.  Adjust to your particular system as needed from `which useradd` (Ex: `/usr/sbin/useradd` instead of the below example).
+<Admonition type="note">
+The `useradd` location can have a different path then the example below depending on your linux flavor.  Adjust to your particular system as needed from `which useradd` (Ex: `/usr/sbin/useradd` instead of the below example).
+</Admonition>
 
 ```bash
 mkdir -p /etc/pam-exec.d

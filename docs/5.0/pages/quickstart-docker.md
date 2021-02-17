@@ -10,13 +10,13 @@ We provide pre-built Docker images for every version of Teleport. These images a
 
 We currently only offer Docker images for `x86_64` architectures.
 
-!!! note
+<Admonition type="note">
+You will need a recent version of [Docker](https://hub.docker.com/search?q=&type=edition&offering=community) installed to follow this section of the quick start guide.
+</Admonition>
 
-    You will need a recent version of [Docker](https://hub.docker.com/search?q=&type=edition&offering=community) installed to follow this section of the quick start guide.
-
-!!! warning
-
-    This setup will not let you 'SSH into' the node that is running Teleport without additional configuration.
+<Admonition type="warning">
+This setup will not let you 'SSH into' the node that is running Teleport without additional configuration.
+</Admonition>
 
 ## Pick your image
 
@@ -35,9 +35,9 @@ For testing, we always recommend that you use the latest release version of Tele
 
 ## Quickstart using docker-compose
 
-!!! note
-
-    You will need a recent version of [`docker-compose`](https://docs.docker.com/compose/install/) installed to follow this section of the quick start guide.
+<Admonition type="note">
+You will need a recent version of [`docker-compose`](https://docs.docker.com/compose/install/) installed to follow this section of the quick start guide.
+</Admonition>
 
 The easiest way to start Teleport quickly is to use `docker-compose` with our [`teleport-quickstart.yml`](https://github.com/gravitational/teleport/blob/master/docker/teleport-quickstart.yml) file:
 

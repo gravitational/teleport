@@ -32,12 +32,11 @@ This guide's focus is on more in-depth coverage of trusted clusters features and
 * Enable/disable trust between clusters.
 * Establish permissions mapping between clusters using Teleport roles.
 
-!!! tip "Teleport Node Tunneling"
-
-    If you have a large amount of devices on different networks, such as
-    managed IoT devices or a couple of nodes on a different network you can utilize
-    the [Teleport Node Tunneling](admin-guide.md#adding-a-node-located-behind-nat).
-
+<Admonition type="tip" title="Teleport Node Tunneling">
+If you have a large amount of devices on different networks, such as
+managed IoT devices or a couple of nodes on a different network you can utilize
+the [Teleport Node Tunneling](admin-guide.md#adding-a-node-located-behind-nat).
+</Admonition>
 
 ## Introduction
 
@@ -97,14 +96,14 @@ This setup works as follows:
    reverse tunnel from step 1 is used to establish this connection shown as the
    green line above.
 
-!!! tip "Load Balancers"
-
-    The scheme above also works even if the "root" cluster uses multiple
-    proxies behind a load balancer (LB) or a DNS entry with multiple values.
-    This works by "leaf" establishing a tunnel to _every_ proxy in "root". This
-    requires that an LB uses round-robin or a similar balancing algorithm. Do
-    not use sticky load balancing algorithms (a.k.a. "session affinity" or "sticky sessions") with
-    Teleport proxies.
+<Admonition type="tip" title="Load Balancers">
+The scheme above also works even if the "root" cluster uses multiple
+proxies behind a load balancer (LB) or a DNS entry with multiple values.
+This works by "leaf" establishing a tunnel to _every_ proxy in "root". This
+requires that an LB uses round-robin or a similar balancing algorithm. Do
+not use sticky load balancing algorithms (a.k.a. "session affinity" or "sticky sessions") with
+Teleport proxies.
+</Admonition>
 
 ## Join Tokens
 
@@ -122,11 +121,11 @@ This shared secret is called a "join token". There are two ways to create join
 tokens: to statically define them in a configuration file, or to create them on
 the fly using `tctl` tool.
 
-!!! tip "Important"
-
-    It is important to realize that join tokens are only used to establish the
-    connection for the first time. The clusters will exchange certificates and
-    won't be using the token to re-establish the connection in the future.
+<Admonition type="tip" title="Important">
+It is important to realize that join tokens are only used to establish the
+connection for the first time. The clusters will exchange certificates and
+won't be using the token to re-establish the connection in the future.
+</Admonition>
 
 ### Static Join Tokens
 
@@ -218,22 +217,21 @@ $ tctl create cluster.yaml
 
 At this point the users of the "root" cluster should be able to see "leaf" in the list of available clusters.
 
-
-!!! warning "HTTPS configuration"
-
-    If the `web_proxy_addr` endpoint of the root
-    cluster uses a self-signed or invalid HTTPS certificate, you will get an
-    error: _"the trusted cluster uses misconfigured HTTP/TLS certificate"_. For
-    ease of testing, the Teleport daemon on "leaf" can be started with the
-    `--insecure` CLI flag to accept self-signed certificates. Make sure to configure
-    HTTPS properly and remove the insecure flag for production use.
+<Admonition type="warning" title="HTTPS configuration">
+If the `web_proxy_addr` endpoint of the root
+cluster uses a self-signed or invalid HTTPS certificate, you will get an
+error: _"the trusted cluster uses misconfigured HTTP/TLS certificate"_. For
+ease of testing, the Teleport daemon on "leaf" can be started with the
+`--insecure` CLI flag to accept self-signed certificates. Make sure to configure
+HTTPS properly and remove the insecure flag for production use.
+</Admonition>
 
 ## RBAC
 
-!!! warning "Version Warning"
-
-    The RBAC section is applicable only to Teleport Enterprise. The open source
-    version does not support SSH roles.
+<Admonition type="warning" title="Version Warning">
+The RBAC section is applicable only to Teleport Enterprise. The open source
+version does not support SSH roles.
+</Admonition>
 
 When a _leaf_ cluster "leaf" from the diagram above establishes trust with
 the _root_ cluster "root", it needs a way to configure which users from
@@ -438,11 +436,10 @@ db2.leaf  3879d133-fe81-3212 10.0.5.3:3022  role=db-follower
 $ tsh ssh --cluster=leaf user@db1.leaf
 ```
 
-!!! tip "Note"
-
-    Trusted clusters work only one way. So, in the example above users from "leaf"
-    cannot see or connect to the nodes in "root".
-
+<Admonition type="tip" title="Note">
+Trusted clusters work only one way. So, in the example above users from "leaf"
+cannot see or connect to the nodes in "root".
+</Admonition>
 
 ### Disabling Trust
 
@@ -466,11 +463,11 @@ the following:
 
 Remove the relationship from the root cluster: `tctl rm rc/leaf.example.com`.
 
-!!! note
-
-    The `leaf.example.com` cluster will continue to try and ping the root cluster,
-    but will not be able to connect. To re-establish the trusted cluster relationship,
-    the trusted cluster has to be created again from the leaf cluster.
+<Admonition type="note">
+The `leaf.example.com` cluster will continue to try and ping the root cluster,
+but will not be able to connect. To re-establish the trusted cluster relationship,
+the trusted cluster has to be created again from the leaf cluster.
+</Admonition>
 
 ### Remove Leaf Cluster relationship from the leaf
 
@@ -503,9 +500,10 @@ The role `admin` of the leaf cluster can now be set up to use the root cluster r
 logins: ["{% raw %}{{internal.logins}}{% endraw %}"]
 kubernetes_groups: ["{% raw %}{{internal.kubernetes_groups}}{% endraw %}"]
 ```
-!!! tip "Note"
 
-    In order to pass logins from a root trusted cluster to a leaf cluster, you must use the variable `{% raw %}{{internal.logins}}{% endraw %}`.
+<Admonition type="tip" title="Note">
+In order to pass logins from a root trusted cluster to a leaf cluster, you must use the variable `{% raw %}{{internal.logins}}{% endraw %}`.
+</Admonition>
 
 ## How does it work?
 

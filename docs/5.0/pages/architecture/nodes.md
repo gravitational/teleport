@@ -26,12 +26,12 @@ ping messages. They report their IP addresses and values of their assigned
 labels. Nodes can access the list of all Nodes in their cluster via the
 [Auth Server API](authentication.md#auth-api).
 
-!!! tip "Tip"
-
-    In most environments we advise replacing the OpenSSH daemon `sshd`
-    with the Teleport Node Service unless there are existing workflows relying
-    on `ssh` or in special cases such as embedded devices that can't run
-    custom binaries.
+<Admonition type="tip" title="Tip">
+In most environments we advise replacing the OpenSSH daemon `sshd`
+with the Teleport Node Service unless there are existing workflows relying
+on `ssh` or in special cases such as embedded devices that can't run
+custom binaries.
+</Admonition>
 
 The `node` service provides SSH access to every node with all of the following clients:
 
@@ -61,9 +61,9 @@ certificate is issued to a node when it joins the cluster for the first time.
 Learn more about this process in the [Auth
 Guide](authentication.md#authentication-in-teleport).
 
-!!! warning "Single-Node Clusters are Clusters"
-
-    Once a Node gets a signed certificate from the Node CA, the Node is considered a member of the cluster, even if that cluster has only one node.
+<Admonition type="warning" title="Single-Node Clusters are Clusters">
+Once a Node gets a signed certificate from the Node CA, the Node is considered a member of the cluster, even if that cluster has only one node.
+</Admonition>
 
 ## Connecting to Nodes
 

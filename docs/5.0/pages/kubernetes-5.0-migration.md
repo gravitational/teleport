@@ -327,10 +327,10 @@ cluster you are currently logged into.
 
 # RBAC
 
-!!! note
-
-    Kubernetes RBAC integration only works with `kubernetes_service`. Make sure
-    you've migrated all the clusters as described above before proceeding.
+<Admonition type="note">
+Kubernetes RBAC integration only works with `kubernetes_service`. Make sure
+you've migrated all the clusters as described above before proceeding.
+</Admonition>
 
 By default, all users have access to all Kubernetes clusters (as a limited set
 of Kubernetes user/group identities). In 5.0, you can restrict user access to a

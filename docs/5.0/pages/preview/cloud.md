@@ -10,10 +10,10 @@ To request access, and join the waiting list, sign up [here](https://goteleport.
 
 ## Status
 
-!!! warning
-
-    Teleport Cloud is currently only recommended for environments that do not require
-    strict compliance standards or SLA uptime guarantees.
+<Admonition type="warning">
+Teleport Cloud is currently only recommended for environments that do not require
+strict compliance standards or SLA uptime guarantees.
+</Admonition>
 
 [Cloud Release Schedule](./upcoming-releases.md#teleport-cloud-austin)
 

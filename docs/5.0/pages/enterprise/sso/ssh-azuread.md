@@ -15,11 +15,11 @@ like:
 
 The following steps configure an example SAML authentication connector matching AzureAD groups with security roles.  You can choose to configure other options.
 
-!!! warning "Version Warning"
-
-    This guide requires an Enterprise version of Teleport. The open source
-    edition of Teleport only supports [Github](../../admin-guide.md#github-oauth-20) as
-    an SSO provider.
+<Admonition type="warning" title="Version Warning">
+This guide requires an Enterprise version of Teleport. The open source
+edition of Teleport only supports [Github](../../admin-guide.md#github-oauth-20) as
+an SSO provider.
+</Admonition>
 
 ## Prerequisites:
 
@@ -71,9 +71,10 @@ Before you get started you’ll need:
 10. On the SAML Signing Certificate select to download SAML Download the Federation Metadata XML.
    ![Download Federation Metadata XML](../../../img/azuread/azuread-10-fedmeatadataxml.png)
 
-!!! warning "Important"
 
-    This is a important document.  Treat the Federation Metadata XML file as you would a password.
+<Admonition type="warning" title="Important">
+This is a important document.  Treat the Federation Metadata XML file as you would a password.
+</Admonition>
 
 ## Create a SAML Connector
 
@@ -103,9 +104,10 @@ Create the connector using `tctl` tool:
 ```bsh
 $ tctl create azure-connector.yaml
 ```
-!!! tip "FYI"
 
-    Teleport will automatically transform the contents of the connector when viewed from the web UI.
+<Admonition type="tip" title="FYI">
+Teleport will automatically transform the contents of the connector when viewed from the web UI.
+</Admonition>
 
  ![Sample Connector Transform](../../../img/azuread/azuread-12-sampleconnector.png)
 
@@ -180,10 +182,10 @@ $ tsh --proxy=proxy.example.com login
 This command will print the SSO login URL (and will try to open it
 automatically in a browser).
 
-!!! tip "Tip"
-
-    Teleport can use multiple SAML connectors. In this case a connector name
-    can be passed via `tsh login --auth=connector_name`
+<Admonition type="tip" title="Tip">
+Teleport can use multiple SAML connectors. In this case a connector name
+can be passed via `tsh login --auth=connector_name`
+</Admonition>
 
 ## Troubleshooting
 

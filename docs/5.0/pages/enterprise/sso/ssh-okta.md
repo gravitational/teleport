@@ -14,11 +14,11 @@ like:
 * Only members of "DBA" group can SSH into machines running PostgreSQL.
 * Developers must never SSH into production servers.
 
-!!! warning "Version Warning"
-
-    This guide requires a commercial edition of Teleport. The open source
-    edition of Teleport only supports [Github](../../admin-guide.md#github-oauth-20) as
-    an SSO provider.
+<Admonition type="warning" title="Version Warning">
+This guide requires a commercial edition of Teleport. The open source
+edition of Teleport only supports [Github](../../admin-guide.md#github-oauth-20) as
+an SSO provider.
+</Admonition>
 
 ## Enable SAML Authentication
 
@@ -70,11 +70,12 @@ GROUP ATTRIBUTE STATEMENTS
 #### Note: RegEx requires `.*`
 ![Configure APP](../../../img/sso/okta/regex.png)
 
-!!! tip "tip"
 
-    Notice that we have set "NameID" to the email format and mapped the groups with
-    a wildcard regex in the Group Attribute statements. We have also set the "Audience"
-    and SSO URL to the same value.
+<Admonition type="tip" title="tip">
+Notice that we have set "NameID" to the email format and mapped the groups with
+a wildcard regex in the Group Attribute statements. We have also set the "Audience"
+and SSO URL to the same value.
+</Admonition>
 
 ### Create & Assign Groups
 
@@ -176,16 +177,16 @@ $ tsh --proxy=proxy.example.com login
 This command will print the SSO login URL (and will try to open it
 automatically in a browser).
 
-!!! tip "Tip"
+<Admonition type="tip" title="Tip">
+Teleport can use multiple SAML connectors. In this case a connector name
+can be passed via `tsh login --auth=connector_name`
+</Admonition>
 
-    Teleport can use multiple SAML connectors. In this case a connector name
-    can be passed via `tsh login --auth=connector_name`
-
-!!! note "IMPORTANT"
-
-    Teleport only supports sending party initiated flows for SAML 2.0. This
-    means you can not initiate login from your identity provider, you have to
-    initiate login from either the Teleport Web UI or CLI.
+<Admonition type="note" title="IMPORTANT">
+Teleport only supports sending party initiated flows for SAML 2.0. This
+means you can not initiate login from your identity provider, you have to
+initiate login from either the Teleport Web UI or CLI.
+</Admonition>
 
 ## Troubleshooting
 

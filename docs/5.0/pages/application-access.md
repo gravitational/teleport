@@ -29,9 +29,9 @@ Your browser does not support the video tag.
 
 #### Networking Requirements
 
-!!! note "Why do I see SSH Ports for Application Access?"
-
-    Teleport uses SSH reverse tunnels to connect applications to the proxy. This is why the configuration below mentions SSH ports.
+<Admonition type="note" title="Why do I see SSH Ports for Application Access?">
+Teleport uses SSH reverse tunnels to connect applications to the proxy. This is why the configuration below mentions SSH ports.
+</Admonition>
 
 |Port      | Service    | Description
 |----------|------------|-------------------------------------------
@@ -62,20 +62,19 @@ proxy_service:
     cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
 ```
 
-!!! tip "Using Certbot to obtain Wildcard Certs"
+<Admonition type="tip" title="Using Certbot to obtain Wildcard Certs">
+Let's Encrypt provides free wildcard certificates. If using [certbot](https://certbot.eff.org/)
+with DNS challenge, the below script will make setup easy. Update [EMAIL] and [DOMAIN]
 
-    Let's Encrypt provides free wildcard certificates. If using [certbot](https://certbot.eff.org/)
-    with DNS challenge, the below script will make setup easy. Update [EMAIL] and [DOMAIN]
-
-      ```sh
-      certbot certonly --manual \
-        --preferred-challenges=dns \
-        --email [EMAIL] \
-        --agree-tos \
-        --manual-public-ip-logging-ok \
-        -d "teleport.example.com, *.teleport.example.com"
-      ```
-
+  ```sh
+  certbot certonly --manual \
+    --preferred-challenges=dns \
+    --email [EMAIL] \
+    --agree-tos \
+    --manual-public-ip-logging-ok \
+    -d "teleport.example.com, *.teleport.example.com"
+  ```
+</Admonition>
 
 ## Teleport Application Service Setup
 
