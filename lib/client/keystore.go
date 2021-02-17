@@ -24,13 +24,13 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"os/user"
 	"path/filepath"
 	"strings"
 
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -40,7 +40,7 @@ import (
 )
 
 const (
-	defaultKeyDir      = ProfileDir
+	defaultKeyDir      = client.ProfileDir
 	fileExtTLSCert     = "-x509.pem"
 	fileExtCert        = "-cert.pub"
 	fileExtPub         = ".pub"
@@ -631,16 +631,7 @@ func (fs *FSLocalKeyStore) dirFor(proxyHost string, create bool) (string, error)
 // initKeysDir initializes the keystore root directory. Usually it is ~/.tsh
 func initKeysDir(dirPath string) (string, error) {
 	var err error
-	// not specified? use `~/.tsh`
-	if dirPath == "" {
-		u, err := user.Current()
-		if err != nil {
-			dirPath = os.TempDir()
-		} else {
-			dirPath = u.HomeDir
-		}
-		dirPath = filepath.Join(dirPath, defaultKeyDir)
-	}
+	dirPath = client.FullProfilePath(dirPath)
 	// create if doesn't exist:
 	_, err = os.Stat(dirPath)
 	if err != nil {

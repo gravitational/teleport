@@ -1,5 +1,5 @@
 /*
-Copyright 2016-2019 Gravitational, Inc.
+Copyright 2016-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -82,49 +82,4 @@ func TestProfileBasics(t *testing.T) {
 	clone, err = ProfileFromDir(dir, p.Name())
 	require.NoError(t, err)
 	require.Equal(t, *p, *clone)
-}
-
-// TestProfileSymlinkMigration verifies that the old `profile` symlink
-// is correctly migrated to the new `current-profile` file.
-//
-// DELETE IN: 6.0
-func TestProfileSymlinkMigration(t *testing.T) {
-	t.Parallel()
-
-	dir, err := ioutil.TempDir("", "teleport")
-	require.NoError(t, err)
-	defer os.RemoveAll(dir)
-
-	name := "some-profile"
-	file := filepath.Join(dir, name+".yaml")
-	link := filepath.Join(dir, CurrentProfileSymlink)
-
-	// note that we don't bother to create the actual profile; this
-	// migration deals solely with converting the `profile` symlink
-	// to a `current-profile` file.
-
-	// create old style symlink
-	require.NoError(t, os.Symlink(file, link))
-
-	// ensure that link exists
-	_, err = os.Lstat(link)
-	require.NoError(t, err)
-
-	// load current profile name; this should automatically
-	// trigger the migration and return the correct name.
-	cn, err := GetCurrentProfileName(dir)
-	require.NoError(t, err)
-	require.Equal(t, name, cn)
-
-	// verify that current-profile file now exists
-	_, err = os.Stat(filepath.Join(dir, CurrentProfileFilename))
-	require.NoError(t, err)
-
-	// forcibly remove the symlink
-	require.NoError(t, os.Remove(link))
-
-	// loading current profile should still succeed.
-	cn, err = GetCurrentProfileName(dir)
-	require.NoError(t, err)
-	require.Equal(t, name, cn)
 }

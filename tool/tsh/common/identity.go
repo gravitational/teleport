@@ -20,11 +20,10 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"io/ioutil"
-	"os"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/client/identityfile"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -38,12 +37,7 @@ import (
 func LoadIdentity(idFn string) (*client.Key, error) {
 	logrus.Infof("Reading identity file: %v", idFn)
 
-	f, err := os.Open(idFn)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer f.Close()
-	ident, err := identityfile.Decode(f)
+	ident, err := apiclient.DecodeIdentityFile(idFn)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse identity file")
 	}
