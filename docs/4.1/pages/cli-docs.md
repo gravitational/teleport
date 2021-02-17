@@ -1,4 +1,6 @@
-# CLI Docs
+---
+title: CLI Docs
+---
 
 ## teleport
 

@@ -1,1 +1,3 @@
-# Setting up and running Teleport on AWS
+---
+title: Setting up and running Teleport on AWS
+---

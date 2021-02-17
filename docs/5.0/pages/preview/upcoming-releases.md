@@ -1,9 +1,8 @@
 ---
 title: Teleport Upcoming Releases
 description: A timeline of upcoming Teleport releases.
+h1: Upcoming Teleport Releases
 ---
-
-# Upcoming Teleport Releases
 
 The teleport team delivers a new major release roughly every 3 months.
 

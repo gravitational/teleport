@@ -1,4 +1,6 @@
-# SSH Authentication with One Login
+---
+title: SSH Authentication with One Login
+---
 
 This guide will cover how to configure [One Login](https://www.onelogin.com/) to issue
 SSH credentials to specific groups of users. When used in combination with role

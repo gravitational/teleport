@@ -1,9 +1,8 @@
 ---
 title: Kubernetes Access Guide
 description: How to set up and configure Teleport for Kubernetes access with SSO and RBAC
+h1: Teleport Kubernetes Access
 ---
-
-# Teleport Kubernetes Access
 
 Teleport handles SSO and provides a unified access plane for Kubernetes clusters.
 

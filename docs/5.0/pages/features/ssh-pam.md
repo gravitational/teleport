@@ -1,15 +1,13 @@
 ---
 title: Configuring Teleport SSH with PAM (pluggable authentication modules)
 description: How to configure Teleport SSH access to play nicely with PAM (pluggable authentication modules)
+h1: Pluggable Authentication Modules (PAM)
 ---
-
-# Pluggable Authentication Modules (PAM)
 
 Teleport's node service can be configured to integrate with [PAM](https://en.wikipedia.org/wiki/Linux_PAM). This allows Teleport to create user sessions using PAM session profiles.
 
 Teleport only supports the `auth`, `account` and `session` stack. The `auth`
 stack is optional and not used by default.
-
 
 ## Introduction to Pluggable Authentication Modules
 
@@ -181,7 +179,7 @@ session [success=ok ignore=ignore module_unknown=ignore default=bad]        pam_
 @include common-password
 ```
 
-The default `sshd` will call two `pam_motd` files, one dynamic. That prints the machine
+The default `sshd` will call two `pam_motd` files, one dynamic MOTD that prints the machine
 info, and a static MOTD that can be set by an admin.
 
 ```

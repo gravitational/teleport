@@ -45,6 +45,7 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth"
@@ -1426,7 +1427,7 @@ func (tc *TeleportClient) ExecuteSCP(ctx context.Context, cmd scp.Command) (err 
 		return trace.Wrap(err)
 	}
 
-	err = nodeClient.ExecuteSCP(cmd)
+	err = nodeClient.ExecuteSCP(ctx, cmd)
 	if err != nil {
 		// converts SSH error code to tc.ExitStatus
 		exitError, _ := trace.Unwrap(err).(*ssh.ExitError)
@@ -1463,21 +1464,24 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, flag
 	}
 	defer proxyClient.Close()
 
+	var progressWriter io.Writer
+	if !quiet {
+		progressWriter = tc.Stdout
+	}
+
 	// helper function connects to the src/target node:
-	connectToNode := func(addr string) (*NodeClient, error) {
+	connectToNode := func(addr, hostLogin string) (*NodeClient, error) {
 		// determine which cluster we're connecting to:
 		siteInfo, err := proxyClient.currentCluster()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		if hostLogin == "" {
+			hostLogin = tc.Config.HostLogin
+		}
 		return proxyClient.ConnectToNode(ctx,
 			NodeAddr{Addr: addr, Namespace: tc.Namespace, Cluster: siteInfo.Name},
-			tc.HostLogin, false)
-	}
-
-	var progressWriter io.Writer
-	if !quiet {
-		progressWriter = tc.Stdout
+			hostLogin, false)
 	}
 
 	// gets called to convert SSH error code to tc.ExitStatus
@@ -1488,88 +1492,102 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, flag
 		}
 		return err
 	}
+
+	tpl := scp.Config{
+		User:           tc.Username,
+		ProgressWriter: progressWriter,
+		Flags:          flags,
+	}
+
+	var config *scpConfig
 	// upload:
 	if isRemoteDest(last) {
-		filesToUpload := args[:len(args)-1]
-
-		// If more than a single file were provided, scp must be in directory mode
-		// and the target on the remote host needs to be a directory.
-		var directoryMode bool
-		if len(filesToUpload) > 1 {
-			directoryMode = true
-		}
-
-		dest, err := scp.ParseSCPDestination(last)
+		config, err = tc.uploadConfig(ctx, tpl, port, args)
 		if err != nil {
 			return trace.Wrap(err)
-		}
-		if dest.Login != "" {
-			tc.HostLogin = dest.Login
-		}
-		addr := net.JoinHostPort(dest.Host.Host(), strconv.Itoa(port))
-
-		client, err := connectToNode(addr)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		// copy everything except the last arg (that's destination)
-		for _, src := range filesToUpload {
-			scpConfig := scp.Config{
-				User:           tc.Username,
-				ProgressWriter: progressWriter,
-				RemoteLocation: dest.Path,
-				Flags:          flags,
-			}
-			scpConfig.Flags.Target = []string{src}
-			scpConfig.Flags.DirectoryMode = directoryMode
-
-			cmd, err := scp.CreateUploadCommand(scpConfig)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			err = client.ExecuteSCP(cmd)
-			if err != nil {
-				return onError(err)
-			}
 		}
 	} else {
-		// download:
-		src, err := scp.ParseSCPDestination(first)
+		config, err = tc.downloadConfig(ctx, tpl, port, args)
 		if err != nil {
 			return trace.Wrap(err)
-		}
-		addr := net.JoinHostPort(src.Host.Host(), strconv.Itoa(port))
-		if src.Login != "" {
-			tc.HostLogin = src.Login
-		}
-		client, err := connectToNode(addr)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		// copy everything except the last arg (that's destination)
-		for _, dest := range args[1:] {
-			scpConfig := scp.Config{
-				User:           tc.Username,
-				Flags:          flags,
-				RemoteLocation: src.Path,
-				ProgressWriter: progressWriter,
-			}
-			scpConfig.Flags.Target = []string{dest}
-
-			cmd, err := scp.CreateDownloadCommand(scpConfig)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			err = client.ExecuteSCP(cmd)
-			if err != nil {
-				return onError(err)
-			}
 		}
 	}
-	return nil
+
+	client, err := connectToNode(config.addr, config.hostLogin)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return onError(client.ExecuteSCP(ctx, config.cmd))
+}
+
+func (tc *TeleportClient) uploadConfig(ctx context.Context, tpl scp.Config, port int, args []string) (config *scpConfig, err error) {
+	filesToUpload := args[:len(args)-1]
+	// copy everything except the last arg (the destination)
+	destPath := args[len(args)-1]
+
+	// If more than a single file were provided, scp must be in directory mode
+	// and the target on the remote host needs to be a directory.
+	var directoryMode bool
+	if len(filesToUpload) > 1 {
+		directoryMode = true
+	}
+
+	dest, addr, err := getSCPDestination(destPath, port)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tpl.RemoteLocation = dest.Path
+	tpl.Flags.Target = filesToUpload
+	tpl.Flags.DirectoryMode = directoryMode
+
+	cmd, err := scp.CreateUploadCommand(tpl)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &scpConfig{
+		cmd:       cmd,
+		addr:      addr,
+		hostLogin: dest.Login,
+	}, nil
+}
+
+func (tc *TeleportClient) downloadConfig(ctx context.Context, tpl scp.Config, port int, args []string) (config *scpConfig, err error) {
+	src, addr, err := getSCPDestination(args[0], port)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tpl.RemoteLocation = src.Path
+	tpl.Flags.Target = args[1:]
+
+	cmd, err := scp.CreateDownloadCommand(tpl)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &scpConfig{
+		cmd:       cmd,
+		addr:      addr,
+		hostLogin: src.Login,
+	}, nil
+}
+
+type scpConfig struct {
+	cmd       scp.Command
+	addr      string
+	hostLogin string
+}
+
+func getSCPDestination(target string, port int) (dest *scp.Destination, addr string, err error) {
+	dest, err = scp.ParseSCPDestination(target)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	addr = net.JoinHostPort(dest.Host.Host(), strconv.Itoa(port))
+	return dest, addr, nil
 }
 
 func isRemoteDest(name string) bool {
@@ -2221,18 +2239,21 @@ func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error 
 	return nil
 }
 
-func (tc *TeleportClient) localLogin(ctx context.Context, secondFactor string, pub []byte) (*auth.SSHLoginResponse, error) {
+func (tc *TeleportClient) localLogin(ctx context.Context, secondFactor constants.SecondFactorType, pub []byte) (*auth.SSHLoginResponse, error) {
 	var err error
 	var response *auth.SSHLoginResponse
 
+	// TODO(awly): mfa: ideally, clients should always go through mfaLocalLogin
+	// (with a nop MFA challenge if no 2nd factor is required). That way we can
+	// deprecate the direct login endpoint.
 	switch secondFactor {
-	case teleport.OFF, teleport.OTP, teleport.TOTP, teleport.HOTP:
+	case constants.SecondFactorOff, constants.SecondFactorOTP:
 		response, err = tc.directLogin(ctx, secondFactor, pub)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case teleport.U2F:
-		response, err = tc.u2fLogin(ctx, pub)
+	case constants.SecondFactorU2F, constants.SecondFactorOn, constants.SecondFactorOptional:
+		response, err = tc.mfaLocalLogin(ctx, pub)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2274,7 +2295,7 @@ func (tc *TeleportClient) AddKey(host string, key *Key) (*agent.AddedKey, error)
 }
 
 // directLogin asks for a password + HOTP token, makes a request to CA via proxy
-func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType string, pub []byte) (*auth.SSHLoginResponse, error) {
+func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType constants.SecondFactorType, pub []byte) (*auth.SSHLoginResponse, error) {
 	var err error
 
 	var password string
@@ -2286,7 +2307,7 @@ func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType stri
 	}
 
 	// only ask for a second factor if it's enabled
-	if secondFactorType != teleport.OFF {
+	if secondFactorType == constants.SecondFactorOTP {
 		otpToken, err = tc.AskOTP()
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2342,14 +2363,14 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, connectorID string, pub 
 	return response, trace.Wrap(err)
 }
 
-// directLogin asks for a password and performs the challenge-response authentication
-func (tc *TeleportClient) u2fLogin(ctx context.Context, pub []byte) (*auth.SSHLoginResponse, error) {
+// mfaLocalLogin asks for a password and performs the challenge-response authentication
+func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, pub []byte) (*auth.SSHLoginResponse, error) {
 	password, err := tc.AskPassword()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	response, err := SSHAgentU2FLogin(ctx, SSHLoginU2F{
+	response, err := SSHAgentMFALogin(ctx, SSHLoginMFA{
 		SSHLogin: SSHLogin{
 			ProxyAddr:         tc.WebProxyAddr,
 			PubKey:            pub,

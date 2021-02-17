@@ -1,4 +1,6 @@
-# SSH Authentication with Azure Active Directory (AD)
+---
+title: SSH Authentication with Azure Active Directory (AD)
+---
 
 This guide will cover how to configure [Microsoft Azure Active Directory](https://azure.microsoft.com/en-us/services/active-directory/) to issue
 SSH credentials to specific groups of users with a SAML Authentication Connector. When used in combination with role

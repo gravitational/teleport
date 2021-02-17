@@ -1,5 +1,6 @@
-
-# FAQ
+---
+title: FAQ
+---
 
 ### Can I use Teleport in production today?
 

@@ -1,9 +1,9 @@
 ---
 title: Teleport integration with Slack
 description: This guide explains how to setup a Slack plugin for Teleport for privilege elevation approvals.
+h1: Teleport Slack Plugin Setup
 ---
 
-# Teleport Slack Plugin Setup
 This guide will talk through how to setup Teleport with Slack. Teleport to Slack integration allows you to treat Teleport access and permission requests via Slack message and inline interactive components.
 
 !!! warning

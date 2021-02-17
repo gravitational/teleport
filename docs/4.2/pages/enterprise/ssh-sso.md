@@ -1,4 +1,6 @@
-# Single Sign-On (SSO) for SSH
+---
+title: Single Sign-On (SSO) for SSH
+---
 
 The commercial edition of Teleport allows users to login and retrieve their SSH
 credentials through a [Single Sign-On](https://en.wikipedia.org/wiki/Single_sign-on)
@@ -12,7 +14,7 @@ Other identity management systems are supported as long as they provide an
 SSO mechanism based on either [SAML](https://en.wikipedia.org/wiki/Security_Assertion_Markup_Language)
 or [OAuth2/OpenID Connect](https://en.wikipedia.org/wiki/OpenID_Connect).
 
-### SSO Setup Guides
+## SSO Setup Guides
 
 - [Azure Active Directory (AD)](sso/ssh-azuread.md)
 - [Active Directory (ADFS)](sso/ssh-adfs.md)

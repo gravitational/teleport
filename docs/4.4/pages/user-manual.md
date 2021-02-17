@@ -3,8 +3,6 @@ title: Teleport User Manual
 description: Manual for how to manage user identities, share sessions for SSH and Kubernetes access using the command line and the Web UI.
 ---
 
-# Teleport User Manual
-
 This User Manual covers usage of the Teleport client tool, `tsh` and Teleport's Web interface.
 
 In this document you will learn how to:

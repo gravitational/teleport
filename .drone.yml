@@ -66,8 +66,8 @@ steps:
           export PR_REPO=$(curl -Ls https://api.github.com/repos/gravitational/${DRONE_REPO_NAME}/pulls/${DRONE_PULL_REQUEST} | jq -r '.head.repo.full_name')
           echo "---> Source repo for PR ${DRONE_PULL_REQUEST}: $${PR_REPO}"
           # if the source repo for the PR matches DRONE_REPO, then this is not a PR raised from a fork
-          if [ "$${PR_REPO}" = "${DRONE_REPO}" ]; then
-            mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+          if [ "$${PR_REPO}" = "${DRONE_REPO}" ] || [ "${DRONE_REPO}" = "gravitational/teleport-private" ]; then
+            mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
             ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
             git submodule update --init e
             # do a recursive submodule checkout to get both webassets and webassets/e
@@ -149,6 +149,25 @@ steps:
       - cd /tmpfs/go/src/github.com/gravitational/teleport
       - make -C build.assets test
 
+  # some integration tests can only be run as root, so we handle
+  # these separately using a build tag
+  - name: Run root-only integration tests
+    image: docker
+    environment:
+      GOCACHE: /tmpfs/go/cache
+      GOPATH: /tmpfs/go
+    volumes:
+      - name: dockersock
+        path: /var/run
+      - name: tmp-integration
+        path: /tmp
+      - name: tmpfs
+        path: /tmpfs
+    commands:
+      - apk add --no-cache make
+      - cd /tmpfs/go/src/github.com/gravitational/teleport
+      - make -C build.assets integration-root
+
   - name: Run integration tests
     image: docker
     environment:
@@ -167,7 +186,7 @@ steps:
         path: /tmpfs
     commands:
       - apk add --no-cache make
-      # write kubeconfig to disk for use in kube integrations tests
+      # write kubeconfig to disk for use in kube integration tests
       - echo "$INTEGRATION_CI_KUBECONFIG" > "$KUBECONFIG"
       - chown -R $UID:$GID /tmpfs/go
       - cd /tmpfs/go/src/github.com/gravitational/teleport
@@ -370,6 +389,35 @@ volumes:
 ---
 kind: pipeline
 type: kubernetes
+name: update-docs-webhook
+
+trigger:
+  event:
+    include:
+      - push
+    exclude:
+      - pull_request
+  branch:
+    include:
+      - master
+      - branch/*
+  repo:
+    include:
+      - gravitational/teleport
+
+clone:
+  disable: true
+
+steps:
+  - name: Trigger docs deployment
+    image: plugins/webhook
+    settings:
+      urls:
+        from_secret: DOCS_DEPLOY_HOOK
+
+---
+kind: pipeline
+type: kubernetes
 name: push-build-linux-amd64
 
 environment:
@@ -435,20 +483,19 @@ steps:
       - chown -R $UID:$GID /go
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
-      - make -C build.assets release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
+      - make -C build.assets release OS=$OS ARCH=$ARCH
 
   - name: Send Slack notification
     image: plugins/slack
     settings:
       webhook:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      channel: dev-teleport
       template: |
         *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        `linux-amd64` artifact build failed.
+        `${DRONE_STAGE_NAME}` artifact build failed.
         *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
         Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
+        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
         Author: <https://github.com/{{ build.author }}|{{ build.author }}>
         <{{ build.link }}|Visit Drone build page ↗>
     when:
@@ -464,35 +511,6 @@ services:
 volumes:
   - name: dockersock
     temp: {}
-
----
-kind: pipeline
-type: kubernetes
-name: update-docs-webhook
-
-trigger:
-  event:
-    include:
-      - push
-    exclude:
-      - pull_request
-  branch:
-    include:
-      - master
-      - branch/*
-  repo:
-    include:
-      - gravitational/*
-
-clone:
-  disable: true
-
-steps:
-  - name: Trigger docs deployment
-    image: plugins/webhook
-    settings:
-      urls:
-        from_secret: DOCS_DEPLOY_HOOK
 
 ---
 kind: pipeline
@@ -562,20 +580,19 @@ steps:
       - chown -R $UID:$GID /go
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
-      - make -C build.assets release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
+      - make -C build.assets release OS=$OS ARCH=$ARCH
 
   - name: Send Slack notification
     image: plugins/slack
     settings:
       webhook:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      channel: dev-teleport
       template: |
         *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        `linux-386` artifact build failed.
+        `${DRONE_STAGE_NAME}` artifact build failed.
         *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
         Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
+        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
         Author: <https://github.com/{{ build.author }}|{{ build.author }}>
         <{{ build.link }}|Visit Drone build page ↗>
     when:
@@ -664,20 +681,19 @@ steps:
       - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
-      - make -C build.assets release-fips VERSION=$VERSION OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME FIPS=$FIPS
+      - make -C build.assets release-fips VERSION=$VERSION OS=$OS ARCH=$ARCH FIPS=$FIPS
 
   - name: Send Slack notification
     image: plugins/slack
     settings:
       webhook:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      channel: dev-teleport
       template: |
         *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        `linux-amd64-fips` artifact build failed.
+        `${DRONE_STAGE_NAME}` artifact build failed.
         *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
         Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
+        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
         Author: <https://github.com/{{ build.author }}|{{ build.author }}>
         <{{ build.link }}|Visit Drone build page ↗>
     when:
@@ -762,20 +778,19 @@ steps:
       - chown -R $UID:$GID /go
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
-      - make -C build.assets release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
+      - make -C build.assets release OS=$OS ARCH=$ARCH
 
   - name: Send Slack notification
     image: plugins/slack
     settings:
       webhook:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      channel: dev-teleport
       template: |
         *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        `windows-amd64` artifact build failed.
+        `${DRONE_STAGE_NAME}` artifact build failed.
         *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
         Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
+        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
         Author: <https://github.com/{{ build.author }}|{{ build.author }}>
         <{{ build.link }}|Visit Drone build page ↗>
     when:
@@ -886,21 +901,18 @@ steps:
         export DRONE_BUILD_LINK="${DRONE_SYSTEM_PROTO}://${DRONE_SYSTEM_HOSTNAME}/${DRONE_REPO_OWNER}/${DRONE_REPO_NAME}/${DRONE_BUILD_NUMBER}"
         export GOOS=$(go env GOOS)
         export GOARCH=$(go env GOARCH)
-        curl -sL -X POST -H 'Content-type: application/json' --data "{\"text\":\"Warning: \`$GOOS-$GOARCH\` artifact build failed - please investigate immediately!\nBranch: \`${DRONE_BRANCH}\`\nCommit: \`${DRONE_COMMIT_SHA}\`\nLink: $DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK
+        curl -sL -X POST -H 'Content-type: application/json' --data "{\"text\":\"Warning: \`$GOOS-$GOARCH\` artifact build failed for [\`${DRONE_REPO_NAME}\`] - please investigate immediately!\nBranch: \`${DRONE_BRANCH}\`\nCommit: \`${DRONE_COMMIT_SHA}\`\nLink: $DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK
     when:
       status: [failure]
-
 ---
 kind: pipeline
-type: exec
-name: push-build-arm
+type: kubernetes
+name: push-build-linux-arm
 
-concurrency:
-  limit: 1
-
-platform:
-  os: linux
-  arch: arm
+environment:
+  RUNTIME: go1.15.5
+  UID: 1000
+  GID: 1000
 
 trigger:
   event:
@@ -917,94 +929,88 @@ trigger:
       - gravitational/*
 
 workspace:
-  path: /dev/shm/push-build-arm
-
-# use ramfs for go build cache - saves wear and tear on the SD card, plus it's faster
-# note: declaring the WORKSPACE_DIR variable once in this block and then trying to
-# quote it in commands below doesn't seem to work; it has to be redeclared as part of
-# the environment inside every individual step. per-pipeline environments seem to be
-# inconsistently implemented across different drone runners and may well be deprecated
-environment:
-  TMPDIR: /dev/shm/push-build-arm/tmp
+  path: /go
 
 clone:
   disable: true
 
 steps:
-  - name: Clean up exec runner storage (pre)
-    environment:
-      WORKSPACE_DIR: /dev/shm/push-build-arm/tmp
-    commands:
-      - set -u
-      - mkdir -p $WORKSPACE_DIR
-      - chmod -R u+rw $WORKSPACE_DIR
-      - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
-
   - name: Check out code
+    image: docker:git
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
-      WORKSPACE_DIR: /dev/shm/push-build-arm/tmp
     commands:
-      - set -u
-      - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-      - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
-      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-      # fetch enterprise submodules
-      - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
-      - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
-      - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
-      - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init e
+      - mkdir -p /go/src/github.com/gravitational/teleport /go/cache
+      - cd /go/src/github.com/gravitational/teleport
+      - git init && git remote add origin ${DRONE_REMOTE_URL}
+      - git fetch origin
+      - git checkout -qf ${DRONE_COMMIT_SHA}
       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init --recursive webassets || true
-      - rm -rf $WORKSPACE_DIR/.ssh
-      - mkdir -p $WORKSPACE_DIR/go/cache
+      - git submodule update --init webassets || true
+      - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+      - git submodule update --init e
+      # do a recursive submodule checkout to get both webassets and webassets/e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init --recursive webassets || true
+      - rm -f /root/.ssh/id_rsa
 
-  - name: Build ARM artifacts
+  - name: Build artifacts
+    image: docker
     environment:
-      GOPATH: /dev/shm/push-build-arm/tmp/go
-      GOCACHE: /dev/shm/push-build-arm/tmp/go/cache
+      UID: 1000
+      GID: 1000
+      GOPATH: /go
       OS: linux
       ARCH: arm
-      WORKSPACE_DIR: /dev/shm/push-build-arm/tmp
+    volumes:
+      - name: dockersock
+        path: /var/run
     commands:
-      - set -u
-      - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-      - make clean release OS=$OS ARCH=$ARCH
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+      - docker pull quay.io/gravitational/teleport-buildbox-arm:$RUNTIME || true
+      - cd /go/src/github.com/gravitational/teleport
+      - make -C build.assets release-arm
 
-  - name: Clean up exec runner storage (post)
-    environment:
-      WORKSPACE_DIR: /dev/shm/push-build-arm/tmp
-    commands:
-      - set -u
-      - chmod -R u+rw $WORKSPACE_DIR
-      - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
-
-  - name: Send Slack notification (exec)
-    environment:
-      SLACK_WEBHOOK:
+  - name: Send Slack notification
+    image: plugins/slack
+    settings:
+      webhook:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-    commands:
-      - |
-        export DRONE_BUILD_LINK="${DRONE_SYSTEM_PROTO}://${DRONE_SYSTEM_HOSTNAME}/${DRONE_REPO_OWNER}/${DRONE_REPO_NAME}/${DRONE_BUILD_NUMBER}"
-        export GOOS=$(go env GOOS)
-        export GOARCH=$(go env GOARCH)
-        curl -sL -X POST -H 'Content-type: application/json' --data "{\"text\":\"Warning: \`$GOOS-$GOARCH\` artifact build failed - please investigate immediately!\nBranch: \`${DRONE_BRANCH}\`\nCommit: \`${DRONE_COMMIT_SHA}\`\nLink: $DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK
+      template: |
+        *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+        `${DRONE_STAGE_NAME}` artifact build failed.
+        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+        Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+        <{{ build.link }}|Visit Drone build page ↗>
     when:
       status: [failure]
 
+services:
+  - name: Start Docker
+    image: docker:dind
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
 ---
 kind: pipeline
-type: exec
-name: push-build-arm64
+type: kubernetes
+name: push-build-linux-arm-fips
 
-concurrency:
-  limit: 1
-
-platform:
-  os: linux
-  arch: arm64
+environment:
+  RUNTIME: go1.15.5
+  UID: 1000
+  GID: 1000
 
 trigger:
   event:
@@ -1021,82 +1027,280 @@ trigger:
       - gravitational/*
 
 workspace:
-  path: /dev/shm/push-build-arm64
-
-# use ramfs for go build cache
-# note: declaring the WORKSPACE_DIR variable once in this block and then trying to
-# quote it in commands below doesn't seem to work; it has to be redeclared as part of
-# the environment inside every individual step. per-pipeline environments seem to be
-# inconsistently implemented across different drone runners and may well be deprecated
-environment:
-  TMPDIR: /dev/shm/push-build-arm64/tmp
+  path: /go
 
 clone:
   disable: true
 
 steps:
-  - name: Clean up exec runner storage (pre)
-    environment:
-      WORKSPACE_DIR: /dev/shm/push-build-arm64/tmp
-    commands:
-      - set -u
-      - mkdir -p $WORKSPACE_DIR
-      - chmod -R u+rw $WORKSPACE_DIR
-      - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
-
   - name: Check out code
+    image: docker:git
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
-      WORKSPACE_DIR: /dev/shm/push-build-arm64/tmp
     commands:
-      - set -u
-      - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-      - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
-      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-      # fetch enterprise submodules
-      - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
-      - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
-      - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
-      - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init e
+      - mkdir -p /go/src/github.com/gravitational/teleport /go/cache
+      - cd /go/src/github.com/gravitational/teleport
+      - git init && git remote add origin ${DRONE_REMOTE_URL}
+      - git fetch origin
+      - git checkout -qf ${DRONE_COMMIT_SHA}
       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init --recursive webassets || true
-      - rm -rf $WORKSPACE_DIR/.ssh
-      - mkdir -p $WORKSPACE_DIR/go/cache
+      - git submodule update --init webassets || true
+      - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+      - git submodule update --init e
+      # do a recursive submodule checkout to get both webassets and webassets/e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init --recursive webassets || true
+      - rm -f /root/.ssh/id_rsa
+      # set version
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
-  - name: Build ARM64 artifacts
+  - name: Build artifacts
+    image: docker
     environment:
-      GOPATH: /dev/shm/push-build-arm64/tmp/go
-      GOCACHE: /dev/shm/push-build-arm64/tmp/go/cache
+      UID: 1000
+      GID: 1000
+      GOPATH: /go
       OS: linux
-      ARCH: arm64
-      WORKSPACE_DIR: /dev/shm/push-build-arm64/tmp
+      ARCH: arm
+    volumes:
+      - name: dockersock
+        path: /var/run
     commands:
-      - set -u
-      - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-      - make clean release OS=$OS ARCH=$ARCH
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
+      - docker pull quay.io/gravitational/teleport-buildbox-arm-fips:$RUNTIME || true
+      - cd /go/src/github.com/gravitational/teleport
+      - export VERSION=$(cat /go/.version.txt)
+      - make -C build.assets release-arm-fips VERSION=$VERSION OS=$OS ARCH=$ARCH FIPS=$FIPS
 
-  - name: Clean up exec runner storage (post)
-    environment:
-      WORKSPACE_DIR: /dev/shm/push-build-arm64/tmp
-    commands:
-      - set -u
-      - chmod -R u+rw $WORKSPACE_DIR
-      - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
-
-  - name: Send Slack notification (exec)
-    environment:
-      SLACK_WEBHOOK:
+  - name: Send Slack notification
+    image: plugins/slack
+    settings:
+      webhook:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-    commands:
-      - |
-        export DRONE_BUILD_LINK="${DRONE_SYSTEM_PROTO}://${DRONE_SYSTEM_HOSTNAME}/${DRONE_REPO_OWNER}/${DRONE_REPO_NAME}/${DRONE_BUILD_NUMBER}"
-        export GOOS=$(go env GOOS)
-        export GOARCH=$(go env GOARCH)
-        curl -sL -X POST -H 'Content-type: application/json' --data "{\"text\":\"Warning: \`$GOOS-$GOARCH\` artifact build failed - please investigate immediately!\nBranch: \`${DRONE_BRANCH}\`\nCommit: \`${DRONE_COMMIT_SHA}\`\nLink: $DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK
+      template: |
+        *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+        `${DRONE_STAGE_NAME}` artifact build failed.
+        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+        Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+        <{{ build.link }}|Visit Drone build page ↗>
     when:
       status: [failure]
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+---
+kind: pipeline
+type: kubernetes
+name: push-build-linux-arm64
+
+environment:
+  RUNTIME: go1.15.5
+  UID: 1000
+  GID: 1000
+
+trigger:
+  event:
+    include:
+      - push
+    exclude:
+      - pull_request
+  branch:
+    include:
+      - master
+      - branch/*
+  repo:
+    include:
+      - gravitational/*
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport /go/cache
+      - cd /go/src/github.com/gravitational/teleport
+      - git init && git remote add origin ${DRONE_REMOTE_URL}
+      - git fetch origin
+      - git checkout -qf ${DRONE_COMMIT_SHA}
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init webassets || true
+      - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+      - git submodule update --init e
+      # do a recursive submodule checkout to get both webassets and webassets/e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init --recursive webassets || true
+      - rm -f /root/.ssh/id_rsa
+
+  - name: Build artifacts
+    image: docker
+    environment:
+      UID: 1000
+      GID: 1000
+      GOPATH: /go
+      OS: linux
+      ARCH: arm64
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+      - docker pull quay.io/gravitational/teleport-buildbox-arm:$RUNTIME || true
+      - cd /go/src/github.com/gravitational/teleport
+      - make -C build.assets release-arm64
+
+  - name: Send Slack notification
+    image: plugins/slack
+    settings:
+      webhook:
+        from_secret: SLACK_WEBHOOK_DEV_TELEPORT
+      template: |
+        *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+        `${DRONE_STAGE_NAME}` artifact build failed.
+        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+        Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+        <{{ build.link }}|Visit Drone build page ↗>
+    when:
+      status: [failure]
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+---
+kind: pipeline
+type: kubernetes
+name: push-build-linux-arm64-fips
+
+environment:
+  RUNTIME: go1.15.5
+  UID: 1000
+  GID: 1000
+
+trigger:
+  event:
+    include:
+      - push
+    exclude:
+      - pull_request
+  branch:
+    include:
+      - master
+      - branch/*
+  repo:
+    include:
+      - gravitational/*
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport /go/cache
+      - cd /go/src/github.com/gravitational/teleport
+      - git init && git remote add origin ${DRONE_REMOTE_URL}
+      - git fetch origin
+      - git checkout -qf ${DRONE_COMMIT_SHA}
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init webassets || true
+      - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+      - git submodule update --init e
+      # do a recursive submodule checkout to get both webassets and webassets/e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init --recursive webassets || true
+      - rm -f /root/.ssh/id_rsa
+      # set version
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+
+  - name: Build artifacts
+    image: docker
+    environment:
+      UID: 1000
+      GID: 1000
+      GOPATH: /go
+      OS: linux
+      ARCH: arm64
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
+      - docker pull quay.io/gravitational/teleport-buildbox-arm-fips:$RUNTIME || true
+      - cd /go/src/github.com/gravitational/teleport
+      - export VERSION=$(cat /go/.version.txt)
+      - make -C build.assets release-arm64-fips VERSION=$VERSION OS=$OS ARCH=$ARCH FIPS=$FIPS
+
+  - name: Send Slack notification
+    image: plugins/slack
+    settings:
+      webhook:
+        from_secret: SLACK_WEBHOOK_DEV_TELEPORT
+      template: |
+        *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+        `${DRONE_STAGE_NAME}` artifact build failed.
+        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+        Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+        <{{ build.link }}|Visit Drone build page ↗>
+    when:
+      status: [failure]
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
 
 ---
 kind: pipeline
@@ -1108,7 +1312,7 @@ trigger:
     - teleport-docker-cron
   repo:
     include:
-      - gravitational/*
+      - gravitational/teleport
 
 workspace:
   path: /go
@@ -1321,7 +1525,7 @@ trigger:
     - teleport-helm-cron
   repo:
     include:
-      - gravitational/*
+      - gravitational/teleport
 
 workspace:
   path: /go
@@ -1386,7 +1590,6 @@ steps:
     settings:
       webhook:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      channel: dev-teleport
       template: |
         *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
         Details: The `teleport-helm-cron` job in Drone failed to publish Helm charts to S3. This is unusual and should be investigated.
@@ -1460,7 +1663,7 @@ steps:
       - chown -R $UID:$GID /go
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
-      - make -C build.assets release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
+      - make -C build.assets release OS=$OS ARCH=$ARCH
 
   - name: Copy artifacts
     image: docker
@@ -1468,10 +1671,7 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
       - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
-      - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/e \;
-      # rename artifact
-      - export VERSION=$(cat /go/.version.txt)
-      - mv /go/artifacts/e/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz
+      - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
@@ -1565,7 +1765,7 @@ steps:
       - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
-      - make -C build.assets release-fips VERSION=$VERSION OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME FIPS=$FIPS
+      - make -C build.assets release-fips VERSION=$VERSION OS=$OS ARCH=$ARCH FIPS=$FIPS
 
   - name: Copy FIPS artifacts
     image: docker
@@ -1573,9 +1773,6 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
       - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
-      # rename artifact
-      - export VERSION=$(cat /go/.version.txt)
-      - mv /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
@@ -1667,7 +1864,7 @@ steps:
       - chown -R $UID:$GID /go
       - docker pull quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
-      - make -C build.assets release-centos6 OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
+      - make -C build.assets release-centos6 OS=$OS ARCH=$ARCH
 
   - name: Copy CentOS 6 artifacts
     image: docker
@@ -1675,11 +1872,11 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
       - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
-      - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/e \;
+      - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
       # rename artifacts
       - export VERSION=$(cat /go/.version.txt)
       - mv /go/artifacts/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-v$${VERSION}-linux-amd64-centos6-bin.tar.gz
-      - mv /go/artifacts/e/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos6-bin.tar.gz
+      - mv /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos6-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
@@ -1772,7 +1969,8 @@ steps:
       - chown -R $UID:$GID /go
       - docker pull quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
-      - make -C build.assets release-centos6-fips OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME FIPS=$FIPS
+      - export VERSION=$(cat /go/.version.txt)
+      - make -C build.assets release-centos6-fips VERSION=$VERSION OS=$OS ARCH=$ARCH FIPS=$FIPS
 
   - name: Copy CentOS 6 FIPS artifacts
     image: docker
@@ -1782,7 +1980,7 @@ steps:
       - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
       # rename artifact
       - export VERSION=$(cat /go/.version.txt)
-      - mv /go/artifacts/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos6-fips-bin.tar.gz
+      - mv /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos6-fips-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
@@ -2353,7 +2551,7 @@ steps:
       - chown -R $UID:$GID /go
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
-      - make -C build.assets release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
+      - make -C build.assets release OS=$OS ARCH=$ARCH
 
   - name: Copy artifacts
     image: docker
@@ -2361,10 +2559,7 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
       - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
-      - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/e \;
-      # rename artifacts
-      - export VERSION=$(cat /go/.version.txt)
-      - mv /go/artifacts/e/teleport-v$${VERSION}-linux-386-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-386-bin.tar.gz
+      - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
@@ -3019,15 +3214,11 @@ steps:
 
 ---
 kind: pipeline
-type: exec
-name: build-arm
+type: kubernetes
+name: build-linux-arm
 
-concurrency:
-  limit: 1
-
-platform:
-  os: linux
-  arch: arm
+environment:
+  RUNTIME: go1.15.5
 
 trigger:
   event:
@@ -3040,109 +3231,95 @@ trigger:
       - gravitational/*
 
 workspace:
-  path: /dev/shm/tmp
-
-# use ramfs for go build cache - saves wear and tear on the SD card, plus it's faster
-# note: declaring the WORKSPACE_DIR variable once in this block and then trying to
-# quote it in commands below doesn't seem to work; it has to be redeclared as part of
-# the environment inside every individual step. per-pipeline environments seem to be
-# inconsistently implemented across different drone runners and may well be deprecated
-environment:
-  TMPDIR: /dev/shm
+  path: /go
 
 clone:
   disable: true
 
 steps:
-  - name: Clean up exec runner storage (pre)
-    environment:
-      WORKSPACE_DIR: /dev/shm/tmp
-    commands:
-      - set -u
-      - chmod -R u+rw $WORKSPACE_DIR
-      - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
-
   - name: Check out code
+    image: docker:git
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
-      WORKSPACE_DIR: /dev/shm/tmp
     commands:
-      - set -u
-      - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-      - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
-      - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
-      - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
-      - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
-      - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init e
+      - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+      - git submodule update --init e
       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init --recursive webassets || true
-      - rm -rf $WORKSPACE_DIR/.ssh
-      - mkdir -p $WORKSPACE_DIR/go/artifacts $WORKSPACE_DIR/go/cache
-      - echo "${DRONE_TAG##v}" > $WORKSPACE_DIR/go/.version.txt
-      - cat $WORKSPACE_DIR/go/.version.txt
+      - git submodule update --init --recursive webassets || true
+      - rm -f /root/.ssh/id_rsa
+      # create necessary directories
+      - mkdir -p /go/cache /go/artifacts/e
+      # set version
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
-  - name: Build ARM release artifacts
+  - name: Build release artifacts
+    image: docker
     environment:
-      GOPATH: /dev/shm/tmp/go
-      GOCACHE: /dev/shm/tmp/go/cache
+      UID: 1000
+      GID: 1000
+      GOPATH: /go
       OS: linux
       ARCH: arm
-      WORKSPACE_DIR: /dev/shm/tmp
+    volumes:
+      - name: dockersock
+        path: /var/run
     commands:
-      - set -u
-      - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-      - make clean release OS=$OS ARCH=$ARCH
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+      - docker pull quay.io/gravitational/teleport-buildbox-arm:$RUNTIME || true
+      - cd /go/src/github.com/gravitational/teleport
+      - make -C build.assets release-arm
 
-  - name: Copy ARM artifacts
-    environment:
-      WORKSPACE_DIR: /dev/shm/tmp
+  - name: Copy artifacts
+    image: docker
     commands:
-      - set -u
-      - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
-      - cp teleport*.tar.gz $WORKSPACE_DIR/go/artifacts
-      - cp e/teleport-ent*.tar.gz $WORKSPACE_DIR/go/artifacts
+      - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
+      - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
       # generate checksums
-      - cd $WORKSPACE_DIR/go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
+      - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
   - name: Upload to S3
-    environment:
-      AWS_S3_BUCKET:
+    image: plugins/s3
+    settings:
+      bucket:
         from_secret: AWS_S3_BUCKET
-      AWS_ACCESS_KEY_ID:
+      access_key:
         from_secret: AWS_ACCESS_KEY_ID
-      AWS_SECRET_ACCESS_KEY:
+      secret_key:
         from_secret: AWS_SECRET_ACCESS_KEY
-      AWS_REGION: us-west-2
-      WORKSPACE_DIR: /dev/shm/tmp
-    commands:
-      - set -u
-      - cd $WORKSPACE_DIR/go/artifacts
-      - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+      region: us-west-2
+      source: /go/artifacts/*
+      target: teleport/tag/${DRONE_TAG##v}
+      strip_prefix: /go/artifacts/
 
-  - name: Clean up exec runner storage (post)
-    environment:
-      WORKSPACE_DIR: /dev/shm/tmp
-    commands:
-      - set -u
-      - chmod -R u+rw $WORKSPACE_DIR
-      - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
+services:
+  - name: Start Docker
+    image: docker:dind
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
 
 ---
 kind: pipeline
-type: exec
-name: build-arm64
+type: kubernetes
+name: build-linux-arm64
 
-concurrency:
-  limit: 1
-
-platform:
-  os: linux
-  arch: arm64
+environment:
+  RUNTIME: go1.15.5
 
 trigger:
   event:
@@ -3155,97 +3332,189 @@ trigger:
       - gravitational/*
 
 workspace:
-  path: /dev/shm/tmp
-
-# use ramfs for go build cache
-# note: declaring the WORKSPACE_DIR variable once in this block and then trying to
-# quote it in commands below doesn't seem to work; it has to be redeclared as part of
-# the environment inside every individual step. per-pipeline environments seem to be
-# inconsistently implemented across different drone runners and may well be deprecated
-environment:
-  TMPDIR: /dev/shm
+  path: /go
 
 clone:
   disable: true
 
 steps:
-  - name: Clean up exec runner storage (pre)
-    environment:
-      WORKSPACE_DIR: /dev/shm/tmp
-    commands:
-      - set -u
-      - chmod -R u+rw $WORKSPACE_DIR
-      - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
-
   - name: Check out code
+    image: docker:git
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
-      WORKSPACE_DIR: /dev/shm/tmp
     commands:
-      - set -u
-      - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-      - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
-      - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
-      - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
-      - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
-      - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init e
+      - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+      - git submodule update --init e
       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init --recursive webassets || true
-      - rm -rf $WORKSPACE_DIR/.ssh
-      - mkdir -p $WORKSPACE_DIR/go/artifacts $WORKSPACE_DIR/go/cache
-      - echo "${DRONE_TAG##v}" > $WORKSPACE_DIR/go/.version.txt
-      - cat $WORKSPACE_DIR/go/.version.txt
+      - git submodule update --init --recursive webassets || true
+      - rm -f /root/.ssh/id_rsa
+      # create necessary directories
+      - mkdir -p /go/cache /go/artifacts/e
+      # set version
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
-  - name: Build ARM64 release artifacts
+  - name: Build release artifacts
+    image: docker
     environment:
-      GOPATH: /dev/shm/tmp/go
-      GOCACHE: /dev/shm/tmp/go/cache
+      UID: 1000
+      GID: 1000
+      GOPATH: /go
       OS: linux
       ARCH: arm64
-      WORKSPACE_DIR: /dev/shm/tmp
+    volumes:
+      - name: dockersock
+        path: /var/run
     commands:
-      - set -u
-      - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-      - make clean release OS=$OS ARCH=$ARCH
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+      - docker pull quay.io/gravitational/teleport-buildbox-arm:$RUNTIME || true
+      - cd /go/src/github.com/gravitational/teleport
+      - make -C build.assets release-arm64
 
-  - name: Copy ARM64 artifacts
-    environment:
-      WORKSPACE_DIR: /dev/shm/tmp
+  - name: Copy artifacts
+    image: docker
     commands:
-      - set -u
-      - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
-      - cp teleport*.tar.gz $WORKSPACE_DIR/go/artifacts
-      - cp e/teleport-ent*.tar.gz $WORKSPACE_DIR/go/artifacts
+      - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
+      - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
       # generate checksums
-      - cd $WORKSPACE_DIR/go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
+      - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
   - name: Upload to S3
-    environment:
-      AWS_S3_BUCKET:
+    image: plugins/s3
+    settings:
+      bucket:
         from_secret: AWS_S3_BUCKET
-      AWS_ACCESS_KEY_ID:
+      access_key:
         from_secret: AWS_ACCESS_KEY_ID
-      AWS_SECRET_ACCESS_KEY:
+      secret_key:
         from_secret: AWS_SECRET_ACCESS_KEY
-      AWS_REGION: us-west-2
-      WORKSPACE_DIR: /dev/shm/tmp
-    commands:
-      - set -u
-      - cd $WORKSPACE_DIR/go/artifacts
-      - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+      region: us-west-2
+      source: /go/artifacts/*
+      target: teleport/tag/${DRONE_TAG##v}
+      strip_prefix: /go/artifacts/
 
-  - name: Clean up exec runner storage (post)
+services:
+  - name: Start Docker
+    image: docker:dind
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+---
+kind: pipeline
+type: kubernetes
+name: build-linux-arm64-fips
+
+environment:
+  RUNTIME: go1.15.5
+
+trigger:
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
     environment:
-      WORKSPACE_DIR: /dev/shm/tmp
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
     commands:
-      - set -u
-      - chmod -R u+rw $WORKSPACE_DIR
-      - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+      # fetch enterprise submodules
+      - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+      - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init --recursive webassets || true
+      - rm -f /root/.ssh/id_rsa
+      # create necessary directories
+      - mkdir -p /go/cache /go/artifacts
+      # set version
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+
+  - name: Build FIPS release artifacts
+    image: docker
+    environment:
+      UID: 1000
+      GID: 1000
+      GOPATH: /go
+      OS: linux
+      ARCH: arm64
+      FIPS: "yes"
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
+      - docker pull quay.io/gravitational/teleport-buildbox-arm-fips:$RUNTIME || true
+      - cd /go/src/github.com/gravitational/teleport
+      - export VERSION=$(cat /go/.version.txt)
+      - make -C build.assets release-arm64-fips VERSION=$VERSION OS=$OS ARCH=$ARCH FIPS=$FIPS
+
+  - name: Copy FIPS artifacts
+    image: docker
+    commands:
+      - cd /go/src/github.com/gravitational/teleport
+      # copy release archives to artifact directory
+      - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
+      # generate checksums
+      - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
+
+  - name: Upload to S3
+    image: plugins/s3
+    settings:
+      bucket:
+        from_secret: AWS_S3_BUCKET
+      access_key:
+        from_secret: AWS_ACCESS_KEY_ID
+      secret_key:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      region: us-west-2
+      source: /go/artifacts/*
+      target: teleport/tag/${DRONE_TAG##v}
+      strip_prefix: /go/artifacts/
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
 
 ---
 kind: pipeline
@@ -3682,7 +3951,7 @@ trigger:
     - push
   repo:
     include:
-      - gravitational/*
+      - gravitational/teleport
 
 workspace:
   path: /go/src/github.com/gravitational/teleport
@@ -3771,6 +4040,42 @@ steps:
       - docker pull quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME || true
       - make -C build.assets buildbox-centos6-fips
       - docker push quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME
+
+  - name: Build and push buildbox-arm container
+    image: docker
+    environment:
+      QUAYIO_DOCKER_USERNAME:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      QUAYIO_DOCKER_PASSWORD:
+        from_secret: QUAYIO_DOCKER_PASSWORD
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
+      - docker pull quay.io/gravitational/teleport-buildbox-arm:$RUNTIME || true
+      - make -C build.assets buildbox-arm
+      - docker push quay.io/gravitational/teleport-buildbox-arm:$RUNTIME
+
+  - name: Build and push buildbox-arm-fips container
+    image: docker
+    environment:
+      QUAYIO_DOCKER_USERNAME:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      QUAYIO_DOCKER_PASSWORD:
+        from_secret: QUAYIO_DOCKER_PASSWORD
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
+      - docker pull quay.io/gravitational/teleport-buildbox-arm-fips:$RUNTIME || true
+      - make -C build.assets buildbox-arm-fips
+      - docker push quay.io/gravitational/teleport-buildbox-arm-fips:$RUNTIME
 
 services:
   - name: Start Docker
@@ -4086,6 +4391,6 @@ volumes:
 
 ---
 kind: signature
-hmac: fba528ba4b524017a1d7ab8ffd1fad9adb80e96302490334f623d125de81f6c7
+hmac: 6a5acaa383f34c9905f752bccae72b029386ff1536a6c45465c88b8fc6f611ca
 
 ...

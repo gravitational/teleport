@@ -1,4 +1,6 @@
-# Docs Best Practices
+---
+title: Docs Best Practices
+---
 
 ## Content
 
