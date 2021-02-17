@@ -776,10 +776,10 @@ func (a *ServerWithRoles) PreAuthenticatedSignIn(user string) (services.WebSessi
 	return a.authServer.PreAuthenticatedSignIn(user, a.context.Identity.GetIdentity())
 }
 
-func (a *ServerWithRoles) GetU2FSignRequest(user string, password []byte) (*U2FAuthenticateChallenge, error) {
+func (a *ServerWithRoles) GetMFAAuthenticateChallenge(user string, password []byte) (*MFAAuthenticateChallenge, error) {
 	// we are already checking password here, no need to extra permission check
 	// anyone who has user's password can generate sign request
-	return a.authServer.U2FSignRequest(user, password)
+	return a.authServer.GetMFAAuthenticateChallenge(user, password)
 }
 
 // CreateWebSession creates a new web session for the specified user

@@ -31,6 +31,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
@@ -1054,7 +1055,7 @@ func (s *ServicesTestSuite) AuthPreference(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	c.Assert(gotAP.GetType(), check.Equals, "local")
-	c.Assert(gotAP.GetSecondFactor(), check.Equals, "otp")
+	c.Assert(gotAP.GetSecondFactor(), check.Equals, constants.SecondFactorOTP)
 }
 
 func (s *ServicesTestSuite) StaticTokens(c *check.C) {

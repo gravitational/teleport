@@ -40,15 +40,6 @@ const (
 	// are captured.
 	EnhancedRecordingNetwork = "network"
 
-	// OTP means One-time Password Algorithm for Two-Factor Authentication.
-	OTP = "otp"
-
-	// U2F means Universal 2nd Factor.for Two-Factor Authentication.
-	U2F = "u2f"
-
-	// OFF means no second factor.for Two-Factor Authentication.
-	OFF = "off"
-
 	// Local means authentication will happen locally within the Teleport cluster.
 	Local = "local"
 
@@ -88,4 +79,24 @@ const (
 
 	// KeepAliveDatabase is the keep alive type for database server.
 	KeepAliveDatabase = "db"
+)
+
+// SecondFactorType is the type of 2FA authentication.
+type SecondFactorType string
+
+const (
+	// SecondFactorOff means no second factor.
+	SecondFactorOff = SecondFactorType("off")
+	// SecondFactorOTP means that only OTP is supported for 2FA and 2FA is
+	// required for all users.
+	SecondFactorOTP = SecondFactorType("otp")
+	// SecondFactorU2F means that only U2F is supported for 2FA and 2FA is
+	// required for all users.
+	SecondFactorU2F = SecondFactorType("u2f")
+	// SecondFactorOn means that all 2FA protocols are supported and 2FA is
+	// required for all users.
+	SecondFactorOn = SecondFactorType("on")
+	// SecondFactorOptional means that all 2FA protocols are supported and 2FA
+	// is required only for users that have MFA devices registered.
+	SecondFactorOptional = SecondFactorType("optional")
 )

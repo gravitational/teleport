@@ -30,6 +30,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -102,7 +103,7 @@ func (s *AuthSuite) SetUpTest(c *C) {
 
 	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
-		SecondFactor: teleport.OFF,
+		SecondFactor: constants.SecondFactorOff,
 	})
 	c.Assert(err, IsNil)
 
@@ -1044,11 +1045,11 @@ func TestU2FSignChallengeCompat(t *testing.T) {
 	// New format is U2FAuthenticateChallenge as JSON.
 	// Old format was u2f.AuthenticateChallenge as JSON.
 	t.Run("old client, new server", func(t *testing.T) {
-		newChallenge := &U2FAuthenticateChallenge{
+		newChallenge := &MFAAuthenticateChallenge{
 			AuthenticateChallenge: &u2f.AuthenticateChallenge{
 				Challenge: "c1",
 			},
-			Challenges: []u2f.AuthenticateChallenge{
+			U2FChallenges: []u2f.AuthenticateChallenge{
 				{Challenge: "c1"},
 				{Challenge: "c2"},
 				{Challenge: "c3"},
@@ -1070,11 +1071,11 @@ func TestU2FSignChallengeCompat(t *testing.T) {
 		wire, err := json.Marshal(oldChallenge)
 		require.NoError(t, err)
 
-		var newChallenge U2FAuthenticateChallenge
+		var newChallenge MFAAuthenticateChallenge
 		err = json.Unmarshal(wire, &newChallenge)
 		require.NoError(t, err)
 
-		require.Empty(t, cmp.Diff(newChallenge, U2FAuthenticateChallenge{AuthenticateChallenge: oldChallenge}))
+		require.Empty(t, cmp.Diff(newChallenge, MFAAuthenticateChallenge{AuthenticateChallenge: oldChallenge}))
 	})
 }
 

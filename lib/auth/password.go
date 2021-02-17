@@ -9,6 +9,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -32,7 +33,7 @@ type ChangePasswordWithTokenRequest struct {
 	// Password is user password
 	Password []byte `json:"password"`
 	// U2FRegisterResponse is U2F registration challenge response.
-	U2FRegisterResponse u2f.RegisterChallengeResponse `json:"u2f_register_response"`
+	U2FRegisterResponse *u2f.RegisterChallengeResponse `json:"u2f_register_response,omitempty"`
 }
 
 // ChangePasswordWithToken changes password with token
@@ -90,16 +91,42 @@ func (s *Server) ChangePassword(req services.ChangePasswordReq) error {
 	fn := func() error {
 		secondFactor := authPreference.GetSecondFactor()
 		switch secondFactor {
-		case teleport.OFF:
+		case constants.SecondFactorOff:
 			return s.CheckPasswordWOToken(userID, req.OldPassword)
-		case teleport.OTP:
+		case constants.SecondFactorOTP:
 			return s.CheckPassword(userID, req.OldPassword, req.SecondFactorToken)
-		case teleport.U2F:
+		case constants.SecondFactorU2F:
 			if req.U2FSignResponse == nil {
-				return trace.BadParameter("missing U2F sign response")
+				return trace.AccessDenied("missing U2F sign response")
 			}
 
 			return s.CheckU2FSignResponse(ctx, userID, req.U2FSignResponse)
+		case constants.SecondFactorOn:
+			if req.SecondFactorToken != "" {
+				return s.CheckPassword(userID, req.OldPassword, req.SecondFactorToken)
+			}
+			if req.U2FSignResponse != nil {
+				return s.CheckU2FSignResponse(ctx, userID, req.U2FSignResponse)
+			}
+			return trace.AccessDenied("missing second factor authentication")
+		case constants.SecondFactorOptional:
+			if req.SecondFactorToken != "" {
+				return s.CheckPassword(userID, req.OldPassword, req.SecondFactorToken)
+			}
+			if req.U2FSignResponse != nil {
+				return s.CheckU2FSignResponse(ctx, userID, req.U2FSignResponse)
+			}
+			// Check that a user has no MFA devices registered.
+			devs, err := s.GetMFADevices(ctx, userID)
+			if err != nil && !trace.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
+			if len(devs) != 0 {
+				// MFA devices registered but no MFA fields set in request.
+				log.Warningf("MFA bypass attempt by user %q, access denied.", userID)
+				return trace.AccessDenied("missing second factor authentication")
+			}
+			return nil
 		}
 
 		return trace.BadParameter("unsupported second factor method: %q", secondFactor)
@@ -295,7 +322,7 @@ func (s *Server) CreateSignupU2FRegisterRequest(tokenID string) (*u2f.RegisterCh
 
 // getOTPType returns the type of OTP token used, HOTP or TOTP.
 // Deprecated: Remove this method once HOTP support has been removed from Gravity.
-func (s *Server) getOTPType(user string) (string, error) {
+func (s *Server) getOTPType(user string) (teleport.OTPType, error) {
 	_, err := s.GetHOTP(user)
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -358,18 +385,22 @@ func (s *Server) changePasswordWithToken(ctx context.Context, req ChangePassword
 	return user, nil
 }
 
-func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, ResetPasswordToken services.ResetPasswordToken) error {
-	username := ResetPasswordToken.GetUser()
+func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, token services.ResetPasswordToken) error {
+	username := token.GetUser()
 	cap, err := s.GetAuthPreference()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	ctx := context.TODO()
-	switch cap.GetSecondFactor() {
-	case teleport.OFF:
+	secondFactor := cap.GetSecondFactor()
+	if secondFactor == constants.SecondFactorOff {
 		return nil
-	case teleport.OTP, teleport.TOTP, teleport.HOTP:
+	}
+	if req.SecondFactorToken != "" {
+		if secondFactor == constants.SecondFactorU2F {
+			return trace.BadParameter("user %q sent an OTP token during password reset but cluster only allows U2F for second factor", username)
+		}
 		secrets, err := s.Identity.GetResetPasswordTokenSecrets(ctx, req.TokenID)
 		if err != nil {
 			return trace.Wrap(err)
@@ -387,7 +418,11 @@ func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, Rese
 		}
 
 		return nil
-	case teleport.U2F:
+	}
+	if req.U2FRegisterResponse != nil {
+		if secondFactor == constants.SecondFactorOTP {
+			return trace.BadParameter("user %q sent a U2F registration during password reset but cluster only allows OTP for second factor", username)
+		}
 		_, err = cap.GetU2F()
 		if err != nil {
 			return trace.Wrap(err)
@@ -397,12 +432,15 @@ func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, Rese
 			DevName:                "u2f",
 			ChallengeStorageKey:    req.TokenID,
 			RegistrationStorageKey: username,
-			Resp:                   req.U2FRegisterResponse,
+			Resp:                   *req.U2FRegisterResponse,
 			Storage:                s.Identity,
 			Clock:                  s.GetClock(),
 		})
 		return trace.Wrap(err)
-	default:
-		return trace.BadParameter("unknown second factor type %q", cap.GetSecondFactor())
 	}
+
+	if secondFactor != constants.SecondFactorOptional {
+		return trace.BadParameter("no second factor sent during user %q password reset", username)
+	}
+	return nil
 }

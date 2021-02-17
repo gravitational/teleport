@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -2207,7 +2208,7 @@ func (s *TLSSuite) TestAuthenticateWebUserOTP(c *check.C) {
 
 	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
-		SecondFactor: teleport.OTP,
+		SecondFactor: constants.SecondFactorOTP,
 	})
 	c.Assert(err, check.IsNil)
 	err = s.server.Auth().SetAuthPreference(authPreference)
@@ -2311,7 +2312,7 @@ func (s *TLSSuite) TestChangePasswordWithToken(c *check.C) {
 
 	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
-		SecondFactor: teleport.OTP,
+		SecondFactor: constants.SecondFactorOTP,
 	})
 	c.Assert(err, check.IsNil)
 
