@@ -69,30 +69,14 @@ func New(cfg Config) (*Client, error) {
 	}
 
 	c := &Client{c: cfg}
-	if err := c.connect(true); err != nil {
+	if err := c.connect(cfg.NoPingCheck); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return c, nil
 }
 
-// NewWithoutPing creates a new API client with a connection to a Teleport server,
-// but does not check to see if the connection is open and authenticated.
-// For internal use only.
-func NewWithoutPing(cfg Config) (*Client, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	c := &Client{c: cfg}
-	if err := c.connect(false); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return c, nil
-}
-
-func (c *Client) connect(withPing bool) error {
+func (c *Client) connect(noPingCheck bool) error {
 	dialer := grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
 		if c.isClosed() {
 			return nil, trace.ConnectionProblem(nil, "client is closed")
@@ -129,7 +113,7 @@ func (c *Client) connect(withPing bool) error {
 		}
 		c.grpc = proto.NewAuthServiceClient(c.conn)
 
-		if !withPing {
+		if noPingCheck {
 			return nil
 		}
 
@@ -167,6 +151,10 @@ type Config struct {
 	// Credentials is the client's current Credentials for authentication. If this is provided
 	// in client creation, it will be used to create a basic CredentialProvider.
 	Credentials *Credentials
+	// NoPingCheck disables the ping check on client initialization. The ping check is used
+	// to verify and authenticate the connection, but in cases where you don't immediately
+	// expect the connection to be usable, use NoPingCheck to disable this check.
+	NoPingCheck bool
 }
 
 // CheckAndSetDefaults checks and sets default config values

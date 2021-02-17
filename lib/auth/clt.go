@@ -162,7 +162,10 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	apiClient, err := client.NewWithoutPing(cfg)
+	// Many uses of the lib/client do not expect an open valid connection immediately after
+	// initialization, so NoPingCheck is used for backwards compatibility with this client.
+	cfg.NoPingCheck = true
+	apiClient, err := client.New(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
