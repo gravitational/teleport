@@ -245,11 +245,11 @@ func (h *portForwardProxy) getStreamPair(requestID string) (*httpStreamPair, boo
 	defer h.streamPairsLock.Unlock()
 
 	if p, ok := h.streamPairs[requestID]; ok {
-		log.Infof("(conn=%p, request=%s) found existing stream pair", h.sourceConn, requestID)
+		log.Debugf("(conn=%p, request=%s) found existing stream pair", h.sourceConn, requestID)
 		return p, false
 	}
 
-	log.Infof("(conn=%p, request=%s) creating new stream pair", h.sourceConn, requestID)
+	log.Debugf("(conn=%p, request=%s) creating new stream pair", h.sourceConn, requestID)
 
 	p := newPortForwardPair(requestID)
 	h.streamPairs[requestID] = p
@@ -263,10 +263,10 @@ func (h *portForwardProxy) getStreamPair(requestID string) (*httpStreamPair, boo
 func (h *portForwardProxy) monitorStreamPair(p *httpStreamPair, timeout <-chan time.Time) {
 	select {
 	case <-timeout:
-		err := fmt.Errorf("(conn=%v, request=%s) timed out waiting for streams", h.sourceConn, p.requestID)
+		err := fmt.Errorf("(conn=%p, request=%s) timed out waiting for streams", h.sourceConn, p.requestID)
 		p.printError(err.Error())
 	case <-p.complete:
-		log.Infof("(conn=%v, request=%s) successfully received error and data streams", h.sourceConn, p.requestID)
+		log.Debugf("(conn=%p, request=%s) successfully received error and data streams", h.sourceConn, p.requestID)
 	}
 	h.removeStreamPair(p.requestID)
 }
@@ -333,7 +333,7 @@ func (h *portForwardProxy) portForward(p *httpStreamPair) {
 	portString := p.dataStream.Headers().Get(PortHeader)
 	port, _ := strconv.ParseInt(portString, 10, 32)
 
-	h.Debugf("Forwrarding port %v -> %v.", p.requestID, portString)
+	h.Debugf("Forwarding port %v -> %v.", p.requestID, portString)
 	err := h.forwardStreamPair(p, port)
 	h.Debugf("Completed forwrarding port %v -> %v.", p.requestID, portString)
 
