@@ -91,7 +91,7 @@ type OIDCConnector interface {
 	SetGoogleServiceAccount(string)
 	// GetGoogleAdminEmail returns a google admin user email
 	// https://developers.google.com/identity/protocols/OAuth2ServiceAccount#delegatingauthority
-	// "Note: Although you can use service accounts in applications that run from a Googke Worksapace (formerly G Suite) domain, service accounts are not members of your Google Workspace account and aren’t subject to domain policies set by  administrators. For example, a policy set in the Google Workspace admin console to restrict the ability of G Suite end users to share documents outside of the domain would not apply to service accounts."
+	// "Note: Although you can use service accounts in applications that run from a Google Workspace (formerly G Suite) domain, service accounts are not members of your Google Workspace account and aren’t subject to domain policies set by  administrators. For example, a policy set in the Google Workspace admin console to restrict the ability of end users to share documents outside of the domain would not apply to service accounts."
 	GetGoogleAdminEmail() string
 }
 
