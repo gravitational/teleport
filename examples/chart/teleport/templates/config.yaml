@@ -40,6 +40,12 @@ data:
 {{ toYaml .Values.config.teleport.auth_service.authentication | indent 8 }}
       tokens:
 {{ toYaml .Values.config.teleport.auth_service.tokens | indent 8 }}
+{{- if .Values.config.teleport.auth_service.session_control_timeout }}
+      session_control_timeout: {{ .Values.config.teleport.auth_service.session_control_timeout }}
+{{- end }}
+{{- if .Values.config.teleport.auth_service.session_recording }}
+      session_recording: {{ .Values.config.teleport.auth_service.session_recording }}
+{{- end }}
 
       public_addr: {{ .Values.config.public_address }}:{{ .Values.service.ports.authssh.port }}
       cluster_name: {{ .Values.config.public_address }}
@@ -88,10 +94,19 @@ data:
       tunnel_public_addr: {{ .Values.config.public_address }}:{{ .Values.service.ports.proxytunnel.port }}
 {{- end }}
 
-{{- if .Values.proxy.tls.usetlssecret}}
+{{ if .Values.config.teleport.proxy_service.https_keypairs }}
+      https_keypairs:
+{{ toYaml .Values.config.teleport.proxy_service.https_keypairs | indent 6  }}
+{{- else }}
+  {{- if .Values.proxy.tls.usetlssecret}}
+     {{- if .Values.config.teleport.proxy_service.https_key_file }}
       https_key_file: {{ .Values.config.teleport.proxy_service.https_key_file }}
       https_cert_file: {{ .Values.config.teleport.proxy_service.https_cert_file }}
+     {{- end }}
+  {{- end }}
 {{- end }}
+
+
 
 {{- if .Values.config.teleport.proxy_service.kubernetes }}
       # kubernetes section configures
@@ -156,6 +171,12 @@ data:
 {{ toYaml .Values.config.teleport.auth_service.tokens | indent 8 }}
 {{- end }}
 
+{{- if .Values.config.teleport.auth_service.session_control_timeout }}
+     session_control_timeout: {{ .Values.config.teleport.auth_service.session_control_timeout }}
+{{- end }}
+{{- if .Values.config.teleport.auth_service.session_recording }}
+     session_recording: {{ .Values.config.teleport.auth_service.session_recording }}
+{{- end }}
       public_addr: {{ .Values.config.auth_public_address }}:{{ .Values.service.ports.authssh.port }}
       cluster_name: {{ .Values.config.public_address }}
       listen_addr: {{ .Values.config.listen_addr }}:{{ .Values.ports.authssh.containerPort }}
