@@ -1603,10 +1603,16 @@ func TestApplyTraits(t *testing.T) {
 		outLogins     []string
 		inLabels      Labels
 		outLabels     Labels
+		inKubeLabels  Labels
+		outKubeLabels Labels
 		inKubeGroups  []string
 		outKubeGroups []string
 		inKubeUsers   []string
 		outKubeUsers  []string
+		inAppLabels   Labels
+		outAppLabels  Labels
+		inDBLabels    Labels
+		outDBLabels   Labels
 		inDBNames     []string
 		outDBNames    []string
 		inDBUsers     []string
@@ -1881,6 +1887,36 @@ func TestApplyTraits(t *testing.T) {
 				outLabels: Labels{`key`: []string{"bar", "baz"}},
 			},
 		},
+		{
+			comment: "values are expanded in kube labels",
+			inTraits: map[string][]string{
+				"foo": {"bar", "baz"},
+			},
+			allow: rule{
+				inKubeLabels:  Labels{`key`: []string{`{{external.foo}}`}},
+				outKubeLabels: Labels{`key`: []string{"bar", "baz"}},
+			},
+		},
+		{
+			comment: "values are expanded in app labels",
+			inTraits: map[string][]string{
+				"foo": {"bar", "baz"},
+			},
+			allow: rule{
+				inAppLabels:  Labels{`key`: []string{`{{external.foo}}`}},
+				outAppLabels: Labels{`key`: []string{"bar", "baz"}},
+			},
+		},
+		{
+			comment: "values are expanded in database labels",
+			inTraits: map[string][]string{
+				"foo": {"bar", "baz"},
+			},
+			allow: rule{
+				inDBLabels:  Labels{`key`: []string{`{{external.foo}}`}},
+				outDBLabels: Labels{`key`: []string{"bar", "baz"}},
+			},
+		},
 	}
 
 	for i, tt := range tests {
@@ -1895,22 +1931,28 @@ func TestApplyTraits(t *testing.T) {
 			},
 			Spec: RoleSpecV3{
 				Allow: RoleConditions{
-					Logins:        tt.allow.inLogins,
-					NodeLabels:    tt.allow.inLabels,
-					ClusterLabels: tt.allow.inLabels,
-					KubeGroups:    tt.allow.inKubeGroups,
-					KubeUsers:     tt.allow.inKubeUsers,
-					DatabaseNames: tt.allow.inDBNames,
-					DatabaseUsers: tt.allow.inDBUsers,
+					Logins:           tt.allow.inLogins,
+					NodeLabels:       tt.allow.inLabels,
+					ClusterLabels:    tt.allow.inLabels,
+					KubernetesLabels: tt.allow.inKubeLabels,
+					KubeGroups:       tt.allow.inKubeGroups,
+					KubeUsers:        tt.allow.inKubeUsers,
+					AppLabels:        tt.allow.inAppLabels,
+					DatabaseLabels:   tt.allow.inDBLabels,
+					DatabaseNames:    tt.allow.inDBNames,
+					DatabaseUsers:    tt.allow.inDBUsers,
 				},
 				Deny: RoleConditions{
-					Logins:        tt.deny.inLogins,
-					NodeLabels:    tt.deny.inLabels,
-					ClusterLabels: tt.deny.inLabels,
-					KubeGroups:    tt.deny.inKubeGroups,
-					KubeUsers:     tt.deny.inKubeUsers,
-					DatabaseNames: tt.deny.inDBNames,
-					DatabaseUsers: tt.deny.inDBUsers,
+					Logins:           tt.deny.inLogins,
+					NodeLabels:       tt.deny.inLabels,
+					ClusterLabels:    tt.deny.inLabels,
+					KubernetesLabels: tt.deny.inKubeLabels,
+					KubeGroups:       tt.deny.inKubeGroups,
+					KubeUsers:        tt.deny.inKubeUsers,
+					AppLabels:        tt.deny.inAppLabels,
+					DatabaseLabels:   tt.deny.inDBLabels,
+					DatabaseNames:    tt.deny.inDBNames,
+					DatabaseUsers:    tt.deny.inDBUsers,
 				},
 			},
 		}
@@ -1919,16 +1961,22 @@ func TestApplyTraits(t *testing.T) {
 		require.Equal(t, outRole.GetLogins(Allow), tt.allow.outLogins, comment)
 		require.Equal(t, outRole.GetNodeLabels(Allow), tt.allow.outLabels, comment)
 		require.Equal(t, outRole.GetClusterLabels(Allow), tt.allow.outLabels, comment)
+		require.Equal(t, outRole.GetKubernetesLabels(Allow), tt.allow.outKubeLabels, comment)
 		require.Equal(t, outRole.GetKubeGroups(Allow), tt.allow.outKubeGroups, comment)
 		require.Equal(t, outRole.GetKubeUsers(Allow), tt.allow.outKubeUsers, comment)
+		require.Equal(t, outRole.GetAppLabels(Allow), tt.allow.outAppLabels, comment)
+		require.Equal(t, outRole.GetDatabaseLabels(Allow), tt.allow.outDBLabels, comment)
 		require.Equal(t, outRole.GetDatabaseNames(Allow), tt.allow.outDBNames, comment)
 		require.Equal(t, outRole.GetDatabaseUsers(Allow), tt.allow.outDBUsers, comment)
 
 		require.Equal(t, outRole.GetLogins(Deny), tt.deny.outLogins, comment)
 		require.Equal(t, outRole.GetNodeLabels(Deny), tt.deny.outLabels, comment)
 		require.Equal(t, outRole.GetClusterLabels(Deny), tt.deny.outLabels, comment)
+		require.Equal(t, outRole.GetKubernetesLabels(Deny), tt.deny.outKubeLabels, comment)
 		require.Equal(t, outRole.GetKubeGroups(Deny), tt.deny.outKubeGroups, comment)
 		require.Equal(t, outRole.GetKubeUsers(Deny), tt.deny.outKubeUsers, comment)
+		require.Equal(t, outRole.GetAppLabels(Deny), tt.deny.outAppLabels, comment)
+		require.Equal(t, outRole.GetDatabaseLabels(Deny), tt.deny.outDBLabels, comment)
 		require.Equal(t, outRole.GetDatabaseNames(Deny), tt.deny.outDBNames, comment)
 		require.Equal(t, outRole.GetDatabaseUsers(Deny), tt.deny.outDBUsers, comment)
 	}

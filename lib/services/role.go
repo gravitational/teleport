@@ -417,6 +417,24 @@ func ApplyTraits(r Role, traits map[string][]string) Role {
 		if inLabels != nil {
 			r.SetClusterLabels(condition, applyLabelsTraits(inLabels, traits))
 		}
+
+		// apply templates to kube labels
+		inLabels = r.GetKubernetesLabels(condition)
+		if inLabels != nil {
+			r.SetKubernetesLabels(condition, applyLabelsTraits(inLabels, traits))
+		}
+
+		// apply templates to app labels
+		inLabels = r.GetAppLabels(condition)
+		if inLabels != nil {
+			r.SetAppLabels(condition, applyLabelsTraits(inLabels, traits))
+		}
+
+		// apply templates to database labels
+		inLabels = r.GetDatabaseLabels(condition)
+		if inLabels != nil {
+			r.SetDatabaseLabels(condition, applyLabelsTraits(inLabels, traits))
+		}
 	}
 
 	return r
