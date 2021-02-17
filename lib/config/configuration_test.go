@@ -38,10 +38,12 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/trace"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/check.v1"
+
+	"github.com/gravitational/trace"
 )
 
 type testConfigFiles struct {
@@ -1084,7 +1086,7 @@ func TestProxyKube(t *testing.T) {
 			cfg := &service.Config{}
 			err := applyProxyConfig(fc, cfg)
 			tt.checkErr(t, err)
-			require.Empty(t, cmp.Diff(cfg.Proxy.Kube, tt.want))
+			require.Empty(t, cmp.Diff(cfg.Proxy.Kube, tt.want, cmpopts.EquateEmpty()))
 		})
 	}
 }
