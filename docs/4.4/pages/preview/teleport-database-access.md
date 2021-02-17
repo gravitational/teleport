@@ -211,13 +211,13 @@ $ tsh db login postgres
 $ psql "service=postgres-aurora user=<db-user> database=<db-name>"
 ```
 
-<!-- TODO Remove comment when ready ## Demo
+{/* TODO Remove comment when ready ## Demo
 
 <video autoPlay loop muted playsInline controls>
   <source src="/video/dbaccessdemo.mp4" type="video/mp4" />
   <source src="/video/dbaccessdemo.webm" type="video/webm" />
 Your browser does not support the video tag.
-</video>-->
+</video> */}
 
 ## RFD
 

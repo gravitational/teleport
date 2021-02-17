@@ -115,7 +115,7 @@ nodes if their public keys are signed by a trusted CA. A "trusted cluster" is a
 pair of public keys of the trusted CA. It can be configured via `teleport.yaml`
 file.
 
-<!-- TODO: incomplete, write more on this -->
+{/* TODO: incomplete, write more on this */}
 
 ## More Concepts
 

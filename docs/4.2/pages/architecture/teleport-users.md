@@ -2,7 +2,7 @@
 title: Teleport Users
 ---
 
-<!-- TODO: This doc is incomplete, pending addition of Enterprise topics -->
+{/* TODO: This doc is incomplete, pending addition of Enterprise topics */}
 
 ## Types of Users
 
@@ -83,7 +83,7 @@ Guide](../enterprise/index.md#sso)
 
 ### External users
 
-<!-- TODO: Production topic -->
+{/* TODO: Production topic */}
 
 External users are users stored elsewhere within an organization. Examples
 include Github, Active Directory (AD), OIDC, or any identity store with an
@@ -101,7 +101,7 @@ It is possible to have multiple identity sources configured for a Teleport
 cluster. In this case, an identity source (called a "connector") will have to be
 passed to [ `tsh --auth=connector_name login` ](../cli-docs.md#tsh-login).
 
-<!-- TODO: Production Configuration -->
+{/* TODO: Production Configuration */}
 
 The local users connector can be specified via [`tsh --auth=local
 login`](../cli-docs.md#tsh-login).
@@ -113,7 +113,7 @@ roles allows Teleport to implement role-based access control (RBAC), i.e. assign
 users to groups (roles) and restrict each role to a subset of actions on a
 subset of nodes in a cluster.
 
-<!-- TODO: Enterprise Topic -->
+{/* TODO: Enterprise Topic */}
 
 ## More Concepts
 

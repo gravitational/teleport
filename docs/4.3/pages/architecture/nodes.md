@@ -117,7 +117,7 @@ Teleport Auth Service can allow 3rd party users or nodes to connect to cluster
 nodes if their certificates are signed by a trusted CA. A "trusted cluster" is
 a public key of the trusted CA. It can be configured via `teleport.yaml` file.
 
-<!-- TODO: incomplete, write more on this -->
+{/* TODO: incomplete, write more on this */}
 
 ## More Concepts
 

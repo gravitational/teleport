@@ -202,7 +202,7 @@ $ sudo chown $USER /var/lib/teleport
 If the build succeeds, the binaries `teleport, tsh`, and `tctl` are now in the
 directory `$GOPATH/src/github.com/gravitational/teleport/build`
 
-<!-- Notes on what to do if the build does not succeed, troubleshooting -->
+{/* Notes on what to do if the build does not succeed, troubleshooting */}
 
 
 ## Checksums

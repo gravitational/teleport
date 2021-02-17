@@ -116,12 +116,12 @@ Your browser will throw a warning: **Your connection is not private**. Click
 **Advanced**, and **Proceed to [HOST_IP] (unsafe)** to preview the Teleport UI.
 </Admonition>
 
-<!-- Link to networking/production guide -->
+{/* Link to networking/production guide */}
 
 ![Teleport User Registration](../img/quickstart/login.png)
 
-Teleport enforces two-factor authentication by default <!-- Link to
-Configuration -->. If you do not already have [Google
+Teleport enforces two-factor authentication by default {/* Link to
+Configuration */}. If you do not already have [Google
 Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator),
 [Authy](https://www.authy.com/) or another 2FA client installed, you will need
 to install it on your smart phone. Then you can scan the QR code on the
@@ -200,7 +200,7 @@ should be listed.
 2. After you end a session (type `$ exit` in session), replay it in your browser.
 3. Join the session in your web browser.
 
-<!-- TODO ![Two Recorded Sessions](../img/recorded-session.png)e -->
+{/* TODO ![Two Recorded Sessions](../img/recorded-session.png)e */}
 
 Here we've started two recorded sessions on the node `grav-00` : one via the web
 browser and one in the command line. Notice that there are distinct SSH sessions

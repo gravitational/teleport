@@ -47,7 +47,7 @@ Authority. A certificate contains four important pieces of data:
 Teleport uses SSH certificates to authenticate nodes and users within a cluster.
 
 There are two CAs operating inside the Auth Server because nodes and users each
-need their own certificates. <!-- TODO: Why? -->
+need their own certificates. {/* TODO: Why? */}
 
 * The **Node CA** issues certificates which identify a node (i.e. host, server,
   computer). These certificates are used to add new nodes to a cluster and
@@ -83,7 +83,7 @@ certificate on a node makes it a cluster member.
 
 ![Node Authorization](../../img/node_cluster_auth.svg)
 
-All nodes in a cluster can connect to the [Auth Server's API](#auth-api) <!-- Docs about this -->
+All nodes in a cluster can connect to the [Auth Server's API](#auth-api) {/* Docs about this */}
 implemented as an HTTP REST service running over the SSH
 tunnel. This API connection is authenticated with the node certificate and the
 encoded role is checked to enforce access control. For example, a client
@@ -112,7 +112,7 @@ by the system's SSH agent if it is running.
 
 In addition to user's identity, user certificates also contain user roles and
 SSH options, like "permit-agent-forwarding".
-<!-- TODO: link to config/set options here -->
+{/* TODO: link to config/set options here */}
 
 This additional data is stored as a certificate extension and is protected by
 the CA signature.
@@ -146,7 +146,7 @@ administrator on one of cluster's Auth Servers, the following happens:
 1. A new certificate authority (CA) key is generated.
 2. The old CA will be considered valid _alongside_ the new CA for some period of
    time. This period of time is called a _grace period_.
-   <!-- TODO: Link to config/defaults. -->
+   {/* TODO: Link to config/defaults. */}
 3. During the grace period, all previously issued certificates will be
    considered valid, assuming their TTL isn't expired.
 4. After the grace period is over, the certificates issued by the old CA are no
@@ -159,7 +159,7 @@ learn how to do certificate rotation in practice.
 
 ## Auth API
 
-<!-- TODO: Can we say more about this, abstract of routes provided -->
+{/* TODO: Can we say more about this, abstract of routes provided */}
 
 Clients can also connect to the auth API through the Teleport proxy to use a
 limited subset of the API to discover the member nodes of the cluster.

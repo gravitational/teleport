@@ -144,12 +144,12 @@ Your browser will throw a warning **Your connection is not private**. Click
 Advanced, and **Proceed to [HOST_IP] (unsafe)** to preview the Teleport UI.
 </Admonition>
 
-<!-- Link to networking/production guide -->
+{/* Link to networking/production guide */}
 
 ![Teleport User Registration](../img/login.png)
 
-Teleport enforces two-factor authentication by default <!-- Link to
-Configuration -->. If you do not already have [Google
+Teleport enforces two-factor authentication by default. {/* Link to
+Configuration */} If you do not already have [Google
 Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator),
 [Authy](https://www.authy.com/) or another 2FA client installed, you will need
 to install it on your smart phone. Then you can scan the QR code on the
@@ -177,7 +177,7 @@ To resolve this error find your hostname with the `hostname` command and use tha
 Never use `--insecure` in production unless you terminate SSL at a load balancer. You must configure a HTTP/TLS certificate for the Proxy.
 </Admonition>
 
-<!-- More on TLS in Prod Guide -->
+{/* More on TLS in Prod Guide */}
 
 ```bash
 # here grav-00 is a resolvable hostname on the same network

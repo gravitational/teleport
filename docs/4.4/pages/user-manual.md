@@ -212,7 +212,7 @@ total 8.0K
 
 ### SSH Certificates for Automation
 
-<!-- This seems more like an admin task -->
+{/* This seems more like an admin task */}
 
 Regular users of Teleport must request an auto-expiring SSH certificate, usually
 every day. This doesn't work for non-interactive scripts, like cron jobs or
