@@ -94,12 +94,21 @@ func Run(commands []CLICommand, loadConfigExt LoadConfigFn) {
 		commands[i].Initialize(app, cfg)
 	}
 
-	// these global flags apply to all commands
 	var ccf GlobalCLIFlags
+
+	// Initially, set the config file path to the default.
+	// If this is overridden by environment variable, update the path.
+	ccf.ConfigFile = defaults.ConfigFilePath
+	configFileEnvar, isSet := os.LookupEnv(defaults.ConfigFileEnvar)
+	if isSet {
+		ccf.ConfigFile = configFileEnvar
+	}
+
+	// these global flags apply to all commands
 	app.Flag("debug", "Enable verbose logging to stderr").
 		Short('d').
 		BoolVar(&ccf.Debug)
-	app.Flag("config", fmt.Sprintf("Path to a configuration file [%v]", defaults.ConfigFilePath)).
+	app.Flag("config", fmt.Sprintf("Path to a configuration file [%v]. Can also be set via the %v environment variable.", defaults.ConfigFilePath, defaults.ConfigFileEnvar)).
 		Short('c').
 		ExistingFileVar(&ccf.ConfigFile)
 	app.Flag("config-string",
@@ -304,11 +313,16 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config, loadConfigExt LoadCon
 		log.Debugf("Debug logging has been enabled.")
 	}
 
-	// load /etc/teleport.yaml and apply its values:
-	fileConf, err := config.ReadConfigFile(ccf.ConfigFile)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// If the config file path provided is not a blank string, load the file and apply its values
+	var fileConf *config.FileConfig
+	var err error
+	if ccf.ConfigFile != "" {
+		fileConf, err = config.ReadConfigFile(ccf.ConfigFile)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
+
 	// if configuration is passed as an environment variable,
 	// try to decode it and override the config file
 	if ccf.ConfigString != "" {

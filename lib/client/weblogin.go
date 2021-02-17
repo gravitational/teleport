@@ -25,10 +25,11 @@ import (
 	"net/url"
 	"os/exec"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -80,8 +81,9 @@ type SSOLoginConsoleResponse struct {
 	RedirectURL string `json:"redirect_url"`
 }
 
-// U2fSignRequestReq is a request from the client for a U2F sign request from the server
-type U2fSignRequestReq struct {
+// MFAChallengeRequest is a request from the client for a MFA challenge from the
+// server.
+type MFAChallengeRequest struct {
 	User string `json:"user"`
 	Pass string `json:"pass"`
 }
@@ -114,15 +116,20 @@ type CreateSSHCertReq struct {
 	KubernetesCluster string
 }
 
-// CreateSSHCertWithU2FReq are passed by web client
+// CreateSSHCertWithMFAReq are passed by web client
 // to authenticate against teleport server and receive
 // a temporary cert signed by auth server authority
-type CreateSSHCertWithU2FReq struct {
+type CreateSSHCertWithMFAReq struct {
 	// User is a teleport username
 	User string `json:"user"`
-	// We only issue U2F sign requests after checking the password, so there's no need to check again.
+	// Password for the user, to authenticate in case no MFA check was
+	// performed.
+	Password string `json:"password"`
+
 	// U2FSignResponse is the signature from the U2F device
-	U2FSignResponse u2f.AuthenticateChallengeResponse `json:"u2f_sign_response"`
+	U2FSignResponse *u2f.AuthenticateChallengeResponse `json:"u2f_sign_response"`
+	// TOTPCode is a code from the TOTP device.
+	TOTPCode string `json:"totp_code"`
 	// PubKey is a public key user wishes to sign
 	PubKey []byte `json:"pub_key"`
 	// TTL is a desired TTL for the cert (max is still capped by server,
@@ -201,8 +208,8 @@ type SSHLoginDirect struct {
 	OTPToken string
 }
 
-// SSHLoginU2F contains SSH login parameters for U2F login.
-type SSHLoginU2F struct {
+// SSHLoginMFA contains SSH login parameters for MFA login.
+type SSHLoginMFA struct {
 	SSHLogin
 	// User is the login username.
 	User string
@@ -262,7 +269,7 @@ type AuthenticationSettings struct {
 	Type string `json:"type"`
 	// SecondFactor is the type of second factor to use in authentication.
 	// Supported options are: off, otp, and u2f.
-	SecondFactor string `json:"second_factor,omitempty"`
+	SecondFactor constants.SecondFactorType `json:"second_factor,omitempty"`
 	// U2F contains the Universal Second Factor settings needed for authentication.
 	U2F *U2FSettings `json:"u2f,omitempty"`
 	// OIDC contains OIDC connector settings needed for authentication.
@@ -495,17 +502,18 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginRes
 	return out, nil
 }
 
-// SSHAgentU2FLogin requests a U2F sign request (authentication challenge) via
-// the proxy. If the credentials are valid, the proxy wiil return a challenge.
-// We then perform the signing and pass the signature to the proxy. If the
+// SSHAgentMFALogin requests a MFA challenge (U2F or OTP) via the proxy. If the
+// credentials are valid, the proxy wiil return a challenge. We then prompt the
+// user to provide 2nd factor and pass the response to the proxy. If the
 // authentication succeeds, we will get a temporary certificate back.
-func SSHAgentU2FLogin(ctx context.Context, login SSHLoginU2F) (*auth.SSHLoginResponse, error) {
+func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginResponse, error) {
 	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	challengeRaw, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "u2f", "signrequest"), U2fSignRequestReq{
+	// TODO(awly): mfa: rename endpoint
+	chalRaw, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "u2f", "signrequest"), MFAChallengeRequest{
 		User: login.User,
 		Pass: login.Password,
 	})
@@ -513,48 +521,69 @@ func SSHAgentU2FLogin(ctx context.Context, login SSHLoginU2F) (*auth.SSHLoginRes
 		return nil, trace.Wrap(err)
 	}
 
-	var res auth.U2FAuthenticateChallenge
-	if err := json.Unmarshal(challengeRaw.Bytes(), &res); err != nil {
+	var chal auth.MFAAuthenticateChallenge
+	if err := json.Unmarshal(chalRaw.Bytes(), &chal); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if len(res.Challenges) == 0 {
+	if len(chal.U2FChallenges) == 0 && chal.AuthenticateChallenge != nil {
 		// Challenge sent by a pre-6.0 auth server, fall back to the old
 		// single-device format.
-		if res.AuthenticateChallenge == nil {
-			// This shouldn't happen with a well-behaved auth server, but check
-			// anyway.
-			return nil, trace.BadParameter("server sent no U2F challenges")
-		}
-		res.Challenges = []u2f.AuthenticateChallenge{*res.AuthenticateChallenge}
+		chal.U2FChallenges = []u2f.AuthenticateChallenge{*chal.AuthenticateChallenge}
 	}
 
-	fmt.Println("Please press the button on your U2F key")
-	facet := "https://" + strings.ToLower(login.ProxyAddr)
-	challengeResp, err := u2f.AuthenticateSignChallenge(ctx, facet, res.Challenges...)
+	// Convert to auth gRPC proto challenge.
+	protoChal := new(proto.MFAAuthenticateChallenge)
+	if chal.TOTPChallenge {
+		protoChal.TOTP = new(proto.TOTPChallenge)
+	}
+	for _, u2fChal := range chal.U2FChallenges {
+		protoChal.U2F = append(protoChal.U2F, &proto.U2FChallenge{
+			KeyHandle: u2fChal.KeyHandle,
+			Challenge: u2fChal.Challenge,
+			AppID:     u2fChal.AppID,
+		})
+	}
+
+	protoResp, err := PromptMFAChallenge(ctx, login.ProxyAddr, protoChal, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "u2f", "certs"), CreateSSHCertWithU2FReq{
+	chalResp := CreateSSHCertWithMFAReq{
 		User:              login.User,
-		U2FSignResponse:   *challengeResp,
+		Password:          login.Password,
 		PubKey:            login.PubKey,
 		TTL:               login.TTL,
 		Compatibility:     login.Compatibility,
 		RouteToCluster:    login.RouteToCluster,
 		KubernetesCluster: login.KubernetesCluster,
-	})
+	}
+	// Convert back from auth gRPC proto response.
+	switch r := protoResp.Response.(type) {
+	case *proto.MFAAuthenticateResponse_TOTP:
+		chalResp.TOTPCode = r.TOTP.Code
+	case *proto.MFAAuthenticateResponse_U2F:
+		chalResp.U2FSignResponse = &u2f.AuthenticateChallengeResponse{
+			KeyHandle:     r.U2F.KeyHandle,
+			SignatureData: r.U2F.Signature,
+			ClientData:    r.U2F.ClientData,
+		}
+	default:
+		// No challenge was sent, so we send back just username/password.
+	}
+
+	loginRespRaw, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "u2f", "certs"), chalResp)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var out *auth.SSHLoginResponse
-	err = json.Unmarshal(re.Bytes(), &out)
+	var loginResp *auth.SSHLoginResponse
+	err = json.Unmarshal(loginRespRaw.Bytes(), &loginResp)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return out, nil
+	return loginResp, nil
 }
 
 // HostCredentials is used to fetch host credentials for a node.

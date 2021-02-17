@@ -32,6 +32,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -220,7 +221,7 @@ func (s *AuthInitSuite) TestAuthPreference(c *C) {
 	cap, err := as.GetAuthPreference()
 	c.Assert(err, IsNil)
 	c.Assert(cap.GetType(), Equals, "local")
-	c.Assert(cap.GetSecondFactor(), Equals, "u2f")
+	c.Assert(cap.GetSecondFactor(), Equals, constants.SecondFactorU2F)
 	u, err := cap.GetU2F()
 	c.Assert(err, IsNil)
 	c.Assert(u.AppID, Equals, "foo")

@@ -32,6 +32,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -234,7 +235,7 @@ func ReadFromString(configString string) (*FileConfig, error) {
 	data, err := base64.StdEncoding.DecodeString(configString)
 	if err != nil {
 		return nil, trace.BadParameter(
-			"confiugraion should be base64 encoded: %v", err)
+			"configuration should be base64 encoded: %v", err)
 	}
 	return ReadConfig(bytes.NewBuffer(data))
 }
@@ -739,10 +740,10 @@ func (t StaticToken) Parse() (*services.ProvisionTokenV1, error) {
 
 // AuthenticationConfig describes the auth_service/authentication section of teleport.yaml
 type AuthenticationConfig struct {
-	Type          string                 `yaml:"type"`
-	SecondFactor  string                 `yaml:"second_factor,omitempty"`
-	ConnectorName string                 `yaml:"connector_name,omitempty"`
-	U2F           *UniversalSecondFactor `yaml:"u2f,omitempty"`
+	Type          string                     `yaml:"type"`
+	SecondFactor  constants.SecondFactorType `yaml:"second_factor,omitempty"`
+	ConnectorName string                     `yaml:"connector_name,omitempty"`
+	U2F           *UniversalSecondFactor     `yaml:"u2f,omitempty"`
 
 	// LocalAuth controls if local authentication is allowed.
 	LocalAuth *services.Bool `yaml:"local_auth"`

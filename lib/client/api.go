@@ -45,6 +45,7 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth"
@@ -2238,18 +2239,21 @@ func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error 
 	return nil
 }
 
-func (tc *TeleportClient) localLogin(ctx context.Context, secondFactor string, pub []byte) (*auth.SSHLoginResponse, error) {
+func (tc *TeleportClient) localLogin(ctx context.Context, secondFactor constants.SecondFactorType, pub []byte) (*auth.SSHLoginResponse, error) {
 	var err error
 	var response *auth.SSHLoginResponse
 
+	// TODO(awly): mfa: ideally, clients should always go through mfaLocalLogin
+	// (with a nop MFA challenge if no 2nd factor is required). That way we can
+	// deprecate the direct login endpoint.
 	switch secondFactor {
-	case teleport.OFF, teleport.OTP, teleport.TOTP, teleport.HOTP:
+	case constants.SecondFactorOff, constants.SecondFactorOTP:
 		response, err = tc.directLogin(ctx, secondFactor, pub)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case teleport.U2F:
-		response, err = tc.u2fLogin(ctx, pub)
+	case constants.SecondFactorU2F, constants.SecondFactorOn, constants.SecondFactorOptional:
+		response, err = tc.mfaLocalLogin(ctx, pub)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2291,7 +2295,7 @@ func (tc *TeleportClient) AddKey(host string, key *Key) (*agent.AddedKey, error)
 }
 
 // directLogin asks for a password + HOTP token, makes a request to CA via proxy
-func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType string, pub []byte) (*auth.SSHLoginResponse, error) {
+func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType constants.SecondFactorType, pub []byte) (*auth.SSHLoginResponse, error) {
 	var err error
 
 	var password string
@@ -2303,7 +2307,7 @@ func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType stri
 	}
 
 	// only ask for a second factor if it's enabled
-	if secondFactorType != teleport.OFF {
+	if secondFactorType == constants.SecondFactorOTP {
 		otpToken, err = tc.AskOTP()
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2359,14 +2363,14 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, connectorID string, pub 
 	return response, trace.Wrap(err)
 }
 
-// directLogin asks for a password and performs the challenge-response authentication
-func (tc *TeleportClient) u2fLogin(ctx context.Context, pub []byte) (*auth.SSHLoginResponse, error) {
+// mfaLocalLogin asks for a password and performs the challenge-response authentication
+func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, pub []byte) (*auth.SSHLoginResponse, error) {
 	password, err := tc.AskPassword()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	response, err := SSHAgentU2FLogin(ctx, SSHLoginU2F{
+	response, err := SSHAgentMFALogin(ctx, SSHLoginMFA{
 		SSHLogin: SSHLogin{
 			ProxyAddr:         tc.WebProxyAddr,
 			PubKey:            pub,

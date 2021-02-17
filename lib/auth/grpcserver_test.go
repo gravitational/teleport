@@ -35,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -54,7 +55,8 @@ func TestMFADeviceManagement(t *testing.T) {
 	require.NoError(t, err)
 	// Enable U2F support.
 	authPref, err := services.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type: teleport.Local,
+		Type:         teleport.Local,
+		SecondFactor: constants.SecondFactorOn,
 		U2F: &types.U2F{
 			AppID:  "teleport",
 			Facets: []string{"teleport"},
@@ -554,7 +556,8 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 
 	// Enable U2F support.
 	authPref, err := services.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type: teleport.Local,
+		Type:         teleport.Local,
+		SecondFactor: constants.SecondFactorOn,
 		U2F: &types.U2F{
 			AppID:  "teleport",
 			Facets: []string{"teleport"},

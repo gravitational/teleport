@@ -43,9 +43,9 @@ type AuthPreference interface {
 	SetType(string)
 
 	// GetSecondFactor gets the type of second factor: off, otp or u2f.
-	GetSecondFactor() string
+	GetSecondFactor() constants.SecondFactorType
 	// SetSecondFactor sets the type of second factor: off, otp, or u2f.
-	SetSecondFactor(string)
+	SetSecondFactor(constants.SecondFactorType)
 
 	// GetConnectorName gets the name of the OIDC or SAML connector to use. If
 	// this value is empty, we fall back to the first connector in the backend.
@@ -96,7 +96,7 @@ func DefaultAuthPreference() AuthPreference {
 		},
 		Spec: AuthPreferenceSpecV2{
 			Type:         constants.Local,
-			SecondFactor: constants.OTP,
+			SecondFactor: constants.SecondFactorOTP,
 		},
 	}
 }
@@ -192,12 +192,12 @@ func (c *AuthPreferenceV2) SetType(s string) {
 }
 
 // GetSecondFactor returns the type of second factor.
-func (c *AuthPreferenceV2) GetSecondFactor() string {
+func (c *AuthPreferenceV2) GetSecondFactor() constants.SecondFactorType {
 	return c.Spec.SecondFactor
 }
 
 // SetSecondFactor sets the type of second factor.
-func (c *AuthPreferenceV2) SetSecondFactor(s string) {
+func (c *AuthPreferenceV2) SetSecondFactor(s constants.SecondFactorType) {
 	c.Spec.SecondFactor = s
 }
 
@@ -239,7 +239,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		c.Spec.Type = constants.Local
 	}
 	if c.Spec.SecondFactor == "" {
-		c.Spec.SecondFactor = constants.OTP
+		c.Spec.SecondFactor = constants.SecondFactorOTP
 	}
 
 	// make sure type makes sense
@@ -251,7 +251,14 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 
 	// make sure second factor makes sense
 	switch c.Spec.SecondFactor {
-	case constants.OFF, constants.OTP, constants.U2F:
+	case constants.SecondFactorOff, constants.SecondFactorOTP:
+	case constants.SecondFactorU2F, constants.SecondFactorOn, constants.SecondFactorOptional:
+		if c.Spec.U2F == nil {
+			return trace.BadParameter("missing required U2F configuration for second factor type %q", c.Spec.SecondFactor)
+		}
+		if err := c.Spec.U2F.Check(); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return trace.BadParameter("second factor type %q not supported", c.Spec.SecondFactor)
 	}
@@ -270,7 +277,7 @@ type AuthPreferenceSpecV2 struct {
 	Type string `json:"type"`
 
 	// SecondFactor is the type of second factor.
-	SecondFactor string `json:"second_factor,omitempty"`
+	SecondFactor constants.SecondFactorType `json:"second_factor,omitempty"`
 
 	// ConnectorName is the name of the OIDC or SAML connector. If this value is
 	// not set the first connector in the backend will be used.
@@ -287,6 +294,16 @@ type U2F struct {
 
 	// Facets returns the facets for universal second factor.
 	Facets []string `json:"facets,omitempty"`
+}
+
+func (u *U2F) Check() error {
+	if u.AppID == "" {
+		return trace.BadParameter("u2f configuration missing app_id")
+	}
+	if len(u.Facets) == 0 {
+		return trace.BadParameter("u2f configuration missing facets")
+	}
+	return nil
 }
 
 // NewMFADevice creates a new MFADevice with the given name. Caller must set
