@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -53,13 +54,14 @@ import (
 	"github.com/gravitational/teleport/lib/web/ui"
 
 	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/lib/secret"
 )
 
 // Handler is HTTP web proxy handler
@@ -309,9 +311,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	// U2F related APIs
 	h.GET("/webapi/u2f/signuptokens/:token", httplib.MakeHandler(h.u2fRegisterRequest))
 	h.POST("/webapi/u2f/password/changerequest", h.WithAuth(h.u2fChangePasswordRequest))
-	h.POST("/webapi/u2f/signrequest", httplib.MakeHandler(h.u2fSignRequest))
+	h.POST("/webapi/u2f/signrequest", httplib.MakeHandler(h.mfaChallengeRequest))
 	h.POST("/webapi/u2f/sessions", httplib.MakeHandler(h.createSessionWithU2FSignResponse))
-	h.POST("/webapi/u2f/certs", httplib.MakeHandler(h.createSSHCertWithU2FSignResponse))
+	h.POST("/webapi/u2f/certs", httplib.MakeHandler(h.createSSHCertWithMFAChallengeResponse))
 
 	// trusted clusters
 	h.POST("/webapi/trustedclusters/validate", httplib.MakeHandler(h.validateTrustedCluster))
@@ -502,15 +504,16 @@ func localSettings(authClient auth.ClientI, cap services.AuthPreference) (client
 		SecondFactor: cap.GetSecondFactor(),
 	}
 
-	// if the type is u2f, pull some additional data back
-	if cap.GetSecondFactor() == teleport.U2F {
-		u2fs, err := cap.GetU2F()
-		if err != nil {
-			return client.AuthenticationSettings{}, trace.Wrap(err)
-		}
-
-		as.U2F = &client.U2FSettings{AppID: u2fs.AppID}
+	// Add U2F settings, if available.
+	u2fs, err := cap.GetU2F()
+	if trace.IsNotFound(err) {
+		// No U2F settings.
+		return as, nil
 	}
+	if err != nil {
+		return client.AuthenticationSettings{}, trace.Wrap(err)
+	}
+	as.U2F = &client.U2FSettings{AppID: u2fs.AppID}
 
 	return as, nil
 }
@@ -702,7 +705,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	httplib.SetWebConfigHeaders(w.Header())
 
 	authProviders := []ui.WebConfigAuthProvider{}
-	secondFactor := teleport.OFF
+	secondFactor := constants.SecondFactorOff
 
 	// get all OIDC connectors
 	oidcConnectors, err := h.cfg.ProxyClient.GetOIDCConnectors(false)
@@ -1243,9 +1246,9 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	var webSession services.WebSession
 
 	switch cap.GetSecondFactor() {
-	case teleport.OFF:
+	case constants.SecondFactorOff:
 		webSession, err = h.auth.AuthWithoutOTP(req.User, req.Pass)
-	case teleport.OTP, teleport.HOTP, teleport.TOTP:
+	case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
 		webSession, err = h.auth.AuthWithOTP(req.User, req.Pass, req.SecondFactorToken)
 	default:
 		return nil, trace.AccessDenied("unknown second factor type: %q", cap.GetSecondFactor())
@@ -1427,7 +1430,7 @@ func (h *Handler) u2fRegisterRequest(w http.ResponseWriter, r *http.Request, p h
 	return u2fRegisterRequest, nil
 }
 
-// u2fSignRequest is called to get a U2F challenge for authenticating
+// mfaChallengeRequest is called to get a MFA challenge for authenticating
 //
 // POST /webapi/u2f/signrequest
 //
@@ -1437,17 +1440,17 @@ func (h *Handler) u2fRegisterRequest(w http.ResponseWriter, r *http.Request, p h
 //
 // {"version":"U2F_V2","challenge":"randombase64string","keyHandle":"longbase64string","appId":"https://mycorp.com:3080"}
 //
-func (h *Handler) u2fSignRequest(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *client.U2fSignRequestReq
+func (h *Handler) mfaChallengeRequest(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req *client.MFAChallengeRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	u2fSignReq, err := h.auth.GetU2FSignRequest(req.User, req.Pass)
+	mfaChallenge, err := h.auth.GetMFAAuthenticateChallenge(req.User, req.Pass)
 	if err != nil {
 		return nil, trace.AccessDenied("bad auth credentials")
 	}
 
-	return u2fSignReq, nil
+	return mfaChallenge, nil
 }
 
 // A request from the client to send the signature from the U2F key
@@ -2095,9 +2098,9 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 	var cert *auth.SSHLoginResponse
 
 	switch cap.GetSecondFactor() {
-	case teleport.OFF:
+	case constants.SecondFactorOff:
 		cert, err = h.auth.GetCertificateWithoutOTP(*req)
-	case teleport.OTP, teleport.HOTP, teleport.TOTP:
+	case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
 		// convert legacy requests to new parameter here. remove once migration to TOTP is complete.
 		if req.HOTPToken != "" {
 			req.OTPToken = req.HOTPToken
@@ -2113,8 +2116,9 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 	return cert, nil
 }
 
-// createSSHCertWithU2FSignResponse is a web call that generates new SSH certificate based
-// on user's name, password, U2F signature and public key user wishes to sign
+// createSSHCertWithMFAChallengeResponse is a web call that generates new SSH
+// certificate based on user's name, password, MFA response and public key user
+// wishes to sign.
 //
 // POST /v1/webapi/u2f/certs
 //
@@ -2124,13 +2128,13 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 //
 // { "cert": "base64 encoded signed cert", "host_signers": [{"domain_name": "example.com", "checking_keys": ["base64 encoded public signing key"]}] }
 //
-func (h *Handler) createSSHCertWithU2FSignResponse(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *client.CreateSSHCertWithU2FReq
+func (h *Handler) createSSHCertWithMFAChallengeResponse(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req *client.CreateSSHCertWithMFAReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	cert, err := h.auth.GetCertificateWithU2F(*req)
+	cert, err := h.auth.GetCertificateWithMFA(*req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -12,6 +12,10 @@ Teleport on Linux machine(s).
 * A domain name, DNS and TLS certificates. We'll provide examples using Let's Encrypt.
 * Around 20 minutes to complete; half of this may be waiting for DNS propagation and TLS certificates.
 
+### Follow along with our getting started video guide
+
+<iframe  width="712" height="400" src="https://www.youtube-nocookie.com/embed/yLnaCW8b-8U?rel=0&modestbranding=1" frameBorder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>
+
 ## Step 1: Install Teleport on a Linux Host
 
 There are several ways to install Teleport.
