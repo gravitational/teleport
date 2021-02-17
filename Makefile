@@ -15,6 +15,7 @@ VERSION=6.0.0-alpha.2
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
+DOCKER_BASE_IMAGE ?= ubuntu:20.04
 
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
@@ -33,14 +34,24 @@ BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s' -buildmode=exe
 CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
 endif
 
+# When adding support for a new docker build architecture, it must also be added to this list
+SUPPORTED_DOCKER_ARCHITECTURES = amd64 arm arm64
+MULTIARCH_IMAGE =
+MULTIARCH_SECTION =
 ifeq ("$(OS)","linux")
 # ARM builds need to specify the correct C compiler
+# we also set the correct qemu-user-static multiarch image to pull for cross-building Docker images
 ifeq ("$(ARCH)","arm")
 CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
+MULTIARCH_IMAGE = multiarch/qemu-user-static:x86_64-arm
+MULTIARCH_SECTION = --build-arg MULTIARCH_IMAGE=$(MULTIARCH_IMAGE)
 endif
 # ARM64 builds need to specify the correct C compiler
+# we also set the correct qemu-user-static multiarch image to pull for cross-building Docker images
 ifeq ("$(ARCH)","arm64")
 CGOFLAG = CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc
+MULTIARCH_IMAGE = multiarch/qemu-user-static:x86_64-aarch64
+MULTIARCH_SECTION = --build-arg MULTIARCH_IMAGE=$(MULTIARCH_IMAGE)
 endif
 endif
 
@@ -507,14 +518,22 @@ install: build
 # the "docker" rule) to avoid dependencies on the host libc version.
 .PHONY: image
 image: clean docker-binaries
-	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
-	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE):$(VERSION)
-	if [ -f e/Makefile ]; then $(MAKE) -C e image; fi
+	@echo Building Docker image for OS=$(OS) ARCH=$(ARCH)
+	cp ./build.assets/docker-images/Dockerfile-$(ARCH) $(BUILDDIR)/
+	docker pull --platform $(ARCH) $(DOCKER_BASE_IMAGE)
+	@if [ ! -z "$(MULTIARCH_IMAGE)" ]; then docker pull --platform amd64 $(MULTIARCH_IMAGE); fi
+	cd $(BUILDDIR) && docker build --target teleport \
+		--platform $(ARCH) $(MULTIARCH_SECTION) \
+		--build-arg DOCKER_BASE_IMAGE=$(DOCKER_BASE_IMAGE) \
+		--no-cache \
+		-f Dockerfile-$(ARCH) \
+		-t $(DOCKER_IMAGE):$(VERSION)-$(ARCH) .
+	if [ -f e/Makefile ]; then $(MAKE) -C e image OS=linux ARCH=$(ARCH); fi
 
 .PHONY: publish
 publish: image
-	docker push $(DOCKER_IMAGE):$(VERSION)
-	if [ -f e/Makefile ]; then $(MAKE) -C e publish; fi
+	docker push $(DOCKER_IMAGE):$(VERSION)-$(ARCH)
+	if [ -f e/Makefile ]; then $(MAKE) -C e publish ARCH=$(ARCH); fi
 
 # Docker image build in CI.
 # This is run to build and push Docker images to a private repository as part of the build process.
@@ -523,14 +542,45 @@ publish: image
 # This job can be removed/consolidated after we switch over completely from using Jenkins to using Drone.
 .PHONY: image-ci
 image-ci: clean docker-binaries
-	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
-	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_CI):$(VERSION)
-	if [ -f e/Makefile ]; then $(MAKE) -C e image-ci; fi
+	@echo Building CI Docker image for $(ARCH) architecture
+	cp ./build.assets/docker-images/Dockerfile-$(ARCH) $(BUILDDIR)/
+	docker pull --platform $(ARCH) $(DOCKER_BASE_IMAGE)
+	@if [ ! -z "$(MULTIARCH_IMAGE)" ]; then docker pull --platform amd64 $(MULTIARCH_IMAGE); fi
+	cd $(BUILDDIR) && docker build --target teleport \
+		--platform $(ARCH) $(MULTIARCH_SECTION) \
+		--build-arg DOCKER_BASE_IMAGE=$(DOCKER_BASE_IMAGE) \
+		--no-cache \
+		-f Dockerfile-$(ARCH) \
+		-t $(DOCKER_IMAGE_CI):$(VERSION)-$(ARCH) .
+	if [ -f e/Makefile ]; then $(MAKE) -C e image-ci OS=linux ARCH=$(ARCH); fi
 
 .PHONY: publish-ci
 publish-ci: image-ci
-	docker push $(DOCKER_IMAGE_CI):$(VERSION)
-	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ci; fi
+	docker push $(DOCKER_IMAGE_CI):$(VERSION)-$(ARCH)
+	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ci ARCH=$(ARCH); fi
+
+# Gets digest IDs for all supported docker image architectures and builds a multi-image manifest
+# TODO(gus): change to real non-CI image names and remove 'multiarch' after testing
+DOCKER_BASE=$(DOCKER_IMAGE_CI)
+.PHONY: build-docker-manifest
+build-docker-manifest:
+	ARCH_AMEND_LIST=""; \
+	for DOCKER_ARCH in $(SUPPORTED_DOCKER_ARCHITECTURES); do \
+		if [[ "$$(docker images -q $(DOCKER_BASE):$(VERSION)-$$DOCKER_ARCH 2>/dev/null)" == "" ]]; then docker pull $(DOCKER_BASE):$(VERSION)-$$DOCKER_ARCH; fi; \
+		ARCH_AMEND_LIST="--amend $$(docker inspect --format='{{index .RepoDigests 0}}' $(DOCKER_BASE):$(VERSION)-$$DOCKER_ARCH) $$ARCH_AMEND_LIST"; \
+	done; \
+	docker manifest rm $(DOCKER_BASE):$(VERSION)-multiarch || true; \
+	docker manifest create \
+		$(DOCKER_BASE):$(VERSION)-multiarch \
+		$$ARCH_AMEND_LIST \
+		; \
+	if [ -f e/Makefile ]; then $(MAKE) -C e build-docker-manifest; fi
+
+# Publishes the multi-image manifest to the remote registry
+.PHONY: publish-docker-manifest
+publish-docker-manifest:
+	docker manifest push $(DOCKER_BASE):$(VERSION)-multiarch
+	if [ -f e/Makefile ]; then $(MAKE) -C e publish-docker-manifest; fi
 
 .PHONY: print-version
 print-version:

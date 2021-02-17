@@ -19,7 +19,8 @@ RUN mkdir -p build && \
     cp $DOWNLOAD_TYPE/teleport $DOWNLOAD_TYPE/tctl $DOWNLOAD_TYPE/tsh build
 
 # Second stage builds final container with teleport binaries.
-FROM ubuntu:20.04 AS teleport
+ARG DOCKER_BASE_IMAGE
+FROM $DOCKER_BASE_IMAGE AS teleport
 
 # Install ca-certificates and dumb-init, then clean up.
 RUN apt-get update && \
