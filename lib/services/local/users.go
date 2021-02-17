@@ -741,9 +741,7 @@ func (s *IdentityService) GetOIDCConnectors(withSecrets bool) ([]services.OIDCCo
 		}
 		if !withSecrets {
 			conn.SetClientSecret("")
-			if conn.GetGoogleServiceAccount() != "" {
-				conn.SetGoogleServiceAccount("")
-			}
+			conn.SetGoogleServiceAccount("")
 		}
 		connectors[i] = conn
 	}
