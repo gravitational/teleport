@@ -40,7 +40,7 @@ func ValidateOIDCConnector(oc types.OIDCConnector) error {
 	}
 
 	if oc.GetGoogleServiceAccountURI() != "" && oc.GetGoogleServiceAccount() != "" {
-		return trace.BadParameter("google_service_account_uri or google_service_account is supported, not both")
+		return trace.BadParameter("one of either google_service_account_uri or google_service_account is supported, not both")
 	}
 
 	if oc.GetGoogleServiceAccountURI() != "" {
