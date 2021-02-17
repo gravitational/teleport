@@ -64,6 +64,11 @@ import (
 	"github.com/gravitational/teleport/lib/secret"
 )
 
+const (
+	loginFailedURL            = "/web/msg/error/login"
+	loginFailedBadCallbackURL = "/web/msg/error/login/callback"
+)
+
 // Handler is HTTP web proxy handler
 type Handler struct {
 	log logrus.FieldLogger
@@ -835,23 +840,25 @@ func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprou
 	logger := h.log.WithField("auth", "oidc")
 	logger.Debug("Web login start.")
 
-	clientRedirectURL, connectorID, csrfToken, err := extractAuthConnQueryParamAndCSRFToken(r)
+	req, err := parseSSORequestParams(r)
 	if err != nil {
 		logger.Error(err)
-		return redirectToErrorPage(w, r)
+		http.Redirect(w, r, loginFailedURL, http.StatusFound)
+		return nil, nil
 	}
 
 	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(
 		services.OIDCAuthRequest{
-			CSRFToken:         csrfToken,
-			ConnectorID:       connectorID,
+			CSRFToken:         req.csrfToken,
+			ConnectorID:       req.connectorID,
 			CreateWebSession:  true,
-			ClientRedirectURL: clientRedirectURL,
+			ClientRedirectURL: req.clientRedirectURL,
 			CheckUser:         true,
 		})
 	if err != nil {
-		logger.WithError(err).Error("Error with creating auth request.")
-		return redirectToErrorPage(w, r)
+		logger.WithError(err).Error("Error creating auth request.")
+		http.Redirect(w, r, loginFailedURL, http.StatusFound)
+		return nil, nil
 	}
 
 	http.Redirect(w, r, response.RedirectURL, http.StatusFound)
@@ -862,22 +869,24 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 	logger := h.log.WithField("auth", "github")
 	logger.Debug("Web login start.")
 
-	clientRedirectURL, connectorID, csrfToken, err := extractAuthConnQueryParamAndCSRFToken(r)
+	req, err := parseSSORequestParams(r)
 	if err != nil {
 		logger.Error(err)
-		return redirectToErrorPage(w, r)
+		http.Redirect(w, r, loginFailedURL, http.StatusFound)
+		return nil, nil
 	}
 
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(
 		services.GithubAuthRequest{
-			CSRFToken:         csrfToken,
-			ConnectorID:       connectorID,
+			CSRFToken:         req.csrfToken,
+			ConnectorID:       req.connectorID,
 			CreateWebSession:  true,
-			ClientRedirectURL: clientRedirectURL,
+			ClientRedirectURL: req.clientRedirectURL,
 		})
 	if err != nil {
 		logger.WithError(err).Error("Error creating auth request.")
-		return redirectToErrorPage(w, r)
+		http.Redirect(w, r, loginFailedURL, http.StatusFound)
+		return nil, nil
 	}
 
 	http.Redirect(w, r, response.RedirectURL, http.StatusFound)
@@ -918,7 +927,8 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	response, err := h.cfg.ProxyClient.ValidateGithubAuthCallback(r.URL.Query())
 	if err != nil {
 		logger.WithError(err).Error("Error while processing callback.")
-		return redirectToErrorCallbackPage(w, r)
+		http.Redirect(w, r, loginFailedBadCallbackURL, http.StatusFound)
+		return nil, nil
 	}
 
 	// if we created web session, set session cookie and redirect to original url
@@ -927,17 +937,19 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 
 		if err := csrf.VerifyToken(response.Req.CSRFToken, r); err != nil {
 			logger.WithError(err).Error("Unable to verify CSRF token.")
-			return redirectToErrorPage(w, r)
+			http.Redirect(w, r, loginFailedURL, http.StatusFound)
+			return nil, nil
 		}
 
 		if err := SetSessionCookie(w, response.Username, response.Session.GetName()); err != nil {
 			logger.WithError(err).Error("Unable to set session cookie.")
-			return redirectToErrorPage(w, r)
+			http.Redirect(w, r, loginFailedURL, http.StatusFound)
+			return nil, nil
 		}
 
 		if err := httplib.SafeRedirect(w, r, response.Req.ClientRedirectURL); err != nil {
 			logger.WithError(err).Error("Error parsing redirect URL.")
-			return redirectToErrorPage(w, r)
+			http.Redirect(w, r, loginFailedURL, http.StatusFound)
 		}
 
 		return nil, nil
@@ -946,7 +958,8 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	logger.Infof("Callback is redirecting to console login.")
 	if len(response.Req.PublicKey) == 0 {
 		logger.Error("Not a web or console login request.")
-		return redirectToErrorPage(w, r)
+		http.Redirect(w, r, loginFailedURL, http.StatusFound)
+		return nil, nil
 	}
 
 	redirectURL, err := ConstructSSHResponse(AuthParams{
@@ -961,7 +974,8 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	})
 	if err != nil {
 		logger.WithError(err).Error("Error constructing ssh response")
-		return redirectToErrorPage(w, r)
+		http.Redirect(w, r, loginFailedURL, http.StatusFound)
+		return nil, nil
 	}
 
 	http.Redirect(w, r, redirectURL.String(), http.StatusFound)
@@ -1003,24 +1017,29 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	response, err := h.cfg.ProxyClient.ValidateOIDCAuthCallback(r.URL.Query())
 	if err != nil {
 		logger.WithError(err).Error("Error while processing callback.")
-		return redirectToErrorCallbackPage(w, r)
+		http.Redirect(w, r, loginFailedBadCallbackURL, http.StatusFound)
+		return nil, nil
 	}
 
 	// if we created web session, set session cookie and redirect to original url
 	if response.Req.CreateWebSession {
 		logger.Info("Redirecting to web browser.")
+
 		if err := csrf.VerifyToken(response.Req.CSRFToken, r); err != nil {
 			logger.WithError(err).Error("Unable to verify CSRF token.")
-			return nil, trace.AccessDenied("access denied")
+			http.Redirect(w, r, loginFailedURL, http.StatusFound)
+			return nil, nil
 		}
 
 		if err := SetSessionCookie(w, response.Username, response.Session.GetName()); err != nil {
-			return nil, trace.Wrap(err)
+			logger.WithError(err).Error("Unable to set session cookie.")
+			http.Redirect(w, r, loginFailedURL, http.StatusFound)
+			return nil, nil
 		}
 
 		if err := httplib.SafeRedirect(w, r, response.Req.ClientRedirectURL); err != nil {
 			logger.WithError(err).Error("Error parsing redirect URL.")
-			return redirectToErrorPage(w, r)
+			http.Redirect(w, r, loginFailedURL, http.StatusFound)
 		}
 
 		return nil, nil
@@ -1029,7 +1048,8 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	logger.Info("Callback redirecting to console login.")
 	if len(response.Req.PublicKey) == 0 {
 		logger.Error("Not a web or console login request.")
-		return redirectToErrorPage(w, r)
+		http.Redirect(w, r, loginFailedURL, http.StatusFound)
+		return nil, nil
 	}
 
 	redirectURL, err := ConstructSSHResponse(AuthParams{
@@ -1043,7 +1063,8 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	})
 	if err != nil {
 		logger.WithError(err).Error("Error constructing ssh response")
-		return redirectToErrorPage(w, r)
+		http.Redirect(w, r, loginFailedURL, http.StatusFound)
+		return nil, nil
 	}
 
 	http.Redirect(w, r, redirectURL.String(), http.StatusFound)
@@ -2316,38 +2337,34 @@ func makeTeleportClientConfig(ctx *SessionContext) (*client.Config, error) {
 	return config, nil
 }
 
-func redirectToErrorCallbackPage(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	pathToError := url.URL{Path: "/web/msg/error/login_failed_callback"}
-	http.Redirect(w, r, pathToError.String(), http.StatusFound)
-
-	return nil, nil
+type ssoRequestParams struct {
+	clientRedirectURL string
+	connectorID       string
+	csrfToken         string
 }
 
-func redirectToErrorPage(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	pathToError := url.URL{Path: "/web/msg/error/login_failed"}
-	http.Redirect(w, r, pathToError.String(), http.StatusFound)
-
-	return nil, nil
-}
-
-func extractAuthConnQueryParamAndCSRFToken(r *http.Request) (clientRedirectURL, connectorID, csrfToken string, err error) {
+func parseSSORequestParams(r *http.Request) (ssoRequestParams, error) {
 	query := r.URL.Query()
 
-	clientRedirectURL = query.Get("redirect_url")
+	clientRedirectURL := query.Get("redirect_url")
 	if clientRedirectURL == "" {
-		return "", "", "", trace.BadParameter("Missing redirect_url query parameter")
+		return ssoRequestParams{}, trace.BadParameter("Missing redirect_url query parameter")
 	}
 
-	connectorID = query.Get("connector_id")
+	connectorID := query.Get("connector_id")
 	if connectorID == "" {
-		return "", "", "", trace.BadParameter("Missing connector_id query parameter.")
+		return ssoRequestParams{}, trace.BadParameter("Missing connector_id query parameter.")
 
 	}
 
-	csrfToken, err = csrf.ExtractTokenFromCookie(r)
+	csrfToken, err := csrf.ExtractTokenFromCookie(r)
 	if err != nil {
-		return "", "", "", trace.Wrap(err, "Unable to extract CSRF token from cookie.")
+		return ssoRequestParams{}, trace.Wrap(err, "Unable to extract CSRF token from cookie.")
 	}
 
-	return clientRedirectURL, connectorID, csrfToken, nil
+	return ssoRequestParams{
+		clientRedirectURL: clientRedirectURL,
+		connectorID:       connectorID,
+		csrfToken:         csrfToken,
+	}, nil
 }
