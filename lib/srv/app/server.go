@@ -374,7 +374,7 @@ func (s *Server) authorize(ctx context.Context, r *http.Request) (*tlsca.Identit
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	err = authContext.Checker.CheckAccessToApp(defaults.Namespace, app)
+	err = authContext.Checker.CheckAccessToApp(defaults.Namespace, app, identity.MFAVerified)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
