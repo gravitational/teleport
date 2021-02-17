@@ -58,9 +58,9 @@ to call [`tsh login`](cli-docs.md#tsh-login) in the beginning.
 - Mac Users with [Homebrew](https://brew.sh/): `brew install teleport`
 - Linux Users: [Download Linux Teleport Binary. Includes tsh](https://gravitational.com/teleport/download?os=linux)
 
-    !!! note
-
-        The Teleport package in Homebrew is not maintained by Teleport. We recommend the use of our [own Teleport packages](https://goteleport.com/teleport/download?os=macos).
+  <Admonition type="note">
+    The Teleport package in Homebrew is not maintained by Teleport. We recommend the use of our [own Teleport packages](https://goteleport.com/teleport/download?os=macos).
+  </Admonition>
 
 ## User Identities
 
@@ -113,12 +113,12 @@ Subsequent `tsh ssh` commands will run without asking for credentials until the
 temporary certificate expires. By default, Teleport issues user certificates
 with a TTL (time to live) of 12 hours.
 
-!!! tip "Tip"
-
-    It is recommended to always use [`tsh login`](cli-docs.md#tsh-login) before
-    using any other `tsh` commands. This
-    allows users to omit `--proxy` flag in subsequent tsh commands. For example
-    `tsh ssh user@host` will work.
+<Admonition type="tip" title="Tip">
+It is recommended to always use [`tsh login`](cli-docs.md#tsh-login) before
+using any other `tsh` commands. This
+allows users to omit `--proxy` flag in subsequent tsh commands. For example
+`tsh ssh user@host` will work.
+</Admonition>
 
 A Teleport cluster can be configured for multiple user identity sources. For
 example, a cluster may have a local user called "admin" while regular users
@@ -443,9 +443,9 @@ can join you through her terminal by typing:
 $ tsh join <session_ID>
 ```
 
-!!! note
-
-    Joining sessions is not supported in recording proxy mode (where `session_recording` is set to `proxy`).
+<Admonition type="note">
+Joining sessions is not supported in recording proxy mode (where `session_recording` is set to `proxy`).
+</Admonition>
 
 ## Connecting to SSH Clusters behind Firewalls
 
@@ -515,12 +515,12 @@ most of them can be mitigated.
 
 If you'd like to set the login name that should be used by default on the remote host, you can set the `TELEPORT_LOGIN` environment variable.
 
-!!! tip "Tip"
-
-    To avoid typing `tsh ssh user@host` when logging into servers,
-    you can create a symlink `ssh -> tsh` and execute the symlink. It will
-    behave exactly like a standard `ssh` command, i.e. `ssh login@host`. This is
-    helpful with other tools that expect `ssh` to just work.
+<Admonition type="tip" title="Tip">
+To avoid typing `tsh ssh user@host` when logging into servers,
+you can create a symlink `ssh -> tsh` and execute the symlink. It will
+behave exactly like a standard `ssh` command, i.e. `ssh login@host`. This is
+helpful with other tools that expect `ssh` to just work.
+</Admonition>
 
 Teleport is built using standard SSH constructs: keys, certificates and
 protocols. This means that a Teleport system is 100% compatible with both

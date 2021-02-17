@@ -22,38 +22,38 @@ Teleport Application Access requires two processes to be run. One is the dedicat
 
 ### Install Teleport
 
-!!! danger
-
-    This is currently a very early alpha build of Teleport 5.0. **DO NOT USE FOR PRODUCTION**
+<Admonition type="danger">
+This is currently a very early alpha build of Teleport 5.0. **DO NOT USE FOR PRODUCTION**
+</Admonition>
 
 Download Teleport Community Version
 
-=== "Teleport Community Edition"
-
-    | OPERATING SYSTEM | CHECKSUM | DOWNLOAD LINK |
-    |-|-|-|
-    | Linux 32-bit | [SHA256](https://get.gravitational.com/teleport-v5.0.0-beta.10-linux-386-bin.tar.gz.sha265) | [teleport-v5.0.0-beta.10-linux-386-bin.tar.gz](https://get.gravitational.com/teleport-v5.0.0-beta.10-linux-386-bin.tar.gz) |
-    | Linux 64-bit | [SHA256](https://get.gravitational.com/teleport-v5.0.0-beta.10-linux-amd64-bin.tar.gz.sha256) | [teleport-v5.0.0-beta.10-linux-amd64-bin.tar.gz](https://get.gravitational.com/teleport-v5.0.0-beta.10-linux-amd64-bin.tar.gz) |
-    | Linux 64-bit (RHEL/CentOS 6.x compatible) | [SHA256](https://get.gravitational.com/teleport-v5.0.0-beta.10-linux-amd64-bin.tar.gz.sha256) | [teleport-v5.0.0-beta.10-linux-amd64-bin.tar.gz](https://get.gravitational.com/teleport-v5.0.0-beta.10-linux-amd64-bin.tar.gz) |
-    | Linux ARMv7 | [SHA256](https://get.gravitational.com/teleport-v5.0.0-beta.10-linux-arm-bin.tar.gz.sha256) | [teleport-v5.0.0-beta.10-linux-arm-bin.tar.gz](https://get.gravitational.com/teleport-v5.0.0-beta.10-linux-arm-bin.tar.gz) |
-    | Linux 64-bit DEB | [SHA256](https://get.gravitational.com/teleport_5.0.0-beta.10_amd64.deb.sha256) | [teleport_v5.0.0-beta.10_amd64.deb](https://get.gravitational.com/teleport_5.0.0-beta.10_amd64.deb) |
-    | Linux 32-bit DEB | [SHA256](https://get.gravitational.com/teleport_5.0.0-beta.10_i386.deb.sha256) | [teleport_v5.0.0-beta.10_i386.deb](https://get.gravitational.com/teleport_5.0.0-beta.10_amd64.deb) |
-    | Linux 64-bit RPM | [SHA256](https://get.gravitational.com/teleport-5.0.0-beta.10-1.x86_64.rpm.sha256) | [teleport-5.0.0-beta.10-1.x86_64.rpm](https://get.gravitational.com/teleport-5.0.0-beta.10-1.x86_64.rpm)
-    | Docker Image | [SHA256](https://quay.io/repository/gravitational/teleport?tab=tags) | `docker pull quay.io/gravitational/teleport:5.0.0-beta.10` |
-
-=== "Teleport Enterprise Edition"
-
-    | OPERATING SYSTEM | CHECKSUM | DOWNLOAD LINK |
-    |-|-|-|
-    | Linux 32-bit | [SHA256](https://get.gravitational.com/teleport-ent-v5.0.0-beta.10-linux-386-bin.tar.gz.sha265) | [teleport-ent-v5.0.0-beta.10-linux-386-bin.tar.gz](https://get.gravitational.com/teleport-ent-v5.0.0-beta.10-linux-386-bin.tar.gz) |
-    | Linux 64-bit | [SHA256](https://get.gravitational.com/teleport-ent-v5.0.0-beta.10-linux-amd64-bin.tar.gz.sha256) | [teleport-ent-v5.0.0-beta.10-linux-amd64-bin.tar.gz](https://get.gravitational.com/teleport-ent-v5.0.0-beta.10-linux-amd64-bin.tar.gz) |
-    | Linux 64-bit (RHEL/CentOS 6.x compatible) | [SHA256](https://get.gravitational.com/teleport-ent-v5.0.0-beta.10-linux-amd64-bin.tar.gz.sha256) | [teleport-ent-v5.0.0-beta.10-linux-amd64-bin.tar.gz](https://get.gravitational.com/teleport-ent-v5.0.0-beta.10-linux-amd64-bin.tar.gz) |
-    | Linux ARMv7 | [SHA256](https://get.gravitational.com/teleport-ent-v5.0.0-beta.10-linux-arm-bin.tar.gz.sha256) | [teleport-ent-v5.0.0-beta.10-linux-arm-bin.tar.gz](https://get.gravitational.com/teleport-ent-v5.0.0-beta.10-linux-arm-bin.tar.gz) |
-    | Linux 64-bit DEB | [SHA256](https://get.gravitational.com/teleport-ent_5.0.0-beta.10_amd64.deb.sha256) | [teleport-ent_v5.0.0-beta.10_amd64.deb](https://get.gravitational.com/teleport-ent_5.0.0-beta.10_amd64.deb) |
-    | Linux 32-bit DEB | [SHA256](https://get.gravitational.com/teleport-ent_5.0.0-beta.10_i386.deb.sha256) | [teleport-ent_v5.0.0-beta.10_i386.deb](https://get.gravitational.com/teleport-ent_5.0.0-beta.10_i386.deb) |
-    | Linux 64-bit RPM | | [teleport-ent-5.0.0-beta.10-1.x86_64.rpm](https://get.gravitational.com/teleport-ent-5.0.0-beta.10-1.x86_64.rpm)
-    | Docker Image | [SHA256](https://quay.io/repository/gravitational/teleport-ent?tab=tags) | `docker pull quay.io/gravitational/teleport-ent:5.0.0-beta.10` |
-
+<Tabs>
+<TabItem label="Teleport Community Edition">
+| OPERATING SYSTEM | CHECKSUM | DOWNLOAD LINK |
+|-|-|-|
+| Linux 32-bit | [SHA256](https://get.gravitational.com/teleport-v5.0.0-beta.10-linux-386-bin.tar.gz.sha265) | [teleport-v5.0.0-beta.10-linux-386-bin.tar.gz](https://get.gravitational.com/teleport-v5.0.0-beta.10-linux-386-bin.tar.gz) |
+| Linux 64-bit | [SHA256](https://get.gravitational.com/teleport-v5.0.0-beta.10-linux-amd64-bin.tar.gz.sha256) | [teleport-v5.0.0-beta.10-linux-amd64-bin.tar.gz](https://get.gravitational.com/teleport-v5.0.0-beta.10-linux-amd64-bin.tar.gz) |
+| Linux 64-bit (RHEL/CentOS 6.x compatible) | [SHA256](https://get.gravitational.com/teleport-v5.0.0-beta.10-linux-amd64-bin.tar.gz.sha256) | [teleport-v5.0.0-beta.10-linux-amd64-bin.tar.gz](https://get.gravitational.com/teleport-v5.0.0-beta.10-linux-amd64-bin.tar.gz) |
+| Linux ARMv7 | [SHA256](https://get.gravitational.com/teleport-v5.0.0-beta.10-linux-arm-bin.tar.gz.sha256) | [teleport-v5.0.0-beta.10-linux-arm-bin.tar.gz](https://get.gravitational.com/teleport-v5.0.0-beta.10-linux-arm-bin.tar.gz) |
+| Linux 64-bit DEB | [SHA256](https://get.gravitational.com/teleport_5.0.0-beta.10_amd64.deb.sha256) | [teleport_v5.0.0-beta.10_amd64.deb](https://get.gravitational.com/teleport_5.0.0-beta.10_amd64.deb) |
+| Linux 32-bit DEB | [SHA256](https://get.gravitational.com/teleport_5.0.0-beta.10_i386.deb.sha256) | [teleport_v5.0.0-beta.10_i386.deb](https://get.gravitational.com/teleport_5.0.0-beta.10_amd64.deb) |
+| Linux 64-bit RPM | [SHA256](https://get.gravitational.com/teleport-5.0.0-beta.10-1.x86_64.rpm.sha256) | [teleport-5.0.0-beta.10-1.x86_64.rpm](https://get.gravitational.com/teleport-5.0.0-beta.10-1.x86_64.rpm)
+| Docker Image | [SHA256](https://quay.io/repository/gravitational/teleport?tab=tags) | `docker pull quay.io/gravitational/teleport:5.0.0-beta.10` |
+</TabItem>
+<TabItem label="Teleport Enterprise Edition">
+| OPERATING SYSTEM | CHECKSUM | DOWNLOAD LINK |
+|-|-|-|
+| Linux 32-bit | [SHA256](https://get.gravitational.com/teleport-ent-v5.0.0-beta.10-linux-386-bin.tar.gz.sha265) | [teleport-ent-v5.0.0-beta.10-linux-386-bin.tar.gz](https://get.gravitational.com/teleport-ent-v5.0.0-beta.10-linux-386-bin.tar.gz) |
+| Linux 64-bit | [SHA256](https://get.gravitational.com/teleport-ent-v5.0.0-beta.10-linux-amd64-bin.tar.gz.sha256) | [teleport-ent-v5.0.0-beta.10-linux-amd64-bin.tar.gz](https://get.gravitational.com/teleport-ent-v5.0.0-beta.10-linux-amd64-bin.tar.gz) |
+| Linux 64-bit (RHEL/CentOS 6.x compatible) | [SHA256](https://get.gravitational.com/teleport-ent-v5.0.0-beta.10-linux-amd64-bin.tar.gz.sha256) | [teleport-ent-v5.0.0-beta.10-linux-amd64-bin.tar.gz](https://get.gravitational.com/teleport-ent-v5.0.0-beta.10-linux-amd64-bin.tar.gz) |
+| Linux ARMv7 | [SHA256](https://get.gravitational.com/teleport-ent-v5.0.0-beta.10-linux-arm-bin.tar.gz.sha256) | [teleport-ent-v5.0.0-beta.10-linux-arm-bin.tar.gz](https://get.gravitational.com/teleport-ent-v5.0.0-beta.10-linux-arm-bin.tar.gz) |
+| Linux 64-bit DEB | [SHA256](https://get.gravitational.com/teleport-ent_5.0.0-beta.10_amd64.deb.sha256) | [teleport-ent_v5.0.0-beta.10_amd64.deb](https://get.gravitational.com/teleport-ent_5.0.0-beta.10_amd64.deb) |
+| Linux 32-bit DEB | [SHA256](https://get.gravitational.com/teleport-ent_5.0.0-beta.10_i386.deb.sha256) | [teleport-ent_v5.0.0-beta.10_i386.deb](https://get.gravitational.com/teleport-ent_5.0.0-beta.10_i386.deb) |
+| Linux 64-bit RPM | | [teleport-ent-5.0.0-beta.10-1.x86_64.rpm](https://get.gravitational.com/teleport-ent-5.0.0-beta.10-1.x86_64.rpm)
+| Docker Image | [SHA256](https://quay.io/repository/gravitational/teleport-ent?tab=tags) | `docker pull quay.io/gravitational/teleport-ent:5.0.0-beta.10` |
+</TabItem>
+</Tabs>
 
 Follow our standard [installation procedure](https://gravitational.com/teleport/docs/installation/).
 

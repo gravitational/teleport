@@ -229,12 +229,12 @@ spec:
       'workload': ['database', 'backup']
 ```
 
-!!! tip "Dynamic RBAC"
-
-    Node labels can be dynamic, i.e. determined at runtime by an output
-    of an executable. In this case, you can implement "permissions follow workload"
-    policies (eg., any server where PostgreSQL is running becomes _automatically_
-    accessible only by the members of the "DBA" group and nobody else).
+<Admonition type="tip" title="Dynamic RBAC">
+Node labels can be dynamic, i.e. determined at runtime by an output
+of an executable. In this case, you can implement "permissions follow workload"
+policies (eg., any server where PostgreSQL is running becomes _automatically_
+accessible only by the members of the "DBA" group and nobody else).
+</Admonition>
 
 ### Extended Node Labels Syntax
 

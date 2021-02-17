@@ -46,9 +46,9 @@ the following services.
 | `--diag-addr` | none | none | Enable diagnostic endpoints
 | `--permit-user-env` | none | none | flag reads in environment variables from `~/.tsh/environment` when creating a session.
 
-!!! warning "Token Generation"
-
-    We recommend the use of tools like `pwgen` to generate sufficiently random tokens of 32+ byte length.
+<Admonition type="warning" title="Token Generation">
+We recommend the use of tools like `pwgen` to generate sufficiently random tokens of 32+ byte length.
+</Admonition>
 
 ## teleport status
 

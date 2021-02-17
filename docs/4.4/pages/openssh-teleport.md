@@ -16,10 +16,10 @@ existing SSH implementations, such as OpenSSH. This section will cover:
 * Configuring OpenSSH client `ssh` to login into nodes inside a Teleport
   cluster.
 
-  !!! warning
-
-      The minimum OpenSSH version which will work with Teleport is version 6.9.
-      You can view your OpenSSH version with `ssh -V`.
+  <Admonition type="warning">
+  The minimum OpenSSH version which will work with Teleport is version 6.9.
+  You can view your OpenSSH version with `ssh -V`.
+  </Admonition>
 
 ## Architecture
 ![Node Service ping API](../img/openssh-proxy.svg)
@@ -169,10 +169,10 @@ $ ssh -o "ForwardAgent yes" \
     user@host.example.com
 ```
 
-!!! tip "Tip"
-
-    To avoid typing all this and use the usual `ssh user@host.example.com `, users
-    can update their ` ~/.ssh/config` file.
+<Admonition type="tip" title="Tip">
+To avoid typing all this and use the usual `ssh user@host.example.com `, users
+can update their ` ~/.ssh/config` file.
+</Admonition>
 
 ### Setup SSH agent forwarding
 
@@ -187,15 +187,14 @@ $ tsh login --proxy=proxy.example.com --user=joe
 $ ssh-add -L
 ```
 
-!!! warning "GNOME Keyring SSH Agent and GPG Agent"
-
-    It is well-known that Gnome Keyring SSH agent, used by many popular Linux
-    desktops like Ubuntu, and `gpg-agent` from GnuPG do not support SSH
-    certificates. We recommend using the `ssh-agent` from OpenSSH.
-    Alternatively, you can disable SSH agent integration entirely using the
-    `--no-use-local-ssh-agent` flag or `TELEPORT_USE_LOCAL_SSH_AGENT=false`
-    environment variable with `tsh`.
-
+<Admonition type="warning" title="GNOME Keyring SSH Agent and GPG Agent">
+It is well-known that Gnome Keyring SSH agent, used by many popular Linux
+desktops like Ubuntu, and `gpg-agent` from GnuPG do not support SSH
+certificates. We recommend using the `ssh-agent` from OpenSSH.
+Alternatively, you can disable SSH agent integration entirely using the
+`--no-use-local-ssh-agent` flag or `TELEPORT_USE_LOCAL_SSH_AGENT=false`
+environment variable with `tsh`.
+</Admonition>
 
 ## Using OpenSSH Client
 
@@ -219,15 +218,15 @@ $ cat teleport_host_ca.pub >> ~/.ssh/known_hosts
 If you have multiple Teleport clusters, you have to export and set up these
 certificate authorities for each cluster individually.
 
-!!! tip "OpenSSH and Trusted Clusters"
-
-    If you use [recording proxy mode](architecture/proxy.md) and [trusted clusters](trustedclusters.md),
-    you need to set up the certificate authority from
-    the _root_ cluster to match **all** nodes, even those that belong to _leaf_
-    clusters. For example, if your node naming scheme is `*.root.example.com`,
-    `*.leaf1.example.com`, `*.leaf2.example.com`, then the
-    `@certificate-authority` entry should match `*.example.com` and use the CA
-    from the root auth server only.
+<Admonition type="tip" title="OpenSSH and Trusted Clusters">
+If you use [recording proxy mode](architecture/proxy.md) and [trusted clusters](trustedclusters.md),
+you need to set up the certificate authority from
+the _root_ cluster to match **all** nodes, even those that belong to _leaf_
+clusters. For example, if your node naming scheme is `*.root.example.com`,
+`*.leaf1.example.com`, `*.leaf2.example.com`, then the
+`@certificate-authority` entry should match `*.example.com` and use the CA
+from the root auth server only.
+</Admonition>
 
 Make sure you are running OpenSSH's `ssh-agent` , and have logged in to the
 Teleport proxy:
@@ -277,14 +276,13 @@ behind `root.example.com` :
 $ ssh root@database.root.example.com
 ```
 
-!!! tip "Note"
-
-    Teleport uses OpenSSH certificates instead of keys which means
-    you cannot ordinarily connect to a Teleport node by IP address. You have to connect by
-    DNS name. This is because OpenSSH ensures the DNS name of the node you are
-    connecting is listed under the `Principals` section of the OpenSSH
-    certificate to verify you are connecting to the correct node.
-
+<Admonition type="tip" title="Note">
+Teleport uses OpenSSH certificates instead of keys which means
+you cannot ordinarily connect to a Teleport node by IP address. You have to connect by
+DNS name. This is because OpenSSH ensures the DNS name of the node you are
+connecting is listed under the `Principals` section of the OpenSSH
+certificate to verify you are connecting to the correct node.
+</Admonition>
 
 To connect to the OpenSSH server via `tsh`, add `--port=<ssh port>` with the `tsh ssh` command:
 
@@ -294,10 +292,10 @@ Example ssh to `database.work.example.com` as `root` with a OpenSSH server on po
 tsh ssh --port=22 dev@database.root.example.com
 ```
 
-!!! warning "Warning"
-
-    The principal/username (`dev@` in the example above) being used to connect must be
-    listed in the Teleport user/role configuration.
+<Admonition type="warning" title="Warning">
+The principal/username (`dev@` in the example above) being used to connect must be
+listed in the Teleport user/role configuration.
+</Admonition>
 
 ## OpenSSH Rate Limiting
 

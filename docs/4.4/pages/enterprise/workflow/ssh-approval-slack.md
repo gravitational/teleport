@@ -6,9 +6,9 @@ h1: Teleport Slack Plugin Setup
 
 This guide will talk through how to setup Teleport with Slack. Teleport to Slack integration allows you to treat Teleport access and permission requests via Slack message and inline interactive components.
 
-!!! warning
-
-    The Approval Workflow only works with Teleport Enterprise as it requires several roles.
+<Admonition type="warning">
+The Approval Workflow only works with Teleport Enterprise as it requires several roles.
+</Admonition>
 
 #### Example Slack Request
 
@@ -59,9 +59,9 @@ EOF
 $ tctl create -f rscs.yaml
 ```
 
-!!! tip
-
-    If you're using other plugins, you might want to create different users and roles for different plugins
+<Admonition type="tip">
+If you're using other plugins, you might want to create different users and roles for different plugins
+</Admonition>
 
 #### Export access-plugin Certificate
 Teleport Plugin use the `access-plugin-slack` role and user to perform the approval. We export the identity files, using [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign).
@@ -73,10 +73,9 @@ $ tctl auth sign --format=tls --user=access-plugin-slack --out=auth --ttl=8760h
 
 The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference the auth.crt, auth.key, and auth.cas files later when [configuring the plugins](#configuring-teleport-slack).
 
-
-!!! note "Certificate Lifetime"
-
-     By default, [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign) produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
+<Admonition type="note" title="Certificate Lifetime">
+ By default, [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign) produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
+</Admonition>
 
 ### Create Slack App
 

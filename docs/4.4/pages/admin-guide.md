@@ -42,11 +42,11 @@ When experimenting, you can quickly start [ `teleport` ](cli-docs.md#teleport)
 with verbose logging by typing [ `teleport start -d` ](cli-docs.md#teleport-start)
 .
 
-!!! danger "WARNING"
-
-    Teleport stores data in `/var/lib/teleport` . Make sure that
-    regular/non-admin users do not have access to this folder on the Auth
-    server.
+<Admonition type="danger" title="WARNING">
+Teleport stores data in `/var/lib/teleport` . Make sure that
+regular/non-admin users do not have access to this folder on the Auth
+server.
+</Admonition>
 
 ### Systemd Unit File
 
@@ -76,11 +76,11 @@ teleport` will perform a graceful restart, i.e.the Teleport daemon will fork a
 new process to handle new incoming requests, leaving the old daemon process
 running until existing clients disconnect.
 
-!!! warning "Version warning"
-
-    Graceful restarts only work if Teleport is
-    deployed using network-based storage like DynamoDB or etcd 3.3+. Future
-    versions of Teleport will not have this limitation.
+<Admonition type="warning" title="Version warning">
+Graceful restarts only work if Teleport is
+deployed using network-based storage like DynamoDB or etcd 3.3+. Future
+versions of Teleport will not have this limitation.
+</Admonition>
 
 You can also perform restarts/upgrades by sending `kill` signals to a Teleport
 daemon manually.
@@ -141,11 +141,11 @@ $ teleport start --config=/etc/teleport.yaml
 
 For a complete reference, see our [Configuration Reference - teleport.yaml](config-reference.md#teleportyaml)
 
-!!! note "IMPORTANT"
-
-    When editing YAML configuration, please pay attention to how your
-    editor handles white space. YAML requires consistent handling of
-    tab characters.
+<Admonition type="note" title="IMPORTANT">
+When editing YAML configuration, please pay attention to how your
+editor handles white space. YAML requires consistent handling of
+tab characters.
+</Admonition>
 
 ``` yaml
 #
@@ -372,14 +372,14 @@ the proxy, but this will prevent you from adding more proxies without changing
 the `app_id` . For multi-proxy setups, the `app_id` should be an HTTPS URL
 pointing to a JSON file that mirrors `facets` in the auth config.
 
-!!! warning "Warning"
-
-    The `app_id` must never change in the lifetime of the
-    cluster. If the App ID changes, all existing U2F key registrations will
-    become invalid and all users who use U2F as the second factor will need to
-    re-register. When adding a new proxy server, make sure to add it to the list
-    of "facets" in the configuration file, but also to the JSON file referenced
-    by `app_id`
+<Admonition type="warning" title="Warning">
+The `app_id` must never change in the lifetime of the
+cluster. If the App ID changes, all existing U2F key registrations will
+become invalid and all users who use U2F as the second factor will need to
+re-register. When adding a new proxy server, make sure to add it to the list
+of "facets" in the configuration file, but also to the JSON file referenced
+by `app_id`
+</Admonition>
 
 **Logging in with U2F**
 
@@ -400,11 +400,11 @@ Then invoke `tsh ssh` as usual to authenticate:
 $ tsh --proxy <proxy-addr> ssh <hostname>
 ```
 
-!!! tip "Version Warning"
+<Admonition type="tip" title="Version Warning">
+External user identities are only supported in [Teleport Enterprise](enterprise/introduction.md).
 
-    External user identities are only supported in [Teleport Enterprise](enterprise/introduction.md).
-
-    Please reach out to [sales@gravitational.com](mailto:sales@gravitational.com) for more information.
+Please reach out to [sales@gravitational.com](mailto:sales@gravitational.com) for more information.
+</Admonition>
 
 ## Adding and Deleting Users
 
@@ -640,17 +640,17 @@ teleport:
     - "10.12.0.6:3025"
 ```
 
-!!! warning "Warning"
+<Admonition type="warning" title="Warning">
+If a CA pin is not provided, Teleport node will join a
+cluster but it will print a `WARN` message (warning) into its standard
+error output.
+</Admonition>
 
-    If a CA pin is not provided, Teleport node will join a
-    cluster but it will print a `WARN` message (warning) into its standard
-    error output.
-
-!!! warning "Warning"
-
-    The CA pin becomes invalid if a Teleport administrator
-    performs the CA rotation by executing
-    [ `tctl auth rotate` ](cli-docs.md#tctl-auth-rotate) .
+<Admonition type="warning" title="Warning">
+The CA pin becomes invalid if a Teleport administrator
+performs the CA rotation by executing
+[ `tctl auth rotate` ](cli-docs.md#tctl-auth-rotate) .
+</Admonition>
 
 ## Revoking Invitations
 
@@ -686,9 +686,9 @@ Token 696c0471453e75882ff70a761c1a8bfa has been deleted
 
 ## Adding a node located behind NAT
 
-!!! note
-
-    This feature is sometimes called "Teleport IoT" or node tunneling.
+<Admonition type="note">
+This feature is sometimes called "Teleport IoT" or node tunneling.
+</Admonition>
 
 With the current setup, you've only been able to add nodes that have direct access to the
 auth server and within the internal IP range of the cluster. We recommend
@@ -723,13 +723,13 @@ To enable multiplexing so only one port is used, simply set the `tunnel_listen_a
 DEBU [PROC:1]    Setup Proxy: Reverse tunnel proxy and web proxy listen on the same port, multiplexing is on. service/service.go:1944
 ```
 
-!!! tip "Load Balancers"
-
-    The setup above also works even if the cluster uses multiple proxies behind
-    a load balancer (LB) or a DNS entry with multiple values.  This works by
-    the node establishing a tunnel to _every_ proxy. This requires that an LB
-    uses round-robin or a similar balancing algorithm. Do not use sticky load
-    balancing algorithms (a.k.a. "session affinity") with Teleport proxies.
+<Admonition type="tip" title="Load Balancers">
+The setup above also works even if the cluster uses multiple proxies behind
+a load balancer (LB) or a DNS entry with multiple values.  This works by
+the node establishing a tunnel to _every_ proxy. This requires that an LB
+uses round-robin or a similar balancing algorithm. Do not use sticky load
+balancing algorithms (a.k.a. "session affinity") with Teleport proxies.
+</Admonition>
 
 ## Labeling Nodes
 
@@ -969,12 +969,12 @@ be manipulated with just 3 CLI commands:
 | [ `tctl rm` ](cli-docs.md#tctl-rm) | Delete a resource by type/name                                        | `tctl rm user/joe` |
 | [ `tctl create` ](cli-docs.md#tctl-create) | Create a new resource from a YAML file. Use `-f` to override / update | `tctl create -f joe.yaml` |
 
-!!! warning "YAML Format"
-
-    By default Teleport uses [YAML format](https://en.wikipedia.org/wiki/YAML)
-    to describe resources. YAML is a
-    wonderful and very human-readable alternative to JSON or XML, but it's
-    sensitive to white space. Pay attention to spaces vs tabs!
+<Admonition type="warning" title="YAML Format">
+By default Teleport uses [YAML format](https://en.wikipedia.org/wiki/YAML)
+to describe resources. YAML is a
+wonderful and very human-readable alternative to JSON or XML, but it's
+sensitive to white space. Pay attention to spaces vs tabs!
+</Admonition>
 
 Here's an example how the YAML resource definition for a user Joe might look
 like. It can be retrieved by executing [`tctl get
@@ -1008,11 +1008,11 @@ spec:
       name: builtin-Admin
 ```
 
-!!! tip "Note"
-
-    Some of the fields you will see when printing resources are used
-    only internally and are not meant to be changed.  Others are reserved for
-    future use.
+<Admonition type="tip" title="Note">
+Some of the fields you will see when printing resources are used
+only internally and are not meant to be changed.  Others are reserved for
+future use.
+</Admonition>
 
 Here's the list of resources currently exposed via [ `tctl` ](cli-docs.md#tctl) :
 
@@ -1046,11 +1046,11 @@ $ tctl rm github/myteam
 $ tctl rm users/admin
 ```
 
-!!! note
-
-    Although `tctl get connectors` will show you every connector, when working with an individual
-    connector you must use the correct `kind`, such as `saml` or `oidc`. You can see each
-    connector's `kind` at the top of its YAML output from `tctl get connectors`.
+<Admonition type="note">
+Although `tctl get connectors` will show you every connector, when working with an individual
+connector you must use the correct `kind`, such as `saml` or `oidc`. You can see each
+connector's `kind` at the top of its YAML output from `tctl get connectors`.
+</Admonition>
 
 ## Trusted Clusters
 
@@ -1120,13 +1120,13 @@ spec:
       kubernetes_groups: ["system:masters"]
 ```
 
-!!! note
-
-    For open-source Teleport the `logins` field contains a list of allowed
-    OS logins. For the commercial Teleport Enterprise offering, which supports
-    role-based access control, the same field is treated as a list of _roles_
-    that users from the matching org/team assume after going through the
-    authorization flow.
+<Admonition type="note">
+For open-source Teleport the `logins` field contains a list of allowed
+OS logins. For the commercial Teleport Enterprise offering, which supports
+role-based access control, the same field is treated as a list of _roles_
+that users from the matching org/team assume after going through the
+authorization flow.
+</Admonition>
 
 To obtain client ID and client secret, please follow Github documentation on
 how to [create and register an OAuth
@@ -1142,12 +1142,12 @@ Finally, create the connector using [ `tctl` ](cli-docs.md#tctl)
 $ tctl create github.yaml
 ```
 
-!!! tip
-
-    When going through the Github authentication flow for the first time,
-    the application must be granted the access to all organizations that are
-    present in the "teams to logins" mapping, otherwise Teleport will not be
-    able to determine team memberships for these orgs.
+<Admonition type="tip">
+When going through the Github authentication flow for the first time,
+the application must be granted the access to all organizations that are
+present in the "teams to logins" mapping, otherwise Teleport will not be
+able to determine team memberships for these orgs.
+</Admonition>
 
 ## HTTP CONNECT Proxies
 
@@ -1180,11 +1180,11 @@ Environment="HTTPS_PROXY=http://proxy.example.com:8080/"
 Environment="NO_PROXY=localhost,127.0.0.1,192.168.0.0/16,172.16.0.0/12,10.0.0.0/8"
 ```
 
-!!! tip "Note"
-
-    `localhost` and `127.0.0.1` are invalid values for the proxy
-    host. If for some reason your proxy runs locally, you'll need to provide
-    some other DNS name or a private IP address for it.
+<Admonition type="tip" title="Note">
+`localhost` and `127.0.0.1` are invalid values for the proxy
+host. If for some reason your proxy runs locally, you'll need to provide
+some other DNS name or a private IP address for it.
+</Admonition>
 
 ## PAM Integration
 
@@ -1210,9 +1210,9 @@ removed if you uninstall `openssh-server` package. We recommend creating your
 own PAM service file like `/etc/pam.d/teleport` and specifying it as
 `service_name` above.
 
-!!! tip "Note"
-
-    Teleport only supports the `account` and `session` stack. The `auth` PAM module is currently not supported with Teleport.
+<Admonition type="tip" title="Note">
+Teleport only supports the `account` and `session` stack. The `auth` PAM module is currently not supported with Teleport.
+</Admonition>
 
 ## Using Teleport with OpenSSH
 
@@ -1248,14 +1248,14 @@ The rotation takes time, especially for hosts, because each node in a cluster
 needs to be notified that a rotation is taking place and request a new
 certificate for itself before the grace period ends.
 
-!!! warning "Warning"
-
-    Be careful when choosing a grace period when rotating
-    host certificates. The grace period needs to be long enough for all nodes in
-    a cluster to request a new certificate. If some nodes go offline during the
-    rotation and come back only after the grace period has ended, they will be
-    forced to leave the cluster, i.e. users will no longer be allowed to SSH
-    into them.
+<Admonition type="warning" title="Warning">
+Be careful when choosing a grace period when rotating
+host certificates. The grace period needs to be long enough for all nodes in
+a cluster to request a new certificate. If some nodes go offline during the
+rotation and come back only after the grace period has ended, they will be
+forced to leave the cluster, i.e. users will no longer be allowed to SSH
+into them.
+</Admonition>
 
 To check the status of certificate rotation:
 
@@ -1263,11 +1263,11 @@ To check the status of certificate rotation:
 $ tctl status
 ```
 
-!!! warning "CA Pinning Warning"
-
-    If you are using [CA Pinning](#untrusted-auth-servers) when adding new
-    nodes, the CA pin will changes after the rotation. Make sure you use the
-    _new_ CA pin when adding nodes after rotation.
+<Admonition type="warning" title="CA Pinning Warning">
+If you are using [CA Pinning](#untrusted-auth-servers) when adding new
+nodes, the CA pin will changes after the rotation. Make sure you use the
+_new_ CA pin when adding nodes after rotation.
+</Admonition>
 
 ## Ansible Integration
 
@@ -1294,11 +1294,11 @@ examples and instructions.
 
 ## High Availability
 
-!!! tip "Tip"
-
-    Before continuing, please make sure to take a look at the
-    [Cluster State section](architecture/nodes.md#cluster-state) in the Teleport
-    Architecture documentation.
+<Admonition type="tip" title="Tip">
+Before continuing, please make sure to take a look at the
+[Cluster State section](architecture/nodes.md#cluster-state) in the Teleport
+Architecture documentation.
+</Admonition>
 
 Usually there are two ways to achieve high availability. You can "outsource"
 this function to the infrastructure. For example, using a highly available
@@ -1339,10 +1339,10 @@ configure your load balancer to forward the ports you specified for
 your users, while the remaining ports should do TCP level forwarding, since
 Teleport will handle its own SSL on top of that with its own certificates.
 
-!!! tip "NOTE"
-
-    If you terminate TLS with your own certificate at a load
-    balancer you'll need to run Teleport with `--insecure-no-tls`
+<Admonition type="tip" title="NOTE">
+If you terminate TLS with your own certificate at a load
+balancer you'll need to run Teleport with `--insecure-no-tls`
+</Admonition>
 
 If your load balancer supports HTTP health checks, configure it to hit the
 `/readyz` [diagnostics endpoint](metrics-logs-reference.md) on machines running Teleport. This endpoint
@@ -1350,13 +1350,13 @@ must be enabled by using the `--diag-addr` flag to teleport start: `teleport sta
 The http://127.0.0.1:3000/readyz endpoint will reply `{"status":"ok"}` if the Teleport service
 is running without problems.
 
-!!! tip "NOTE"
-
-    As the new auth servers get added to the cluster and the old
-    servers get decommissioned, nodes and proxies will refresh the list of
-    available auth servers and store it in their local cache
-    `/var/lib/teleport/authservers.json` - the values from the cache file will take
-    precedence over the configuration file.
+<Admonition type="tip" title="NOTE">
+As the new auth servers get added to the cluster and the old
+servers get decommissioned, nodes and proxies will refresh the list of
+available auth servers and store it in their local cache
+`/var/lib/teleport/authservers.json` - the values from the cache file will take
+precedence over the configuration file.
+</Admonition>
 
 We'll cover how to use `etcd`, DynamoDB and Firestore storage back-ends to make Teleport
 highly available below.
@@ -1399,12 +1399,12 @@ achieve highly available deployments. You must take steps to protect access to
 `etcd` in this configuration because that is where Teleport secrets like keys
 and user records will be stored.
 
-!!! warning "IMPORTANT"
-
-    `etcd` can only currently be used to store Teleport's internal database in a highly-available
-    way. This will allow you to have multiple auth servers in your cluster for an HA deployment,
-    but it will not also store Teleport audit events for you in the same way that
-    [DynamoDB](#using-dynamodb) or [Firestore](#using-firestore) will.
+<Admonition type="warning" title="IMPORTANT">
+`etcd` can only currently be used to store Teleport's internal database in a highly-available
+way. This will allow you to have multiple auth servers in your cluster for an HA deployment,
+but it will not also store Teleport audit events for you in the same way that
+[DynamoDB](#using-dynamodb) or [Firestore](#using-firestore) will.
+</Admonition>
 
 To configure Teleport for using etcd as a storage back-end:
 
@@ -1474,20 +1474,20 @@ teleport:
 
 ### Using Amazon S3
 
-!!! tip "Tip"
+<Admonition type="tip" title="Tip">
+Before continuing, please make sure to take a look at the
+[cluster state section](architecture/nodes.md#cluster-state) in Teleport
+Architecture documentation.
+</Admonition>
 
-    Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/nodes.md#cluster-state) in Teleport
-    Architecture documentation.
-
-!!! tip "AWS Authentication"
-
-    The configuration examples below contain AWS
-    access keys and secret keys. They are optional, they exist for your
-    convenience but we DO NOT RECOMMEND using them in production. If Teleport is
-    running on an AWS instance it will automatically use the instance IAM role.
-    Teleport also will pick up AWS credentials from the `~/.aws` folder, just
-    like the AWS CLI tool.
+<Admonition type="tip" title="AWS Authentication">
+The configuration examples below contain AWS
+access keys and secret keys. They are optional, they exist for your
+convenience but we DO NOT RECOMMEND using them in production. If Teleport is
+running on an AWS instance it will automatically use the instance IAM role.
+Teleport also will pick up AWS credentials from the `~/.aws` folder, just
+like the AWS CLI tool.
+</Admonition>
 
 S3 buckets can only be used as a storage for the recorded sessions. S3 cannot
 store the audit log or the cluster state. Below is an example of how to
@@ -1512,10 +1512,10 @@ running on an EC2 instance with an IAM role.
 
 ### Using DynamoDB
 
-!!! tip "Tip"
-
-    Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/nodes.md#cluster-state) in Teleport Architecture documentation.
+<Admonition type="tip" title="Tip">
+Before continuing, please make sure to take a look at the
+[cluster state section](architecture/nodes.md#cluster-state) in Teleport Architecture documentation.
+</Admonition>
 
 If you are running Teleport on AWS, you can use
 [DynamoDB](https://aws.amazon.com/dynamodb/) as a storage back-end to achieve
@@ -1574,11 +1574,11 @@ teleport:
 * If DynamoDB is used for the audit log, the logged events will be stored with a
   TTL of 1 year. Currently this TTL is not configurable.
 
-!!! warning "Access to DynamoDB"
-
-    Make sure that the IAM role assigned to
-    Teleport is configured with the sufficient access to DynamoDB. Below is the
-    example of the IAM policy you can use:
+<Admonition type="warning" title="Access to DynamoDB">
+Make sure that the IAM role assigned to
+Teleport is configured with the sufficient access to DynamoDB. Below is the
+example of the IAM policy you can use:
+</Admonition>
 
 ``` js
 {
@@ -1601,12 +1601,11 @@ teleport:
 
 ### Using GCS
 
-!!! tip "Tip"
-
-    Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/nodes.md#cluster-state) in Teleport
-    Architecture documentation.
-
+<Admonition type="tip" title="Tip">
+Before continuing, please make sure to take a look at the
+[cluster state section](architecture/nodes.md#cluster-state) in Teleport
+Architecture documentation.
+</Admonition>
 
 Google Cloud Storage (GCS) can only be used as a storage for the recorded
 sessions. GCS cannot store the audit log or the cluster state. Below is an
@@ -1624,10 +1623,10 @@ teleport:
 
 ### Using Firestore
 
-!!! tip "Tip"
-
-    Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/nodes.md#cluster-state) in Teleport Architecture documentation.
+<Admonition type="tip" title="Tip">
+Before continuing, please make sure to take a look at the
+[cluster state section](architecture/nodes.md#cluster-state) in Teleport Architecture documentation.
+</Admonition>
 
 If you are running Teleport on GCP, you can use
 [Firestore](https://cloud.google.com/firestore/) as a storage back-end to achieve
@@ -1724,25 +1723,25 @@ clients, etc), the following rules apply:
 
 As an extra precaution you might want to backup your application prior to upgrading. We provide more instructions in [Backup before upgrading](#backup-before-upgrading).
 
-!!! warning "Upgrading to Teleport 4.0+"
+<Admonition type="warning" title="Upgrading to Teleport 4.0+">
+Teleport 4.0+ switched to GRPC and HTTP/2 as an API protocol. The HTTP/2 spec bans
+two previously recommended ciphers. `tls-rsa-with-aes-128-gcm-sha256` & `tls-rsa-with-aes-256-gcm-sha384`, make sure these are removed from `teleport.yaml`
+[Visit our community for more details](https://community.gravitational.com/t/drop-ciphersuites-blacklisted-by-http-2-spec/446)
 
-    Teleport 4.0+ switched to GRPC and HTTP/2 as an API protocol. The HTTP/2 spec bans
-    two previously recommended ciphers. `tls-rsa-with-aes-128-gcm-sha256` & `tls-rsa-with-aes-256-gcm-sha384`, make sure these are removed from `teleport.yaml`
-    [Visit our community for more details](https://community.gravitational.com/t/drop-ciphersuites-blacklisted-by-http-2-spec/446)
+If upgrading you might want to consider rotating CA to SHA-256 or SHA-512 for RSA
+SSH certificate signatures. The previous default was SHA-1, which is now considered
+weak against brute-force attacks. SHA-1 certificate signatures are also no longer
+accepted by OpenSSH versions 8.2 and above. All new Teleport clusters will default
+to SHA-512 based signatures. To upgrade an existing cluster, set the following in
+your teleport.yaml:
 
-    If upgrading you might want to consider rotating CA to SHA-256 or SHA-512 for RSA
-    SSH certificate signatures. The previous default was SHA-1, which is now considered
-    weak against brute-force attacks. SHA-1 certificate signatures are also no longer
-    accepted by OpenSSH versions 8.2 and above. All new Teleport clusters will default
-    to SHA-512 based signatures. To upgrade an existing cluster, set the following in
-    your teleport.yaml:
+```bash
+teleport:
+  ca_signature_algo: "rsa-sha2-512"
+```
 
-    ```bash
-    teleport:
-      ca_signature_algo: "rsa-sha2-512"
-    ```
-
-    After updating to 4.3+ rotate the cluster CA [following these docs](#certificate-rotation).
+After updating to 4.3+ rotate the cluster CA [following these docs](#certificate-rotation).
+</Admonition>
 
 ### Backup Before Upgrading
 
@@ -1762,15 +1761,15 @@ When upgrading a single Teleport cluster:
 
 3. Finally, upgrade the SSH nodes in any sequence or at the same time.
 
-!!! warning "Warning"
-
-    If several auth servers are running in HA configuration
-    (for example, in AWS auto-scaling group) you have to shrink the group to
-    **just one auth server** prior to performing an upgrade. While Teleport
-    will attempt to perform any necessary migrations, we recommend users
-    create a backup of their backend before upgrading the Auth Server, as a
-    precaution. This allows for a safe rollback in case the migration itself
-    fails.
+<Admonition type="warning" title="Warning">
+If several auth servers are running in HA configuration
+(for example, in AWS auto-scaling group) you have to shrink the group to
+**just one auth server** prior to performing an upgrade. While Teleport
+will attempt to perform any necessary migrations, we recommend users
+create a backup of their backend before upgrading the Auth Server, as a
+precaution. This allows for a safe rollback in case the migration itself
+fails.
+</Admonition>
 
 When upgrading multiple clusters:
 
@@ -1915,20 +1914,20 @@ The `license_file` path can be either absolute or relative to the configured
 `data_dir` . If license file path is not set, Teleport will look for the
 `license.pem` file in the configured `data_dir` .
 
-!!! tip "NOTE"
-
-    Only Auth servers require the license. Proxies and Nodes that do
-    not also have Auth role enabled do not need the license.
+<Admonition type="tip" title="NOTE">
+Only Auth servers require the license. Proxies and Nodes that do
+not also have Auth role enabled do not need the license.
+</Admonition>
 
 ## Troubleshooting
 
 To diagnose problems you can configure [ `teleport` ](cli-docs.md#teleport) to
 run with verbose logging enabled by passing it `-d` flag.
 
-!!! tip "NOTE"
-
-    It is not recommended to run Teleport in production with verbose
-    logging as it generates a substantial amount of data.
+<Admonition type="tip" title="NOTE">
+It is not recommended to run Teleport in production with verbose
+logging as it generates a substantial amount of data.
+</Admonition>
 
 Sometimes you may want to reset [`teleport`](cli-docs.md#teleport) to a clean
 state. This can be accomplished by erasing everything under `"data_dir"`

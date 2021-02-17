@@ -18,10 +18,10 @@ The table below gives a quick overview of the benefits of Teleport Enterprise.
 |[FedRAMP/FIPS](#fedrampfips) | With Teleport 4.0, we have built out the foundation to help Teleport Enterprise customers build and meet the requirements in a FedRAMP System Security Plan (SSP). This includes a FIPS 140-2 friendly build of Teleport Enterprise as well as a variety of improvements to aid in complying with security controls even in FedRAMP High environments.
 |Commercial Support | In addition to these features, Teleport Enterprise also comes with a premium support SLA with guaranteed response times.
 
-!!! tip "Contact Information"
-
-    If you are interested in Teleport Enterprise, please reach out to
-    `sales@gravitational.com` for more information.
+<Admonition type="tip" title="Contact Information">
+If you are interested in Teleport Enterprise, please reach out to
+`sales@gravitational.com` for more information.
+</Admonition>
 
 ## RBAC
 
@@ -86,11 +86,9 @@ Moreover, SSO can be used in combination with role-based access control (RBAC)
 to enforce SSH access policies like _"developers must not touch production data"_.
 See the [SSO for SSH](sso/ssh-sso.md) chapter for more details.
 
-
-!!! tip "Contact Information"
-
-    For more information about Teleport Enterprise or Gravity please reach out us to `sales@gravitational.com` or fill out the contact form on our [website](https://gravitational.com/demo).
-
+<Admonition type="tip" title="Contact Information">
+For more information about Teleport Enterprise or Gravity please reach out us to `sales@gravitational.com` or fill out the contact form on our [website](https://gravitational.com/demo).
+</Admonition>
 
 ## FedRAMP/FIPS
 

@@ -101,16 +101,15 @@ Assuming approval, `tsh` will automatically manage a certificate re-issued with
 the newly requested roles applied. In this case `contractor` will now have have
 the permission of the `dba`.
 
-!!! warning
+<Admonition type="warning">
+Granting a role with administrative abilities could allow a user to **permanently**
+upgrade their privileges (e.g. if contractor was granted admin for some reason).
+We recommend only escalating to the next role of least privilege vs jumping directly
+to "Super Admin" role.
 
-    Granting a role with administrative abilities could allow a user to **permanently**
-    upgrade their privileges (e.g. if contractor was granted admin for some reason).
-    We recommend only escalating to the next role of least privilege vs jumping directly
-    to "Super Admin" role.
-
-    The `deny.request` block can help mitigate the risk of doing this by accident. See
-    Example Below.
-
+The `deny.request` block can help mitigate the risk of doing this by accident. See
+Example Below.
+</Admonition>
 
 ```yaml
 # Example role that explicitly denies a contractor from requesting the admin
@@ -183,18 +182,17 @@ spec:
 version: v3
 ```
 
-!!! Tip "Wildcard and RegEx Tips"
+<Admonition type="tip" title="Wildcard and RegEx Tips">
+Teleport RBAC offers powerful wildcard and RegEx helpers. Below are a few examples.
 
-    Teleport RBAC offers powerful wildcard and RegEx helpers. Below are a few examples.
+  `dev-*` - Can request all dev clusters. e.g. dev-prod,dev-stg
 
-      `dev-*` - Can request all dev clusters. e.g. dev-prod,dev-stg
+  `^prod.*$` - Can request all `prod.*` clusters. e.g. prod.us-east
 
-      `^prod.*$` - Can request all `prod.*` clusters. e.g. prod.us-east
+  `dev-{% raw %}{{regexp.match("us-*")}}{% endraw %}` - Can request any dev cluster in the US. e.g. dev-us-east-a, dev-us-west-b
 
-      `dev-{% raw %}{{regexp.match("us-*")}}{% endraw %}` - Can request any dev cluster in the US. e.g. dev-us-east-a, dev-us-west-b
-
-      `dev-{% raw %}{{regexp.not_match("beta")}}{% endraw %}-prod` - Can request any cluster, apart from beta cluster. e.g. Can access dev-alpha-prod, cannot access dev-beta-prod.
-
+  `dev-{% raw %}{{regexp.not_match("beta")}}{% endraw %}-prod` - Can request any cluster, apart from beta cluster. e.g. Can access dev-alpha-prod, cannot access dev-beta-prod.
+</Admonition>
 
 **Unprivileged User Login**<br />
 
@@ -205,9 +203,9 @@ tsh login
 tsh login --request-reason="..."
 ```
 
-!!! note
-
-    Notice that the above role does not specify any logins. If a users's roles specify no logins, Teleport will now generate the user's initial SSH certificates with an invalid dummy login of the form `-teleport-nologin-<random-suffix>` (e.g. `-teleport-nologin-1e02dbfd`).
+<Admonition type="note">
+Notice that the above role does not specify any logins. If a users's roles specify no logins, Teleport will now generate the user's initial SSH certificates with an invalid dummy login of the form `-teleport-nologin-<random-suffix>` (e.g. `-teleport-nologin-1e02dbfd`).
+</Admonition>
 
 **Admin Flow: Approve/Deny**<br />
 

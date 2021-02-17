@@ -13,11 +13,11 @@ administrators to define policies like:
 * Developers must never SSH into production servers.
 * ... and many others.
 
-!!! warning "Version Warning"
-
-    This guide requires an Enterprise edition of Teleport. The Community
-    edition of Teleport only supports [Github](../../admin-guide.md#github-oauth-20) as
-    an SSO provider.
+<Admonition type="warning" title="Version Warning">
+This guide requires an Enterprise edition of Teleport. The Community
+edition of Teleport only supports [Github](../../admin-guide.md#github-oauth-20) as
+an SSO provider.
+</Admonition>
 
 ## Enable OIDC Authentication
 
@@ -44,9 +44,9 @@ documented on the identity providers website. Here are a few links:
 Add your OIDC connector information to `teleport.yaml`. A few examples are
 provided below.
 
-!!! tip
-
-    For Google / G Suite please follow our dedicated [Guide](ssh-gsuite.md)
+<Admonition type="tip">
+For Google / G Suite please follow our dedicated [Guide](ssh-gsuite.md)
+</Admonition>
 
 ## OIDC Redirect URL
 
