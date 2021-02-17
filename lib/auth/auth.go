@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -841,63 +842,53 @@ func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (s
 	return sess.WithoutSecrets(), nil
 }
 
-// U2FAuthenticateChallenge is a U2F authentication challenge sent on user
+// MFAAuthenticateChallenge is a U2F authentication challenge sent on user
 // login.
-type U2FAuthenticateChallenge struct {
+type MFAAuthenticateChallenge struct {
 	// Before 6.0 teleport would only send 1 U2F challenge. Embed the old
 	// challenge for compatibility with older clients. All new clients should
 	// ignore this and read Challenges instead.
 	*u2f.AuthenticateChallenge
-	// The list of U2F challenges, one for each registered device.
-	Challenges []u2f.AuthenticateChallenge `json:"challenges"`
+
+	// U2FChallenges is a list of U2F challenges, one for each registered
+	// device.
+	U2FChallenges []u2f.AuthenticateChallenge `json:"u2f_challenges"`
+	// TOTPChallenge specifies whether TOTP is supported for this user.
+	TOTPChallenge bool `json:"totp_challenge"`
 }
 
-func (a *Server) U2FSignRequest(user string, password []byte) (*U2FAuthenticateChallenge, error) {
+func (a *Server) GetMFAAuthenticateChallenge(user string, password []byte) (*MFAAuthenticateChallenge, error) {
 	ctx := context.TODO()
-	cap, err := a.GetAuthPreference()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	u2fConfig, err := cap.GetU2F()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = a.WithUserLock(user, func() error {
+	err := a.WithUserLock(user, func() error {
 		return a.CheckPasswordWOToken(user, password)
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	devs, err := a.GetMFADevices(ctx, user)
+	protoChal, err := a.mfaAuthChallenge(ctx, user, a.Identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	res := new(U2FAuthenticateChallenge)
-	for _, dev := range devs {
-		if dev.GetU2F() == nil {
-			continue
-		}
-		ch, err := u2f.AuthenticateInit(ctx, u2f.AuthenticateInitParams{
-			Dev:        dev,
-			AppConfig:  *u2fConfig,
-			StorageKey: user,
-			Storage:    a.Identity,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		res.Challenges = append(res.Challenges, *ch)
-		if res.AuthenticateChallenge == nil {
-			res.AuthenticateChallenge = ch
-		}
+
+	// Convert from proto to JSON format.
+	chal := &MFAAuthenticateChallenge{
+		TOTPChallenge: protoChal.TOTP != nil,
 	}
-	if len(res.Challenges) == 0 {
-		return nil, trace.NotFound("no U2F devices found for user %q", user)
+	for _, u2fChal := range protoChal.U2F {
+		ch := u2f.AuthenticateChallenge{
+			Challenge: u2fChal.Challenge,
+			KeyHandle: u2fChal.KeyHandle,
+			AppID:     u2fChal.AppID,
+		}
+		if chal.AuthenticateChallenge == nil {
+			chal.AuthenticateChallenge = &ch
+		}
+		chal.U2FChallenges = append(chal.U2FChallenges, ch)
 	}
-	return res, nil
+
+	return chal, nil
 }
 
 func (a *Server) CheckU2FSignResponse(ctx context.Context, user string, response *u2f.AuthenticateChallengeResponse) error {
@@ -1961,10 +1952,10 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u
 		return nil, trace.Wrap(err)
 	}
 	var enableTOTP, enableU2F bool
-	switch apref.GetType() {
-	case teleport.TOTP:
+	switch apref.GetSecondFactor() {
+	case constants.SecondFactorOTP:
 		enableTOTP, enableU2F = true, false
-	case teleport.U2F:
+	case constants.SecondFactorU2F:
 		enableTOTP, enableU2F = false, true
 	default:
 		// Other AuthPreference types don't restrict us to a single MFA type,

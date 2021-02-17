@@ -22,7 +22,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/events"
@@ -121,23 +121,6 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 	}
 
 	switch {
-	case req.Pass != nil:
-		// authenticate using password only, make sure
-		// that auth preference does not require second factor
-		// otherwise users can bypass the second factor
-		if authPreference.GetSecondFactor() != teleport.OFF {
-			return trace.AccessDenied("missing second factor")
-		}
-		err := s.WithUserLock(req.Username, func() error {
-			return s.CheckPasswordWOToken(req.Username, req.Pass.Password)
-		})
-		if err != nil {
-			// provide obscure message on purpose, while logging the real
-			// error server side
-			log.Debugf("Failed to authenticate: %v.", err)
-			return trace.AccessDenied("invalid username or password")
-		}
-		return nil
 	case req.U2F != nil:
 		// authenticate using U2F - code checks challenge response
 		// signed by U2F device of the user
@@ -160,6 +143,41 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 			// error server side
 			log.Debugf("Failed to authenticate: %v.", err)
 			return trace.AccessDenied("invalid username, password or second factor")
+		}
+		return nil
+	case req.Pass != nil:
+		// authenticate using password only, make sure
+		// that auth preference does not require second factor
+		// otherwise users can bypass the second factor
+		switch authPreference.GetSecondFactor() {
+		case constants.SecondFactorOff:
+			// No 2FA required, check password only.
+		case constants.SecondFactorOptional:
+			// 2FA is optional. Make sure that a user does not have MFA devices
+			// registered.
+			devs, err := s.GetMFADevices(ctx, req.Username)
+			if err != nil && !trace.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
+			if len(devs) != 0 {
+				log.Warningf("MFA bypass attempt by user %q, access denied.", req.Username)
+				return trace.AccessDenied("missing second factor authentication")
+			}
+		default:
+			// Some form of MFA is required but none provided. Either client is
+			// buggy (didn't send MFA response) or someone is trying to bypass
+			// MFA.
+			log.Warningf("MFA bypass attempt by user %q, access denied.", req.Username)
+			return trace.AccessDenied("missing second factor")
+		}
+		err := s.WithUserLock(req.Username, func() error {
+			return s.CheckPasswordWOToken(req.Username, req.Pass.Password)
+		})
+		if err != nil {
+			// provide obscure message on purpose, while logging the real
+			// error server side
+			log.Debugf("Failed to authenticate: %v.", err)
+			return trace.AccessDenied("invalid username or password")
 		}
 		return nil
 	default:
