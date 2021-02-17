@@ -858,7 +858,7 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector services.OIDCConne
 					"the google workspace connector requires google_service_account parameter with JSON-formatted credentials or google_service_account_uri parameter pointing to a valid google service account file with credentials to be specified, read this article for more details https://developers.google.com/admin-sdk/directory/v1/guides/delegation")
 		}
 
-		config, err = google.JWTConfigFromJSON(jsonCredentials, teleport.GSuiteGroupsScope)
+		config, err := google.JWTConfigFromJSON(jsonCredentials, teleport.GSuiteGroupsScope)
 		if err != nil {
 			return nil, trace.BadParameter("unable to parse google service account from %v: %v", credentialLoadingMethod, err)
 		}
