@@ -348,9 +348,10 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	_, mfaVerified := cert.Extensions[teleport.CertExtensionMFAVerified]
 
 	// check if roles allow access to server
-	if err := roles.CheckAccessToServer(osUser, h.Server.GetInfo()); err != nil {
+	if err := roles.CheckAccessToServer(osUser, h.Server.GetInfo(), mfaVerified); err != nil {
 		return trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
 			teleportUser, ca.GetClusterName(), osUser, clusterName, err)
 	}

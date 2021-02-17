@@ -545,10 +545,13 @@ func (a *ServerWithRoles) filterNodes(nodes []services.Server) ([]services.Serve
 
 	// Loop over all nodes and check if the caller has access.
 	filteredNodes := make([]services.Server, 0, len(nodes))
+	// MFA is not required to list the nodes, but will be required to connect
+	// to them.
+	mfaVerified := true
 NextNode:
 	for _, node := range nodes {
 		for login := range allowedLogins {
-			err := roleset.CheckAccessToServer(login, node)
+			err := roleset.CheckAccessToServer(login, node, mfaVerified)
 			if err == nil {
 				filteredNodes = append(filteredNodes, node)
 				continue NextNode
@@ -2198,9 +2201,11 @@ func (a *ServerWithRoles) GetDatabaseServers(ctx context.Context, namespace stri
 	}
 	// Filter out databases the caller doesn't have access to from each server.
 	var filtered []types.DatabaseServer
+	// MFA is not required to list the databases, but will be required to
+	// connect to them.
+	mfaVerified := true
 	for _, server := range servers {
-		err := a.context.Checker.CheckAccessToDatabase(server,
-			&services.DatabaseLabelsMatcher{Labels: server.GetAllLabels()})
+		err := a.context.Checker.CheckAccessToDatabase(server, mfaVerified, &services.DatabaseLabelsMatcher{Labels: server.GetAllLabels()})
 		if err != nil && !trace.IsAccessDenied(err) {
 			return nil, trace.Wrap(err)
 		} else if err == nil {
@@ -2279,10 +2284,14 @@ func (a *ServerWithRoles) GetAppServers(ctx context.Context, namespace string, o
 
 	// Loop over all servers, filter out applications on each server and only
 	// return the applications the caller has access to.
+	//
+	// MFA is not required to list the apps, but will be required to connect to
+	// them.
+	mfaVerified := true
 	for _, server := range servers {
 		filteredApps := make([]*services.App, 0, len(server.GetApps()))
 		for _, app := range server.GetApps() {
-			err := a.context.Checker.CheckAccessToApp(server.GetNamespace(), app)
+			err := a.context.Checker.CheckAccessToApp(server.GetNamespace(), app, mfaVerified)
 			if err != nil {
 				if trace.IsAccessDenied(err) {
 					continue
@@ -2443,7 +2452,7 @@ func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s services.Serv
 	}
 
 	for _, kube := range s.GetKubernetesClusters() {
-		if err := a.context.Checker.CheckAccessToKubernetes(s.GetNamespace(), kube); err != nil {
+		if err := a.context.Checker.CheckAccessToKubernetes(s.GetNamespace(), kube, a.context.Identity.GetIdentity().MFAVerified); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -2466,10 +2475,14 @@ func (a *ServerWithRoles) GetKubeServices(ctx context.Context) ([]services.Serve
 
 	// Loop over all servers, filter out kube clusters on each server and only
 	// return the kube cluster the caller has access to.
+	//
+	// MFA is not required to list the clusters, but will be required to
+	// connect to them.
+	mfaVerified := true
 	for _, server := range servers {
 		filtered := make([]*services.KubernetesCluster, 0, len(server.GetKubernetesClusters()))
 		for _, kube := range server.GetKubernetesClusters() {
-			if err := a.context.Checker.CheckAccessToKubernetes(server.GetNamespace(), kube); err != nil {
+			if err := a.context.Checker.CheckAccessToKubernetes(server.GetNamespace(), kube, mfaVerified); err != nil {
 				if trace.IsAccessDenied(err) {
 					continue
 				}

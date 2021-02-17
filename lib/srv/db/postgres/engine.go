@@ -178,7 +178,7 @@ func (e *Engine) handleStartup(client *pgproto3.Backend, sessionCtx *common.Sess
 }
 
 func (e *Engine) checkAccess(sessionCtx *common.Session) error {
-	err := sessionCtx.Checker.CheckAccessToDatabase(sessionCtx.Server,
+	err := sessionCtx.Checker.CheckAccessToDatabase(sessionCtx.Server, sessionCtx.Identity.MFAVerified,
 		&services.DatabaseLabelsMatcher{Labels: sessionCtx.Server.GetAllLabels()},
 		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser},
 		&services.DatabaseNameMatcher{Name: sessionCtx.DatabaseName})
