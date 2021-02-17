@@ -550,12 +550,24 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 		U2F: &types.U2F{
 			AppID:  "teleport",
 			Facets: []string{"teleport"},
-		},
-	})
+		}})
 	require.NoError(t, err)
 	err = srv.Auth().SetAuthPreference(authPref)
 	require.NoError(t, err)
 
+	// Register an SSH node.
+	node := &types.ServerV2{
+		Kind:    types.KindKubeService,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name: "node-a",
+		},
+		Spec: types.ServerSpecV2{
+			Hostname: "node-a",
+		},
+	}
+	_, err = srv.Auth().UpsertNode(node)
+	require.NoError(t, err)
 	// Register a k8s cluster.
 	k8sSrv := &types.ServerV2{
 		Kind:    types.KindKubeService,
@@ -569,9 +581,24 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	}
 	err = srv.Auth().UpsertKubeService(ctx, k8sSrv)
 	require.NoError(t, err)
+	// Register a database.
+	db := types.NewDatabaseServerV3("db-a", nil, types.DatabaseServerSpecV3{
+		Protocol: "postgres",
+		URI:      "localhost",
+		Hostname: "localhost",
+		HostID:   "localhost",
+	})
+	_, err = srv.Auth().UpsertDatabaseServer(ctx, db)
+	require.NoError(t, err)
 
 	// Create a fake user.
-	user, _, err := CreateUserAndRole(srv.Auth(), "mfa-user", []string{"role"})
+	user, role, err := CreateUserAndRole(srv.Auth(), "mfa-user", []string{"role"})
+	require.NoError(t, err)
+	// Make sure MFA is required for this user.
+	roleOpt := role.GetOptions()
+	roleOpt.RequireSessionMFA = true
+	role.SetOptions(roleOpt)
+	err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 	cl, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
@@ -835,4 +862,70 @@ func testGenerateUserSingleUseCert(ctx context.Context, t *testing.T, cl *Client
 	opts.validateCert(t, certs.GetCert())
 
 	require.NoError(t, stream.CloseSend())
+}
+
+func TestGenerateUserSingleUseCertMFANotRequired(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+	clock := srv.Clock()
+
+	// Enable MFA support.
+	authPref, err := services.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         teleport.Local,
+		SecondFactor: constants.SecondFactorOptional,
+		U2F: &types.U2F{
+			AppID:  "teleport",
+			Facets: []string{"teleport"},
+		},
+	})
+	require.NoError(t, err)
+	err = srv.Auth().SetAuthPreference(authPref)
+	require.NoError(t, err)
+
+	// Register an SSH node.
+	node := &types.ServerV2{
+		Kind:    types.KindKubeService,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name: "node-a",
+		},
+		Spec: types.ServerSpecV2{
+			Hostname: "node-a",
+		},
+	}
+	_, err = srv.Auth().UpsertNode(node)
+	require.NoError(t, err)
+
+	// Create a fake user.
+	user, role, err := CreateUserAndRole(srv.Auth(), "mfa-user", []string{"role"})
+	require.NoError(t, err)
+	// Make sure MFA is NOT required for this user.
+	roleOpt := role.GetOptions()
+	roleOpt.RequireSessionMFA = false
+	role.SetOptions(roleOpt)
+	err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	cl, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	_, pub, err := srv.Auth().GenerateKeyPair("")
+	require.NoError(t, err)
+
+	stream, err := cl.GenerateUserSingleUseCerts(ctx)
+	require.NoError(t, err)
+	err = stream.Send(&proto.UserSingleUseCertsRequest{Request: &proto.UserSingleUseCertsRequest_Init{
+		Init: &proto.UserCertsRequest{
+			PublicKey: pub,
+			Username:  user.GetName(),
+			Expires:   clock.Now().Add(teleport.UserSingleUseCertTTL),
+			Usage:     proto.UserCertsRequest_SSH,
+			NodeName:  "node-a",
+		},
+	}})
+	require.NoError(t, err)
+
+	resp, err := stream.Recv()
+	require.NoError(t, err)
+	require.NotNil(t, resp.GetNotNeeded())
 }

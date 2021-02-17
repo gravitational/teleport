@@ -708,6 +708,7 @@ message UserSingleUseCertsResponse {
     oneof Response {
         MFAAuthenticateChallenge MFAChallenge = 1;
         SingleUseUserCert Cert = 2;
+        SingleUseUserCertNotNeeded NotNeeded = 3;
     }
 }
 
@@ -718,6 +719,12 @@ message SingleUseUserCert {
         bytes TLS = 2;
     }
 }
+
+// SingleUseUserCertNotNeeded is a flag message to indicate that the user can
+// access a resource (ssh/kube/db/app) without the MFA challenge.
+//
+// It is used to avoid checking whether MFA is needed client-side.
+message SingleUseUserCertNotNeeded {}
 
 // AuthService is authentication/authorization service implementation
 service AuthService {

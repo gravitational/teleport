@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"io"
 	"net"
 	"time"
@@ -30,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/u2f"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -40,7 +42,6 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
-	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -1622,7 +1623,8 @@ func (g *GRPCServer) GetMFADevices(ctx context.Context, req *proto.GetMFADevices
 }
 
 func (g *GRPCServer) GenerateUserSingleUseCerts(stream proto.AuthService_GenerateUserSingleUseCertsServer) error {
-	actx, err := g.authenticate(stream.Context())
+	ctx := stream.Context()
+	actx, err := g.authenticate(ctx)
 	if err != nil {
 		return trail.ToGRPC(err)
 	}
@@ -1644,7 +1646,18 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream proto.AuthService_Generat
 	if initReq == nil {
 		return trail.ToGRPC(trace.BadParameter("expected UserCertsRequest, got %T", req.Request))
 	}
-	if err := validateUserSingleUseCertRequest(initReq, g.AuthServer.GetClock()); err != nil {
+	err = validateUserSingleUseCertRequest(ctx, actx, initReq)
+	if err == errUserSingleUseUserCertNotNeeded {
+		// Tell the client that MFA is not needed and they can use their
+		// regular login cert.
+		if err := stream.Send(&proto.UserSingleUseCertsResponse{
+			Response: &proto.UserSingleUseCertsResponse_NotNeeded{NotNeeded: &proto.SingleUseUserCertNotNeeded{}},
+		}); err != nil {
+			return trail.ToGRPC(err)
+		}
+		return nil
+	}
+	if err != nil {
 		return trail.ToGRPC(err)
 	}
 
@@ -1656,7 +1669,7 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream proto.AuthService_Generat
 	}
 
 	// Generate the cert.
-	respCert, err := userSingleUseCertsGenerate(stream.Context(), actx, *initReq, mfaDev)
+	respCert, err := userSingleUseCertsGenerate(ctx, actx, *initReq, mfaDev)
 	if err != nil {
 		return trail.ToGRPC(err)
 	}
@@ -1670,26 +1683,115 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream proto.AuthService_Generat
 	return nil
 }
 
-func validateUserSingleUseCertRequest(req *proto.UserCertsRequest, clock clockwork.Clock) error {
+var errUserSingleUseUserCertNotNeeded = errors.New("single-use user certificate not needed to access this resource")
+
+// validateUserSingleUseCertRequest validates the request for a single-use user
+// cert. Returns nil if validation succeeds and MFA check is required, or
+// errUserSingleUseUserCertNotNeeded if validation succeeds and MFA
+// authentication is not required for this session. Any other error means
+// failed validation.
+func validateUserSingleUseCertRequest(ctx context.Context, actx *grpcContext, req *proto.UserCertsRequest) error {
+	if req.Username != actx.User.GetName() {
+		return trace.BadParameter("cannot request a single-use certificate for a different user")
+	}
+
+	notFoundErr := trace.NotFound("target resource not found")
+	var noMFAAccessErr error
 	switch req.Usage {
 	case proto.UserCertsRequest_SSH:
 		if req.NodeName == "" {
 			return trace.BadParameter("missing NodeName field in a ssh-only UserCertsRequest")
 		}
+		// Find the target node and check whether MFA is required.
+		nodes, err := actx.authServer.GetNodes(defaults.Namespace, services.SkipValidation())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		var node types.Server
+		for _, n := range nodes {
+			// Get the server address without port number.
+			addr, _, err := net.SplitHostPort(n.GetAddr())
+			if err != nil {
+				addr = n.GetAddr()
+			}
+			// Match NodeName to UUID, hostname or self-reported server address.
+			if n.GetName() == req.NodeName || n.GetHostname() == req.NodeName || addr == req.NodeName {
+				node = n
+				break
+			}
+		}
+		if node == nil {
+			return notFoundErr
+		}
+		noMFAAccessErr = actx.context.Checker.CheckAccessToServer(req.Username, node, false)
+
 	case proto.UserCertsRequest_Kubernetes:
 		if req.KubernetesCluster == "" {
 			return trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
 		}
+		// Find the target cluster and check whether MFA is required.
+		svcs, err := actx.authServer.GetKubeServices(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		var cluster *types.KubernetesCluster
+	outer:
+		for _, svc := range svcs {
+			for _, c := range svc.GetKubernetesClusters() {
+				if c.Name == req.KubernetesCluster {
+					cluster = c
+					break outer
+				}
+			}
+		}
+		if cluster == nil {
+			return notFoundErr
+		}
+		noMFAAccessErr = actx.context.Checker.CheckAccessToKubernetes(defaults.Namespace, cluster, false)
+
 	case proto.UserCertsRequest_Database:
 		if req.RouteToDatabase.ServiceName == "" {
 			return trace.BadParameter("missing ServiceName field in a database-only UserCertsRequest")
 		}
+		dbs, err := actx.authServer.GetDatabaseServers(ctx, defaults.Namespace, services.SkipValidation())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		var db types.DatabaseServer
+		for _, d := range dbs {
+			if d.GetName() == req.RouteToDatabase.ServiceName {
+				db = d
+				break
+			}
+		}
+		if db == nil {
+			return notFoundErr
+		}
+		noMFAAccessErr = actx.context.Checker.CheckAccessToDatabase(db, false)
+
 	case proto.UserCertsRequest_All:
 		return trace.BadParameter("must specify a concrete Usage in UserCertsRequest, one of SSH, Kubernetes or Database")
 	default:
 		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
 	}
-	maxExpiry := clock.Now().Add(teleport.UserSingleUseCertTTL)
+	// No error means that MFA is not required for this resource by
+	// AccessChecker.
+	if noMFAAccessErr == nil {
+		return errUserSingleUseUserCertNotNeeded
+	}
+	// Errors other than ErrSessionMFARequired mean something else is wrong,
+	// most likely access denied.
+	if noMFAAccessErr != services.ErrSessionMFARequired {
+		if trace.IsAccessDenied(noMFAAccessErr) {
+			// Mask access denied errors to prevent resource name oracles.
+			return notFoundErr
+		}
+		return trace.Wrap(noMFAAccessErr)
+	}
+	// If we reach here, the error from AccessChecker was
+	// ErrSessionMFARequired, proceed with MFA challenge.
+
+	maxExpiry := actx.authServer.GetClock().Now().Add(teleport.UserSingleUseCertTTL)
 	if req.Expires.After(maxExpiry) {
 		req.Expires = maxExpiry
 	}
@@ -1708,6 +1810,9 @@ func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService
 	authChallenge, err := auth.mfaAuthChallenge(ctx, user, u2fStorage)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if authChallenge.TOTP == nil && len(authChallenge.U2F) == 0 {
+		return nil, trace.AccessDenied("MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices")
 	}
 	if err := stream.Send(&proto.UserSingleUseCertsResponse{
 		Response: &proto.UserSingleUseCertsResponse_MFAChallenge{MFAChallenge: authChallenge},
