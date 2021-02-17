@@ -72,7 +72,7 @@ Teleport supports two types of user accounts:
 
 <Admonition type="tip" title="Version Warning">
 SAML, OIDC and Active Directory are only supported in Teleport Enterprise. Please
-take a look at the [Teleport Enterprise](enterprise.md) chapter for more information.
+take a look at the [Teleport Enterprise](enterprise.mdx) chapter for more information.
 </Admonition>
 
 It is possible to have multiple identity sources configured for a Teleport cluster. In this
@@ -166,7 +166,7 @@ of data stored by the auth server:
     * Other dynamic configuration.
 
 * **Audit Log**. When users log into a Teleport cluster, execute remote commands and logout,
-  that activity is recorded in the audit log. See [Audit Log](admin-guide.md#audit-log)
+  that activity is recorded in the audit log. See [Audit Log](admin-guide.mdx#audit-log)
   for more details.
 
 * **Recorded Sessions**. When Teleport users launch remote shells via `tsh ssh` command, their
@@ -263,7 +263,7 @@ Cluster administration is performed using `tctl` command line tool.
 
 <Admonition type="tip" title="NOTE">
 For high availability in production, a Teleport cluster can be serviced by multiple auth servers
-running in sync. Check [HA configuration](admin-guide.md#high-availability) in the
+running in sync. Check [HA configuration](admin-guide.mdx#high-availability) in the
 Admin Guide.
 </Admonition>
 
@@ -398,7 +398,7 @@ administrator on one of cluster's _auth servers_, the following happens:
   longer accepted.
 
 This process is repeated twice, for both the host CA and the user CA. Take a
-look at the [admin guide](admin-guide.md#certificate-rotation) to learn how to
+look at the [admin guide](admin-guide.mdx#certificate-rotation) to learn how to
 use certificate rotation in practice.
 
 ## Audit Log
@@ -494,7 +494,7 @@ keys and it always connects to Teleport nodes via a proxy.
 When `tsh` logs in, the auto-expiring key is stored in `~/.tsh` and is valid for 12 hours by
 default, unless you specify another interval via `--ttl` flag (capped by the server-side configuration).
 
-You can learn more about `tsh` in the [User Manual](user-manual.md).
+You can learn more about `tsh` in the [User Manual](user-manual.mdx).
 
 ### TCTL
 
@@ -504,4 +504,4 @@ on `127.0.0.1` and allows a cluster administrator to manage nodes and users in t
 `tctl` is also a tool which can be used to modify the dynamic configuration of the
 cluster, like creating new user roles or connecting trusted clusters.
 
-You can learn more about `tctl` in the [Admin Manual](admin-guide.md).
+You can learn more about `tctl` in the [Admin Manual](admin-guide.mdx).

@@ -7,7 +7,7 @@ Teleport cluster:
 
 1. It serves as an authentication gateway. It asks for credentials from
    connecting clients and forwards them to the Auth server via [Auth
-   API](teleport-auth.md#auth-api).
+   API](teleport-auth.mdx#auth-api).
 
 2. It looks up the IP address for a requested Node and then proxies a connection
    from client to Node.
@@ -52,14 +52,14 @@ Authority (CA)](./auth/#authentication-in-teleport).:
 
 ![Teleport Proxy SSH](../../img/proxy-ssh-1.svg)
 
-1. A [`tsh` client](../cli-docs.md#tsh) generates an OpenSSH keypair. It forwards
+1. A [`tsh` client](../cli-docs.mdx#tsh) generates an OpenSSH keypair. It forwards
    the generated public key, username, password and second factor token to the
    proxy.
 2. The Proxy Server forwards request to the Auth Server.
 3. If Auth Server accepts credentials, it generates a new certificate signed by
    its user CA and sends it back to the Proxy Server. The certificate has a TTL
    which defaults to 12 hours, but can be configured in
-   [`tctl`](../cli-docs.md#tctl).
+   [`tctl`](../cli-docs.mdx#tctl).
 4. The Proxy Server returns the user certificate to the client and client stores
    it in `~/.tsh/keys`. The certificate is also added to the local SSH agent if
    one is running.
@@ -88,7 +88,7 @@ client `ssh` or using `tsh`:
    client certificate.
 
 <Admonition type="tip" title="NOTE">
-Teleport's proxy command makes it compatible with [SSH jump hosts](https://wiki.gentoo.org/wiki/SSH_jump_host) implemented using OpenSSH's `ProxyCommand`. It also supports OpenSSH's ProxyJump/ssh -J implementation as of Teleport 4.1. See [User Manual](../user-manual.md#ssh-proxy-configuration)
+Teleport's proxy command makes it compatible with [SSH jump hosts](https://wiki.gentoo.org/wiki/SSH_jump_host) implemented using OpenSSH's `ProxyCommand`. It also supports OpenSSH's ProxyJump/ssh -J implementation as of Teleport 4.1. See [User Manual](../user-manual.mdx#ssh-proxy-configuration)
 </Admonition>
 
 ## Recording Proxy Mode
@@ -123,13 +123,13 @@ prevent sessions logs from reaching the Auth Server. With sessions recorded at
 the proxy, users with root privileges on nodes have no way of disabling the
 audit.
 
-See the [admin guide](../admin-guide.md#recorded-sessions) to learn how to turn
+See the [admin guide](../admin-guide.mdx#recorded-sessions) to learn how to turn
 on the recording proxy mode. Note that the recording mode is configured on the
 Auth Server.
 
 ## More Concepts
 
-* [Architecture Overview](teleport-architecture-overview.md)
-* [Teleport Users](teleport-users.md)
-* [Teleport Auth](teleport-auth.md)
-* [Teleport Proxy](teleport-proxy.md)
+* [Architecture Overview](teleport-architecture-overview.mdx)
+* [Teleport Users](teleport-users.mdx)
+* [Teleport Auth](teleport-auth.mdx)
+* [Teleport Proxy](teleport-proxy.mdx)

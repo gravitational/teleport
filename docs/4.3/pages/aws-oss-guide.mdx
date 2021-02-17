@@ -13,7 +13,7 @@ We have split this guide into:
 - [Authenticating to EKS Using GitHub Credentials with Teleport Community Edition](#using-teleport-with-eks)
 - [Setting up Teleport Enterprise on AWS](#running-teleport-enterprise-on-aws)
 - [Teleport AWS Tips & Tricks](#teleport-aws-tips--tricks)
-- [AWS HA with Terraform](aws-terraform-guide.md)
+- [AWS HA with Terraform](aws-terraform-guide.mdx)
 
 ### Teleport on AWS FAQ
 
@@ -439,8 +439,8 @@ aws ec2 associate-iam-instance-profile --iam-instance-profile Name=teleport-role
 ```
 
 #### Install Teleport.
-1. [Download and Install Teleport](installation.md)
-2. [Setup systemd](production.md#running-teleport-in-production)
+1. [Download and Install Teleport](installation.mdx)
+2. [Setup systemd](production.mdx#running-teleport-in-production)
 3. Setup Teleport config file. `sudo cp teleport.yaml /etc/teleport.yaml`. An example is below.
 
 ```
@@ -506,7 +506,7 @@ sudo certbot certonly --standalone \
 
 #### Setup Github Auth
 
-Run this on the Teleport EC2 Host, see [Github Auth](admin-guide.md#github-oauth-20) for more info.
+Run this on the Teleport EC2 Host, see [Github Auth](admin-guide.mdx#github-oauth-20) for more info.
 
 ```bash
 export TELEPORT_PUBLIC_DNS_NAME="[teleport-proxy-url]"
@@ -588,8 +588,8 @@ correct binary.
 
 We've a few other resources for Enterprise customers such as our
 
-- [Running Teleport Enterprise in HA mode on AWS using Terraform](aws-terraform-guide.md)
-- [Teleport Enterprise Quickstart](enterprise/quickstart-enterprise.md)
+- [Running Teleport Enterprise in HA mode on AWS using Terraform](aws-terraform-guide.mdx)
+- [Teleport Enterprise Quickstart](enterprise/quickstart-enterprise.mdx)
 
 If you would like help setting up Teleport Enterprise on AWS, please mail us at [info@gravitational.com](mailto:info@gravitational.com)
 

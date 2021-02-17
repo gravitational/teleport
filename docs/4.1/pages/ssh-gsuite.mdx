@@ -13,7 +13,7 @@ like:
 
 <Admonition type="warning" title="Version Warning">
 This guide requires an enterprise version of Teleport 4.1.4 or greater. The open source
-edition of Teleport only supports [Github](admin-guide.md#github-oauth-20) as
+edition of Teleport only supports [Github](admin-guide.mdx#github-oauth-20) as
 an SSO provider.
 </Admonition>
 
@@ -84,7 +84,7 @@ Once saved, Google with convert the Client Name into the Client ID.
 
 ## Create a OIDC Connector
 
-Now, create a OIDC connector [resource](admin-guide.md#resources).
+Now, create a OIDC connector [resource](admin-guide.mdx#resources).
 Write down this template as `gsuite-connector.yaml`:
 
 ```yaml
@@ -206,4 +206,4 @@ $ sudo journalctl -fu teleport
 ```
 
 If you wish to increase the verbosity of Teleport's syslog, you can pass the
-[`--debug`](cli-docs.md#teleport-start) flag to `teleport start` command.
+[`--debug`](cli-docs.mdx#teleport-start) flag to `teleport start` command.

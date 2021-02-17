@@ -15,7 +15,7 @@ Teleport Cloud is currently only recommended for environments that do not requir
 strict compliance standards or SLA uptime guarantees.
 </Admonition>
 
-[Cloud Release Schedule](./upcoming-releases.md#teleport-cloud-austin)
+[Cloud Release Schedule](./upcoming-releases.mdx#teleport-cloud-austin)
 
 We have designed the Teleport Cloud environment to be secure; however we are still in the process of
 scrutinizing and executing on our security roadmap and working with independent security
@@ -38,7 +38,7 @@ for testing and POC purposes until we commit to a formal SLA.
 
 ## Managed Teleport Settings
 
-SSH sessions are recorded [on nodes](../architecture/nodes.md#session-recording).
+SSH sessions are recorded [on nodes](../architecture/nodes.mdx#session-recording).
 Teleport Cloud Proxy does not terminate SSH sessions when using OpenSSH and `tsh` sessions.
 The Cloud Proxy terminates TLS for Application, Database and Kubernetes sessions.
 
@@ -81,7 +81,7 @@ Currently there is no way to provide your own bucket.
 ### How do I add nodes to Teleport Cloud?
 
 You can connect servers, kubernetes clusters, databases and applications
-using [reverse tunnels](../admin-guide.md#adding-a-node-located-behind-nat).
+using [reverse tunnels](../admin-guide.mdx#adding-a-node-located-behind-nat).
 
 There is no need to open any ports on your infrastructure for inbound traffic.
 
@@ -98,7 +98,7 @@ $ tctl status
 ### Are dynamic node tokens available?
 
 After [connecting](#how-can-i-access-the-tctl-admin-tool) `tctl` to Teleport Cloud, users can generate
-[dynamic tokens](../admin-guide.md#short-lived-dynamic-tokens):
+[dynamic tokens](../admin-guide.mdx#short-lived-dynamic-tokens):
 
 ```bash
 $ tctl nodes add --ttl=5m --roles=node,proxy --token=$(uuid)

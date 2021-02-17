@@ -19,14 +19,14 @@ available unless the Teleport SSH daemon is present on all cluster nodes.
 ### Can I use OpenSSH with a Teleport cluster?
 
 Yes, this question comes up often and is related to the previous one. Take a
-look at [Using OpenSSH client](user-manual.md##using-teleport-with-openssh)
-section in the User Manual and [Using OpenSSH servers](admin-guide.md) in the
+look at [Using OpenSSH client](user-manual.mdx##using-teleport-with-openssh)
+section in the User Manual and [Using OpenSSH servers](admin-guide.mdx) in the
 Admin Manual.
 
 ### Can I connect to nodes behind a firewall?
 
 Yes, Teleport supports reverse SSH tunnels out of the box. To configure
-behind-firewall clusters refer to [Trusted Clusters](admin-guide.md#trusted-clusters)
+behind-firewall clusters refer to [Trusted Clusters](admin-guide.mdx#trusted-clusters)
 section of the Admin Manual.
 
 ### Can individual nodes create reverse tunnels to a proxy server without creating a new cluster?
@@ -34,11 +34,11 @@ section of the Admin Manual.
 This has been a long standing [request](https://github.com/gravitational/teleport/issues/803) of Teleport and
 it has been fixed with Teleport 4.0.   Once you've upgraded your Teleport Cluster, change the node config
 option `--auth-server` to point to web proxy address (this would be `public_addr` and `web_listen_addr`
-in file configuration). As defined in [Adding a node located behind NAT - Teleport Node Tunneling](admin-guide.md#adding-a-node-located-behind-nat)
+in file configuration). As defined in [Adding a node located behind NAT - Teleport Node Tunneling](admin-guide.mdx#adding-a-node-located-behind-nat)
 
 ### What's Teleport scalability and hardware recommendations?
 
-We recommend setting up Teleport with a [High Availability configuration](admin-guide.md#high-availability). Below is our
+We recommend setting up Teleport with a [High Availability configuration](admin-guide.mdx#high-availability). Below is our
 recommended hardware for the Proxy and Auth server. If you plan to connect more than 10,000 nodes, please
 [get in touch](mailto:info@gravitational.com) and we can help architect the best solution for you.
 
@@ -62,11 +62,11 @@ text by toggling `space` and copy it via `Ctrl+C`.
 
 ### What TCP ports does Teleport use?
 
-Please refer to the [Ports](admin-guide.md#ports) section of the Admin Manual.
+Please refer to the [Ports](admin-guide.mdx#ports) section of the Admin Manual.
 
 ### Does Teleport support authentication via OAuth, SAML or Active Directory?
 
-Gravitational offers this feature for the [Enterprise versions of Teleport](enterprise/index.md).
+Gravitational offers this feature for the [Enterprise versions of Teleport](enterprise/index.mdx).
 
 ## Commercial Teleport Editions
 
@@ -74,15 +74,15 @@ Gravitational offers this feature for the [Enterprise versions of Teleport](ente
 
 The Teleport Enterprise offering gives users the following additional features:
 
-* Role-based access control, also known as [RBAC](enterprise/index.md#rbac).
+* Role-based access control, also known as [RBAC](enterprise/index.mdx#rbac).
 * Authentication via SAML and OpenID with providers like Okta, Active
-  Directory, Auth0, etc. (aka, [SSO](enterprise/ssh-sso.md)).
+  Directory, Auth0, etc. (aka, [SSO](enterprise/ssh-sso.mdx)).
 * Premium support.
 
 We also offer implementation services, to help you integrate
 Teleport with your existing systems and processes.
 
-You can read more in the [Teleport Enterprise section of the docs](enterprise/index.md)
+You can read more in the [Teleport Enterprise section of the docs](enterprise/index.mdx)
 
 ### Does Teleport send any data to Gravitational?
 

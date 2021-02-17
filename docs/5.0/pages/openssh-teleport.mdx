@@ -50,10 +50,10 @@ Teleport OpenSSH supports:
 
 ## Setting up OpenSSH Recording Proxy Mode
 
-The first step is install and setup Teleport, we recommend starting with our [Quickstart](quickstart.md) and [admin manual](admin-guide.md).
+The first step is install and setup Teleport, we recommend starting with our [Quickstart](quickstart.mdx) and [admin manual](admin-guide.mdx).
 
 To enable session recording for `sshd` nodes, the cluster must be switched to
-["recording proxy" mode](architecture/proxy.md#recording-proxy-mode).
+["recording proxy" mode](architecture/proxy.mdx#recording-proxy-mode).
 
 In this mode, the recording will be done on the proxy level:
 
@@ -144,7 +144,7 @@ HostKey /etc/ssh/api.example.com
 HostCertificate /etc/ssh/api.example.com-cert.pub
 ```
 
-Now you can use [ `tsh ssh --port=22 user@api.example.com` ](cli-docs.md#tsh) to login
+Now you can use [ `tsh ssh --port=22 user@api.example.com` ](cli-docs.mdx#tsh) to login
 into any `sshd` node in the cluster and the session will be recorded.
 
 
@@ -219,7 +219,7 @@ If you have multiple Teleport clusters, you have to export and set up these
 certificate authorities for each cluster individually.
 
 <Admonition type="tip" title="OpenSSH and Trusted Clusters">
-If you use [recording proxy mode](architecture/proxy.md) and [trusted clusters](trustedclusters.md),
+If you use [recording proxy mode](architecture/proxy.mdx) and [trusted clusters](trustedclusters.mdx),
 you need to set up the certificate authority from
 the _root_ cluster to match **all** nodes, even those that belong to _leaf_
 clusters. For example, if your node naming scheme is `*.root.example.com`,

@@ -17,7 +17,7 @@ The following steps configure an example SAML authentication connector matching 
 
 <Admonition type="warning" title="Version Warning">
 This guide requires an Enterprise version of Teleport. The open source
-edition of Teleport only supports [Github](../../admin-guide.md#github-oauth-20) as
+edition of Teleport only supports [Github](../../admin-guide.mdx#github-oauth-20) as
 an SSO provider.
 </Admonition>
 
@@ -78,7 +78,7 @@ This is a important document.  Treat the Federation Metadata XML file as you wou
 
 ## Create a SAML Connector
 
-Now, create a SAML connector [resource](../../admin-guide.md#resources).  Replace the acs element with your Teleport address, update the group IDs with the actual AzureAD group ID values, and insert the downloaded Federation Metadata XML into the entity_descriptor resource.
+Now, create a SAML connector [resource](../../admin-guide.mdx#resources).  Replace the acs element with your Teleport address, update the group IDs with the actual AzureAD group ID values, and insert the downloaded Federation Metadata XML into the entity_descriptor resource.
 Write down this template as `azure-connector.yaml`:
 
 ```yaml
@@ -205,4 +205,4 @@ $ sudo journalctl -fu teleport
 ```
 
 If you wish to increase the verbosity of Teleport's syslog, you can pass the
-[`--debug`](../../cli-docs.md#teleport-start) flag to `teleport start` command.
+[`--debug`](../../cli-docs.mdx#teleport-start) flag to `teleport start` command.

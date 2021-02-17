@@ -17,7 +17,7 @@ capability include:
 ![MSP Example](../img/trusted-clusters/TrustedClusters-MSP.svg)
 
 
-If you haven't already looked at the introduction to [Trusted Clusters](admin-guide.md#trusted-clusters)
+If you haven't already looked at the introduction to [Trusted Clusters](admin-guide.mdx#trusted-clusters)
 in the Admin Guide we recommend you review that for an overview before continuing with this guide.
 
 The Trusted Clusters chapter in the Admin Guide
@@ -35,12 +35,12 @@ This guide's focus is on more in-depth coverage of trusted clusters features and
 <Admonition type="tip" title="Teleport Node Tunneling">
 If you have a large amount of devices on different networks, such as
 managed IoT devices or a couple of nodes on a different network you can utilize
-the [Teleport Node Tunneling](admin-guide.md#adding-a-node-located-behind-nat).
+the [Teleport Node Tunneling](admin-guide.mdx#adding-a-node-located-behind-nat).
 </Admonition>
 
 ## Introduction
 
-As explained in the [architecture document](architecture/overview.md#design-principles),
+As explained in the [architecture document](architecture/overview.mdx#design-principles),
 Teleport can partition compute infrastructure into multiple clusters.
 A cluster is a group of SSH nodes connected to the cluster's _auth server_
 acting as a certificate authority (CA) for all users and nodes.
@@ -286,7 +286,7 @@ spec:
 ```
 
 Now, we need to establish trust between roles "root:admin" and "leaf:admin". This is
-done by creating a trusted cluster [resource](admin-guide.md#resources) on "leaf"
+done by creating a trusted cluster [resource](admin-guide.mdx#resources) on "leaf"
 which looks like this:
 
 ```yaml

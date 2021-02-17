@@ -10,11 +10,11 @@ Teleport calls any computing device (server, VM, AWS intance, etc) a "node".
 
 A node becomes a Teleport Node when the node joins a cluster with a
 "join" token. Read about how nodes are issued certificates in the
-[Auth Guide](authentication.md#issuing-node-certificates).
+[Auth Guide](authentication.mdx#issuing-node-certificates).
 
 ![Node joins a cluster](../../img/node_join.svg)
 
-A Teleport Node runs the [`teleport`](../cli-docs.md#teleport) daemon with the
+A Teleport Node runs the [`teleport`](../cli-docs.mdx#teleport) daemon with the
 `node` role. This process handles incoming connection requests, authentication,
 and remote command execution on the node, similar to the function of OpenSSH's
 `sshd`.
@@ -24,7 +24,7 @@ and remote command execution on the node, similar to the function of OpenSSH's
 All cluster Nodes keep the Auth Server updated on their status with periodic
 ping messages. They report their IP addresses and values of their assigned
 labels. Nodes can access the list of all Nodes in their cluster via the
-[Auth Server API](authentication.md#auth-api).
+[Auth Server API](authentication.mdx#auth-api).
 
 <Admonition type="tip" title="Tip">
 In most environments we advise replacing the OpenSSH daemon `sshd`
@@ -35,11 +35,11 @@ custom binaries.
 
 The `node` service provides SSH access to every node with all of the following clients:
 
-* [OpenSSH: `ssh`](../admin-guide.md#using-teleport-with-openssh)
-* [Teleport CLI client: `tsh ssh`](../cli-docs.md#tsh-ssh)
-* [Teleport Proxy UI](proxy.md#web-to-ssh-proxy) accessed via a web browser.
+* [OpenSSH: `ssh`](../admin-guide.mdx#using-teleport-with-openssh)
+* [Teleport CLI client: `tsh ssh`](../cli-docs.mdx#tsh-ssh)
+* [Teleport Proxy UI](proxy.mdx#web-to-ssh-proxy) accessed via a web browser.
 
-Each client is authenticated via the [Auth Service](authentication.md#authentication-in-teleport) before being granted access to a Node.
+Each client is authenticated via the [Auth Service](authentication.mdx#authentication-in-teleport) before being granted access to a Node.
 
 ## Node Identity on a Cluster
 
@@ -59,7 +59,7 @@ A Teleport Cluster is a set of one or more machines whose certificates are signe
 by the same certificate authority (CA) operating in the Auth Server. A
 certificate is issued to a node when it joins the cluster for the first time.
 Learn more about this process in the [Auth
-Guide](authentication.md#authentication-in-teleport).
+Guide](authentication.mdx#authentication-in-teleport).
 
 <Admonition type="warning" title="Single-Node Clusters are Clusters">
 Once a Node gets a signed certificate from the Node CA, the Node is considered a member of the cluster, even if that cluster has only one node.
@@ -74,7 +74,7 @@ the client is authenticated the proxy attempts to connect the client to the
 requested Node.
 
 There is a detailed walk-through of the steps needed to initiate a connection to
-a node in the [Architecture Overview](overview.md).
+a node in the [Architecture Overview](overview.mdx).
 
 ![Proxy Connection between client and node](../../img/proxy_client_connect.svg)
 
@@ -94,7 +94,7 @@ The cluster state information stored includes:
 * RBAC configuration (roles and permissions).
 * Dynamic configuration.
 
-Read more about what is stored in the [Auth Guide](authentication.md#auth-state)
+Read more about what is stored in the [Auth Guide](authentication.mdx#auth-state)
 
 ## Session Recording
 
@@ -122,7 +122,7 @@ a public key of the trusted CA. It can be configured via `teleport.yaml` file.
 
 ## More Concepts
 
-* [Architecture Overview](overview.md)
-* [Teleport Users](users.md)
-* [Teleport Auth](authentication.md)
-* [Teleport Proxy](proxy.md)
+* [Architecture Overview](overview.mdx)
+* [Teleport Users](users.mdx)
+* [Teleport Auth](authentication.mdx)
+* [Teleport Proxy](proxy.mdx)

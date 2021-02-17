@@ -107,7 +107,7 @@ Teleport Database Access is available starting from `6.0.0-alpha.1` pre-release.
 Download the appropriate version of Teleport for your platform from the table
 below, or visit our [downloads page](https://goteleport.com/teleport/download).
 
-{!docs/5.0/pages/preview/releases-table.md!}
+{!docs/5.0/pages/preview/releases-table.mdx!}
 
 <Admonition type="warning">
 Note, pre-releases are not suitable for production usage!
@@ -151,7 +151,7 @@ version `6.0.0-alpha.2` or newer that includes Database Access support.
 For simplicity, we're using an `--insecure` flag to accept Teleport's
 self-signed certificate. For production usage make sure to configure proxy
 with a proper certificate/key pair. See Teleport's general
-[quickstart guide](../quickstart.md#step-1c-configure-domain-name-and-obtain-tls-certificates-using-lets-encrypt).
+[quickstart guide](../quickstart.mdx#step-1c-configure-domain-name-and-obtain-tls-certificates-using-lets-encrypt).
 
 ```shell
 tsh login --insecure --proxy=localhost:3080 --user=alice
@@ -203,7 +203,7 @@ Teleport Database Access is under active development and is available starting
 from `6.0.0-alpha.1` release. The alpha version includes support for self-hosted
 PostgreSQL as well as PostgreSQL compatible AWS RDS and Aurora.
 
-See [release schedule](./upcoming-releases.md#release-schedule).
+See [release schedule](./upcoming-releases.mdx#release-schedule).
 
 ## Configure PostgreSQL
 
@@ -245,7 +245,7 @@ authority and `server.crt`/`server.key` with generated certificate/key pair.
 
 <Admonition type="note" title="Certificate Rotation">
 Teleport signs database certificates with the host authority. As such,
-when performing [host certificates rotation](../admin-guide.md#certificate-rotation),
+when performing [host certificates rotation](../admin-guide.mdx#certificate-rotation),
 the database certificates must be updated as well.
 </Admonition>
 
@@ -357,13 +357,13 @@ Teleport Database Access is available starting from `6.0.0-alpha.1` pre-release.
 Download the appropriate version of Teleport for your platform from the table
 below, or visit our [downloads page](https://goteleport.com/teleport/download).
 
-{!docs/5.0/pages/preview/releases-table.md!}
+{!docs/5.0/pages/preview/releases-table.mdx!}
 
 <Admonition type="warning">
 Note, pre-releases are not suitable for production usage!
 </Admonition>
 
-Follow the installation [instructions](../installation.md).
+Follow the installation [instructions](../installation.mdx).
 
 ### Start Auth/Proxy Service
 
@@ -609,7 +609,7 @@ spec:
     db_users: ["{% raw %}{{internal.db_users}}{% endraw %}", "{% raw %}{{external.yyy}}{% endraw %}"]
 ```
 
-See general [RBAC](../enterprise/ssh-rbac.md) documentation for more details.
+See general [RBAC](../enterprise/ssh-rbac.mdx) documentation for more details.
 
 ## FAQ
 
@@ -617,7 +617,7 @@ See general [RBAC](../enterprise/ssh-rbac.md) documentation for more details.
 
 Currently Teleport Database Access Preview supports only PostgreSQL.
 
-MySQL support is planned for [Teleport 6.0 release](./upcoming-releases.md#release-schedule),
+MySQL support is planned for [Teleport 6.0 release](./upcoming-releases.mdx#release-schedule),
 with other databases to follow over the course of 2021 and beyond.
 
 ### Which PostgreSQL protocol features are not supported?

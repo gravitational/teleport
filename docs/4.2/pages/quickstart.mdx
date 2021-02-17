@@ -15,7 +15,7 @@ VM.
   make sure that this machine's IP can be reached over your network and that
   it accepts incoming traffic on port `3080` .
 
-* We recommend that you read the [Architecture Guide](architecture/teleport-architecture-overview.md)
+* We recommend that you read the [Architecture Guide](architecture/teleport-architecture-overview.mdx)
   before working through this tutorial. If you'd like to dive right in though this is
   the best place to start!
 
@@ -23,7 +23,7 @@ This guide is only meant to demonstrate how to run Teleport in a sandbox or demo
 environment, and showcase a few basic tasks you can do with Teleport. For additional configuration examples, see [teleport/examples](https://github.com/gravitational/teleport/tree/master/examples), within the Teleport Github repository.
 
 <Admonition type="note" title="IMPORTANT">
-You should not follow this guide if you want to set up Teleport in production. Instead follow the [Production Guide](production.md).
+You should not follow this guide if you want to set up Teleport in production. Instead follow the [Production Guide](production.mdx).
 </Admonition>
 
 ## Step 1: Install Teleport
@@ -32,7 +32,7 @@ This guide installs teleport v{{ teleport.version }} on the CLI. Previous versio
 in [Release History](https://gravitational.com/teleport/download/). You can
 download pre-built binaries from our
 [Downloads](https://gravitational.com/teleport/download/) page or you can [build
-it from source](installation.md#installing-from-source).
+it from source](installation.mdx#installing-from-source).
 
 You can also download `.deb` , `.rpm` , and `.pkg` files from
 [Downloads](https://gravitational.com/teleport/download/).
@@ -177,7 +177,7 @@ For the purposes of this quickstart we are using the
 `--insecure` flag which allows us to skip configuring the HTTP/TLS
 certificate for Teleport proxy.
 
-Never use `--insecure` in production unless you terminate SSL at a load balancer. You must configure a HTTP/TLS certificate for the Proxy. [Learn more in our SSL/TLS for Teleport Proxy - Production Guide](production.md#ssltls-for-teleport-proxy)
+Never use `--insecure` in production unless you terminate SSL at a load balancer. You must configure a HTTP/TLS certificate for the Proxy. [Learn more in our SSL/TLS for Teleport Proxy - Production Guide](production.mdx#ssltls-for-teleport-proxy)
 </Admonition>
 
 ``` bash
@@ -292,7 +292,7 @@ $ echo "Awesome!"
 Congratulations! You've completed the Teleport Quickstart. In this guide you've
 learned how to install Teleport on a single-node and seen a few of the most
 practical features in action. When you're ready to learn how to set up Teleport
-for your team, we recommend that you read our [Admin Guide](admin-guide.md) to
+for your team, we recommend that you read our [Admin Guide](admin-guide.mdx) to
 get all the important details. This guide will lay out
 everything you need to safely run Teleport in production, including SSL
 certificates, security considerations, and YAML configuration.
@@ -302,8 +302,8 @@ certificates, security considerations, and YAML configuration.
 If you like to learn by doing, check out our collection of step-by-step guides for
 common Teleport tasks.
 
-* [Install Teleport](installation.md)
-* [Share Sessions](user-manual.md#sharing-sessions)
-* [Manage Users](admin-guide.md#adding-and-deleting-users)
-* [Label Nodes](admin-guide.md#labeling-nodes)
-* [Teleport with OpenSSH](admin-guide.md#using-teleport-with-openssh)
+* [Install Teleport](installation.mdx)
+* [Share Sessions](user-manual.mdx#sharing-sessions)
+* [Manage Users](admin-guide.mdx#adding-and-deleting-users)
+* [Label Nodes](admin-guide.mdx#labeling-nodes)
+* [Teleport with OpenSSH](admin-guide.mdx#using-teleport-with-openssh)

@@ -16,12 +16,12 @@ or [OAuth2/OpenID Connect](https://en.wikipedia.org/wiki/OpenID_Connect).
 
 ## SSO Setup Guides
 
-- [Azure Active Directory (AD)](sso/ssh-azuread.md)
-- [Active Directory (ADFS)](sso/ssh-adfs.md)
-- [G Suite](sso/ssh-gsuite.md)
-- [OneLogin](sso/ssh-one-login.md)
-- [OIDC](sso/oidc.md)
-- [Okta](sso/ssh-okta.md)
+- [Azure Active Directory (AD)](sso/ssh-azuread.mdx)
+- [Active Directory (ADFS)](sso/ssh-adfs.mdx)
+- [G Suite](sso/ssh-gsuite.mdx)
+- [OneLogin](sso/ssh-one-login.mdx)
+- [OIDC](sso/oidc.mdx)
+- [Okta](sso/ssh-okta.mdx)
 
 
 ## How does SSO work with SSH?
@@ -63,7 +63,7 @@ To configure [SSO](https://en.wikipedia.org/wiki/Single_sign-on), a Teleport adm
 
 * Update `/etc/teleport.yaml` on the auth server to set the default
   authentication connector.
-* Define the connector [resource](../admin-guide.md#resources) and save it into
+* Define the connector [resource](../admin-guide.mdx#resources) and save it into
   a YAML file (like `connector.yaml`)
 * Create the connector using `tctl create connector.yaml`.
 
@@ -143,7 +143,7 @@ $ tctl get connectors
 ```
 
 To delete/update connectors, use the usual `tctl rm` and `tctl create` commands
-as described in the [Resources section](../admin-guide.md#resources) in the Admin Manual.
+as described in the [Resources section](../admin-guide.mdx#resources) in the Admin Manual.
 
 If multiple authentication connectors exist, the clients must supply a
 connector name to `tsh login` via `--auth` argument:
@@ -160,10 +160,10 @@ $ tsh --proxy=proxy.example.com login --auth=local --user=admin
 Refer to the following guides to configure authentication connectors of both
 SAML and OIDC types:
 
-* [SSH Authentication with Okta](sso/ssh-okta.md)
-* [SSH Authentication with OneLogin](sso/ssh-one-login.md)
-* [SSH Authentication with ADFS](sso/ssh-adfs.md)
-* [SSH Authentication with OAuth2 / OpenID Connect](sso/oidc.md)
+* [SSH Authentication with Okta](sso/ssh-okta.mdx)
+* [SSH Authentication with OneLogin](sso/ssh-one-login.mdx)
+* [SSH Authentication with ADFS](sso/ssh-adfs.mdx)
+* [SSH Authentication with OAuth2 / OpenID Connect](sso/oidc.mdx)
 
 ## SSO Customization
 

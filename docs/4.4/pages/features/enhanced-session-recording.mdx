@@ -4,7 +4,7 @@ description: How to record your SSH and Kubernetes sessions into the audit log.
 h1: Enhanced Session Recording
 ---
 
-Teleport [SSH and Kubernetes session recording](../architecture/nodes.md#session-recording)
+Teleport [SSH and Kubernetes session recording](../architecture/nodes.mdx#session-recording)
 feature captures what is echoed to a terminal.
 
 This has inherent advantages, for example because no input is captured, Teleport
@@ -35,7 +35,7 @@ Teleport 4.2+ with Enhanced Session Recording requires Linux kernel 4.18 (or abo
 well as kernel headers.
 
 <Admonition type="tip">
-Our Standard Session Recording works with older Linux Kernels. View our [audit log docs](../architecture/authentication.md#audit-log) for more details.
+Our Standard Session Recording works with older Linux Kernels. View our [audit log docs](../architecture/authentication.mdx#audit-log) for more details.
 </Admonition>
 
 You can check your kernel version using the `uname` command. The output should look
@@ -130,7 +130,7 @@ echo "Install is complete, try running /usr/share/bcc/tools/execsnoop to verify 
 <TabItem label="CentOS">
 **Example Script to install relevant bcc packages for CentOS**
 
-Follow [bcc documentation](https://github.com/iovisor/bcc/blob/master/INSTALL.md#debian---source) on how to install the relevant tooling for other operating systems.
+Follow [bcc documentation](https://github.com/iovisor/bcc/blob/master/INSTALL.mdx#debian---source) on how to install the relevant tooling for other operating systems.
 
 ```sh
 #!/bin/bash
@@ -219,10 +219,10 @@ Dependency Installed:
 
 ## 3. Install & Configure Teleport Node
 
-Follow our [installation instructions](../installation.md) to install Teleport Auth, Proxy
+Follow our [installation instructions](../installation.mdx) to install Teleport Auth, Proxy
 and Nodes.
 
-Set up the Teleport node with this `etc/teleport.yaml`. See our [configuration file setup](../admin-guide.md#configuration) for more instructions.
+Set up the Teleport node with this `etc/teleport.yaml`. See our [configuration file setup](../admin-guide.mdx#configuration) for more instructions.
 
 
 ```yaml
@@ -282,7 +282,7 @@ ssh_service:
 ```
 
 ## 5. Inspect Logs
-The resulting enhanced session recording will be shown in [Teleport's Audit Log](../architecture/authentication.md#audit-log).
+The resulting enhanced session recording will be shown in [Teleport's Audit Log](../architecture/authentication.mdx#audit-log).
 
 
 ```bash

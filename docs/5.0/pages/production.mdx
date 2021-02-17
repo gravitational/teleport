@@ -10,9 +10,9 @@ This guide provides more in-depth details for running Teleport in Production.
 
 ## Prerequisites
 
-* Read the [Architecture Overview](architecture/overview.md)
-* Read through the [Installation Guide](installation.md) to see the available packages and binaries available.
-* Read the CLI Docs for [`teleport`](cli-docs.md#teleport)
+* Read the [Architecture Overview](architecture/overview.mdx)
+* Read through the [Installation Guide](installation.mdx) to see the available packages and binaries available.
+* Read the CLI Docs for [`teleport`](cli-docs.mdx#teleport)
 
 ## Designing Your Cluster
 
@@ -20,7 +20,7 @@ Before installing anything there are a few things you should think about.
 
 * Where will you host Teleport?
     * On-premises
-    * Cloud VMs such as [AWS EC2](aws-oss-guide.md) or [GCE](gcp-guide.md)
+    * Cloud VMs such as [AWS EC2](aws-oss-guide.mdx) or [GCE](gcp-guide.mdx)
     * An existing Kubernetes Cluster
 * What does your existing network configuration look like?
     * Are you able to administer the network firewall rules yourself or do you need to work with a network admin?
@@ -46,9 +46,9 @@ Teleport services listen on several ports. This table shows the default port num
 
 ## Installation
 
-We have a detailed [installation guide](installation.md) which shows how to
+We have a detailed [installation guide](installation.mdx) which shows how to
 install all available binaries or [install from
-source](installation.md#installing-from-source). Reference that guide to learn
+source](installation.mdx#installing-from-source). Reference that guide to learn
 the best way to install Teleport for your system and the come back here to
 finish your production install.
 
@@ -76,12 +76,12 @@ There are a couple of important things to notice about this file:
 
 1. The start command in the unit file specifies `--config` as a file and there
    are very few flags passed to the `teleport` binary. Most of the configuration
-   for Teleport should be done in the [configuration file](admin-guide.md#configuration).
+   for Teleport should be done in the [configuration file](admin-guide.mdx#configuration).
 
 2. The **ExecReload** command allows admins to run `systemctl reload teleport`.
    This will attempt to perform a graceful restart of Teleport _*but it only works if
-   network-based backend storage like [DynamoDB](admin-guide.md#using-dynamodb) or
-   [etc 3.3](admin-guide.md#using-etcd) is configured*_. Graceful Restarts will
+   network-based backend storage like [DynamoDB](admin-guide.mdx#using-dynamodb) or
+   [etc 3.3](admin-guide.mdx#using-etcd) is configured*_. Graceful Restarts will
    fork a new process to handle new incoming requests and leave the old daemon
    process running until existing clients disconnect.
 
@@ -129,7 +129,7 @@ to a Teleport daemon manually.
 ### Adding Nodes to the Cluster
 
 We've written a dedicated guide on [Adding Nodes to your
-Cluster](admin-guide.md#adding-nodes-to-the-cluster) which shows how to generate or set join tokens and
+Cluster](admin-guide.mdx#adding-nodes-to-the-cluster) which shows how to generate or set join tokens and
 use them to add nodes.
 
 ## Security Considerations
@@ -141,7 +141,7 @@ Secure Sockets Layer (SSL).  Teleport requires TLS authentication to ensure that
 communication between nodes, clients and web proxy remains secure and comes from
 a trusted source.
 
-During our [quickstart](quickstart.md) guide we skip over setting up TLS so that you can quickly try Teleport.
+During our [quickstart](quickstart.mdx) guide we skip over setting up TLS so that you can quickly try Teleport.
 Obtaining a TLS certificate is easy and is free with thanks to [Let's Encrypt](https://letsencrypt.org/).
 
 If you use [certbot](https://certbot.eff.org/), you get this list of files provided:
@@ -200,7 +200,7 @@ setting up the proxy nodes start Teleport with:
 
 `teleport start --insecure --roles=proxy --config=/etc/teleport.yaml`
 
-See [Teleport Proxy HA](admin-guide.md#teleport-proxy-ha) for more info.
+See [Teleport Proxy HA](admin-guide.mdx#teleport-proxy-ha) for more info.
 
 
 {/* TODO SSL for Webproxy & Auth Section */}

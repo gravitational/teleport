@@ -169,7 +169,7 @@ Let's cover some of these flags in more detail:
 * `--roles` flag tells Teleport which services to start. It is a comma-separated
   list of roles. The possible values are `auth`, `node` and `proxy`. The default
   value is `auth,node,proxy`. These roles are explained in the
-  [Teleport Architecture](architecture.md) document.
+  [Teleport Architecture](architecture.mdx) document.
 
 * `--advertise-ip` flag can be used when Teleport nodes are running behind NAT and
   their externally routable IP cannot be automatically determined.
@@ -1770,7 +1770,7 @@ To allow access for all users:
 
 ## Certificate Rotation
 
-Take a look at the [Certificates chapter](architecture.md#certificates) in the
+Take a look at the [Certificates chapter](architecture.mdx#certificates) in the
 architecture document to learn how the certificate rotation works. This section
 will show you how to implement certificate rotation in practice.
 
@@ -1848,7 +1848,7 @@ a Kubernetes cluster:
 
 ![teleport-kubernetes-integration](../img/teleport-kube.png)
 
-For more detailed information, please take a look at [Kubernetes Integration with SSH](architecture.md#kubernetes-integration)
+For more detailed information, please take a look at [Kubernetes Integration with SSH](architecture.mdx#kubernetes-integration)
 section in the Architecture chapter.
 
 In the scenario illustrated above a user would execute the following commands:
@@ -1903,10 +1903,10 @@ Teleport connector. See example above in [Github OAuth 2.0 Example](#github-oaut
 information on how to setup Github SSO with Teleport.
 
 If using Teleport Enterprise SSO with enterprise-grade identity providers (using SAML, OIDC and Active Directory),
-`kubernetes_groups` are assigned to Teleport Roles as shown in the Teleport Enterprise [RBAC](ssh-rbac.md#roles)
+`kubernetes_groups` are assigned to Teleport Roles as shown in the Teleport Enterprise [RBAC](ssh-rbac.mdx#roles)
 section.
 
-You may also find it useful to read our [Kubernetes guide](kubernetes-ssh.md) which contains some more specific examples
+You may also find it useful to read our [Kubernetes guide](kubernetes-ssh.mdx) which contains some more specific examples
 and instructions.
 
 ### Multiple Kubernetes Clusters
