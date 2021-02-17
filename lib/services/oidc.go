@@ -105,7 +105,7 @@ var OIDCConnectorSpecV2Schema = fmt.Sprintf(`{
 	  "display": {"type": "string"},
 	  "prompt": {"type": "string"},
 	  "google_service_account_uri": {"type": "string"},
-	"google_service_account": {"type": "string"},
+	  "google_service_account": {"type": "string"},
 	  "google_admin_email": {"type": "string"},
 	  "scope": {
 		"type": "array",
