@@ -7,21 +7,24 @@ labels: documentation
 Describe the documentation improvements you wish to see.
 
 ### Category
-- [ ] New Feature
-- [x] Improve Existing
-- [ ] Remove Outdated
+<!-- Delete non-applicable category -->
+- New Feature
+- Improve Existing
+- Remove Outdated
 
 ### Which platform(s)
-- [ ] Teleport Open Source
-- [ ] Teleport Cloud
-- [x] Teleport Enterprise
-- [ ] Other
+<!-- Delete non-applicable platforms -->
+- Teleport Open Source
+- Teleport Cloud
+- Teleport Enterprise
+- Other
 
 ### Which component(s)
-- [x] Server Access
-- [ ] Kubernetes Access
-- [ ] Application Access
-- [ ] Database Access
-- [ ] CLI Clients
-- [ ] Web Clients
-- [ ] Other
+<!-- Delete non-applicable components -->
+- Server Access
+- Kubernetes Access
+- Application Access
+- Database Access
+- CLI Clients
+- Web Clients
+- Other
