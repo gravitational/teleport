@@ -586,7 +586,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 			if ks.Name != actx.kubeCluster {
 				continue
 			}
-			if err := actx.Checker.CheckAccessToKubernetes(s.GetNamespace(), ks); err != nil {
+			if err := actx.Checker.CheckAccessToKubernetes(s.GetNamespace(), ks, actx.Identity.GetIdentity().MFAVerified); err != nil {
 				return trace.Wrap(err)
 			}
 			return nil

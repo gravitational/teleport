@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2020 Gravitational, Inc.
+Copyright 2015-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -545,10 +546,13 @@ func (a *ServerWithRoles) filterNodes(nodes []services.Server) ([]services.Serve
 
 	// Loop over all nodes and check if the caller has access.
 	filteredNodes := make([]services.Server, 0, len(nodes))
+	// MFA is not required to list the nodes, but will be required to connect
+	// to them.
+	mfaVerified := true
 NextNode:
 	for _, node := range nodes {
 		for login := range allowedLogins {
-			err := roleset.CheckAccessToServer(login, node)
+			err := roleset.CheckAccessToServer(login, node, mfaVerified)
 			if err == nil {
 				filteredNodes = append(filteredNodes, node)
 				continue NextNode
@@ -1378,6 +1382,10 @@ func (a *ServerWithRoles) UpsertOIDCConnector(ctx context.Context, connector ser
 	if err := a.authConnectorAction(defaults.Namespace, services.KindOIDC, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
+	if modules.GetModules().Features().OIDC == false {
+		return trace.AccessDenied("OIDC is only available in enterprise subscriptions")
+	}
+
 	return a.authServer.UpsertOIDCConnector(ctx, connector)
 }
 
@@ -1431,6 +1439,9 @@ func (a *ServerWithRoles) CreateSAMLConnector(ctx context.Context, connector ser
 	if err := a.authConnectorAction(defaults.Namespace, services.KindSAML, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
+	if modules.GetModules().Features().SAML == false {
+		return trace.AccessDenied("SAML is only available in enterprise subscriptions")
+	}
 	return a.authServer.UpsertSAMLConnector(ctx, connector)
 }
 
@@ -1441,6 +1452,9 @@ func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector ser
 	}
 	if err := a.authConnectorAction(defaults.Namespace, services.KindSAML, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
+	}
+	if modules.GetModules().Features().SAML == false {
+		return trace.AccessDenied("SAML is only available in enterprise subscriptions")
 	}
 	return a.authServer.UpsertSAMLConnector(ctx, connector)
 }
@@ -1496,7 +1510,29 @@ func (a *ServerWithRoles) CreateGithubConnector(connector services.GithubConnect
 	if err := a.authConnectorAction(defaults.Namespace, services.KindGithub, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
+	if err := a.checkGithubConnector(connector); err != nil {
+		return trace.Wrap(err)
+	}
 	return a.authServer.CreateGithubConnector(connector)
+}
+
+func (a *ServerWithRoles) checkGithubConnector(connector services.GithubConnector) error {
+	mapping := connector.GetTeamsToLogins()
+	for _, team := range mapping {
+		if len(team.KubeUsers) != 0 || len(team.KubeGroups) != 0 {
+			return trace.BadParameter("since 6.0 teleport uses teams_to_logins to reference a role, use it instead of local kubernetes_users and kubernetes_groups ")
+		}
+		for _, localRole := range team.Logins {
+			_, err := a.GetRole(localRole)
+			if err != nil {
+				if trace.IsNotFound(err) {
+					return trace.BadParameter("since 6.0 teleport uses teams_to_logins to reference a role, role %q referenced in mapping for organization %q is not found", localRole, team.Organization)
+				}
+				return trace.Wrap(err)
+			}
+		}
+	}
+	return nil
 }
 
 // UpsertGithubConnector creates or updates a Github connector.
@@ -1505,6 +1541,9 @@ func (a *ServerWithRoles) UpsertGithubConnector(ctx context.Context, connector s
 		return trace.Wrap(err)
 	}
 	if err := a.authConnectorAction(defaults.Namespace, services.KindGithub, services.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.checkGithubConnector(connector); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.upsertGithubConnector(ctx, connector)
@@ -1796,6 +1835,20 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role services.Role) er
 		return trace.Wrap(err)
 	}
 
+	// Some options are only available with enterprise subscription
+	features := modules.GetModules().Features()
+	options := role.GetOptions()
+
+	switch {
+	case features.AccessControls == false && options.MaxSessions > 0:
+		return trace.AccessDenied(
+			"role option max_sessions is only available in enterprise subscriptions")
+	case features.AdvancedAccessWorkflows == false &&
+		(options.RequestAccess == types.RequestStrategyReason || options.RequestAccess == types.RequestStrategyAlways):
+		return trace.AccessDenied(
+			"role option request_access: %v is only available in enterprise subscriptions", options.RequestAccess)
+	}
+
 	return a.authServer.upsertRole(ctx, role)
 }
 
@@ -1816,6 +1869,13 @@ func (a *ServerWithRoles) GetRole(name string) (services.Role, error) {
 func (a *ServerWithRoles) DeleteRole(ctx context.Context, name string) error {
 	if err := a.action(defaults.Namespace, services.KindRole, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
+	}
+	// DELETE IN (7.0)
+	// It's OK to delete this code alongside migrateOSS code in auth.
+	// It prevents 6.0 from migrating resources multiple times
+	// and the role is used for `tctl users add` code too.
+	if modules.GetModules().BuildType() == modules.BuildOSS && name == teleport.OSSUserRoleName {
+		return trace.AccessDenied("can not delete system role %q", name)
 	}
 	return a.authServer.DeleteRole(ctx, name)
 }
@@ -2198,9 +2258,11 @@ func (a *ServerWithRoles) GetDatabaseServers(ctx context.Context, namespace stri
 	}
 	// Filter out databases the caller doesn't have access to from each server.
 	var filtered []types.DatabaseServer
+	// MFA is not required to list the databases, but will be required to
+	// connect to them.
+	mfaVerified := true
 	for _, server := range servers {
-		err := a.context.Checker.CheckAccessToDatabase(server,
-			&services.DatabaseLabelsMatcher{Labels: server.GetAllLabels()})
+		err := a.context.Checker.CheckAccessToDatabase(server, mfaVerified, &services.DatabaseLabelsMatcher{Labels: server.GetAllLabels()})
 		if err != nil && !trace.IsAccessDenied(err) {
 			return nil, trace.Wrap(err)
 		} else if err == nil {
@@ -2279,10 +2341,14 @@ func (a *ServerWithRoles) GetAppServers(ctx context.Context, namespace string, o
 
 	// Loop over all servers, filter out applications on each server and only
 	// return the applications the caller has access to.
+	//
+	// MFA is not required to list the apps, but will be required to connect to
+	// them.
+	mfaVerified := true
 	for _, server := range servers {
 		filteredApps := make([]*services.App, 0, len(server.GetApps()))
 		for _, app := range server.GetApps() {
-			err := a.context.Checker.CheckAccessToApp(server.GetNamespace(), app)
+			err := a.context.Checker.CheckAccessToApp(server.GetNamespace(), app, mfaVerified)
 			if err != nil {
 				if trace.IsAccessDenied(err) {
 					continue
@@ -2443,7 +2509,7 @@ func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s services.Serv
 	}
 
 	for _, kube := range s.GetKubernetesClusters() {
-		if err := a.context.Checker.CheckAccessToKubernetes(s.GetNamespace(), kube); err != nil {
+		if err := a.context.Checker.CheckAccessToKubernetes(s.GetNamespace(), kube, a.context.Identity.GetIdentity().MFAVerified); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -2466,10 +2532,14 @@ func (a *ServerWithRoles) GetKubeServices(ctx context.Context) ([]services.Serve
 
 	// Loop over all servers, filter out kube clusters on each server and only
 	// return the kube cluster the caller has access to.
+	//
+	// MFA is not required to list the clusters, but will be required to
+	// connect to them.
+	mfaVerified := true
 	for _, server := range servers {
 		filtered := make([]*services.KubernetesCluster, 0, len(server.GetKubernetesClusters()))
 		for _, kube := range server.GetKubernetesClusters() {
-			if err := a.context.Checker.CheckAccessToKubernetes(server.GetNamespace(), kube); err != nil {
+			if err := a.context.Checker.CheckAccessToKubernetes(server.GetNamespace(), kube, mfaVerified); err != nil {
 				if trace.IsAccessDenied(err) {
 					continue
 				}

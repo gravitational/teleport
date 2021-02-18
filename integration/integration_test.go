@@ -2058,35 +2058,12 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 	c.Assert(err, check.IsNil)
 	c.Assert(output.String(), check.Equals, "hello world\n")
 
-	// Try and connect to a node in the Aux cluster from the Main cluster using
-	// direct dialing as ops user
-	opsCreds, err := GenerateUserCreds(UserCredsRequest{
+	// Try and generate user creds for Aux cluster as ops user.
+	_, err = GenerateUserCreds(UserCredsRequest{
 		Process:        main.Process,
 		Username:       mainOps,
 		RouteToCluster: clusterAux,
 	})
-	c.Assert(err, check.IsNil)
-
-	opsClient, err := main.NewClientWithCreds(ClientConfig{
-		Login:    username,
-		Cluster:  clusterAux,
-		Host:     Loopback,
-		Port:     sshPort,
-		JumpHost: test.useJumpHost,
-	}, *opsCreds)
-	c.Assert(err, check.IsNil)
-
-	// tell the client to trust aux cluster CAs (from secrets). this is the
-	// equivalent of 'known hosts' in openssh
-	auxCAS = aux.Secrets.GetCAs()
-	for _, ca := range auxCAS {
-		err = opsClient.AddTrustedCA(ca)
-		c.Assert(err, check.IsNil)
-	}
-
-	opsClient.Stdout = &bytes.Buffer{}
-	err = opsClient.SSH(ctx, cmd, false)
-	// verify that ops user can not access the cluster
 	fixtures.ExpectNotFound(c, err)
 
 	// ListNodes expect labels as a value of host
