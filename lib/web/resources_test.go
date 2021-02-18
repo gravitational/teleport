@@ -18,7 +18,6 @@ package web
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/gravitational/teleport/api/types"
@@ -43,10 +42,10 @@ version: v3`
 	require.NotNil(t, extractedResource)
 
 	// Test missing name.
-	badContent := `kind: role
+	invalidContent := `kind: role
 metadata:
   name:`
-	extractedResource, err = ExtractResourceAndValidate(badContent)
+	extractedResource, err = ExtractResourceAndValidate(invalidContent)
 	require.Nil(t, extractedResource)
 	require.True(t, trace.IsBadParameter(err))
 	require.Contains(t, err.Error(), "Name")
@@ -69,17 +68,17 @@ func TestCheckResourceUpsertableByError(t *testing.T) {
 	require.True(t, trace.IsNotFound(err))
 }
 
-func TestNewResourceItem(t *testing.T) {
-	// Test github resource.
+func TestNewResourceItemGithub(t *testing.T) {
 	githubConn := types.NewGithubConnector("githubName", types.GithubConnectorSpecV3{})
 	item, err := ui.NewResourceItem(githubConn)
 	require.Nil(t, err)
-	require.Equal(t, item.ID, fmt.Sprintf("%s:%s", types.KindGithubConnector, "githubName"))
+	require.Equal(t, item.ID, "github:githubName")
 	require.Equal(t, item.Kind, types.KindGithubConnector)
 	require.Equal(t, item.Name, "githubName")
 	require.Contains(t, item.Content, types.KindGithubConnector)
+}
 
-	// Test role resource.
+func TestNewResourceItemRole(t *testing.T) {
 	role, err := types.NewRole("roleName", types.RoleSpecV3{
 		Allow: types.RoleConditions{
 			Logins: []string{"test"},
@@ -87,20 +86,21 @@ func TestNewResourceItem(t *testing.T) {
 	})
 	require.Nil(t, err)
 
-	item, err = ui.NewResourceItem(role)
+	item, err := ui.NewResourceItem(role)
 	require.Nil(t, err)
-	require.Equal(t, item.ID, fmt.Sprintf("%s:%s", types.KindRole, "roleName"))
+	require.Equal(t, item.ID, "role:roleName")
 	require.Equal(t, item.Kind, types.KindRole)
 	require.Equal(t, item.Name, "roleName")
 	require.Contains(t, item.Content, types.KindRole)
+}
 
-	// Test trusted cluster resource.
+func TestNewResourceItemTrustedCluster(t *testing.T) {
 	cluster, err := types.NewTrustedCluster("tcName", types.TrustedClusterSpecV2{})
 	require.Nil(t, err)
 
-	item, err = ui.NewResourceItem(cluster)
+	item, err := ui.NewResourceItem(cluster)
 	require.Nil(t, err)
-	require.Equal(t, item.ID, fmt.Sprintf("%s:%s", types.KindTrustedCluster, "tcName"))
+	require.Equal(t, item.ID, "trusted_cluster:tcName")
 	require.Equal(t, item.Kind, types.KindTrustedCluster)
 	require.Equal(t, item.Name, "tcName")
 	require.Contains(t, item.Content, types.KindTrustedCluster)
@@ -138,10 +138,10 @@ func TestUpsertRole(t *testing.T) {
 	}
 
 	// Test bad request kind.
-	badKind := `kind: bad-kind
+	invalidKind := `kind: invalid-kind
 metadata:
   name: test`
-	role, err := upsertRole(context.Background(), m, badKind, "")
+	role, err := upsertRole(context.Background(), m, invalidKind, "")
 	require.Nil(t, role)
 	require.True(t, trace.IsBadParameter(err))
 	require.Contains(t, err.Error(), "kind")
@@ -192,10 +192,10 @@ func TestUpsertGithubConnector(t *testing.T) {
 	}
 
 	// Test bad request kind.
-	badKind := `kind: bad-kind
+	invalidKind := `kind: invalid-kind
 metadata:
   name: test`
-	conn, err := upsertGithubConnector(context.Background(), m, badKind, "")
+	conn, err := upsertGithubConnector(context.Background(), m, invalidKind, "")
 	require.Nil(t, conn)
 	require.True(t, trace.IsBadParameter(err))
 	require.Contains(t, err.Error(), "kind")
@@ -248,10 +248,10 @@ func TestUpsertTrustedCluster(t *testing.T) {
 	}
 
 	// Test bad request kind.
-	badKind := `kind: bad-kind
+	invalidKind := `kind: invalid-kind
 metadata:
   name: test`
-	conn, err := upsertTrustedCluster(context.Background(), m, badKind, "")
+	conn, err := upsertTrustedCluster(context.Background(), m, invalidKind, "")
 	require.Nil(t, conn)
 	require.True(t, trace.IsBadParameter(err))
 	require.Contains(t, err.Error(), "kind")
