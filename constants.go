@@ -701,3 +701,7 @@ const (
 
 // UserSingleUseCertTTL is a TTL for per-connection user certificates.
 const UserSingleUseCertTTL = time.Minute
+
+// StandardHTTPSPort is the default port used for the https URI scheme,
+// cf. RFC 7230 § 2.7.2.
+const StandardHTTPSPort = 443
