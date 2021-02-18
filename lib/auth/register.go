@@ -162,7 +162,7 @@ func authServerIsProxy(servers []utils.NetAddr) bool {
 		return false
 	}
 	port := servers[0].Port(0)
-	return (port == defaults.HTTPListenPort) || (port == teleport.StandardHTTPSPort)
+	return port == defaults.HTTPListenPort || port == teleport.StandardHTTPSPort
 }
 
 // registerThroughProxy is used to register through the proxy server.
