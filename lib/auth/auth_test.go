@@ -175,11 +175,16 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(services.UserCA, "me.localhost")), IsNil)
 	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(services.HostCA, "me.localhost")), IsNil)
 
+	// Register the leaf cluster.
+	leaf, err := types.NewRemoteCluster("leaf.localhost")
+	c.Assert(err, IsNil)
+	c.Assert(s.a.CreateRemoteCluster(leaf), IsNil)
+
 	user := "user1"
 	pass := []byte("abc123")
 
 	// Try to login as an unknown user.
-	_, err := s.a.AuthenticateSSHUser(AuthenticateSSHRequest{
+	_, err = s.a.AuthenticateSSHUser(AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
 			Username: user,
 			Pass:     &PassCreds{Password: pass},
