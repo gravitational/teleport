@@ -350,28 +350,18 @@ func (h *Handler) getUserStatus(w http.ResponseWriter, r *http.Request, _ httpro
 
 // getUserContext returns user context
 //
-// GET /webapi/user/context
+// GET /webapi/sites/:site/context
 //
 func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	roleset, err := c.GetCertRoles()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clt, err := c.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// Extract services.RoleSet from certificate.
-	cert, _, err := c.GetCertificates()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	roles, traits, err := services.ExtractFromCertificate(clt, cert)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	roleset, err := services.FetchRoles(roles, clt, traits)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	user, err := clt.GetUser(c.GetUser(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -381,7 +371,6 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	userContext.Cluster, err = ui.GetClusterDetails(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1347,7 +1336,7 @@ type getSiteNamespacesResponse struct {
 
 /* getSiteNamespaces returns a list of namespaces for a given site
 
-GET /v1/webapi/namespaces/:namespace/sites/:site/nodes
+GET /v1/webapi/sites/:site/namespaces
 
 Successful response:
 
@@ -1367,6 +1356,11 @@ func (h *Handler) getSiteNamespaces(w http.ResponseWriter, r *http.Request, _ ht
 	}, nil
 }
 
+/* siteNodesGet returns a list of nodes for a given site and namespace
+
+GET /v1/webapi/sites/:site/namespaces/:namespace/nodes
+
+*/
 func (h *Handler) siteNodesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	namespace := p.ByName("namespace")
 	if !services.IsValidNamespace(namespace) {
@@ -1740,37 +1734,39 @@ func (h *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 		logger.Debugf("Unable to retrieve session chunk: %v.", err)
 		http.Error(w, err.Error(), trace.ErrorToCode(err))
 	}
+
 	// authenticate first:
 	ctx, err := h.AuthenticateRequest(w, r, true)
 	if err != nil {
 		log.Info(err)
 		// clear session just in case if the authentication request is not valid
 		ClearSession(w)
-		onError(err)
+		onError(trace.Wrap(err))
 		return
 	}
+
 	// get the site interface:
 	siteName := p.ByName("site")
 	if siteName == currentSiteShortcut {
-		sites := h.cfg.Proxy.GetSites()
-		if len(sites) < 1 {
-			onError(trace.NotFound("no active sites"))
+		res, err := h.cfg.ProxyClient.GetClusterName()
+		if err != nil {
+			onError(trace.Wrap(err))
 			return
 		}
-		siteName = sites[0].GetName()
+		siteName = res.GetClusterName()
 	}
 	site, err = h.cfg.Proxy.GetSite(siteName)
 	if err != nil {
-		onError(err)
+		onError(trace.Wrap(err))
 		return
 	}
+
 	// get the session:
 	sid, err := session.ParseID(p.ByName("sid"))
 	if err != nil {
 		onError(trace.Wrap(err))
 		return
 	}
-
 	clt, err := ctx.GetUserClient(site)
 	if err != nil {
 		onError(trace.Wrap(err))
@@ -2031,12 +2027,12 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 				log.Warn(err)
 				return nil, trace.Wrap(err)
 			}
-
 			clusterName = res.GetClusterName()
 		}
+
 		site, err := h.cfg.Proxy.GetSite(clusterName)
 		if err != nil {
-			log.Warn(err)
+			log.WithError(err).WithField("cluster-name", clusterName).Warn("Failed to query site.")
 			return nil, trace.Wrap(err)
 		}
 
