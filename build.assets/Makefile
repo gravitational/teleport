@@ -122,6 +122,10 @@ buildbox-amd64:
 		--cache-from $(BUILDBOX) \
 		--tag $(BUILDBOX) -f buildboxes/Dockerfile-amd64 .
 
+# For historical reasons, the 'buildbox' target automatically runs 'buildbox-amd64'
+.PHONY:buildbox
+buildbox: buildbox-amd64
+
 #
 # Builds a Docker buildbox for FIPS
 #
@@ -133,6 +137,10 @@ buildbox-amd64-fips:
 		--build-arg RUNTIME=$(RUNTIME) \
 		--cache-from $(BUILDBOX_FIPS) \
 		--tag $(BUILDBOX_FIPS) -f buildboxes/Dockerfile-amd64-fips .
+
+# For historical reasons, the 'buildbox-fips' target automatically runs 'buildbox-amd64-fips'
+.PHONY:buildbox-fips
+buildbox-fips: buildbox-amd64-fips
 
 #
 # Builds a Docker buildbox for CentOS 6 builds
