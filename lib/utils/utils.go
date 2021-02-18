@@ -367,6 +367,15 @@ func IsCertExpiredError(err error) bool {
 	return strings.Contains(trace.Unwrap(err).Error(), "ssh: cert has expired")
 }
 
+// OpaqueAccessDenied returns a generic NotFound instead of AccessDenied
+// so as to avoid leaking the existence of secret resources.
+func OpaqueAccessDenied(err error) error {
+	if trace.IsAccessDenied(err) {
+		return trace.NotFound("")
+	}
+	return trace.Wrap(err)
+}
+
 // PortList is a list of TCP port
 type PortList []string
 
