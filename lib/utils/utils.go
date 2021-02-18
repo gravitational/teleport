@@ -583,6 +583,23 @@ func (s Strings) Addrs(defaultPort int) ([]NetAddr, error) {
 	return addrs, nil
 }
 
+// ReadAtMost reads up to limit bytes from r, and reports an error
+// when limit bytes are read.
+func ReadAtMost(r io.Reader, limit int64) ([]byte, error) {
+	limitedReader := &io.LimitedReader{R: r, N: limit}
+	data, err := ioutil.ReadAll(limitedReader)
+	if err != nil {
+		return data, err
+	}
+	if limitedReader.N <= 0 {
+		return data, ErrLimitReached
+	}
+	return data, nil
+}
+
+// ErrLimitReached means that the read limit is reached.
+var ErrLimitReached = &trace.LimitExceededError{Message: "the read limit is reached"}
+
 const (
 	// HumanTimeFormatString is a human readable date formatting
 	HumanTimeFormatString = "Mon Jan _2 15:04 UTC"

@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"gopkg.in/check.v1"
 )
 
@@ -506,4 +507,23 @@ func (s *UtilsSuite) TestStringsSet(c *check.C) {
 	out := StringsSet(nil)
 	c.Assert(out, check.HasLen, 0)
 	c.Assert(out, check.NotNil)
+}
+
+func TestReadAtMost(t *testing.T) {
+	testCases := []struct {
+		limit int64
+		data  string
+		err   error
+	}{
+		{4, "hell", ErrLimitReached},
+		{5, "hello", ErrLimitReached},
+		{6, "hello", nil},
+	}
+
+	for _, tc := range testCases {
+		r := strings.NewReader("hello")
+		data, err := ReadAtMost(r, tc.limit)
+		assert.Equal(t, []byte(tc.data), data)
+		assert.Equal(t, tc.err, err)
+	}
 }
