@@ -152,7 +152,7 @@ auth_service:
   - kube:secret_static_join_token
 
 proxy_service:
-  public_addr: [root.example.com]
+  kube_public_addr: [root.example.com]
   kube_listen_addr: 0.0.0.0:3026
 
 ---
@@ -262,7 +262,7 @@ After 5.0:
 ```yaml
 # teleport.yaml
 proxy_service:
-  public_addr: [root.example.com]
+  kube_public_addr: [root.example.com]
   kube_listen_addr: 0.0.0.0:3026
 
 kubernetes_service:
