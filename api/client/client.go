@@ -20,6 +20,7 @@ package client
 import (
 	"compress/gzip"
 	"context"
+	"crypto/tls"
 	"io"
 	"net"
 	"sync/atomic"
@@ -51,10 +52,19 @@ func init() {
 // Client is a gRPC Client that connects to a teleport auth server through TLS.
 type Client struct {
 	c Config
+
+	// tlsConfig is the *tls.Config for a successfully connected client.
+	tlsConfig *tls.Config
+
+	// dialer is the ContextDialer for a successfully connected client.
+	dialer ContextDialer
+
 	// grpc is the gRPC client specification for the auth server.
 	grpc proto.AuthServiceClient
+
 	// conn is a grpc connection to the auth server.
 	conn *grpc.ClientConn
+
 	// closedFlag is set to indicate that the services are closed.
 	closedFlag int32
 }
@@ -76,31 +86,57 @@ func New(cfg Config) (*Client, error) {
 	return c, nil
 }
 
-func (c *Client) connect(noPingCheck bool) error {
-	dialer := grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
-		if c.isClosed() {
-			return nil, trace.ConnectionProblem(nil, "client is closed")
+func (c *Client) getDialer(creds Credentials) (ContextDialer, error) {
+	dialer, err := creds.Dialer()
+	if err != nil {
+		if c.c.Dialer != nil {
+			return c.c.Dialer, nil
 		}
-		conn, err := c.c.Dialer.DialContext(ctx, "tcp", addr)
+		if len(c.c.Addrs) == 0 {
+			return nil, trace.BadParameter("no dialer in credentials, configuration, or addresses provided")
+		}
+		dialer, err = NewAddrDialer(c.c.Addrs, c.c.KeepAlivePeriod, c.c.DialTimeout)
 		if err != nil {
-			return nil, trace.ConnectionProblem(err, "failed to dial")
+			return nil, trace.Wrap(err)
 		}
-		return conn, nil
-	})
+	}
+	return dialer, nil
+}
 
-	// Attempt to load credentials from each provider, and keep the first valid credentials.
-	var errs []error
+func (c *Client) connect(noPingCheck bool) error {
+	// Loop over credentials and use first successfully one.
 	var err error
-	for i, provider := range c.c.CredentialsProviders {
-		if c.c.Credentials, err = provider.Load(); err != nil {
-			errs = append(errs, trace.Errorf("CredentialsProvider[%v]: %v", i, err))
+	var errs []error
+	for _, creds := range c.c.Credentials {
+		// Load *tls.Config from the provided credentials.
+		c.tlsConfig, err = creds.Config()
+		if err != nil {
+			errs = append(errs, trace.Wrap(err))
 			continue
 		}
 
+		// Build a dialer, prefer a dialer from credentials. If no fallback to the
+		// passed in dialer and then list of addresses.
+		c.dialer, err = c.getDialer(creds)
+		if err != nil {
+			errs = append(errs, trace.Wrap(err))
+			continue
+		}
+		grpcDialer := grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
+			if c.isClosed() {
+				return nil, trace.ConnectionProblem(nil, "client is closed")
+			}
+			conn, err := c.dialer.DialContext(ctx, "tcp", addr)
+			if err != nil {
+				return nil, trace.ConnectionProblem(err, "failed to dial")
+			}
+			return conn, nil
+		})
+
 		c.conn, err = grpc.Dial(
 			constants.APIDomain,
-			dialer,
-			grpc.WithTransportCredentials(credentials.NewTLS(c.c.Credentials.TLS)),
+			grpcDialer,
+			grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConfig)),
 			grpc.WithKeepaliveParams(keepalive.ClientParameters{
 				Time:                c.c.KeepAlivePeriod,
 				Timeout:             c.c.KeepAlivePeriod * time.Duration(c.c.KeepAliveCount),
@@ -108,7 +144,7 @@ func (c *Client) connect(noPingCheck bool) error {
 			}),
 		)
 		if err != nil {
-			errs = append(errs, trace.Errorf("CredentialsProvider[%v]: %v", i, err))
+			errs = append(errs, trace.Wrap(err))
 			continue
 		}
 		c.grpc = proto.NewAuthServiceClient(c.conn)
@@ -118,13 +154,9 @@ func (c *Client) connect(noPingCheck bool) error {
 		}
 
 		if _, err := c.Ping(context.TODO()); err != nil {
-			errs = append(errs, trace.Errorf("CredentialsProvider[%v]: %v", i, err))
+			errs = append(errs, trace.Wrap(err))
 			continue
 		}
-
-		// TODO (Joerger): Check the server version with Ping response.
-		// TODO (Joerger): if connecting to auth fails, try connecting via proxy
-		// TODO (Joerger): start goroutine to detect provider reloads asynchronously.
 
 		return nil
 	}
@@ -145,29 +177,22 @@ type Config struct {
 	// KeepAliveCount specifies the amount of missed keep alives
 	// to wait for before declaring the connection as broken
 	KeepAliveCount int
-	// CredentialProviders are used to authenticate the client's connection to the server.
-	// The first provider to provide valid credentials will be used to dial the server.
-	CredentialsProviders []CredentialsProvider
-	// Credentials is the client's current Credentials for authentication. If this is provided
-	// in client creation, it will be used to create a basic CredentialProvider.
-	Credentials *Credentials
-	// NoPingCheck disables the ping check on client initialization. The ping check is used
-	// to verify and authenticate the connection, but in cases where you don't immediately
-	// expect the connection to be usable, use NoPingCheck to disable this check.
+
+	// Credentials are a list of credentials to use when attempting to connect
+	// to Auth.
+	Credentials []Credentials
+
+	// NoPingCheck disables the ping check on client initialization. The ping
+	// check is used to verify and authenticate the connection, but in cases
+	// where you don't immediately expect the connection to be usable, use
+	// NoPingCheck to disable this check.
 	NoPingCheck bool
 }
 
 // CheckAndSetDefaults checks and sets default config values
 func (c *Config) CheckAndSetDefaults() error {
-	if len(c.Addrs) == 0 && c.Dialer == nil {
-		return trace.BadParameter("set parameter Addrs or Dialer")
-	}
-	if len(c.CredentialsProviders) == 0 {
-		if c.Credentials == nil {
-			return trace.BadParameter("set parameter CredentialsProviders or Credentials")
-		}
-		// Turn provided credentials into a basic TLS provider and add it to the provider list.
-		c.CredentialsProviders = []CredentialsProvider{NewTLSProvider(c.Credentials.TLS)}
+	if len(c.Credentials) == 0 {
+		return trace.BadParameter("missing connection credentials")
 	}
 	if c.KeepAlivePeriod == 0 {
 		c.KeepAlivePeriod = defaults.ServerKeepAliveTTL
@@ -178,18 +203,17 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.DialTimeout == 0 {
 		c.DialTimeout = defaults.DefaultDialTimeout
 	}
-	if c.Dialer == nil {
-		var err error
-		if c.Dialer, err = NewAddrDialer(c.Addrs, c.KeepAlivePeriod, c.DialTimeout); err != nil {
-			return trace.Wrap(err)
-		}
-	}
 	return nil
 }
 
-// Dialer returns the client's connection dialer
+// Config returns the tls.Config the client connected with.
+func (c *Client) Config() *tls.Config {
+	return c.tlsConfig
+}
+
+// Dialer returns the ContextDialer the client connected with.
 func (c *Client) Dialer() ContextDialer {
-	return c.c.Dialer
+	return c.dialer
 }
 
 // Close closes the Client connection to the auth server

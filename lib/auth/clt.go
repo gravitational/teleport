@@ -96,28 +96,19 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 		return nil, trace.Wrap(err)
 	}
 
-	// The http client does not support credentials providers,
-	// so Credentials must be provided directly.
-	if cfg.Credentials == nil || cfg.Credentials.TLS == nil {
-		return nil, trace.Errorf("must provide Credentials with valid TLS directly")
-	}
-
-	// This logic is necessary for the client to force client to always send
-	// a certificate regardless of the server setting. Otherwise the client may pick
-	// not to send the client certificate by looking at certificate request.
-	if len(cfg.Credentials.TLS.Certificates) != 0 {
-		cert := cfg.Credentials.TLS.Certificates[0]
-		cfg.Credentials.TLS.Certificates = nil
-		cfg.Credentials.TLS.GetClientCertificate = func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
-			return &cert, nil
-		}
+	// Many uses of the lib/client do not expect an open valid connection immediately after
+	// initialization, so NoPingCheck is used for backwards compatibility with this client.
+	cfg.NoPingCheck = true
+	apiClient, err := client.New(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Clone the tls.Config and set the next protocol. This is needed due to the
 	// Auth Server using a multiplexer for protocol detection. Unless next
 	// protocol is specified it will attempt to upgrade to HTTP2 and at that point
 	// there is no way to distinguish between HTTP2/JSON or GPRC.
-	tlsConfig := cfg.Credentials.TLS.Clone()
+	tlsConfig := apiClient.Config()
 	tlsConfig.NextProtos = []string{teleport.HTTPNextProtoTLS}
 
 	transport := &http.Transport{
@@ -126,7 +117,7 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 		// to make sure client verifies the DNS name of the API server
 		// custom DialContext overrides this DNS name to the real address
 		// in addition this dialer tries multiple adresses if provided
-		DialContext:           cfg.Dialer.DialContext,
+		DialContext:           apiClient.Dialer().DialContext,
 		ResponseHeaderTimeout: defaults.DefaultDialTimeout,
 		TLSClientConfig:       tlsConfig,
 
@@ -162,13 +153,7 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Many uses of the lib/client do not expect an open valid connection immediately after
-	// initialization, so NoPingCheck is used for backwards compatibility with this client.
-	cfg.NoPingCheck = true
-	apiClient, err := client.New(cfg)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	return &Client{
 		APIClient: *apiClient,
 		Client:    *roundtripClient,
@@ -246,7 +231,9 @@ func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, e
 		DialTimeout:     cfg.DialTimeout,
 		KeepAlivePeriod: cfg.KeepAlivePeriod,
 		KeepAliveCount:  cfg.KeepAliveCount,
-		Credentials:     &client.Credentials{TLS: cfg.TLS},
+		Credentials: []client.Credentials{
+			client.LoadTLS(cfg.TLS),
+		},
 	}
 
 	return NewClient(c, params...)

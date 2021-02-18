@@ -12,7 +12,6 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
 */
 
 package client
@@ -27,12 +26,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestIdentityFileCredentials(t *testing.T) {
+func TestLoadTLS(t *testing.T) {
 	t.Parallel()
-	expectedCreds, err := getExpectedCreds(t)
+
+	// Load expected tls.Config.
+	expectedConfig, err := getExpectedConfig(t)
 	require.NoError(t, err)
 
-	// Write Identity file from bytes
+	// Load and build tls.Config.
+	config, err := LoadTLS(expectedConfig).Config()
+	require.NoError(t, err)
+
+	// Compare built and expected tls.Config.
+	require.Equal(t, config.Certificates, expectedConfig.Certificates)
+	require.Equal(t, config.RootCAs.Subjects(), expectedConfig.RootCAs.Subjects())
+}
+
+func TestLoadIdentityFile(t *testing.T) {
+	t.Parallel()
+
+	// Load expected tls.Config.
+	expectedConfig, err := getExpectedConfig(t)
+	require.NoError(t, err)
+
+	// Write identity file to disk.
 	path := filepath.Join(t.TempDir(), "file")
 	idFile := &IdentityFile{
 		PrivateKey: []byte(keyPEM),
@@ -46,93 +63,52 @@ func TestIdentityFileCredentials(t *testing.T) {
 	err = WriteIdentityFile(idFile, path)
 	require.NoError(t, err)
 
-	// Load Credentials
-	creds1, err := LoadIdentityFile(path)
-	require.NoError(t, err)
-	require.Equal(t, creds1, expectedCreds)
-
-	// Load Credentials with provider
-	provider := NewIdentityFileProvider(path)
-	creds2, err := provider.Load()
+	// Load identity file and build tls.Config.
+	config, err := LoadIdentityFile(path).Config()
 	require.NoError(t, err)
 
-	// Compare loaded credentials
-	require.Equal(t, creds1, creds2)
+	// Compare built and expected tls.Config.
+	require.Equal(t, config.Certificates, expectedConfig.Certificates)
+	require.Equal(t, config.RootCAs.Subjects(), expectedConfig.RootCAs.Subjects())
 }
 
-func TestKeyPairCredentials(t *testing.T) {
+func TestLoadKeyPair(t *testing.T) {
 	t.Parallel()
-	expectedCreds, err := getExpectedCreds(t)
+
+	// Load expected tls.Config.
+	expectedConfig, err := getExpectedConfig(t)
 	require.NoError(t, err)
 
-	// Write Key Pair and CAs files from bytes
+	// Write key pair and CAs files from bytes.
 	path := t.TempDir() + "username"
-	crtPath, keyPath, casPath := path+".crt", path+".key", path+".cas"
-	err = ioutil.WriteFile(crtPath, []byte(certPEM), 0600)
+	certPath, keyPath, caPath := path+".crt", path+".key", path+".cas"
+	err = ioutil.WriteFile(certPath, []byte(certPEM), 0600)
 	require.NoError(t, err)
 	err = ioutil.WriteFile(keyPath, []byte(keyPEM), 0600)
 	require.NoError(t, err)
-	err = ioutil.WriteFile(casPath, []byte(caCertPEM), 0600)
+	err = ioutil.WriteFile(caPath, []byte(caCertPEM), 0600)
 	require.NoError(t, err)
 
-	// Load Credentials
-	creds1, err := LoadKeyPair(crtPath, keyPath, casPath)
-	require.NoError(t, err)
-	require.Equal(t, creds1, expectedCreds)
-
-	// Load Credentials with provider
-	provider := NewKeyPairProvider(crtPath, keyPath, casPath)
-	creds2, err := provider.Load()
+	// Load key pair from disk and build tls.Config.
+	config, err := LoadKeyPair(certPath, keyPath, caPath).Config()
 	require.NoError(t, err)
 
-	// Compare loaded credentials
-	require.Equal(t, creds1, creds2)
+	// Compare built and expected tls.Config.
+	require.Equal(t, config.Certificates, expectedConfig.Certificates)
+	require.Equal(t, config.RootCAs.Subjects(), expectedConfig.RootCAs.Subjects())
 }
 
-func TestTLSCredentials(t *testing.T) {
-	t.Parallel()
-	expectedCreds, err := getExpectedCreds(t)
-	require.NoError(t, err)
-
-	// Create TLS from bytes
-	tls, err := getTLS(t)
-	require.NoError(t, err)
-
-	// Load Credentials
-	creds1, err := LoadTLS(tls)
-	require.NoError(t, err)
-	require.Equal(t, creds1, expectedCreds)
-
-	// Load Credentials with provider
-	provider := NewTLSProvider(tls)
-	creds2, err := provider.Load()
-	require.NoError(t, err)
-
-	// Compare loaded credentials
-	require.Equal(t, creds1, creds2)
-}
-
-func getTLS(t *testing.T) (*tls.Config, error) {
+func getExpectedConfig(t *testing.T) (*tls.Config, error) {
 	cert, err := tls.X509KeyPair([]byte(certPEM), []byte(keyPEM))
 	require.NoError(t, err)
 
 	pool := x509.NewCertPool()
 	require.True(t, pool.AppendCertsFromPEM([]byte(caCertPEM)))
 
-	return &tls.Config{
+	return configure(&tls.Config{
 		Certificates: []tls.Certificate{cert},
 		RootCAs:      pool,
-	}, nil
-}
-
-func getExpectedCreds(t *testing.T) (*Credentials, error) {
-	tls, err := getTLS(t)
-	require.NoError(t, err)
-
-	creds := &Credentials{tls}
-	require.NoError(t, creds.CheckAndSetDefaults())
-
-	return creds, nil
+	}), nil
 }
 
 var certPEM = `-----BEGIN CERTIFICATE-----

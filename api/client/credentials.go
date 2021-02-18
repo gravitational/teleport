@@ -26,129 +26,122 @@ import (
 	"golang.org/x/net/http2"
 )
 
-// Credentials are used to authenticate the client's connection to the server.
-type Credentials struct {
-	TLS *tls.Config
+// Credentials used to authenticate to Auth.
+type Credentials interface {
+	// Dialer used to connect to Auth.
+	Dialer() (ContextDialer, error)
+	// Config returns TLS configuration used to connect to Auth.
+	Config() (*tls.Config, error)
 }
 
-// CheckAndSetDefaults checks and sets default credential values.
-func (c *Credentials) CheckAndSetDefaults() error {
-	if c.TLS == nil {
-		return trace.BadParameter("missing TLS config")
+// LoadTLS is used to load credentials directly from another *tls.Config.
+func LoadTLS(tlsConfig *tls.Config) *tlsConfigCreds {
+	return &tlsConfigCreds{
+		tlsConfig: tlsConfig,
 	}
-	c.TLS = c.TLS.Clone()
-	c.TLS.NextProtos = []string{http2.NextProtoTLS}
-	if c.TLS.ServerName == "" {
-		c.TLS.ServerName = constants.APIDomain
-	}
-	return nil
 }
 
-// LoadIdentityFile attempts to load credentials from the specified identity file path.
-// An identity file can be saved to disk by running `tsh login --out=identity_file_path`.
-func LoadIdentityFile(path string) (*Credentials, error) {
-	idf, err := ReadIdentityFile(path)
-	if err != nil {
-		return nil, trace.BadParameter("identity file could not be decoded: %v", err)
-	}
+type tlsConfigCreds struct {
+	tlsConfig *tls.Config
+}
 
-	tls, err := idf.TLS()
+func (c *tlsConfigCreds) Dialer() (ContextDialer, error) {
+	return nil, trace.BadParameter("no dialer")
+}
+
+func (c *tlsConfigCreds) Config() (*tls.Config, error) {
+	return configure(c.tlsConfig), nil
+}
+
+// LoadKeyPair is used to load credentials from files on disk.
+func LoadKeyPair(certFile string, keyFile string, caFile string) *keyPairCreds {
+	return &keyPairCreds{
+		certFile: certFile,
+		keyFile:  keyFile,
+		caFile:   caFile,
+	}
+}
+
+type keyPairCreds struct {
+	certFile string
+	keyFile  string
+	caFile   string
+}
+
+func (c *keyPairCreds) Dialer() (ContextDialer, error) {
+	return nil, trace.BadParameter("no dialer")
+}
+
+func (c *keyPairCreds) Config() (*tls.Config, error) {
+	cert, err := tls.LoadX509KeyPair(c.certFile, c.keyFile)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	creds, err := LoadTLS(tls)
-	return creds, trace.Wrap(err)
-}
-
-// LoadKeyPair attempts to load credentials from a certificate key pair and root CAs.
-// Those files can be saved to disk with `tctl auth sign --out=path`.
-// EX: path=/certs/admin creates three files - /certs/admin.(key|crt|cas).
-func LoadKeyPair(crtFile, keyFile, casFile string) (*Credentials, error) {
-	cert, err := tls.LoadX509KeyPair(crtFile, keyFile)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	caCerts, err := ioutil.ReadFile(casFile)
+	cas, err := ioutil.ReadFile(c.caFile)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	pool := x509.NewCertPool()
-	if ok := pool.AppendCertsFromPEM(caCerts); !ok {
+	if ok := pool.AppendCertsFromPEM(cas); !ok {
 		return nil, trace.Errorf("invalid TLS CA cert PEM")
 	}
 
-	creds, err := LoadTLS(&tls.Config{
+	return configure(&tls.Config{
 		Certificates: []tls.Certificate{cert},
 		RootCAs:      pool,
-	})
-	return creds, trace.Wrap(err)
+	}), nil
 }
 
-// LoadTLS returns Credentials with the given TLS config.
-func LoadTLS(tls *tls.Config) (*Credentials, error) {
-	creds := &Credentials{TLS: tls}
-	if err := creds.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
+// LoadIdentityFile is used to load credentials from an identity file on disk.
+func LoadIdentityFile(path string) *identityCreds {
+	return &identityCreds{
+		path: path,
 	}
-	return creds, nil
 }
 
-// CredentialsProvider has a defined source of credentials, which can be dynamically loaded.
-// CredentialsProviders are used to load and test credentials during client initialization.
-// Use the function NewIdentityFileProvider or NewKeyPairProvider to create a CredentialLoader.
-type CredentialsProvider interface {
-	// Load attempts to load credentials from the provider.
-	Load() (*Credentials, error)
-}
-
-// NewIdentityFileProvider returns a CredentialsProvider that uses an identity file to load credentials.
-// An identity file can be saved to disk by running `tsh login --out=path`.
-func NewIdentityFileProvider(path string) CredentialsProvider {
-	return &identityFileProvider{path}
-}
-
-type identityFileProvider struct {
+type identityCreds struct {
 	path string
 }
 
-func (p *identityFileProvider) Load() (*Credentials, error) {
-	creds, err := LoadIdentityFile(p.path)
-	return creds, trace.Wrap(err)
+func (c *identityCreds) Dialer() (ContextDialer, error) {
+	return nil, trace.BadParameter("no dialer")
 }
 
-// NewKeyPairProvider returns a CredentialsProvider that uses a certificate key pair and root CAs
-// to load credentials. These files can be saved to disk with `tctl auth sign --out=path`.
-// EX: path=/certs/admin creates three files - /certs/admin.(key|crt|cas).
-func NewKeyPairProvider(crtFile, keyFile, casFile string) CredentialsProvider {
-	return &keyPairProvider{crtFile, keyFile, casFile}
+func (c *identityCreds) Config() (*tls.Config, error) {
+	identityFile, err := ReadIdentityFile(c.path)
+	if err != nil {
+		return nil, trace.BadParameter("identity file could not be decoded: %v", err)
+	}
+
+	tlsConfig, err := identityFile.TLS()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return configure(tlsConfig), nil
 }
 
-type keyPairProvider struct {
-	crtFile string
-	keyFile string
-	casFile string
-}
+func configure(c *tls.Config) *tls.Config {
+	tlsConfig := c.Clone()
 
-func (p *keyPairProvider) Load() (*Credentials, error) {
-	creds, err := LoadKeyPair(p.crtFile, p.keyFile, p.casFile)
-	return creds, trace.Wrap(err)
-}
+	tlsConfig.NextProtos = []string{http2.NextProtoTLS}
 
-// NewTLSProvider returns a CredentialsProvider that uses a preloaded tls.Config to load credentials.
-// The tls.Config given is stored as a pointer and can be updated dynamically, but the provided
-// Credentials won't be updated.
-func NewTLSProvider(tls *tls.Config) CredentialsProvider {
-	return &tlsProvider{tls}
-}
+	if tlsConfig.ServerName == "" {
+		tlsConfig.ServerName = constants.APIDomain
+	}
 
-type tlsProvider struct {
-	tls *tls.Config
-}
+	// This logic still appears to be necessary to force client to always send
+	// a certificate regardless of the server setting. Otherwise the client may pick
+	// not to send the client certificate by looking at certificate request.
+	if len(tlsConfig.Certificates) > 0 {
+		cert := tlsConfig.Certificates[0]
+		tlsConfig.Certificates = nil
+		tlsConfig.GetClientCertificate = func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
+			return &cert, nil
+		}
+	}
 
-func (p *tlsProvider) Load() (*Credentials, error) {
-	creds, err := LoadTLS(p.tls)
-	return creds, trace.Wrap(err)
+	return tlsConfig
 }
