@@ -1928,6 +1928,12 @@ by default, but you can enable them:
 $ teleport start --diag-addr=127.0.0.1:3000
 ```
 
+!!! tip "NOTE"
+
+    It is not recommended to run Teleport in production with the diagnostic
+    endpoints enabled as they are served over HTTP without any form of
+    authentication.
+
 Now you can see the monitoring information by visiting several endpoints:
 
 * `http://127.0.0.1:3000/metrics` is the list of internal metrics Teleport is
