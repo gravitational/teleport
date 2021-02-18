@@ -49,11 +49,11 @@ type AuthWithRoles struct {
 }
 
 func (a *AuthWithRoles) actionWithContext(ctx *services.Context, namespace string, resource string, action string) error {
-	return a.checker.CheckAccessToRule(ctx, namespace, resource, action, false)
+	return utils.OpaqueAccessDenied(a.checker.CheckAccessToRule(ctx, namespace, resource, action, false))
 }
 
 func (a *AuthWithRoles) action(namespace string, resource string, action string) error {
-	return a.checker.CheckAccessToRule(&services.Context{User: a.user}, namespace, resource, action, false)
+	return utils.OpaqueAccessDenied(a.checker.CheckAccessToRule(&services.Context{User: a.user}, namespace, resource, action, false))
 }
 
 // currentUserAction is a special checker that allows certain actions for users
@@ -63,8 +63,10 @@ func (a *AuthWithRoles) currentUserAction(username string) error {
 	if a.hasLocalUserRole(a.checker) && username == a.user.GetName() {
 		return nil
 	}
-	return a.checker.CheckAccessToRule(&services.Context{User: a.user},
-		defaults.Namespace, services.KindUser, services.VerbCreate, false)
+	return utils.OpaqueAccessDenied(
+		a.checker.CheckAccessToRule(&services.Context{User: a.user},
+			defaults.Namespace, services.KindUser, services.VerbCreate, false),
+	)
 }
 
 // authConnectorAction is a special checker that grants access to auth
@@ -74,7 +76,7 @@ func (a *AuthWithRoles) currentUserAction(username string) error {
 func (a *AuthWithRoles) authConnectorAction(namespace string, resource string, verb string) error {
 	if err := a.checker.CheckAccessToRule(&services.Context{User: a.user}, namespace, resource, verb, false); err != nil {
 		if err := a.checker.CheckAccessToRule(&services.Context{User: a.user}, namespace, services.KindAuthConnector, verb, false); err != nil {
-			return trace.Wrap(err)
+			return utils.OpaqueAccessDenied(err)
 		}
 	}
 	return nil
