@@ -62,8 +62,6 @@ import (
 	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/teleport/lib/secret"
 )
 
 // Handler is HTTP web proxy handler
