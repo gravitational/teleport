@@ -16,8 +16,9 @@ RUN apt-get install -q -y libc6-dev-i386
 RUN apt-get install -q -y net-tools
 RUN apt-get install -q -y tree
 
-RUN (groupadd jenkins --gid=$GID -o && useradd jenkins --uid=$UID --gid=$GID --create-home --shell=/bin/sh ;\
-     mkdir -p /var/lib/teleport && chown -R jenkins /var/lib/teleport)
+RUN (getent group  $GID || groupadd builder --gid=$GID -o && \
+     getent passwd $UID || useradd builder --uid=$UID --gid=$GID --create-home --shell=/bin/sh; \
+     mkdir -p /var/lib/teleport && chown -R $UID:$GID /var/lib/teleport)
 
 # Install etcd.
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz ;\
