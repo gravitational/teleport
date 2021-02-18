@@ -169,7 +169,7 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*Context, error) {
 	user.SetRoles(roleNames)
 
 	// Adjust expiry based on locally mapped roles.
-	ttl := u.Identity.Expires.Sub(time.Now())
+	ttl := time.Until(u.Identity.Expires)
 	ttl = checker.AdjustSessionTTL(ttl)
 
 	kubeUsers, kubeGroups, err := checker.CheckKubeGroupsAndUsers(ttl, false)
