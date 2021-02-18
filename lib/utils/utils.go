@@ -625,6 +625,11 @@ func (s Strings) Addrs(defaultPort int) ([]NetAddr, error) {
 	return addrs, nil
 }
 
+// StoreErrorOf stores the error returned by f within *err.
+func StoreErrorOf(f func() error, err *error) {
+	*err = trace.NewAggregate(*err, f())
+}
+
 // ReadAtMost reads up to limit bytes from r, and reports an error
 // when limit bytes are read.
 func ReadAtMost(r io.Reader, limit int64) ([]byte, error) {
