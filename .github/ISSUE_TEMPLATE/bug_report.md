@@ -37,16 +37,18 @@ Please include or attach debug logs, when appropriate. Obfuscate sensitive infor
 
 
 ### Which platform(s)
-- [ ] Teleport Open Source
-- [ ] Teleport Cloud
-- [x] Teleport Enterprise
-- [ ] Other
+<!-- Delete non-applicable platforms -->
+- Teleport Open Source
+- Teleport Cloud
+- Teleport Enterprise
+- Other
 
 ### Which component(s)
-- [x] Server Access
-- [ ] Kubernetes Access
-- [ ] Application Access
-- [ ] Database Access
-- [ ] CLI Clients
-- [ ] Web Clients
-- [ ] Other
+<!-- Delete non-applicable components -->
+- Server Access
+- Kubernetes Access
+- Application Access
+- Database Access
+- CLI Clients
+- Web Clients
+- Other
