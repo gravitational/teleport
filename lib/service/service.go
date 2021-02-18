@@ -1169,7 +1169,7 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	authorizer, err := auth.NewAuthorizer(authServer.Access, authServer.Identity, authServer.Trust)
+	authorizer, err := auth.NewAuthorizer(cfg.Auth.ClusterName.GetClusterName(), authServer.Access, authServer.Identity, authServer.Trust)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2406,6 +2406,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		Emitter:  asyncEmitter,
 		Streamer: streamer,
 	}
+	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
 
 	// register SSH reverse tunnel server that accepts connections
 	// from remote teleport nodes
@@ -2415,7 +2416,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			reversetunnel.Config{
 				Component:                     teleport.Component(teleport.ComponentProxy, process.id),
 				ID:                            process.Config.HostUUID,
-				ClusterName:                   conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+				ClusterName:                   clusterName,
 				ClientTLS:                     clientTLSConfig,
 				Listener:                      listeners.reverseTunnel,
 				HostSigners:                   []ssh.Signer{conn.ServerIdentity.KeySigner},
@@ -2654,7 +2655,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	var kubeServer *kubeproxy.TLSServer
 	if listeners.kube != nil && !process.Config.Proxy.DisableReverseTunnel {
-		authorizer, err := auth.NewAuthorizer(conn.Client, conn.Client, conn.Client)
+		authorizer, err := auth.NewAuthorizer(clusterName, conn.Client, conn.Client, conn.Client)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2668,7 +2669,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ForwarderConfig: kubeproxy.ForwarderConfig{
 				Namespace:         defaults.Namespace,
 				Keygen:            cfg.Keygen,
-				ClusterName:       conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+				ClusterName:       clusterName,
 				ReverseTunnelSrv:  tsrv,
 				Authz:             authorizer,
 				AuthClient:        conn.Client,
@@ -2973,8 +2974,9 @@ func (process *TeleportProcess) initApps() {
 				Apps:     applications,
 			},
 		}
+		clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
 
-		authorizer, err := auth.NewAuthorizer(conn.Client, conn.Client, conn.Client)
+		authorizer, err := auth.NewAuthorizer(clusterName, conn.Client, conn.Client, conn.Client)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -3018,7 +3020,7 @@ func (process *TeleportProcess) initApps() {
 				Server:      appServer,
 				AccessPoint: accessPoint,
 				HostSigner:  conn.ServerIdentity.KeySigner,
-				Cluster:     conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+				Cluster:     clusterName,
 			})
 		if err != nil {
 			return trace.Wrap(err)
