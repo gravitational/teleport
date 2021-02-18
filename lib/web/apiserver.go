@@ -2343,26 +2343,26 @@ type ssoRequestParams struct {
 	csrfToken         string
 }
 
-func parseSSORequestParams(r *http.Request) (ssoRequestParams, error) {
+func parseSSORequestParams(r *http.Request) (*ssoRequestParams, error) {
 	query := r.URL.Query()
 
 	clientRedirectURL := query.Get("redirect_url")
 	if clientRedirectURL == "" {
-		return ssoRequestParams{}, trace.BadParameter("Missing redirect_url query parameter")
+		return nil, trace.BadParameter("Missing redirect_url query parameter")
 	}
 
 	connectorID := query.Get("connector_id")
 	if connectorID == "" {
-		return ssoRequestParams{}, trace.BadParameter("Missing connector_id query parameter.")
+		return nil, trace.BadParameter("Missing connector_id query parameter.")
 
 	}
 
 	csrfToken, err := csrf.ExtractTokenFromCookie(r)
 	if err != nil {
-		return ssoRequestParams{}, trace.Wrap(err, "Unable to extract CSRF token from cookie.")
+		return nil, trace.Wrap(err, "Unable to extract CSRF token from cookie.")
 	}
 
-	return ssoRequestParams{
+	return &ssoRequestParams{
 		clientRedirectURL: clientRedirectURL,
 		connectorID:       connectorID,
 		csrfToken:         csrfToken,
