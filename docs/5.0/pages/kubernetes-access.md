@@ -41,7 +41,7 @@ Let's take a closer look at the available Kubernetes settings:
 Connecting the Teleport proxy to Kubernetes.
 
 Teleport Auth And Proxy can be ran anywhere (inside or outside of k8s). The Teleport
-proxy must have `kube_listen_addr` set.
+proxy must have `kube_listen_addr` set and optionally `kube_public_addr` set.
 
 - Options for connecting k8s clusters:
     - `kubernetes_service` in a pod [Using our Helm Chart](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport-kube-agent/README.md)
@@ -70,6 +70,8 @@ auth_service:
 proxy_service:
   public_addr: proxy.example.com:3080
   kube_listen_addr: 0.0.0.0:3027
+  # optional: set a different public address for kubernetes access
+  kube_public_addr: kube.example.com:3027
 ```
 
 To get quickly setup, we provide a Helm chart that'll connect to the above root cluster.
@@ -108,6 +110,8 @@ auth_service:
 proxy_service:
   public_addr: proxy.example.com:3080
   kube_listen_addr: 0.0.0.0:3026
+  # optional: set a different public address for kubernetes access
+  kube_public_addr: kube.example.com:3026
 
 kubernetes_service:
   enabled: yes

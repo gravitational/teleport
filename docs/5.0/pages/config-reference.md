@@ -355,6 +355,8 @@ proxy_service:
       cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
 
     kube_listen_addr: 0.0.0.0:3026
+    # optional: set a different public address for kubernetes access
+    kube_public_addr: kube.example.com:3026
 
 # This section configures the 'application service'
 app_service:

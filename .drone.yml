@@ -109,7 +109,7 @@ steps:
 
   # https://discourse.drone.io/t/how-to-exit-a-pipeline-early-without-failing/3951
   # this step looks at the output of git diff --raw to determine whether any files
-  # which don't match the pattern '^docs/' or '.md$' were changed. if there are no
+  # which don't match the pattern '^docs/', '.mdx$' or '.md$' were changed. if there are no
   # changes to non-docs code, we skip the Teleport tests and exit early with a special
   # Drone exit code to speed up iteration on docs (as milv is much quicker to run)
   - name: Optionally skip tests
@@ -122,7 +122,7 @@ steps:
         cd /tmpfs/go/src/github.com/gravitational/teleport
         echo -e "\n---> git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master}\n"
         git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master}
-        git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -Ev '^docs/' | grep -Ev '.md$' | grep -v ^$ | wc -l > /tmp/.change_count.txt
+        git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -Ev '^docs/' | grep -Ev '.mdx$' | grep -Ev '.md$' | grep -v ^$ | wc -l > /tmp/.change_count.txt
         export CHANGE_COUNT=$(cat /tmp/.change_count.txt | tr -d '\n')
         echo -e "\n---> Non-docs changes detected: $$CHANGE_COUNT"
         if [ $$CHANGE_COUNT -gt 0 ]; then
@@ -4391,6 +4391,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 6a5acaa383f34c9905f752bccae72b029386ff1536a6c45465c88b8fc6f611ca
+hmac: 16ca136b787835e99245782fcd43759abd8ca690aa45f64c607a39fb37f91628
 
 ...
