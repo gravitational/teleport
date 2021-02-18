@@ -1816,13 +1816,6 @@ func printProfiles(debug bool, profile *client.ProfileStatus, profiles []*client
 	for _, p := range profiles {
 		printStatus(debug, p, false)
 	}
-
-	// If we are printing profile, add a note that even though roles are listed
-	// here, they are only available in Enterprise.
-	if profile != nil || len(profiles) > 0 {
-		fmt.Printf("\n* RBAC is only available in Teleport Enterprise\n")
-		fmt.Printf("  https://goteleport.com/teleport/docs/enterprise\n")
-	}
 }
 
 // host is a utility function that extracts

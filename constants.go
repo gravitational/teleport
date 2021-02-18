@@ -546,6 +546,12 @@ const Root = "root"
 // another role is not explicitly assigned (Enterprise only).
 const AdminRoleName = "admin"
 
+// OSSUserRoleName is a role created for open source user
+const OSSUserRoleName = "ossuser"
+
+// OSSMigratedV6 is a label to mark migrated OSS users and resources
+const OSSMigratedV6 = "migrate-v6.0"
+
 // MinClientVersion is the minimum client version required by the server.
 const MinClientVersion = "3.0.0"
 
@@ -695,3 +701,7 @@ const (
 
 // UserSingleUseCertTTL is a TTL for per-connection user certificates.
 const UserSingleUseCertTTL = time.Minute
+
+// StandardHTTPSPort is the default port used for the https URI scheme,
+// cf. RFC 7230 § 2.7.2.
+const StandardHTTPSPort = 443

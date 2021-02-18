@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
@@ -42,21 +41,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate"
 )
-
-// AdminUserRules provides access to the default set of rules assigned to
-// all users.
-//
-// DELETE IN: 5.1.0.
-//
-// Once RBAC is open sourced, remove this and rename "ExtendedAdminUserRules" to
-// "AdminUserRules".
-var AdminUserRules = []Rule{
-	NewRule(KindRole, RW()),
-	NewRule(KindAuthConnector, RW()),
-	NewRule(KindSession, RO()),
-	NewRule(KindTrustedCluster, RW()),
-	NewRule(KindEvent, RO()),
-}
 
 // ExtendedAdminUserRules provides access to the default set of rules assigned to
 // all users.
@@ -111,13 +95,7 @@ func RoleNameForCertAuthority(name string) string {
 // NewAdminRole is the default admin role for all local users if another role
 // is not explicitly assigned (this role applies to all users in OSS version).
 func NewAdminRole() Role {
-	// DELETE IN: 5.1.0
-	//
-	// Only needed until 5.1 when user and token management will be added to OSS.
-	adminRules := CopyRulesSlice(AdminUserRules)
-	if modules.GetModules().ExtendAdminUserRules() {
-		adminRules = CopyRulesSlice(ExtendedAdminUserRules)
-	}
+	adminRules := CopyRulesSlice(ExtendedAdminUserRules)
 
 	role := &RoleV3{
 		Kind:    KindRole,
@@ -146,9 +124,9 @@ func NewAdminRole() Role {
 			},
 		},
 	}
-	role.SetLogins(Allow, modules.GetModules().DefaultAllowedLogins())
-	role.SetKubeUsers(Allow, modules.GetModules().DefaultKubeUsers())
-	role.SetKubeGroups(Allow, modules.GetModules().DefaultKubeGroups())
+	role.SetLogins(Allow, []string{teleport.TraitInternalLoginsVariable, teleport.Root})
+	role.SetKubeUsers(Allow, []string{teleport.TraitInternalKubeUsersVariable})
+	role.SetKubeGroups(Allow, []string{teleport.TraitInternalKubeGroupsVariable})
 	return role
 }
 
@@ -201,10 +179,92 @@ func RoleForUser(u User) Role {
 				AppLabels:        Labels{Wildcard: []string{Wildcard}},
 				KubernetesLabels: Labels{Wildcard: []string{Wildcard}},
 				DatabaseLabels:   Labels{Wildcard: []string{Wildcard}},
-				Rules:            CopyRulesSlice(AdminUserRules),
+				Rules: []Rule{
+					NewRule(KindRole, RW()),
+					NewRule(KindAuthConnector, RW()),
+					NewRule(KindSession, RO()),
+					NewRule(KindTrustedCluster, RW()),
+					NewRule(KindEvent, RO()),
+				},
 			},
 		},
 	}
+}
+
+// NewOSSUserRole is a role for enabling RBAC for open source users.
+// This is a limited role
+func NewOSSUserRole(name ...string) Role {
+	role := &RoleV3{
+		Kind:    KindRole,
+		Version: V3,
+		Metadata: Metadata{
+			Name:      teleport.OSSUserRoleName,
+			Namespace: defaults.Namespace,
+		},
+		Spec: RoleSpecV3{
+			Options: RoleOptions{
+				CertificateFormat: teleport.CertificateFormatStandard,
+				MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
+				PortForwarding:    NewBoolOption(true),
+				ForwardAgent:      NewBool(true),
+				BPF:               defaults.EnhancedEvents(),
+			},
+			Allow: RoleConditions{
+				Namespaces:       []string{defaults.Namespace},
+				NodeLabels:       Labels{Wildcard: []string{Wildcard}},
+				AppLabels:        Labels{Wildcard: []string{Wildcard}},
+				KubernetesLabels: Labels{Wildcard: []string{Wildcard}},
+				DatabaseLabels:   Labels{Wildcard: []string{Wildcard}},
+				DatabaseNames:    []string{teleport.TraitInternalDBNamesVariable},
+				DatabaseUsers:    []string{teleport.TraitInternalDBUsersVariable},
+				Rules: []Rule{
+					NewRule(KindEvent, RO()),
+					NewRule(KindSession, RO()),
+				},
+			},
+		},
+	}
+	role.SetLogins(Allow, []string{teleport.TraitInternalLoginsVariable})
+	role.SetKubeUsers(Allow, []string{teleport.TraitInternalKubeUsersVariable})
+	role.SetKubeGroups(Allow, []string{teleport.TraitInternalKubeGroupsVariable})
+	return role
+}
+
+// NewOSSGithubRole creates a role for enabling RBAC for open source Github users
+func NewOSSGithubRole(logins []string, kubeUsers []string, kubeGroups []string) Role {
+	role := &RoleV3{
+		Kind:    KindRole,
+		Version: V3,
+		Metadata: Metadata{
+			Name:      "github-" + uuid.New(),
+			Namespace: defaults.Namespace,
+		},
+		Spec: RoleSpecV3{
+			Options: RoleOptions{
+				CertificateFormat: teleport.CertificateFormatStandard,
+				MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
+				PortForwarding:    NewBoolOption(true),
+				ForwardAgent:      NewBool(true),
+				BPF:               defaults.EnhancedEvents(),
+			},
+			Allow: RoleConditions{
+				Namespaces:       []string{defaults.Namespace},
+				NodeLabels:       Labels{Wildcard: []string{Wildcard}},
+				AppLabels:        Labels{Wildcard: []string{Wildcard}},
+				KubernetesLabels: Labels{Wildcard: []string{Wildcard}},
+				DatabaseLabels:   Labels{Wildcard: []string{Wildcard}},
+				DatabaseNames:    []string{teleport.TraitInternalDBNamesVariable},
+				DatabaseUsers:    []string{teleport.TraitInternalDBUsersVariable},
+				Rules: []Rule{
+					NewRule(KindEvent, RO()),
+				},
+			},
+		},
+	}
+	role.SetLogins(Allow, logins)
+	role.SetKubeUsers(Allow, kubeUsers)
+	role.SetKubeGroups(Allow, kubeGroups)
+	return role
 }
 
 // RoleForCertAuthority creates role using services.CertAuthority.
@@ -416,6 +476,24 @@ func ApplyTraits(r Role, traits map[string][]string) Role {
 		inLabels = r.GetClusterLabels(condition)
 		if inLabels != nil {
 			r.SetClusterLabels(condition, applyLabelsTraits(inLabels, traits))
+		}
+
+		// apply templates to kube labels
+		inLabels = r.GetKubernetesLabels(condition)
+		if inLabels != nil {
+			r.SetKubernetesLabels(condition, applyLabelsTraits(inLabels, traits))
+		}
+
+		// apply templates to app labels
+		inLabels = r.GetAppLabels(condition)
+		if inLabels != nil {
+			r.SetAppLabels(condition, applyLabelsTraits(inLabels, traits))
+		}
+
+		// apply templates to database labels
+		inLabels = r.GetDatabaseLabels(condition)
+		if inLabels != nil {
+			r.SetDatabaseLabels(condition, applyLabelsTraits(inLabels, traits))
 		}
 	}
 

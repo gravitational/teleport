@@ -33,6 +33,8 @@ import (
 type CertAuthority interface {
 	// ResourceWithSecrets sets common resource properties
 	ResourceWithSecrets
+	// SetMetadata sets CA metadata
+	SetMetadata(meta Metadata)
 	// GetID returns certificate authority ID -
 	// combined type and name
 	GetID() CertAuthID
@@ -175,6 +177,11 @@ func (ca *CertAuthorityV2) GetJWTKeyPairs() []JWTKeyPair {
 // SetJWTKeyPairs sets all JWT keypairs used to sign a JWT.
 func (ca *CertAuthorityV2) SetJWTKeyPairs(keyPairs []JWTKeyPair) {
 	ca.Spec.JWTKeyPairs = keyPairs
+}
+
+// SetMetadata sets object metadata
+func (ca *CertAuthorityV2) SetMetadata(meta Metadata) {
+	ca.Metadata = meta
 }
 
 // GetMetadata returns object metadata
