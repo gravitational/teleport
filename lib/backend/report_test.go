@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestReporterTopRequestsLimit(t *testing.T) {
@@ -18,7 +18,7 @@ func TestReporterTopRequestsLimit(t *testing.T) {
 		Component:        "test",
 		TopRequestsCount: topRequests,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	countTopRequests := func() int {
 		ch := make(chan prometheus.Metric)
@@ -35,7 +35,7 @@ func TestReporterTopRequestsLimit(t *testing.T) {
 	}
 
 	// At first, the metric should have no values.
-	assert.Equal(t, 0, countTopRequests())
+	require.Equal(t, 0, countTopRequests())
 
 	// Run through 1000 unique keys.
 	for i := 0; i < 1000; i++ {
@@ -43,5 +43,27 @@ func TestReporterTopRequestsLimit(t *testing.T) {
 	}
 
 	// Now the metric should have only 10 of the keys above.
-	assert.Equal(t, topRequests, countTopRequests())
+	require.Equal(t, topRequests, countTopRequests())
+}
+
+func TestBuildKeyLabel(t *testing.T) {
+	sensitivePrefixes := []string{"secret"}
+	testCases := []struct {
+		input     string
+		scrambled string
+	}{
+		{"/secret/", "/secret/"},
+		{"/secret/a", "/secret/a"},
+		{"/secret/ab", "/secret/*b"},
+		{"/secret/1b4d2844-f0e3-4255-94db-bf0e91883205", "/secret/***************************e91883205"},
+		{"/secret/secret-role", "/secret/********ole"},
+		{"/secret/graviton-leaf", "/secret/*********leaf"},
+		{"/secret/graviton-leaf/sub1/sub2", "/secret/*********leaf"},
+		{"/public/graviton-leaf", "/public/graviton-leaf"},
+		{"/public/graviton-leaf/sub1/sub2", "/public/graviton-leaf"},
+		{".data/secret/graviton-leaf", ".data/secret/graviton-leaf"},
+	}
+	for _, tc := range testCases {
+		require.Equal(t, tc.scrambled, buildKeyLabel([]byte(tc.input), sensitivePrefixes))
+	}
 }

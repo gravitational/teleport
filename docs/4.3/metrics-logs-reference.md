@@ -8,7 +8,9 @@ description: How to set up Prometheus to monitor Teleport for SSH and Kubernetes
 ## Teleport Prometheus Endpoint
 
 Teleport provides HTTP endpoints for monitoring purposes. They are disabled
-by default, but you can enable them using the `--diag-addr` flag to `teleport start`:
+by default because they are served **without any form of authentication**.
+After employing adequate perimeter security measures, you can enable them
+using the `--diag-addr` flag to `teleport start`:
 
 ```bash
 $ teleport start --diag-addr=127.0.0.1:3000
