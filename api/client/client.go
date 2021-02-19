@@ -84,7 +84,7 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 }
 
 // getDialer builds a grpc dialer for the client from a ContextDialer.
-// The ContextDialer is chosen from available options, prefering one from
+// The ContextDialer is chosen from available options, preferring one from
 // credentials, then from configuration, and lastly from addresses.
 func (c *Client) setDialer(creds Credentials) error {
 	var err error
@@ -119,7 +119,7 @@ func (c *Client) grpcDialer() grpcDialer {
 }
 
 func (c *Client) connect(ctx context.Context) error {
-	// Loop over credentials and use first successfull one.
+	// Loop over credentials and use first successful one.
 	var err error
 	var errs []error
 	for _, creds := range c.c.Credentials {

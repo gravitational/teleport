@@ -35,44 +35,44 @@ type Credentials interface {
 }
 
 // LoadTLS is used to load credentials directly from another *tls.Config.
-func LoadTLS(tlsConfig *tls.Config) *tlsConfigCreds {
-	return &tlsConfigCreds{
+func LoadTLS(tlsConfig *tls.Config) *TLSConfigCreds {
+	return &TLSConfigCreds{
 		tlsConfig: tlsConfig,
 	}
 }
 
-type tlsConfigCreds struct {
+type TLSConfigCreds struct {
 	tlsConfig *tls.Config
 }
 
-func (c *tlsConfigCreds) Dialer() (ContextDialer, error) {
+func (c *TLSConfigCreds) Dialer() (ContextDialer, error) {
 	return nil, trace.NotImplemented("no dialer")
 }
 
-func (c *tlsConfigCreds) Config() (*tls.Config, error) {
+func (c *TLSConfigCreds) Config() (*tls.Config, error) {
 	return configure(c.tlsConfig), nil
 }
 
 // LoadKeyPair is used to load credentials from files on disk.
-func LoadKeyPair(certFile string, keyFile string, caFile string) *keyPairCreds {
-	return &keyPairCreds{
+func LoadKeyPair(certFile string, keyFile string, caFile string) *KeyPairCreds {
+	return &KeyPairCreds{
 		certFile: certFile,
 		keyFile:  keyFile,
 		caFile:   caFile,
 	}
 }
 
-type keyPairCreds struct {
+type KeyPairCreds struct {
 	certFile string
 	keyFile  string
 	caFile   string
 }
 
-func (c *keyPairCreds) Dialer() (ContextDialer, error) {
+func (c *KeyPairCreds) Dialer() (ContextDialer, error) {
 	return nil, trace.NotImplemented("no dialer")
 }
 
-func (c *keyPairCreds) Config() (*tls.Config, error) {
+func (c *KeyPairCreds) Config() (*tls.Config, error) {
 	cert, err := tls.LoadX509KeyPair(c.certFile, c.keyFile)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -95,21 +95,21 @@ func (c *keyPairCreds) Config() (*tls.Config, error) {
 }
 
 // LoadIdentityFile is used to load credentials from an identity file on disk.
-func LoadIdentityFile(path string) *identityCreds {
-	return &identityCreds{
+func LoadIdentityFile(path string) *IdentityCreds {
+	return &IdentityCreds{
 		path: path,
 	}
 }
 
-type identityCreds struct {
+type IdentityCreds struct {
 	path string
 }
 
-func (c *identityCreds) Dialer() (ContextDialer, error) {
+func (c *IdentityCreds) Dialer() (ContextDialer, error) {
 	return nil, trace.NotImplemented("no dialer")
 }
 
-func (c *identityCreds) Config() (*tls.Config, error) {
+func (c *IdentityCreds) Config() (*tls.Config, error) {
 	identityFile, err := ReadIdentityFile(c.path)
 	if err != nil {
 		return nil, trace.BadParameter("identity file could not be decoded: %v", err)
