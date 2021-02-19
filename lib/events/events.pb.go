@@ -51,7 +51,7 @@ func (m *Metadata) Reset()         { *m = Metadata{} }
 func (m *Metadata) String() string { return proto.CompactTextString(m) }
 func (*Metadata) ProtoMessage()    {}
 func (*Metadata) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{0}
+	return fileDescriptor_events_383970cc348cb379, []int{0}
 }
 func (m *Metadata) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -93,7 +93,7 @@ func (m *SessionMetadata) Reset()         { *m = SessionMetadata{} }
 func (m *SessionMetadata) String() string { return proto.CompactTextString(m) }
 func (*SessionMetadata) ProtoMessage()    {}
 func (*SessionMetadata) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{1}
+	return fileDescriptor_events_383970cc348cb379, []int{1}
 }
 func (m *SessionMetadata) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -137,7 +137,7 @@ func (m *UserMetadata) Reset()         { *m = UserMetadata{} }
 func (m *UserMetadata) String() string { return proto.CompactTextString(m) }
 func (*UserMetadata) ProtoMessage()    {}
 func (*UserMetadata) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{2}
+	return fileDescriptor_events_383970cc348cb379, []int{2}
 }
 func (m *UserMetadata) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -188,7 +188,7 @@ func (m *ServerMetadata) Reset()         { *m = ServerMetadata{} }
 func (m *ServerMetadata) String() string { return proto.CompactTextString(m) }
 func (*ServerMetadata) ProtoMessage()    {}
 func (*ServerMetadata) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{3}
+	return fileDescriptor_events_383970cc348cb379, []int{3}
 }
 func (m *ServerMetadata) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -234,7 +234,7 @@ func (m *ConnectionMetadata) Reset()         { *m = ConnectionMetadata{} }
 func (m *ConnectionMetadata) String() string { return proto.CompactTextString(m) }
 func (*ConnectionMetadata) ProtoMessage()    {}
 func (*ConnectionMetadata) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{4}
+	return fileDescriptor_events_383970cc348cb379, []int{4}
 }
 func (m *ConnectionMetadata) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -281,7 +281,7 @@ func (m *KubernetesClusterMetadata) Reset()         { *m = KubernetesClusterMeta
 func (m *KubernetesClusterMetadata) String() string { return proto.CompactTextString(m) }
 func (*KubernetesClusterMetadata) ProtoMessage()    {}
 func (*KubernetesClusterMetadata) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{5}
+	return fileDescriptor_events_383970cc348cb379, []int{5}
 }
 func (m *KubernetesClusterMetadata) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -332,7 +332,7 @@ func (m *KubernetesPodMetadata) Reset()         { *m = KubernetesPodMetadata{} }
 func (m *KubernetesPodMetadata) String() string { return proto.CompactTextString(m) }
 func (*KubernetesPodMetadata) ProtoMessage()    {}
 func (*KubernetesPodMetadata) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{6}
+	return fileDescriptor_events_383970cc348cb379, []int{6}
 }
 func (m *KubernetesPodMetadata) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -391,7 +391,7 @@ func (m *SessionStart) Reset()         { *m = SessionStart{} }
 func (m *SessionStart) String() string { return proto.CompactTextString(m) }
 func (*SessionStart) ProtoMessage()    {}
 func (*SessionStart) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{7}
+	return fileDescriptor_events_383970cc348cb379, []int{7}
 }
 func (m *SessionStart) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -444,7 +444,7 @@ func (m *SessionJoin) Reset()         { *m = SessionJoin{} }
 func (m *SessionJoin) String() string { return proto.CompactTextString(m) }
 func (*SessionJoin) ProtoMessage()    {}
 func (*SessionJoin) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{8}
+	return fileDescriptor_events_383970cc348cb379, []int{8}
 }
 func (m *SessionJoin) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -498,7 +498,7 @@ func (m *SessionPrint) Reset()         { *m = SessionPrint{} }
 func (m *SessionPrint) String() string { return proto.CompactTextString(m) }
 func (*SessionPrint) ProtoMessage()    {}
 func (*SessionPrint) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{9}
+	return fileDescriptor_events_383970cc348cb379, []int{9}
 }
 func (m *SessionPrint) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -553,7 +553,7 @@ func (m *SessionReject) Reset()         { *m = SessionReject{} }
 func (m *SessionReject) String() string { return proto.CompactTextString(m) }
 func (*SessionReject) ProtoMessage()    {}
 func (*SessionReject) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{10}
+	return fileDescriptor_events_383970cc348cb379, []int{10}
 }
 func (m *SessionReject) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -610,7 +610,7 @@ func (m *Resize) Reset()         { *m = Resize{} }
 func (m *Resize) String() string { return proto.CompactTextString(m) }
 func (*Resize) ProtoMessage()    {}
 func (*Resize) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{11}
+	return fileDescriptor_events_383970cc348cb379, []int{11}
 }
 func (m *Resize) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -679,7 +679,7 @@ func (m *SessionEnd) Reset()         { *m = SessionEnd{} }
 func (m *SessionEnd) String() string { return proto.CompactTextString(m) }
 func (*SessionEnd) ProtoMessage()    {}
 func (*SessionEnd) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{12}
+	return fileDescriptor_events_383970cc348cb379, []int{12}
 }
 func (m *SessionEnd) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -725,7 +725,7 @@ func (m *BPFMetadata) Reset()         { *m = BPFMetadata{} }
 func (m *BPFMetadata) String() string { return proto.CompactTextString(m) }
 func (*BPFMetadata) ProtoMessage()    {}
 func (*BPFMetadata) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{13}
+	return fileDescriptor_events_383970cc348cb379, []int{13}
 }
 func (m *BPFMetadata) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -771,7 +771,7 @@ func (m *Status) Reset()         { *m = Status{} }
 func (m *Status) String() string { return proto.CompactTextString(m) }
 func (*Status) ProtoMessage()    {}
 func (*Status) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{14}
+	return fileDescriptor_events_383970cc348cb379, []int{14}
 }
 func (m *Status) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -830,7 +830,7 @@ func (m *SessionCommand) Reset()         { *m = SessionCommand{} }
 func (m *SessionCommand) String() string { return proto.CompactTextString(m) }
 func (*SessionCommand) ProtoMessage()    {}
 func (*SessionCommand) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{15}
+	return fileDescriptor_events_383970cc348cb379, []int{15}
 }
 func (m *SessionCommand) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -886,7 +886,7 @@ func (m *SessionDisk) Reset()         { *m = SessionDisk{} }
 func (m *SessionDisk) String() string { return proto.CompactTextString(m) }
 func (*SessionDisk) ProtoMessage()    {}
 func (*SessionDisk) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{16}
+	return fileDescriptor_events_383970cc348cb379, []int{16}
 }
 func (m *SessionDisk) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -944,7 +944,7 @@ func (m *SessionNetwork) Reset()         { *m = SessionNetwork{} }
 func (m *SessionNetwork) String() string { return proto.CompactTextString(m) }
 func (*SessionNetwork) ProtoMessage()    {}
 func (*SessionNetwork) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{17}
+	return fileDescriptor_events_383970cc348cb379, []int{17}
 }
 func (m *SessionNetwork) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -998,7 +998,7 @@ func (m *SessionData) Reset()         { *m = SessionData{} }
 func (m *SessionData) String() string { return proto.CompactTextString(m) }
 func (*SessionData) ProtoMessage()    {}
 func (*SessionData) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{18}
+	return fileDescriptor_events_383970cc348cb379, []int{18}
 }
 func (m *SessionData) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1048,7 +1048,7 @@ func (m *SessionLeave) Reset()         { *m = SessionLeave{} }
 func (m *SessionLeave) String() string { return proto.CompactTextString(m) }
 func (*SessionLeave) ProtoMessage()    {}
 func (*SessionLeave) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{19}
+	return fileDescriptor_events_383970cc348cb379, []int{19}
 }
 func (m *SessionLeave) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1098,7 +1098,7 @@ func (m *UserLogin) Reset()         { *m = UserLogin{} }
 func (m *UserLogin) String() string { return proto.CompactTextString(m) }
 func (*UserLogin) ProtoMessage()    {}
 func (*UserLogin) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{20}
+	return fileDescriptor_events_383970cc348cb379, []int{20}
 }
 func (m *UserLogin) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1148,7 +1148,7 @@ func (m *ResourceMetadata) Reset()         { *m = ResourceMetadata{} }
 func (m *ResourceMetadata) String() string { return proto.CompactTextString(m) }
 func (*ResourceMetadata) ProtoMessage()    {}
 func (*ResourceMetadata) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{21}
+	return fileDescriptor_events_383970cc348cb379, []int{21}
 }
 func (m *ResourceMetadata) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1198,7 +1198,7 @@ func (m *UserCreate) Reset()         { *m = UserCreate{} }
 func (m *UserCreate) String() string { return proto.CompactTextString(m) }
 func (*UserCreate) ProtoMessage()    {}
 func (*UserCreate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{22}
+	return fileDescriptor_events_383970cc348cb379, []int{22}
 }
 func (m *UserCreate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1244,7 +1244,7 @@ func (m *UserDelete) Reset()         { *m = UserDelete{} }
 func (m *UserDelete) String() string { return proto.CompactTextString(m) }
 func (*UserDelete) ProtoMessage()    {}
 func (*UserDelete) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{23}
+	return fileDescriptor_events_383970cc348cb379, []int{23}
 }
 func (m *UserDelete) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1288,7 +1288,7 @@ func (m *UserPasswordChange) Reset()         { *m = UserPasswordChange{} }
 func (m *UserPasswordChange) String() string { return proto.CompactTextString(m) }
 func (*UserPasswordChange) ProtoMessage()    {}
 func (*UserPasswordChange) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{24}
+	return fileDescriptor_events_383970cc348cb379, []int{24}
 }
 func (m *UserPasswordChange) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1349,7 +1349,7 @@ func (m *AccessRequestCreate) Reset()         { *m = AccessRequestCreate{} }
 func (m *AccessRequestCreate) String() string { return proto.CompactTextString(m) }
 func (*AccessRequestCreate) ProtoMessage()    {}
 func (*AccessRequestCreate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{25}
+	return fileDescriptor_events_383970cc348cb379, []int{25}
 }
 func (m *AccessRequestCreate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1399,7 +1399,7 @@ func (m *PortForward) Reset()         { *m = PortForward{} }
 func (m *PortForward) String() string { return proto.CompactTextString(m) }
 func (*PortForward) ProtoMessage()    {}
 func (*PortForward) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{26}
+	return fileDescriptor_events_383970cc348cb379, []int{26}
 }
 func (m *PortForward) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1447,7 +1447,7 @@ func (m *X11Forward) Reset()         { *m = X11Forward{} }
 func (m *X11Forward) String() string { return proto.CompactTextString(m) }
 func (*X11Forward) ProtoMessage()    {}
 func (*X11Forward) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{27}
+	return fileDescriptor_events_383970cc348cb379, []int{27}
 }
 func (m *X11Forward) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1493,7 +1493,7 @@ func (m *CommandMetadata) Reset()         { *m = CommandMetadata{} }
 func (m *CommandMetadata) String() string { return proto.CompactTextString(m) }
 func (*CommandMetadata) ProtoMessage()    {}
 func (*CommandMetadata) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{28}
+	return fileDescriptor_events_383970cc348cb379, []int{28}
 }
 func (m *CommandMetadata) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1550,7 +1550,7 @@ func (m *Exec) Reset()         { *m = Exec{} }
 func (m *Exec) String() string { return proto.CompactTextString(m) }
 func (*Exec) ProtoMessage()    {}
 func (*Exec) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{29}
+	return fileDescriptor_events_383970cc348cb379, []int{29}
 }
 func (m *Exec) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1606,7 +1606,7 @@ func (m *SCP) Reset()         { *m = SCP{} }
 func (m *SCP) String() string { return proto.CompactTextString(m) }
 func (*SCP) ProtoMessage()    {}
 func (*SCP) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{30}
+	return fileDescriptor_events_383970cc348cb379, []int{30}
 }
 func (m *SCP) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1656,7 +1656,7 @@ func (m *Subsystem) Reset()         { *m = Subsystem{} }
 func (m *Subsystem) String() string { return proto.CompactTextString(m) }
 func (*Subsystem) ProtoMessage()    {}
 func (*Subsystem) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{31}
+	return fileDescriptor_events_383970cc348cb379, []int{31}
 }
 func (m *Subsystem) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1708,7 +1708,7 @@ func (m *ClientDisconnect) Reset()         { *m = ClientDisconnect{} }
 func (m *ClientDisconnect) String() string { return proto.CompactTextString(m) }
 func (*ClientDisconnect) ProtoMessage()    {}
 func (*ClientDisconnect) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{32}
+	return fileDescriptor_events_383970cc348cb379, []int{32}
 }
 func (m *ClientDisconnect) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1756,7 +1756,7 @@ func (m *AuthAttempt) Reset()         { *m = AuthAttempt{} }
 func (m *AuthAttempt) String() string { return proto.CompactTextString(m) }
 func (*AuthAttempt) ProtoMessage()    {}
 func (*AuthAttempt) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{33}
+	return fileDescriptor_events_383970cc348cb379, []int{33}
 }
 func (m *AuthAttempt) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1802,7 +1802,7 @@ func (m *ResetPasswordTokenCreate) Reset()         { *m = ResetPasswordTokenCrea
 func (m *ResetPasswordTokenCreate) String() string { return proto.CompactTextString(m) }
 func (*ResetPasswordTokenCreate) ProtoMessage()    {}
 func (*ResetPasswordTokenCreate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{34}
+	return fileDescriptor_events_383970cc348cb379, []int{34}
 }
 func (m *ResetPasswordTokenCreate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1848,7 +1848,7 @@ func (m *RoleCreate) Reset()         { *m = RoleCreate{} }
 func (m *RoleCreate) String() string { return proto.CompactTextString(m) }
 func (*RoleCreate) ProtoMessage()    {}
 func (*RoleCreate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{35}
+	return fileDescriptor_events_383970cc348cb379, []int{35}
 }
 func (m *RoleCreate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1894,7 +1894,7 @@ func (m *RoleDelete) Reset()         { *m = RoleDelete{} }
 func (m *RoleDelete) String() string { return proto.CompactTextString(m) }
 func (*RoleDelete) ProtoMessage()    {}
 func (*RoleDelete) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{36}
+	return fileDescriptor_events_383970cc348cb379, []int{36}
 }
 func (m *RoleDelete) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1940,7 +1940,7 @@ func (m *TrustedClusterCreate) Reset()         { *m = TrustedClusterCreate{} }
 func (m *TrustedClusterCreate) String() string { return proto.CompactTextString(m) }
 func (*TrustedClusterCreate) ProtoMessage()    {}
 func (*TrustedClusterCreate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{37}
+	return fileDescriptor_events_383970cc348cb379, []int{37}
 }
 func (m *TrustedClusterCreate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1986,7 +1986,7 @@ func (m *TrustedClusterDelete) Reset()         { *m = TrustedClusterDelete{} }
 func (m *TrustedClusterDelete) String() string { return proto.CompactTextString(m) }
 func (*TrustedClusterDelete) ProtoMessage()    {}
 func (*TrustedClusterDelete) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{38}
+	return fileDescriptor_events_383970cc348cb379, []int{38}
 }
 func (m *TrustedClusterDelete) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2033,7 +2033,7 @@ func (m *TrustedClusterTokenCreate) Reset()         { *m = TrustedClusterTokenCr
 func (m *TrustedClusterTokenCreate) String() string { return proto.CompactTextString(m) }
 func (*TrustedClusterTokenCreate) ProtoMessage()    {}
 func (*TrustedClusterTokenCreate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{39}
+	return fileDescriptor_events_383970cc348cb379, []int{39}
 }
 func (m *TrustedClusterTokenCreate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2079,7 +2079,7 @@ func (m *GithubConnectorCreate) Reset()         { *m = GithubConnectorCreate{} }
 func (m *GithubConnectorCreate) String() string { return proto.CompactTextString(m) }
 func (*GithubConnectorCreate) ProtoMessage()    {}
 func (*GithubConnectorCreate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{40}
+	return fileDescriptor_events_383970cc348cb379, []int{40}
 }
 func (m *GithubConnectorCreate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2125,7 +2125,7 @@ func (m *GithubConnectorDelete) Reset()         { *m = GithubConnectorDelete{} }
 func (m *GithubConnectorDelete) String() string { return proto.CompactTextString(m) }
 func (*GithubConnectorDelete) ProtoMessage()    {}
 func (*GithubConnectorDelete) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{41}
+	return fileDescriptor_events_383970cc348cb379, []int{41}
 }
 func (m *GithubConnectorDelete) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2171,7 +2171,7 @@ func (m *OIDCConnectorCreate) Reset()         { *m = OIDCConnectorCreate{} }
 func (m *OIDCConnectorCreate) String() string { return proto.CompactTextString(m) }
 func (*OIDCConnectorCreate) ProtoMessage()    {}
 func (*OIDCConnectorCreate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{42}
+	return fileDescriptor_events_383970cc348cb379, []int{42}
 }
 func (m *OIDCConnectorCreate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2217,7 +2217,7 @@ func (m *OIDCConnectorDelete) Reset()         { *m = OIDCConnectorDelete{} }
 func (m *OIDCConnectorDelete) String() string { return proto.CompactTextString(m) }
 func (*OIDCConnectorDelete) ProtoMessage()    {}
 func (*OIDCConnectorDelete) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{43}
+	return fileDescriptor_events_383970cc348cb379, []int{43}
 }
 func (m *OIDCConnectorDelete) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2263,7 +2263,7 @@ func (m *SAMLConnectorCreate) Reset()         { *m = SAMLConnectorCreate{} }
 func (m *SAMLConnectorCreate) String() string { return proto.CompactTextString(m) }
 func (*SAMLConnectorCreate) ProtoMessage()    {}
 func (*SAMLConnectorCreate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{44}
+	return fileDescriptor_events_383970cc348cb379, []int{44}
 }
 func (m *SAMLConnectorCreate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2309,7 +2309,7 @@ func (m *SAMLConnectorDelete) Reset()         { *m = SAMLConnectorDelete{} }
 func (m *SAMLConnectorDelete) String() string { return proto.CompactTextString(m) }
 func (*SAMLConnectorDelete) ProtoMessage()    {}
 func (*SAMLConnectorDelete) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{45}
+	return fileDescriptor_events_383970cc348cb379, []int{45}
 }
 func (m *SAMLConnectorDelete) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2373,7 +2373,7 @@ func (m *KubeRequest) Reset()         { *m = KubeRequest{} }
 func (m *KubeRequest) String() string { return proto.CompactTextString(m) }
 func (*KubeRequest) ProtoMessage()    {}
 func (*KubeRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{46}
+	return fileDescriptor_events_383970cc348cb379, []int{46}
 }
 func (m *KubeRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2425,7 +2425,7 @@ func (m *AppSessionStart) Reset()         { *m = AppSessionStart{} }
 func (m *AppSessionStart) String() string { return proto.CompactTextString(m) }
 func (*AppSessionStart) ProtoMessage()    {}
 func (*AppSessionStart) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{47}
+	return fileDescriptor_events_383970cc348cb379, []int{47}
 }
 func (m *AppSessionStart) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2480,7 +2480,7 @@ func (m *AppSessionChunk) Reset()         { *m = AppSessionChunk{} }
 func (m *AppSessionChunk) String() string { return proto.CompactTextString(m) }
 func (*AppSessionChunk) ProtoMessage()    {}
 func (*AppSessionChunk) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{48}
+	return fileDescriptor_events_383970cc348cb379, []int{48}
 }
 func (m *AppSessionChunk) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2530,7 +2530,7 @@ func (m *AppSessionRequest) Reset()         { *m = AppSessionRequest{} }
 func (m *AppSessionRequest) String() string { return proto.CompactTextString(m) }
 func (*AppSessionRequest) ProtoMessage()    {}
 func (*AppSessionRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{49}
+	return fileDescriptor_events_383970cc348cb379, []int{49}
 }
 func (m *AppSessionRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2614,7 +2614,7 @@ func (m *OneOf) Reset()         { *m = OneOf{} }
 func (m *OneOf) String() string { return proto.CompactTextString(m) }
 func (*OneOf) ProtoMessage()    {}
 func (*OneOf) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{50}
+	return fileDescriptor_events_383970cc348cb379, []int{50}
 }
 func (m *OneOf) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2767,7 +2767,7 @@ type OneOf_AppSessionRequest struct {
 	AppSessionRequest *AppSessionRequest `protobuf:"bytes,39,opt,name=AppSessionRequest,oneof"`
 }
 type OneOf_SessionUpload struct {
-	SessionUpload *SessionUpload `protobuf:"bytes,40,opt,name=SessionUpload,oneof"`
+	SessionUpload *SessionUpload `protobuf:"bytes,43,opt,name=SessionUpload,oneof"`
 }
 
 func (*OneOf_UserLogin) isOneOf_Event()                 {}
@@ -3344,7 +3344,7 @@ func _OneOf_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
 			return err
 		}
 	case *OneOf_SessionUpload:
-		_ = b.EncodeVarint(40<<3 | proto.WireBytes)
+		_ = b.EncodeVarint(43<<3 | proto.WireBytes)
 		if err := b.EncodeMessage(x.SessionUpload); err != nil {
 			return err
 		}
@@ -3670,7 +3670,7 @@ func _OneOf_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) 
 		err := b.DecodeMessage(msg)
 		m.Event = &OneOf_AppSessionRequest{msg}
 		return true, err
-	case 40: // Event.SessionUpload
+	case 43: // Event.SessionUpload
 		if wire != proto.WireBytes {
 			return true, proto.ErrInternalBadWireType
 		}
@@ -3911,7 +3911,7 @@ func (m *StreamStatus) Reset()         { *m = StreamStatus{} }
 func (m *StreamStatus) String() string { return proto.CompactTextString(m) }
 func (*StreamStatus) ProtoMessage()    {}
 func (*StreamStatus) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{51}
+	return fileDescriptor_events_383970cc348cb379, []int{51}
 }
 func (m *StreamStatus) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3958,7 +3958,7 @@ func (m *SessionUpload) Reset()         { *m = SessionUpload{} }
 func (m *SessionUpload) String() string { return proto.CompactTextString(m) }
 func (*SessionUpload) ProtoMessage()    {}
 func (*SessionUpload) Descriptor() ([]byte, []int) {
-	return fileDescriptor_events_cf436d9c1ee5deb8, []int{52}
+	return fileDescriptor_events_383970cc348cb379, []int{52}
 }
 func (m *SessionUpload) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -7635,7 +7635,7 @@ func (m *OneOf_AppSessionRequest) MarshalTo(dAtA []byte) (int, error) {
 func (m *OneOf_SessionUpload) MarshalTo(dAtA []byte) (int, error) {
 	i := 0
 	if m.SessionUpload != nil {
-		dAtA[i] = 0xc2
+		dAtA[i] = 0xda
 		i++
 		dAtA[i] = 0x2
 		i++
@@ -20494,7 +20494,7 @@ func (m *OneOf) Unmarshal(dAtA []byte) error {
 			}
 			m.Event = &OneOf_AppSessionRequest{v}
 			iNdEx = postIndex
-		case 40:
+		case 43:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field SessionUpload", wireType)
 			}
@@ -20951,9 +20951,9 @@ var (
 	ErrIntOverflowEvents   = fmt.Errorf("proto: integer overflow")
 )
 
-func init() { proto.RegisterFile("events.proto", fileDescriptor_events_cf436d9c1ee5deb8) }
+func init() { proto.RegisterFile("events.proto", fileDescriptor_events_383970cc348cb379) }
 
-var fileDescriptor_events_cf436d9c1ee5deb8 = []byte{
+var fileDescriptor_events_383970cc348cb379 = []byte{
 	// 3700 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xec, 0x5c, 0xcd, 0x6f, 0xdc, 0xc6,
 	0xd9, 0xdf, 0x6f, 0xed, 0xce, 0x4a, 0xb6, 0x34, 0x92, 0x6d, 0xfa, 0x4b, 0x94, 0xe9, 0xc4, 0x91,
@@ -21175,16 +21175,16 @@ var fileDescriptor_events_cf436d9c1ee5deb8 = []byte{
 	0x78, 0x4a, 0x91, 0x58, 0x2c, 0xa5, 0xc8, 0x50, 0xc1, 0xfc, 0xc0, 0x9e, 0x49, 0x79, 0x31, 0x5e,
 	0x32, 0x27, 0xd8, 0xf5, 0x0c, 0x19, 0xd8, 0x65, 0xcd, 0x0f, 0x94, 0xfd, 0xca, 0x85, 0xdd, 0x8c,
 	0x00, 0x3b, 0x6e, 0x84, 0x6f, 0x14, 0x1a, 0x29, 0xc5, 0xaa, 0xf2, 0x12, 0x98, 0x39, 0x39, 0x68,
-	0x26, 0xea, 0x4e, 0x4a, 0x89, 0x1b, 0x15, 0x18, 0xb7, 0xba, 0x6d, 0x5b, 0x37, 0x94, 0xe9, 0xd4,
-	0x02, 0x83, 0x33, 0xa5, 0x02, 0x83, 0x13, 0x6a, 0x43, 0xa8, 0xb8, 0xc8, 0x04, 0xb5, 0x1f, 0x66,
-	0xd1, 0xf0, 0x8a, 0xe7, 0x50, 0xbd, 0x23, 0xee, 0x0b, 0x9d, 0x42, 0x65, 0x2e, 0x13, 0xfe, 0x33,
-	0x1e, 0xd2, 0xff, 0x8d, 0x2f, 0xa0, 0x23, 0x4b, 0xba, 0xeb, 0x81, 0xa6, 0xf4, 0xb4, 0x9a, 0x24,
-	0xa8, 0x78, 0x89, 0xcb, 0x71, 0x3d, 0x78, 0xe2, 0x96, 0x7f, 0xe8, 0x15, 0xd5, 0x32, 0xab, 0xc7,
-	0xe1, 0x5e, 0x6a, 0x42, 0x57, 0x0b, 0xb2, 0x89, 0xbe, 0xee, 0xab, 0xbe, 0x5f, 0x1e, 0xf8, 0x07,
-	0x44, 0xa2, 0x12, 0xfe, 0x8a, 0x1b, 0xa8, 0x81, 0x7f, 0x5f, 0x74, 0x1e, 0xe5, 0x6f, 0x35, 0x16,
-	0xe4, 0x5b, 0xb0, 0xf1, 0xff, 0xc9, 0xc4, 0xb8, 0xf8, 0xa5, 0x7e, 0x99, 0x76, 0x8b, 0x2c, 0x89,
-	0xfa, 0x1e, 0x9e, 0xa4, 0xf5, 0x9c, 0x36, 0x91, 0x58, 0xb5, 0x89, 0xfb, 0x7f, 0x9d, 0xcc, 0xdc,
-	0x7f, 0x30, 0x99, 0xfd, 0xe2, 0xc1, 0x64, 0xf6, 0x2f, 0x0f, 0x26, 0xb3, 0xdf, 0xfb, 0xdb, 0x64,
-	0x66, 0xbd, 0x04, 0x0e, 0x7b, 0xed, 0x3f, 0x01, 0x00, 0x00, 0xff, 0xff, 0x90, 0x69, 0x3f, 0x74,
+	0x26, 0xea, 0x4e, 0x4a, 0x89, 0x1b, 0x15, 0x18, 0xb7, 0xba, 0x6d, 0x5b, 0x37, 0x94, 0x97, 0x53,
+	0x0b, 0x0c, 0xce, 0x94, 0x0a, 0x0c, 0x4e, 0xa8, 0x0d, 0xa1, 0xe2, 0x22, 0x13, 0xd4, 0x7e, 0x98,
+	0x45, 0xc3, 0x2b, 0x9e, 0x43, 0xf5, 0x8e, 0xb8, 0x2f, 0x74, 0x0a, 0x95, 0xb9, 0x4c, 0xf8, 0xcf,
+	0x78, 0x48, 0xff, 0x37, 0xbe, 0x80, 0x8e, 0x2c, 0xe9, 0xae, 0x07, 0x9a, 0xd2, 0xd3, 0x6a, 0x92,
+	0xa0, 0xe2, 0x25, 0x2e, 0xc7, 0xf5, 0xe0, 0x89, 0x5b, 0xfe, 0xa1, 0x57, 0x54, 0xcb, 0xac, 0x1e,
+	0x87, 0x7b, 0xa9, 0x09, 0x5d, 0x2d, 0xc8, 0x26, 0xfa, 0xba, 0xaf, 0xfa, 0x7e, 0x79, 0xe0, 0x1f,
+	0x10, 0x89, 0x4a, 0xf8, 0x2b, 0x6e, 0xa0, 0x06, 0xfe, 0x7d, 0xd1, 0x79, 0x94, 0xbf, 0xd5, 0x58,
+	0x90, 0x6f, 0xc1, 0xc6, 0xff, 0x27, 0x13, 0xe3, 0xe2, 0x97, 0xfa, 0x65, 0xda, 0x2d, 0xb2, 0x24,
+	0xea, 0x7b, 0x78, 0x92, 0xd6, 0x73, 0xda, 0x44, 0x62, 0xd5, 0x26, 0xee, 0xff, 0x75, 0x32, 0x73,
+	0xff, 0xc1, 0x64, 0xf6, 0x8b, 0x07, 0x93, 0xd9, 0xbf, 0x3c, 0x98, 0xcc, 0x7e, 0xef, 0x6f, 0x93,
+	0x99, 0xf5, 0x12, 0x38, 0xec, 0xb5, 0xff, 0x04, 0x00, 0x00, 0xff, 0xff, 0x6b, 0x00, 0xee, 0xcd,
 	0xb4, 0x4a, 0x00, 0x00,
 }
