@@ -179,7 +179,7 @@ EOF
             echo "    public_addr: ['${TELEPORT_PROXY_SERVER_LB}:3026']" >> /etc/teleport.yaml
         fi
     else
-        echo "    public_addr: ${TELEPORT_EXTERNAL_HOSTNAME:-$PUBLIC_IP}:3026" >> /etc/teleport.yaml
+        echo "    public_addr: ${TELEPORT_DOMAIN_NAME:-$PUBLIC_IP}:3026" >> /etc/teleport.yaml
     fi
 
     # enable/start cert services and timers
@@ -454,6 +454,17 @@ EOF
         else
           echo "  tunnel_public_addr: ${TELEPORT_EXTERNAL_HOSTNAME:-$PUBLIC_IP}:${TELEPORT_EXTERNAL_PORT:-3080}" >> /etc/teleport.yaml
         fi
+    fi
+
+    # set up the kubernetes listener
+    echo "  kubernetes:" >> /etc/teleport.yaml
+    echo "    enabled: yes" >> /etc/teleport.yaml
+    echo "    listen_addr: 0.0.0.0:3026" >> /etc/teleport.yaml
+    # when using ACM, we have to explicitly give the proxy NLB as a public_addr
+    if [[ "${USE_ACM}" == "true" && "${TELEPORT_PROXY_SERVER_LB}" != "" ]]; then
+        echo "    public_addr: ${TELEPORT_PROXY_SERVER_LB}:3026" >> /etc/teleport.yaml
+    else
+        echo "    public_addr: ${TELEPORT_EXTERNAL_HOSTNAME:-$PUBLIC_IP}:3026" >> /etc/teleport.yaml
     fi
 
     # if we are using letsencrypt, append config lines

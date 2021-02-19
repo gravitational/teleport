@@ -144,6 +144,7 @@ variable "grafana_pass" {
 // This must be set to true for any use of ACM whatsoever, regardless of whether Terraform generates/approves the cert
 variable "use_acm" {
   type = string
+  default = "false"
 }
 
 // Optional domain name to use for Teleport proxy NLB alias

@@ -28,7 +28,6 @@ In order to spin up AWS resources using these Terraform examples, you need the f
 - terraform v0.12+ [install docs](https://learn.hashicorp.com/terraform/getting-started/install.html)
 - awscli v1.14+ [install docs](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html)
 
-
 ```bash
 # Set variables for Terraform
 
@@ -86,6 +85,8 @@ export TF_VAR_grafana_pass="CHANGE_THIS_VALUE"
 # plan
 make plan
 ```
+
+You can see the full list of variables supported in [`vars.tf`](vars.tf).
 
 ## Public Teleport AMI IDs
 

@@ -38,7 +38,7 @@ resource "aws_route53_record" "proxy_acm_nlb_alias" {
   zone_id = data.aws_route53_zone.proxy.zone_id
   name    = var.route53_domain_acm_nlb_alias
   type    = "A"
-  count   = var.route53_domain_acm_nlb_alias != "" ? 1 : 0
+  count   = var.use_acm ? var.route53_domain_acm_nlb_alias != "" ? 1 : 0 : 0
 
   alias {
     name                   = aws_lb.proxy.dns_name
