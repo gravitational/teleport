@@ -173,6 +173,7 @@ var (
 		"kubernetes_service":      true,
 		"kube_cluster_name":       false,
 		"kube_listen_addr":        false,
+		"kube_public_addr":        false,
 		"app_service":             true,
 		"db_service":              true,
 		"protocol":                false,
@@ -972,6 +973,8 @@ type Proxy struct {
 	// KubeAddr is a shorthand for enabling the Kubernetes endpoint without a
 	// local Kubernetes cluster.
 	KubeAddr string `yaml:"kube_listen_addr,omitempty"`
+	// KubePublicAddr is a public address of the kubernetes endpoint.
+	KubePublicAddr utils.Strings `yaml:"kube_public_addr,omitempty"`
 
 	// PublicAddr sets the hostport the proxy advertises for the HTTP endpoint.
 	// The hosts in PublicAddr are included in the list of host principals
