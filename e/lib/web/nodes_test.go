@@ -2,16 +2,16 @@ package web
 
 import (
 	"context"
-	"net/url"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 func TestCreateNodeJoinToken(t *testing.T) {
