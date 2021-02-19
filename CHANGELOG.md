@@ -1,5 +1,51 @@
 # Changelog
 
+## 4.3.10
+
+This release of Teleport contains multiple security fixes.
+
+As part of a routine security audit of Teleport, several security vulnerabilities and miscellaneous issues were discovered in Teleport 5.0, 4.4, and 4.3. We strongly suggest upgrading to the latest release.
+
+Below we highlight the most serious issues found, as well as the components of Teleport they affect.
+
+#### Teleport Application Access
+
+If an attacker can convince a user to click on a malicious link, the attacker can steal the victim’s session cookie or force them to log into an attacker controlled Application Access account.
+
+#### Trusted Clusters
+
+Under certain circumstances, an already privileged user within a root cluster could potentially elevate their privileges further by gaining the exact same roles in the leaf as they have in the root cluster (instead of the mapped roles).
+
+#### All
+
+An unauthenticated attacker that has network access to the Teleport Web Proxy could stage a DOS attack causing it to crash.
+
+#### Changes In Behavior
+
+##### Trusted Clusters
+
+Trusted clusters now correctly handle role mapping for Kubernetes. If you had identically-named roles in root and leaf clusters for granting Kubernetes access, leaf clusters now use kubernetes_users and kubernetes_groups from the leaf role instead of the root role.
+
+#### Actions
+
+For all users, we recommend upgrading the Teleport Proxy process.
+
+For Application Access users, we also recommend upgrading the Application Access processes.
+
+For Trusted Cluster users, we also recommend upgrading the Teleport Auth process within both leaf and root clusters.
+
+For Kubernetes Access users who rely on Trusted Clusters, we recommend reviewing the leaf cluster roles and making sure that they grant the correct kubernetes_users and kubernetes_groups.
+
+Upgrades should follow the normal Teleport upgrade procedure: https://goteleport.com/teleport/docs/admin-guide/#upgrading-teleport.
+
+Download one of the following releases to mitigate the issue:
+
+Enterprise 5.2.0
+Enterprise 4.4.8
+Enterprise 4.3.10
+
+All current and previous releases of Enterprise can be downloaded from https://dashboard.goteleport.com.
+
 ## 4.3.9
 
 This release of Teleport contains a security fix.
