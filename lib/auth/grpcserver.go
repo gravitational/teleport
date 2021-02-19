@@ -456,7 +456,7 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 			authServer: g.AuthServer,
 			user:       authContext.User,
 			checker:    authContext.Checker,
-			identity:   authContext.Identity,
+			identity:   authContext.Identity.GetIdentity(),
 			sessions:   g.SessionService,
 			alog:       g.AuthServer.IAuditLog,
 		},
