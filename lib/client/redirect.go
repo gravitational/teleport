@@ -36,10 +36,10 @@ const (
 	// LoginSuccessRedirectURL is a redirect URL when login was successful without errors.
 	LoginSuccessRedirectURL = "/web/msg/info/login_success"
 
-	// LoginFailedRedirectURL is the default redirect URL when an sso error was encountered.
+	// LoginFailedRedirectURL is the default redirect URL when an SSO error was encountered.
 	LoginFailedRedirectURL = "/web/msg/error/login"
 
-	// LoginFailedBadCallbackRedirectURL is a redirect URL when an sso error specific to
+	// LoginFailedBadCallbackRedirectURL is a redirect URL when an SSO error specific to
 	// auth connector's callback was encountered.
 	LoginFailedBadCallbackRedirectURL = "/web/msg/error/login/callback"
 )
