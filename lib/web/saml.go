@@ -21,7 +21,6 @@ import (
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/form"
@@ -29,15 +28,14 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-func (h *Handler) samlSSO(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) samlSSO(w http.ResponseWriter, r *http.Request, p httprouter.Params) string {
 	logger := h.log.WithField("auth", "saml")
 	logger.Debug("Web login start.")
 
 	req, err := parseSSORequestParams(r)
 	if err != nil {
-		logger.Error(err)
-		http.Redirect(w, r, loginFailedURL, http.StatusFound)
-		return nil, nil
+		logger.WithError(err).Error("Failed to extract SSO parameters from request.")
+		return client.LoginFailedRedirectURL
 	}
 
 	response, err := h.cfg.ProxyClient.CreateSAMLAuthRequest(
@@ -49,12 +47,10 @@ func (h *Handler) samlSSO(w http.ResponseWriter, r *http.Request, p httprouter.P
 		})
 	if err != nil {
 		logger.WithError(err).Error("Error creating auth request.")
-		http.Redirect(w, r, loginFailedURL, http.StatusFound)
-		return nil, nil
+		return client.LoginFailedRedirectURL
 	}
 
-	http.Redirect(w, r, response.RedirectURL, http.StatusFound)
-	return nil, nil
+	return response.RedirectURL
 }
 
 func (h *Handler) samlSSOConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -82,51 +78,45 @@ func (h *Handler) samlSSOConsole(w http.ResponseWriter, r *http.Request, p httpr
 	return &client.SSOLoginConsoleResponse{RedirectURL: response.RedirectURL}, nil
 }
 
-func (h *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.Params) string {
 	logger := h.log.WithField("auth", "saml")
 	logger.Debug("Callback start.")
 
 	var samlResponse string
 	if err := form.Parse(r, form.String("SAMLResponse", &samlResponse, form.Required())); err != nil {
 		logger.WithError(err).Error("Error parsing response.")
-		http.Redirect(w, r, loginFailedURL, http.StatusFound)
-		return nil, nil
+		return client.LoginFailedRedirectURL
 	}
 
 	response, err := h.cfg.ProxyClient.ValidateSAMLResponse(samlResponse)
 	if err != nil {
 		logger.WithError(err).Error("Error while processing callback.")
-		http.Redirect(w, r, loginFailedBadCallbackURL, http.StatusFound)
-		return nil, nil
+		return client.LoginFailedBadCallbackRedirectURL
 	}
 
 	// if we created web session, set session cookie and redirect to original url
 	if response.Req.CreateWebSession {
 		logger.Debug("Redirecting to web browser.")
-		if err := csrf.VerifyToken(response.Req.CSRFToken, r); err != nil {
-			logger.WithError(err).Error("Unable to verify CSRF token.")
-			http.Redirect(w, r, loginFailedURL, http.StatusFound)
-			return nil, nil
-		}
-		if err := SetSessionCookie(w, response.Username, response.Session.GetName()); err != nil {
-			logger.WithError(err).Error("Unable to set session cookie.")
-			http.Redirect(w, r, loginFailedURL, http.StatusFound)
-			return nil, nil
+
+		res := &ssoCallbackResponse{
+			csrfToken:         response.Req.CSRFToken,
+			username:          response.Username,
+			sessionName:       response.Session.GetName(),
+			clientRedirectURL: response.Req.ClientRedirectURL,
 		}
 
-		if err := httplib.SafeRedirect(w, r, response.Req.ClientRedirectURL); err != nil {
-			logger.WithError(err).Error("Error parsing redirect URL.")
-			http.Redirect(w, r, loginFailedURL, http.StatusFound)
+		if err := ssoSetWebSessionAndRedirectURL(w, r, res); err != nil {
+			logger.WithError(err).Error("Error setting web session.")
+			return client.LoginFailedRedirectURL
 		}
 
-		return nil, nil
+		return res.clientRedirectURL
 	}
 
 	logger.Debug("Callback redirecting to console login.")
 	if len(response.Req.PublicKey) == 0 {
 		logger.Error("Not a web or console login request.")
-		http.Redirect(w, r, loginFailedURL, http.StatusFound)
-		return nil, nil
+		return client.LoginFailedRedirectURL
 	}
 
 	redirectURL, err := ConstructSSHResponse(AuthParams{
@@ -140,10 +130,8 @@ func (h *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 	})
 	if err != nil {
 		logger.WithError(err).Error("Error constructing ssh response.")
-		http.Redirect(w, r, loginFailedURL, http.StatusFound)
-		return nil, nil
+		return client.LoginFailedRedirectURL
 	}
 
-	http.Redirect(w, r, redirectURL.String(), http.StatusFound)
-	return nil, nil
+	return redirectURL.String()
 }
