@@ -19,16 +19,21 @@ package config
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"strings"
 	"time"
 
+	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -39,6 +44,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 )
 
@@ -167,16 +173,22 @@ var (
 		"kubernetes_service":      true,
 		"kube_cluster_name":       false,
 		"kube_listen_addr":        false,
+		"kube_public_addr":        false,
 		"app_service":             true,
+		"db_service":              true,
 		"protocol":                false,
 		"uri":                     false,
 		"apps":                    false,
+		"databases":               false,
 		"https_keypairs":          true,
 		"key_file":                false,
 		"insecure_skip_verify":    false,
 		"rewrite":                 false,
 		"redirect":                false,
 		"debug_app":               false,
+		"acme":                    true,
+		"email":                   false,
+		"mysql_listen_addr":       false,
 	}
 )
 
@@ -200,6 +212,10 @@ type FileConfig struct {
 	// Apps is the "app_service" section in Teleport file configuration which
 	// defines application access configuration.
 	Apps Apps `yaml:"app_service,omitempty"`
+
+	// Databases is the "db_service" section in Teleport configuration file
+	// that defined database access configuration.
+	Databases Databases `yaml:"db_service,omitempty"`
 }
 
 type YAMLMap map[interface{}]interface{}
@@ -220,7 +236,7 @@ func ReadFromString(configString string) (*FileConfig, error) {
 	data, err := base64.StdEncoding.DecodeString(configString)
 	if err != nil {
 		return nil, trace.BadParameter(
-			"confiugraion should be base64 encoded: %v", err)
+			"configuration should be base64 encoded: %v", err)
 	}
 	return ReadConfig(bytes.NewBuffer(data))
 }
@@ -233,8 +249,35 @@ func ReadConfig(reader io.Reader) (*FileConfig, error) {
 		return nil, trace.Wrap(err, "failed reading Teleport configuration")
 	}
 	var fc FileConfig
+
+	// New validation in 6.0:
+	//
+	// Try strict unmarshal first (fails if any yaml entry doesn't map to a
+	// FileConfig field).
+	//
+	// If strict unmarshal failed, there may be some innocent mis-placed config
+	// fields. Fall back to the old validation first.
+	//
+	// If the old validation fails too, then we'll report the above error
+	// because the config is definitely invalid.
+	//
+	// If the old validation succeeds, we'll log the above error, but won't
+	// enforce it yet to let users fix the problem
+	strictUnmarshalErr := yaml.UnmarshalStrict(bytes, &fc)
+	if strictUnmarshalErr == nil {
+		// don't start Teleport with invalid ciphers, kex algorithms, or mac algorithms.
+		if err = fc.CheckAndSetDefaults(); err != nil {
+			return nil, trace.BadParameter("failed to parse Teleport configuration: %v", err)
+		}
+		return &fc, nil
+	}
+	// Remove all newlines in the YAML error, to avoid escaping when printing.
+	strictUnmarshalErr = errors.New(strings.Replace(strictUnmarshalErr.Error(), "\n", "", -1))
+	// DELETE IN 7.0: during 6.0, users should notice any issues that passed
+	// old validation but not the new strict one. With 7.0, we should always
+	// enforce the strict validation.
 	if err = yaml.Unmarshal(bytes, &fc); err != nil {
-		return nil, trace.BadParameter("failed to parse Teleport configuration: %v", err)
+		return nil, trace.BadParameter("failed to parse Teleport configuration: %v", strictUnmarshalErr)
 	}
 	// don't start Teleport with invalid ciphers, kex algorithms, or mac algorithms.
 	err = fc.CheckAndSetDefaults()
@@ -265,11 +308,20 @@ func ReadConfig(reader io.Reader) (*FileConfig, error) {
 	// validate configuration keys:
 	var tmp YAMLMap
 	if err = yaml.Unmarshal(bytes, &tmp); err != nil {
-		return nil, trace.BadParameter("error parsing YAML config")
+		return nil, trace.BadParameter("error parsing YAML config: %v", err)
 	}
 	if err = validateKeys(tmp); err != nil {
-		return nil, trace.Wrap(err)
+		// Both old an new validations failed. Report the new strict validation
+		// error.
+		return nil, trace.Wrap(strictUnmarshalErr)
 	}
+	// New strict validation failed but old one succeeded. There's something
+	// wrong with the config, but don't prevent it from starting up.
+	logrus.Errorf("Teleport configuration is invalid: %v.", strictUnmarshalErr)
+	logrus.Error("This error will be enforced in the next Teleport release.")
+	// Also add a short but noticeable sleep, to nudge users to pay attention
+	// to logs.
+	time.Sleep(5 * time.Second)
 	return &fc, nil
 }
 
@@ -689,10 +741,10 @@ func (t StaticToken) Parse() (*services.ProvisionTokenV1, error) {
 
 // AuthenticationConfig describes the auth_service/authentication section of teleport.yaml
 type AuthenticationConfig struct {
-	Type          string                 `yaml:"type"`
-	SecondFactor  string                 `yaml:"second_factor,omitempty"`
-	ConnectorName string                 `yaml:"connector_name,omitempty"`
-	U2F           *UniversalSecondFactor `yaml:"u2f,omitempty"`
+	Type          string                     `yaml:"type"`
+	SecondFactor  constants.SecondFactorType `yaml:"second_factor,omitempty"`
+	ConnectorName string                     `yaml:"connector_name,omitempty"`
+	U2F           *UniversalSecondFactor     `yaml:"u2f,omitempty"`
 
 	// LocalAuth controls if local authentication is allowed.
 	LocalAuth *services.Bool `yaml:"local_auth"`
@@ -816,6 +868,42 @@ func (b *BPF) Parse() *bpf.Config {
 	}
 }
 
+// Databases represents the database proxy service configuration.
+//
+// In the configuration file this section will be "db_service".
+type Databases struct {
+	// Service contains common service fields.
+	Service `yaml:",inline"`
+	// Databases is a list of databases proxied by the service.
+	Databases []*Database `yaml:"databases"`
+}
+
+// Database represents a single database proxied by the service.
+type Database struct {
+	// Name is the name for the database proxy service.
+	Name string `yaml:"name"`
+	// Description is an optional free-form database description.
+	Description string `yaml:"description,omitempty"`
+	// Protocol is the database type e.g. postgres, mysql, etc.
+	Protocol string `yaml:"protocol"`
+	// URI is the database address to connect to.
+	URI string `yaml:"uri"`
+	// CACertFile is an optional path to the database CA certificate.
+	CACertFile string `yaml:"ca_cert_file,omitempty"`
+	// StaticLabels is a map of database static labels.
+	StaticLabels map[string]string `yaml:"static_labels,omitempty"`
+	// DynamicLabels is a list of database dynamic labels.
+	DynamicLabels []CommandLabel `yaml:"dynamic_labels,omitempty"`
+	// AWS contains AWS specific settings for RDS/Aurora databases.
+	AWS DatabaseAWS `yaml:"aws"`
+}
+
+// DatabaseAWS contains AWS specific settings for RDS/Aurora databases.
+type DatabaseAWS struct {
+	// Region is a cloud region for RDS/Aurora database endpoint.
+	Region string `yaml:"region,omitempty"`
+}
+
 // Apps represents the configuration for the collection of applications this
 // service will start. In file configuration this would be the "app_service"
 // section.
@@ -885,6 +973,8 @@ type Proxy struct {
 	// KubeAddr is a shorthand for enabling the Kubernetes endpoint without a
 	// local Kubernetes cluster.
 	KubeAddr string `yaml:"kube_listen_addr,omitempty"`
+	// KubePublicAddr is a public address of the kubernetes endpoint.
+	KubePublicAddr utils.Strings `yaml:"kube_public_addr,omitempty"`
 
 	// PublicAddr sets the hostport the proxy advertises for the HTTP endpoint.
 	// The hosts in PublicAddr are included in the list of host principals
@@ -903,6 +993,47 @@ type Proxy struct {
 
 	// KeyPairs is a list of x509 key pairs the proxy will load.
 	KeyPairs []KeyPair `yaml:"https_keypairs"`
+
+	// ACME configures ACME protocol support
+	ACME ACME `yaml:"acme"`
+
+	// MySQLAddr is MySQL proxy listen address.
+	MySQLAddr string `yaml:"mysql_listen_addr,omitempty"`
+}
+
+// ACME configures ACME protocol - automatic X.509 certificates
+type ACME struct {
+	// EnabledFlag is whether ACME should be enabled
+	EnabledFlag string `yaml:"enabled,omitempty"`
+	// Email is the email that will receive problems with certificate renewals
+	Email string `yaml:"email,omitempty"`
+	// URI is ACME server URI
+	URI string `yaml:"uri,omitempty"`
+}
+
+// Parse parses ACME section values
+func (a ACME) Parse() (*service.ACME, error) {
+	// ACME is disabled by default
+	out := service.ACME{}
+	if a.EnabledFlag == "" {
+		return &out, nil
+	}
+
+	var err error
+	out.Enabled, err = utils.ParseBool(a.EnabledFlag)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out.Email = a.Email
+	if a.URI != "" {
+		_, err := url.Parse(a.URI)
+		if err != nil {
+			return nil, trace.Wrap(err, "acme.uri should be a valid URI, for example %v", acme.LetsEncryptURL)
+		}
+	}
+	out.URI = a.URI
+
+	return &out, nil
 }
 
 // KeyPair represents a path on disk to a private key and certificate.
@@ -965,7 +1096,7 @@ func (t *ReverseTunnel) ConvertAndValidate() (services.ReverseTunnel, error) {
 	}
 
 	out := services.NewReverseTunnel(t.DomainName, t.Addresses)
-	if err := out.Check(); err != nil {
+	if err := services.ValidateReverseTunnel(out); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return out, nil
@@ -996,22 +1127,26 @@ type Authority struct {
 
 // Parse reads values and returns parsed CertAuthority
 func (a *Authority) Parse() (services.CertAuthority, services.Role, error) {
-	ca := &services.CertAuthorityV1{
-		AllowedLogins: a.AllowedLogins,
-		DomainName:    a.DomainName,
-		Type:          a.Type,
-	}
+	ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        a.Type,
+		ClusterName: a.DomainName,
+	})
+
+	// transform old allowed logins into roles
+	role := services.RoleForCertAuthority(ca)
+	role.SetLogins(services.Allow, a.AllowedLogins)
+	ca.AddRole(role.GetName())
 
 	for _, path := range a.CheckingKeyFiles {
 		keyBytes, err := utils.ReadPath(path)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		ca.CheckingKeys = append(ca.CheckingKeys, keyBytes)
+		ca.SetCheckingKeys(append(ca.GetCheckingKeys(), keyBytes))
 	}
 
 	for _, val := range a.CheckingKeys {
-		ca.CheckingKeys = append(ca.CheckingKeys, []byte(val))
+		ca.SetCheckingKeys(append(ca.GetCheckingKeys(), []byte(val)))
 	}
 
 	for _, path := range a.SigningKeyFiles {
@@ -1019,15 +1154,14 @@ func (a *Authority) Parse() (services.CertAuthority, services.Role, error) {
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		ca.SigningKeys = append(ca.SigningKeys, keyBytes)
+		ca.SetSigningKeys(append(ca.GetSigningKeys(), keyBytes))
 	}
 
 	for _, val := range a.SigningKeys {
-		ca.SigningKeys = append(ca.SigningKeys, []byte(val))
+		ca.SetSigningKeys(append(ca.GetSigningKeys(), []byte(val)))
 	}
 
-	new, role := services.ConvertV1CertAuthority(ca)
-	return new, role, nil
+	return ca, role, nil
 }
 
 // ClaimMapping is OIDC claim mapping that maps
@@ -1091,17 +1225,16 @@ func (o *OIDCConnector) Parse() (services.OIDCConnector, error) {
 		})
 	}
 
-	other := &services.OIDCConnectorV1{
-		ID:            o.ID,
-		Display:       o.Display,
+	v2 := services.NewOIDCConnector(o.ID, services.OIDCConnectorSpecV2{
 		IssuerURL:     o.IssuerURL,
 		ClientID:      o.ClientID,
 		ClientSecret:  o.ClientSecret,
 		RedirectURL:   o.RedirectURL,
+		Display:       o.Display,
 		Scope:         o.Scope,
 		ClaimsToRoles: mappings,
-	}
-	v2 := other.V2()
+	})
+
 	v2.SetACR(o.ACR)
 	v2.SetProvider(o.Provider)
 	if err := v2.Check(); err != nil {

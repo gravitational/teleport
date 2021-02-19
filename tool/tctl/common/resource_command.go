@@ -82,6 +82,7 @@ Same as above, but using JSON output:
 func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.Config) {
 	rc.CreateHandlers = map[ResourceKind]ResourceCreateHandler{
 		services.KindUser:            rc.createUser,
+		services.KindRole:            rc.createRole,
 		services.KindTrustedCluster:  rc.createTrustedCluster,
 		services.KindGithubConnector: rc.createGithubConnector,
 		services.KindCertAuthority:   rc.createCertAuthority,
@@ -248,7 +249,7 @@ func (rc *ResourceCommand) Create(client auth.ClientI) (err error) {
 		if !found {
 			// if we're trying to create an OIDC/SAML connector with the OSS version of tctl, return a specific error
 			if raw.Kind == "oidc" || raw.Kind == "saml" {
-				return trace.BadParameter("creating resources of type %q is only supported in Teleport Enterprise. https://gravitational.com/teleport/docs/enterprise/", raw.Kind)
+				return trace.BadParameter("creating resources of type %q is only supported in Teleport Enterprise. https://goteleport.com/teleport/docs/enterprise/", raw.Kind)
 			}
 			return trace.BadParameter("creating resources of type %q is not supported", raw.Kind)
 		}
@@ -265,7 +266,7 @@ func (rc *ResourceCommand) Create(client auth.ClientI) (err error) {
 
 // createTrustedCluster implements `tctl create cluster.yaml` command
 func (rc *ResourceCommand) createTrustedCluster(client auth.ClientI, raw services.UnknownResource) error {
-	tc, err := services.GetTrustedClusterMarshaler().Unmarshal(raw.Raw)
+	tc, err := services.UnmarshalTrustedCluster(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -303,7 +304,7 @@ func (rc *ResourceCommand) createTrustedCluster(client auth.ClientI, raw service
 
 // createCertAuthority creates certificate authority
 func (rc *ResourceCommand) createCertAuthority(client auth.ClientI, raw services.UnknownResource) error {
-	certAuthority, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(raw.Raw)
+	certAuthority, err := services.UnmarshalCertAuthority(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -316,7 +317,7 @@ func (rc *ResourceCommand) createCertAuthority(client auth.ClientI, raw services
 
 // createGithubConnector creates a Github connector
 func (rc *ResourceCommand) createGithubConnector(client auth.ClientI, raw services.UnknownResource) error {
-	connector, err := services.GetGithubConnectorMarshaler().Unmarshal(raw.Raw)
+	connector, err := services.UnmarshalGithubConnector(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -338,9 +339,36 @@ func (rc *ResourceCommand) createGithubConnector(client auth.ClientI, raw servic
 	return nil
 }
 
+// createConnector implements 'tctl create role.yaml' command
+func (rc *ResourceCommand) createRole(client auth.ClientI, raw services.UnknownResource) error {
+	ctx := context.TODO()
+	role, err := services.UnmarshalRole(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = role.CheckAndSetDefaults()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	roleName := role.GetName()
+	_, err = client.GetRole(roleName)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	roleExists := (err == nil)
+	if roleExists && !rc.IsForced() {
+		return trace.AlreadyExists("role '%s' already exists", roleName)
+	}
+	if err := client.UpsertRole(ctx, role); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("role '%s' has been %s\n", roleName, UpsertVerb(roleExists, rc.IsForced()))
+	return nil
+}
+
 // createUser implements 'tctl create user.yaml' command.
 func (rc *ResourceCommand) createUser(client auth.ClientI, raw services.UnknownResource) error {
-	user, err := services.GetUserMarshaler().UnmarshalUser(raw.Raw)
+	user, err := services.UnmarshalUser(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -394,6 +422,11 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("user %q has been deleted\n", rc.ref.Name)
+	case services.KindRole:
+		if err = client.DeleteRole(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("role %q has been deleted\n", rc.ref.Name)
 	case services.KindSAMLConnector:
 		if err = client.DeleteSAMLConnector(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -682,6 +715,13 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollect
 			return nil, trace.Wrap(err)
 		}
 		return &serverCollection{servers: servers}, nil
+	case services.KindClusterAuthPreference:
+		authPref, err := client.GetAuthPreference()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		authPrefs := []services.AuthPreference{authPref}
+		return &authPrefCollection{authPrefs: authPrefs}, nil
 	}
 	return nil, trace.BadParameter("'%v' is not supported", rc.ref.Kind)
 }

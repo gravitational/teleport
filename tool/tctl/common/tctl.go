@@ -26,6 +26,7 @@ import (
 	"strconv"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/config"
@@ -93,12 +94,21 @@ func Run(commands []CLICommand, loadConfigExt LoadConfigFn) {
 		commands[i].Initialize(app, cfg)
 	}
 
-	// these global flags apply to all commands
 	var ccf GlobalCLIFlags
+
+	// Initially, set the config file path to the default.
+	// If this is overridden by environment variable, update the path.
+	ccf.ConfigFile = defaults.ConfigFilePath
+	configFileEnvar, isSet := os.LookupEnv(defaults.ConfigFileEnvar)
+	if isSet {
+		ccf.ConfigFile = configFileEnvar
+	}
+
+	// these global flags apply to all commands
 	app.Flag("debug", "Enable verbose logging to stderr").
 		Short('d').
 		BoolVar(&ccf.Debug)
-	app.Flag("config", fmt.Sprintf("Path to a configuration file [%v]", defaults.ConfigFilePath)).
+	app.Flag("config", fmt.Sprintf("Path to a configuration file [%v]. Can also be set via the %v environment variable.", defaults.ConfigFilePath, defaults.ConfigFileEnvar)).
 		Short('c').
 		ExistingFileVar(&ccf.ConfigFile)
 	app.Flag("config-string",
@@ -181,7 +191,7 @@ func connectToAuthService(ctx context.Context, cfg *service.Config, clientConfig
 	log.Debugf("Connecting to auth servers: %v.", cfg.AuthServers)
 
 	// Try connecting to the auth server directly over TLS.
-	client, err := auth.NewTLSClient(auth.ClientConfig{Addrs: cfg.AuthServers, TLS: clientConfig.TLS})
+	client, err := auth.NewClient(apiclient.Config{Addrs: utils.NetAddrsToStrings(cfg.AuthServers), TLS: clientConfig.TLS})
 	if err != nil {
 		return nil, trace.Wrap(err, "failed direct dial to auth server: %v", err)
 	}
@@ -214,7 +224,7 @@ func connectToAuthService(ctx context.Context, cfg *service.Config, clientConfig
 		log.Debugf("Attempting to connect using reverse tunnel address %v.", tunAddr)
 		// reversetunnel.TunnelAuthDialer will take care of creating a net.Conn
 		// within an SSH tunnel.
-		client, err = auth.NewTLSClient(auth.ClientConfig{
+		client, err = auth.NewClient(apiclient.Config{
 			Dialer: &reversetunnel.TunnelAuthDialer{
 				ProxyAddr:    tunAddr,
 				ClientConfig: clientConfig.SSH,
@@ -303,11 +313,16 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config, loadConfigExt LoadCon
 		log.Debugf("Debug logging has been enabled.")
 	}
 
-	// load /etc/teleport.yaml and apply its values:
-	fileConf, err := config.ReadConfigFile(ccf.ConfigFile)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// If the config file path provided is not a blank string, load the file and apply its values
+	var fileConf *config.FileConfig
+	var err error
+	if ccf.ConfigFile != "" {
+		fileConf, err = config.ReadConfigFile(ccf.ConfigFile)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
+
 	// if configuration is passed as an environment variable,
 	// try to decode it and override the config file
 	if ccf.ConfigString != "" {

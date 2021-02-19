@@ -131,8 +131,9 @@ func TestAuthenticate(t *testing.T) {
 		tunnel            reversetunnel.Server
 		kubeServices      []services.Server
 
-		wantCtx *authContext
-		wantErr bool
+		wantCtx     *authContext
+		wantErr     bool
+		wantAuthErr bool
 	}{
 		{
 			desc:           "local user and cluster",
@@ -232,7 +233,8 @@ func TestAuthenticate(t *testing.T) {
 			haveKubeCreds:  true,
 			tunnel:         tun,
 
-			wantErr: true,
+			wantErr:     true,
+			wantAuthErr: true,
 		},
 		{
 			desc:           "kube users passed in request",
@@ -259,14 +261,16 @@ func TestAuthenticate(t *testing.T) {
 			authzErr: true,
 			tunnel:   tun,
 
-			wantErr: true,
+			wantErr:     true,
+			wantAuthErr: true,
 		},
 		{
 			desc:   "unsupported user type",
 			user:   auth.BuiltinRole{},
 			tunnel: tun,
 
-			wantErr: true,
+			wantErr:     true,
+			wantAuthErr: true,
 		},
 		{
 			desc:           "local user and cluster, no tunnel",
@@ -398,7 +402,7 @@ func TestAuthenticate(t *testing.T) {
 			gotCtx, err := f.authenticate(req)
 			if tt.wantErr {
 				require.Error(t, err)
-				require.True(t, trace.IsAccessDenied(err))
+				require.Equal(t, trace.IsAccessDenied(err), tt.wantAuthErr)
 				return
 			}
 			require.NoError(t, err)
@@ -652,7 +656,7 @@ type mockCSRClient struct {
 }
 
 func newMockCSRClient() (*mockCSRClient, error) {
-	ca, err := tlsca.New([]byte(fixtures.SigningCertPEM), []byte(fixtures.SigningKeyPEM))
+	ca, err := tlsca.FromKeys([]byte(fixtures.SigningCertPEM), []byte(fixtures.SigningKeyPEM))
 	if err != nil {
 		return nil, err
 	}

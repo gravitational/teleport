@@ -21,7 +21,6 @@ package web
 import (
 	"compress/gzip"
 	"context"
-	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -37,7 +36,10 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -52,14 +54,14 @@ import (
 	"github.com/gravitational/teleport/lib/web/ui"
 
 	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/sirupsen/logrus"
-	"github.com/tstranex/u2f"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/lib/secret"
 )
 
 // Handler is HTTP web proxy handler
@@ -92,6 +94,14 @@ func SetSessionStreamPollPeriod(period time.Duration) HandlerOption {
 	}
 }
 
+// SetClock sets the clock on a handler
+func SetClock(clock clockwork.Clock) HandlerOption {
+	return func(h *Handler) error {
+		h.clock = clock
+		return nil
+	}
+}
+
 // Config represents web handler configuration parameters
 type Config struct {
 	// Proxy is a reverse tunnel proxy that handles connections
@@ -103,8 +113,6 @@ type Config struct {
 	DomainName string
 	// ProxyClient is a client that authenticated as proxy
 	ProxyClient auth.ClientI
-	// DisableUI allows to turn off serving web based UI
-	DisableUI bool
 	// ProxySSHAddr points to the SSH address of the proxy
 	ProxySSHAddr utils.NetAddr
 	// ProxyWebAddr points to the web (HTTPS) address of the proxy
@@ -131,6 +139,15 @@ type Config struct {
 
 	// Context is used to signal process exit.
 	Context context.Context
+
+	// StaticFS optionally specifies the HTTP file system to use.
+	// Enables web UI if set.
+	StaticFS http.FileSystem
+
+	// cachedSessionLingeringThreshold specifies the time the session will linger
+	// in the cache before getting purged after it has expired.
+	// Defaults to cachedSessionLingeringThreshold if unspecified.
+	cachedSessionLingeringThreshold *time.Duration
 }
 
 type RewritingHandler struct {
@@ -171,15 +188,10 @@ func (h *RewritingHandler) Close() error {
 // NewHandler returns a new instance of web proxy handler
 func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	const apiPrefix = "/" + teleport.WebAPIVersion
-	lauth, err := newSessionCache(cfg.ProxyClient, []utils.NetAddr{cfg.AuthServers}, cfg.CipherSuites)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	h := &Handler{
-		cfg:  cfg,
-		auth: lauth,
-		log:  newPackageLogger(),
+		cfg:   cfg,
+		log:   newPackageLogger(),
+		clock: clockwork.NewRealClock(),
 	}
 
 	for _, o := range opts {
@@ -188,6 +200,24 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		}
 	}
 
+	sessionLingeringThreshold := cachedSessionLingeringThreshold
+	if cfg.cachedSessionLingeringThreshold != nil {
+		sessionLingeringThreshold = *cfg.cachedSessionLingeringThreshold
+	}
+
+	auth, err := newSessionCache(sessionCacheOptions{
+		proxyClient:               cfg.ProxyClient,
+		accessPoint:               cfg.AccessPoint,
+		servers:                   []utils.NetAddr{cfg.AuthServers},
+		cipherSuites:              cfg.CipherSuites,
+		clock:                     h.clock,
+		sessionLingeringThreshold: sessionLingeringThreshold,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	h.auth = auth
+
 	_, sshPort, err := net.SplitHostPort(cfg.ProxySSHAddr.String())
 	if err != nil {
 		h.log.WithError(err).Warnf("Invalid SSH proxy address %q, will use default port %v.",
@@ -195,10 +225,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		sshPort = strconv.Itoa(defaults.SSHProxyListenPort)
 	}
 	h.sshPort = sshPort
-
-	if h.clock == nil {
-		h.clock = clockwork.NewRealClock()
-	}
 
 	// ping endpoint is used to check if the server is up. the /webapi/ping
 	// endpoint returns the default authentication method and configuration that
@@ -285,9 +311,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	// U2F related APIs
 	h.GET("/webapi/u2f/signuptokens/:token", httplib.MakeHandler(h.u2fRegisterRequest))
 	h.POST("/webapi/u2f/password/changerequest", h.WithAuth(h.u2fChangePasswordRequest))
-	h.POST("/webapi/u2f/signrequest", httplib.MakeHandler(h.u2fSignRequest))
+	h.POST("/webapi/u2f/signrequest", httplib.MakeHandler(h.mfaChallengeRequest))
 	h.POST("/webapi/u2f/sessions", httplib.MakeHandler(h.createSessionWithU2FSignResponse))
-	h.POST("/webapi/u2f/certs", httplib.MakeHandler(h.createSSHCertWithU2FSignResponse))
+	h.POST("/webapi/u2f/certs", httplib.MakeHandler(h.createSSHCertWithMFAChallengeResponse))
 
 	// trusted clusters
 	h.POST("/webapi/trustedclusters/validate", httplib.MakeHandler(h.validateTrustedCluster))
@@ -299,16 +325,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.POST("/webapi/host/credentials", httplib.MakeHandler(h.hostCredentials))
 
 	// if Web UI is enabled, check the assets dir:
-	var (
-		indexPage *template.Template
-		staticFS  http.FileSystem
-	)
-	if !cfg.DisableUI {
-		staticFS, err = NewStaticFileSystem(isDebugMode())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		index, err := staticFS.Open("/index.html")
+	var indexPage *template.Template
+	if cfg.StaticFS != nil {
+		index, err := cfg.StaticFS.Open("/index.html")
 		if err != nil {
 			h.log.WithError(err).Error("Failed to open index file.")
 			return nil, trace.Wrap(err)
@@ -334,7 +353,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		}
 
 		// request is going to the web UI
-		if cfg.DisableUI {
+		if cfg.StaticFS == nil {
 			w.WriteHeader(http.StatusNotImplemented)
 			return
 		}
@@ -348,7 +367,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		// serve Web UI:
 		if strings.HasPrefix(r.URL.Path, "/web/app") {
 			httplib.SetStaticFileHeaders(w.Header())
-			http.StripPrefix("/web", http.FileServer(staticFS)).ServeHTTP(w, r)
+			http.StripPrefix("/web", makeGzipHandler(http.FileServer(cfg.StaticFS))).ServeHTTP(w, r)
 		} else if strings.HasPrefix(r.URL.Path, "/web/") || r.URL.Path == "/web" {
 			csrfToken, err := csrf.AddCSRFProtection(w, r)
 			if err != nil {
@@ -364,9 +383,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 			ctx, err := h.AuthenticateRequest(w, r, false)
 			if err == nil {
-				re, err := NewSessionResponse(ctx)
+				resp, err := newSessionResponse(ctx)
 				if err == nil {
-					out, err := json.Marshal(re)
+					out, err := json.Marshal(resp)
 					if err == nil {
 						session.Session = base64.StdEncoding.EncodeToString(out)
 					}
@@ -463,6 +482,14 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
+	res, err := clt.GetAccessCapabilities(r.Context(), services.AccessCapabilitiesRequest{
+		RequestableRoles: true,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	userContext.RequestableRoles = res.RequestableRoles
 	userContext.Cluster, err = ui.GetClusterDetails(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -477,15 +504,16 @@ func localSettings(authClient auth.ClientI, cap services.AuthPreference) (client
 		SecondFactor: cap.GetSecondFactor(),
 	}
 
-	// if the type is u2f, pull some additional data back
-	if cap.GetSecondFactor() == teleport.U2F {
-		u2fs, err := cap.GetU2F()
-		if err != nil {
-			return client.AuthenticationSettings{}, trace.Wrap(err)
-		}
-
-		as.U2F = &client.U2FSettings{AppID: u2fs.AppID}
+	// Add U2F settings, if available.
+	u2fs, err := cap.GetU2F()
+	if trace.IsNotFound(err) {
+		// No U2F settings.
+		return as, nil
 	}
+	if err != nil {
+		return client.AuthenticationSettings{}, trace.Wrap(err)
+	}
+	as.U2F = &client.U2FSettings{AppID: u2fs.AppID}
 
 	return as, nil
 }
@@ -677,7 +705,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	httplib.SetWebConfigHeaders(w.Header())
 
 	authProviders := []ui.WebConfigAuthProvider{}
-	secondFactor := teleport.OFF
+	secondFactor := constants.SecondFactorOff
 
 	// get all OIDC connectors
 	oidcConnectors, err := h.cfg.ProxyClient.GetOIDCConnectors(false)
@@ -928,7 +956,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 			return nil, trace.AccessDenied("access denied")
 		}
 		logger.Infof("Callback is redirecting to web browser.")
-		err = SetSession(w, response.Username, response.Session.GetName())
+		err = SetSessionCookie(w, response.Username, response.Session.GetName())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1010,7 +1038,7 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 		}
 
 		logger.Info("Callback redirecting to web browser.")
-		if err := SetSession(w, response.Username, response.Session.GetName()); err != nil {
+		if err := SetSessionCookie(w, response.Username, response.Session.GetName()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return nil, httplib.SafeRedirect(w, r, response.Req.ClientRedirectURL)
@@ -1145,6 +1173,12 @@ type CreateSessionReq struct {
 	SecondFactorToken string `json:"second_factor_token"`
 }
 
+// String returns text description of this response
+func (r *CreateSessionResponse) String() string {
+	return fmt.Sprintf("WebSession(type=%v,token=%v,expires=%vs)",
+		r.Type, r.Token, r.ExpiresIn)
+}
+
 // CreateSessionResponse returns OAuth compabible data about
 // access token: https://tools.ietf.org/html/rfc6749
 type CreateSessionResponse struct {
@@ -1156,13 +1190,13 @@ type CreateSessionResponse struct {
 	ExpiresIn int `json:"expires_in"`
 }
 
-func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
+func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	webSession := ctx.GetWebSession()
-	user, err := clt.GetUser(webSession.GetUser(), false)
+	token := ctx.getToken()
+	user, err := clt.GetUser(ctx.GetUser(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1178,11 +1212,10 @@ func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return &CreateSessionResponse{
 		Type:      roundtrip.AuthBearer,
-		Token:     webSession.GetBearerToken(),
-		ExpiresIn: int(time.Until(webSession.GetBearerTokenExpiryTime()) / time.Second),
+		Token:     token.GetName(),
+		ExpiresIn: int(token.Expiry().Sub(ctx.parent.clock.Now()) / time.Second),
 	}, nil
 }
 
@@ -1213,9 +1246,9 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	var webSession services.WebSession
 
 	switch cap.GetSecondFactor() {
-	case teleport.OFF:
+	case constants.SecondFactorOff:
 		webSession, err = h.auth.AuthWithoutOTP(req.User, req.Pass)
-	case teleport.OTP, teleport.HOTP, teleport.TOTP:
+	case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
 		webSession, err = h.auth.AuthWithOTP(req.User, req.Pass, req.SecondFactorToken)
 	default:
 		return nil, trace.AccessDenied("unknown second factor type: %q", cap.GetSecondFactor())
@@ -1225,17 +1258,28 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.AccessDenied("bad auth credentials")
 	}
 
-	if err := SetSession(w, req.User, webSession.GetName()); err != nil {
+	// Block and wait a few seconds for the session that was created to show up
+	// in the cache. If this request is not blocked here, it can get stuck in a
+	// racy session creation loop.
+	err = h.waitForWebSession(r.Context(), types.GetWebSessionRequest{
+		User:      req.User,
+		SessionID: webSession.GetName(),
+	})
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, err := h.auth.ValidateSession(req.User, webSession.GetName())
+	if err := SetSessionCookie(w, req.User, webSession.GetName()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ctx, err := h.auth.newSessionContext(req.User, webSession.GetName())
 	if err != nil {
 		h.log.WithError(err).Warnf("Access attempt denied for user %q.", req.User)
 		return nil, trace.AccessDenied("need auth")
 	}
 
-	return NewSessionResponse(ctx)
+	return newSessionResponse(ctx)
 }
 
 // deleteSession is called to sign out user
@@ -1265,29 +1309,23 @@ func (h *Handler) logout(w http.ResponseWriter, ctx *SessionContext) error {
 }
 
 // renewSession is called in two ways:
-// 	- Without requestId: Creates new session that is about to expire.
-// 	- With requestId: Creates new session that includes additional roles assigned with approving access request.
-//
-// 	It issues the new session and generates new session cookie.
-// 	It's important to understand that the old session becomes effectively invalid.
+// 	- Without requestId: Updates the existing session about to expire.
+// 	- With requestId: Updates existing session with additional roles assigned with approving access request.
 func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	requestID := params.ByName("requestId")
 
-	newSess, err := ctx.ExtendWebSession(requestID)
+	newSession, err := ctx.extendWebSession(requestID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// transfer ownership over connections that were opened in the
-	// sessionContext
-	newContext, err := ctx.parent.ValidateSession(newSess.GetUser(), newSess.GetName())
+	newContext, err := h.auth.newSessionContextFromSession(newSession)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	newContext.AddClosers(ctx.TransferClosers()...)
-	if err := SetSession(w, newSess.GetUser(), newSess.GetName()); err != nil {
+	if err := SetSessionCookie(w, newSession.GetUser(), newSession.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return NewSessionResponse(newContext)
+	return newSessionResponse(newContext)
 }
 
 func (h *Handler) changePasswordWithToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -1300,27 +1338,27 @@ func (h *Handler) changePasswordWithToken(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ctx, err := h.auth.ValidateSession(sess.GetUser(), sess.GetName())
+	ctx, err := h.auth.newSessionContext(sess.GetUser(), sess.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := SetSession(w, sess.GetUser(), sess.GetName()); err != nil {
+	if err := SetSessionCookie(w, sess.GetUser(), sess.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return NewSessionResponse(ctx)
+	return newSessionResponse(ctx)
 }
 
 // createResetPasswordToken allows a UI user to reset a user's password.
 // This handler is also required for after creating new users.
 func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	clt, err := ctx.GetClient()
-	if err != nil {
+	var req auth.CreateResetPasswordTokenRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var req auth.CreateResetPasswordTokenRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	clt, err := ctx.GetClient()
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1329,7 +1367,6 @@ func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Reques
 			Name: req.Name,
 			Type: req.Type,
 		})
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1393,7 +1430,7 @@ func (h *Handler) u2fRegisterRequest(w http.ResponseWriter, r *http.Request, p h
 	return u2fRegisterRequest, nil
 }
 
-// u2fSignRequest is called to get a U2F challenge for authenticating
+// mfaChallengeRequest is called to get a MFA challenge for authenticating
 //
 // POST /webapi/u2f/signrequest
 //
@@ -1403,23 +1440,23 @@ func (h *Handler) u2fRegisterRequest(w http.ResponseWriter, r *http.Request, p h
 //
 // {"version":"U2F_V2","challenge":"randombase64string","keyHandle":"longbase64string","appId":"https://mycorp.com:3080"}
 //
-func (h *Handler) u2fSignRequest(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *client.U2fSignRequestReq
+func (h *Handler) mfaChallengeRequest(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req *client.MFAChallengeRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	u2fSignReq, err := h.auth.GetU2FSignRequest(req.User, req.Pass)
+	mfaChallenge, err := h.auth.GetMFAAuthenticateChallenge(req.User, req.Pass)
 	if err != nil {
 		return nil, trace.AccessDenied("bad auth credentials")
 	}
 
-	return u2fSignReq, nil
+	return mfaChallenge, nil
 }
 
 // A request from the client to send the signature from the U2F key
 type u2fSignResponseReq struct {
-	User            string           `json:"user"`
-	U2FSignResponse u2f.SignResponse `json:"u2f_sign_response"`
+	User            string                            `json:"user"`
+	U2FSignResponse u2f.AuthenticateChallengeResponse `json:"u2f_sign_response"`
 }
 
 // createSessionWithU2FSignResponse is called to sign in with a U2F signature
@@ -1442,14 +1479,14 @@ func (h *Handler) createSessionWithU2FSignResponse(w http.ResponseWriter, r *htt
 	if err != nil {
 		return nil, trace.AccessDenied("bad auth credentials")
 	}
-	if err := SetSession(w, req.User, sess.GetName()); err != nil {
+	if err := SetSessionCookie(w, req.User, sess.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ctx, err := h.auth.ValidateSession(req.User, sess.GetName())
+	ctx, err := h.auth.newSessionContext(req.User, sess.GetName())
 	if err != nil {
 		return nil, trace.AccessDenied("need auth")
 	}
-	return NewSessionResponse(ctx)
+	return newSessionResponse(ctx)
 }
 
 // getClusters returns a list of cluster and its data.
@@ -1523,7 +1560,7 @@ func (h *Handler) siteNodesGet(w http.ResponseWriter, r *http.Request, p httprou
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
 
-	// Get a client to the Auth Server with the logged in users identity. The
+	// Get a client to the Auth Server with the logged in user's identity. The
 	// identity of the logged in user is used to fetch the list of nodes.
 	clt, err := ctx.GetUserClient(site)
 	if err != nil {
@@ -1543,7 +1580,7 @@ func (h *Handler) siteNodesGet(w http.ResponseWriter, r *http.Request, p httprou
 // GET /v1/webapi/sites/:site/namespaces/:namespace/connect?access_token=bearer_token&params=<urlencoded json-structure>
 //
 // Due to the nature of websocket we can't POST parameters as is, so we have
-// to add query parameters. The params query parameter is a url encodeed JSON strucrture:
+// to add query parameters. The params query parameter is a URL-encoded JSON structure:
 //
 // {"server_id": "uuid", "login": "admin", "term": {"h": 120, "w": 100}, "sid": "123"}
 //
@@ -1573,8 +1610,8 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	h.log.Debugf("New terminal request for ns=%s, server=%s, login=%s, sid=%s.",
-		req.Namespace, req.Server, req.Login, req.SessionID)
+	h.log.Debugf("New terminal request for ns=%s, server=%s, login=%s, sid=%s, websid=%s.",
+		req.Namespace, req.Server, req.Login, req.SessionID, ctx.GetSessionID())
 
 	authAccessPoint, err := site.CachingAccessPoint()
 	if err != nil {
@@ -1605,7 +1642,7 @@ func (h *Handler) siteNodeConnect(
 	}
 
 	// start the websocket session with a web-based terminal:
-	h.log.Infof("Getting terminal to '%#v'.", req)
+	h.log.Infof("Getting terminal to %#v.", req)
 	term.Serve(w, r)
 
 	return nil, nil
@@ -2061,9 +2098,9 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 	var cert *auth.SSHLoginResponse
 
 	switch cap.GetSecondFactor() {
-	case teleport.OFF:
+	case constants.SecondFactorOff:
 		cert, err = h.auth.GetCertificateWithoutOTP(*req)
-	case teleport.OTP, teleport.HOTP, teleport.TOTP:
+	case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
 		// convert legacy requests to new parameter here. remove once migration to TOTP is complete.
 		if req.HOTPToken != "" {
 			req.OTPToken = req.HOTPToken
@@ -2079,8 +2116,9 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 	return cert, nil
 }
 
-// createSSHCertWithU2FSignResponse is a web call that generates new SSH certificate based
-// on user's name, password, U2F signature and public key user wishes to sign
+// createSSHCertWithMFAChallengeResponse is a web call that generates new SSH
+// certificate based on user's name, password, MFA response and public key user
+// wishes to sign.
 //
 // POST /v1/webapi/u2f/certs
 //
@@ -2090,13 +2128,13 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 //
 // { "cert": "base64 encoded signed cert", "host_signers": [{"domain_name": "example.com", "checking_keys": ["base64 encoded public signing key"]}] }
 //
-func (h *Handler) createSSHCertWithU2FSignResponse(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *client.CreateSSHCertWithU2FReq
+func (h *Handler) createSSHCertWithMFAChallengeResponse(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req *client.CreateSSHCertWithMFAReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	cert, err := h.auth.GetCertificateWithU2F(*req)
+	cert, err := h.auth.GetCertificateWithMFA(*req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2213,12 +2251,12 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 		}
 		return nil, trace.AccessDenied(missingCookieMsg)
 	}
-	d, err := DecodeCookie(cookie.Value)
+	decodedCookie, err := DecodeCookie(cookie.Value)
 	if err != nil {
 		logger.WithError(err).Warn("Failed to decode cookie.")
 		return nil, trace.AccessDenied("failed to decode cookie")
 	}
-	ctx, err := h.auth.ValidateSession(d.User, d.SID)
+	ctx, err := h.auth.validateSession(r.Context(), decodedCookie.User, decodedCookie.SID)
 	if err != nil {
 		logger.WithError(err).Warn("Invalid session.")
 		ClearSession(w)
@@ -2230,9 +2268,8 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 			logger.WithError(err).Warn("No auth headers.")
 			return nil, trace.AccessDenied("need auth")
 		}
-
-		if subtle.ConstantTimeCompare([]byte(creds.Password), []byte(ctx.GetWebSession().GetBearerToken())) != 1 {
-			logger.Warn("Request failed: bad bearer token.")
+		if err := ctx.validateBearerToken(r.Context(), creds.Password); err != nil {
+			logger.WithError(err).Warn("Request failed: bad bearer token.")
 			return nil, trace.AccessDenied("bad bearer token")
 		}
 	}

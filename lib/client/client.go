@@ -20,9 +20,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"io/ioutil"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -31,8 +33,10 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/proto"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -111,8 +115,8 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 	return sites, nil
 }
 
-// GetAllClusters returns local and remote clusters
-func (proxy *ProxyClient) GetAllClusters(ctx context.Context) ([]services.RemoteCluster, error) {
+// GetLeafClusters returns the leaf/remote clusters.
+func (proxy *ProxyClient) GetLeafClusters(ctx context.Context) ([]services.RemoteCluster, error) {
 	rootClusterName, err := proxy.RootClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -126,18 +130,7 @@ func (proxy *ProxyClient) GetAllClusters(ctx context.Context) ([]services.Remote
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	rc, err := services.NewRemoteCluster(rootClusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	rc.SetConnectionStatus(teleport.RemoteClusterStatusOnline)
-	rc.SetLastHeartbeat(time.Now().UTC())
-
-	// Local cluster should always be first in the list.
-	out := []services.RemoteCluster{rc}
-	out = append(out, remoteClusters...)
-	return out, nil
+	return remoteClusters, nil
 }
 
 // ReissueParams encodes optional parameters for
@@ -146,6 +139,7 @@ type ReissueParams struct {
 	RouteToCluster    string
 	KubernetesCluster string
 	AccessRequests    []string
+	RouteToDatabase   proto.RouteToDatabase
 }
 
 // ReissueUserCerts generates certificates for the user
@@ -191,6 +185,7 @@ func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, params ReissuePa
 		RouteToCluster:    params.RouteToCluster,
 		KubernetesCluster: params.KubernetesCluster,
 		AccessRequests:    params.AccessRequests,
+		RouteToDatabase:   params.RouteToDatabase,
 	}
 	if _, ok := cert.Permissions.Extensions[teleport.CertExtensionTeleportRoles]; !ok {
 		req.Format = teleport.CertificateFormatOldSSH
@@ -204,6 +199,9 @@ func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, params ReissuePa
 	key.TLSCert = certs.TLS
 	if params.KubernetesCluster != "" {
 		key.KubeTLSCerts[params.KubernetesCluster] = certs.TLS
+	}
+	if params.RouteToDatabase.ServiceName != "" {
+		key.DBTLSCerts[params.RouteToDatabase.ServiceName] = certs.TLS
 	}
 
 	// save the cert to the local storage (~/.tsh usually):
@@ -321,6 +319,19 @@ func (proxy *ProxyClient) GetAppServers(ctx context.Context, namespace string) (
 	return servers, nil
 }
 
+// GetDatabaseServers returns all registered database proxy servers.
+func (proxy *ProxyClient) GetDatabaseServers(ctx context.Context, namespace string) ([]types.DatabaseServer, error) {
+	authClient, err := proxy.CurrentClusterAccessPoint(ctx, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers, err := authClient.GetDatabaseServers(ctx, namespace, services.SkipValidation())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return servers, nil
+}
+
 // CurrentClusterAccessPoint returns cluster access point to the currently
 // selected cluster and is used for discovery
 // and could be cached based on the access policy
@@ -383,7 +394,7 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 	})
 
 	if proxy.teleportClient.SkipLocalAuth {
-		return auth.NewTLSClient(auth.ClientConfig{
+		return auth.NewClient(client.Config{
 			Dialer: dialer,
 			TLS:    proxy.teleportClient.TLS,
 		})
@@ -398,7 +409,7 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to generate client TLS config")
 	}
-	clt, err := auth.NewTLSClient(auth.ClientConfig{
+	clt, err := auth.NewClient(client.Config{
 		Dialer: dialer,
 		TLS:    tlsConfig,
 	})
@@ -845,7 +856,7 @@ func (proxy *ProxyClient) Close() error {
 
 // ExecuteSCP runs remote scp command(shellCmd) on the remote server and
 // runs local scp handler using SCP Command
-func (c *NodeClient) ExecuteSCP(cmd scp.Command) error {
+func (c *NodeClient) ExecuteSCP(ctx context.Context, cmd scp.Command) error {
 	shellCmd, err := cmd.GetRemoteShellCmd()
 	if err != nil {
 		return trace.Wrap(err)
@@ -867,6 +878,14 @@ func (c *NodeClient) ExecuteSCP(cmd scp.Command) error {
 		return trace.Wrap(err)
 	}
 
+	// Stream scp's stderr so tsh gets the verbose remote error
+	// if the command fails
+	stderr, err := s.StderrPipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	go io.Copy(os.Stderr, stderr)
+
 	ch := utils.NewPipeNetConn(
 		stdout,
 		stdin,
@@ -875,17 +894,40 @@ func (c *NodeClient) ExecuteSCP(cmd scp.Command) error {
 		&net.IPAddr{},
 	)
 
-	closeC := make(chan interface{}, 1)
+	execC := make(chan error, 1)
 	go func() {
-		if err = cmd.Execute(ch); err != nil {
-			log.Error(err)
+		err := cmd.Execute(ch)
+		if err != nil && !trace.IsEOF(err) {
+			log.WithError(err).Warn("Failed to execute SCP command.")
 		}
 		stdin.Close()
-		close(closeC)
+		execC <- err
 	}()
 
-	runErr := s.Run(shellCmd)
-	<-closeC
+	runC := make(chan error, 1)
+	go func() {
+		err := s.Run(shellCmd)
+		if err != nil && errors.Is(err, &ssh.ExitMissingError{}) {
+			// TODO(dmitri): currently, if the session is aborted with (*session).Close,
+			// the remote side cannot send exit-status and this error results.
+			// To abort the session properly, Teleport needs to support `signal` request
+			err = nil
+		}
+		runC <- err
+	}()
+
+	var runErr error
+	select {
+	case <-ctx.Done():
+		if err := s.Close(); err != nil {
+			log.WithError(err).Debug("Failed to close the SSH session.")
+		}
+		err, runErr = <-execC, <-runC
+	case err = <-execC:
+		runErr = <-runC
+	case runErr = <-runC:
+		err = <-execC
+	}
 
 	if runErr != nil && (err == nil || trace.IsEOF(err)) {
 		err = runErr
@@ -968,6 +1010,31 @@ func proxyConnection(ctx context.Context, conn net.Conn, remoteAddr string, dial
 	return trace.NewAggregate(errs...)
 }
 
+// acceptWithContext calls "Accept" on the listener but will unblock when the
+// context is canceled.
+func acceptWithContext(ctx context.Context, l net.Listener) (net.Conn, error) {
+	acceptCh := make(chan net.Conn, 1)
+	errorCh := make(chan error, 1)
+
+	go func() {
+		conn, err := l.Accept()
+		if err != nil {
+			errorCh <- err
+			return
+		}
+		acceptCh <- conn
+	}()
+
+	select {
+	case conn := <-acceptCh:
+		return conn, nil
+	case err := <-errorCh:
+		return nil, trace.Wrap(err)
+	case <-ctx.Done():
+		return nil, trace.Wrap(ctx.Err())
+	}
+}
+
 // listenAndForward listens on a given socket and forwards all incoming
 // commands to the remote address through the SSH tunnel.
 func (c *NodeClient) listenAndForward(ctx context.Context, ln net.Listener, remoteAddr string) {
@@ -976,7 +1043,7 @@ func (c *NodeClient) listenAndForward(ctx context.Context, ln net.Listener, remo
 
 	for {
 		// Accept connections from the client.
-		conn, err := ln.Accept()
+		conn, err := acceptWithContext(ctx, ln)
 		if err != nil {
 			log.Errorf("Port forwarding failed: %v.", err)
 			break

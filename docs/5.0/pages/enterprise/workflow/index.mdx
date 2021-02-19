@@ -1,0 +1,240 @@
+---
+title: Access Workflows for SSH and Kubernetes Access
+description: How to customize SSH and Kubernetes access using Teleport.
+h1: Teleport Access Workflows
+---
+
+#### Approving Workflow using an External Integration
+- [Integrating Teleport with Slack](ssh-approval-slack.mdx)
+- [Integrating Teleport with Mattermost](ssh-approval-mattermost.mdx)
+- [Integrating Teleport with Jira Cloud](ssh-approval-jira-cloud.mdx)
+- [Integrating Teleport with Jira Server](ssh-approval-jira-server.mdx)
+- [Integrating Teleport with PagerDuty](ssh-approval-pagerduty.mdx)
+
+
+## Access Workflows Setup
+
+Teleport 4.2 introduced the ability for users to request additional roles. The
+workflow API makes it easy to dynamically approve or deny these requests.
+
+### Setup
+
+**Contractor Role**
+This role allows the contractor to request the role DBA.
+
+```yaml
+kind: role
+metadata:
+  name: contractor
+spec:
+  options:
+    # ...
+  allow:
+    request:
+      roles: ['dba']
+    # ...
+  deny:
+    # ...
+```
+
+**DBA Role**
+This role allows the contractor to request the role DBA.
+
+```yaml
+kind: role
+metadata:
+  name: dba
+spec:
+  options:
+    # ...
+    # Only allows the contractor to use this role for 1 hour from time of request.
+    max_session_ttl: 1h
+  allow:
+    # ...
+  deny:
+    # ...
+```
+
+**Admin Role**
+This role allows the admin to approve the contractor's request.
+```yaml
+kind: role
+metadata:
+  name: admin
+spec:
+  options:
+    # ...
+  allow:
+    # ...
+  deny:
+    # ...
+# list of allow-rules, see
+# https://gravitational.com/teleport/docs/enterprise/ssh-rbac/
+rules:
+    # Access Request is part of Access Workflows introduced in 4.2
+    # `access_request` should only be given to Teleport Admins.
+    - resources: [access_request]
+      verbs: [list, read, update, delete]
+```
+
+
+```bash
+$ tsh login teleport-cluster --request-roles=dba
+Seeking request approval... (id: bc8ca931-fec9-4b15-9a6f-20c13c5641a9)
+```
+
+As a Teleport Administrator:
+
+
+```bash
+$ tctl request ls
+Token                                Requestor Metadata       Created At (UTC)    Status
+------------------------------------ --------- -------------- ------------------- -------
+bc8ca931-fec9-4b15-9a6f-20c13c5641a9 alice     roles=dba      07 Nov 19 19:38 UTC PENDING
+```
+
+```bash
+$ tctl request approve bc8ca931-fec9-4b15-9a6f-20c13c5641a9
+```
+
+Assuming access, `tsh` will automatically manage a certificate re-issued with
+the newly requested roles applied. In this case `contractor` will now have have
+the permission of the `dba`.
+
+<Admonition type="warning">
+Granting a role with administrative abilities could allow a user to **permanently**
+upgrade their privileges (e.g. if contractor was granted admin for some reason).
+We recommend only escalating to the next role of least privilege vs jumping directly
+to "Super Admin" role.
+
+The `deny.request` block can help mitigate the risk of doing this by accident. See
+Example Below.
+</Admonition>
+
+```yaml
+# Example role that explicitly denies a contractor from requesting the admin
+# role.
+kind: role
+metadata:
+name: contractor
+spec:
+options:
+    # ...
+allow:
+    # ...
+deny:
+    request:
+    roles: ['admin']
+```
+
+## Adding a Reason to Access Workflows
+
+Teleport 4.4.4 introduced the ability for users to request additional roles. `tctl`
+or the Access Workflows API makes it easy to dynamically approve or deny these requests.
+
+By requiring a reason along with an access request, you can provide users with a default
+unprivileged state where they must always go through the Access Workflows API in order to
+gain meaningful privilege.
+
+Teams can leverage claims (traits) provided by external identity providers both when
+determining which roles a user is allowed to request, and if a specific request
+should be approved/denied.
+
+### Example Setup
+
+**Unprivileged User**<br />
+In this example we have an employee who isn't able to access any systems. When they
+log in, they'll always need to provide a reason for access.
+
+```yaml
+kind: role
+metadata:
+  name: employee
+spec:
+  allow:
+    request:
+      # the `roles` list can now be a mixture of literals and wildcard matchers
+      roles: ['common', 'dev-*']
+      # the `claims_to_roles` mapping works the same as it does in
+      # the OIDC connector, with the added benefit that the roles being mapped to
+      # can also be matchers. the below mapping says that users with
+      # the claims `groups: admins` can request any role in the system.
+      claims_to_roles:
+        - claim: groups
+          value: admins
+          roles: ['*']
+      # Teleport can attach annotations to pending access requests. these
+      # annotations may be literals, or be variable interpolation expressions,
+      # effectively creating a means for propagating selected claims from an
+      # external identity provider to the plugin system.
+      annotations:
+        foo: ['bar']
+        groups: ['{% raw %}{{external.groups}}{% endraw %}']
+  options:
+    # the `request_access` field can be set to 'always' or 'reason' to tell
+    # tsh or the web UI to always create an access request on login. If it is
+    # set to 'reason', the user will be required to indicate *why* they are
+    # generating the access request.
+    request_access: reason
+    # the `request_prompt` field can be used to tell the user what should
+    # be supplied in the request reason field.
+    request_prompt: Please provide your ticket ID
+version: v3
+```
+
+<Admonition type="tip" title="Wildcard and RegEx Tips">
+Teleport RBAC offers powerful wildcard and RegEx helpers. Below are a few examples.
+
+  `dev-*` - Can request all dev clusters. e.g. dev-prod,dev-stg
+
+  `^prod.*$` - Can request all `prod.*` clusters. e.g. prod.us-east
+
+  `dev-{% raw %}{{regexp.match("us-*")}}{% endraw %}` - Can request any dev cluster in the US. e.g. dev-us-east-a, dev-us-west-b
+
+  `dev-{% raw %}{{regexp.not_match("beta")}}{% endraw %}-prod` - Can request any cluster, apart from beta cluster. e.g. Can access dev-alpha-prod, cannot access dev-beta-prod.
+</Admonition>
+
+**Unprivileged User Login**<br />
+
+```bash
+# Login: This will prompt the user to provide a reason in the UI.
+tsh login
+# Login: The user can provide a reason using tsh.
+tsh login --request-reason="..."
+```
+
+<Admonition type="tip" title="Note">
+Notice that the above role does not specify any logins. If a users's roles specify no logins, Teleport will now generate the user's initial SSH certificates with an invalid dummy login of the form `-teleport-nologin-<random-suffix>` (e.g. `-teleport-nologin-1e02dbfd`).
+</Admonition>
+
+**Admin Flow: Approve/Deny**<br />
+
+A number of new parameters are now available that grant the plugin or administrator greater insight into approvals/denials:
+
+```bash
+$ tctl request deny --reason='Please be more specific' --annotations=method=cli,unix-user=${USER} 28a3fb86-0230-439d-ad88-11cfcb213193
+```
+
+Because automatically generated requests always include all roles that the user is allowed to request, approvers can now specify a smaller subset of the requested roles that should actually be applied, allowing for sub-selection in cases where full escalation is not a desirable default:
+
+```bash
+$ tctl request approve --roles=role-1,role-3 --reason='Approved, but not role-2 right now' 28a3fb86-0230-439d-ad88-11cfcb213193
+```
+
+### Other features of Access Workflows.
+
+ - Users can request multiple roles at one time. e.g `roles: ['dba','netsec','cluster-x']`
+ - Approved requests have no effect on Teleport's behavior outside of allowing additional
+   roles on re-issue. This has the nice effect of making requests "compatible" with
+   older versions of Teleport, since only the issuing Auth Server needs any particular
+   knowledge of the feature.
+
+## Integrating with an External Tool
+
+| Integration | Feature | Type          | Setup Instructions |
+|-------------|---------|---------------|--------------------|
+| Slack       |         | Chatbot       | [Setup Slack](ssh-approval-slack.mdx) |
+| Mattermost  |         | Chatbot       | [Setup Mattermost](ssh-approval-mattermost.mdx) |
+| Jira Server |         | Project Board | [Setup Jira Server](ssh-approval-jira-server.mdx) |
+| Jira Cloud  |         | Project Board | [Setup Jira Cloud](ssh-approval-jira-cloud.mdx) |
+| PagerDuty   |         | Schedule      | [Setup PagerDuty](ssh-approval-pagerduty.mdx) |

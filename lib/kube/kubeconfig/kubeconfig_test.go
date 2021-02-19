@@ -269,7 +269,7 @@ func (s *KubeconfigSuite) genUserKey() (*client.Key, []byte, error) {
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	ca, err := tlsca.New(caCert, caKey)
+	ca, err := tlsca.FromKeys(caCert, caKey)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

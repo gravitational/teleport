@@ -20,7 +20,6 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/stretchr/testify/require"
 )
 
@@ -28,21 +27,21 @@ import (
 // of the TraitMappingSet.TraitsToRoleMatchers method.
 func TestTraitsToRoleMatchers(t *testing.T) {
 	traits := map[string][]string{
-		"groups": []string{
+		"groups": {
 			"admins",
 			"devs",
 			"populists",
 		},
-		"sketchy": []string{
+		"sketchy": {
 			"*",
 			"^(.*)$",
 			"*-prod",
 		},
-		"sketchy-pfx": []string{
+		"sketchy-pfx": {
 			"pfx-dev",
 			"pfx-*",
 		},
-		"requirements": []string{
+		"requirements": {
 			"staging-only",
 			"democracy",
 		},
@@ -118,7 +117,7 @@ func TestTraitsToRoleMatchers(t *testing.T) {
 	}
 
 	for _, tt := range tts {
-		matchers, err := TraitMappingSet([]TraitMapping{tt.tm}).TraitsToRoleMatchers(traits)
+		matchers, err := TraitsToRoleMatchers([]TraitMapping{tt.tm}, traits)
 		require.NoError(t, err, tt.desc)
 
 		// collect all roles which match at least on of the

@@ -24,17 +24,12 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"strconv"
 	"strings"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 
 	"github.com/kardianos/osext"
 )
-
-// relative path to static assets. this is useful during development.
-var debugAssetsPath string
 
 const (
 	webAssetsMissingError = "the teleport binary was built without web assets, try building with `make release`"
@@ -43,52 +38,41 @@ const (
 
 // NewStaticFileSystem returns the initialized implementation of http.FileSystem
 // interface which can be used to serve Teleport Proxy Web UI
-//
-// If 'debugMode' is true, it will load the web assets from the same git repo
-// directory where the executable is, otherwise it will load them from the embedded
-// zip archive.
-//
-func NewStaticFileSystem(debugMode bool) (http.FileSystem, error) {
-	if debugMode {
-		assetsToCheck := []string{"index.html", "/app"}
-
-		if debugAssetsPath == "" {
-			exePath, err := osext.ExecutableFolder()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			_, err = os.Stat(path.Join(exePath, "../../e"))
-			isEnterprise := !os.IsNotExist(err)
-
-			if isEnterprise {
-				// enterprise web assets
-				debugAssetsPath = path.Join(exePath, "../../webassets/e/teleport")
-			} else {
-				// community web assets
-				debugAssetsPath = path.Join(exePath, "../webassets/teleport")
-			}
-		}
-
-		for _, af := range assetsToCheck {
-			_, err := os.Stat(filepath.Join(debugAssetsPath, af))
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-		log.Infof("Using filesystem for serving web assets: %s.", debugAssetsPath)
-		return http.Dir(debugAssetsPath), nil
-	}
-
-	// otherwise, lets use the zip archive attached to the executable:
+func NewStaticFileSystem() (http.FileSystem, error) {
+	// Use the zip archive attached to the executable:
 	return loadZippedExeAssets()
 }
 
-// isDebugMode determines if teleport is running in a "debug" mode.
-// It looks at DEBUG environment variable
-func isDebugMode() bool {
-	v, _ := strconv.ParseBool(os.Getenv(teleport.DebugEnvVar))
-	return v
+// NewDebugFileSystem returns the HTTP file system implementation rooted
+// at the specified assetsPath.
+func NewDebugFileSystem(assetsPath string) (http.FileSystem, error) {
+	assetsToCheck := []string{"index.html", "/app"}
+	if assetsPath == "" {
+		exePath, err := osext.ExecutableFolder()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		_, err = os.Stat(path.Join(exePath, "../../e"))
+		isEnterprise := !os.IsNotExist(err)
+
+		if isEnterprise {
+			// enterprise web assets
+			assetsPath = path.Join(exePath, "../../webassets/e/teleport")
+		} else {
+			// community web assets
+			assetsPath = path.Join(exePath, "../webassets/teleport")
+		}
+	}
+
+	for _, af := range assetsToCheck {
+		_, err := os.Stat(filepath.Join(assetsPath, af))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	log.Infof("Using filesystem for serving web assets: %s.", assetsPath)
+	return http.Dir(assetsPath), nil
 }
 
 // LoadWebResources returns a filesystem implementation compatible

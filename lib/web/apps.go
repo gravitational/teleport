@@ -21,8 +21,6 @@ package web
 import (
 	"context"
 	"net/http"
-	"strings"
-	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
@@ -31,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
@@ -116,7 +115,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	// used for request routing.
 	ws, err := authClient.CreateAppSession(r.Context(), services.CreateAppSessionRequest{
 		Username:      ctx.GetUser(),
-		ParentSession: ctx.sess.GetName(),
+		ParentSession: ctx.GetSessionID(),
 		PublicAddr:    result.PublicAddr,
 		ClusterName:   result.ClusterName,
 	})
@@ -125,9 +124,9 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	}
 
 	// Block and wait a few seconds for the session that was created to show up
-	// in the cache. If this request is not blocked here, it can get struck in a
+	// in the cache. If this request is not blocked here, it can get stuck in a
 	// racy session creation loop.
-	err = h.waitForSession(r.Context(), ws.GetName())
+	err = h.waitForAppSession(r.Context(), ws.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -175,18 +174,24 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	}, nil
 }
 
-// waitForSession will block until the requested session shows up in the
+// waitForAppSession will block until the requested application session shows up in the
 // cache or a timeout occurs.
-func (h *Handler) waitForSession(ctx context.Context, sessionID string) error {
-	timeout := time.NewTimer(defaults.WebHeadersTimeout)
-	defer timeout.Stop()
-
+func (h *Handler) waitForAppSession(ctx context.Context, sessionID string) error {
+	_, err := h.cfg.AccessPoint.GetAppSession(ctx, services.GetAppSessionRequest{SessionID: sessionID})
+	if err == nil {
+		return nil
+	}
+	logger := h.log.WithField("session", sessionID)
+	if !trace.IsNotFound(err) {
+		logger.WithError(err).Debug("Failed to query application session.")
+	}
 	// Establish a watch on application session.
 	watcher, err := h.cfg.AccessPoint.NewWatcher(ctx, services.Watch{
 		Name: teleport.ComponentAppProxy,
 		Kinds: []services.WatchKind{
-			services.WatchKind{
-				Kind: services.KindWebSession,
+			{
+				Kind:    services.KindWebSession,
+				SubKind: services.KindAppSession,
 			},
 		},
 		MetricComponent: teleport.ComponentAppProxy,
@@ -195,48 +200,20 @@ func (h *Handler) waitForSession(ctx context.Context, sessionID string) error {
 		return trace.Wrap(err)
 	}
 	defer watcher.Close()
-
-	select {
-	// Received an event, first event should always be an initialize event.
-	case event := <-watcher.Events():
-		if event.Type != backend.OpInit {
-			return trace.BadParameter("expected init event, got %v instead", event.Type)
+	matchEvent := func(event services.Event) (services.Resource, error) {
+		if event.Type == backend.OpPut &&
+			event.Resource.GetKind() == services.KindWebSession &&
+			event.Resource.GetSubKind() == services.KindAppSession &&
+			event.Resource.GetName() == sessionID {
+			return event.Resource, nil
 		}
-	// Watcher closed, probably due to a network error.
-	case <-watcher.Done():
-		return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
-	// Timed out waiting for initialize event.
-	case <-timeout.C:
-		return trace.BadParameter("timed out waiting for initialize event")
+		return nil, trace.CompareFailed("no match")
 	}
-
-	// Check if the session exists in the backend.
-	_, err = h.cfg.AccessPoint.GetAppSession(ctx, services.GetAppSessionRequest{
-		SessionID: sessionID,
-	})
-	if err == nil {
-		return nil
+	_, err = local.WaitForEvent(ctx, watcher, local.EventMatcherFunc(matchEvent), h.clock)
+	if err != nil {
+		logger.WithError(err).Warn("Failed to wait for application session.")
 	}
-
-	for {
-		select {
-		// If the event is the expected one, return right away.
-		case event := <-watcher.Events():
-			if event.Resource.GetKind() != services.KindWebSession {
-				return trace.BadParameter("unexpected event: %v.", event.Resource.GetKind())
-			}
-			if event.Type == backend.OpPut && event.Resource.GetName() == sessionID {
-				return nil
-			}
-		// Watcher closed, probably due to a network error.
-		case <-watcher.Done():
-			return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
-		// Timed out waiting for initialize event.
-		case <-timeout.C:
-			return trace.BadParameter("timed out waiting for session")
-
-		}
-	}
+	return trace.Wrap(err)
 }
 
 func (h *Handler) validateAppSessionRequest(ctx context.Context, req *CreateAppSessionRequest) (*validateAppSessionResult, error) {
@@ -300,52 +277,6 @@ func (h *Handler) resolveDirect(ctx context.Context, publicAddr string, clusterN
 
 // resolveFQDN makes a best effort attempt to resolve FQDN to an application
 // running a root or leaf cluster.
-//
-// Note: This function can incorrectly resolve application names. For example,
-// if you have an application named "acme" within both the root and leaf
-// cluster, this method will always return "acme" running within the root
-// cluster. Always supply public address and cluster name to deterministically
-// resolve an application.
 func (h *Handler) resolveFQDN(ctx context.Context, fqdn string) (*services.App, services.Server, string, error) {
-	// Parse the address to remove the port if it's set.
-	addr, err := utils.ParseAddr(fqdn)
-	if err != nil {
-		return nil, nil, "", trace.Wrap(err)
-	}
-
-	// Try and match FQDN to public address of application within cluster.
-	application, server, err := app.Match(ctx, h.cfg.ProxyClient, app.MatchPublicAddr(addr.Host()))
-	if err == nil {
-		return application, server, h.auth.clusterName, nil
-	}
-
-	// Extract the first subdomain from the FQDN and attempt to use this as the
-	// application name.
-	appName := strings.Split(addr.Host(), ".")[0]
-
-	// Try and match application name to an application within the cluster.
-	application, server, err = app.Match(ctx, h.cfg.ProxyClient, app.MatchName(appName))
-	if err == nil {
-		return application, server, h.auth.clusterName, nil
-	}
-
-	// Loop over all clusters and try and match application name to an
-	// application with the cluster.
-	remoteClients, err := h.cfg.Proxy.GetSites()
-	if err != nil {
-		return nil, nil, "", trace.Wrap(err)
-	}
-	for _, remoteClient := range remoteClients {
-		authClient, err := remoteClient.CachingAccessPoint()
-		if err != nil {
-			return nil, nil, "", trace.Wrap(err)
-		}
-
-		application, server, err = app.Match(ctx, authClient, app.MatchName(appName))
-		if err == nil {
-			return application, server, remoteClient.GetName(), nil
-		}
-	}
-
-	return nil, nil, "", trace.NotFound("failed to resolve %v to any application within any cluster", fqdn)
+	return app.ResolveFQDN(ctx, h.cfg.ProxyClient, h.cfg.Proxy, h.auth.clusterName, fqdn)
 }

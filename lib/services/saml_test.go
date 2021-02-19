@@ -17,7 +17,6 @@ limitations under the License.
 package services
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 
@@ -32,7 +31,6 @@ import (
 type SAMLSuite struct{}
 
 var _ = check.Suite(&SAMLSuite{})
-var _ = fmt.Printf
 
 func (s *SAMLSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())
@@ -46,9 +44,9 @@ func (s *SAMLSuite) TestParseFromMetadata(c *check.C) {
 	err := decoder.Decode(&raw)
 	c.Assert(err, check.IsNil)
 
-	oc, err := GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(raw.Raw)
+	oc, err := UnmarshalSAMLConnector(raw.Raw)
 	c.Assert(err, check.IsNil)
-	err = oc.CheckAndSetDefaults()
+	err = ValidateSAMLConnector(oc)
 	c.Assert(err, check.IsNil)
 	c.Assert(oc.GetIssuer(), check.Equals, "http://www.okta.com/exkafftca6RqPVgyZ0h7")
 	c.Assert(oc.GetSSO(), check.Equals, "https://dev-813354.oktapreview.com/app/gravitationaldev813354_teleportsaml_1/exkafftca6RqPVgyZ0h7/sso/saml")

@@ -41,7 +41,16 @@ Examples:
     --app-uri="http://localhost:8080" \
     --labels=group:dev
   Same as the above, but the app server runs with "group=dev" label which only
-  allows access to users with the role "group=dev".`
+  allows access to users with the role "group=dev".
+  
+> teleport start --roles=database --token=xyz --auth-server=proxy.example.com:3080 \
+    --db-name="example-db" \
+    --db-protocol="postgres" \
+    --db-uri="localhost:5432"
+  Starts a database server that proxies PostgreSQL database "example-db" running
+  at localhost:5432. The database must be configured with Teleport CA and key
+  pair issued by "tctl auth sign --format=db".
+`
 
 	sampleConfComment = `#
 # Sample Teleport configuration file

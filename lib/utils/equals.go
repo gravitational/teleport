@@ -16,19 +16,6 @@ limitations under the License.
 
 package utils
 
-// StringSlicesEqual returns true if string slices equal
-func StringSlicesEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
 // StringMapsEqual returns true if two strings maps are equal
 func StringMapsEqual(a, b map[string]string) bool {
 	if len(a) != len(b) {

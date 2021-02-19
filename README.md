@@ -38,14 +38,14 @@ implementation and it is _fully compatible with OpenSSH_ and can be used with
 | [Documentation](https://goteleport.com/teleport/docs/quickstart/) | Admin guide, user manual and more |
 | [Demo Video](https://www.youtube.com/watch?v=DUlTAlEJr5w) | 5-minute video overview of the UI. |
 | [Teleconsole](https://www.teleconsole.com) | The free service to "invite" SSH clients behind NAT, built on top of Teleport |
-| [Blog](https://gravitational.com/blog/) | Our blog where we publish Teleport news |
-| [Community Forum](https://community.gravitational.com) | Teleport Community Forum|
+| [Blog](https://goteleport.com/blog/) | Our blog where we publish Teleport news |
+| [Community Forum](https://community.goteleport.com) | Teleport Community Forum|
 
 [![Teleport 4.3 Demo](/docs/4.3/img/readme/teleport-4.3-video-thumb.png)](https://www.youtube.com/watch?v=DUlTAlEJr5w)
 
 ## Installing and Running
 
-Download the [latest binary release](https://gravitational.com/teleport/download/),
+Download the [latest binary release](https://goteleport.com/teleport/download),
 unpack the .tar.gz and run `sudo ./install`. This will copy Teleport binaries into
 `/usr/local/bin`.
 
@@ -218,7 +218,7 @@ magically _teleported_. And Teleport was born!
 
 We offer a few different options for support. First of all, we try to provide clear and comprehensive documentation. The docs are also in Github, so feel free to create a PR or file an issue if you think improvements can be made. If you still have questions after reviewing our docs, you can also:
 
-* Join the [Teleport Community](https://community.gravitational.com/c/teleport) to ask questions. Our engineers are available there to help you.
+* Join the [Teleport Community](https://community.goteleport.com/c/teleport) to ask questions. Our engineers are available there to help you.
 * If you want to contribute to Teleport or file a bug report/issue, you can do so by creating an issue here in Github.
 * If you are interested in Teleport Enterprise or more responsive support during a POC, we can also create a dedicated Slack channel for you during your POC. You can [reach out to us through our website](https://goteleport.com/teleport/) to arrange for a POC.
 
@@ -226,7 +226,7 @@ We offer a few different options for support. First of all, we try to provide cl
 
 Teleport has completed several security audits from the nationally recognized
 technology security companies. [Some](https://goteleport.com/blog/teleport-release-2-2/) of
-[them](https://gravitational.com/blog/teleport-security-audit/) have been made public.
+[them](https://goteleport.com/blog/teleport-security-audit/) have been made public.
 We are comfortable with the use of Teleport from a security perspective.
 
 You can see the list of companies who use Teleport in production on the Teleport

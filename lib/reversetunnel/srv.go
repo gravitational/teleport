@@ -27,6 +27,7 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -68,7 +69,7 @@ func init() {
 
 // server is a "reverse tunnel server". it exposes the cluster capabilities
 // (like access to a cluster's auth) to remote trusted clients
-// (also known as 'reverse tunnel agents'.
+// (also known as 'reverse tunnel agents').
 type server struct {
 	sync.RWMutex
 	Config
@@ -633,6 +634,9 @@ func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.N
 	// Kubernetes service is dialing back.
 	case teleport.RoleKube:
 		s.handleNewService(role, conn, sconn, nch, services.KubeTunnel)
+	// Database proxy is dialing back.
+	case teleport.RoleDatabase:
+		s.handleNewService(role, conn, sconn, nch, types.DatabaseTunnel)
 	// Proxy is dialing back.
 	case teleport.RoleProxy:
 		s.handleNewCluster(conn, sconn, nch)
@@ -700,7 +704,7 @@ func (s *server) getTrustedCAKeysByID(id services.CertAuthID) ([]ssh.PublicKey, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ca.Checkers()
+	return sshutils.GetCheckers(ca)
 }
 
 func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Permissions, err error) {

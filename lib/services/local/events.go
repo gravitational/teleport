@@ -21,11 +21,13 @@ import (
 	"context"
 	"sort"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 )
 
@@ -91,13 +93,24 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch services.Watch) (s
 		case services.KindAppServer:
 			parser = newAppServerParser()
 		case services.KindWebSession:
-			parser = newAppSessionParser()
+			switch kind.SubKind {
+			case services.KindAppSession:
+				parser = newAppSessionParser()
+			case services.KindWebSession:
+				parser = newWebSessionParser()
+			default:
+				return nil, trace.BadParameter("watcher on object subkind %q is not supported", kind.SubKind)
+			}
+		case services.KindWebToken:
+			parser = newWebTokenParser()
 		case services.KindRemoteCluster:
 			parser = newRemoteClusterParser()
 		case services.KindKubeService:
 			parser = newKubeServiceParser()
+		case types.KindDatabaseServer:
+			parser = newDatabaseServerParser()
 		default:
-			return nil, trace.BadParameter("watcher on object kind %v is not supported", kind)
+			return nil, trace.BadParameter("watcher on object kind %q is not supported", kind.Kind)
 		}
 		prefixes = append(prefixes, parser.prefix())
 		parsers = append(parsers, parser)
@@ -258,7 +271,7 @@ func (p *certAuthorityParser) parse(event backend.Event) (services.Resource, err
 			},
 		}, nil
 	case backend.OpPut:
-		ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(event.Item.Value,
+		ca, err := services.UnmarshalCertAuthority(event.Item.Value,
 			services.WithResourceID(event.Item.ID), services.WithExpires(event.Item.Expires), services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -320,7 +333,7 @@ func (p *staticTokensParser) parse(event backend.Event) (services.Resource, erro
 		h.SetName(services.MetaNameStaticTokens)
 		return h, nil
 	case backend.OpPut:
-		tokens, err := services.GetStaticTokensMarshaler().Unmarshal(event.Item.Value,
+		tokens, err := services.UnmarshalStaticTokens(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)
@@ -353,7 +366,7 @@ func (p *clusterConfigParser) parse(event backend.Event) (services.Resource, err
 		h.SetName(services.MetaNameClusterConfig)
 		return h, nil
 	case backend.OpPut:
-		clusterConfig, err := services.GetClusterConfigMarshaler().Unmarshal(
+		clusterConfig, err := services.UnmarshalClusterConfig(
 			event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
@@ -388,7 +401,7 @@ func (p *clusterNameParser) parse(event backend.Event) (services.Resource, error
 		h.SetName(services.MetaNameClusterName)
 		return h, nil
 	case backend.OpPut:
-		clusterName, err := services.GetClusterNameMarshaler().Unmarshal(event.Item.Value,
+		clusterName, err := services.UnmarshalClusterName(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)
@@ -456,7 +469,7 @@ func (p *roleParser) parse(event backend.Event) (services.Resource, error) {
 	case backend.OpDelete:
 		return resourceHeader(event, services.KindRole, services.V3, 1)
 	case backend.OpPut:
-		resource, err := services.GetRoleMarshaler().UnmarshalRole(event.Item.Value,
+		resource, err := services.UnmarshalRole(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)
@@ -542,7 +555,7 @@ func (p *userParser) parse(event backend.Event) (services.Resource, error) {
 	case backend.OpDelete:
 		return resourceHeader(event, services.KindUser, services.V2, 1)
 	case backend.OpPut:
-		resource, err := services.GetUserMarshaler().UnmarshalUser(event.Item.Value,
+		resource, err := services.UnmarshalUser(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)
@@ -682,19 +695,64 @@ func (p *appServerParser) parse(event backend.Event) (services.Resource, error) 
 func newAppSessionParser() *webSessionParser {
 	return &webSessionParser{
 		baseParser: baseParser{matchPrefix: backend.Key(appsPrefix, sessionsPrefix)},
+		hdr: services.ResourceHeader{
+			Kind:    services.KindWebSession,
+			SubKind: services.KindAppSession,
+			Version: services.V2,
+		},
+	}
+}
+
+func newWebSessionParser() *webSessionParser {
+	return &webSessionParser{
+		baseParser: baseParser{matchPrefix: backend.Key(webPrefix, sessionsPrefix)},
+		hdr: services.ResourceHeader{
+			Kind:    services.KindWebSession,
+			SubKind: services.KindWebSession,
+			Version: services.V2,
+		},
 	}
 }
 
 type webSessionParser struct {
 	baseParser
+	hdr services.ResourceHeader
 }
 
 func (p *webSessionParser) parse(event backend.Event) (services.Resource, error) {
 	switch event.Type {
 	case backend.OpDelete:
-		return resourceHeader(event, services.KindWebSession, services.V2, 0)
+		return resourceHeaderWithTemplate(event, p.hdr, 0)
 	case backend.OpPut:
-		resource, err := services.GetWebSessionMarshaler().UnmarshalWebSession(event.Item.Value,
+		resource, err := services.UnmarshalWebSession(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return resource, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newWebTokenParser() *webTokenParser {
+	return &webTokenParser{
+		baseParser: baseParser{matchPrefix: backend.Key(webPrefix, tokensPrefix)},
+	}
+}
+
+type webTokenParser struct {
+	baseParser
+}
+
+func (p *webTokenParser) parse(event backend.Event) (services.Resource, error) {
+	switch event.Type {
+	case backend.OpDelete:
+		return resourceHeader(event, services.KindWebToken, services.V1, 0)
+	case backend.OpPut:
+		resource, err := services.UnmarshalWebToken(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)
@@ -721,12 +779,49 @@ func (p *kubeServiceParser) parse(event backend.Event) (services.Resource, error
 	return parseServer(event, services.KindKubeService)
 }
 
+func newDatabaseServerParser() *databaseServerParser {
+	return &databaseServerParser{
+		baseParser: baseParser{matchPrefix: backend.Key(dbServersPrefix, defaults.Namespace)},
+	}
+}
+
+type databaseServerParser struct {
+	baseParser
+}
+
+func (p *databaseServerParser) parse(event backend.Event) (services.Resource, error) {
+	switch event.Type {
+	case backend.OpDelete:
+		hostID, name, err := baseTwoKeys(event.Item.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &types.DatabaseServerV3{
+			Kind:    types.KindDatabaseServer,
+			Version: types.V3,
+			Metadata: services.Metadata{
+				Name:        name,
+				Namespace:   defaults.Namespace,
+				Description: hostID, // Pass host ID via description field for the cache.
+			},
+		}, nil
+	case backend.OpPut:
+		return services.UnmarshalDatabaseServer(
+			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+			services.SkipValidation())
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
 func parseServer(event backend.Event, kind string) (services.Resource, error) {
 	switch event.Type {
 	case backend.OpDelete:
 		return resourceHeader(event, kind, services.V2, 0)
 	case backend.OpPut:
-		resource, err := services.GetServerMarshaler().UnmarshalServer(event.Item.Value,
+		resource, err := services.UnmarshalServer(event.Item.Value,
 			kind,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
@@ -790,6 +885,75 @@ func resourceHeader(event backend.Event, kind, version string, offset int) (serv
 			Namespace: defaults.Namespace,
 		},
 	}, nil
+}
+
+func resourceHeaderWithTemplate(event backend.Event, hdr services.ResourceHeader, offset int) (services.Resource, error) {
+	name, err := base(event.Item.Key, offset)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &services.ResourceHeader{
+		Kind:    hdr.Kind,
+		SubKind: hdr.SubKind,
+		Version: hdr.Version,
+		Metadata: services.Metadata{
+			Name:      string(name),
+			Namespace: defaults.Namespace,
+		},
+	}, nil
+}
+
+// WaitForEvent waits for the event matched by the specified event matcher in the given watcher.
+func WaitForEvent(ctx context.Context, watcher services.Watcher, m EventMatcher, clock clockwork.Clock) (services.Resource, error) {
+	tick := clock.NewTicker(defaults.WebHeadersTimeout)
+	defer tick.Stop()
+
+	select {
+	case event := <-watcher.Events():
+		if event.Type != backend.OpInit {
+			return nil, trace.BadParameter("expected init event, got %v instead", event.Type)
+		}
+	case <-watcher.Done():
+		// Watcher closed, probably due to a network error.
+		return nil, trace.ConnectionProblem(watcher.Error(), "watcher is closed")
+	case <-tick.Chan():
+		return nil, trace.LimitExceeded("timed out waiting for initialize event")
+	}
+
+	for {
+		select {
+		case event := <-watcher.Events():
+			res, err := m.Match(event)
+			if err == nil {
+				return res, nil
+			}
+			if !trace.IsCompareFailed(err) {
+				logrus.WithError(err).Debug("Failed to match event.")
+			}
+		case <-watcher.Done():
+			// Watcher closed, probably due to a network error.
+			return nil, trace.ConnectionProblem(watcher.Error(), "watcher is closed")
+		case <-tick.Chan():
+			return nil, trace.LimitExceeded("timed out waiting for event")
+		}
+	}
+}
+
+// Match matches the specified resource event by applying itself
+func (r EventMatcherFunc) Match(event services.Event) (services.Resource, error) {
+	return r(event)
+}
+
+// EventMatcherFunc matches the specified resource event.
+// Implements EventMatcher
+type EventMatcherFunc func(services.Event) (services.Resource, error)
+
+// EventMatcher matches a specific resource event
+type EventMatcher interface {
+	// Match matches the specified event.
+	// Returns the matched resource if successful.
+	// Returns trace.CompareFailedError for no match.
+	Match(services.Event) (services.Resource, error)
 }
 
 // base returns last element delimited by separator, index is

@@ -1,5 +1,5 @@
 /*
-Copyright 2018-2019 Gravitational, Inc.
+Copyright 2018-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@ type KubeCSRResponse struct {
 // ProcessKubeCSR processes CSR request against Kubernetes CA, returns
 // signed certificate if successful.
 func (s *Server) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
-	if !modules.GetModules().SupportsKubernetes() {
+	if !modules.GetModules().Features().Kubernetes {
 		return nil, trace.AccessDenied(
 			"this teleport cluster does not support kubernetes, please contact system administrator for support")
 	}
@@ -121,7 +121,7 @@ func (s *Server) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 	// generate TLS certificate
-	tlsAuthority, err := userCA.TLSCA()
+	tlsAuthority, err := tlsca.FromAuthority(userCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

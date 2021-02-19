@@ -104,6 +104,7 @@ github.com/aws/aws-sdk-go/service/applicationautoscaling
 github.com/aws/aws-sdk-go/service/dynamodb
 github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute
 github.com/aws/aws-sdk-go/service/dynamodbstreams
+github.com/aws/aws-sdk-go/service/rds/rdsutils
 github.com/aws/aws-sdk-go/service/s3
 github.com/aws/aws-sdk-go/service/s3/s3iface
 github.com/aws/aws-sdk-go/service/s3/s3manager
@@ -138,6 +139,8 @@ github.com/coreos/go-systemd/v22/journal
 github.com/coreos/pkg/health
 github.com/coreos/pkg/httputil
 github.com/coreos/pkg/timeutil
+# github.com/creack/pty v1.1.9
+github.com/creack/pty
 # github.com/davecgh/go-spew v1.1.1
 ## explicit
 github.com/davecgh/go-spew/spew
@@ -154,6 +157,13 @@ github.com/docker/spdystream/spdy
 # github.com/dustin/go-humanize v1.0.0
 ## explicit
 github.com/dustin/go-humanize
+# github.com/flynn/hid v0.0.0-20190502022136-f1b9b6cc019a
+## explicit
+github.com/flynn/hid
+# github.com/flynn/u2f v0.0.0-20180613185708-15554eb68e5d
+## explicit
+github.com/flynn/u2f/u2fhid
+github.com/flynn/u2f/u2ftoken
 # github.com/fsouza/fake-gcs-server v1.11.6
 ## explicit
 github.com/fsouza/fake-gcs-server/fakestorage
@@ -249,7 +259,7 @@ github.com/gravitational/reporting/types
 # github.com/gravitational/roundtrip v1.0.0
 ## explicit
 github.com/gravitational/roundtrip
-# github.com/gravitational/trace v1.1.6
+# github.com/gravitational/trace v1.1.13
 ## explicit
 github.com/gravitational/trace
 github.com/gravitational/trace/trail
@@ -266,6 +276,21 @@ github.com/imdario/mergo
 ## explicit
 github.com/iovisor/gobpf/bcc
 github.com/iovisor/gobpf/pkg/cpuonline
+# github.com/jackc/chunkreader/v2 v2.0.1
+github.com/jackc/chunkreader/v2
+# github.com/jackc/pgconn v1.7.0
+## explicit
+github.com/jackc/pgconn
+github.com/jackc/pgconn/internal/ctxwatch
+# github.com/jackc/pgio v1.0.0
+github.com/jackc/pgio
+# github.com/jackc/pgpassfile v1.0.0
+github.com/jackc/pgpassfile
+# github.com/jackc/pgproto3/v2 v2.0.7-0.20201117225705-88b6398594fc
+## explicit
+github.com/jackc/pgproto3/v2
+# github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b
+github.com/jackc/pgservicefile
 # github.com/jmespath/go-jmespath v0.4.0
 github.com/jmespath/go-jmespath
 # github.com/johannesboyne/gofakes3 v0.0.0-20191228161223-9aee1c78a252
@@ -274,7 +299,7 @@ github.com/johannesboyne/gofakes3
 github.com/johannesboyne/gofakes3/backend/s3mem
 github.com/johannesboyne/gofakes3/internal/goskipiter
 github.com/johannesboyne/gofakes3/internal/s3io
-# github.com/jonboulle/clockwork v0.2.1
+# github.com/jonboulle/clockwork v0.2.2
 ## explicit
 github.com/jonboulle/clockwork
 # github.com/json-iterator/go v1.1.10
@@ -292,7 +317,7 @@ github.com/julienschmidt/httprouter
 github.com/kardianos/osext
 # github.com/konsorten/go-windows-terminal-sequences v1.0.3
 github.com/konsorten/go-windows-terminal-sequences
-# github.com/kr/pty v1.1.1
+# github.com/kr/pty v1.1.8
 ## explicit
 github.com/kr/pty
 # github.com/kr/text v0.2.0
@@ -321,7 +346,7 @@ github.com/mattermost/xml-roundtrip-validator
 # github.com/mattn/go-runewidth v0.0.4
 ## explicit
 github.com/mattn/go-runewidth
-# github.com/mattn/go-sqlite3 v1.10.0
+# github.com/mattn/go-sqlite3 v1.14.6
 ## explicit
 github.com/mattn/go-sqlite3
 # github.com/matttproud/golang_protobuf_extensions v1.0.1
@@ -345,6 +370,8 @@ github.com/nsf/termbox-go
 # github.com/pborman/uuid v1.2.0
 ## explicit
 github.com/pborman/uuid
+# github.com/pingcap/errors v0.11.0
+github.com/pingcap/errors
 # github.com/pmezard/go-difflib v1.0.0
 github.com/pmezard/go-difflib/difflib
 # github.com/pquerna/otp v0.0.0-20160912161815-54653902c20e
@@ -382,11 +409,26 @@ github.com/russellhaering/goxmldsig/etreeutils
 github.com/russellhaering/goxmldsig/types
 # github.com/ryszard/goskiplist v0.0.0-20150312221310-2dfbae5fcf46
 github.com/ryszard/goskiplist/skiplist
+# github.com/satori/go.uuid v1.2.0
+github.com/satori/go.uuid
 # github.com/sergi/go-diff v1.1.0
 ## explicit
 # github.com/shabbyrobe/gocovmerge v0.0.0-20190829150210-3e036491d500
 ## explicit
 github.com/shabbyrobe/gocovmerge
+# github.com/siddontang/go v0.0.0-20180604090527-bdc77568d726
+github.com/siddontang/go/hack
+github.com/siddontang/go/sync2
+# github.com/siddontang/go-log v0.0.0-20180807004314-8d05993dda07
+github.com/siddontang/go-log/log
+github.com/siddontang/go-log/loggers
+# github.com/siddontang/go-mysql v1.1.0 => github.com/gravitational/go-mysql v1.1.1-0.20210212011549-886316308a77
+## explicit
+github.com/siddontang/go-mysql/client
+github.com/siddontang/go-mysql/mysql
+github.com/siddontang/go-mysql/packet
+github.com/siddontang/go-mysql/server
+github.com/siddontang/go-mysql/utils
 # github.com/sirupsen/logrus v1.6.0
 ## explicit
 github.com/sirupsen/logrus
@@ -467,6 +509,8 @@ go.uber.org/zap/internal/exit
 go.uber.org/zap/zapcore
 # golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 ## explicit
+golang.org/x/crypto/acme
+golang.org/x/crypto/acme/autocert
 golang.org/x/crypto/bcrypt
 golang.org/x/crypto/blowfish
 golang.org/x/crypto/chacha20
@@ -521,16 +565,24 @@ golang.org/x/sys/unix
 golang.org/x/sys/windows
 # golang.org/x/text v0.3.3
 ## explicit
+golang.org/x/text/cases
 golang.org/x/text/encoding
 golang.org/x/text/encoding/internal
 golang.org/x/text/encoding/internal/identifier
 golang.org/x/text/encoding/unicode
+golang.org/x/text/internal
+golang.org/x/text/internal/language
+golang.org/x/text/internal/language/compact
+golang.org/x/text/internal/tag
 golang.org/x/text/internal/utf8internal
+golang.org/x/text/language
 golang.org/x/text/runes
 golang.org/x/text/secure/bidirule
+golang.org/x/text/secure/precis
 golang.org/x/text/transform
 golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
+golang.org/x/text/width
 # golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 golang.org/x/time/rate
 # golang.org/x/tools v0.0.0-20200812195022-5ae4c3c160a0
@@ -705,6 +757,9 @@ google.golang.org/protobuf/types/pluginpb
 gopkg.in/check.v1
 # gopkg.in/inf.v0 v0.9.1
 gopkg.in/inf.v0
+# gopkg.in/ini.v1 v1.62.0
+## explicit
+gopkg.in/ini.v1
 # gopkg.in/square/go-jose.v2 v2.5.1
 ## explicit
 gopkg.in/square/go-jose.v2

@@ -17,7 +17,6 @@ limitations under the License.
 package utils
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 
@@ -27,7 +26,6 @@ import (
 
 type KernelSuite struct{}
 
-var _ = fmt.Printf
 var _ = check.Suite(&KernelSuite{})
 
 func (s *KernelSuite) SetUpSuite(c *check.C) {

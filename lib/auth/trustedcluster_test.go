@@ -1,15 +1,12 @@
 package auth
 
 import (
-	"context"
-	"io/ioutil"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/gravitational/teleport"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -88,22 +85,22 @@ func TestRemoteClusterStatus(t *testing.T) {
 	require.Empty(t, cmp.Diff(rc, gotRC))
 }
 
-func newTestAuthServer(t *testing.T) *Server {
-	// Create SQLite backend in a temp directory.
-	dataDir, err := ioutil.TempDir("", "teleport")
-	require.NoError(t, err)
-	t.Cleanup(func() { os.RemoveAll(dataDir) })
-	bk, err := lite.NewWithConfig(context.TODO(), lite.Config{Path: dataDir})
+func newTestAuthServer(t *testing.T, name ...string) *Server {
+	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 	t.Cleanup(func() { bk.Close() })
 
+	clusterName := "me.localhost"
+	if len(name) != 0 {
+		clusterName = name[0]
+	}
 	// Create a cluster with minimal viable config.
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: "me.localhost",
+	clusterNameRes, err := services.NewClusterName(services.ClusterNameSpecV2{
+		ClusterName: clusterName,
 	})
 	require.NoError(t, err)
 	authConfig := &InitConfig{
-		ClusterName:            clusterName,
+		ClusterName:            clusterNameRes,
 		Backend:                bk,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,

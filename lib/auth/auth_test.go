@@ -22,15 +22,19 @@ import (
 	"crypto/rsa"
 	"crypto/x509/pkix"
 	"encoding/json"
-	"fmt"
 	"testing"
 	"time"
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -42,11 +46,12 @@ import (
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/trace"
 
 	"github.com/coreos/go-oidc/jose"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 	. "gopkg.in/check.v1"
 )
 
@@ -60,7 +65,6 @@ type AuthSuite struct {
 }
 
 var _ = Suite(&AuthSuite{})
-var _ = fmt.Printf
 
 func (s *AuthSuite) SetUpSuite(c *C) {
 	utils.InitLoggerForTests(testing.Verbose())
@@ -99,7 +103,7 @@ func (s *AuthSuite) SetUpTest(c *C) {
 
 	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
-		SecondFactor: teleport.OFF,
+		SecondFactor: constants.SecondFactorOff,
 	})
 	c.Assert(err, IsNil)
 
@@ -148,15 +152,21 @@ func (s *AuthSuite) TestSessions(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(ws, NotNil)
 
-	out, err := s.a.GetWebSessionInfo(user, ws.GetName())
+	out, err := s.a.GetWebSessionInfo(context.TODO(), user, ws.GetName())
 	c.Assert(err, IsNil)
 	ws.SetPriv(nil)
 	fixtures.DeepCompare(c, ws, out)
 
-	err = s.a.DeleteWebSession(user, ws.GetName())
+	err = s.a.WebSessions().Delete(context.TODO(), types.DeleteWebSessionRequest{
+		User:      user,
+		SessionID: ws.GetName(),
+	})
 	c.Assert(err, IsNil)
 
-	_, err = s.a.GetWebSession(user, ws.GetName())
+	_, err = s.a.GetWebSession(context.TODO(), types.GetWebSessionRequest{
+		User:      user,
+		SessionID: ws.GetName(),
+	})
 	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 }
 
@@ -165,11 +175,16 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(services.UserCA, "me.localhost")), IsNil)
 	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(services.HostCA, "me.localhost")), IsNil)
 
+	// Register the leaf cluster.
+	leaf, err := types.NewRemoteCluster("leaf.localhost")
+	c.Assert(err, IsNil)
+	c.Assert(s.a.CreateRemoteCluster(leaf), IsNil)
+
 	user := "user1"
 	pass := []byte("abc123")
 
 	// Try to login as an unknown user.
-	_, err := s.a.AuthenticateSSHUser(AuthenticateSSHRequest{
+	_, err = s.a.AuthenticateSSHUser(AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
 			Username: user,
 			Pass:     &PassCreds{Password: pass},
@@ -988,7 +1003,7 @@ func (s *AuthSuite) TestOIDCConnectorCRUDEventsEmitted(c *C) {
 func (s *AuthSuite) TestSAMLConnectorCRUDEventsEmitted(c *C) {
 	ctx := context.Background()
 	// generate a certificate that makes ParseCertificatePEM happy, copied from ca_test.go
-	ca, err := tlsca.New([]byte(fixtures.SigningCertPEM), []byte(fixtures.SigningKeyPEM))
+	ca, err := tlsca.FromKeys([]byte(fixtures.SigningCertPEM), []byte(fixtures.SigningKeyPEM))
 	c.Assert(err, IsNil)
 
 	privateKey, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
@@ -1026,6 +1041,47 @@ func (s *AuthSuite) TestSAMLConnectorCRUDEventsEmitted(c *C) {
 	err = s.a.DeleteSAMLConnector(ctx, "test")
 	c.Assert(err, IsNil)
 	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.SAMLConnectorDeletedEvent)
+}
+
+func TestU2FSignChallengeCompat(t *testing.T) {
+	// Test that the new U2F challenge encoding format is backwards-compatible
+	// with older clients and servers.
+	//
+	// New format is U2FAuthenticateChallenge as JSON.
+	// Old format was u2f.AuthenticateChallenge as JSON.
+	t.Run("old client, new server", func(t *testing.T) {
+		newChallenge := &MFAAuthenticateChallenge{
+			AuthenticateChallenge: &u2f.AuthenticateChallenge{
+				Challenge: "c1",
+			},
+			U2FChallenges: []u2f.AuthenticateChallenge{
+				{Challenge: "c1"},
+				{Challenge: "c2"},
+				{Challenge: "c3"},
+			},
+		}
+		wire, err := json.Marshal(newChallenge)
+		require.NoError(t, err)
+
+		var oldChallenge u2f.AuthenticateChallenge
+		err = json.Unmarshal(wire, &oldChallenge)
+		require.NoError(t, err)
+
+		require.Empty(t, cmp.Diff(oldChallenge, *newChallenge.AuthenticateChallenge))
+	})
+	t.Run("new client, old server", func(t *testing.T) {
+		oldChallenge := &u2f.AuthenticateChallenge{
+			Challenge: "c1",
+		}
+		wire, err := json.Marshal(oldChallenge)
+		require.NoError(t, err)
+
+		var newChallenge MFAAuthenticateChallenge
+		err = json.Unmarshal(wire, &newChallenge)
+		require.NoError(t, err)
+
+		require.Empty(t, cmp.Diff(newChallenge, MFAAuthenticateChallenge{AuthenticateChallenge: oldChallenge}))
+	})
 }
 
 func newTestServices(t *testing.T) Services {

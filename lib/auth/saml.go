@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -123,7 +124,7 @@ func (a *Server) getSAMLProvider(conn services.SAMLConnector) (*saml2.SAMLServic
 	}
 	delete(a.samlProviders, conn.GetName())
 
-	serviceProvider, err := conn.GetServiceProvider(a.clock)
+	serviceProvider, err := services.GetSAMLServiceProvider(conn, a.clock)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -143,7 +144,7 @@ func (a *Server) calculateSAMLUser(connector services.SAMLConnector, assertionIn
 
 	p.traits = services.SAMLAssertionsToTraits(assertionInfo)
 
-	p.roles = connector.GetTraitMappings().TraitsToRoles(p.traits)
+	p.roles = services.TraitsToRoles(connector.GetTraitMappings(), p.traits)
 	if len(p.roles) == 0 {
 		return nil, trace.AccessDenied("unable to map attributes to role for connector: %v", connector.GetName())
 	}
@@ -164,7 +165,7 @@ func (a *Server) createSAMLUser(p *createUserParams) (services.User, error) {
 
 	log.Debugf("Generating dynamic SAML identity %v/%v with roles: %v.", p.connectorName, p.username, p.roles)
 
-	user, err := services.GetUserMarshaler().GenerateUser(&services.UserV2{
+	user := &services.UserV2{
 		Kind:    services.KindUser,
 		Version: services.V2,
 		Metadata: services.Metadata{
@@ -187,15 +188,12 @@ func (a *Server) createSAMLUser(p *createUserParams) (services.User, error) {
 				},
 				Time: a.clock.Now().UTC(),
 				Connector: &services.ConnectorRef{
-					Type:     teleport.ConnectorSAML,
+					Type:     teleport.SAML,
 					ID:       p.connectorName,
 					Identity: p.username,
 				},
 			},
 		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	// Get the user to check if it already exists or not.
@@ -351,18 +349,16 @@ func (a *Server) validateSAMLResponse(samlResponse string) (*samlAuthResponse, e
 	}
 	assertionInfo, err := provider.RetrieveAssertionInfo(samlResponse)
 	if err != nil {
-		log.Warnf("Received response with incorrect or no claims/attribute statements. Please check the identity provider configuration to make sure that mappings for claims/attribute statements are set up correctly. <See: https://goteleport.com/teleport/docs/enterprise/sso/ssh-sso/>. Failed to retrieve SAML AssertionInfo from response: %v.", err)
-		return nil, trace.AccessDenied("bad SAML response")
+		return nil, trace.AccessDenied(
+			"received response with incorrect or missing attribute statements, please check the identity provider configuration to make sure that mappings for claims/attribute statements are set up correctly. <See: https://goteleport.com/teleport/docs/enterprise/sso/ssh-sso/>, failed to retrieve SAML assertion info from response: %v.", err)
 	}
 
 	if assertionInfo.WarningInfo.InvalidTime {
-		log.Warnf("Invalid time in SAML AssertionInfo.")
-		return nil, trace.AccessDenied("bad SAML response")
+		return nil, trace.AccessDenied("invalid time in SAML assertion info")
 	}
 
 	if assertionInfo.WarningInfo.NotInAudience {
-		log.Warnf("No audience in SAML AssertionInfo.")
-		return nil, trace.AccessDenied("bad SAML response")
+		return nil, trace.AccessDenied("no audience in SAML assertion info")
 	}
 
 	log.Debugf("Obtained SAML assertions for %q.", assertionInfo.NameID)
@@ -408,7 +404,12 @@ func (a *Server) validateSAMLResponse(samlResponse string) (*samlAuthResponse, e
 
 	// If the request is coming from a browser, create a web session.
 	if request.CreateWebSession {
-		session, err := a.createWebSession(user, params.sessionTTL)
+		session, err := a.createWebSession(context.TODO(), types.NewWebSessionRequest{
+			User:       user.GetName(),
+			Roles:      user.GetRoles(),
+			Traits:     user.GetTraits(),
+			SessionTTL: params.sessionTTL,
+		})
 		if err != nil {
 			return re, trace.Wrap(err)
 		}
