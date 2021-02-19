@@ -64,6 +64,7 @@ func TestUploadOK(t *testing.T) {
 		ScanPeriod: scanPeriod,
 		Streamer:   streamer,
 		Clock:      clock,
+		AuditLog:   &events.DiscardAuditLog{},
 	})
 	assert.Nil(t, err)
 	go uploader.Serve()
@@ -128,6 +129,7 @@ func TestUploadParallel(t *testing.T) {
 		Streamer:          streamer,
 		Clock:             clock,
 		ConcurrentUploads: 2,
+		AuditLog:          &events.DiscardAuditLog{},
 	})
 	assert.Nil(t, err)
 	go uploader.Serve()
@@ -405,6 +407,7 @@ func TestUploadBackoff(t *testing.T) {
 		Streamer:   faultyStreamer,
 		Clock:      clock,
 		EventsC:    eventsC,
+		AuditLog:   &events.DiscardAuditLog{},
 	})
 	assert.NoError(t, err)
 	go uploader.Serve()
@@ -510,6 +513,7 @@ func TestUploadBadSession(t *testing.T) {
 		Streamer:   streamer,
 		Clock:      clock,
 		EventsC:    eventsC,
+		AuditLog:   &events.DiscardAuditLog{},
 	})
 	assert.NoError(t, err)
 	go uploader.Serve()
@@ -578,6 +582,7 @@ func runResume(t *testing.T, testCase resumeTestCase) {
 		ScanPeriod: scanPeriod,
 		Streamer:   test.streamer,
 		Clock:      clock,
+		AuditLog:   &events.DiscardAuditLog{},
 	})
 	assert.Nil(t, err)
 	go uploader.Serve()
