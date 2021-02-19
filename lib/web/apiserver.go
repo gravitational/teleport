@@ -294,19 +294,19 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.GET("/webapi/sites/:site/context", h.WithClusterAuth(h.getUserContext))
 
 	// OIDC related callback handlers
-	h.GET("/webapi/oidc/login/web", httplib.MakeHandler(h.oidcLoginWeb))
+	h.GET("/webapi/oidc/login/web", h.WithRedirect(h.oidcLoginWeb))
+	h.GET("/webapi/oidc/callback", h.WithRedirect(h.oidcCallback))
 	h.POST("/webapi/oidc/login/console", httplib.MakeHandler(h.oidcLoginConsole))
-	h.GET("/webapi/oidc/callback", httplib.MakeHandler(h.oidcCallback))
 
 	// SAML 2.0 handlers
-	h.POST("/webapi/saml/acs", httplib.MakeHandler(h.samlACS))
-	h.GET("/webapi/saml/sso", httplib.MakeHandler(h.samlSSO))
+	h.POST("/webapi/saml/acs", h.WithRedirect(h.samlACS))
+	h.GET("/webapi/saml/sso", h.WithRedirect(h.samlSSO))
 	h.POST("/webapi/saml/login/console", httplib.MakeHandler(h.samlSSOConsole))
 
 	// Github connector handlers
-	h.GET("/webapi/github/login/web", httplib.MakeHandler(h.githubLoginWeb))
+	h.GET("/webapi/github/login/web", h.WithRedirect(h.githubLoginWeb))
+	h.GET("/webapi/github/callback", h.WithRedirect(h.githubCallback))
 	h.POST("/webapi/github/login/console", httplib.MakeHandler(h.githubLoginConsole))
-	h.GET("/webapi/github/callback", httplib.MakeHandler(h.githubCallback))
 
 	// U2F related APIs
 	h.GET("/webapi/u2f/signuptokens/:token", httplib.MakeHandler(h.u2fRegisterRequest))
@@ -831,78 +831,56 @@ func (h *Handler) jwks(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	return &resp, nil
 }
 
-func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprouter.Params) string {
 	logger := h.log.WithField("auth", "oidc")
 	logger.Debug("Web login start.")
 
-	query := r.URL.Query()
-	clientRedirectURL := query.Get("redirect_url")
-	if clientRedirectURL == "" {
-		return nil, trace.BadParameter("missing redirect_url query parameter")
-	}
-	connectorID := query.Get("connector_id")
-	if connectorID == "" {
-		return nil, trace.BadParameter("missing connector_id query parameter")
-	}
-
-	csrfToken, err := csrf.ExtractTokenFromCookie(r)
+	req, err := parseSSORequestParams(r)
 	if err != nil {
-		logger.WithError(err).Warn("Unable to extract CSRF token from cookie.")
-		return nil, trace.AccessDenied("access denied")
+		logger.WithError(err).Error("Failed to extract SSO parameters from request.")
+		return client.LoginFailedRedirectURL
 	}
 
 	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(
 		services.OIDCAuthRequest{
-			CSRFToken:         csrfToken,
-			ConnectorID:       connectorID,
+			CSRFToken:         req.csrfToken,
+			ConnectorID:       req.connectorID,
 			CreateWebSession:  true,
-			ClientRedirectURL: clientRedirectURL,
+			ClientRedirectURL: req.clientRedirectURL,
 			CheckUser:         true,
 		})
 	if err != nil {
-		// redirect to an error page
-		pathToError := url.URL{
-			Path:     "/web/msg/error/login_failed",
-			RawQuery: url.Values{"details": []string{err.Error()}}.Encode(),
-		}
-		http.Redirect(w, r, pathToError.String(), http.StatusFound)
-		return nil, nil
+		logger.WithError(err).Error("Error creating auth request.")
+		return client.LoginFailedRedirectURL
 	}
-	http.Redirect(w, r, response.RedirectURL, http.StatusFound)
-	return nil, nil
+
+	return response.RedirectURL
 }
 
-func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httprouter.Params) string {
 	logger := h.log.WithField("auth", "github")
 	logger.Debug("Web login start.")
 
-	query := r.URL.Query()
-	clientRedirectURL := query.Get("redirect_url")
-	if clientRedirectURL == "" {
-		return nil, trace.BadParameter("missing redirect_url query parameter")
-	}
-	connectorID := query.Get("connector_id")
-	if connectorID == "" {
-		return nil, trace.BadParameter("missing connector_id query parameter")
+	req, err := parseSSORequestParams(r)
+	if err != nil {
+		logger.WithError(err).Error("Failed to extract SSO parameters from request.")
+		return client.LoginFailedRedirectURL
 	}
 
-	csrfToken, err := csrf.ExtractTokenFromCookie(r)
-	if err != nil {
-		logger.WithError(err).Warn("Unable to extract CSRF token from cookie.")
-		return nil, trace.AccessDenied("access denied")
-	}
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(
 		services.GithubAuthRequest{
-			CSRFToken:         csrfToken,
-			ConnectorID:       connectorID,
+			CSRFToken:         req.csrfToken,
+			ConnectorID:       req.connectorID,
 			CreateWebSession:  true,
-			ClientRedirectURL: clientRedirectURL,
+			ClientRedirectURL: req.clientRedirectURL,
 		})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Error creating auth request.")
+		return client.LoginFailedRedirectURL
+
 	}
-	http.Redirect(w, r, response.RedirectURL, http.StatusFound)
-	return nil, nil
+
+	return response.RedirectURL
 }
 
 func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -932,39 +910,39 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 	}, nil
 }
 
-func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httprouter.Params) string {
 	logger := h.log.WithField("auth", "github")
 	logger.Debugf("Callback start: %v.", r.URL.Query())
 
 	response, err := h.cfg.ProxyClient.ValidateGithubAuthCallback(r.URL.Query())
 	if err != nil {
-		logger.Warnf("Error while processing callback: %v.", err)
-		// redirect to an error page
-		pathToError := url.URL{
-			Path: "/web/msg/error/login_failed",
-			RawQuery: url.Values{"details": []string{
-				"Unable to process callback from Github."}}.Encode(),
-		}
-		http.Redirect(w, r, pathToError.String(), http.StatusFound)
-		return nil, nil
+		logger.WithError(err).Error("Error while processing callback.")
+		return client.LoginFailedBadCallbackRedirectURL
 	}
+
 	// if we created web session, set session cookie and redirect to original url
 	if response.Req.CreateWebSession {
-		err = csrf.VerifyToken(response.Req.CSRFToken, r)
-		if err != nil {
-			logger.Warnf("Unable to verify CSRF token: %v.", err)
-			return nil, trace.AccessDenied("access denied")
+		logger.Infof("Redirecting to web browser.")
+
+		res := &ssoCallbackResponse{
+			csrfToken:         response.Req.CSRFToken,
+			username:          response.Username,
+			sessionName:       response.Session.GetName(),
+			clientRedirectURL: response.Req.ClientRedirectURL,
 		}
-		logger.Infof("Callback is redirecting to web browser.")
-		err = SetSessionCookie(w, response.Username, response.Session.GetName())
-		if err != nil {
-			return nil, trace.Wrap(err)
+
+		if err := ssoSetWebSessionAndRedirectURL(w, r, res); err != nil {
+			logger.WithError(err).Error("Error setting web session.")
+			return client.LoginFailedRedirectURL
 		}
-		return nil, httplib.SafeRedirect(w, r, response.Req.ClientRedirectURL)
+
+		return res.clientRedirectURL
 	}
+
 	logger.Infof("Callback is redirecting to console login.")
 	if len(response.Req.PublicKey) == 0 {
-		return nil, trace.BadParameter("not a web or console Github login request")
+		logger.Error("Not a web or console login request.")
+		return client.LoginFailedRedirectURL
 	}
 
 	redirectURL, err := ConstructSSHResponse(AuthParams{
@@ -978,10 +956,11 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 		FIPS:              h.cfg.FIPS,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Error constructing ssh response")
+		return client.LoginFailedRedirectURL
 	}
-	http.Redirect(w, r, redirectURL.String(), http.StatusFound)
-	return nil, nil
+
+	return redirectURL.String()
 }
 
 func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -1012,41 +991,41 @@ func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 	}, nil
 }
 
-func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	logger := newPackageLogger("oidc")
+func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprouter.Params) string {
+	logger := h.log.WithField("auth", "oidc")
 	logger.Debug("Callback start.")
 
 	response, err := h.cfg.ProxyClient.ValidateOIDCAuthCallback(r.URL.Query())
 	if err != nil {
-		logger.WithError(err).Warn("Error while processing callback.")
-
-		message := "Unable to process callback from OIDC provider."
-		// redirect to an error page
-		pathToError := url.URL{
-			Path:     "/web/msg/error/login_failed",
-			RawQuery: url.Values{"details": []string{message}}.Encode(),
-		}
-		http.Redirect(w, r, pathToError.String(), http.StatusFound)
-		return nil, nil
+		logger.WithError(err).Error("Error while processing callback.")
+		return client.LoginFailedBadCallbackRedirectURL
 	}
+
 	// if we created web session, set session cookie and redirect to original url
 	if response.Req.CreateWebSession {
-		err = csrf.VerifyToken(response.Req.CSRFToken, r)
-		if err != nil {
-			logger.WithError(err).Warn("Unable to verify CSRF token.")
-			return nil, trace.AccessDenied("access denied")
+		logger.Info("Redirecting to web browser.")
+
+		res := &ssoCallbackResponse{
+			csrfToken:         response.Req.CSRFToken,
+			username:          response.Username,
+			sessionName:       response.Session.GetName(),
+			clientRedirectURL: response.Req.ClientRedirectURL,
 		}
 
-		logger.Info("Callback redirecting to web browser.")
-		if err := SetSessionCookie(w, response.Username, response.Session.GetName()); err != nil {
-			return nil, trace.Wrap(err)
+		if err := ssoSetWebSessionAndRedirectURL(w, r, res); err != nil {
+			logger.WithError(err).Error("Error setting web session.")
+			return client.LoginFailedRedirectURL
 		}
-		return nil, httplib.SafeRedirect(w, r, response.Req.ClientRedirectURL)
+
+		return res.clientRedirectURL
 	}
+
 	logger.Info("Callback redirecting to console login.")
 	if len(response.Req.PublicKey) == 0 {
-		return nil, trace.BadParameter("not a web or console oidc login request")
+		logger.Error("Not a web or console login request.")
+		return client.LoginFailedRedirectURL
 	}
+
 	redirectURL, err := ConstructSSHResponse(AuthParams{
 		ClientRedirectURL: response.Req.ClientRedirectURL,
 		Username:          response.Username,
@@ -1057,10 +1036,11 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 		HostSigners:       response.HostSigners,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Error constructing ssh response")
+		return client.LoginFailedRedirectURL
 	}
-	http.Redirect(w, r, redirectURL.String(), http.StatusFound)
-	return nil, nil
+
+	return redirectURL.String()
 }
 
 // AuthParams are used to construct redirect URL containing auth
@@ -2228,6 +2208,19 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 	})
 }
 
+type redirectHandlerFunc func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (redirectURL string)
+
+// WithRedirect is a handler that redirects to the path specified in the returned value.
+func (h *Handler) WithRedirect(fn redirectHandlerFunc) httprouter.Handle {
+	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+		// ensure that neither proxies nor browsers cache http traffic
+		httplib.SetNoCacheHeaders(w.Header())
+
+		redirectURL := fn(w, r, p)
+		http.Redirect(w, r, redirectURL, http.StatusFound)
+	}
+}
+
 // WithAuth ensures that request is authenticated
 func (h *Handler) WithAuth(fn ContextHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -2327,4 +2320,62 @@ func makeTeleportClientConfig(ctx *SessionContext) (*client.Config, error) {
 	}
 
 	return config, nil
+}
+
+type ssoRequestParams struct {
+	clientRedirectURL string
+	connectorID       string
+	csrfToken         string
+}
+
+func parseSSORequestParams(r *http.Request) (*ssoRequestParams, error) {
+	query := r.URL.Query()
+
+	clientRedirectURL := query.Get("redirect_url")
+	if clientRedirectURL == "" {
+		return nil, trace.BadParameter("missing redirect_url query parameter")
+	}
+
+	connectorID := query.Get("connector_id")
+	if connectorID == "" {
+		return nil, trace.BadParameter("missing connector_id query parameter")
+
+	}
+
+	csrfToken, err := csrf.ExtractTokenFromCookie(r)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &ssoRequestParams{
+		clientRedirectURL: clientRedirectURL,
+		connectorID:       connectorID,
+		csrfToken:         csrfToken,
+	}, nil
+}
+
+type ssoCallbackResponse struct {
+	csrfToken         string
+	username          string
+	sessionName       string
+	clientRedirectURL string
+}
+
+func ssoSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, response *ssoCallbackResponse) error {
+	if err := csrf.VerifyToken(response.csrfToken, r); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := SetSessionCookie(w, response.username, response.sessionName); err != nil {
+		return trace.Wrap(err)
+	}
+
+	parsedURL, err := url.Parse(response.clientRedirectURL)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	response.clientRedirectURL = parsedURL.RequestURI()
+
+	return nil
 }
