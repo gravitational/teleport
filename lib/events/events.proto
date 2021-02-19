@@ -1143,6 +1143,7 @@ message OneOf {
         events.AppSessionStart AppSessionStart = 37;
         events.AppSessionChunk AppSessionChunk = 38;
         events.AppSessionRequest AppSessionRequest = 39;
+        events.SessionUpload SessionUpload = 40;
     }
 }
 
@@ -1155,4 +1156,20 @@ message StreamStatus {
     // LastUploadTime is the time of the last upload
     google.protobuf.Timestamp LastUploadTime = 3
         [ (gogoproto.stdtime) = true, (gogoproto.nullable) = false ];
+}
+
+message SessionUpload {
+    // Metadata is a common event metadata
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // SessionMetadata is a common event session metadata
+    SessionMetadata SessionMetadata = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // ID is a unique event identifier
+    string UID = 4 [ (gogoproto.jsontag) = "uid,omitempty" ];
+
+    // URL is where the url the session event data upload is at
+    string SessionURL = 5 [ (gogoproto.jsontag) = "url" ];
 }

@@ -115,7 +115,6 @@ func TestChaosUpload(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-
 	scanPeriod := 10 * time.Second
 	uploader, err := NewUploader(UploaderConfig{
 		Context:    ctx,
@@ -123,6 +122,7 @@ func TestChaosUpload(t *testing.T) {
 		ScanPeriod: scanPeriod,
 		Streamer:   faultyStreamer,
 		Clock:      clock,
+		AuditLog:   &events.DiscardAuditLog{},
 	})
 	require.NoError(t, err)
 	go uploader.Serve()

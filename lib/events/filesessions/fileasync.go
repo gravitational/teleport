@@ -56,6 +56,8 @@ type UploaderConfig struct {
 	EventsC chan events.UploadEvent
 	// Component is used for logging purposes
 	Component string
+	// AuditLog is used for storing logs
+	AuditLog events.IAuditLog
 }
 
 // CheckAndSetDefaults checks and sets default values of UploaderConfig
@@ -80,6 +82,9 @@ func (cfg *UploaderConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Component == "" {
 		cfg.Component = teleport.ComponentUpload
+	}
+	if cfg.AuditLog == nil {
+		return trace.BadParameter("missing parameter AuditLog")
 	}
 	return nil
 }
@@ -113,6 +118,7 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 		}),
 		cancel:    cancel,
 		ctx:       ctx,
+		auditLog:  cfg.AuditLog,
 		semaphore: make(chan struct{}, cfg.ConcurrentUploads),
 		eventsCh:  make(chan events.UploadEvent, cfg.ConcurrentUploads),
 	}
@@ -142,6 +148,7 @@ type Uploader struct {
 	cancel   context.CancelFunc
 	ctx      context.Context
 	eventsCh chan events.UploadEvent
+	auditLog events.IAuditLog
 }
 
 func (u *Uploader) writeSessionError(sessionID session.ID, err error) error {
