@@ -147,6 +147,7 @@ variable "use_acm" {
 }
 
 // Optional domain name to use for Teleport proxy NLB alias
+// Only applied when using ACM, it will do nothing when ACM is disabled
 // When using ACM we have one ALB (for port 443 with TLS termination) and one NLB
 // (for all other traffic - 3023/3024/3026 etc)
 // As this NLB is at a different address, we add an alias record in Route 53 so that
