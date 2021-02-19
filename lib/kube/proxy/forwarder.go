@@ -404,10 +404,28 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	// ttl requested in tsh or the session ttl for the role.
 	sessionTTL := roles.AdjustSessionTTL(time.Hour)
 
-	// check signing TTL and return a list of allowed logins
-	kubeGroups, kubeUsers, err := roles.CheckKubeGroupsAndUsers(sessionTTL, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	identity := ctx.Identity.GetIdentity()
+	teleportClusterName := identity.RouteToCluster
+	if teleportClusterName == "" {
+		teleportClusterName = f.cfg.ClusterName
+	}
+	isRemoteCluster := f.cfg.ClusterName != teleportClusterName
+
+	if isRemoteCluster && isRemoteUser {
+		return nil, trace.AccessDenied("access denied: remote user can not access remote cluster")
+	}
+
+	var kubeUsers, kubeGroups []string
+	// Only check k8s principals for local clusters.
+	//
+	// For remote clusters, everything will be remapped to new roles on the
+	// leaf and checked there.
+	if !isRemoteCluster {
+		// check signing TTL and return a list of allowed logins
+		kubeGroups, kubeUsers, err = roles.CheckKubeGroupsAndUsers(sessionTTL, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// By default, if no kubernetes_users is set (which will be a majority),
@@ -422,17 +440,6 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	// kubectl clients will not work
 	if !utils.SliceContainsStr(kubeGroups, teleport.KubeSystemAuthenticated) {
 		kubeGroups = append(kubeGroups, teleport.KubeSystemAuthenticated)
-	}
-
-	identity := ctx.Identity.GetIdentity()
-	teleportClusterName := identity.RouteToCluster
-	if teleportClusterName == "" {
-		teleportClusterName = f.cfg.ClusterName
-	}
-	isRemoteCluster := f.cfg.ClusterName != teleportClusterName
-
-	if isRemoteCluster && isRemoteUser {
-		return nil, trace.AccessDenied("access denied: remote user can not access remote cluster")
 	}
 
 	// Get a dialer for either a k8s endpoint in current cluster or a tunneled
@@ -1559,11 +1566,16 @@ func (f *Forwarder) requestCertificate(ctx authContext) (*tls.Config, error) {
 		return nil, trace.Wrap(err, "failed to parse private key")
 	}
 
-	// Note: ctx.Identity can potentially have temporary roles granted via
+	// Note: ctx.UnmappedIdentity can potentially have temporary roles granted via
 	// workflow API. Always use the Subject() method to preserve the roles from
 	// caller's certificate.
-	identity := ctx.Identity.GetIdentity()
-	subject, err := identity.Subject()
+	//
+	// Also note: we need to send the UnmappedIdentity which could be a remote
+	// user identity. If we used the local mapped identity instead, the
+	// receiver of this certificate will think this is a local user and fail to
+	// find it in the backend.
+	callerIdentity := ctx.UnmappedIdentity.GetIdentity()
+	subject, err := callerIdentity.Subject()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
