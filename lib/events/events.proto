@@ -951,7 +951,7 @@ message OneOf {
         events.OIDCConnectorDelete OIDCConnectorDelete = 33;
         events.SAMLConnectorCreate SAMLConnectorCreate = 34;
         events.SAMLConnectorDelete SAMLConnectorDelete = 35;
-        events.SessionUpload SessionUpload = 36;
+        events.SessionUpload SessionUpload = 43;
     }
 }
 
