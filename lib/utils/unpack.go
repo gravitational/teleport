@@ -112,8 +112,10 @@ func writeFile(path string, r io.Reader, mode os.FileMode) error {
 		if err != nil {
 			return trace.ConvertSystemError(err)
 		}
+		defer out.Close()
+
 		_, err = io.Copy(out, r)
-		return trace.NewAggregate(err, out.Close())
+		return trace.Wrap(err)
 	})
 	return trace.Wrap(err)
 }

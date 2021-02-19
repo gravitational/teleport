@@ -687,10 +687,8 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		if err != nil {
 			return nil, trace.ConvertSystemError(err)
 		}
-		_, err = fmt.Fprintf(f, "%v", os.Getpid())
-		if err = trace.NewAggregate(err, f.Close()); err != nil {
-			return nil, trace.Wrap(err)
-		}
+		fmt.Fprintf(f, "%v", os.Getpid())
+		defer f.Close()
 	}
 
 	// notify parent process that this process has started
