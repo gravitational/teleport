@@ -151,7 +151,9 @@ const SupportLink = ({ title = '', url = '' }) => (
   <StyledSupportLink href={url}>{title}</StyledSupportLink>
 );
 
-const StyledSupportLink = styled.a`
+const StyledSupportLink = styled.a.attrs({
+  rel: 'noreferrer',
+})`
   display: block;
   color: ${props => props.theme.colors.light};
   border-radius: 4px;

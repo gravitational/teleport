@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,16 +16,27 @@ limitations under the License.
 
 import React from 'react';
 import { LoginFailed as CardFailed } from 'design/CardError';
-import { getUrlParameter } from 'teleport/services/history';
+import { Route, Switch } from 'teleport/components/Router';
 import LogoHero from 'teleport/components/LogoHero';
 import cfg from 'teleport/config';
 
-export default function LoginFailed() {
-  const message = getUrlParameter('details', window.location.search);
+export default function Container() {
+  return (
+    <Switch>
+      <Route path={cfg.routes.loginErrorCallback}>
+        <LoginFailed message="unable to process callback" />
+      </Route>
+      <Route component={LoginFailed} />
+    </Switch>
+  );
+}
+
+export function LoginFailed({ message }: { message?: string }) {
+  const defaultMsg = "unable to login, please check Teleport's log for details";
   return (
     <>
       <LogoHero />
-      <CardFailed loginUrl={cfg.routes.login} message={message} />
+      <CardFailed loginUrl={cfg.routes.login} message={message || defaultMsg} />
     </>
   );
 }

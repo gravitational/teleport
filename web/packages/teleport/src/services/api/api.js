@@ -79,8 +79,6 @@ const api = {
     options.headers = {
       ...options.headers,
       ...getAuthHeaders(),
-      cache: 'no-store',
-      mode: 'same-origin',
     };
 
     // native call
@@ -94,6 +92,8 @@ const requestOptions = {
     Accept: 'application/json',
     'Content-Type': 'application/json; charset=utf-8',
   },
+  mode: 'same-origin',
+  cache: 'no-store',
 };
 
 export function getAuthHeaders() {

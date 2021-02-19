@@ -21,18 +21,6 @@ import history from 'teleport/services/history';
 import cfg from 'teleport/config';
 import Login from './Login';
 
-const AuthProviderTypeEnum = {
-  OIDC: 'oidc',
-  SAML: 'saml',
-  GITHUB: 'github',
-};
-
-const Auth2faTypeEnum = {
-  UTF: 'u2f',
-  OTP: 'otp',
-  DISABLED: 'off',
-};
-
 beforeEach(() => {
   jest.spyOn(history, 'push').mockImplementation();
   jest.spyOn(history, 'getRedirectParam').mockImplementation(() => '/');
@@ -51,7 +39,7 @@ test('basic rendering', () => {
 });
 
 test('login with username/password', async () => {
-  jest.spyOn(auth, 'login').mockResolvedValue();
+  jest.spyOn(auth, 'login').mockResolvedValue(null);
 
   const { getByPlaceholderText, getByText } = render(<Login />);
 
@@ -72,10 +60,8 @@ test('login with username/password', async () => {
 });
 
 test('login with U2F', async () => {
-  jest.spyOn(auth, 'loginWithU2f').mockResolvedValue();
-  jest
-    .spyOn(cfg, 'getAuth2faType')
-    .mockImplementation(() => Auth2faTypeEnum.UTF);
+  jest.spyOn(auth, 'loginWithU2f').mockResolvedValue(null);
+  jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'u2f' as any);
 
   const { getByPlaceholderText, getByText } = render(<Login />);
 
@@ -96,14 +82,12 @@ test('login with U2F', async () => {
 });
 
 test('login with SSO', () => {
-  jest
-    .spyOn(cfg, 'getAuth2faType')
-    .mockImplementation(() => Auth2faTypeEnum.OTP);
+  jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'otp' as any);
   jest.spyOn(cfg, 'getAuthProviders').mockImplementation(() => [
     {
       displayName: 'With Github',
-      type: AuthProviderTypeEnum.GITHUB,
-      name: AuthProviderTypeEnum.GITHUB,
+      type: 'github',
+      name: 'github',
       url:
         '/github/login/web?redirect_url=:redirect?connector_id=:providerName',
     },

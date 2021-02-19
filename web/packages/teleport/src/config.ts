@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@ limitations under the License.
 
 import { generatePath } from 'react-router';
 import { merge } from 'lodash';
+import { AuthProvider, Auth2faType } from 'shared/services';
 import { Resource } from 'teleport/services/resources';
 
 const cfg = {
@@ -25,8 +26,8 @@ const cfg = {
 
   auth: {
     localAuthEnabled: true,
-    providers: [],
-    second_factor: 'off',
+    providers: [] as AuthProvider[],
+    second_factor: 'off' as Auth2faType,
     authType: 'local',
   },
 
@@ -61,10 +62,11 @@ const cfg = {
     player: '/web/cluster/:clusterId/session/:sid',
     sessionAuditPlayer: '/web/cluster/:clusterId/session/:sid/player',
     sessionAuditCmds: '/web/cluster/:clusterId/session/:sid/commands',
-    error: '/web/msg/error/:type?',
     login: '/web/login',
-    loginFailed: '/web/msg/error/login_failed',
     loginSuccess: '/web/msg/info/login_success',
+    loginErrorLegacy: '/web/msg/error/login_failed',
+    loginError: '/web/msg/error/login',
+    loginErrorCallback: '/web/msg/error/login/callback',
     userInvite: '/web/invite/:tokenId',
     userReset: '/web/reset/:tokenId',
     // whitelist sso handlers

@@ -171,24 +171,28 @@ exports[`support Enterprise 1`] = `
         <a
           class="c8"
           href="https://gravitational.zendesk.com/hc/en-us/requests/new"
+          rel="noreferrer"
         >
           Create a Support Ticket
         </a>
         <a
           class="c8"
           href="https://community.gravitational.com/"
+          rel="noreferrer"
         >
           Ask the Community Questions
         </a>
         <a
           class="c8"
           href="https://github.com/gravitational/teleport/issues/new/choose"
+          rel="noreferrer"
         >
           Request a New Feature
         </a>
         <a
           class="c8"
           href="mailto:teleport-feedback@gravitational.com"
+          rel="noreferrer"
         >
           Send Product Feedback
         </a>
@@ -218,30 +222,35 @@ exports[`support Enterprise 1`] = `
         <a
           class="c8"
           href="https://goteleport.com/teleport/docs/quickstart?product=teleport&version=e_5.0.0"
+          rel="noreferrer"
         >
           Quickstart Guide
         </a>
         <a
           class="c8"
           href="https://goteleport.com/teleport/docs/user-manual?product=teleport&version=e_5.0.0"
+          rel="noreferrer"
         >
           tsh User Guide
         </a>
         <a
           class="c8"
           href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=e_5.0.0"
+          rel="noreferrer"
         >
           Admin Guide
         </a>
         <a
           class="c8"
           href="https://dashboard.gravitational.com/web/downloads "
+          rel="noreferrer"
         >
           Download Page
         </a>
         <a
           class="c8"
           href="https://goteleport.com/teleport/docs/faq?product=teleport&version=e_5.0.0"
+          rel="noreferrer"
         >
           FAQ
         </a>
@@ -271,18 +280,21 @@ exports[`support Enterprise 1`] = `
         <a
           class="c8"
           href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=e_5.0.0#troubleshooting"
+          rel="noreferrer"
         >
           Monitoring Teleport
         </a>
         <a
           class="c8"
           href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=e_5.0.0#troubleshooting"
+          rel="noreferrer"
         >
           Collecting Debug Data
         </a>
         <a
           class="c8"
           href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=e_5.0.0#troubleshooting"
+          rel="noreferrer"
         >
           Troubleshooting FAQ
         </a>
@@ -312,12 +324,14 @@ exports[`support Enterprise 1`] = `
         <a
           class="c8"
           href="https://github.com/gravitational/teleport/blob/master/CHANGELOG.md"
+          rel="noreferrer"
         >
           Product Changelog
         </a>
         <a
           class="c8"
           href="https://goteleport.com/blog/"
+          rel="noreferrer"
         >
           Teleport Blog
         </a>
@@ -572,18 +586,21 @@ exports[`support OSS 1`] = `
         <a
           class="c8"
           href="https://community.gravitational.com/"
+          rel="noreferrer"
         >
           Ask the Community Questions
         </a>
         <a
           class="c8"
           href="https://github.com/gravitational/teleport/issues/new/choose"
+          rel="noreferrer"
         >
           Request a New Feature
         </a>
         <a
           class="c8"
           href="mailto:teleport-feedback@gravitational.com"
+          rel="noreferrer"
         >
           Send Product Feedback
         </a>
@@ -613,30 +630,35 @@ exports[`support OSS 1`] = `
         <a
           class="c8"
           href="https://goteleport.com/teleport/docs/quickstart?product=teleport&version=oss_5.0.0"
+          rel="noreferrer"
         >
           Quickstart Guide
         </a>
         <a
           class="c8"
           href="https://goteleport.com/teleport/docs/user-manual?product=teleport&version=oss_5.0.0"
+          rel="noreferrer"
         >
           tsh User Guide
         </a>
         <a
           class="c8"
           href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=oss_5.0.0"
+          rel="noreferrer"
         >
           Admin Guide
         </a>
         <a
           class="c8"
           href="https://goteleport.com/teleport/download"
+          rel="noreferrer"
         >
           Download Page
         </a>
         <a
           class="c8"
           href="https://goteleport.com/teleport/docs/faq?product=teleport&version=oss_5.0.0"
+          rel="noreferrer"
         >
           FAQ
         </a>
@@ -666,18 +688,21 @@ exports[`support OSS 1`] = `
         <a
           class="c8"
           href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=oss_5.0.0#troubleshooting"
+          rel="noreferrer"
         >
           Monitoring Teleport
         </a>
         <a
           class="c8"
           href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=oss_5.0.0#troubleshooting"
+          rel="noreferrer"
         >
           Collecting Debug Data
         </a>
         <a
           class="c8"
           href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=oss_5.0.0#troubleshooting"
+          rel="noreferrer"
         >
           Troubleshooting FAQ
         </a>
@@ -707,12 +732,14 @@ exports[`support OSS 1`] = `
         <a
           class="c8"
           href="https://github.com/gravitational/teleport/blob/master/CHANGELOG.md"
+          rel="noreferrer"
         >
           Product Changelog
         </a>
         <a
           class="c8"
           href="https://goteleport.com/blog/"
+          rel="noreferrer"
         >
           Teleport Blog
         </a>

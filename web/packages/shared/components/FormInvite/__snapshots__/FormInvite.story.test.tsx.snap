@@ -827,6 +827,15 @@ exports[`shared/components/Invite.story story.U2f 1`] = `
   margin-bottom: 4px;
 }
 
+.c14 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  color: #FFFFFF;
+}
+
 .c3 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -884,10 +893,6 @@ exports[`shared/components/Invite.story story.U2f 1`] = `
 .c1 {
   box-sizing: border-box;
   display: flex;
-}
-
-.c14 {
-  color: #FFFFFF;
 }
 
 <form
@@ -983,7 +988,9 @@ exports[`shared/components/Invite.story story.U2f 1`] = `
           >
             <a
               class="c14"
+              color="light"
               href="https://support.google.com/accounts/answer/6103523?hl=en"
+              rel="noreferrer"
               target="_blank"
             >
               Learn more

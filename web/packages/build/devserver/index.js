@@ -105,6 +105,15 @@ server.app.use(modifyIndexHtmlMiddleware(compiler));
 // targeted server, these are requests to index.html (app entry point)
 function serveIndexHtml() {
   return function(req, res) {
+    // prevent gzip compression so it's easier for us to parse the original response
+    // to retrieve tokens (csrf and access tokens)
+    if (req.headers['accept-encoding']) {
+      req.headers['accept-encoding'] = req.headers['accept-encoding']
+        .replace('gzip, ', '')
+        .replace(', gzip,', ',')
+        .replace('gzip', '');
+    }
+
     function handleRequest() {
       proxy.web(req, res, getTargetOptions());
     }

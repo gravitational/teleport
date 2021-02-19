@@ -16,11 +16,9 @@
 
 import React from 'react';
 import { render } from 'design/utils/testing';
-import LoginFailed from './LoginFailed';
+import LoginSuccess from './LoginSuccess';
 
-test('it renders', () => {
-  const { container } = render(<LoginFailed />);
-
-  expect(container.childNodes).toHaveLength(2);
-  expect(container.querySelectorAll('img')).toHaveLength(1);
+test('renders', () => {
+  const { container } = render(<LoginSuccess />);
+  expect(container).toMatchSnapshot();
 });

@@ -20,7 +20,7 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import { Indicator, Flex, Box, ButtonPrimary, Text } from 'design';
+import { Indicator, Flex, Box, ButtonPrimary, Text, Link } from 'design';
 import { Danger } from 'design/Alert';
 import ResourceEditor from 'teleport/components/ResourceEditor';
 import useResources from 'teleport/components/useResources';
@@ -97,14 +97,13 @@ export function Roles(props: State) {
             </Text>
             <Text>
               Learn more in{' '}
-              <Text
-                as="a"
+              <Link
                 color="light"
                 target="_blank"
                 href="https://goteleport.com/teleport/docs/enterprise/ssh-rbac/"
               >
                 the cluster management (RBAC)
-              </Text>{' '}
+              </Link>{' '}
               section of online documentation.
             </Text>
           </Box>
@@ -137,14 +136,13 @@ function Directions() {
   return (
     <>
       WARNING Roles are defined using{' '}
-      <Text
-        as="a"
+      <Link
         color="light"
         target="_blank"
         href="https://en.wikipedia.org/wiki/YAML"
       >
         YAML format
-      </Text>
+      </Link>
       . YAML is sensitive to white space, please be careful.
     </>
   );

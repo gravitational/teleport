@@ -201,11 +201,6 @@ exports[`created 1`] = `
   text-transform: none;
 }
 
-.c19:hover,
-.c19:focus {
-  background: #222C59;
-}
-
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -484,6 +479,7 @@ exports[`created 1`] = `
               <a
                 class="c19"
                 href="https://.localhost"
+                rel="noreferrer"
                 target="_blank"
               >
                 https://.localhost

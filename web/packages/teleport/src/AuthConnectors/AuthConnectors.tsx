@@ -18,7 +18,7 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import { Danger } from 'design/Alert';
-import { Indicator, Text, Box, Flex } from 'design';
+import { Indicator, Text, Box, Flex, Link } from 'design';
 import ResourceEditor from 'teleport/components/ResourceEditor';
 import useResources from 'teleport/components/useResources';
 import EmptyList from './EmptyList';
@@ -101,14 +101,13 @@ export function AuthConnectors(props: State) {
             </Text>
             <Text typography="subtitle1" mb={2}>
               Please{' '}
-              <Text
-                as="a"
+              <Link
                 color="light"
                 href="https://gravitational.com/teleport/docs/enterprise/ssh_sso/"
                 target="_blank"
               >
                 view our documentation
-              </Text>{' '}
+              </Link>{' '}
               for samples of each connector.
             </Text>
           </Box>

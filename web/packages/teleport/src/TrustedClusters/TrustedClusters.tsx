@@ -21,7 +21,7 @@ import {
 } from 'teleport/components/Layout';
 import React from 'react';
 import { Danger } from 'design/Alert';
-import { Indicator, Text, Box, Flex, ButtonPrimary } from 'design';
+import { Indicator, Text, Box, Flex, ButtonPrimary, Link } from 'design';
 import Card from 'design/Card';
 import Image from 'design/Image';
 import ResourceEditor from 'teleport/components/ResourceEditor';
@@ -130,14 +130,13 @@ const Info = props => (
     </Text>
     <Text typography="subtitle1" mb={2}>
       Please{' '}
-      <Text
-        as="a"
+      <Link
         color="light"
         href="https://goteleport.com/teleport/docs/trustedclusters/"
         target="_blank"
       >
         view our documentation
-      </Text>{' '}
+      </Link>{' '}
       to learn more about trusted clusters.
     </Text>
   </Box>

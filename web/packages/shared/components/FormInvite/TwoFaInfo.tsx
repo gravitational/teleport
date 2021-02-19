@@ -15,8 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import styled from 'styled-components';
-import { Box, Text, ButtonLink } from 'design';
+import { Box, Text, ButtonLink, Link } from 'design';
 import { Auth2faType } from 'shared/services';
 
 const U2F_HELP_URL = 'https://support.google.com/accounts/answer/6103523?hl=en';
@@ -58,9 +57,9 @@ export default function TwoFAData({ auth2faType, qr }: Props) {
             button
           </Text>
           <Text typography="paragraph2" mb={3}>
-            <StyledLink target="_blank" href={U2F_HELP_URL}>
+            <Link color="light" target="_blank" href={U2F_HELP_URL}>
               Learn more
-            </StyledLink>{' '}
+            </Link>{' '}
             about U2F 2-Step Verification.
           </Text>
         </Box>
@@ -70,10 +69,6 @@ export default function TwoFAData({ auth2faType, qr }: Props) {
 
   return null;
 }
-
-const StyledLink = styled.a`
-  color: ${props => props.theme.colors.light};
-`;
 
 type Props = {
   qr: string;

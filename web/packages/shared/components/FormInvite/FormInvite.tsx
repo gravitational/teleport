@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Text, Card, ButtonPrimary, Flex, Box } from 'design';
+import { Text, Card, ButtonPrimary, Flex, Box, Link } from 'design';
 import * as Alerts from 'design/Alert';
 import FieldInput from '../FieldInput';
 import Validation, { Validator } from '../Validation';
@@ -174,9 +174,9 @@ function ErrorMessage({ message = '' }) {
         {showU2fErrorLink && (
           <span>
             , click{' '}
-            <a target="_blank" href={U2F_ERROR_CODES_URL}>
+            <Link target="_blank" href={U2F_ERROR_CODES_URL}>
               here
-            </a>{' '}
+            </Link>{' '}
             to learn more about U2F error codes
           </span>
         )}

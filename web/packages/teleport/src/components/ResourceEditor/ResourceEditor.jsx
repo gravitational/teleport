@@ -108,6 +108,7 @@ export default function ResourceEditor(props) {
               href={docsURL}
               target="_blank"
               width="100%"
+              rel="noreferrer"
             >
               VIEW DOCUMENTATION
             </ButtonOutlined>

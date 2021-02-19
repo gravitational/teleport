@@ -32,6 +32,7 @@ export default function ButtonAdd(props: Props) {
         as="a"
         target="_blank"
         href={docUrl}
+        rel="noreferrer"
       >
         View documentation
       </ButtonPrimary>

@@ -1,5 +1,5 @@
 /**
- * Copyright 2020 Gravitational, Inc.
+ * Copyright 2020-2021 Gravitational, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,10 +16,14 @@
 
 import React from 'react';
 import { render } from 'design/utils/testing';
-import LoginSuccess from './LoginFailed';
+import { FailedDefault, FailedCustom } from './Login.story';
 
-test('it renders', () => {
-  const { container } = render(<LoginSuccess />);
-  expect(container.childNodes).toHaveLength(2);
-  expect(container.querySelectorAll('img')).toHaveLength(1);
+test('default error message', () => {
+  const { container } = render(<FailedDefault />);
+  expect(container).toMatchSnapshot();
+});
+
+test('callback error message', () => {
+  const { container } = render(<FailedCustom />);
+  expect(container).toMatchSnapshot();
 });
