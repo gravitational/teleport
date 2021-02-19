@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 
@@ -378,4 +379,12 @@ func partFromPath(path string) (*events.StreamPart, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &events.StreamPart{Number: partNumber}, nil
+}
+
+// GetUploadMetadata gets the metadata for session upload
+func (h *Handler) GetUploadMetadata(s session.ID) events.UploadMetadata {
+	return events.UploadMetadata{
+		URL:       fmt.Sprintf("%v://%v/%v", teleport.SchemeGCS, h.path(s), string(s)),
+		SessionID: s,
+	}
 }

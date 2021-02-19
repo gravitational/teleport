@@ -159,6 +159,14 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	return nil
 }
 
+// GetUploadMetadata gets the metadata for session upload
+func (h *Handler) GetUploadMetadata(s session.ID) events.UploadMetadata {
+	return events.UploadMetadata{
+		URL:       fmt.Sprintf("%v://%v/%v", teleport.SchemeFile, h.uploadsPath(), string(s)),
+		SessionID: s,
+	}
+}
+
 // ListParts lists upload parts
 func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]events.StreamPart, error) {
 	var parts []events.StreamPart

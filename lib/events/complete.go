@@ -44,6 +44,8 @@ type UploadCompleterConfig struct {
 	// Unstarted does not start automatic goroutine,
 	// is useful when completer is embedded in another function
 	Unstarted bool
+	// AuditLog is used for storing logs
+	AuditLog IAuditLog
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -137,6 +139,22 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 		}
 		u.log.Debugf("Completed upload %v.", upload)
 		completed++
+		uploadData := u.cfg.Uploader.GetUploadMetadata(upload.SessionID)
+		session := &SessionUpload{
+			Metadata: Metadata{
+				Type:  SessionUploadEvent,
+				Code:  SessionUploadCode,
+				Index: SessionUploadIndex,
+			},
+			SessionMetadata: SessionMetadata{
+				SessionID: string(uploadData.SessionID),
+			},
+			SessionURL: uploadData.URL,
+		}
+		err = u.cfg.AuditLog.EmitAuditEvent(ctx, session)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	if completed > 0 {
 		u.log.Debugf("Found %v active uploads, completed %v.", len(uploads), completed)
