@@ -174,8 +174,10 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		}()
 	}
 
+	teleportClusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
+
 	// Create the kube server to service listener.
-	authorizer, err := auth.NewAuthorizer(conn.Client, conn.Client, conn.Client)
+	authorizer, err := auth.NewAuthorizer(teleportClusterName, conn.Client, conn.Client, conn.Client)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -206,7 +208,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		ForwarderConfig: kubeproxy.ForwarderConfig{
 			Namespace:         defaults.Namespace,
 			Keygen:            cfg.Keygen,
-			ClusterName:       conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+			ClusterName:       teleportClusterName,
 			Authz:             authorizer,
 			AuthClient:        conn.Client,
 			StreamEmitter:     streamEmitter,
