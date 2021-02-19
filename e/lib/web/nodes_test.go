@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"net/url"
 	"testing"
 	"time"
 
@@ -76,87 +77,6 @@ func TestGetNodeJoinScript(t *testing.T) {
 	require.Contains(t, script, "sha256:")
 }
 
-func TestURLEscaping(t *testing.T) {
-	tests := []struct {
-		desc        string
-		input       string
-		output      string
-		shouldError bool
-	}{
-		{
-			desc:   "regular HTTPS URL",
-			input:  "https%3A%2F%2Fnews.ycombinator.com",
-			output: "https://news.ycombinator.com",
-		},
-		{
-			desc:   "URL with multiple parameters",
-			input:  "http%3A%2F%2Fexample.com%2Ftest%2Furl%3Fwith%3D1%26extra%3D1%26parameters%3D1",
-			output: "http://example.com/test/url?with=1&extra=1&parameters=1",
-		},
-		{
-			desc:   "URL with IP address",
-			input:  "http%3A%2F%2F192.168.1.1%2Fadmin",
-			output: "http://192.168.1.1/admin",
-		},
-		{
-			desc:   "URL with username/password",
-			input:  "https%3A%2F%2Fuser%3Apassword%40www.example.com",
-			output: "https://user:password@www.example.com",
-		},
-		{
-			desc:   "URL with tilde",
-			input:  "https%3A%2F%2Fexample.com%2F~testcase",
-			output: "https://example.com/~testcase",
-		},
-		{
-			desc:   "URL parameter with spaces",
-			input:  "http%3A%2F%2Fexample.com%2F%3Fq%3Dthis%20is%20a%20parameter%20with%20spaces",
-			output: "http://example.com/?q=this is a parameter with spaces",
-		},
-		{
-			// output values with double quotes are 'double escaped' (i.e. \\\" rather than \")
-			// so that when Go's escaping layer is removed, the values remain escaped.
-			desc:   "URL parameter with double quotes and spaces",
-			input:  "http%3A%2F%2Fexample.com%2F%3Fq%3D%22this%20is%20a%20parameter%20with%20quotes%20and%20spaces%22",
-			output: "http://example.com/?q=\\\"this is a parameter with quotes and spaces\\\"",
-		},
-		{
-			desc:   "URL parameters with multiple quotes",
-			input:  "http%3A%2F%2Fexample.com%2F%3Fquery1%3D%22firstquery%22%26query2%3D%22secondquery%22",
-			output: "http://example.com/?query1=\\\"firstquery\\\"&query2=\\\"secondquery\\\"",
-		},
-		{
-			desc:   "URL with non-escaped parameter value",
-			input:  "http%3A%2F%2Fexample.com?parameter=100",
-			output: "http://example.com?parameter=100",
-		},
-		{
-			desc:        "URL with non-escaped parameter value and erroneous %",
-			input:       "http%3A%2F%2Fexample.com?parameter=100%",
-			shouldError: true,
-		},
-		{
-			desc:        "URL with non-escaped value and erroneous % in parameter",
-			input:       "http%3A%2F%2Fexample.com%2F%3Fparameter%3D100%%25",
-			shouldError: true,
-		},
-	}
-
-	for _, tc := range tests {
-		tc := tc
-		t.Run(tc.desc, func(t *testing.T) {
-			output, err := unescapeAndStripParameter(tc.input)
-			if tc.shouldError {
-				require.NotNil(t, err)
-				require.Equal(t, output, "")
-			} else {
-				require.Nil(t, err)
-				require.Contains(t, output, tc.output)
-			}
-		})
-	}
-}
-
 func TestGetAppJoinScript(t *testing.T) {
 	m := &mockedNodeAPIGetter{}
 	m.mockGetProxyServers = func() ([]services.Server, error) {
@@ -203,9 +123,10 @@ func TestGetAppJoinScript(t *testing.T) {
 	}
 
 	tests := []struct {
-		desc     string
-		settings scriptSettings
-		outputs  []string
+		desc        string
+		settings    scriptSettings
+		shouldError bool
+		outputs     []string
 	}{
 		{
 			desc: "node only join mode with other values not provided",
@@ -230,12 +151,12 @@ func TestGetAppJoinScript(t *testing.T) {
 			settings: scriptSettings{
 				token:          testTokenID,
 				appInstallMode: true,
-				appName:        "test-app",
-				appURI:         "http://localhost:12345",
+				appName:        "test-app123",
+				appURI:         "http://localhost:12345/landing page__",
 			},
 			outputs: append(
 				expectedOutputs,
-				"test-app",
+				"test-app123",
 				"http://localhost:12345",
 			),
 		},
@@ -253,15 +174,80 @@ func TestGetAppJoinScript(t *testing.T) {
 				"https://1.2.3.4:54321",
 			),
 		},
+		{
+			desc: "app name containing double quotes is rejected",
+			settings: scriptSettings{
+				token:          testTokenID,
+				appInstallMode: true,
+				appName:        `ab"cd`,
+				appURI:         "https://1.2.3.4:54321",
+			},
+			shouldError: true,
+		},
+		{
+			desc: "app URI containing double quotes is rejected",
+			settings: scriptSettings{
+				token:          testTokenID,
+				appInstallMode: true,
+				appName:        "abcd",
+				appURI:         `https://1.2.3.4:54321/x"y"z`,
+			},
+			shouldError: true,
+		},
+		{
+			desc: "app name containing a backtick is rejected",
+			settings: scriptSettings{
+				token:          testTokenID,
+				appInstallMode: true,
+				appName:        "ab`whoami`cd",
+				appURI:         "https://1.2.3.4:54321",
+			},
+			shouldError: true,
+		},
+		{
+			desc: "app URI containing a backtick is rejected",
+			settings: scriptSettings{
+				token:          testTokenID,
+				appInstallMode: true,
+				appName:        "abcd",
+				appURI:         "https://1.2.3.4:54321/`whoami`",
+			},
+			shouldError: true,
+		},
+		{
+			desc: "app name containing a dollar sign is rejected",
+			settings: scriptSettings{
+				token:          testTokenID,
+				appInstallMode: true,
+				appName:        "ab$HOME",
+				appURI:         "https://1.2.3.4:54321",
+			},
+			shouldError: true,
+		},
+		{
+			desc: "app URI containing a dollar sign is rejected",
+			settings: scriptSettings{
+				token:          testTokenID,
+				appInstallMode: true,
+				appName:        "abcd",
+				appURI:         "https://1.2.3.4:54321/$HOME",
+			},
+			shouldError: true,
+		},
 	}
 
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			script, err = getJoinScript(tc.settings, m)
-			require.Nil(t, err)
-			for _, output := range tc.outputs {
-				require.Contains(t, script, output)
+			if tc.shouldError {
+				require.NotNil(t, err)
+				require.Equal(t, script, "")
+			} else {
+				require.Nil(t, err)
+				for _, output := range tc.outputs {
+					require.Contains(t, script, output)
+				}
 			}
 		})
 	}

@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -22,6 +22,8 @@ import (
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+
+	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 // scriptSettings is used to hold values which are passed into the function that
@@ -66,33 +68,20 @@ func (p *Plugin) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 	return nil, nil
 }
 
-// unescapeAndStripParameter returns an URI-unescaped version of the input string,
-// where double quotes (") will be replaced with an escaped version (\")
-func unescapeAndStripParameter(parameter string) (string, error) {
-	unescape, err := url.QueryUnescape(parameter)
-	if err != nil {
-		return "", err
-	}
-	// replace all " characters with \", as the bash script uses double quotes to contain
-	// variables and unescaped " characters will result in weird breakages
-	unescape = strings.ReplaceAll(unescape, "\"", "\\\"")
-	return unescape, nil
-}
-
 func (p *Plugin) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 	scripts.SetScriptHeaders(w.Header())
 	queryValues := r.URL.Query()
 
-	name, err := unescapeAndStripParameter(queryValues.Get("name"))
+	name, err := url.QueryUnescape(queryValues.Get("name"))
 	if err != nil {
-		log.WithError(err).Debug("Failed to return the app install script.")
+		log.WithField("query-param", "name").WithError(err).Debug("Failed to return the app install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 
-	uri, err := unescapeAndStripParameter(queryValues.Get("uri"))
+	uri, err := url.QueryUnescape(queryValues.Get("uri"))
 	if err != nil {
-		log.WithError(err).Debug("Failed to return the app install script.")
+		log.WithField("query-param", "uri").WithError(err).Debug("Failed to return the app install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
@@ -187,11 +176,11 @@ func getJoinScript(settings scriptSettings, m nodeAPIGetter) (string, error) {
 	// If app install mode is requested but parameters are blank for some reason,
 	// we need to return an error.
 	if settings.appInstallMode == true {
-		if settings.appName == "" {
-			return "", trace.BadParameter("appName is not set")
+		if errs := validation.IsDNS1035Label(settings.appName); len(errs) > 0 {
+			return "", trace.BadParameter("appName %q must be a valid DNS subdomain: https://gravitational.com/teleport/docs/application-access/#application-name", settings.appName)
 		}
-		if settings.appURI == "" {
-			return "", trace.BadParameter("appURI is not set")
+		if !appURIPattern.MatchString(settings.appURI) {
+			return "", trace.BadParameter("appURI %q contains invalid characters", settings.appURI)
 		}
 	}
 	// This section relies on Go's default zero values to make sure that the settings
@@ -230,3 +219,6 @@ type nodeAPIGetter interface {
 	// GetProxies returns a list of registered proxies.
 	GetProxies() ([]services.Server, error)
 }
+
+// appURIPattern is a regexp excluding invalid characters from application URIs.
+var appURIPattern = regexp.MustCompile(`^[-\w/:. ]+$`)
