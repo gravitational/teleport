@@ -32,7 +32,7 @@ func main() {
 	ctx := context.Background()
 	log.Printf("Starting Teleport client...")
 
-	var tlsConfig *tls.Config
+	tlsConfig := &tls.Config{}
 	// Create valid tlsConfig here to load TLS credentials.
 
 	clt, err := client.New(ctx, client.Config{
