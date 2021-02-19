@@ -18,52 +18,39 @@ package web
 
 import (
 	"net/http"
-	"net/url"
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/form"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 )
 
-func (h *Handler) samlSSO(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) samlSSO(w http.ResponseWriter, r *http.Request, p httprouter.Params) string {
 	logger := h.log.WithField("auth", "saml")
-	logger.Debug("SSO start.")
+	logger.Debug("Web login start.")
 
-	query := r.URL.Query()
-	clientRedirectURL := query.Get("redirect_url")
-	if clientRedirectURL == "" {
-		return nil, trace.BadParameter("missing redirect_url query parameter")
-	}
-	connectorID := query.Get("connector_id")
-	if connectorID == "" {
-		return nil, trace.BadParameter("missing connector_id query parameter")
-	}
-
-	csrfToken, err := csrf.ExtractTokenFromCookie(r)
+	req, err := parseSSORequestParams(r)
 	if err != nil {
-		logger.WithError(err).Warn("Unable to extract CSRF token from cookie.")
-		return nil, trace.AccessDenied("access denied")
+		logger.WithError(err).Error("Failed to extract SSO parameters from request.")
+		return client.LoginFailedRedirectURL
 	}
 
 	response, err := h.cfg.ProxyClient.CreateSAMLAuthRequest(
 		services.SAMLAuthRequest{
-			ConnectorID:       connectorID,
-			CSRFToken:         csrfToken,
+			ConnectorID:       req.connectorID,
+			CSRFToken:         req.csrfToken,
 			CreateWebSession:  true,
-			ClientRedirectURL: clientRedirectURL,
+			ClientRedirectURL: req.clientRedirectURL,
 		})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Error creating auth request.")
+		return client.LoginFailedRedirectURL
 	}
 
-	http.Redirect(w, r, response.RedirectURL, http.StatusFound)
-	return nil, nil
+	return response.RedirectURL
 }
 
 func (h *Handler) samlSSOConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -91,52 +78,47 @@ func (h *Handler) samlSSOConsole(w http.ResponseWriter, r *http.Request, p httpr
 	return &client.SSOLoginConsoleResponse{RedirectURL: response.RedirectURL}, nil
 }
 
-func (h *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var samlResponse string
-	err := form.Parse(r, form.String("SAMLResponse", &samlResponse, form.Required()))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+func (h *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.Params) string {
 	logger := h.log.WithField("auth", "saml")
+	logger.Debug("Callback start.")
+
+	var samlResponse string
+	if err := form.Parse(r, form.String("SAMLResponse", &samlResponse, form.Required())); err != nil {
+		logger.WithError(err).Error("Error parsing response.")
+		return client.LoginFailedRedirectURL
+	}
 
 	response, err := h.cfg.ProxyClient.ValidateSAMLResponse(samlResponse)
 	if err != nil {
-		logger.WithError(err).Warn("Error while processing callback.")
-
-		message := "Unable to process callback from SAML provider."
-		// for not implemented errors it's ok to provide a more specific
-		// message as it could give more guidance on what's not enabled
-		if trace.IsNotImplemented(err) {
-			message = utils.Capitalize(err.Error()) + "."
-		}
-
-		// redirect to an error page
-		pathToError := url.URL{
-			Path:     "/web/msg/error/login_failed",
-			RawQuery: url.Values{"details": []string{message}}.Encode(),
-		}
-		http.Redirect(w, r, pathToError.String(), http.StatusFound)
-		return nil, nil
+		logger.WithError(err).Error("Error while processing callback.")
+		return client.LoginFailedBadCallbackRedirectURL
 	}
 
 	// if we created web session, set session cookie and redirect to original url
 	if response.Req.CreateWebSession {
 		logger.Debug("Redirecting to web browser.")
-		err = csrf.VerifyToken(response.Req.CSRFToken, r)
-		if err != nil {
-			logger.WithError(err).Warn("Unable to verify CSRF token.")
-			return nil, trace.AccessDenied("access denied")
+
+		res := &ssoCallbackResponse{
+			csrfToken:         response.Req.CSRFToken,
+			username:          response.Username,
+			sessionName:       response.Session.GetName(),
+			clientRedirectURL: response.Req.ClientRedirectURL,
 		}
-		if err := SetSessionCookie(w, response.Username, response.Session.GetName()); err != nil {
-			return nil, trace.Wrap(err)
+
+		if err := ssoSetWebSessionAndRedirectURL(w, r, res); err != nil {
+			logger.WithError(err).Error("Error setting web session.")
+			return client.LoginFailedRedirectURL
 		}
-		return nil, httplib.SafeRedirect(w, r, response.Req.ClientRedirectURL)
+
+		return res.clientRedirectURL
 	}
+
 	logger.Debug("Callback redirecting to console login.")
 	if len(response.Req.PublicKey) == 0 {
-		return nil, trace.BadParameter("not a web or console oidc login request")
+		logger.Error("Not a web or console login request.")
+		return client.LoginFailedRedirectURL
 	}
+
 	redirectURL, err := ConstructSSHResponse(AuthParams{
 		ClientRedirectURL: response.Req.ClientRedirectURL,
 		Username:          response.Username,
@@ -147,8 +129,9 @@ func (h *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 		HostSigners:       response.HostSigners,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Error constructing ssh response.")
+		return client.LoginFailedRedirectURL
 	}
-	http.Redirect(w, r, redirectURL.String(), http.StatusFound)
-	return nil, nil
+
+	return redirectURL.String()
 }
