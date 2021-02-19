@@ -4225,6 +4225,12 @@ steps:
     image: docker
     commands:
       - |
+        # check whether this is the public teleport repo, skip publishing if not
+        if [ ${DRONE_REPO} != "gravitational/teleport" ]; then
+          echo "---> This is not the main Teleport repo, not publishing packages to repos"
+          # exit pipeline early with success status
+          exit 78
+        fi
         # length will be 0 after filtering if this is a pre-release, >0 otherwise
         FILTERED_TAG_LENGTH=$(echo ${DRONE_TAG} | egrep -v '(alpha|beta|dev|rc)' | wc -c)
         if [ $$FILTERED_TAG_LENGTH -eq 0 ]; then
@@ -4254,6 +4260,9 @@ steps:
     - aws s3 sync s3://$AWS_S3_BUCKET/teleport/ /rpmrepo/teleport/ --delete
     - mkdir -p /rpmrepo/teleport/${DRONE_TAG##v}
     - cp -a /go/artifacts/*.rpm /rpmrepo/teleport/${DRONE_TAG##v}/
+    when:
+      repo:
+        - gravitational/teleport
 
   # we do this using a CentOS 7 container to make sure that the repo files are
   # compatible with older versions, also there's no createrepo package in alpine main
@@ -4265,6 +4274,9 @@ steps:
     commands:
     - yum -y install createrepo
     - createrepo --cachedir /rpmrepo/teleport/cache --update /rpmrepo/teleport
+    when:
+      repo:
+        - gravitational/teleport
 
   - name: Sync RPM repo changes to S3
     image: amazon/aws-cli
@@ -4280,6 +4292,9 @@ steps:
         path: /rpmrepo
     commands:
     - aws s3 sync /rpmrepo/teleport/ s3://$AWS_S3_BUCKET/teleport/
+    when:
+      repo:
+        - gravitational/teleport
 
   - name: Download DEB repo contents
     image: amazon/aws-cli
@@ -4298,6 +4313,9 @@ steps:
     # from the upstream S3 bucket
     - mkdir -p /debrepo/teleport
     - aws s3 sync s3://$AWS_S3_BUCKET/teleport /debrepo/teleport --delete
+    when:
+      repo:
+        - gravitational/teleport
 
   - name: Build DEB repo
     image: ubuntu:20.04
@@ -4349,6 +4367,9 @@ steps:
       - |
         # copy artifacts to PVC
         cp -r /go/reprepro/teleport /debrepo/
+    when:
+      repo:
+        - gravitational/teleport
 
   - name: Sync DEB repo changes to S3
     image: amazon/aws-cli
@@ -4364,6 +4385,9 @@ steps:
         path: /debrepo
     commands:
     - aws s3 sync /debrepo/teleport/ s3://$AWS_S3_BUCKET/teleport/
+    when:
+      repo:
+        - gravitational/teleport
 
 services:
   - name: Start Docker
@@ -4391,6 +4415,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 16ca136b787835e99245782fcd43759abd8ca690aa45f64c607a39fb37f91628
+hmac: b3fd09119aee68db354991b41fdbd0c3b6a6ad4cdce2559484d21e80fc426edb
 
 ...
