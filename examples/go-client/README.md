@@ -17,15 +17,13 @@ Auth API clients must perform two-way authentication using x509 certificates:
 2. They must offer their x509 certificate, which has been previously issued
    by the auth sever.
 
-The client supports multiple `CredentialProviders`, which can gather credentials for client authentication from their defined source.
+The client supports multiple credential loading methods to authenticate the client. Multiple methods can be used simultaneously in order to increase redundancy or to handle special cases where some authentication methods are expected to fail/expire sometimes.
 
-Multiple providers can be specified in order to try multiple authentication methods. This is helpful for redundancy, especially in cases where some authentication methods are expected to fail/expire sometimes.
-
-This demo sets up a few `CredentialProviders` which can be easily tried out in the demo below.
+This demo sets up a few credentials which can be easily tried out in the demo below.
 
 ### Authorization
 
-The Server will authorize requests for the user associated with the certificates used to authenticate the client. 
+The server will authorize requests for the user associated with the certificates used to authenticate the client. 
 
 Therefore, to use the API client, you need to create a user and any roles it may need for your use case. The client will act on behalf of that user and have access as defined by the user's role(s).
 
@@ -42,16 +40,16 @@ $ tctl users add access-admin --roles=access-admin
 
 Second, replace the address `localhost:3025` with the address of your auth server. Note that the client only supports local connections, but support will be added for connecting through the proxy soon.
 
-Third, choose at least one `CredentialProvider` to authenticate the client, and follow the steps below corresponding to the method. Multiple `CredentialsProvider` can ge specified and the first method to successfully load `Credentials` will be used to authenticate the client.
+Third, create credentials to authenticate the client, and follow the steps below corresponding to the credentials chosen. Multiple credentials can be specified and the first credentials to successfully load will be used.
 
-1. Identity File Provider:
+1. Identity File Credentials:
 
    ```bash
    # login and generate identity file
-   $ tsh login --user=access-admin --out=identity_file_path
+   $ tsh login --user=access-admin --out=certs/access-admin-identity
    ```
 
-2. Key Pair Provider:
+2. Key Pair Credentials:
 
    ```bash
    $ mkdir -p certs
@@ -59,16 +57,16 @@ Third, choose at least one `CredentialProvider` to authenticate the client, and 
    $ tctl auth sign --format=tls --ttl=87600h --user=access-admin --out=certs/access-admin
    ```
 
-3. TLS Provider (manual):
+3. TLS Credentials (manual):
 
    Generate valid TLS certificates by whatever means desired. Replace the following comment in `main.go` with custom logic to load the certificates into the `*tls.Config`:
 
    ```go
 	var tlsConfig *tls.Config
-	// Create valid tlsConfig here to use TLS Provider
+	// Create valid tlsConfig here to use TLS Credentials
    ```
 
-   Note that this is not the recommended strategy since the TLS config can be generated automatically with the methods above. However, some users may find this useful if they already have a TLS config defined or they have an irregular Teleport setup.
+   Note that this is not the recommended strategy since the TLS config can be generated automatically with the methods above. However, some users may find this useful if they already have a TLS config defined or they have a custom Teleport setup.
 
 Lastly, run the demo:
 

@@ -26,9 +26,9 @@ import (
 	"golang.org/x/net/http2"
 )
 
-// Credentials used to authenticate to Auth.
+// Credentials are used to authenticate to Auth.
 type Credentials interface {
-	// Dialer used to connect to Auth.
+	// Dialer is used to connect to Auth.
 	Dialer() (ContextDialer, error)
 	// Config returns TLS configuration used to connect to Auth.
 	Config() (*tls.Config, error)
@@ -46,7 +46,7 @@ type tlsConfigCreds struct {
 }
 
 func (c *tlsConfigCreds) Dialer() (ContextDialer, error) {
-	return nil, trace.BadParameter("no dialer")
+	return nil, trace.NotImplemented("no dialer")
 }
 
 func (c *tlsConfigCreds) Config() (*tls.Config, error) {
@@ -69,7 +69,7 @@ type keyPairCreds struct {
 }
 
 func (c *keyPairCreds) Dialer() (ContextDialer, error) {
-	return nil, trace.BadParameter("no dialer")
+	return nil, trace.NotImplemented("no dialer")
 }
 
 func (c *keyPairCreds) Config() (*tls.Config, error) {
@@ -80,12 +80,12 @@ func (c *keyPairCreds) Config() (*tls.Config, error) {
 
 	cas, err := ioutil.ReadFile(c.caFile)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.ConvertSystemError(err)
 	}
 
 	pool := x509.NewCertPool()
 	if ok := pool.AppendCertsFromPEM(cas); !ok {
-		return nil, trace.Errorf("invalid TLS CA cert PEM")
+		return nil, trace.BadParameter("invalid TLS CA cert PEM")
 	}
 
 	return configure(&tls.Config{
@@ -106,7 +106,7 @@ type identityCreds struct {
 }
 
 func (c *identityCreds) Dialer() (ContextDialer, error) {
-	return nil, trace.BadParameter("no dialer")
+	return nil, trace.NotImplemented("no dialer")
 }
 
 func (c *identityCreds) Config() (*tls.Config, error) {

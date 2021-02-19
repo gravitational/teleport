@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	// IdentityFilePermissions defines file permissions for Identity files.
+	// IdentityFilePermissions defines file permissions for identity files.
 	IdentityFilePermissions = 0600
 )
 
@@ -38,8 +38,10 @@ const (
 type IdentityFile struct {
 	// PrivateKey is a PEM encoded key.
 	PrivateKey []byte
-	Certs      Certs
-	CACerts    CACerts
+	// Certs contains PEM encoded certificates.
+	Certs Certs
+	// CACerts contains PEM encoded CA certificates.
+	CACerts CACerts
 }
 
 // Certs contains PEM encoded certificates.
@@ -84,11 +86,13 @@ func WriteIdentityFile(idFile *IdentityFile, path string) error {
 	if err := encodeIdentityFile(buf, idFile); err != nil {
 		return trace.Wrap(err)
 	}
-	err := ioutil.WriteFile(path, buf.Bytes(), IdentityFilePermissions)
-	return trace.Wrap(err)
+	if err := ioutil.WriteFile(path, buf.Bytes(), IdentityFilePermissions); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
 }
 
-// ReadIdentityFile reads an identityFile from the given path.
+// ReadIdentityFile reads an identity file from the given path.
 func ReadIdentityFile(path string) (*IdentityFile, error) {
 	r, err := os.Open(path)
 	if err != nil {
@@ -132,12 +136,11 @@ func writeWithNewline(w io.Writer, data []byte) error {
 	if _, err := w.Write(data); err != nil {
 		return trace.Wrap(err)
 	}
-	if !bytes.HasSuffix(data, []byte{'\n'}) {
-		if _, err := fmt.Fprintln(w); err != nil {
-			return trace.Wrap(err)
-		}
+	if bytes.HasSuffix(data, []byte{'\n'}) {
+		return nil
 	}
-	return nil
+	_, err := fmt.Fprintln(w)
+	return trace.Wrap(err)
 }
 
 // decodeIdentityFile attempts to break up the contents of an identity file into its

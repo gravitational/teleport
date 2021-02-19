@@ -33,21 +33,21 @@ func main() {
 	log.Printf("Starting Teleport client...")
 
 	var tlsConfig *tls.Config
-	// Create valid tlsConfig here to use TLS Provider
+	// Create valid tlsConfig here to load TLS credentials.
 
-	clt, err := client.New(client.Config{
-		// Addrs is the Auth Server address, only works locally.
+	clt, err := client.New(ctx, client.Config{
+		// Addrs is the Auth Server address, must be local.
 		Addrs: []string{"localhost:3025"},
-		// Multiple credentials can be tried by providing credentialProviders. The first
-		// provider to provide valid credentials will be used to authenticate the client.
-		CredentialsProviders: []client.CredentialsProvider{
-			client.NewKeyPairProvider(
+		// Multiple credentials can be provided, and the first credentials to
+		// successfully authenticate an open connection to the client will be used.
+		Credentials: []client.Credentials{
+			client.LoadKeyPair(
 				"certs/access-admin.crt",
 				"certs/access-admin.key",
 				"certs/access-admin.cas",
 			),
-			client.NewIdentityFileProvider("certs/access-admin-identity"),
-			client.NewTLSProvider(tlsConfig),
+			client.LoadIdentityFile("certs/access-admin-identity"),
+			client.LoadTLS(tlsConfig),
 		},
 	})
 	if err != nil {

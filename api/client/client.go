@@ -69,42 +69,57 @@ type Client struct {
 	closedFlag int32
 }
 
-// New creates a new API client with a connection to a Teleport server. The connection is
-// formed using the Dialer and CredentialsProviders given in config. If Addrs are provided, a
-// basic Dialer will be created. If Credentials are provided, a basic CredentialsProvider will
-// will be added to the list of CredentialsProviders.
-func New(cfg Config) (*Client, error) {
+// New creates a new API client with a connection to a Teleport server.
+func New(ctx context.Context, cfg Config) (*Client, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	c := &Client{c: cfg}
-	if err := c.connect(cfg.NoPingCheck); err != nil {
+	if err := c.connect(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return c, nil
 }
 
-func (c *Client) getDialer(creds Credentials) (ContextDialer, error) {
-	dialer, err := creds.Dialer()
-	if err != nil {
-		if c.c.Dialer != nil {
-			return c.c.Dialer, nil
-		}
-		if len(c.c.Addrs) == 0 {
-			return nil, trace.BadParameter("no dialer in credentials, configuration, or addresses provided")
-		}
-		dialer, err = NewAddrDialer(c.c.Addrs, c.c.KeepAlivePeriod, c.c.DialTimeout)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+// getDialer builds a grpc dialer for the client from a ContextDialer.
+// The ContextDialer is chosen from available options, prefering one from
+// credentials, then from configuration, and lastly from addresses.
+func (c *Client) setDialer(creds Credentials) error {
+	var err error
+	if c.dialer, err = creds.Dialer(); err == nil {
+		return nil
 	}
-	return dialer, nil
+	if c.dialer = c.c.Dialer; c.dialer != nil {
+		return nil
+	}
+	if len(c.c.Addrs) == 0 {
+		return trace.BadParameter("no dialer in credentials, configuration, or addresses provided")
+	}
+	c.dialer, err = NewAddrDialer(c.c.Addrs, c.c.KeepAlivePeriod, c.c.DialTimeout)
+	return trace.Wrap(err)
 }
 
-func (c *Client) connect(noPingCheck bool) error {
-	// Loop over credentials and use first successfully one.
+type grpcDialer func(ctx context.Context, addr string) (net.Conn, error)
+
+// grpcDialer wraps the given ContextDialer with a grpcDialer, which
+// can be used with a grpc.DialOption.
+func (c *Client) grpcDialer() grpcDialer {
+	return func(ctx context.Context, addr string) (net.Conn, error) {
+		if c.isClosed() {
+			return nil, trace.ConnectionProblem(nil, "client is closed")
+		}
+		conn, err := c.dialer.DialContext(ctx, "tcp", addr)
+		if err != nil {
+			return nil, trace.ConnectionProblem(err, "failed to dial")
+		}
+		return conn, nil
+	}
+}
+
+func (c *Client) connect(ctx context.Context) error {
+	// Loop over credentials and use first successfull one.
 	var err error
 	var errs []error
 	for _, creds := range c.c.Credentials {
@@ -117,25 +132,14 @@ func (c *Client) connect(noPingCheck bool) error {
 
 		// Build a dialer, prefer a dialer from credentials. If no fallback to the
 		// passed in dialer and then list of addresses.
-		c.dialer, err = c.getDialer(creds)
-		if err != nil {
+		if err = c.setDialer(creds); err != nil {
 			errs = append(errs, trace.Wrap(err))
 			continue
 		}
-		grpcDialer := grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
-			if c.isClosed() {
-				return nil, trace.ConnectionProblem(nil, "client is closed")
-			}
-			conn, err := c.dialer.DialContext(ctx, "tcp", addr)
-			if err != nil {
-				return nil, trace.ConnectionProblem(err, "failed to dial")
-			}
-			return conn, nil
-		})
 
 		c.conn, err = grpc.Dial(
 			constants.APIDomain,
-			grpcDialer,
+			grpc.WithContextDialer(c.grpcDialer()),
 			grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConfig)),
 			grpc.WithKeepaliveParams(keepalive.ClientParameters{
 				Time:                c.c.KeepAlivePeriod,
@@ -149,11 +153,11 @@ func (c *Client) connect(noPingCheck bool) error {
 		}
 		c.grpc = proto.NewAuthServiceClient(c.conn)
 
-		if noPingCheck {
+		if c.c.NoPingCheck {
 			return nil
 		}
 
-		if _, err := c.Ping(context.TODO()); err != nil {
+		if _, err := c.Ping(ctx); err != nil {
 			errs = append(errs, trace.Wrap(err))
 			continue
 		}
@@ -182,10 +186,8 @@ type Config struct {
 	// to Auth.
 	Credentials []Credentials
 
-	// NoPingCheck disables the ping check on client initialization. The ping
-	// check is used to verify and authenticate the connection, but in cases
-	// where you don't immediately expect the connection to be usable, use
-	// NoPingCheck to disable this check.
+	// NoPingCheck disables the ping check on client initialization for cases
+	// where the connection isn't expected to be immediately usable (auth client)
 	NoPingCheck bool
 }
 
