@@ -151,6 +151,8 @@ function renderUrl(name = '') {
   );
 }
 
+// Validation logic matches backend checks for app URI
+const ALLOWED_APPURI_REGEXP = /^[-\w/:. ]+$/;
 const requiredAppUri = value => () => {
   if (!value) {
     return {
@@ -165,6 +167,14 @@ const requiredAppUri = value => () => {
     return {
       valid: false,
       message: 'URL is invalid',
+    };
+  }
+
+  const appUriMatch = value.match(ALLOWED_APPURI_REGEXP);
+  if (!appUriMatch) {
+    return {
+      valid: false,
+      message: 'Invalid app URI',
     };
   }
 
