@@ -489,6 +489,22 @@ type MultipartUploader interface {
 	// ListUploads lists uploads that have been initiated but not completed with
 	// earlier uploads returned first
 	ListUploads(ctx context.Context) ([]StreamUpload, error)
+	// GetUploadMetadata gets the upload metadata
+	GetUploadMetadata(sessionID session.ID) UploadMetadata
+}
+
+// UploadMetadata contains data about the session upload
+type UploadMetadata struct {
+	// URL is the url at which the session recording is located
+	// it is free-form and uploader-specific
+	URL string
+	// SessionID is the event session ID
+	SessionID session.ID
+}
+
+// UploadMetadataGetter gets the metadata for session upload
+type UploadMetadataGetter interface {
+	GetUploadMetadata(sid session.ID) UploadMetadata
 }
 
 // StreamWriter implements io.Writer to be plugged into the multi-writer
@@ -515,6 +531,9 @@ type IAuditLog interface {
 	// EmitAuditEventLegacy emits audit in legacy format
 	// DELETE IN: 5.0.0
 	EmitAuditEventLegacy(Event, EventFields) error
+
+	// EmitAuditEvent emits audit event
+	EmitAuditEvent(context.Context, AuditEvent) error
 
 	// DELETE IN: 2.7.0
 	// This method is no longer necessary as nodes and proxies >= 2.7.0
@@ -602,7 +621,7 @@ func (f EventFields) GetString(key string) string {
 	return v
 }
 
-// GetString returns an int representation of a logged field
+// GetInt returns an int representation of a logged field
 func (f EventFields) GetInt(key string) int {
 	val, found := f[key]
 	if !found {
@@ -618,7 +637,7 @@ func (f EventFields) GetInt(key string) int {
 	return v
 }
 
-// GetString returns an int representation of a logged field
+// GetTime returns an int representation of a logged field
 func (f EventFields) GetTime(key string) time.Time {
 	val, found := f[key]
 	if !found {
