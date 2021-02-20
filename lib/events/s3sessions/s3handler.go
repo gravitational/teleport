@@ -335,7 +335,7 @@ func (h *Handler) ensureBucket() error {
 		_, err = h.client.PutBucketEncryption(&s3.PutBucketEncryptionInput{
 			Bucket: aws.String(h.Bucket),
 			ServerSideEncryptionConfiguration: &s3.ServerSideEncryptionConfiguration{
-				Rules: []*s3.ServerSideEncryptionRule{&s3.ServerSideEncryptionRule{
+				Rules: []*s3.ServerSideEncryptionRule{{
 					ApplyServerSideEncryptionByDefault: &s3.ServerSideEncryptionByDefault{
 						SSEAlgorithm: aws.String(s3.ServerSideEncryptionAwsKms),
 					},
