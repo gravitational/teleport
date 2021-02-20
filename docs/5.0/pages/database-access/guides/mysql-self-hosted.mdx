@@ -53,7 +53,7 @@ ssl-key=/path/to/server.key
 ```
 
 In addition, MySQL database accounts you will be connecting to the database
-as must be configured to require a valid client certificate:
+must be configured to require a valid client certificate:
 
 ```sql
 CREATE USER 'alice'@'%' REQUIRE X509;
