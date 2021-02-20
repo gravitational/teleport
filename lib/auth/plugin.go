@@ -41,4 +41,6 @@ func SetPlugin(p Plugin) {
 type Plugin interface {
 	// AddHandlers adds handlers to the auth API server
 	AddHandlers(srv *APIServer)
+	// RegisterGRPCService extends GRPCService APIs
+	RegisterGRPCService(server *GRPCServer) error
 }

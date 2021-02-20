@@ -190,6 +190,9 @@ const (
 	// KindMFADevice is an MFA device for a user.
 	KindMFADevice = "mfa_device"
 
+	// KindBillingInformation represents access to cloud billing features
+	KindBillingInformation = "billing_information"
+
 	// V3 is the third version of resources.
 	V3 = "v3"
 
