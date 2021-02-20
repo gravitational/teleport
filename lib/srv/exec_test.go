@@ -510,6 +510,10 @@ func (a *fakeLog) EmitAuditEventLegacy(e events.Event, f events.EventFields) err
 	return trace.NotImplemented("not implemented")
 }
 
+func (a *fakeLog) EmitAuditEvent(ctx context.Context, e events.AuditEvent) error {
+	return trace.NotImplemented("not implemented")
+}
+
 func (a *fakeLog) PostSessionSlice(s events.SessionSlice) error {
 	return trace.NotImplemented("not implemented")
 }
