@@ -1,390 +1,366 @@
 ---
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
 kind: pipeline
 type: kubernetes
 name: test
-
 environment:
+  GID: "1000"
   RUNTIME: go1.15.5
-  UID: 1000
-  GID: 1000
-
+  UID: "1000"
 trigger:
   event:
     include:
-      - pull_request
+    - pull_request
   repo:
     include:
-      - gravitational/*
-
+    - gravitational/*
 workspace:
   path: /go
-
 clone:
   disable: true
-
 steps:
-  - name: Check out code
-    image: docker:git
-    environment:
-      GITHUB_PRIVATE_KEY:
-        from_secret: GITHUB_PRIVATE_KEY
-    volumes:
-      - name: tmpfs
-        path: /tmpfs
-    commands:
-      - mkdir -p /tmpfs/go/src/github.com/gravitational/teleport /tmpfs/go/cache
-      - cd /tmpfs/go/src/github.com/gravitational/teleport
-      - git init && git remote add origin ${DRONE_REMOTE_URL}
-      - |
-        # handle pull requests
-        if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
-          git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
-          git checkout ${DRONE_COMMIT_BRANCH}
-          git fetch origin ${DRONE_COMMIT_REF}:
-          git merge ${DRONE_COMMIT}
-        # handle tags
-        elif [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
-          git fetch origin +refs/tags/${DRONE_TAG}:
-          git checkout -qf FETCH_HEAD
-        # handle pushes/other events
-        else
-          if [ "${DRONE_COMMIT_BRANCH}" = "" ]; then
-            git fetch origin
-            git checkout -qf ${DRONE_COMMIT_SHA}
-          else
-            git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
-            git checkout ${DRONE_COMMIT} -b ${DRONE_COMMIT_BRANCH}
-          fi
-        fi
-      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init webassets || true
-      # use the Github API to check whether this PR comes from a forked repo or not
-      # if it does, don't check out the Enterprise code
-      - |
-        if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
-          apk add --no-cache curl jq
-          export PR_REPO=$(curl -Ls https://api.github.com/repos/gravitational/${DRONE_REPO_NAME}/pulls/${DRONE_PULL_REQUEST} | jq -r '.head.repo.full_name')
-          echo "---> Source repo for PR ${DRONE_PULL_REQUEST}: $${PR_REPO}"
-          # if the source repo for the PR matches DRONE_REPO, then this is not a PR raised from a fork
-          if [ "$${PR_REPO}" = "${DRONE_REPO}" ] || [ "${DRONE_REPO}" = "gravitational/teleport-private" ]; then
-            mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-            ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-            git submodule update --init e
-            # do a recursive submodule checkout to get both webassets and webassets/e
-            # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-            git submodule update --init --recursive webassets || true
-            rm -f /root/.ssh/id_rsa
-          fi
-        fi
+- name: Check out code
+  image: docker:git
+  commands:
+  - mkdir -p /tmpfs/go/src/github.com/gravitational/teleport /tmpfs/go/cache
+  - cd /tmpfs/go/src/github.com/gravitational/teleport
+  - git init && git remote add origin ${DRONE_REMOTE_URL}
+  - |2
 
-  - name: Build buildbox
-    image: docker
-    volumes:
-      - name: dockersock
-        path: /var/run
-      - name: tmpfs
-        path: /tmpfs
-    commands:
-      - apk add --no-cache make
-      - chown -R $UID:$GID /tmpfs/go
-      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
-      - cd /tmpfs/go/src/github.com/gravitational/teleport
-      - make -C build.assets buildbox
+    # handle pull requests
+    if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
+      git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
+      git checkout ${DRONE_COMMIT_BRANCH}
+      git fetch origin ${DRONE_COMMIT_REF}:
+      git merge ${DRONE_COMMIT}
+    # handle tags
+    elif [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
+      git fetch origin +refs/tags/${DRONE_TAG}:
+      git checkout -qf FETCH_HEAD
+    # handle pushes/other events
+    else
+      if [ "${DRONE_COMMIT_BRANCH}" = "" ]; then
+        git fetch origin
+        git checkout -qf ${DRONE_COMMIT_SHA}
+      else
+        git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
+        git checkout ${DRONE_COMMIT} -b ${DRONE_COMMIT_BRANCH}
+      fi
+    fi
+  - git submodule update --init webassets || true
+  - |2
 
-  - name: Run linter
-    image: docker
-    environment:
-      GOCACHE: /tmpfs/go/cache
-      GOPATH: /tmpfs/go
-    volumes:
-      - name: dockersock
-        path: /var/run
-      - name: tmpfs
-        path: /tmpfs
-    commands:
-      - apk add --no-cache make
-      - chown -R $UID:$GID /tmpfs/go
-      - cd /tmpfs/go/src/github.com/gravitational/teleport
-      - make -C build.assets lint
-
-  # https://discourse.drone.io/t/how-to-exit-a-pipeline-early-without-failing/3951
-  # this step looks at the output of git diff --raw to determine whether any files
-  # which don't match the pattern '^docs/', '.mdx$' or '.md$' were changed. if there are no
-  # changes to non-docs code, we skip the Teleport tests and exit early with a special
-  # Drone exit code to speed up iteration on docs (as milv is much quicker to run)
-  - name: Optionally skip tests
-    image: docker:git
-    volumes:
-      - name: tmpfs
-        path: /tmpfs
-    commands:
-    - |
-        cd /tmpfs/go/src/github.com/gravitational/teleport
-        echo -e "\n---> git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master}\n"
-        git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master}
-        git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -Ev '^docs/' | grep -Ev '.mdx$' | grep -Ev '.md$' | grep -v ^$ | wc -l > /tmp/.change_count.txt
-        export CHANGE_COUNT=$(cat /tmp/.change_count.txt | tr -d '\n')
-        echo -e "\n---> Non-docs changes detected: $$CHANGE_COUNT"
-        if [ $$CHANGE_COUNT -gt 0 ]; then
-          echo "---> Teleport tests will run normally"
-        else
-          echo "---> Skipping Teleport tests and exiting early"
-          exit 78
-        fi
-        echo ""
-
-  - name: Run unit and chaos tests
-    image: docker
-    environment:
-      GOCACHE: /tmpfs/go/cache
-      GOPATH: /tmpfs/go
-    volumes:
-      - name: dockersock
-        path: /var/run
-      - name: tmpfs
-        path: /tmpfs
-    commands:
-      - apk add --no-cache make
-      - chown -R $UID:$GID /tmpfs/go
-      - cd /tmpfs/go/src/github.com/gravitational/teleport
-      - make -C build.assets test
-
-  # some integration tests can only be run as root, so we handle
-  # these separately using a build tag
-  - name: Run root-only integration tests
-    image: docker
-    environment:
-      GOCACHE: /tmpfs/go/cache
-      GOPATH: /tmpfs/go
-    volumes:
-      - name: dockersock
-        path: /var/run
-      - name: tmp-integration
-        path: /tmp
-      - name: tmpfs
-        path: /tmpfs
-    commands:
-      - apk add --no-cache make
-      - cd /tmpfs/go/src/github.com/gravitational/teleport
-      - make -C build.assets integration-root
-
-  - name: Run integration tests
-    image: docker
-    environment:
-      GOCACHE: /tmpfs/go/cache
-      GOPATH: /tmpfs/go
-      INTEGRATION_CI_KUBECONFIG:
-        from_secret: INTEGRATION_CI_KUBECONFIG
-      KUBECONFIG: /tmpfs/go/kubeconfig.ci
-      TEST_KUBE: true
-    volumes:
-      - name: dockersock
-        path: /var/run
-      - name: tmp-integration
-        path: /tmp
-      - name: tmpfs
-        path: /tmpfs
-    commands:
-      - apk add --no-cache make
-      # write kubeconfig to disk for use in kube integration tests
-      - echo "$INTEGRATION_CI_KUBECONFIG" > "$KUBECONFIG"
-      - chown -R $UID:$GID /tmpfs/go
-      - cd /tmpfs/go/src/github.com/gravitational/teleport
-      - make -C build.assets integration
-      - rm -f "$KUBECONFIG"
-
-services:
-  - name: Start Docker
-    image: docker:dind
-    volumes:
-      - name: dockersock
-        path: /var/run
-      - name: tmp-dind
-        path: /tmp
-      - name: tmpfs
-        path: /tmpfs
-
-volumes:
-  - name: dockersock
-    temp: {}
-  - name: tmp-dind
-    temp: {}
-  - name: tmp-integration
-    temp: {}
+    if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
+      apk add --no-cache curl jq
+      export PR_REPO=$(curl -Ls https://api.github.com/repos/gravitational/${DRONE_REPO_NAME}/pulls/${DRONE_PULL_REQUEST} | jq -r '.head.repo.full_name')
+      echo "---> Source repo for PR ${DRONE_PULL_REQUEST}: $${PR_REPO}"
+      # if the source repo for the PR matches DRONE_REPO, then        this is not a PR raised from a fork
+      if [ "$${PR_REPO}" = "${DRONE_REPO}" ] || [ "${DRONE_REPO}" = "gravitational/teleport-private" ]; then
+        mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+        ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+        git submodule update --init e
+        # do a recursive submodule checkout to get both webassets and webassets/e
+        # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+        git submodule update --init --recursive webassets || true
+        rm -f /root/.ssh/id_rsa
+      fi
+    fi
+  environment:
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+  volumes:
   - name: tmpfs
-    temp:
-      medium: memory
+    path: /tmpfs
+- name: Build buildbox
+  image: docker
+  commands:
+  - apk add --no-cache make
+  - chown -R $UID:$GID /tmpfs/go
+  - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+  - cd /tmpfs/go/src/github.com/gravitational/teleport
+  - make -C build.assets buildbox
+  volumes:
+  - name: dockersock
+    path: /var/run
+  - name: tmpfs
+    path: /tmpfs
+- name: Run linter
+  image: docker
+  commands:
+  - apk add --no-cache make
+  - chown -R $UID:$GID /tmpfs/go
+  - cd /tmpfs/go/src/github.com/gravitational/teleport
+  - make -C build.assets lint
+  environment:
+    GOCACHE: /tmpfs/go/cache
+    GOPATH: /tmpfs/go
+  volumes:
+  - name: dockersock
+    path: /var/run
+  - name: tmpfs
+    path: /tmpfs
+- name: Optionally skip tests
+  image: docker:git
+  commands:
+  - |2
+
+    cd /tmpfs/go/src/github.com/gravitational/teleport
+    echo -e "\n---> git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master}\n"
+    git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master}
+    git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -Ev '^docs/' | grep -Ev '.mdx$' | grep -Ev '.md$' | grep -v ^$ | wc -l > /tmp/.change_count.txt
+    export CHANGE_COUNT=$(cat /tmp/.change_count.txt | tr -d '\n')
+    echo -e "\n---> Non-docs changes detected: $$CHANGE_COUNT"
+    if [ $$CHANGE_COUNT -gt 0 ]; then
+      echo "---> Teleport tests will run normally"
+    else
+      echo "---> Skipping Teleport tests and exiting early"
+      exit 78
+    fi
+    echo ""
+  volumes:
+  - name: tmpfs
+    path: /tmpfs
+- name: Run unit and chaos tests
+  image: docker
+  commands:
+  - apk add --no-cache make
+  - chown -R $UID:$GID /tmpfs/go
+  - cd /tmpfs/go/src/github.com/gravitational/teleport
+  - make -C build.assets test
+  environment:
+    GOCACHE: /tmpfs/go/cache
+    GOPATH: /tmpfs/go
+  volumes:
+  - name: dockersock
+    path: /var/run
+  - name: tmpfs
+    path: /tmpfs
+- name: Run root-only integration tests
+  image: docker
+  commands:
+  - apk add --no-cache make
+  - cd /tmpfs/go/src/github.com/gravitational/teleport
+  - make -C build.assets integration-root
+  environment:
+    GOCACHE: /tmpfs/go/cache
+    GOPATH: /tmpfs/go
+  volumes:
+  - name: dockersock
+    path: /var/run
+  - name: tmpfs
+    path: /tmpfs
+  - name: tmp-integration
+    path: /tmp
+- name: Run integration tests
+  image: docker
+  commands:
+  - apk add --no-cache make
+  - echo "$INTEGRATION_CI_KUBECONFIG" > "$KUBECONFIG"
+  - chown -R $UID:$GID /tmpfs/go
+  - cd /tmpfs/go/src/github.com/gravitational/teleport
+  - make -C build.assets integration
+  - rm -f "$KUBECONFIG"
+  environment:
+    GOCACHE: /tmpfs/go/cache
+    GOPATH: /tmpfs/go
+    INTEGRATION_CI_KUBECONFIG:
+      from_secret: INTEGRATION_CI_KUBECONFIG
+    KUBECONFIG: /tmpfs/go/kubeconfig.ci
+    TEST_KUBE: "true"
+  volumes:
+  - name: dockersock
+    path: /var/run
+  - name: tmpfs
+    path: /tmpfs
+  - name: tmp-integration
+    path: /tmp
+services:
+- name: Start Docker
+  image: docker:dind
+  volumes:
+  - name: dockersock
+    path: /var/run
+  - name: tmp-dind
+    path: /tmp
+  - name: tmpfs
+    path: /tmpfs
+volumes:
+- name: dockersock
+  temp: {}
+- name: tmp-dind
+  temp: {}
+- name: tmp-integration
+  temp: {}
+- name: tmpfs
+  temp:
+    medium: memory
 
 ---
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
 kind: pipeline
 type: kubernetes
 name: test-docs-internal
-
 trigger:
   event:
     include:
-      - pull_request
+    - pull_request
   repo:
     include:
-      - gravitational/*
-
+    - gravitational/*
 workspace:
   path: /go
-
 clone:
   disable: true
-
 steps:
-  - name: Check out code
-    image: golang:1.15.5
-    volumes:
-      - name: tmpfs
-        path: /tmpfs
-    commands:
-      - mkdir -p /tmpfs/go/src/github.com/gravitational/teleport
-      - cd /tmpfs/go/src/github.com/gravitational/teleport
-      - git init && git remote add origin ${DRONE_REMOTE_URL}
-      - |
-        # handle pull requests
-        if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
-          git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
-          git checkout ${DRONE_COMMIT_BRANCH}
-          git fetch origin ${DRONE_COMMIT_REF}:
-          git merge ${DRONE_COMMIT}
-        # handle tags
-        elif [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
-          git fetch origin +refs/tags/${DRONE_TAG}:
-          git checkout -qf FETCH_HEAD
-        # handle pushes/other events
-        else
-          if [ "${DRONE_COMMIT_BRANCH}" = "" ]; then
-            git fetch origin
-            git checkout -qf ${DRONE_COMMIT_SHA}
-          else
-            git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
-            git checkout ${DRONE_COMMIT} -b ${DRONE_COMMIT_BRANCH}
-          fi
-        fi
+- name: Check out code
+  image: golang:1.15.5
+  commands:
+  - mkdir -p /tmpfs/go/src/github.com/gravitational/teleport
+  - cd /tmpfs/go/src/github.com/gravitational/teleport
+  - git init && git remote add origin ${DRONE_REMOTE_URL}
+  - |2
 
-  - name: Run docs tests (internal links only)
-    image: golang:1.15.5
-    volumes:
-      - name: tmpfs
-        path: /tmpfs
-    commands:
-      - |
-        cd /tmpfs/go/src/github.com/gravitational/teleport
-        git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
-        if [ $(stat --printf="%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
-          echo "---> Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
-          # Check trailing whitespace
-          make docs-test-whitespace
-          # Check links
-          for VERSION in $(cat /tmp/docs-versions-changed.txt); do
-            if [ -f docs/$VERSION/milv.config.yaml ]; then
-              go get github.com/magicmatatjahu/milv
-              cd docs/$VERSION
-              echo "---> Running milv on docs/$VERSION:"
-              milv -ignore-external
-              echo "------------------------------\n"
-              cd -
-            else
-              echo "---> No milv config found, skipping docs/$VERSION"
-            fi
-          done
-          else echo "---> No changes to docs detected, not running tests"
-        fi
-
-volumes:
+    # handle pull requests
+    if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
+      git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
+      git checkout ${DRONE_COMMIT_BRANCH}
+      git fetch origin ${DRONE_COMMIT_REF}:
+      git merge ${DRONE_COMMIT}
+    # handle tags
+    elif [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
+      git fetch origin +refs/tags/${DRONE_TAG}:
+      git checkout -qf FETCH_HEAD
+    # handle pushes/other events
+    else
+      if [ "${DRONE_COMMIT_BRANCH}" = "" ]; then
+        git fetch origin
+        git checkout -qf ${DRONE_COMMIT_SHA}
+      else
+        git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
+        git checkout ${DRONE_COMMIT} -b ${DRONE_COMMIT_BRANCH}
+      fi
+    fi
+  volumes:
   - name: tmpfs
-    temp:
-      medium: memory
+    path: /tmpfs
+- name: Run docs tests (internal links only)
+  image: golang:1.15.5
+  commands:
+  - cd /tmpfs/go/src/github.com/gravitational/teleport
+  - git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
+  - |2
+
+    if [ $(stat --printf="%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
+      echo "---> Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
+      # Check trailing whitespace
+      make docs-test-whitespace
+      # Check links
+      for VERSION in $(cat /tmp/docs-versions-changed.txt); do
+        if [ -f docs/$VERSION/milv.config.yaml ]; then
+          go get github.com/magicmatatjahu/milv
+          cd docs/$VERSION
+          echo "---> Running milv on docs/$VERSION:"
+          milv -ignore-external
+          echo "------------------------------\n"
+          cd -
+        else
+          echo "---> No milv config found, skipping docs/$VERSION"
+        fi
+      done
+      else echo "---> No changes to docs detected, not running tests"
+    fi
+  volumes:
+  - name: tmpfs
+    path: /tmpfs
+volumes:
+- name: tmpfs
+  temp:
+    medium: memory
 
 ---
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
 kind: pipeline
 type: kubernetes
 name: test-docs-external
-
 trigger:
   event:
     include:
-      - pull_request
+    - pull_request
   repo:
     include:
-      - gravitational/*
-
+    - gravitational/*
 workspace:
   path: /go
-
 clone:
   disable: true
-
 steps:
-  - name: Check out code
-    image: golang:1.15.5
-    volumes:
-      - name: tmpfs
-        path: /tmpfs
-    commands:
-      - mkdir -p /tmpfs/go/src/github.com/gravitational/teleport
-      - cd /tmpfs/go/src/github.com/gravitational/teleport
-      - git init && git remote add origin ${DRONE_REMOTE_URL}
-      - |
-        # handle pull requests
-        if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
-          git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
-          git checkout ${DRONE_COMMIT_BRANCH}
-          git fetch origin ${DRONE_COMMIT_REF}:
-          git merge ${DRONE_COMMIT}
-        # handle tags
-        elif [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
-          git fetch origin +refs/tags/${DRONE_TAG}:
-          git checkout -qf FETCH_HEAD
-        # handle pushes/other events
-        else
-          if [ "${DRONE_COMMIT_BRANCH}" = "" ]; then
-            git fetch origin
-            git checkout -qf ${DRONE_COMMIT_SHA}
-          else
-            git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
-            git checkout ${DRONE_COMMIT} -b ${DRONE_COMMIT_BRANCH}
-          fi
-        fi
+- name: Check out code
+  image: golang:1.15.5
+  commands:
+  - mkdir -p /tmpfs/go/src/github.com/gravitational/teleport
+  - cd /tmpfs/go/src/github.com/gravitational/teleport
+  - git init && git remote add origin ${DRONE_REMOTE_URL}
+  - |2
 
-  - name: Run docs tests (external links only)
-    image: golang:1.15.5
-    failure: ignore
-    volumes:
-      - name: tmpfs
-        path: /tmpfs
-    commands:
-      - |
-        cd /tmpfs/go/src/github.com/gravitational/teleport
-        git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
-        if [ $(stat --printf="%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
-          echo "---> Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
-          # Check trailing whitespace
-          make docs-test-whitespace
-          # Check links
-          for VERSION in $(cat /tmp/docs-versions-changed.txt); do
-            if [ -f docs/$VERSION/milv.config.yaml ]; then
-              go get github.com/magicmatatjahu/milv
-              cd docs/$VERSION
-              echo "---> Running milv on docs/$VERSION:"
-              milv -ignore-internal
-              echo "------------------------------\n"
-              cd -
-            else
-              echo "---> No milv config found, skipping docs/$VERSION"
-            fi
-          done
-          else echo "---> No changes to docs detected, not running tests"
-        fi
-
-volumes:
+    # handle pull requests
+    if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
+      git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
+      git checkout ${DRONE_COMMIT_BRANCH}
+      git fetch origin ${DRONE_COMMIT_REF}:
+      git merge ${DRONE_COMMIT}
+    # handle tags
+    elif [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
+      git fetch origin +refs/tags/${DRONE_TAG}:
+      git checkout -qf FETCH_HEAD
+    # handle pushes/other events
+    else
+      if [ "${DRONE_COMMIT_BRANCH}" = "" ]; then
+        git fetch origin
+        git checkout -qf ${DRONE_COMMIT_SHA}
+      else
+        git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
+        git checkout ${DRONE_COMMIT} -b ${DRONE_COMMIT_BRANCH}
+      fi
+    fi
+  volumes:
   - name: tmpfs
-    temp:
-      medium: memory
+    path: /tmpfs
+- name: Run docs tests (external links only)
+  image: golang:1.15.5
+  commands:
+  - cd /tmpfs/go/src/github.com/gravitational/teleport
+  - git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
+  - |2
+
+    if [ $(stat --printf="%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
+      echo "---> Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
+      # Check trailing whitespace
+      make docs-test-whitespace
+      # Check links
+      for VERSION in $(cat /tmp/docs-versions-changed.txt); do
+        if [ -f docs/$VERSION/milv.config.yaml ]; then
+          go get github.com/magicmatatjahu/milv
+          cd docs/$VERSION
+          echo "---> Running milv on docs/$VERSION:"
+          milv -ignore-internal
+          echo "------------------------------\n"
+          cd -
+        else
+          echo "---> No milv config found, skipping docs/$VERSION"
+        fi
+      done
+      else echo "---> No changes to docs detected, not running tests"
+    fi
+  volumes:
+  - name: tmpfs
+    path: /tmpfs
+volumes:
+- name: tmpfs
+  temp:
+    medium: memory
 
 ---
 kind: pipeline
@@ -4388,9 +4364,8 @@ volumes:
   - name: debrepo
     claim:
       name: drone-s3-debrepo-pvc
-
 ---
 kind: signature
-hmac: 16ca136b787835e99245782fcd43759abd8ca690aa45f64c607a39fb37f91628
+hmac: 25ecd945b80b6ca6bf54c29f7536fe2e66022c4c31ba7df27e00a070acf40557
 
 ...

@@ -640,3 +640,8 @@ update-vendor:
 	# create a symlink to the the original api package
 	rm -r vendor/github.com/gravitational/teleport/api
 	ln -s -r $(shell readlink -f api) vendor/github.com/gravitational/teleport
+
+# dronegen generates .drone.yml config
+.PHONY: dronegen
+dronegen:
+	go run ./dronegen
