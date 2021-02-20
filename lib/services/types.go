@@ -484,6 +484,7 @@ const (
 	KindClusterAuthPreference     = types.KindClusterAuthPreference
 	MetaNameClusterAuthPreference = types.MetaNameClusterAuthPreference
 	KindClusterConfig             = types.KindClusterConfig
+	KindBillingInformation        = types.KindBillingInformation
 	KindSemaphore                 = types.KindSemaphore
 	MetaNameClusterConfig         = types.MetaNameClusterConfig
 	KindClusterName               = types.KindClusterName

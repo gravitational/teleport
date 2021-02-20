@@ -57,6 +57,15 @@ type GRPCServer struct {
 	server *grpc.Server
 }
 
+// GetServer returns an underlining instance of grpc server
+func (g *GRPCServer) GetServer() (*grpc.Server, error) {
+	if g.server == nil {
+		return nil, trace.BadParameter("grpc server has not been initialized")
+	}
+
+	return g.server, nil
+}
+
 // EmitAuditEvent emits audit event
 func (g *GRPCServer) EmitAuditEvent(ctx context.Context, req *events.OneOf) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -1777,13 +1786,21 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		),
 	}
 	server := grpc.NewServer(opts...)
-	authServer := &GRPCServer{
+	authGRPCServer := &GRPCServer{
 		APIConfig: cfg.APIConfig,
 		Entry: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.Component(teleport.ComponentAuth, teleport.ComponentGRPC),
 		}),
 		server: server,
 	}
-	proto.RegisterAuthServiceServer(authServer.server, authServer)
-	return authServer, nil
+	proto.RegisterAuthServiceServer(authGRPCServer.server, authGRPCServer)
+
+	if plugin := GetPlugin(); plugin != nil {
+		err := plugin.RegisterGRPCService(authGRPCServer)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return authGRPCServer, nil
 }

@@ -79,6 +79,16 @@ type Handler struct {
 	sshPort string
 }
 
+// GetConfig returns handler configuration which is primarily used by plugin
+func (h *Handler) GetConfig() Config {
+	return h.cfg
+}
+
+// GetLogger returns handler logger which is primarily used by plugin
+func (h *Handler) GetLogger() logrus.FieldLogger {
+	return h.log
+}
+
 // HandlerOption is a functional argument - an option that can be passed
 // to NewHandler function
 type HandlerOption func(h *Handler) error
