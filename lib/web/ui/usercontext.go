@@ -56,12 +56,14 @@ type userACL struct {
 	Tokens access `json:"tokens"`
 	// Nodes defines access to nodes.
 	Nodes access `json:"nodes"`
-	// AppServers defines access to application servers.
+	// AppServers defines access to application servers
 	AppServers access `json:"appServers"`
 	// SSH defines access to servers
 	SSHLogins []string `json:"sshLogins"`
-	// AccessRequests defines access to access requests.
+	// AccessRequests defines access to access requests
 	AccessRequests access `json:"accessRequests"`
+	// BillingInformation defines access to billing information
+	BillingInformation access `json:"billingInformation"`
 }
 
 type authType string
@@ -71,7 +73,7 @@ const (
 	authSSO   authType = "sso"
 )
 
-// UserContext describes a users settings to various resources.
+// UserContext describes user settings and access to various resources.
 type UserContext struct {
 	// AuthType is auth method of this user.
 	AuthType authType `json:"authType"`
@@ -168,22 +170,24 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContex
 	nodeAccess := newAccess(userRoles, ctx, services.KindNode)
 	appServerAccess := newAccess(userRoles, ctx, services.KindAppServer)
 	requestAccess := newAccess(userRoles, ctx, services.KindAccessRequest)
+	billingInfoAccess := newAccess(userRoles, ctx, services.KindBillingInformation)
 
 	logins := getLogins(userRoles)
 	accessStrategy := getAccessStrategy(userRoles)
 
 	acl := userACL{
-		AccessRequests:  requestAccess,
-		AppServers:      appServerAccess,
-		AuthConnectors:  authConnectors,
-		TrustedClusters: trustedClusterAccess,
-		Sessions:        sessionAccess,
-		Roles:           roleAccess,
-		Events:          eventAccess,
-		SSHLogins:       logins,
-		Users:           userAccess,
-		Tokens:          tokenAccess,
-		Nodes:           nodeAccess,
+		AccessRequests:     requestAccess,
+		AppServers:         appServerAccess,
+		AuthConnectors:     authConnectors,
+		TrustedClusters:    trustedClusterAccess,
+		Sessions:           sessionAccess,
+		Roles:              roleAccess,
+		Events:             eventAccess,
+		SSHLogins:          logins,
+		Users:              userAccess,
+		Tokens:             tokenAccess,
+		Nodes:              nodeAccess,
+		BillingInformation: billingInfoAccess,
 	}
 
 	// local user
