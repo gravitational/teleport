@@ -1,0 +1,35 @@
+import React from 'react';
+import { Flex } from 'design';
+import { AuthProviderType } from 'shared/services';
+import { State as ResourceState } from 'teleport/components/useResources';
+import ConnectorListItem from './ConnectorListItem';
+import { State as AuthConnectorsState } from '../useAuthConnectors';
+
+export default function ConnectorList({ items, onEdit, onDelete }: Props) {
+  items = items || [];
+  const $items = items.map(item => {
+    const { id, name, kind } = item;
+    return (
+      <ConnectorListItem
+        key={id}
+        id={id}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        name={name}
+        kind={kind as AuthProviderType}
+      />
+    );
+  });
+
+  return (
+    <Flex flexWrap="wrap" alignItems="center" flex={1}>
+      {$items}
+    </Flex>
+  );
+}
+
+type Props = {
+  items: AuthConnectorsState['items'];
+  onEdit: ResourceState['edit'];
+  onDelete: ResourceState['remove'];
+};

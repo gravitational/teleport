@@ -1,8 +1,41 @@
 import * as Icons from 'design/Icon';
 import * as Features from 'teleport/features';
 import Ctx from 'teleport/teleportContext';
-import cfg from 'e-teleport/config';
+import cfgE from 'e-teleport/config';
+import cfg from 'teleport/config';
 import Workflow from 'e-teleport/Workflow';
+import AuthConnectors from 'e-teleport/AuthConnectors';
+
+class FeatureAuthConnectors {
+  getTopNavTitle() {
+    return 'Team';
+  }
+
+  route = {
+    title: 'Auth Connectors',
+    path: cfg.routes.sso,
+    exact: false,
+    component: AuthConnectors,
+  };
+
+  register(ctx: Ctx) {
+    if (!ctx.getFeatureFlags().authConnector) {
+      return;
+    }
+
+    ctx.storeNav.addSideItem({
+      group: 'team',
+      title: 'Auth Connectors',
+      Icon: Icons.Lock,
+      exact: false,
+      getLink() {
+        return cfg.routes.sso;
+      },
+    });
+
+    ctx.features.push(this);
+  }
+}
 
 class FeatureWorkflow {
   getTopNavTitle() {
@@ -12,7 +45,7 @@ class FeatureWorkflow {
   route = {
     group: 'activity',
     title: 'Access Requests',
-    path: cfg.routes.requests,
+    path: cfgE.routes.requests,
     component: Workflow,
   };
 
@@ -22,7 +55,7 @@ class FeatureWorkflow {
       title: 'Access Requests',
       Icon: Icons.EqualizerVertical,
       getLink() {
-        return cfg.routes.requests;
+        return cfgE.routes.requests;
       },
     });
 
@@ -39,7 +72,7 @@ export default function getFeatures() {
     new Features.FeatureAudit(),
     new Features.FeatureUsers(),
     new Features.FeatureRoles(),
-    new Features.FeatureAuthConnectors(),
+    new FeatureAuthConnectors(),
     new Features.FeatureClusters(),
     new Features.FeatureTrust(),
     new Features.FeatureHelpAndSupport(),

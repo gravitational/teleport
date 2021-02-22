@@ -11,6 +11,10 @@ const cfg = {
   api: {
     accessRequestPath: '/v1/enterprise/accessrequest/:requestId?',
     accessRequestFilterPath: '/v1/enterprise/accessrequest?user=:user?',
+
+    authConnectorsListPath: '/v1/enterprise/authconnectors',
+    samlConnectorsPath: '/v1/enterprise/saml/:name?',
+    oidcConnectorsPath: '/v1/enterprise/oidc/:name?',
   },
 
   getAccessRequestUrl(requestId?: string) {
@@ -19,6 +23,18 @@ const cfg = {
 
   getAccessRequestFilterUrl(filter: AccessRequestFilter) {
     return generatePath(cfg.api.accessRequestFilterPath, { ...filter });
+  },
+
+  getAuthConnectorsListUrl() {
+    return cfg.api.authConnectorsListPath;
+  },
+
+  getSamlConnectorsUrl(name?: string) {
+    return generatePath(cfg.api.samlConnectorsPath, { name });
+  },
+
+  getOidcConnectorsUrl(name?: string) {
+    return generatePath(cfg.api.oidcConnectorsPath, { name });
   },
 
   init(json: object) {
