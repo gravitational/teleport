@@ -29,14 +29,18 @@ type enterpriseModules struct {
 
 // Features returns supported features
 func (p *enterpriseModules) Features() modules.Features {
+	// All features are always enabled in Teleport Cloud since it does a
+	// per-resource usage reporting. Also, for backward compatibility so
+	// we don't need to reissue licenses every time we add a new feature.
 	return modules.Features{
-		Kubernetes:              p.license.GetSupportsKubernetes().Value(),
-		DB:                      true,
-		App:                     true,
+		Kubernetes:              p.license.GetCloud().Value() || p.license.GetSupportsKubernetes().Value(),
+		App:                     p.license.GetCloud().Value() || p.license.GetSupportsApplicationAccess().Value(),
+		DB:                      p.license.GetCloud().Value() || p.license.GetSupportsDatabaseAccess().Value(),
 		OIDC:                    true,
 		SAML:                    true,
 		AccessControls:          true,
 		AdvancedAccessWorkflows: true,
+		Cloud:                   p.license.GetCloud().Value(),
 	}
 }
 
