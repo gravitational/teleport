@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/secret"
@@ -1775,6 +1776,61 @@ func (s *WebSuite) TestGetClusterDetails(c *C) {
 	// Expected empty, b/c test auth server doesn't set up
 	// heartbeat which where ServerSpecV2 version would've been set
 	c.Assert(cluster.AuthVersion, Equals, "")
+}
+
+type testModules struct {
+	modules.Modules
+}
+
+func (m *testModules) Features() modules.Features {
+	return modules.Features{
+		App: false, // Explicily turn off application access.
+	}
+}
+
+// TestApplicationAccessDisabled makes sure application access can be disabled
+// via modules.
+func TestApplicationAccessDisabled(t *testing.T) {
+	defaultModules := modules.GetModules()
+	defer modules.SetModules(defaultModules)
+	modules.SetModules(&testModules{})
+
+	env := newWebPack(t, 1)
+	defer env.close(t)
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "foo@example.com")
+
+	// Register an application.
+	server := &types.ServerV2{
+		Kind:    types.KindAppServer,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Namespace: defaults.Namespace,
+			Name:      uuid.New(),
+		},
+		Spec: types.ServerSpecV2{
+			Version: teleport.Version,
+			Apps: []*types.App{
+				{
+					Name:       "panel",
+					PublicAddr: "panel.example.com",
+					URI:        "http://127.0.0.1:8080",
+				},
+			},
+		},
+	}
+	_, err := env.server.Auth().UpsertAppServer(context.Background(), server)
+	require.NoError(t, err)
+
+	endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
+	_, err = pack.clt.PostJSON(context.Background(), endpoint, &CreateAppSessionRequest{
+		FQDN:        "panel.example.com",
+		PublicAddr:  "panel.example.com",
+		ClusterName: "localhost",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "this Teleport cluster doesn't support application access")
 }
 
 // TestCreateAppSession verifies that an existing session to the Web UI can

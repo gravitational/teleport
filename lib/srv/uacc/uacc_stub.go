@@ -20,7 +20,7 @@ limitations under the License.
 Package uacc concerns itself with updating the user account database and log on nodes
 that a client connects to with an interactive session.
 
-This is a stub version that doesn't do anything and exists purely for compatability purposes with systems we don't support.
+This is a stub version that doesn't do anything and exists purely for compatibility purposes with systems we don't support.
 
 We do not support macOS yet because they introduced ASL for user accounting with Mac OS X 10.6 (Snow Leopard)
 and integrating with that takes additional effort.
