@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/pborman/uuid"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/bcrypt"
@@ -85,7 +86,7 @@ func LocalAuthSecretsEquals(l *LocalAuthSecrets, other *LocalAuthSecrets) bool {
 
 // NewTOTPDevice creates a TOTP MFADevice from the given key.
 func NewTOTPDevice(name, key string, addedAt time.Time) (*types.MFADevice, error) {
-	d := types.NewMFADevice(name, addedAt)
+	d := types.NewMFADevice(name, uuid.New(), addedAt)
 	d.Device = &types.MFADevice_Totp{Totp: &types.TOTPDevice{
 		Key: key,
 	}}
