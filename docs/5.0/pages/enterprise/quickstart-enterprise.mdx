@@ -16,7 +16,9 @@ and `auth servers`.
 - **Proxy servers** route client connection requests to the appropriate node and serve a
   Web UI which can also be used to log into SSH nodes. Every client-to-node
   connection in Teleport must be routed via a proxy.
-- **Nodes** are regular SSH servers, similar to the `sshd` daemon you may be familiar
+- **Nodes** provide access to resources including SSH, Kubernetes, web applications
+  and databases.  In this quick start guide we are highlighting the SSH service. This SSH service
+  is similar to the `sshd` daemon you may be familiar
   with. When a node receives a connection request, the request is authenticated
   through the cluster's auth server.
 
@@ -27,7 +29,7 @@ interact with it using Teleport's client-side tools:
 | Tool       | Description
 |------------|------------
 | tctl       | Cluster administration tool used to invite nodes to a cluster and manage user accounts.
-| tsh        | Similar in principle to OpenSSH's `ssh`. Used to login into remote SSH nodes, list and search for nodes in a cluster, securely upload/download files, etc.
+| tsh        | Allows users to authenticate and access resources via their local machine. `tsh`'s ssh functionality is similar in principle to OpenSSH's `ssh`. Users can login into remote SSH nodes, list and search for nodes in a cluster, securely upload/download files, etc.
 | browser    | You can use your web browser to login into any Teleport node by opening `https://<proxy-host>:3080`.
 
 ## Prerequisites
@@ -39,11 +41,11 @@ the following DNS names and IPs:
 
 Server Name    |  IP Address    | Purpose
 ---------------|----------------|--------------
-_"auth.example.com"_  | 10.1.1.10      | This server will be used to run all three Teleport services: auth, proxy and node.
-_"node.example.com"_  | 10.1.1.11      | This server will only run the SSH service. The vast majority of servers in production will be nodes.
+_"auth.example.com"_  | 10.1.1.10      | This server will be used to run all three Teleport services: auth, proxy and ssh.
+_"node.example.com"_  | 10.1.1.11      | This server will only run the SSH service.
 
 This Quick Start Guide assumes that both servers are running a [systemd-based](https://www.freedesktop.org/wiki/Software/systemd/)
-Linux distribution such as Debian, Ubuntu or a RHEL derivative.
+Linux distribution such as Debian, Ubuntu or a RHEL derivative.  The _node.example.com_ must be able to connect to the _auth.example.com_ `3025` port and the _auth.example.com_ must be able to connect to the 3022 port on _node.example.com_.
 
 ## Optional: Quickstart using Docker
 
@@ -72,33 +74,30 @@ private key in [PEM format](https://en.wikipedia.org/wiki/Privacy-enhanced_Elect
 Download the license file from the [customer portal](https://dashboard.gravitational.com/web/login)
 and save it as `/var/lib/teleport/license.pem` on the auth server.
 
+### Systemd Unit File
+
+Next, download the systemd service unit file from [examples directory](https://github.com/gravitational/teleport/tree/master/examples/systemd)
+on Github and save it as `/etc/systemd/system/teleport.service` on both servers.
+
+```bsh
+# run this on both servers:
+$ sudo systemctl daemon-reload
+$ sudo systemctl enable teleport
+```
 
 ### Configuration File
 
-Save the following configuration file as `/etc/teleport.yaml` on the _node.example.com_:
+Save the following configuration file as `/etc/teleport.yaml` on the _auth.example.com_:
 
 ```yaml
 teleport:
-  auth_token: dogs-are-much-nicer-than-cats
-  # you can also use auth server's IP, i.e. "10.1.1.10:3025"
-  auth_servers: [ "auth.example.com:3025" ]
-
-  # enable ssh service and disable auth and proxy:
-ssh_service:
-  enabled: true
-
-auth_service:
-  enabled: false
-proxy_service:
-  enabled: false
-```
-
-Now, save the following configuration file as `/etc/teleport.yaml` on the _auth.example.com_:
-
-```yaml
-teleport:
+  nodename: auth.example.com
   auth_token: dogs-are-much-nicer-than-cats
   auth_servers: [ "localhost:3025" ]
+
+proxy_service:
+  # enable the proxy service
+  enabled: true
 
 auth_service:
   # enable the auth service:
@@ -119,27 +118,64 @@ ssh_service:
   enabled: "yes"
 ```
 
+## Start Teleport on _auth.example.com_
 
-### Systemd Unit File
-
-Next, download the systemd service unit file from [examples directory](https://github.com/gravitational/teleport/tree/master/examples/systemd)
-on Github and save it as `/etc/systemd/system/teleport.service` on both servers.
+Start the Teleport service and confirm the service has started. After it has started you can get the Certificate Authority (CA) pin that has been generated.
 
 ```bsh
-# run this on both servers:
-$ sudo systemctl daemon-reload
-$ sudo systemctl enable teleport
-```
-
-## Starting
-
-```bsh
-# run this on both servers:
 $ sudo systemctl start teleport
+# confirm Teleport started
+$ sudo systemctl status teleport
+# after successful start retrieve the CA pin for using in the node
+$ sudo tctl status
+Cluster  teleport
+Version  {{ version }}
+Host CA  never updated
+User CA  never updated
+Jwt CA   never updated
+CA pin   sha256:58b1c5cb8885d84ce08f3e3a47acb33d49841f12dd7648c0c1dd31bd501628
 ```
 
-Teleport daemon should start and you can use `netstat -lptne` to make sure that
-it's listening on [TCP/IP ports](../admin-guide.mdx#ports). On _auth.example.com_, it should
+Save the following configuration file as `/etc/teleport.yaml` on the _node.example.com_:
+
+!!! note "Note"
+
+    Make sure to replace the ca_pin with the above `tctl status` output and the right auth server address.
+
+```yaml
+teleport:
+  nodename: node.example.com
+  auth_token: dogs-are-much-nicer-than-cats
+  # you can also use auth server's IP, i.e. "10.1.1.10:3025"
+  auth_servers: [ "auth.example.com:3025" ]
+  # Set the ca_pin value so it can verify the Teleport server
+  ca_pin: sha256:58b1c5cb8885d84ce08f3e...
+
+  # enable ssh service and disable auth and proxy:
+ssh_service:
+  enabled: true
+auth_service:
+  enabled: false
+proxy_service:
+  enabled: false
+```
+
+
+## Start Node service
+
+```bsh
+# run this on node server:
+$ sudo systemctl start teleport
+# Confirm node has started successfully and connected
+$ sudo systemctl status teleport
+```
+## Teleport Status and Networking
+
+You can review the logs of the Teleport service with `journalctl -fu teleport` and see its current status
+with `sudo systemctl status teleport`.
+
+You can use `netstat -lptne` to review the port that Teleport is
+listening on  on [TCP/IP ports](../admin-guide.mdx#ports). On _auth.example.com_, it should
 look something like this:
 
 ```bsh

@@ -78,7 +78,7 @@ func (a *ServerWithRoles) currentUserAction(username string) error {
 // If not, it checks if the requester has the meta KindAuthConnector access
 // (which grants access to all connectors).
 func (a *ServerWithRoles) authConnectorAction(namespace string, resource string, verb string) error {
-	if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, verb, false); err != nil {
+	if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, verb, true); err != nil {
 		if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, services.KindAuthConnector, verb, false); err != nil {
 			return trace.Wrap(err)
 		}

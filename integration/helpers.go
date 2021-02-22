@@ -1125,6 +1125,8 @@ type ClientConfig struct {
 	JumpHost bool
 	// Labels represents host labels
 	Labels map[string]string
+	// Interactive launches with the terminal attached if true
+	Interactive bool
 }
 
 // NewClientWithCreds creates client with credentials
@@ -1177,6 +1179,7 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		Labels:             cfg.Labels,
 		WebProxyAddr:       webProxyAddr,
 		SSHProxyAddr:       sshProxyAddr,
+		Interactive:        cfg.Interactive,
 	}
 
 	// JumpHost turns on jump host mode
