@@ -116,12 +116,12 @@ resource "aws_security_group_rule" "proxy_egress_allow_all_traffic_acm" {
 
 // Network load balancer for proxy server
 resource "aws_lb" "proxy" {
-  name               = "${var.cluster_name}-proxy"
-  internal           = false
-  subnets            = aws_subnet.public.*.id
-  load_balancer_type = "network"
-  idle_timeout       = 3600
-  enable_cross_zone_load_balancing = true
+  name                              = "${var.cluster_name}-proxy"
+  internal                          = false
+  subnets                           = aws_subnet.public.*.id
+  load_balancer_type                = "network"
+  idle_timeout                      = 3600
+  enable_cross_zone_load_balancing  = true
 
   tags = {
     TeleportCluster = var.cluster_name
