@@ -24,11 +24,13 @@ if cmp --silent /var/lib/teleport/fullchain.pem $TMPDIR/fullchain.pem > /dev/nul
     echo "Certificates are equal, nothing to do"
 else
     echo "Certificates are different, going to update and restart proxy"
-    su teleport -c "aws s3 sync --exact-timestamps s3://${TELEPORT_S3_BUCKET}/live/${TELEPORT_DOMAIN_NAME} /var/lib/teleport"
+    SYNC_COMMAND="aws s3 sync --exact-timestamps s3://${TELEPORT_S3_BUCKET}/live/${TELEPORT_DOMAIN_NAME} /var/lib/teleport"
     # handle proxy role
     if [ -f /etc/teleport.d/role.proxy ]; then
+        su teleport -c "${SYNC_COMMAND}"
         systemctl reload teleport-proxy.service
     else
+        ${SYNC_COMMAND}
         systemctl reload teleport.service
     fi
 fi

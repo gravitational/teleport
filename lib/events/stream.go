@@ -1275,3 +1275,11 @@ func (m *MemoryUploader) Download(ctx context.Context, sessionID session.ID, wri
 	}
 	return nil
 }
+
+// GetUploadMetadata gets the session upload metadata
+func (m *MemoryUploader) GetUploadMetadata(sid session.ID) UploadMetadata {
+	return UploadMetadata{
+		URL:       "memory",
+		SessionID: sid,
+	}
+}

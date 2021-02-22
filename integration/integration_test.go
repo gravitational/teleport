@@ -1900,7 +1900,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 		ClusterName:    clusterMain,
 		HostID:         HostID,
 		NodeName:       Host,
-		Ports:          s.getPorts(5),
+		Ports:          s.getPorts(6),
 		Priv:           s.priv,
 		Pub:            s.pub,
 		MultiplexProxy: test.multiplex,
@@ -2058,35 +2058,12 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 	c.Assert(err, check.IsNil)
 	c.Assert(output.String(), check.Equals, "hello world\n")
 
-	// Try and connect to a node in the Aux cluster from the Main cluster using
-	// direct dialing as ops user
-	opsCreds, err := GenerateUserCreds(UserCredsRequest{
+	// Try and generate user creds for Aux cluster as ops user.
+	_, err = GenerateUserCreds(UserCredsRequest{
 		Process:        main.Process,
 		Username:       mainOps,
 		RouteToCluster: clusterAux,
 	})
-	c.Assert(err, check.IsNil)
-
-	opsClient, err := main.NewClientWithCreds(ClientConfig{
-		Login:    username,
-		Cluster:  clusterAux,
-		Host:     Loopback,
-		Port:     sshPort,
-		JumpHost: test.useJumpHost,
-	}, *opsCreds)
-	c.Assert(err, check.IsNil)
-
-	// tell the client to trust aux cluster CAs (from secrets). this is the
-	// equivalent of 'known hosts' in openssh
-	auxCAS = aux.Secrets.GetCAs()
-	for _, ca := range auxCAS {
-		err = opsClient.AddTrustedCA(ca)
-		c.Assert(err, check.IsNil)
-	}
-
-	opsClient.Stdout = &bytes.Buffer{}
-	err = opsClient.SSH(ctx, cmd, false)
-	// verify that ops user can not access the cluster
 	fixtures.ExpectNotFound(c, err)
 
 	// ListNodes expect labels as a value of host
@@ -4855,6 +4832,57 @@ func (s *IntSuite) TestBPFSessionDifferentiation(c *check.C) {
 	c.Fatalf("Failed to find command events from two different sessions.")
 }
 
+// TestExecEvents tests if exec events were emitted with and without PTY allocated
+func (s *IntSuite) TestExecEvents(c *check.C) {
+	s.setUpTest(c)
+	defer s.tearDownTest(c)
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	lsPath, err := exec.LookPath("ls")
+	c.Assert(err, check.IsNil)
+
+	// Creates new teleport cluster
+	main := s.newTeleport(c, nil, true)
+	defer main.StopAll()
+
+	var execTests = []struct {
+		name          string
+		isInteractive bool
+		outCommand    string
+	}{
+		{
+			name:          "Exec event when PTY is allocated",
+			isInteractive: true,
+			outCommand:    lsPath,
+		},
+		{
+			name:          "Exec event when PTY is NOT allocated",
+			isInteractive: false,
+			outCommand:    lsPath,
+		},
+	}
+
+	for _, tt := range execTests {
+		// Create client for each test in grid tests
+		clientConfig := ClientConfig{
+			Login:       s.me.Username,
+			Cluster:     Site,
+			Host:        Host,
+			Port:        main.GetPortSSHInt(),
+			Interactive: tt.isInteractive,
+		}
+		name := check.Commentf(tt.name)
+		_, err := runCommand(main, []string{lsPath}, clientConfig, 1)
+		c.Assert(err, check.IsNil, name)
+		// Make sure the exec event was emitted to the audit log.
+		eventFields, err := findEventInLog(main, events.ExecEvent)
+		c.Assert(err, check.IsNil, name)
+		c.Assert(eventFields.GetCode(), check.Equals, events.ExecCode, name)
+		c.Assert(eventFields.GetString(events.ExecEventCommand), check.Equals, tt.outCommand, name)
+	}
+}
+
 // findEventInLog polls the event log looking for an event of a particular type.
 func findEventInLog(t *TeleInstance, eventName string) (events.EventFields, error) {
 	for i := 0; i < 10; i++ {
@@ -4986,7 +5014,7 @@ func (s *IntSuite) newTeleportInstance(c *check.C) *TeleInstance {
 		ClusterName: Site,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.getPorts(5),
+		Ports:       s.getPorts(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
@@ -4998,7 +5026,7 @@ func (s *IntSuite) newNamedTeleportInstance(c *check.C, clusterName string) *Tel
 		ClusterName: clusterName,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.getPorts(5),
+		Ports:       s.getPorts(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
@@ -5096,10 +5124,15 @@ func hasPAMPolicy() bool {
 	return true
 }
 
-// isRoot returns a boolean if the test is being run as root or not. Tests
-// for this package must be run as root.
+// isRoot returns a boolean if the test is being run as root or not.
+func isRoot() bool {
+	return os.Geteuid() == 0
+}
+
+// canTestBPF runs checks to determine whether BPF tests will run or not.
+// Tests for this package must be run as root.
 func canTestBPF() error {
-	if os.Geteuid() != 0 {
+	if !isRoot() {
 		return trace.BadParameter("not root")
 	}
 

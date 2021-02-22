@@ -143,14 +143,14 @@ func (a *AuditTestSuite) TestSessionsOnOneAuthServer(c *check.C) {
 		SessionID: sessionID,
 		Chunks: []*SessionChunk{
 			// start the session
-			&SessionChunk{
+			{
 				Time:       fakeClock.Now().UTC().UnixNano(),
 				EventIndex: 0,
 				EventType:  SessionStartEvent,
 				Data:       marshal(EventFields{EventLogin: "bob"}),
 			},
 			// type "hello" into session "100"
-			&SessionChunk{
+			{
 				Time:       fakeClock.Now().UTC().UnixNano(),
 				EventIndex: 1,
 				ChunkIndex: 0,
@@ -159,7 +159,7 @@ func (a *AuditTestSuite) TestSessionsOnOneAuthServer(c *check.C) {
 				Data:       firstMessage,
 			},
 			// emitting session end event should close the session
-			&SessionChunk{
+			{
 				Time:       fakeClock.Now().UTC().UnixNano(),
 				EventIndex: 4,
 				EventType:  SessionEndEvent,
@@ -263,14 +263,14 @@ func (a *AuditTestSuite) TestSessionRecordingOff(c *check.C) {
 		SessionID: sessionID,
 		Chunks: []*SessionChunk{
 			// start the session
-			&SessionChunk{
+			{
 				Time:       alog.Clock.Now().UTC().UnixNano(),
 				EventIndex: 0,
 				EventType:  SessionStartEvent,
 				Data:       marshal(EventFields{EventLogin: username}),
 			},
 			// type "hello" into session "100"
-			&SessionChunk{
+			{
 				Time:       alog.Clock.Now().UTC().UnixNano(),
 				EventIndex: 1,
 				ChunkIndex: 0,
@@ -279,7 +279,7 @@ func (a *AuditTestSuite) TestSessionRecordingOff(c *check.C) {
 				Data:       firstMessage,
 			},
 			// end the session
-			&SessionChunk{
+			{
 				Time:       alog.Clock.Now().UTC().UnixNano(),
 				EventIndex: 0,
 				EventType:  SessionEndEvent,
@@ -499,14 +499,14 @@ func (a *AuditTestSuite) forwardAndUpload(c *check.C, fakeClock clockwork.Clock,
 		SessionID: string(sessionID),
 		Chunks: []*SessionChunk{
 			// start the seession
-			&SessionChunk{
+			{
 				Time:       fakeClock.Now().UTC().UnixNano(),
 				EventIndex: 0,
 				EventType:  SessionStartEvent,
 				Data:       marshal(EventFields{EventLogin: "bob"}),
 			},
 			// type "hello" into session "100"
-			&SessionChunk{
+			{
 				Time:       fakeClock.Now().UTC().UnixNano(),
 				EventIndex: 1,
 				ChunkIndex: 0,
@@ -515,7 +515,7 @@ func (a *AuditTestSuite) forwardAndUpload(c *check.C, fakeClock clockwork.Clock,
 				Data:       firstMessage,
 			},
 			// emitting session end event should close the session
-			&SessionChunk{
+			{
 				Time:       fakeClock.Now().UTC().UnixNano(),
 				EventIndex: 4,
 				EventType:  SessionEndEvent,

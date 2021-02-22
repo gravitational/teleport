@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -383,6 +384,14 @@ func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.Stream
 			Clock:   s.cfg.Clock,
 			Log:     sessionCtx.Log,
 		}, nil
+	case defaults.ProtocolMySQL:
+		return &mysql.Engine{
+			Auth:    auth,
+			Audit:   audit,
+			Context: s.closeContext,
+			Clock:   s.cfg.Clock,
+			Log:     sessionCtx.Log,
+		}, nil
 	}
 	return nil, trace.BadParameter("unsupported database protocol %q",
 		sessionCtx.Server.GetProtocol())
@@ -409,6 +418,10 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 		if s.GetName() == identity.RouteToDatabase.ServiceName {
 			server = s
 		}
+	}
+	if server == nil {
+		return nil, trace.NotFound("%q not found among registered database servers: %v",
+			identity.RouteToDatabase.ServiceName, s.cfg.Servers)
 	}
 	s.log.Debugf("Will connect to database %q at %v.", server.GetName(),
 		server.GetURI())

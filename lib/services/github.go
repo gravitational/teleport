@@ -73,6 +73,12 @@ var TeamMappingSchema = `{
         "items": {
           "type": "string"
         }
+      },
+      "kubernetes_users": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
       }
     }
   }`

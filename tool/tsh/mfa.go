@@ -220,7 +220,7 @@ func (c *mfaAddCommand) addDeviceRPC(cf *CLIConf, devName string, devType proto.
 		if authChallenge == nil {
 			return trace.BadParameter("server bug: server sent %T when client expected AddMFADeviceResponse_ExistingMFAChallenge", resp.Response)
 		}
-		authResp, err := promptMFAChallenge(cf.Context, tc.Config.WebProxyAddr, authChallenge)
+		authResp, err := client.PromptMFAChallenge(cf.Context, tc.Config.WebProxyAddr, authChallenge, "*registered* ")
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -264,110 +264,6 @@ func (c *mfaAddCommand) addDeviceRPC(cf *CLIConf, devName string, devType proto.
 		return nil, trace.Wrap(err)
 	}
 	return dev, nil
-}
-
-func promptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-	switch {
-	// No challenge.
-	case c.TOTP == nil && len(c.U2F) == 0:
-		return &proto.MFAAuthenticateResponse{}, nil
-	// TOTP only.
-	case c.TOTP != nil && len(c.U2F) == 0:
-		totpCode, err := prompt.Input(os.Stdout, os.Stdin, "Enter an OTP code from a *registered* device")
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{
-			TOTP: &proto.TOTPResponse{Code: totpCode},
-		}}, nil
-	// U2F only.
-	case c.TOTP == nil && len(c.U2F) > 0:
-		fmt.Println("Tap any *registered* security key")
-
-		return promptU2FChallenges(ctx, proxyAddr, c.U2F)
-	// Both TOTP and U2F.
-	case c.TOTP != nil && len(c.U2F) > 0:
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-
-		type response struct {
-			kind string
-			resp *proto.MFAAuthenticateResponse
-			err  error
-		}
-		resCh := make(chan response)
-
-		go func() {
-			resp, err := promptU2FChallenges(ctx, proxyAddr, c.U2F)
-			select {
-			case resCh <- response{kind: "U2F", resp: resp, err: err}:
-			case <-ctx.Done():
-			}
-		}()
-
-		go func() {
-			totpCode, err := prompt.Input(os.Stdout, os.Stdin, "Tap any *registered* security key or enter an OTP code from a *registered* device")
-			res := response{kind: "TOTP", err: err}
-			if err == nil {
-				res.resp = &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{
-					TOTP: &proto.TOTPResponse{Code: totpCode},
-				}}
-			}
-
-			select {
-			case resCh <- res:
-			case <-ctx.Done():
-			}
-		}()
-
-		for i := 0; i < 2; i++ {
-			select {
-			case res := <-resCh:
-				if res.err != nil {
-					log.WithError(res.err).Debugf("%s authentication failed", res.kind)
-					continue
-				}
-
-				// Print a newline after the TOTP prompt, so that any future
-				// output doesn't print on the prompt line.
-				fmt.Println()
-
-				return res.resp, nil
-			case <-ctx.Done():
-				return nil, trace.Wrap(ctx.Err())
-			}
-		}
-		return nil, trace.Errorf("failed to authenticate using all U2F and TOTP devices, rerun the command with '-d' to see error details for each device")
-	default:
-		return nil, trace.BadParameter("bug: non-exhaustive switch in promptMFAChallenge")
-	}
-}
-
-func promptU2FChallenges(ctx context.Context, proxyAddr string, challenges []*proto.U2FChallenge) (*proto.MFAAuthenticateResponse, error) {
-	facet := proxyAddr
-	if !strings.HasPrefix(proxyAddr, "https://") {
-		facet = "https://" + facet
-	}
-	u2fChallenges := make([]u2f.AuthenticateChallenge, 0, len(challenges))
-	for _, chal := range challenges {
-		u2fChallenges = append(u2fChallenges, u2f.AuthenticateChallenge{
-			Challenge: chal.Challenge,
-			KeyHandle: chal.KeyHandle,
-			AppID:     chal.AppID,
-		})
-	}
-
-	resp, err := u2f.AuthenticateSignChallenge(ctx, facet, u2fChallenges...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_U2F{
-		U2F: &proto.U2FResponse{
-			KeyHandle:  resp.KeyHandle,
-			ClientData: resp.ClientData,
-			Signature:  resp.SignatureData,
-		},
-	}}, nil
 }
 
 func promptRegisterChallenge(ctx context.Context, proxyAddr string, c *proto.MFARegisterChallenge) (*proto.MFARegisterResponse, error) {
@@ -475,7 +371,7 @@ func (c *mfaRemoveCommand) run(cf *CLIConf) error {
 		if authChallenge == nil {
 			return trace.BadParameter("server bug: server sent %T when client expected DeleteMFADeviceResponse_MFAChallenge", resp.Response)
 		}
-		authResp, err := promptMFAChallenge(cf.Context, tc.Config.WebProxyAddr, authChallenge)
+		authResp, err := client.PromptMFAChallenge(cf.Context, tc.Config.WebProxyAddr, authChallenge, "")
 		if err != nil {
 			return trace.Wrap(err)
 		}

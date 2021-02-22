@@ -1,5 +1,5 @@
 /*
-Copyright 2016-2019 Gravitational, Inc.
+Copyright 2016-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ limitations under the License.
 package utils
 
 import (
+	"bytes"
 	"crypto/x509"
 	"fmt"
 	"io"
@@ -179,16 +180,37 @@ func UserMessageFromError(err error) string {
 		return trace.DebugReport(err)
 	}
 	if err != nil {
+		var buf bytes.Buffer
+		fmt.Fprintln(&buf, Color(Red, "ERROR:"))
 		// If the error is a trace error, check if it has a user message embedded in
 		// it, if it does, print it, otherwise escape and print the original error.
 		if er, ok := err.(*trace.TraceErr); ok {
-			if er.Message != "" {
-				return fmt.Sprintf("error: %v", EscapeControl(er.Message))
+			for _, message := range er.Messages {
+				fmt.Fprintln(&buf, "\t"+EscapeControl(message))
 			}
+			fmt.Fprintln(&buf, "\t"+EscapeControl(trace.Unwrap(er).Error()))
+		} else {
+			fmt.Fprintln(&buf, EscapeControl(err.Error()))
 		}
-		return fmt.Sprintf("error: %v", EscapeControl(err.Error()))
+		return buf.String()
 	}
 	return ""
+}
+
+const (
+	// Red is an escape code for red terminal color
+	Red = 31
+	// Yellow is an escape code for yellow terminal color
+	Yellow = 33
+	// Blue is an escape code for blue terminal color
+	Blue = 36
+	// Gray is an escape code for gray terminal color
+	Gray = 37
+)
+
+// Color formats the string in a terminal escape color
+func Color(color int, v interface{}) string {
+	return fmt.Sprintf("\x1b[%dm%v\x1b[0m", color, v)
 }
 
 // Consolef prints the same message to a 'ui console' (if defined) and also to

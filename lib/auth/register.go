@@ -158,7 +158,11 @@ func Register(params RegisterParams) (*Identity, error) {
 // authServerIsProxy returns true if the first specified auth server
 // to register with appears to be a proxy.
 func authServerIsProxy(servers []utils.NetAddr) bool {
-	return len(servers) > 0 && servers[0].Port(0) == defaults.HTTPListenPort
+	if len(servers) == 0 {
+		return false
+	}
+	port := servers[0].Port(0)
+	return port == defaults.HTTPListenPort || port == teleport.StandardHTTPSPort
 }
 
 // registerThroughProxy is used to register through the proxy server.

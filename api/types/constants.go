@@ -30,6 +30,9 @@ const (
 	// Wildcard is a special wildcard character matching everything
 	Wildcard = "*"
 
+	// True holds "true" string value
+	True = "true"
+
 	// KindNamespace is a namespace
 	KindNamespace = "namespace"
 

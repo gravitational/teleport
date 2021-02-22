@@ -33,18 +33,30 @@ BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s' -buildmode=exe
 CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
 endif
 
+ifeq ("$(OS)","linux")
+# ARM builds need to specify the correct C compiler
+ifeq ("$(ARCH)","arm")
+CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
+endif
+# ARM64 builds need to specify the correct C compiler
+ifeq ("$(ARCH)","arm64")
+CGOFLAG = CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc
+endif
+endif
+
 GO_LINTERS ?= "unused,govet,typecheck,deadcode,goimports,varcheck,structcheck,bodyclose,staticcheck,ineffassign,unconvert,misspell,gosimple,golint"
 
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
 FIPS ?=
-RELEASE=teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
+RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
 
 # FIPS support must be requested at build time.
 FIPS_MESSAGE := "without FIPS support"
 ifneq ("$(FIPS)","")
 FIPS_TAG := fips
 FIPS_MESSAGE := "with FIPS support"
+RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-fips-bin
 endif
 
 # PAM support will only be built into Teleport if headers exist at build time.
@@ -63,9 +75,14 @@ endif
 
 # BPF support will only be built into Teleport if headers exist at build time.
 BPF_MESSAGE := "without BPF support"
+
+# BPF cannot currently be compiled on ARMv7 due to this bug: https://github.com/iovisor/gobpf/issues/272
+# ARM64 builds are not affected.
+ifneq ("$(ARCH)","arm")
 ifneq ("$(wildcard /usr/include/bcc/libbpf.h)","")
 BPF_TAG := bpf
 BPF_MESSAGE := "with BPF support"
+endif
 endif
 
 # On Windows only build tsh. On all other platforms build teleport, tctl,
@@ -270,6 +287,7 @@ test: $(VERSRC)
 
 #
 # Integration tests. Need a TTY to work.
+# Any tests which need to run as root must be skipped during regular integration testing.
 #
 .PHONY: integration
 integration: FLAGS ?= -v -race
@@ -277,6 +295,17 @@ integration: PACKAGES := $(shell go list ./... | grep integration)
 integration:
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS)
+
+#
+# Integration tests which need to be run as root in order to complete successfully
+# are run separately to all other integration tests. Need a TTY to work.
+#
+INTEGRATION_ROOT_REGEX := ^TestRoot
+.PHONY: integration-root
+integration-root: FLAGS ?= -v -race
+integration-root: PACKAGES := $(shell go list ./... | grep integration)
+integration-root:
+	go test -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS)
 
 #
 # Lint the Go code.
