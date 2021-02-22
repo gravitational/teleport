@@ -69,16 +69,55 @@ func TestCheckResourceUpsertableByError(t *testing.T) {
 }
 
 func TestNewResourceItemGithub(t *testing.T) {
+	const contents = `kind: github
+metadata:
+  name: githubName
+spec:
+  client_id: ""
+  client_secret: ""
+  display: ""
+  redirect_url: ""
+  teams_to_logins: null
+version: v3
+`
 	githubConn := types.NewGithubConnector("githubName", types.GithubConnectorSpecV3{})
 	item, err := ui.NewResourceItem(githubConn)
 	require.Nil(t, err)
-	require.Equal(t, item.ID, "github:githubName")
-	require.Equal(t, item.Kind, types.KindGithubConnector)
-	require.Equal(t, item.Name, "githubName")
-	require.Contains(t, item.Content, types.KindGithubConnector)
+	require.Equal(t, item, &ui.ResourceItem{
+		ID:      "github:githubName",
+		Kind:    types.KindGithubConnector,
+		Name:    "githubName",
+		Content: contents,
+	})
 }
 
 func TestNewResourceItemRole(t *testing.T) {
+	const contents = `kind: role
+metadata:
+  name: roleName
+spec:
+  allow:
+    app_labels:
+      '*': '*'
+    db_labels:
+      '*': '*'
+    kubernetes_labels:
+      '*': '*'
+    logins:
+    - test
+    node_labels:
+      '*': '*'
+  deny: {}
+  options:
+    cert_format: standard
+    enhanced_recording:
+    - command
+    - network
+    forward_agent: false
+    max_session_ttl: 30h0m0s
+    port_forwarding: true
+version: v3
+`
 	role, err := types.NewRole("roleName", types.RoleSpecV3{
 		Allow: types.RoleConditions{
 			Logins: []string{"test"},
@@ -88,22 +127,36 @@ func TestNewResourceItemRole(t *testing.T) {
 
 	item, err := ui.NewResourceItem(role)
 	require.Nil(t, err)
-	require.Equal(t, item.ID, "role:roleName")
-	require.Equal(t, item.Kind, types.KindRole)
-	require.Equal(t, item.Name, "roleName")
-	require.Contains(t, item.Content, types.KindRole)
+	require.Equal(t, item, &ui.ResourceItem{
+		ID:      "role:roleName",
+		Kind:    types.KindRole,
+		Name:    "roleName",
+		Content: contents,
+	})
 }
 
 func TestNewResourceItemTrustedCluster(t *testing.T) {
+	const contents = `kind: trusted_cluster
+metadata:
+  name: tcName
+spec:
+  enabled: false
+  token: ""
+  tunnel_addr: ""
+  web_proxy_addr: ""
+version: v2
+`
 	cluster, err := types.NewTrustedCluster("tcName", types.TrustedClusterSpecV2{})
 	require.Nil(t, err)
 
 	item, err := ui.NewResourceItem(cluster)
 	require.Nil(t, err)
-	require.Equal(t, item.ID, "trusted_cluster:tcName")
-	require.Equal(t, item.Kind, types.KindTrustedCluster)
-	require.Equal(t, item.Name, "tcName")
-	require.Contains(t, item.Content, types.KindTrustedCluster)
+	require.Equal(t, item, &ui.ResourceItem{
+		ID:      "trusted_cluster:tcName",
+		Kind:    types.KindTrustedCluster,
+		Name:    "tcName",
+		Content: contents,
+	})
 }
 
 func TestGetRoles(t *testing.T) {
@@ -148,7 +201,7 @@ metadata:
 
 	goodContent := `kind: role
 metadata:
-  name: test
+  name: test-goodcontent
 spec:
   allow:
     logins:
@@ -158,7 +211,7 @@ version: v3`
 	// Test POST (create) role.
 	role, err = upsertRole(context.Background(), m, goodContent, "POST")
 	require.Nil(t, err)
-	require.Contains(t, role.Content, "name: test")
+	require.Contains(t, role.Content, "name: test-goodcontent")
 
 	// Test error with PUT (update) with non existing role.
 	role, err = upsertRole(context.Background(), m, goodContent, "PUT")
@@ -202,7 +255,7 @@ metadata:
 
 	goodContent := `kind: github
 metadata:
-  name: test
+  name: test-goodcontent
 spec:
   client_id: <client-id>
   client_secret: <client-secret>
@@ -218,7 +271,7 @@ version: v3`
 	// Test POST (create) connector.
 	connector, err := upsertGithubConnector(context.Background(), m, goodContent, "POST")
 	require.Nil(t, err)
-	require.Contains(t, connector.Content, "name: test")
+	require.Contains(t, connector.Content, "name: test-goodcontent")
 }
 
 func TestGetTrustedClusters(t *testing.T) {
@@ -259,7 +312,7 @@ metadata:
 	// Test create (POST).
 	goodContent := `kind: trusted_cluster
 metadata:
-  name: test
+  name: test-goodcontent
 spec:
   role_map:
   - local:
@@ -268,7 +321,7 @@ spec:
 version: v2`
 	tc, err := upsertTrustedCluster(context.Background(), m, goodContent, "POST")
 	require.Nil(t, err)
-	require.Contains(t, tc.Content, "name: test")
+	require.Contains(t, tc.Content, "name: test-goodcontent")
 }
 
 type mockedResourceAPIGetter struct {
