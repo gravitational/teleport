@@ -26,9 +26,6 @@ import (
 // The following constants have been moved to /api/constants/constants.go, and are now
 // imported here for backwards compatibility. DELETE IN 7.0.0
 const (
-	OTP                        = constants.OTP
-	U2F                        = constants.U2F
-	OFF                        = constants.OFF
 	Local                      = constants.Local
 	OIDC                       = constants.OIDC
 	SAML                       = constants.SAML
@@ -296,12 +293,6 @@ const (
 	// the proxy is recording sessions or not.
 	RecordingProxyReqType = "recording-proxy@teleport.com"
 
-	// TOTP means Time-based One-time Password Algorithm. for Two-Factor Authentication.
-	TOTP = "totp"
-
-	// HOTP means HMAC-based One-time Password Algorithm.for Two-Factor Authentication.
-	HOTP = "hotp"
-
 	// JSON means JSON serialization format
 	JSON = "json"
 
@@ -392,6 +383,16 @@ const (
 
 	// MinimumEtcdVersion is the minimum version of etcd supported by Teleport
 	MinimumEtcdVersion = "3.3.0"
+)
+
+// OTPType is the type of the One-time Password Algorithm.
+type OTPType string
+
+const (
+	// TOTP means Time-based One-time Password Algorithm (for Two-Factor Authentication)
+	TOTP = OTPType("totp")
+	// HOTP means HMAC-based One-time Password Algorithm (for Two-Factor Authentication)
+	HOTP = OTPType("hotp")
 )
 
 const (
@@ -545,6 +546,12 @@ const Root = "root"
 // another role is not explicitly assigned (Enterprise only).
 const AdminRoleName = "admin"
 
+// OSSUserRoleName is a role created for open source user
+const OSSUserRoleName = "ossuser"
+
+// OSSMigratedV6 is a label to mark migrated OSS users and resources
+const OSSMigratedV6 = "migrate-v6.0"
+
 // MinClientVersion is the minimum client version required by the server.
 const MinClientVersion = "3.0.0"
 
@@ -694,3 +701,7 @@ const (
 
 // UserSingleUseCertTTL is a TTL for per-connection user certificates.
 const UserSingleUseCertTTL = time.Minute
+
+// StandardHTTPSPort is the default port used for the https URI scheme,
+// cf. RFC 7230 § 2.7.2.
+const StandardHTTPSPort = 443

@@ -19,6 +19,7 @@ package services
 import (
 	"testing"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -45,38 +46,43 @@ func (l *LicenseSuite) TestUnmarshal(c *check.C) {
 	testCases := []testCase{
 		{
 			description: "simple case",
-			input:       `{"kind": "license", "version": "v3", "metadata": {"name": "Teleport Commercial"}, "spec": {"account_id": "accountID", "usage": true, "k8s": true, "aws_account": "123", "aws_pid": "4"}}`,
+			input:       `{"kind": "license", "version": "v3", "metadata": {"name": "Teleport Commercial"}, "spec": {"account_id": "accountID", "usage": true, "k8s": true, "app": true, "db": true, "aws_account": "123", "aws_pid": "4"}}`,
 			expected: MustNew("Teleport Commercial", LicenseSpecV3{
-				ReportsUsage:       NewBool(true),
-				SupportsKubernetes: NewBool(true),
-				Cloud:              NewBool(false),
-				AWSAccountID:       "123",
-				AWSProductID:       "4",
-				AccountID:          "accountID",
+				ReportsUsage:              NewBool(true),
+				SupportsKubernetes:        NewBool(true),
+				SupportsApplicationAccess: types.NewBoolP(true),
+				SupportsDatabaseAccess:    NewBool(true),
+				Cloud:                     NewBool(false),
+				AWSAccountID:              "123",
+				AWSProductID:              "4",
+				AccountID:                 "accountID",
 			}),
 		},
 		{
 			description: "simple case with string booleans",
-			input:       `{"kind": "license", "version": "v3", "metadata": {"name": "license"}, "spec": {"account_id": "accountID", "usage": "yes", "k8s": "yes", "aws_account": "123", "aws_pid": "4"}}`,
+			input:       `{"kind": "license", "version": "v3", "metadata": {"name": "license"}, "spec": {"account_id": "accountID", "usage": "yes", "k8s": "yes", "app": "yes", "db": "yes", "aws_account": "123", "aws_pid": "4"}}`,
 			expected: MustNew("license", LicenseSpecV3{
-				ReportsUsage:       NewBool(true),
-				SupportsKubernetes: NewBool(true),
-				Cloud:              NewBool(false),
-				AWSAccountID:       "123",
-				AWSProductID:       "4",
-				AccountID:          "accountID",
+				ReportsUsage:              NewBool(true),
+				SupportsKubernetes:        NewBool(true),
+				SupportsApplicationAccess: types.NewBoolP(true),
+				SupportsDatabaseAccess:    NewBool(true),
+				Cloud:                     NewBool(false),
+				AWSAccountID:              "123",
+				AWSProductID:              "4",
+				AccountID:                 "accountID",
 			}),
 		},
 		{
 			description: "with cloud flag",
 			input:       `{"kind": "license", "version": "v3", "metadata": {"name": "license"}, "spec": {"cloud": "yes", "account_id": "accountID", "usage": "yes", "k8s": "yes", "aws_account": "123", "aws_pid": "4"}}`,
 			expected: MustNew("license", LicenseSpecV3{
-				ReportsUsage:       NewBool(true),
-				SupportsKubernetes: NewBool(true),
-				Cloud:              NewBool(true),
-				AWSAccountID:       "123",
-				AWSProductID:       "4",
-				AccountID:          "accountID",
+				ReportsUsage:           NewBool(true),
+				SupportsKubernetes:     NewBool(true),
+				SupportsDatabaseAccess: NewBool(false),
+				Cloud:                  NewBool(true),
+				AWSAccountID:           "123",
+				AWSProductID:           "4",
+				AccountID:              "accountID",
 			}),
 		},
 		{

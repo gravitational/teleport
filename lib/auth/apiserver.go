@@ -56,6 +56,9 @@ type APIConfig struct {
 	// KeepAliveCount specifies amount of missed keep alives
 	// to wait for until declaring connection as broken
 	KeepAliveCount int
+	// MetadataGetter retrieves additional metadata about session uploads.
+	// Will be nil if audit logging is not enabled.
+	MetadataGetter events.UploadMetadataGetter
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -744,7 +747,7 @@ func (s *APIServer) u2fSignRequest(auth ClientI, w http.ResponseWriter, r *http.
 	}
 	user := p.ByName("user")
 	pass := []byte(req.Password)
-	u2fSignReq, err := auth.GetU2FSignRequest(user, pass)
+	u2fSignReq, err := auth.GetMFAAuthenticateChallenge(user, pass)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

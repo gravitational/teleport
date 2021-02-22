@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/constants"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -183,7 +184,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
-		SecondFactor: teleport.OFF,
+		SecondFactor: constants.SecondFactorOff,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

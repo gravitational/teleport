@@ -818,6 +818,12 @@ func NewBool(b bool) Bool {
 	return Bool(b)
 }
 
+// NewBoolP returns Bool pointer
+func NewBoolP(b bool) *Bool {
+	val := NewBool(b)
+	return &val
+}
+
 // Bool is a wrapper around boolean values
 type Bool bool
 

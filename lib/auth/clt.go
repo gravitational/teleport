@@ -1074,8 +1074,8 @@ func (c *Client) CheckPassword(user string, password []byte, otpToken string) er
 	return trace.Wrap(err)
 }
 
-// GetU2FSignRequest generates request for user trying to authenticate with U2F token
-func (c *Client) GetU2FSignRequest(user string, password []byte) (*U2FAuthenticateChallenge, error) {
+// GetMFAAuthenticateChallenge generates request for user trying to authenticate with U2F token
+func (c *Client) GetMFAAuthenticateChallenge(user string, password []byte) (*MFAAuthenticateChallenge, error) {
 	out, err := c.PostJSON(
 		c.Endpoint("u2f", "users", user, "sign"),
 		signInReq{
@@ -1085,7 +1085,7 @@ func (c *Client) GetU2FSignRequest(user string, password []byte) (*U2FAuthentica
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var signRequest *U2FAuthenticateChallenge
+	var signRequest *MFAAuthenticateChallenge
 	if err := json.Unmarshal(out.Bytes(), &signRequest); err != nil {
 		return nil, err
 	}
@@ -2225,8 +2225,8 @@ type IdentityService interface {
 	// ValidateGithubAuthCallback validates Github auth callback
 	ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error)
 
-	// GetU2FSignRequest generates request for user trying to authenticate with U2F token
-	GetU2FSignRequest(user string, password []byte) (*U2FAuthenticateChallenge, error)
+	// GetMFAAuthenticateChallenge generates request for user trying to authenticate with U2F token
+	GetMFAAuthenticateChallenge(user string, password []byte) (*MFAAuthenticateChallenge, error)
 
 	// GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite token
 	GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error)

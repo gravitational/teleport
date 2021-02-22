@@ -820,6 +820,10 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 			ctx.Errorf("Failed to close enhanced recording (interactive) session: %v: %v.", s.id, err)
 		}
 
+		if ctx.ExecRequest.GetCommand() != "" {
+			emitExecAuditEvent(ctx, ctx.ExecRequest.GetCommand(), err)
+		}
+
 		if result != nil {
 			if err := s.registry.broadcastResult(s.id, *result); err != nil {
 				s.log.Warningf("Failed to broadcast session result: %v", err)

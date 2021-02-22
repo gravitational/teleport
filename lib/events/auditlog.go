@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
@@ -88,8 +87,8 @@ var (
 			Help: "Number of times disk monitoring failed.",
 		},
 	)
-
-	auditFailedEmit = prometheus.NewCounter(
+	// AuditFailedEmit increments the counter if audit event failed to emit
+	AuditFailedEmit = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: "audit_failed_emit_events",
 			Help: "Number of times emitting audit event failed.",
@@ -102,7 +101,7 @@ func init() {
 	prometheus.MustRegister(auditOpenFiles)
 	prometheus.MustRegister(auditDiskUsed)
 	prometheus.MustRegister(auditFailedDisk)
-	prometheus.MustRegister(auditFailedEmit)
+	prometheus.MustRegister(AuditFailedEmit)
 }
 
 // AuditLog is a new combined facility to record Teleport events and
@@ -174,7 +173,7 @@ type AuditLogConfig struct {
 
 	// UploadHandler is a pluggable external upload handler,
 	// used to fetch sessions from external sources
-	UploadHandler UploadHandler
+	UploadHandler MultipartHandler
 
 	// ExternalLog is a pluggable external log service
 	ExternalLog IAuditLog
@@ -233,7 +232,7 @@ func (a *AuditLogConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Creates and returns a new Audit Log object whish will store its logfiles in
+// NewAuditLog creates and returns a new Audit Log object whish will store its logfiles in
 // a given directory. Session recording can be disabled by setting
 // recordSessions to false.
 func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
@@ -532,9 +531,9 @@ func readSessionIndex(dataDir string, authServers []string, namespace string, si
 		dataDir:   dataDir,
 		namespace: namespace,
 		enhancedEvents: map[string][]indexEntry{
-			SessionCommandEvent: []indexEntry{},
-			SessionDiskEvent:    []indexEntry{},
-			SessionNetworkEvent: []indexEntry{},
+			SessionCommandEvent: {},
+			SessionDiskEvent:    {},
+			SessionNetworkEvent: {},
 		},
 	}
 	for _, authServer := range authServers {
@@ -957,9 +956,18 @@ func (l *AuditLog) fetchSessionEvents(fileName string, afterN int) ([]EventField
 
 // EmitAuditEvent adds a new event to the local file log
 func (l *AuditLog) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
-	err := l.localLog.EmitAuditEvent(ctx, event)
+	// If an external logger has been set, use it as the emitter, otherwise
+	// fallback to the local disk based emitter.
+	var emitAuditEvent func(ctx context.Context, event AuditEvent) error
+
+	if l.ExternalLog != nil {
+		emitAuditEvent = l.ExternalLog.EmitAuditEvent
+	} else {
+		emitAuditEvent = l.localLog.EmitAuditEvent
+	}
+	err := emitAuditEvent(ctx, event)
 	if err != nil {
-		auditFailedEmit.Inc()
+		AuditFailedEmit.Inc()
 		return trace.Wrap(err)
 	}
 	return nil
@@ -981,7 +989,7 @@ func (l *AuditLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
 	// incremented.
 	err := emitAuditEvent(event, fields)
 	if err != nil {
-		auditFailedEmit.Inc()
+		AuditFailedEmit.Inc()
 		return trace.Wrap(err)
 	}
 

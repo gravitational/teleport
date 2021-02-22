@@ -35,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -44,28 +45,24 @@ import (
 
 func TestMFADeviceManagement(t *testing.T) {
 	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
-	as, err := NewTestAuthServer(TestAuthServerConfig{
-		Dir:   t.TempDir(),
-		Clock: clock,
-	})
-	require.NoError(t, err)
-	srv, err := as.NewTestTLSServer()
-	require.NoError(t, err)
+	srv := newTestTLSServer(t)
+	clock := srv.Clock().(clockwork.FakeClock)
+
 	// Enable U2F support.
 	authPref, err := services.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type: teleport.Local,
+		Type:         teleport.Local,
+		SecondFactor: constants.SecondFactorOn,
 		U2F: &types.U2F{
 			AppID:  "teleport",
 			Facets: []string{"teleport"},
 		},
 	})
 	require.NoError(t, err)
-	err = as.AuthServer.SetAuthPreference(authPref)
+	err = srv.Auth().SetAuthPreference(authPref)
 	require.NoError(t, err)
 
 	// Create a fake user.
-	user, _, err := CreateUserAndRole(as.AuthServer, "mfa-user", []string{"role"})
+	user, _, err := CreateUserAndRole(srv.Auth(), "mfa-user", []string{"role"})
 	require.NoError(t, err)
 	cl, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
@@ -543,25 +540,20 @@ func testDeleteMFADevice(ctx context.Context, t *testing.T, cl *Client, opts mfa
 
 func TestGenerateUserSingleUseCert(t *testing.T) {
 	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
-	as, err := NewTestAuthServer(TestAuthServerConfig{
-		Dir:   t.TempDir(),
-		Clock: clock,
-	})
-	require.NoError(t, err)
-	srv, err := as.NewTestTLSServer()
-	require.NoError(t, err)
+	srv := newTestTLSServer(t)
+	clock := srv.Clock()
 
 	// Enable U2F support.
 	authPref, err := services.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type: teleport.Local,
+		Type:         teleport.Local,
+		SecondFactor: constants.SecondFactorOn,
 		U2F: &types.U2F{
 			AppID:  "teleport",
 			Facets: []string{"teleport"},
 		},
 	})
 	require.NoError(t, err)
-	err = as.AuthServer.SetAuthPreference(authPref)
+	err = srv.Auth().SetAuthPreference(authPref)
 	require.NoError(t, err)
 
 	// Register a k8s cluster.
@@ -575,11 +567,11 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 			KubernetesClusters: []*types.KubernetesCluster{{Name: "kube-a"}},
 		},
 	}
-	err = as.AuthServer.UpsertKubeService(ctx, k8sSrv)
+	err = srv.Auth().UpsertKubeService(ctx, k8sSrv)
 	require.NoError(t, err)
 
 	// Create a fake user.
-	user, _, err := CreateUserAndRole(as.AuthServer, "mfa-user", []string{"role"})
+	user, _, err := CreateUserAndRole(srv.Auth(), "mfa-user", []string{"role"})
 	require.NoError(t, err)
 	cl, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
@@ -644,7 +636,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 			Signature:  mresp.SignatureData,
 		}}}
 	}
-	_, pub, err := as.AuthServer.GenerateKeyPair("")
+	_, pub, err := srv.Auth().GenerateKeyPair("")
 	require.NoError(t, err)
 
 	tests := []struct {
