@@ -27,6 +27,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/gravitational/teleport"
 
@@ -296,7 +297,7 @@ type logWrapper struct {
 // needsQuoting returns true if any non-printable characters are found.
 func needsQuoting(text string) bool {
 	for _, r := range text {
-		if !strconv.IsPrint(r) {
+		if !unicode.IsPrint(r) && !unicode.IsSpace(r) {
 			return true
 		}
 	}
