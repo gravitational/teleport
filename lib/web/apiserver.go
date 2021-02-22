@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -55,13 +56,12 @@ import (
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/teleport/lib/secret"
 )
 
 // Handler is HTTP web proxy handler
@@ -252,6 +252,11 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.POST("/webapi/sessions/renew", h.WithAuth(h.renewSession))
 	h.POST("/webapi/sessions/renew/:requestId", h.WithAuth(h.renewSession))
 
+	h.POST("/webapi/users", h.WithAuth(h.createUserHandle))
+	h.PUT("/webapi/users", h.WithAuth(h.updateUserHandle))
+	h.GET("/webapi/users", h.WithAuth(h.getUsersHandle))
+	h.DELETE("/webapi/users/:username", h.WithAuth(h.deleteUserHandle))
+
 	h.GET("/webapi/users/password/token/:token", httplib.MakeHandler(h.getResetPasswordTokenHandle))
 	h.PUT("/webapi/users/password/token", httplib.WithCSRFProtection(h.changePasswordWithToken))
 	h.PUT("/webapi/users/password", h.WithAuth(h.changePassword))
@@ -323,6 +328,21 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 	// Issue host credentials.
 	h.POST("/webapi/host/credentials", httplib.MakeHandler(h.hostCredentials))
+
+	h.GET("/webapi/roles", h.WithAuth(h.getRolesHandle))
+	h.PUT("/webapi/roles", h.WithAuth(h.upsertRoleHandle))
+	h.POST("/webapi/roles", h.WithAuth(h.upsertRoleHandle))
+	h.DELETE("/webapi/roles/:name", h.WithAuth(h.deleteRole))
+
+	h.GET("/webapi/github", h.WithAuth(h.getGithubConnectorsHandle))
+	h.PUT("/webapi/github", h.WithAuth(h.upsertGithubConnectorHandle))
+	h.POST("/webapi/github", h.WithAuth(h.upsertGithubConnectorHandle))
+	h.DELETE("/webapi/github/:name", h.WithAuth(h.deleteGithubConnector))
+
+	h.GET("/webapi/trustedcluster", h.WithAuth(h.getTrustedClustersHandle))
+	h.PUT("/webapi/trustedcluster", h.WithAuth(h.upsertTrustedClusterHandle))
+	h.POST("/webapi/trustedcluster", h.WithAuth(h.upsertTrustedClusterHandle))
+	h.DELETE("/webapi/trustedcluster/:name", h.WithAuth(h.deleteTrustedCluster))
 
 	// if Web UI is enabled, check the assets dir:
 	var indexPage *template.Template
@@ -446,7 +466,7 @@ func (h *Handler) Close() error {
 }
 
 func (h *Handler) getUserStatus(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext) (interface{}, error) {
-	return ok(), nil
+	return OK(), nil
 }
 
 // getUserContext returns user context
@@ -1276,7 +1296,7 @@ func (h *Handler) deleteSession(w http.ResponseWriter, r *http.Request, _ httpro
 		return nil, trace.Wrap(err)
 	}
 
-	return ok(), nil
+	return OK(), nil
 }
 
 func (h *Handler) logout(w http.ResponseWriter, ctx *SessionContext) error {
@@ -2279,7 +2299,8 @@ func message(msg string) interface{} {
 	return map[string]interface{}{"message": msg}
 }
 
-func ok() interface{} {
+// OK is a response that indicates request was successful.
+func OK() interface{} {
 	return message("ok")
 }
 
