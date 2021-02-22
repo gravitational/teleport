@@ -70,6 +70,8 @@ Third, create credentials to authenticate the client, and follow the steps below
 
 Lastly, run the demo:
 
-```bash
-$ go run .
-```
+   ```bash
+   $ go run .
+   ```
+
+To see more information on the go client and how to use it, visit our [API Documentation](https://goteleport.com/teleport/docs/api-reference/).
