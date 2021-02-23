@@ -28,7 +28,7 @@ import (
 
 // Credentials are used to authenticate to Auth.
 type Credentials interface {
-	// Dialer is used to connect to Auth.
+	// Dialer is used to dial a connection to Auth.
 	Dialer() (ContextDialer, error)
 	// Config returns TLS configuration used to connect to Auth.
 	Config() (*tls.Config, error)
@@ -41,14 +41,18 @@ func LoadTLS(tlsConfig *tls.Config) *TLSConfigCreds {
 	}
 }
 
+// TLSConfigCreds are used to authenticate the client
+// with a predefined *tls.Config.
 type TLSConfigCreds struct {
 	tlsConfig *tls.Config
 }
 
+// Dialer is used to dial a connection to Auth.
 func (c *TLSConfigCreds) Dialer() (ContextDialer, error) {
 	return nil, trace.NotImplemented("no dialer")
 }
 
+// Config returns TLS configuration used to connect to Auth.
 func (c *TLSConfigCreds) Config() (*tls.Config, error) {
 	return configure(c.tlsConfig), nil
 }
@@ -62,16 +66,20 @@ func LoadKeyPair(certFile string, keyFile string, caFile string) *KeyPairCreds {
 	}
 }
 
+// KeyPairCreds are used to authenticate the client
+// with certificates generated in the given file paths.
 type KeyPairCreds struct {
 	certFile string
 	keyFile  string
 	caFile   string
 }
 
+// Dialer is used to dial a connection to Auth.
 func (c *KeyPairCreds) Dialer() (ContextDialer, error) {
 	return nil, trace.NotImplemented("no dialer")
 }
 
+// Config returns TLS configuration used to connect to Auth.
 func (c *KeyPairCreds) Config() (*tls.Config, error) {
 	cert, err := tls.LoadX509KeyPair(c.certFile, c.keyFile)
 	if err != nil {
@@ -101,14 +109,18 @@ func LoadIdentityFile(path string) *IdentityCreds {
 	}
 }
 
+// IdentityCreds are used to authenticate the client
+// with an identity file generated in the given file path.
 type IdentityCreds struct {
 	path string
 }
 
+// Dialer is used to dial a connection to Auth.
 func (c *IdentityCreds) Dialer() (ContextDialer, error) {
 	return nil, trace.NotImplemented("no dialer")
 }
 
+// Config returns TLS configuration used to connect to Auth.
 func (c *IdentityCreds) Config() (*tls.Config, error) {
 	identityFile, err := ReadIdentityFile(c.path)
 	if err != nil {
