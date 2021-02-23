@@ -1,6 +1,10 @@
 ---
+################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
+# Generated at dronegen/tests.go:14
+################################################
+
 kind: pipeline
 type: kubernetes
 name: test
@@ -197,8 +201,12 @@ volumes:
     medium: memory
 
 ---
+################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
+# Generated at dronegen/tests.go:233
+################################################
+
 kind: pipeline
 type: kubernetes
 name: test-docs-internal
@@ -280,8 +288,12 @@ volumes:
     medium: memory
 
 ---
+################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
+# Generated at dronegen/tests.go:233
+################################################
+
 kind: pipeline
 type: kubernetes
 name: test-docs-external
@@ -4366,6 +4378,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 25ecd945b80b6ca6bf54c29f7536fe2e66022c4c31ba7df27e00a070acf40557
+hmac: 7e244b3ce10084b55f8348de64deb2de17af1effc2660bd61b1b9d1920c74260
 
 ...

@@ -3,9 +3,16 @@ package main
 import (
 	"errors"
 	"fmt"
+	"runtime"
+	"strings"
 )
 
+// Types to mirror the YAML fields of the drone config.
+// See https://docs.drone.io/pipeline/kubernetes/syntax/ and https://docs.drone.io/pipeline/exec/syntax/.
+
 type pipeline struct {
+	comment string
+
 	Kind        string           `yaml:"kind"`
 	Type        string           `yaml:"type"`
 	Name        string           `yaml:"name"`
@@ -23,21 +30,41 @@ type pipeline struct {
 
 func newKubePipeline(name string) pipeline {
 	return pipeline{
-		Kind:  "pipeline",
-		Type:  "kubernetes",
-		Name:  name,
-		Clone: clone{Disable: true},
+		comment: generatedComment(),
+		Kind:    "pipeline",
+		Type:    "kubernetes",
+		Name:    name,
+		Clone:   clone{Disable: true},
 	}
 }
 
 //nolint:deadcode,unused
 func newExecPipeline(name string) pipeline {
 	return pipeline{
-		Kind:  "pipeline",
-		Type:  "exec",
-		Name:  name,
-		Clone: clone{Disable: true},
+		comment: generatedComment(),
+		Kind:    "pipeline",
+		Type:    "exec",
+		Name:    name,
+		Clone:   clone{Disable: true},
 	}
+}
+
+func generatedComment() string {
+	c := `################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+`
+	_, file, line, ok := runtime.Caller(2)
+	if ok {
+		// Trim off the local path to the repo.
+		i := strings.LastIndex(file, "dronegen")
+		if i > 0 {
+			file = file[i:]
+		}
+		c += fmt.Sprintf("# Generated at %s:%d\n", file, line)
+	}
+	c += "################################################\n\n"
+	return c
 }
 
 type trigger struct {
