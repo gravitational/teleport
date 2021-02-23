@@ -69,7 +69,7 @@ func writePipelines(path string, newPipelines []pipeline) error {
 				return fmt.Errorf("failed to encode pipelines: %w", err)
 			}
 			// Add a little note about this being generated.
-			out = append([]byte("# Generated using dronegen, do not edit by hand!\n# Use 'make dronegen' to update.\n"), out...)
+			out = append([]byte(np.comment), out...)
 			pipelines[i] = parsedPipeline{pipeline: np, raw: out}
 			delete(newPipelinesSet, np.Name)
 		}
