@@ -57,7 +57,7 @@ type GRPCServer struct {
 	server *grpc.Server
 }
 
-// GetServer returns an underlining instance of grpc server
+// GetServer returns an instance of grpc server
 func (g *GRPCServer) GetServer() (*grpc.Server, error) {
 	if g.server == nil {
 		return nil, trace.BadParameter("grpc server has not been initialized")
