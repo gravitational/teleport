@@ -188,6 +188,7 @@ github.com/go-openapi/jsonreference v0.0.0-20160704190145-13c6e3589ad9/go.mod h1
 github.com/go-openapi/spec v0.0.0-20160808142527-6aced65f8501/go.mod h1:J8+jY1nAiCcj+friV/PDoE1/3eeccG9LYBs0tYvLOWc=
 github.com/go-openapi/swag v0.0.0-20160704191624-1d0bd113de87/go.mod h1:DXUve3Dpr1UfpPtxFw+EFuQ41HhCWZfha5jSVRG7C7I=
 github.com/go-sql-driver/mysql v1.4.0/go.mod h1:zAC/RDZ24gD3HViQzih4MyKcchzm+sOG5ZlKdlhCg5w=
+github.com/go-sql-driver/mysql v1.4.1 h1:g24URVg0OFbNUTx9qqY1IRZ9D9z3iPyi5zKhQZpNwpA=
 github.com/go-sql-driver/mysql v1.4.1/go.mod h1:zAC/RDZ24gD3HViQzih4MyKcchzm+sOG5ZlKdlhCg5w=
 github.com/go-stack/stack v1.8.0/go.mod h1:v0f6uXyyMGvRgIKkXu+yp6POWl0qKG85gN/melR3HDY=
 github.com/go-toolsmith/astcast v1.0.0/go.mod h1:mt2OdQTeAQcY4DQgPSArJjHCcOwlX+Wl/kwN+LbLGQ4=
@@ -294,10 +295,6 @@ github.com/gravitational/configure v0.0.0-20160909185025-1db4b84fe9db h1:345P34W
 github.com/gravitational/configure v0.0.0-20160909185025-1db4b84fe9db/go.mod h1:XL9nebvlfNVvRzRPWdDcWootcyA0l7THiH/A+W1233g=
 github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70 h1:To76nCJtM3DI0mdq3nGLzXqTV1wNOJByxv01+u9/BxM=
 github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70/go.mod h1:88hFR45MpUd23d2vNWE/dYtesU50jKsbz0I9kH7UaBY=
-github.com/gravitational/go-mysql v1.1.1-0.20201221203007-8ef34676bbc0 h1:oN3ip7mSVgX+14rc13yJh+rUpdzmO/DHJH+GzX9+dnY=
-github.com/gravitational/go-mysql v1.1.1-0.20201221203007-8ef34676bbc0/go.mod h1:re0JQZ1Cy5dVlIDGq0YksfDIla/GRZlxqOoC0XPSSGE=
-github.com/gravitational/go-mysql v1.1.1-0.20210212004040-43bb2767cdd8 h1:MI86GrervmRuE+8QcOPFX7ArqVk3lHHy0Hv5sR/Lmwo=
-github.com/gravitational/go-mysql v1.1.1-0.20210212004040-43bb2767cdd8/go.mod h1:re0JQZ1Cy5dVlIDGq0YksfDIla/GRZlxqOoC0XPSSGE=
 github.com/gravitational/go-mysql v1.1.1-0.20210212011549-886316308a77 h1:ivambM2XeST8qfxeSm+0Y8CP/DlNbS3o/9tSF2KtGFk=
 github.com/gravitational/go-mysql v1.1.1-0.20210212011549-886316308a77/go.mod h1:re0JQZ1Cy5dVlIDGq0YksfDIla/GRZlxqOoC0XPSSGE=
 github.com/gravitational/go-oidc v0.0.3 h1:VKhztRfuXq5KVcAPAEagF2y9rjoNgEXvZ/5PsRX9qt8=
@@ -540,6 +537,7 @@ github.com/pborman/uuid v1.2.0/go.mod h1:X/NO0urCmaxf9VXbdlT7C2Yzkj2IKimNn4k+gtP
 github.com/pelletier/go-toml v1.2.0/go.mod h1:5z9KED0ma1S8pY6P1sdut58dfprrGBbd/94hg7ilaic=
 github.com/peterbourgon/diskv v2.0.1+incompatible/go.mod h1:uqqh8zWWbv1HBMNONnaR/tNboyR3/BZd58JJSHlUSCU=
 github.com/phayes/checkstyle v0.0.0-20170904204023-bfd46e6a821d/go.mod h1:3OzsM7FXDQlpCiw2j81fOmAwQLnZnLGXVKUzeKQXIAw=
+github.com/pingcap/check v0.0.0-20190102082844-67f458068fc8 h1:USx2/E1bX46VG32FIw034Au6seQ2fY9NEILmNh/UlQg=
 github.com/pingcap/check v0.0.0-20190102082844-67f458068fc8/go.mod h1:B1+S9LNcuMyLH/4HMTViQOJevkGiik3wW2AN9zb2fNQ=
 github.com/pingcap/errors v0.11.0 h1:DCJQB8jrHbQ1VVlMFIrbj2ApScNNotVmkSNplu2yUt4=
 github.com/pingcap/errors v0.11.0/go.mod h1:Oi8TUi2kEtXXLMJk9l1cGmz20kV3TaQ0usTwv5KuLY8=
