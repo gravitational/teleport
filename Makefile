@@ -636,3 +636,7 @@ init-submodules-e: init-webapps-submodules-e
 update-vendor:
 	go mod tidy
 	go mod vendor
+	# delete the vendored api package. In its place
+	# create a symlink to the the original api package
+	rm -r vendor/github.com/gravitational/teleport/api
+	ln -s -r $(shell readlink -f api) vendor/github.com/gravitational/teleport
