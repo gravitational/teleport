@@ -128,14 +128,7 @@ Refer to [the webapps README](https://github.com/gravitational/webapps/blob/mast
 
 ### Updating Documentation
 
-TL;DR version:
-
-```bash
-make docs
-make run-docs
-```
-
-For more details, take a look at [docs/README](docs/README.md)
+Take a look at [docs/README](docs/README.md)
 
 ### Managing dependencies
 
