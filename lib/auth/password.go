@@ -94,27 +94,33 @@ func (s *Server) ChangePassword(req services.ChangePasswordReq) error {
 		case constants.SecondFactorOff:
 			return s.CheckPasswordWOToken(userID, req.OldPassword)
 		case constants.SecondFactorOTP:
-			return s.CheckPassword(userID, req.OldPassword, req.SecondFactorToken)
+			_, err := s.CheckPassword(userID, req.OldPassword, req.SecondFactorToken)
+			return trace.Wrap(err)
 		case constants.SecondFactorU2F:
 			if req.U2FSignResponse == nil {
 				return trace.AccessDenied("missing U2F sign response")
 			}
 
-			return s.CheckU2FSignResponse(ctx, userID, req.U2FSignResponse)
+			_, err := s.CheckU2FSignResponse(ctx, userID, req.U2FSignResponse)
+			return trace.Wrap(err)
 		case constants.SecondFactorOn:
 			if req.SecondFactorToken != "" {
-				return s.CheckPassword(userID, req.OldPassword, req.SecondFactorToken)
+				_, err := s.CheckPassword(userID, req.OldPassword, req.SecondFactorToken)
+				return trace.Wrap(err)
 			}
 			if req.U2FSignResponse != nil {
-				return s.CheckU2FSignResponse(ctx, userID, req.U2FSignResponse)
+				_, err := s.CheckU2FSignResponse(ctx, userID, req.U2FSignResponse)
+				return trace.Wrap(err)
 			}
 			return trace.AccessDenied("missing second factor authentication")
 		case constants.SecondFactorOptional:
 			if req.SecondFactorToken != "" {
-				return s.CheckPassword(userID, req.OldPassword, req.SecondFactorToken)
+				_, err := s.CheckPassword(userID, req.OldPassword, req.SecondFactorToken)
+				return trace.Wrap(err)
 			}
 			if req.U2FSignResponse != nil {
-				return s.CheckU2FSignResponse(ctx, userID, req.U2FSignResponse)
+				_, err := s.CheckU2FSignResponse(ctx, userID, req.U2FSignResponse)
+				return trace.Wrap(err)
 			}
 			// Check that a user has no MFA devices registered.
 			devs, err := s.GetMFADevices(ctx, userID)
@@ -190,42 +196,41 @@ func (s *Server) CheckPasswordWOToken(user string, password []byte) error {
 }
 
 // CheckPassword checks the password and OTP token. Called by tsh or lib/web/*.
-func (s *Server) CheckPassword(user string, password []byte, otpToken string) error {
+func (s *Server) CheckPassword(user string, password []byte, otpToken string) (*types.MFADevice, error) {
 	err := s.CheckPasswordWOToken(user, password)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	err = s.checkOTP(user, otpToken)
-	return trace.Wrap(err)
+	return s.checkOTP(user, otpToken)
 }
 
 // checkOTP determines the type of OTP token used (for legacy HOTP support), fetches the
 // appropriate type from the backend, and checks if the token is valid.
-func (s *Server) checkOTP(user string, otpToken string) error {
+func (s *Server) checkOTP(user string, otpToken string) (*types.MFADevice, error) {
 	var err error
 
 	otpType, err := s.getOTPType(user)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	switch otpType {
 	case teleport.HOTP:
 		otp, err := s.GetHOTP(user)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		// look ahead n tokens to see if we can find a matching token
 		if !otp.Scan(otpToken, defaults.HOTPFirstTokensRange) {
-			return trace.BadParameter("bad one time token")
+			return nil, trace.BadParameter("bad one time token")
 		}
 
 		// we need to upsert the hotp state again because the
 		// counter was incremented
 		if err := s.UpsertHOTP(user, otp); err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	case teleport.TOTP:
 		ctx := context.TODO()
@@ -233,16 +238,16 @@ func (s *Server) checkOTP(user string, otpToken string) error {
 		// get the previously used token to mitigate token replay attacks
 		usedToken, err := s.GetUsedTOTPToken(user)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		// we use a constant time compare function to mitigate timing attacks
 		if subtle.ConstantTimeCompare([]byte(otpToken), []byte(usedToken)) == 1 {
-			return trace.BadParameter("previously used totp token")
+			return nil, trace.BadParameter("previously used totp token")
 		}
 
 		devs, err := s.GetMFADevices(ctx, user)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		for _, dev := range devs {
@@ -255,12 +260,12 @@ func (s *Server) checkOTP(user string, otpToken string) error {
 				log.WithError(err).Errorf("Using TOTP device %q", dev.GetName())
 				continue
 			}
-			return nil
+			return dev, nil
 		}
-		return trace.AccessDenied("invalid totp token")
+		return nil, trace.AccessDenied("invalid totp token")
 	}
 
-	return nil
+	return nil, nil
 }
 
 // checkTOTP checks if the TOTP token is valid.

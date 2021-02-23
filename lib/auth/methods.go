@@ -85,7 +85,7 @@ type SessionCreds struct {
 
 // AuthenticateUser authenticates user based on the request type
 func (s *Server) AuthenticateUser(req AuthenticateUserRequest) error {
-	err := s.authenticateUser(context.TODO(), req)
+	mfaDev, err := s.authenticateUser(context.TODO(), req)
 	event := &events.UserLogin{
 		Metadata: events.Metadata{
 			Type: events.UserLoginEvent,
@@ -95,6 +95,9 @@ func (s *Server) AuthenticateUser(req AuthenticateUserRequest) error {
 			User: req.Username,
 		},
 		Method: events.LoginMethodLocal,
+	}
+	if mfaDev != nil {
+		event.With2FA = mfaDev.Id
 	}
 	if err != nil {
 		event.Code = events.UserLocalLoginFailureCode
@@ -110,41 +113,47 @@ func (s *Server) AuthenticateUser(req AuthenticateUserRequest) error {
 	return err
 }
 
-func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserRequest) error {
+func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserRequest) (*types.MFADevice, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	authPreference, err := s.GetAuthPreference()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	switch {
 	case req.U2F != nil:
 		// authenticate using U2F - code checks challenge response
 		// signed by U2F device of the user
+		var mfaDev *types.MFADevice
 		err := s.WithUserLock(req.Username, func() error {
-			return s.CheckU2FSignResponse(ctx, req.Username, &req.U2F.SignResponse)
+			var err error
+			mfaDev, err = s.CheckU2FSignResponse(ctx, req.Username, &req.U2F.SignResponse)
+			return err
 		})
 		if err != nil {
 			// provide obscure message on purpose, while logging the real
 			// error server side
 			log.Debugf("Failed to authenticate: %v.", err)
-			return trace.AccessDenied("invalid U2F response")
+			return nil, trace.AccessDenied("invalid U2F response")
 		}
-		return nil
+		return mfaDev, nil
 	case req.OTP != nil:
+		var mfaDev *types.MFADevice
 		err := s.WithUserLock(req.Username, func() error {
-			return s.CheckPassword(req.Username, req.OTP.Password, req.OTP.Token)
+			var err error
+			mfaDev, err = s.CheckPassword(req.Username, req.OTP.Password, req.OTP.Token)
+			return err
 		})
 		if err != nil {
 			// provide obscure message on purpose, while logging the real
 			// error server side
 			log.Debugf("Failed to authenticate: %v.", err)
-			return trace.AccessDenied("invalid username, password or second factor")
+			return nil, trace.AccessDenied("invalid username, password or second factor")
 		}
-		return nil
+		return mfaDev, nil
 	case req.Pass != nil:
 		// authenticate using password only, make sure
 		// that auth preference does not require second factor
@@ -157,18 +166,18 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 			// registered.
 			devs, err := s.GetMFADevices(ctx, req.Username)
 			if err != nil && !trace.IsNotFound(err) {
-				return trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 			if len(devs) != 0 {
 				log.Warningf("MFA bypass attempt by user %q, access denied.", req.Username)
-				return trace.AccessDenied("missing second factor authentication")
+				return nil, trace.AccessDenied("missing second factor authentication")
 			}
 		default:
 			// Some form of MFA is required but none provided. Either client is
 			// buggy (didn't send MFA response) or someone is trying to bypass
 			// MFA.
 			log.Warningf("MFA bypass attempt by user %q, access denied.", req.Username)
-			return trace.AccessDenied("missing second factor")
+			return nil, trace.AccessDenied("missing second factor")
 		}
 		err := s.WithUserLock(req.Username, func() error {
 			return s.CheckPasswordWOToken(req.Username, req.Pass.Password)
@@ -177,11 +186,11 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 			// provide obscure message on purpose, while logging the real
 			// error server side
 			log.Debugf("Failed to authenticate: %v.", err)
-			return trace.AccessDenied("invalid username or password")
+			return nil, trace.AccessDenied("invalid username or password")
 		}
-		return nil
+		return nil, nil
 	default:
-		return trace.AccessDenied("unsupported authentication method")
+		return nil, trace.AccessDenied("unsupported authentication method")
 	}
 }
 
