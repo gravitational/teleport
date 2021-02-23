@@ -184,6 +184,11 @@ test: buildbox
 		ssh-agent > external.agent.tmp && source external.agent.tmp; \
 		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' clean test"
 
+.PHONY:test-sh
+test-sh: buildbox
+	docker run $(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) -t $(BUILDBOX) \
+		/bin/bash -c "make -C $(SRCDIR) test-sh"
+
 .PHONY:integration
 integration: buildbox
 	docker run $(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) -t $(BUILDBOX) \

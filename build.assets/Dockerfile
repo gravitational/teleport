@@ -81,6 +81,11 @@ RUN (mkdir -p helm-tarball && curl -L https://get.helm.sh/helm-v3.5.2-$(go env G
      cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
      rm -r helm-tarball*)
 
+# Install bats.
+RUN (curl -L https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar -xz && \
+     cd bats-core-1.2.1 && ./install.sh /usr/local && cd .. && \
+     rm -r bats-core-1.2.1)
+
 # Install protobuf and grpc build tools.
 ARG PROTOC_VER
 ARG PROTOC_PLATFORM

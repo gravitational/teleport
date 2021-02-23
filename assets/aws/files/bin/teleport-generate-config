@@ -3,31 +3,101 @@ if [[ "${DEBUG}" == "true" ]]; then
     set -x
 fi
 
+## Test functions
+# Returns 0 in test mode and 1 otherwise
+is_test() { if [[ "${TELEPORT_TEST_MODE}" == "true" ]]; then return 0; else return 1; fi }
+# Check for FIPS
+# In regular mode, we do this by looking at the ExecStart command for teleport.service to see whether it
+# contains 'fips' or not (which is set during packer build). We use this to modify the auth service's
+# configuration depending on whether FIPS is in use or not.
+# In test mode, it uses the value of the TELEPORT_TEST_FIPS_MODE variable.
+is_fips() {
+    if is_test; then
+        if [[ "${TELEPORT_TEST_FIPS_MODE}" == "true" ]]; then return 0; else return 1; fi
+    else
+        grep "ExecStart" /etc/systemd/system/teleport.service | grep -q "fips"
+    fi
+}
+# systemctl wrapper which just echoes commands in test mode rather than running them
+systemctl_wrap() { if is_test; then echo "$@"; else systemctl "$@"; fi }
+
+# Allow the config paths to be overridden for testing
+USE_CONFIG_PATH="${TELEPORT_CONFIG_PATH:-/etc/teleport.yaml}"
+USE_CONFD_DIR="${TELEPORT_CONFD_DIR:-/etc/teleport.d}"
 # If a copy of the Teleport config file already exists, don't change it
 # and just exit this script with success.
-if [ -f /etc/teleport.yaml ]; then
-    echo "/etc/teleport.yaml already exists. Exiting with success."
-    exit 0
+if [ -f ${USE_CONFIG_PATH} ]; then
+    # Optionally allow this behaviour to be suppressed for tests.
+    if ! is_test; then
+        echo "${USE_CONFIG_PATH} already exists. Exiting with success."
+        exit 0
+    fi
 fi
 
-# Functions
-write_kubernetes_section() {
-  # use the value of the variable name which was passed in
-  # this is done because there are two different ways of getting the external hostname
-  # depending on how the AMI is being used and we should support both
-  EXTERNAL_HOSTNAME="${!1}"
-  if [[ "${USE_ACM}" == "true" && "${TELEPORT_PROXY_SERVER_LB}" != "" ]]; then
-    # if an alias for the ACM NLB is configured, also add that to the proxy's kubernetes public_addr
-    if [[ "${TELEPORT_PROXY_SERVER_NLB_ALIAS}" != "" ]]; then
-      KUBERNETES_PUBLIC_ADDR="'${TELEPORT_PROXY_SERVER_LB}:3026', '${TELEPORT_PROXY_SERVER_NLB_ALIAS}:3026'"
-    else
-      KUBERNETES_PUBLIC_ADDR="'${TELEPORT_PROXY_SERVER_LB}:3026'"
+# Source variables from user-data file
+# shellcheck disable=SC1090
+source "${USE_CONFD_DIR}/conf"
+
+## Helper functions
+aws_metadata_get() {
+    # request path is the part after /latest/ i.e. meta-data/local-ipv4
+    REQUEST="$1"
+    CURL_EXTRA_ARGS=""
+    if [[ "$2" != "" ]]; then
+        CURL_EXTRA_ARGS="$2"
     fi
-  else
-    KUBERNETES_PUBLIC_ADDR="'${EXTERNAL_HOSTNAME:-$PUBLIC_IP}:3026'"
-  fi
-  # set up the kubernetes listener
-  cat << EOS >> /etc/teleport.yaml
+    case $REQUEST in
+        LOCAL_IP)
+            REQUEST_PATH="meta-data/local-ipv4"
+            ;;
+        LOCAL_HOSTNAME)
+            REQUEST_PATH="meta-data/local-hostname"
+            ;;
+        PUBLIC_IP)
+            REQUEST_PATH="meta-data/public-ipv4"
+            ;;
+        *)
+            echo "No request path defined for ${REQUEST}"
+            exit 126
+            ;;
+    esac
+
+    if ! is_test; then
+        IMDS_TOKEN=$(curl -m5 -sS -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
+        IMDS_TOKEN_HEADER="-H \"X-aws-ec2-metadata-token: ${IMDS_TOKEN}\""
+        curl -m5 -sS "${IMDS_TOKEN_HEADER}" ${CURL_EXTRA_ARGS} http://169.254.169.254/latest/${REQUEST_PATH}
+    else
+        # return a pre-calculated value
+        VARIABLE="TELEPORT_TESTVAR_${REQUEST}"
+        echo "${!VARIABLE}"
+    fi
+}
+
+write_https_keypairs_section() {
+  cat << EOS >> ${USE_CONFIG_PATH}
+  https_keypairs:
+    - cert_file: /var/lib/teleport/fullchain.pem
+      key_file: /var/lib/teleport/privkey.pem
+EOS
+}
+
+write_kubernetes_section() {
+    # use the value of the variable name which was passed in
+    # this is done because there are two different ways of getting the external hostname
+    # depending on how the AMI is being used and we should support both
+    EXTERNAL_HOSTNAME="${!1}"
+    if [[ "${USE_ACM}" == "true" && "${TELEPORT_PROXY_SERVER_LB}" != "" ]]; then
+        # if an alias for the ACM NLB is configured, use that for proxy's kubernetes public_addr
+        if [[ "${TELEPORT_PROXY_SERVER_NLB_ALIAS}" != "" ]]; then
+            KUBERNETES_PUBLIC_ADDR="'${TELEPORT_PROXY_SERVER_NLB_ALIAS}:3026'"
+        else
+            KUBERNETES_PUBLIC_ADDR="'${TELEPORT_PROXY_SERVER_LB}:3026'"
+        fi
+    else
+        KUBERNETES_PUBLIC_ADDR="'${EXTERNAL_HOSTNAME:-$PUBLIC_IP}:3026'"
+    fi
+    # set up the kubernetes listener
+    cat << EOS >> ${USE_CONFIG_PATH}
   kubernetes:
     enabled: yes
     listen_addr: 0.0.0.0:3026
@@ -35,60 +105,102 @@ write_kubernetes_section() {
 EOS
 }
 
-write_https_keypairs_section() {
-  cat << EOS >> /etc/teleport.yaml
-  https_keypairs:
-    - cert_file: /var/lib/teleport/fullchain.pem
-      key_file: /var/lib/teleport/privkey.pem
+write_ssh_and_tunnel_section() {
+    PASSED_EXTERNAL_TUNNEL_PORT="$1"
+    SSH_PORT=3023
+    if [[ "${TELEPORT_PROXY_SERVER_LB}" != "" ]]; then
+        # ACM
+        if [[ "${USE_ACM}" == "true" ]]; then
+            # if an alias for the ACM NLB is configured, use that for the proxy's ssh_public_addr
+            if [[ "${TELEPORT_PROXY_SERVER_NLB_ALIAS}" != "" ]]; then
+                SSH_HOSTNAME="${TELEPORT_PROXY_SERVER_NLB_ALIAS}"
+            else
+                SSH_HOSTNAME="${TELEPORT_PROXY_SERVER_LB}"
+            fi
+        # non-ACM
+        else
+            if [[ "${TELEPORT_DOMAIN_NAME}" != "" ]]; then
+                SSH_HOSTNAME="${TELEPORT_DOMAIN_NAME}"
+            else
+                SSH_HOSTNAME="${TELEPORT_EXTERNAL_HOSTNAME:-$PUBLIC_IP}"
+            fi
+        fi
+        # when using ACM, we have to set up a dedicated listener and target group as
+        # SSL termination is handled by the ACM ALB and it can't multiplex the tunnel connections
+        if [[ "${USE_ACM}" == "true" ]]; then
+            TUNNEL_PORT="${TUNNEL_LISTEN_PORT}"
+            if [[ "${TELEPORT_PROXY_SERVER_NLB_ALIAS}" != "" ]]; then
+                TUNNEL_HOSTNAME="${TELEPORT_PROXY_SERVER_NLB_ALIAS}"
+            else
+                TUNNEL_HOSTNAME="${TELEPORT_PROXY_SERVER_LB}"
+            fi
+        # when ACM is not being used, Teleport handles SSL termination itself and so tunnel connections
+        # can be multiplexed over the same connection as regular web proxy traffic
+        # this is automatically enabled when Teleport's web and tunnel listeners are configured to use the same port
+        else
+            TUNNEL_PORT="${PASSED_EXTERNAL_TUNNEL_PORT}"
+            # check whether an external domain name is configured (HA mode)
+            # if not (starter mode), use an external hostname if configured, and fall back to public IP
+            if [[ "${TELEPORT_DOMAIN_NAME}" != "" ]]; then
+                TUNNEL_HOSTNAME="${TELEPORT_DOMAIN_NAME}"
+            else
+                TUNNEL_HOSTNAME="${TELEPORT_EXTERNAL_HOSTNAME:-$PUBLIC_IP}"
+            fi
+        fi
+    fi
+    cat << EOS >> ${USE_CONFIG_PATH}
+  ssh_public_addr: ${SSH_HOSTNAME}:${SSH_PORT}
+  tunnel_public_addr: ${TUNNEL_HOSTNAME}:${TUNNEL_PORT}
 EOS
 }
 
-# Setup Teleport config file
-IMDS_TOKEN=$(curl -sS -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
-IMDS_TOKEN_HEADER="-H \"X-aws-ec2-metadata-token: ${IMDS_TOKEN}\""
-LOCAL_IP=$(curl -sS "${IMDS_TOKEN_HEADER}" http://169.254.169.254/latest/meta-data/local-ipv4)
-LOCAL_HOSTNAME=$(curl -sS "${IMDS_TOKEN_HEADER}" http://169.254.169.254/latest/meta-data/local-hostname)
+## Start
+# Set up AWS variables
+LOCAL_IP=$(aws_metadata_get LOCAL_IP)
+LOCAL_HOSTNAME=$(aws_metadata_get LOCAL_HOSTNAME)
 LOCAL_HOSTNAME=${LOCAL_HOSTNAME//./-}
-
-# Source variables from user-data
-source /etc/teleport.d/conf
-
-# Create /var/lib/teleport if it doesn't exist and fix permissions appropriately
-if [ ! -d /var/lib/teleport ]; then
-    mkdir -p /var/lib/teleport
+if aws_metadata_get PUBLIC_IP -i | grep -q 404; then
+    PUBLIC_IP=${LOCAL_IP}
+else
+    PUBLIC_IP=$(aws_metadata_get PUBLIC_IP)
 fi
-chown -R teleport:adm /var/lib/teleport
-touch /etc/teleport.yaml
-chmod 664 /etc/teleport.yaml
+
+# If the teleport user and adm group exist, create /var/lib/teleport if it doesn't exist
+# and fix permissions appropriately
+if getent passwd teleport >/dev/null 2>&1 && getent group adm >/dev/null 2>&1; then
+    if [ ! -d /var/lib/teleport ]; then
+        mkdir -p /var/lib/teleport
+    fi
+    chown -R teleport:adm /var/lib/teleport
+fi
+touch ${USE_CONFIG_PATH}
+chmod 664 ${USE_CONFIG_PATH}
 
 # Use letsencrypt by default unless we are explicitly using ACM here
 if [[ "${USE_ACM}" != "true" ]]; then
-    rm -f /etc/teleport.d/role.all-acm
-    echo "use-letsencrypt" > /etc/teleport.d/use-letsencrypt
+    rm -f ${USE_CONFD_DIR}/role.all-acm
+    echo "use-letsencrypt" > ${USE_CONFD_DIR}/use-letsencrypt
 fi
 
 # Determine whether this is a FIPS AMI or not
-# We do this by looking at the ExecStart command for teleport.service to see whether it contains 'fips' or not (which is set during packer build)
-# We use this to modify the auth service's configuration depending on whether FIPS is in use or not
 # With FIPS: auth_service.authentication.local_auth must be 'false' or Teleport will not start
 # Without FIPS: auth.service.authentication.second_factor should be set to 'otp'
 AUTHENTICATION_STANZA="second_factor: otp"
-if grep "ExecStart" /etc/systemd/system/teleport.service | grep -q "fips"; then
-  AUTHENTICATION_STANZA="local_auth: false"
+if is_fips; then
+    AUTHENTICATION_STANZA="local_auth: false"
 fi
 
 if [[ "${TELEPORT_ROLE}" == "auth" ]]; then
-    echo "auth" > /etc/teleport.d/role.auth
+    echo "auth" > ${USE_CONFD_DIR}/role.auth
     # Teleport Auth server is using DynamoDB as a backend
     # On AWS, see dynamodb.tf for details
-    cat >/etc/teleport.yaml <<EOF
+    cat >${USE_CONFIG_PATH} <<EOF
 teleport:
   nodename: ${LOCAL_HOSTNAME}
   advertise_ip: ${LOCAL_IP}
   log:
     output: stderr
     severity: INFO
-
   data_dir: /var/lib/teleport
   storage:
     type: dynamodb
@@ -118,36 +230,36 @@ EOF
     if [[ "${TELEPORT_LICENSE_PATH}" != "" ]]; then
         aws ssm get-parameter --with-decryption --name /teleport/${TELEPORT_CLUSTER_NAME}/license --region ${EC2_REGION} --query 'Parameter.Value' --output text > /var/lib/teleport/license.pem
         chown teleport:adm /var/lib/teleport/license.pem
-        echo "  license_file: /var/lib/teleport/license.pem" >> /etc/teleport.yaml
+        echo "  license_file: /var/lib/teleport/license.pem" >> ${USE_CONFIG_PATH}
     fi
 
     # enable/start token services and timers
-    systemctl enable teleport-ssm-publish-tokens.service teleport-ssm-publish-tokens.timer
-    systemctl start teleport-ssm-publish-tokens.timer
+    systemctl_wrap enable teleport-ssm-publish-tokens.service teleport-ssm-publish-tokens.timer
+    systemctl_wrap start teleport-ssm-publish-tokens.timer
 
     # enable/start cert services and timers
-    systemctl enable teleport-get-cert.service teleport-get-cert.timer
-    systemctl enable teleport-renew-cert.service teleport-renew-cert.timer
-    systemctl start --no-block teleport-get-cert.timer
-    systemctl start --no-block teleport-renew-cert.timer
+    systemctl_wrap enable teleport-get-cert.service teleport-get-cert.timer
+    systemctl_wrap enable teleport-renew-cert.service teleport-renew-cert.timer
+    systemctl_wrap start --no-block teleport-get-cert.timer
+    systemctl_wrap start --no-block teleport-renew-cert.timer
 
     # enable auth service and disable all-in-one
-    systemctl disable teleport.service
-    systemctl enable teleport-auth.service
-    systemctl start --no-block teleport-auth.service
+    systemctl_wrap disable teleport.service
+    systemctl_wrap enable teleport-auth.service
+    systemctl_wrap start --no-block teleport-auth.service
 
 elif [[ "${TELEPORT_ROLE}" == "proxy" ]]; then
     if [[ "${USE_ACM}" == "true" ]]; then
-        echo "proxy-acm" > /etc/teleport.d/role.proxy-acm
+        echo "proxy-acm" > ${USE_CONFD_DIR}/role.proxy-acm
         # tunnel_listen_addr needs to be changed if we're using ACM as the listener cannot understand HTTP, only HTTPS
         TUNNEL_LISTEN_PORT=3024
     else
-        echo "proxy" > /etc/teleport.d/role.proxy
+        echo "proxy" > ${USE_CONFD_DIR}/role.proxy
         TUNNEL_LISTEN_PORT=3080
     fi
     # Teleport proxy proxies and optionally records
     # SSH sessions
-    cat >/etc/teleport.yaml <<EOF
+    cat >${USE_CONFIG_PATH} <<EOF
 teleport:
   auth_token: /var/lib/teleport/token
   ca_pin: CA_PIN_HASH_PLACEHOLDER
@@ -156,7 +268,6 @@ teleport:
   log:
     output: stderr
     severity: INFO
-
   data_dir: /var/lib/teleport
   storage:
     type: dir
@@ -177,20 +288,9 @@ proxy_service:
   web_listen_addr: 0.0.0.0:3080
   public_addr: ${TELEPORT_DOMAIN_NAME}:443
 EOF
-    # if we have an SSH proxy LB address, append it
-    if [[ "${TELEPORT_PROXY_SERVER_LB}" != "" ]]; then
-        echo "  ssh_public_addr: ${TELEPORT_PROXY_SERVER_LB}:3023" >> /etc/teleport.yaml
-        # when using ACM, we have to set up a dedicated listener and target group as
-        # SSL termination is handled by the ACM ALB and it can't multiplex the tunnel connections
-        if [[ "${USE_ACM}" == "true" ]]; then
-          echo "  tunnel_public_addr: ${TELEPORT_PROXY_SERVER_LB}:${TUNNEL_LISTEN_PORT}" >> /etc/teleport.yaml
-        # when ACM is not being used, Teleport handles SSL termination itself and so tunnel connections
-        # can be multiplexed over the same connection as regular web proxy traffic
-        # this is automatically enabled when Teleport's web and tunnel listeners are configured to use the same port
-        else
-          echo "  tunnel_public_addr: ${TELEPORT_DOMAIN_NAME}:443" >> /etc/teleport.yaml
-        fi
-    fi
+
+    # write ssh/tunnel config
+    write_ssh_and_tunnel_section 443
 
     # if we are using letsencrypt (i.e. not ACM) then append config lines
     if [[ "${USE_ACM}" != "true" ]]; then
@@ -201,24 +301,24 @@ EOF
     write_kubernetes_section TELEPORT_DOMAIN_NAME
 
     # enable/start cert services and timers
-    systemctl enable teleport-check-cert.service teleport-check-cert.timer
-    systemctl start --no-block teleport-check-cert.timer
+    systemctl_wrap enable teleport-check-cert.service teleport-check-cert.timer
+    systemctl_wrap start --no-block teleport-check-cert.timer
 
     # enable proxy service and disable all-in-one
     # skip TLS verification if we are using ACM (as we can't get the cert for use locally, it's on the load balancer)
-    systemctl disable teleport.service
+    systemctl_wrap disable teleport.service
     if [[ "${USE_ACM}" == "true" ]]; then
-        systemctl enable teleport-proxy-acm.service
-        systemctl start --no-block teleport-proxy-acm.service
+        systemctl_wrap enable teleport-proxy-acm.service
+        systemctl_wrap start --no-block teleport-proxy-acm.service
     else
-        systemctl enable teleport-proxy.service
-        systemctl start --no-block teleport-proxy.service
+        systemctl_wrap enable teleport-proxy.service
+        systemctl_wrap start --no-block teleport-proxy.service
     fi
 
 elif [[ "${TELEPORT_ROLE}" == "node" ]]; then
-    echo "node" > /etc/teleport.d/role.node
+    echo "node" > ${USE_CONFD_DIR}/role.node
     # Teleport node handles incoming connections
-    cat >/etc/teleport.yaml <<EOF
+    cat >${USE_CONFIG_PATH} <<EOF
 teleport:
   auth_token: /var/lib/teleport/token
   ca_pin: CA_PIN_HASH_PLACEHOLDER
@@ -227,7 +327,6 @@ teleport:
   log:
     output: stderr
     severity: INFO
-
   data_dir: /var/lib/teleport
   storage:
     type: dir
@@ -247,66 +346,56 @@ proxy_service:
 EOF
 
     # enable node service and disable all-in-one
-    systemctl disable teleport.service
-    systemctl enable teleport-node.service
-    systemctl start --no-block teleport-node.service
+    systemctl_wrap disable teleport.service
+    systemctl_wrap enable teleport-node.service
+    systemctl_wrap start --no-block teleport-node.service
 
 elif [[ "${TELEPORT_ROLE}" == "monitor" ]]; then
-    echo "monitor" > /etc/teleport.d/role.monitor
+    echo "monitor" > ${USE_CONFD_DIR}/role.monitor
     # disable teleport service if this has the monitor role
-    systemctl disable teleport.service
+    systemctl_wrap disable teleport.service
     # no teleport config needed
-    rm -f /etc/teleport.yaml
+    rm -f ${USE_CONFIG_PATH}
     # run monitor setup as an independent service
-    systemctl start --no-block teleport-monitor-setup.service
+    systemctl_wrap start --no-block teleport-monitor-setup.service
 
 elif [[ "${TELEPORT_ROLE}" == "auth,node,proxy" ]]; then
-  echo "Teleport all-in-one configuration selected."
-  # if the instance doesn't have a public IPv4 address, we get a 404 from the metadata
-  # which will break the generated config, so we use the local IP instead
-  if curl -sS "${IMDS_TOKEN_HEADER}" -i http://169.254.169.254/latest/meta-data/public-ipv4 | grep -q 404; then
-    PUBLIC_IP=${LOCAL_IP}
-  else
-    PUBLIC_IP=$(curl -sS "${IMDS_TOKEN_HEADER}" http://169.254.169.254/latest/meta-data/public-ipv4)
-  fi
+    echo "Teleport all-in-one configuration selected."
 
-  # tunnel_listen_addr needs to be changed if we're using ACM as the listener cannot understand HTTP, only HTTPS
-  if [[ "${USE_ACM}" == "true" ]]; then
-      rm -f /etc/teleport.d/use-letsencrypt
-      rm -f /etc/teleport.d/role.all
-      echo "all-acm" > /etc/teleport.d/role.all-acm
-      TUNNEL_LISTEN_PORT=3024
-  else
-      rm -f /etc/teleport.d/role.all-acm
-      echo "all" > /etc/teleport.d/role.all
-      TUNNEL_LISTEN_PORT=3080
-  fi
+    # tunnel_listen_addr needs to be changed if we're using ACM as the listener cannot understand HTTP, only HTTPS
+    if [[ "${USE_ACM}" == "true" ]]; then
+        rm -f ${USE_CONFD_DIR}/use-letsencrypt
+        rm -f ${USE_CONFD_DIR}/role.all
+        echo "all-acm" > ${USE_CONFD_DIR}/role.all-acm
+        TUNNEL_LISTEN_PORT=3024
+    else
+        rm -f ${USE_CONFD_DIR}/role.all-acm
+        echo "all" > ${USE_CONFD_DIR}/role.all
+        TUNNEL_LISTEN_PORT=3080
+    fi
 
-  cat >/etc/teleport.yaml <<EOF
-# Auto-generated by /usr/local/bin/teleport-generate-config from values in /etc/teleport.d/conf
+    cat >${USE_CONFIG_PATH} <<EOF
+# Auto-generated by /usr/local/bin/teleport-generate-config from values in ${USE_CONFD_DIR}/conf
 teleport:
   nodename: ${LOCAL_HOSTNAME}
   advertise_ip: ${LOCAL_IP}
   log:
     output: stderr
     severity: INFO
-
   data_dir: /var/lib/teleport
-
 EOF
 
-  # copy and set up license if provided
-  if [[ "${TELEPORT_LICENSE_PATH}" != "" ]]; then
-    aws ssm get-parameter --with-decryption --name /teleport/${TELEPORT_CLUSTER_NAME}/license --region ${EC2_REGION} --query 'Parameter.Value' --output text > /var/lib/teleport/license.pem
-    chown teleport:adm /var/lib/teleport/license.pem
-    echo "  license_file: /var/lib/teleport/license.pem" >> /etc/teleport.yaml
-  fi
+    # copy and set up license if provided
+    if [[ "${TELEPORT_LICENSE_PATH}" != "" ]]; then
+        aws ssm get-parameter --with-decryption --name /teleport/${TELEPORT_CLUSTER_NAME}/license --region ${EC2_REGION} --query 'Parameter.Value' --output text > /var/lib/teleport/license.pem
+        chown teleport:adm /var/lib/teleport/license.pem
+        echo "  license_file: /var/lib/teleport/license.pem" >> ${USE_CONFIG_PATH}
+    fi
 
-  # determine if dynamodb and s3 should be configured, if not, default to dir storage
-  if [[ "${TELEPORT_DYNAMO_TABLE_NAME}" != "" && "${TELEPORT_DYNAMO_EVENTS_TABLE_NAME}" != "" && "${TELEPORT_S3_BUCKET}" != "" ]]; then
-    echo "Found DynamoDB settings, using DynamoDB and S3 for storage."
-    cat >>/etc/teleport.yaml <<EOF
-
+    # determine if dynamodb and s3 should be configured, if not, default to dir storage
+    if [[ "${TELEPORT_DYNAMO_TABLE_NAME}" != "" && "${TELEPORT_DYNAMO_EVENTS_TABLE_NAME}" != "" && "${TELEPORT_S3_BUCKET}" != "" ]]; then
+        echo "Found DynamoDB settings, using DynamoDB and S3 for storage."
+        cat >>${USE_CONFIG_PATH} <<EOF
   storage:
     type: dynamodb
     region: ${EC2_REGION}
@@ -314,17 +403,16 @@ EOF
     audit_events_uri: dynamodb://${TELEPORT_DYNAMO_EVENTS_TABLE_NAME}
     audit_sessions_uri: s3://${TELEPORT_S3_BUCKET}/records
 EOF
-  else
-    echo "Missing DynamoDB settings, using local dir storage."
-    cat >>/etc/teleport.yaml <<EOF
-
+    else
+        echo "Missing DynamoDB settings, using local dir storage."
+        cat >>${USE_CONFIG_PATH} <<EOF
   storage:
     type: dir
     path: /var/lib/teleport/backend
 EOF
-  fi
+    fi
 
-  cat >>/etc/teleport.yaml <<EOF
+    cat >>${USE_CONFIG_PATH} <<EOF
 
 auth_service:
   enabled: yes
@@ -346,84 +434,67 @@ proxy_service:
   public_addr: ${TELEPORT_EXTERNAL_HOSTNAME:-$PUBLIC_IP}:${TELEPORT_EXTERNAL_PORT:-3080}
 EOF
 
-  # if we have an SSH proxy LB address, append it
-  if [[ "${TELEPORT_PROXY_SERVER_LB}" != "" ]]; then
-      echo "  ssh_public_addr: ${TELEPORT_PROXY_SERVER_LB}:3023" >> /etc/teleport.yaml
-      # when using ACM, we have to set up a dedicated listener and target group as
-      # SSL termination is handled by the ACM ALB and it can't multiplex the tunnel connections
-      if [[ "${USE_ACM}" == "true" ]]; then
-        echo "  tunnel_public_addr: ${TELEPORT_PROXY_SERVER_LB}:${TUNNEL_LISTEN_PORT}" >> /etc/teleport.yaml
-      # when ACM is not being used, Teleport handles SSL termination itself and so tunnel connections
-      # can be multiplexed over the same connection as regular web proxy traffic
-      # this is automatically enabled when Teleport's web and tunnel listeners are configured to use the same port
-      else
-        echo "  tunnel_public_addr: ${TELEPORT_EXTERNAL_HOSTNAME:-$PUBLIC_IP}:${TELEPORT_EXTERNAL_PORT:-3080}" >> /etc/teleport.yaml
+    # write ssh/tunnel config
+    write_ssh_and_tunnel_section 3080
+
+    # if we are using letsencrypt, append config lines
+    if [[ "${USE_LETSENCRYPT}" == "true" ]]; then
+        echo "Letsencrypt support enabled"
+        # these variables must all be set for letsencrypt to work
+        # it also needs the running instance to have permissions to read from/write to the S3 bucket
+        if [[ "${TELEPORT_DOMAIN_ADMIN_EMAIL}" != "" && "${TELEPORT_DOMAIN_NAME}" != "" && "${TELEPORT_S3_BUCKET}" != "" ]]; then
+            write_https_keypairs_section
+
+            # set up the kubernetes listener
+            write_kubernetes_section TELEPORT_EXTERNAL_HOSTNAME
+
+            # enable/start cert services and timers
+            systemctl_wrap enable teleport-get-cert.service teleport-get-cert.timer
+            systemctl_wrap start teleport-get-cert.timer
+
+            systemctl_wrap enable teleport-renew-cert.service teleport-renew-cert.timer
+            systemctl_wrap start --no-block teleport-renew-cert.timer
+
+            systemctl_wrap enable teleport-check-cert.service teleport-check-cert.timer
+            systemctl_wrap start --no-block teleport-check-cert.timer
+
+            systemctl_wrap start --no-block teleport-get-cert.service
       fi
-  fi
+    elif [[ "${USE_ACM}" == "true" ]]; then
+        echo "ACM support enabled"
 
-  # if we are using letsencrypt, append config lines
-  if [[ "${USE_LETSENCRYPT}" == "true" ]]; then
-      echo "Letsencrypt support enabled"
-      # these variables must all be set for letsencrypt to work
-      # it also needs the running instance to have permissions to read from/write to the S3 bucket
-      if [[ "${TELEPORT_DOMAIN_ADMIN_EMAIL}" != "" && "${TELEPORT_DOMAIN_NAME}" != "" && "${TELEPORT_S3_BUCKET}" != "" ]]; then
-          write_https_keypairs_section
+        # set up the kubernetes listener
+        write_kubernetes_section TELEPORT_EXTERNAL_HOSTNAME
 
-          # enable/start cert services and timers
-          systemctl enable teleport-get-cert.service teleport-get-cert.timer
-          systemctl start teleport-get-cert.timer
+        systemctl_wrap disable teleport.service
+        systemctl_wrap stop --no-block teleport.service
 
-          systemctl enable teleport-renew-cert.service teleport-renew-cert.timer
-          systemctl start --no-block teleport-renew-cert.timer
-
-          systemctl enable teleport-check-cert.service teleport-check-cert.timer
-          systemctl start --no-block teleport-check-cert.timer
-
-          systemctl start --no-block teleport-get-cert.service
-      fi
-  elif [[ "${USE_ACM}" == "true" ]]; then
-      echo "ACM support enabled"
-
-      # set up the kubernetes listener
-      write_kubernetes_section TELEPORT_EXTERNAL_HOSTNAME
-
-      systemctl disable teleport.service
-      systemctl stop --no-block teleport.service
-
-      systemctl enable teleport-acm.service
-      systemctl start --no-block teleport-acm.service
-  fi
+        systemctl_wrap enable teleport-acm.service
+        systemctl_wrap start --no-block teleport-acm.service
+    fi
 
 else
     echo "No Teleport role provided via TELEPORT_ROLE; using generic all-in-one config"
-    # if the instance doesn't have a public IPv4 address, we get a 404 from the metadata
-    # which will break the generated config, so we use the local IP instead
-    if curl -sS "${IMDS_TOKEN_HEADER}" -i http://169.254.169.254/latest/meta-data/public-ipv4 | grep -q 404; then
-      PUBLIC_IP=${LOCAL_IP}
-    else
-      PUBLIC_IP=$(curl -sS "${IMDS_TOKEN_HEADER}" http://169.254.169.254/latest/meta-data/public-ipv4)
-    fi
 
     # tunnel_listen_addr needs to be changed if we're using ACM as the listener cannot understand HTTP, only HTTPS
     if [[ "${USE_ACM}" == "true" ]]; then
-        rm -f /etc/teleport.d/use-letsencrypt
-        rm -f /etc/teleport.d/role.all
-        echo "all-acm" > /etc/teleport.d/role.all-acm
+        rm -f ${USE_CONFD_DIR}/use-letsencrypt
+        rm -f ${USE_CONFD_DIR}/role.all
+        echo "all-acm" > ${USE_CONFD_DIR}/role.all-acm
         TUNNEL_LISTEN_PORT=3024
     else
-        rm -f /etc/teleport.d/role.all-acm
-        echo "all" > /etc/teleport.d/role.all
+        rm -f ${USE_CONFD_DIR}/role.all-acm
+        echo "all" > ${USE_CONFD_DIR}/role.all
         TUNNEL_LISTEN_PORT=3080
     fi
 
-    cat >/etc/teleport.yaml <<EOF
+    cat >${USE_CONFIG_PATH} <<EOF
 teleport:
   nodename: ${LOCAL_HOSTNAME}
   advertise_ip: ${LOCAL_IP}
   log:
     output: stderr
     severity: INFO
-
   data_dir: /var/lib/teleport
   storage:
     type: dir
@@ -449,20 +520,8 @@ proxy_service:
   public_addr: ${TELEPORT_EXTERNAL_HOSTNAME:-$PUBLIC_IP}:${TELEPORT_EXTERNAL_PORT:-3080}
 EOF
 
-    # if we have an SSH proxy LB address, append it
-    if [[ "${TELEPORT_PROXY_SERVER_LB}" != "" ]]; then
-        echo "  ssh_public_addr: ${TELEPORT_PROXY_SERVER_LB}:3023" >> /etc/teleport.yaml
-        # when using ACM, we have to set up a dedicated listener and target group as
-        # SSL termination is handled by the ACM ALB and it can't multiplex the tunnel connections
-        if [[ "${USE_ACM}" == "true" ]]; then
-          echo "  tunnel_public_addr: ${TELEPORT_PROXY_SERVER_LB}:${TUNNEL_LISTEN_PORT}" >> /etc/teleport.yaml
-        # when ACM is not being used, Teleport handles SSL termination itself and so tunnel connections
-        # can be multiplexed over the same connection as regular web proxy traffic
-        # this is automatically enabled when Teleport's web and tunnel listeners are configured to use the same port
-        else
-          echo "  tunnel_public_addr: ${TELEPORT_EXTERNAL_HOSTNAME:-$PUBLIC_IP}:${TELEPORT_EXTERNAL_PORT:-3080}" >> /etc/teleport.yaml
-        fi
-    fi
+    # write ssh/tunnel config
+    write_ssh_and_tunnel_section 3080
 
     # set up the kubernetes listener
     write_kubernetes_section TELEPORT_EXTERNAL_HOSTNAME
@@ -476,16 +535,16 @@ EOF
             write_https_keypairs_section
 
             # enable/start cert services and timers
-            systemctl enable teleport-get-cert.service teleport-get-cert.timer
-            systemctl start teleport-get-cert.timer
+            systemctl_wrap enable teleport-get-cert.service teleport-get-cert.timer
+            systemctl_wrap start teleport-get-cert.timer
 
-            systemctl enable teleport-renew-cert.service teleport-renew-cert.timer
-            systemctl start --no-block teleport-renew-cert.timer
+            systemctl_wrap enable teleport-renew-cert.service teleport-renew-cert.timer
+            systemctl_wrap start --no-block teleport-renew-cert.timer
 
-            systemctl enable teleport-check-cert.service teleport-check-cert.timer
-            systemctl start --no-block teleport-check-cert.timer
+            systemctl_wrap enable teleport-check-cert.service teleport-check-cert.timer
+            systemctl_wrap start --no-block teleport-check-cert.timer
 
-            systemctl start --no-block teleport-get-cert.service
+            systemctl_wrap start --no-block teleport-get-cert.service
         fi
     elif [[ "${USE_ACM}" == "true" ]]; then
         echo "ACM support enabled"
@@ -493,11 +552,11 @@ EOF
         # set up the kubernetes listener
         write_kubernetes_section TELEPORT_EXTERNAL_HOSTNAME
 
-        systemctl disable teleport.service
-        systemctl stop --no-block teleport.service
+        systemctl_wrap disable teleport.service
+        systemctl_wrap stop --no-block teleport.service
 
-        systemctl enable teleport-acm.service
-        systemctl start --no-block teleport-acm.service
+        systemctl_wrap enable teleport-acm.service
+        systemctl_wrap start --no-block teleport-acm.service
     fi
 fi
 
@@ -636,11 +695,13 @@ if [[ "${TELEPORT_ROLE}" == "auth" || "${TELEPORT_ROLE}" == "node" || "${TELEPOR
   ## If not provided, will default to 5s. 0s means no timeout (not recommended).
   timeout = "5s"
 EOF
-    systemctl enable telegraf.service
-    systemctl restart telegraf.service
+    systemctl_wrap enable telegraf.service
+    systemctl_wrap restart telegraf.service
 fi
 
 # make sure config file can be edited by pre-start commands running later (assuming it exists)
-if [ -f /etc/teleport.yaml ]; then
-  chown teleport:adm /etc/teleport.yaml
+if [ -f ${USE_CONFIG_PATH} ]; then
+    if getent passwd teleport >/dev/null 2>&1 && getent group adm >/dev/null 2>&1; then
+        chown teleport:adm ${USE_CONFIG_PATH}
+    fi
 fi
