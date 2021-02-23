@@ -67,14 +67,14 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentClient,
-})
-
 const (
 	// ProfileDir is a directory location where tsh profiles (and session keys) are stored
 	ProfileDir = ".tsh"
 )
+
+var log = logrus.WithFields(logrus.Fields{
+	trace.Component: teleport.ComponentClient,
+})
 
 // ForwardedPort specifies local tunnel to remote
 // destination managed by the client, is equivalent
