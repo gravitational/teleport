@@ -254,6 +254,28 @@ message PingResponse {
     string ClusterName = 1 [ (gogoproto.jsontag) = "cluster_name" ];
     // ServerVersion is the version of the auth server.
     string ServerVersion = 2 [ (gogoproto.jsontag) = "server_version" ];
+    // Features are the features available to the teleport server instance.
+    Features Features = 3 [ (gogoproto.jsontag) = "features" ];
+}
+
+// Features provides supported and unsupported features
+message Features {
+    // Kubernetes enables Kubernetes Access product
+    bool Kubernetes = 1 [ (gogoproto.jsontag) = "kubernetes" ];
+    // App enables Application Access product
+    bool App = 2 [ (gogoproto.jsontag) = "app" ];
+    // DB enables database access product
+    bool DB = 3 [ (gogoproto.jsontag) = "db" ];
+    // OIDC enables OIDC connectors
+    bool OIDC = 4 [ (gogoproto.jsontag) = "oidc" ];
+    // SAML enables SAML connectors
+    bool SAML = 5 [ (gogoproto.jsontag) = "saml" ];
+    // AccessControls enables FIPS access controls
+    bool AccessControls = 6 [ (gogoproto.jsontag) = "access_controls" ];
+    // AdvancedAccessWorkflows enables advanced access workflows
+    bool AdvancedAccessWorkflows = 7 [ (gogoproto.jsontag) = "advanced_access_workflows" ];
+    // Cloud enables some cloud-related features
+    bool Cloud = 8 [ (gogoproto.jsontag) = "cloud" ];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.

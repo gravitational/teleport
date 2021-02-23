@@ -1045,6 +1045,7 @@ func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) 
 	return proto.PingResponse{
 		ClusterName:   cn.GetClusterName(),
 		ServerVersion: teleport.Version,
+		Features:      modules.GetModules().Features().ToProto(),
 	}, nil
 }
 
