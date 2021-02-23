@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 
 	"github.com/jackc/pgconn"
@@ -177,8 +178,10 @@ func (e *Engine) handleStartup(client *pgproto3.Backend, sessionCtx *common.Sess
 }
 
 func (e *Engine) checkAccess(sessionCtx *common.Session) error {
-	err := sessionCtx.Checker.CheckAccessToDatabase(sessionCtx.Server,
-		sessionCtx.DatabaseName, sessionCtx.DatabaseUser)
+	err := sessionCtx.Checker.CheckAccessToDatabase(sessionCtx.Server, sessionCtx.Identity.MFAVerified,
+		&services.DatabaseLabelsMatcher{Labels: sessionCtx.Server.GetAllLabels()},
+		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser},
+		&services.DatabaseNameMatcher{Name: sessionCtx.DatabaseName})
 	if err != nil {
 		if err := e.Audit.OnSessionStart(e.Context, *sessionCtx, err); err != nil {
 			e.Log.WithError(err).Error("Failed to emit audit event.")
@@ -240,7 +243,7 @@ func (e *Engine) makeClientReady(client *pgproto3.Backend, hijackedConn *pgconn.
 	// ReadyForQuery indicates that the start-up is completed and the
 	// frontend can now issue commands.
 	e.Log.Debug("Sending ReadyForQuery")
-	if err := client.Send(&pgproto3.ReadyForQuery{}); err != nil {
+	if err := client.Send(&pgproto3.ReadyForQuery{TxStatus: 'I'}); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

@@ -561,12 +561,12 @@ func TestCheckAccessToServer(t *testing.T) {
 		hasAccess bool
 		login     string
 	}
-	serverA := &ServerV2{
+	serverNoLabels := &ServerV2{
 		Metadata: Metadata{
 			Name: "a",
 		},
 	}
-	serverB := &ServerV2{
+	serverWorker := &ServerV2{
 		Metadata: Metadata{
 			Name:      "b",
 			Namespace: defaults.Namespace,
@@ -574,14 +574,14 @@ func TestCheckAccessToServer(t *testing.T) {
 		},
 	}
 	namespaceC := "namespace-c"
-	serverC := &ServerV2{
+	serverDB := &ServerV2{
 		Metadata: Metadata{
 			Name:      "c",
 			Namespace: namespaceC,
 			Labels:    map[string]string{"role": "db", "status": "follower"},
 		},
 	}
-	serverC2 := &ServerV2{
+	serverDBWithSuffix := &ServerV2{
 		Metadata: Metadata{
 			Name:      "c2",
 			Namespace: namespaceC,
@@ -589,17 +589,18 @@ func TestCheckAccessToServer(t *testing.T) {
 		},
 	}
 	testCases := []struct {
-		name   string
-		roles  []RoleV3
-		checks []check
+		name        string
+		roles       []RoleV3
+		checks      []check
+		mfaVerified bool
 	}{
 		{
 			name:  "empty role set has access to nothing",
 			roles: []RoleV3{},
 			checks: []check{
-				{server: serverA, login: "root", hasAccess: false},
-				{server: serverB, login: "root", hasAccess: false},
-				{server: serverC, login: "root", hasAccess: false},
+				{server: serverNoLabels, login: "root", hasAccess: false},
+				{server: serverWorker, login: "root", hasAccess: false},
+				{server: serverDB, login: "root", hasAccess: false},
 			},
 		},
 		{
@@ -623,12 +624,12 @@ func TestCheckAccessToServer(t *testing.T) {
 				},
 			},
 			checks: []check{
-				{server: serverA, login: "root", hasAccess: false},
-				{server: serverA, login: "admin", hasAccess: true},
-				{server: serverB, login: "root", hasAccess: false},
-				{server: serverB, login: "admin", hasAccess: true},
-				{server: serverC, login: "root", hasAccess: false},
-				{server: serverC, login: "admin", hasAccess: false},
+				{server: serverNoLabels, login: "root", hasAccess: false},
+				{server: serverNoLabels, login: "admin", hasAccess: true},
+				{server: serverWorker, login: "root", hasAccess: false},
+				{server: serverWorker, login: "admin", hasAccess: true},
+				{server: serverDB, login: "root", hasAccess: false},
+				{server: serverDB, login: "admin", hasAccess: false},
 			},
 		},
 		{
@@ -652,12 +653,12 @@ func TestCheckAccessToServer(t *testing.T) {
 				},
 			},
 			checks: []check{
-				{server: serverA, login: "root", hasAccess: false},
-				{server: serverA, login: "admin", hasAccess: false},
-				{server: serverB, login: "root", hasAccess: false},
-				{server: serverB, login: "admin", hasAccess: true},
-				{server: serverC, login: "root", hasAccess: false},
-				{server: serverC, login: "admin", hasAccess: false},
+				{server: serverNoLabels, login: "root", hasAccess: false},
+				{server: serverNoLabels, login: "admin", hasAccess: false},
+				{server: serverWorker, login: "root", hasAccess: false},
+				{server: serverWorker, login: "admin", hasAccess: true},
+				{server: serverDB, login: "root", hasAccess: false},
+				{server: serverDB, login: "admin", hasAccess: false},
 			},
 		},
 		{
@@ -681,12 +682,12 @@ func TestCheckAccessToServer(t *testing.T) {
 				},
 			},
 			checks: []check{
-				{server: serverA, login: "root", hasAccess: false},
-				{server: serverA, login: "admin", hasAccess: false},
-				{server: serverB, login: "root", hasAccess: false},
-				{server: serverB, login: "admin", hasAccess: true},
-				{server: serverC, login: "root", hasAccess: false},
-				{server: serverC, login: "admin", hasAccess: false},
+				{server: serverNoLabels, login: "root", hasAccess: false},
+				{server: serverNoLabels, login: "admin", hasAccess: false},
+				{server: serverWorker, login: "root", hasAccess: false},
+				{server: serverWorker, login: "admin", hasAccess: true},
+				{server: serverDB, login: "root", hasAccess: false},
+				{server: serverDB, login: "admin", hasAccess: false},
 			},
 		},
 		{
@@ -710,12 +711,12 @@ func TestCheckAccessToServer(t *testing.T) {
 				},
 			},
 			checks: []check{
-				{server: serverA, login: "root", hasAccess: false},
-				{server: serverA, login: "admin", hasAccess: false},
-				{server: serverB, login: "root", hasAccess: false},
-				{server: serverB, login: "admin", hasAccess: false},
-				{server: serverC, login: "root", hasAccess: false},
-				{server: serverC, login: "admin", hasAccess: false},
+				{server: serverNoLabels, login: "root", hasAccess: false},
+				{server: serverNoLabels, login: "admin", hasAccess: false},
+				{server: serverWorker, login: "root", hasAccess: false},
+				{server: serverWorker, login: "admin", hasAccess: false},
+				{server: serverDB, login: "root", hasAccess: false},
+				{server: serverDB, login: "admin", hasAccess: false},
 			},
 		},
 		{
@@ -755,12 +756,12 @@ func TestCheckAccessToServer(t *testing.T) {
 				},
 			},
 			checks: []check{
-				{server: serverA, login: "root", hasAccess: true},
-				{server: serverA, login: "admin", hasAccess: true},
-				{server: serverB, login: "root", hasAccess: true},
-				{server: serverB, login: "admin", hasAccess: true},
-				{server: serverC, login: "root", hasAccess: true},
-				{server: serverC, login: "admin", hasAccess: true},
+				{server: serverNoLabels, login: "root", hasAccess: true},
+				{server: serverNoLabels, login: "admin", hasAccess: true},
+				{server: serverWorker, login: "root", hasAccess: true},
+				{server: serverWorker, login: "admin", hasAccess: true},
+				{server: serverDB, login: "root", hasAccess: true},
+				{server: serverDB, login: "admin", hasAccess: true},
 			},
 		},
 		{
@@ -784,14 +785,14 @@ func TestCheckAccessToServer(t *testing.T) {
 				},
 			},
 			checks: []check{
-				{server: serverA, login: "root", hasAccess: false},
-				{server: serverA, login: "admin", hasAccess: false},
-				{server: serverB, login: "root", hasAccess: false},
-				{server: serverB, login: "admin", hasAccess: false},
-				{server: serverC, login: "root", hasAccess: false},
-				{server: serverC, login: "admin", hasAccess: true},
-				{server: serverC2, login: "root", hasAccess: false},
-				{server: serverC2, login: "admin", hasAccess: true},
+				{server: serverNoLabels, login: "root", hasAccess: false},
+				{server: serverNoLabels, login: "admin", hasAccess: false},
+				{server: serverWorker, login: "root", hasAccess: false},
+				{server: serverWorker, login: "admin", hasAccess: false},
+				{server: serverDB, login: "root", hasAccess: false},
+				{server: serverDB, login: "admin", hasAccess: true},
+				{server: serverDBWithSuffix, login: "root", hasAccess: false},
+				{server: serverDBWithSuffix, login: "admin", hasAccess: true},
 			},
 		},
 		{
@@ -815,12 +816,100 @@ func TestCheckAccessToServer(t *testing.T) {
 				},
 			},
 			checks: []check{
-				{server: serverA, login: "root", hasAccess: false},
-				{server: serverA, login: "admin", hasAccess: false},
-				{server: serverB, login: "root", hasAccess: false},
-				{server: serverB, login: "admin", hasAccess: false},
-				{server: serverC, login: "root", hasAccess: false},
-				{server: serverC, login: "admin", hasAccess: false},
+				{server: serverNoLabels, login: "root", hasAccess: false},
+				{server: serverNoLabels, login: "admin", hasAccess: false},
+				{server: serverWorker, login: "root", hasAccess: false},
+				{server: serverWorker, login: "admin", hasAccess: false},
+				{server: serverDB, login: "root", hasAccess: false},
+				{server: serverDB, login: "admin", hasAccess: false},
+			},
+		},
+		{
+			name: "one role requires MFA but MFA was not verified",
+			roles: []RoleV3{
+				{
+					Metadata: Metadata{
+						Name:      "name1",
+						Namespace: defaults.Namespace,
+					},
+					Spec: RoleSpecV3{
+						Options: RoleOptions{
+							MaxSessionTTL:     Duration(20 * time.Hour),
+							RequireSessionMFA: true,
+						},
+						Allow: RoleConditions{
+							Logins:     []string{"root"},
+							NodeLabels: Labels{"role": []string{"worker"}},
+							Namespaces: []string{Wildcard},
+						},
+					},
+				},
+				{
+					Metadata: Metadata{
+						Name:      "name1",
+						Namespace: defaults.Namespace,
+					},
+					Spec: RoleSpecV3{
+						Options: RoleOptions{
+							MaxSessionTTL: Duration(20 * time.Hour),
+						},
+						Allow: RoleConditions{
+							Logins:     []string{"root"},
+							NodeLabels: Labels{Wildcard: []string{Wildcard}},
+							Namespaces: []string{Wildcard},
+						},
+					},
+				},
+			},
+			mfaVerified: false,
+			checks: []check{
+				{server: serverNoLabels, login: "root", hasAccess: true},
+				{server: serverWorker, login: "root", hasAccess: false},
+				{server: serverDB, login: "root", hasAccess: true},
+			},
+		},
+		{
+			name: "one role requires MFA and MFA was verified",
+			roles: []RoleV3{
+				{
+					Metadata: Metadata{
+						Name:      "name1",
+						Namespace: defaults.Namespace,
+					},
+					Spec: RoleSpecV3{
+						Options: RoleOptions{
+							MaxSessionTTL:     Duration(20 * time.Hour),
+							RequireSessionMFA: true,
+						},
+						Allow: RoleConditions{
+							Logins:     []string{"root"},
+							NodeLabels: Labels{"role": []string{"worker"}},
+							Namespaces: []string{Wildcard},
+						},
+					},
+				},
+				{
+					Metadata: Metadata{
+						Name:      "name1",
+						Namespace: defaults.Namespace,
+					},
+					Spec: RoleSpecV3{
+						Options: RoleOptions{
+							MaxSessionTTL: Duration(20 * time.Hour),
+						},
+						Allow: RoleConditions{
+							Logins:     []string{"root"},
+							NodeLabels: Labels{Wildcard: []string{Wildcard}},
+							Namespaces: []string{Wildcard},
+						},
+					},
+				},
+			},
+			mfaVerified: true,
+			checks: []check{
+				{server: serverNoLabels, login: "root", hasAccess: true},
+				{server: serverWorker, login: "root", hasAccess: true},
+				{server: serverDB, login: "root", hasAccess: true},
 			},
 		},
 	}
@@ -832,7 +921,7 @@ func TestCheckAccessToServer(t *testing.T) {
 		}
 		for j, check := range tc.checks {
 			comment := fmt.Sprintf("test case %v '%v', check %v", i, tc.name, j)
-			result := set.CheckAccessToServer(check.login, check.server)
+			result := set.CheckAccessToServer(check.login, check.server, tc.mfaVerified)
 			if check.hasAccess {
 				require.NoError(t, result, comment)
 			} else {
@@ -1514,10 +1603,16 @@ func TestApplyTraits(t *testing.T) {
 		outLogins     []string
 		inLabels      Labels
 		outLabels     Labels
+		inKubeLabels  Labels
+		outKubeLabels Labels
 		inKubeGroups  []string
 		outKubeGroups []string
 		inKubeUsers   []string
 		outKubeUsers  []string
+		inAppLabels   Labels
+		outAppLabels  Labels
+		inDBLabels    Labels
+		outDBLabels   Labels
 		inDBNames     []string
 		outDBNames    []string
 		inDBUsers     []string
@@ -1792,6 +1887,36 @@ func TestApplyTraits(t *testing.T) {
 				outLabels: Labels{`key`: []string{"bar", "baz"}},
 			},
 		},
+		{
+			comment: "values are expanded in kube labels",
+			inTraits: map[string][]string{
+				"foo": {"bar", "baz"},
+			},
+			allow: rule{
+				inKubeLabels:  Labels{`key`: []string{`{{external.foo}}`}},
+				outKubeLabels: Labels{`key`: []string{"bar", "baz"}},
+			},
+		},
+		{
+			comment: "values are expanded in app labels",
+			inTraits: map[string][]string{
+				"foo": {"bar", "baz"},
+			},
+			allow: rule{
+				inAppLabels:  Labels{`key`: []string{`{{external.foo}}`}},
+				outAppLabels: Labels{`key`: []string{"bar", "baz"}},
+			},
+		},
+		{
+			comment: "values are expanded in database labels",
+			inTraits: map[string][]string{
+				"foo": {"bar", "baz"},
+			},
+			allow: rule{
+				inDBLabels:  Labels{`key`: []string{`{{external.foo}}`}},
+				outDBLabels: Labels{`key`: []string{"bar", "baz"}},
+			},
+		},
 	}
 
 	for i, tt := range tests {
@@ -1806,22 +1931,28 @@ func TestApplyTraits(t *testing.T) {
 			},
 			Spec: RoleSpecV3{
 				Allow: RoleConditions{
-					Logins:        tt.allow.inLogins,
-					NodeLabels:    tt.allow.inLabels,
-					ClusterLabels: tt.allow.inLabels,
-					KubeGroups:    tt.allow.inKubeGroups,
-					KubeUsers:     tt.allow.inKubeUsers,
-					DatabaseNames: tt.allow.inDBNames,
-					DatabaseUsers: tt.allow.inDBUsers,
+					Logins:           tt.allow.inLogins,
+					NodeLabels:       tt.allow.inLabels,
+					ClusterLabels:    tt.allow.inLabels,
+					KubernetesLabels: tt.allow.inKubeLabels,
+					KubeGroups:       tt.allow.inKubeGroups,
+					KubeUsers:        tt.allow.inKubeUsers,
+					AppLabels:        tt.allow.inAppLabels,
+					DatabaseLabels:   tt.allow.inDBLabels,
+					DatabaseNames:    tt.allow.inDBNames,
+					DatabaseUsers:    tt.allow.inDBUsers,
 				},
 				Deny: RoleConditions{
-					Logins:        tt.deny.inLogins,
-					NodeLabels:    tt.deny.inLabels,
-					ClusterLabels: tt.deny.inLabels,
-					KubeGroups:    tt.deny.inKubeGroups,
-					KubeUsers:     tt.deny.inKubeUsers,
-					DatabaseNames: tt.deny.inDBNames,
-					DatabaseUsers: tt.deny.inDBUsers,
+					Logins:           tt.deny.inLogins,
+					NodeLabels:       tt.deny.inLabels,
+					ClusterLabels:    tt.deny.inLabels,
+					KubernetesLabels: tt.deny.inKubeLabels,
+					KubeGroups:       tt.deny.inKubeGroups,
+					KubeUsers:        tt.deny.inKubeUsers,
+					AppLabels:        tt.deny.inAppLabels,
+					DatabaseLabels:   tt.deny.inDBLabels,
+					DatabaseNames:    tt.deny.inDBNames,
+					DatabaseUsers:    tt.deny.inDBUsers,
 				},
 			},
 		}
@@ -1830,16 +1961,22 @@ func TestApplyTraits(t *testing.T) {
 		require.Equal(t, outRole.GetLogins(Allow), tt.allow.outLogins, comment)
 		require.Equal(t, outRole.GetNodeLabels(Allow), tt.allow.outLabels, comment)
 		require.Equal(t, outRole.GetClusterLabels(Allow), tt.allow.outLabels, comment)
+		require.Equal(t, outRole.GetKubernetesLabels(Allow), tt.allow.outKubeLabels, comment)
 		require.Equal(t, outRole.GetKubeGroups(Allow), tt.allow.outKubeGroups, comment)
 		require.Equal(t, outRole.GetKubeUsers(Allow), tt.allow.outKubeUsers, comment)
+		require.Equal(t, outRole.GetAppLabels(Allow), tt.allow.outAppLabels, comment)
+		require.Equal(t, outRole.GetDatabaseLabels(Allow), tt.allow.outDBLabels, comment)
 		require.Equal(t, outRole.GetDatabaseNames(Allow), tt.allow.outDBNames, comment)
 		require.Equal(t, outRole.GetDatabaseUsers(Allow), tt.allow.outDBUsers, comment)
 
 		require.Equal(t, outRole.GetLogins(Deny), tt.deny.outLogins, comment)
 		require.Equal(t, outRole.GetNodeLabels(Deny), tt.deny.outLabels, comment)
 		require.Equal(t, outRole.GetClusterLabels(Deny), tt.deny.outLabels, comment)
+		require.Equal(t, outRole.GetKubernetesLabels(Deny), tt.deny.outKubeLabels, comment)
 		require.Equal(t, outRole.GetKubeGroups(Deny), tt.deny.outKubeGroups, comment)
 		require.Equal(t, outRole.GetKubeUsers(Deny), tt.deny.outKubeUsers, comment)
+		require.Equal(t, outRole.GetAppLabels(Deny), tt.deny.outAppLabels, comment)
+		require.Equal(t, outRole.GetDatabaseLabels(Deny), tt.deny.outDBLabels, comment)
 		require.Equal(t, outRole.GetDatabaseNames(Deny), tt.deny.outDBNames, comment)
 		require.Equal(t, outRole.GetDatabaseUsers(Deny), tt.deny.outDBUsers, comment)
 	}
@@ -2035,15 +2172,28 @@ func TestCheckAccessToDatabase(t *testing.T) {
 				DatabaseUsers:  []string{Wildcard},
 			},
 			Deny: RoleConditions{
-				Namespaces:     []string{defaults.Namespace},
-				DatabaseLabels: Labels{"env": []string{"stage"}},
-				DatabaseNames:  []string{"supersecret"},
+				Namespaces:    []string{defaults.Namespace},
+				DatabaseNames: []string{"supersecret"},
 			},
 		},
 	}
 	roleDevProd := &RoleV3{
 		Metadata: Metadata{Name: "dev-prod", Namespace: defaults.Namespace},
 		Spec: RoleSpecV3{
+			Allow: RoleConditions{
+				Namespaces:     []string{defaults.Namespace},
+				DatabaseLabels: Labels{"env": []string{"prod"}},
+				DatabaseNames:  []string{"test"},
+				DatabaseUsers:  []string{"dev"},
+			},
+		},
+	}
+	roleDevProdWithMFA := &RoleV3{
+		Metadata: Metadata{Name: "dev-prod", Namespace: defaults.Namespace},
+		Spec: RoleSpecV3{
+			Options: types.RoleOptions{
+				RequireSessionMFA: true,
+			},
 			Allow: RoleConditions{
 				Namespaces:     []string{defaults.Namespace},
 				DatabaseLabels: Labels{"env": []string{"prod"}},
@@ -2077,13 +2227,14 @@ func TestCheckAccessToDatabase(t *testing.T) {
 		access bool
 	}
 	testCases := []struct {
-		name   string
-		roles  []*RoleV3
-		access []access
+		name        string
+		roles       RoleSet
+		access      []access
+		mfaVerified bool
 	}{
 		{
 			name:  "developer allowed any username/database in stage database except one database",
-			roles: []*RoleV3{roleDevStage, roleDevProd},
+			roles: RoleSet{roleDevStage, roleDevProd},
 			access: []access{
 				{server: dbStage, dbName: "superdb", dbUser: "superuser", access: true},
 				{server: dbStage, dbName: "test", dbUser: "dev", access: true},
@@ -2092,7 +2243,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 		},
 		{
 			name:  "developer allowed only specific username/database in prod database",
-			roles: []*RoleV3{roleDevStage, roleDevProd},
+			roles: RoleSet{roleDevStage, roleDevProd},
 			access: []access{
 				{server: dbProd, dbName: "superdb", dbUser: "superuser", access: false},
 				{server: dbProd, dbName: "test", dbUser: "dev", access: true},
@@ -2101,22 +2252,117 @@ func TestCheckAccessToDatabase(t *testing.T) {
 			},
 		},
 		{
-			name:  "deny role denies access to specific database",
-			roles: []*RoleV3{roleDeny},
+			name:  "deny role denies access to specific database and user",
+			roles: RoleSet{roleDeny},
 			access: []access{
 				{server: dbProd, dbName: "test", dbUser: "test", access: true},
-				{server: dbProd, dbName: "postgres", dbUser: "postgres", access: false},
+				{server: dbProd, dbName: "postgres", dbUser: "test", access: false},
+				{server: dbProd, dbName: "test", dbUser: "postgres", access: false},
+			},
+		},
+		{
+			name:        "prod database requires MFA, no MFA provided",
+			roles:       RoleSet{roleDevStage, roleDevProdWithMFA, roleDevProd},
+			mfaVerified: false,
+			access: []access{
+				{server: dbStage, dbName: "test", dbUser: "dev", access: true},
+				{server: dbProd, dbName: "test", dbUser: "dev", access: false},
+			},
+		},
+		{
+			name:        "prod database requires MFA, MFA provided",
+			roles:       RoleSet{roleDevStage, roleDevProdWithMFA, roleDevProd},
+			mfaVerified: true,
+			access: []access{
+				{server: dbStage, dbName: "test", dbUser: "dev", access: true},
+				{server: dbProd, dbName: "test", dbUser: "dev", access: true},
 			},
 		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			var set RoleSet
-			for _, r := range tc.roles {
-				set = append(set, r)
-			}
 			for _, access := range tc.access {
-				err := set.CheckAccessToDatabase(access.server, access.dbName, access.dbUser)
+				err := tc.roles.CheckAccessToDatabase(access.server, tc.mfaVerified,
+					&DatabaseLabelsMatcher{Labels: access.server.GetAllLabels()},
+					&DatabaseUserMatcher{User: access.dbUser},
+					&DatabaseNameMatcher{Name: access.dbName})
+				if access.access {
+					require.NoError(t, err)
+				} else {
+					require.Error(t, err)
+					require.True(t, trace.IsAccessDenied(err))
+				}
+			}
+		})
+	}
+}
+
+func TestCheckAccessToDatabaseUser(t *testing.T) {
+	utils.InitLoggerForTests(testing.Verbose())
+	dbStage := types.NewDatabaseServerV3("stage",
+		map[string]string{"env": "stage"},
+		types.DatabaseServerSpecV3{})
+	dbProd := types.NewDatabaseServerV3("prod",
+		map[string]string{"env": "prod"},
+		types.DatabaseServerSpecV3{})
+	roleDevStage := &RoleV3{
+		Metadata: Metadata{Name: "dev-stage", Namespace: defaults.Namespace},
+		Spec: RoleSpecV3{
+			Allow: RoleConditions{
+				Namespaces:     []string{defaults.Namespace},
+				DatabaseLabels: Labels{"env": []string{"stage"}},
+				DatabaseUsers:  []string{Wildcard},
+			},
+			Deny: RoleConditions{
+				Namespaces:    []string{defaults.Namespace},
+				DatabaseUsers: []string{"superuser"},
+			},
+		},
+	}
+	roleDevProd := &RoleV3{
+		Metadata: Metadata{Name: "dev-prod", Namespace: defaults.Namespace},
+		Spec: RoleSpecV3{
+			Allow: RoleConditions{
+				Namespaces:     []string{defaults.Namespace},
+				DatabaseLabels: Labels{"env": []string{"prod"}},
+				DatabaseUsers:  []string{"dev"},
+			},
+		},
+	}
+	type access struct {
+		server types.DatabaseServer
+		dbUser string
+		access bool
+	}
+	testCases := []struct {
+		name   string
+		roles  RoleSet
+		access []access
+	}{
+		{
+			name:  "developer allowed any username in stage database except superuser",
+			roles: RoleSet{roleDevStage, roleDevProd},
+			access: []access{
+				{server: dbStage, dbUser: "superuser", access: false},
+				{server: dbStage, dbUser: "dev", access: true},
+				{server: dbStage, dbUser: "test", access: true},
+			},
+		},
+		{
+			name:  "developer allowed only specific username/database in prod database",
+			roles: RoleSet{roleDevStage, roleDevProd},
+			access: []access{
+				{server: dbProd, dbUser: "superuser", access: false},
+				{server: dbProd, dbUser: "dev", access: true},
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, access := range tc.access {
+				err := tc.roles.CheckAccessToDatabase(access.server, false,
+					&DatabaseLabelsMatcher{Labels: access.server.GetAllLabels()},
+					&DatabaseUserMatcher{User: access.dbUser})
 				if access.access {
 					require.NoError(t, err)
 				} else {
@@ -2167,7 +2413,7 @@ func TestCheckDatabaseNamesAndUsers(t *testing.T) {
 	}
 	testCases := []struct {
 		name         string
-		roles        []*RoleV3
+		roles        RoleSet
 		ttl          time.Duration
 		overrideTTL  bool
 		namesOut     []string
@@ -2177,38 +2423,34 @@ func TestCheckDatabaseNamesAndUsers(t *testing.T) {
 	}{
 		{
 			name:     "single role",
-			roles:    []*RoleV3{roleA},
+			roles:    RoleSet{roleA},
 			ttl:      time.Hour,
 			namesOut: []string{"postgres", "main"},
 			usersOut: []string{"postgres", "alice"},
 		},
 		{
 			name:     "combined roles",
-			roles:    []*RoleV3{roleA, roleB},
+			roles:    RoleSet{roleA, roleB},
 			ttl:      time.Hour,
 			namesOut: []string{"main", "metrics"},
 			usersOut: []string{"alice", "bob"},
 		},
 		{
 			name:         "ttl doesn't match",
-			roles:        []*RoleV3{roleA},
+			roles:        RoleSet{roleA},
 			ttl:          5 * time.Hour,
 			accessDenied: true,
 		},
 		{
 			name:     "empty role",
-			roles:    []*RoleV3{roleEmpty},
+			roles:    RoleSet{roleEmpty},
 			ttl:      time.Hour,
 			notFound: true,
 		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			var set RoleSet
-			for _, r := range tc.roles {
-				set = append(set, r)
-			}
-			names, users, err := set.CheckDatabaseNamesAndUsers(tc.ttl, tc.overrideTTL)
+			names, users, err := tc.roles.CheckDatabaseNamesAndUsers(tc.ttl, tc.overrideTTL)
 			if tc.accessDenied {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err))
@@ -2278,7 +2520,7 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 	}
 	testCases := []struct {
 		name   string
-		roles  []*RoleV3
+		roles  RoleSet
 		access []access
 	}{
 		{
@@ -2293,7 +2535,7 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 		},
 		{
 			name:  "intern doesn't have access to any databases",
-			roles: []*RoleV3{roleIntern},
+			roles: RoleSet{roleIntern},
 			access: []access{
 				{server: dbNoLabels, access: false},
 				{server: dbStage, access: false},
@@ -2303,7 +2545,7 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 		},
 		{
 			name:  "developer only has access to one of stage database",
-			roles: []*RoleV3{roleDev},
+			roles: RoleSet{roleDev},
 			access: []access{
 				{server: dbNoLabels, access: false},
 				{server: dbStage, access: true},
@@ -2313,7 +2555,7 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 		},
 		{
 			name:  "admin has access to all databases",
-			roles: []*RoleV3{roleAdmin},
+			roles: RoleSet{roleAdmin},
 			access: []access{
 				{server: dbNoLabels, access: true},
 				{server: dbStage, access: true},
@@ -2324,12 +2566,9 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			var set RoleSet
-			for _, r := range tc.roles {
-				set = append(set, r)
-			}
 			for _, access := range tc.access {
-				err := set.CheckAccessToDatabaseServer(access.server)
+				err := tc.roles.CheckAccessToDatabase(access.server, false,
+					&DatabaseLabelsMatcher{Labels: access.server.GetAllLabels()})
 				if access.access {
 					require.NoError(t, err)
 				} else {
@@ -2377,6 +2616,24 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 			},
 		},
 	}
+	matchingLabelsRoleWithMFA := &RoleV3{
+		Metadata: Metadata{
+			Name:      "matching-labels",
+			Namespace: defaults.Namespace,
+		},
+		Spec: RoleSpecV3{
+			Options: types.RoleOptions{
+				RequireSessionMFA: true,
+			},
+			Allow: RoleConditions{
+				Namespaces: []string{defaults.Namespace},
+				KubernetesLabels: Labels{
+					"foo": utils.Strings{"bar"},
+					"baz": utils.Strings{"qux"},
+				},
+			},
+		},
+	}
 	noLabelsRole := &RoleV3{
 		Metadata: Metadata{
 			Name:      "no-labels",
@@ -2404,10 +2661,11 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 		},
 	}
 	testCases := []struct {
-		name      string
-		roles     []*RoleV3
-		cluster   *KubernetesCluster
-		hasAccess bool
+		name        string
+		roles       []*RoleV3
+		cluster     *KubernetesCluster
+		mfaVerified bool
+		hasAccess   bool
 	}{
 		{
 			name:      "empty role set has access to nothing",
@@ -2457,6 +2715,20 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 			cluster:   clusterWithLabels,
 			hasAccess: true,
 		},
+		{
+			name:        "role requires MFA but MFA not verified",
+			roles:       []*RoleV3{matchingLabelsRole, matchingLabelsRoleWithMFA},
+			cluster:     clusterWithLabels,
+			mfaVerified: false,
+			hasAccess:   false,
+		},
+		{
+			name:        "role requires MFA and MFA verified",
+			roles:       []*RoleV3{matchingLabelsRole, matchingLabelsRoleWithMFA},
+			cluster:     clusterWithLabels,
+			mfaVerified: true,
+			hasAccess:   true,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -2464,7 +2736,7 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 			for _, r := range tc.roles {
 				set = append(set, r)
 			}
-			err := set.CheckAccessToKubernetes(defaults.Namespace, tc.cluster)
+			err := set.CheckAccessToKubernetes(defaults.Namespace, tc.cluster, tc.mfaVerified)
 			if tc.hasAccess {
 				require.NoError(t, err)
 			} else {
@@ -2552,7 +2824,7 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		for i := 0; i < 4000; i++ {
 			for login := range allowLogins {
-				if err := set.CheckAccessToServer(login, servers[i]); err != nil {
+				if err := set.CheckAccessToServer(login, servers[i], false); err != nil {
 					b.Error(err)
 				}
 			}

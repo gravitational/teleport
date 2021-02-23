@@ -96,22 +96,19 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 		return nil, trace.Wrap(err)
 	}
 
-	// This logic is necessary for the client to force client to always send
-	// a certificate regardless of the server setting. Otherwise the client may pick
-	// not to send the client certificate by looking at certificate request.
-	if len(cfg.TLS.Certificates) != 0 {
-		cert := cfg.TLS.Certificates[0]
-		cfg.TLS.Certificates = nil
-		cfg.TLS.GetClientCertificate = func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
-			return &cert, nil
-		}
+	// Many uses of the lib/client do not expect an open valid connection immediately after
+	// initialization, so WithoutDialBlock is used for backwards compatibility with this client.
+	cfg.WithoutDialBlock = true
+	apiClient, err := client.New(context.TODO(), cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Clone the tls.Config and set the next protocol. This is needed due to the
 	// Auth Server using a multiplexer for protocol detection. Unless next
 	// protocol is specified it will attempt to upgrade to HTTP2 and at that point
 	// there is no way to distinguish between HTTP2/JSON or GPRC.
-	tlsConfig := cfg.TLS.Clone()
+	tlsConfig := apiClient.Config()
 	tlsConfig.NextProtos = []string{teleport.HTTPNextProtoTLS}
 
 	transport := &http.Transport{
@@ -120,7 +117,7 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 		// to make sure client verifies the DNS name of the API server
 		// custom DialContext overrides this DNS name to the real address
 		// in addition this dialer tries multiple adresses if provided
-		DialContext:           cfg.Dialer.DialContext,
+		DialContext:           apiClient.Dialer().DialContext,
 		ResponseHeaderTimeout: defaults.DefaultDialTimeout,
 		TLSClientConfig:       tlsConfig,
 
@@ -156,10 +153,7 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	apiClient, err := client.NewClient(cfg)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	return &Client{
 		APIClient: *apiClient,
 		Client:    *roundtripClient,
@@ -237,7 +231,9 @@ func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, e
 		DialTimeout:     cfg.DialTimeout,
 		KeepAlivePeriod: cfg.KeepAlivePeriod,
 		KeepAliveCount:  cfg.KeepAliveCount,
-		TLS:             cfg.TLS,
+		Credentials: []client.Credentials{
+			client.LoadTLS(cfg.TLS),
+		},
 	}
 
 	return NewClient(c, params...)
@@ -1074,8 +1070,8 @@ func (c *Client) CheckPassword(user string, password []byte, otpToken string) er
 	return trace.Wrap(err)
 }
 
-// GetU2FSignRequest generates request for user trying to authenticate with U2F token
-func (c *Client) GetU2FSignRequest(user string, password []byte) (*u2f.AuthenticateChallenge, error) {
+// GetMFAAuthenticateChallenge generates request for user trying to authenticate with U2F token
+func (c *Client) GetMFAAuthenticateChallenge(user string, password []byte) (*MFAAuthenticateChallenge, error) {
 	out, err := c.PostJSON(
 		c.Endpoint("u2f", "users", user, "sign"),
 		signInReq{
@@ -1085,7 +1081,7 @@ func (c *Client) GetU2FSignRequest(user string, password []byte) (*u2f.Authentic
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var signRequest *u2f.AuthenticateChallenge
+	var signRequest *MFAAuthenticateChallenge
 	if err := json.Unmarshal(out.Bytes(), &signRequest); err != nil {
 		return nil, err
 	}
@@ -2225,8 +2221,8 @@ type IdentityService interface {
 	// ValidateGithubAuthCallback validates Github auth callback
 	ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error)
 
-	// GetU2FSignRequest generates request for user trying to authenticate with U2F token
-	GetU2FSignRequest(user string, password []byte) (*u2f.AuthenticateChallenge, error)
+	// GetMFAAuthenticateChallenge generates request for user trying to authenticate with U2F token
+	GetMFAAuthenticateChallenge(user string, password []byte) (*MFAAuthenticateChallenge, error)
 
 	// GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite token
 	GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error)
@@ -2279,6 +2275,11 @@ type IdentityService interface {
 	// text format, signs it using User Certificate Authority signing key and
 	// returns the resulting certificates.
 	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
+
+	// GenerateUserSingleUseCerts is like GenerateUserCerts but issues a
+	// certificate for a single session
+	// (https://github.com/gravitational/teleport/blob/3a1cf9111c2698aede2056513337f32bfc16f1f1/rfd/0014-session-2FA.md#sessions).
+	GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error)
 
 	// DeleteAllUsers deletes all users
 	DeleteAllUsers() error

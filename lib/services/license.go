@@ -46,6 +46,12 @@ const LicenseSpecV3Template = `{
 		"k8s": {
 			"type": ["string", "boolean"]
 		},
+		"app": {
+			"type": ["string", "boolean"]
+		},
+		"db": {
+			"type": ["string", "boolean"]
+		},
 		"cloud": {
 			"type": ["string", "boolean"]
 		}

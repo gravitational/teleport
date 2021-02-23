@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -118,6 +119,9 @@ func (s *ProxyServer) Serve(listener net.Listener) error {
 		// The connection is expected to come through via multiplexer.
 		clientConn, err := listener.Accept()
 		if err != nil {
+			if strings.Contains(err.Error(), teleport.UseOfClosedNetworkConnection) || trace.IsConnectionProblem(err) {
+				return nil
+			}
 			return trace.Wrap(err)
 		}
 		// The multiplexed connection contains information about detected
@@ -135,6 +139,30 @@ func (s *ProxyServer) Serve(listener net.Listener) error {
 			if err != nil {
 				s.log.Errorf("Failed to handle client connection: %v.",
 					trace.DebugReport(err))
+			}
+		}()
+	}
+}
+
+// ServeMySQL starts accepting MySQL client connections.
+func (s *ProxyServer) ServeMySQL(listener net.Listener) error {
+	s.log.Debug("Started MySQL proxy.")
+	defer s.log.Debug("MySQL proxy exited.")
+	for {
+		// Accept the connection from a MySQL client.
+		clientConn, err := listener.Accept()
+		if err != nil {
+			if strings.Contains(err.Error(), teleport.UseOfClosedNetworkConnection) {
+				return nil
+			}
+			return trace.Wrap(err)
+		}
+		// Pass over to the MySQL proxy handler.
+		go func() {
+			defer clientConn.Close()
+			err := s.mysqlProxy().HandleConnection(s.closeCtx, clientConn)
+			if err != nil {
+				s.log.WithError(err).Error("Failed to handle MySQL client connection.")
 			}
 		}()
 	}
@@ -165,6 +193,16 @@ func (s *ProxyServer) postgresProxy() *postgres.Proxy {
 	}
 }
 
+// mysqlProxy returns a new instance of the MySQL protocol aware proxy.
+func (s *ProxyServer) mysqlProxy() *mysql.Proxy {
+	return &mysql.Proxy{
+		TLSConfig:  s.cfg.TLSConfig,
+		Middleware: s.middleware,
+		Service:    s,
+		Log:        s.log,
+	}
+}
+
 // Connect connects to the database server running on a remote cluster
 // over reverse tunnel and upgrades this end of the connection to TLS so
 // the identity can be passed over it.
@@ -173,8 +211,8 @@ func (s *ProxyServer) postgresProxy() *postgres.Proxy {
 // decoded from the client certificate by auth.Middleware.
 //
 // Implements common.Service.
-func (s *ProxyServer) Connect(ctx context.Context) (net.Conn, error) {
-	authContext, err := s.authorize(ctx)
+func (s *ProxyServer) Connect(ctx context.Context, user, database string) (net.Conn, error) {
+	authContext, err := s.authorize(ctx, user, database)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -198,11 +236,11 @@ func (s *ProxyServer) Connect(ctx context.Context) (net.Conn, error) {
 	return serviceConn, nil
 }
 
-// Proxy starts proxying all traffic received from Postgres client between
+// Proxy starts proxying all traffic received from database client between
 // this proxy and Teleport database service over reverse tunnel.
 //
 // Implements common.Service.
-func (s *ProxyServer) Proxy(ctx context.Context, clientConn, serviceConn io.ReadWriteCloser) (retErr error) {
+func (s *ProxyServer) Proxy(ctx context.Context, clientConn, serviceConn io.ReadWriteCloser) error {
 	errCh := make(chan error, 2)
 	go func() {
 		defer s.log.Debug("Stop proxying from client to service.")
@@ -243,12 +281,14 @@ type proxyContext struct {
 	server types.DatabaseServer
 }
 
-func (s *ProxyServer) authorize(ctx context.Context) (*proxyContext, error) {
+func (s *ProxyServer) authorize(ctx context.Context, user, database string) (*proxyContext, error) {
 	authContext, err := s.cfg.Authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	identity := authContext.Identity.GetIdentity()
+	identity.RouteToDatabase.Username = user
+	identity.RouteToDatabase.Database = database
 	cluster, server, err := s.pickDatabaseServer(ctx, identity)
 	if err != nil {
 		return nil, trace.Wrap(err)

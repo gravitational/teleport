@@ -44,6 +44,7 @@ import (
 	"golang.org/x/text/encoding/unicode"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
@@ -56,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/secret"
@@ -325,7 +327,7 @@ func (s *WebSuite) authPack(c *C, user string) *authPack {
 
 	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
-		SecondFactor: teleport.OTP,
+		SecondFactor: constants.SecondFactorOTP,
 	})
 	c.Assert(err, IsNil)
 	err = s.server.Auth().SetAuthPreference(ap)
@@ -1204,7 +1206,7 @@ func (s *WebSuite) TestPlayback(c *C) {
 func (s *WebSuite) TestLogin(c *C) {
 	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
-		SecondFactor: teleport.OFF,
+		SecondFactor: constants.SecondFactorOff,
 	})
 	c.Assert(err, IsNil)
 	err = s.server.Auth().SetAuthPreference(ap)
@@ -1271,7 +1273,7 @@ func (s *WebSuite) TestLogin(c *C) {
 func (s *WebSuite) TestChangePasswordWithTokenOTP(c *C) {
 	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
-		SecondFactor: teleport.OTP,
+		SecondFactor: constants.SecondFactorOTP,
 	})
 	c.Assert(err, IsNil)
 	err = s.server.Auth().SetAuthPreference(ap)
@@ -1331,7 +1333,7 @@ func (s *WebSuite) TestChangePasswordWithTokenOTP(c *C) {
 func (s *WebSuite) TestChangePasswordWithTokenU2F(c *C) {
 	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
-		SecondFactor: teleport.U2F,
+		SecondFactor: constants.SecondFactorU2F,
 		U2F: &services.U2F{
 			AppID:  "https://" + s.server.ClusterName(),
 			Facets: []string{"https://" + s.server.ClusterName()},
@@ -1362,7 +1364,7 @@ func (s *WebSuite) TestChangePasswordWithTokenU2F(c *C) {
 	data, err := json.Marshal(auth.ChangePasswordWithTokenRequest{
 		TokenID:             token.GetName(),
 		Password:            []byte("qweQWE"),
-		U2FRegisterResponse: *u2fRegResp,
+		U2FRegisterResponse: u2fRegResp,
 	})
 	c.Assert(err, IsNil)
 
@@ -1384,72 +1386,94 @@ func (s *WebSuite) TestChangePasswordWithTokenU2F(c *C) {
 	c.Assert(rawSess.Token != "", Equals, true)
 }
 
-func (s *WebSuite) TestU2FLogin(c *C) {
+func TestU2FLogin(t *testing.T) {
+	for _, sf := range []constants.SecondFactorType{
+		constants.SecondFactorU2F,
+		constants.SecondFactorOptional,
+		constants.SecondFactorOn,
+		constants.SecondFactorOff,
+	} {
+		sf := sf
+		t.Run(fmt.Sprintf("second_factor_%s", sf), func(t *testing.T) {
+			t.Parallel()
+			testU2FLogin(t, sf)
+		})
+	}
+}
+
+func testU2FLogin(t *testing.T, secondFactor constants.SecondFactorType) {
+	env := newWebPack(t, 1)
+	defer env.close(t)
+
 	// configure cluster authentication preferences
 	cap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
-		SecondFactor: teleport.U2F,
+		SecondFactor: constants.SecondFactorU2F,
 		U2F: &services.U2F{
-			AppID:  "https://" + s.server.ClusterName(),
-			Facets: []string{"https://" + s.server.ClusterName()},
+			AppID:  "https://" + env.server.ClusterName(),
+			Facets: []string{"https://" + env.server.ClusterName()},
 		},
 	})
-	c.Assert(err, IsNil)
-	err = s.server.Auth().SetAuthPreference(cap)
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
+	err = env.server.Auth().SetAuthPreference(cap)
+	require.NoError(t, err)
 
 	// create user
-	s.createUser(c, "bob", "root", "password", "")
+	ctx := context.TODO()
+	env.proxies[0].createUser(ctx, t, "bob", "root", "password", "")
 
 	// create password change token
-	token, err := s.server.Auth().CreateResetPasswordToken(context.TODO(), auth.CreateResetPasswordTokenRequest{
+	token, err := env.server.Auth().CreateResetPasswordToken(context.TODO(), auth.CreateResetPasswordTokenRequest{
 		Name: "bob",
 	})
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
-	u2fRegReq, err := s.proxyClient.GetSignupU2FRegisterRequest(token.GetName())
-	c.Assert(err, IsNil)
+	u2fRegReq, err := env.proxies[0].client.GetSignupU2FRegisterRequest(token.GetName())
+	require.NoError(t, err)
 
-	u2fRegResp, err := s.mockU2F.RegisterResponse(u2fRegReq)
-	c.Assert(err, IsNil)
+	mockU2F, err := mocku2f.Create()
+	require.NoError(t, err)
+	u2fRegResp, err := mockU2F.RegisterResponse(u2fRegReq)
+	require.NoError(t, err)
 
 	tempPass := []byte("abc123")
-	_, err = s.proxyClient.ChangePasswordWithToken(context.TODO(), auth.ChangePasswordWithTokenRequest{
+	_, err = env.proxies[0].client.ChangePasswordWithToken(context.TODO(), auth.ChangePasswordWithTokenRequest{
 		TokenID:             token.GetName(),
-		U2FRegisterResponse: *u2fRegResp,
+		U2FRegisterResponse: u2fRegResp,
 		Password:            tempPass,
 	})
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
 	// normal login
-	clt := s.client()
-	re, err := clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "signrequest"), client.U2fSignRequestReq{
+	clt, err := client.NewWebClient(env.proxies[0].webURL.String(), roundtrip.HTTPClient(client.NewInsecureWebClient()))
+	require.NoError(t, err)
+	re, err := clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "signrequest"), client.MFAChallengeRequest{
 		User: "bob",
 		Pass: string(tempPass),
 	})
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 	var u2fSignReq u2f.AuthenticateChallenge
-	c.Assert(json.Unmarshal(re.Bytes(), &u2fSignReq), IsNil)
+	require.NoError(t, json.Unmarshal(re.Bytes(), &u2fSignReq))
 
-	u2fSignResp, err := s.mockU2F.SignResponse(&u2fSignReq)
-	c.Assert(err, IsNil)
+	u2fSignResp, err := mockU2F.SignResponse(&u2fSignReq)
+	require.NoError(t, err)
 
 	_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
 		User:            "bob",
 		U2FSignResponse: *u2fSignResp,
 	})
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
 	// bad login: corrupted sign responses, should fail
-	re, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "signrequest"), client.U2fSignRequestReq{
+	re, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "signrequest"), client.MFAChallengeRequest{
 		User: "bob",
 		Pass: string(tempPass),
 	})
-	c.Assert(err, IsNil)
-	c.Assert(json.Unmarshal(re.Bytes(), &u2fSignReq), IsNil)
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(re.Bytes(), &u2fSignReq))
 
-	u2fSignResp, err = s.mockU2F.SignResponse(&u2fSignReq)
-	c.Assert(err, IsNil)
+	u2fSignResp, err = mockU2F.SignResponse(&u2fSignReq)
+	require.NoError(t, err)
 
 	// corrupted KeyHandle
 	u2fSignRespCopy := u2fSignResp
@@ -1458,7 +1482,7 @@ func (s *WebSuite) TestU2FLogin(c *C) {
 		User:            "bob",
 		U2FSignResponse: *u2fSignRespCopy,
 	})
-	c.Assert(err, NotNil)
+	require.Error(t, err)
 
 	// corrupted SignatureData
 	u2fSignRespCopy = u2fSignResp
@@ -1468,7 +1492,7 @@ func (s *WebSuite) TestU2FLogin(c *C) {
 		User:            "bob",
 		U2FSignResponse: *u2fSignRespCopy,
 	})
-	c.Assert(err, NotNil)
+	require.Error(t, err)
 
 	// corrupted ClientData
 	u2fSignRespCopy = u2fSignResp
@@ -1478,25 +1502,25 @@ func (s *WebSuite) TestU2FLogin(c *C) {
 		User:            "bob",
 		U2FSignResponse: *u2fSignRespCopy,
 	})
-	c.Assert(err, NotNil)
+	require.Error(t, err)
 
 	// bad login: counter not increasing, should fail
-	s.mockU2F.SetCounter(0)
-	re, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "signrequest"), client.U2fSignRequestReq{
+	mockU2F.SetCounter(0)
+	re, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "signrequest"), client.MFAChallengeRequest{
 		User: "bob",
 		Pass: string(tempPass),
 	})
-	c.Assert(err, IsNil)
-	c.Assert(json.Unmarshal(re.Bytes(), &u2fSignReq), IsNil)
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(re.Bytes(), &u2fSignReq))
 
-	u2fSignResp, err = s.mockU2F.SignResponse(&u2fSignReq)
-	c.Assert(err, IsNil)
+	u2fSignResp, err = mockU2F.SignResponse(&u2fSignReq)
+	require.NoError(t, err)
 
 	_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
 		User:            "bob",
 		U2FSignResponse: *u2fSignResp,
 	})
-	c.Assert(err, NotNil)
+	require.Error(t, err)
 }
 
 // TestPing ensures that a response is returned by /webapi/ping
@@ -1752,6 +1776,61 @@ func (s *WebSuite) TestGetClusterDetails(c *C) {
 	// Expected empty, b/c test auth server doesn't set up
 	// heartbeat which where ServerSpecV2 version would've been set
 	c.Assert(cluster.AuthVersion, Equals, "")
+}
+
+type testModules struct {
+	modules.Modules
+}
+
+func (m *testModules) Features() modules.Features {
+	return modules.Features{
+		App: false, // Explicily turn off application access.
+	}
+}
+
+// TestApplicationAccessDisabled makes sure application access can be disabled
+// via modules.
+func TestApplicationAccessDisabled(t *testing.T) {
+	defaultModules := modules.GetModules()
+	defer modules.SetModules(defaultModules)
+	modules.SetModules(&testModules{})
+
+	env := newWebPack(t, 1)
+	defer env.close(t)
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "foo@example.com")
+
+	// Register an application.
+	server := &types.ServerV2{
+		Kind:    types.KindAppServer,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Namespace: defaults.Namespace,
+			Name:      uuid.New(),
+		},
+		Spec: types.ServerSpecV2{
+			Version: teleport.Version,
+			Apps: []*types.App{
+				{
+					Name:       "panel",
+					PublicAddr: "panel.example.com",
+					URI:        "http://127.0.0.1:8080",
+				},
+			},
+		},
+	}
+	_, err := env.server.Auth().UpsertAppServer(context.Background(), server)
+	require.NoError(t, err)
+
+	endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
+	_, err = pack.clt.PostJSON(context.Background(), endpoint, &CreateAppSessionRequest{
+		FQDN:        "panel.example.com",
+		PublicAddr:  "panel.example.com",
+		ClusterName: "localhost",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "this Teleport cluster doesn't support application access")
 }
 
 // TestCreateAppSession verifies that an existing session to the Web UI can
@@ -2445,7 +2524,7 @@ func (r *proxy) authPack(t *testing.T, user string) *authPack {
 
 	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
-		SecondFactor: teleport.OTP,
+		SecondFactor: constants.SecondFactorOTP,
 	})
 	require.NoError(t, err)
 

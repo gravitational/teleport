@@ -1,5 +1,5 @@
 /*
-Copyright 2017-2020 Gravitational, Inc.
+Copyright 2017-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -386,8 +385,12 @@ func (a *Server) calculateGithubUser(connector services.GithubConnector, claims 
 			"user %q does not belong to any teams configured in %q connector",
 			claims.Username, connector.GetName())
 	}
-	p.roles = modules.GetModules().RolesFromLogins(p.logins)
-	p.traits = modules.GetModules().TraitsFromLogins(p.username, p.logins, p.kubeGroups, p.kubeUsers)
+	p.roles = p.logins
+	p.traits = map[string][]string{
+		teleport.TraitLogins:     []string{p.username},
+		teleport.TraitKubeGroups: p.kubeGroups,
+		teleport.TraitKubeUsers:  p.kubeUsers,
+	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.
 	roles, err := services.FetchRoles(p.roles, a.Access, p.traits)

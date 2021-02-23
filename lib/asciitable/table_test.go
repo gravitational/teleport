@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2017-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,15 +19,8 @@ package asciitable
 import (
 	"testing"
 
-	"gopkg.in/check.v1"
+	"github.com/stretchr/testify/require"
 )
-
-func TestAsciiTable(t *testing.T) { check.TestingT(t) }
-
-type TableTestSuite struct {
-}
-
-var _ = check.Suite(&TableTestSuite{})
 
 const fullTable = `Name          Motto                            Age  
 ------------- -------------------------------- ---- 
@@ -39,19 +32,19 @@ const headlessTable = `one  two
 1    2    
 `
 
-func (s *TableTestSuite) TestFullTable(c *check.C) {
-	t := MakeTable([]string{"Name", "Motto", "Age"})
-	t.AddRow([]string{"Joe Forrester", "Trains are much better than cars", "40"})
-	t.AddRow([]string{"Jesus", "Read the bible", "2018"})
+func TestFullTable(t *testing.T) {
+	table := MakeTable([]string{"Name", "Motto", "Age"})
+	table.AddRow([]string{"Joe Forrester", "Trains are much better than cars", "40"})
+	table.AddRow([]string{"Jesus", "Read the bible", "2018"})
 
-	c.Assert(t.AsBuffer().String(), check.Equals, fullTable)
+	require.Equal(t, table.AsBuffer().String(), fullTable)
 }
 
-func (s *TableTestSuite) TestHeadlessTable(c *check.C) {
-	t := MakeHeadlessTable(2)
-	t.AddRow([]string{"one", "two", "three"})
-	t.AddRow([]string{"1", "2", "3"})
+func TestHeadlessTable(t *testing.T) {
+	table := MakeHeadlessTable(2)
+	table.AddRow([]string{"one", "two", "three"})
+	table.AddRow([]string{"1", "2", "3"})
 
 	// The table shall have no header and also the 3rd column must be chopped off.
-	c.Assert(t.AsBuffer().String(), check.Equals, headlessTable)
+	require.Equal(t, table.AsBuffer().String(), headlessTable)
 }

@@ -23,10 +23,12 @@ import (
 	"net"
 	"time"
 
+	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -34,10 +36,9 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -106,6 +107,7 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 	}
 
 	var eventStream events.Stream
+	var sessionID session.ID
 	g.Debugf("CreateAuditStream connection from %v.", auth.User.GetName())
 	streamStart := time.Now()
 	processed := int64(0)
@@ -148,6 +150,7 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 			if err != nil {
 				return trace.Wrap(err)
 			}
+			sessionID = session.ID(create.SessionID)
 			g.Debugf("Created stream: %v.", err)
 			go forwardEvents(eventStream)
 			defer closeStream(eventStream)
@@ -169,6 +172,31 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 			// do not use stream context to give the auth server finish the upload
 			// even if the stream's context is cancelled
 			err := eventStream.Complete(auth.CloseContext())
+			if err != nil {
+				return trail.ToGRPC(err)
+			}
+			clusterName, err := auth.GetClusterName()
+			if err != nil {
+				return trail.ToGRPC(err)
+			}
+			if g.APIConfig.MetadataGetter != nil {
+				sessionData := g.APIConfig.MetadataGetter.GetUploadMetadata(sessionID)
+				event := &apievents.SessionUpload{
+					Metadata: events.Metadata{
+						Type:        events.SessionUploadEvent,
+						Code:        events.SessionUploadCode,
+						Index:       events.SessionUploadIndex,
+						ClusterName: clusterName.GetClusterName(),
+					},
+					SessionMetadata: events.SessionMetadata{
+						SessionID: string(sessionData.SessionID),
+					},
+					SessionURL: sessionData.URL,
+				}
+				if err := g.Emitter.EmitAuditEvent(auth.CloseContext(), event); err != nil {
+					return trail.ToGRPC(err)
+				}
+			}
 			g.Debugf("Completed stream: %v.", err)
 			if err != nil {
 				return trail.ToGRPC(err)
@@ -1525,6 +1553,141 @@ func (g *GRPCServer) GetMFADevices(ctx context.Context, req *proto.GetMFADevices
 	return &proto.GetMFADevicesResponse{
 		Devices: devs,
 	}, nil
+}
+
+func (g *GRPCServer) GenerateUserSingleUseCerts(stream proto.AuthService_GenerateUserSingleUseCertsServer) error {
+	actx, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+
+	// The RPC is streaming both ways and the message sequence is:
+	// (-> means client-to-server, <- means server-to-client)
+	//
+	// 1. -> Init
+	// 2. <- MFAChallenge
+	// 3. -> MFAResponse
+	// 4. <- Certs
+
+	// 1. receive client Init
+	req, err := stream.Recv()
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+	initReq := req.GetInit()
+	if initReq == nil {
+		return trail.ToGRPC(trace.BadParameter("expected UserCertsRequest, got %T", req.Request))
+	}
+	if err := validateUserSingleUseCertRequest(initReq, g.AuthServer.GetClock()); err != nil {
+		return trail.ToGRPC(err)
+	}
+
+	// 2. send MFAChallenge
+	// 3. receive and validate MFAResponse
+	if err := userSingleUseCertsAuthChallenge(actx, stream); err != nil {
+		return trail.ToGRPC(err)
+	}
+
+	// Generate the cert.
+	respCert, err := userSingleUseCertsGenerate(stream.Context(), actx, *initReq)
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+
+	// 4. send Certs
+	if err := stream.Send(&proto.UserSingleUseCertsResponse{
+		Response: &proto.UserSingleUseCertsResponse_Cert{Cert: respCert},
+	}); err != nil {
+		return trail.ToGRPC(err)
+	}
+	return nil
+}
+
+func validateUserSingleUseCertRequest(req *proto.UserCertsRequest, clock clockwork.Clock) error {
+	switch req.Usage {
+	case proto.UserCertsRequest_SSH:
+		if req.NodeName == "" {
+			return trace.BadParameter("missing NodeName field in a ssh-only UserCertsRequest")
+		}
+	case proto.UserCertsRequest_Kubernetes:
+		if req.KubernetesCluster == "" {
+			return trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
+		}
+	case proto.UserCertsRequest_Database:
+		if req.RouteToDatabase.ServiceName == "" {
+			return trace.BadParameter("missing ServiceName field in a database-only UserCertsRequest")
+		}
+	case proto.UserCertsRequest_All:
+		return trace.BadParameter("must specify a concrete Usage in UserCertsRequest, one of SSH, Kubernetes or Database")
+	default:
+		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
+	}
+	maxExpiry := clock.Now().Add(teleport.UserSingleUseCertTTL)
+	if req.Expires.After(maxExpiry) {
+		req.Expires = maxExpiry
+	}
+	return nil
+}
+
+func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService_GenerateUserSingleUseCertsServer) error {
+	ctx := stream.Context()
+	auth := gctx.authServer
+	user := gctx.User.GetName()
+	u2fStorage, err := u2f.InMemoryAuthenticationStorage(auth.Identity)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	authChallenge, err := auth.mfaAuthChallenge(ctx, user, u2fStorage)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := stream.Send(&proto.UserSingleUseCertsResponse{
+		Response: &proto.UserSingleUseCertsResponse_MFAChallenge{MFAChallenge: authChallenge},
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	req, err := stream.Recv()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	authResp := req.GetMFAResponse()
+	if authResp == nil {
+		return trace.BadParameter("expected MFAAuthenticateResponse, got %T", req.Request)
+	}
+	if err := auth.validateMFAAuthResponse(ctx, user, authResp, u2fStorage); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req proto.UserCertsRequest) (*proto.SingleUseUserCert, error) {
+	// Get the client IP.
+	clientPeer, ok := peer.FromContext(ctx)
+	if !ok {
+		return nil, trace.BadParameter("no peer info in gRPC stream, can't get client IP")
+	}
+	clientIP, _, err := net.SplitHostPort(clientPeer.Addr.String())
+	if err != nil {
+		return nil, trace.BadParameter("can't parse client IP from peer info: %v", err)
+	}
+
+	// Generate the cert.
+	certs, err := actx.generateUserCerts(ctx, req, certRequestMFAVerified, certRequestClientIP(clientIP))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resp := new(proto.SingleUseUserCert)
+	switch req.Usage {
+	case proto.UserCertsRequest_SSH:
+		resp.Cert = &proto.SingleUseUserCert_SSH{SSH: certs.SSH}
+	case proto.UserCertsRequest_Kubernetes, proto.UserCertsRequest_Database:
+		resp.Cert = &proto.SingleUseUserCert_TLS{TLS: certs.TLS}
+	default:
+		return nil, trace.BadParameter("unknown certificate usage %q", req.Usage)
+	}
+	return resp, nil
 }
 
 type grpcContext struct {

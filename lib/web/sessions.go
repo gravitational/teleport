@@ -231,7 +231,12 @@ func (c *SessionContext) newRemoteTLSClient(cluster reversetunnel.RemoteSite) (a
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return auth.NewClient(apiclient.Config{Dialer: clusterDialer(cluster), TLS: tlsConfig})
+	return auth.NewClient(apiclient.Config{
+		Dialer: clusterDialer(cluster),
+		Credentials: []apiclient.Credentials{
+			apiclient.LoadTLS(tlsConfig),
+		},
+	})
 }
 
 // GetUser returns the authenticated teleport user
@@ -467,6 +472,7 @@ func (s *sessionCache) clearExpiredSessions(ctx context.Context) {
 func (s *sessionCache) AuthWithOTP(user, pass, otpToken string) (services.WebSession, error) {
 	return s.proxyClient.AuthenticateWebUser(auth.AuthenticateUserRequest{
 		Username: user,
+		Pass:     &auth.PassCreds{Password: []byte(pass)},
 		OTP: &auth.OTPCreds{
 			Password: []byte(pass),
 			Token:    otpToken,
@@ -485,8 +491,8 @@ func (s *sessionCache) AuthWithoutOTP(user, pass string) (services.WebSession, e
 	})
 }
 
-func (s *sessionCache) GetU2FSignRequest(user, pass string) (*u2f.AuthenticateChallenge, error) {
-	return s.proxyClient.GetU2FSignRequest(user, []byte(pass))
+func (s *sessionCache) GetMFAAuthenticateChallenge(user, pass string) (*auth.MFAAuthenticateChallenge, error) {
+	return s.proxyClient.GetMFAAuthenticateChallenge(user, []byte(pass))
 }
 
 func (s *sessionCache) AuthWithU2FSignResponse(user string, response *u2f.AuthenticateChallengeResponse) (services.WebSession, error) {
@@ -534,19 +540,31 @@ func (s *sessionCache) GetCertificateWithOTP(c client.CreateSSHCertReq) (*auth.S
 	})
 }
 
-func (s *sessionCache) GetCertificateWithU2F(c client.CreateSSHCertWithU2FReq) (*auth.SSHLoginResponse, error) {
+func (s *sessionCache) GetCertificateWithMFA(c client.CreateSSHCertWithMFAReq) (*auth.SSHLoginResponse, error) {
+	authReq := auth.AuthenticateUserRequest{
+		Username: c.User,
+	}
+	if c.Password != "" {
+		authReq.Pass = &auth.PassCreds{Password: []byte(c.Password)}
+	}
+	if c.U2FSignResponse != nil {
+		authReq.U2F = &auth.U2FSignResponseCreds{
+			SignResponse: *c.U2FSignResponse,
+		}
+	}
+	if c.TOTPCode != "" {
+		authReq.OTP = &auth.OTPCreds{
+			Password: []byte(c.Password),
+			Token:    c.TOTPCode,
+		}
+	}
 	return s.proxyClient.AuthenticateSSHUser(auth.AuthenticateSSHRequest{
-		AuthenticateUserRequest: auth.AuthenticateUserRequest{
-			Username: c.User,
-			U2F: &auth.U2FSignResponseCreds{
-				SignResponse: c.U2FSignResponse,
-			},
-		},
-		PublicKey:         c.PubKey,
-		CompatibilityMode: c.Compatibility,
-		TTL:               c.TTL,
-		RouteToCluster:    c.RouteToCluster,
-		KubernetesCluster: c.KubernetesCluster,
+		AuthenticateUserRequest: authReq,
+		PublicKey:               c.PubKey,
+		CompatibilityMode:       c.Compatibility,
+		TTL:                     c.TTL,
+		RouteToCluster:          c.RouteToCluster,
+		KubernetesCluster:       c.KubernetesCluster,
 	})
 }
 

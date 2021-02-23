@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -37,6 +38,11 @@ import (
 // The certificate is used for all access requests, which is where access
 // control is enforced.
 func (s *Server) CreateAppSession(ctx context.Context, req services.CreateAppSessionRequest, user services.User, checker services.AccessChecker) (services.WebSession, error) {
+	if !modules.GetModules().Features().App {
+		return nil, trace.AccessDenied(
+			"this Teleport cluster doesn't support application access, please contact the cluster administrator")
+	}
+
 	// Check that a matching parent web session exists in the backend.
 	parentSession, err := s.GetWebSession(ctx, types.GetWebSessionRequest{
 		User:      req.Username,
