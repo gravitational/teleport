@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { Resource, ResourceKind } from 'teleport/services/resources';
+import { Resource, KindAuthConnectors } from 'teleport/services/resources';
 import useTeleport from 'e-teleport/useTeleportE';
 
 export default function useAuthConnectors() {
   const ctx = useTeleport();
-  const [items, setItems] = useState<Resource[]>([]);
+  const [items, setItems] = useState<Resource<KindAuthConnectors>[]>([]);
   const { attempt, run } = useAttempt('processing');
 
   function fetchData() {
@@ -14,7 +14,7 @@ export default function useAuthConnectors() {
     });
   }
 
-  function save(yaml: string, isNew: boolean, kind: ResourceKind) {
+  function save(yaml: string, isNew: boolean, kind: KindAuthConnectors) {
     if (isNew) {
       return ctx.resourceService.createConnector(kind, yaml).then(fetchData);
     }
@@ -22,7 +22,7 @@ export default function useAuthConnectors() {
     return ctx.resourceService.updateConnector(kind, yaml).then(fetchData);
   }
 
-  function remove(connector: Resource) {
+  function remove(connector: Resource<KindAuthConnectors>) {
     const { kind, name } = connector;
     return ctx.resourceService.deleteConnector(kind, name).then(fetchData);
   }

@@ -1,8 +1,10 @@
 import { generatePath } from 'react-router';
-import teleCfg from 'teleport/config';
+import ossCfg from 'teleport/config';
 import { AccessRequestFilter } from 'e-teleport/services/workflow';
 
 const cfg = {
+  oss: ossCfg,
+
   routes: {
     requests: '/web/requests',
     requestNew: '/web/requests/new',
@@ -11,7 +13,6 @@ const cfg = {
   api: {
     accessRequestPath: '/v1/enterprise/accessrequest/:requestId?',
     accessRequestFilterPath: '/v1/enterprise/accessrequest?user=:user?',
-
     authConnectorsListPath: '/v1/enterprise/authconnectors',
     samlConnectorsPath: '/v1/enterprise/saml/:name?',
     oidcConnectorsPath: '/v1/enterprise/oidc/:name?',
@@ -38,7 +39,8 @@ const cfg = {
   },
 
   init(json: object) {
-    teleCfg.init({ isEnterprise: true, routes: cfg.routes, ...json });
+    // this will apply server config by merging it with oss cfg
+    ossCfg.init({ isEnterprise: true, routes: cfg.routes, ...json });
   },
 };
 

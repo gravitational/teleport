@@ -1,8 +1,7 @@
 import * as Icons from 'design/Icon';
 import * as Features from 'teleport/features';
 import Ctx from 'teleport/teleportContext';
-import cfgE from 'e-teleport/config';
-import cfg from 'teleport/config';
+import cfg from 'e-teleport/config';
 import Workflow from 'e-teleport/Workflow';
 import AuthConnectors from 'e-teleport/AuthConnectors';
 
@@ -13,7 +12,7 @@ class FeatureAuthConnectors {
 
   route = {
     title: 'Auth Connectors',
-    path: cfg.routes.sso,
+    path: cfg.oss.routes.sso,
     exact: false,
     component: AuthConnectors,
   };
@@ -29,7 +28,7 @@ class FeatureAuthConnectors {
       Icon: Icons.Lock,
       exact: false,
       getLink() {
-        return cfg.routes.sso;
+        return cfg.oss.routes.sso;
       },
     });
 
@@ -45,7 +44,7 @@ class FeatureWorkflow {
   route = {
     group: 'activity',
     title: 'Access Requests',
-    path: cfgE.routes.requests,
+    path: cfg.routes.requests,
     component: Workflow,
   };
 
@@ -55,7 +54,7 @@ class FeatureWorkflow {
       title: 'Access Requests',
       Icon: Icons.EqualizerVertical,
       getLink() {
-        return cfgE.routes.requests;
+        return cfg.routes.requests;
       },
     });
 

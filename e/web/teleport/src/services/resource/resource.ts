@@ -1,30 +1,41 @@
 import ResourceService, {
-  makeResource,
+  Resource,
+  KindAuthConnectors,
   makeResourceList,
+  makeResource,
 } from 'teleport/services/resources';
-import { AuthProviderType } from 'shared/services';
 import api from 'teleport/services/api';
 import cfg from 'e-teleport/config';
 
 class ResourceServiceE extends ResourceService {
   fetchAuthConnectors() {
-    return api.get(cfg.getAuthConnectorsListUrl()).then(makeResourceList);
+    return api
+      .get(cfg.getAuthConnectorsListUrl())
+      .then(res => makeResourceList<KindAuthConnectors>(res));
   }
 
   updateSamlConnector(content: string) {
-    return api.put(cfg.getSamlConnectorsUrl(), { content }).then(makeResource);
+    return api
+      .put(cfg.getSamlConnectorsUrl(), { content })
+      .then(res => makeResource<'saml'>(res));
   }
 
   updateOidcConnector(content: string) {
-    return api.put(cfg.getOidcConnectorsUrl(), { content }).then(makeResource);
+    return api
+      .put(cfg.getOidcConnectorsUrl(), { content })
+      .then(res => makeResource<'oidc'>(res));
   }
 
   createSamlConnector(content: string) {
-    return api.post(cfg.getSamlConnectorsUrl(), { content }).then(makeResource);
+    return api
+      .post(cfg.getSamlConnectorsUrl(), { content })
+      .then(res => makeResource<'saml'>(res));
   }
 
   createOidcConnector(content: string) {
-    return api.post(cfg.getOidcConnectorsUrl(), { content }).then(makeResource);
+    return api
+      .post(cfg.getOidcConnectorsUrl(), { content })
+      .then(res => makeResource<'oidc'>(res));
   }
 
   deleteSamlConnector(name: string) {
@@ -35,7 +46,10 @@ class ResourceServiceE extends ResourceService {
     return api.delete(cfg.getOidcConnectorsUrl(name));
   }
 
-  createConnector(kind: AuthProviderType, content: string) {
+  createConnector(
+    kind: KindAuthConnectors,
+    content: string
+  ): Promise<Resource<KindAuthConnectors>> {
     switch (kind) {
       case 'oidc':
         return this.createOidcConnector(content);
@@ -46,7 +60,10 @@ class ResourceServiceE extends ResourceService {
     }
   }
 
-  updateConnector(kind: AuthProviderType, content: string) {
+  updateConnector(
+    kind: KindAuthConnectors,
+    content: string
+  ): Promise<Resource<KindAuthConnectors>> {
     switch (kind) {
       case 'oidc':
         return this.updateOidcConnector(content);
@@ -57,7 +74,7 @@ class ResourceServiceE extends ResourceService {
     }
   }
 
-  deleteConnector(kind: AuthProviderType, name: string) {
+  deleteConnector(kind: KindAuthConnectors, name: string) {
     switch (kind) {
       case 'oidc':
         return this.deleteOidcConnector(name);
