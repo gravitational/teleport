@@ -197,11 +197,11 @@ transition between a pair of `origin` values.  The leftmost column is the
 current/source `origin` value of a resource while the top row is the
 desired/target `origin` value:
 
-|    *from \ to*    |        **`defaults`**       |           **`config-file`**          |           **(other)**           |
-|       :---:       |            :---:            |                 :---:                |              :---:              |
-|   **`defaults`**  |             n/a             | specify in `teleport.yaml` & restart |          `tctl create`          |
-| **`config-file`** | remove from `teleport.yalm` |  change in `teleport.yaml` & restart | `tctl create --force --confirm` |
-|    **(other)**    |        `tctl rm` [?]        | specify in `teleport.yaml` & restart |      `tctl create --force`      |
+|    *from \ to*    |                   **`defaults`**                  |           **`config-file`**          |           **(other)**           |
+|       :---:       |                       :---:                       |                 :---:                |              :---:              |
+|   **`defaults`**  |                        n/a                        | specify in `teleport.yaml` & restart |          `tctl create`          |
+| **`config-file`** | remove from `teleport.yaml` / `tctl rm --confirm` |  change in `teleport.yaml` & restart | `tctl create --force --confirm` |
+|    **(other)**    |                     `tctl rm`                     | specify in `teleport.yaml` & restart |      `tctl create --force`      |
 
 Note that the `origin` label is not reserved or protected in any special way
 by the system and so it can be modified by the same means as other labels.
@@ -231,10 +231,10 @@ This logic implies Choices 2.B and 3.B.
    immediately.
 
 2. If called without `--force` and the fetched resource does not have
-   `origin:defaults` then print
+   `origin: defaults` then print an error:
    ```
-   error: non-default cluster auth preference already exists, use -f or --force
-   flag to overwrite
+   non-default cluster auth preference already exists, use -f or --force flag
+   to overwrite
    ```
 
 3. If called with `--force` and the fetched resource does not have `origin:
@@ -242,18 +242,44 @@ This logic implies Choices 2.B and 3.B.
    in the backend.
 
 4. If called with `--force` and the fetched resource has `origin: config-file`
-   then print
+   then print an error:
    ```
-   error: This resource is managed by static configuration. We recommend
-   removing configuration from teleport.yaml, restarting the servers and trying
-   this command again.
+   This resource is managed by static configuration. We recommend removing
+   configuration from teleport.yaml, restarting the servers and trying this
+   command again.
 
    If you would still like to proceed, re-run the comand with both --force and
    --confirm flags.
    ```
 
-   This requires adding support for `--confirm` flag (that works only in
-   conjunction with `--force`).  Invocation with both `--force` and `--confirm`
-   always commits the YAML resource.
+   Invocation with both `--force` and `--confirm` will temporarily replace the
+   stored resource with the YAML one.
 
 This logic implies Choice 5.A and an adaptation of Choice 6.A.
+
+### `tctl rm`
+
+The `tctl rm` subcommand can be used to reset dynamic resources back to their defaults.
+
+1. Fetch the resource currently stored in the backend; on error return
+   immediately.
+
+2. If the fetched resource does not have `origin: config-file`, replace the
+   stored resource with the default one.
+
+3. If called without `--confirm` and the fetched resource has `origin: config-file`
+   then print an error:
+   ```
+   This resource is managed by static configuration. We recommend removing
+   configuration from teleport.yaml and restarting the servers in order to
+   reset the resource to defaults.
+
+   If you would still like to proceed, re-run the command with --confirm flag.
+   ```
+
+   Invocation with `--confirm` will temporarily replace the stored resource with
+   the default one.
+
+Note the use of `--confirm` on its own as opposed to in conjunction with
+`--force`.  This decision is meant to retain compatibility with [the unrelated
+semantics proposed for `tctl rm --force`](https://github.com/gravitational/teleport/issues/1872).
