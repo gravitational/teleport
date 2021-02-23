@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2020-2021 Gravitational, Inc.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -17,14 +17,12 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import { Danger } from 'design/Alert';
-import { Indicator, Text, Box, Flex, Link } from 'design';
+import { Indicator, Text, Box, Flex, Link, Alert, ButtonPrimary } from 'design';
 import ResourceEditor from 'teleport/components/ResourceEditor';
 import useResources from 'teleport/components/useResources';
 import EmptyList from './EmptyList';
 import ConnectorList from './ConnectorList';
 import DeleteConnectorDialog from './DeleteConnectorDialog';
-import AddMenu from './AddMenu';
 import useAuthConnectors, { State } from './useAuthConnectors';
 import templates from './templates';
 
@@ -35,18 +33,13 @@ export default function Container() {
 
 export function AuthConnectors(props: State) {
   const { attempt, items, remove, save } = props;
-  const { message, isProcessing, isFailed, isSuccess } = attempt;
   const isEmpty = items.length === 0;
   const resources = useResources(items, templates);
 
   const title =
     resources.status === 'creating'
-      ? 'Creating a new auth connector'
-      : 'Editing auth connector';
-
-  function handleOnRemove() {
-    return remove(resources.item);
-  }
+      ? 'Creating a new github connector'
+      : 'Editing github connector';
 
   function handleOnSave(content: string) {
     const isNew = resources.status === 'creating';
@@ -57,60 +50,63 @@ export function AuthConnectors(props: State) {
     <FeatureBox>
       <FeatureHeader>
         <FeatureHeaderTitle>Auth Connectors</FeatureHeaderTitle>
-        {isSuccess && (
-          <Box ml="auto" alignSelf="center" width="240px">
-            <AddMenu onClick={resources.create} />
-          </Box>
-        )}
+        <ButtonPrimary
+          ml="auto"
+          width="240px"
+          onClick={() => resources.create('github')}
+        >
+          New Github Connector
+        </ButtonPrimary>
       </FeatureHeader>
-      {isFailed && <Danger>{message} </Danger>}
-      {isProcessing && (
+      {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
+      {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>
           <Indicator />
         </Box>
       )}
-      {isSuccess && (
+      {attempt.status === 'success' && (
         <Flex alignItems="start">
           {isEmpty && (
             <Flex mt="4" width="100%" justifyContent="center">
-              <EmptyList onCreate={resources.create} />
+              <EmptyList onCreate={() => resources.create('github')} />
             </Flex>
           )}
           {!isEmpty && (
-            <ConnectorList
-              flex="1"
-              items={items}
-              onEdit={resources.edit}
-              onDelete={resources.remove}
-            />
-          )}
-          <Box
-            ml="4"
-            width="240px"
-            color="text.primary"
-            style={{ flexShrink: 0 }}
-          >
-            <Text typography="h6" mb={3}>
-              AUTHENTICATION CONNECTORS
-            </Text>
-            <Text typography="subtitle1" mb={3}>
-              Authentication connectors allow Teleport to authenticate users via
-              an external identity source such as Okta, Active Directory,
-              Github, etc. This authentication method is frequently called
-              single sign-on (SSO).
-            </Text>
-            <Text typography="subtitle1" mb={2}>
-              Please{' '}
-              <Link
-                color="light"
-                href="https://gravitational.com/teleport/docs/enterprise/ssh_sso/"
-                target="_blank"
+            <>
+              <ConnectorList
+                items={items}
+                onEdit={resources.edit}
+                onDelete={resources.remove}
+              />
+              <Box
+                ml="4"
+                width="240px"
+                color="text.primary"
+                style={{ flexShrink: 0 }}
               >
-                view our documentation
-              </Link>{' '}
-              for samples of each connector.
-            </Text>
-          </Box>
+                <Text typography="h6" mb={3} caps>
+                  Authentication Connectors
+                </Text>
+                <Text typography="subtitle1" mb={3}>
+                  Authentication connectors allow Teleport to authenticate users
+                  via an external identity source such as Okta, Active
+                  Directory, Github, etc. This authentication method is
+                  frequently called single sign-on (SSO).
+                </Text>
+                <Text typography="subtitle1" mb={2}>
+                  Please{' '}
+                  <Link
+                    color="light"
+                    href="https://goteleport.com/teleport/docs/admin-guide/#github-oauth-20"
+                    target="_blank"
+                  >
+                    view our documentation
+                  </Link>{' '}
+                  on how to configure a Github connector.
+                </Text>
+              </Box>
+            </>
+          )}
         </Flex>
       )}
       {(resources.status === 'creating' || resources.status === 'editing') && (
@@ -127,7 +123,7 @@ export function AuthConnectors(props: State) {
         <DeleteConnectorDialog
           name={resources.item.name}
           onClose={resources.disregard}
-          onDelete={handleOnRemove}
+          onDelete={() => remove(resources.item.name)}
         />
       )}
     </FeatureBox>

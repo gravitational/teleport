@@ -44,7 +44,7 @@ export default function TrustedClusters() {
       : 'Edit trusted cluster';
 
   function remove() {
-    return tclusters.remove(resources.item);
+    return tclusters.remove(resources.item.name);
   }
 
   function save(content: string) {

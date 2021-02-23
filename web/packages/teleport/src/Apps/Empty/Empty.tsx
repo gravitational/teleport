@@ -53,7 +53,14 @@ export default function Empty(props: Props) {
   }
 
   return (
-    <Card maxWidth="700px" mx="auto" py={4} as={Flex} alignItems="center">
+    <Card
+      maxWidth="700px"
+      mx="auto"
+      py={4}
+      as={Flex}
+      alignItems="center"
+      flex="0 0 auto"
+    >
       <Box mx="4">
         <Image width="180px" src={emptyPng} />
       </Box>

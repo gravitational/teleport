@@ -20,7 +20,7 @@ import useTeleport from 'teleport/useTeleport';
 
 export default function useTrustedClusters() {
   const teleContext = useTeleport();
-  const [items, setItems] = useState<Resource[]>([]);
+  const [items, setItems] = useState<Resource<'trusted_cluster'>[]>([]);
   const [attempt, attemptActions] = useAttempt({ isProcessing: true });
   const canCreate = teleContext.storeUser.getTrustedClusterAccess().create;
 
@@ -31,14 +31,18 @@ export default function useTrustedClusters() {
   }
 
   function save(yaml: string, isNew: boolean) {
+    if (isNew) {
+      return teleContext.resourceService
+        .createTrustedCluster(yaml)
+        .then(fetchData);
+    }
     return teleContext.resourceService
-      .upsertTrustedCluster(yaml, isNew)
+      .updateTrustedCluster(yaml)
       .then(fetchData);
   }
 
-  function remove(trustedCluster: Resource) {
-    const { kind, name } = trustedCluster;
-    return teleContext.resourceService.delete(kind, name).then(() => {
+  function remove(name: string) {
+    return teleContext.resourceService.deleteTrustedCluster(name).then(() => {
       setItems(items.filter(r => r.name !== name));
     });
   }

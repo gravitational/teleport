@@ -118,6 +118,7 @@ exports[`empty state 1`] = `
   padding-top: 24px;
   padding-bottom: 24px;
   background-color: #222C59;
+  flex: 0 0 auto;
   box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
 }
@@ -153,6 +154,7 @@ exports[`empty state 1`] = `
   padding-top: 24px;
   padding-bottom: 24px;
   background-color: #222C59;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
 }

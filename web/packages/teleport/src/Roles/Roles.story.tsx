@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2020 Gravitational, Inc.
+Copyright 2019-2021 Gravitational, Inc.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -19,13 +19,7 @@ export default {
 };
 
 export function Processing() {
-  const attempt = {
-    isProcessing: true,
-    isFailed: false,
-    isSuccess: false,
-    message: '',
-  };
-  return <Roles {...sample} attempt={attempt} />;
+  return <Roles {...sample} attempt={{ status: 'processing' as any }} />;
 }
 
 export function Loaded() {
@@ -37,13 +31,12 @@ export function Empty() {
 }
 
 export function Failed() {
-  const attempt = {
-    isProcessing: false,
-    isFailed: true,
-    isSuccess: false,
-    message: 'some error message',
-  };
-  return <Roles {...sample} attempt={attempt} />;
+  return (
+    <Roles
+      {...sample}
+      attempt={{ status: 'failed', statusText: 'some error message' }}
+    />
+  );
 }
 
 const roles = [
@@ -67,10 +60,7 @@ const roles = [
 
 const sample = {
   attempt: {
-    isProcessing: false,
-    isFailed: false,
-    isSuccess: true,
-    message: '',
+    status: 'success' as any,
   },
   items: roles,
   remove: () => null,

@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2020 Gravitational, Inc.
+Copyright 2019-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,8 +20,7 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import { Indicator, Flex, Box, ButtonPrimary, Text, Link } from 'design';
-import { Danger } from 'design/Alert';
+import { Indicator, Flex, Box, ButtonPrimary, Text, Alert, Link } from 'design';
 import ResourceEditor from 'teleport/components/ResourceEditor';
 import useResources from 'teleport/components/useResources';
 import useTeleport from 'teleport/useTeleport';
@@ -39,13 +38,8 @@ export default function Container() {
 export function Roles(props: State) {
   const { items, remove, save, attempt } = props;
   const resources = useResources(items, templates);
-  const { message, isProcessing, isFailed, isSuccess } = attempt;
   const title =
     resources.status === 'creating' ? 'Create a new role' : 'Edit role';
-
-  function handleRemove() {
-    return remove(resources.item);
-  }
 
   function handleSave(content: string) {
     const isNew = resources.status === 'creating';
@@ -56,23 +50,21 @@ export function Roles(props: State) {
     <FeatureBox>
       <FeatureHeader alignItems="center">
         <FeatureHeaderTitle>Roles</FeatureHeaderTitle>
-        {isSuccess && (
-          <ButtonPrimary
-            ml="auto"
-            width="240px"
-            onClick={() => resources.create('role')}
-          >
-            CREATE NEW ROLE
-          </ButtonPrimary>
-        )}
+        <ButtonPrimary
+          ml="auto"
+          width="240px"
+          onClick={() => resources.create('role')}
+        >
+          CREATE NEW ROLE
+        </ButtonPrimary>
       </FeatureHeader>
-      {isFailed && <Danger>{message} </Danger>}
-      {isProcessing && (
+      {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
+      {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>
           <Indicator />
         </Box>
       )}
-      {isSuccess && (
+      {attempt.status === 'success' && (
         <Flex>
           <Box width="100%" mr="6" mb="4">
             <RoleList
@@ -125,7 +117,7 @@ export function Roles(props: State) {
         <DeleteRole
           name={resources.item.name}
           onClose={resources.disregard}
-          onDelete={handleRemove}
+          onDelete={() => remove(resources.item.name)}
         />
       )}
     </FeatureBox>

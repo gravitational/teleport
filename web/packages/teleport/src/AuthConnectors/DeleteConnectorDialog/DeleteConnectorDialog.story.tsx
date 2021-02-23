@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2020 Gravitational, Inc.
+Copyright 2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,19 +15,18 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Cell, Column } from 'design/DataTable';
-import Table from 'design/DataTable/Paged';
-import { RoleNameCell, ActionCell } from './RoleListCells';
+import DeleteDialog from './DeleteConnectorDialog';
 
-export default function RoleList({ items, onEdit, onDelete }) {
-  items = items || [];
-  return (
-    <Table pageSize={20} data={items}>
-      <Column header={<Cell>Name</Cell>} cell={<RoleNameCell />} />
-      <Column
-        header={<Cell />}
-        cell={<ActionCell onEdit={onEdit} onDelete={onDelete} />}
-      />
-    </Table>
-  );
-}
+export default {
+  title: 'Teleport/AuthConnectors/Delete',
+};
+
+export const Loaded = () => <DeleteDialog {...props} />;
+
+const props = {
+  name: 'sample-connector-role',
+  onDelete: () => {
+    return Promise.reject(new Error('server error'));
+  },
+  onClose: () => null,
+};

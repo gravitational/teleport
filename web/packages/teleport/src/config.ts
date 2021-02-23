@@ -17,7 +17,6 @@ limitations under the License.
 import { generatePath } from 'react-router';
 import { merge } from 'lodash';
 import { AuthProvider, Auth2faType } from 'shared/services';
-import { Resource } from 'teleport/services/resources';
 
 const cfg = {
   isEnterprise: false,
@@ -88,7 +87,6 @@ const cfg = {
     userContextPath: '/v1/webapi/sites/:clusterId/context',
     userStatusPath: '/v1/webapi/user/status',
     passwordTokenPath: '/v1/webapi/users/password/token/:tokenId?',
-    userTokenInviteDonePath: '/v1/webapi/users',
     changeUserPasswordPath: '/v1/webapi/users/password',
     u2fCreateUserChallengePath: '/v1/webapi/u2f/signuptokens/:tokenId',
     u2fSessionChallengePath: '/v1/webapi/u2f/signrequest',
@@ -103,10 +101,13 @@ const cfg = {
       'wss://:fqdm/v1/webapi/sites/:clusterId/connect?access_token=:token&params=:params',
     terminalSessionPath: '/v1/webapi/sites/:clusterId/sessions/:sid?',
 
-    usersPath: '/v1/enterprise/users',
-    usersDelete: '/v1/enterprise/users/:username',
-    resourcePath: '/v1/enterprise/sites/:clusterId/resources/:kind?',
-    removeResourcePath: '/v1/enterprise/sites/:clusterId/resources/:kind/:id',
+    usersPath: '/v1/webapi/users',
+    usersDelete: '/v1/webapi/users/:username',
+
+    rolesPath: '/v1/webapi/roles/:name?',
+    githubConnectorsPath: '/v1/webapi/github/:name?',
+    trustedClustersPath: '/v1/webapi/trustedcluster/:name?',
+
     nodeTokenPath: '/v1/enterprise/nodes/token',
     nodeScriptPath: '/scripts/:token/install-node.sh',
     appNodeScriptPath: '/scripts/:token/install-app.sh?name=:name&uri=:uri',
@@ -269,14 +270,16 @@ const cfg = {
     return generatePath(cfg.api.renewTokenPath, { requestId });
   },
 
-  getResourcesUrl(kind?: Resource['kind']) {
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.resourcePath, { clusterId, kind });
+  getGithubConnectorsUrl(name?: string) {
+    return generatePath(cfg.api.githubConnectorsPath, { name });
   },
 
-  getRemoveResourceUrl(kind: Resource['kind'], id: string) {
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.removeResourcePath, { clusterId, kind, id });
+  getTrustedClustersUrl(name?: string) {
+    return generatePath(cfg.api.trustedClustersPath, { name });
+  },
+
+  getRolesUrl(name?: string) {
+    return generatePath(cfg.api.rolesPath, { name });
   },
 
   init(backendConfig = {}) {

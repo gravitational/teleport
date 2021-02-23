@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2020 Gravitational, Inc.
+Copyright 2019-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,24 +15,23 @@ limitations under the License.
 */
 
 import React from 'react';
-import PropTypes from 'prop-types';
-import { ButtonSecondary, ButtonWarning, Text } from 'design';
-import * as Alerts from 'design/Alert';
-import { useAttempt } from 'shared/hooks';
+import { ButtonSecondary, ButtonWarning, Text, Alert } from 'design';
 import Dialog, { DialogContent, DialogFooter } from 'design/DialogConfirmation';
+import useAttempt from 'shared/hooks/useAttemptNext';
+import { State as ResourceState } from 'teleport/components/useResources';
 
-export default function DeleteRoleDialog(props) {
+export default function DeleteRoleDialog(props: Props) {
   const { name, onClose, onDelete } = props;
-  const [attempt, attemptActions] = useAttempt();
-  const isDisabled = attempt.isProcessing;
+  const { attempt, run } = useAttempt();
+  const isDisabled = attempt.status === 'processing';
 
   function onOk() {
-    attemptActions.do(() => onDelete()).then(() => onClose());
+    run(() => onDelete()).then(() => onClose());
   }
 
   return (
     <Dialog disableEscapeKeyDown={false} onClose={onClose} open={true}>
-      {attempt.isFailed && <Alerts.Danger>{attempt.message}</Alerts.Danger>}
+      {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
       <DialogContent width="400px">
         <Text typography="h3">Remove Role?</Text>
         <Text typography="paragraph" mt="2" mb="6">
@@ -55,8 +54,8 @@ export default function DeleteRoleDialog(props) {
   );
 }
 
-DeleteRoleDialog.propTypes = {
-  onClose: PropTypes.func.isRequired,
-  onDelete: PropTypes.func.isRequired,
-  name: PropTypes.string.isRequired,
+type Props = {
+  name: string;
+  onClose: ResourceState['disregard'];
+  onDelete(): Promise<any>;
 };

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import trusted_cluster from '!raw-loader!./trusted_cluster_enterprise.yaml';
+const trusted_cluster = require('!raw-loader!./trusted_cluster_enterprise.yaml');
 
 const templates = { trusted_cluster };
 

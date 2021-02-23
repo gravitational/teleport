@@ -285,13 +285,16 @@ export const formatters: Formatters = {
   },
   [CodeEnum.DATABASE_SESSION_ENDED]: {
     desc: 'Database Session Ended',
-    format: ({ user, db_service, db_name, db_user }) =>
+    format: ({ user, db_service, db_name }) =>
       `User [${user}] has disconnected from database [${db_name}] on [${db_service}]`,
   },
   [CodeEnum.DATABASE_SESSION_QUERY]: {
     desc: 'Database Query',
     format: ({ user, db_service, db_name, db_query }) =>
-      `User [${user}] has executed query [${truncateStr(db_query, 80)}] in database [${db_name}] on [${db_service}]`,
+      `User [${user}] has executed query [${truncateStr(
+        db_query,
+        80
+      )}] in database [${db_name}] on [${db_service}]`,
   },
 };
 
@@ -331,5 +334,5 @@ function truncateStr(str: string, len: number): string {
   if (str.length <= len) {
     return str;
   }
-  return str.substring(0, len - 3) + "...";
+  return str.substring(0, len - 3) + '...';
 }

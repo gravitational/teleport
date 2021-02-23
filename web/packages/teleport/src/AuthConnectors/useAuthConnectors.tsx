@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2020-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,32 +14,35 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { useEffect, useState, useAttempt } from 'shared/hooks';
+import { useEffect, useState } from 'react';
+import useAttempt from 'shared/hooks/useAttemptNext';
 import { Resource } from 'teleport/services/resources';
 import useTeleport from 'teleport/useTeleport';
 
 export default function useAuthConnectors() {
   const ctx = useTeleport();
-  const [items, setItems] = useState<Resource[]>([]);
-  const [attempt, attemptActions] = useAttempt({ isProcessing: true });
+  const [items, setItems] = useState<Resource<'github'>[]>([]);
+  const { attempt, run } = useAttempt('processing');
 
   function fetchData() {
-    return ctx.resourceService.fetchAuthConnectors().then(response => {
+    return ctx.resourceService.fetchGithubConnectors().then(response => {
       setItems(response);
     });
   }
 
   function save(yaml: string, isNew: boolean) {
-    return ctx.resourceService.upsertAuthConnector(yaml, isNew).then(fetchData);
+    if (isNew) {
+      return ctx.resourceService.createGithubConnector(yaml).then(fetchData);
+    }
+    return ctx.resourceService.updateGithubConnector(yaml).then(fetchData);
   }
 
-  function remove(connector: Resource) {
-    const { kind, name } = connector;
-    return ctx.resourceService.delete(kind, name).then(fetchData);
+  function remove(name: string) {
+    return ctx.resourceService.deleteGithubConnector(name).then(fetchData);
   }
 
   useEffect(() => {
-    attemptActions.do(() => fetchData());
+    run(() => fetchData());
   }, []);
 
   return {

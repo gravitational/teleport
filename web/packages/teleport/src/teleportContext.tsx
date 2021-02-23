@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ import auditService from './services/audit';
 import nodeService from './services/nodes';
 import clusterService from './services/clusters';
 import sshService from './services/ssh';
-import resourceService from './services/resources';
+import ResourceService from './services/resources';
 import userService from './services/user';
 import appService from './services/apps';
 
@@ -38,7 +38,7 @@ class TeleportContext implements types.Context {
   nodeService = nodeService;
   clusterService = clusterService;
   sshService = sshService;
-  resourceService = resourceService;
+  resourceService = new ResourceService();
   userService = userService;
   appService = appService;
 

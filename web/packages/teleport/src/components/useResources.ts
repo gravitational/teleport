@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2020 Gravitational, Inc.
+Copyright 2019-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,15 +15,18 @@ limitations under the License.
 */
 
 import { useState } from 'shared/hooks';
-import { Resource, ResourceKind } from 'teleport/services/resources';
+import { Resource, Kind } from 'teleport/services/resources';
 
-export default function useResources(
-  resources: Resource[],
-  templates: Templates
+export default function useResources<T extends Kind>(
+  resources: Resource<T>[],
+  templates: Templates<T>
 ) {
-  const [state, setState] = useState(defaultState);
+  const [state, setState] = useState({
+    status: 'reading' as EditingStatus,
+    item: null as Resource<T>,
+  });
 
-  const create = (kind: ResourceKind) => {
+  const create = (kind: T) => {
     const content = templates[kind] || '';
     setState({
       status: 'creating',
@@ -32,7 +35,6 @@ export default function useResources(
         name: '',
         content,
         id: '',
-        displayName: '',
       },
     });
   };
@@ -63,11 +65,8 @@ export default function useResources(
   return { ...state, create, edit, disregard, remove };
 }
 
+export type State = ReturnType<typeof useResources>;
+
 type EditingStatus = 'creating' | 'editing' | 'removing' | 'empty';
 
-type Templates = Partial<Record<ResourceKind, string>>;
-
-const defaultState = {
-  status: 'reading' as EditingStatus,
-  item: null as Resource,
-};
+type Templates<T extends string> = Partial<Record<T, string>>;

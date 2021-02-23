@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -383,8 +383,12 @@ export default function getFeatures() {
     new FeatureSessions(),
     new FeatureRecordings(),
     new FeatureAudit(),
+    new FeatureUsers(),
+    new FeatureRoles(),
+    new FeatureAuthConnectors(),
     new FeatureAccount(),
     new FeatureHelpAndSupport(),
     new FeatureClusters(),
+    new FeatureTrust(),
   ];
 }

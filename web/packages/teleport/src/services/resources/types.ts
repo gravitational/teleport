@@ -1,15 +1,12 @@
-export type Resource = {
+export type Resource<T extends Kind> = {
   id: string;
-  kind: ResourceKind;
+  kind: T;
   name: string;
-  displayName: string;
+  // content is config in yaml format.
   content: string;
 };
 
-export type ResourceKind =
-  | 'saml'
-  | 'oidc'
-  | 'github'
-  | 'role'
-  | 'auth_connector'
-  | 'trusted_cluster';
+export type KindRole = 'role';
+export type KindTrustedCluster = 'trusted_cluster';
+export type KindAuthConnectors = 'github' | 'saml' | 'oidc';
+export type Kind = KindRole | KindTrustedCluster | KindAuthConnectors;

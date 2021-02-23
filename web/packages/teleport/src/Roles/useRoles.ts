@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2020 Gravitational, Inc.
+Copyright 2019-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,14 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { values, keyBy } from 'lodash';
-import { useEffect, useState, useAttempt } from 'shared/hooks';
+import { useEffect, useState } from 'react';
+import useAttempt from 'shared/hooks/useAttemptNext';
 import TeleportContext from 'teleport/teleportContext';
-import { Resource } from 'teleport/services/resources';
+import { Resource, KindRole } from 'teleport/services/resources';
 
 export default function useRoles(ctx: TeleportContext) {
-  const [items, setItems] = useState<Resource[]>([]);
-  const [attempt, attemptActions] = useAttempt({ isProcessing: true });
+  const [items, setItems] = useState<Resource<KindRole>[]>([]);
+  const { attempt, run } = useAttempt('processing');
 
   function fetchData() {
     return ctx.resourceService.fetchRoles().then(received => {
@@ -29,28 +29,28 @@ export default function useRoles(ctx: TeleportContext) {
     });
   }
 
+  // TODO: we cannot refetch the data right after saving because this backend
+  // operation is not atomic.
   function save(yaml: string, isNew: boolean) {
-    return ctx.resourceService.upsertRole(yaml, isNew).then(received => {
-      // TODO: we cannot refetch the data right after saving because this backend
-      // operation is not atomic.
-      setItems(
-        values({
-          ...keyBy(items, 'id'),
-          ...keyBy(received, 'id'),
-        })
-      );
+    if (isNew) {
+      return ctx.resourceService.createRole(yaml).then(result => {
+        setItems([result, ...items]);
+      });
+    }
+
+    return ctx.resourceService.updateRole(yaml).then(result => {
+      setItems([result, ...items.filter(r => r.name !== result.name)]);
     });
   }
 
-  function remove(role: Resource) {
-    const { kind, name } = role;
-    return ctx.resourceService.delete(kind, name).then(() => {
+  function remove(name: string) {
+    return ctx.resourceService.deleteRole(name).then(() => {
       setItems(items.filter(r => r.name !== name));
     });
   }
 
   useEffect(() => {
-    attemptActions.do(() => fetchData());
+    run(() => fetchData());
   }, []);
 
   return {

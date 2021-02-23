@@ -16,31 +16,36 @@ limitations under the License.
 
 import React from 'react';
 import { Text, Flex, ButtonPrimary } from 'design';
+import * as Icons from 'design/Icon';
 import { MenuIcon, MenuItem } from 'shared/components/MenuAction';
-import getSsoIcon from './../getSsoIcon';
+import { State as ResourceState } from 'teleport/components/useResources';
+import { State as AuthConnectorState } from '../useAuthConnectors';
 
-export default function ConnectorListItem({
-  name,
-  kind,
-  id,
-  onEdit,
-  onDelete,
-  ...rest
-}) {
+export default function ConnectorList({ items, onEdit, onDelete }: Props) {
+  items = items || [];
+  const $items = items.map(item => {
+    const { id, name } = item;
+    return (
+      <ConnectorListItem
+        key={id}
+        id={id}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        name={name}
+      />
+    );
+  });
+
+  return (
+    <Flex flexWrap="wrap" alignItems="center" flex={1}>
+      {$items}
+    </Flex>
+  );
+}
+
+function ConnectorListItem({ name, id, onEdit, onDelete }) {
   const onClickEdit = () => onEdit(id);
   const onClickDelete = () => onDelete(id);
-  const { desc, SsoIcon } = getSsoIcon(kind);
-
-  const iconProps = {
-    fontSize: '48px',
-    mb: 3,
-    mt: 3,
-  };
-
-  if (kind === 'saml') {
-    iconProps.width = '100px';
-    iconProps.mt = 5;
-  }
 
   return (
     <Flex
@@ -58,7 +63,8 @@ export default function ConnectorListItem({
       px="5"
       pt="2"
       pb="5"
-      {...rest}
+      mb={4}
+      mr={5}
     >
       <Flex width="100%" justifyContent="center">
         <MenuIcon buttonIconProps={menuActionProps}>
@@ -67,19 +73,21 @@ export default function ConnectorListItem({
       </Flex>
       <Flex
         flex="1"
-        mb="3"
         alignItems="center"
         justifyContent="center"
         flexDirection="column"
         width="200px"
         style={{ textAlign: 'center' }}
       >
-        <SsoIcon {...iconProps} />
-        <Text style={{ width: '100%' }} typography="body2" bold caps mb="1">
+        <Icons.Github
+          style={{ textAlign: 'center' }}
+          fontSize="50px"
+          color="text.primary"
+          mb={3}
+          mt={3}
+        />
+        <Text style={{ width: '100%' }} typography="body2" bold caps>
           {name}
-        </Text>
-        <Text style={{ width: '100%' }} typography="body2" color="text.primary">
-          {desc}
         </Text>
       </Flex>
       <ButtonPrimary mt="auto" size="medium" block onClick={onClickEdit}>
@@ -95,4 +103,10 @@ const menuActionProps = {
     position: 'absolute',
     top: '10px',
   },
+};
+
+type Props = {
+  items: AuthConnectorState['items'];
+  onEdit: ResourceState['edit'];
+  onDelete: ResourceState['remove'];
 };
