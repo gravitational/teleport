@@ -449,7 +449,7 @@ func Run(args []string, opts ...cliOption) error {
 
 	if cf.Gops {
 		log.Debugf("Starting gops agent.")
-		err = gops.Listen(&gops.Options{Addr: cf.GopsAddr})
+		err = gops.Listen(gops.Options{Addr: cf.GopsAddr})
 		if err != nil {
 			log.Warningf("Failed to start gops agent %v.", err)
 		}
