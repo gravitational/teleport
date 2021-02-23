@@ -23,6 +23,8 @@ import (
 //
 // Logic is delegated to other components, like Backend or uploader.
 type GoFakeS3 struct {
+	requestID uint64
+
 	storage   Backend
 	versioned VersionedBackend
 
@@ -33,7 +35,6 @@ type GoFakeS3 struct {
 	failOnUnimplementedPage bool
 	hostBucket              bool
 	uploader                *uploader
-	requestID               uint64
 	log                     Logger
 }
 
@@ -265,6 +266,17 @@ func (g *GoFakeS3) listBucket(bucketName string, w http.ResponseWriter, r *http.
 	}
 }
 
+func (g *GoFakeS3) getBucketLocation(bucketName string, w http.ResponseWriter, r *http.Request) error {
+	g.log.Print(LogInfo, "GET BUCKET LOCATION")
+
+	result := GetBucketLocation{
+		Xmlns:              "http://s3.amazonaws.com/doc/2006-03-01/",
+		LocationConstraint: "",
+	}
+
+	return g.xmlEncoder(w).Encode(result)
+}
+
 func (g *GoFakeS3) listBucketVersions(bucketName string, w http.ResponseWriter, r *http.Request) error {
 	if g.versioned == nil {
 		return ErrNotImplemented
@@ -421,7 +433,6 @@ func (g *GoFakeS3) writeGetOrHeadObjectResponse(obj *Object, w http.ResponseWrit
 	for mk, mv := range obj.Metadata {
 		w.Header().Set(mk, mv)
 	}
-	w.Header().Set("Last-Modified", formatHeaderTime(g.timeSource.Now()))
 	w.Header().Set("Accept-Ranges", "bytes")
 	w.Header().Set("ETag", `"`+hex.EncodeToString(obj.Hash)+`"`)
 
@@ -529,9 +540,19 @@ func (g *GoFakeS3) createObject(bucket, object string, w http.ResponseWriter, r 
 		return err
 	}
 
-	size, err := strconv.ParseInt(r.Header.Get("Content-Length"), 10, 64)
-	if err != nil || size <= 0 {
+	if _, ok := meta["X-Amz-Copy-Source"]; ok {
+		return g.copyObject(bucket, object, meta, w, r)
+	}
+
+	contentLength := r.Header.Get("Content-Length")
+	if contentLength == "" {
 		return ErrMissingContentLength
+	}
+
+	size, err := strconv.ParseInt(contentLength, 10, 64)
+	if err != nil || size < 0 {
+		w.WriteHeader(http.StatusBadRequest) // XXX: no code for this, according to s3tests
+		return nil
 	}
 
 	if len(object) > KeySizeLimit {
@@ -547,9 +568,22 @@ func (g *GoFakeS3) createObject(bucket, object string, w http.ResponseWriter, r 
 		}
 	}
 
+	var reader io.Reader
+
+	if sha, ok := meta["X-Amz-Content-Sha256"]; ok && sha == "STREAMING-AWS4-HMAC-SHA256-PAYLOAD" {
+		reader = newChunkedReader(r.Body)
+		size, err = strconv.ParseInt(meta["X-Amz-Decoded-Content-Length"], 10, 64)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest) // XXX: no code for this, according to s3tests
+			return nil
+		}
+	} else {
+		reader = r.Body
+	}
+
 	// hashingReader is still needed to get the ETag even if integrityCheck
 	// is set to false:
-	rdr, err := newHashingReader(r.Body, md5Base64)
+	rdr, err := newHashingReader(reader, md5Base64)
 	defer r.Body.Close()
 	if err != nil {
 		return err
@@ -567,6 +601,61 @@ func (g *GoFakeS3) createObject(bucket, object string, w http.ResponseWriter, r 
 	w.Header().Set("ETag", `"`+hex.EncodeToString(rdr.Sum(nil))+`"`)
 
 	return nil
+}
+
+// CopyObject copies an existing S3 object
+func (g *GoFakeS3) copyObject(bucket, object string, meta map[string]string, w http.ResponseWriter, r *http.Request) (err error) {
+	source := meta["X-Amz-Copy-Source"]
+	g.log.Print(LogInfo, "└── COPY:", source)
+
+	if len(object) > KeySizeLimit {
+		return ResourceError(ErrKeyTooLong, object)
+	}
+
+	// XXX No support for versionId subresource
+	parts := strings.SplitN(strings.TrimPrefix(source, "/"), "/", 2)
+	srcBucket := parts[0]
+	srcKey := strings.SplitN(parts[1], "?", 2)[0]
+
+	srcObj, err := g.storage.GetObject(srcBucket, srcKey, nil)
+	if err != nil {
+		return err
+	}
+
+	if srcObj == nil {
+		g.log.Print(LogErr, "unexpected nil object for key", bucket, object)
+		return ErrInternal
+	}
+	defer srcObj.Contents.Close()
+
+	// XXX No support for delete marker
+	// "If the current version of the object is a delete marker, Amazon S3
+	// behaves as if the object was deleted."
+
+	// merge metadata, ACL is not preserved
+	for k, v := range srcObj.Metadata {
+		if _, found := meta[k]; !found && k != "X-Amz-Acl" {
+			meta[k] = v
+		}
+	}
+
+	result, err := g.storage.PutObject(bucket, object, meta, srcObj.Contents, srcObj.Size)
+	if err != nil {
+		return err
+	}
+
+	if srcObj.VersionID != "" {
+		w.Header().Set("x-amz-copy-source-version-id", string(srcObj.VersionID))
+	}
+	if result.VersionID != "" {
+		g.log.Print(LogInfo, "CREATED VERSION:", bucket, object, result.VersionID)
+		w.Header().Set("x-amz-version-id", string(result.VersionID))
+	}
+
+	return g.xmlEncoder(w).Encode(CopyObjectResult{
+		ETag:         `"` + hex.EncodeToString(srcObj.Hash) + `"`,
+		LastModified: NewContentTime(g.timeSource.Now()),
+	})
 }
 
 func (g *GoFakeS3) deleteObject(bucket, object string, w http.ResponseWriter, r *http.Request) error {

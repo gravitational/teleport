@@ -47,10 +47,11 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/docker/docker/pkg/term"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/moby/term"
 	"gopkg.in/check.v1"
+
+	"github.com/gravitational/trace"
 )
 
 // ExecSuite also implements ssh.ConnMetadata
