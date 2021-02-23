@@ -187,9 +187,9 @@ func UserMessageFromError(err error) string {
 		// it, if it does, print it, otherwise escape and print the original error.
 		if er, ok := err.(*trace.TraceErr); ok {
 			for _, message := range er.Messages {
-				fmt.Fprintln(&buf, "\t"+EscapeControl(message))
+				fmt.Fprintln(&buf, EscapeControl(message))
 			}
-			fmt.Fprintln(&buf, "\t"+EscapeControl(trace.Unwrap(er).Error()))
+			fmt.Fprintln(&buf, EscapeControl(trace.Unwrap(er).Error()))
 		} else {
 			fmt.Fprintln(&buf, EscapeControl(err.Error()))
 		}
