@@ -89,7 +89,6 @@ func TestOIDCLogin(t *testing.T) {
 	os.RemoveAll(client.FullProfilePath(""))
 
 	modules.SetModules(&cliModules{})
-
 	defer os.RemoveAll(client.FullProfilePath(""))
 
 	ctx, cancel := context.WithCancel(context.Background())
