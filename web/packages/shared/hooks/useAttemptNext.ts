@@ -36,12 +36,15 @@ export default function useAttemptNext(status = '' as Attempt['status']) {
       return fn()
         .then(() => {
           setAttempt({ status: 'success' });
+          return true;
         })
         .catch(err => {
           handleError(err);
+          return false;
         });
     } catch (err) {
       handleError(err);
+      return Promise.resolve(false);
     }
   }
 

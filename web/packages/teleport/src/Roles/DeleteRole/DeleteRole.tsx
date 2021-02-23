@@ -26,7 +26,7 @@ export default function DeleteRoleDialog(props: Props) {
   const isDisabled = attempt.status === 'processing';
 
   function onOk() {
-    run(() => onDelete()).then(() => onClose());
+    run(() => onDelete()).then(ok => ok && onClose());
   }
 
   return (

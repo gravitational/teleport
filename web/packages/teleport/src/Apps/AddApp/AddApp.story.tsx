@@ -53,7 +53,7 @@ const sample = {
     user: 'sam',
     automatic: true,
     setAutomatic: () => null,
-    createToken: () => Promise.resolve(),
+    createToken: () => Promise.resolve(true),
     onClose() {
       return null;
     },
