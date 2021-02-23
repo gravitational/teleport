@@ -19,12 +19,13 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"log"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 
-	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
 )
 
@@ -35,7 +36,7 @@ func main() {
 	tlsConfig := &tls.Config{}
 	// Create valid tlsConfig here to load TLS credentials.
 
-	clt, err := client.New(ctx, client.Config{
+	clt, err := auth.NewClient(client.Config{
 		// Addrs is the Auth Server address, must be local.
 		Addrs: []string{"localhost:3025"},
 		// Multiple credentials can be provided, and the first credentials to
@@ -60,21 +61,20 @@ func main() {
 	}
 }
 
-func demoClient(ctx context.Context, clt *client.Client) (err error) {
+func demoClient(ctx context.Context, clt *auth.Client) (err error) {
 	// Create a new access request for the `access-admin` user to use the `admin` role.
 	accessReq, err := types.NewAccessRequest(uuid.New(), "access-admin", "admin")
 	if err != nil {
-		return trace.Wrap(err, "failed to make new access request")
+		return fmt.Errorf("failed to make new access request: %v", err)
 	}
 	if err = clt.CreateAccessRequest(ctx, accessReq); err != nil {
-		return trace.Wrap(err, "failed to create access request")
+		return fmt.Errorf("failed to create access request: %v", err)
 	}
 	log.Printf("Created access request: %v", accessReq)
 
 	defer func() {
 		if err2 := clt.DeleteAccessRequest(ctx, accessReq.GetName()); err2 != nil {
-			err = trace.NewAggregate([]error{err, err2}...)
-			log.Println("Failed to delete access request")
+			err = fmt.Errorf("%v\nfailed to delete access request: %v", err, err2)
 			return
 		}
 		log.Println("Deleted access request")
@@ -85,7 +85,7 @@ func demoClient(ctx context.Context, clt *client.Client) (err error) {
 		RequestID: accessReq.GetName(),
 		State:     types.RequestState_APPROVED,
 	}); err != nil {
-		return trace.Wrap(err, "failed to accept request")
+		return fmt.Errorf("failed to accept request: %v", err)
 	}
 	log.Printf("Approved access request")
 
