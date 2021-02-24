@@ -1,5 +1,18 @@
 # Changelog
 
+## 6.0.0-rc.1
+
+**Note:** This version is a pre-release and is not recommended for production usage.
+
+This release of Teleport contains a number of improvements and bug fixes.
+
+* Added `tsh env` command: [#5395](https://github.com/gravitational/teleport/pull/5395)
+* OSS RBAC: [#5419](https://github.com/gravitational/teleport/pull/5419)
+* Add MySQL support for database access: [#5453](https://github.com/gravitational/teleport/pull/5453)
+* Implement utmp/wtmp support: [#5491](https://github.com/gravitational/teleport/pull/5491)
+* Apply traits to kube, app and database labels: [#5597](https://github.com/gravitational/teleport/pull/5597)
+* Add `kube_public_addr` config field to `proxy_service`:[#5611](https://github.com/gravitational/teleport/pull/5611)
+
 ## 6.0.0-alpha.2
 
 **Note:** This version is a pre-release and is not recommended for production usage.
