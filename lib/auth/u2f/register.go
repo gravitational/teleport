@@ -23,10 +23,11 @@ import (
 	"encoding/json"
 
 	"github.com/flynn/u2f/u2ftoken"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/mailgun/ttlmap"
 	"github.com/tstranex/u2f"
+
+	"github.com/gravitational/trace"
+	"github.com/gravitational/ttlmap"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -74,7 +75,7 @@ type RegistrationStorage interface {
 
 type inMemoryRegistrationStorage struct {
 	DeviceStorage
-	challenges *ttlmap.TtlMap
+	challenges *ttlmap.TTLMap
 }
 
 // InMemoryRegistrationStorage returns a new RegistrationStorage that stores
@@ -82,7 +83,7 @@ type inMemoryRegistrationStorage struct {
 //
 // Updates to existing devices are forwarded to ds.
 func InMemoryRegistrationStorage(ds DeviceStorage) (RegistrationStorage, error) {
-	m, err := ttlmap.NewMap(inMemoryChallengeCapacity)
+	m, err := ttlmap.New(inMemoryChallengeCapacity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -90,7 +91,7 @@ func InMemoryRegistrationStorage(ds DeviceStorage) (RegistrationStorage, error) 
 }
 
 func (s inMemoryRegistrationStorage) UpsertU2FRegisterChallenge(key string, c *Challenge) error {
-	return s.challenges.Set(key, c, int(inMemoryChallengeTTL.Seconds()))
+	return s.challenges.Set(key, c, inMemoryChallengeTTL)
 }
 
 func (s inMemoryRegistrationStorage) GetU2FRegisterChallenge(key string) (*Challenge, error) {
