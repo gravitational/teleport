@@ -26,10 +26,11 @@ import (
 	"time"
 
 	"github.com/flynn/u2f/u2ftoken"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/mailgun/ttlmap"
 	"github.com/tstranex/u2f"
+
+	"github.com/gravitational/trace"
+	"github.com/gravitational/ttlmap"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -73,7 +74,7 @@ const (
 
 type inMemoryAuthenticationStorage struct {
 	DeviceStorage
-	challenges *ttlmap.TtlMap
+	challenges *ttlmap.TTLMap
 }
 
 // InMemoryAuthenticationStorage returns a new AuthenticationStorage that
@@ -81,7 +82,7 @@ type inMemoryAuthenticationStorage struct {
 //
 // Updates to existing devices are forwarded to ds.
 func InMemoryAuthenticationStorage(ds DeviceStorage) (AuthenticationStorage, error) {
-	m, err := ttlmap.NewMap(inMemoryChallengeCapacity)
+	m, err := ttlmap.New(inMemoryChallengeCapacity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -93,7 +94,7 @@ func (s inMemoryAuthenticationStorage) key(user, deviceID string) string {
 }
 
 func (s inMemoryAuthenticationStorage) UpsertU2FSignChallenge(user, deviceID string, c *Challenge) error {
-	return s.challenges.Set(s.key(user, deviceID), c, int(inMemoryChallengeTTL.Seconds()))
+	return s.challenges.Set(s.key(user, deviceID), c, inMemoryChallengeTTL)
 }
 
 func (s inMemoryAuthenticationStorage) GetU2FSignChallenge(user, deviceID string) (*Challenge, error) {

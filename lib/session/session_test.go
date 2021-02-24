@@ -18,6 +18,7 @@ package session
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -26,13 +27,18 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/trace"
 )
 
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
+
 func TestSessions(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
 	s := newsessionSuite(t)
 	t.Cleanup(func() { s.TearDown(t) })
 

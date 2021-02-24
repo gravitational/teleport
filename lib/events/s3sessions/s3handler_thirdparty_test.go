@@ -23,21 +23,19 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/lib/events/test"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/gravitational/trace"
 	"github.com/johannesboyne/gofakes3"
 	"github.com/johannesboyne/gofakes3/backend/s3mem"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/trace"
 )
 
 // TestThirdpartyStreams tests various streaming upload scenarios
 // implemented by third party backends using fake backend
 func TestThirdpartyStreams(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	var timeSource gofakes3.TimeSource
 	backend := s3mem.New(s3mem.WithTimeSource(timeSource))
 	faker := gofakes3.New(backend, gofakes3.WithLogger(gofakes3.GlobalLog()))

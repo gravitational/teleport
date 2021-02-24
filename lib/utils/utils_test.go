@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"io/ioutil"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -28,9 +29,15 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/fixtures"
 
-	"github.com/gravitational/trace"
 	"gopkg.in/check.v1"
+
+	"github.com/gravitational/trace"
 )
+
+func TestMain(m *testing.M) {
+	InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 func TestUtils(t *testing.T) { check.TestingT(t) }
 

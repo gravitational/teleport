@@ -1721,10 +1721,6 @@ func CheckUnreadVariableValues(pass *analysis.Pass) (interface{}, error) {
 					continue
 				}
 
-				if _, ok := val.(*ir.Const); ok {
-					// a zero-valued constant, for example in 'foo := []string(nil)'
-					continue
-				}
 				if !hasUse(val, nil) {
 					report.Report(pass, assign, fmt.Sprintf("this value of %s is never used", lhs))
 				}

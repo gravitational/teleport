@@ -24,11 +24,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 
 	"github.com/jonboulle/clockwork"
 	"go.etcd.io/etcd/clientv3"
@@ -41,6 +42,11 @@ const (
 	customPrefix3 = "/teleport-new"
 )
 
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
+
 func TestEtcd(t *testing.T) { check.TestingT(t) }
 
 type EtcdSuite struct {
@@ -52,8 +58,6 @@ type EtcdSuite struct {
 var _ = check.Suite(&EtcdSuite{})
 
 func (s *EtcdSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	// this config must match examples/etcd/teleport.yaml
 	s.config = backend.Params{
 		"peers":         []string{"https://127.0.0.1:2379"},

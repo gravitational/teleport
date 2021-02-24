@@ -28,7 +28,7 @@ type Snapshot struct {
 // non-normally distributed data (like latency) with a high degree of accuracy
 // and a bounded degree of precision.
 type Histogram struct {
-	lowestTrackableValue        int64
+	lowestDiscernibleValue      int64
 	highestTrackableValue       int64
 	unitMagnitude               int64
 	significantFigures          int64
@@ -40,25 +40,70 @@ type Histogram struct {
 	countsLen                   int32
 	totalCount                  int64
 	counts                      []int64
+	startTimeMs                 int64
+	endTimeMs                   int64
+	tag                         string
 }
 
-// New returns a new Histogram instance capable of tracking values in the given
-// range and with the given amount of precision.
-func New(minValue, maxValue int64, sigfigs int) *Histogram {
-	if sigfigs < 1 || 5 < sigfigs {
-		panic(fmt.Errorf("sigfigs must be [1,5] (was %d)", sigfigs))
+func (h *Histogram) Tag() string {
+	return h.tag
+}
+
+func (h *Histogram) SetTag(tag string) {
+	h.tag = tag
+}
+
+func (h *Histogram) EndTimeMs() int64 {
+	return h.endTimeMs
+}
+
+func (h *Histogram) SetEndTimeMs(endTimeMs int64) {
+	h.endTimeMs = endTimeMs
+}
+
+func (h *Histogram) StartTimeMs() int64 {
+	return h.startTimeMs
+}
+
+func (h *Histogram) SetStartTimeMs(startTimeMs int64) {
+	h.startTimeMs = startTimeMs
+}
+
+// Construct a Histogram given the Lowest and Highest values to be tracked and a number of significant decimal digits.
+//
+// Providing a lowestDiscernibleValue is useful in situations where the units used for the histogram's values are
+// much smaller that the minimal accuracy required.
+// E.g. when tracking time values stated in nanosecond units, where the minimal accuracy required is a microsecond,
+// the proper value for lowestDiscernibleValue would be 1000.
+//
+// Note: the numberOfSignificantValueDigits must be [1,5]. If lower than 1 the numberOfSignificantValueDigits will be
+// forced to 1, and if higher than 5 the numberOfSignificantValueDigits will be forced to 5.
+func New(lowestDiscernibleValue, highestTrackableValue int64, numberOfSignificantValueDigits int) *Histogram {
+	if numberOfSignificantValueDigits < 1 {
+		numberOfSignificantValueDigits = 1
+	} else if numberOfSignificantValueDigits > 5 {
+		numberOfSignificantValueDigits = 5
+	}
+	if lowestDiscernibleValue < 1 {
+		lowestDiscernibleValue = 1
 	}
 
-	largestValueWithSingleUnitResolution := 2 * math.Pow10(sigfigs)
-	subBucketCountMagnitude := int32(math.Ceil(math.Log2(float64(largestValueWithSingleUnitResolution))))
+	// Given a 3 decimal point accuracy, the expectation is obviously for "+/- 1 unit at 1000". It also means that
+	// it's "ok to be +/- 2 units at 2000". The "tricky" thing is that it is NOT ok to be +/- 2 units at 1999. Only
+	// starting at 2000. So internally, we need to maintain single unit resolution to 2x 10^decimalPoints.
+	largestValueWithSingleUnitResolution := 2 * math.Pow10(numberOfSignificantValueDigits)
 
+	// We need to maintain power-of-two subBucketCount (for clean direct indexing) that is large enough to
+	// provide unit resolution to at least largestValueWithSingleUnitResolution. So figure out
+	// largestValueWithSingleUnitResolution's nearest power-of-two (rounded up), and use that:
+	subBucketCountMagnitude := int32(math.Ceil(math.Log2(float64(largestValueWithSingleUnitResolution))))
 	subBucketHalfCountMagnitude := subBucketCountMagnitude
 	if subBucketHalfCountMagnitude < 1 {
 		subBucketHalfCountMagnitude = 1
 	}
 	subBucketHalfCountMagnitude--
 
-	unitMagnitude := int32(math.Floor(math.Log2(float64(minValue))))
+	unitMagnitude := int32(math.Floor(math.Log2(float64(lowestDiscernibleValue))))
 	if unitMagnitude < 0 {
 		unitMagnitude = 0
 	}
@@ -71,20 +116,16 @@ func New(minValue, maxValue int64, sigfigs int) *Histogram {
 	// determine exponent range needed to support the trackable value with no
 	// overflow:
 	smallestUntrackableValue := int64(subBucketCount) << uint(unitMagnitude)
-	bucketsNeeded := int32(1)
-	for smallestUntrackableValue < maxValue {
-		smallestUntrackableValue <<= 1
-		bucketsNeeded++
-	}
+	bucketsNeeded := getBucketsNeededToCoverValue(smallestUntrackableValue, highestTrackableValue)
 
 	bucketCount := bucketsNeeded
 	countsLen := (bucketCount + 1) * (subBucketCount / 2)
 
 	return &Histogram{
-		lowestTrackableValue:        minValue,
-		highestTrackableValue:       maxValue,
+		lowestDiscernibleValue:      lowestDiscernibleValue,
+		highestTrackableValue:       highestTrackableValue,
 		unitMagnitude:               int64(unitMagnitude),
-		significantFigures:          int64(sigfigs),
+		significantFigures:          int64(numberOfSignificantValueDigits),
 		subBucketHalfCountMagnitude: subBucketHalfCountMagnitude,
 		subBucketHalfCount:          subBucketHalfCount,
 		subBucketMask:               subBucketMask,
@@ -93,7 +134,25 @@ func New(minValue, maxValue int64, sigfigs int) *Histogram {
 		countsLen:                   countsLen,
 		totalCount:                  0,
 		counts:                      make([]int64, countsLen),
+		startTimeMs:                 0,
+		endTimeMs:                   0,
+		tag:                         "",
 	}
+}
+
+func getBucketsNeededToCoverValue(smallestUntrackableValue int64, maxValue int64) int32 {
+	// always have at least 1 bucket
+	bucketsNeeded := int32(1)
+	for smallestUntrackableValue < maxValue {
+		if smallestUntrackableValue > (math.MaxInt64 / 2) {
+			// next shift will overflow, meaning that bucket could represent values up to ones greater than
+			// math.MaxInt64, so it's the last bucket
+			return bucketsNeeded + 1
+		}
+		smallestUntrackableValue <<= 1
+		bucketsNeeded++
+	}
+	return bucketsNeeded
 }
 
 // ByteSize returns an estimate of the amount of memory allocated to the
@@ -247,7 +306,12 @@ func (h *Histogram) setCountAtIndex(idx int, n int64) {
 	h.totalCount += n
 }
 
-// ValueAtQuantile returns the recorded value at the given quantile (0..100).
+// ValueAtQuantile returns the largest value that (100% - percentile) of the overall recorded value entries
+// in the histogram are either larger than or equivalent to.
+//
+// Note that two values are "equivalent" if `ValuesAreEquivalent(value1,value2)` would return true.
+//
+// Returns 0 if no recorded values exist.
 func (h *Histogram) ValueAtQuantile(q float64) int64 {
 	if q > 100 {
 		q = 100
@@ -260,11 +324,22 @@ func (h *Histogram) ValueAtQuantile(q float64) int64 {
 	for i.next() {
 		total += i.countAtIdx
 		if total >= countAtPercentile {
+			if q == 0.0 {
+				return h.lowestEquivalentValue(i.valueFromIdx)
+			}
 			return h.highestEquivalentValue(i.valueFromIdx)
 		}
 	}
 
 	return 0
+}
+
+// Determine if two values are equivalent with the histogram's resolution.
+// Where "equivalent" means that value samples recorded for any two
+// equivalent values are counted in a common total count.
+func (h *Histogram) ValuesAreEquivalent(value1, value2 int64) (result bool) {
+	result = h.lowestEquivalentValue(value1) == h.lowestEquivalentValue(value2)
+	return
 }
 
 // CumulativeDistribution returns an ordered list of brackets of the
@@ -293,7 +368,7 @@ func (h *Histogram) SignificantFigures() int64 {
 // LowestTrackableValue returns the lower bound on values that will be added
 // to the histogram
 func (h *Histogram) LowestTrackableValue() int64 {
-	return h.lowestTrackableValue
+	return h.lowestDiscernibleValue
 }
 
 // HighestTrackableValue returns the upper bound on values that will be added
@@ -331,7 +406,7 @@ func (h *Histogram) Distribution() (result []Bar) {
 func (h *Histogram) Equals(other *Histogram) bool {
 	switch {
 	case
-		h.lowestTrackableValue != other.lowestTrackableValue,
+		h.lowestDiscernibleValue != other.lowestDiscernibleValue,
 		h.highestTrackableValue != other.highestTrackableValue,
 		h.unitMagnitude != other.unitMagnitude,
 		h.significantFigures != other.significantFigures,
@@ -357,7 +432,7 @@ func (h *Histogram) Equals(other *Histogram) bool {
 // Import to construct a new Histogram with the same state.
 func (h *Histogram) Export() *Snapshot {
 	return &Snapshot{
-		LowestTrackableValue:  h.lowestTrackableValue,
+		LowestTrackableValue:  h.lowestDiscernibleValue,
 		HighestTrackableValue: h.highestTrackableValue,
 		SignificantFigures:    h.significantFigures,
 		Counts:                append([]int64(nil), h.counts...), // copy
@@ -448,12 +523,21 @@ func (h *Histogram) countsIndex(bucketIdx, subBucketIdx int32) int32 {
 	return bucketBaseIdx + offsetInBucket
 }
 
+// return the lowest (and therefore highest precision) bucket index that can represent the value
+// Calculates the number of powers of two by which the value is greater than the biggest value that fits in
+// bucket 0. This is the bucket index since each successive bucket can hold a value 2x greater.
 func (h *Histogram) getBucketIndex(v int64) int32 {
 	pow2Ceiling := bitLen(v | h.subBucketMask)
 	return int32(pow2Ceiling - int64(h.unitMagnitude) -
 		int64(h.subBucketHalfCountMagnitude+1))
 }
 
+// For bucketIndex 0, this is just value, so it may be anywhere in 0 to subBucketCount.
+// For other bucketIndex, this will always end up in the top half of subBucketCount: assume that for some bucket
+// k > 0, this calculation will yield a value in the bottom half of 0 to subBucketCount. Then, because of how
+// buckets overlap, it would have also been in the top half of bucket k-1, and therefore would have
+// returned k-1 in getBucketIndex(). Since we would then shift it one fewer bits here, it would be twice as big,
+// and therefore in the top half of subBucketCount.
 func (h *Histogram) getSubBucketIdx(v int64, idx int32) int32 {
 	return int32(v >> uint(int64(idx)+int64(h.unitMagnitude)))
 }
@@ -475,11 +559,11 @@ type iterator struct {
 	highestEquivalentValue               int64
 }
 
+// Returns the next element in the iteration.
 func (i *iterator) next() bool {
 	if i.countToIdx >= i.h.totalCount {
 		return false
 	}
-
 	// increment bucket
 	i.subBucketIdx++
 	if i.subBucketIdx >= i.h.subBucketCount {
