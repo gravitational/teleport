@@ -6,6 +6,7 @@ SRCDIR=/go/src/github.com/gravitational/teleport
 DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME)
 BCCFLAGS := -v "$$(pwd)/bcc:/usr/include/bcc"
 ADDFLAGS ?=
+BATSFLAGS := -j4
 NOROOT=-u $$(id -u):$$(id -g)
 KUBECONFIG ?=
 TEST_KUBE ?=
@@ -41,9 +42,6 @@ GID := 1000
 NOROOT := -u 1000:1000
 # pass external gocache path through to docker containers
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(GOCACHE):/go/cache -e GOCACHE=/go/cache
-BATSFLAGS := ""
-else
-BATSFLAGS := -p
 endif
 export
 
