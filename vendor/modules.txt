@@ -3,6 +3,7 @@
 cloud.google.com/go
 cloud.google.com/go/compute/metadata
 cloud.google.com/go/iam
+cloud.google.com/go/iam/credentials/apiv1
 cloud.google.com/go/internal
 cloud.google.com/go/internal/btree
 cloud.google.com/go/internal/fields
@@ -688,6 +689,7 @@ google.golang.org/appengine/urlfetch
 google.golang.org/genproto/googleapis/api/annotations
 google.golang.org/genproto/googleapis/firestore/admin/v1
 google.golang.org/genproto/googleapis/firestore/v1
+google.golang.org/genproto/googleapis/iam/credentials/v1
 google.golang.org/genproto/googleapis/iam/v1
 google.golang.org/genproto/googleapis/longrunning
 google.golang.org/genproto/googleapis/rpc/code
@@ -815,7 +817,8 @@ gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 ## explicit
 gopkg.in/yaml.v3
-# honnef.co/go/tools v0.0.1-2020.1.4
+# honnef.co/go/tools v0.0.1-2020.1.5
+## explicit
 honnef.co/go/tools/arg
 honnef.co/go/tools/cmd/staticcheck
 honnef.co/go/tools/code

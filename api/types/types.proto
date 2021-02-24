@@ -172,12 +172,22 @@ message DatabaseServerSpecV3 {
     // Rotation contains the server CA rotation information.
     Rotation Rotation = 10
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "rotation,omitempty" ];
+    // GCP contains parameters specific to GCP Cloud SQL databases.
+    GCPCloudSQL GCP = 11 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "gcp,omitempty" ];
 }
 
 // AWS contains AWS specific settings such as region.
 message AWS {
     // Region is a AWS cloud region.
     string Region = 1 [ (gogoproto.jsontag) = "region,omitempty" ];
+}
+
+// GCPCloudSQL contains parameters specific to GCP Cloud SQL databases.
+message GCPCloudSQL {
+    // ProjectID is the GCP project ID the Cloud SQL instance resides in.
+    string ProjectID = 1 [ (gogoproto.jsontag) = "project_id,omitempty" ];
+    // InstanceID is the Cloud SQL instance ID.
+    string InstanceID = 2 [ (gogoproto.jsontag) = "instance_id,omitempty" ];
 }
 
 // ServerV2 represents a Node, App, Database, Proxy or Auth server in a Teleport cluster.
