@@ -18,7 +18,6 @@ package local
 
 import (
 	"context"
-	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
@@ -26,7 +25,6 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
@@ -37,10 +35,6 @@ type ClusterConfigurationSuite struct {
 }
 
 var _ = check.Suite(&ClusterConfigurationSuite{})
-
-func (s *ClusterConfigurationSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (s *ClusterConfigurationSuite) SetUpTest(c *check.C) {
 	var err error
