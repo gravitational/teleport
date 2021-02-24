@@ -106,6 +106,11 @@ With every user combination, try to login and signup with invalid second factor,
   - [ ] Connect to a OpenSSH node
   - [ ] Check agent forwarding is correct based on role and proxy mode.
 
+### User accounting
+
+- [ ] Verify that active interactive sessions are tracked in `/var/run/utmp` on Linux.
+- [ ] Verify that interactive sessions are logged in `/var/log/wtmp` on Linux.
+
 ### Combinations
 
 For some manual testing, many combinations need to be tested. For example, for
