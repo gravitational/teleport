@@ -29,6 +29,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -154,6 +156,8 @@ type InitConfig struct {
 	// Streamer is events sessionstreamer, used to create continuous
 	// session related streams
 	Streamer events.Streamer
+
+	ServerSettings proto.ServerSettings
 }
 
 // Init instantiates and configures an instance of AuthServer

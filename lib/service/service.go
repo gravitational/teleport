@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
@@ -1150,6 +1151,10 @@ func (process *TeleportProcess) initAuthService() error {
 		CASigningAlg:         cfg.CASignatureAlgorithm,
 		Emitter:              checkingEmitter,
 		Streamer:             events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
+		ServerSettings: proto.ServerSettings{
+			SSHTunnelAddress: cfg.Proxy.SSHAddr.Addr,
+			WebProxyAddress:  cfg.Proxy.WebAddr.Addr,
+		},
 	})
 	if err != nil {
 		return trace.Wrap(err)
