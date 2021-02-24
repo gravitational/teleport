@@ -345,6 +345,7 @@ lint-sh:
 		shellcheck \
 		--exclude=SC2086 \
 		--exclude=SC1091 \
+		--exclude=SC2129 \
 		$(SH_LINT_FLAGS)
 
 # Lints all the Helm charts found in directories under examples/chart and exits on failure
