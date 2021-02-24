@@ -18,8 +18,11 @@ func connectClient() (*auth.Client, error) {
 		return nil, fmt.Errorf("Failed to setup TLS config: %v", err)
 	}
 
-	// replace 127.0.0.1:3025 (default) with your auth server address
-	config := client.Config{Addrs: []string{"127.0.0.1:3025"}, TLS: tlsConfig}
+	config := client.Config{
+		// replace 127.0.0.1:3025 (default) with your auth server address
+		Addrs:       []string{"127.0.0.1:3025"},
+		Credentials: []client.Credentials{client.LoadTLS(tlsConfig)},
+	}
 	return auth.NewClient(config)
 }
 

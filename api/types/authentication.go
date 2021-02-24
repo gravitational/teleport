@@ -26,7 +26,6 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 )
 
 // AuthPreference defines the authentication preferences for a specific
@@ -308,13 +307,13 @@ func (u *U2F) Check() error {
 
 // NewMFADevice creates a new MFADevice with the given name. Caller must set
 // the Device field in the returned MFADevice.
-func NewMFADevice(name string, addedAt time.Time) *MFADevice {
+func NewMFADevice(name, id string, addedAt time.Time) *MFADevice {
 	return &MFADevice{
 		Kind: KindMFADevice,
 		Metadata: Metadata{
 			Name: name,
 		},
-		Id:       uuid.New(),
+		Id:       id,
 		AddedAt:  addedAt,
 		LastUsed: addedAt,
 	}
