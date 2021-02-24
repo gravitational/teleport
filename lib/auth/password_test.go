@@ -21,7 +21,6 @@ import (
 	"encoding/base32"
 	"math"
 	"sync"
-	"testing"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -33,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 
@@ -50,10 +48,6 @@ type PasswordSuite struct {
 }
 
 var _ = Suite(&PasswordSuite{})
-
-func (s *PasswordSuite) SetUpSuite(c *C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (s *PasswordSuite) SetUpTest(c *C) {
 	var err error

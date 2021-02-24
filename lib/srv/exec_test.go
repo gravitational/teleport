@@ -68,6 +68,7 @@ var _ = check.Suite(&ExecSuite{})
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise it will run tests as normal.
 func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
 	if len(os.Args) == 2 && os.Args[1] == teleport.ExecSubCommand {
@@ -81,8 +82,6 @@ func TestMain(m *testing.M) {
 }
 
 func (s *ExecSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	bk, err := lite.NewWithConfig(context.TODO(), lite.Config{Path: c.MkDir()})
 	c.Assert(err, check.IsNil)
 

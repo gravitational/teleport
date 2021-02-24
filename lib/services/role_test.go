@@ -34,9 +34,10 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/trace"
 )
 
 // TestConnAndSessLimits verifies that role sets correctly calculate
@@ -44,7 +45,6 @@ import (
 // roles with different individual values.  These are tested together since
 // both values use the same resolution rules.
 func TestConnAndSessLimits(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
 	tts := []struct {
 		desc string
 		vals []int64
@@ -93,7 +93,6 @@ func TestConnAndSessLimits(t *testing.T) {
 }
 
 func TestRoleParse(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
 	testCases := []struct {
 		name         string
 		in           string
@@ -2155,7 +2154,6 @@ func TestBoolOptions(t *testing.T) {
 }
 
 func TestCheckAccessToDatabase(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
 	dbStage := types.NewDatabaseServerV3("stage",
 		map[string]string{"env": "stage"},
 		types.DatabaseServerSpecV3{})
@@ -2298,7 +2296,6 @@ func TestCheckAccessToDatabase(t *testing.T) {
 }
 
 func TestCheckAccessToDatabaseUser(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
 	dbStage := types.NewDatabaseServerV3("stage",
 		map[string]string{"env": "stage"},
 		types.DatabaseServerSpecV3{})
@@ -2467,7 +2464,6 @@ func TestCheckDatabaseNamesAndUsers(t *testing.T) {
 }
 
 func TestCheckAccessToDatabaseService(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
 	dbNoLabels := types.NewDatabaseServerV3("test",
 		nil,
 		types.DatabaseServerSpecV3{})
