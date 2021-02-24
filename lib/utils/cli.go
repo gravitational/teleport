@@ -19,6 +19,7 @@ package utils
 import (
 	"bytes"
 	"crypto/x509"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -27,13 +28,15 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"testing"
 
 	"github.com/gravitational/teleport"
 
-	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
 )
 
 type LoggingPurpose int
@@ -69,14 +72,17 @@ func InitLogger(purpose LoggingPurpose, level log.Level, verbose ...bool) {
 	}
 }
 
-// InitLoggerForTests initializes the standard logger for tests with verbosity
-func InitLoggerForTests(verbose bool) {
+// InitLoggerForTests initializes the standard logger for tests.
+func InitLoggerForTests() {
+	// Parse flags to check testing.Verbose().
+	flag.Parse()
+
 	logger := log.StandardLogger()
 	logger.ReplaceHooks(make(log.LevelHooks))
 	logger.SetFormatter(&trace.TextFormatter{})
 	logger.SetLevel(log.DebugLevel)
 	logger.SetOutput(os.Stderr)
-	if verbose {
+	if testing.Verbose() {
 		return
 	}
 	logger.SetLevel(log.WarnLevel)

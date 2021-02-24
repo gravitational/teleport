@@ -17,6 +17,7 @@ limitations under the License.
 package services
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -29,16 +30,17 @@ import (
 	"gopkg.in/check.v1"
 )
 
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
+
 type ServicesSuite struct {
 }
 
 func TestServices(t *testing.T) { check.TestingT(t) }
 
 var _ = check.Suite(&ServicesSuite{})
-
-func (s *ServicesSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 // TestOptions tests command options operations
 func (s *ServicesSuite) TestOptions(c *check.C) {

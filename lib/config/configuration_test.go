@@ -38,9 +38,10 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/trace"
 )
 
 type testConfigFiles struct {
@@ -91,6 +92,8 @@ func (tc testConfigFiles) cleanup() {
 }
 
 func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+
 	if err := writeTestConfigs(); err != nil {
 		testConfigs.cleanup()
 		fmt.Println("failed writing test configs:", err)
@@ -102,8 +105,6 @@ func TestMain(m *testing.M) {
 }
 
 func TestConfig(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	t.Run("SampleConfig", func(t *testing.T) {
 		// generate sample config and write it into a temp file:
 		sfc, err := MakeSampleFileConfig(SampleFlags{

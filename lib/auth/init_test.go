@@ -40,13 +40,13 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/trace"
 )
 
 // TestReadIdentity makes parses identity from private key and certificate
@@ -484,8 +484,6 @@ func TestMigrateMFADevices(t *testing.T) {
 // TestMigrateOSS tests migration of OSS users, github connectors
 // and trusted clusters
 func TestMigrateOSS(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	ctx := context.Background()
 
 	t.Run("EmptyCluster", func(t *testing.T) {

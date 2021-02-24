@@ -111,6 +111,7 @@ var _ = Suite(&WebSuite{})
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise it will run tests as normal.
 func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
 	if len(os.Args) == 2 &&
@@ -126,7 +127,6 @@ func TestMain(m *testing.M) {
 
 func (s *WebSuite) SetUpSuite(c *C) {
 	os.Unsetenv(teleport.DebugEnvVar)
-	utils.InitLoggerForTests(testing.Verbose())
 
 	var err error
 	s.mockU2F, err = mocku2f.Create()
