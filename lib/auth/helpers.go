@@ -40,8 +40,9 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+
+	"github.com/gravitational/trace"
 )
 
 // TestAuthServerConfig is auth server test config
@@ -242,6 +243,14 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	return srv, nil
+}
+
+func (a *TestAuthServer) Close() error {
+	return trace.NewAggregate(
+		a.Backend.Close(),
+		a.AuditLog.Close(),
+		a.AuthServer.Close(),
+	)
 }
 
 // GenerateUserCert takes the public key in the OpenSSH `authorized_keys`
