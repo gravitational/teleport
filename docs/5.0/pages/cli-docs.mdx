@@ -41,7 +41,7 @@ the following services.
 | `--nodename` | `hostname` command on the machine | **string** | assigns an alternative name for the node which can be used by clients to login. By default it's equal to the value returned by
 | `-c, --config` | `/etc/teleport.yaml` | **string** `.yaml` filepath | starts services with config specified in the YAML file, overrides CLI flags if set
 | `--bootstrap` | none | **string** `.yaml` filepath | bootstrap configured YAML resources {/* TODO link how to configure this file */}
-| `--labels` | none | **string** comma-separated list | assigns a set of labels to a node. See the explanation of labeling mechanism in the [Labeling Nodes](admin-guide.mdx#labeling-nodes-and-applications) section.
+| `--labels` | none | **string** comma-separated list | assigns a set of labels to a node [env=dev,app=web]. See the explanation of labeling mechanism in the [Labeling Nodes](admin-guide.mdx#labeling-nodes-and-applications) section.
 | `--insecure` | none | none | disable certificate validation on Proxy Service, validation still occurs on Auth Service.
 | `--fips` | none | none | start Teleport in FedRAMP/FIPS 140-2 mode.
 | `--diag-addr` | none | none | Enable diagnostic endpoints
@@ -70,7 +70,7 @@ $ teleport start --roles=node --auth-server=10.1.0.1 --labels=db=master
 $ teleport start --roles=app --token=xyz --auth-server=proxy.example.com:3080 \
     --app-name="example-app" \
     --app-uri="http://localhost:8080" \
-    --labels=group:dev
+    --labels=group=dev
 ```
 
 ## teleport status
