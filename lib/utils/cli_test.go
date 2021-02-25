@@ -34,10 +34,6 @@ type CLISuite struct {
 
 var _ = check.Suite(&CLISuite{})
 
-func (s *CLISuite) SetUpSuite(c *check.C) {
-	InitLoggerForTests(testing.Verbose())
-}
-
 func (s *CLISuite) TestUserMessageFromError(c *check.C) {
 	c.Skip("Enable after https://drone.gravitational.io/gravitational/teleport/3517 is merged.")
 	tests := []struct {

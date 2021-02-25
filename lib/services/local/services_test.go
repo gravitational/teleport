@@ -18,6 +18,7 @@ package local
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -31,16 +32,17 @@ import (
 	"gopkg.in/check.v1"
 )
 
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
+
 type ServicesSuite struct {
 	bk    backend.Backend
 	suite *suite.ServicesTestSuite
 }
 
 var _ = check.Suite(&ServicesSuite{})
-
-func (s *ServicesSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (s *ServicesSuite) SetUpTest(c *check.C) {
 	var err error

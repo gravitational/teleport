@@ -35,10 +35,6 @@ type ConfigSuite struct {
 
 var _ = check.Suite(&ConfigSuite{})
 
-func (s *ConfigSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
-
 func (s *ConfigSuite) TestDefaultConfig(c *check.C) {
 	config := MakeDefaultConfig()
 	c.Assert(config, check.NotNil)

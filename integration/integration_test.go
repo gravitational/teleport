@@ -61,9 +61,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testlog"
 
-	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/check.v1"
+
+	"github.com/gravitational/trace"
 )
 
 const (
@@ -92,6 +93,7 @@ var _ = check.Suite(&IntSuite{})
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise it will run tests as normal.
 func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
 	if len(os.Args) == 2 &&
@@ -106,7 +108,6 @@ func TestMain(m *testing.M) {
 }
 
 func (s *IntSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
 	SetTestTimeouts(time.Millisecond * time.Duration(100))
 
 	var err error

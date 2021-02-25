@@ -19,6 +19,7 @@ package gcssessions
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/gravitational/teleport/lib/events/test"
@@ -29,11 +30,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
+
 // TestFakeStreams tests various streaming upload scenarios
 // using fake GCS background
 func TestFakeStreams(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	server := *fakestorage.NewServer([]fakestorage.Object{})
 	defer server.Stop()
 

@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
 	log "github.com/sirupsen/logrus"
@@ -36,8 +35,6 @@ import (
 // TestAuditWriter tests audit writer - a component used for
 // session recording
 func TestAuditWriter(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	// SessionTests multiple session
 	t.Run("Session", func(t *testing.T) {
 		test := newAuditWriterTest(t, nil)
