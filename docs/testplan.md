@@ -36,9 +36,20 @@ With every user combination, try to login and signup with invalid second factor,
   - [ ] Adding Users Password Only
   - [ ] Adding Users OTP
   - [ ] Adding Users U2F
+  - [ ] Managing MFA devices
+    - [ ] Add an OTP device with `tsh mfa add`
+    - [ ] Add a U2F device with `tsh mfa add`
+    - [ ] List MFA devices with `tsh mfa ls`
+    - [ ] Remove an OTP device with `tsh mfa rm`
+    - [ ] Remove a U2F device with `tsh mfa rm`
+    - [ ] Attempt removing the last MFA device on the user
+      - [ ] with `second_factor: on` in `auth_service`, should fail
+      - [ ] with `second_factor: optional` in `auth_service`, should succeed
   - [ ] Login Password Only
-  - [ ] Login OTP
-  - [ ] Login U2F
+  - [ ] Login with MFA
+    - [ ] Add 2 OTP and 2 U2F devices with `tsh mfa add`
+    - [ ] Login via OTP
+    - [ ] Login via U2F
   - [ ] Login OIDC
   - [ ] Login SAML
   - [ ] Login GitHub
@@ -133,7 +144,8 @@ interactive sessions the 12 combinations are below.
 
 * [ ] Deploy Teleport on a single EKS cluster
 * [ ] Deploy Teleport on two EKS clusters and connect them via trusted cluster feature
-* [ ] Deploy Teleport Proxy outside of GKE cluster fronting connections to it (this feature is not yet supported for EKS)
+* [ ] Deploy Teleport Proxy outside of GKE cluster fronting connections to it (use [this script](https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh) to generate a kubeconfig)
+* [ ] Deploy Teleport Proxy outside of EKS cluster fronting connections to it (use [this script](https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh) to generate a kubeconfig)
 
 ### Teleport with multiple Kubernetes clusters
 
