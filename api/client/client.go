@@ -118,6 +118,10 @@ func (c *Client) grpcDialer() grpcDialer {
 	}
 }
 
+func (c *Client) GetConnection() *grpc.ClientConn {
+	return c.conn
+}
+
 func (c *Client) connect(ctx context.Context) error {
 	// Loop over credentials and use first successful one.
 	var err error

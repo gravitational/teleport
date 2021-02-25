@@ -56,7 +56,7 @@ import (
 type SessionContext struct {
 	log    logrus.FieldLogger
 	user   string
-	clt    auth.ClientI
+	clt    *auth.Client
 	parent *sessionCache
 	// resources is persistent resource store this context is bound to.
 	// The store maintains a list of resources between session renewals
@@ -77,6 +77,14 @@ func (c *SessionContext) String() string {
 		c.session.GetBearerToken(),
 		c.session.GetBearerTokenExpiryTime(),
 	)
+}
+
+// GetAuthClient returns auth client
+func (c *SessionContext) GetAuthClient() (*auth.Client, error) {
+	if c.clt == nil {
+		return nil, trace.BadParameter("SessionContext is missing clt instance")
+	}
+	return c.clt, nil
 }
 
 // AddClosers adds the specified closers to this context
@@ -725,6 +733,10 @@ func (s *sessionCache) newSessionContext(user, sessionID string) (*SessionContex
 	return s.newSessionContextFromSession(session)
 }
 
+func (s *sessionCache) GetUserClient() *auth.Client {
+	return s.GetUserClient()
+}
+
 func (s *sessionCache) newSessionContextFromSession(session services.WebSession) (*SessionContext, error) {
 	tlsConfig, err := s.tlsConfig(session.GetTLSCert(), session.GetPriv())
 	if err != nil {
@@ -737,6 +749,7 @@ func (s *sessionCache) newSessionContextFromSession(session services.WebSession)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	ctx := &SessionContext{
 		clt:       userClient,
 		remoteClt: make(map[string]auth.ClientI),
@@ -757,6 +770,7 @@ func (s *sessionCache) newSessionContextFromSession(session services.WebSession)
 		// close our extra context and return
 		ctx.Close()
 	}
+
 	return ctx, nil
 }
 
