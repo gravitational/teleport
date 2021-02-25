@@ -36,9 +36,20 @@ With every user combination, try to login and signup with invalid second factor,
   - [ ] Adding Users Password Only
   - [ ] Adding Users OTP
   - [ ] Adding Users U2F
+  - [ ] Managing MFA devices
+    - [ ] Add an OTP device with `tsh mfa add`
+    - [ ] Add a U2F device with `tsh mfa add`
+    - [ ] List MFA devices with `tsh mfa ls`
+    - [ ] Remove an OTP device with `tsh mfa rm`
+    - [ ] Remove a U2F device with `tsh mfa rm`
+    - [ ] Attempt removing the last MFA device on the user
+      - [ ] with `second_factor: on` in `auth_service`, should fail
+      - [ ] with `second_factor: optional` in `auth_service`, should succeed
   - [ ] Login Password Only
-  - [ ] Login OTP
-  - [ ] Login U2F
+  - [ ] Login with MFA
+    - [ ] Add 2 OTP and 2 U2F devices with `tsh mfa add`
+    - [ ] Login via OTP
+    - [ ] Login via U2F
   - [ ] Login OIDC
   - [ ] Login SAML
   - [ ] Login GitHub
