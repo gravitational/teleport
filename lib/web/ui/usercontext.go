@@ -62,8 +62,8 @@ type userACL struct {
 	SSHLogins []string `json:"sshLogins"`
 	// AccessRequests defines access to access requests
 	AccessRequests access `json:"accessRequests"`
-	// BillingInformation defines access to billing information
-	BillingInformation access `json:"billingInformation"`
+	// Billing defines access to billing information
+	Billing access `json:"billing"`
 }
 
 type authType string
@@ -170,24 +170,24 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContex
 	nodeAccess := newAccess(userRoles, ctx, services.KindNode)
 	appServerAccess := newAccess(userRoles, ctx, services.KindAppServer)
 	requestAccess := newAccess(userRoles, ctx, services.KindAccessRequest)
-	billingInfoAccess := newAccess(userRoles, ctx, services.KindBillingInformation)
+	billingAccess := newAccess(userRoles, ctx, services.KindBilling)
 
 	logins := getLogins(userRoles)
 	accessStrategy := getAccessStrategy(userRoles)
 
 	acl := userACL{
-		AccessRequests:     requestAccess,
-		AppServers:         appServerAccess,
-		AuthConnectors:     authConnectors,
-		TrustedClusters:    trustedClusterAccess,
-		Sessions:           sessionAccess,
-		Roles:              roleAccess,
-		Events:             eventAccess,
-		SSHLogins:          logins,
-		Users:              userAccess,
-		Tokens:             tokenAccess,
-		Nodes:              nodeAccess,
-		BillingInformation: billingInfoAccess,
+		AccessRequests:  requestAccess,
+		AppServers:      appServerAccess,
+		AuthConnectors:  authConnectors,
+		TrustedClusters: trustedClusterAccess,
+		Sessions:        sessionAccess,
+		Roles:           roleAccess,
+		Events:          eventAccess,
+		SSHLogins:       logins,
+		Users:           userAccess,
+		Tokens:          tokenAccess,
+		Nodes:           nodeAccess,
+		Billing:         billingAccess,
 	}
 
 	// local user
