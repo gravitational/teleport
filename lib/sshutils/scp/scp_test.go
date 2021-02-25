@@ -657,15 +657,8 @@ func newTestFS(logger logrus.FieldLogger, files ...*testFileInfo) testFS {
 // newEmptyTestFS creates a new test FileSystem without content
 func newEmptyTestFS(logger logrus.FieldLogger) testFS {
 	return testFS{
-		fs: map[string]*testFileInfo{
-			// "." directory explicitly exists on a test fs
-			".": {
-				path:  ".",
-				dir:   true,
-				perms: os.FileMode(0755) | os.ModeDir,
-			},
-		},
-		l: logger,
+		fs: make(map[string]*testFileInfo),
+		l:  logger,
 	}
 }
 
@@ -713,7 +706,7 @@ func (r testFS) OpenFile(path string) (io.ReadCloser, error) {
 func (r testFS) CreateFile(path string, length uint64) (io.WriteCloser, error) {
 	r.l.WithField("path", path).WithField("len", length).Info("CreateFile.")
 	baseDir := filepath.Dir(path)
-	if _, exists := r.fs[baseDir]; !exists {
+	if _, exists := r.fs[baseDir]; baseDir != "." && !exists {
 		return nil, newErrMissingFile(baseDir)
 	}
 	fi := &testFileInfo{
