@@ -3,7 +3,7 @@
 #
 .PHONY: test
 test:
-	go test -v -test.parallel=0 -race ./...
+	go test -v -race ./...
 
 #
 # build builds all packages

@@ -26,15 +26,19 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/trace"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 // bootstrap check
 func TestTeleportMain(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	// get the hostname
 	hostname, err := os.Hostname()
 	require.NoError(t, err)

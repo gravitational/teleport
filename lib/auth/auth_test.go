@@ -22,6 +22,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509/pkix"
 	"encoding/json"
+	"os"
 	"testing"
 	"time"
 
@@ -55,6 +56,11 @@ import (
 	. "gopkg.in/check.v1"
 )
 
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
+
 func TestAPI(t *testing.T) { TestingT(t) }
 
 type AuthSuite struct {
@@ -65,10 +71,6 @@ type AuthSuite struct {
 }
 
 var _ = Suite(&AuthSuite{})
-
-func (s *AuthSuite) SetUpSuite(c *C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (s *AuthSuite) SetUpTest(c *C) {
 	var err error

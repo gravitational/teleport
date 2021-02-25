@@ -17,6 +17,7 @@ limitations under the License.
 package bpf
 
 import (
+	"os"
 	"testing"
 
 	"github.com/gravitational/teleport/lib/defaults"
@@ -25,13 +26,14 @@ import (
 	"gopkg.in/check.v1"
 )
 
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
+
 type CommonSuite struct{}
 
 var _ = check.Suite(&CommonSuite{})
-
-func (s *CommonSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 // TestCheckAndSetDefaults makes sure defaults are set when the user does not
 // provide values for the page sizes and hard coded values (like zero or a

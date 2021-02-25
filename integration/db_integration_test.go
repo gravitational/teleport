@@ -198,7 +198,6 @@ func setupDatabaseTest(t *testing.T) *databasePack {
 	// Some global setup.
 	tracer := utils.NewTracer(utils.ThisFunction()).Start()
 	t.Cleanup(func() { tracer.Stop() })
-	utils.InitLoggerForTests(testing.Verbose())
 	lib.SetInsecureDevMode(true)
 	SetTestTimeouts(100 * time.Millisecond)
 	log := testlog.FailureOnly(t)

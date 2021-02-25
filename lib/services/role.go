@@ -191,15 +191,17 @@ func RoleForUser(u User) Role {
 	}
 }
 
-// NewOSSUserRole is a role for enabling RBAC for open source users.
-// This is a limited role
-func NewOSSUserRole(name ...string) Role {
+// NewDowngradedOSSAdminRole is a role for enabling RBAC for open source users.
+// This role overrides built in OSS "admin" role to have less privileges.
+// DELETE IN (7.x)
+func NewDowngradedOSSAdminRole() Role {
 	role := &RoleV3{
 		Kind:    KindRole,
 		Version: V3,
 		Metadata: Metadata{
-			Name:      teleport.OSSUserRoleName,
+			Name:      teleport.AdminRoleName,
 			Namespace: defaults.Namespace,
+			Labels:    map[string]string{teleport.OSSMigratedV6: types.True},
 		},
 		Spec: RoleSpecV3{
 			Options: RoleOptions{

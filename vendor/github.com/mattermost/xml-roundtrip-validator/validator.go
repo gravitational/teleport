@@ -121,9 +121,20 @@ type byteReader struct {
 }
 
 func (r *byteReader) ReadByte() (byte, error) {
-	p := make([]byte, 1)
-	_, err := r.r.Read(p)
-	return p[0], err
+	var p [1]byte
+	n, err := r.r.Read(p[:])
+
+	// The doc for the io.ByteReader interface states:
+	//   If ReadByte returns an error, no input byte was consumed, and the returned byte value is undefined.
+	// So if a byte is actually extracted from the reader, and we want to return it, we mustn't return the error.
+	if n > 0 {
+		// this byteReader is only used in the context of the Validate() function,
+		// we deliberately choose to completely ignore the error in this case.
+		// return the byte extracted from the reader
+		return p[0], nil
+	}
+
+	return 0, err
 }
 
 func (r *byteReader) Read(p []byte) (int, error) {
