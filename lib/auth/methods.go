@@ -97,7 +97,8 @@ func (s *Server) AuthenticateUser(req AuthenticateUserRequest) error {
 		Method: events.LoginMethodLocal,
 	}
 	if mfaDev != nil {
-		event.With2FA = mfaDev.Id
+		m := mfaDeviceEventMetadata(mfaDev)
+		event.MFADevice = &m
 	}
 	if err != nil {
 		event.Code = events.UserLocalLoginFailureCode
@@ -143,9 +144,12 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 	case req.OTP != nil:
 		var mfaDev *types.MFADevice
 		err := s.WithUserLock(req.Username, func() error {
-			var err error
-			mfaDev, err = s.CheckPassword(req.Username, req.OTP.Password, req.OTP.Token)
-			return err
+			res, err := s.checkPassword(req.Username, req.OTP.Password, req.OTP.Token)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			mfaDev = res.mfaDev
+			return nil
 		})
 		if err != nil {
 			// provide obscure message on purpose, while logging the real
@@ -180,7 +184,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 			return nil, trace.AccessDenied("missing second factor")
 		}
 		err := s.WithUserLock(req.Username, func() error {
-			return s.CheckPasswordWOToken(req.Username, req.Pass.Password)
+			return s.checkPasswordWOToken(req.Username, req.Pass.Password)
 		})
 		if err != nil {
 			// provide obscure message on purpose, while logging the real

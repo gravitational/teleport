@@ -57,13 +57,12 @@ import (
 
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	saml2 "github.com/russellhaering/gosaml2"
 	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/trace"
 )
 
 // ServerOption allows setting options as functional arguments to Server
@@ -876,7 +875,7 @@ func (a *Server) GetMFAAuthenticateChallenge(user string, password []byte) (*MFA
 	ctx := context.TODO()
 
 	err := a.WithUserLock(user, func() error {
-		return a.CheckPasswordWOToken(user, password)
+		return a.checkPasswordWOToken(user, password)
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

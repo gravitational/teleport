@@ -520,8 +520,8 @@ message UserLogin {
     google.protobuf.Struct IdentityAttributes = 5
         [ (gogoproto.jsontag) = "attributes,omitempty", (gogoproto.casttype) = "Struct" ];
 
-    // With2FA is the UUID of an MFA device used during the login.
-    string With2FA = 6 [ (gogoproto.jsontag) = "with_2fa,omitempty" ];
+    // MFA is the MFA device used during the login.
+    MFADeviceMetadata MFADevice = 6 [ (gogoproto.jsontag) = "mfa_device,omitempty" ];
 }
 
 // ResourceMetadata is a common resource metadata
@@ -1210,7 +1210,7 @@ message MFADeviceDelete {
     // User is a common user event metadata.
     UserMetadata User = 2
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
-    // Device is the new MFA device deleted by the user.
+    // Device is the MFA device deleted by the user.
     MFADeviceMetadata Device = 3 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "device" ];
 }
 

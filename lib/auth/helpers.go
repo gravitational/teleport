@@ -40,9 +40,8 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/jonboulle/clockwork"
-
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 // TestAuthServerConfig is auth server test config
