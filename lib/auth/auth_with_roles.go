@@ -1046,7 +1046,7 @@ func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) 
 		ClusterName:    cn.GetClusterName(),
 		ServerVersion:  teleport.Version,
 		ServerFeatures: modules.GetModules().Features().ToProto(),
-		ServerSettings: &a.authServer.Settings,
+		PublicAddrs:    utils.NetAddrsToStrings(a.authServer.PublicAddrs),
 	}, nil
 }
 

@@ -13,15 +13,15 @@ import (
 
 // connectClient establishes a gRPC connection to an auth server.
 func connectClient() (*auth.Client, error) {
-	tlsConfig, err := LoadTLSConfig("certs/api-admin.crt", "certs/api-admin.key", "certs/api-admin.cas")
-	if err != nil {
-		return nil, fmt.Errorf("Failed to setup TLS config: %v", err)
-	}
+	// tlsConfig, err := LoadTLSConfig("certs/api-admin.crt", "certs/api-admin.key", "certs/api-admin.cas")
+	// if err != nil {
+	// 	return nil, fmt.Errorf("Failed to setup TLS config: %v", err)
+	// }
 
 	config := client.Config{
 		// replace 127.0.0.1:3025 (default) with your auth server address
 		Addrs:       []string{"127.0.0.1:3025"},
-		Credentials: []client.Credentials{client.LoadTLS(tlsConfig)},
+		Credentials: []client.Credentials{client.LoadIdentityFile("certs/access-admin-identity")},
 	}
 	return auth.NewClient(config)
 }

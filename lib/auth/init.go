@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -156,7 +155,8 @@ type InitConfig struct {
 	// session related streams
 	Streamer events.Streamer
 
-	ServerSettings proto.ServerSettings
+	// PublicAddrs is a list of public web proxy addresses.
+	PublicAddrs []utils.NetAddr
 }
 
 // Init instantiates and configures an instance of AuthServer

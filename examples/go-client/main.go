@@ -32,6 +32,12 @@ func main() {
 
 	ctx := context.Background()
 
+	resp, err := client.Ping(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(resp)
+
 	fmt.Println("")
 	roleCRUD(ctx, client)
 
