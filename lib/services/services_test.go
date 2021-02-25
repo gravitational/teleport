@@ -108,7 +108,7 @@ func (s *ServicesSuite) TestLabelKeyValidation(c *check.C) {
 func TestServerDeepCopy(t *testing.T) {
 	t.Parallel()
 	// setup
-	now := time.Date(1984, time.April, 4, 0, 0, 0, 0, time.UTC)
+	now := time.Date(1984, time.April, 4, 0, 0, 0, 0, time.Local)
 	expires := now.Add(1 * time.Hour)
 	srv := &ServerV2{
 		Kind:    KindNode,
