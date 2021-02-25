@@ -1452,14 +1452,6 @@ func replaceHost(addr *utils.NetAddr, newHost string) {
 	addr.Addr = net.JoinHostPort(newHost, port)
 }
 
-func fileExists(fp string) bool {
-	_, err := os.Stat(fp)
-	if err != nil && os.IsNotExist(err) {
-		return false
-	}
-	return true
-}
-
 // validateRoles makes sure that value upassed to --roles flag is valid
 func validateRoles(roles string) error {
 	for _, role := range splitRoles(roles) {
