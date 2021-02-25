@@ -79,14 +79,6 @@ func (c *SessionContext) String() string {
 	)
 }
 
-// GetAuthClient returns auth client
-func (c *SessionContext) GetAuthClient() (*auth.Client, error) {
-	if c.clt == nil {
-		return nil, trace.BadParameter("SessionContext is missing clt instance")
-	}
-	return c.clt, nil
-}
-
 // AddClosers adds the specified closers to this context
 func (c *SessionContext) AddClosers(closers ...io.Closer) {
 	c.resources.addClosers(closers...)
@@ -125,7 +117,7 @@ func (c *SessionContext) getRemoteClient(siteName string) (auth.ClientI, bool) {
 }
 
 // GetClient returns the client connected to the auth server
-func (c *SessionContext) GetClient() (auth.ClientI, error) {
+func (c *SessionContext) GetClient() (*auth.Client, error) {
 	return c.clt, nil
 }
 
