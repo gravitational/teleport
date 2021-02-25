@@ -733,10 +733,6 @@ func (s *sessionCache) newSessionContext(user, sessionID string) (*SessionContex
 	return s.newSessionContextFromSession(session)
 }
 
-func (s *sessionCache) GetUserClient() *auth.Client {
-	return s.GetUserClient()
-}
-
 func (s *sessionCache) newSessionContextFromSession(session services.WebSession) (*SessionContext, error) {
 	tlsConfig, err := s.tlsConfig(session.GetTLSCert(), session.GetPriv())
 	if err != nil {
