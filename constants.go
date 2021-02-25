@@ -546,9 +546,6 @@ const Root = "root"
 // another role is not explicitly assigned (Enterprise only).
 const AdminRoleName = "admin"
 
-// OSSUserRoleName is a role created for open source user
-const OSSUserRoleName = "ossuser"
-
 // OSSMigratedV6 is a label to mark migrated OSS users and resources
 const OSSMigratedV6 = "migrate-v6.0"
 

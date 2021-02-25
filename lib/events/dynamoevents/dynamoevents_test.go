@@ -30,11 +30,17 @@ import (
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 	"gopkg.in/check.v1"
+
+	"github.com/gravitational/trace"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 func TestDynamoevents(t *testing.T) { check.TestingT(t) }
 
@@ -46,8 +52,6 @@ type DynamoeventsSuite struct {
 var _ = check.Suite(&DynamoeventsSuite{})
 
 func (s *DynamoeventsSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	testEnabled := os.Getenv(teleport.AWSRunTests)
 	if ok, _ := strconv.ParseBool(testEnabled); !ok {
 		c.Skip("Skipping AWS-dependent test suite.")

@@ -19,6 +19,7 @@ package db
 import (
 	"context"
 	"net"
+	"os"
 	"testing"
 	"time"
 
@@ -40,6 +41,11 @@ import (
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 // TestPostgresAccess verifies access scenarios to a Postgres database based
 // on the configured RBAC rules.
@@ -386,8 +392,6 @@ func (c *testContext) Close() error {
 }
 
 func setupTestContext(ctx context.Context, t *testing.T) *testContext {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	clusterName := "root.example.com"
 	postgresServerName := "postgres-test"
 	mysqlServerName := "mysql-test"

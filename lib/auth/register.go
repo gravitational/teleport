@@ -260,7 +260,12 @@ func insecureRegisterClient(params RegisterParams) (*Client, error) {
 		log.Infof("Joining remote cluster %v, validating connection with certificate on disk.", cert.Subject.CommonName)
 	}
 
-	client, err := NewClient(client.Config{Addrs: utils.NetAddrsToStrings(params.Servers), TLS: tlsConfig})
+	client, err := NewClient(client.Config{
+		Addrs: utils.NetAddrsToStrings(params.Servers),
+		Credentials: []client.Credentials{
+			client.LoadTLS(tlsConfig),
+		},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -293,7 +298,12 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
 	tlsConfig.InsecureSkipVerify = true
 	tlsConfig.Time = params.Clock.Now
-	authClient, err := NewClient(client.Config{Addrs: utils.NetAddrsToStrings(params.Servers), TLS: tlsConfig})
+	authClient, err := NewClient(client.Config{
+		Addrs: utils.NetAddrsToStrings(params.Servers),
+		Credentials: []client.Credentials{
+			client.LoadTLS(tlsConfig),
+		},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -328,7 +338,12 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 	certPool.AddCert(tlsCA)
 	tlsConfig.RootCAs = certPool
 
-	authClient, err = NewClient(client.Config{Addrs: utils.NetAddrsToStrings(params.Servers), TLS: tlsConfig})
+	authClient, err = NewClient(client.Config{
+		Addrs: utils.NetAddrsToStrings(params.Servers),
+		Credentials: []client.Credentials{
+			client.LoadTLS(tlsConfig),
+		},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
