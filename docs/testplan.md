@@ -641,3 +641,25 @@ and non interactive tsh bench loads.
   - [ ] `tsh play <chunk-id>` can fetch and print a session chunk archive.
 - [ ] Verify JWT using [verify-jwt.go](https://github.com/gravitational/teleport/blob/master/examples/jwt/verify-jwt.go).
 - [ ] Verify RBAC.
+
+## Database Access
+
+- [ ] Connect to a database within a local cluster.
+  - [ ] Self-hosted Postgres.
+  - [ ] Self-hosted MySQL.
+  - [ ] AWS Aurora Postgres.
+  - [ ] AWS Aurora MySQL.
+- [ ] Connect to a database within a remote cluster via a trusted cluster.
+  - [ ] Self-hosted Postgres.
+  - [ ] Self-hosted MySQL.
+  - [ ] AWS Aurora Postgres.
+  - [ ] AWS Aurora MySQL.
+- [ ] Verify audit events.
+  - [ ] `db.session.start` is emitted when you connect.
+  - [ ] `db.session.end` is emitted when you disconnect.
+  - [ ] `db.session.query` is emitted when you execute a SQL query.
+- [ ] Verify RBAC.
+  - [ ] `tsh db ls` shows only databases matching role's `db_labels`.
+  - [ ] Can only connect as users from `db_users`.
+  - [ ] _(Postgres only)_ Can only connect to databases from `db_names`.
+  - [ ] `db.session.start` is emitted when connection attempt is denied.
