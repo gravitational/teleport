@@ -111,6 +111,14 @@ func TestAllowNewlines(t *testing.T) {
 			in:  "hello,\r\tworld!",
 			out: `"hello,\r\tworld!"`,
 		},
+		{
+			in:  "hello,\n\r\tworld!",
+			out: "hello,\n" + `"\r\tworld!"`,
+		},
+		{
+			in:  "hello,\t\n\r\tworld!",
+			out: `"hello,\t"` + "\n" + `"\r\tworld!"`,
+		},
 	}
 
 	for i, tt := range tests {
