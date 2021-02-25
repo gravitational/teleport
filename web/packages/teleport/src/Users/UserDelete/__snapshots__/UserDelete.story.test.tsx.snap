@@ -98,7 +98,6 @@ exports[`confirm state 1`] = `
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 24px;
-  margin-top: 4px;
 }
 
 .c8 {
@@ -240,7 +239,7 @@ exports[`confirm state 1`] = `
 `;
 
 exports[`failed state 1`] = `
-.c7 {
+.c4 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -257,7 +256,7 @@ exports[`failed state 1`] = `
   color: #FFFFFF;
 }
 
-.c7 a {
+.c4 a {
   color: #FFFFFF;
 }
 
@@ -342,7 +341,7 @@ exports[`failed state 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c5 {
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -358,7 +357,6 @@ exports[`failed state 1`] = `
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 24px;
-  margin-top: 4px;
 }
 
 .c9 {
@@ -417,7 +415,7 @@ exports[`failed state 1`] = `
   width: 100%;
 }
 
-.c4 {
+.c5 {
   box-sizing: border-box;
   margin-bottom: 16px;
   min-height: 32px;
@@ -425,7 +423,7 @@ exports[`failed state 1`] = `
   align-items: center;
 }
 
-.c6 {
+.c7 {
   box-sizing: border-box;
   margin-bottom: 32px;
   flex: 1;
@@ -454,24 +452,24 @@ exports[`failed state 1`] = `
       data-testid="dialogbox"
     >
       <div
-        class="sc-AxirZ sc-fzqBZW c4"
+        class="c4"
+        kind="danger"
+      >
+        server error
+      </div>
+      <div
+        class="sc-AxirZ sc-fzqBZW c5"
       >
         <div
-          class="c5"
+          class="c6"
           color="text.primary"
         >
           Delete User?
         </div>
       </div>
       <div
-        class="sc-AxirZ sc-fzqBZW c6"
+        class="sc-AxirZ sc-fzqBZW c7"
       >
-        <div
-          class="c7"
-          kind="danger"
-        >
-          server error
-        </div>
         <div
           class="c8"
         >
@@ -603,7 +601,6 @@ exports[`processing state 1`] = `
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 24px;
-  margin-top: 4px;
 }
 
 .c8 {

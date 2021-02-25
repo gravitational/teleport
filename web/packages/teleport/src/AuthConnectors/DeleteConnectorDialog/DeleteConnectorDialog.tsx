@@ -31,7 +31,7 @@ export default function DeleteConnectorDialog(props: Props) {
   const isDisabled = attempt.status === 'processing';
 
   function onOk() {
-    run(() => onDelete()).then(() => onClose());
+    run(() => onDelete()).then(ok => ok && onClose());
   }
 
   return (
@@ -41,12 +41,12 @@ export default function DeleteConnectorDialog(props: Props) {
       onClose={onClose}
       open={true}
     >
+      {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
       <DialogHeader>
         <DialogTitle>Remove Connector?</DialogTitle>
       </DialogHeader>
       <DialogContent>
-        {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
-        <Text typography="paragraph" mt="2" mb="6">
+        <Text typography="paragraph" mb="6">
           Are you sure you want to delete connector{' '}
           <Text as="span" bold color="primary.contrastText">
             {name}

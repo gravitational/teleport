@@ -42,14 +42,12 @@ export function UserDelete({
       onClose={close}
       open={true}
     >
+      {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
       <DialogHeader>
         <DialogTitle>Delete User?</DialogTitle>
       </DialogHeader>
       <DialogContent>
-        {attempt.status === 'failed' && (
-          <Alert kind="danger" children={attempt.statusText} />
-        )}
-        <Text mb={4} mt={1}>
+        <Text mb={4}>
           You are about to delete user
           <Text bold as="span">
             {` ${username}`}

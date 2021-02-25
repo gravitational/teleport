@@ -16,7 +16,12 @@ limitations under the License.
 
 import React from 'react';
 import { ButtonSecondary, ButtonWarning, Text, Alert } from 'design';
-import Dialog, { DialogContent, DialogFooter } from 'design/DialogConfirmation';
+import Dialog, {
+  DialogHeader,
+  DialogTitle,
+  DialogContent,
+  DialogFooter,
+} from 'design/DialogConfirmation';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { State as ResourceState } from 'teleport/components/useResources';
 
@@ -32,9 +37,11 @@ export default function DeleteRoleDialog(props: Props) {
   return (
     <Dialog disableEscapeKeyDown={false} onClose={onClose} open={true}>
       {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
-      <DialogContent width="400px">
-        <Text typography="h3">Remove Role?</Text>
-        <Text typography="paragraph" mt="2" mb="6">
+      <DialogHeader>
+        <DialogTitle>Remove Role?</DialogTitle>
+      </DialogHeader>
+      <DialogContent width="450px">
+        <Text typography="paragraph" mb="6">
           Are you sure you want to delete role{' '}
           <Text as="span" bold color="primary.contrastText">
             {name}
