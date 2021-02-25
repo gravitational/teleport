@@ -1062,12 +1062,12 @@ func isOldCluster(ctx context.Context, conn ssh.Conn) (bool, error) {
 	}
 
 	// Return true if the version is older than 6.0.0, the check is actually for
-	// 5.9.0, a non-existent version, to allow this check to work during development.
+	// 5.99.99, a non-existent version, to allow this check to work during development.
 	remoteClusterVersion, err := semver.NewVersion(version)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	minClusterVersion, err := semver.NewVersion("5.9.0")
+	minClusterVersion, err := semver.NewVersion("5.99.99")
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
