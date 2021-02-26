@@ -1,0 +1,28 @@
+# example teleport-pagerduty configuration TOML file
+[teleport]
+auth_server = "example.com:3025"                            # Teleport Auth Server GRPC API address
+client_key = "/var/lib/teleport/plugins/pagerduty/auth.key" # Teleport GRPC client secret key
+client_crt = "/var/lib/teleport/plugins/pagerduty/auth.crt" # Teleport GRPC client certificate
+root_cas = "/var/lib/teleport/plugins/pagerduty/auth.cas"   # Teleport cluster CA certs
+
+[pagerduty]
+api_key = "key"               # PagerDuty API Key
+user_email = "me@example.com" # PagerDuty bot user email (Could be admin email)
+service_id = "PIJ90N7"        # PagerDuty service id
+
+[http]
+public_addr = "example.com" # URL on which callback server is accessible externally, e.g. [https://]teleport-pagerduty.example.com
+# listen_addr = ":8081" # Network address in format [addr]:port on which callback server listens, e.g. 0.0.0.0:443
+https_key_file = "/var/lib/teleport/plugins/pagerduty/server.key"  # TLS private key
+https_cert_file = "/var/lib/teleport/plugins/pagerduty/server.crt" # TLS certificate
+
+[http.tls]
+verify_client_cert = true # The preferred way to authenticate webhooks on Pagerduty. See more: https://developer.pagerduty.com/docs/webhooks/webhooks-mutual-tls
+
+[http.basic_auth]
+user = "user"
+password = "password" # If you prefer to use basic auth for Pagerduty Webhooks authentication, use this section to store user and password
+
+[log]
+output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/pagerduty.log"
+severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
