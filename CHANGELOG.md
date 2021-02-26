@@ -24,7 +24,7 @@ An unauthenticated attacker that has network access to the Teleport Web Proxy co
 
 ##### Trusted Clusters
 
-Trusted clusters now correctly handle role mapping for Kubernetes. If you had identically-named roles in root and leaf clusters for granting Kubernetes access, leaf clusters now use kubernetes_users and kubernetes_groups from the leaf role instead of the root role.
+Trusted clusters now correctly handle role mapping for Kubernetes. If you had identically-named roles in root and leaf clusters for granting Kubernetes access, leaf clusters now use `kubernetes_users` and `kubernetes_groups` from the leaf role instead of the root role.
 
 #### Actions
 
@@ -34,15 +34,17 @@ For Application Access users, we also recommend upgrading the Application Access
 
 For Trusted Cluster users, we also recommend upgrading the Teleport Auth process within both leaf and root clusters.
 
-For Kubernetes Access users who rely on Trusted Clusters, we recommend reviewing the leaf cluster roles and making sure that they grant the correct kubernetes_users and kubernetes_groups.
+For Kubernetes Access users who rely on Trusted Clusters, we recommend reviewing the leaf cluster roles and making sure that they grant the correct `kubernetes_users` and `kubernetes_groups`.
 
 Upgrades should follow the normal Teleport upgrade procedure: https://goteleport.com/teleport/docs/admin-guide/#upgrading-teleport.
 
 Download one of the following releases to mitigate the issue:
 
-Enterprise 5.2.0/5.2.1 (these two releases have the same content; a new release had to be made on the public branch due to a complication with the build process)
-Enterprise 4.4.8
-Enterprise 4.3.10
+Teleport 5.2.1*
+Teleport 4.4.8
+Teleport 4.3.10
+
+* For Enterprise customers, 5.2.1 is identical to 5.2.0. A new release had to be made due to an issue with the build process.
 
 ## 5.1.2
 
