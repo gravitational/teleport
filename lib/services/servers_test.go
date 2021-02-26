@@ -137,7 +137,7 @@ func (s *ServerSuite) TestGuessProxyHostAndVersion(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
-func TestUnmarshalServerResourceKubernetes(t *testing.T) {
+func TestUnmarshalServerKubernetes(t *testing.T) {
 	// Regression test for
 	// https://github.com/gravitational/teleport/issues/4862
 	//
