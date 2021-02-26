@@ -175,7 +175,6 @@ func TestReceive(t *testing.T) {
 		desc       string
 		config     Config
 		source     string
-		args       []string
 		sourceFS   *testFS
 		expectedFS *testFS
 	}{
@@ -183,13 +182,11 @@ func TestReceive(t *testing.T) {
 			desc:     "regular file preserving the attributes",
 			config:   newTargetConfig("file", Flags{PreserveAttrs: true}),
 			source:   "file",
-			args:     args("-v", "-f", "-p"),
 			sourceFS: newTestFS(logger, newFileTimes("file", modtime, atime, "file contents")),
 		},
 		{
 			desc:   "directory preserving the attributes",
 			config: newTargetConfig("dir", Flags{PreserveAttrs: true, Recursive: true}),
-			args:   args("-v", "-f", "-r", "-p"),
 			source: "dir",
 			sourceFS: newTestFS(
 				logger,
@@ -204,7 +201,6 @@ func TestReceive(t *testing.T) {
 		{
 			desc:       "regular file into different filename (rename)",
 			config:     newTargetConfig("remote_file", Flags{}),
-			args:       args("-v", "-f"),
 			source:     "file",
 			expectedFS: newTestFS(logger, newFile("remote_file", "file contents")),
 			sourceFS:   newTestFS(logger, newFile("file", "file contents")),
@@ -212,7 +208,6 @@ func TestReceive(t *testing.T) {
 		{
 			desc:       "regular file into different filename in a directory (rename)",
 			config:     newTargetConfigWithFS("dir/remote_file", Flags{}, newTestFS(logger, newDir("dir"))),
-			args:       args("-v", "-f"),
 			source:     "file",
 			expectedFS: newTestFS(logger, newDir("dir", newFile("dir/remote_file", "file contents"))),
 			sourceFS:   newTestFS(logger, newFile("file", "file contents")),
@@ -220,7 +215,6 @@ func TestReceive(t *testing.T) {
 		{
 			desc:       "directory into different directory name (rename)",
 			config:     newTargetConfig("remote_dir", Flags{Recursive: true}),
-			args:       args("-v", "-f", "-r"),
 			source:     "dir",
 			expectedFS: newTestFS(logger, newDir("remote_dir", newFile("remote_dir/file", "file contents"))),
 			sourceFS:   newTestFS(logger, newDir("dir", newFile("dir/file", "file contents"))),
@@ -228,7 +222,6 @@ func TestReceive(t *testing.T) {
 		{
 			desc:       "directory into different directory name in subdirectory (rename)",
 			config:     newTargetConfigWithFS("dir/remote_dir", Flags{Recursive: true}, newTestFS(logger, newDir("dir"))),
-			args:       args("-v", "-f", "-r"),
 			source:     "dir",
 			expectedFS: newTestFS(logger, newDir("dir/remote_dir", newFile("dir/remote_dir/file", "file contents"))),
 			sourceFS:   newTestFS(logger, newDir("dir", newFile("dir/file", "file contents"))),
@@ -242,7 +235,14 @@ func TestReceive(t *testing.T) {
 
 			sourceDir := t.TempDir()
 			source := filepath.Join(sourceDir, tt.source)
-			args := append(tt.args, source)
+			args := []string{"-v", "-f"}
+			if tt.config.Flags.PreserveAttrs {
+				args = append(args, "-p")
+			}
+			if tt.config.Flags.Recursive {
+				args = append(args, "-r")
+			}
+			args = append(args, source)
 
 			if tt.config.FileSystem == nil {
 				tt.config.FileSystem = newEmptyTestFS(logger)
