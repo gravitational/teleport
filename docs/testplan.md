@@ -36,9 +36,20 @@ With every user combination, try to login and signup with invalid second factor,
   - [ ] Adding Users Password Only
   - [ ] Adding Users OTP
   - [ ] Adding Users U2F
+  - [ ] Managing MFA devices
+    - [ ] Add an OTP device with `tsh mfa add`
+    - [ ] Add a U2F device with `tsh mfa add`
+    - [ ] List MFA devices with `tsh mfa ls`
+    - [ ] Remove an OTP device with `tsh mfa rm`
+    - [ ] Remove a U2F device with `tsh mfa rm`
+    - [ ] Attempt removing the last MFA device on the user
+      - [ ] with `second_factor: on` in `auth_service`, should fail
+      - [ ] with `second_factor: optional` in `auth_service`, should succeed
   - [ ] Login Password Only
-  - [ ] Login OTP
-  - [ ] Login U2F
+  - [ ] Login with MFA
+    - [ ] Add 2 OTP and 2 U2F devices with `tsh mfa add`
+    - [ ] Login via OTP
+    - [ ] Login via U2F
   - [ ] Login OIDC
   - [ ] Login SAML
   - [ ] Login GitHub
@@ -106,6 +117,11 @@ With every user combination, try to login and signup with invalid second factor,
   - [ ] Connect to a OpenSSH node
   - [ ] Check agent forwarding is correct based on role and proxy mode.
 
+### User accounting
+
+- [ ] Verify that active interactive sessions are tracked in `/var/run/utmp` on Linux.
+- [ ] Verify that interactive sessions are logged in `/var/log/wtmp` on Linux.
+
 ### Combinations
 
 For some manual testing, many combinations need to be tested. For example, for
@@ -128,7 +144,8 @@ interactive sessions the 12 combinations are below.
 
 * [ ] Deploy Teleport on a single EKS cluster
 * [ ] Deploy Teleport on two EKS clusters and connect them via trusted cluster feature
-* [ ] Deploy Teleport Proxy outside of GKE cluster fronting connections to it (this feature is not yet supported for EKS)
+* [ ] Deploy Teleport Proxy outside of GKE cluster fronting connections to it (use [this script](https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh) to generate a kubeconfig)
+* [ ] Deploy Teleport Proxy outside of EKS cluster fronting connections to it (use [this script](https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh) to generate a kubeconfig)
 
 ### Teleport with multiple Kubernetes clusters
 
@@ -636,3 +653,25 @@ and non interactive tsh bench loads.
   - [ ] `tsh play <chunk-id>` can fetch and print a session chunk archive.
 - [ ] Verify JWT using [verify-jwt.go](https://github.com/gravitational/teleport/blob/master/examples/jwt/verify-jwt.go).
 - [ ] Verify RBAC.
+
+## Database Access
+
+- [ ] Connect to a database within a local cluster.
+  - [ ] Self-hosted Postgres.
+  - [ ] Self-hosted MySQL.
+  - [ ] AWS Aurora Postgres.
+  - [ ] AWS Aurora MySQL.
+- [ ] Connect to a database within a remote cluster via a trusted cluster.
+  - [ ] Self-hosted Postgres.
+  - [ ] Self-hosted MySQL.
+  - [ ] AWS Aurora Postgres.
+  - [ ] AWS Aurora MySQL.
+- [ ] Verify audit events.
+  - [ ] `db.session.start` is emitted when you connect.
+  - [ ] `db.session.end` is emitted when you disconnect.
+  - [ ] `db.session.query` is emitted when you execute a SQL query.
+- [ ] Verify RBAC.
+  - [ ] `tsh db ls` shows only databases matching role's `db_labels`.
+  - [ ] Can only connect as users from `db_users`.
+  - [ ] _(Postgres only)_ Can only connect to databases from `db_names`.
+  - [ ] `db.session.start` is emitted when connection attempt is denied.
