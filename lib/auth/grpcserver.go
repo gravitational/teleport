@@ -1707,7 +1707,7 @@ func validateUserSingleUseCertRequest(ctx context.Context, actx *grpcContext, re
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		var node types.Server
+		var matches []types.Server
 		for _, n := range nodes {
 			// Get the server address without port number.
 			addr, _, err := net.SplitHostPort(n.GetAddr())
@@ -1716,14 +1716,16 @@ func validateUserSingleUseCertRequest(ctx context.Context, actx *grpcContext, re
 			}
 			// Match NodeName to UUID, hostname or self-reported server address.
 			if n.GetName() == req.NodeName || n.GetHostname() == req.NodeName || addr == req.NodeName {
-				node = n
-				break
+				matches = append(matches, n)
 			}
 		}
-		if node == nil {
+		if len(matches) == 0 {
 			return notFoundErr
 		}
-		noMFAAccessErr = actx.context.Checker.CheckAccessToServer(req.Username, node, false)
+		if len(matches) > 1 {
+			return trace.BadParameter("multiple nodes match %q, please use the node UUID to login instead", req.NodeName)
+		}
+		noMFAAccessErr = actx.context.Checker.CheckAccessToServer(req.Username, matches[0], false)
 
 	case proto.UserCertsRequest_Kubernetes:
 		if req.KubernetesCluster == "" {

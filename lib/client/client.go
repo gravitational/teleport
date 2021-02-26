@@ -254,6 +254,18 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		return nil, trace.Wrap(err)
 	}
 
+	if len(params.AccessRequests) == 0 {
+		// Get the active access requests to include in the cert.
+		var activeRequests services.RequestIDs
+		rawRequests, ok := cert.Extensions[teleport.CertExtensionTeleportActiveRequests]
+		if ok {
+			if err := activeRequests.Unmarshal([]byte(rawRequests)); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		params.AccessRequests = activeRequests.AccessRequests
+	}
+
 	log.Debug("Attempting to issue a single-use user certificate with an MFA check.")
 	stream, err := clt.GenerateUserSingleUseCerts(ctx)
 	if err != nil {
