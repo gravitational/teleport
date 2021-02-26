@@ -34,12 +34,13 @@ implementation and it is _fully compatible with OpenSSH_ and can be used with
 
 |Project Links| Description
 |---|----
-| [Teleport Website](https://goteleport.com/teleport) | The official website of the project |
-| [Documentation](https://goteleport.com/teleport/docs/quickstart/) | Admin guide, user manual and more |
+| [Teleport Website](https://goteleport.com/teleport) | The official website of the project. |
+| [Documentation](https://goteleport.com/teleport/docs/quickstart/) | Admin guide, user manual and more. |
 | [Demo Video](https://www.youtube.com/watch?v=DUlTAlEJr5w) | 5-minute video overview of the UI. |
-| [Teleconsole](https://www.teleconsole.com) | The free service to "invite" SSH clients behind NAT, built on top of Teleport |
-| [Blog](https://goteleport.com/blog/) | Our blog where we publish Teleport news |
-| [Community Forum](https://community.goteleport.com) | Teleport Community Forum|
+| [Teleconsole](https://www.teleconsole.com) | The free service to "invite" SSH clients behind NAT, built on top of Teleport. |
+| [Blog](https://goteleport.com/blog/) | Our blog where we publish Teleport news. |
+| [Forum](https://github.com/gravitational/teleport/discussions) | Ask us a setup question, post your tutorial, feedback or idea on our forum. |
+| [Slack](https://join.slack.com/t/goteleport/shared_invite/zt-midnn9bn-AQKcq5NNDs9ojELKlgwJUA) | Need help with set-up? Ping us in Slack channel. |
 
 [![Teleport 4.3 Demo](/docs/4.3/img/readme/teleport-4.3-video-thumb.png)](https://www.youtube.com/watch?v=DUlTAlEJr5w)
 

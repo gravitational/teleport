@@ -53,13 +53,11 @@ Examples:
 `
 
 	sampleConfComment = `#
-# Sample Teleport configuration file
+# A Sample Teleport configuration file.
 # Creates a single proxy, auth and node server.
 #
 # Things to update:
-#  1. ca_pin: Obtain the CA pin hash for joining more nodes by running 'tctl status'
-#     on the auth server once Teleport is running.
-#  2. license-if-using-teleport-enterprise.pem: If you are an Enterprise customer,
-#     obtain this from https://dashboard.gravitational.com/web/
+#  1. license.pem: You only need a license from https://dashboard.goteleport.com
+#     if you are an Enterprise customer.
 #`
 )

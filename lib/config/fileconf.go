@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2018 Gravitational, Inc.
+Copyright 2015-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/url"
 	"os"
 	"strings"
@@ -46,11 +47,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
-)
-
-const (
-	// randomTokenLenBytes is the length of random token generated for the example config
-	randomTokenLenBytes = 24
 )
 
 var (
@@ -325,28 +321,34 @@ func ReadConfig(reader io.Reader) (*FileConfig, error) {
 	return &fc, nil
 }
 
-// MakeSampleFileConfig returns a sample config structure populated by defaults,
-// useful to generate sample configuration files
-func MakeSampleFileConfig() (fc *FileConfig, err error) {
-	conf := service.MakeDefaultConfig()
+// SampleFlags specifies standalone configuration parameters
+type SampleFlags struct {
+	// ClusterName is an optional cluster name
+	ClusterName string
+	// LicensePath adds license path to config
+	LicensePath string
+	// ACMEEmail is acme email
+	ACMEEmail string
+	// ACMEEnabled turns on ACME
+	ACMEEnabled bool
+}
 
-	// generate a secure random token
-	randomJoinToken, err := utils.CryptoRandomHex(randomTokenLenBytes)
-	if err != nil {
-		return nil, trace.Wrap(err)
+// MakeSampleFileConfig returns a sample config to start
+// a standalone server
+func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
+	if flags.ACMEEnabled && flags.ClusterName == "" {
+		return nil, trace.BadParameter("please provide --cluster-name when using acme, for example --cluster-name=example.com")
 	}
 
-	// sample global config:
+	conf := service.MakeDefaultConfig()
+
 	var g Global
 	g.NodeName = conf.Hostname
-	g.AuthToken = randomJoinToken
-	g.CAPin = "sha256:ca-pin-hash-goes-here"
 	g.Logger.Output = "stderr"
 	g.Logger.Severity = "INFO"
-	g.AuthServers = []string{fmt.Sprintf("%s:%d", defaults.Localhost, defaults.AuthListenPort)}
 	g.DataDir = defaults.DataDir
 
-	// sample SSH config:
+	// SSH config:
 	var s SSH
 	s.EnabledFlag = "yes"
 	s.ListenAddress = conf.SSH.Addr.Addr
@@ -356,29 +358,33 @@ func MakeSampleFileConfig() (fc *FileConfig, err error) {
 			Command: []string{"hostname"},
 			Period:  time.Minute,
 		},
-		{
-			Name:    "arch",
-			Command: []string{"uname", "-p"},
-			Period:  time.Hour,
-		},
 	}
 	s.Labels = map[string]string{
-		"env": "staging",
+		"env": "example",
 	}
 
-	// sample Auth config:
+	// Auth config:
 	var a Auth
 	a.ListenAddress = conf.Auth.SSHAddr.Addr
+	a.ClusterName = ClusterName(flags.ClusterName)
 	a.EnabledFlag = "yes"
-	a.StaticTokens = []StaticToken{StaticToken(fmt.Sprintf("proxy,node:%s", randomJoinToken))}
-	a.LicenseFile = "/path/to/license-if-using-teleport-enterprise.pem"
+
+	if flags.LicensePath != "" {
+		a.LicenseFile = flags.LicensePath
+	}
 
 	// sample proxy config:
 	var p Proxy
 	p.EnabledFlag = "yes"
 	p.ListenAddress = conf.Proxy.SSHAddr.Addr
-	p.WebAddr = conf.Proxy.WebAddr.Addr
-	p.TunAddr = conf.Proxy.ReverseTunnelListenAddr.Addr
+	if flags.ACMEEnabled {
+		p.ACME.EnabledFlag = "yes"
+		p.ACME.Email = flags.ACMEEmail
+		p.PublicAddr = utils.Strings{
+			net.JoinHostPort(flags.ClusterName,
+				fmt.Sprintf("%d", conf.Proxy.WebAddr.Port(defaults.HTTPListenPort))),
+		}
+	}
 
 	fc = &FileConfig{
 		Global: g,

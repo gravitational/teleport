@@ -76,21 +76,6 @@ resource "aws_autoscaling_group" "monitor_acm" {
   }
 }
 
-data "template_file" "monitor_user_data" {
-  template = file("monitor-user-data.tpl")
-
-  vars = {
-    region           = var.region
-    cluster_name     = var.cluster_name
-    influxdb_version = var.influxdb_version
-    grafana_version  = var.grafana_version
-    telegraf_version = var.telegraf_version
-    s3_bucket        = var.s3_bucket_name
-    domain_name      = var.route53_domain
-    use_acm          = var.use_acm
-  }
-}
-
 resource "aws_launch_configuration" "monitor" {
   lifecycle {
     create_before_destroy = true
@@ -98,7 +83,19 @@ resource "aws_launch_configuration" "monitor" {
   name_prefix                 = "${var.cluster_name}-monitor-"
   image_id                    = data.aws_ami.base.id
   instance_type               = var.monitor_instance_type
-  user_data                   = data.template_file.monitor_user_data.rendered
+  user_data                   = templatefile(
+    "${path.module}/monitor-user-data.tpl",
+    {
+      region           = var.region
+      cluster_name     = var.cluster_name
+      influxdb_version = var.influxdb_version
+      grafana_version  = var.grafana_version
+      telegraf_version = var.telegraf_version
+      s3_bucket        = var.s3_bucket_name
+      domain_name      = var.route53_domain
+      use_acm          = var.use_acm
+    }
+  )
   key_name                    = var.key_name
   ebs_optimized               = true
   associate_public_ip_address = true

@@ -1041,14 +1041,13 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 
 		auditConfig := cfg.Auth.ClusterConfig.GetAuditConfig()
-		uploadHandler, err := initUploadHandler(
+		uploadHandler, err = initUploadHandler(
 			auditConfig, filepath.Join(cfg.DataDir, teleport.LogsDir))
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
 			}
 		}
-
 		streamer, err = events.NewProtoStreamer(events.ProtoStreamerConfig{
 			Uploader: uploadHandler,
 		})
@@ -1099,6 +1098,7 @@ func (process *TeleportProcess) initAuthService() error {
 		uploadCompleter, err = events.NewUploadCompleter(events.UploadCompleterConfig{
 			Uploader:  uploadHandler,
 			Component: teleport.ComponentAuth,
+			AuditLog:  process.auditLog,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -1179,6 +1179,7 @@ func (process *TeleportProcess) initAuthService() error {
 		Authorizer:     authorizer,
 		AuditLog:       process.auditLog,
 		Emitter:        checkingEmitter,
+		MetadataGetter: uploadHandler,
 	}
 
 	var authCache auth.Cache
@@ -1874,7 +1875,7 @@ func (process *TeleportProcess) initUploaderService(accessPoint auth.AccessPoint
 	paths := [][]string{
 		// DELETE IN (5.1.0)
 		// this directory will no longer be used after migration to 5.1.0
-		[]string{process.Config.DataDir, teleport.LogsDir, teleport.ComponentUpload, events.SessionLogsDir, defaults.Namespace},
+		{process.Config.DataDir, teleport.LogsDir, teleport.ComponentUpload, events.SessionLogsDir, defaults.Namespace},
 		// This directory will remain to be used after migration to 5.1.0
 		streamingDir,
 	}
@@ -1932,6 +1933,7 @@ func (process *TeleportProcess) initUploaderService(accessPoint auth.AccessPoint
 	fileUploader, err := filesessions.NewUploader(filesessions.UploaderConfig{
 		ScanDir:  filepath.Join(streamingDir...),
 		Streamer: accessPoint,
+		AuditLog: auditLog,
 		EventsC:  process.Config.UploadEventsC,
 	})
 	if err != nil {

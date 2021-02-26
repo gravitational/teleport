@@ -18,31 +18,22 @@ package config
 
 import (
 	"encoding/base64"
+	"fmt"
+	"testing"
 
-	"gopkg.in/check.v1"
+	"github.com/stretchr/testify/require"
 )
 
-type FileTestSuite struct {
-}
-
-var _ = check.Suite(&FileTestSuite{})
-
-func (s *FileTestSuite) SetUpSuite(c *check.C) {
-}
-
-func (s *FileTestSuite) TearDownSuite(c *check.C) {
-}
-
-func (s *FileTestSuite) SetUpTest(c *check.C) {
-}
-
-func (s *FileTestSuite) TestAuthenticationSection(c *check.C) {
+func TestAuthenticationSection(t *testing.T) {
 	tests := []struct {
+		comment                 string
 		inConfigString          string
 		outAuthenticationConfig *AuthenticationConfig
 	}{
 		// 0 - local with otp
 		{
+			`0 - local with otp`,
+
 			`
 auth_service:
   authentication:
@@ -56,6 +47,8 @@ auth_service:
 		},
 		// 1 - local auth without otp
 		{
+			`1 - local auth without otp`,
+
 			`
 auth_service:
   authentication:
@@ -69,6 +62,8 @@ auth_service:
 		},
 		// 2 - local auth with u2f
 		{
+			`2 - local auth with u2f`,
+
 			`
 auth_service:
    authentication:
@@ -93,37 +88,40 @@ auth_service:
 	}
 
 	// run tests
-	for i, tt := range tests {
-		comment := check.Commentf("Test %v", i)
-
+	for _, tt := range tests {
+		comment := fmt.Sprintf("Test %s", tt.comment)
 		encodedConfigString := base64.StdEncoding.EncodeToString([]byte(tt.inConfigString))
 
 		fc, err := ReadFromString(encodedConfigString)
-		c.Assert(err, check.IsNil, comment)
-
-		c.Assert(fc.Auth.Authentication, check.DeepEquals, tt.outAuthenticationConfig, comment)
+		require.NoError(t, err, comment)
+		require.Equal(t, fc.Auth.Authentication, tt.outAuthenticationConfig, comment)
 	}
 }
 
 // TestLegacySection ensures we continue to parse and correctly load deprecated
 // OIDC connector and U2F authentication configuration.
-func (s *FileTestSuite) TestLegacyAuthenticationSection(c *check.C) {
+func TestLegacyAuthenticationSection(t *testing.T) {
 	encodedLegacyAuthenticationSection := base64.StdEncoding.EncodeToString([]byte(LegacyAuthenticationSection))
 
 	// read config into struct
 	fc, err := ReadFromString(encodedLegacyAuthenticationSection)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
-	// validate oidc connector
-	c.Assert(fc.Auth.OIDCConnectors, check.HasLen, 1)
-	c.Assert(fc.Auth.OIDCConnectors[0].ID, check.Equals, "google")
-	c.Assert(fc.Auth.OIDCConnectors[0].RedirectURL, check.Equals, "https://localhost:3080/v1/webapi/oidc/callback")
-	c.Assert(fc.Auth.OIDCConnectors[0].ClientID, check.Equals, "id-from-google.apps.googleusercontent.com")
-	c.Assert(fc.Auth.OIDCConnectors[0].ClientSecret, check.Equals, "secret-key-from-google")
-	c.Assert(fc.Auth.OIDCConnectors[0].IssuerURL, check.Equals, "https://accounts.google.com")
-
-	// validate u2f
-	c.Assert(fc.Auth.U2F.AppID, check.Equals, "https://graviton:3080")
-	c.Assert(fc.Auth.U2F.Facets, check.HasLen, 1)
-	c.Assert(fc.Auth.U2F.Facets[0], check.Equals, "https://graviton:3080")
+	// validate oidc connector and u2f
+	require.Equal(t, fc.Auth, Auth{
+		Service: Service{
+			defaultEnabled: true,
+		},
+		OIDCConnectors: []OIDCConnector{{
+			ID:           "google",
+			RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
+			ClientID:     "id-from-google.apps.googleusercontent.com",
+			ClientSecret: "secret-key-from-google",
+			IssuerURL:    "https://accounts.google.com",
+		}},
+		U2F: U2F{
+			AppID:  "https://graviton:3080",
+			Facets: []string{"https://graviton:3080"},
+		},
+	})
 }

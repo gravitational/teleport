@@ -96,12 +96,16 @@ func Run(commands []CLICommand, loadConfigExt LoadConfigFn) {
 
 	var ccf GlobalCLIFlags
 
-	// Initially, set the config file path to the default.
-	// If this is overridden by environment variable, update the path.
-	ccf.ConfigFile = defaults.ConfigFilePath
+	// If the config file path is being overridden by environment variable, set that.
+	// If not, check whether the default config file path exists and set that if so.
+	// This preserves tctl's default behavior for backwards compatibility.
 	configFileEnvar, isSet := os.LookupEnv(defaults.ConfigFileEnvar)
 	if isSet {
 		ccf.ConfigFile = configFileEnvar
+	} else {
+		if utils.FileExists(defaults.ConfigFilePath) {
+			ccf.ConfigFile = defaults.ConfigFilePath
+		}
 	}
 
 	// these global flags apply to all commands
@@ -191,7 +195,12 @@ func connectToAuthService(ctx context.Context, cfg *service.Config, clientConfig
 	log.Debugf("Connecting to auth servers: %v.", cfg.AuthServers)
 
 	// Try connecting to the auth server directly over TLS.
-	client, err := auth.NewClient(apiclient.Config{Addrs: utils.NetAddrsToStrings(cfg.AuthServers), TLS: clientConfig.TLS})
+	client, err := auth.NewClient(apiclient.Config{
+		Addrs: utils.NetAddrsToStrings(cfg.AuthServers),
+		Credentials: []apiclient.Credentials{
+			apiclient.LoadTLS(clientConfig.TLS),
+		},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err, "failed direct dial to auth server: %v", err)
 	}
@@ -229,7 +238,9 @@ func connectToAuthService(ctx context.Context, cfg *service.Config, clientConfig
 				ProxyAddr:    tunAddr,
 				ClientConfig: clientConfig.SSH,
 			},
-			TLS: clientConfig.TLS,
+			Credentials: []apiclient.Credentials{
+				apiclient.LoadTLS(clientConfig.TLS),
+			},
 		})
 		if err != nil {
 			errs = append(errs, trace.Wrap(err, "failed dial to auth server through reverse tunnel: %v", err))

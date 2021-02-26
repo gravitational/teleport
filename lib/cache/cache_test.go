@@ -19,6 +19,7 @@ package cache
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -37,12 +38,18 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
+
+	"github.com/gravitational/trace"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 type CacheSuite struct{}
 
@@ -50,10 +57,6 @@ var _ = check.Suite(&CacheSuite{})
 
 // bootstrap check
 func TestState(t *testing.T) { check.TestingT(t) }
-
-func (s *CacheSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 // testPack contains pack of
 // services used for test run

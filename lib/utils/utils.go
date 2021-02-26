@@ -519,6 +519,15 @@ func AddrsFromStrings(s Strings, defaultPort int) ([]NetAddr, error) {
 	return addrs, nil
 }
 
+// FileExists checks whether a file exists at a given path
+func FileExists(fp string) bool {
+	_, err := os.Stat(fp)
+	if err != nil && os.IsNotExist(err) {
+		return false
+	}
+	return true
+}
+
 const (
 	// CertTeleportUser specifies teleport user
 	CertTeleportUser = "x-teleport-user"

@@ -234,8 +234,6 @@ type pack struct {
 
 // setup configures all clusters and servers needed for a test.
 func setup(t *testing.T) *pack {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 

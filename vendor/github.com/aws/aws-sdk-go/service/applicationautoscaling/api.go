@@ -65,8 +65,8 @@ func (c *ApplicationAutoScaling) DeleteScalingPolicyRequest(input *DeleteScaling
 // not delete the CloudWatch alarm associated with the scaling policy, even
 // if it no longer has an associated action.
 //
-// For more information, see Delete a Step Scaling Policy (https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-step-scaling-policies.html#delete-step-scaling-policy)
-// and Delete a Target Tracking Scaling Policy (https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-target-tracking.html#delete-target-tracking-policy)
+// For more information, see Delete a step scaling policy (https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-step-scaling-policies.html#delete-step-scaling-policy)
+// and Delete a target tracking scaling policy (https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-target-tracking.html#delete-target-tracking-policy)
 // in the Application Auto Scaling User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
@@ -165,7 +165,7 @@ func (c *ApplicationAutoScaling) DeleteScheduledActionRequest(input *DeleteSched
 // Deletes the specified scheduled action for an Application Auto Scaling scalable
 // target.
 //
-// For more information, see Delete a Scheduled Action (https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-scheduled-scaling.html#delete-scheduled-action)
+// For more information, see Delete a scheduled action (https://docs.aws.amazon.com/autoscaling/application/userguide/scheduled-scaling-additional-cli-commands.html#delete-scheduled-action)
 // in the Application Auto Scaling User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
@@ -672,8 +672,8 @@ func (c *ApplicationAutoScaling) DescribeScalingPoliciesRequest(input *DescribeS
 //
 // You can filter the results using ResourceId, ScalableDimension, and PolicyNames.
 //
-// For more information, see Target Tracking Scaling Policies (https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-target-tracking.html)
-// and Step Scaling Policies (https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-step-scaling-policies.html)
+// For more information, see Target tracking scaling policies (https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-target-tracking.html)
+// and Step scaling policies (https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-step-scaling-policies.html)
 // in the Application Auto Scaling User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
@@ -836,7 +836,8 @@ func (c *ApplicationAutoScaling) DescribeScheduledActionsRequest(input *Describe
 // You can filter the results using the ResourceId, ScalableDimension, and ScheduledActionNames
 // parameters.
 //
-// For more information, see Scheduled Scaling (https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-scheduled-scaling.html)
+// For more information, see Scheduled scaling (https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-scheduled-scaling.html)
+// and Managing scheduled scaling (https://docs.aws.amazon.com/autoscaling/application/userguide/scheduled-scaling-additional-cli-commands.html)
 // in the Application Auto Scaling User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
@@ -1006,8 +1007,8 @@ func (c *ApplicationAutoScaling) PutScalingPolicyRequest(input *PutScalingPolicy
 // the target tracking policy could instruct the scalable target to scale out
 // again.
 //
-// For more information, see Target Tracking Scaling Policies (https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-target-tracking.html)
-// and Step Scaling Policies (https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-step-scaling-policies.html)
+// For more information, see Target tracking scaling policies (https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-target-tracking.html)
+// and Step scaling policies (https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-step-scaling-policies.html)
 // in the Application Auto Scaling User Guide.
 //
 // If a scalable target is deregistered, the scalable target is no longer available
@@ -1028,7 +1029,7 @@ func (c *ApplicationAutoScaling) PutScalingPolicyRequest(input *PutScalingPolicy
 //
 //   * LimitExceededException
 //   A per-account resource limit is exceeded. For more information, see Application
-//   Auto Scaling Limits (https://docs.aws.amazon.com/ApplicationAutoScaling/latest/userguide/application-auto-scaling-limits.html).
+//   Auto Scaling service quotas (https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-limits.html).
 //
 //   * ObjectNotFoundException
 //   The specified object could not be found. For any operation that depends on
@@ -1128,13 +1129,13 @@ func (c *ApplicationAutoScaling) PutScheduledActionRequest(input *PutScheduledAc
 // have registered the resource as a scalable target.
 //
 // When start and end times are specified with a recurring schedule using a
-// cron expression or rates, they form the boundaries of when the recurring
+// cron expression or rates, they form the boundaries for when the recurring
 // action starts and stops.
 //
 // To update a scheduled action, specify the parameters that you want to change.
 // If you don't specify start and end times, the old values are deleted.
 //
-// For more information, see Scheduled Scaling (https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-scheduled-scaling.html)
+// For more information, see Scheduled scaling (https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-scheduled-scaling.html)
 // in the Application Auto Scaling User Guide.
 //
 // If a scalable target is deregistered, the scalable target is no longer available
@@ -1155,7 +1156,7 @@ func (c *ApplicationAutoScaling) PutScheduledActionRequest(input *PutScheduledAc
 //
 //   * LimitExceededException
 //   A per-account resource limit is exceeded. For more information, see Application
-//   Auto Scaling Limits (https://docs.aws.amazon.com/ApplicationAutoScaling/latest/userguide/application-auto-scaling-limits.html).
+//   Auto Scaling service quotas (https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-limits.html).
 //
 //   * ObjectNotFoundException
 //   The specified object could not be found. For any operation that depends on
@@ -1276,7 +1277,7 @@ func (c *ApplicationAutoScaling) RegisterScalableTargetRequest(input *RegisterSc
 //
 //   * LimitExceededException
 //   A per-account resource limit is exceeded. For more information, see Application
-//   Auto Scaling Limits (https://docs.aws.amazon.com/ApplicationAutoScaling/latest/userguide/application-auto-scaling-limits.html).
+//   Auto Scaling service quotas (https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-limits.html).
 //
 //   * ConcurrentUpdateException
 //   Concurrent updates caused an exception, for example, if you request an update
@@ -2121,8 +2122,7 @@ type DescribeScalableTargetsInput struct {
 	NextToken *string `type:"string"`
 
 	// The identifier of the resource associated with the scalable target. This
-	// string consists of the resource type and unique identifier. If you specify
-	// a scalable dimension, you must also specify a resource ID.
+	// string consists of the resource type and unique identifier.
 	//
 	//    * ECS service - The resource type is service and the unique identifier
 	//    is the cluster name and service name. Example: service/default/sample-webapp.
@@ -2337,8 +2337,7 @@ type DescribeScalingActivitiesInput struct {
 	NextToken *string `type:"string"`
 
 	// The identifier of the resource associated with the scaling activity. This
-	// string consists of the resource type and unique identifier. If you specify
-	// a scalable dimension, you must also specify a resource ID.
+	// string consists of the resource type and unique identifier.
 	//
 	//    * ECS service - The resource type is service and the unique identifier
 	//    is the cluster name and service name. Example: service/default/sample-webapp.
@@ -2559,8 +2558,7 @@ type DescribeScalingPoliciesInput struct {
 	PolicyNames []*string `type:"list"`
 
 	// The identifier of the resource associated with the scaling policy. This string
-	// consists of the resource type and unique identifier. If you specify a scalable
-	// dimension, you must also specify a resource ID.
+	// consists of the resource type and unique identifier.
 	//
 	//    * ECS service - The resource type is service and the unique identifier
 	//    is the cluster name and service name. Example: service/default/sample-webapp.
@@ -2784,8 +2782,7 @@ type DescribeScheduledActionsInput struct {
 	NextToken *string `type:"string"`
 
 	// The identifier of the resource associated with the scheduled action. This
-	// string consists of the resource type and unique identifier. If you specify
-	// a scalable dimension, you must also specify a resource ID.
+	// string consists of the resource type and unique identifier.
 	//
 	//    * ECS service - The resource type is service and the unique identifier
 	//    is the cluster name and service name. Example: service/default/sample-webapp.
@@ -3170,7 +3167,7 @@ func (s *InvalidNextTokenException) RequestID() string {
 }
 
 // A per-account resource limit is exceeded. For more information, see Application
-// Auto Scaling Limits (https://docs.aws.amazon.com/ApplicationAutoScaling/latest/userguide/application-auto-scaling-limits.html).
+// Auto Scaling service quotas (https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-limits.html).
 type LimitExceededException struct {
 	_            struct{}                  `type:"structure"`
 	RespMetadata protocol.ResponseMetadata `json:"-" xml:"-"`
@@ -3345,7 +3342,7 @@ func (s *ObjectNotFoundException) RequestID() string {
 // Only the AWS services that you're using send metrics to Amazon CloudWatch.
 // To determine whether a desired metric already exists by looking up its namespace
 // and dimension using the CloudWatch metrics dashboard in the console, follow
-// the procedure in Building Dashboards with CloudWatch (https://docs.aws.amazon.com/autoscaling/application/userguide/monitoring-cloudwatch.html)
+// the procedure in Building dashboards with CloudWatch (https://docs.aws.amazon.com/autoscaling/application/userguide/monitoring-cloudwatch.html)
 // in the Application Auto Scaling User Guide.
 type PredefinedMetricSpecification struct {
 	_ struct{} `type:"structure"`
@@ -3437,8 +3434,8 @@ type PutScalingPolicyInput struct {
 	// StepScaling—Not supported for DynamoDB, Amazon Comprehend, Lambda, Amazon
 	// Keyspaces (for Apache Cassandra), or Amazon MSK.
 	//
-	// For more information, see Target Tracking Scaling Policies (https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-target-tracking.html)
-	// and Step Scaling Policies (https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-step-scaling-policies.html)
+	// For more information, see Target tracking scaling policies (https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-target-tracking.html)
+	// and Step scaling policies (https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-step-scaling-policies.html)
 	// in the Application Auto Scaling User Guide.
 	PolicyType *string `type:"string" enum:"PolicyType"`
 
@@ -3699,7 +3696,7 @@ func (s *PutScalingPolicyOutput) SetPolicyARN(v string) *PutScalingPolicyOutput 
 type PutScheduledActionInput struct {
 	_ struct{} `type:"structure"`
 
-	// The date and time for the recurring schedule to end.
+	// The date and time for the recurring schedule to end, in UTC.
 	EndTime *time.Time `type:"timestamp"`
 
 	// The identifier of the resource associated with the scheduled action. This
@@ -3827,15 +3824,21 @@ type PutScheduledActionInput struct {
 	//
 	//    * Cron expressions - "cron(fields)"
 	//
-	// At expressions are useful for one-time schedules. Specify the time in UTC.
+	// At expressions are useful for one-time schedules. Cron expressions are useful
+	// for scheduled actions that run periodically at a specified date and time,
+	// and rate expressions are useful for scheduled actions that run at a regular
+	// interval.
+	//
+	// At and cron expressions use Universal Coordinated Time (UTC) by default.
+	//
+	// The cron format consists of six fields separated by white spaces: [Minutes]
+	// [Hours] [Day_of_Month] [Month] [Day_of_Week] [Year].
 	//
 	// For rate expressions, value is a positive integer and unit is minute | minutes
 	// | hour | hours | day | days.
 	//
-	// For more information about cron expressions, see Cron Expressions (https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/ScheduledEvents.html#CronExpressions)
-	// in the Amazon CloudWatch Events User Guide.
-	//
-	// For examples of using these expressions, see Scheduled Scaling (https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-scheduled-scaling.html)
+	// For more information and examples, see Example scheduled actions for Application
+	// Auto Scaling (https://docs.aws.amazon.com/autoscaling/application/userguide/examples-scheduled-actions.html)
 	// in the Application Auto Scaling User Guide.
 	Schedule *string `min:"1" type:"string"`
 
@@ -3851,8 +3854,16 @@ type PutScheduledActionInput struct {
 	// ServiceNamespace is a required field
 	ServiceNamespace *string `type:"string" required:"true" enum:"ServiceNamespace"`
 
-	// The date and time for this scheduled action to start.
+	// The date and time for this scheduled action to start, in UTC.
 	StartTime *time.Time `type:"timestamp"`
+
+	// Specifies the time zone used when setting a scheduled action by using an
+	// at or cron expression. If a time zone is not provided, UTC is used by default.
+	//
+	// Valid values are the canonical names of the IANA time zones supported by
+	// Joda-Time (such as Etc/GMT+9 or Pacific/Tahiti). For more information, see
+	// https://www.joda.org/joda-time/timezones.html (https://www.joda.org/joda-time/timezones.html).
+	Timezone *string `min:"1" type:"string"`
 }
 
 // String returns the string representation
@@ -3888,6 +3899,9 @@ func (s *PutScheduledActionInput) Validate() error {
 	}
 	if s.ServiceNamespace == nil {
 		invalidParams.Add(request.NewErrParamRequired("ServiceNamespace"))
+	}
+	if s.Timezone != nil && len(*s.Timezone) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("Timezone", 1))
 	}
 
 	if invalidParams.Len() > 0 {
@@ -3944,6 +3958,12 @@ func (s *PutScheduledActionInput) SetStartTime(v time.Time) *PutScheduledActionI
 	return s
 }
 
+// SetTimezone sets the Timezone field's value.
+func (s *PutScheduledActionInput) SetTimezone(v string) *PutScheduledActionInput {
+	s.Timezone = &v
+	return s
+}
+
 type PutScheduledActionOutput struct {
 	_ struct{} `type:"structure"`
 }
@@ -3963,9 +3983,8 @@ type RegisterScalableTargetInput struct {
 
 	// The maximum value that you plan to scale out to. When a scaling policy is
 	// in effect, Application Auto Scaling can scale out (expand) as needed to the
-	// maximum capacity limit in response to changing demand.
-	//
-	// This parameter is required if you are registering a scalable target.
+	// maximum capacity limit in response to changing demand. This property is required
+	// when registering a new scalable target.
 	//
 	// Although you can specify a large maximum capacity, note that service quotas
 	// may impose lower limits. Each service has its own default quotas for the
@@ -3978,13 +3997,13 @@ type RegisterScalableTargetInput struct {
 
 	// The minimum value that you plan to scale in to. When a scaling policy is
 	// in effect, Application Auto Scaling can scale in (contract) as needed to
-	// the minimum capacity limit in response to changing demand.
+	// the minimum capacity limit in response to changing demand. This property
+	// is required when registering a new scalable target.
 	//
-	// This parameter is required if you are registering a scalable target. For
-	// certain resources, the minimum value allowed is 0. This includes Lambda provisioned
-	// concurrency, Spot Fleet, ECS services, Aurora DB clusters, EMR clusters,
-	// and custom resources. For all other resources, the minimum value allowed
-	// is 1.
+	// For certain resources, the minimum value allowed is 0. This includes Lambda
+	// provisioned concurrency, Spot Fleet, ECS services, Aurora DB clusters, EMR
+	// clusters, and custom resources. For all other resources, the minimum value
+	// allowed is 1.
 	MinCapacity *int64 `type:"integer"`
 
 	// The identifier of the resource that is associated with the scalable target.
@@ -4045,7 +4064,7 @@ type RegisterScalableTargetInput struct {
 	//
 	// If the service supports service-linked roles, Application Auto Scaling uses
 	// a service-linked role, which it creates if it does not yet exist. For more
-	// information, see Application Auto Scaling IAM Roles (https://docs.aws.amazon.com/autoscaling/application/userguide/security_iam_service-with-iam.html#security_iam_service-with-iam-roles).
+	// information, see Application Auto Scaling IAM roles (https://docs.aws.amazon.com/autoscaling/application/userguide/security_iam_service-with-iam.html#security_iam_service-with-iam-roles).
 	RoleARN *string `min:"1" type:"string"`
 
 	// The scalable dimension associated with the scalable target. This string consists
@@ -4128,7 +4147,7 @@ type RegisterScalableTargetInput struct {
 	//    * For ScheduledScalingSuspended, while a suspension is in effect, all
 	//    scaling activities that involve scheduled actions are suspended.
 	//
-	// For more information, see Suspending and Resuming Scaling (https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-suspend-resume-scaling.html)
+	// For more information, see Suspending and resuming scaling (https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-suspend-resume-scaling.html)
 	// in the Application Auto Scaling User Guide.
 	SuspendedState *SuspendedState `type:"structure"`
 }
@@ -4935,7 +4954,7 @@ type ScheduledAction struct {
 	// CreationTime is a required field
 	CreationTime *time.Time `type:"timestamp" required:"true"`
 
-	// The date and time that the action is scheduled to end.
+	// The date and time that the action is scheduled to end, in UTC.
 	EndTime *time.Time `type:"timestamp"`
 
 	// The identifier of the resource associated with the scaling policy. This string
@@ -5061,15 +5080,21 @@ type ScheduledAction struct {
 	//
 	//    * Cron expressions - "cron(fields)"
 	//
-	// At expressions are useful for one-time schedules. Specify the time in UTC.
+	// At expressions are useful for one-time schedules. Cron expressions are useful
+	// for scheduled actions that run periodically at a specified date and time,
+	// and rate expressions are useful for scheduled actions that run at a regular
+	// interval.
+	//
+	// At and cron expressions use Universal Coordinated Time (UTC) by default.
+	//
+	// The cron format consists of six fields separated by white spaces: [Minutes]
+	// [Hours] [Day_of_Month] [Month] [Day_of_Week] [Year].
 	//
 	// For rate expressions, value is a positive integer and unit is minute | minutes
 	// | hour | hours | day | days.
 	//
-	// For more information about cron expressions, see Cron Expressions (https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/ScheduledEvents.html#CronExpressions)
-	// in the Amazon CloudWatch Events User Guide.
-	//
-	// For examples of using these expressions, see Scheduled Scaling (https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-scheduled-scaling.html)
+	// For more information and examples, see Example scheduled actions for Application
+	// Auto Scaling (https://docs.aws.amazon.com/autoscaling/application/userguide/examples-scheduled-actions.html)
 	// in the Application Auto Scaling User Guide.
 	//
 	// Schedule is a required field
@@ -5090,8 +5115,12 @@ type ScheduledAction struct {
 	// ServiceNamespace is a required field
 	ServiceNamespace *string `type:"string" required:"true" enum:"ServiceNamespace"`
 
-	// The date and time that the action is scheduled to begin.
+	// The date and time that the action is scheduled to begin, in UTC.
 	StartTime *time.Time `type:"timestamp"`
+
+	// The time zone used when referring to the date and time of a scheduled action,
+	// when the scheduled action uses an at or cron expression.
+	Timezone *string `min:"1" type:"string"`
 }
 
 // String returns the string representation
@@ -5161,6 +5190,12 @@ func (s *ScheduledAction) SetServiceNamespace(v string) *ScheduledAction {
 // SetStartTime sets the StartTime field's value.
 func (s *ScheduledAction) SetStartTime(v time.Time) *ScheduledAction {
 	s.StartTime = &v
+	return s
+}
+
+// SetTimezone sets the Timezone field's value.
+func (s *ScheduledAction) SetTimezone(v string) *ScheduledAction {
+	s.Timezone = &v
 	return s
 }
 
@@ -5326,7 +5361,7 @@ type StepScalingPolicyConfiguration struct {
 	//
 	//    * Amazon Keyspaces tables
 	//
-	//    * Amazon MSK cluster storage
+	//    * Amazon MSK broker storage
 	Cooldown *int64 `type:"integer"`
 
 	// The aggregation type for the CloudWatch metrics. Valid values are Minimum,
@@ -5518,7 +5553,7 @@ type TargetTrackingScalingPolicyConfiguration struct {
 	//
 	//    * Amazon Keyspaces tables
 	//
-	//    * Amazon MSK cluster storage
+	//    * Amazon MSK broker storage
 	ScaleInCooldown *int64 `type:"integer"`
 
 	// The amount of time, in seconds, to wait for a previous scale-out activity
@@ -5562,11 +5597,15 @@ type TargetTrackingScalingPolicyConfiguration struct {
 	//
 	//    * Amazon Keyspaces tables
 	//
-	//    * Amazon MSK cluster storage
+	//    * Amazon MSK broker storage
 	ScaleOutCooldown *int64 `type:"integer"`
 
-	// The target value for the metric. The range is 8.515920e-109 to 1.174271e+108
-	// (Base 10) or 2e-360 to 2e360 (Base 2).
+	// The target value for the metric. Although this property accepts numbers of
+	// type Double, it won't accept values that are either too small or too large.
+	// Values must be in the range of -2^360 to 2^360. The value must be a valid
+	// number based on the choice of metric. For example, if the metric is CPU utilization,
+	// then the target value is a percent value that represents how much of the
+	// CPU can be used before scaling out.
 	//
 	// TargetValue is a required field
 	TargetValue *float64 `type:"double" required:"true"`

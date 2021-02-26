@@ -1,8 +1,7 @@
-//Histograms are encoded using the HdrHistogram V2 format which is based on an adapted ZigZag LEB128 encoding where:
-//consecutive zero counters are encoded as a negative number representing the count of consecutive zeros
-//non zero counter values are encoded as a positive number
-//An empty histogram (all zeros counters) is encoded in exactly 48 bytes regardless of the counter size.
-//A typical histogram (2 digits precision 1 usec to 1 day range) can be encoded in less than the typical MTU size of 1500 bytes.
+// Histograms are encoded using the HdrHistogram V2 format which is based on an adapted ZigZag LEB128 encoding where:
+// consecutive zero counters are encoded as a negative number representing the count of consecutive zeros
+// non zero counter values are encoded as a positive number
+// A typical histogram (2 digits precision 1 usec to 1 day range) can be encoded in less than the typical MTU size of 1500 bytes.
 package hdrhistogram
 
 import (
@@ -10,7 +9,6 @@ import (
 	"compress/zlib"
 	"encoding/base64"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io/ioutil"
 )
@@ -71,7 +69,9 @@ func (h *Histogram) dumpV2CompressedEncoding() (outBuffer []byte, err error) {
 	// final buffer
 	buf := new(bytes.Buffer)
 	err = binary.Write(buf, binary.BigEndian, compressedEncodingCookie)
-
+	if err != nil {
+		return
+	}
 	toCompress, err := h.encodeIntoByteBuffer()
 	if err != nil {
 		return
@@ -83,13 +83,22 @@ func (h *Histogram) dumpV2CompressedEncoding() (outBuffer []byte, err error) {
 	if err != nil {
 		return
 	}
-	w.Write(uncompressedBytes)
+	_, err = w.Write(uncompressedBytes)
+	if err != nil {
+		return
+	}
 	w.Close()
 
 	// LengthOfCompressedContents
 	compressedContents := b.Bytes()
 	err = binary.Write(buf, binary.BigEndian, int32(len(compressedContents)))
+	if err != nil {
+		return
+	}
 	err = binary.Write(buf, binary.BigEndian, compressedContents)
+	if err != nil {
+		return
+	}
 	outBuffer = []byte(base64.StdEncoding.EncodeToString(buf.Bytes()))
 	return
 }
@@ -118,7 +127,7 @@ func (h *Histogram) encodeIntoByteBuffer() (*bytes.Buffer, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = binary.Write(toCompress, binary.BigEndian, h.lowestTrackableValue) // 16-23
+	err = binary.Write(toCompress, binary.BigEndian, h.lowestDiscernibleValue) // 16-23
 	if err != nil {
 		return nil, err
 	}
@@ -159,21 +168,26 @@ func decodeCompressedFormat(compressedContents []byte, headerSize int) (rh *Hist
 	}
 	actualPayloadLen := decompressedSliceLen - int32(headerSize)
 	if PayloadLength != actualPayloadLen {
-		err = errors.New(fmt.Sprintf("PayloadLength should have the same size of the actual payload. Got %d want %d", actualPayloadLen, PayloadLength))
+		err = fmt.Errorf("PayloadLength should have the same size of the actual payload. Got %d want %d", actualPayloadLen, PayloadLength)
 		return
 	}
 	rh = New(LowestTrackableValue, HighestTrackableValue, int(NumberOfSignificantValueDigits))
 	payload := decompressedSlice[headerSize:]
-	fillCountsArrayFromSourceBuffer(payload, rh)
+	err = fillCountsArrayFromSourceBuffer(payload, rh)
 	return rh, err
 }
 
-func fillCountsArrayFromSourceBuffer(payload []byte, rh *Histogram) {
+func fillCountsArrayFromSourceBuffer(payload []byte, rh *Histogram) (err error) {
 	var payloadSlicePos = 0
 	var dstIndex int64 = 0
+	var n int
+	var count int64
+	var zerosCount int64
 	for payloadSlicePos < len(payload) {
-		var zerosCount int64 = 0
-		count, n := zig_zag_decode_i64(payload[payloadSlicePos:])
+		count, n, err = zig_zag_decode_i64(payload[payloadSlicePos:])
+		if err != nil {
+			return
+		}
 		payloadSlicePos += n
 		if count < 0 {
 			zerosCount = -count
@@ -183,6 +197,7 @@ func fillCountsArrayFromSourceBuffer(payload []byte, rh *Histogram) {
 			dstIndex += 1
 		}
 	}
+	return
 }
 
 func (rh *Histogram) fillBufferFromCountsArray() (buffer []byte, err error) {
@@ -206,51 +221,17 @@ func (rh *Histogram) fillBufferFromCountsArray() (buffer []byte, err error) {
 		}
 		if zeros > 1 {
 			err = binary.Write(buf, binary.BigEndian, zig_zag_encode_i64(-zeros))
+			if err != nil {
+				return
+			}
 		} else {
 			err = binary.Write(buf, binary.BigEndian, zig_zag_encode_i64(count))
+			if err != nil {
+				return
+			}
 		}
 	}
 	buffer = buf.Bytes()
-	return
-}
-
-// Read an LEB128 ZigZag encoded long value from the given buffer
-func zig_zag_decode_i64(buf []byte) (signedValue int64, n int) {
-	var value uint64 = 0
-	for shift := uint(0); ; shift += 7 {
-		if n >= len(buf) {
-			return 0, 0
-		}
-		b := uint64(buf[n])
-		n++
-		value |= (b & 0x7f) << shift
-		if (b & 0x80) == 0 {
-			break
-		}
-	}
-	signedValue = int64((value >> 1) ^ -(value & 1))
-	return
-}
-
-// Writes a int64_t value to the given buffer in LEB128 ZigZag encoded format
-// ZigZag encoding maps signed integers to unsigned integers so that numbers with a small
-// absolute value (for instance, -1) have a small varint encoded value too.
-// It does this in a way that "zig-zags" back and forth through the positive and negative integers,
-// so that -1 is encoded as 1, 1 is encoded as 2, -2 is encoded as 3, and so on.
-func zig_zag_encode_i64(signedValue int64) (buffer []byte) {
-	buffer = make([]byte, 0)
-	var value uint64 = uint64((signedValue << 1) ^ (signedValue >> 63))
-	for {
-		c := byte(value & 0x7f)
-		value >>= 7
-		if value != 0 {
-			c |= 0x80
-		}
-		buffer = append(buffer, c)
-		if c&0x80 == 0 {
-			break
-		}
-	}
 	return
 }
 

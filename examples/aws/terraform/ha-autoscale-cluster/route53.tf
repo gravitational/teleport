@@ -19,7 +19,7 @@ resource "aws_route53_record" "proxy" {
   }
 }
 
-// ACM
+// ACM (ALB)
 resource "aws_route53_record" "proxy_acm" {
   zone_id = data.aws_route53_zone.proxy.zone_id
   name    = var.route53_domain
@@ -33,3 +33,16 @@ resource "aws_route53_record" "proxy_acm" {
   }
 }
 
+// ACM (NLB)
+resource "aws_route53_record" "proxy_acm_nlb_alias" {
+  zone_id = data.aws_route53_zone.proxy.zone_id
+  name    = var.route53_domain_acm_nlb_alias
+  type    = "A"
+  count   = var.use_acm ? var.route53_domain_acm_nlb_alias != "" ? 1 : 0 : 0
+
+  alias {
+    name                   = aws_lb.proxy.dns_name
+    zone_id                = aws_lb.proxy.zone_id
+    evaluate_target_health = true
+  }
+}
