@@ -1052,22 +1052,22 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	return remoteSite, nil
 }
 
-// DELETE IN: 5.1.0.
+// DELETE IN: 7.0.0.
 //
-// isOldCluster checks if the cluster is older than 5.0.0.
+// isOldCluster checks if the cluster is older than 6.0.0.
 func isOldCluster(ctx context.Context, conn ssh.Conn) (bool, error) {
 	version, err := sendVersionRequest(ctx, conn)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
 
-	// Return true if the version is older than 5.0.0, the check is actually for
-	// 4.5.0, a non-existent version, to allow this check to work during development.
+	// Return true if the version is older than 6.0.0, the check is actually for
+	// 5.99.99, a non-existent version, to allow this check to work during development.
 	remoteClusterVersion, err := semver.NewVersion(version)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	minClusterVersion, err := semver.NewVersion("4.5.0")
+	minClusterVersion, err := semver.NewVersion("5.99.99")
 	if err != nil {
 		return false, trace.Wrap(err)
 	}

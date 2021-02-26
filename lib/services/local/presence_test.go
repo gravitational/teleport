@@ -21,18 +21,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/check.v1"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
-	"github.com/stretchr/testify/require"
-	"gopkg.in/check.v1"
 )
 
 type PresenceSuite struct {
@@ -40,10 +40,6 @@ type PresenceSuite struct {
 }
 
 var _ = check.Suite(&PresenceSuite{})
-
-func (s *PresenceSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (s *PresenceSuite) SetUpTest(c *check.C) {
 	var err error

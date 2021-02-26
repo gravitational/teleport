@@ -27,38 +27,44 @@ import (
 // License defines teleport License Information
 type License interface {
 	Resource
+
 	// GetReportsUsage returns true if teleport cluster reports usage
 	// to control plane
 	GetReportsUsage() Bool
+	// SetReportsUsage sets usage report
+	SetReportsUsage(Bool)
 
 	// GetCloud returns true if teleport cluster is hosted by Gravitational
 	GetCloud() Bool
-
 	// SetCloud sets cloud flag
 	SetCloud(Bool)
-
-	// SetReportsUsage sets usage report
-	SetReportsUsage(Bool)
 
 	// GetAWSProductID returns product id that limits usage to AWS instance
 	// with a similar product ID
 	GetAWSProductID() string
-
 	// SetAWSProductID sets AWS product ID
 	SetAWSProductID(string)
 
 	// GetAWSAccountID limits usage to AWS instance within account ID
 	GetAWSAccountID() string
-
 	// SetAWSAccountID sets AWS account ID that will be limiting
 	// usage to AWS instance
 	SetAWSAccountID(accountID string)
 
 	// GetSupportsKubernetes returns kubernetes support flag
 	GetSupportsKubernetes() Bool
-
 	// SetSupportsKubernetes sets kubernetes support flag
 	SetSupportsKubernetes(Bool)
+
+	// GetSupportsApplicationAccess returns application access support flag
+	GetSupportsApplicationAccess() Bool
+	// SetSupportsApplicationAccess sets application access support flag
+	SetSupportsApplicationAccess(Bool)
+
+	// GetSupportsDatabaseAccess returns database access support flag
+	GetSupportsDatabaseAccess() Bool
+	// SetSupportsDatabaseAccess sets database access support flag
+	SetSupportsDatabaseAccess(Bool)
 
 	// SetLabels sets metadata labels
 	SetLabels(labels map[string]string)
@@ -237,25 +243,57 @@ func (c *LicenseV3) SetSupportsKubernetes(supportsK8s Bool) {
 	c.Spec.SupportsKubernetes = supportsK8s
 }
 
+// GetSupportsApplicationAccess returns application access support flag
+func (c *LicenseV3) GetSupportsApplicationAccess() Bool {
+	// For backward compatibility return true if app access flag isn't set,
+	// or it will stop working for all users who are already using it and
+	// were issued licenses without this flag.
+	if c.Spec.SupportsApplicationAccess == nil {
+		return Bool(true)
+	}
+	return *c.Spec.SupportsApplicationAccess
+}
+
+// SetSupportsApplicationAccess sets application access support flag
+func (c *LicenseV3) SetSupportsApplicationAccess(value Bool) {
+	c.Spec.SupportsApplicationAccess = &value
+}
+
+// GetSupportsDatabaseAccess returns database access support flag
+func (c *LicenseV3) GetSupportsDatabaseAccess() Bool {
+	return c.Spec.SupportsDatabaseAccess
+}
+
+// SetSupportsDatabaseAccess sets database access support flag
+func (c *LicenseV3) SetSupportsDatabaseAccess(value Bool) {
+	c.Spec.SupportsDatabaseAccess = value
+}
+
 // String represents a human readable version of license enabled features
 func (c *LicenseV3) String() string {
 	var features []string
 	if !c.Expiry().IsZero() {
 		features = append(features, fmt.Sprintf("expires at %v", c.Expiry()))
 	}
-	if c.Spec.ReportsUsage.Value() {
+	if c.GetReportsUsage() {
 		features = append(features, "reports usage")
 	}
-	if c.Spec.SupportsKubernetes.Value() {
+	if c.GetSupportsKubernetes() {
 		features = append(features, "supports kubernetes")
 	}
-	if c.Spec.Cloud.Value() {
+	if c.GetSupportsApplicationAccess() {
+		features = append(features, "supports application access")
+	}
+	if c.GetSupportsDatabaseAccess() {
+		features = append(features, "supports database access")
+	}
+	if c.GetCloud() {
 		features = append(features, "is hosted by Gravitational")
 	}
-	if c.Spec.AWSProductID != "" {
+	if c.GetAWSProductID() != "" {
 		features = append(features, fmt.Sprintf("is limited to AWS product ID %q", c.Spec.AWSProductID))
 	}
-	if c.Spec.AWSAccountID != "" {
+	if c.GetAWSAccountID() != "" {
 		features = append(features, fmt.Sprintf("is limited to AWS account ID %q", c.Spec.AWSAccountID))
 	}
 	if len(features) == 0 {
@@ -274,6 +312,11 @@ type LicenseSpecV3 struct {
 	AWSAccountID string `json:"aws_account,omitempty"`
 	// SupportsKubernetes turns kubernetes support on or off
 	SupportsKubernetes Bool `json:"k8s"`
+	// SupportsApplicationAccess turns application access on or off
+	// Note it's a pointer for backward compatibility
+	SupportsApplicationAccess *Bool `json:"app,omitempty"`
+	// SupportsDatabaseAccess turns database access on or off
+	SupportsDatabaseAccess Bool `json:"db,omitempty"`
 	// ReportsUsage turns usage reporting on or off
 	ReportsUsage Bool `json:"usage,omitempty"`
 	// Cloud is turned on when teleport is hosted by Gravitational

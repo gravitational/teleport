@@ -392,21 +392,19 @@ func (c *S3) CopyObjectRequest(input *CopyObjectInput) (req *request.Request, ou
 // All headers with the x-amz- prefix, including x-amz-copy-source, must be
 // signed.
 //
-// Encryption
+// Server-side encryption
 //
-// The source object that you are copying can be encrypted or unencrypted. The
-// source object can be encrypted with server-side encryption using AWS managed
-// encryption keys (SSE-S3 or SSE-KMS) or by using a customer-provided encryption
-// key. With server-side encryption, Amazon S3 encrypts your data as it writes
-// it to disks in its data centers and decrypts the data when you access it.
+// When you perform a CopyObject operation, you can optionally use the appropriate
+// encryption-related headers to encrypt the object using server-side encryption
+// with AWS managed encryption keys (SSE-S3 or SSE-KMS) or a customer-provided
+// encryption key. With server-side encryption, Amazon S3 encrypts your data
+// as it writes it to disks in its data centers and decrypts the data when you
+// access it. For more information about server-side encryption, see Using Server-Side
+// Encryption (https://docs.aws.amazon.com/AmazonS3/latest/dev/serv-side-encryption.html).
 //
-// You can optionally use the appropriate encryption-related headers to request
-// server-side encryption for the target object. You have the option to provide
-// your own encryption key or use SSE-S3 or SSE-KMS, regardless of the form
-// of server-side encryption that was used to encrypt the source object. You
-// can even request encryption if the source object was not encrypted. For more
-// information about server-side encryption, see Using Server-Side Encryption
-// (https://docs.aws.amazon.com/AmazonS3/latest/dev/serv-side-encryption.html).
+// If a target object uses SSE-KMS, you can enable an S3 Bucket Key for the
+// object. For more information, see Amazon S3 Bucket Keys (https://docs.aws.amazon.com/AmazonS3/latest/dev/bucket-key.html)
+// in the Amazon Simple Storage Service Developer Guide.
 //
 // Access Control List (ACL)-Specific Request Headers
 //
@@ -1207,6 +1205,106 @@ func (c *S3) DeleteBucketEncryption(input *DeleteBucketEncryptionInput) (*Delete
 // for more information on using Contexts.
 func (c *S3) DeleteBucketEncryptionWithContext(ctx aws.Context, input *DeleteBucketEncryptionInput, opts ...request.Option) (*DeleteBucketEncryptionOutput, error) {
 	req, out := c.DeleteBucketEncryptionRequest(input)
+	req.SetContext(ctx)
+	req.ApplyOptions(opts...)
+	return out, req.Send()
+}
+
+const opDeleteBucketIntelligentTieringConfiguration = "DeleteBucketIntelligentTieringConfiguration"
+
+// DeleteBucketIntelligentTieringConfigurationRequest generates a "aws/request.Request" representing the
+// client's request for the DeleteBucketIntelligentTieringConfiguration operation. The "output" return
+// value will be populated with the request's response once the request completes
+// successfully.
+//
+// Use "Send" method on the returned Request to send the API call to the service.
+// the "output" return value is not valid until after Send returns without error.
+//
+// See DeleteBucketIntelligentTieringConfiguration for more information on using the DeleteBucketIntelligentTieringConfiguration
+// API call, and error handling.
+//
+// This method is useful when you want to inject custom logic or configuration
+// into the SDK's request lifecycle. Such as custom headers, or retry logic.
+//
+//
+//    // Example sending a request using the DeleteBucketIntelligentTieringConfigurationRequest method.
+//    req, resp := client.DeleteBucketIntelligentTieringConfigurationRequest(params)
+//
+//    err := req.Send()
+//    if err == nil { // resp is now filled
+//        fmt.Println(resp)
+//    }
+//
+// See also, https://docs.aws.amazon.com/goto/WebAPI/s3-2006-03-01/DeleteBucketIntelligentTieringConfiguration
+func (c *S3) DeleteBucketIntelligentTieringConfigurationRequest(input *DeleteBucketIntelligentTieringConfigurationInput) (req *request.Request, output *DeleteBucketIntelligentTieringConfigurationOutput) {
+	op := &request.Operation{
+		Name:       opDeleteBucketIntelligentTieringConfiguration,
+		HTTPMethod: "DELETE",
+		HTTPPath:   "/{Bucket}?intelligent-tiering",
+	}
+
+	if input == nil {
+		input = &DeleteBucketIntelligentTieringConfigurationInput{}
+	}
+
+	output = &DeleteBucketIntelligentTieringConfigurationOutput{}
+	req = c.newRequest(op, input, output)
+	req.Handlers.Unmarshal.Swap(restxml.UnmarshalHandler.Name, protocol.UnmarshalDiscardBodyHandler)
+	return
+}
+
+// DeleteBucketIntelligentTieringConfiguration API operation for Amazon Simple Storage Service.
+//
+// Deletes the S3 Intelligent-Tiering configuration from the specified bucket.
+//
+// The S3 Intelligent-Tiering storage class is designed to optimize storage
+// costs by automatically moving data to the most cost-effective storage access
+// tier, without additional operational overhead. S3 Intelligent-Tiering delivers
+// automatic cost savings by moving data between access tiers, when access patterns
+// change.
+//
+// The S3 Intelligent-Tiering storage class is suitable for objects larger than
+// 128 KB that you plan to store for at least 30 days. If the size of an object
+// is less than 128 KB, it is not eligible for auto-tiering. Smaller objects
+// can be stored, but they are always charged at the frequent access tier rates
+// in the S3 Intelligent-Tiering storage class.
+//
+// If you delete an object before the end of the 30-day minimum storage duration
+// period, you are charged for 30 days. For more information, see Storage class
+// for automatically optimizing frequently and infrequently accessed objects
+// (https://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html#sc-dynamic-data-access).
+//
+// Operations related to DeleteBucketIntelligentTieringConfiguration include:
+//
+//    * GetBucketIntelligentTieringConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketIntelligentTieringConfiguration.html)
+//
+//    * PutBucketIntelligentTieringConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketIntelligentTieringConfiguration.html)
+//
+//    * ListBucketIntelligentTieringConfigurations (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListBucketIntelligentTieringConfigurations.html)
+//
+// Returns awserr.Error for service API and SDK errors. Use runtime type assertions
+// with awserr.Error's Code and Message methods to get detailed information about
+// the error.
+//
+// See the AWS API reference guide for Amazon Simple Storage Service's
+// API operation DeleteBucketIntelligentTieringConfiguration for usage and error information.
+// See also, https://docs.aws.amazon.com/goto/WebAPI/s3-2006-03-01/DeleteBucketIntelligentTieringConfiguration
+func (c *S3) DeleteBucketIntelligentTieringConfiguration(input *DeleteBucketIntelligentTieringConfigurationInput) (*DeleteBucketIntelligentTieringConfigurationOutput, error) {
+	req, out := c.DeleteBucketIntelligentTieringConfigurationRequest(input)
+	return out, req.Send()
+}
+
+// DeleteBucketIntelligentTieringConfigurationWithContext is the same as DeleteBucketIntelligentTieringConfiguration with the addition of
+// the ability to pass a context and additional request options.
+//
+// See DeleteBucketIntelligentTieringConfiguration for details on how to use this API operation.
+//
+// The context must be non-nil and will be used for request cancellation. If
+// the context is nil a panic will occur. In the future the SDK may create
+// sub-contexts for http.Requests. See https://golang.org/pkg/context/
+// for more information on using Contexts.
+func (c *S3) DeleteBucketIntelligentTieringConfigurationWithContext(ctx aws.Context, input *DeleteBucketIntelligentTieringConfigurationInput, opts ...request.Option) (*DeleteBucketIntelligentTieringConfigurationOutput, error) {
+	req, out := c.DeleteBucketIntelligentTieringConfigurationRequest(input)
 	req.SetContext(ctx)
 	req.ApplyOptions(opts...)
 	return out, req.Send()
@@ -2798,6 +2896,105 @@ func (c *S3) GetBucketEncryptionWithContext(ctx aws.Context, input *GetBucketEnc
 	return out, req.Send()
 }
 
+const opGetBucketIntelligentTieringConfiguration = "GetBucketIntelligentTieringConfiguration"
+
+// GetBucketIntelligentTieringConfigurationRequest generates a "aws/request.Request" representing the
+// client's request for the GetBucketIntelligentTieringConfiguration operation. The "output" return
+// value will be populated with the request's response once the request completes
+// successfully.
+//
+// Use "Send" method on the returned Request to send the API call to the service.
+// the "output" return value is not valid until after Send returns without error.
+//
+// See GetBucketIntelligentTieringConfiguration for more information on using the GetBucketIntelligentTieringConfiguration
+// API call, and error handling.
+//
+// This method is useful when you want to inject custom logic or configuration
+// into the SDK's request lifecycle. Such as custom headers, or retry logic.
+//
+//
+//    // Example sending a request using the GetBucketIntelligentTieringConfigurationRequest method.
+//    req, resp := client.GetBucketIntelligentTieringConfigurationRequest(params)
+//
+//    err := req.Send()
+//    if err == nil { // resp is now filled
+//        fmt.Println(resp)
+//    }
+//
+// See also, https://docs.aws.amazon.com/goto/WebAPI/s3-2006-03-01/GetBucketIntelligentTieringConfiguration
+func (c *S3) GetBucketIntelligentTieringConfigurationRequest(input *GetBucketIntelligentTieringConfigurationInput) (req *request.Request, output *GetBucketIntelligentTieringConfigurationOutput) {
+	op := &request.Operation{
+		Name:       opGetBucketIntelligentTieringConfiguration,
+		HTTPMethod: "GET",
+		HTTPPath:   "/{Bucket}?intelligent-tiering",
+	}
+
+	if input == nil {
+		input = &GetBucketIntelligentTieringConfigurationInput{}
+	}
+
+	output = &GetBucketIntelligentTieringConfigurationOutput{}
+	req = c.newRequest(op, input, output)
+	return
+}
+
+// GetBucketIntelligentTieringConfiguration API operation for Amazon Simple Storage Service.
+//
+// Gets the S3 Intelligent-Tiering configuration from the specified bucket.
+//
+// The S3 Intelligent-Tiering storage class is designed to optimize storage
+// costs by automatically moving data to the most cost-effective storage access
+// tier, without additional operational overhead. S3 Intelligent-Tiering delivers
+// automatic cost savings by moving data between access tiers, when access patterns
+// change.
+//
+// The S3 Intelligent-Tiering storage class is suitable for objects larger than
+// 128 KB that you plan to store for at least 30 days. If the size of an object
+// is less than 128 KB, it is not eligible for auto-tiering. Smaller objects
+// can be stored, but they are always charged at the frequent access tier rates
+// in the S3 Intelligent-Tiering storage class.
+//
+// If you delete an object before the end of the 30-day minimum storage duration
+// period, you are charged for 30 days. For more information, see Storage class
+// for automatically optimizing frequently and infrequently accessed objects
+// (https://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html#sc-dynamic-data-access).
+//
+// Operations related to GetBucketIntelligentTieringConfiguration include:
+//
+//    * DeleteBucketIntelligentTieringConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucketIntelligentTieringConfiguration.html)
+//
+//    * PutBucketIntelligentTieringConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketIntelligentTieringConfiguration.html)
+//
+//    * ListBucketIntelligentTieringConfigurations (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListBucketIntelligentTieringConfigurations.html)
+//
+// Returns awserr.Error for service API and SDK errors. Use runtime type assertions
+// with awserr.Error's Code and Message methods to get detailed information about
+// the error.
+//
+// See the AWS API reference guide for Amazon Simple Storage Service's
+// API operation GetBucketIntelligentTieringConfiguration for usage and error information.
+// See also, https://docs.aws.amazon.com/goto/WebAPI/s3-2006-03-01/GetBucketIntelligentTieringConfiguration
+func (c *S3) GetBucketIntelligentTieringConfiguration(input *GetBucketIntelligentTieringConfigurationInput) (*GetBucketIntelligentTieringConfigurationOutput, error) {
+	req, out := c.GetBucketIntelligentTieringConfigurationRequest(input)
+	return out, req.Send()
+}
+
+// GetBucketIntelligentTieringConfigurationWithContext is the same as GetBucketIntelligentTieringConfiguration with the addition of
+// the ability to pass a context and additional request options.
+//
+// See GetBucketIntelligentTieringConfiguration for details on how to use this API operation.
+//
+// The context must be non-nil and will be used for request cancellation. If
+// the context is nil a panic will occur. In the future the SDK may create
+// sub-contexts for http.Requests. See https://golang.org/pkg/context/
+// for more information on using Contexts.
+func (c *S3) GetBucketIntelligentTieringConfigurationWithContext(ctx aws.Context, input *GetBucketIntelligentTieringConfigurationInput, opts ...request.Option) (*GetBucketIntelligentTieringConfigurationOutput, error) {
+	req, out := c.GetBucketIntelligentTieringConfigurationRequest(input)
+	req.SetContext(ctx)
+	req.ApplyOptions(opts...)
+	return out, req.Send()
+}
+
 const opGetBucketInventoryConfiguration = "GetBucketInventoryConfiguration"
 
 // GetBucketInventoryConfigurationRequest generates a "aws/request.Request" representing the
@@ -4314,8 +4511,9 @@ func (c *S3) GetObjectRequest(input *GetObjectInput) (req *request.Request, outp
 // For more information about returning the ACL of an object, see GetObjectAcl
 // (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObjectAcl.html).
 //
-// If the object you are retrieving is stored in the GLACIER or DEEP_ARCHIVE
-// storage classes, before you can retrieve the object you must first restore
+// If the object you are retrieving is stored in the S3 Glacier or S3 Glacier
+// Deep Archive storage class, or S3 Intelligent-Tiering Archive or S3 Intelligent-Tiering
+// Deep Archive tiers, before you can retrieve the object you must first restore
 // a copy using RestoreObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_RestoreObject.html).
 // Otherwise, this operation returns an InvalidObjectStateError error. For information
 // about restoring archived objects, see Restoring Archived Objects (https://docs.aws.amazon.com/AmazonS3/latest/dev/restoring-objects.html).
@@ -4428,6 +4626,9 @@ func (c *S3) GetObjectRequest(input *GetObjectInput) (req *request.Request, outp
 // Returned Error Codes:
 //   * ErrCodeNoSuchKey "NoSuchKey"
 //   The specified key does not exist.
+//
+//   * ErrCodeInvalidObjectState "InvalidObjectState"
+//   Object is archived and inaccessible until restored.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/s3-2006-03-01/GetObject
 func (c *S3) GetObject(input *GetObjectInput) (*GetObjectOutput, error) {
@@ -5374,6 +5575,105 @@ func (c *S3) ListBucketAnalyticsConfigurations(input *ListBucketAnalyticsConfigu
 // for more information on using Contexts.
 func (c *S3) ListBucketAnalyticsConfigurationsWithContext(ctx aws.Context, input *ListBucketAnalyticsConfigurationsInput, opts ...request.Option) (*ListBucketAnalyticsConfigurationsOutput, error) {
 	req, out := c.ListBucketAnalyticsConfigurationsRequest(input)
+	req.SetContext(ctx)
+	req.ApplyOptions(opts...)
+	return out, req.Send()
+}
+
+const opListBucketIntelligentTieringConfigurations = "ListBucketIntelligentTieringConfigurations"
+
+// ListBucketIntelligentTieringConfigurationsRequest generates a "aws/request.Request" representing the
+// client's request for the ListBucketIntelligentTieringConfigurations operation. The "output" return
+// value will be populated with the request's response once the request completes
+// successfully.
+//
+// Use "Send" method on the returned Request to send the API call to the service.
+// the "output" return value is not valid until after Send returns without error.
+//
+// See ListBucketIntelligentTieringConfigurations for more information on using the ListBucketIntelligentTieringConfigurations
+// API call, and error handling.
+//
+// This method is useful when you want to inject custom logic or configuration
+// into the SDK's request lifecycle. Such as custom headers, or retry logic.
+//
+//
+//    // Example sending a request using the ListBucketIntelligentTieringConfigurationsRequest method.
+//    req, resp := client.ListBucketIntelligentTieringConfigurationsRequest(params)
+//
+//    err := req.Send()
+//    if err == nil { // resp is now filled
+//        fmt.Println(resp)
+//    }
+//
+// See also, https://docs.aws.amazon.com/goto/WebAPI/s3-2006-03-01/ListBucketIntelligentTieringConfigurations
+func (c *S3) ListBucketIntelligentTieringConfigurationsRequest(input *ListBucketIntelligentTieringConfigurationsInput) (req *request.Request, output *ListBucketIntelligentTieringConfigurationsOutput) {
+	op := &request.Operation{
+		Name:       opListBucketIntelligentTieringConfigurations,
+		HTTPMethod: "GET",
+		HTTPPath:   "/{Bucket}?intelligent-tiering",
+	}
+
+	if input == nil {
+		input = &ListBucketIntelligentTieringConfigurationsInput{}
+	}
+
+	output = &ListBucketIntelligentTieringConfigurationsOutput{}
+	req = c.newRequest(op, input, output)
+	return
+}
+
+// ListBucketIntelligentTieringConfigurations API operation for Amazon Simple Storage Service.
+//
+// Lists the S3 Intelligent-Tiering configuration from the specified bucket.
+//
+// The S3 Intelligent-Tiering storage class is designed to optimize storage
+// costs by automatically moving data to the most cost-effective storage access
+// tier, without additional operational overhead. S3 Intelligent-Tiering delivers
+// automatic cost savings by moving data between access tiers, when access patterns
+// change.
+//
+// The S3 Intelligent-Tiering storage class is suitable for objects larger than
+// 128 KB that you plan to store for at least 30 days. If the size of an object
+// is less than 128 KB, it is not eligible for auto-tiering. Smaller objects
+// can be stored, but they are always charged at the frequent access tier rates
+// in the S3 Intelligent-Tiering storage class.
+//
+// If you delete an object before the end of the 30-day minimum storage duration
+// period, you are charged for 30 days. For more information, see Storage class
+// for automatically optimizing frequently and infrequently accessed objects
+// (https://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html#sc-dynamic-data-access).
+//
+// Operations related to ListBucketIntelligentTieringConfigurations include:
+//
+//    * DeleteBucketIntelligentTieringConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucketIntelligentTieringConfiguration.html)
+//
+//    * PutBucketIntelligentTieringConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketIntelligentTieringConfiguration.html)
+//
+//    * GetBucketIntelligentTieringConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketIntelligentTieringConfiguration.html)
+//
+// Returns awserr.Error for service API and SDK errors. Use runtime type assertions
+// with awserr.Error's Code and Message methods to get detailed information about
+// the error.
+//
+// See the AWS API reference guide for Amazon Simple Storage Service's
+// API operation ListBucketIntelligentTieringConfigurations for usage and error information.
+// See also, https://docs.aws.amazon.com/goto/WebAPI/s3-2006-03-01/ListBucketIntelligentTieringConfigurations
+func (c *S3) ListBucketIntelligentTieringConfigurations(input *ListBucketIntelligentTieringConfigurationsInput) (*ListBucketIntelligentTieringConfigurationsOutput, error) {
+	req, out := c.ListBucketIntelligentTieringConfigurationsRequest(input)
+	return out, req.Send()
+}
+
+// ListBucketIntelligentTieringConfigurationsWithContext is the same as ListBucketIntelligentTieringConfigurations with the addition of
+// the ability to pass a context and additional request options.
+//
+// See ListBucketIntelligentTieringConfigurations for details on how to use this API operation.
+//
+// The context must be non-nil and will be used for request cancellation. If
+// the context is nil a panic will occur. In the future the SDK may create
+// sub-contexts for http.Requests. See https://golang.org/pkg/context/
+// for more information on using Contexts.
+func (c *S3) ListBucketIntelligentTieringConfigurationsWithContext(ctx aws.Context, input *ListBucketIntelligentTieringConfigurationsInput, opts ...request.Option) (*ListBucketIntelligentTieringConfigurationsOutput, error) {
+	req, out := c.ListBucketIntelligentTieringConfigurationsRequest(input)
 	req.SetContext(ctx)
 	req.ApplyOptions(opts...)
 	return out, req.Send()
@@ -7014,13 +7314,17 @@ func (c *S3) PutBucketEncryptionRequest(input *PutBucketEncryptionInput) (req *r
 
 // PutBucketEncryption API operation for Amazon Simple Storage Service.
 //
-// This implementation of the PUT operation uses the encryption subresource
-// to set the default encryption state of an existing bucket.
+// This operation uses the encryption subresource to configure default encryption
+// and Amazon S3 Bucket Key for an existing bucket.
 //
-// This implementation of the PUT operation sets default encryption for a bucket
-// using server-side encryption with Amazon S3-managed keys SSE-S3 or AWS KMS
-// customer master keys (CMKs) (SSE-KMS). For information about the Amazon S3
-// default encryption feature, see Amazon S3 Default Bucket Encryption (https://docs.aws.amazon.com/AmazonS3/latest/dev/bucket-encryption.html).
+// Default encryption for a bucket can use server-side encryption with Amazon
+// S3-managed keys (SSE-S3) or AWS KMS customer master keys (SSE-KMS). If you
+// specify default encryption using SSE-KMS, you can also configure Amazon S3
+// Bucket Key. For information about default encryption, see Amazon S3 default
+// bucket encryption (https://docs.aws.amazon.com/AmazonS3/latest/dev/bucket-encryption.html)
+// in the Amazon Simple Storage Service Developer Guide. For more information
+// about S3 Bucket Keys, see Amazon S3 Bucket Keys (https://docs.aws.amazon.com/AmazonS3/latest/dev/bucket-key.html)
+// in the Amazon Simple Storage Service Developer Guide.
 //
 // This operation requires AWS Signature Version 4. For more information, see
 // Authenticating Requests (AWS Signature Version 4) (sig-v4-authenticating-requests.html).
@@ -7061,6 +7365,106 @@ func (c *S3) PutBucketEncryption(input *PutBucketEncryptionInput) (*PutBucketEnc
 // for more information on using Contexts.
 func (c *S3) PutBucketEncryptionWithContext(ctx aws.Context, input *PutBucketEncryptionInput, opts ...request.Option) (*PutBucketEncryptionOutput, error) {
 	req, out := c.PutBucketEncryptionRequest(input)
+	req.SetContext(ctx)
+	req.ApplyOptions(opts...)
+	return out, req.Send()
+}
+
+const opPutBucketIntelligentTieringConfiguration = "PutBucketIntelligentTieringConfiguration"
+
+// PutBucketIntelligentTieringConfigurationRequest generates a "aws/request.Request" representing the
+// client's request for the PutBucketIntelligentTieringConfiguration operation. The "output" return
+// value will be populated with the request's response once the request completes
+// successfully.
+//
+// Use "Send" method on the returned Request to send the API call to the service.
+// the "output" return value is not valid until after Send returns without error.
+//
+// See PutBucketIntelligentTieringConfiguration for more information on using the PutBucketIntelligentTieringConfiguration
+// API call, and error handling.
+//
+// This method is useful when you want to inject custom logic or configuration
+// into the SDK's request lifecycle. Such as custom headers, or retry logic.
+//
+//
+//    // Example sending a request using the PutBucketIntelligentTieringConfigurationRequest method.
+//    req, resp := client.PutBucketIntelligentTieringConfigurationRequest(params)
+//
+//    err := req.Send()
+//    if err == nil { // resp is now filled
+//        fmt.Println(resp)
+//    }
+//
+// See also, https://docs.aws.amazon.com/goto/WebAPI/s3-2006-03-01/PutBucketIntelligentTieringConfiguration
+func (c *S3) PutBucketIntelligentTieringConfigurationRequest(input *PutBucketIntelligentTieringConfigurationInput) (req *request.Request, output *PutBucketIntelligentTieringConfigurationOutput) {
+	op := &request.Operation{
+		Name:       opPutBucketIntelligentTieringConfiguration,
+		HTTPMethod: "PUT",
+		HTTPPath:   "/{Bucket}?intelligent-tiering",
+	}
+
+	if input == nil {
+		input = &PutBucketIntelligentTieringConfigurationInput{}
+	}
+
+	output = &PutBucketIntelligentTieringConfigurationOutput{}
+	req = c.newRequest(op, input, output)
+	req.Handlers.Unmarshal.Swap(restxml.UnmarshalHandler.Name, protocol.UnmarshalDiscardBodyHandler)
+	return
+}
+
+// PutBucketIntelligentTieringConfiguration API operation for Amazon Simple Storage Service.
+//
+// Puts a S3 Intelligent-Tiering configuration to the specified bucket.
+//
+// The S3 Intelligent-Tiering storage class is designed to optimize storage
+// costs by automatically moving data to the most cost-effective storage access
+// tier, without additional operational overhead. S3 Intelligent-Tiering delivers
+// automatic cost savings by moving data between access tiers, when access patterns
+// change.
+//
+// The S3 Intelligent-Tiering storage class is suitable for objects larger than
+// 128 KB that you plan to store for at least 30 days. If the size of an object
+// is less than 128 KB, it is not eligible for auto-tiering. Smaller objects
+// can be stored, but they are always charged at the frequent access tier rates
+// in the S3 Intelligent-Tiering storage class.
+//
+// If you delete an object before the end of the 30-day minimum storage duration
+// period, you are charged for 30 days. For more information, see Storage class
+// for automatically optimizing frequently and infrequently accessed objects
+// (https://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html#sc-dynamic-data-access).
+//
+// Operations related to PutBucketIntelligentTieringConfiguration include:
+//
+//    * DeleteBucketIntelligentTieringConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucketIntelligentTieringConfiguration.html)
+//
+//    * GetBucketIntelligentTieringConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketIntelligentTieringConfiguration.html)
+//
+//    * ListBucketIntelligentTieringConfigurations (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListBucketIntelligentTieringConfigurations.html)
+//
+// Returns awserr.Error for service API and SDK errors. Use runtime type assertions
+// with awserr.Error's Code and Message methods to get detailed information about
+// the error.
+//
+// See the AWS API reference guide for Amazon Simple Storage Service's
+// API operation PutBucketIntelligentTieringConfiguration for usage and error information.
+// See also, https://docs.aws.amazon.com/goto/WebAPI/s3-2006-03-01/PutBucketIntelligentTieringConfiguration
+func (c *S3) PutBucketIntelligentTieringConfiguration(input *PutBucketIntelligentTieringConfigurationInput) (*PutBucketIntelligentTieringConfigurationOutput, error) {
+	req, out := c.PutBucketIntelligentTieringConfigurationRequest(input)
+	return out, req.Send()
+}
+
+// PutBucketIntelligentTieringConfigurationWithContext is the same as PutBucketIntelligentTieringConfiguration with the addition of
+// the ability to pass a context and additional request options.
+//
+// See PutBucketIntelligentTieringConfiguration for details on how to use this API operation.
+//
+// The context must be non-nil and will be used for request cancellation. If
+// the context is nil a panic will occur. In the future the SDK may create
+// sub-contexts for http.Requests. See https://golang.org/pkg/context/
+// for more information on using Contexts.
+func (c *S3) PutBucketIntelligentTieringConfigurationWithContext(ctx aws.Context, input *PutBucketIntelligentTieringConfigurationInput, opts ...request.Option) (*PutBucketIntelligentTieringConfigurationOutput, error) {
+	req, out := c.PutBucketIntelligentTieringConfigurationRequest(input)
 	req.SetContext(ctx)
 	req.ApplyOptions(opts...)
 	return out, req.Send()
@@ -7944,20 +8348,24 @@ func (c *S3) PutBucketOwnershipControlsRequest(input *PutBucketOwnershipControls
 	output = &PutBucketOwnershipControlsOutput{}
 	req = c.newRequest(op, input, output)
 	req.Handlers.Unmarshal.Swap(restxml.UnmarshalHandler.Name, protocol.UnmarshalDiscardBodyHandler)
+	req.Handlers.Build.PushBackNamed(request.NamedHandler{
+		Name: "contentMd5Handler",
+		Fn:   checksum.AddBodyContentMD5Handler,
+	})
 	return
 }
 
 // PutBucketOwnershipControls API operation for Amazon Simple Storage Service.
 //
 // Creates or modifies OwnershipControls for an Amazon S3 bucket. To use this
-// operation, you must have the s3:GetBucketOwnershipControls permission. For
+// operation, you must have the s3:PutBucketOwnershipControls permission. For
 // more information about Amazon S3 permissions, see Specifying Permissions
 // in a Policy (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-with-s3-actions.html).
 //
 // For information about Amazon S3 Object Ownership, see Using Object Ownership
 // (https://docs.aws.amazon.com/AmazonS3/latest/dev/about-object-ownership.html).
 //
-// The following operations are related to GetBucketOwnershipControls:
+// The following operations are related to PutBucketOwnershipControls:
 //
 //    * GetBucketOwnershipControls
 //
@@ -8149,15 +8557,14 @@ func (c *S3) PutBucketReplicationRequest(input *PutBucketReplicationInput) (req 
 // permission.
 //
 // Specify the replication configuration in the request body. In the replication
-// configuration, you provide the name of the destination bucket where you want
-// Amazon S3 to replicate objects, the IAM role that Amazon S3 can assume to
-// replicate objects on your behalf, and other relevant information.
+// configuration, you provide the name of the destination bucket or buckets
+// where you want Amazon S3 to replicate objects, the IAM role that Amazon S3
+// can assume to replicate objects on your behalf, and other relevant information.
 //
 // A replication configuration must include at least one rule, and can contain
 // a maximum of 1,000. Each rule identifies a subset of objects to replicate
 // by filtering the objects in the source bucket. To choose additional subsets
-// of objects to replicate, add a rule for each subset. All rules must specify
-// the same destination bucket.
+// of objects to replicate, add a rule for each subset.
 //
 // To specify a subset of the objects in the source bucket to apply a replication
 // rule to, add the Filter element as a child of the Rule element. You can filter
@@ -8165,12 +8572,9 @@ func (c *S3) PutBucketReplicationRequest(input *PutBucketReplicationInput) (req 
 // When you add the Filter element in the configuration, you must also add the
 // following elements: DeleteMarkerReplication, Status, and Priority.
 //
-// The latest version of the replication configuration XML is V2. XML V2 replication
-// configurations are those that contain the Filter element for rules, and rules
-// that specify S3 Replication Time Control (S3 RTC). In XML V2 replication
-// configurations, Amazon S3 doesn't replicate delete markers. Therefore, you
-// must set the DeleteMarkerReplication element to Disabled. For backward compatibility,
-// Amazon S3 continues to support the XML V1 replication configuration.
+// If you are using an earlier version of the replication configuration, Amazon
+// S3 handles replication of delete markers differently. For more information,
+// see Backward Compatibility (https://docs.aws.amazon.com/AmazonS3/latest/dev/replication-add-config.html#replication-backward-compat-considerations).
 //
 // For information about enabling versioning on a bucket, see Using Versioning
 // (https://docs.aws.amazon.com/AmazonS3/latest/dev/Versioning.html).
@@ -8764,8 +9168,13 @@ func (c *S3) PutObjectRequest(input *PutObjectInput) (req *request.Request, outp
 // You can optionally request server-side encryption. With server-side encryption,
 // Amazon S3 encrypts your data as it writes it to disks in its data centers
 // and decrypts the data when you access it. You have the option to provide
-// your own encryption key or use AWS managed encryption keys. For more information,
-// see Using Server-Side Encryption (https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingServerSideEncryption.html).
+// your own encryption key or use AWS managed encryption keys (SSE-S3 or SSE-KMS).
+// For more information, see Using Server-Side Encryption (https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingServerSideEncryption.html).
+//
+// If you request server-side encryption using AWS Key Management Service (SSE-KMS),
+// you can enable an S3 Bucket Key at the object-level. For more information,
+// see Amazon S3 Bucket Keys (https://docs.aws.amazon.com/AmazonS3/latest/dev/bucket-key.html)
+// in the Amazon Simple Storage Service Developer Guide.
 //
 // Access Control List (ACL)-Specific Request Headers
 //
@@ -9597,60 +10006,59 @@ func (c *S3) RestoreObjectRequest(input *RestoreObjectInput) (req *request.Reque
 //    * Amazon S3 accepts a select request even if the object has already been
 //    restored. A select request doesn’t return error response 409.
 //
-// Restoring Archives
+// Restoring objects
 //
-// Objects in the GLACIER and DEEP_ARCHIVE storage classes are archived. To
-// access an archived object, you must first initiate a restore request. This
-// restores a temporary copy of the archived object. In a restore request, you
-// specify the number of days that you want the restored copy to exist. After
-// the specified period, Amazon S3 deletes the temporary copy but the object
-// remains archived in the GLACIER or DEEP_ARCHIVE storage class that object
-// was restored from.
+// Objects that you archive to the S3 Glacier or S3 Glacier Deep Archive storage
+// class, and S3 Intelligent-Tiering Archive or S3 Intelligent-Tiering Deep
+// Archive tiers are not accessible in real time. For objects in Archive Access
+// or Deep Archive Access tiers you must first initiate a restore request, and
+// then wait until the object is moved into the Frequent Access tier. For objects
+// in S3 Glacier or S3 Glacier Deep Archive storage classes you must first initiate
+// a restore request, and then wait until a temporary copy of the object is
+// available. To access an archived object, you must restore the object for
+// the duration (number of days) that you specify.
 //
 // To restore a specific object version, you can provide a version ID. If you
 // don't provide a version ID, Amazon S3 restores the current version.
-//
-// The time it takes restore jobs to finish depends on which storage class the
-// object is being restored from and which data access tier you specify.
 //
 // When restoring an archived object (or using a select request), you can specify
 // one of the following data access tier options in the Tier element of the
 // request body:
 //
 //    * Expedited - Expedited retrievals allow you to quickly access your data
-//    stored in the GLACIER storage class when occasional urgent requests for
-//    a subset of archives are required. For all but the largest archived objects
-//    (250 MB+), data accessed using Expedited retrievals are typically made
-//    available within 1–5 minutes. Provisioned capacity ensures that retrieval
-//    capacity for Expedited retrievals is available when you need it. Expedited
-//    retrievals and provisioned capacity are not available for the DEEP_ARCHIVE
-//    storage class.
+//    stored in the S3 Glacier storage class or S3 Intelligent-Tiering Archive
+//    tier when occasional urgent requests for a subset of archives are required.
+//    For all but the largest archived objects (250 MB+), data accessed using
+//    Expedited retrievals is typically made available within 1–5 minutes.
+//    Provisioned capacity ensures that retrieval capacity for Expedited retrievals
+//    is available when you need it. Expedited retrievals and provisioned capacity
+//    are not available for objects stored in the S3 Glacier Deep Archive storage
+//    class or S3 Intelligent-Tiering Deep Archive tier.
 //
-//    * Standard - S3 Standard retrievals allow you to access any of your archived
-//    objects within several hours. This is the default option for the GLACIER
-//    and DEEP_ARCHIVE retrieval requests that do not specify the retrieval
-//    option. S3 Standard retrievals typically complete within 3-5 hours from
-//    the GLACIER storage class and typically complete within 12 hours from
-//    the DEEP_ARCHIVE storage class.
+//    * Standard - Standard retrievals allow you to access any of your archived
+//    objects within several hours. This is the default option for retrieval
+//    requests that do not specify the retrieval option. Standard retrievals
+//    typically finish within 3–5 hours for objects stored in the S3 Glacier
+//    storage class or S3 Intelligent-Tiering Archive tier. They typically finish
+//    within 12 hours for objects stored in the S3 Glacier Deep Archive storage
+//    class or S3 Intelligent-Tiering Deep Archive tier. Standard retrievals
+//    are free for objects stored in S3 Intelligent-Tiering.
 //
-//    * Bulk - Bulk retrievals are Amazon S3 Glacier’s lowest-cost retrieval
-//    option, enabling you to retrieve large amounts, even petabytes, of data
-//    inexpensively in a day. Bulk retrievals typically complete within 5-12
-//    hours from the GLACIER storage class and typically complete within 48
-//    hours from the DEEP_ARCHIVE storage class.
+//    * Bulk - Bulk retrievals are the lowest-cost retrieval option in S3 Glacier,
+//    enabling you to retrieve large amounts, even petabytes, of data inexpensively.
+//    Bulk retrievals typically finish within 5–12 hours for objects stored
+//    in the S3 Glacier storage class or S3 Intelligent-Tiering Archive tier.
+//    They typically finish within 48 hours for objects stored in the S3 Glacier
+//    Deep Archive storage class or S3 Intelligent-Tiering Deep Archive tier.
+//    Bulk retrievals are free for objects stored in S3 Intelligent-Tiering.
 //
 // For more information about archive retrieval options and provisioned capacity
 // for Expedited data access, see Restoring Archived Objects (https://docs.aws.amazon.com/AmazonS3/latest/dev/restoring-objects.html)
 // in the Amazon Simple Storage Service Developer Guide.
 //
 // You can use Amazon S3 restore speed upgrade to change the restore speed to
-// a faster speed while it is in progress. You upgrade the speed of an in-progress
-// restoration by issuing another restore request to the same object, setting
-// a new Tier request element. When issuing a request to upgrade the restore
-// tier, you must choose a tier that is faster than the tier that the in-progress
-// restore is using. You must not change any other parameters, such as the Days
-// request element. For more information, see Upgrading the Speed of an In-Progress
-// Restore (https://docs.aws.amazon.com/AmazonS3/latest/dev/restoring-objects.html#restoring-objects-upgrade-tier.title.html)
+// a faster speed while it is in progress. For more information, see Upgrading
+// the speed of an in-progress restore (https://docs.aws.amazon.com/AmazonS3/latest/dev/restoring-objects.html#restoring-objects-upgrade-tier.title.html)
 // in the Amazon Simple Storage Service Developer Guide.
 //
 // To get the status of object restoration, you can send a HEAD request. Operations
@@ -9679,11 +10087,11 @@ func (c *S3) RestoreObjectRequest(input *RestoreObjectInput) (req *request.Reque
 //
 // A successful operation returns either the 200 OK or 202 Accepted status code.
 //
-//    * If the object copy is not previously restored, then Amazon S3 returns
-//    202 Accepted in the response.
+//    * If the object is not previously restored, then Amazon S3 returns 202
+//    Accepted in the response.
 //
-//    * If the object copy is previously restored, Amazon S3 returns 200 OK
-//    in the response.
+//    * If the object is previously restored, Amazon S3 returns 200 OK in the
+//    response.
 //
 // Special Errors
 //
@@ -9691,11 +10099,11 @@ func (c *S3) RestoreObjectRequest(input *RestoreObjectInput) (req *request.Reque
 //    (This error does not apply to SELECT type requests.) HTTP Status Code:
 //    409 Conflict SOAP Fault Code Prefix: Client
 //
-//    * Code: GlacierExpeditedRetrievalNotAvailable Cause: S3 Glacier expedited
-//    retrievals are currently not available. Try again later. (Returned if
-//    there is insufficient capacity to process the Expedited request. This
-//    error applies only to Expedited retrievals and not to S3 Standard or Bulk
-//    retrievals.) HTTP Status Code: 503 SOAP Fault Code Prefix: N/A
+//    * Code: GlacierExpeditedRetrievalNotAvailable Cause: expedited retrievals
+//    are currently not available. Try again later. (Returned if there is insufficient
+//    capacity to process the Expedited request. This error applies only to
+//    Expedited retrievals and not to S3 Standard or Bulk retrievals.) HTTP
+//    Status Code: 503 SOAP Fault Code Prefix: N/A
 //
 // Related Resources
 //
@@ -11046,7 +11454,8 @@ func (s *AnalyticsS3BucketDestination) SetPrefix(v string) *AnalyticsS3BucketDes
 type Bucket struct {
 	_ struct{} `type:"structure"`
 
-	// Date the bucket was created.
+	// Date the bucket was created. This date can change when making changes to
+	// your bucket, such as editing its bucket policy.
 	CreationDate *time.Time `type:"timestamp"`
 
 	// The name of the bucket.
@@ -11734,6 +12143,10 @@ type CompleteMultipartUploadOutput struct {
 	// in the Amazon Simple Storage Service Developer Guide.
 	Bucket *string `type:"string"`
 
+	// Indicates whether the multipart upload uses an S3 Bucket Key for server-side
+	// encryption with AWS KMS (SSE-KMS).
+	BucketKeyEnabled *bool `location:"header" locationName:"x-amz-server-side-encryption-bucket-key-enabled" type:"boolean"`
+
 	// Entity tag that identifies the newly created object's data. Objects with
 	// different object data will have different entity tags. The entity tag is
 	// an opaque string. The entity tag may or may not be an MD5 digest of the object
@@ -11793,6 +12206,12 @@ func (s *CompleteMultipartUploadOutput) getBucket() (v string) {
 		return v
 	}
 	return *s.Bucket
+}
+
+// SetBucketKeyEnabled sets the BucketKeyEnabled field's value.
+func (s *CompleteMultipartUploadOutput) SetBucketKeyEnabled(v bool) *CompleteMultipartUploadOutput {
+	s.BucketKeyEnabled = &v
+	return s
 }
 
 // SetETag sets the ETag field's value.
@@ -12007,6 +12426,15 @@ type CopyObjectInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// Specifies whether Amazon S3 should use an S3 Bucket Key for object encryption
+	// with server-side encryption using AWS KMS (SSE-KMS). Setting this header
+	// to true causes Amazon S3 to use an S3 Bucket Key for object encryption with
+	// SSE-KMS.
+	//
+	// Specifying this header with a COPY operation doesn’t affect bucket-level
+	// settings for S3 Bucket Key.
+	BucketKeyEnabled *bool `location:"header" locationName:"x-amz-server-side-encryption-bucket-key-enabled" type:"boolean"`
 
 	// Specifies caching behavior along the request/reply chain.
 	CacheControl *string `location:"header" locationName:"Cache-Control" type:"string"`
@@ -12254,6 +12682,12 @@ func (s *CopyObjectInput) getBucket() (v string) {
 		return v
 	}
 	return *s.Bucket
+}
+
+// SetBucketKeyEnabled sets the BucketKeyEnabled field's value.
+func (s *CopyObjectInput) SetBucketKeyEnabled(v bool) *CopyObjectInput {
+	s.BucketKeyEnabled = &v
+	return s
 }
 
 // SetCacheControl sets the CacheControl field's value.
@@ -12522,6 +12956,10 @@ func (s CopyObjectInput) updateArnableField(v string) (interface{}, error) {
 type CopyObjectOutput struct {
 	_ struct{} `type:"structure" payload:"CopyObjectResult"`
 
+	// Indicates whether the copied object uses an S3 Bucket Key for server-side
+	// encryption with AWS KMS (SSE-KMS).
+	BucketKeyEnabled *bool `location:"header" locationName:"x-amz-server-side-encryption-bucket-key-enabled" type:"boolean"`
+
 	// Container for all response elements.
 	CopyObjectResult *CopyObjectResult `type:"structure"`
 
@@ -12571,6 +13009,12 @@ func (s CopyObjectOutput) String() string {
 // GoString returns the string representation
 func (s CopyObjectOutput) GoString() string {
 	return s.String()
+}
+
+// SetBucketKeyEnabled sets the BucketKeyEnabled field's value.
+func (s *CopyObjectOutput) SetBucketKeyEnabled(v bool) *CopyObjectOutput {
+	s.BucketKeyEnabled = &v
+	return s
 }
 
 // SetCopyObjectResult sets the CopyObjectResult field's value.
@@ -12900,6 +13344,15 @@ type CreateMultipartUploadInput struct {
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
 
+	// Specifies whether Amazon S3 should use an S3 Bucket Key for object encryption
+	// with server-side encryption using AWS KMS (SSE-KMS). Setting this header
+	// to true causes Amazon S3 to use an S3 Bucket Key for object encryption with
+	// SSE-KMS.
+	//
+	// Specifying this header with an object operation doesn’t affect bucket-level
+	// settings for S3 Bucket Key.
+	BucketKeyEnabled *bool `location:"header" locationName:"x-amz-server-side-encryption-bucket-key-enabled" type:"boolean"`
+
 	// Specifies caching behavior along the request/reply chain.
 	CacheControl *string `location:"header" locationName:"Cache-Control" type:"string"`
 
@@ -13068,6 +13521,12 @@ func (s *CreateMultipartUploadInput) getBucket() (v string) {
 		return v
 	}
 	return *s.Bucket
+}
+
+// SetBucketKeyEnabled sets the BucketKeyEnabled field's value.
+func (s *CreateMultipartUploadInput) SetBucketKeyEnabled(v bool) *CreateMultipartUploadInput {
+	s.BucketKeyEnabled = &v
+	return s
 }
 
 // SetCacheControl sets the CacheControl field's value.
@@ -13297,6 +13756,10 @@ type CreateMultipartUploadOutput struct {
 	// in the Amazon Simple Storage Service Developer Guide.
 	Bucket *string `locationName:"Bucket" type:"string"`
 
+	// Indicates whether the multipart upload uses an S3 Bucket Key for server-side
+	// encryption with AWS KMS (SSE-KMS).
+	BucketKeyEnabled *bool `location:"header" locationName:"x-amz-server-side-encryption-bucket-key-enabled" type:"boolean"`
+
 	// Object key for which the multipart upload was initiated.
 	Key *string `min:"1" type:"string"`
 
@@ -13365,6 +13828,12 @@ func (s *CreateMultipartUploadOutput) getBucket() (v string) {
 		return v
 	}
 	return *s.Bucket
+}
+
+// SetBucketKeyEnabled sets the BucketKeyEnabled field's value.
+func (s *CreateMultipartUploadOutput) SetBucketKeyEnabled(v bool) *CreateMultipartUploadOutput {
+	s.BucketKeyEnabled = &v
+	return s
 }
 
 // SetKey sets the Key field's value.
@@ -13919,6 +14388,110 @@ func (s DeleteBucketInput) updateArnableField(v string) (interface{}, error) {
 	return &s, nil
 }
 
+type DeleteBucketIntelligentTieringConfigurationInput struct {
+	_ struct{} `locationName:"DeleteBucketIntelligentTieringConfigurationRequest" type:"structure"`
+
+	// The name of the Amazon S3 bucket whose configuration you want to modify or
+	// retrieve.
+	//
+	// Bucket is a required field
+	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The ID used to identify the S3 Intelligent-Tiering configuration.
+	//
+	// Id is a required field
+	Id *string `location:"querystring" locationName:"id" type:"string" required:"true"`
+}
+
+// String returns the string representation
+func (s DeleteBucketIntelligentTieringConfigurationInput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s DeleteBucketIntelligentTieringConfigurationInput) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *DeleteBucketIntelligentTieringConfigurationInput) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "DeleteBucketIntelligentTieringConfigurationInput"}
+	if s.Bucket == nil {
+		invalidParams.Add(request.NewErrParamRequired("Bucket"))
+	}
+	if s.Bucket != nil && len(*s.Bucket) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("Bucket", 1))
+	}
+	if s.Id == nil {
+		invalidParams.Add(request.NewErrParamRequired("Id"))
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetBucket sets the Bucket field's value.
+func (s *DeleteBucketIntelligentTieringConfigurationInput) SetBucket(v string) *DeleteBucketIntelligentTieringConfigurationInput {
+	s.Bucket = &v
+	return s
+}
+
+func (s *DeleteBucketIntelligentTieringConfigurationInput) getBucket() (v string) {
+	if s.Bucket == nil {
+		return v
+	}
+	return *s.Bucket
+}
+
+// SetId sets the Id field's value.
+func (s *DeleteBucketIntelligentTieringConfigurationInput) SetId(v string) *DeleteBucketIntelligentTieringConfigurationInput {
+	s.Id = &v
+	return s
+}
+
+func (s *DeleteBucketIntelligentTieringConfigurationInput) getEndpointARN() (arn.Resource, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	return parseEndpointARN(*s.Bucket)
+}
+
+func (s *DeleteBucketIntelligentTieringConfigurationInput) hasEndpointARN() bool {
+	if s.Bucket == nil {
+		return false
+	}
+	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s DeleteBucketIntelligentTieringConfigurationInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
+}
+
+type DeleteBucketIntelligentTieringConfigurationOutput struct {
+	_ struct{} `type:"structure"`
+}
+
+// String returns the string representation
+func (s DeleteBucketIntelligentTieringConfigurationOutput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s DeleteBucketIntelligentTieringConfigurationOutput) GoString() string {
+	return s.String()
+}
+
 type DeleteBucketInventoryConfigurationInput struct {
 	_ struct{} `locationName:"DeleteBucketInventoryConfigurationRequest" type:"structure"`
 
@@ -14269,6 +14842,9 @@ type DeleteBucketOwnershipControlsInput struct {
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
 
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
 	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
@@ -14819,24 +15395,25 @@ func (s *DeleteMarkerEntry) SetVersionId(v string) *DeleteMarkerEntry {
 	return s
 }
 
-// Specifies whether Amazon S3 replicates the delete markers. If you specify
-// a Filter, you must specify this element. However, in the latest version of
-// replication configuration (when Filter is specified), Amazon S3 doesn't replicate
-// delete markers. Therefore, the DeleteMarkerReplication element can contain
-// only <Status>Disabled</Status>. For an example configuration, see Basic Rule
-// Configuration (https://docs.aws.amazon.com/AmazonS3/latest/dev/replication-add-config.html#replication-config-min-rule-config).
+// Specifies whether Amazon S3 replicates delete markers. If you specify a Filter
+// in your replication configuration, you must also include a DeleteMarkerReplication
+// element. If your Filter includes a Tag element, the DeleteMarkerReplication
+// Status must be set to Disabled, because Amazon S3 does not support replicating
+// delete markers for tag-based rules. For an example configuration, see Basic
+// Rule Configuration (https://docs.aws.amazon.com/AmazonS3/latest/dev/replication-add-config.html#replication-config-min-rule-config).
 //
-// If you don't specify the Filter element, Amazon S3 assumes that the replication
-// configuration is the earlier version, V1. In the earlier version, Amazon
-// S3 handled replication of delete markers differently. For more information,
+// For more information about delete marker replication, see Basic Rule Configuration
+// (https://docs.aws.amazon.com/AmazonS3/latest/dev/delete-marker-replication.html).
+//
+// If you are using an earlier version of the replication configuration, Amazon
+// S3 handles replication of delete markers differently. For more information,
 // see Backward Compatibility (https://docs.aws.amazon.com/AmazonS3/latest/dev/replication-add-config.html#replication-backward-compat-considerations).
 type DeleteMarkerReplication struct {
 	_ struct{} `type:"structure"`
 
 	// Indicates whether to replicate delete markers.
 	//
-	// In the current implementation, Amazon S3 doesn't replicate the delete markers.
-	// The status must be Disabled.
+	// Indicates whether to replicate delete markers.
 	Status *string `type:"string" enum:"DeleteMarkerReplicationStatus"`
 }
 
@@ -15597,9 +16174,8 @@ type Destination struct {
 	// is specified, you must specify this element.
 	EncryptionConfiguration *EncryptionConfiguration `type:"structure"`
 
-	// A container specifying replication metrics-related settings enabling metrics
-	// and Amazon S3 events for S3 Replication Time Control (S3 RTC). Must be specified
-	// together with a ReplicationTime block.
+	// A container specifying replication metrics-related settings enabling replication
+	// metrics and events.
 	Metrics *Metrics `type:"structure"`
 
 	// A container specifying S3 Replication Time Control (S3 RTC), including whether
@@ -16928,6 +17504,119 @@ func (s *GetBucketEncryptionOutput) SetServerSideEncryptionConfiguration(v *Serv
 	return s
 }
 
+type GetBucketIntelligentTieringConfigurationInput struct {
+	_ struct{} `locationName:"GetBucketIntelligentTieringConfigurationRequest" type:"structure"`
+
+	// The name of the Amazon S3 bucket whose configuration you want to modify or
+	// retrieve.
+	//
+	// Bucket is a required field
+	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The ID used to identify the S3 Intelligent-Tiering configuration.
+	//
+	// Id is a required field
+	Id *string `location:"querystring" locationName:"id" type:"string" required:"true"`
+}
+
+// String returns the string representation
+func (s GetBucketIntelligentTieringConfigurationInput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s GetBucketIntelligentTieringConfigurationInput) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *GetBucketIntelligentTieringConfigurationInput) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "GetBucketIntelligentTieringConfigurationInput"}
+	if s.Bucket == nil {
+		invalidParams.Add(request.NewErrParamRequired("Bucket"))
+	}
+	if s.Bucket != nil && len(*s.Bucket) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("Bucket", 1))
+	}
+	if s.Id == nil {
+		invalidParams.Add(request.NewErrParamRequired("Id"))
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetBucket sets the Bucket field's value.
+func (s *GetBucketIntelligentTieringConfigurationInput) SetBucket(v string) *GetBucketIntelligentTieringConfigurationInput {
+	s.Bucket = &v
+	return s
+}
+
+func (s *GetBucketIntelligentTieringConfigurationInput) getBucket() (v string) {
+	if s.Bucket == nil {
+		return v
+	}
+	return *s.Bucket
+}
+
+// SetId sets the Id field's value.
+func (s *GetBucketIntelligentTieringConfigurationInput) SetId(v string) *GetBucketIntelligentTieringConfigurationInput {
+	s.Id = &v
+	return s
+}
+
+func (s *GetBucketIntelligentTieringConfigurationInput) getEndpointARN() (arn.Resource, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	return parseEndpointARN(*s.Bucket)
+}
+
+func (s *GetBucketIntelligentTieringConfigurationInput) hasEndpointARN() bool {
+	if s.Bucket == nil {
+		return false
+	}
+	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s GetBucketIntelligentTieringConfigurationInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
+}
+
+type GetBucketIntelligentTieringConfigurationOutput struct {
+	_ struct{} `type:"structure" payload:"IntelligentTieringConfiguration"`
+
+	// Container for S3 Intelligent-Tiering configuration.
+	IntelligentTieringConfiguration *IntelligentTieringConfiguration `type:"structure"`
+}
+
+// String returns the string representation
+func (s GetBucketIntelligentTieringConfigurationOutput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s GetBucketIntelligentTieringConfigurationOutput) GoString() string {
+	return s.String()
+}
+
+// SetIntelligentTieringConfiguration sets the IntelligentTieringConfiguration field's value.
+func (s *GetBucketIntelligentTieringConfigurationOutput) SetIntelligentTieringConfiguration(v *IntelligentTieringConfiguration) *GetBucketIntelligentTieringConfigurationOutput {
+	s.IntelligentTieringConfiguration = v
+	return s
+}
+
 type GetBucketInventoryConfigurationInput struct {
 	_ struct{} `locationName:"GetBucketInventoryConfigurationRequest" type:"structure"`
 
@@ -17709,6 +18398,9 @@ type GetBucketOwnershipControlsInput struct {
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
 
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
 	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
@@ -18871,7 +19563,7 @@ type GetObjectInput struct {
 	ResponseContentType *string `location:"querystring" locationName:"response-content-type" type:"string"`
 
 	// Sets the Expires header of the response.
-	ResponseExpires *time.Time `location:"querystring" locationName:"response-expires" type:"timestamp"`
+	ResponseExpires *time.Time `location:"querystring" locationName:"response-expires" type:"timestamp" timestampFormat:"rfc822"`
 
 	// Specifies the algorithm to use to when encrypting the object (for example,
 	// AES256).
@@ -19367,6 +20059,10 @@ type GetObjectOutput struct {
 	// Object data.
 	Body io.ReadCloser `type:"blob"`
 
+	// Indicates whether the object uses an S3 Bucket Key for server-side encryption
+	// with AWS KMS (SSE-KMS).
+	BucketKeyEnabled *bool `location:"header" locationName:"x-amz-server-side-encryption-bucket-key-enabled" type:"boolean"`
+
 	// Specifies caching behavior along the request/reply chain.
 	CacheControl *string `location:"header" locationName:"Cache-Control" type:"string"`
 
@@ -19502,6 +20198,12 @@ func (s *GetObjectOutput) SetAcceptRanges(v string) *GetObjectOutput {
 // SetBody sets the Body field's value.
 func (s *GetObjectOutput) SetBody(v io.ReadCloser) *GetObjectOutput {
 	s.Body = v
+	return s
+}
+
+// SetBucketKeyEnabled sets the BucketKeyEnabled field's value.
+func (s *GetObjectOutput) SetBucketKeyEnabled(v bool) *GetObjectOutput {
+	s.BucketKeyEnabled = &v
 	return s
 }
 
@@ -20261,7 +20963,7 @@ func (s *GetPublicAccessBlockOutput) SetPublicAccessBlockConfiguration(v *Public
 type GlacierJobParameters struct {
 	_ struct{} `type:"structure"`
 
-	// S3 Glacier retrieval tier at which the restore will be processed.
+	// Retrieval tier at which the restore will be processed.
 	//
 	// Tier is a required field
 	Tier *string `type:"string" required:"true" enum:"Tier"`
@@ -20809,6 +21511,13 @@ type HeadObjectOutput struct {
 	// Indicates that a range of bytes was specified.
 	AcceptRanges *string `location:"header" locationName:"accept-ranges" type:"string"`
 
+	// The archive state of the head object.
+	ArchiveStatus *string `location:"header" locationName:"x-amz-archive-status" type:"string" enum:"ArchiveStatus"`
+
+	// Indicates whether the object uses an S3 Bucket Key for server-side encryption
+	// with AWS KMS (SSE-KMS).
+	BucketKeyEnabled *bool `location:"header" locationName:"x-amz-server-side-encryption-bucket-key-enabled" type:"boolean"`
+
 	// Specifies caching behavior along the request/reply chain.
 	CacheControl *string `location:"header" locationName:"Cache-Control" type:"string"`
 
@@ -20882,13 +21591,13 @@ type HeadObjectOutput struct {
 	PartsCount *int64 `location:"header" locationName:"x-amz-mp-parts-count" type:"integer"`
 
 	// Amazon S3 can return this header if your request involves a bucket that is
-	// either a source or destination in a replication rule.
+	// either a source or a destination in a replication rule.
 	//
 	// In replication, you have a source bucket on which you configure replication
-	// and destination bucket where Amazon S3 stores object replicas. When you request
-	// an object (GetObject) or object metadata (HeadObject) from these buckets,
-	// Amazon S3 will return the x-amz-replication-status header in the response
-	// as follows:
+	// and destination bucket or buckets where Amazon S3 stores object replicas.
+	// When you request an object (GetObject) or object metadata (HeadObject) from
+	// these buckets, Amazon S3 will return the x-amz-replication-status header
+	// in the response as follows:
 	//
 	//    * If requesting an object from the source bucket — Amazon S3 will return
 	//    the x-amz-replication-status header if the object in your request is eligible
@@ -20900,9 +21609,17 @@ type HeadObjectOutput struct {
 	//    header with value PENDING, COMPLETED or FAILED indicating object replication
 	//    status.
 	//
-	//    * If requesting an object from the destination bucket — Amazon S3 will
+	//    * If requesting an object from a destination bucket — Amazon S3 will
 	//    return the x-amz-replication-status header with value REPLICA if the object
-	//    in your request is a replica that Amazon S3 created.
+	//    in your request is a replica that Amazon S3 created and there is no replica
+	//    modification replication in progress.
+	//
+	//    * When replicating objects to multiple destination buckets the x-amz-replication-status
+	//    header acts differently. The header of the source object will only return
+	//    a value of COMPLETED when replication is successful to all destinations.
+	//    The header will remain at value PENDING until replication has completed
+	//    for all destinations. If one or more destinations fails replication the
+	//    header will return FAILED.
 	//
 	// For more information, see Replication (https://docs.aws.amazon.com/AmazonS3/latest/dev/NotificationHowTo.html).
 	ReplicationStatus *string `location:"header" locationName:"x-amz-replication-status" type:"string" enum:"ReplicationStatus"`
@@ -20977,6 +21694,18 @@ func (s HeadObjectOutput) GoString() string {
 // SetAcceptRanges sets the AcceptRanges field's value.
 func (s *HeadObjectOutput) SetAcceptRanges(v string) *HeadObjectOutput {
 	s.AcceptRanges = &v
+	return s
+}
+
+// SetArchiveStatus sets the ArchiveStatus field's value.
+func (s *HeadObjectOutput) SetArchiveStatus(v string) *HeadObjectOutput {
+	s.ArchiveStatus = &v
+	return s
+}
+
+// SetBucketKeyEnabled sets the BucketKeyEnabled field's value.
+func (s *HeadObjectOutput) SetBucketKeyEnabled(v bool) *HeadObjectOutput {
+	s.BucketKeyEnabled = &v
 	return s
 }
 
@@ -21268,6 +21997,224 @@ func (s *InputSerialization) SetJSON(v *JSONInput) *InputSerialization {
 // SetParquet sets the Parquet field's value.
 func (s *InputSerialization) SetParquet(v *ParquetInput) *InputSerialization {
 	s.Parquet = v
+	return s
+}
+
+// A container for specifying S3 Intelligent-Tiering filters. The filters determine
+// the subset of objects to which the rule applies.
+type IntelligentTieringAndOperator struct {
+	_ struct{} `type:"structure"`
+
+	// An object key name prefix that identifies the subset of objects to which
+	// the configuration applies.
+	Prefix *string `type:"string"`
+
+	// All of these tags must exist in the object's tag set in order for the configuration
+	// to apply.
+	Tags []*Tag `locationName:"Tag" locationNameList:"Tag" type:"list" flattened:"true"`
+}
+
+// String returns the string representation
+func (s IntelligentTieringAndOperator) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s IntelligentTieringAndOperator) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *IntelligentTieringAndOperator) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "IntelligentTieringAndOperator"}
+	if s.Tags != nil {
+		for i, v := range s.Tags {
+			if v == nil {
+				continue
+			}
+			if err := v.Validate(); err != nil {
+				invalidParams.AddNested(fmt.Sprintf("%s[%v]", "Tags", i), err.(request.ErrInvalidParams))
+			}
+		}
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetPrefix sets the Prefix field's value.
+func (s *IntelligentTieringAndOperator) SetPrefix(v string) *IntelligentTieringAndOperator {
+	s.Prefix = &v
+	return s
+}
+
+// SetTags sets the Tags field's value.
+func (s *IntelligentTieringAndOperator) SetTags(v []*Tag) *IntelligentTieringAndOperator {
+	s.Tags = v
+	return s
+}
+
+// Specifies the S3 Intelligent-Tiering configuration for an Amazon S3 bucket.
+//
+// For information about the S3 Intelligent-Tiering storage class, see Storage
+// class for automatically optimizing frequently and infrequently accessed objects
+// (https://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html#sc-dynamic-data-access).
+type IntelligentTieringConfiguration struct {
+	_ struct{} `type:"structure"`
+
+	// Specifies a bucket filter. The configuration only includes objects that meet
+	// the filter's criteria.
+	Filter *IntelligentTieringFilter `type:"structure"`
+
+	// The ID used to identify the S3 Intelligent-Tiering configuration.
+	//
+	// Id is a required field
+	Id *string `type:"string" required:"true"`
+
+	// Specifies the status of the configuration.
+	//
+	// Status is a required field
+	Status *string `type:"string" required:"true" enum:"IntelligentTieringStatus"`
+
+	// Specifies the S3 Intelligent-Tiering storage class tier of the configuration.
+	//
+	// Tierings is a required field
+	Tierings []*Tiering `locationName:"Tiering" type:"list" flattened:"true" required:"true"`
+}
+
+// String returns the string representation
+func (s IntelligentTieringConfiguration) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s IntelligentTieringConfiguration) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *IntelligentTieringConfiguration) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "IntelligentTieringConfiguration"}
+	if s.Id == nil {
+		invalidParams.Add(request.NewErrParamRequired("Id"))
+	}
+	if s.Status == nil {
+		invalidParams.Add(request.NewErrParamRequired("Status"))
+	}
+	if s.Tierings == nil {
+		invalidParams.Add(request.NewErrParamRequired("Tierings"))
+	}
+	if s.Filter != nil {
+		if err := s.Filter.Validate(); err != nil {
+			invalidParams.AddNested("Filter", err.(request.ErrInvalidParams))
+		}
+	}
+	if s.Tierings != nil {
+		for i, v := range s.Tierings {
+			if v == nil {
+				continue
+			}
+			if err := v.Validate(); err != nil {
+				invalidParams.AddNested(fmt.Sprintf("%s[%v]", "Tierings", i), err.(request.ErrInvalidParams))
+			}
+		}
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetFilter sets the Filter field's value.
+func (s *IntelligentTieringConfiguration) SetFilter(v *IntelligentTieringFilter) *IntelligentTieringConfiguration {
+	s.Filter = v
+	return s
+}
+
+// SetId sets the Id field's value.
+func (s *IntelligentTieringConfiguration) SetId(v string) *IntelligentTieringConfiguration {
+	s.Id = &v
+	return s
+}
+
+// SetStatus sets the Status field's value.
+func (s *IntelligentTieringConfiguration) SetStatus(v string) *IntelligentTieringConfiguration {
+	s.Status = &v
+	return s
+}
+
+// SetTierings sets the Tierings field's value.
+func (s *IntelligentTieringConfiguration) SetTierings(v []*Tiering) *IntelligentTieringConfiguration {
+	s.Tierings = v
+	return s
+}
+
+// The Filter is used to identify objects that the S3 Intelligent-Tiering configuration
+// applies to.
+type IntelligentTieringFilter struct {
+	_ struct{} `type:"structure"`
+
+	// A conjunction (logical AND) of predicates, which is used in evaluating a
+	// metrics filter. The operator must have at least two predicates, and an object
+	// must match all of the predicates in order for the filter to apply.
+	And *IntelligentTieringAndOperator `type:"structure"`
+
+	// An object key name prefix that identifies the subset of objects to which
+	// the rule applies.
+	Prefix *string `type:"string"`
+
+	// A container of a key value name pair.
+	Tag *Tag `type:"structure"`
+}
+
+// String returns the string representation
+func (s IntelligentTieringFilter) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s IntelligentTieringFilter) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *IntelligentTieringFilter) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "IntelligentTieringFilter"}
+	if s.And != nil {
+		if err := s.And.Validate(); err != nil {
+			invalidParams.AddNested("And", err.(request.ErrInvalidParams))
+		}
+	}
+	if s.Tag != nil {
+		if err := s.Tag.Validate(); err != nil {
+			invalidParams.AddNested("Tag", err.(request.ErrInvalidParams))
+		}
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetAnd sets the And field's value.
+func (s *IntelligentTieringFilter) SetAnd(v *IntelligentTieringAndOperator) *IntelligentTieringFilter {
+	s.And = v
+	return s
+}
+
+// SetPrefix sets the Prefix field's value.
+func (s *IntelligentTieringFilter) SetPrefix(v string) *IntelligentTieringFilter {
+	s.Prefix = &v
+	return s
+}
+
+// SetTag sets the Tag field's value.
+func (s *IntelligentTieringFilter) SetTag(v *Tag) *IntelligentTieringFilter {
+	s.Tag = v
 	return s
 }
 
@@ -22327,6 +23274,147 @@ func (s *ListBucketAnalyticsConfigurationsOutput) SetIsTruncated(v bool) *ListBu
 
 // SetNextContinuationToken sets the NextContinuationToken field's value.
 func (s *ListBucketAnalyticsConfigurationsOutput) SetNextContinuationToken(v string) *ListBucketAnalyticsConfigurationsOutput {
+	s.NextContinuationToken = &v
+	return s
+}
+
+type ListBucketIntelligentTieringConfigurationsInput struct {
+	_ struct{} `locationName:"ListBucketIntelligentTieringConfigurationsRequest" type:"structure"`
+
+	// The name of the Amazon S3 bucket whose configuration you want to modify or
+	// retrieve.
+	//
+	// Bucket is a required field
+	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The ContinuationToken that represents a placeholder from where this request
+	// should begin.
+	ContinuationToken *string `location:"querystring" locationName:"continuation-token" type:"string"`
+}
+
+// String returns the string representation
+func (s ListBucketIntelligentTieringConfigurationsInput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s ListBucketIntelligentTieringConfigurationsInput) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *ListBucketIntelligentTieringConfigurationsInput) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "ListBucketIntelligentTieringConfigurationsInput"}
+	if s.Bucket == nil {
+		invalidParams.Add(request.NewErrParamRequired("Bucket"))
+	}
+	if s.Bucket != nil && len(*s.Bucket) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("Bucket", 1))
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetBucket sets the Bucket field's value.
+func (s *ListBucketIntelligentTieringConfigurationsInput) SetBucket(v string) *ListBucketIntelligentTieringConfigurationsInput {
+	s.Bucket = &v
+	return s
+}
+
+func (s *ListBucketIntelligentTieringConfigurationsInput) getBucket() (v string) {
+	if s.Bucket == nil {
+		return v
+	}
+	return *s.Bucket
+}
+
+// SetContinuationToken sets the ContinuationToken field's value.
+func (s *ListBucketIntelligentTieringConfigurationsInput) SetContinuationToken(v string) *ListBucketIntelligentTieringConfigurationsInput {
+	s.ContinuationToken = &v
+	return s
+}
+
+func (s *ListBucketIntelligentTieringConfigurationsInput) getEndpointARN() (arn.Resource, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	return parseEndpointARN(*s.Bucket)
+}
+
+func (s *ListBucketIntelligentTieringConfigurationsInput) hasEndpointARN() bool {
+	if s.Bucket == nil {
+		return false
+	}
+	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s ListBucketIntelligentTieringConfigurationsInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
+}
+
+type ListBucketIntelligentTieringConfigurationsOutput struct {
+	_ struct{} `type:"structure"`
+
+	// The ContinuationToken that represents a placeholder from where this request
+	// should begin.
+	ContinuationToken *string `type:"string"`
+
+	// The list of S3 Intelligent-Tiering configurations for a bucket.
+	IntelligentTieringConfigurationList []*IntelligentTieringConfiguration `locationName:"IntelligentTieringConfiguration" type:"list" flattened:"true"`
+
+	// Indicates whether the returned list of analytics configurations is complete.
+	// A value of true indicates that the list is not complete and the NextContinuationToken
+	// will be provided for a subsequent request.
+	IsTruncated *bool `type:"boolean"`
+
+	// The marker used to continue this inventory configuration listing. Use the
+	// NextContinuationToken from this response to continue the listing in a subsequent
+	// request. The continuation token is an opaque value that Amazon S3 understands.
+	NextContinuationToken *string `type:"string"`
+}
+
+// String returns the string representation
+func (s ListBucketIntelligentTieringConfigurationsOutput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s ListBucketIntelligentTieringConfigurationsOutput) GoString() string {
+	return s.String()
+}
+
+// SetContinuationToken sets the ContinuationToken field's value.
+func (s *ListBucketIntelligentTieringConfigurationsOutput) SetContinuationToken(v string) *ListBucketIntelligentTieringConfigurationsOutput {
+	s.ContinuationToken = &v
+	return s
+}
+
+// SetIntelligentTieringConfigurationList sets the IntelligentTieringConfigurationList field's value.
+func (s *ListBucketIntelligentTieringConfigurationsOutput) SetIntelligentTieringConfigurationList(v []*IntelligentTieringConfiguration) *ListBucketIntelligentTieringConfigurationsOutput {
+	s.IntelligentTieringConfigurationList = v
+	return s
+}
+
+// SetIsTruncated sets the IsTruncated field's value.
+func (s *ListBucketIntelligentTieringConfigurationsOutput) SetIsTruncated(v bool) *ListBucketIntelligentTieringConfigurationsOutput {
+	s.IsTruncated = &v
+	return s
+}
+
+// SetNextContinuationToken sets the NextContinuationToken field's value.
+func (s *ListBucketIntelligentTieringConfigurationsOutput) SetNextContinuationToken(v string) *ListBucketIntelligentTieringConfigurationsOutput {
 	s.NextContinuationToken = &v
 	return s
 }
@@ -24548,17 +25636,14 @@ func (s *MetadataEntry) SetValue(v string) *MetadataEntry {
 	return s
 }
 
-// A container specifying replication metrics-related settings enabling metrics
-// and Amazon S3 events for S3 Replication Time Control (S3 RTC). Must be specified
-// together with a ReplicationTime block.
+// A container specifying replication metrics-related settings enabling replication
+// metrics and events.
 type Metrics struct {
 	_ struct{} `type:"structure"`
 
 	// A container specifying the time threshold for emitting the s3:Replication:OperationMissedThreshold
 	// event.
-	//
-	// EventThreshold is a required field
-	EventThreshold *ReplicationTimeValue `type:"structure" required:"true"`
+	EventThreshold *ReplicationTimeValue `type:"structure"`
 
 	// Specifies whether the replication metrics are enabled.
 	//
@@ -24579,9 +25664,6 @@ func (s Metrics) GoString() string {
 // Validate inspects the fields of the type to determine if they are valid.
 func (s *Metrics) Validate() error {
 	invalidParams := request.ErrInvalidParams{Context: "Metrics"}
-	if s.EventThreshold == nil {
-		invalidParams.Add(request.NewErrParamRequired("EventThreshold"))
-	}
 	if s.Status == nil {
 		invalidParams.Add(request.NewErrParamRequired("Status"))
 	}
@@ -25852,8 +26934,8 @@ type PublicAccessBlockConfiguration struct {
 
 	// Specifies whether Amazon S3 should restrict public bucket policies for this
 	// bucket. Setting this element to TRUE restricts access to this bucket to only
-	// AWS services and authorized users within this account if the bucket has a
-	// public policy.
+	// AWS service principals and authorized users within this account if the bucket
+	// has a public policy.
 	//
 	// Enabling this setting doesn't affect previously stored bucket policies, except
 	// that public and cross-account access within any public bucket policy, including
@@ -26553,6 +27635,129 @@ func (s PutBucketEncryptionOutput) String() string {
 
 // GoString returns the string representation
 func (s PutBucketEncryptionOutput) GoString() string {
+	return s.String()
+}
+
+type PutBucketIntelligentTieringConfigurationInput struct {
+	_ struct{} `locationName:"PutBucketIntelligentTieringConfigurationRequest" type:"structure" payload:"IntelligentTieringConfiguration"`
+
+	// The name of the Amazon S3 bucket whose configuration you want to modify or
+	// retrieve.
+	//
+	// Bucket is a required field
+	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The ID used to identify the S3 Intelligent-Tiering configuration.
+	//
+	// Id is a required field
+	Id *string `location:"querystring" locationName:"id" type:"string" required:"true"`
+
+	// Container for S3 Intelligent-Tiering configuration.
+	//
+	// IntelligentTieringConfiguration is a required field
+	IntelligentTieringConfiguration *IntelligentTieringConfiguration `locationName:"IntelligentTieringConfiguration" type:"structure" required:"true" xmlURI:"http://s3.amazonaws.com/doc/2006-03-01/"`
+}
+
+// String returns the string representation
+func (s PutBucketIntelligentTieringConfigurationInput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s PutBucketIntelligentTieringConfigurationInput) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *PutBucketIntelligentTieringConfigurationInput) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "PutBucketIntelligentTieringConfigurationInput"}
+	if s.Bucket == nil {
+		invalidParams.Add(request.NewErrParamRequired("Bucket"))
+	}
+	if s.Bucket != nil && len(*s.Bucket) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("Bucket", 1))
+	}
+	if s.Id == nil {
+		invalidParams.Add(request.NewErrParamRequired("Id"))
+	}
+	if s.IntelligentTieringConfiguration == nil {
+		invalidParams.Add(request.NewErrParamRequired("IntelligentTieringConfiguration"))
+	}
+	if s.IntelligentTieringConfiguration != nil {
+		if err := s.IntelligentTieringConfiguration.Validate(); err != nil {
+			invalidParams.AddNested("IntelligentTieringConfiguration", err.(request.ErrInvalidParams))
+		}
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetBucket sets the Bucket field's value.
+func (s *PutBucketIntelligentTieringConfigurationInput) SetBucket(v string) *PutBucketIntelligentTieringConfigurationInput {
+	s.Bucket = &v
+	return s
+}
+
+func (s *PutBucketIntelligentTieringConfigurationInput) getBucket() (v string) {
+	if s.Bucket == nil {
+		return v
+	}
+	return *s.Bucket
+}
+
+// SetId sets the Id field's value.
+func (s *PutBucketIntelligentTieringConfigurationInput) SetId(v string) *PutBucketIntelligentTieringConfigurationInput {
+	s.Id = &v
+	return s
+}
+
+// SetIntelligentTieringConfiguration sets the IntelligentTieringConfiguration field's value.
+func (s *PutBucketIntelligentTieringConfigurationInput) SetIntelligentTieringConfiguration(v *IntelligentTieringConfiguration) *PutBucketIntelligentTieringConfigurationInput {
+	s.IntelligentTieringConfiguration = v
+	return s
+}
+
+func (s *PutBucketIntelligentTieringConfigurationInput) getEndpointARN() (arn.Resource, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	return parseEndpointARN(*s.Bucket)
+}
+
+func (s *PutBucketIntelligentTieringConfigurationInput) hasEndpointARN() bool {
+	if s.Bucket == nil {
+		return false
+	}
+	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s PutBucketIntelligentTieringConfigurationInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
+}
+
+type PutBucketIntelligentTieringConfigurationOutput struct {
+	_ struct{} `type:"structure"`
+}
+
+// String returns the string representation
+func (s PutBucketIntelligentTieringConfigurationOutput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s PutBucketIntelligentTieringConfigurationOutput) GoString() string {
 	return s.String()
 }
 
@@ -27409,6 +28614,9 @@ type PutBucketOwnershipControlsInput struct {
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
 
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
 	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// The OwnershipControls (BucketOwnerPreferred or ObjectWriter) that you want
@@ -27661,6 +28869,7 @@ type PutBucketReplicationInput struct {
 	// ReplicationConfiguration is a required field
 	ReplicationConfiguration *ReplicationConfiguration `locationName:"ReplicationConfiguration" type:"structure" required:"true" xmlURI:"http://s3.amazonaws.com/doc/2006-03-01/"`
 
+	// A token to allow Object Lock to be enabled for an existing bucket.
 	Token *string `location:"header" locationName:"x-amz-bucket-object-lock-token" type:"string"`
 }
 
@@ -28533,6 +29742,15 @@ type PutObjectInput struct {
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
 
+	// Specifies whether Amazon S3 should use an S3 Bucket Key for object encryption
+	// with server-side encryption using AWS KMS (SSE-KMS). Setting this header
+	// to true causes Amazon S3 to use an S3 Bucket Key for object encryption with
+	// SSE-KMS.
+	//
+	// Specifying this header with a PUT operation doesn’t affect bucket-level
+	// settings for S3 Bucket Key.
+	BucketKeyEnabled *bool `location:"header" locationName:"x-amz-server-side-encryption-bucket-key-enabled" type:"boolean"`
+
 	// Can be used to specify caching behavior along the request/reply chain. For
 	// more information, see http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.9
 	// (http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.9).
@@ -28747,6 +29965,12 @@ func (s *PutObjectInput) getBucket() (v string) {
 		return v
 	}
 	return *s.Bucket
+}
+
+// SetBucketKeyEnabled sets the BucketKeyEnabled field's value.
+func (s *PutObjectInput) SetBucketKeyEnabled(v bool) *PutObjectInput {
+	s.BucketKeyEnabled = &v
+	return s
 }
 
 // SetCacheControl sets the CacheControl field's value.
@@ -29262,6 +30486,10 @@ func (s *PutObjectLockConfigurationOutput) SetRequestCharged(v string) *PutObjec
 type PutObjectOutput struct {
 	_ struct{} `type:"structure"`
 
+	// Indicates whether the uploaded object uses an S3 Bucket Key for server-side
+	// encryption with AWS KMS (SSE-KMS).
+	BucketKeyEnabled *bool `location:"header" locationName:"x-amz-server-side-encryption-bucket-key-enabled" type:"boolean"`
+
 	// Entity tag for the uploaded object.
 	ETag *string `location:"header" locationName:"ETag" type:"string"`
 
@@ -29315,6 +30543,12 @@ func (s PutObjectOutput) String() string {
 // GoString returns the string representation
 func (s PutObjectOutput) GoString() string {
 	return s.String()
+}
+
+// SetBucketKeyEnabled sets the BucketKeyEnabled field's value.
+func (s *PutObjectOutput) SetBucketKeyEnabled(v bool) *PutObjectOutput {
+	s.BucketKeyEnabled = &v
+	return s
 }
 
 // SetETag sets the ETag field's value.
@@ -30139,6 +31373,53 @@ func (s *RedirectAllRequestsTo) SetProtocol(v string) *RedirectAllRequestsTo {
 	return s
 }
 
+// A filter that you can specify for selection for modifications on replicas.
+// Amazon S3 doesn't replicate replica modifications by default. In the latest
+// version of replication configuration (when Filter is specified), you can
+// specify this element and set the status to Enabled to replicate modifications
+// on replicas.
+//
+// If you don't specify the Filter element, Amazon S3 assumes that the replication
+// configuration is the earlier version, V1. In the earlier version, this element
+// is not allowed.
+type ReplicaModifications struct {
+	_ struct{} `type:"structure"`
+
+	// Specifies whether Amazon S3 replicates modifications on replicas.
+	//
+	// Status is a required field
+	Status *string `type:"string" required:"true" enum:"ReplicaModificationsStatus"`
+}
+
+// String returns the string representation
+func (s ReplicaModifications) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s ReplicaModifications) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *ReplicaModifications) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "ReplicaModifications"}
+	if s.Status == nil {
+		invalidParams.Add(request.NewErrParamRequired("Status"))
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetStatus sets the Status field's value.
+func (s *ReplicaModifications) SetStatus(v string) *ReplicaModifications {
+	s.Status = &v
+	return s
+}
+
 // A container for replication rules. You can add up to 1,000 rules. The maximum
 // size of a replication configuration is 2 MB.
 type ReplicationConfiguration struct {
@@ -30211,16 +31492,18 @@ func (s *ReplicationConfiguration) SetRules(v []*ReplicationRule) *ReplicationCo
 type ReplicationRule struct {
 	_ struct{} `type:"structure"`
 
-	// Specifies whether Amazon S3 replicates the delete markers. If you specify
-	// a Filter, you must specify this element. However, in the latest version of
-	// replication configuration (when Filter is specified), Amazon S3 doesn't replicate
-	// delete markers. Therefore, the DeleteMarkerReplication element can contain
-	// only <Status>Disabled</Status>. For an example configuration, see Basic Rule
-	// Configuration (https://docs.aws.amazon.com/AmazonS3/latest/dev/replication-add-config.html#replication-config-min-rule-config).
+	// Specifies whether Amazon S3 replicates delete markers. If you specify a Filter
+	// in your replication configuration, you must also include a DeleteMarkerReplication
+	// element. If your Filter includes a Tag element, the DeleteMarkerReplication
+	// Status must be set to Disabled, because Amazon S3 does not support replicating
+	// delete markers for tag-based rules. For an example configuration, see Basic
+	// Rule Configuration (https://docs.aws.amazon.com/AmazonS3/latest/dev/replication-add-config.html#replication-config-min-rule-config).
 	//
-	// If you don't specify the Filter element, Amazon S3 assumes that the replication
-	// configuration is the earlier version, V1. In the earlier version, Amazon
-	// S3 handled replication of delete markers differently. For more information,
+	// For more information about delete marker replication, see Basic Rule Configuration
+	// (https://docs.aws.amazon.com/AmazonS3/latest/dev/delete-marker-replication.html).
+	//
+	// If you are using an earlier version of the replication configuration, Amazon
+	// S3 handles replication of delete markers differently. For more information,
 	// see Backward Compatibility (https://docs.aws.amazon.com/AmazonS3/latest/dev/replication-add-config.html#replication-backward-compat-considerations).
 	DeleteMarkerReplication *DeleteMarkerReplication `type:"structure"`
 
@@ -30249,16 +31532,11 @@ type ReplicationRule struct {
 	// Deprecated: Prefix has been deprecated
 	Prefix *string `deprecated:"true" type:"string"`
 
-	// The priority associated with the rule. If you specify multiple rules in a
-	// replication configuration, Amazon S3 prioritizes the rules to prevent conflicts
-	// when filtering. If two or more rules identify the same object based on a
-	// specified filter, the rule with higher priority takes precedence. For example:
-	//
-	//    * Same object quality prefix-based filter criteria if prefixes you specified
-	//    in multiple rules overlap
-	//
-	//    * Same object qualify tag-based filter criteria specified in multiple
-	//    rules
+	// The priority indicates which rule has precedence whenever two or more replication
+	// rules conflict. Amazon S3 will attempt to replicate objects according to
+	// all replication rules. However, if there are two or more rules with the same
+	// destination bucket, then objects will be replicated according to the rule
+	// with the highest priority. The higher the number, the higher the priority.
 	//
 	// For more information, see Replication (https://docs.aws.amazon.com/AmazonS3/latest/dev/replication.html)
 	// in the Amazon Simple Storage Service Developer Guide.
@@ -30666,7 +31944,7 @@ func (s *RequestProgress) SetEnabled(v bool) *RequestProgress {
 type RestoreObjectInput struct {
 	_ struct{} `locationName:"RestoreObjectRequest" type:"structure" payload:"RestoreRequest"`
 
-	// The bucket name or containing the object to restore.
+	// The bucket name containing the object to restore.
 	//
 	// When using this API with an access point, you must direct requests to the
 	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
@@ -30857,6 +32135,9 @@ type RestoreRequest struct {
 
 	// Lifetime of the active copy in days. Do not use with restores that specify
 	// OutputLocation.
+	//
+	// The Days element is required for regular restores, and must not be provided
+	// for select requests.
 	Days *int64 `type:"integer"`
 
 	// The optional description for the job.
@@ -30872,7 +32153,7 @@ type RestoreRequest struct {
 	// Describes the parameters for Select job types.
 	SelectParameters *SelectParameters `type:"structure"`
 
-	// S3 Glacier retrieval tier at which the restore will be processed.
+	// Retrieval tier at which the restore will be processed.
 	Tier *string `type:"string" enum:"Tier"`
 
 	// Type of restore request.
@@ -31880,6 +33161,15 @@ type ServerSideEncryptionRule struct {
 	// bucket. If a PUT Object request doesn't specify any server-side encryption,
 	// this default encryption will be applied.
 	ApplyServerSideEncryptionByDefault *ServerSideEncryptionByDefault `type:"structure"`
+
+	// Specifies whether Amazon S3 should use an S3 Bucket Key with server-side
+	// encryption using KMS (SSE-KMS) for new objects in the bucket. Existing objects
+	// are not affected. Setting the BucketKeyEnabled element to true causes Amazon
+	// S3 to use an S3 Bucket Key. By default, S3 Bucket Key is not enabled.
+	//
+	// For more information, see Amazon S3 Bucket Keys (https://docs.aws.amazon.com/AmazonS3/latest/dev/bucket-key.html)
+	// in the Amazon Simple Storage Service Developer Guide.
+	BucketKeyEnabled *bool `type:"boolean"`
 }
 
 // String returns the string representation
@@ -31913,6 +33203,12 @@ func (s *ServerSideEncryptionRule) SetApplyServerSideEncryptionByDefault(v *Serv
 	return s
 }
 
+// SetBucketKeyEnabled sets the BucketKeyEnabled field's value.
+func (s *ServerSideEncryptionRule) SetBucketKeyEnabled(v bool) *ServerSideEncryptionRule {
+	s.BucketKeyEnabled = &v
+	return s
+}
+
 // A container that describes additional filters for identifying the source
 // objects that you want to replicate. You can choose to enable or disable the
 // replication of these objects. Currently, Amazon S3 supports only the filter
@@ -31920,6 +33216,17 @@ func (s *ServerSideEncryptionRule) SetApplyServerSideEncryptionByDefault(v *Serv
 // a customer master key (CMK) stored in AWS Key Management Service (SSE-KMS).
 type SourceSelectionCriteria struct {
 	_ struct{} `type:"structure"`
+
+	// A filter that you can specify for selections for modifications on replicas.
+	// Amazon S3 doesn't replicate replica modifications by default. In the latest
+	// version of replication configuration (when Filter is specified), you can
+	// specify this element and set the status to Enabled to replicate modifications
+	// on replicas.
+	//
+	// If you don't specify the Filter element, Amazon S3 assumes that the replication
+	// configuration is the earlier version, V1. In the earlier version, this element
+	// is not allowed
+	ReplicaModifications *ReplicaModifications `type:"structure"`
 
 	// A container for filter information for the selection of Amazon S3 objects
 	// encrypted with AWS KMS. If you include SourceSelectionCriteria in the replication
@@ -31940,6 +33247,11 @@ func (s SourceSelectionCriteria) GoString() string {
 // Validate inspects the fields of the type to determine if they are valid.
 func (s *SourceSelectionCriteria) Validate() error {
 	invalidParams := request.ErrInvalidParams{Context: "SourceSelectionCriteria"}
+	if s.ReplicaModifications != nil {
+		if err := s.ReplicaModifications.Validate(); err != nil {
+			invalidParams.AddNested("ReplicaModifications", err.(request.ErrInvalidParams))
+		}
+	}
 	if s.SseKmsEncryptedObjects != nil {
 		if err := s.SseKmsEncryptedObjects.Validate(); err != nil {
 			invalidParams.AddNested("SseKmsEncryptedObjects", err.(request.ErrInvalidParams))
@@ -31950,6 +33262,12 @@ func (s *SourceSelectionCriteria) Validate() error {
 		return invalidParams
 	}
 	return nil
+}
+
+// SetReplicaModifications sets the ReplicaModifications field's value.
+func (s *SourceSelectionCriteria) SetReplicaModifications(v *ReplicaModifications) *SourceSelectionCriteria {
+	s.ReplicaModifications = v
+	return s
 }
 
 // SetSseKmsEncryptedObjects sets the SseKmsEncryptedObjects field's value.
@@ -32345,6 +33663,67 @@ func (s *TargetGrant) SetGrantee(v *Grantee) *TargetGrant {
 // SetPermission sets the Permission field's value.
 func (s *TargetGrant) SetPermission(v string) *TargetGrant {
 	s.Permission = &v
+	return s
+}
+
+// The S3 Intelligent-Tiering storage class is designed to optimize storage
+// costs by automatically moving data to the most cost-effective storage access
+// tier, without additional operational overhead.
+type Tiering struct {
+	_ struct{} `type:"structure"`
+
+	// S3 Intelligent-Tiering access tier. See Storage class for automatically optimizing
+	// frequently and infrequently accessed objects (https://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html#sc-dynamic-data-access)
+	// for a list of access tiers in the S3 Intelligent-Tiering storage class.
+	//
+	// AccessTier is a required field
+	AccessTier *string `type:"string" required:"true" enum:"IntelligentTieringAccessTier"`
+
+	// The number of consecutive days of no access after which an object will be
+	// eligible to be transitioned to the corresponding tier. The minimum number
+	// of days specified for Archive Access tier must be at least 90 days and Deep
+	// Archive Access tier must be at least 180 days. The maximum can be up to 2
+	// years (730 days).
+	//
+	// Days is a required field
+	Days *int64 `type:"integer" required:"true"`
+}
+
+// String returns the string representation
+func (s Tiering) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s Tiering) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *Tiering) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "Tiering"}
+	if s.AccessTier == nil {
+		invalidParams.Add(request.NewErrParamRequired("AccessTier"))
+	}
+	if s.Days == nil {
+		invalidParams.Add(request.NewErrParamRequired("Days"))
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetAccessTier sets the AccessTier field's value.
+func (s *Tiering) SetAccessTier(v string) *Tiering {
+	s.AccessTier = &v
+	return s
+}
+
+// SetDays sets the Days field's value.
+func (s *Tiering) SetDays(v int64) *Tiering {
+	s.Days = &v
 	return s
 }
 
@@ -32879,6 +34258,10 @@ func (s UploadPartCopyInput) updateArnableField(v string) (interface{}, error) {
 type UploadPartCopyOutput struct {
 	_ struct{} `type:"structure" payload:"CopyPartResult"`
 
+	// Indicates whether the multipart upload uses an S3 Bucket Key for server-side
+	// encryption with AWS KMS (SSE-KMS).
+	BucketKeyEnabled *bool `location:"header" locationName:"x-amz-server-side-encryption-bucket-key-enabled" type:"boolean"`
+
 	// Container for all response elements.
 	CopyPartResult *CopyPartResult `type:"structure"`
 
@@ -32918,6 +34301,12 @@ func (s UploadPartCopyOutput) String() string {
 // GoString returns the string representation
 func (s UploadPartCopyOutput) GoString() string {
 	return s.String()
+}
+
+// SetBucketKeyEnabled sets the BucketKeyEnabled field's value.
+func (s *UploadPartCopyOutput) SetBucketKeyEnabled(v bool) *UploadPartCopyOutput {
+	s.BucketKeyEnabled = &v
+	return s
 }
 
 // SetCopyPartResult sets the CopyPartResult field's value.
@@ -33197,6 +34586,10 @@ func (s UploadPartInput) updateArnableField(v string) (interface{}, error) {
 type UploadPartOutput struct {
 	_ struct{} `type:"structure"`
 
+	// Indicates whether the multipart upload uses an S3 Bucket Key for server-side
+	// encryption with AWS KMS (SSE-KMS).
+	BucketKeyEnabled *bool `location:"header" locationName:"x-amz-server-side-encryption-bucket-key-enabled" type:"boolean"`
+
 	// Entity tag for the uploaded object.
 	ETag *string `location:"header" locationName:"ETag" type:"string"`
 
@@ -33231,6 +34624,12 @@ func (s UploadPartOutput) String() string {
 // GoString returns the string representation
 func (s UploadPartOutput) GoString() string {
 	return s.String()
+}
+
+// SetBucketKeyEnabled sets the BucketKeyEnabled field's value.
+func (s *UploadPartOutput) SetBucketKeyEnabled(v bool) *UploadPartOutput {
+	s.BucketKeyEnabled = &v
+	return s
 }
 
 // SetETag sets the ETag field's value.
@@ -33403,6 +34802,22 @@ const (
 func AnalyticsS3ExportFileFormat_Values() []string {
 	return []string{
 		AnalyticsS3ExportFileFormatCsv,
+	}
+}
+
+const (
+	// ArchiveStatusArchiveAccess is a ArchiveStatus enum value
+	ArchiveStatusArchiveAccess = "ARCHIVE_ACCESS"
+
+	// ArchiveStatusDeepArchiveAccess is a ArchiveStatus enum value
+	ArchiveStatusDeepArchiveAccess = "DEEP_ARCHIVE_ACCESS"
+)
+
+// ArchiveStatus_Values returns all elements of the ArchiveStatus enum
+func ArchiveStatus_Values() []string {
+	return []string{
+		ArchiveStatusArchiveAccess,
+		ArchiveStatusDeepArchiveAccess,
 	}
 }
 
@@ -33798,6 +35213,38 @@ func FilterRuleName_Values() []string {
 	return []string{
 		FilterRuleNamePrefix,
 		FilterRuleNameSuffix,
+	}
+}
+
+const (
+	// IntelligentTieringAccessTierArchiveAccess is a IntelligentTieringAccessTier enum value
+	IntelligentTieringAccessTierArchiveAccess = "ARCHIVE_ACCESS"
+
+	// IntelligentTieringAccessTierDeepArchiveAccess is a IntelligentTieringAccessTier enum value
+	IntelligentTieringAccessTierDeepArchiveAccess = "DEEP_ARCHIVE_ACCESS"
+)
+
+// IntelligentTieringAccessTier_Values returns all elements of the IntelligentTieringAccessTier enum
+func IntelligentTieringAccessTier_Values() []string {
+	return []string{
+		IntelligentTieringAccessTierArchiveAccess,
+		IntelligentTieringAccessTierDeepArchiveAccess,
+	}
+}
+
+const (
+	// IntelligentTieringStatusEnabled is a IntelligentTieringStatus enum value
+	IntelligentTieringStatusEnabled = "Enabled"
+
+	// IntelligentTieringStatusDisabled is a IntelligentTieringStatus enum value
+	IntelligentTieringStatusDisabled = "Disabled"
+)
+
+// IntelligentTieringStatus_Values returns all elements of the IntelligentTieringStatus enum
+func IntelligentTieringStatus_Values() []string {
+	return []string{
+		IntelligentTieringStatusEnabled,
+		IntelligentTieringStatusDisabled,
 	}
 }
 
@@ -34242,6 +35689,22 @@ func QuoteFields_Values() []string {
 	return []string{
 		QuoteFieldsAlways,
 		QuoteFieldsAsneeded,
+	}
+}
+
+const (
+	// ReplicaModificationsStatusEnabled is a ReplicaModificationsStatus enum value
+	ReplicaModificationsStatusEnabled = "Enabled"
+
+	// ReplicaModificationsStatusDisabled is a ReplicaModificationsStatus enum value
+	ReplicaModificationsStatusDisabled = "Disabled"
+)
+
+// ReplicaModificationsStatus_Values returns all elements of the ReplicaModificationsStatus enum
+func ReplicaModificationsStatus_Values() []string {
+	return []string{
+		ReplicaModificationsStatusEnabled,
+		ReplicaModificationsStatusDisabled,
 	}
 }
 

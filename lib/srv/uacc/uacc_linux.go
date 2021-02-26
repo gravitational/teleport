@@ -100,7 +100,8 @@ func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32,
 	case C.UACC_UTMP_WRITE_ERROR:
 		return trace.AccessDenied("failed to add entry to utmp database")
 	case C.UACC_UTMP_FAILED_OPEN:
-		return trace.AccessDenied("failed to open user account database")
+		code := C.get_errno()
+		return trace.AccessDenied("failed to open user account database, code: %d", code)
 	case C.UACC_UTMP_FAILED_TO_SELECT_FILE:
 		return trace.BadParameter("failed to select file")
 	default:
@@ -148,7 +149,8 @@ func Close(utmpPath, wtmpPath string, ttyName string) error {
 	case C.UACC_UTMP_READ_ERROR:
 		return trace.AccessDenied("failed to read and search utmp database")
 	case C.UACC_UTMP_FAILED_OPEN:
-		return trace.AccessDenied("failed to open user account database")
+		code := C.get_errno()
+		return trace.AccessDenied("failed to open user account database, code: %d", code)
 	case C.UACC_UTMP_FAILED_TO_SELECT_FILE:
 		return trace.BadParameter("failed to select file")
 	default:
@@ -181,7 +183,8 @@ func UserWithPtyInDatabase(utmpPath string, username string) error {
 
 	switch status {
 	case C.UACC_UTMP_FAILED_OPEN:
-		return trace.AccessDenied("failed to open user account database")
+		code := C.get_errno()
+		return trace.AccessDenied("failed to open user account database, code: %d", code)
 	case C.UACC_UTMP_ENTRY_DOES_NOT_EXIST:
 		return trace.NotFound("user not found")
 	case C.UACC_UTMP_FAILED_TO_SELECT_FILE:

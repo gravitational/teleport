@@ -65,7 +65,7 @@ func (h *Handler) changePassword(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	return ok(), nil
+	return OK(), nil
 }
 
 // u2fChangePasswordRequest is called to get U2F challedge for changing a user password

@@ -52,10 +52,11 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
 	"gopkg.in/check.v1"
+
+	"github.com/gravitational/trace"
 )
 
 type TLSSuite struct {
@@ -65,10 +66,6 @@ type TLSSuite struct {
 }
 
 var _ = check.Suite(&TLSSuite{})
-
-func (s *TLSSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (s *TLSSuite) SetUpTest(c *check.C) {
 	s.dataDir = c.MkDir()
@@ -2466,7 +2463,9 @@ func (s *TLSSuite) TestCipherSuites(c *check.C) {
 	}
 	client, err := NewClient(client.Config{
 		Addrs: addrs,
-		TLS:   tlsConfig,
+		Credentials: []client.Credentials{
+			client.LoadTLS(tlsConfig),
+		},
 	})
 	c.Assert(err, check.IsNil)
 
@@ -2488,7 +2487,12 @@ func (s *TLSSuite) TestTLSFailover(c *check.C) {
 		otherServer.Addr().String(),
 		s.server.Addr().String(),
 	}
-	client, err := NewClient(client.Config{Addrs: addrs, TLS: tlsConfig})
+	client, err := NewClient(client.Config{
+		Addrs: addrs,
+		Credentials: []client.Credentials{
+			client.LoadTLS(tlsConfig),
+		},
+	})
 	c.Assert(err, check.IsNil)
 
 	// couple of runs to get enough connections
