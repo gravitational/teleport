@@ -1,31 +1,41 @@
-# Teleport Docs
+# Overview
 
-Teleport docs are built using [mkdocs](http://www.mkdocs.org/) and hosted
-as a bunch of static files in S3.
+## Introduction
 
-Look at `build.sh` script to see how it works.
+Gravitational Teleport ("Teleport") is a tool for remotely accessing isolated clusters of
+Linux servers via SSH or HTTPS. Unlike traditional key-based access, Teleport
+enables teams to easily adopt the following practices:
 
-## To Publish New Version
+- Avoid key distribution and [trust on first use](https://en.wikipedia.org/wiki/Trust_on_first_use) issues by using auto-expiring keys signed by a cluster certificate authority (CA).
+- Enforce 2nd factor authentication.
+- Connect to clusters located behind firewalls without direct Internet access via SSH bastions.
+- Record and replay SSH sessions for knowledge sharing and auditing purposes.
+- Collaboratively troubleshoot issues through session sharing.
+- Discover online servers and Docker containers within a cluster with dynamic node labels.
 
-* Update [build.sh](build.sh).
-* Update theme/base.html to add a new version to the Javascript arrray of versions
-* Create a new YAML file, like `5.5.1.yaml` if you are releasing version 5.5.1
+Teleport is built on top of the high-quality [Golang SSH](https://godoc.org/golang.org/x/crypto/ssh)
+implementation and it is fully compatible with OpenSSH.
 
-## Deploying
+## Why Build Teleport?
 
-Teleport docs are published using a private `web` repository.
-See `web/README.md` for more info.
+Mature tech companies with significant infrastructure footprints tend to implement most
+of these patterns internally. Teleport allows smaller companies without
+significant in-house SSH expertise to easily adopt them, as well. Teleport comes with an
+accessible Web UI and a very permissive [Apache 2.0](https://github.com/gravitational/teleport/blob/master/LICENSE)
+license to facilitate adoption and use.
 
-## Running Locally
+Being a complete standalone tool, Teleport can be used as a software library enabling
+trust management in complex multi-cluster, multi-region scenarios across many teams
+within multiple organizations.
 
-To run the latest version of the docs on [http://127.0.0.1:8000](http://127.0.0.1:8000/quickstart):
+## Who Built Teleport?
 
-```bash
-$ ./serve.sh
-```
+Teleport was created by [Gravitational Inc](https://gravitational.com). We have built Teleport
+by borrowing from our previous experiences at Rackspace. It has been extracted from [Telekube](https://gravitational.com/telekube/), our system for helping our clients to deploy
+and remotely manage their SaaS applications on many cloud regions or even on-premise.
 
-To run a specific version of the docs:
+## Resources
+To get started with Teleport we recommend starting with the [Architecture Document](pages/architecture.mdx). Then if you want to jump right in and play with Teleport, you can read the [Quick Start](pages/quickstart.mdx). For a deeper understanding of how everything works and recommended production setup, please review the [Admin Manual](pages/admin-guide.mdx) to setup Teleport and the [User Manual](pages/user-manual.mdx) for daily usage. There is also an [FAQ](pages/faq.mdx) where we'll be collecting common questions. Finally, you can always type `tsh`, `tctl` or `teleport` in terminal after Teleport has been installed to review those reference guides.
 
-```bash
-$ mkdocs serve --config-file 1.3.yaml
-```
+The best way to ask questions or file issues regarding Teleport is by creating a Github issue or pull request. Otherwise, you can reach us through the contact form or chat on our [website](https://gravitational.com/).
+
