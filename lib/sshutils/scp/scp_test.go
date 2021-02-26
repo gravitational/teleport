@@ -38,6 +38,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
+
 func TestHTTPSendFile(t *testing.T) {
 	outDir := t.TempDir()
 
@@ -97,7 +102,6 @@ func TestHTTPReceiveFile(t *testing.T) {
 
 func TestSend(t *testing.T) {
 	t.Parallel()
-	utils.InitLoggerForTests(testing.Verbose())
 	modtime := testNow
 	atime := testNow.Add(1 * time.Second)
 	dirModtime := testNow.Add(2 * time.Second)
@@ -162,7 +166,6 @@ func TestSend(t *testing.T) {
 
 func TestReceive(t *testing.T) {
 	t.Parallel()
-	utils.InitLoggerForTests(testing.Verbose())
 	modtime := testNow
 	atime := testNow.Add(1 * time.Second)
 	dirModtime := testNow.Add(2 * time.Second)
@@ -233,7 +236,6 @@ func TestReceive(t *testing.T) {
 //
 // See https://github.com/gravitational/teleport/issues/5497
 func TestReceiveIntoExistingDirectory(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
 	logger := logrus.WithField("test", t.Name())
 	config := newTargetConfigWithFS("dir",
 		Flags{PreserveAttrs: true, Recursive: true},

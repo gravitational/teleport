@@ -42,7 +42,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -62,7 +62,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/docker/docker/pkg/term"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 )
@@ -1337,11 +1336,11 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 
 	// configure terminal for direct unbuffered echo-less input:
 	if term.IsTerminal(0) {
-		state, err := term.SetRawTerminal(0)
+		state, err := term.MakeRaw(0)
 		if err != nil {
 			return nil
 		}
-		defer term.RestoreTerminal(0, state)
+		defer term.Restore(0, state)
 	}
 	player := newSessionPlayer(sessionEvents, stream)
 	// keys:
@@ -2532,7 +2531,7 @@ func passwordFromConsole() (string, error) {
 	//
 	// nolint:unconvert
 	fd := int(syscall.Stdin)
-	state, err := terminal.GetState(fd)
+	state, err := term.GetState(fd)
 
 	// intercept Ctr+C and restore terminal
 	sigCh := make(chan os.Signal, 1)
@@ -2544,7 +2543,7 @@ func passwordFromConsole() (string, error) {
 		go func() {
 			select {
 			case <-sigCh:
-				terminal.Restore(fd, state)
+				term.Restore(fd, state)
 				os.Exit(1)
 			case <-closeCh:
 			}
@@ -2554,7 +2553,7 @@ func passwordFromConsole() (string, error) {
 		close(closeCh)
 	}()
 
-	bytes, err := terminal.ReadPassword(fd)
+	bytes, err := term.ReadPassword(fd)
 	return string(bytes), err
 }
 

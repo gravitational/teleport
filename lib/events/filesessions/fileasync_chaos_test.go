@@ -28,15 +28,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
+
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/session"
+
+	"github.com/gravitational/trace"
 )
 
 // TestChaosUpload introduces failures in all stages of the async
@@ -50,8 +50,6 @@ func TestChaosUpload(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping chaos test in short mode.")
 	}
-
-	utils.InitLoggerForTests(testing.Verbose())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()

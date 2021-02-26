@@ -19,6 +19,7 @@ package firestore
 import (
 	"context"
 	"net"
+	"os"
 	"testing"
 	"time"
 
@@ -32,6 +33,11 @@ import (
 
 	"gopkg.in/check.v1"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 // TestMarshal tests index operation metadata marshal and unmarshal
 // to verify backwards compatibility. Gogoproto is incompatible with ApiV2 protoc-gen-go code.
@@ -57,8 +63,6 @@ type FirestoreSuite struct {
 var _ = check.Suite(&FirestoreSuite{})
 
 func (s *FirestoreSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	if !emulatorRunning() {
 		c.Skip("Firestore emulator is not running, start it with: gcloud beta emulators firestore start --host-port=localhost:8618")
 	}

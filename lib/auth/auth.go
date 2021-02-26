@@ -57,12 +57,13 @@ import (
 
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	saml2 "github.com/russellhaering/gosaml2"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/trace"
 )
 
 // ServerOption allows setting options as functional arguments to Server
@@ -710,7 +711,7 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 			if !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
 			}
-			log.WithError(err).Debug("Failed setting default kubernetes cluster for user login (user did not provide a cluster); leaving KubernetesCluster extension in the TLS certificate empty")
+			log.Debug("Failed setting default kubernetes cluster for user login (user did not provide a cluster); leaving KubernetesCluster extension in the TLS certificate empty")
 		}
 	}
 

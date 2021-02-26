@@ -18,7 +18,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -51,9 +50,7 @@ const staticToken = "test-static-token"
 var randomLocalAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 
 func TestMain(m *testing.M) {
-	// parse cli flags (e.g. `-test.v`)
-	flag.Parse()
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests()
 	os.Exit(m.Run())
 }
 

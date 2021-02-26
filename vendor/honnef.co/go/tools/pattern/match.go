@@ -242,28 +242,6 @@ func match(m *Matcher, l, r interface{}) (interface{}, bool) {
 		}
 	}
 
-	{
-		ln, ok1 := l.([]*ast.Field)
-		rn, ok2 := r.([]*ast.Field)
-		if ok1 || ok2 {
-			if ok1 && !ok2 {
-				rn = []*ast.Field{r.(*ast.Field)}
-			} else if !ok1 && ok2 {
-				ln = []*ast.Field{l.(*ast.Field)}
-			}
-
-			if len(ln) != len(rn) {
-				return nil, false
-			}
-			for i, ll := range ln {
-				if _, ok := match(m, ll, rn[i]); !ok {
-					return nil, false
-				}
-			}
-			return r, true
-		}
-	}
-
 	panic(fmt.Sprintf("unsupported comparison: %T and %T", l, r))
 }
 

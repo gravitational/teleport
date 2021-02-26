@@ -47,10 +47,11 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/docker/docker/pkg/term"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/moby/term"
 	"gopkg.in/check.v1"
+
+	"github.com/gravitational/trace"
 )
 
 // ExecSuite also implements ssh.ConnMetadata
@@ -67,6 +68,7 @@ var _ = check.Suite(&ExecSuite{})
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise it will run tests as normal.
 func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
 	if len(os.Args) == 2 && os.Args[1] == teleport.ExecSubCommand {
@@ -80,8 +82,6 @@ func TestMain(m *testing.M) {
 }
 
 func (s *ExecSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	bk, err := lite.NewWithConfig(context.TODO(), lite.Config{Path: c.MkDir()})
 	c.Assert(err, check.IsNil)
 

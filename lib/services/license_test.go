@@ -17,24 +17,18 @@ limitations under the License.
 package services
 
 import (
-	"testing"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/utils"
+
+	"gopkg.in/check.v1"
 
 	"github.com/gravitational/trace"
-	"gopkg.in/check.v1"
 )
 
 type LicenseSuite struct {
 }
 
 var _ = check.Suite(&LicenseSuite{})
-
-func (l *LicenseSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (l *LicenseSuite) TestUnmarshal(c *check.C) {
 	type testCase struct {

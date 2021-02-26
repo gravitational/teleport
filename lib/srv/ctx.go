@@ -819,9 +819,12 @@ func closeAll(closers ...io.Closer) error {
 }
 
 func newUaccMetadata(c *ServerContext) (*UaccMetadata, error) {
-	hostname := c.srv.GetInfo().GetHostname()
-	remoteAddr := c.ConnectionContext.ServerConn.Conn.RemoteAddr()
-	preparedAddr, err := uacc.PrepareAddr(remoteAddr)
+	addr := c.ConnectionContext.ServerConn.Conn.RemoteAddr()
+	hostname, _, err := net.SplitHostPort(addr.String())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	preparedAddr, err := uacc.PrepareAddr(addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

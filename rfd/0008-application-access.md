@@ -109,7 +109,7 @@ To explicitly log a session out, an authenticated session can issue a `GET /tele
 
 Internal applications and implementers are encouraged to support `DELETE /teleport-logout` in the form of a logout button within the internal application.
 
-The `GET /teleport-logout` endpoint is for internal applications that can not be modified. For example, you may go to `https://acme.example.com/teleport-logout` to log out of the ACME application.
+The `GET /teleport-logout` endpoint is for internal applications that can not be modified. For example, you may go to `https://grafana.proxy.example.com/teleport-logout` to log out of the ACME application.
 
 ### Audit Events
 
@@ -167,6 +167,27 @@ Below are examples of the three events.
   "raw_query": ""
 }
 ```
+
+### FQDN
+
+By default applications are available at `appName.localProxyAddress`. This is the address most users will access an application at. An example would be `grafana.proxy.example.com`.
+
+Here `localProxyAddress` is the `public_addr` field under `proxy_service` in file configuration or the name of the cluster if that field is not set.
+
+If the application should be available at a different address, administrators can use the `public_addr` field under `app_service` to override this address to a FQDN of their choosing.
+
+When accessing an application through Trusted Clusters, applications are only available at `appName.localProxyAddress`.
+
+In summary, if an application within the root cluster is being accessed.
+
+1. `appPublicAddr`
+2. `appName.rootProxyPublicAddr`
+3. `appName.rootClusterName`
+
+If an application is being accessed in a leaf cluster.
+
+1. `appName.rootProxyPublicAddr`
+2. `appName.rootClusterName`
 
 ## Configuration
 

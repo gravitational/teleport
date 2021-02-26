@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/url"
 	"os"
 	"strings"
@@ -335,6 +336,10 @@ type SampleFlags struct {
 // MakeSampleFileConfig returns a sample config to start
 // a standalone server
 func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
+	if flags.ACMEEnabled && flags.ClusterName == "" {
+		return nil, trace.BadParameter("please provide --cluster-name when using acme, for example --cluster-name=example.com")
+	}
+
 	conf := service.MakeDefaultConfig()
 
 	var g Global
@@ -375,6 +380,10 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	if flags.ACMEEnabled {
 		p.ACME.EnabledFlag = "yes"
 		p.ACME.Email = flags.ACMEEmail
+		p.PublicAddr = utils.Strings{
+			net.JoinHostPort(flags.ClusterName,
+				fmt.Sprintf("%d", conf.Proxy.WebAddr.Port(defaults.HTTPListenPort))),
+		}
 	}
 
 	fc = &FileConfig{

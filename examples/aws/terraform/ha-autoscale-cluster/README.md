@@ -28,7 +28,6 @@ In order to spin up AWS resources using these Terraform examples, you need the f
 - terraform v0.12+ [install docs](https://learn.hashicorp.com/terraform/getting-started/install.html)
 - awscli v1.14+ [install docs](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html)
 
-
 ```bash
 # Set variables for Terraform
 
@@ -67,6 +66,13 @@ export TF_VAR_route53_zone="example.com"
 # This will be used for internet access for users connecting to teleport proxy
 export TF_VAR_route53_domain="cluster.example.com"
 
+# (optional) If using ACM, set an additional DNS alias which will be added pointing to the NLB. This can
+# be used with clients like kubectl which should target a DNS record. This will also add the DNS name to the
+# Teleport Kubernetes config to prevent certificate SNI issues. You can use this DNS name with commands like:
+# `tctl auth sign --user=foo --format=kubernetes --out=kubeconfig --proxy=https://cluster-nlb.example.com:3026`
+# This setting only takes effect when using ACM, it will be ignored otherwise.
+#export TF_VAR_route53_domain_acm_nlb_alias="cluster-nlb.example.com"
+
 # Bucket name to store encrypted letsencrypt certificates.
 export TF_VAR_s3_bucket_name="teleport.example.com"
 
@@ -79,6 +85,8 @@ export TF_VAR_grafana_pass="CHANGE_THIS_VALUE"
 # plan
 make plan
 ```
+
+You can see the full list of variables supported in [`vars.tf`](vars.tf).
 
 ## Public Teleport AMI IDs
 

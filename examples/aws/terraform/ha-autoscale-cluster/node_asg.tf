@@ -34,20 +34,6 @@ resource "aws_autoscaling_group" "node" {
     ]
   }
 }
-
-data "template_file" "node_user_data" {
-  template = file("node-user-data.tpl")
-
-  vars = {
-    region           = var.region
-    cluster_name     = var.cluster_name
-    telegraf_version = var.telegraf_version
-    auth_server_addr = aws_lb.auth.dns_name
-    influxdb_addr    = "http://${aws_lb.monitor.dns_name}:8086"
-    use_acm          = var.use_acm
-  }
-}
-
 resource "aws_launch_configuration" "node" {
   lifecycle {
     create_before_destroy = true
@@ -55,7 +41,17 @@ resource "aws_launch_configuration" "node" {
   name_prefix                 = "${var.cluster_name}-node-"
   image_id                    = data.aws_ami.base.id
   instance_type               = var.node_instance_type
-  user_data                   = data.template_file.node_user_data.rendered
+  user_data                   = templatefile(
+    "${path.module}/node-user-data.tpl",
+    {
+      region           = var.region
+      cluster_name     = var.cluster_name
+      telegraf_version = var.telegraf_version
+      auth_server_addr = aws_lb.auth.dns_name
+      influxdb_addr    = "http://${aws_lb.monitor.dns_name}:8086"
+      use_acm          = var.use_acm
+    }
+  )
   key_name                    = var.key_name
   associate_public_ip_address = false
   security_groups             = [aws_security_group.node.id]
