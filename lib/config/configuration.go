@@ -131,12 +131,12 @@ func ReadConfigFile(cliConfigPath string) (*FileConfig, error) {
 	// --config tells us to use a specific conf. file:
 	if cliConfigPath != "" {
 		configFilePath = cliConfigPath
-		if !fileExists(configFilePath) {
+		if !utils.FileExists(configFilePath) {
 			return nil, trace.NotFound("file %s is not found", configFilePath)
 		}
 	}
 	// default config doesn't exist? quietly return:
-	if !fileExists(configFilePath) {
+	if !utils.FileExists(configFilePath) {
 		log.Info("not using a config file")
 		return nil, nil
 	}
@@ -569,10 +569,10 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	for _, p := range fc.Proxy.KeyPairs {
 		// Check that the certificate exists on disk. This exists to provide the
 		// user a sensible error message.
-		if !fileExists(p.PrivateKey) {
+		if !utils.FileExists(p.PrivateKey) {
 			return trace.Errorf("https private key does not exist: %s", p.PrivateKey)
 		}
-		if !fileExists(p.Certificate) {
+		if !utils.FileExists(p.Certificate) {
 			return trace.Errorf("https cert does not exist: %s", p.Certificate)
 		}
 
@@ -1450,14 +1450,6 @@ func replaceHost(addr *utils.NetAddr, newHost string) {
 		log.Errorf("failed parsing address: '%v'", addr.Addr)
 	}
 	addr.Addr = net.JoinHostPort(newHost, port)
-}
-
-func fileExists(fp string) bool {
-	_, err := os.Stat(fp)
-	if err != nil && os.IsNotExist(err) {
-		return false
-	}
-	return true
 }
 
 // validateRoles makes sure that value upassed to --roles flag is valid
