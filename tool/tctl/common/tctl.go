@@ -96,12 +96,16 @@ func Run(commands []CLICommand, loadConfigExt LoadConfigFn) {
 
 	var ccf GlobalCLIFlags
 
-	// Initially, set the config file path to the default.
-	// If this is overridden by environment variable, update the path.
-	ccf.ConfigFile = defaults.ConfigFilePath
+	// If the config file path is being overridden by environment variable, set that.
+	// If not, check whether the default config file path exists and set that if so.
+	// This preserves tctl's default behavior for backwards compatibility.
 	configFileEnvar, isSet := os.LookupEnv(defaults.ConfigFileEnvar)
 	if isSet {
 		ccf.ConfigFile = configFileEnvar
+	} else {
+		if utils.FileExists(defaults.ConfigFilePath) {
+			ccf.ConfigFile = defaults.ConfigFilePath
+		}
 	}
 
 	// these global flags apply to all commands
