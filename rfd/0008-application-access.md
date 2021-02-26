@@ -180,7 +180,7 @@ When accessing an application through Trusted Clusters, applications are only av
 
 In summary, if an application within the root cluster is being accessed.
 
-1. `appPublicDddr`
+1. `appPublicAddr`
 2. `appName.rootProxyPublicAddr`
 3. `appName.rootClusterName`
 
