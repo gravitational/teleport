@@ -187,16 +187,16 @@ func UserMessageFromError(err error) string {
 	}
 	if err != nil {
 		var buf bytes.Buffer
-		fmt.Fprintln(&buf, Color(Red, "ERROR:"))
+		fmt.Fprint(&buf, Color(Red, "ERROR: "))
 		// If the error is a trace error, check if it has a user message embedded in
 		// it, if it does, print it, otherwise escape and print the original error.
 		if er, ok := err.(*trace.TraceErr); ok {
 			for _, message := range er.Messages {
-				fmt.Fprintln(&buf, "\t"+EscapeControl(message))
+				fmt.Fprintln(&buf, AllowNewlines(message))
 			}
-			fmt.Fprintln(&buf, "\t"+EscapeControl(trace.Unwrap(er).Error()))
+			fmt.Fprintln(&buf, AllowNewlines(trace.Unwrap(er).Error()))
 		} else {
-			fmt.Fprintln(&buf, EscapeControl(err.Error()))
+			fmt.Fprintln(&buf, AllowNewlines(err.Error()))
 		}
 		return buf.String()
 	}
@@ -256,6 +256,21 @@ func EscapeControl(s string) string {
 		return fmt.Sprintf("%q", s)
 	}
 	return s
+}
+
+// AllowNewlines escapes all ANSI escape sequences except newlines from string and returns a
+// string that is safe to print on the CLI. This is to ensure that malicious
+// servers can not hide output. For more details, see:
+//   * https://sintonen.fi/advisories/scp-client-multiple-vulnerabilities.txt
+func AllowNewlines(s string) string {
+	if !strings.Contains(s, "\n") {
+		return EscapeControl(s)
+	}
+	parts := strings.Split(s, "\n")
+	for i, part := range parts {
+		parts[i] = EscapeControl(part)
+	}
+	return strings.Join(parts, "\n")
 }
 
 // NewStdlogger creates a new stdlib logger that uses the specified leveled logger
