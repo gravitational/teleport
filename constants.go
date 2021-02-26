@@ -445,6 +445,16 @@ const MaxEnvironmentFileLines = 1000
 // typically only enforced against resources that are likely to arbitrarily grow (e.g. PluginData).
 const MaxResourceSize = 1000000
 
+// MaxHTTPRequestSize is the maximum accepted size (in bytes) of the body of
+// a received HTTP request.  This limit is meant to be used with utils.ReadAtMost
+// to prevent resource exhaustion attacks.
+const MaxHTTPRequestSize = 10 * 1024 * 1024
+
+// MaxHTTPResponseSize is the maximum accepted size (in bytes) of the body of
+// a received HTTP response.  This limit is meant to be used with utils.ReadAtMost
+// to prevent resource exhaustion attacks.
+const MaxHTTPResponseSize = 10 * 1024 * 1024
+
 const (
 	// CertificateFormatOldSSH is used to make Teleport interoperate with older
 	// versions of OpenSSH.

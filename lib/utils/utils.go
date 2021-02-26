@@ -364,6 +364,15 @@ func IsCertExpiredError(err error) bool {
 	return strings.Contains(trace.Unwrap(err).Error(), "ssh: cert has expired")
 }
 
+// OpaqueAccessDenied returns a generic NotFound instead of AccessDenied
+// so as to avoid leaking the existence of secret resources.
+func OpaqueAccessDenied(err error) error {
+	if trace.IsAccessDenied(err) {
+		return trace.NotFound("")
+	}
+	return trace.Wrap(err)
+}
+
 // PortList is a list of TCP port
 type PortList []string
 
@@ -624,6 +633,23 @@ func (s Strings) Addrs(defaultPort int) ([]NetAddr, error) {
 	}
 	return addrs, nil
 }
+
+// ReadAtMost reads up to limit bytes from r, and reports an error
+// when limit bytes are read.
+func ReadAtMost(r io.Reader, limit int64) ([]byte, error) {
+	limitedReader := &io.LimitedReader{R: r, N: limit}
+	data, err := ioutil.ReadAll(limitedReader)
+	if err != nil {
+		return data, err
+	}
+	if limitedReader.N <= 0 {
+		return data, ErrLimitReached
+	}
+	return data, nil
+}
+
+// ErrLimitReached means that the read limit is reached.
+var ErrLimitReached = &trace.LimitExceededError{Message: "the read limit is reached"}
 
 const (
 	// HumanTimeFormatString is a human readable date formatting
