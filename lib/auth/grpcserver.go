@@ -933,10 +933,9 @@ func (g *GRPCServer) CreateAppSession(ctx context.Context, req *proto.CreateAppS
 	}
 
 	session, err := auth.CreateAppSession(ctx, services.CreateAppSessionRequest{
-		Username:      req.GetUsername(),
-		ParentSession: req.GetParentSession(),
-		PublicAddr:    req.GetPublicAddr(),
-		ClusterName:   req.GetClusterName(),
+		Username:    req.GetUsername(),
+		PublicAddr:  req.GetPublicAddr(),
+		ClusterName: req.GetClusterName(),
 	})
 	if err != nil {
 		return nil, trail.ToGRPC(err)

@@ -469,6 +469,8 @@ type certRequest struct {
 	appPublicAddr string
 	// appClusterName is the name of the cluster this application is in.
 	appClusterName string
+	// appName is the name of the application to generate cert for.
+	appName string
 	// dbService identifies the name of the database service requests will
 	// be routed to.
 	dbService string
@@ -520,10 +522,26 @@ func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Dur
 	return certs.ssh, certs.tls, nil
 }
 
+// AppTestCertRequest combines parameters for generating a test app access cert.
+type AppTestCertRequest struct {
+	// PublicKey is the public key to sign.
+	PublicKey []byte
+	// Username is the Teleport user name to sign certificate for.
+	Username string
+	// TTL is the test certificate validity period.
+	TTL time.Duration
+	// PublicAddr is the application public address. Used for routing.
+	PublicAddr string
+	// ClusterName is the name of the cluster application resides in. Used for routing.
+	ClusterName string
+	// SessionID is the optional session ID to encode. Used for routing.
+	SessionID string
+}
+
 // GenerateUserAppTestCert generates an application specific certificate, used
 // internally for tests.
-func (a *Server) GenerateUserAppTestCert(publicKey []byte, username string, ttl time.Duration, publicAddr string, clusterName string) ([]byte, error) {
-	user, err := a.Identity.GetUser(username, false)
+func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error) {
+	user, err := a.Identity.GetUser(req.Username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -531,12 +549,15 @@ func (a *Server) GenerateUserAppTestCert(publicKey []byte, username string, ttl 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
+	sessionID := req.SessionID
+	if sessionID == "" {
+		sessionID = uuid.New()
+	}
 	certs, err := a.generateUserCert(certRequest{
 		user:      user,
-		publicKey: publicKey,
+		publicKey: req.PublicKey,
 		checker:   checker,
-		ttl:       ttl,
+		ttl:       req.TTL,
 		// Set the login to be a random string. Application certificates are never
 		// used to log into servers but SSH certificate generation code requires a
 		// principal be in the certificate.
@@ -546,9 +567,9 @@ func (a *Server) GenerateUserAppTestCert(publicKey []byte, username string, ttl 
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},
 		// Add in the application routing information.
-		appSessionID:   uuid.New(),
-		appPublicAddr:  publicAddr,
-		appClusterName: clusterName,
+		appSessionID:   sessionID,
+		appPublicAddr:  req.PublicAddr,
+		appClusterName: req.ClusterName,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -745,6 +766,7 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 			SessionID:   req.appSessionID,
 			PublicAddr:  req.appPublicAddr,
 			ClusterName: req.appClusterName,
+			Name:        req.appName,
 		},
 		TeleportCluster: clusterName,
 		RouteToDatabase: tlsca.RouteToDatabase{

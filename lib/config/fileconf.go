@@ -931,6 +931,9 @@ type App struct {
 	// Name of the application.
 	Name string `yaml:"name"`
 
+	// Description is an optional free-form app description.
+	Description string `yaml:"description,omitempty"`
+
 	// URI is the internal address of the application.
 	URI string `yaml:"uri"`
 

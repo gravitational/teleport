@@ -139,6 +139,9 @@ type RouteToApp struct {
 	// ClusterName (and PublicAddr) are used to route requests issued with this
 	// certificate to the appropriate application proxy/cluster.
 	ClusterName string
+
+	// Name is the app name.
+	Name string
 }
 
 // RouteToDatabase contains routing information for databases.
@@ -230,6 +233,10 @@ var (
 	// ClientIPASN1ExtensionOID is an extension ID used when encoding/decoding
 	// the client IP into certificates.
 	ClientIPASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 9}
+
+	// AppNameASN1ExtensionOID is an extension ID used when encoding/decoding
+	// application name into a certificate.
+	AppNameASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 10}
 
 	// DatabaseServiceNameASN1ExtensionOID is an extension ID used when encoding/decoding
 	// database service name into certificates.
@@ -329,6 +336,13 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			pkix.AttributeTypeAndValue{
 				Type:  AppClusterNameASN1ExtensionOID,
 				Value: id.RouteToApp.ClusterName,
+			})
+	}
+	if id.RouteToApp.Name != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  AppNameASN1ExtensionOID,
+				Value: id.RouteToApp.Name,
 			})
 	}
 	if id.TeleportCluster != "" {
@@ -461,6 +475,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			val, ok := attr.Value.(string)
 			if ok {
 				id.RouteToApp.ClusterName = val
+			}
+		case attr.Type.Equal(AppNameASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.RouteToApp.Name = val
 			}
 		case attr.Type.Equal(TeleportClusterASN1ExtensionOID):
 			val, ok := attr.Value.(string)
