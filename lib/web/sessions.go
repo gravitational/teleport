@@ -47,6 +47,7 @@ import (
 
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
 )
 
 // SessionContext is a context associated with a user's
@@ -117,8 +118,13 @@ func (c *SessionContext) getRemoteClient(siteName string) (auth.ClientI, bool) {
 }
 
 // GetClient returns the client connected to the auth server
-func (c *SessionContext) GetClient() (*auth.Client, error) {
+func (c *SessionContext) GetClient() (auth.ClientI, error) {
 	return c.clt, nil
+}
+
+// GetClientConnection returns a connection to Auth Service
+func (c *SessionContext) GetClientConnection() *grpc.ClientConn {
+	return c.clt.GetConnection()
 }
 
 // GetUserClient will return an auth.ClientI with the role of the user at

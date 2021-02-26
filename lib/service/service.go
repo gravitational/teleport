@@ -1271,7 +1271,7 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 		// External integrations rely on this event:
 		process.BroadcastEvent(Event{Name: AuthIdentityEvent, Payload: connector})
-		process.onExit("auth.broadcast", func(payload interface{}) {
+		process.OnExit("auth.broadcast", func(payload interface{}) {
 			connector.Close()
 		})
 		return nil
@@ -1354,7 +1354,7 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 	process.RegisterFunc("auth.heartbeat", heartbeat.Run)
 	// execute this when process is asked to exit:
-	process.onExit("auth.shutdown", func(payload interface{}) {
+	process.OnExit("auth.shutdown", func(payload interface{}) {
 		// The listeners have to be closed here, because if shutdown
 		// was called before the start of the http server,
 		// the http server would have not started tracking the listeners
@@ -1390,10 +1390,10 @@ func payloadContext(payload interface{}, log logrus.FieldLogger) context.Context
 	return context.TODO()
 }
 
-// onExit allows individual services to register a callback function which will be
+// OnExit allows individual services to register a callback function which will be
 // called when Teleport Process is asked to exit. Usually services terminate themselves
 // when the callback is called
-func (process *TeleportProcess) onExit(serviceName string, callback func(interface{})) {
+func (process *TeleportProcess) OnExit(serviceName string, callback func(interface{})) {
 	process.RegisterFunc(serviceName, func() error {
 		eventC := make(chan Event)
 		process.WaitForEvent(context.TODO(), TeleportExitEvent, eventC)
@@ -1810,7 +1810,7 @@ func (process *TeleportProcess) initSSH() error {
 	})
 
 	// Execute this when process is asked to exit.
-	process.onExit("ssh.shutdown", func(payload interface{}) {
+	process.OnExit("ssh.shutdown", func(payload interface{}) {
 		if payload == nil {
 			log.Infof("Shutting down immediately.")
 			if s != nil {
@@ -1851,7 +1851,7 @@ func (process *TeleportProcess) registerWithAuthServer(role teleport.Role, event
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		process.onExit(fmt.Sprintf("auth.client.%v", serviceName), func(interface{}) {
+		process.OnExit(fmt.Sprintf("auth.client.%v", serviceName), func(interface{}) {
 			process.log.Debugf("Closed client for %v.", role)
 			err := connector.Client.Close()
 			if err != nil {
@@ -1923,7 +1923,7 @@ func (process *TeleportProcess) initUploaderService(accessPoint auth.AccessPoint
 		return nil
 	})
 
-	process.onExit("uploader.shutdown", func(payload interface{}) {
+	process.OnExit("uploader.shutdown", func(payload interface{}) {
 		log.Infof("Shutting down.")
 		warnOnErr(uploader.Stop(), log)
 		log.Infof("Exited.")
@@ -1949,7 +1949,7 @@ func (process *TeleportProcess) initUploaderService(accessPoint auth.AccessPoint
 		return nil
 	})
 
-	process.onExit("fileuploader.shutdown", func(payload interface{}) {
+	process.OnExit("fileuploader.shutdown", func(payload interface{}) {
 		log.Infof("File uploader is shutting down.")
 		warnOnErr(fileUploader.Close(), log)
 		log.Infof("File uploader has shut down.")
@@ -2048,7 +2048,7 @@ func (process *TeleportProcess) initDiagnosticService() error {
 		return nil
 	})
 
-	process.onExit("diagnostic.shutdown", func(payload interface{}) {
+	process.OnExit("diagnostic.shutdown", func(payload interface{}) {
 		if payload == nil {
 			log.Infof("Shutting down immediately.")
 			warnOnErr(server.Close(), log)
@@ -2756,7 +2756,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	// execute this when process is asked to exit:
-	process.onExit("proxy.shutdown", func(payload interface{}) {
+	process.OnExit("proxy.shutdown", func(payload interface{}) {
 		rcWatcher.Close()
 		defer listeners.Close()
 		// Need to shut down this listener first, because
@@ -3045,7 +3045,7 @@ func (process *TeleportProcess) initApps() {
 	})
 
 	// Execute this when process is asked to exit.
-	process.onExit("apps.stop", func(payload interface{}) {
+	process.OnExit("apps.stop", func(payload interface{}) {
 		log.Infof("Shutting down.")
 		if appServer != nil {
 			warnOnErr(appServer.Close(), log)
@@ -3260,7 +3260,7 @@ func (process *TeleportProcess) initDebugApp() {
 		process.BroadcastEvent(Event{Name: DebugAppReady, Payload: server})
 		return nil
 	})
-	process.onExit("debug.app.shutdown", func(payload interface{}) {
+	process.OnExit("debug.app.shutdown", func(payload interface{}) {
 		if server != nil {
 			server.Close()
 		}
