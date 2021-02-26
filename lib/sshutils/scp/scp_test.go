@@ -234,13 +234,11 @@ func TestReceive(t *testing.T) {
 			sourceFS:   newTestFS(logger, newDir("dir", newFile("dir/file", "file contents"))),
 		},
 	}
-	for _, tt := range testCases[5:6] {
+	for _, tt := range testCases {
 		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			logger := logger.WithField("test", tt.desc)
 			t.Parallel()
-			cmd, err := CreateCommand(tt.config)
-			require.NoError(t, err)
 
 			sourceDir := t.TempDir()
 			source := filepath.Join(sourceDir, tt.source)
@@ -249,7 +247,7 @@ func TestReceive(t *testing.T) {
 			if tt.config.FileSystem == nil {
 				tt.config.FileSystem = newEmptyTestFS(logger)
 			}
-			cmd, err = CreateCommand(tt.config)
+			cmd, err := CreateCommand(tt.config)
 			require.NoError(t, err)
 
 			writeData(t, sourceDir, tt.sourceFS)
@@ -357,11 +355,30 @@ func TestReceiveIntoNonExistingDirectoryFailsWithCorrectMessage(t *testing.T) {
 	require.NoError(t, err)
 
 	writeData(t, sourceDir, sourceFS)
-	writeFileTimes(t, sourceDir, sourceFS)
 
 	err = runSCP(cmd, args...)
 	require.Error(t, err)
 	require.Equal(t, fmt.Sprintf("no such file or directory %q", root), err.Error())
+}
+
+// TestCopyIntoNestedNonExistingDirectoriesDoesNotCreateIntermediateDirectories validates that copying a directory
+// into a remote '/path/to/remote' where '/path/to' does not exist causes an error.
+func TestCopyIntoNestedNonExistingDirectoriesDoesNotCreateIntermediateDirectories(t *testing.T) {
+	logger := logrus.WithField("test", t.Name())
+
+	config := newTargetConfig("non-existing/remote_dir", Flags{Recursive: true})
+	sourceFS := newTestFS(logger, newDir("dir"))
+
+	cmd, err := CreateCommand(config)
+	require.NoError(t, err)
+
+	sourceDir := t.TempDir()
+	writeData(t, sourceDir, sourceFS)
+
+	// Send the data
+	err = runSCP(cmd, "-v", "-f", "-r", filepath.Join(sourceDir, "dir"))
+	require.Error(t, err)
+	require.Equal(t, "mkdir non-existing/remote_dir: no such file or directory", err.Error())
 }
 
 func TestInvalidDir(t *testing.T) {
