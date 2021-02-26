@@ -106,7 +106,7 @@ static int uacc_add_utmp_entry(const char *utmp_path, const char *wtmp_path, con
 
 // Low level C function to mark a database entry as DEAD_PROCESS.
 // This function does not perform string argument validation.
-static int uacc_mark_utmp_entry_dead(const char *utmp_path, const char *wtmp_path, const char *tty_name) {
+static int uacc_mark_utmp_entry_dead(const char *utmp_path, const char *wtmp_path, const char *tty_name, int32_t tv_sec, int32_t tv_usec) {
     char resolved_utmp_buffer[PATH_MAX];
     const char* file = get_absolute_path_with_fallback(&resolved_utmp_buffer[0], utmp_path, _PATH_UTMP);
     if (utmpname(file) < 0) {
@@ -128,6 +128,8 @@ static int uacc_mark_utmp_entry_dead(const char *utmp_path, const char *wtmp_pat
     entry.ut_type = DEAD_PROCESS;
     memset(&entry.ut_user, 0, UT_NAMESIZE);
     struct utmp log_entry = entry;
+    log_entry.ut_tv.tv_sec = tv_sec;
+    log_entry.ut_tv.tv_usec = tv_usec;
     memset(&entry.ut_host, 0, UT_HOSTSIZE);
     memset(&entry.ut_line, 0, UT_LINESIZE);
     memset(&entry.ut_time, 0, 8);
