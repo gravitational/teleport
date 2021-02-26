@@ -22,14 +22,12 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
@@ -104,16 +102,16 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 
 	// Create an application web session.
 	//
-	// ParentSession is used to derive the TTL for the application session.
-	// Application sessions should not last longer than the parent session.
+	// Application sessions should not last longer than the parent session.TTL
+	// will be derived from the identity which has the same expiration as the
+	// parent web session.
 	//
 	// PublicAddr and ClusterName will get encoded within the certificate and
 	// used for request routing.
 	ws, err := authClient.CreateAppSession(r.Context(), services.CreateAppSessionRequest{
-		Username:      ctx.GetUser(),
-		ParentSession: ctx.GetSessionID(),
-		PublicAddr:    result.PublicAddr,
-		ClusterName:   result.ClusterName,
+		Username:    ctx.GetUser(),
+		PublicAddr:  result.PublicAddr,
+		ClusterName: result.ClusterName,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -122,7 +120,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	// Block and wait a few seconds for the session that was created to show up
 	// in the cache. If this request is not blocked here, it can get stuck in a
 	// racy session creation loop.
-	err = h.waitForAppSession(r.Context(), ws.GetName())
+	err = h.waitForAppSession(r.Context(), ws.GetName(), ctx.GetUser())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -173,44 +171,8 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 
 // waitForAppSession will block until the requested application session shows up in the
 // cache or a timeout occurs.
-func (h *Handler) waitForAppSession(ctx context.Context, sessionID string) error {
-	_, err := h.cfg.AccessPoint.GetAppSession(ctx, services.GetAppSessionRequest{SessionID: sessionID})
-	if err == nil {
-		return nil
-	}
-	logger := h.log.WithField("session", sessionID)
-	if !trace.IsNotFound(err) {
-		logger.WithError(err).Debug("Failed to query application session.")
-	}
-	// Establish a watch on application session.
-	watcher, err := h.cfg.AccessPoint.NewWatcher(ctx, services.Watch{
-		Name: teleport.ComponentAppProxy,
-		Kinds: []services.WatchKind{
-			{
-				Kind:    services.KindWebSession,
-				SubKind: services.KindAppSession,
-			},
-		},
-		MetricComponent: teleport.ComponentAppProxy,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer watcher.Close()
-	matchEvent := func(event services.Event) (services.Resource, error) {
-		if event.Type == backend.OpPut &&
-			event.Resource.GetKind() == services.KindWebSession &&
-			event.Resource.GetSubKind() == services.KindAppSession &&
-			event.Resource.GetName() == sessionID {
-			return event.Resource, nil
-		}
-		return nil, trace.CompareFailed("no match")
-	}
-	_, err = local.WaitForEvent(ctx, watcher, local.EventMatcherFunc(matchEvent), h.clock)
-	if err != nil {
-		logger.WithError(err).Warn("Failed to wait for application session.")
-	}
-	return trace.Wrap(err)
+func (h *Handler) waitForAppSession(ctx context.Context, sessionID, user string) error {
+	return auth.WaitForAppSession(ctx, sessionID, user, h.cfg.AccessPoint)
 }
 
 func (h *Handler) validateAppSessionRequest(ctx context.Context, clt app.Getter, proxy reversetunnel.Tunnel, req *CreateAppSessionRequest) (*validateAppSessionResult, error) {

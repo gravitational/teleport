@@ -171,7 +171,7 @@ func (h *RewritingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// request is already authenticated (has a session cookie), forward to
 	// application handlers. If the request is unauthenticated and requesting a
 	// FQDN that is not of the proxy, redirect to application launcher.
-	if app.HasFragment(r) || app.HasSession(r) {
+	if app.HasFragment(r) || app.HasSession(r) || app.HasClientCert(r) {
 		h.appHandler.ServeHTTP(w, r)
 		return
 	}
@@ -179,7 +179,6 @@ func (h *RewritingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, redir, http.StatusFound)
 		return
 	}
-
 	// Serve the Web UI.
 	h.Handler.ServeHTTP(w, r)
 }

@@ -116,6 +116,8 @@ type CLIConf struct {
 	DatabaseUser string
 	// DatabaseName specifies database name to embed in the certificate.
 	DatabaseName string
+	// AppName specifies proxied application name.
+	AppName string
 	// Interactive, when set to true, launches remote command with the terminal attached
 	Interactive bool
 	// Quiet mode, -q command (disables progress printing)
@@ -313,10 +315,18 @@ func Run(args []string, opts ...cliOption) error {
 	ssh.Flag("no-remote-exec", "Don't execute remote command, useful for port forwarding").Short('N').BoolVar(&cf.NoRemoteExec)
 
 	// Applications.
-	apps := app.Command("apps", "View and control proxied applications.")
+	apps := app.Command("apps", "View and control proxied applications.").Alias("app")
 	lsApps := apps.Command("ls", "List available applications.")
 	lsApps.Flag("verbose", "Show extra application fields.").Short('v').BoolVar(&cf.Verbose)
 	lsApps.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
+	appLogin := apps.Command("login", "Retrieve short-lived certificate for an app.")
+	appLogin.Arg("app", "App name to retrieve credentials for. Can be obtained from `tsh apps ls` output.").Required().StringVar(&cf.AppName)
+	appLogout := apps.Command("logout", "Remove app certificate.")
+	appLogout.Arg("app", "App to remove credentials for.").StringVar(&cf.AppName)
+	appConfig := apps.Command("config", "Print app connection information.")
+	appConfig.Arg("app", "App to print information for. Required when logged into multiple apps.").StringVar(&cf.AppName)
+	appConfig.Flag("format", fmt.Sprintf("Optional print format, one of: %q to print app address, %q to print CA cert path, %q to print cert path, %q print key path, %q to print example curl command.",
+		appFormatURI, appFormatCA, appFormatCert, appFormatKey, appFormatCURL)).StringVar(&cf.Format)
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
@@ -505,6 +515,12 @@ func Run(args []string, opts ...cliOption) error {
 		err = onStatus(&cf)
 	case lsApps.FullCommand():
 		err = onApps(&cf)
+	case appLogin.FullCommand():
+		err = onAppLogin(&cf)
+	case appLogout.FullCommand():
+		err = onAppLogout(&cf)
+	case appConfig.FullCommand():
+		err = onAppConfig(&cf)
 	case kube.credentials.FullCommand():
 		err = kube.credentials.run(&cf)
 	case kube.ls.FullCommand():
@@ -1113,22 +1129,28 @@ func printNodesAsText(nodes []services.Server, verbose bool) {
 	fmt.Println(t.AsBuffer().String())
 }
 
-func showApps(servers []services.Server, verbose bool) {
+func showApps(servers []services.Server, active []tlsca.RouteToApp, verbose bool) {
 	// In verbose mode, print everything on a single line and include host UUID.
 	// In normal mode, chunk the labels, print two per line and allow multiple
 	// lines per node.
 	if verbose {
-		t := asciitable.MakeTable([]string{"Application", "Host", "Public Address", "URI", "Labels"})
+		t := asciitable.MakeTable([]string{"Application", "Description", "Host", "Public Address", "URI", "Labels"})
 		for _, server := range servers {
 			for _, app := range server.GetApps() {
+				name := app.Name
+				for _, a := range active {
+					if name == a.Name {
+						name = fmt.Sprintf("> %v", name)
+					}
+				}
 				t.AddRow([]string{
-					app.Name, server.GetName(), app.PublicAddr, app.URI, services.LabelsAsString(app.StaticLabels, app.DynamicLabels),
+					name, app.Description, server.GetName(), app.PublicAddr, app.URI, services.LabelsAsString(app.StaticLabels, app.DynamicLabels),
 				})
 			}
 		}
 		fmt.Println(t.AsBuffer().String())
 	} else {
-		t := asciitable.MakeTable([]string{"Application", "Public Address", "Labels"})
+		t := asciitable.MakeTable([]string{"Application", "Description", "Public Address", "Labels"})
 		for _, server := range servers {
 			for _, app := range server.GetApps() {
 				labelChunks := chunkLabels(services.CombineLabels(app.StaticLabels, app.DynamicLabels), 2)
@@ -1139,7 +1161,12 @@ func showApps(servers []services.Server, verbose bool) {
 						name = app.Name
 						addr = app.PublicAddr
 					}
-					t.AddRow([]string{name, addr, strings.Join(v, ", ")})
+					for _, a := range active {
+						if name == a.Name {
+							name = fmt.Sprintf("> %v", name)
+						}
+					}
+					t.AddRow([]string{name, app.Description, addr, strings.Join(v, ", ")})
 				}
 			}
 		}
@@ -1942,12 +1969,18 @@ func onApps(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	// Retrieve profile to be able to show which apps user is logged into.
+	profile, err := client.StatusCurrent("", cf.Proxy)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Sort by server host name.
 	sort.Slice(servers, func(i, j int) bool {
 		return servers[i].GetName() < servers[j].GetName()
 	})
 
-	showApps(servers, cf.Verbose)
+	showApps(servers, profile.Apps, cf.Verbose)
 	return nil
 }
 

@@ -245,9 +245,12 @@ message App {
     // Used for RBAC.
     map<string, CommandLabelV2> DynamicLabels = 5
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "commands,omitempty" ];
+    // InsecureSkipVerify disables app's TLS certificate verification.
     bool InsecureSkipVerify = 6 [ (gogoproto.jsontag) = "insecure_skip_verify" ];
     // Rewrite is a list of rewriting rules to apply to requests and responses.
     Rewrite Rewrite = 7 [ (gogoproto.jsontag) = "rewrite,omitempty" ];
+    // Description is an optional free-form app description.
+    string Description = 8 [ (gogoproto.jsontag) = "description,omitempty" ];
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.
@@ -1417,6 +1420,12 @@ message WebSessionSpecV2 {
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "expires"
     ];
+}
+
+// WebSessionFilter encodes cache watch parameters for filtering web sessions.
+message WebSessionFilter {
+    // User is the username to filter web sessions for.
+    string User = 1 [ (gogoproto.jsontag) = "user" ];
 }
 
 // RemoteClusterV3 represents remote cluster resource specification
