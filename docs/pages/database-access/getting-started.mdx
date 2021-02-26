@@ -6,7 +6,7 @@ description: Getting started with Teleport Database Access and AWS Aurora Postgr
 # Getting Started
 
 In this getting started guide we will use Teleport Database Access to connect
-to a PostgreSQL flavored AWS Aurora database.
+to a PostgreSQL AWS Aurora database.
 
 Here's an overview of what we will do:
 
@@ -79,12 +79,8 @@ below, or visit our [downloads page](https://goteleport.com/teleport/download).
 
 {!docs/pages/preview/releases-table.mdx!}
 
-<Admonition type="warning" title="Version Warning">
-Note, pre-releases are not suitable for production usage!
-</Admonition>
-
-Start Teleport using the following command and point it to your Aurora database
-instance. Make sure to update the database endpoint and region appropriately.
+Start Teleport and point it to your Aurora database instance. Make sure to
+update the database endpoint and region appropriately.
 
 ```shell
 sudo teleport start \
@@ -96,18 +92,34 @@ sudo teleport start \
 ```
 
 <Admonition type="note" title="AWS Credentials">
-The node where the Teleport process is started should have AWS credentials
-configured with the policy from [step 1](#step-13-setup-aurora).
+The node that connects to the database should have AWS credentials configured
+with the policy from [step 1](#step-13-setup-aurora).
 </Admonition>
 
-Create a Teleport user that is allowed to connect to a particular database
-(e.g. `postgres`) within the Aurora instance as a particular database account
-(e.g. `alice`).
+Create the role that will allow a user to connect to any database using any
+database account:
 
-```shell
-sudo tctl users add alice root \
-  --db-names=postgres \
-  --db-users=alice
+```sh
+$ tctl create <<EOF
+kind: role
+version: v3
+metadata:
+  name: db
+spec:
+  allow:
+    db_labels:
+      '*': '*'
+    db_names:
+    - '*'
+    db_users:
+    - '*'
+EOF
+```
+
+Create the Teleport user assigned the `db` role we've just created:
+
+```sh
+$ tctl users add --roles=admin,db alice
 ```
 
 ## Step 3/3. Connect
@@ -118,14 +130,16 @@ the local user is created, we're ready to connect to the database.
 Log into Teleport with the user we've just created. Make sure to use `tsh`
 version `6.0.0` or newer that includes Database Access support.
 
-For simplicity, we're using an `--insecure` flag to accept Teleport's
+```shell
+tsh login --proxy=localhost:3080 --user=alice
+```
+
+<Admonition type="warning" title="Teleport Certificate">
+For testing purposes you might need to provide `--insecure` flag to trust Teleport's
 self-signed certificate. For production usage, make sure to configure proxy
 with a proper certificate/key pair. See Teleport's general
 [quickstart guide](../quickstart.mdx#step-1c-configure-domain-name-and-obtain-tls-certificates-using-lets-encrypt).
-
-```shell
-tsh login --insecure --proxy=localhost:3080 --user=alice
-```
+</Admonition>
 
 Now we can inspect available databases and retrieve credentials for the
 configured Aurora instance:
@@ -143,9 +157,6 @@ psql "service=<cluster>-aurora user=alice dbname=postgres"
 ```
 
 ## Next Steps
-
-Congratulations on completing the Teleport Database Access getting started
-guide!
 
 For the next steps, dive deeper into the topics relevant to your Database
 Access use-case, for example:

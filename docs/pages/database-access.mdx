@@ -8,19 +8,18 @@ description: Teleport Database Access introduction, demo and resources
 Teleport can provide secure access to PostgreSQL and MySQL databases, while
 improving both access control and visibility.
 
-Some of the things you can do with Database Access include:
+Some of the things you can do with Database Access:
 
-* Allow users to retrieve short-lived database credentials using single sign-on
+* Users can retrieve short-lived database certificates using single sign-on
   flow thus maintaining their organization-wide identity.
-* Configure rich role-based access control policies for databases and implement
-  custom [access workflows](./enterprise/workflow/index.mdx).
+* Configure role-based access controls for databases and implement custom
+  [access workflows](./enterprise/workflow/index.mdx).
 * Capture database access events as well as query activity in the audit log.
 
 ## Demo
 
-In the following demo video we connect to a PostgreSQL server with `psql` and
-pgAdmin 4 after authenticating with Github, execute a few SQL queries and
-observe them in the audit log.
+Let's connect to a PostgreSQL server with `psql` and pgAdmin 4 after authenticating
+with Github, execute a few SQL queries and observe them in the audit log:
 
 <video autoPlay loop muted playsInline controls>
   <source src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.mp4" type="video/mp4" />
@@ -30,13 +29,10 @@ Your browser does not support the video tag.
 
 ## Getting Started
 
-Configure Database Access from scratch in a 10 minute [Getting Started](./database-access/getting-started.mdx)
+Configure Database Access in a 10 minute [Getting Started](./database-access/getting-started.mdx)
 guide.
 
 ## Guides
-
-The following guides are available for configuring supported databases and
-deployments:
 
 * [AWS RDS/Aurora PostgreSQL](./database-access/guides/postgres-aws.mdx)
 * [AWS RDS/Aurora MySQL](./database-access/guides/mysql-aws.mdx)
@@ -52,7 +48,7 @@ check out [RBAC](./database-access/rbac.mdx) section.
 [Architecture](./database-access/architecture.mdx) provides a more in-depth
 look at Database Access internals such as networking and security.
 
-See [Reference](./database-access/reference.mdx) for detailed overview of
+See [Reference](./database-access/reference.mdx) for an overview of
 Database Access related configuration and CLI commands.
 
 ## FAQ

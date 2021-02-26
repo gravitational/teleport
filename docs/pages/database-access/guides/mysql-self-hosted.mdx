@@ -65,16 +65,12 @@ in MySQL documentation for more details.
 
 ## Configure Teleport
 
-Teleport Database Access is available starting from `6.0.0-alpha.1` pre-release.
+Teleport Database Access is available starting from `6.0` release.
 
 Download the appropriate version of Teleport for your platform from the table
 below, or visit our [downloads page](https://goteleport.com/teleport/download).
 
 {!docs/pages/preview/releases-table.mdx!}
-
-<Admonition type="warning" title="Version Warning">
-Note, pre-releases are not suitable for production usage!
-</Admonition>
 
 Follow the installation [instructions](../../installation.mdx).
 
@@ -89,15 +85,9 @@ teleport:
   nodename: test
 auth_service:
   enabled: "yes"
-  cluster_name: "test"
-  listen_addr: 0.0.0.0:3025
-  tokens:
-  - proxy,node,db:cbdeeab9-6f88-436d-a673-44d14bd86bb7
 proxy_service:
   enabled: "yes"
-  listen_addr: 0.0.0.0:3023
-  web_listen_addr: 0.0.0.0:3080
-  tunnel_listen_addr: 0.0.0.0:3024
+  # Set public address proxy will be reachable at.
   public_addr: teleport.example.com:3080
   # MySQL proxy is listening on a separate port and needs to be enabled
   # on the proxy server.
@@ -109,7 +99,46 @@ ssh_service:
 Start the service:
 
 ```sh
-$ teleport start --debug --config=/path/to/teleport.yaml
+$ teleport start --config=/path/to/teleport.yaml
+```
+
+Generate a short-lived join token for the database service and save it for
+example in `/tmp/token`:
+
+```sh
+$ tctl tokens add \
+    --type=db \
+    --db-name=test \
+    --db-protocol=postgres \
+    --db-uri=postgres.example.com:5432
+```
+
+### Create Role and User
+
+Create the role that will allow a user to connect to any database using any
+database account:
+
+```sh
+$ tctl --config=/path/to/teleport.yaml create <<EOF
+kind: role
+version: v3
+metadata:
+  name: db
+spec:
+  allow:
+    db_labels:
+      '*': '*'
+    db_names:
+    - '*'
+    db_users:
+    - '*'
+EOF
+```
+
+Create the user assigned the `db` role we've just created:
+
+```sh
+$ tctl --config=/path/to/teleport.yaml users add --roles=admin,db testuser
 ```
 
 ### Start Database Service with CLI Flags
@@ -120,7 +149,7 @@ file and can be launched using a single CLI command:
 ```sh
 $ teleport start --debug \
    --roles=db \
-   --token=cbdeeab9-6f88-436d-a673-44d14bd86bb7 \
+   --token=/tmp/token \
    --auth-server=teleport.example.com:3080 \
    --db-name=test \
    --db-protocol=mysql \
@@ -132,17 +161,6 @@ Note that the `--auth-server` flag must point to the Teleport cluster's proxy en
 because database service always connects back to the cluster over a reverse
 tunnel.
 
-Instead of using a static auth token, a short-lived dynamic token can also
-be generated for a database service:
-
-```sh
-$ tctl tokens add \
-    --type=db \
-    --db-name=test \
-    --db-protocol=mysql \
-    --db-uri=mysql.example.com:3306
-```
-
 ### Start Database Service with Config File
 
 Below is an example of a database service configuration file that proxies
@@ -152,8 +170,6 @@ a single self-hosted MySQL database:
 teleport:
   data_dir: /var/lib/teleport-db
   nodename: test
-  # Auth token to connect to the auth server.
-  auth_token: cbdeeab9-6f88-436d-a673-44d14bd86bb7
   # Proxy address to connect to. Note that it has to be the proxy address
   # because database service always connects to the cluster over reverse
   # tunnel.
@@ -195,7 +211,7 @@ SSH service or an application access proxy.
 Start the database service:
 
 ```sh
-$ teleport start --debug --config=/path/to/teleport-db.yaml
+$ teleport start --config=/path/to/teleport-db.yaml --token=/tmp/token
 ```
 
 ## Connect
@@ -204,7 +220,7 @@ Once the database service has joined the cluster, login to see the available
 databases:
 
 ```sh
-$ tsh login --proxy=teleport.example.com:3080
+$ tsh login --proxy=teleport.example.com:3080 --user=testuser
 $ tsh db ls
 Name    Description   Labels
 ------- ------------- --------
@@ -241,9 +257,9 @@ Suppose the cluster name is "root", then you can connect to the database using
 the following `mysql` command:
 
 ```sh
-# Use default database user/name.
+# Use default database user and database name.
 $ mysql --defaults-group-suffix=_root-example
-# Specify database name/user explicitly.
+# Specify database user and database name explicitly.
 $ mysql --defaults-group-suffix=_root-example --user=alice --database=metrics
 ```
 
