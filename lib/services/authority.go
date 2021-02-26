@@ -482,16 +482,20 @@ func MarshalCertAuthority(ca CertAuthority, opts ...MarshalOption) ([]byte, erro
 		return nil, trace.Wrap(err)
 	}
 
-	switch authority := ca.(type) {
+	version := ca.GetVersion()
+	switch certAuthority := ca.(type) {
 	case *CertAuthorityV2:
+		if version != V2 {
+			return nil, trace.BadParameter("mismatched certificate authority version %v and type %T", version, certAuthority)
+		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
-			copy := *authority
+			copy := *certAuthority
 			copy.SetResourceID(0)
-			authority = &copy
+			certAuthority = &copy
 		}
-		return utils.FastMarshal(authority)
+		return utils.FastMarshal(certAuthority)
 	default:
 		return nil, trace.BadParameter("unrecognized certificate authority version %T", ca)
 	}

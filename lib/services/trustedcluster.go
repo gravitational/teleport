@@ -229,17 +229,22 @@ func MarshalTrustedCluster(c TrustedCluster, opts ...MarshalOption) ([]byte, err
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	switch resource := c.(type) {
+
+	version := c.GetVersion()
+	switch trustedCluster := c.(type) {
 	case *TrustedClusterV2:
+		if version != V2 {
+			return nil, trace.BadParameter("mismatched trusted cluster version %v and type %T", version, trustedCluster)
+		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
-			copy := *resource
+			copy := *trustedCluster
 			copy.SetResourceID(0)
-			resource = &copy
+			trustedCluster = &copy
 		}
-		return utils.FastMarshal(resource)
+		return utils.FastMarshal(trustedCluster)
 	default:
-		return nil, trace.BadParameter("unrecognized resource version %T", c)
+		return nil, trace.BadParameter("unrecognized trusted cluster version %T", c)
 	}
 }

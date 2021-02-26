@@ -488,8 +488,12 @@ func MarshalServer(s Server, opts ...MarshalOption) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	version := s.GetVersion()
 	switch server := s.(type) {
 	case *ServerV2:
+		if version != V2 {
+			return nil, trace.BadParameter("mismatched server version %v and type %T", version, server)
+		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

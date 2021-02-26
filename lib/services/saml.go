@@ -315,17 +315,21 @@ func MarshalSAMLConnector(c SAMLConnector, opts ...MarshalOption) ([]byte, error
 		return nil, trace.Wrap(err)
 	}
 
-	switch connector := c.(type) {
+	version := c.GetVersion()
+	switch samlConnector := c.(type) {
 	case *SAMLConnectorV2:
+		if version != V2 {
+			return nil, trace.BadParameter("mismatched SAML connector version %v and type %T", version, samlConnector)
+		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
-			copy := *connector
+			copy := *samlConnector
 			copy.SetResourceID(0)
-			connector = &copy
+			samlConnector = &copy
 		}
-		return utils.FastMarshal(connector)
+		return utils.FastMarshal(samlConnector)
 	default:
-		return nil, trace.BadParameter("unrecognized SAMLConnector version %T", c)
+		return nil, trace.BadParameter("unrecognized SAML connector version %T", c)
 	}
 }

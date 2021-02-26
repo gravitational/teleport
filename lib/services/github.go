@@ -115,17 +115,22 @@ func MarshalGithubConnector(c GithubConnector, opts ...MarshalOption) ([]byte, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	switch resource := c.(type) {
+
+	version := c.GetVersion()
+	switch githubConnector := c.(type) {
 	case *GithubConnectorV3:
+		if version != V3 {
+			return nil, trace.BadParameter("mismatched github connector version %v and type %T", version, githubConnector)
+		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
-			copy := *resource
+			copy := *githubConnector
 			copy.SetResourceID(0)
-			resource = &copy
+			githubConnector = &copy
 		}
-		return utils.FastMarshal(resource)
+		return utils.FastMarshal(githubConnector)
 	default:
-		return nil, trace.BadParameter("unrecognized resource version %T", c)
+		return nil, trace.BadParameter("unrecognized github connector version %T", c)
 	}
 }

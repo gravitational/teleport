@@ -2075,8 +2075,13 @@ func MarshalRole(r Role, opts ...MarshalOption) ([]byte, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	version := r.GetVersion()
 	switch role := r.(type) {
 	case *RoleV3:
+		if version != V3 {
+			return nil, trace.BadParameter("mismatched role version %v and type %T", version, role)
+		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

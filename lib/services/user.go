@@ -236,8 +236,12 @@ func MarshalUser(u User, opts ...MarshalOption) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	version := u.GetVersion()
 	switch user := u.(type) {
 	case *UserV2:
+		if version != V2 {
+			return nil, trace.BadParameter("mismatched user version %v and type %T", version, user)
+		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

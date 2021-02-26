@@ -190,8 +190,12 @@ func MarshalOIDCConnector(c OIDCConnector, opts ...MarshalOption) ([]byte, error
 		return nil, trace.Wrap(err)
 	}
 
+	version := c.GetVersion()
 	switch oidcConnector := c.(type) {
 	case *OIDCConnectorV2:
+		if version != V2 {
+			return nil, trace.BadParameter("mismatched OIDC connector version %v and type %T", version, oidcConnector)
+		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

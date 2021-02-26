@@ -91,17 +91,22 @@ func MarshalClusterName(c ClusterName, opts ...MarshalOption) ([]byte, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	switch resource := c.(type) {
+
+	version := c.GetVersion()
+	switch clusterName := c.(type) {
 	case *ClusterNameV2:
+		if version != V2 {
+			return nil, trace.BadParameter("mismatched cluster name version %v and type %T", version, clusterName)
+		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
-			copy := *resource
+			copy := *clusterName
 			copy.SetResourceID(0)
-			resource = &copy
+			clusterName = &copy
 		}
-		return utils.FastMarshal(resource)
+		return utils.FastMarshal(clusterName)
 	default:
-		return nil, trace.BadParameter("unrecognized resource version %T", c)
+		return nil, trace.BadParameter("unrecognized cluster name version %T", c)
 	}
 }
