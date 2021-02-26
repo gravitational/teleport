@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 // LocalRegister is used to generate host keys when a node or proxy is running
@@ -90,6 +91,10 @@ type RegisterParams struct {
 	CAPath string
 	// GetHostCredentials is a client that can fetch host credentials.
 	GetHostCredentials HostCredentials
+	// Clock specifies the time provider. Will be used to override the time anchor
+	// for TLS certificate verification.
+	// Defaults to real clock if unspecified
+	Clock clockwork.Clock
 }
 
 // CredGetter is an interface for a client that can be used to get host
@@ -287,6 +292,12 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 	// connection. This makes sure the CA fetched over a insecure connection is
 	// in-fact the expected CA.
 	err = utils.CheckSPKI(params.CAPin, tlsCA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Check that the fetched CA is valid at the current time.
+	err = utils.VerifyCertificateExpiry(tlsCA, params.Clock)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

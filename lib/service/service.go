@@ -1025,7 +1025,7 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	authorizer, err := auth.NewAuthorizer(authServer.Access, authServer.Identity, authServer.Trust)
+	authorizer, err := auth.NewAuthorizer(cfg.Auth.ClusterName.GetClusterName(), authServer.Access, authServer.Identity, authServer.Trust)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2062,6 +2062,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		trace.Component: teleport.Component(teleport.ComponentReverseTunnelServer, process.id),
 	})
 
+	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
+
 	// register SSH reverse tunnel server that accepts connections
 	// from remote teleport nodes
 	var tsrv reversetunnel.Server
@@ -2070,7 +2072,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			reversetunnel.Config{
 				Component:             teleport.Component(teleport.ComponentProxy, process.id),
 				ID:                    process.Config.HostUUID,
-				ClusterName:           conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+				ClusterName:           clusterName,
 				ClientTLS:             clientTLSConfig,
 				Listener:              listeners.reverseTunnel,
 				HostSigners:           []ssh.Signer{conn.ServerIdentity.KeySigner},
@@ -2256,7 +2258,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	var kubeServer *kubeproxy.TLSServer
 	if listeners.kube != nil && !process.Config.Proxy.DisableReverseTunnel {
-		authorizer, err := auth.NewAuthorizer(conn.Client, conn.Client, conn.Client)
+		authorizer, err := auth.NewAuthorizer(clusterName, conn.Client, conn.Client, conn.Client)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2269,7 +2271,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ForwarderConfig: kubeproxy.ForwarderConfig{
 				Namespace:       defaults.Namespace,
 				Keygen:          cfg.Keygen,
-				ClusterName:     conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+				ClusterName:     clusterName,
 				Tunnel:          tsrv,
 				Auth:            authorizer,
 				Client:          conn.Client,

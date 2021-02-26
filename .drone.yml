@@ -60,11 +60,11 @@ steps:
       - |
         if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
           apk add --no-cache curl jq
-          export PR_REPO=$(curl -Ls https://api.github.com/repos/gravitational/teleport/pulls/${DRONE_PULL_REQUEST} | jq -r '.head.repo.full_name')
+          export PR_REPO=$(curl -Ls https://api.github.com/repos/gravitational/${DRONE_REPO_NAME}/pulls/${DRONE_PULL_REQUEST} | jq -r '.head.repo.full_name')
           echo "---> Source repo for PR ${DRONE_PULL_REQUEST}: $${PR_REPO}"
           # if the source repo for the PR matches DRONE_REPO, then this is not a PR raised from a fork
-          if [ "$${PR_REPO}" = "${DRONE_REPO}" ]; then
-            mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+          if [ "$${PR_REPO}" = "${DRONE_REPO}" ] || [ "${DRONE_REPO}" = "gravitational/teleport-private" ]; then
+            mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
             ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
             git submodule update --init e
             # do a recursive submodule checkout to get both webassets and webassets/e
@@ -303,7 +303,7 @@ trigger:
     - teleport-docker-cron
   repo:
     include:
-      - gravitational/*
+      - gravitational/teleport
 
 workspace:
   path: /go
@@ -443,7 +443,7 @@ trigger:
     - teleport-helm-cron
   repo:
     include:
-      - gravitational/*
+      - gravitational/teleport
 
 workspace:
   path: /go
@@ -457,7 +457,7 @@ steps:
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
+      - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_COMMIT}
 
   - name: Package helm chart
@@ -516,7 +516,7 @@ steps:
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
+      - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
@@ -619,7 +619,7 @@ steps:
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
+      - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
@@ -723,7 +723,7 @@ steps:
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
+      - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
@@ -827,7 +827,7 @@ steps:
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
+      - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
@@ -930,7 +930,7 @@ steps:
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
+      - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
@@ -1042,7 +1042,7 @@ steps:
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
+      - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
@@ -1155,7 +1155,7 @@ steps:
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
+      - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
@@ -1267,7 +1267,7 @@ steps:
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
+      - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
@@ -1381,7 +1381,7 @@ steps:
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
+      - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
@@ -1484,7 +1484,7 @@ steps:
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
+      - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
@@ -1596,7 +1596,7 @@ steps:
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
+      - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
@@ -1722,7 +1722,7 @@ steps:
       - set -u
       - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
       - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
+      - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       # suppressing the newline on the end of the private key makes git operations fail on MacOS
@@ -1835,7 +1835,7 @@ steps:
       - set -u
       - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
       - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
+      - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       # suppressing the newline on the end of the private key makes git operations fail on MacOS
@@ -1968,7 +1968,7 @@ steps:
       - set -u
       - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
       - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
+      - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       # suppressing the newline on the end of the private key makes git operations fail on MacOS
@@ -2115,7 +2115,7 @@ steps:
       - set -u
       - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
       - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
+      - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
@@ -2230,7 +2230,7 @@ steps:
       - set -u
       - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
       - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
+      - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
@@ -2324,7 +2324,7 @@ steps:
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
+      - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
@@ -2429,7 +2429,7 @@ steps:
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
+      - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
@@ -2536,7 +2536,7 @@ steps:
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
+      - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # set version
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
@@ -2638,7 +2638,7 @@ steps:
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
+      - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # set version
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
@@ -2728,7 +2728,7 @@ trigger:
     - push
   repo:
     include:
-      - gravitational/*
+      - gravitational/teleport
 
 workspace:
   path: /go/src/github.com/gravitational/teleport
@@ -2743,7 +2743,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - git clone https://github.com/gravitational/teleport.git .
+      - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_COMMIT}
 
   - name: Build and push buildbox container
@@ -2931,6 +2931,6 @@ volumes:
 
 ---
 kind: signature
-hmac: e156c965ab8f68a0ddce01e72e0610622870abe16e4e95c55ffb2b4be4e766b7
+hmac: cf80c9dd491399b05ba1e81e0e567598a713599cebb5978a877e7954a66ab724
 
 ...

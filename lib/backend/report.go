@@ -19,12 +19,14 @@ package backend
 import (
 	"bytes"
 	"context"
+	"math"
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 )
@@ -227,23 +229,49 @@ func (s *Reporter) trackRequest(opType OpType, key []byte, endKey []byte) {
 	if len(key) == 0 {
 		return
 	}
-	// take just the first two parts, otherwise too many distinct requests
-	// can end up in the map
-	parts := bytes.Split(key, []byte{Separator})
-	if len(parts) > 3 {
-		parts = parts[:3]
-	}
+	keyLabel := buildKeyLabel(key, sensitiveBackendPrefixes)
 	rangeSuffix := teleport.TagFalse
 	if len(endKey) != 0 {
 		// Range denotes range queries in stat entry
 		rangeSuffix = teleport.TagTrue
 	}
-	counter, err := requests.GetMetricWithLabelValues(s.Component, string(bytes.Join(parts, []byte{Separator})), rangeSuffix)
+	counter, err := requests.GetMetricWithLabelValues(s.Component, keyLabel, rangeSuffix)
 	if err != nil {
 		log.Warningf("Failed to get counter: %v", err)
 		return
 	}
 	counter.Inc()
+}
+
+// buildKeyLabel builds the key label for storing to the backend. The last
+// portion of the key is scrambled if it is determined to be sensitive based
+// on sensitivePrefixes.
+func buildKeyLabel(key []byte, sensitivePrefixes []string) string {
+	// Take just the first two parts, otherwise too many distinct requests
+	// can end up in the map.
+	parts := bytes.Split(key, []byte{Separator})
+	if len(parts) > 3 {
+		parts = parts[:3]
+	}
+	if len(parts) < 3 || len(parts[0]) != 0 {
+		return string(bytes.Join(parts, []byte{Separator}))
+	}
+
+	if utils.SliceContainsStr(sensitivePrefixes, string(parts[1])) {
+		hiddenBefore := int(math.Floor(0.75 * float64(len(parts[2]))))
+		asterisks := bytes.Repeat([]byte("*"), hiddenBefore)
+		parts[2] = append(asterisks, parts[2][hiddenBefore:]...)
+	}
+	return string(bytes.Join(parts, []byte{Separator}))
+}
+
+// sensitiveBackendPrefixes is a list of backend request prefixes preceding
+// sensitive values.
+var sensitiveBackendPrefixes = []string{
+	"tokens",
+	"resetpasswordtokens",
+	"adduseru2fchallenges",
+	"access_requests",
 }
 
 // ReporterWatcher is a wrapper around backend
