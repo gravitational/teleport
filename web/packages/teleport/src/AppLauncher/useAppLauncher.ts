@@ -19,6 +19,7 @@ import { useParams } from 'react-router';
 import service from 'teleport/services/apps';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { UrlLauncherParams } from 'teleport/config';
+import { getUrlParameter } from 'teleport/services/history';
 
 export default function useAppLauncher() {
   const params = useParams<UrlLauncherParams>();
@@ -31,9 +32,15 @@ export default function useAppLauncher() {
         // make a redirect to the requested app auth endpoint
         const location = window.location;
         const port = location.port ? ':' + location.port : '';
-        window.location.replace(
-          `https://${result.fqdn}${port}/x-teleport-auth#value=${result.value}`
-        );
+        const state = getUrlParameter('state', location.search);
+        const authUrl = `https://${result.fqdn}${port}/x-teleport-auth`;
+        if (state === '') {
+          const clusterId = params.clusterId ? params.clusterId : '';
+          const publicAddr = params.publicAddr ? params.publicAddr : '';
+          window.location.replace(`${authUrl}?cluster=${clusterId}&addr=${publicAddr}`);
+        } else {
+          window.location.replace(`${authUrl}?state=${state}#value=${result.value}`);
+        }
       })
       .catch((err: Error) => {
         setAttempt({
