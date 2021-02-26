@@ -391,6 +391,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AppSessionRequest{
 			AppSessionRequest: e,
 		}
+	case *SessionUpload:
+		out.Event = &OneOf_SessionUpload{
+			SessionUpload: e,
+		}
 	default:
 		return nil, trace.BadParameter("event type %T is not supported", in)
 	}
@@ -477,6 +481,9 @@ func FromOneOf(in OneOf) (AuditEvent, error) {
 		return e, nil
 	} else if e := in.GetAppSessionRequest(); e != nil {
 		return e, nil
+	} else if e := in.GetSessionUpload(); e != nil {
+		return e, nil
+
 	} else {
 		if in.Event == nil {
 			return nil, trace.BadParameter("failed to parse event, session record is corrupted")
