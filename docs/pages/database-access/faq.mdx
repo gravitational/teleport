@@ -1,0 +1,40 @@
+---
+title: Database Access FAQ
+description: Frequently asked questions about Teleport Database Access
+---
+
+# Database Access FAQ
+
+## Which database protocols does Teleport Database Access support?
+
+Teleport Database Access currently supports PostgreSQL and MySQL protocols.
+
+## Which PostgreSQL protocol features are not supported?
+
+The following PostgreSQL protocol features aren't currently supported:
+
+* [Canceling requests in progress](https://www.postgresql.org/docs/current/protocol-flow.html#id-1.10.5.7.9).
+  Cancel requests issued by the PostgreSQL clients connected to Teleport proxy
+  won't be passed to the database server.
+* Any of the [authentication methods](https://www.postgresql.org/docs/current/auth-methods.html)
+  except for client certificate authentication and IAM authentication for AWS
+  RDS and Aurora databases.
+
+## Do you support X database client?
+
+Teleport relies on client certificates for authentication so any database client
+that supports this method of authentication and uses modern TLS (1.2+) should
+work.
+
+Standard command-line clients such as `psql` and `mysql` are supported, there
+are also instructions for configuring select [graphical clients](./guides/gui-clients.mdx).
+
+## When will you support X database?
+
+We're focusing on PostgreSQL and MySQL initially but planning to support more
+databases in the future based on the customer demand.
+
+See if the database you're interested in has already been requested among
+[Github issues](https://github.com/gravitational/teleport/labels/database-access)
+or open a [new issue](https://github.com/gravitational/teleport/issues/new/choose)
+to register your interest.

@@ -1,0 +1,137 @@
+---
+title: Database Access Reference
+description: Configuration and CLI reference for Teleport Database Access
+---
+
+# Database Access Reference
+
+## Configuration
+
+The following snippet shows full YAML configuration of a Database Service
+appearing in `teleport.yaml` configuration file:
+
+```yaml
+db_service:
+  # Enables the Database Service.
+  enabled: "yes"
+  # This section contains definitions of all databases proxied by this
+  # service, it can contain multiple database instances.
+  databases:
+    # Name of the database proxy instance, used to reference in CLI.
+  - name: "prod"
+    # Free-form description of the database proxy instance.
+    description: "Production database"
+    # Database protocol. Can be "postgres" or "mysql".
+    protocol: "postgres"
+    # Database connection endpoint. Must be reachable from Database Service.
+    uri: "postgres.example.com:5432"
+    # Optional path to the CA used to validate the database certificate.
+    ca_cert_file: /path/to/ca.pem
+    # AWS specific configuration, only required for RDS and Aurora.
+    aws:
+      # Region the database is deployed in.
+      region: "us-east-1"
+    # Static labels to assign to the database. Used in RBAC.
+    static_labels:
+      env: "prod"
+    # Dynamic labels ("commands"). Used in RBAC.
+    dynamic_labels:
+    - name: "hostname"
+      command: ["hostname"]
+      period: 1m0s
+```
+
+The following Proxy configuration is relevant for Database Access:
+
+```yaml
+proxy_service:
+  enabled: "yes"
+  listen_addr: 0.0.0.0:3023
+  tunnel_listen_addr: 0.0.0.0:3024
+  # Database clients will be connecting to the Proxy over this hostname.
+  public_addr: teleport.example.com:3080
+  # PostgreSQL proxy is listening on the regular web proxy port.
+  web_listen_addr: 0.0.0.0:3080
+  # MySQL proxy is listening on a separate port and needs to be enabled
+  # on the proxy server.
+  mysql_listen_addr: 0.0.0.0:3036
+```
+
+## CLI
+
+This section shows CLI commands relevant for Database Access.
+
+### tctl auth sign
+
+When invoked with a `--format=db` flag, produces a certificate authority, a
+client certificate and a private key file used for configuring Database
+Access with self-hosted database instances.
+
+```shell
+$ tctl auth sign --format=db --host=db.example.com --out=server --ttl=8760h
+```
+
+| Flag       | Description |
+|------------|-------------|
+| `--format` | When given value `db`, produces secrets in database compatible format. |
+| `--host`   | Server name to encode in the certificate. Must match the hostname Teleport will be connecting to the database at. |
+| `--out`    | Name prefix for output files. |
+| `--ttl`    | Certificate validity period. |
+
+### tsh db ls
+
+Lists available databases and their connection information.
+
+```shell
+$ tsh db ls
+```
+
+### tsh db login
+
+Retrieves database credentials.
+
+```shell
+$ tsh db login example
+$ tsh db login --db-user=postgres --db-name=postgres example
+```
+
+| Flag        | Description |
+|-------------|-------------|
+| `--db-user` | Optionally, set default database account name to connect as. |
+| `--db-name` | Optionally, set default database name to connect to. |
+
+### tsh db logout
+
+Removes database credentials.
+
+```shell
+$ tsh db logout example
+$ tsh db logout
+```
+
+### tsh db env
+
+Outputs environment variables for a particular database.
+
+```shell
+$ tsh db env
+$ tsh db env --db=example
+$ eval $(tsh db env)
+```
+
+| Flag   | Description |
+|--------|-------------|
+| `--db` | Database server name to print environment for. Required, if logged into multiple databases simultaneously. |
+
+### tsh db config
+
+Prints database connection information. Useful when configuring GUI clients.
+
+```shell
+$ tsh db config
+$ tsh db config --db=example
+```
+
+| Flag   | Description |
+|--------|-------------|
+| `--db` | Database server name to print configuration for. Required, if logged into multiple databases simultaneously. |
