@@ -515,7 +515,3 @@ func (a *fakeLog) WaitForDelivery(context.Context) error {
 func (a *fakeLog) Close() error {
 	return trace.NotFound("")
 }
-
-func (a *fakeLog) EmitAuditEvent(ctx context.Context, e events.AuditEvent) error {
-	return trace.NotImplemented("not implemented")
-}

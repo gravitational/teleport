@@ -157,11 +157,11 @@ func (w *CheckingEmitterConfig) CheckAndSetDefaults() error {
 func (r *CheckingEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
 	if err := CheckAndSetEventFields(event, r.Clock, r.UIDGenerator); err != nil {
 		log.WithError(err).Errorf("Failed to emit audit event.")
-		AuditFailedEmit.Inc()
+		auditFailedEmit.Inc()
 		return trace.Wrap(err)
 	}
 	if err := r.Inner.EmitAuditEvent(ctx, event); err != nil {
-		AuditFailedEmit.Inc()
+		auditFailedEmit.Inc()
 		log.WithError(err).Errorf("Failed to emit audit event.")
 		return trace.Wrap(err)
 	}
@@ -459,11 +459,11 @@ func (s *CheckingStream) Complete(ctx context.Context) error {
 func (s *CheckingStream) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
 	if err := CheckAndSetEventFields(event, s.clock, s.uidGenerator); err != nil {
 		log.WithError(err).Errorf("Failed to emit audit event %v(%v).", event.GetType(), event.GetCode())
-		AuditFailedEmit.Inc()
+		auditFailedEmit.Inc()
 		return trace.Wrap(err)
 	}
 	if err := s.stream.EmitAuditEvent(ctx, event); err != nil {
-		AuditFailedEmit.Inc()
+		auditFailedEmit.Inc()
 		log.WithError(err).Errorf("Failed to emit audit event %v(%v).", event.GetType(), event.GetCode())
 		return trace.Wrap(err)
 	}

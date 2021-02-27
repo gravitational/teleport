@@ -42,9 +42,6 @@ func (d *DiscardAuditLog) Close() error {
 func (d *DiscardAuditLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
 	return nil
 }
-func (d *DiscardAuditLog) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
-	return nil
-}
 func (d *DiscardAuditLog) PostSessionSlice(SessionSlice) error {
 	return nil
 }

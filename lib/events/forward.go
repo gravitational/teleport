@@ -258,9 +258,3 @@ func (l *Forwarder) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limi
 func (l *Forwarder) WaitForDelivery(ctx context.Context) error {
 	return l.ForwardTo.WaitForDelivery(ctx)
 }
-
-// EmitAuditEvent is not implemented
-// Events are forwarded to the auth server and is then emitted from there
-func (l *Forwarder) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
-	return trace.NotImplemented("not implemented")
-}
