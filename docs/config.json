@@ -11,6 +11,7 @@
         { "title": "Application Guide", "slug": "/application-access/" },
         { "title": "Kubernetes Guide", "slug": "/kubernetes-access/" },
         { "title": "Admin Manual", "slug": "/admin-guide/" },
+        { "title": "Cloud", "slug": "/cloud/" },
         { "title": "Production Guide", "slug": "/production/" },
         { "title": "FAQ", "slug": "/faq/" },
         { "title": "Changelog", "slug": "/changelog/" }
@@ -21,8 +22,7 @@
       "title": "Preview",
       "entries": [
         { "title": "Upcoming Releases", "slug": "/preview/upcoming-releases/" },
-        { "title": "Database Access", "slug": "/preview/database-access/" },
-        { "title": "Cloud", "slug": "/preview/cloud/" }
+        { "title": "Database Access", "slug": "/preview/database-access/" }
       ]
     },
     {
@@ -51,6 +51,15 @@
           "slug": "/enterprise/ssh-kubernetes-fedramp/"
         },
         { "title": "RBAC", "slug": "/enterprise/ssh-rbac/" }
+      ]
+    },
+    {
+      "icon": "cloud",
+      "title": "Cloud",
+      "entries": [
+        { "title": "Getting Started", "slug": "/cloud/getting-started/" },
+        { "title": "Architecture", "slug": "/cloud/architecture/" },
+        { "title": "FAQ", "slug": "/cloud/faq/" }
       ]
     },
     {
