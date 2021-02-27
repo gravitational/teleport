@@ -1396,10 +1396,12 @@ achieve highly available deployments. You must take steps to protect access to
 and user records will be stored.
 
 <Admonition type="warning" title="IMPORTANT">
-`etcd` can only currently be used to store Teleport's internal database in a highly-available
-way. This will allow you to have multiple auth servers in your cluster for an HA deployment,
-but it will not also store Teleport audit events for you in the same way that
-[DynamoDB](#using-dynamodb) or [Firestore](#using-firestore) will.
+`etcd` can only currently be used to store Teleport's internal database in a
+highly-available way. This will allow you to have multiple auth servers in your
+cluster for an HA deployment, but it will not also store Teleport audit events
+for you in the same way that [DynamoDB](#using-dynamodb) or
+[Firestore](#using-firestore) will. `etcd` is not designed to handle large
+volumes of time series data like audit events.
 </Admonition>
 
 To configure Teleport for using etcd as a storage back-end:
