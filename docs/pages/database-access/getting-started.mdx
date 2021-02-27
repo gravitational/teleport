@@ -79,11 +79,29 @@ below, or visit our [downloads page](https://goteleport.com/teleport/download).
 
 {!docs/pages/preview/releases-table.mdx!}
 
-Start Teleport and point it to your Aurora database instance. Make sure to
+Teleport requires a valid TLS certificate to operate and can fetch one automatically
+using Let's Encrypt [ACME](https://letsencrypt.org/how-it-works/) protocol.
+
+We will assume that you have configured DNS records for `teleport.example.com` and
+`*.teleport.example.com` to point to the node where you're launching Teleport.
+
+Let's generate a Teleport config with ACME enabled:
+
+```shell
+$ teleport configure --cluster-name=teleport.example.com --acme --acme-email=alice@example.com > /tmp/teleport.yaml
+```
+
+<Admonition type="warning" title="Web Proxy Port">
+Teleport's ACME protocol integration currently requires web proxy to run on
+port 443 so open /tmp/teleport.yaml and update `proxy_service.web_listen_addr`
+and `proxy_service.public_addr` to use port 443 instead of the default 3080.
+</Admonition>
+
+Now start Teleport and point it to your Aurora database instance. Make sure to
 update the database endpoint and region appropriately.
 
 ```shell
-sudo teleport start \
+$ sudo teleport start --config=/tmp/teleport.yaml \
   --roles=proxy,auth,db \
   --db-name=aurora \
   --db-protocol=postgres \
@@ -128,18 +146,11 @@ Now that Aurora is configured with IAM authentication, Teleport is running and
 the local user is created, we're ready to connect to the database.
 
 Log into Teleport with the user we've just created. Make sure to use `tsh`
-version `6.0.0` or newer that includes Database Access support.
+version `6.0` or newer that includes Database Access support.
 
 ```shell
-tsh login --proxy=localhost:3080 --user=alice
+tsh login --proxy=teleport.example.com:443 --user=alice
 ```
-
-<Admonition type="warning" title="Teleport Certificate">
-For testing purposes you might need to provide `--insecure` flag to trust Teleport's
-self-signed certificate. For production usage, make sure to configure proxy
-with a proper certificate/key pair. See Teleport's general
-[quickstart guide](../quickstart.mdx#step-1c-configure-domain-name-and-obtain-tls-certificates-using-lets-encrypt).
-</Admonition>
 
 Now we can inspect available databases and retrieve credentials for the
 configured Aurora instance:
