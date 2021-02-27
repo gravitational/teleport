@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
@@ -79,16 +80,6 @@ type Handler struct {
 	sshPort string
 }
 
-// GetConfig returns handler configuration which is primarily used by plugin
-func (h *Handler) GetConfig() Config {
-	return h.cfg
-}
-
-// GetLogger returns handler logger which is primarily used by plugin
-func (h *Handler) GetLogger() logrus.FieldLogger {
-	return h.log
-}
-
 // HandlerOption is a functional argument - an option that can be passed
 // to NewHandler function
 type HandlerOption func(h *Handler) error
@@ -114,6 +105,8 @@ func SetClock(clock clockwork.Clock) HandlerOption {
 
 // Config represents web handler configuration parameters
 type Config struct {
+	// PluginRegistry handles plugin registration
+	PluginRegistry plugin.Registry
 	// Proxy is a reverse tunnel proxy that handles connections
 	// to local cluster or remote clusters using unified interface
 	Proxy reversetunnel.Tunnel
@@ -433,9 +426,11 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	})
 
 	h.NotFound = routingHandler
-	plugin := GetPlugin()
-	if plugin != nil {
-		plugin.AddHandlers(h)
+
+	if cfg.PluginRegistry != nil {
+		if err := cfg.PluginRegistry.RegisterProxyWebHandlers(h); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Create application specific handler. This handler handles sessions and

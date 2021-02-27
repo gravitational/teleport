@@ -1,5 +1,5 @@
 /*
-Copyright 2018-2020 Gravitational, Inc.
+Copyright 2018-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -1786,21 +1786,13 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		),
 	}
 	server := grpc.NewServer(opts...)
-	authGRPCServer := &GRPCServer{
+	authServer := &GRPCServer{
 		APIConfig: cfg.APIConfig,
 		Entry: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.Component(teleport.ComponentAuth, teleport.ComponentGRPC),
 		}),
 		server: server,
 	}
-	proto.RegisterAuthServiceServer(authGRPCServer.server, authGRPCServer)
-
-	if plugin := GetPlugin(); plugin != nil {
-		err := plugin.RegisterGRPCService(authGRPCServer)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	return authGRPCServer, nil
+	proto.RegisterAuthServiceServer(authServer.server, authServer)
+	return authServer, nil
 }

@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2020 Gravitational, Inc.
+Copyright 2015-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -69,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -240,6 +241,9 @@ type TeleportProcess struct {
 	sync.Mutex
 	Supervisor
 	Config *Config
+
+	// PluginsRegistry handles plugin registrations with Teleport services
+	PluginRegistry plugin.Registry
 
 	// localAuth has local auth server listed in case if this process
 	// has started with auth server role enabled
@@ -627,7 +631,12 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		cfg.Clock = clockwork.NewRealClock()
 	}
 
+	if cfg.PluginRegistry == nil {
+		cfg.PluginRegistry = plugin.NewRegistry()
+	}
+
 	process := &TeleportProcess{
+		PluginRegistry:      cfg.PluginRegistry,
 		Clock:               cfg.Clock,
 		Supervisor:          supervisor,
 		Config:              cfg,
@@ -1180,6 +1189,7 @@ func (process *TeleportProcess) initAuthService() error {
 		SessionService: sessionService,
 		Authorizer:     authorizer,
 		AuditLog:       process.auditLog,
+		PluginRegistry: process.PluginRegistry,
 		Emitter:        checkingEmitter,
 		MetadataGetter: uploadHandler,
 	}
@@ -2501,20 +2511,21 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 		webHandler, err = web.NewHandler(
 			web.Config{
-				Proxy:         tsrv,
-				AuthServers:   cfg.AuthServers[0],
-				DomainName:    cfg.Hostname,
-				ProxyClient:   conn.Client,
-				ProxySSHAddr:  proxySSHAddr,
-				ProxyWebAddr:  cfg.Proxy.WebAddr,
-				ProxySettings: proxySettings,
-				CipherSuites:  cfg.CipherSuites,
-				FIPS:          cfg.FIPS,
-				AccessPoint:   accessPoint,
-				Emitter:       streamEmitter,
-				HostUUID:      process.Config.HostUUID,
-				Context:       process.ExitContext(),
-				StaticFS:      fs,
+				Proxy:          tsrv,
+				AuthServers:    cfg.AuthServers[0],
+				DomainName:     cfg.Hostname,
+				ProxyClient:    conn.Client,
+				ProxySSHAddr:   proxySSHAddr,
+				ProxyWebAddr:   cfg.Proxy.WebAddr,
+				ProxySettings:  proxySettings,
+				CipherSuites:   cfg.CipherSuites,
+				FIPS:           cfg.FIPS,
+				AccessPoint:    accessPoint,
+				Emitter:        streamEmitter,
+				PluginRegistry: process.PluginRegistry,
+				HostUUID:       process.Config.HostUUID,
+				Context:        process.ExitContext(),
+				StaticFS:       fs,
 			})
 		if err != nil {
 			return trace.Wrap(err)
