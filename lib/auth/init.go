@@ -154,9 +154,6 @@ type InitConfig struct {
 	// Streamer is events sessionstreamer, used to create continuous
 	// session related streams
 	Streamer events.Streamer
-
-	// PublicAddrs is a list of public web proxy addresses.
-	PublicAddrs []utils.NetAddr
 }
 
 // Init instantiates and configures an instance of AuthServer

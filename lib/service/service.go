@@ -1150,7 +1150,6 @@ func (process *TeleportProcess) initAuthService() error {
 		CASigningAlg:         cfg.CASignatureAlgorithm,
 		Emitter:              checkingEmitter,
 		Streamer:             events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
-		PublicAddrs:          cfg.Proxy.PublicAddrs,
 	})
 	if err != nil {
 		return trace.Wrap(err)

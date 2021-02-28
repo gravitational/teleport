@@ -137,7 +137,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			IAuditLog:            cfg.AuditLog,
 			Events:               cfg.Events,
 		},
-		PublicAddrs: cfg.PublicAddrs,
 	}
 	for _, o := range opts {
 		o(&as)
@@ -231,9 +230,6 @@ type Server struct {
 	// Services encapsulate services - provisioner, trust, etc
 	// used by the auth server in a separate structure
 	Services
-
-	// PublicAddrs is the server's list of public web proxy addresses.
-	PublicAddrs []utils.NetAddr
 
 	// privateKey is used in tests to use pre-generated private keys
 	privateKey []byte

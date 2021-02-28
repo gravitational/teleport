@@ -1042,11 +1042,28 @@ func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) 
 	if err != nil {
 		return proto.PingResponse{}, trace.Wrap(err)
 	}
+
+	var addr string
+	if proxies, err := a.authServer.GetProxies(); err == nil {
+		for _, p := range proxies {
+			pAddr := p.GetPublicAddr()
+			if addr == "" {
+				continue
+			}
+			if _, err := utils.ParseAddr(addr); err != nil {
+				log.Warningf("Invalid public address on the proxy %q: %q: %v.", p.GetName(), addr, err)
+				continue
+			}
+			addr = pAddr
+			break
+		}
+	}
+
 	return proto.PingResponse{
-		ClusterName:    cn.GetClusterName(),
-		ServerVersion:  teleport.Version,
-		ServerFeatures: modules.GetModules().Features().ToProto(),
-		PublicAddrs:    utils.NetAddrsToStrings(a.authServer.PublicAddrs),
+		ClusterName:     cn.GetClusterName(),
+		ServerVersion:   teleport.Version,
+		ServerFeatures:  modules.GetModules().Features().ToProto(),
+		PublicProxyAddr: addr,
 	}, nil
 }
 
