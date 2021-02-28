@@ -28,12 +28,12 @@ and integrating with that takes additional effort.
 package uacc
 
 // Open is a stub function.
-func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32, ttyName string) error {
+func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32, tty *os.File) error {
 	return nil
 }
 
 // Close is a stub function.
-func Close(utmpPath, wtmpPath string, ttyName string) error {
+func Close(utmpPath, wtmpPath string, tty *os.File) error {
 	return nil
 }
 

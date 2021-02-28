@@ -27,6 +27,7 @@ package uacc
 import "C"
 
 import (
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -48,7 +49,12 @@ const nameMaxLen = 255
 // `hostname`: Name of the system the user is logged into.
 // `remoteAddrV6`: IPv6 address of the remote host.
 // `ttyName`: Name of the TTY including the `/dev/` prefix.
-func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32, ttyName string) error {
+func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32, tty *os.File) error {
+	ttyName, err := os.Readlink(tty.Name())
+	if err != nil {
+		return trace.Errorf("failed to resolve soft proc tty link: %v", err)
+	}
+
 	// String parameter validation.
 	if len(username) > nameMaxLen {
 		return trace.BadParameter("username length exceeds OS limits")
@@ -117,7 +123,12 @@ func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32,
 // This should be called when an interactive session exits.
 //
 // The `ttyName` parameter must be the name of the TTY including the `/dev/` prefix.
-func Close(utmpPath, wtmpPath string, ttyName string) error {
+func Close(utmpPath, wtmpPath string, tty *os.File) error {
+	ttyName, err := os.Readlink(tty.Name())
+	if err != nil {
+		return trace.Errorf("failed to resolve soft proc tty link: %v", err)
+	}
+
 	// String parameter validation.
 	if len(ttyName) > (int)(C.max_len_tty_name()-1) {
 		return trace.BadParameter("tty name length exceeds OS limits")
