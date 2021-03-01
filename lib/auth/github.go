@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"time"
@@ -662,7 +661,7 @@ func (c *githubAPIClient) get(url string) ([]byte, string, error) {
 		return nil, "", trace.Wrap(err)
 	}
 	defer response.Body.Close()
-	bytes, err := ioutil.ReadAll(response.Body)
+	bytes, err := utils.ReadAtMost(response.Body, teleport.MaxHTTPResponseSize)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
