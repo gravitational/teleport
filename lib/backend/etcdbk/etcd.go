@@ -340,24 +340,22 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 		tlsConfig.Certificates = []tls.Certificate{tlsCert}
 	}
 
-	var caCertPEM []byte
 	if b.cfg.TLSCAFile != "" {
-		var err error
-		caCertPEM, err = ioutil.ReadFile(b.cfg.TLSCAFile)
+		caCertPEM, err := ioutil.ReadFile(b.cfg.TLSCAFile)
 		if err != nil {
 			return trace.ConvertSystemError(err)
 		}
-	}
 
-	certPool := x509.NewCertPool()
-	parsedCert, err := tlsca.ParseCertificatePEM(caCertPEM)
-	if err != nil {
-		return trace.Wrap(err, "failed to parse CA certificate")
-	}
-	certPool.AddCert(parsedCert)
+		certPool := x509.NewCertPool()
+		parsedCert, err := tlsca.ParseCertificatePEM(caCertPEM)
+		if err != nil {
+			return trace.Wrap(err, "failed to parse CA certificate %q", b.cfg.TLSCAFile)
+		}
+		certPool.AddCert(parsedCert)
 
-	tlsConfig.RootCAs = certPool
-	tlsConfig.ClientCAs = certPool
+		tlsConfig.RootCAs = certPool
+		tlsConfig.ClientCAs = certPool
+	}
 
 	clt, err := clientv3.New(clientv3.Config{
 		Endpoints:          b.nodes,
