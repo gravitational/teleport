@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
 )
 
@@ -131,6 +132,13 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 	// are needed for the forwarder.
 	r.URL.Scheme = "https"
 	r.URL.Host = teleport.APIDomain
+
+	// Don't trust any "X-Forward-*" headers the client sends, instead set own and then
+	// forward request.
+	headers := &forward.HeaderRewriter{
+		TrustForwardHeader: false,
+	}
+	headers.Rewrite(r)
 
 	// Remove the application session cookie from the header. This is done by
 	// first wiping out the "Cookie" header then adding back all cookies
