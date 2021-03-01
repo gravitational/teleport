@@ -191,7 +191,7 @@ func (s *Suite) SetUpTest(c *check.C) {
 	), 0755)
 	c.Assert(err, check.IsNil)
 
-	authorizer, err := auth.NewAuthorizer(s.authClient, s.authClient, s.authClient)
+	authorizer, err := auth.NewAuthorizer("cluster-name", s.authClient, s.authClient, s.authClient)
 	c.Assert(err, check.IsNil)
 
 	s.appServer, err = New(context.Background(), &Config{
