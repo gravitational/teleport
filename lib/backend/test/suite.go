@@ -20,13 +20,16 @@ package test
 
 import (
 	"context"
-	"encoding/hex"
+	"fmt"
 	"math/rand"
+	"sort"
 	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
@@ -39,6 +42,7 @@ type BackendSuite struct {
 	// used for concurrent operations tests
 	B2         backend.Backend
 	NewBackend func() (backend.Backend, error)
+	Clock      clockwork.FakeClock
 }
 
 // CRUD tests create read update scenarios
@@ -299,20 +303,13 @@ func (s *BackendSuite) Expiration(c *check.C) {
 	_, err := s.B.Put(ctx, itemA)
 	c.Assert(err, check.IsNil)
 
-	_, err = s.B.Put(ctx, backend.Item{Key: prefix("b"), Value: []byte("val1"), Expires: time.Now().Add(time.Second)})
+	_, err = s.B.Put(ctx, backend.Item{Key: prefix("b"), Value: []byte("val1"), Expires: s.Clock.Now().Add(1 * time.Second)})
 	c.Assert(err, check.IsNil)
 
-	var items []backend.Item
-	for i := 0; i < 4; i++ {
-		time.Sleep(time.Second)
-		res, err := s.B.GetRange(ctx, prefix(""), backend.RangeEnd(prefix("")), backend.NoLimit)
-		c.Assert(err, check.IsNil)
-		if len(res.Items) == 1 {
-			items = res.Items
-			break
-		}
-	}
-	ExpectItems(c, items, []backend.Item{itemA})
+	s.Clock.Advance(4 * time.Second)
+	res, err := s.B.GetRange(ctx, prefix(""), backend.RangeEnd(prefix("")), backend.NoLimit)
+	c.Assert(err, check.IsNil)
+	ExpectItems(c, res.Items, []backend.Item{itemA})
 }
 
 // addSeconds adds seconds with a seconds precision
@@ -331,52 +328,39 @@ func (s *BackendSuite) KeepAlive(c *check.C) {
 	c.Assert(err, check.IsNil)
 	defer watcher.Close()
 
-	item := backend.Item{Key: prefix("key"), Value: []byte("val1"), Expires: addSeconds(time.Now(), 2)}
-	lease, err := s.B.Put(ctx, item)
+	expiresAt := addSeconds(s.Clock.Now(), 2)
+	item, lease := s.addItem(context.TODO(), c, prefix("key"), "val1", expiresAt)
+
+	s.Clock.Advance(1 * time.Second)
+
+	// Move the expiration further in the future to avoid processing
+	// skew and ensure the item is available when we delete it.
+	// It does not affect the running time of the test
+	updatedAt := addSeconds(s.Clock.Now(), 60)
+	err = s.B.KeepAlive(context.TODO(), lease, updatedAt)
 	c.Assert(err, check.IsNil)
 
-	time.Sleep(time.Second)
-
-	// make sure that the value has not expired
-	out, err := s.B.Get(ctx, item.Key)
-	c.Assert(err, check.IsNil)
-	c.Assert(string(out.Value), check.Equals, string(item.Value))
-	c.Assert(string(out.Key), check.Equals, string(item.Key))
-
-	err = s.B.KeepAlive(ctx, *lease, addSeconds(time.Now(), 2))
-	c.Assert(err, check.IsNil)
-
-	// should have expired if not kept alive
-	diff := time.Until(addSeconds(time.Now(), 1))
-	time.Sleep(diff + 100*time.Millisecond)
-
-	out, err = s.B.Get(ctx, item.Key)
-	c.Assert(err, check.IsNil)
-	c.Assert(string(out.Value), check.Equals, string(item.Value))
-	c.Assert(string(out.Key), check.Equals, string(item.Key))
-
+	// Since the backend translates absolute expiration timestamp to a TTL
+	// and collecting events takes arbitrary time, the expiration timestamps
+	// on the collected events might have a slight skew
 	events := collectEvents(c, watcher, 3)
-	c.Assert(events[1].Type, check.Equals, backend.OpPut)
-	c.Assert(string(events[1].Item.Key), check.Equals, string(item.Key))
-	c.Assert(events[2].Type, check.Equals, backend.OpPut)
-	c.Assert(string(events[2].Item.Key), check.Equals, string(item.Key))
+	fmt.Println("Recv events:", events)
+	verifyEvents(c, events, []backend.Event{
+		{Type: backend.OpInit, Item: backend.Item{}},
+		{Type: backend.OpPut, Item: backend.Item{Key: prefix("key"), Value: []byte("val1"), Expires: expiresAt}},
+		{Type: backend.OpPut, Item: backend.Item{Key: prefix("key"), Value: []byte("val1"), Expires: updatedAt}},
+	})
 
-	c.Assert(string(events[1].Item.Value), check.Equals, string(item.Value))
-	c.Assert(string(events[2].Item.Value), check.Equals, string(item.Value))
-
-	c.Assert(events[1].Item.Expires.IsZero(), check.Not(check.Equals), true, check.Commentf("expected non zero expiration time"))
-	c.Assert(events[2].Item.Expires.IsZero(), check.Not(check.Equals), true, check.Commentf("expected non zero expiration time"))
-	c.Assert(events[2].Item.Expires.After(events[1].Item.Expires), check.Equals, true, check.Commentf("expected %v after %v", events[2].Item.Expires, events[1].Item.Expires))
-
-	err = s.B.Delete(ctx, item.Key)
+	err = s.B.Delete(context.TODO(), item.Key)
+	require.NoError(c, err)
 	c.Assert(err, check.IsNil)
 
-	_, err = s.B.Get(ctx, item.Key)
-	fixtures.ExpectNotFound(c, err)
+	_, err = s.B.Get(context.TODO(), item.Key)
+	c.Assert(err, check.FitsTypeOf, trace.NotFound(""))
 
 	// keep alive on deleted or expired object should fail
-	err = s.B.KeepAlive(ctx, *lease, addSeconds(time.Now(), 2))
-	fixtures.ExpectNotFound(c, err)
+	err = s.B.KeepAlive(context.TODO(), lease, updatedAt.Add(1*time.Second))
+	c.Assert(err, check.FitsTypeOf, trace.NotFound(""))
 }
 
 func collectEvents(c *check.C, watcher backend.Watcher, count int) []backend.Event {
@@ -459,7 +443,7 @@ func (s *BackendSuite) Events(c *check.C) {
 	item = &backend.Item{
 		Key:     prefix("c"),
 		Value:   []byte("val"),
-		Expires: time.Now().Add(1 * time.Second),
+		Expires: s.Clock.Now().Add(1 * time.Second),
 	}
 	_, err = s.B.Put(ctx, *item)
 	c.Assert(err, check.IsNil)
@@ -480,8 +464,8 @@ func (s *BackendSuite) Events(c *check.C) {
 		c.Fatalf("Timeout waiting for event.")
 	}
 
-	// Wait a few second for the item to expire.
-	time.Sleep(3 * time.Second)
+	// Wait a few seconds for the item to expire.
+	s.Clock.Advance(3 * time.Second)
 
 	// Make sure item has been removed.
 	_, err = s.B.Get(ctx, item.Key)
@@ -537,7 +521,7 @@ func (s *BackendSuite) WatchersClose(c *check.C) {
 func (s *BackendSuite) Locking(c *check.C, bk backend.Backend) {
 	tok1 := "token1"
 	tok2 := "token2"
-	ttl := time.Second * 5
+	ttl := 5 * time.Second
 
 	ctx := context.TODO()
 
@@ -550,6 +534,8 @@ func (s *BackendSuite) Locking(c *check.C, bk backend.Backend) {
 	go func() {
 		atomic.StoreInt32(&x, 9)
 		c.Assert(backend.ReleaseLock(ctx, bk, tok1), check.IsNil)
+		// Force the clock to periodically move after release so waiters can be awoken
+		s.Clock.Advance(1 * time.Second)
 	}()
 	c.Assert(backend.AcquireLock(ctx, bk, tok1, ttl), check.IsNil)
 	atomic.AddInt32(&x, 9)
@@ -562,6 +548,8 @@ func (s *BackendSuite) Locking(c *check.C, bk backend.Backend) {
 	go func() {
 		atomic.StoreInt32(&x, 9)
 		c.Assert(backend.ReleaseLock(ctx, bk, tok1), check.IsNil)
+		// Force the clock to periodically move after release so waiters can be awoken
+		s.Clock.Advance(1 * time.Second)
 	}()
 	c.Assert(backend.AcquireLock(ctx, bk, tok1, ttl), check.IsNil)
 	atomic.AddInt32(&x, 9)
@@ -575,6 +563,8 @@ func (s *BackendSuite) Locking(c *check.C, bk backend.Backend) {
 		atomic.StoreInt32(&y, 15)
 		c.Assert(backend.ReleaseLock(ctx, bk, tok1), check.IsNil)
 		c.Assert(backend.ReleaseLock(ctx, bk, tok2), check.IsNil)
+		// Force the clock to periodically move after release so waiters can be awoken
+		s.Clock.Advance(1 * time.Second)
 	}()
 
 	c.Assert(backend.AcquireLock(ctx, bk, tok1, ttl), check.IsNil)
@@ -739,6 +729,17 @@ func (s *BackendSuite) Mirror(c *check.C, b backend.Backend) {
 	c.Assert(item.ID, check.Equals, originalID)
 }
 
+func (s *BackendSuite) addItem(ctx context.Context, c *check.C, key []byte, value string, expires time.Time) (backend.Item, backend.Lease) {
+	item := backend.Item{
+		Key:     key,
+		Value:   []byte(value),
+		Expires: expires,
+	}
+	lease, err := s.B.Put(ctx, item)
+	c.Assert(err, check.IsNil)
+	return item, *lease
+}
+
 // MakePrefix returns function that appends unique prefix
 // to any key, used to make test suite concurrent-run proof
 func MakePrefix() func(k string) []byte {
@@ -756,5 +757,50 @@ func ExpectItems(c *check.C, items, expected []backend.Item) {
 	for i := range items {
 		c.Assert(string(items[i].Key), check.Equals, string(expected[i].Key))
 		c.Assert(string(items[i].Value), check.Equals, string(expected[i].Value))
+	}
+}
+
+func verifyEvents(c *check.C, obtained, expected []backend.Event) {
+	verifyIDsIncreasing(c, obtained)
+	verifyIDsNoDuplicates(c, obtained)
+	verifyExpireTimestampsIncreasing(c, obtained, expected)
+}
+
+func verifyIDsIncreasing(c *check.C, obtained []backend.Event) {
+	sorted := make([]backend.Event, len(obtained))
+	copy(sorted, obtained)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Item.ID < sorted[j].Item.ID
+	})
+	c.Assert(obtained, check.DeepEquals, sorted)
+}
+
+func verifyIDsNoDuplicates(c *check.C, obtained []backend.Event) {
+	dedup := make(map[int64]struct{})
+	for _, event := range obtained {
+		dedup[event.Item.ID] = struct{}{}
+	}
+	var expectedIDs, obtainedIDs []int64
+	for id := range dedup {
+		expectedIDs = append(expectedIDs, id)
+	}
+	for _, event := range obtained {
+		obtainedIDs = append(obtainedIDs, event.Item.ID)
+	}
+	sort.Slice(expectedIDs, func(i, j int) bool {
+		return expectedIDs[i] < expectedIDs[j]
+	})
+	c.Assert(obtainedIDs, check.DeepEquals, expectedIDs)
+}
+
+func verifyExpireTimestampsIncreasing(c *check.C, obtained, expected []backend.Event) {
+	c.Assert(obtained, check.HasLen, len(expected))
+	for i := range expected {
+		if obtained[i].Item.Expires.After(expected[i].Item.Expires) {
+			c.Errorf("Expected %v >= %v",
+				expected[i].Item.Expires,
+				obtained[i].Item.Expires,
+			)
+		}
 	}
 }

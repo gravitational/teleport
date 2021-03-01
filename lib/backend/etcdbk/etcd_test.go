@@ -20,12 +20,9 @@ import (
 	"context"
 	"encoding/base64"
 	"os"
-	"sort"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
@@ -33,7 +30,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/etcd/clientv3"
@@ -70,10 +66,17 @@ func (s *EtcdSuite) SetUpSuite(c *check.C) {
 		"tls_ca_file":   "../../../examples/etcd/certs/ca-cert.pem",
 	}
 
+	clock := clockwork.NewFakeClock()
 	newBackend := func() (backend.Backend, error) {
-		return New(context.Background(), s.config)
+		bk, err := New(context.Background(), s.config)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		bk.clock = clock
+		return bk, nil
 	}
 	s.suite.NewBackend = newBackend
+	s.suite.Clock = clock
 }
 
 func (s *EtcdSuite) SetUpTest(c *check.C) {
@@ -120,6 +123,10 @@ func (s *EtcdSuite) TestCompareAndSwap(c *check.C) {
 
 func (s *EtcdSuite) TestExpiration(c *check.C) {
 	s.suite.Expiration(c)
+}
+
+func (s *EtcdSuite) TestKeepAlive(c *check.C) {
+	s.suite.KeepAlive(c)
 }
 
 func (s *EtcdSuite) TestEvents(c *check.C) {
@@ -216,152 +223,6 @@ func TestCompareAndSwapOversizedValue(t *testing.T) {
 	)
 	require.True(t, trace.IsLimitExceeded(err))
 	require.Regexp(t, ".*ResourceExhausted.*", err)
-}
-
-func TestKeepAlives(t *testing.T) {
-	bk := newBackend(t)
-	defer bk.Close()
-
-	watcher := bk.newWatcher(context.TODO(), t)
-	defer watcher.Close()
-
-	expiresAt := addSeconds(bk.clock.Now(), 2)
-	item, lease := bk.addItem(context.TODO(), t, "key", "val1", expiresAt)
-
-	bk.clock.Advance(1 * time.Second)
-
-	// Move the expiration further in the future to avoid processing
-	// skew and ensure the item is available when we delete it.
-	// It does not affect the running time of the test
-	updatedAt := addSeconds(bk.clock.Now(), 60)
-	err := bk.KeepAlive(context.TODO(), lease, updatedAt)
-	require.NoError(t, err)
-
-	// Since the backend translates absolute expiration timestamp to a TTL
-	// and collecting events takes arbitrary time, the expiration timestamps
-	// on the collected events might have a slight skew
-	events := collectEvents(t, watcher, 3)
-	verifyEvents(t, events, []backend.Event{
-		{Type: backend.OpInit, Item: backend.Item{}},
-		{Type: backend.OpPut, Item: backend.Item{Key: bk.prefix("key"), Value: []byte("val1"), Expires: expiresAt}},
-		{Type: backend.OpPut, Item: backend.Item{Key: bk.prefix("key"), Value: []byte("val1"), Expires: updatedAt}},
-	})
-
-	err = bk.Delete(context.TODO(), item.Key)
-	require.NoError(t, err)
-
-	_, err = bk.Get(context.TODO(), item.Key)
-	require.IsType(t, trace.NotFound(""), err)
-
-	// keep alive on deleted or expired object should fail
-	err = bk.KeepAlive(context.TODO(), lease, updatedAt.Add(1*time.Second))
-	require.IsType(t, trace.NotFound(""), err)
-}
-
-func newBackend(t *testing.T) pack {
-	bk, err := New(context.Background(), backend.Params{
-		"peers":         []string{"https://127.0.0.1:2379"},
-		"prefix":        "/teleport",
-		"tls_key_file":  "../../../examples/etcd/certs/client-key.pem",
-		"tls_cert_file": "../../../examples/etcd/certs/client-cert.pem",
-		"tls_ca_file":   "../../../examples/etcd/certs/ca-cert.pem",
-		"dial_timeout":  500 * time.Millisecond,
-	})
-	require.NoError(t, err)
-	clock := clockwork.NewFakeClock()
-	bk.clock = clock
-	return pack{
-		EtcdBackend: bk,
-		prefix:      test.MakePrefix(),
-		clock:       clock,
-	}
-}
-
-func (r pack) addItem(ctx context.Context, t *testing.T, key, value string, expires time.Time) (backend.Item, backend.Lease) {
-	item := backend.Item{
-		Key:     r.prefix(key),
-		Value:   []byte(value),
-		Expires: expires,
-	}
-	lease, err := r.Put(ctx, item)
-	require.NoError(t, err)
-	return item, *lease
-}
-
-func (r pack) newWatcher(ctx context.Context, t *testing.T) backend.Watcher {
-	watcher, err := r.NewWatcher(ctx, backend.Watch{Prefixes: [][]byte{r.prefix("")}})
-	require.NoError(t, err)
-	return watcher
-}
-
-type pack struct {
-	*EtcdBackend
-	prefix func(key string) []byte
-	clock  clockwork.FakeClock
-}
-
-func collectEvents(t *testing.T, w backend.Watcher, count int) (events []backend.Event) {
-	for i := 0; i < count; i++ {
-		select {
-		case e := <-w.Events():
-			events = append(events, e)
-		case <-w.Done():
-			t.Fatal("Watcher has unexpectedly closed.")
-		}
-	}
-	return events
-}
-
-func verifyEvents(t *testing.T, obtained, expected []backend.Event) {
-	verifyIDsIncreasing(t, obtained)
-	verifyIDsNoDuplicates(t, obtained)
-	verifyExpireTimestampsIncreasing(t, obtained, expected)
-}
-
-func verifyIDsIncreasing(t *testing.T, obtained []backend.Event) {
-	sorted := make([]backend.Event, len(obtained))
-	copy(sorted, obtained)
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].Item.ID < sorted[j].Item.ID
-	})
-	require.Empty(t, cmp.Diff(obtained, sorted))
-}
-
-func verifyIDsNoDuplicates(t *testing.T, obtained []backend.Event) {
-	dedup := make(map[int64]struct{})
-	for _, event := range obtained {
-		dedup[event.Item.ID] = struct{}{}
-	}
-	var expectedIDs, obtainedIDs []int64
-	for id := range dedup {
-		expectedIDs = append(expectedIDs, id)
-	}
-	for _, event := range obtained {
-		obtainedIDs = append(obtainedIDs, event.Item.ID)
-	}
-	sort.Slice(expectedIDs, func(i, j int) bool {
-		return expectedIDs[i] < expectedIDs[j]
-	})
-	require.Empty(t, cmp.Diff(obtainedIDs, expectedIDs))
-}
-
-func verifyExpireTimestampsIncreasing(t *testing.T, obtained, expected []backend.Event) {
-	require.Len(t, obtained, len(expected))
-	for i := range expected {
-		if obtained[i].Item.Expires.After(expected[i].Item.Expires) {
-			t.Errorf("Expected %v >= %v",
-				obtained[i].Item.Expires,
-				expected[i].Item.Expires,
-			)
-		}
-	}
-}
-
-// addSeconds adds seconds with a seconds precission
-// always rounding up to the next second,
-// because TTL engines are usually 1 second precision
-func addSeconds(now time.Time, seconds int64) time.Time {
-	return time.Unix(now.Unix()+seconds+1, 0)
 }
 
 func etcdTestEnabled() bool {

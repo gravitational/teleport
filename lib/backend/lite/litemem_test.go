@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 
+	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
 )
 
@@ -34,13 +35,16 @@ type LiteMemSuite struct {
 var _ = check.Suite(&LiteMemSuite{})
 
 func (s *LiteMemSuite) SetUpSuite(c *check.C) {
+	clock := clockwork.NewFakeClock()
 	newBackend := func() (backend.Backend, error) {
-		return New(context.Background(), map[string]interface{}{
-			"memory":             true,
-			"poll_stream_period": 300 * time.Millisecond,
+		return NewWithConfig(context.Background(), Config{
+			Memory:           true,
+			PollStreamPeriod: 300 * time.Millisecond,
+			Clock:            clock,
 		})
 	}
 	s.suite.NewBackend = newBackend
+	s.suite.Clock = clock
 }
 
 func (s *LiteMemSuite) SetUpTest(c *check.C) {
