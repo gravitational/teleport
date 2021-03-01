@@ -1870,18 +1870,52 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		inComment       CommentInterface
 		inCreateRequest *CreateAppSessionRequest
 		outError        bool
+		outFQDN         string
 		outUsername     string
-		outParentHash   string
 	}{
 		{
-			inComment: Commentf("Valid request."),
+			inComment: Commentf("Valid request: all fields."),
 			inCreateRequest: &CreateAppSessionRequest{
 				FQDN:        "panel.example.com",
 				PublicAddr:  "panel.example.com",
 				ClusterName: "localhost",
 			},
 			outError:    false,
+			outFQDN:     "panel.example.com",
 			outUsername: "foo@example.com",
+		},
+		{
+			inComment: Commentf("Valid request: without FQDN."),
+			inCreateRequest: &CreateAppSessionRequest{
+				PublicAddr:  "panel.example.com",
+				ClusterName: "localhost",
+			},
+			outError:    false,
+			outFQDN:     "panel.example.com",
+			outUsername: "foo@example.com",
+		},
+		{
+			inComment: Commentf("Valid request: only FQDN."),
+			inCreateRequest: &CreateAppSessionRequest{
+				FQDN: "panel.example.com",
+			},
+			outError:    false,
+			outFQDN:     "panel.example.com",
+			outUsername: "foo@example.com",
+		},
+		{
+			inComment: Commentf("Invalid request: only public address."),
+			inCreateRequest: &CreateAppSessionRequest{
+				PublicAddr: "panel.example.com",
+			},
+			outError: true,
+		},
+		{
+			inComment: Commentf("Invalid request: only cluster name."),
+			inCreateRequest: &CreateAppSessionRequest{
+				ClusterName: "localhost",
+			},
+			outError: true,
 		},
 		{
 			inComment: Commentf("Invalid application."),
@@ -1902,10 +1936,20 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 			outError: true,
 		},
 		{
-			inComment: Commentf("Missing FQDN."),
+			inComment: Commentf("Malicious request: all fields."),
 			inCreateRequest: &CreateAppSessionRequest{
+				FQDN:        "panel.example.com@malicious.com",
 				PublicAddr:  "panel.example.com",
 				ClusterName: "localhost",
+			},
+			outError:    false,
+			outFQDN:     "panel.example.com",
+			outUsername: "foo@example.com",
+		},
+		{
+			inComment: Commentf("Malicious request: only FQDN."),
+			inCreateRequest: &CreateAppSessionRequest{
+				FQDN: "panel.example.com@malicious.com",
 			},
 			outError: true,
 		},
@@ -1923,14 +1967,15 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		// Unmarshal the response.
 		var response *CreateAppSessionResponse
 		c.Assert(json.Unmarshal(resp.Bytes(), &response), IsNil, tt.inComment)
+		c.Assert(response.FQDN, Equals, tt.outFQDN, tt.inComment)
 
 		// Verify that the application session was created.
 		session, err := s.server.Auth().GetAppSession(context.Background(), services.GetAppSessionRequest{
 			SessionID: response.CookieValue,
 		})
 		c.Assert(err, IsNil)
-		c.Assert(session.GetUser(), Equals, tt.outUsername)
-		c.Assert(session.GetName(), Equals, response.CookieValue)
+		c.Assert(session.GetUser(), Equals, tt.outUsername, tt.inComment)
+		c.Assert(session.GetName(), Equals, response.CookieValue, tt.inComment)
 	}
 }
 

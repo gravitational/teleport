@@ -262,6 +262,18 @@ func IsGroupMember(gid int) (bool, error) {
 	return false, nil
 }
 
+// DNSName extracts DNS name from host:port string.
+func DNSName(hostport string) (string, error) {
+	host, err := Host(hostport)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if ip := net.ParseIP(host); len(ip) != 0 {
+		return "", trace.BadParameter("%v is an IP address", host)
+	}
+	return host, nil
+}
+
 // Host extracts host from host:port string
 func Host(hostname string) (string, error) {
 	if hostname == "" {
