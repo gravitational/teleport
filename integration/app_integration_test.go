@@ -28,6 +28,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -167,7 +168,7 @@ func TestJWT(t *testing.T) {
 	// Create an application session.
 	appCookie := pack.createAppSession(t, pack.jwtAppPublicAddr, pack.jwtAppClusterName)
 
-	// Log user out of session.
+	// Get JWT.
 	status, token, err := pack.makeRequest(appCookie, http.MethodGet, "/")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
@@ -200,6 +201,46 @@ func TestJWT(t *testing.T) {
 	require.Equal(t, pack.user.GetRoles(), claims.Roles)
 }
 
+// TestNoHeaderOverrides ensures that AAP-specific headers cannot be overridden
+// by values passed in by the user.
+func TestNoHeaderOverrides(t *testing.T) {
+	// Create cluster, user, and credentials package.
+	pack := setup(t)
+
+	// Create an application session.
+	appCookie := pack.createAppSession(t, pack.headerAppPublicAddr, pack.headerAppClusterName)
+
+	// Get HTTP headers forwarded to the application.
+	status, origHeaderResp, err := pack.makeRequest(appCookie, http.MethodGet, "/")
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, status)
+	origHeaders := strings.Split(origHeaderResp, "\n")
+	require.Equal(t, len(origHeaders), len(forwardedHeaderNames)+1)
+
+	// Construct HTTP request with custom headers.
+	req, err := http.NewRequest(http.MethodGet, pack.assembleRootProxyURL("/"), nil)
+	require.NoError(t, err)
+	req.AddCookie(&http.Cookie{
+		Name:  app.CookieName,
+		Value: appCookie,
+	})
+	for _, headerName := range forwardedHeaderNames {
+		req.Header.Set(headerName, uuid.New())
+	}
+
+	// Issue the request.
+	status, newHeaderResp, err := pack.sendRequest(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, status)
+	newHeaders := strings.Split(newHeaderResp, "\n")
+	require.Equal(t, len(newHeaders), len(forwardedHeaderNames)+1)
+
+	// Headers sent to the application should not be affected.
+	for i := range forwardedHeaderNames {
+		require.Equal(t, origHeaders[i], newHeaders[i])
+	}
+}
+
 // pack contains identity as well as initialized Teleport clusters and instances.
 type pack struct {
 	username string
@@ -230,6 +271,10 @@ type pack struct {
 	leafAppPublicAddr  string
 	leafAppClusterName string
 	leafMessage        string
+
+	headerAppName        string
+	headerAppPublicAddr  string
+	headerAppClusterName string
 }
 
 // setup configures all clusters and servers needed for a test.
@@ -259,6 +304,10 @@ func setup(t *testing.T) *pack {
 		jwtAppName:        "app-03",
 		jwtAppPublicAddr:  "app-03.example.com",
 		jwtAppClusterName: "example.com",
+
+		headerAppName:        "app-04",
+		headerAppPublicAddr:  "app-04.example.com",
+		headerAppClusterName: "example.com",
 	}
 
 	// Start a few different HTTP server that will be acting like a proxied application. The first two applications
@@ -274,6 +323,12 @@ func setup(t *testing.T) *pack {
 		fmt.Fprintln(w, r.Header.Get(teleport.AppJWTHeader))
 	}))
 	t.Cleanup(jwtServer.Close)
+	headerServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		for _, headerName := range forwardedHeaderNames {
+			fmt.Fprintln(w, r.Header.Get(headerName))
+		}
+	}))
+	t.Cleanup(headerServer.Close)
 
 	p.jwtAppURI = jwtServer.URL
 
@@ -378,6 +433,11 @@ func setup(t *testing.T) *pack {
 			Name:       p.jwtAppName,
 			URI:        jwtServer.URL,
 			PublicAddr: p.jwtAppPublicAddr,
+		},
+		{
+			Name:       p.headerAppName,
+			URI:        headerServer.URL,
+			PublicAddr: p.headerAppPublicAddr,
 		},
 	}
 	p.rootAppServer, err = p.rootCluster.StartApp(raConf)
@@ -546,12 +606,7 @@ func (p *pack) createAppSession(t *testing.T, publicAddr, clusterName string) st
 
 // makeRequest makes a request to the root cluster with the given session cookie.
 func (p *pack) makeRequest(sessionCookie string, method string, endpoint string) (int, string, error) {
-	u := url.URL{
-		Scheme: "https",
-		Host:   net.JoinHostPort(Loopback, p.rootCluster.GetPortWeb()),
-		Path:   endpoint,
-	}
-	req, err := http.NewRequest(method, u.String(), nil)
+	req, err := http.NewRequest(method, p.assembleRootProxyURL(endpoint), nil)
 	if err != nil {
 		return 0, "", trace.Wrap(err)
 	}
@@ -564,7 +619,22 @@ func (p *pack) makeRequest(sessionCookie string, method string, endpoint string)
 		})
 	}
 
-	// Issue request.
+	return p.sendRequest(req)
+}
+
+// assembleRootProxyURL returns the URL string of an endpoint at the root
+// cluster's proxy web.
+func (p *pack) assembleRootProxyURL(endpoint string) string {
+	u := url.URL{
+		Scheme: "https",
+		Host:   net.JoinHostPort(Loopback, p.rootCluster.GetPortWeb()),
+		Path:   endpoint,
+	}
+	return u.String()
+}
+
+// sendReqeust sends the request to the root cluster.
+func (p *pack) sendRequest(req *http.Request) (int, string, error) {
 	client := &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
@@ -612,4 +682,13 @@ func (p *pack) waitForLogout(appCookie string) (int, error) {
 			return 0, trace.BadParameter("timed out waiting for logout")
 		}
 	}
+}
+
+var forwardedHeaderNames = []string{
+	teleport.AppJWTHeader,
+	teleport.AppCFHeader,
+	"X-Forwarded-Proto",
+	"X-Forwarded-Host",
+	"X-Forwarded-Server",
+	"X-Forwarded-For",
 }
