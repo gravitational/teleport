@@ -203,6 +203,7 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*Context, error) {
 		RouteToCluster:    u.Identity.RouteToCluster,
 		KubernetesCluster: u.Identity.KubernetesCluster,
 		RouteToApp:        u.Identity.RouteToApp,
+		RouteToDatabase:   u.Identity.RouteToDatabase,
 	}
 
 	return &Context{
