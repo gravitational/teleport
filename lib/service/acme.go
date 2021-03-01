@@ -53,26 +53,15 @@ func (h *hostPolicyChecker) checkHost(ctx context.Context, host string) error {
 			host, strings.Join(h.dnsNames, ","))
 	}
 
-	var couldNotMatchApp bool
-	for _, dnsName := range h.dnsNames {
-		if dnsName == host {
-			return nil
-		}
-		// if it's a subdomain, allow it if application access
-		// has the name that matches the fqdn
-		if strings.HasSuffix(host, "."+dnsName) {
-			_, _, _, err := app.ResolveFQDN(ctx, h.cfg.clt, h.cfg.tun, h.cfg.clusterName, host)
-			if err == nil {
-				return nil
-			}
-			if !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
-			couldNotMatchApp = true
-		}
+	if utils.SliceContainsStr(h.dnsNames, host) {
+		return nil
 	}
 
-	if couldNotMatchApp {
+	_, _, _, err := app.ResolveFQDN(ctx, h.cfg.clt, h.cfg.tun, h.dnsNames, host)
+	if err == nil {
+		return nil
+	}
+	if trace.IsNotFound(err) {
 		return trace.BadParameter(
 			"acme can't get a cert for %v, there is no app with this name", host)
 	}
@@ -104,21 +93,17 @@ func (h *hostPolicyCheckerConfig) CheckAndSetDefaults() ([]string, error) {
 	}
 
 	dnsNames := make([]string, 0, len(h.publicAddrs))
-
 	for _, addr := range h.publicAddrs {
-		host, err := utils.Host(addr.Addr)
+		host, err := utils.DNSName(addr.Addr)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			continue
 		}
-		if ip := net.ParseIP(host); ip == nil {
-			dnsNames = append(dnsNames, host)
-		}
+		dnsNames = append(dnsNames, host)
 	}
 
 	if len(dnsNames) == 0 {
 		return nil, trace.BadParameter(
 			"acme is enabled, set at least one valid DNS name in public_addr section of proxy_service")
 	}
-
 	return dnsNames, nil
 }
