@@ -31,8 +31,9 @@ func setRedirectPageHeaders(h http.Header, nonce string) {
 		// Should match the <script> tab nonce (random value).
 		fmt.Sprintf("script-src 'nonce-%v'", nonce),
 		"style-src 'self'",
-		"object-src 'self'",
+		"object-src 'none'",
 		"img-src 'self'",
+		"base-uri 'self'",
 	}, ";")
 
 	h.Set("Referrer-Policy", "no-referrer")
