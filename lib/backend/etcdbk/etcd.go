@@ -317,17 +317,17 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 		if err != nil {
 			return trace.ConvertSystemError(err)
 		}
-	}
 
-	certPool := x509.NewCertPool()
-	parsedCert, err := tlsca.ParseCertificatePEM(caCertPEM)
-	if err != nil {
-		return trace.Wrap(err, "failed to parse CA certificate")
-	}
-	certPool.AddCert(parsedCert)
+		certPool := x509.NewCertPool()
+		parsedCert, err := tlsca.ParseCertificatePEM(caCertPEM)
+		if err != nil {
+			return trace.Wrap(err, "failed to parse CA certificate")
+		}
+		certPool.AddCert(parsedCert)
 
-	tlsConfig.RootCAs = certPool
-	tlsConfig.ClientCAs = certPool
+		tlsConfig.RootCAs = certPool
+		tlsConfig.ClientCAs = certPool
+	}
 
 	clt, err := clientv3.New(clientv3.Config{
 		Endpoints:          b.nodes,
