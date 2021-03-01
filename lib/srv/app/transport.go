@@ -163,8 +163,8 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 	r.URL.Host = t.uri.Host
 
 	// Add in JWT header.
-	r.Header.Add(teleport.AppJWTHeader, t.c.jwt)
-	r.Header.Add(teleport.AppCFHeader, t.c.jwt)
+	r.Header.Set(teleport.AppJWTHeader, t.c.jwt)
+	r.Header.Set(teleport.AppCFHeader, t.c.jwt)
 
 	return nil
 }
