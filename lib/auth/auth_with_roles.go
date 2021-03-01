@@ -1047,11 +1047,11 @@ func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) 
 	if proxies, err := a.authServer.GetProxies(); err == nil {
 		for _, p := range proxies {
 			pAddr := p.GetPublicAddr()
-			if addr == "" {
+			if pAddr == "" {
 				continue
 			}
-			if _, err := utils.ParseAddr(addr); err != nil {
-				log.Warningf("Invalid public address on the proxy %q: %q: %v.", p.GetName(), addr, err)
+			if _, err := utils.ParseAddr(pAddr); err != nil {
+				log.Warningf("Invalid public address on the proxy %q: %q: %v.", p.GetName(), pAddr, err)
 				continue
 			}
 			addr = pAddr
