@@ -257,13 +257,9 @@ func (c *SessionContext) extendWebSession(accessRequestID string) (services.WebS
 // GetAgent returns agent that can be used to answer challenges
 // for the web to ssh connection as well as certificate
 func (c *SessionContext) GetAgent() (agent.Agent, *ssh.Certificate, error) {
-	pub, _, _, _, err := ssh.ParseAuthorizedKey(c.session.GetPub())
+	cert, err := c.GetSSHCertificate()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
-	}
-	cert, ok := pub.(*ssh.Certificate)
-	if !ok {
-		return nil, nil, trace.BadParameter("expected certificate, got %T", pub)
 	}
 	if len(cert.ValidPrincipals) == 0 {
 		return nil, nil, trace.BadParameter("expected at least valid principal in certificate")
@@ -284,23 +280,44 @@ func (c *SessionContext) GetAgent() (agent.Agent, *ssh.Certificate, error) {
 	return keyring, cert, nil
 }
 
-// GetCertificates returns the *ssh.Certificate and *x509.Certificate
-// associated with this context's session.
-func (c *SessionContext) GetCertificates() (*ssh.Certificate, *x509.Certificate, error) {
+// GetSSHCertificate returns the *ssh.Certificate associated with this session.
+func (c *SessionContext) GetSSHCertificate() (*ssh.Certificate, error) {
 	pub, _, _, _, err := ssh.ParseAuthorizedKey(c.session.GetPub())
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	sshCert, ok := pub.(*ssh.Certificate)
 	if !ok {
-		return nil, nil, trace.BadParameter("not certificate")
+		return nil, trace.BadParameter("expected certificate, got %T", pub)
 	}
+	return sshCert, nil
+}
+
+// GetX509Certificate returns the *x509.Certificate associated with this session.
+func (c *SessionContext) GetX509Certificate() (*x509.Certificate, error) {
 	tlsCert, err := tlsca.ParseCertificatePEM(c.session.GetTLSCert())
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return sshCert, tlsCert, nil
+	return tlsCert, nil
+}
 
+// GetCertRoles extracts roles from the *ssh.Certificate associated with this
+// session.
+func (c *SessionContext) GetCertRoles() (services.RoleSet, error) {
+	cert, err := c.GetSSHCertificate()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	roles, traits, err := services.ExtractFromCertificate(c.clt, cert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	roleset, err := services.FetchRoles(roles, c.clt, traits)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return roleset, nil
 }
 
 // GetSessionID returns the ID of the underlying user web session.

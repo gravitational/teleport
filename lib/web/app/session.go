@@ -83,7 +83,9 @@ func (h *Handler) newSession(ctx context.Context, ws services.WebSession) (*sess
 	}
 	fwd, err := forward.New(
 		forward.RoundTripper(transport),
-		forward.Logger(h.log))
+		forward.Logger(h.log),
+		forward.PassHostHeader(true),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
