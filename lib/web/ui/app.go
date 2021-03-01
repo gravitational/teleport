@@ -47,12 +47,12 @@ type App struct {
 }
 
 // MakeApps creates server application objects
-func MakeApps(proxyName string, proxyHost string, appClusterName string, appServers []services.Server) []App {
+func MakeApps(localClusterName string, localProxyDNSName string, appClusterName string, appServers []services.Server) []App {
 	result := []App{}
 	for _, server := range appServers {
 		teleApps := server.GetApps()
 		for _, teleApp := range teleApps {
-			fqdn := resolveFQDN(proxyName, proxyHost, appClusterName, *teleApp)
+			fqdn := AssembleAppFQDN(localClusterName, localProxyDNSName, appClusterName, teleApp)
 			labels := []AppLabel{}
 			for name, value := range teleApp.StaticLabels {
 				labels = append(labels, AppLabel{
@@ -74,18 +74,18 @@ func MakeApps(proxyName string, proxyHost string, appClusterName string, appServ
 	return result
 }
 
-// resolveFQDN will return the application's FQDN. This function can resolve
-// the FQDN for an application for local cluster and remote clusters.
-func resolveFQDN(proxyName string, proxyHost string, appClusterName string, app services.App) string {
-	// Use application public address if running on proxy.
-	isProxyCluster := proxyName == appClusterName
-	if isProxyCluster && app.PublicAddr != "" {
+// AssembleAppFQDN returns the application's FQDN.
+//
+// If the application is running within the local cluster and it has a public
+// address specified, the application's public address is used.
+//
+// In all other cases, i.e. if the public address is not set or the application
+// is running in a remote cluster, the FQDN is formatted as
+// <appName>.<localProxyDNSName>
+func AssembleAppFQDN(localClusterName string, localProxyDNSName string, appClusterName string, app *services.App) string {
+	isLocalCluster := localClusterName == appClusterName
+	if isLocalCluster && app.PublicAddr != "" {
 		return app.PublicAddr
 	}
-
-	if proxyHost != "" {
-		return fmt.Sprintf("%v.%v", app.Name, proxyHost)
-	}
-
-	return fmt.Sprintf("%v.%v", app.Name, appClusterName)
+	return fmt.Sprintf("%v.%v", app.Name, localProxyDNSName)
 }
