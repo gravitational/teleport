@@ -2713,7 +2713,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// then routing them to a respective database server over the reverse tunnel
 	// framework.
 	if (listeners.db != nil || listeners.mysql != nil) && !process.Config.Proxy.DisableReverseTunnel {
-		authorizer, err := auth.NewAuthorizer(conn.Client, conn.Client, conn.Client)
+		authorizer, err := auth.NewAuthorizer(clusterName, conn.Client, conn.Client, conn.Client)
 		if err != nil {
 			return trace.Wrap(err)
 		}
