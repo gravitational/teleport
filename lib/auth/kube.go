@@ -105,8 +105,24 @@ func (s *Server) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	roleNames := id.Groups
+	// This is a remote user, map roles to local roles first.
+	if id.TeleportCluster != clusterName.GetClusterName() {
+		ca, err := s.GetCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: id.TeleportCluster}, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		roleNames, err = services.MapRoles(ca.CombinedMapping(), id.Groups)
+		if err != nil {
+			return nil, trace.AccessDenied("failed to map roles for remote user %q from cluster %q with remote roles %v", id.Username, id.TeleportCluster, id.Groups)
+		}
+		if len(roleNames) == 0 {
+			return nil, trace.AccessDenied("no roles mapped for remote user %q from cluster %q with remote roles %v", id.Username, id.TeleportCluster, id.Groups)
+		}
+	}
+
 	// Extract user roles from the identity (from the CSR Subject).
-	roles, err := services.FetchRoles(id.Groups, s, id.Traits)
+	roles, err := services.FetchRoles(roleNames, s, id.Traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

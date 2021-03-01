@@ -68,6 +68,7 @@ func SetIndexHTMLHeaders(h http.Header) {
 		"style-src 'self' 'unsafe-inline'",
 		"object-src 'none'",
 		"img-src 'self' data: blob:",
+		"base-uri 'self'",
 	}, ";")
 
 	h.Set("Content-Security-Policy", cspValue)
