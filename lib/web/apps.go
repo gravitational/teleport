@@ -54,17 +54,7 @@ func (h *Handler) siteAppsGet(w http.ResponseWriter, r *http.Request, p httprout
 		return nil, trace.Wrap(err)
 	}
 
-	// Get the public address of the proxy and remove the port. An empty public
-	// address is fine here, it will be used to denote fallback to cluster name.
-	proxyHost := h.cfg.ProxySettings.SSH.PublicAddr
-	if proxyHost != "" {
-		proxyHost, err = utils.Host(proxyHost)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	return makeResponse(ui.MakeApps(h.auth.clusterName, proxyHost, appClusterName, appServers))
+	return makeResponse(ui.MakeApps(h.auth.clusterName, h.proxyDNSName(), appClusterName, appServers))
 }
 
 type CreateAppSessionRequest struct {
@@ -223,28 +213,32 @@ func (h *Handler) waitForAppSession(ctx context.Context, sessionID string) error
 }
 
 func (h *Handler) validateAppSessionRequest(ctx context.Context, clt app.Getter, proxy reversetunnel.Tunnel, req *CreateAppSessionRequest) (*validateAppSessionResult, error) {
-	// To safely redirect a user to the app URL, the FQDN should be always
-	// resolved. This is to prevent open redirects.
-	app, server, clusterName, err := h.resolveFQDN(ctx, clt, proxy, req.FQDN)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	var (
+		app            *services.App
+		server         services.Server
+		appClusterName string
+		err            error
+	)
 
 	// If the request contains a public address and cluster name (for example, if it came
 	// from the application launcher in the Web UI) then directly exactly resolve the
 	// application that the caller is requesting. If it does not, do best effort FQDN resolution.
 	if req.PublicAddr != "" && req.ClusterName != "" {
-		app, server, clusterName, err = h.resolveDirect(ctx, proxy, req.PublicAddr, req.ClusterName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		app, server, appClusterName, err = h.resolveDirect(ctx, proxy, req.PublicAddr, req.ClusterName)
+	} else {
+		app, server, appClusterName, err = h.resolveFQDN(ctx, clt, proxy, req.FQDN)
 	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	fqdn := ui.AssembleAppFQDN(h.auth.clusterName, h.proxyDNSName(), appClusterName, app)
 
 	return &validateAppSessionResult{
 		ServerID:    server.GetName(),
-		FQDN:        req.FQDN,
+		FQDN:        fqdn,
 		PublicAddr:  app.PublicAddr,
-		ClusterName: clusterName,
+		ClusterName: appClusterName,
 	}, nil
 }
 
@@ -282,7 +276,17 @@ func (h *Handler) resolveDirect(ctx context.Context, proxy reversetunnel.Tunnel,
 }
 
 // resolveFQDN makes a best effort attempt to resolve FQDN to an application
-// running a root or leaf cluster.
+// running within a root or leaf cluster.
 func (h *Handler) resolveFQDN(ctx context.Context, clt app.Getter, proxy reversetunnel.Tunnel, fqdn string) (*services.App, services.Server, string, error) {
-	return app.ResolveFQDN(ctx, clt, proxy, h.auth.clusterName, fqdn)
+	return app.ResolveFQDN(ctx, clt, proxy, []string{h.proxyDNSName()}, fqdn)
+}
+
+// proxyDNSName is a DNS name the HTTP proxy is available at, where
+// the local cluster name is used as a best-effort fallback.
+func (h *Handler) proxyDNSName() string {
+	dnsName, err := utils.DNSName(h.cfg.ProxySettings.SSH.PublicAddr)
+	if err != nil {
+		return h.auth.clusterName
+	}
+	return dnsName
 }
