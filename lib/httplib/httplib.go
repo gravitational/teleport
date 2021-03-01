@@ -20,13 +20,14 @@ package httplib
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strconv"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -108,7 +109,7 @@ func WithCSRFProtection(fn HandlerFunc) httprouter.Handle {
 // ReadJSON reads HTTP json request and unmarshals it
 // into passed interface{} obj
 func ReadJSON(r *http.Request, val interface{}) error {
-	data, err := ioutil.ReadAll(r.Body)
+	data, err := utils.ReadAtMost(r.Body, teleport.MaxHTTPRequestSize)
 	if err != nil {
 		return trace.Wrap(err)
 	}
