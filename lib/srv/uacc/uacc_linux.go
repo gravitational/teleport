@@ -137,8 +137,12 @@ func Close(utmpPath, wtmpPath string, ttyName string) error {
 	cTtyName := C.CString(strings.TrimPrefix(ttyName, "/dev/"))
 	defer C.free(unsafe.Pointer(cTtyName))
 
+	timestamp := time.Now()
+	secondsElapsed := (C.int32_t)(timestamp.Unix())
+	microsFraction := (C.int32_t)((timestamp.UnixNano() % int64(time.Second)) / int64(time.Microsecond))
+
 	accountDb.Lock()
-	status := C.uacc_mark_utmp_entry_dead(cUtmpPath, cWtmpPath, cTtyName)
+	status := C.uacc_mark_utmp_entry_dead(cUtmpPath, cWtmpPath, cTtyName, secondsElapsed, microsFraction)
 	accountDb.Unlock()
 
 	switch status {
