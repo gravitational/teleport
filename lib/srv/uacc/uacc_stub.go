@@ -27,6 +27,10 @@ and integrating with that takes additional effort.
 */
 package uacc
 
+import (
+	"os"
+)
+
 // Open is a stub function.
 func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32, tty *os.File) error {
 	return nil
