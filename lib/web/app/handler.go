@@ -260,5 +260,9 @@ func HasName(r *http.Request, proxyPublicAddr string) (string, bool) {
 
 const (
 	// CookieName is the name of the application session cookie.
-	CookieName = "grv_app_session"
+	CookieName = "__Host-grv_app_session"
+
+	// AuthStateCookieName is the name of the state cookie used during the
+	// initial authentication flow.
+	AuthStateCookieName = "__Host-grv_app_auth_state"
 )

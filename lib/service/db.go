@@ -100,7 +100,9 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 			}))
 	}
 
-	authorizer, err := auth.NewAuthorizer(conn.Client, conn.Client, conn.Client)
+	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
+
+	authorizer, err := auth.NewAuthorizer(clusterName, conn.Client, conn.Client, conn.Client)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -170,7 +172,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 			Server:      dbService,
 			AccessPoint: conn.Client,
 			HostSigner:  conn.ServerIdentity.KeySigner,
-			Cluster:     conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+			Cluster:     clusterName,
 		})
 	if err != nil {
 		return trace.Wrap(err)

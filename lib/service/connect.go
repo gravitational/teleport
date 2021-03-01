@@ -367,6 +367,7 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 			CAPin:                process.Config.CAPin,
 			CAPath:               filepath.Join(defaults.DataDir, defaults.CACertFile),
 			GetHostCredentials:   client.HostCredentials,
+			Clock:                process.Clock,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

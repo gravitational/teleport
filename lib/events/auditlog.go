@@ -661,10 +661,16 @@ func (l *AuditLog) downloadSession(namespace string, sid session.ID) error {
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
-	defer tarball.Close()
+	defer func() {
+		if err := tarball.Close(); err != nil {
+			l.log.WithError(err).Errorf("Failed to close file %q.", tarballPath)
+		}
+	}()
 	if err := l.UploadHandler.Download(l.ctx, sid, tarball); err != nil {
 		// remove partially downloaded tarball
-		os.Remove(tarball.Name())
+		if rmErr := os.Remove(tarballPath); rmErr != nil {
+			l.log.WithError(rmErr).Warningf("Failed to remove file %v.", tarballPath)
+		}
 		return trace.Wrap(err)
 	}
 	l.log.WithField("duration", time.Since(start)).Debugf("Downloaded %v to %v.", sid, tarballPath)

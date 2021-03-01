@@ -471,28 +471,25 @@ func (h *Handler) getUserStatus(w http.ResponseWriter, r *http.Request, _ httpro
 
 // getUserContext returns user context
 //
-// GET /webapi/user/context
+// GET /webapi/sites/:site/context
 //
 func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	roleset, err := c.GetCertRoles()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clt, err := c.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	cert, _, err := c.GetCertificates()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	roles, traits, err := services.ExtractFromCertificate(clt, cert)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	roleset, err := services.FetchRoles(roles, clt, traits)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	user, err := clt.GetUser(c.GetUser(), false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	res, err := clt.GetAccessCapabilities(r.Context(), services.AccessCapabilitiesRequest{
+		RequestableRoles: true,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -501,14 +498,6 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	res, err := clt.GetAccessCapabilities(r.Context(), services.AccessCapabilitiesRequest{
-		RequestableRoles: true,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	userContext.RequestableRoles = res.RequestableRoles
 	userContext.Cluster, err = ui.GetClusterDetails(site)
 	if err != nil {
@@ -1534,7 +1523,7 @@ type getSiteNamespacesResponse struct {
 
 /* getSiteNamespaces returns a list of namespaces for a given site
 
-GET /v1/webapi/namespaces/:namespace/sites/:site/nodes
+GET /v1/webapi/sites/:site/namespaces
 
 Successful response:
 
@@ -1554,6 +1543,11 @@ func (h *Handler) getSiteNamespaces(w http.ResponseWriter, r *http.Request, _ ht
 	}, nil
 }
 
+/* siteNodesGet returns a list of nodes for a given site and namespace
+
+GET /v1/webapi/sites/:site/namespaces/:namespace/nodes
+
+*/
 func (h *Handler) siteNodesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	namespace := p.ByName("namespace")
 	if !services.IsValidNamespace(namespace) {
@@ -1924,41 +1918,44 @@ func (h *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 		h.log.WithError(err).Debug("Unable to retrieve session chunk.")
 		http.Error(w, err.Error(), trace.ErrorToCode(err))
 	}
+
 	// authenticate first:
 	ctx, err := h.AuthenticateRequest(w, r, true)
 	if err != nil {
 		h.log.WithError(err).Warn("Failed to authenticate.")
 		// clear session just in case if the authentication request is not valid
 		ClearSession(w)
-		onError(err)
+		onError(trace.Wrap(err))
 		return
 	}
+
 	// get the site interface:
 	siteName := p.ByName("site")
 	if siteName == currentSiteShortcut {
-		sites, err := h.cfg.Proxy.GetSites()
+		res, err := h.cfg.ProxyClient.GetClusterName()
 		if err != nil {
 			onError(trace.Wrap(err))
 			return
 		}
-		if len(sites) < 1 {
-			onError(trace.NotFound("no active sites"))
-			return
-		}
-		siteName = sites[0].GetName()
+		siteName = res.GetClusterName()
 	}
-	site, err = h.cfg.Proxy.GetSite(siteName)
+	proxy, err := h.ProxyWithRoles(ctx)
 	if err != nil {
-		onError(err)
+		onError(trace.Wrap(err))
 		return
 	}
+	site, err = proxy.GetSite(siteName)
+	if err != nil {
+		onError(trace.Wrap(err))
+		return
+	}
+
 	// get the session:
 	sid, err := session.ParseID(p.ByName("sid"))
 	if err != nil {
 		onError(trace.Wrap(err))
 		return
 	}
-
 	clt, err := ctx.GetUserClient(site)
 	if err != nil {
 		onError(trace.Wrap(err))
@@ -2208,6 +2205,7 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 			h.log.WithError(err).Warn("Failed to authenticate.")
 			return nil, trace.Wrap(err)
 		}
+
 		clusterName := p.ByName("site")
 		if clusterName == currentSiteShortcut {
 			res, err := h.cfg.ProxyClient.GetClusterName()
@@ -2215,10 +2213,16 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 				h.log.WithError(err).Warn("Failed to query cluster name.")
 				return nil, trace.Wrap(err)
 			}
-
 			clusterName = res.GetClusterName()
 		}
-		site, err := h.cfg.Proxy.GetSite(clusterName)
+
+		proxy, err := h.ProxyWithRoles(ctx)
+		if err != nil {
+			h.log.WithError(err).Warn("Failed to get proxy with roles.")
+			return nil, trace.Wrap(err)
+		}
+
+		site, err := proxy.GetSite(clusterName)
 		if err != nil {
 			h.log.WithError(err).WithField("cluster-name", clusterName).Warn("Failed to query site.")
 			return nil, trace.Wrap(err)
@@ -2287,6 +2291,17 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 		}
 	}
 	return ctx, nil
+}
+
+// ProxyWithRoles returns a reverse tunnel proxy verifying the permissions
+// of the given user.
+func (h *Handler) ProxyWithRoles(ctx *SessionContext) (reversetunnel.Tunnel, error) {
+	roles, err := ctx.GetCertRoles()
+	if err != nil {
+		h.log.WithError(err).Warn("Failed to get client roles.")
+		return nil, trace.Wrap(err)
+	}
+	return reversetunnel.NewTunnelWithRoles(h.cfg.Proxy, roles, h.cfg.AccessPoint), nil
 }
 
 // ProxyHostPort returns the address of the proxy server using --proxy
