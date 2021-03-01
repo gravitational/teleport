@@ -66,6 +66,7 @@ func (h *Handler) handleFragment(w http.ResponseWriter, r *http.Request, p httpr
 		http.SetCookie(w, &http.Cookie{
 			Name:     CookieName,
 			Value:    req.CookieValue,
+			Path:     "/",
 			HttpOnly: true,
 			Secure:   true,
 			// Set Same-Site policy for the session cookie to None in order to
