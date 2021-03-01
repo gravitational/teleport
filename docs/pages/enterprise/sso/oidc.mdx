@@ -65,7 +65,7 @@ create a connector resource file in YAML format, for example `oidc-connector.yam
 
 The file contents are shown below. This connector requests the scope `group`
 from the identity provider then mapping the value to either to `admin` role or
-the `user` role depending on the value returned for `group` within the claims.
+the `dev` role depending on the value returned for `group` within the claims.
 
 ```yaml
 {!examples/resources/oidc-connector.yaml!}
@@ -105,10 +105,10 @@ spec:
         verbs: ["*"]
 ```
 
-Users are only allowed to login to nodes labelled with `access: relaxed`
-teleport label. Developers can log in as either `ubuntu` to a username that
+Devs are only allowed to login to nodes labelled with `access: relaxed`
+Teleport label. Developers can log in as either `ubuntu` or a username that
 arrives in their assertions. Developers also do not have any rules needed to
-obtain admin access.
+obtain admin access to Teleport.
 
 ```yaml
 # role-dev.yaml
@@ -144,7 +144,7 @@ In addition, Teleport supports OIDC provider specific ACR value processing
 which can be enabled by setting the `provider` field in OIDC configuration. At
 the moment, the only build-in support is for NetIQ.
 
-A example of using ACR values and provider specific processing is below:
+An example of using ACR values and provider specific processing is below:
 
 ```yaml
 # example connector which uses ACR values
@@ -157,29 +157,17 @@ spec:
   client_id: "xxxxxxxxxxxxxxxxxxxxxxx.example.com"
   client_secret: "zzzzzzzzzzzzzzzzzzzzzzzz"
   redirect_url: "https://<cluster-url>:3080/v1/webapi/oidc/callback"
-  display: "Login with Example"
+  display: Example
   acr_values: "foo/bar"
   provider: netiq
-  scope: [ "group" ]
+  scope: [openid group]
   claims_to_roles:
      - claim: "group"
        value: "admin"
        roles: [ "admin" ]
      - claim: "group"
-       value: "user"
-       roles: [ "user" ]
-```
-
-### Optional: Redirect URL and Timeout
-
-The redirect URL must be accessible by all user, optional redirect timeout.
-
-```yaml
-# Extra parts of OIDC yaml have been removed.
-spec:
-  redirect_url: https://<cluster-url>.example.com:3080/v1/webapi/oidc/callback
-  # Optional Redirect Timeout.
-  # redirect_timeout: 90s
+       value: "dev"
+       roles: [ "dev" ]
 ```
 
 ### Optional: Prompt
@@ -221,7 +209,7 @@ that says `Login with Example`. Simply click on that and you will be
 re-directed to a login page for your identity provider and if successful,
 redirected back to Teleport.
 
-For console login, you simple type `tsh --proxy <proxy-addr> ssh <server-addr>`
+For console login, you simple type `tsh --proxy=<proxy-addr> ssh <server-addr>`
 and a browser window should automatically open taking you to the login page for
 your identity provider. `tsh` will also output a link the login page of the
 identity provider if you are not automatically redirected.

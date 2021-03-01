@@ -1,4 +1,5 @@
 kind: oidc
+version: v2
 metadata:
   name: gsuite
 spec:
@@ -17,4 +18,3 @@ spec:
   scope:
   - openid
   - email
-version: v2
