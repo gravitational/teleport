@@ -260,5 +260,5 @@ func HasName(r *http.Request, proxyPublicAddr string) (string, bool) {
 
 const (
 	// CookieName is the name of the application session cookie.
-	CookieName = "grv_app_session"
+	CookieName = "__Host-grv_app_session"
 )
