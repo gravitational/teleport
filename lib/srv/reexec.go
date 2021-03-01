@@ -146,7 +146,6 @@ func RunCommand() (io.Writer, int, error) {
 
 	var tty *os.File
 	var pty *os.File
-	var ttyName string
 
 	// If a terminal was requested, file descriptor 4 and 5 always point to the
 	// PTY and TTY. Extract them and set the controlling TTY. Otherwise, connect
@@ -158,11 +157,7 @@ func RunCommand() (io.Writer, int, error) {
 			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("pty and tty not found")
 		}
 		errorWriter = tty
-		ttyName, err = os.Readlink(tty.Name())
-		if err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("failed to resolve tty soft link: %v", err)
-		}
-		err = uacc.Open(c.UtmpPath, c.WtmpPath, c.Login, c.Hostname, c.RemoteAddr, ttyName)
+		err = uacc.Open(c.UtmpPath, c.WtmpPath, c.Login, c.Hostname, c.RemoteAddr, tty)
 		if err != nil && !trace.IsAccessDenied(err) {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
@@ -241,9 +236,11 @@ func RunCommand() (io.Writer, int, error) {
 	// an exit code.
 	err = cmd.Wait()
 
-	uaccErr := uacc.Close(c.UtmpPath, c.WtmpPath, ttyName)
-	if uaccErr != nil && !trace.IsAccessDenied(uaccErr) {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(uaccErr)
+	if c.Terminal {
+		uaccErr := uacc.Close(c.UtmpPath, c.WtmpPath, tty)
+		if uaccErr != nil && !trace.IsAccessDenied(uaccErr) {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(uaccErr)
+		}
 	}
 
 	return ioutil.Discard, exitCode(err), trace.Wrap(err)
