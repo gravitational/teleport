@@ -126,21 +126,13 @@ func MarshalProvisionToken(t ProvisionToken, opts ...MarshalOption) ([]byte, err
 	}
 
 	version := t.GetVersion()
-	// ProvisionTokenV1 doesn't implement ProvisionToken interface,
-	// so it has to be handled as a special case
-	if version == V1 || version == "" {
-		type token1 interface {
-			V1() *ProvisionTokenV1
-		}
-		v, ok := t.(token1)
-		if !ok {
-			return nil, trace.BadParameter("unrecognized provision token version %T", t)
-		}
-		return utils.FastMarshal(v.V1())
-	}
-
 	switch provisionToken := t.(type) {
 	case *types.ProvisionTokenV2:
+		// types.ProvisionTokenV1 doesn't implement ProvisionToken,
+		// so we take the V2 struct and marshal its V1 conversion.
+		if version == V1 || version == "" {
+			return utils.FastMarshal(provisionToken.V1())
+		}
 		if version != V2 {
 			return nil, trace.BadParameter("mismatched provision token version %v and type %T", version, provisionToken)
 		}
