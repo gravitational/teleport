@@ -134,7 +134,7 @@ func MarshalProvisionToken(t ProvisionToken, opts ...MarshalOption) ([]byte, err
 		}
 		v, ok := t.(token1)
 		if !ok {
-			return nil, trace.BadParameter("unrecognized provision token version %T", t)
+			return nil, trace.BadParameter("unrecognized provision token type %T", t)
 		}
 		return utils.FastMarshal(v.V1())
 	}
