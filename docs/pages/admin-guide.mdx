@@ -407,6 +407,10 @@ A user identity in Teleport exists in the scope of a cluster. The member nodes
 of a cluster have multiple OS users on them. A Teleport administrator creates
 Teleport user accounts and maps them to the allowed OS user logins they can use.
 
+Each user identity is also assigned one or more administrator-defined _roles_, 
+which allows for customised granular access control. For the purposes of this 
+guide, we will assign new users to the default `admin` role.
+
 Let's look at this table:
 
 |Teleport User | Allowed OS Logins | Description
@@ -415,12 +419,14 @@ Let's look at this table:
 |bob    | bob      | Teleport user 'bob' can login into member nodes only as OS user 'bob'
 |ross   |          | If no OS login is specified, it defaults to the same name as the Teleport user - 'ross'.
 
+
+
 To add a new user to Teleport, you have to use the [ `tctl` ](cli-docs.mdx#tctl)
 tool on the same node where the auth server is running, i.e.
 [ `teleport` ](cli-docs.mdx#teleport) was started with `--roles=auth` .
 
 ``` bash
-$ tctl users add joe joe,root
+$ tctl users add joe --logins=joe,root --roles=admin
 ```
 
 Teleport generates an auto-expiring token (with a TTL of 1 hour) and prints the
