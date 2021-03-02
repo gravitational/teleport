@@ -327,7 +327,7 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 		certPool := x509.NewCertPool()
 		parsedCert, err := tlsca.ParseCertificatePEM(caCertPEM)
 		if err != nil {
-			return trace.Wrap(err, "failed to parse CA certificate")
+			return trace.Wrap(err, "failed to parse CA certificate %q", b.cfg.TLSCAFile)
 		}
 		certPool.AddCert(parsedCert)
 
