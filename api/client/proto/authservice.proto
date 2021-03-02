@@ -525,19 +525,19 @@ message DatabaseCertResponse {
 // GetRoleRequest is a request to query a role.
 message GetRoleRequest {
     // Name is the name of the role to get.
-    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+    string Name = 1;
 }
 
 // GetRolesResponse is a response to querying for all roles.
 message GetRolesResponse {
     // Roles is a list of roles.
-    repeated types.RoleV3 Roles = 1 [ (gogoproto.jsontag) = "roles" ];
+    repeated types.RoleV3 Roles = 1;
 }
 
 // DeleteRoleRequest is a request to delete a role.
 message DeleteRoleRequest {
     // Name is the role name to delete.
-    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+    string Name = 1;
 }
 
 // MFAAuthenticateChallenge is a challenge for all MFA devices registered for a

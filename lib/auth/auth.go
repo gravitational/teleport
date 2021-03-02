@@ -1709,7 +1709,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req services.AccessReq
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ttl, err := a.calculateMaxAccessTTL(req)
+	ttl, err := a.calculateMaxAccessTTL(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1797,7 +1797,7 @@ func (a *Server) GetAccessCapabilities(ctx context.Context, req services.AccessC
 // calculateMaxAccessTTL determines the maximum allowable TTL for a given access request
 // based on the MaxSessionTTLs of the roles being requested (a access request's life cannot
 // exceed the smallest allowable MaxSessionTTL value of the roles that it requests).
-func (a *Server) calculateMaxAccessTTL(req services.AccessRequest) (time.Duration, error) {
+func (a *Server) calculateMaxAccessTTL(ctx context.Context, req services.AccessRequest) (time.Duration, error) {
 	minTTL := defaults.MaxAccessDuration
 	for _, roleName := range req.GetRoles() {
 		role, err := a.GetRole(context.TODO(), roleName)
