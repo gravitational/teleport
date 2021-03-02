@@ -318,10 +318,8 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 		tlsConfig.Certificates = []tls.Certificate{tlsCert}
 	}
 
-	var caCertPEM []byte
 	if b.cfg.TLSCAFile != "" {
-		var err error
-		caCertPEM, err = ioutil.ReadFile(b.cfg.TLSCAFile)
+		caCertPEM, err := ioutil.ReadFile(b.cfg.TLSCAFile)
 		if err != nil {
 			return trace.ConvertSystemError(err)
 		}
