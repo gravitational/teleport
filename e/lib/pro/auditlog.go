@@ -23,9 +23,6 @@ type AuditLog struct {
 	AuditLogConfig
 	// Entry is used for logging
 	*log.Entry
-	// localLog is a local event log used
-	// to emit audit events if no external log has been specified
-	localLog *events.FileLog
 }
 
 // AuditLogConfig represents the audit log configuration
@@ -36,8 +33,6 @@ type AuditLogConfig struct {
 	Recorder rclient.Client
 	// Anonymizer is used for anonymizing sent data
 	Anonymizer utils.Anonymizer
-	// ExternalLog is a pluggable external log service
-	ExternalLog events.IAuditLog
 }
 
 // Check checks that the audit log config is valid
@@ -88,19 +83,7 @@ func (l *AuditLog) EmitAuditEventLegacy(event events.Event, fields events.EventF
 
 // EmitAuditEvent emits the specified event.
 func (l *AuditLog) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
-	var emitAuditEvent func(ctx context.Context, event events.AuditEvent) error
-
-	if l.ExternalLog != nil {
-		emitAuditEvent = l.ExternalLog.EmitAuditEvent
-	} else {
-		emitAuditEvent = l.localLog.EmitAuditEvent
-	}
-	err := emitAuditEvent(ctx, event)
-	if err != nil {
-		events.AuditFailedEmit.Inc()
-		return trace.Wrap(err)
-	}
-	return nil
+	return trace.Wrap(l.Inner.EmitAuditEvent(ctx, event))
 }
 
 func (l *AuditLog) PostSessionSlice(slice events.SessionSlice) error {
