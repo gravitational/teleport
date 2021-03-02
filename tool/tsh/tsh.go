@@ -1151,7 +1151,7 @@ func onBenchmark(cf *CLIConf) {
 		fmt.Printf("* Last error: %v\n", result.LastError)
 	}
 	fmt.Printf("\nHistogram\n\n")
-	t := asciitable.MakeTable([]string{"Percentile", "Duration"})
+	t := asciitable.MakeTable([]string{"Percentile", "Response Duration"})
 	for _, quantile := range []float64{25, 50, 75, 90, 95, 99, 100} {
 		t.AddRow([]string{fmt.Sprintf("%v", quantile),
 			fmt.Sprintf("%v ms", result.Histogram.ValueAtQuantile(quantile)),
