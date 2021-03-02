@@ -213,7 +213,7 @@ type Ref struct {
 
 // IsEmpty checks whether the provided resource name is empty
 func (r *Ref) IsEmpty() bool {
-	return r.Name == ""
+	return r.SubKind == "" && r.Name == ""
 }
 
 // Set sets the name of the resource
