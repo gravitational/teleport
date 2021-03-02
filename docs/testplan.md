@@ -185,32 +185,32 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
     - [ ] G Suite Screenshots are up to date
 - [ ] ActiveDirectoy install instructions work
     - [ ] Active Directoy Screenshots are up to date
-- [ ] Okta install instructions work    
+- [ ] Okta install instructions work
     - [ ] Okta Screenshots are up to date
-- [ ] OneLogin install instructions work    
+- [ ] OneLogin install instructions work
     - [ ] OneLogin Screenshots are up to date
-- [ ] OIDC install instructions work    
+- [ ] OIDC install instructions work
     - [ ] OIDC Screenshots are up to date
 
 
-### Teleport Plugins 
+### Teleport Plugins
 
-- [ ] Test receiving a message via Teleport Slackbot 
-- [ ] Test receiving a new Jira Ticket via Teleport Jira 
-    
+- [ ] Test receiving a message via Teleport Slackbot
+- [ ] Test receiving a new Jira Ticket via Teleport Jira
+
 ## Web UI
 
 - [ ] Creating a new SSH session.
-  
-    Open a terminal to existing server    
+
+    Open a terminal to existing server
     - [ ] Verify that input/output works as expected by typing on the keyboard.
     - [ ] Verify that participant indicator is shown.
     - [ ] Verify that window resize works.
-    - [ ] Verify that terminal is automatically closed after session ends (by typing `exit`)          
+    - [ ] Verify that terminal is automatically closed after session ends (by typing `exit`)
 
     Open a terminal to non-existing server
     - [ ] Verify that connection error is shown to the user.
-   
+
 - [ ] Joining an existing SSH session.
 
     Start a new session then copy the session URL and open it in another tab.
@@ -233,7 +233,7 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
 - [ ] Node List.
 
     Open the Node List page.
-    
+
     - [ ] Verify that sorting works.
     - [ ] Verify that dynamic labels are getting updated.
     - [ ] Verify that login dropdown control shows the correct list of available logins.
@@ -287,8 +287,8 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
 
     - [ ] Verify that a user is redirected to the login page.
     - [ ] Verify that after successful login, a user is redirected to the Node List.
-    
-    
+
+
 ## Performance/Soak Test
 
 Using `tsh bench` tool, perform the soak tests and benchmark tests on the following configurations:
@@ -315,5 +315,5 @@ Observe prometheus metrics for goroutines, open files, RAM, CPU, Timers and make
 
 **Breaking load tests**
 
-Load system with tsh bench to the capacity and publish maximum numbers of concurrent sessions with interactive 
+Load system with tsh bench to the capacity and publish maximum numbers of concurrent sessions with interactive
 and non interactive tsh bench loads.

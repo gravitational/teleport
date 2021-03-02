@@ -1,0 +1,25 @@
+# example teleport-gitlab configuration TOML file
+[teleport]
+auth_server = "example.com:3025"                         # Teleport Auth Server GRPC API address
+client_key = "/var/lib/teleport/plugins/gitlab/auth.key" # Teleport GRPC API client secret key
+client_crt = "/var/lib/teleport/plugins/gitlab/auth.crt" # Teleport GRPC client certificate
+root_cas = "/var/lib/teleport/plugins/gitlab/auth.cas"   # Teleport cluster CA certs
+
+[db]
+path = "/var/lib/teleport/plugins/gitlab/database" # Path to the database file
+
+[gitlab]
+url = ""                                   # Leave empty if you are using cloud
+token = "token"                            # GitLab API Token
+project_id = "1812345"                     # GitLab Project ID
+webhook_secret = "your webhook passphrase" # A secret used to encrypt data we use in webhooks. Basically anything you'd like.
+
+[http]
+public_addr = "example.com" # URL on which webhook server is accessible externally, e.g. [https://]teleport-gitlab.example.com
+# listen_addr = ":8081" # Network address in format [addr]:port on which webhook server listens, e.g. 0.0.0.0:443
+https_key_file = "/var/lib/teleport/plugins/gitlab/server.key"  # TLS private key
+https_cert_file = "/var/lib/teleport/plugins/gitlab/server.crt" # TLS certificate
+
+[log]
+output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/gitlab.log"
+severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
