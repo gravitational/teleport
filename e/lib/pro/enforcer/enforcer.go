@@ -1,4 +1,4 @@
-package pro
+package enforcer
 
 import (
 	"context"
@@ -18,6 +18,7 @@ import (
 	"github.com/gravitational/reporting/types"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -40,8 +41,8 @@ type Enforcer struct {
 	Anonymizer utils.Anonymizer
 }
 
-// EnforcerConfig is enforcer configuration
-type EnforcerConfig struct {
+// Config is enforcer configuration
+type Config struct {
 	// Anonymizer is used for anonymizing sent data
 	Anonymizer utils.Anonymizer
 	// Backend is the configured backend
@@ -58,7 +59,7 @@ type EnforcerConfig struct {
 }
 
 // Check makes sure that enforcer config is valid
-func (c *EnforcerConfig) Check() error {
+func (c *Config) Check() error {
 	if c.Anonymizer == nil {
 		return trace.BadParameter("enforcer config is missing anonymizer")
 	}
@@ -74,8 +75,8 @@ func (c *EnforcerConfig) Check() error {
 	return nil
 }
 
-// NewEnforcer initializes enforcer and starts its services
-func NewEnforcer(ctx context.Context, config EnforcerConfig) (*Enforcer, error) {
+// New initializes enforcer and starts its services
+func New(ctx context.Context, config Config) (*Enforcer, error) {
 	if err := config.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -87,6 +88,7 @@ func NewEnforcer(ctx context.Context, config EnforcerConfig) (*Enforcer, error) 
 	if config.Insecure {
 		tlsConfig.InsecureSkipVerify = config.Insecure
 	}
+
 	httpClient := &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: tlsConfig,
@@ -97,6 +99,7 @@ func NewEnforcer(ctx context.Context, config EnforcerConfig) (*Enforcer, error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	enforcer := &Enforcer{
 		Anonymizer: config.Anonymizer,
 		ClusterID:  config.ClusterID,
@@ -107,6 +110,7 @@ func NewEnforcer(ctx context.Context, config EnforcerConfig) (*Enforcer, error) 
 			trace.Component: "enforcer",
 		}),
 	}
+
 	if !config.NoStart {
 		enforcer.Debug("Starting enforcer.")
 		go enforcer.startRecordingUsage(ctx)

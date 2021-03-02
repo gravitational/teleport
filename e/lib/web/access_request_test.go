@@ -94,8 +94,11 @@ func TestGetAccessRequests(t *testing.T) {
 		return []services.AccessRequest{req, req2}, nil
 	}
 
+	plugin, err := NewPlugin(Config{})
+	require.Nil(t, err)
+
 	// Test request state set to NONE, is not returned.
-	reqs, err := getAccessRequests(context.Background(), m, services.AccessRequestFilter{})
+	reqs, err := plugin.getAccessRequests(context.Background(), m, services.AccessRequestFilter{})
 	require.Nil(t, err)
 
 	require.Len(t, reqs, 1)

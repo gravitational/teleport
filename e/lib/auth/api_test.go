@@ -6,8 +6,9 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/e/lib/fixtures"
-	"github.com/gravitational/teleport/e/lib/pro"
+	"github.com/gravitational/teleport/e/lib/pro/enforcer"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/reporting/types"
@@ -17,9 +18,8 @@ import (
 func TestAPI(t *testing.T) { check.TestingT(t) }
 
 type APISuite struct {
-	enforcer *pro.Enforcer
+	enforcer *enforcer.Enforcer
 	server   *auth.TestTLSServer
-	dataDir  string
 }
 
 var _ = check.Suite(&APISuite{})
@@ -31,21 +31,35 @@ func (s *APISuite) TearDownSuite(c *check.C) {
 }
 
 func (s *APISuite) SetUpSuite(c *check.C) {
-	s.dataDir = c.MkDir()
-	InitPlugin()
-
-	testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
-		Dir: s.dataDir,
+	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+		Dir: c.MkDir(),
 	})
 	c.Assert(err, check.IsNil)
-	s.server, err = testAuthServer.NewTestTLSServer()
+
+	authPlugin, err := NewPlugin(Config{})
+	c.Assert(err, check.IsNil)
+
+	registry := plugin.NewRegistry()
+	registry.Add(authPlugin)
+
+	s.server, err = auth.NewTestTLSServer(auth.TestTLSServerConfig{
+		APIConfig: &auth.APIConfig{
+			PluginRegistry: registry,
+			AuthServer:     authServer.AuthServer,
+			Authorizer:     authServer.Authorizer,
+			SessionService: authServer.SessionServer,
+			AuditLog:       authServer.AuditLog,
+		},
+		AuthServer:    authServer,
+		AcceptedUsage: authServer.AcceptedUsage,
+	})
 	c.Assert(err, check.IsNil)
 
 	clusterID := "test"
 	anonymizer, err := utils.NewHMACAnonymizer(clusterID)
 	c.Assert(err, check.IsNil)
 
-	s.enforcer, err = pro.NewEnforcer(context.Background(), pro.EnforcerConfig{
+	s.enforcer, err = enforcer.New(context.Background(), enforcer.Config{
 		Backend:        s.server.AuthServer.Backend,
 		LicenseKeyPair: fixtures.TestLicenseKeyPair(c),
 		Anonymizer:     anonymizer,
@@ -54,22 +68,21 @@ func (s *APISuite) SetUpSuite(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	SetEnforcer(s.enforcer)
+	authPlugin.EnableEnforcer(s.enforcer)
 }
 
 func (s *APISuite) TestHeartbeat(c *check.C) {
 	authClient, err := s.server.NewClient(auth.TestBuiltin(teleport.RoleProxy))
 	c.Assert(err, check.IsNil)
 
-	client, err := NewClient(authClient)
+	client, err := NewProClient(authClient)
 	c.Assert(err, check.IsNil)
 
-	heartbeat := types.NewHeartbeat()
-
-	err = s.enforcer.SetLicenseCheckHeartbeat(*heartbeat)
+	needed := types.NewHeartbeat()
+	err = s.enforcer.SetLicenseCheckHeartbeat(*needed)
 	c.Assert(err, check.IsNil)
 
 	retrieved, err := client.GetLicenseCheckResult()
 	c.Assert(err, check.IsNil)
-	c.Assert(retrieved, check.DeepEquals, heartbeat)
+	c.Assert(retrieved, check.DeepEquals, needed)
 }

@@ -52,16 +52,16 @@ func (p *Plugin) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 		appInstallMode: false,
 	}
 
-	script, err := getJoinScript(settings, p.ProxyClient)
+	script, err := getJoinScript(settings, p.h.GetProxyClient())
 	if err != nil {
-		log.WithError(err).Info("Failed to return the node install script.")
+		p.Log.WithError(err).Info("Failed to return the node install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := fmt.Fprintln(w, script); err != nil {
-		log.WithError(err).Info("Failed to return the node install script.")
+		p.Log.WithError(err).Info("Failed to return the node install script.")
 		w.Write(scripts.ErrorBashScript)
 	}
 
@@ -74,14 +74,14 @@ func (p *Plugin) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request, 
 
 	name, err := url.QueryUnescape(queryValues.Get("name"))
 	if err != nil {
-		log.WithField("query-param", "name").WithError(err).Debug("Failed to return the app install script.")
+		p.Log.WithField("query-param", "name").WithError(err).Debug("Failed to return the app install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 
 	uri, err := url.QueryUnescape(queryValues.Get("uri"))
 	if err != nil {
-		log.WithField("query-param", "uri").WithError(err).Debug("Failed to return the app install script.")
+		p.Log.WithField("query-param", "uri").WithError(err).Debug("Failed to return the app install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
@@ -93,16 +93,16 @@ func (p *Plugin) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request, 
 		appURI:         uri,
 	}
 
-	script, err := getJoinScript(settings, p.ProxyClient)
+	script, err := getJoinScript(settings, p.h.GetProxyClient())
 	if err != nil {
-		log.WithError(err).Info("Failed to return the app install script.")
+		p.Log.WithError(err).Info("Failed to return the app install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := fmt.Fprintln(w, script); err != nil {
-		log.WithError(err).Debug("Failed to return the app install script.")
+		p.Log.WithError(err).Debug("Failed to return the app install script.")
 		w.Write(scripts.ErrorBashScript)
 	}
 

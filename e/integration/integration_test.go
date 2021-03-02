@@ -9,7 +9,7 @@ import (
 
 	"github.com/gravitational/teleport/e/lib/constants"
 	"github.com/gravitational/teleport/e/lib/fixtures"
-	"github.com/gravitational/teleport/e/lib/pro"
+	"github.com/gravitational/teleport/e/lib/pro/enforcer"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -29,7 +29,7 @@ func Test(t *testing.T) {
 type IntSuite struct {
 	cancel      context.CancelFunc
 	ctx         context.Context
-	enforcer    *pro.Enforcer
+	enforcer    *enforcer.Enforcer
 	houstonHost string
 }
 
@@ -72,7 +72,7 @@ func (s *IntSuite) init(c *check.C) {
 	_, err = presence.UpsertNode(server)
 	c.Assert(err, check.IsNil)
 
-	s.enforcer, err = pro.NewEnforcer(s.ctx, pro.EnforcerConfig{
+	s.enforcer, err = enforcer.New(s.ctx, enforcer.Config{
 		Anonymizer:     anonymizer,
 		Backend:        backend,
 		ClusterID:      ClusterID,

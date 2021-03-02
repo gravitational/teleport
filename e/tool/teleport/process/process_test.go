@@ -1,54 +1,50 @@
-package pro
+package process
 
 import (
-	"fmt"
+	"testing"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
-	check "gopkg.in/check.v1"
-
 	"github.com/gravitational/trace"
+
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 )
 
-type ProcessSuite struct {
-}
-
-var _ = check.Suite(&ProcessSuite{})
-
-func (s *ProcessSuite) TestNotAuthNoLicense(c *check.C) {
-	_, err := NewTeleport(&service.Config{
-		DataDir: c.MkDir(),
+func TestProxyWithoutLicense(t *testing.T) {
+	config := &service.Config{
+		DataDir: t.TempDir(),
 		Proxy: service.ProxyConfig{
 			Enabled: true,
 		},
 		AuthServers: []utils.NetAddr{
 			*utils.MustParseAddr("tcp://127.0.0.1:8080"),
 		},
-		Log: utils.WrapLogger(logrus.WithField("test", c.TestName())),
-	})
-	c.Assert(err, check.IsNil)
+		Log: utils.WrapLogger(logrus.WithField("test", t.Name())),
+	}
+
+	_, err := NewTeleport(config)
+	require.Nil(t, err)
 }
 
-func (s *ProcessSuite) TestAuthNoLicense(c *check.C) {
+func TestMissingLicenseError(t *testing.T) {
 	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
 		Type: "local",
 	})
-	c.Assert(err, check.IsNil)
+	require.Nil(t, err)
 
-	_, err = NewTeleport(&service.Config{
-		DataDir: c.MkDir(),
+	config := &service.Config{
+		DataDir: t.TempDir(),
 		Auth: service.AuthConfig{
 			Enabled: true,
 			StorageConfig: backend.Config{
 				Type: lite.GetName(),
 				Params: backend.Params{
-					"path": c.MkDir(),
+					"path": t.TempDir(),
 				},
 			},
 			ClusterConfig: services.DefaultClusterConfig(),
@@ -61,8 +57,9 @@ func (s *ProcessSuite) TestAuthNoLicense(c *check.C) {
 		AuthServers: []utils.NetAddr{
 			*utils.MustParseAddr("tcp://127.0.0.1:8080"),
 		},
-		Log: utils.WrapLogger(logrus.WithField("test", c.TestName())),
-	})
-	fmt.Printf("%v\n\n", trace.DebugReport(err))
-	fixtures.ExpectAccessDenied(c, err)
+		Log: utils.WrapLogger(logrus.WithField("test", t.Name())),
+	}
+
+	_, err = NewTeleport(config)
+	require.True(t, trace.IsAccessDenied(err))
 }

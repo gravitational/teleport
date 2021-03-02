@@ -1,4 +1,4 @@
-package pro
+package enforcer
 
 import (
 	"context"
@@ -57,7 +57,7 @@ func (s *EnforcerSuite) SetUpSuite(c *check.C) {
 	_, err = presence.UpsertNode(server)
 	c.Assert(err, check.IsNil)
 
-	s.enforcer, err = NewEnforcer(context.Background(), EnforcerConfig{
+	s.enforcer, err = New(context.Background(), Config{
 		Backend:        backend,
 		LicenseKeyPair: fixtures.TestLicenseKeyPair(c),
 		NoStart:        true,

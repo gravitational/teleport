@@ -9,28 +9,27 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// Client extends OSS auth client interface with enterprise-specific methods
-type Client interface {
-	auth.ClientI
+// ProClient describes an auth client for Teleport Pro methods
+type ProClient interface {
 	// GetLicenseCheckResult returns the last license check result
 	GetLicenseCheckResult() (*types.Heartbeat, error)
 }
 
-// client is the enterprise-specific auth client
-type client struct {
+// client is the Teleport Pro auth client
+type proClient struct {
 	// Client is the OSS auth client
 	*auth.Client
 }
 
-// NewClient returns a new enterprise auth client
-func NewClient(clt *auth.Client) (Client, error) {
-	return &client{
+// NewProClient returns a client to Teleport Pro the auth service
+func NewProClient(clt *auth.Client) (ProClient, error) {
+	return &proClient{
 		Client: clt,
 	}, nil
 }
 
 // GetLicenseCheckResult returns the last license check result
-func (c *client) GetLicenseCheckResult() (*types.Heartbeat, error) {
+func (c *proClient) GetLicenseCheckResult() (*types.Heartbeat, error) {
 	out, err := c.Get(c.Endpoint("license", "status"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)

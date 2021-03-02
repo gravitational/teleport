@@ -2,91 +2,95 @@ package pro
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"io/ioutil"
-	"path/filepath"
 
-	"github.com/gravitational/teleport/e/lib/aws"
+	"github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/e/lib/constants"
+	"github.com/gravitational/teleport/e/lib/licensefile"
+	"github.com/gravitational/teleport/e/lib/pro/enforcer"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
 	liblicense "github.com/gravitational/license"
 	reporting "github.com/gravitational/reporting/client"
 	"github.com/gravitational/trace"
-
-	log "github.com/sirupsen/logrus"
 )
 
-// TeleportProcess augments struct from open-source version
-type TeleportProcess struct {
+// Config is the Teleport Pro (Enterprise) config
+type Config struct {
+	// OSSProcess is the open source teleport process
+	OSSProcess *service.TeleportProcess
+	// LicenseFile is an instance of the LicenseFile
+	LicenseFile *licensefile.LicenseFile
+	// AuthPlugin is the AuthPlugin
+	AuthPlugin *auth.Plugin
+}
+
+// CheckAndSetDefaults checks and sets default config values
+func (c *Config) CheckAndSetDefaults() (err error) {
+	if c.OSSProcess == nil {
+		return trace.BadParameter("missing OSSProcess")
+	}
+
+	if c.LicenseFile == nil {
+		return trace.BadParameter("missing LicenseFile")
+	}
+
+	if c.AuthPlugin == nil {
+		return trace.BadParameter("missing AuthPlugin")
+	}
+
+	return nil
+}
+
+// Process augments struct from open-source version
+type Process struct {
 	// TeleportProcess is the OSS process
 	*service.TeleportProcess
-	// Entry is used for logging
-	*log.Entry
-	// Enforcer is the teleport pro enforcer
-	Enforcer *Enforcer
-	// LicenseKeyPair is the license key pair
-	LicenseKeyPair *liblicense.License
-	// License is the teleport license
-	License services.License
+	// LicenseFile is an instance of the LicenseFile
+	LicenseFile *licensefile.LicenseFile
 }
 
 // NewTeleport instantiates a new pro/enterprise teleport process
-func NewTeleport(config *service.Config) (*TeleportProcess, error) {
-	teleport, err := service.NewTeleport(config)
+func NewTeleport(cfg Config) (*Process, error) {
+	err := cfg.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	process := &TeleportProcess{
-		TeleportProcess: teleport,
-		Entry: log.WithFields(log.Fields{
-			trace.Component: "process",
-		}),
-	}
-	// only check the license and run extra services on auth server
-	if !config.Auth.Enabled {
-		return process, nil
-	}
-	process.LicenseKeyPair, process.License, err = checkLicense(process, config)
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	process := &Process{
+		TeleportProcess: cfg.OSSProcess,
+		LicenseFile:     cfg.LicenseFile,
 	}
 
 	// when reporting usage, teleport runs some additional services that phone
 	// home once in a while to report usage metrics and verify license
-	if process.ReportsUsage() {
-		process.Enforcer, err = initServices(context.Background(), &proConfig{
+	if cfg.LicenseFile.License.GetReportsUsage() {
+		enforcer, err := initServices(process.ExitContext(), &proConfig{
 			Teleport: process,
 			Insecure: lib.IsInsecureDevMode(),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	}
-	return process, nil
-}
 
-// ReportsUsage returns true if the process has to report usage
-func (p *TeleportProcess) ReportsUsage() bool {
-	return p.License.GetReportsUsage().Value()
+		cfg.AuthPlugin.EnableEnforcer(enforcer)
+	}
+
+	return process, nil
 }
 
 // proConfig combines pro mode configuration parameters
 type proConfig struct {
 	// Teleport is the Teleport process
-	Teleport *TeleportProcess
+	Teleport *Process
 	// Insecure is whether the server runs in insecure mode
 	Insecure bool
 }
 
 // initServices initializes services for teleport pro mode
-func initServices(ctx context.Context, config *proConfig) (*Enforcer, error) {
-	certificate, err := liblicense.MakeTLSCert(*config.Teleport.LicenseKeyPair)
+func initServices(ctx context.Context, config *proConfig) (*enforcer.Enforcer, error) {
+	certificate, err := liblicense.MakeTLSCert(*config.Teleport.LicenseFile.KeyPair)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -117,10 +121,10 @@ func initServices(ctx context.Context, config *proConfig) (*Enforcer, error) {
 		return nil, trace.Wrap(err)
 	}
 	config.Teleport.GetAuthServer().SetAuditLog(auditLog)
-	enforcer, err := NewEnforcer(ctx, EnforcerConfig{
+	enforcer, err := enforcer.New(ctx, enforcer.Config{
 		Anonymizer:     anonymizer,
 		Backend:        config.Teleport.GetBackend(),
-		LicenseKeyPair: config.Teleport.LicenseKeyPair,
+		LicenseKeyPair: config.Teleport.LicenseFile.KeyPair,
 		Insecure:       config.Insecure,
 		ClusterID:      clusterConfig.GetClusterID(),
 	})
@@ -129,66 +133,3 @@ func initServices(ctx context.Context, config *proConfig) (*Enforcer, error) {
 	}
 	return enforcer, nil
 }
-
-// parseLicense returns license key pair and payload
-func parseLicense(licenseBytes []byte) (*liblicense.License, services.License, error) {
-	licenseKeyPair, err := liblicense.ParseLicensePEM(licenseBytes)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	// check if it's a legacy license
-	var legacyLicense LegacyLicense
-	if err := json.Unmarshal(licenseKeyPair.RawPayload, &legacyLicense); err == nil {
-		teleportLicense, err := legacyLicense.ToV3()
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-
-		return licenseKeyPair, teleportLicense, nil
-	}
-
-	teleportLicense, err := services.UnmarshalLicense(licenseKeyPair.RawPayload)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	return licenseKeyPair, teleportLicense, nil
-}
-
-// checkLicense verified the presence of license and runs basic checks on it
-func checkLicense(process *TeleportProcess, config *service.Config) (*liblicense.License, services.License, error) {
-	if config.Auth.LicenseFile == "" {
-		return nil, nil, trace.AccessDenied(
-			fmt.Sprintf(errLicensePath, filepath.Join(config.DataDir, defaults.LicenseFile)))
-	}
-	bytes, err := ioutil.ReadFile(config.Auth.LicenseFile)
-	if err != nil {
-		process.Debug(trace.DebugReport(err))
-		return nil, nil, trace.AccessDenied(
-			fmt.Sprintf(errLicensePath, filepath.Join(config.DataDir, defaults.LicenseFile)))
-	}
-	licenseKeyPair, license, err := parseLicense(bytes)
-	if err != nil {
-		process.Debug(trace.DebugReport(err))
-		// unrecognized plan, return error
-		return nil, nil, trace.AccessDenied(
-			fmt.Sprintf(errLicenseParse, config.Auth.LicenseFile))
-	}
-	if license.GetAWSProductID() != "" || license.GetAWSAccountID() != "" {
-		if err := aws.Verify(*licenseKeyPair, license); err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-	}
-	process.Infof("Using license from %v %v.", config.Auth.LicenseFile, license)
-	return licenseKeyPair, license, nil
-}
-
-const (
-	// errLicensePath is displayed when auth server is started w/o valid license
-	errLicensePath = "auth server requires a valid license file to start, " +
-		"please set the correct license_file path under auth_service section " +
-		"in your teleport config or put the license into the default search " +
-		"location at %v"
-	// errLicenseParse is displayed on license parsing error
-	errLicenseParse = "the provided license file %v could not be parsed, " +
-		"please contact support@gravitational.com for assistance"
-)

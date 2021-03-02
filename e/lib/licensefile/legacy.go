@@ -1,4 +1,4 @@
-package pro
+package licensefile
 
 import (
 	"time"

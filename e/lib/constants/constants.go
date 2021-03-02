@@ -29,6 +29,7 @@ const (
 	// ReportingInterval is how often Teleport Pro reaches out to the
 	// control plane to perform a license check and report usage
 	ReportingInterval = 6 * time.Hour
+
 	// HeartbeatInterval is how often Teleport Pro records usage and
 	// enforces the validity of the current license
 	HeartbeatInterval = 5 * time.Minute

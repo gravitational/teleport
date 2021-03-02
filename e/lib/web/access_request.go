@@ -91,10 +91,10 @@ func (p *Plugin) getAccessRequestsHandle(w http.ResponseWriter, r *http.Request,
 		User: query.Get("user"),
 	}
 
-	return getAccessRequests(r.Context(), clt, filter)
+	return p.getAccessRequests(r.Context(), clt, filter)
 }
 
-func getAccessRequests(ctx context.Context, clt accessRequestAPIGetter, filter services.AccessRequestFilter) ([]ui.AccessRequest, error) {
+func (p *Plugin) getAccessRequests(ctx context.Context, clt accessRequestAPIGetter, filter services.AccessRequestFilter) ([]ui.AccessRequest, error) {
 	reqs, err := clt.GetAccessRequests(ctx, filter)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -104,7 +104,7 @@ func getAccessRequests(ctx context.Context, clt accessRequestAPIGetter, filter s
 	for _, req := range reqs {
 		uiReq, err := ui.NewAccessRequest(req)
 		if err != nil {
-			log.Warnf("Failed to process access request: %v", err)
+			p.Log.Warnf("Failed to process access request: %v", err)
 			continue
 		}
 

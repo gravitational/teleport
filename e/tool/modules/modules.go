@@ -36,11 +36,11 @@ func (p *enterpriseModules) Features() modules.Features {
 		Kubernetes:              p.license.GetCloud().Value() || p.license.GetSupportsKubernetes().Value(),
 		App:                     p.license.GetCloud().Value() || p.license.GetSupportsApplicationAccess().Value(),
 		DB:                      p.license.GetCloud().Value() || p.license.GetSupportsDatabaseAccess().Value(),
+		Cloud:                   p.license.GetCloud().Value(),
 		OIDC:                    true,
 		SAML:                    true,
 		AccessControls:          true,
 		AdvancedAccessWorkflows: true,
-		Cloud:                   p.license.GetCloud().Value(),
 	}
 }
 
