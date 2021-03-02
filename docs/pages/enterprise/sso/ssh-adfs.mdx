@@ -82,39 +82,40 @@ associated with it. To check this open Server Manager then
 _"Tools -> Active Directory Users and Computers"_ and select the user and right
 click and open properties. Make sure the email address field is filled out.
 
+## Create a SAML Connector
+
+Next, create a SAML connector [resource](../../admin-guide.mdx#resources):
+
+```yaml
+{!examples/resources/adfs-connector.yaml!}
+```
+
+The `acs` field should match the value you set in ADFS earlier and you can
+obtain the `entity_descriptor_url` from ADFS under _"ADFS -> Service -> Endpoints -> Metadata"_.
+
+The `attributes_to_roles` is used to map attributes to the Teleport roles you
+just created. In our situation, we are mapping the _"Group"_ attribute whose full
+name is `http://schemas.xmlsoap.org/claims/Group` with a value of _"admins"_
+to the _"admin"_ role. Groups with the value _"users"_ is being mapped to the
+_"users"_ role.
+
 ## Create Teleport Roles
 
-Lets create two Teleport roles: one for administrators and the other is for
-normal users. You can create them using `tctl create {file name}` CLI command
+A Teleport role `admin` for administrators exists by default.
+
+Let's create a non-privileged role `dev` intended for regular developers.
+You can create the role using `tctl create dev-role.yaml` CLI command
 or via the Web UI.
 
 ```yaml
-# admin-role.yaml
-kind: "role"
-version: "v3"
-metadata:
-  name: "admin"
-spec:
-  options:
-    max_session_ttl: "8h0m0s"
-  allow:
-    logins: [ root ]
-    node_labels:
-      "*": "*"
-    rules:
-      - resources: ["*"]
-        verbs: ["*"]
-```
-
-```yaml
-# user-role.yaml
+# dev-role.yaml
 kind: "role"
 version: "v3"
 metadata:
   name: "dev"
 spec:
   options:
-    # regular users can only be guests and their certificates will have a TTL of 1 hour:
+    # regular devs can only be guests and their certificates will have a TTL of 1 hour
     max_session_ttl: "1h"
   allow:
     # only allow login as either ubuntu or the 'windowsaccountname' claim
@@ -125,29 +126,15 @@ spec:
 
 This role declares:
 
-* Devs are only allowed to login to nodes labelled with `access: relaxed` label.
-* Developers can log in as `ubuntu` user
-* Notice `{% raw %}{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}{% endraw %}` login. It configures Teleport to look at
-  _"http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"_ ADFS claim and use that field as an allowed login for each user.
-  Also note the double quotes (`"`) and square brackets (`[]`) around the claim name - these are important.
+* Developers are only allowed to login to nodes labelled with `access: relaxed` label.
+* All developers can log in using the `ubuntu` username.
+* In addition, each developer is allowed to use the login derived from their _"http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"_ ADFS claim.
+  This is configured by the `{% raw %}{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}{% endraw %}` login entry.
+  Note the double quotes (`"`) and square brackets (`[]`) around the claim name - these are important.
 * Developers also do not have any "allow rules" i.e. they will not be able to
   see/replay past sessions or re-configure the Teleport cluster.
 
-Next, create a SAML connector [resource](../../admin-guide.mdx#resources):
-
-```yaml
-{!examples/resources/adfs-connector.yaml!}
-```
-
-
-The `acs` field should match the value you set in ADFS earlier and you can
-obtain the `entity_descriptor_url` from ADFS under _"ADFS -> Service -> Endpoints -> Metadata"_.
-
-The `attributes_to_roles` is used to map attributes to the Teleport roles you
-just created. In our situation, we are mapping the _"Group"_ attribute whose full
-name is `http://schemas.xmlsoap.org/claims/Group` with a value of _"admins"_
-to the _"admin"_ role. Groups with the value _"users"_ is being mapped to the
-_"users"_ role.
+**Notice:** Replace `ubuntu` with linux login available on your servers!
 
 ## Export the Signing Key
 

@@ -115,32 +115,14 @@ $ tctl create onelogin-connector.yaml
 
 ## Create Teleport Roles
 
-We are going to create 2 roles, privileged role admin who is able to login as
-root and is capable of administrating the cluster and non-privileged dev.
+A Teleport role `admin` for administrators exists by default.
+
+Let's create a non-privileged role `dev` intended for regular developers.
+You can create the role using `tctl create dev-role.yaml` CLI command
+or via the Web UI.
 
 ```yaml
-kind: role
-version: v3
-metadata:
-  name: admin
-spec:
-  options:
-    max_session_ttl: 24h
-  allow:
-    logins: [root]
-    node_labels:
-      "*": "*"
-    rules:
-      - resources: ["*"]
-        verbs: ["*"]
-```
-
-Devs are only allowed to login to nodes labelled with `access: relaxed`
-Teleport label. Developers can log in as either `ubuntu` to a username that
-arrives in their assertions. Developers also do not have any rules needed to
-obtain admin access to Teleport.
-
-```yaml
+# dev-role.yaml
 kind: role
 version: v3
 metadata:
@@ -154,12 +136,12 @@ spec:
       access: relaxed
 ```
 
-**Notice:** Replace `ubuntu` with linux login available on your servers!
+Developers are only allowed to login to nodes labelled with `access: relaxed`
+Teleport label. Developers can log in as either `ubuntu` or a username that
+arrives in their assertions. Developers also do not have any rules needed to
+obtain admin access to Teleport.
 
-```bsh
-$ tctl create admin.yaml
-$ tctl create dev.yaml
-```
+**Notice:** Replace `ubuntu` with linux login available on your servers!
 
 ## Testing
 

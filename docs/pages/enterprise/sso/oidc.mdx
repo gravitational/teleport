@@ -79,39 +79,14 @@ $ tctl create oidc-connector.yaml
 
 ## Create Teleport Roles
 
-The next step is to define Teleport roles. They are created using the same
-`tctl` [resource commands](../../admin-guide.mdx#resources) as we used for the auth
-connector.
+A Teleport role `admin` for administrators exists by default.
 
-Below are two example roles that are mentioned above, the first is an admin
-with full access to the system while the second is a developer with limited
-access.
+Let's create a non-privileged role `dev` intended for regular developers.
+You can create the role using `tctl create dev-role.yaml` CLI command
+or via the Web UI.
 
 ```yaml
-# role-admin.yaml
-kind: "role"
-version: "v3"
-metadata:
-  name: "admin"
-spec:
-  options:
-    max_session_ttl: "90h0m0s"
-  allow:
-    logins: [root]
-    node_labels:
-      "*": "*"
-    rules:
-      - resources: ["*"]
-        verbs: ["*"]
-```
-
-Users are only allowed to login to nodes labelled with `access: relaxed`
-teleport label. Developers can log in as either `ubuntu` to a username that
-arrives in their assertions. Developers also do not have any rules needed to
-obtain admin access.
-
-```yaml
-# role-dev.yaml
+# dev-role.yaml
 kind: "role"
 version: "v3"
 metadata:
@@ -125,12 +100,12 @@ spec:
       access: relaxed
 ```
 
-Create both roles:
+Developers are only allowed to login to nodes labelled with `access: relaxed`
+teleport label. Developers can log in as either `ubuntu` or a username that
+arrives in their assertions. Developers also do not have any rules needed to
+obtain admin access.
 
-```bsh
-$ tctl create role-admin.yaml
-$ tctl create role-dev.yaml
-```
+**Notice:** Replace `ubuntu` with linux login available on your servers!
 
 ### Optional: ACR Values
 
@@ -166,8 +141,8 @@ spec:
        value: "admin"
        roles: [ "admin" ]
      - claim: "group"
-       value: "user"
-       roles: [ "user" ]
+       value: "dev"
+       roles: [ "dev" ]
 ```
 
 ### Optional: Redirect URL and Timeout

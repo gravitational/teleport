@@ -57,5 +57,5 @@ spec:
       value: "Administrators"
       roles: ["admin"]
     - name: "http://schemas.xmlsoap.org/claims/Group"
-      value: "Users"
-      roles: ["user"]
+      value: "Developers"
+      roles: ["dev"]
