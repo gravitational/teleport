@@ -69,13 +69,13 @@ spec:
     # ...
   deny:
     # ...
-# list of allow-rules, see
-# https://gravitational.com/teleport/docs/enterprise/ssh-rbac/
-rules:
-    # Access Request is part of Access Workflows introduced in 4.2
-    # `access_request` should only be given to Teleport Admins.
-    - resources: [access_request]
-      verbs: [list, read, update, delete]
+  # list of allow-rules, see
+  # https://gravitational.com/teleport/docs/enterprise/ssh-rbac/
+  rules:
+      # Access Request is part of Access Workflows introduced in 4.2
+      # `access_request` should only be given to Teleport Admins.
+      - resources: [access_request]
+        verbs: [list, read, update, delete]
 ```
 
 ```bash
