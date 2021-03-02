@@ -36,7 +36,8 @@ import (
 )
 
 const (
-	customPrefix = "/custom/"
+	examplePrefix = "/teleport.secrets/"
+	customPrefix  = "/custom/"
 )
 
 func TestMain(m *testing.M) {
@@ -58,7 +59,7 @@ func (s *EtcdSuite) SetUpSuite(c *check.C) {
 	// This config must match examples/etcd/teleport.yaml
 	s.config = backend.Params{
 		"peers":         []string{"https://127.0.0.1:2379"},
-		"prefix":        "/teleport.secrets/",
+		"prefix":        examplePrefix,
 		"tls_key_file":  "../../../examples/etcd/certs/client-key.pem",
 		"tls_cert_file": "../../../examples/etcd/certs/client-cert.pem",
 		"tls_ca_file":   "../../../examples/etcd/certs/ca-cert.pem",
@@ -80,9 +81,11 @@ func (s *EtcdSuite) SetUpTest(c *check.C) {
 	s.bk = b.(*EtcdBackend)
 	s.suite.B = s.bk
 
-	// Clean up any pre-stored records
+	// Clean up any pre-stored records for all used prefixes
 	ctx := context.Background()
-	_, err = s.bk.client.Delete(ctx, strings.TrimSuffix(s.bk.cfg.Key, "/"), clientv3.WithPrefix())
+	_, err = s.bk.client.Delete(ctx, strings.TrimSuffix(examplePrefix, "/"), clientv3.WithPrefix())
+	c.Assert(err, check.IsNil)
+	_, err = s.bk.client.Delete(ctx, strings.TrimSuffix(customPrefix, "/"), clientv3.WithPrefix())
 	c.Assert(err, check.IsNil)
 }
 
