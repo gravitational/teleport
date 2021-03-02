@@ -25,7 +25,6 @@ import (
 	"os"
 	"os/signal"
 	"path"
-	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
@@ -35,11 +34,11 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/HdrHistogram/hdrhistogram-go"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/benchmark"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -115,8 +114,6 @@ type CLIConf struct {
 	Namespace string
 	// NoCache is used to turn off client cache for nodes discovery
 	NoCache bool
-	// BenchThreads is amount of concurrent threads to run
-	BenchThreads int
 	// BenchDuration is a duration for the benchmark
 	BenchDuration time.Duration
 	// BenchRate is a requests per second rate to mantain
@@ -340,7 +337,6 @@ func Run(args []string) {
 	bench.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	bench.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
 	bench.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
-	bench.Flag("threads", "Concurrent threads to run").Default("10").IntVar(&cf.BenchThreads)
 	bench.Flag("duration", "Test duration").Default("1s").DurationVar(&cf.BenchDuration)
 	bench.Flag("rate", "Requests per second rate").Default("10").IntVar(&cf.BenchRate)
 	bench.Flag("interactive", "Create interactive SSH session").BoolVar(&cf.BenchInteractive)
@@ -1137,12 +1133,12 @@ func onBenchmark(cf *CLIConf) {
 		utils.FatalError(err)
 	}
 
-	result, err := tc.Benchmark(cf.Context, client.Benchmark{
-		Command:  cf.RemoteCommand,
-		Threads:  cf.BenchThreads,
-		Duration: cf.BenchDuration,
-		Rate:     cf.BenchRate,
-	})
+	cnf := benchmark.Config{
+		Command:       cf.RemoteCommand,
+		MinimumWindow: cf.BenchDuration,
+		Rate:          cf.BenchRate,
+	}
+	result, err := cnf.Benchmark(cf.Context, tc)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
 		os.Exit(255)
@@ -1165,9 +1161,8 @@ func onBenchmark(cf *CLIConf) {
 		utils.FatalError(err)
 	}
 	fmt.Printf("\n")
-
 	if cf.BenchExport {
-		path, err := exportLatencyProfile(cf, result.Histogram)
+		path, err := benchmark.ExportLatencyProfile(cf.BenchExportPath, result.Histogram, cf.BenchTicks, cf.BenchValueScale)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "failed exporting latency profile: %s\n", utils.UserMessageFromError(err))
 		} else {
@@ -1699,42 +1694,6 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...strin
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// exportLatencyProfile exports the latency profile and returns the path as a string if no errors
-func exportLatencyProfile(cf *CLIConf, h *hdrhistogram.Histogram) (string, error) {
-	var fullPath string
-	timeStamp := time.Now().Format("2006-01-02_15:04:05")
-	suffix := fmt.Sprintf("latency_profile_%s.txt", timeStamp)
-
-	if cf.BenchExportPath != "." {
-		if _, err := os.Stat(cf.BenchExportPath); err != nil {
-			if os.IsNotExist(err) {
-				if err = os.MkdirAll(cf.BenchExportPath, 0700); err != nil {
-					return "", err
-				}
-			} else {
-				return "", err
-			}
-		}
-	}
-
-	fullPath = filepath.Join(cf.BenchExportPath, suffix)
-
-	fo, err := os.Create(fullPath)
-	if err != nil {
-		return "", err
-	}
-
-	if _, err := h.PercentilesPrint(fo, cf.BenchTicks, cf.BenchValueScale); err != nil {
-		fo.Close()
-		return "", err
-	}
-
-	if err := fo.Close(); err != nil {
-		return "", err
-	}
-	return fo.Name(), nil
 }
 
 func onApps(cf *CLIConf) {
