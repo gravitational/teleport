@@ -31,8 +31,9 @@ func setRedirectPageHeaders(h http.Header, nonce string) {
 		// Should match the <script> tab nonce (random value).
 		fmt.Sprintf("script-src 'nonce-%v'", nonce),
 		"style-src 'self'",
-		"object-src 'self'",
+		"object-src 'none'",
 		"img-src 'self'",
+		"base-uri 'self'",
 	}, ";")
 
 	h.Set("Referrer-Policy", "no-referrer")
@@ -46,22 +47,32 @@ const js = `
     <title>Teleport Redirection Service</title>
     <script nonce="%v">
       (function() {
-        var parts = window.location.hash.split('=');
-        if (parts.length === 2 && parts[0] === '#value') {
-          const data = { cookie_value: parts[1] };
-          fetch('/x-teleport-auth', {
-            method: 'POST',
-            headers: {
-               mode: 'same-origin',
-               cache: 'no-store',
-               'Content-Type': 'application/json; charset=utf-8',
-            },
-            body: JSON.stringify(data),
-          }).then(() => {
+        var searchParts = window.location.search.split('=');
+        if (searchParts.length !== 2 || searchParts[0] !== '?state') {
+          return;
+        }
+        var hashParts = window.location.hash.split('=');
+        if (hashParts.length !== 2 || hashParts[0] !== '#value') {
+          return;
+        }
+        const data = {
+          state_value: searchParts[1],
+          cookie_value: hashParts[1],
+        };
+        fetch('/x-teleport-auth', {
+          method: 'POST',
+          mode: 'same-origin',
+          cache: 'no-store',
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8',
+          },
+          body: JSON.stringify(data),
+        }).then(response => {
+          if (response.ok) {
             // redirect to the root and remove current URL from history (back button)
             window.location.replace('/');
-          });
-        }
+          }
+        });
       })();
     </script>
   </head>

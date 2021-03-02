@@ -328,6 +328,12 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// Check that the fetched CA is valid at the current time.
+	err = utils.VerifyCertificateExpiry(tlsCA, params.Clock)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	log.Infof("Joining remote cluster %v with CA pin.", tlsCA.Subject.CommonName)
 
 	// Create another client, but this time with the CA provided to validate
