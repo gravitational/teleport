@@ -21,10 +21,10 @@ import (
 	"encoding/base32"
 	"math"
 	"sync"
-	"testing"
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 
@@ -49,10 +48,6 @@ type PasswordSuite struct {
 }
 
 var _ = Suite(&PasswordSuite{})
-
-func (s *PasswordSuite) SetUpSuite(c *C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (s *PasswordSuite) SetUpTest(c *C) {
 	var err error
@@ -179,7 +174,7 @@ func (s *PasswordSuite) TestUserNotFound(c *C) {
 }
 
 func (s *PasswordSuite) TestChangePassword(c *C) {
-	req, err := s.prepareForPasswordChange("user1", []byte("abc123"), teleport.OFF)
+	req, err := s.prepareForPasswordChange("user1", []byte("abc123"), constants.SecondFactorOff)
 	c.Assert(err, IsNil)
 
 	fakeClock := clockwork.NewFakeClock()
@@ -202,7 +197,7 @@ func (s *PasswordSuite) TestChangePassword(c *C) {
 }
 
 func (s *PasswordSuite) TestChangePasswordWithOTP(c *C) {
-	req, err := s.prepareForPasswordChange("user2", []byte("abc123"), teleport.OTP)
+	req, err := s.prepareForPasswordChange("user2", []byte("abc123"), constants.SecondFactorOTP)
 	c.Assert(err, IsNil)
 
 	fakeClock := clockwork.NewFakeClock()
@@ -240,7 +235,7 @@ func (s *PasswordSuite) TestChangePasswordWithOTP(c *C) {
 func (s *PasswordSuite) TestChangePasswordWithToken(c *C) {
 	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
-		SecondFactor: teleport.OFF,
+		SecondFactor: constants.SecondFactorOff,
 	})
 	c.Assert(err, IsNil)
 
@@ -271,7 +266,7 @@ func (s *PasswordSuite) TestChangePasswordWithToken(c *C) {
 func (s *PasswordSuite) TestChangePasswordWithTokenOTP(c *C) {
 	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
-		SecondFactor: teleport.OTP,
+		SecondFactor: constants.SecondFactorOTP,
 	})
 	c.Assert(err, IsNil)
 
@@ -308,7 +303,7 @@ func (s *PasswordSuite) TestChangePasswordWithTokenOTP(c *C) {
 func (s *PasswordSuite) TestChangePasswordWithTokenErrors(c *C) {
 	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
-		SecondFactor: teleport.OTP,
+		SecondFactor: constants.SecondFactorOTP,
 	})
 	c.Assert(err, IsNil)
 
@@ -326,13 +321,13 @@ func (s *PasswordSuite) TestChangePasswordWithTokenErrors(c *C) {
 
 	type testCase struct {
 		desc         string
-		secondFactor string
+		secondFactor constants.SecondFactorType
 		req          ChangePasswordWithTokenRequest
 	}
 
 	testCases := []testCase{
 		{
-			secondFactor: teleport.OFF,
+			secondFactor: constants.SecondFactorOff,
 			desc:         "invalid tokenID value",
 			req: ChangePasswordWithTokenRequest{
 				TokenID:  "what_token",
@@ -340,7 +335,7 @@ func (s *PasswordSuite) TestChangePasswordWithTokenErrors(c *C) {
 			},
 		},
 		{
-			secondFactor: teleport.OFF,
+			secondFactor: constants.SecondFactorOff,
 			desc:         "invalid password",
 			req: ChangePasswordWithTokenRequest{
 				TokenID:  validTokenID,
@@ -348,7 +343,7 @@ func (s *PasswordSuite) TestChangePasswordWithTokenErrors(c *C) {
 			},
 		},
 		{
-			secondFactor: teleport.OTP,
+			secondFactor: constants.SecondFactorOTP,
 			desc:         "missing second factor",
 			req: ChangePasswordWithTokenRequest{
 				TokenID:  validTokenID,
@@ -356,7 +351,7 @@ func (s *PasswordSuite) TestChangePasswordWithTokenErrors(c *C) {
 			},
 		},
 		{
-			secondFactor: teleport.OTP,
+			secondFactor: constants.SecondFactorOTP,
 			desc:         "invalid OTP value",
 			req: ChangePasswordWithTokenRequest{
 				TokenID:           validTokenID,
@@ -376,7 +371,7 @@ func (s *PasswordSuite) TestChangePasswordWithTokenErrors(c *C) {
 		c.Assert(err, NotNil, Commentf("test case %q", tc.desc))
 	}
 
-	authPreference.SetSecondFactor(teleport.OFF)
+	authPreference.SetSecondFactor(constants.SecondFactorOff)
 	err = s.a.SetAuthPreference(authPreference)
 	c.Assert(err, IsNil)
 
@@ -408,7 +403,7 @@ func (s *PasswordSuite) shouldLockAfterFailedAttempts(c *C, req services.ChangeP
 	c.Assert(trace.IsAccessDenied(err), Equals, true)
 }
 
-func (s *PasswordSuite) prepareForPasswordChange(user string, pass []byte, secondFactorType string) (services.ChangePasswordReq, error) {
+func (s *PasswordSuite) prepareForPasswordChange(user string, pass []byte, secondFactorType constants.SecondFactorType) (services.ChangePasswordReq, error) {
 	req := services.ChangePasswordReq{
 		User:        user,
 		OldPassword: pass,

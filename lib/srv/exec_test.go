@@ -35,6 +35,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -46,10 +47,11 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/docker/docker/pkg/term"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/moby/term"
 	"gopkg.in/check.v1"
+
+	"github.com/gravitational/trace"
 )
 
 // ExecSuite also implements ssh.ConnMetadata
@@ -66,6 +68,7 @@ var _ = check.Suite(&ExecSuite{})
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise it will run tests as normal.
 func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
 	if len(os.Args) == 2 && os.Args[1] == teleport.ExecSubCommand {
@@ -79,8 +82,6 @@ func TestMain(m *testing.M) {
 }
 
 func (s *ExecSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	bk, err := lite.NewWithConfig(context.TODO(), lite.Config{Path: c.MkDir()})
 	c.Assert(err, check.IsNil)
 
@@ -466,7 +467,31 @@ func (f *fakeServer) GetClock() clockwork.Clock {
 }
 
 func (f *fakeServer) GetInfo() services.Server {
-	return nil
+	hostname, err := os.Hostname()
+	if err != nil {
+		hostname = "localhost"
+	}
+
+	return &services.ServerV2{
+		Kind:    services.KindNode,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Name:      "",
+			Namespace: "",
+			Labels:    make(map[string]string),
+		},
+		Spec: services.ServerSpecV2{
+			CmdLabels: make(map[string]types.CommandLabelV2),
+			Addr:      "",
+			Hostname:  hostname,
+			UseTunnel: false,
+			Version:   teleport.Version,
+		},
+	}
+}
+
+func (f *fakeServer) GetUtmpPath() (string, string) {
+	return "", ""
 }
 
 func (f *fakeServer) UseTunnel() bool {
@@ -482,6 +507,10 @@ type fakeLog struct {
 }
 
 func (a *fakeLog) EmitAuditEventLegacy(e events.Event, f events.EventFields) error {
+	return trace.NotImplemented("not implemented")
+}
+
+func (a *fakeLog) EmitAuditEvent(ctx context.Context, e events.AuditEvent) error {
 	return trace.NotImplemented("not implemented")
 }
 

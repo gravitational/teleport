@@ -205,6 +205,12 @@ type ListBucketResultBase struct {
 	Contents       []*Content     `xml:"Contents"`
 }
 
+type GetBucketLocation struct {
+	XMLName            xml.Name `xml:"LocationConstraint"`
+	Xmlns              string   `xml:"xmlns,attr"`
+	LocationConstraint string   `xml:",chardata"`
+}
+
 type ListBucketResult struct {
 	ListBucketResultBase
 
@@ -422,6 +428,13 @@ type ListMultipartUploadPartItem struct {
 	LastModified ContentTime `xml:"LastModified,omitempty"`
 	ETag         string      `xml:"ETag,omitempty"`
 	Size         int64       `xml:"Size"`
+}
+
+// CopyObjectResult contains the response from a CopyObject operation.
+type CopyObjectResult struct {
+	XMLName      xml.Name    `xml:"CopyObjectResult"`
+	ETag         string      `xml:"ETag,omitempty"`
+	LastModified ContentTime `xml:"LastModified,omitempty"`
 }
 
 // MFADeleteStatus is used by VersioningConfiguration.

@@ -143,6 +143,19 @@ message UserCertsRequest {
     // certificate so database client requests are routed appropriately.
     RouteToDatabase RouteToDatabase = 8
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "route_to_database,omitempty" ];
+
+    // NodeName is the name of the SSH node that this user certificate will be
+    // scoped to.
+    string NodeName = 9 [ (gogoproto.jsontag) = "node_name,omitempty" ];
+
+    enum CertUsage {
+        All = 0;
+        SSH = 1;
+        Kubernetes = 2;
+        Database = 3;
+    }
+    // CertUsage limits the resulting user certificate to a single protocol.
+    CertUsage Usage = 10 [ (gogoproto.jsontag) = "usage,omitempty" ];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -698,6 +711,30 @@ message GetMFADevicesRequest {}
 // GetMFADeviceResponse is a response for GetMFADevices RPC.
 message GetMFADevicesResponse { repeated types.MFADevice Devices = 1; }
 
+// UserSingleUseCertsRequest is a request for a single-use user certificate.
+message UserSingleUseCertsRequest {
+    oneof Request {
+        UserCertsRequest Init = 1;
+        MFAAuthenticateResponse MFAResponse = 2;
+    }
+}
+
+// UserSingleUseCertsResponse is a response with a single-use user certificate.
+message UserSingleUseCertsResponse {
+    oneof Response {
+        MFAAuthenticateChallenge MFAChallenge = 1;
+        SingleUseUserCert Cert = 2;
+    }
+}
+
+// SingleUseUserCert is a single-use user certificate, either SSH or TLS.
+message SingleUseUserCert {
+    oneof Cert {
+        bytes SSH = 1;
+        bytes TLS = 2;
+    }
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -706,8 +743,7 @@ service AuthService {
     rpc WatchEvents(Watch) returns (stream Event);
     // UpsertNode upserts node
     rpc UpsertNode(types.ServerV2) returns (types.KeepAlive);
-    // GenerateUserCerts generates a set of user certificates for use by `tctl
-    // auth sign`.
+    // GenerateUserCerts generates a set of user certificates.
     rpc GenerateUserCerts(UserCertsRequest) returns (Certs);
 
     // GetAccessRequests gets all pending access requests.
@@ -739,6 +775,10 @@ service AuthService {
     rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest)
         returns (types.ResetPasswordTokenV3);
 
+    // GenerateUserSingleUseCerts generates a set of single-use user
+    // certificates.
+    rpc GenerateUserSingleUseCerts(stream UserSingleUseCertsRequest)
+        returns (stream UserSingleUseCertsResponse);
     // GetUser gets a user resource by name.
     rpc GetUser(GetUserRequest) returns (types.UserV2);
     // GetUsers gets all current user resources.

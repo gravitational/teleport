@@ -539,15 +539,6 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 		r.Spec.Deny.Namespaces = []string{defaults.Namespace}
 	}
 
-	// Database names/users won't have any effect unless labels are also
-	// specified. Set them to wildcard in this case to prevent users from
-	// accidentally creating deny rules that won't deny anything.
-	if len(r.Spec.Deny.DatabaseNames) > 0 || len(r.Spec.Deny.DatabaseUsers) > 0 {
-		if r.Spec.Deny.DatabaseLabels == nil {
-			r.Spec.Deny.DatabaseLabels = Labels{Wildcard: []string{Wildcard}}
-		}
-	}
-
 	// Validate that enhanced recording options are all valid.
 	for _, opt := range r.Spec.Options.BPF {
 		if opt == constants.EnhancedRecordingCommand ||
@@ -825,6 +816,12 @@ func (l Labels) Equals(o Labels) bool {
 // NewBool returns Bool struct based on bool value
 func NewBool(b bool) Bool {
 	return Bool(b)
+}
+
+// NewBoolP returns Bool pointer
+func NewBoolP(b bool) *Bool {
+	val := NewBool(b)
+	return &val
 }
 
 // Bool is a wrapper around boolean values

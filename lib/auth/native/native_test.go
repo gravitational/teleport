@@ -18,6 +18,7 @@ package native
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -33,6 +34,11 @@ import (
 	"gopkg.in/check.v1"
 )
 
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
+
 func TestNative(t *testing.T) { check.TestingT(t) }
 
 type NativeSuite struct {
@@ -42,16 +48,13 @@ type NativeSuite struct {
 var _ = check.Suite(&NativeSuite{})
 
 func (s *NativeSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	fakeClock := clockwork.NewFakeClockAt(time.Date(2016, 9, 8, 7, 6, 5, 0, time.UTC))
 
-	a, err := New(
+	a := New(
 		context.TODO(),
 		PrecomputeKeys(1),
 		SetClock(fakeClock),
 	)
-	c.Assert(err, check.IsNil)
 
 	s.suite = &test.AuthSuite{
 		A:     a,
@@ -78,8 +81,7 @@ func (s *NativeSuite) TestGenerateUserCert(c *check.C) {
 // TestDisablePrecompute makes sure that keygen works
 // when no keys are precomputed
 func (s *NativeSuite) TestDisablePrecompute(c *check.C) {
-	a, err := New(context.TODO(), PrecomputeKeys(0))
-	c.Assert(err, check.IsNil)
+	a := New(context.TODO(), PrecomputeKeys(0))
 
 	caPrivateKey, _, err := a.GenerateKeyPair("")
 	c.Assert(err, check.IsNil)

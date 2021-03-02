@@ -24,7 +24,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"testing"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -37,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 
@@ -56,8 +54,6 @@ type KeyAgentTestSuite struct {
 var _ = check.Suite(&KeyAgentTestSuite{})
 
 func (s *KeyAgentTestSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	var err error
 	// path to temporary  ~/.tsh directory to use during tests
 	s.keyDir, err = ioutil.TempDir("", "keyagent-test-")

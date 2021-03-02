@@ -91,7 +91,7 @@ config:
       # We recommend to use tools like `pwgen` to generate sufficiently random
       # tokens of 32+ byte length.
       tokens:
-      - proxy,node:dogs-are-much-nicer-than-cats
+      - proxy,node,kube:dogs-are-much-nicer-than-cats
       - trusted_cluster:trains-are-superior-to-cars
 
       # Determines if SSH sessions to cluster nodes are forcefully terminated
@@ -108,6 +108,18 @@ config:
       # the server tears down the connection to the client.
       keep_alive_interval: 5m
       keep_alive_count_max: 3
+
+      # Optional Session control timeout
+      # session_control_timeout: 2m # default
+
+      # Optional setting for configuring session recording. Possible values are:
+      #     "node"  : sessions will be recorded on the node level (the default)
+      #     "proxy" : recording on the proxy level, see "recording proxy mode" section.
+      #     "off"   : session recording is turned off
+      #     "node-sync" : sessions recording will be streamed from node -> auth -> storage
+      #     "proxy-sync : sessions recording will be streamed from proxy -> auth -> storage
+      #
+      # session_recording: "node-sync"
 
     ssh_service:
       enabled: yes
@@ -159,7 +171,21 @@ config:
         enabled: yes
         # Specify a different hostname for the k8s public address (if different to config.public_address)
         # public_addr: teleportkubernetes.example.com
-        
+
+      # TLS certificates for the HTTPS connection.
+      # https_keypairs:
+      # - key_file: /var/lib/teleport/webproxy_key.pem
+      #  cert_file: /var/lib/teleport/webproxy_cert.pem
+
+    # To use a kubernetes_service uncomment this section
+    # kubernetes_service:
+      # enabled: true
+      # labels:
+      #   example-label: example-value
+      # listen_addr: 0.0.0.0:3027
+      # Optionally use a volume mounted kubeconfig to connect to other clusters
+      # kubeconfig_file: /var/lib/teleport/kubefiles/kubeconfig
+
 
 # Alternatively you can provide your teleport configuration under teleportConfig with static text. No variable substitution.
 otherConfig:

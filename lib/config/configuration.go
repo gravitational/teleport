@@ -124,19 +124,19 @@ type CommandLineFlags struct {
 	DatabaseAWSRegion string
 }
 
-// readConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
+// ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
 // and overrides values in 'cfg' structure
 func ReadConfigFile(cliConfigPath string) (*FileConfig, error) {
 	configFilePath := defaults.ConfigFilePath
 	// --config tells us to use a specific conf. file:
 	if cliConfigPath != "" {
 		configFilePath = cliConfigPath
-		if !fileExists(configFilePath) {
-			return nil, trace.Errorf("file not found: %s", configFilePath)
+		if !utils.FileExists(configFilePath) {
+			return nil, trace.NotFound("file %s is not found", configFilePath)
 		}
 	}
 	// default config doesn't exist? quietly return:
-	if !fileExists(configFilePath) {
+	if !utils.FileExists(configFilePath) {
 		log.Info("not using a config file")
 		return nil, nil
 	}
@@ -550,6 +550,13 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.Proxy.ReverseTunnelListenAddr = *addr
 	}
+	if fc.Proxy.MySQLAddr != "" {
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.MySQLAddr, int(defaults.MySQLListenPort))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.MySQLAddr = *addr
+	}
 
 	// This is the legacy format. Continue to support it forever, but ideally
 	// users now use the list format below.
@@ -562,10 +569,10 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	for _, p := range fc.Proxy.KeyPairs {
 		// Check that the certificate exists on disk. This exists to provide the
 		// user a sensible error message.
-		if !fileExists(p.PrivateKey) {
+		if !utils.FileExists(p.PrivateKey) {
 			return trace.Errorf("https private key does not exist: %s", p.PrivateKey)
 		}
-		if !fileExists(p.Certificate) {
+		if !utils.FileExists(p.Certificate) {
 			return trace.Errorf("https cert does not exist: %s", p.Certificate)
 		}
 
@@ -601,7 +608,8 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	// apply kubernetes proxy config, by default kube proxy is disabled
-	legacyKube, newKube := fc.Proxy.Kube.Configured() && fc.Proxy.Kube.Enabled(), fc.Proxy.KubeAddr != ""
+	legacyKube := fc.Proxy.Kube.Configured() && fc.Proxy.Kube.Enabled()
+	newKube := fc.Proxy.KubeAddr != "" || len(fc.Proxy.KubePublicAddr) > 0
 	switch {
 	case legacyKube && !newKube:
 		cfg.Proxy.Kube.Enabled = true
@@ -627,14 +635,23 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		// proxy_service.kube_listen_addr) is only relevant in the config file
 		// format. Under the hood, we use the same cfg.Proxy.Kube field to
 		// enable it.
+		if len(fc.Proxy.KubePublicAddr) > 0 && fc.Proxy.KubeAddr == "" {
+			return trace.BadParameter("kube_listen_addr must be set when kube_public_addr is set")
+		}
 		cfg.Proxy.Kube.Enabled = true
 		addr, err := utils.ParseHostPortAddr(fc.Proxy.KubeAddr, int(defaults.KubeListenPort))
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.Kube.ListenAddr = *addr
+
+		publicAddrs, err := utils.AddrsFromStrings(fc.Proxy.KubePublicAddr, defaults.KubeListenPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.Kube.PublicAddrs = publicAddrs
 	case legacyKube && newKube:
-		return trace.BadParameter("proxy_service should either set kube_listen_addr or kubernetes.enabled, not both; keep kubernetes.enabled if you don't enable kubernetes_service, or keep kube_listen_addr otherwise")
+		return trace.BadParameter("proxy_service should either set kube_listen_addr/kube_public_addr or kubernetes.enabled, not both; keep kubernetes.enabled if you don't enable kubernetes_service, or keep kube_listen_addr otherwise")
 	case !legacyKube && !newKube:
 		// Nothing enabled, this is just for completeness.
 	}
@@ -1433,14 +1450,6 @@ func replaceHost(addr *utils.NetAddr, newHost string) {
 		log.Errorf("failed parsing address: '%v'", addr.Addr)
 	}
 	addr.Addr = net.JoinHostPort(newHost, port)
-}
-
-func fileExists(fp string) bool {
-	_, err := os.Stat(fp)
-	if err != nil && os.IsNotExist(err) {
-		return false
-	}
-	return true
 }
 
 // validateRoles makes sure that value upassed to --roles flag is valid

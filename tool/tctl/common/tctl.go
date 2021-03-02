@@ -94,12 +94,25 @@ func Run(commands []CLICommand, loadConfigExt LoadConfigFn) {
 		commands[i].Initialize(app, cfg)
 	}
 
-	// these global flags apply to all commands
 	var ccf GlobalCLIFlags
+
+	// If the config file path is being overridden by environment variable, set that.
+	// If not, check whether the default config file path exists and set that if so.
+	// This preserves tctl's default behavior for backwards compatibility.
+	configFileEnvar, isSet := os.LookupEnv(defaults.ConfigFileEnvar)
+	if isSet {
+		ccf.ConfigFile = configFileEnvar
+	} else {
+		if utils.FileExists(defaults.ConfigFilePath) {
+			ccf.ConfigFile = defaults.ConfigFilePath
+		}
+	}
+
+	// these global flags apply to all commands
 	app.Flag("debug", "Enable verbose logging to stderr").
 		Short('d').
 		BoolVar(&ccf.Debug)
-	app.Flag("config", fmt.Sprintf("Path to a configuration file [%v]", defaults.ConfigFilePath)).
+	app.Flag("config", fmt.Sprintf("Path to a configuration file [%v]. Can also be set via the %v environment variable.", defaults.ConfigFilePath, defaults.ConfigFileEnvar)).
 		Short('c').
 		ExistingFileVar(&ccf.ConfigFile)
 	app.Flag("config-string",
@@ -182,7 +195,12 @@ func connectToAuthService(ctx context.Context, cfg *service.Config, clientConfig
 	log.Debugf("Connecting to auth servers: %v.", cfg.AuthServers)
 
 	// Try connecting to the auth server directly over TLS.
-	client, err := auth.NewClient(apiclient.Config{Addrs: utils.NetAddrsToStrings(cfg.AuthServers), TLS: clientConfig.TLS})
+	client, err := auth.NewClient(apiclient.Config{
+		Addrs: utils.NetAddrsToStrings(cfg.AuthServers),
+		Credentials: []apiclient.Credentials{
+			apiclient.LoadTLS(clientConfig.TLS),
+		},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err, "failed direct dial to auth server: %v", err)
 	}
@@ -220,7 +238,9 @@ func connectToAuthService(ctx context.Context, cfg *service.Config, clientConfig
 				ProxyAddr:    tunAddr,
 				ClientConfig: clientConfig.SSH,
 			},
-			TLS: clientConfig.TLS,
+			Credentials: []apiclient.Credentials{
+				apiclient.LoadTLS(clientConfig.TLS),
+			},
 		})
 		if err != nil {
 			errs = append(errs, trace.Wrap(err, "failed dial to auth server through reverse tunnel: %v", err))
@@ -304,11 +324,16 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config, loadConfigExt LoadCon
 		log.Debugf("Debug logging has been enabled.")
 	}
 
-	// load /etc/teleport.yaml and apply its values:
-	fileConf, err := config.ReadConfigFile(ccf.ConfigFile)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// If the config file path provided is not a blank string, load the file and apply its values
+	var fileConf *config.FileConfig
+	var err error
+	if ccf.ConfigFile != "" {
+		fileConf, err = config.ReadConfigFile(ccf.ConfigFile)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
+
 	// if configuration is passed as an environment variable,
 	// try to decode it and override the config file
 	if ccf.ConfigString != "" {

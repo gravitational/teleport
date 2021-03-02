@@ -26,9 +26,6 @@ import (
 // The following constants have been moved to /api/constants/constants.go, and are now
 // imported here for backwards compatibility. DELETE IN 7.0.0
 const (
-	OTP                        = constants.OTP
-	U2F                        = constants.U2F
-	OFF                        = constants.OFF
 	Local                      = constants.Local
 	OIDC                       = constants.OIDC
 	SAML                       = constants.SAML
@@ -296,12 +293,6 @@ const (
 	// the proxy is recording sessions or not.
 	RecordingProxyReqType = "recording-proxy@teleport.com"
 
-	// TOTP means Time-based One-time Password Algorithm. for Two-Factor Authentication.
-	TOTP = "totp"
-
-	// HOTP means HMAC-based One-time Password Algorithm.for Two-Factor Authentication.
-	HOTP = "hotp"
-
 	// JSON means JSON serialization format
 	JSON = "json"
 
@@ -394,6 +385,16 @@ const (
 	MinimumEtcdVersion = "3.3.0"
 )
 
+// OTPType is the type of the One-time Password Algorithm.
+type OTPType string
+
+const (
+	// TOTP means Time-based One-time Password Algorithm (for Two-Factor Authentication)
+	TOTP = OTPType("totp")
+	// HOTP means HMAC-based One-time Password Algorithm (for Two-Factor Authentication)
+	HOTP = OTPType("hotp")
+)
+
 const (
 	// These values are from https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
 
@@ -438,6 +439,12 @@ const (
 	// CertExtensionTeleportActiveRequests is used to track which privilege
 	// escalation requests were used to construct the certificate.
 	CertExtensionTeleportActiveRequests = "teleport-active-requests"
+	// CertExtensionMFAVerified is used to mark certificates issued after an MFA
+	// check.
+	CertExtensionMFAVerified = "mfa-verified"
+	// CertExtensionClientIP is used to embed the IP of the client that created
+	// the certificate.
+	CertExtensionClientIP = "client-ip"
 )
 
 const (
@@ -461,6 +468,16 @@ const MaxEnvironmentFileLines = 1000
 // MaxResourceSize is the maximum size (in bytes) of a serialized resource.  This limit is
 // typically only enforced against resources that are likely to arbitrarily grow (e.g. PluginData).
 const MaxResourceSize = 1000000
+
+// MaxHTTPRequestSize is the maximum accepted size (in bytes) of the body of
+// a received HTTP request.  This limit is meant to be used with utils.ReadAtMost
+// to prevent resource exhaustion attacks.
+const MaxHTTPRequestSize = 10 * 1024 * 1024
+
+// MaxHTTPResponseSize is the maximum accepted size (in bytes) of the body of
+// a received HTTP response.  This limit is meant to be used with utils.ReadAtMost
+// to prevent resource exhaustion attacks.
+const MaxHTTPResponseSize = 10 * 1024 * 1024
 
 const (
 	// CertificateFormatOldSSH is used to make Teleport interoperate with older
@@ -538,6 +555,9 @@ const Root = "root"
 // AdminRoleName is the name of the default admin role for all local users if
 // another role is not explicitly assigned (Enterprise only).
 const AdminRoleName = "admin"
+
+// OSSMigratedV6 is a label to mark migrated OSS users and resources
+const OSSMigratedV6 = "migrate-v6.0"
 
 // MinClientVersion is the minimum client version required by the server.
 const MinClientVersion = "3.0.0"
@@ -685,3 +705,10 @@ const (
 	// AppCFHeader is a compatibility header.
 	AppCFHeader = "cf-access-token"
 )
+
+// UserSingleUseCertTTL is a TTL for per-connection user certificates.
+const UserSingleUseCertTTL = time.Minute
+
+// StandardHTTPSPort is the default port used for the https URI scheme,
+// cf. RFC 7230 § 2.7.2.
+const StandardHTTPSPort = 443

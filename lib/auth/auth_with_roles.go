@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2020 Gravitational, Inc.
+Copyright 2015-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -54,11 +55,11 @@ func (a *ServerWithRoles) CloseContext() context.Context {
 }
 
 func (a *ServerWithRoles) actionWithContext(ctx *services.Context, namespace string, resource string, action string) error {
-	return a.context.Checker.CheckAccessToRule(ctx, namespace, resource, action, false)
+	return utils.OpaqueAccessDenied(a.context.Checker.CheckAccessToRule(ctx, namespace, resource, action, false))
 }
 
 func (a *ServerWithRoles) action(namespace string, resource string, action string) error {
-	return a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, action, false)
+	return utils.OpaqueAccessDenied(a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, action, false))
 }
 
 // currentUserAction is a special checker that allows certain actions for users
@@ -68,8 +69,10 @@ func (a *ServerWithRoles) currentUserAction(username string) error {
 	if a.hasLocalUserRole(a.context.Checker) && username == a.context.User.GetName() {
 		return nil
 	}
-	return a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User},
-		defaults.Namespace, services.KindUser, services.VerbCreate, true)
+	return utils.OpaqueAccessDenied(
+		a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User},
+			defaults.Namespace, services.KindUser, services.VerbCreate, true),
+	)
 }
 
 // authConnectorAction is a special checker that grants access to auth
@@ -77,9 +80,9 @@ func (a *ServerWithRoles) currentUserAction(username string) error {
 // If not, it checks if the requester has the meta KindAuthConnector access
 // (which grants access to all connectors).
 func (a *ServerWithRoles) authConnectorAction(namespace string, resource string, verb string) error {
-	if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, verb, false); err != nil {
+	if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, verb, true); err != nil {
 		if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, services.KindAuthConnector, verb, false); err != nil {
-			return trace.Wrap(err)
+			return utils.OpaqueAccessDenied(err)
 		}
 	}
 	return nil
@@ -545,10 +548,13 @@ func (a *ServerWithRoles) filterNodes(nodes []services.Server) ([]services.Serve
 
 	// Loop over all nodes and check if the caller has access.
 	filteredNodes := make([]services.Server, 0, len(nodes))
+	// MFA is not required to list the nodes, but will be required to connect
+	// to them.
+	mfaVerified := true
 NextNode:
 	for _, node := range nodes {
 		for login := range allowedLogins {
-			err := roleset.CheckAccessToServer(login, node)
+			err := roleset.CheckAccessToServer(login, node, mfaVerified)
 			if err == nil {
 				filteredNodes = append(filteredNodes, node)
 				continue NextNode
@@ -776,10 +782,10 @@ func (a *ServerWithRoles) PreAuthenticatedSignIn(user string) (services.WebSessi
 	return a.authServer.PreAuthenticatedSignIn(user, a.context.Identity.GetIdentity())
 }
 
-func (a *ServerWithRoles) GetU2FSignRequest(user string, password []byte) (*u2f.AuthenticateChallenge, error) {
+func (a *ServerWithRoles) GetMFAAuthenticateChallenge(user string, password []byte) (*MFAAuthenticateChallenge, error) {
 	// we are already checking password here, no need to extra permission check
 	// anyone who has user's password can generate sign request
-	return a.authServer.U2FSignRequest(user, password)
+	return a.authServer.GetMFAAuthenticateChallenge(user, password)
 }
 
 // CreateWebSession creates a new web session for the specified user
@@ -1153,6 +1159,10 @@ func (a *ServerWithRoles) NewKeepAliver(ctx context.Context) (services.KeepAlive
 
 // GenerateUserCerts generates users certificates
 func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
+	return a.generateUserCerts(ctx, req)
+}
+
+func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserCertsRequest, opts ...certRequestOption) (*proto.Certs, error) {
 	var err error
 	var roles []string
 	var traits wrappers.Traits
@@ -1177,7 +1187,9 @@ func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserC
 			log.Warningf("Encountered identity with no expiry: %v and denied request. Must be internal logic error.", a.context.Identity)
 			return nil, trace.AccessDenied("access denied")
 		}
-		req.Expires = expires
+		if req.Expires.After(expires) {
+			req.Expires = expires
+		}
 		if req.Expires.Before(a.authServer.GetClock().Now()) {
 			return nil, trace.AccessDenied("access denied: client credentials have expired, please relogin.")
 		}
@@ -1257,7 +1269,7 @@ func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserC
 
 	// Generate certificate, note that the roles TTL will be ignored because
 	// the request is coming from "tctl auth sign" itself.
-	certs, err := a.authServer.generateUserCert(certRequest{
+	certReq := certRequest{
 		user:              user,
 		ttl:               req.Expires.Sub(a.authServer.GetClock().Now()),
 		compatibility:     req.Format,
@@ -1274,7 +1286,24 @@ func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserC
 		activeRequests: services.RequestIDs{
 			AccessRequests: req.AccessRequests,
 		},
-	})
+	}
+	switch req.Usage {
+	case proto.UserCertsRequest_Database:
+		certReq.usage = []string{teleport.UsageDatabaseOnly}
+	case proto.UserCertsRequest_Kubernetes:
+		certReq.usage = []string{teleport.UsageKubeOnly}
+	case proto.UserCertsRequest_SSH:
+		// SSH certs are ssh-only by definition, certReq.usage only applies to
+		// TLS certs.
+	case proto.UserCertsRequest_All:
+		// Unrestricted usage.
+	default:
+		return nil, trace.BadParameter("unsupported cert usage %q", req.Usage)
+	}
+	for _, o := range opts {
+		o(&certReq)
+	}
+	certs, err := a.authServer.generateUserCert(certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1355,6 +1384,10 @@ func (a *ServerWithRoles) UpsertOIDCConnector(ctx context.Context, connector ser
 	if err := a.authConnectorAction(defaults.Namespace, services.KindOIDC, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
+	if modules.GetModules().Features().OIDC == false {
+		return trace.AccessDenied("OIDC is only available in enterprise subscriptions")
+	}
+
 	return a.authServer.UpsertOIDCConnector(ctx, connector)
 }
 
@@ -1408,6 +1441,9 @@ func (a *ServerWithRoles) CreateSAMLConnector(ctx context.Context, connector ser
 	if err := a.authConnectorAction(defaults.Namespace, services.KindSAML, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
+	if modules.GetModules().Features().SAML == false {
+		return trace.AccessDenied("SAML is only available in enterprise subscriptions")
+	}
 	return a.authServer.UpsertSAMLConnector(ctx, connector)
 }
 
@@ -1418,6 +1454,9 @@ func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector ser
 	}
 	if err := a.authConnectorAction(defaults.Namespace, services.KindSAML, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
+	}
+	if modules.GetModules().Features().SAML == false {
+		return trace.AccessDenied("SAML is only available in enterprise subscriptions")
 	}
 	return a.authServer.UpsertSAMLConnector(ctx, connector)
 }
@@ -1473,7 +1512,29 @@ func (a *ServerWithRoles) CreateGithubConnector(connector services.GithubConnect
 	if err := a.authConnectorAction(defaults.Namespace, services.KindGithub, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
+	if err := a.checkGithubConnector(connector); err != nil {
+		return trace.Wrap(err)
+	}
 	return a.authServer.CreateGithubConnector(connector)
+}
+
+func (a *ServerWithRoles) checkGithubConnector(connector services.GithubConnector) error {
+	mapping := connector.GetTeamsToLogins()
+	for _, team := range mapping {
+		if len(team.KubeUsers) != 0 || len(team.KubeGroups) != 0 {
+			return trace.BadParameter("since 6.0 teleport uses teams_to_logins to reference a role, use it instead of local kubernetes_users and kubernetes_groups ")
+		}
+		for _, localRole := range team.Logins {
+			_, err := a.GetRole(context.TODO(), localRole)
+			if err != nil {
+				if trace.IsNotFound(err) {
+					return trace.BadParameter("since 6.0 teleport uses teams_to_logins to reference a role, role %q referenced in mapping for organization %q is not found", localRole, team.Organization)
+				}
+				return trace.Wrap(err)
+			}
+		}
+	}
+	return nil
 }
 
 // UpsertGithubConnector creates or updates a Github connector.
@@ -1482,6 +1543,9 @@ func (a *ServerWithRoles) UpsertGithubConnector(ctx context.Context, connector s
 		return trace.Wrap(err)
 	}
 	if err := a.authConnectorAction(defaults.Namespace, services.KindGithub, services.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.checkGithubConnector(connector); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.upsertGithubConnector(ctx, connector)
@@ -1773,6 +1837,20 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role services.Role) er
 		return trace.Wrap(err)
 	}
 
+	// Some options are only available with enterprise subscription
+	features := modules.GetModules().Features()
+	options := role.GetOptions()
+
+	switch {
+	case features.AccessControls == false && options.MaxSessions > 0:
+		return trace.AccessDenied(
+			"role option max_sessions is only available in enterprise subscriptions")
+	case features.AdvancedAccessWorkflows == false &&
+		(options.RequestAccess == types.RequestStrategyReason || options.RequestAccess == types.RequestStrategyAlways):
+		return trace.AccessDenied(
+			"role option request_access: %v is only available in enterprise subscriptions", options.RequestAccess)
+	}
+
 	return a.authServer.upsertRole(ctx, role)
 }
 
@@ -1793,6 +1871,13 @@ func (a *ServerWithRoles) GetRole(ctx context.Context, name string) (services.Ro
 func (a *ServerWithRoles) DeleteRole(ctx context.Context, name string) error {
 	if err := a.action(defaults.Namespace, services.KindRole, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
+	}
+	// DELETE IN (7.0)
+	// It's OK to delete this code alongside migrateOSS code in auth.
+	// It prevents 6.0 from migrating resources multiple times
+	// and the role is used for `tctl users add` code too.
+	if modules.GetModules().BuildType() == modules.BuildOSS && name == teleport.AdminRoleName {
+		return trace.AccessDenied("can not delete system role %q", name)
 	}
 	return a.authServer.DeleteRole(ctx, name)
 }
@@ -2057,7 +2142,7 @@ func (a *ServerWithRoles) GetRemoteCluster(clusterName string) (services.RemoteC
 		return nil, trace.Wrap(err)
 	}
 	if err := a.context.Checker.CheckAccessToRemoteCluster(cluster); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, utils.OpaqueAccessDenied(err)
 	}
 	return cluster, nil
 }
@@ -2175,8 +2260,11 @@ func (a *ServerWithRoles) GetDatabaseServers(ctx context.Context, namespace stri
 	}
 	// Filter out databases the caller doesn't have access to from each server.
 	var filtered []types.DatabaseServer
+	// MFA is not required to list the databases, but will be required to
+	// connect to them.
+	mfaVerified := true
 	for _, server := range servers {
-		err := a.context.Checker.CheckAccessToDatabaseServer(server)
+		err := a.context.Checker.CheckAccessToDatabase(server, mfaVerified, &services.DatabaseLabelsMatcher{Labels: server.GetAllLabels()})
 		if err != nil && !trace.IsAccessDenied(err) {
 			return nil, trace.Wrap(err)
 		} else if err == nil {
@@ -2255,10 +2343,14 @@ func (a *ServerWithRoles) GetAppServers(ctx context.Context, namespace string, o
 
 	// Loop over all servers, filter out applications on each server and only
 	// return the applications the caller has access to.
+	//
+	// MFA is not required to list the apps, but will be required to connect to
+	// them.
+	mfaVerified := true
 	for _, server := range servers {
 		filteredApps := make([]*services.App, 0, len(server.GetApps()))
 		for _, app := range server.GetApps() {
-			err := a.context.Checker.CheckAccessToApp(server.GetNamespace(), app)
+			err := a.context.Checker.CheckAccessToApp(server.GetNamespace(), app, mfaVerified)
 			if err != nil {
 				if trace.IsAccessDenied(err) {
 					continue
@@ -2419,8 +2511,8 @@ func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s services.Serv
 	}
 
 	for _, kube := range s.GetKubernetesClusters() {
-		if err := a.context.Checker.CheckAccessToKubernetes(s.GetNamespace(), kube); err != nil {
-			return trace.Wrap(err)
+		if err := a.context.Checker.CheckAccessToKubernetes(s.GetNamespace(), kube, a.context.Identity.GetIdentity().MFAVerified); err != nil {
+			return utils.OpaqueAccessDenied(err)
 		}
 	}
 	return a.authServer.UpsertKubeService(ctx, s)
@@ -2442,10 +2534,14 @@ func (a *ServerWithRoles) GetKubeServices(ctx context.Context) ([]services.Serve
 
 	// Loop over all servers, filter out kube clusters on each server and only
 	// return the kube cluster the caller has access to.
+	//
+	// MFA is not required to list the clusters, but will be required to
+	// connect to them.
+	mfaVerified := true
 	for _, server := range servers {
 		filtered := make([]*services.KubernetesCluster, 0, len(server.GetKubernetesClusters()))
 		for _, kube := range server.GetKubernetesClusters() {
-			if err := a.context.Checker.CheckAccessToKubernetes(server.GetNamespace(), kube); err != nil {
+			if err := a.context.Checker.CheckAccessToKubernetes(server.GetNamespace(), kube, mfaVerified); err != nil {
 				if trace.IsAccessDenied(err) {
 					continue
 				}
@@ -2493,6 +2589,15 @@ func (a *ServerWithRoles) AddMFADevice(ctx context.Context) (proto.AuthService_A
 // Use auth.GRPCServer.DeleteMFADevice or client.Client.DeleteMFADevice instead.
 func (a *ServerWithRoles) DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error) {
 	return nil, trace.NotImplemented("bug: DeleteMFADevice must not be called on auth.ServerWithRoles")
+}
+
+// GenerateUserSingleUseCerts exists to satisfy auth.ClientI but is not
+// implemented here.
+//
+// Use auth.GRPCServer.GenerateUserSingleUseCerts or
+// client.Client.GenerateUserSingleUseCerts instead.
+func (a *ServerWithRoles) GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error) {
+	return nil, trace.NotImplemented("bug: GenerateUserSingleUseCerts must not be called on auth.ServerWithRoles")
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

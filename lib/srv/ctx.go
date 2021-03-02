@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -120,6 +121,9 @@ type Server interface {
 
 	// Context returns server shutdown context
 	Context() context.Context
+
+	// GetUtmpPath returns the path of the user accounting database and log. Returns empty for system defaults.
+	GetUtmpPath() (utmp, wtmp string)
 }
 
 // IdentityContext holds all identity information associated with the user
@@ -639,7 +643,7 @@ func (c *ServerContext) SendExecResult(r ExecResult) {
 	select {
 	case c.ExecResultCh <- r:
 	default:
-		log.Infof("blocked on sending exec result %v", r)
+		c.Infof("Blocked on sending exec result %v.", r)
 	}
 }
 
@@ -649,7 +653,7 @@ func (c *ServerContext) SendSubsystemResult(r SubsystemResult) {
 	select {
 	case c.SubsystemResultCh <- r:
 	default:
-		c.Infof("blocked on sending subsystem result")
+		c.Info("Blocked on sending subsystem result.")
 	}
 }
 
@@ -722,6 +726,11 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		requestType = c.request.Type
 	}
 
+	uaccMetadata, err := newUaccMetadata(c)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Create the execCommand that will be sent to the child process.
 	return &ExecCommand{
 		Command:               command,
@@ -737,6 +746,7 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		ServiceName:           pamServiceName,
 		UsePAMAuth:            pamUseAuth,
 		IsTestStub:            c.IsTestStub,
+		UaccMetadata:          *uaccMetadata,
 	}, nil
 }
 
@@ -806,4 +816,24 @@ func closeAll(closers ...io.Closer) error {
 	}
 
 	return trace.NewAggregate(errs...)
+}
+
+func newUaccMetadata(c *ServerContext) (*UaccMetadata, error) {
+	addr := c.ConnectionContext.ServerConn.Conn.RemoteAddr()
+	hostname, _, err := net.SplitHostPort(addr.String())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	preparedAddr, err := uacc.PrepareAddr(addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	utmpPath, wtmpPath := c.srv.GetUtmpPath()
+
+	return &UaccMetadata{
+		Hostname:   hostname,
+		RemoteAddr: preparedAddr,
+		UtmpPath:   utmpPath,
+		WtmpPath:   wtmpPath,
+	}, nil
 }

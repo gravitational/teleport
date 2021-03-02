@@ -60,6 +60,9 @@ const (
 	// serve auth requests.
 	AuthListenPort = 3025
 
+	// MySQLListenPort is the default listen port for MySQL proxy.
+	MySQLListenPort = 3036
+
 	// Default DB to use for persisting state. Another options is "etcd"
 	BackendType = "bolt"
 
@@ -457,11 +460,14 @@ const (
 const (
 	// ProtocolPostgres is the PostgreSQL database protocol.
 	ProtocolPostgres = "postgres"
+	// ProtocolMySQL is the MySQL database protocol.
+	ProtocolMySQL = "mysql"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
 var DatabaseProtocols = []string{
 	ProtocolPostgres,
+	ProtocolMySQL,
 }
 
 const (
@@ -501,6 +507,10 @@ var (
 
 	// ConfigEnvar is a name of teleport's configuration environment variable
 	ConfigEnvar = "TELEPORT_CONFIG"
+
+	// ConfigFileEnvar is the name of the environment variable used to specify a path to
+	// the Teleport configuration file that tctl reads on use
+	ConfigFileEnvar = "TELEPORT_CONFIG_FILE"
 
 	// LicenseFile is the default name of the license file
 	LicenseFile = "license.pem"

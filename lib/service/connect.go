@@ -367,6 +367,7 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 			CAPin:                process.Config.CAPin,
 			CAPath:               filepath.Join(defaults.DataDir, defaults.CACertFile),
 			GetHostCredentials:   client.HostCredentials,
+			Clock:                process.Clock,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -890,7 +891,9 @@ func (process *TeleportProcess) newClientThroughTunnel(servers []utils.NetAddr, 
 			ProxyAddr:    proxyAddr,
 			ClientConfig: identity.SSHClientConfig(),
 		},
-		TLS: tlsConfig,
+		Credentials: []apiclient.Credentials{
+			apiclient.LoadTLS(tlsConfig),
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -914,7 +917,15 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, ide
 	if process.Config.ClientTimeout != 0 {
 		return auth.NewClient(apiclient.Config{
 			Addrs: utils.NetAddrsToStrings(authServers),
-			TLS:   tlsConfig}, auth.ClientTimeout(process.Config.ClientTimeout))
+			Credentials: []apiclient.Credentials{
+				apiclient.LoadTLS(tlsConfig),
+			},
+		}, auth.ClientTimeout(process.Config.ClientTimeout))
 	}
-	return auth.NewClient(apiclient.Config{Addrs: utils.NetAddrsToStrings(authServers), TLS: tlsConfig})
+	return auth.NewClient(apiclient.Config{
+		Addrs: utils.NetAddrsToStrings(authServers),
+		Credentials: []apiclient.Credentials{
+			apiclient.LoadTLS(tlsConfig),
+		},
+	})
 }

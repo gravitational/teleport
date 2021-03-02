@@ -24,19 +24,20 @@ import (
 
 	"cloud.google.com/go/firestore"
 	apiv1 "cloud.google.com/go/firestore/apiv1/admin"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 	"google.golang.org/api/option"
 	adminpb "google.golang.org/genproto/googleapis/firestore/admin/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
 
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/trace"
 )
 
 // Config structure represents Firestore configuration as appears in `storage` section of Teleport YAML
@@ -741,8 +742,8 @@ func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, tu
 		}
 		// operation can be nil if error code is codes.AlreadyExists.
 		if operation != nil {
-			meta := adminpb.IndexOperationMetadata{}
-			if err := proto.Unmarshal(operation.Metadata.Value, &meta); err != nil {
+			meta, err := operation.Metadata()
+			if err != nil {
 				return trace.Wrap(err)
 			}
 			tuplesToIndexNames[tuple] = meta.Index

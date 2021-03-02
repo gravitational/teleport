@@ -67,7 +67,7 @@ type DatabaseServer interface {
 	GetRegion() string
 	// GetType returns the database type, self-hosted or AWS RDS.
 	GetType() string
-	// IsRDS returns true if this an RDS/Aurora database.
+	// IsRDS returns true if this is an RDS/Aurora database.
 	IsRDS() bool
 	// CheckAndSetDefaults checks and set default values for any missing fields.
 	CheckAndSetDefaults() error
@@ -302,3 +302,15 @@ const (
 	// DatabaseTypeRDS is AWS-hosted RDS or Aurora database.
 	DatabaseTypeRDS = "rds"
 )
+
+// SortedDatabaseServers implements sorter for database servers.
+type SortedDatabaseServers []DatabaseServer
+
+// Len returns the slice length.
+func (s SortedDatabaseServers) Len() int { return len(s) }
+
+// Less compares database servers by name.
+func (s SortedDatabaseServers) Less(i, j int) bool { return s[i].GetName() < s[j].GetName() }
+
+// Swap swaps two database servers.
+func (s SortedDatabaseServers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }

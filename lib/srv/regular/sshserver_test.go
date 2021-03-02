@@ -93,6 +93,7 @@ var _ = Suite(&SrvSuite{})
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise it will run tests as normal.
 func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
 	if len(os.Args) == 2 &&
 		(os.Args[1] == teleport.ExecSubCommand || os.Args[1] == teleport.ForwardSubCommand) {
 		srv.RunAndExit(os.Args[1])
@@ -101,10 +102,6 @@ func TestMain(m *testing.M) {
 
 	code := m.Run()
 	os.Exit(code)
-}
-
-func (s *SrvSuite) SetUpSuite(c *C) {
-	utils.InitLoggerForTests(testing.Verbose())
 }
 
 const hostID = "00000000-0000-0000-0000-000000000000"
