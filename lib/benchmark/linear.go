@@ -64,7 +64,7 @@ func validateConfig(lg *Linear) error {
 		return errors.New("minimumMeasurements, upperbound, step, and lowerBound must be greater than 0")
 	}
 	if lg.LowerBound > lg.UpperBound {
-		return errors.New("upperbound must be greater than lowerbound")
+		return errors.New("upperbound must be greater than or equal to lowerbound")
 	}
 	return nil
 }

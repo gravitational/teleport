@@ -39,6 +39,11 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+	
+	if results == nil {
+		fmt.Println("results are nil")
+		os.Exit(1)
+	}
 
 	for i, res := range results {
 		fmt.Printf("Benchmark #%v\n", i+1)
@@ -46,7 +51,6 @@ func main() {
 		fmt.Printf("Requests Originated: %v\n", res.RequestsOriginated)
 		fmt.Printf("Requests Failed: %v\n", res.RequestsFailed)
 	}
-
 	// Export latency profile
 	responseHistogram := results[0].Histogram
 	_, err = benchmark.ExportLatencyProfile("profiles/", responseHistogram, 1, 1.0)

@@ -19,6 +19,7 @@ package benchmark
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -90,6 +91,7 @@ func Run(ctx context.Context, lg *Linear, cmd, host, login, proxy string) ([]Res
 		return nil, trace.Wrap(err)
 	}
 	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	go func() {
 		exitSignals := make(chan os.Signal, 1)
 		signal.Notify(exitSignals, syscall.SIGTERM, syscall.SIGINT)
@@ -166,6 +168,10 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 	requestsC := make(chan benchMeasure)
 	resultC := make(chan benchMeasure)
 
+	if c.Rate <= 0 {
+		return Result{}, errors.New("rate must be greater than 0")
+	}
+
 	go func() {
 		interval := time.Duration(1 / float64(c.Rate) * float64(time.Second))
 		ticker := time.NewTicker(interval)
@@ -195,6 +201,7 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 	var result Result
 	result.Histogram = hdrhistogram.New(minValue, maxValue, significantFigures)
 	statusTicker := time.NewTicker(1 * time.Second)
+	defer statusTicker.Stop()
 	timeElapsed := false
 	start := time.Now()
 	for {

@@ -89,7 +89,6 @@ func TestValidateConfig(t *testing.T) {
 		Step:                7,
 		MinimumMeasurements: 1000,
 		MinimumWindow:       time.Second * 30,
-		config:              nil,
 	}
 	err := validateConfig(linearConfig)
 	require.NoError(t, err)
