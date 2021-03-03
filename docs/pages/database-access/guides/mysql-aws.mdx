@@ -67,6 +67,13 @@ access. For MySQL:
 CREATE USER alice IDENTIFIED WITH AWSAuthenticationPlugin AS 'RDS';
 ```
 
+By default the created user may not have access to anything and won't be able
+to connect so let's grant it some permissions:
+
+```sql
+GRANT ALL ON `%`.* TO 'alice'@'%';
+```
+
 See [Creating a database account using IAM authentication](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html)
 for more information.
 
