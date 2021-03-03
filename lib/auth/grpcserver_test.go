@@ -619,6 +619,12 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 			return wantDev
 		},
 	})
+	// Fetch MFA device ID.
+	devs, err := srv.Auth().GetMFADevices(ctx, user.GetName())
+	require.NoError(t, err)
+	require.Len(t, devs, 1)
+	u2fDevID := devs[0].Id
+
 	u2fChallengeHandler := func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 		require.Len(t, req.U2F, 1)
 		chal := req.U2F[0]
@@ -665,7 +671,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					cert, ok := key.(*ssh.Certificate)
 					require.True(t, ok)
 
-					require.Contains(t, cert.Extensions, teleport.CertExtensionMFAVerified)
+					require.Equal(t, cert.Extensions[teleport.CertExtensionMFAVerified], u2fDevID)
 					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionClientIP]).IsLoopback())
 					require.Equal(t, cert.ValidBefore, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()))
 				},
@@ -694,7 +700,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 
 					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 					require.NoError(t, err)
-					require.True(t, identity.MFAVerified)
+					require.Equal(t, identity.MFAVerified, u2fDevID)
 					require.True(t, net.ParseIP(identity.ClientIP).IsLoopback())
 					require.Equal(t, identity.Usage, []string{teleport.UsageKubeOnly})
 					require.Equal(t, identity.KubernetesCluster, "kube-a")
@@ -726,7 +732,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 
 					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 					require.NoError(t, err)
-					require.True(t, identity.MFAVerified)
+					require.Equal(t, identity.MFAVerified, u2fDevID)
 					require.True(t, net.ParseIP(identity.ClientIP).IsLoopback())
 					require.Equal(t, identity.Usage, []string{teleport.UsageDatabaseOnly})
 					require.Equal(t, identity.RouteToDatabase.ServiceName, "db-a")
@@ -770,7 +776,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					cert, ok := key.(*ssh.Certificate)
 					require.True(t, ok)
 
-					require.Contains(t, cert.Extensions, teleport.CertExtensionMFAVerified)
+					require.Equal(t, cert.Extensions[teleport.CertExtensionMFAVerified], u2fDevID)
 					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionClientIP]).IsLoopback())
 					require.Equal(t, cert.ValidBefore, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()))
 				},

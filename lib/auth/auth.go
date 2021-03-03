@@ -478,16 +478,18 @@ type certRequest struct {
 	// dbName is the optional database name which, if provided, will be used
 	// as a default database.
 	dbName string
-	// mfaVerified is set when this certRequest was created immediately after
-	// an MFA check.
-	mfaVerified bool
+	// mfaVerified is the UUID of an MFA device when this certRequest was
+	// created immediately after an MFA check.
+	mfaVerified string
 	// clientIP is an IP of the client requesting the certificate.
 	clientIP string
 }
 
 type certRequestOption func(*certRequest)
 
-func certRequestMFAVerified(r *certRequest) { r.mfaVerified = true }
+func certRequestMFAVerified(mfaID string) certRequestOption {
+	return func(r *certRequest) { r.mfaVerified = mfaID }
+}
 func certRequestClientIP(ip string) certRequestOption {
 	return func(r *certRequest) { r.clientIP = ip }
 }
@@ -2026,21 +2028,19 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u
 	return challenge, nil
 }
 
-func (a *Server) validateMFAAuthResponse(ctx context.Context, user string, resp *proto.MFAAuthenticateResponse, u2fStorage u2f.AuthenticationStorage) error {
-	var err error
+func (a *Server) validateMFAAuthResponse(ctx context.Context, user string, resp *proto.MFAAuthenticateResponse, u2fStorage u2f.AuthenticationStorage) (*types.MFADevice, error) {
 	switch res := resp.Response.(type) {
 	case *proto.MFAAuthenticateResponse_TOTP:
-		_, err = a.checkOTP(user, res.TOTP.Code)
+		return a.checkOTP(user, res.TOTP.Code)
 	case *proto.MFAAuthenticateResponse_U2F:
-		_, err = a.checkU2F(ctx, user, u2f.AuthenticateChallengeResponse{
+		return a.checkU2F(ctx, user, u2f.AuthenticateChallengeResponse{
 			KeyHandle:     res.U2F.KeyHandle,
 			ClientData:    res.U2F.ClientData,
 			SignatureData: res.U2F.Signature,
 		}, u2fStorage)
 	default:
-		err = trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
+		return nil, trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
 	}
-	return trace.Wrap(err)
 }
 
 func (a *Server) checkU2F(ctx context.Context, user string, res u2f.AuthenticateChallengeResponse, u2fStorage u2f.AuthenticationStorage) (*types.MFADevice, error) {
