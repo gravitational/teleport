@@ -34,19 +34,3 @@ As minimally and precisely as possible, describe step-by-step how to reproduce t
 Please include or attach debug logs, when appropriate. Obfuscate sensitive information!
 - Start Teleport with --debug flag (`teleport --debug`)
 - Run tsh with --debug flag (`tsh --debug`)
-
-
-### Which platform(s)
-- [ ] Teleport Open Source
-- [ ] Teleport Cloud
-- [x] Teleport Enterprise
-- [ ] Other
-
-### Which component(s)
-- [x] Server Access
-- [ ] Kubernetes Access
-- [ ] Application Access
-- [ ] Database Access
-- [ ] CLI Clients
-- [ ] Web Clients
-- [ ] Other
