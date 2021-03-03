@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-usage() { echo "Usage: $(basename $0) [-t <oss/ent>] [-v <version>] [-p <package type>] <-a [amd64/x86_64]|[386/i386]> <-r go1.9.7|fips> <-s tarball source dir> <-m tsh>" 1>&2; exit 1; }
+usage() { echo "Usage: $(basename $0) [-t <oss/ent>] [-v <version>] [-p <package type>] <-a [amd64/x86_64]|[386/i386]|arm|arm64> <-r fips> <-s tarball source dir> <-m tsh>" 1>&2; exit 1; }
 while getopts ":t:v:p:a:r:s:m:" o; do
     case "${o}" in
         t)
@@ -17,11 +17,11 @@ while getopts ":t:v:p:a:r:s:m:" o; do
             ;;
         a)
             a=${OPTARG}
-            if [[ ${a} != "amd64" && ${a} != "x86_64" && ${a} != "386" && ${a} != "i386" ]]; then usage; fi
+            if [[ ${a} != "amd64" && ${a} != "x86_64" && ${a} != "386" && ${a} != "i386" && ${a} != "arm" && ${a} != "arm64" ]]; then usage; fi
             ;;
         r)
             r=${OPTARG}
-            if [[ ${r} != "go1.9.7" && ${r} != "fips" ]]; then usage; fi
+            if [[ ${r} != "fips" ]]; then usage; fi
             ;;
         s)
             s=${OPTARG}
@@ -186,12 +186,14 @@ elif [[ "${ARCH}" == "amd64" ]]; then
         ARCH="x86_64"
     fi
     TEXT_ARCH="64-bit"
+elif [[ "${ARCH}" == "arm" ]]; then
+    TEXT_ARCH="ARMv7"
+elif [[ "${ARCH}" == "arm64" ]]; then
+    TEXT_ARCH="ARMv8/ARM64"
 fi
 
 # set optional runtime section for filename
-if [[ "${RUNTIME}" == "go1.9.7" ]]; then
-    OPTIONAL_RUNTIME_SECTION="-go1.9.7"
-elif [[ "${RUNTIME}" == "fips" ]]; then
+if [[ "${RUNTIME}" == "fips" ]]; then
     OPTIONAL_RUNTIME_SECTION="-fips"
 fi
 
@@ -201,9 +203,7 @@ if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
     URL="${DOWNLOAD_ROOT}/${TARBALL_FILENAME}"
     TAR_PATH="teleport-ent"
     RPM_NAME="teleport-ent"
-    if [[ "${RUNTIME}" == "go1.9.7" ]]; then
-        TYPE_DESCRIPTION="[${TEXT_ARCH} Enterprise edition, built with Go 1.9.7]"
-    elif [[ "${RUNTIME}" == "fips" ]]; then
+    if [[ "${RUNTIME}" == "fips" ]]; then
         TYPE_DESCRIPTION="[${TEXT_ARCH} Enterprise edition, built with FIPS support]"
         RPM_NAME="teleport-ent-fips"
     else
@@ -214,9 +214,7 @@ else
     URL="${DOWNLOAD_ROOT}/${TARBALL_FILENAME}"
     TAR_PATH="teleport"
     RPM_NAME="teleport"
-    if [[ "${RUNTIME}" == "go1.9.7" ]]; then
-        TYPE_DESCRIPTION="[${TEXT_ARCH} Open source edition, built with Go 1.9.7]"
-    elif [[ "${RUNTIME}" == "fips" ]]; then
+    if [[ "${RUNTIME}" == "fips" ]]; then
         TYPE_DESCRIPTION="[${TEXT_ARCH} Open source edition, built with FIPS support]"
         RPM_NAME="teleport-fips"
     else
