@@ -101,26 +101,20 @@ func Run(ctx context.Context, lg *Linear, cmd, host, login, proxy string) ([]Res
 		cancel()
 	}()
 	var results []Result
-	sleep := false
-	for {
-		if sleep {
-			select {
-			case <-time.After(pauseTimeBetweenBenchmarks):
-			case <-ctx.Done():
-				return results, trace.ConnectionProblem(ctx.Err(), "context canceled or timed out")
-			}
-		}
-		benchmarkC := lg.GetBenchmark()
-		if benchmarkC == nil {
-			break
-		}
-		result, err := benchmarkC.Benchmark(ctx, tc)
+	benchmarkConfig := lg.GetBenchmark()
+	for benchmarkConfig != nil {
+		result, err := benchmarkConfig.Benchmark(ctx, tc)
 		if err != nil {
 			return results, trace.Wrap(err)
 		}
 		results = append(results, result)
 		fmt.Printf("current generation requests: %v, duration: %v\n", result.RequestsOriginated, result.Duration)
-		sleep = true
+		select {
+		case <-time.After(pauseTimeBetweenBenchmarks):
+		case <-ctx.Done():
+			return results, trace.ConnectionProblem(ctx.Err(), "context canceled or timed out")
+		}
+		benchmarkConfig = lg.GetBenchmark()
 	}
 	return results, nil
 }
@@ -161,7 +155,6 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 	tc.Stdout = ioutil.Discard
 	tc.Stderr = ioutil.Discard
 	tc.Stdin = &bytes.Buffer{}
-	var delay time.Duration
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -171,26 +164,23 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 	if c.Rate <= 0 {
 		return Result{}, errors.New("rate must be greater than 0")
 	}
-
+	newMeasure := func(ts time.Time) benchMeasure {
+		return benchMeasure{
+			ResponseStart: ts,
+			command:       c.Command,
+			client:        tc,
+			interactive:   c.Interactive,
+		}
+	}
 	go func() {
 		interval := time.Duration(1 / float64(c.Rate) * float64(time.Second))
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
-		start := time.Now()
+		go work(ctx, newMeasure(time.Now()), resultC)
 		for {
 			select {
-			case <-ticker.C:
-				// ticker makes its first tick after the given duration, not immediately
-				// this sets the send measure ResponseStart time accurately
-				delay = delay + interval
-				t := start.Add(delay)
-				measure := benchMeasure{
-					ResponseStart: t,
-					command:       c.Command,
-					client:        tc,
-					interactive:   c.Interactive,
-				}
-				go work(ctx, measure, resultC)
+			case ts := <-ticker.C:
+				go work(ctx, newMeasure(ts), resultC)
 			case <-ctx.Done():
 				close(requestsC)
 				return
