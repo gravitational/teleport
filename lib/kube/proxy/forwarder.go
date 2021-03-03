@@ -722,6 +722,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 				},
 				SessionMetadata: events.SessionMetadata{
 					SessionID: string(sessionID),
+					WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 				},
 				UserMetadata: events.UserMetadata{
 					User:  ctx.User.GetName(),
@@ -763,6 +764,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			},
 			SessionMetadata: events.SessionMetadata{
 				SessionID: string(sessionID),
+				WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 			},
 			UserMetadata: events.UserMetadata{
 				User:  ctx.User.GetName(),
@@ -845,6 +847,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			},
 			SessionMetadata: events.SessionMetadata{
 				SessionID: string(sessionID),
+				WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 			},
 			UserMetadata: events.UserMetadata{
 				User:  ctx.User.GetName(),
@@ -875,6 +878,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			},
 			SessionMetadata: events.SessionMetadata{
 				SessionID: string(sessionID),
+				WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 			},
 			UserMetadata: events.UserMetadata{
 				User:  ctx.User.GetName(),
@@ -910,6 +914,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			},
 			SessionMetadata: events.SessionMetadata{
 				SessionID: string(sessionID),
+				WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 			},
 			UserMetadata: events.UserMetadata{
 				User:  ctx.User.GetName(),

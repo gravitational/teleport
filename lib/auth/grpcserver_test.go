@@ -31,7 +31,6 @@ import (
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -40,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -666,10 +666,8 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					crt := c.GetSSH()
 					require.NotEmpty(t, crt)
 
-					key, _, _, _, err := ssh.ParseAuthorizedKey(crt)
+					cert, err := sshutils.ParseCertificate(crt)
 					require.NoError(t, err)
-					cert, ok := key.(*ssh.Certificate)
-					require.True(t, ok)
 
 					require.Equal(t, cert.Extensions[teleport.CertExtensionMFAVerified], u2fDevID)
 					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionClientIP]).IsLoopback())
@@ -771,10 +769,8 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					crt := c.GetSSH()
 					require.NotEmpty(t, crt)
 
-					key, _, _, _, err := ssh.ParseAuthorizedKey(crt)
+					cert, err := sshutils.ParseCertificate(crt)
 					require.NoError(t, err)
-					cert, ok := key.(*ssh.Certificate)
-					require.True(t, ok)
 
 					require.Equal(t, cert.Extensions[teleport.CertExtensionMFAVerified], u2fDevID)
 					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionClientIP]).IsLoopback())
