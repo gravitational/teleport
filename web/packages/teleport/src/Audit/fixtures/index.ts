@@ -454,4 +454,28 @@ export const events = [
     user: 'alex',
     verb: 'GET',
   },
+  {
+    cluster_name: "localhost",
+    code: "T1006I",
+    mfa_device_name: "usb-c",
+    mfa_device_type: "U2F",
+    mfa_device_uuid: "7a6fbf23-d75c-4c62-8215-e962d0f2a1f3",
+    ei: 0,
+    event: "mfa.delete",
+    time: "2021-03-03T22:58:34.737Z",
+    uid: "9be91d9e-79ec-422b-b6ae-ccf7235476d4",
+    user: "awly"
+  },
+  {
+    cluster_name: "localhost",
+    code: "T1007I",
+    mfa_device_name: "usb-c",
+    mfa_device_type: "U2F",
+    mfa_device_uuid: "7a6fbf23-d75c-4c62-8215-e962d0f2a1f3",
+    ei: 0,
+    event: "mfa.delete",
+    time: "2021-03-03T22:58:44.737Z",
+    uid: "c6afe861-d53c-42ce-837c-7920d2398b44",
+    user: "awly"
+  },
 ].map(makeEvent);

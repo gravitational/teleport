@@ -446,12 +446,12 @@ exports[`loaded 1`] = `
         </strong>
          - 
         <strong>
-          36
+          38
         </strong>
          
         of 
         <strong>
-          36
+          38
         </strong>
       </div>
       <div
@@ -509,6 +509,76 @@ exports[`loaded 1`] = `
         </tr>
       </thead>
       <tbody>
+        <tr>
+          <td>
+            <div
+              class="c14"
+            >
+              <span
+                class="c4 c15 icon icon-info_outline c4 c15"
+                color="light"
+                font-size="3"
+              />
+              MFA Device Deleted
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [awly] deleted U2F device [usb-c]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2021-03-03 22:58:44
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c16"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c14"
+            >
+              <span
+                class="c4 c15 icon icon-info_outline c4 c15"
+                color="light"
+                font-size="3"
+              />
+              MFA Device Added
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [awly] added U2F device [usb-c]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2021-03-03 22:58:34
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c16"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
         <tr>
           <td>
             <div

@@ -71,6 +71,8 @@ const EventIconMap = {
   [CodeEnum.DATABASE_SESSION_STARTED_FAILURE]: Icons.Database,
   [CodeEnum.DATABASE_SESSION_ENDED]: Icons.Database,
   [CodeEnum.DATABASE_SESSION_QUERY]: Icons.Database,
+  [CodeEnum.MFA_DEVICE_ADD]: Icons.Info,
+  [CodeEnum.MFA_DEVICE_DELETE]: Icons.Info,
 };
 
 export default function TypeCell(props) {

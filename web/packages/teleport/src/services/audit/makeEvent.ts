@@ -296,6 +296,16 @@ export const formatters: Formatters = {
         80
       )}] in database [${db_name}] on [${db_service}]`,
   },
+  [CodeEnum.MFA_DEVICE_ADD]: {
+    desc: 'MFA Device Added',
+    format: ({ user, mfa_device_name, mfa_device_type }) =>
+      `User [${user}] added ${mfa_device_type} device [${mfa_device_name}]`,
+  },
+  [CodeEnum.MFA_DEVICE_DELETE]: {
+    desc: 'MFA Device Deleted',
+    format: ({ user, mfa_device_name, mfa_device_type }) =>
+      `User [${user}] deleted ${mfa_device_type} device [${mfa_device_name}]`,
+  },
 };
 
 const unknownFormatter = {
