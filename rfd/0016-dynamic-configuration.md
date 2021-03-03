@@ -7,29 +7,28 @@ state: draft
 
 ## What
 
-Some resources like `services.AuthPreference` or `services.ClusterConfig` are
-live representations of certain parts of the `auth_service` configuration
-section.  These resources can be understood to constitute *dynamic*
-configuration of an auth server, as opposed to *static* configuration defined
-by its `teleport.yaml` file.
-
-The current behaviour is that Teleport creates dynamic configuration
-implicitly by deriving it from static configuration during auth server
-initialization. The recent proposals of exposing the related resources via
-`tctl` would however allow the dynamic configuration to be created/updated
-explicitly by the user, independently of static configuration.
-
 This RFD presents several possible scenarios involving the interaction of
-explicitly-managed dynamic and static configuration, including the respective
-design decisions to be made, with the goal of reaching a consensus on the
-configuration workflows to be supported by Teleport.
+explicitly-managed dynamic and static configuration.  Design decisions are made
+as to which branches of these scenarios are to be supported by Teleport.
+Finally, the actual implementation is discussed.
 
 ## Why
 
-1. Automated/programmatic management of Teleport clusters.
+Some resources like `services.AuthPreference` or `services.ClusterConfig` are
+live representations of parts of the `auth_service` configuration section.
+These resources can be understood to constitute *dynamic* configuration of
+an auth server, as opposed to *static* configuration defined by the
+`teleport.yaml` file.
 
-2. Teleport-as-a-service offerings that do not allow direct access
-   to `teleport.yaml` files.
+The current behaviour is that Teleport creates dynamic configuration implicitly
+by deriving it from static configuration during auth server initialization.
+This RFD allows the dynamic configuration to be created/updated explicitly via
+`tctl`, independently of static configuration, for two main reasons:
+
+1. To faciliate automated/programmatic management of Teleport clusters.
+
+2. To add configuration capability to Teleport-as-a-service offerings that do
+   not allow direct access to `teleport.yaml` files.
 
 ## Scenarios
 
