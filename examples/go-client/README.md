@@ -27,8 +27,6 @@ The server will authorize requests for the user associated with the certificates
 
 Therefore, to use the API client, you need to create a user and any roles it may need for your use case. The client will act on behalf of that user and have access as defined by the user's role(s).
 
-Note: role based access control is an enterprise feature. All users in the OSS versions of Teleport are limited to a single `admin` role.
-
 ### Run the Demo
 
 First, create the `access-admin` user and role using the commands below.
@@ -59,12 +57,7 @@ Third, create credentials to authenticate the client, and follow the steps below
 
 3. TLS Credentials (manual):
 
-   Generate valid TLS certificates by whatever means desired. Replace the following comment in `main.go` with custom logic to load the certificates into the `*tls.Config`:
-
-   ```go
-	var tlsConfig *tls.Config
-	// Create valid tlsConfig here to use TLS Credentials
-   ```
+   Generate valid TLS certificates by whatever means desired. Use those certificates to create a `*tls.Config` and provide it into the `CredentialsList` with `client.LoadTLS(*tls.Config)`.
 
    Note that this is not the recommended strategy since the TLS config can be generated automatically with the methods above. However, some users may find this useful if they already have a TLS config defined or they have a custom Teleport setup.
 

@@ -18,13 +18,11 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"log"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 
 	"github.com/pborman/uuid"
 )
@@ -33,22 +31,14 @@ func main() {
 	ctx := context.Background()
 	log.Printf("Starting Teleport client...")
 
-	tlsConfig := &tls.Config{}
-	// Create valid tlsConfig here to load TLS credentials.
-
-	clt, err := auth.NewClient(client.Config{
+	clt, err := client.New(ctx, client.Config{
 		// Addrs is the Auth Server address, must be local.
 		Addrs: []string{"localhost:3025"},
 		// Multiple credentials can be provided, and the first credentials to
 		// successfully authenticate an open connection to the client will be used.
 		Credentials: []client.Credentials{
-			client.LoadKeyPair(
-				"certs/access-admin.crt",
-				"certs/access-admin.key",
-				"certs/access-admin.cas",
-			),
 			client.LoadIdentityFile("certs/access-admin-identity"),
-			client.LoadTLS(tlsConfig),
+			client.LoadKeyPair("certs/access-admin.crt", "certs/access-admin.key", "certs/access-admin.cas"),
 		},
 	})
 	if err != nil {
@@ -57,11 +47,11 @@ func main() {
 	defer clt.Close()
 
 	if err := demoClient(ctx, clt); err != nil {
-		log.Printf("error(s) in demoClient: %v", err)
+		log.Printf("error in demoClient: %v", err)
 	}
 }
 
-func demoClient(ctx context.Context, clt *auth.Client) (err error) {
+func demoClient(ctx context.Context, clt *client.Client) (err error) {
 	// Create a new access request for the `access-admin` user to use the `admin` role.
 	accessReq, err := types.NewAccessRequest(uuid.New(), "access-admin", "admin")
 	if err != nil {
@@ -72,14 +62,6 @@ func demoClient(ctx context.Context, clt *auth.Client) (err error) {
 	}
 	log.Printf("Created access request: %v", accessReq)
 
-	defer func() {
-		if err2 := clt.DeleteAccessRequest(ctx, accessReq.GetName()); err2 != nil {
-			err = fmt.Errorf("%v\nfailed to delete access request: %v", err, err2)
-			return
-		}
-		log.Println("Deleted access request")
-	}()
-
 	// Approve the access request as if this was another party.
 	if err = clt.SetAccessRequestState(ctx, types.AccessRequestUpdate{
 		RequestID: accessReq.GetName(),
@@ -88,6 +70,11 @@ func demoClient(ctx context.Context, clt *auth.Client) (err error) {
 		return fmt.Errorf("failed to accept request: %v", err)
 	}
 	log.Printf("Approved access request")
+
+	if err := clt.DeleteAccessRequest(ctx, accessReq.GetName()); err != nil {
+		return fmt.Errorf("failed to delete access request: %v", err)
+	}
+	log.Println("Deleted access request")
 
 	return nil
 }
