@@ -30,8 +30,7 @@ steps:
   - mkdir -p /tmpfs/go/src/github.com/gravitational/teleport /tmpfs/go/cache
   - cd /tmpfs/go/src/github.com/gravitational/teleport
   - git init && git remote add origin ${DRONE_REMOTE_URL}
-  - |2
-
+  - |
     # handle pull requests
     if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
       git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
@@ -53,8 +52,7 @@ steps:
       fi
     fi
   - git submodule update --init webassets || true
-  - |2
-
+  - |
     if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
       apk add --no-cache curl jq
       export PR_REPO=$(curl -Ls https://api.github.com/repos/gravitational/${DRONE_REPO_NAME}/pulls/${DRONE_PULL_REQUEST} | jq -r '.head.repo.full_name')
@@ -107,8 +105,7 @@ steps:
 - name: Optionally skip tests
   image: docker:git
   commands:
-  - |2
-
+  - |
     cd /tmpfs/go/src/github.com/gravitational/teleport
     echo -e "\n---> git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master}\n"
     git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master}
@@ -204,7 +201,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tests.go:233
+# Generated at dronegen/tests.go:230
 ################################################
 
 kind: pipeline
@@ -228,8 +225,7 @@ steps:
   - mkdir -p /tmpfs/go/src/github.com/gravitational/teleport
   - cd /tmpfs/go/src/github.com/gravitational/teleport
   - git init && git remote add origin ${DRONE_REMOTE_URL}
-  - |2
-
+  - |
     # handle pull requests
     if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
       git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
@@ -258,8 +254,7 @@ steps:
   commands:
   - cd /tmpfs/go/src/github.com/gravitational/teleport
   - git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
-  - |2
-
+  - |
     if [ $(stat --printf="%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
       echo "---> Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
       # Check trailing whitespace
@@ -291,7 +286,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tests.go:233
+# Generated at dronegen/tests.go:230
 ################################################
 
 kind: pipeline
@@ -315,8 +310,7 @@ steps:
   - mkdir -p /tmpfs/go/src/github.com/gravitational/teleport
   - cd /tmpfs/go/src/github.com/gravitational/teleport
   - git init && git remote add origin ${DRONE_REMOTE_URL}
-  - |2
-
+  - |
     # handle pull requests
     if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
       git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
@@ -345,8 +339,7 @@ steps:
   commands:
   - cd /tmpfs/go/src/github.com/gravitational/teleport
   - git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
-  - |2
-
+  - |
     if [ $(stat --printf="%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
       echo "---> Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
       # Check trailing whitespace
@@ -404,396 +397,394 @@ steps:
         from_secret: DOCS_DEPLOY_HOOK
 
 ---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/push.go:114
+################################################
+
 kind: pipeline
 type: kubernetes
 name: push-build-linux-amd64
-
 environment:
+  GID: "1000"
   RUNTIME: go1.15.5
-  UID: 1000
-  GID: 1000
-
+  UID: "1000"
 trigger:
   event:
     include:
-      - push
+    - push
     exclude:
-      - pull_request
-  branch:
-    include:
-      - master
-      - branch/*
+    - pull_request
   repo:
     include:
-      - gravitational/*
-
+    - gravitational/*
+  branch:
+    include:
+    - master
+    - branch/*
 workspace:
   path: /go
-
 clone:
   disable: true
-
 steps:
-  - name: Check out code
-    image: docker:git
-    environment:
-      GITHUB_PRIVATE_KEY:
-        from_secret: GITHUB_PRIVATE_KEY
-    commands:
-      - mkdir -p /go/src/github.com/gravitational/teleport /go/cache
-      - cd /go/src/github.com/gravitational/teleport
-      - git init && git remote add origin ${DRONE_REMOTE_URL}
-      - git fetch origin
-      - git checkout -qf ${DRONE_COMMIT_SHA}
-      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init webassets || true
-      - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-      - git submodule update --init e
-      # do a recursive submodule checkout to get both webassets and webassets/e
-      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init --recursive webassets || true
-      - rm -f /root/.ssh/id_rsa
-
-  - name: Build artifacts
-    image: docker
-    environment:
-      UID: 1000
-      GID: 1000
-      GOPATH: /go
-      OS: linux
-      ARCH: amd64
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - apk add --no-cache make
-      - chown -R $UID:$GID /go
-      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
-      - cd /go/src/github.com/gravitational/teleport
-      - make -C build.assets release OS=$OS ARCH=$ARCH
-
-  - name: Send Slack notification
-    image: plugins/slack
-    settings:
-      webhook:
-        from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      template: |
-        *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        `${DRONE_STAGE_NAME}` artifact build failed.
-        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-        Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-        <{{ build.link }}|Visit Drone build page ↗>
-    when:
-      status: [failure]
-
-services:
-  - name: Start Docker
-    image: docker:dind
-    volumes:
-      - name: dockersock
-        path: /var/run
-
-volumes:
+- name: Check out code
+  image: docker:git
+  commands:
+  - mkdir -p /go/src/github.com/gravitational/teleport /go/cache
+  - cd /go/src/github.com/gravitational/teleport
+  - git init && git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin
+  - git checkout -qf ${DRONE_COMMIT_SHA}
+  - git submodule update --init webassets || true
+  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - git submodule update --init --recursive webassets || true
+  - rm -f /root/.ssh/id_rsa
+  environment:
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+  volumes:
+  - name: tmpfs
+    path: /tmpfs
+- name: Build artifacts
+  image: docker
+  commands:
+  - apk add --no-cache make
+  - chown -R $UID:$GID /go
+  - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+  - cd /go/src/github.com/gravitational/teleport
+  - make -C build.assets release OS=$OS ARCH=$ARCH
+  environment:
+    ARCH: amd64
+    GID: "1000"
+    GOPATH: /go
+    OS: linux
+    UID: "1000"
+  volumes:
   - name: dockersock
-    temp: {}
+    path: /var/run
+- name: Send Slack notification
+  image: plugins/slack
+  commands: []
+  settings:
+    webhook:
+      from_secret: SLACK_WEBHOOK_DEV_TELEPORT
+  template:
+  - |
+    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+    `${DRONE_STAGE_NAME}` artifact build failed.
+    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+    <{{ build.link }}|Visit Drone build page ↗>
+  when:
+    status:
+    - failure
+services:
+- name: Start Docker
+  image: docker:dind
+  volumes:
+  - name: dockersock
+    path: /var/run
+volumes:
+- name: dockersock
+  temp: {}
 
 ---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/push.go:114
+################################################
+
 kind: pipeline
 type: kubernetes
 name: push-build-linux-i386
-
 environment:
+  GID: "1000"
   RUNTIME: go1.15.5
-  UID: 1000
-  GID: 1000
-
+  UID: "1000"
 trigger:
   event:
     include:
-      - push
+    - push
     exclude:
-      - pull_request
-  branch:
-    include:
-      - master
-      - branch/*
+    - pull_request
   repo:
     include:
-      - gravitational/*
-
+    - gravitational/*
+  branch:
+    include:
+    - master
+    - branch/*
 workspace:
   path: /go
-
 clone:
   disable: true
-
 steps:
-  - name: Check out code
-    image: docker:git
-    environment:
-      GITHUB_PRIVATE_KEY:
-        from_secret: GITHUB_PRIVATE_KEY
-    commands:
-      - mkdir -p /go/src/github.com/gravitational/teleport /go/cache
-      - cd /go/src/github.com/gravitational/teleport
-      - git init && git remote add origin ${DRONE_REMOTE_URL}
-      - git fetch origin
-      - git checkout -qf ${DRONE_COMMIT_SHA}
-      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init webassets || true
-      - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-      - git submodule update --init e
-      # do a recursive submodule checkout to get both webassets and webassets/e
-      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init --recursive webassets || true
-      - rm -f /root/.ssh/id_rsa
-
-  - name: Build artifacts
-    image: docker
-    environment:
-      UID: 1000
-      GID: 1000
-      GOPATH: /go
-      OS: linux
-      ARCH: 386
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - apk add --no-cache make
-      - chown -R $UID:$GID /go
-      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
-      - cd /go/src/github.com/gravitational/teleport
-      - make -C build.assets release OS=$OS ARCH=$ARCH
-
-  - name: Send Slack notification
-    image: plugins/slack
-    settings:
-      webhook:
-        from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      template: |
-        *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        `${DRONE_STAGE_NAME}` artifact build failed.
-        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-        Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-        <{{ build.link }}|Visit Drone build page ↗>
-    when:
-      status: [failure]
-
-services:
-  - name: Start Docker
-    image: docker:dind
-    volumes:
-      - name: dockersock
-        path: /var/run
-
-volumes:
+- name: Check out code
+  image: docker:git
+  commands:
+  - mkdir -p /go/src/github.com/gravitational/teleport /go/cache
+  - cd /go/src/github.com/gravitational/teleport
+  - git init && git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin
+  - git checkout -qf ${DRONE_COMMIT_SHA}
+  - git submodule update --init webassets || true
+  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - git submodule update --init --recursive webassets || true
+  - rm -f /root/.ssh/id_rsa
+  environment:
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+  volumes:
+  - name: tmpfs
+    path: /tmpfs
+- name: Build artifacts
+  image: docker
+  commands:
+  - apk add --no-cache make
+  - chown -R $UID:$GID /go
+  - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+  - cd /go/src/github.com/gravitational/teleport
+  - make -C build.assets release OS=$OS ARCH=$ARCH
+  environment:
+    ARCH: "386"
+    GID: "1000"
+    GOPATH: /go
+    OS: linux
+    UID: "1000"
+  volumes:
   - name: dockersock
-    temp: {}
+    path: /var/run
+- name: Send Slack notification
+  image: plugins/slack
+  commands: []
+  settings:
+    webhook:
+      from_secret: SLACK_WEBHOOK_DEV_TELEPORT
+  template:
+  - |
+    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+    `${DRONE_STAGE_NAME}` artifact build failed.
+    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+    <{{ build.link }}|Visit Drone build page ↗>
+  when:
+    status:
+    - failure
+services:
+- name: Start Docker
+  image: docker:dind
+  volumes:
+  - name: dockersock
+    path: /var/run
+volumes:
+- name: dockersock
+  temp: {}
 
 ---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/push.go:114
+################################################
+
 kind: pipeline
 type: kubernetes
 name: push-build-linux-amd64-fips
-
 environment:
+  GID: "1000"
   RUNTIME: go1.15.5
-  UID: 1000
-  GID: 1000
-
+  UID: "1000"
 trigger:
   event:
     include:
-      - push
+    - push
     exclude:
-      - pull_request
-  branch:
-    include:
-      - master
-      - branch/*
+    - pull_request
   repo:
     include:
-      - gravitational/*
-
+    - gravitational/*
+  branch:
+    include:
+    - master
+    - branch/*
 workspace:
   path: /go
-
 clone:
   disable: true
-
 steps:
-  - name: Check out code
-    image: docker:git
-    environment:
-      GITHUB_PRIVATE_KEY:
-        from_secret: GITHUB_PRIVATE_KEY
-    commands:
-      - mkdir -p /go/src/github.com/gravitational/teleport /go/cache
-      - cd /go/src/github.com/gravitational/teleport
-      - git init && git remote add origin ${DRONE_REMOTE_URL}
-      - git fetch origin
-      - git checkout -qf ${DRONE_COMMIT_SHA}
-      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init webassets || true
-      - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-      - git submodule update --init e
-      # do a recursive submodule checkout to get both webassets and webassets/e
-      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init --recursive webassets || true
-      - rm -f /root/.ssh/id_rsa
-      # set version
-      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
-
-  - name: Build FIPS artifacts
-    image: docker
-    environment:
-      UID: 1000
-      GID: 1000
-      GOPATH: /go
-      OS: linux
-      ARCH: amd64
-      FIPS: "yes"
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - apk add --no-cache make
-      - chown -R $UID:$GID /go
-      - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
-      - cd /go/src/github.com/gravitational/teleport
-      - export VERSION=$(cat /go/.version.txt)
-      - make -C build.assets release-fips VERSION=$VERSION OS=$OS ARCH=$ARCH FIPS=$FIPS
-
-  - name: Send Slack notification
-    image: plugins/slack
-    settings:
-      webhook:
-        from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      template: |
-        *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        `${DRONE_STAGE_NAME}` artifact build failed.
-        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-        Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-        <{{ build.link }}|Visit Drone build page ↗>
-    when:
-      status: [failure]
-
-services:
-  - name: Start Docker
-    image: docker:dind
-    volumes:
-      - name: dockersock
-        path: /var/run
-
-volumes:
+- name: Check out code
+  image: docker:git
+  commands:
+  - mkdir -p /go/src/github.com/gravitational/teleport /go/cache
+  - cd /go/src/github.com/gravitational/teleport
+  - git init && git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin
+  - git checkout -qf ${DRONE_COMMIT_SHA}
+  - git submodule update --init webassets || true
+  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - git submodule update --init --recursive webassets || true
+  - rm -f /root/.ssh/id_rsa
+  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  environment:
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+  volumes:
+  - name: tmpfs
+    path: /tmpfs
+- name: Build artifacts
+  image: docker
+  commands:
+  - apk add --no-cache make
+  - chown -R $UID:$GID /go
+  - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
+  - cd /go/src/github.com/gravitational/teleport
+  - make -C build.assets release-fips VERSION=$VERSION OS=$OS ARCH=$ARCH FIPS=$FIPS
+  environment:
+    ARCH: amd64
+    FIPS: "yes"
+    GID: "1000"
+    GOPATH: /go
+    OS: linux
+    UID: "1000"
+  volumes:
   - name: dockersock
-    temp: {}
+    path: /var/run
+- name: Send Slack notification
+  image: plugins/slack
+  commands: []
+  settings:
+    webhook:
+      from_secret: SLACK_WEBHOOK_DEV_TELEPORT
+  template:
+  - |
+    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+    `${DRONE_STAGE_NAME}` artifact build failed.
+    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+    <{{ build.link }}|Visit Drone build page ↗>
+  when:
+    status:
+    - failure
+services:
+- name: Start Docker
+  image: docker:dind
+  volumes:
+  - name: dockersock
+    path: /var/run
+volumes:
+- name: dockersock
+  temp: {}
 
 ---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/push.go:114
+################################################
+
 kind: pipeline
 type: kubernetes
 name: push-build-windows-amd64
-
 environment:
+  GID: "1000"
   RUNTIME: go1.15.5
-  UID: 1000
-  GID: 1000
-
+  UID: "1000"
 trigger:
   event:
     include:
-      - push
+    - push
     exclude:
-      - pull_request
-  branch:
-    include:
-      - master
-      - branch/*
+    - pull_request
   repo:
     include:
-      - gravitational/*
-
+    - gravitational/*
+  branch:
+    include:
+    - master
+    - branch/*
 workspace:
   path: /go
-
 clone:
   disable: true
-
 steps:
-  - name: Check out code
-    image: docker:git
-    environment:
-      GITHUB_PRIVATE_KEY:
-        from_secret: GITHUB_PRIVATE_KEY
-    commands:
-      - mkdir -p /go/src/github.com/gravitational/teleport /go/cache
-      - cd /go/src/github.com/gravitational/teleport
-      - git init && git remote add origin ${DRONE_REMOTE_URL}
-      - git fetch origin
-      - git checkout -qf ${DRONE_COMMIT_SHA}
-      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init webassets || true
-      - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-      - git submodule update --init e
-      # do a recursive submodule checkout to get both webassets and webassets/e
-      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init --recursive webassets || true
-      - rm -f /root/.ssh/id_rsa
-
-  - name: Build artifacts
-    image: docker
-    environment:
-      UID: 1000
-      GID: 1000
-      GOPATH: /go
-      OS: windows
-      ARCH: amd64
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - apk add --no-cache make
-      - chown -R $UID:$GID /go
-      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
-      - cd /go/src/github.com/gravitational/teleport
-      - make -C build.assets release OS=$OS ARCH=$ARCH
-
-  - name: Send Slack notification
-    image: plugins/slack
-    settings:
-      webhook:
-        from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      template: |
-        *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        `${DRONE_STAGE_NAME}` artifact build failed.
-        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-        Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-        <{{ build.link }}|Visit Drone build page ↗>
-    when:
-      status: [failure]
-
-services:
-  - name: Start Docker
-    image: docker:dind
-    volumes:
-      - name: dockersock
-        path: /var/run
-
-volumes:
+- name: Check out code
+  image: docker:git
+  commands:
+  - mkdir -p /go/src/github.com/gravitational/teleport /go/cache
+  - cd /go/src/github.com/gravitational/teleport
+  - git init && git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin
+  - git checkout -qf ${DRONE_COMMIT_SHA}
+  - git submodule update --init webassets || true
+  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - git submodule update --init --recursive webassets || true
+  - rm -f /root/.ssh/id_rsa
+  environment:
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+  volumes:
+  - name: tmpfs
+    path: /tmpfs
+- name: Build artifacts
+  image: docker
+  commands:
+  - apk add --no-cache make
+  - chown -R $UID:$GID /go
+  - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+  - cd /go/src/github.com/gravitational/teleport
+  - make -C build.assets release OS=$OS ARCH=$ARCH
+  environment:
+    ARCH: amd64
+    GID: "1000"
+    GOPATH: /go
+    OS: windows
+    UID: "1000"
+  volumes:
   - name: dockersock
-    temp: {}
+    path: /var/run
+- name: Send Slack notification
+  image: plugins/slack
+  commands: []
+  settings:
+    webhook:
+      from_secret: SLACK_WEBHOOK_DEV_TELEPORT
+  template:
+  - |
+    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+    `${DRONE_STAGE_NAME}` artifact build failed.
+    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+    <{{ build.link }}|Visit Drone build page ↗>
+  when:
+    status:
+    - failure
+services:
+- name: Start Docker
+  image: docker:dind
+  volumes:
+  - name: dockersock
+    path: /var/run
+volumes:
+- name: dockersock
+  temp: {}
 
 ---
 kind: pipeline
@@ -893,402 +884,400 @@ steps:
     when:
       status: [failure]
 ---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/push.go:114
+################################################
+
 kind: pipeline
 type: kubernetes
 name: push-build-linux-arm
-
 environment:
+  GID: "1000"
   RUNTIME: go1.15.5
-  UID: 1000
-  GID: 1000
-
+  UID: "1000"
 trigger:
   event:
     include:
-      - push
+    - push
     exclude:
-      - pull_request
-  branch:
-    include:
-      - master
-      - branch/*
+    - pull_request
   repo:
     include:
-      - gravitational/*
-
+    - gravitational/*
+  branch:
+    include:
+    - master
+    - branch/*
 workspace:
   path: /go
-
 clone:
   disable: true
-
 steps:
-  - name: Check out code
-    image: docker:git
-    environment:
-      GITHUB_PRIVATE_KEY:
-        from_secret: GITHUB_PRIVATE_KEY
-    commands:
-      - mkdir -p /go/src/github.com/gravitational/teleport /go/cache
-      - cd /go/src/github.com/gravitational/teleport
-      - git init && git remote add origin ${DRONE_REMOTE_URL}
-      - git fetch origin
-      - git checkout -qf ${DRONE_COMMIT_SHA}
-      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init webassets || true
-      - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-      - git submodule update --init e
-      # do a recursive submodule checkout to get both webassets and webassets/e
-      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init --recursive webassets || true
-      - rm -f /root/.ssh/id_rsa
-
-  - name: Build artifacts
-    image: docker
-    environment:
-      UID: 1000
-      GID: 1000
-      GOPATH: /go
-      OS: linux
-      ARCH: arm
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - apk add --no-cache make
-      - chown -R $UID:$GID /go
-      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
-      - docker pull quay.io/gravitational/teleport-buildbox-arm:$RUNTIME || true
-      - cd /go/src/github.com/gravitational/teleport
-      - make -C build.assets release-arm
-
-  - name: Send Slack notification
-    image: plugins/slack
-    settings:
-      webhook:
-        from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      template: |
-        *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        `${DRONE_STAGE_NAME}` artifact build failed.
-        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-        Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-        <{{ build.link }}|Visit Drone build page ↗>
-    when:
-      status: [failure]
-
-services:
-  - name: Start Docker
-    image: docker:dind
-    volumes:
-      - name: dockersock
-        path: /var/run
-
-volumes:
+- name: Check out code
+  image: docker:git
+  commands:
+  - mkdir -p /go/src/github.com/gravitational/teleport /go/cache
+  - cd /go/src/github.com/gravitational/teleport
+  - git init && git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin
+  - git checkout -qf ${DRONE_COMMIT_SHA}
+  - git submodule update --init webassets || true
+  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - git submodule update --init --recursive webassets || true
+  - rm -f /root/.ssh/id_rsa
+  environment:
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+  volumes:
+  - name: tmpfs
+    path: /tmpfs
+- name: Build artifacts
+  image: docker
+  commands:
+  - apk add --no-cache make
+  - chown -R $UID:$GID /go
+  - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+  - docker pull quay.io/gravitational/teleport-buildbox-arm:$RUNTIME || true
+  - cd /go/src/github.com/gravitational/teleport
+  - make -C build.assets release-arm OS=$OS ARCH=$ARCH
+  environment:
+    ARCH: arm
+    GID: "1000"
+    GOPATH: /go
+    OS: linux
+    UID: "1000"
+  volumes:
   - name: dockersock
-    temp: {}
+    path: /var/run
+- name: Send Slack notification
+  image: plugins/slack
+  commands: []
+  settings:
+    webhook:
+      from_secret: SLACK_WEBHOOK_DEV_TELEPORT
+  template:
+  - |
+    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+    `${DRONE_STAGE_NAME}` artifact build failed.
+    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+    <{{ build.link }}|Visit Drone build page ↗>
+  when:
+    status:
+    - failure
+services:
+- name: Start Docker
+  image: docker:dind
+  volumes:
+  - name: dockersock
+    path: /var/run
+volumes:
+- name: dockersock
+  temp: {}
 
 ---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/push.go:114
+################################################
+
 kind: pipeline
 type: kubernetes
 name: push-build-linux-arm-fips
-
 environment:
+  GID: "1000"
   RUNTIME: go1.15.5
-  UID: 1000
-  GID: 1000
-
+  UID: "1000"
 trigger:
   event:
     include:
-      - push
+    - push
     exclude:
-      - pull_request
-  branch:
-    include:
-      - master
-      - branch/*
+    - pull_request
   repo:
     include:
-      - gravitational/*
-
+    - gravitational/*
+  branch:
+    include:
+    - master
+    - branch/*
 workspace:
   path: /go
-
 clone:
   disable: true
-
 steps:
-  - name: Check out code
-    image: docker:git
-    environment:
-      GITHUB_PRIVATE_KEY:
-        from_secret: GITHUB_PRIVATE_KEY
-    commands:
-      - mkdir -p /go/src/github.com/gravitational/teleport /go/cache
-      - cd /go/src/github.com/gravitational/teleport
-      - git init && git remote add origin ${DRONE_REMOTE_URL}
-      - git fetch origin
-      - git checkout -qf ${DRONE_COMMIT_SHA}
-      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init webassets || true
-      - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-      - git submodule update --init e
-      # do a recursive submodule checkout to get both webassets and webassets/e
-      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init --recursive webassets || true
-      - rm -f /root/.ssh/id_rsa
-      # set version
-      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
-
-  - name: Build artifacts
-    image: docker
-    environment:
-      UID: 1000
-      GID: 1000
-      GOPATH: /go
-      OS: linux
-      ARCH: arm
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - apk add --no-cache make
-      - chown -R $UID:$GID /go
-      - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
-      - docker pull quay.io/gravitational/teleport-buildbox-arm-fips:$RUNTIME || true
-      - cd /go/src/github.com/gravitational/teleport
-      - export VERSION=$(cat /go/.version.txt)
-      - make -C build.assets release-arm-fips VERSION=$VERSION OS=$OS ARCH=$ARCH FIPS=$FIPS
-
-  - name: Send Slack notification
-    image: plugins/slack
-    settings:
-      webhook:
-        from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      template: |
-        *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        `${DRONE_STAGE_NAME}` artifact build failed.
-        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-        Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-        <{{ build.link }}|Visit Drone build page ↗>
-    when:
-      status: [failure]
-
-services:
-  - name: Start Docker
-    image: docker:dind
-    volumes:
-      - name: dockersock
-        path: /var/run
-
-volumes:
+- name: Check out code
+  image: docker:git
+  commands:
+  - mkdir -p /go/src/github.com/gravitational/teleport /go/cache
+  - cd /go/src/github.com/gravitational/teleport
+  - git init && git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin
+  - git checkout -qf ${DRONE_COMMIT_SHA}
+  - git submodule update --init webassets || true
+  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - git submodule update --init --recursive webassets || true
+  - rm -f /root/.ssh/id_rsa
+  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  environment:
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+  volumes:
+  - name: tmpfs
+    path: /tmpfs
+- name: Build artifacts
+  image: docker
+  commands:
+  - apk add --no-cache make
+  - chown -R $UID:$GID /go
+  - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
+  - docker pull quay.io/gravitational/teleport-buildbox-arm-fips:$RUNTIME || true
+  - cd /go/src/github.com/gravitational/teleport
+  - make -C build.assets release-arm-fips VERSION=$VERSION OS=$OS ARCH=$ARCH FIPS=$FIPS
+  environment:
+    ARCH: arm
+    FIPS: "yes"
+    GID: "1000"
+    GOPATH: /go
+    OS: linux
+    UID: "1000"
+  volumes:
   - name: dockersock
-    temp: {}
+    path: /var/run
+- name: Send Slack notification
+  image: plugins/slack
+  commands: []
+  settings:
+    webhook:
+      from_secret: SLACK_WEBHOOK_DEV_TELEPORT
+  template:
+  - |
+    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+    `${DRONE_STAGE_NAME}` artifact build failed.
+    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+    <{{ build.link }}|Visit Drone build page ↗>
+  when:
+    status:
+    - failure
+services:
+- name: Start Docker
+  image: docker:dind
+  volumes:
+  - name: dockersock
+    path: /var/run
+volumes:
+- name: dockersock
+  temp: {}
 
 ---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/push.go:114
+################################################
+
 kind: pipeline
 type: kubernetes
 name: push-build-linux-arm64
-
 environment:
+  GID: "1000"
   RUNTIME: go1.15.5
-  UID: 1000
-  GID: 1000
-
+  UID: "1000"
 trigger:
   event:
     include:
-      - push
+    - push
     exclude:
-      - pull_request
-  branch:
-    include:
-      - master
-      - branch/*
+    - pull_request
   repo:
     include:
-      - gravitational/*
-
+    - gravitational/*
+  branch:
+    include:
+    - master
+    - branch/*
 workspace:
   path: /go
-
 clone:
   disable: true
-
 steps:
-  - name: Check out code
-    image: docker:git
-    environment:
-      GITHUB_PRIVATE_KEY:
-        from_secret: GITHUB_PRIVATE_KEY
-    commands:
-      - mkdir -p /go/src/github.com/gravitational/teleport /go/cache
-      - cd /go/src/github.com/gravitational/teleport
-      - git init && git remote add origin ${DRONE_REMOTE_URL}
-      - git fetch origin
-      - git checkout -qf ${DRONE_COMMIT_SHA}
-      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init webassets || true
-      - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-      - git submodule update --init e
-      # do a recursive submodule checkout to get both webassets and webassets/e
-      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init --recursive webassets || true
-      - rm -f /root/.ssh/id_rsa
-
-  - name: Build artifacts
-    image: docker
-    environment:
-      UID: 1000
-      GID: 1000
-      GOPATH: /go
-      OS: linux
-      ARCH: arm64
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - apk add --no-cache make
-      - chown -R $UID:$GID /go
-      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
-      - docker pull quay.io/gravitational/teleport-buildbox-arm:$RUNTIME || true
-      - cd /go/src/github.com/gravitational/teleport
-      - make -C build.assets release-arm64
-
-  - name: Send Slack notification
-    image: plugins/slack
-    settings:
-      webhook:
-        from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      template: |
-        *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        `${DRONE_STAGE_NAME}` artifact build failed.
-        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-        Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-        <{{ build.link }}|Visit Drone build page ↗>
-    when:
-      status: [failure]
-
-services:
-  - name: Start Docker
-    image: docker:dind
-    volumes:
-      - name: dockersock
-        path: /var/run
-
-volumes:
+- name: Check out code
+  image: docker:git
+  commands:
+  - mkdir -p /go/src/github.com/gravitational/teleport /go/cache
+  - cd /go/src/github.com/gravitational/teleport
+  - git init && git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin
+  - git checkout -qf ${DRONE_COMMIT_SHA}
+  - git submodule update --init webassets || true
+  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - git submodule update --init --recursive webassets || true
+  - rm -f /root/.ssh/id_rsa
+  environment:
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+  volumes:
+  - name: tmpfs
+    path: /tmpfs
+- name: Build artifacts
+  image: docker
+  commands:
+  - apk add --no-cache make
+  - chown -R $UID:$GID /go
+  - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+  - docker pull quay.io/gravitational/teleport-buildbox-arm:$RUNTIME || true
+  - cd /go/src/github.com/gravitational/teleport
+  - make -C build.assets release-arm64 OS=$OS ARCH=$ARCH
+  environment:
+    ARCH: arm64
+    GID: "1000"
+    GOPATH: /go
+    OS: linux
+    UID: "1000"
+  volumes:
   - name: dockersock
-    temp: {}
+    path: /var/run
+- name: Send Slack notification
+  image: plugins/slack
+  commands: []
+  settings:
+    webhook:
+      from_secret: SLACK_WEBHOOK_DEV_TELEPORT
+  template:
+  - |
+    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+    `${DRONE_STAGE_NAME}` artifact build failed.
+    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+    <{{ build.link }}|Visit Drone build page ↗>
+  when:
+    status:
+    - failure
+services:
+- name: Start Docker
+  image: docker:dind
+  volumes:
+  - name: dockersock
+    path: /var/run
+volumes:
+- name: dockersock
+  temp: {}
 
 ---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/push.go:114
+################################################
+
 kind: pipeline
 type: kubernetes
 name: push-build-linux-arm64-fips
-
 environment:
+  GID: "1000"
   RUNTIME: go1.15.5
-  UID: 1000
-  GID: 1000
-
+  UID: "1000"
 trigger:
   event:
     include:
-      - push
+    - push
     exclude:
-      - pull_request
-  branch:
-    include:
-      - master
-      - branch/*
+    - pull_request
   repo:
     include:
-      - gravitational/*
-
+    - gravitational/*
+  branch:
+    include:
+    - master
+    - branch/*
 workspace:
   path: /go
-
 clone:
   disable: true
-
 steps:
-  - name: Check out code
-    image: docker:git
-    environment:
-      GITHUB_PRIVATE_KEY:
-        from_secret: GITHUB_PRIVATE_KEY
-    commands:
-      - mkdir -p /go/src/github.com/gravitational/teleport /go/cache
-      - cd /go/src/github.com/gravitational/teleport
-      - git init && git remote add origin ${DRONE_REMOTE_URL}
-      - git fetch origin
-      - git checkout -qf ${DRONE_COMMIT_SHA}
-      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init webassets || true
-      - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-      - git submodule update --init e
-      # do a recursive submodule checkout to get both webassets and webassets/e
-      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init --recursive webassets || true
-      - rm -f /root/.ssh/id_rsa
-      # set version
-      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
-
-  - name: Build artifacts
-    image: docker
-    environment:
-      UID: 1000
-      GID: 1000
-      GOPATH: /go
-      OS: linux
-      ARCH: arm64
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - apk add --no-cache make
-      - chown -R $UID:$GID /go
-      - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
-      - docker pull quay.io/gravitational/teleport-buildbox-arm-fips:$RUNTIME || true
-      - cd /go/src/github.com/gravitational/teleport
-      - export VERSION=$(cat /go/.version.txt)
-      - make -C build.assets release-arm64-fips VERSION=$VERSION OS=$OS ARCH=$ARCH FIPS=$FIPS
-
-  - name: Send Slack notification
-    image: plugins/slack
-    settings:
-      webhook:
-        from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      template: |
-        *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        `${DRONE_STAGE_NAME}` artifact build failed.
-        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-        Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-        <{{ build.link }}|Visit Drone build page ↗>
-    when:
-      status: [failure]
-
-services:
-  - name: Start Docker
-    image: docker:dind
-    volumes:
-      - name: dockersock
-        path: /var/run
-
-volumes:
+- name: Check out code
+  image: docker:git
+  commands:
+  - mkdir -p /go/src/github.com/gravitational/teleport /go/cache
+  - cd /go/src/github.com/gravitational/teleport
+  - git init && git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin
+  - git checkout -qf ${DRONE_COMMIT_SHA}
+  - git submodule update --init webassets || true
+  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - git submodule update --init --recursive webassets || true
+  - rm -f /root/.ssh/id_rsa
+  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  environment:
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+  volumes:
+  - name: tmpfs
+    path: /tmpfs
+- name: Build artifacts
+  image: docker
+  commands:
+  - apk add --no-cache make
+  - chown -R $UID:$GID /go
+  - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
+  - docker pull quay.io/gravitational/teleport-buildbox-arm-fips:$RUNTIME || true
+  - cd /go/src/github.com/gravitational/teleport
+  - make -C build.assets release-arm64-fips VERSION=$VERSION OS=$OS ARCH=$ARCH FIPS=$FIPS
+  environment:
+    ARCH: arm64
+    FIPS: "yes"
+    GID: "1000"
+    GOPATH: /go
+    OS: linux
+    UID: "1000"
+  volumes:
   - name: dockersock
-    temp: {}
+    path: /var/run
+- name: Send Slack notification
+  image: plugins/slack
+  commands: []
+  settings:
+    webhook:
+      from_secret: SLACK_WEBHOOK_DEV_TELEPORT
+  template:
+  - |
+    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+    `${DRONE_STAGE_NAME}` artifact build failed.
+    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+    <{{ build.link }}|Visit Drone build page ↗>
+  when:
+    status:
+    - failure
+services:
+- name: Start Docker
+  image: docker:dind
+  volumes:
+  - name: dockersock
+    path: /var/run
+volumes:
+- name: dockersock
+  temp: {}
 
 ---
 kind: pipeline
@@ -4378,6 +4367,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 7e244b3ce10084b55f8348de64deb2de17af1effc2660bd61b1b9d1920c74260
+hmac: 0cc2b925979bfa523031aef06f92cfa24eafa4bf79fcc46ecbca9a4712b5ff6f
 
 ...
