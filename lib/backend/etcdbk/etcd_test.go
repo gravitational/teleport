@@ -76,7 +76,7 @@ func (s *EtcdSuite) SetUpSuite(c *check.C) {
 		return bk, nil
 	}
 	s.suite.NewBackend = newBackend
-	s.suite.Clock = clock
+	s.suite.Clock = fakeClock{FakeClock: clock}
 }
 
 func (s *EtcdSuite) SetUpTest(c *check.C) {
@@ -227,4 +227,14 @@ func TestCompareAndSwapOversizedValue(t *testing.T) {
 
 func etcdTestEnabled() bool {
 	return os.Getenv("TELEPORT_ETCD_TEST") != ""
+}
+
+func (r fakeClock) Advance(d time.Duration) {
+	// We cannot rewind time for etcd since it will not have any effect on the server
+	// so we actually sleep in this case
+	time.Sleep(d)
+}
+
+type fakeClock struct {
+	clockwork.FakeClock
 }
