@@ -449,7 +449,7 @@ func Run(args []string, opts ...cliOption) error {
 
 	if cf.Gops {
 		log.Debugf("Starting gops agent.")
-		err = gops.Listen(&gops.Options{Addr: cf.GopsAddr})
+		err = gops.Listen(gops.Options{Addr: cf.GopsAddr})
 		if err != nil {
 			log.Warningf("Failed to start gops agent %v.", err)
 		}
@@ -1815,13 +1815,6 @@ func printProfiles(debug bool, profile *client.ProfileStatus, profiles []*client
 	// Print all other profiles.
 	for _, p := range profiles {
 		printStatus(debug, p, false)
-	}
-
-	// If we are printing profile, add a note that even though roles are listed
-	// here, they are only available in Enterprise.
-	if profile != nil || len(profiles) > 0 {
-		fmt.Printf("\n* RBAC is only available in Teleport Enterprise\n")
-		fmt.Printf("  https://goteleport.com/teleport/docs/enterprise\n")
 	}
 }
 

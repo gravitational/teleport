@@ -1,3 +1,5 @@
+**This repo is deprecated, Renamed to PriorityQueue and moved to http://github.com/mailgun/holster**
+
 [![Build Status](https://drone.io/github.com/mailgun/minheap/status.png)](https://drone.io/github.com/mailgun/minheap/latest)
 
 minheap

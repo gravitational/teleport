@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/secret"
@@ -110,6 +111,7 @@ var _ = Suite(&WebSuite{})
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise it will run tests as normal.
 func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
 	if len(os.Args) == 2 &&
@@ -125,7 +127,6 @@ func TestMain(m *testing.M) {
 
 func (s *WebSuite) SetUpSuite(c *C) {
 	os.Unsetenv(teleport.DebugEnvVar)
-	utils.InitLoggerForTests(testing.Verbose())
 
 	var err error
 	s.mockU2F, err = mocku2f.Create()
@@ -1402,7 +1403,6 @@ func TestU2FLogin(t *testing.T) {
 
 func testU2FLogin(t *testing.T, secondFactor constants.SecondFactorType) {
 	env := newWebPack(t, 1)
-	defer env.close(t)
 
 	// configure cluster authentication preferences
 	cap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
@@ -1777,6 +1777,60 @@ func (s *WebSuite) TestGetClusterDetails(c *C) {
 	c.Assert(cluster.AuthVersion, Equals, "")
 }
 
+type testModules struct {
+	modules.Modules
+}
+
+func (m *testModules) Features() modules.Features {
+	return modules.Features{
+		App: false, // Explicily turn off application access.
+	}
+}
+
+// TestApplicationAccessDisabled makes sure application access can be disabled
+// via modules.
+func TestApplicationAccessDisabled(t *testing.T) {
+	defaultModules := modules.GetModules()
+	defer modules.SetModules(defaultModules)
+	modules.SetModules(&testModules{})
+
+	env := newWebPack(t, 1)
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "foo@example.com")
+
+	// Register an application.
+	server := &types.ServerV2{
+		Kind:    types.KindAppServer,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Namespace: defaults.Namespace,
+			Name:      uuid.New(),
+		},
+		Spec: types.ServerSpecV2{
+			Version: teleport.Version,
+			Apps: []*types.App{
+				{
+					Name:       "panel",
+					PublicAddr: "panel.example.com",
+					URI:        "http://127.0.0.1:8080",
+				},
+			},
+		},
+	}
+	_, err := env.server.Auth().UpsertAppServer(context.Background(), server)
+	require.NoError(t, err)
+
+	endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
+	_, err = pack.clt.PostJSON(context.Background(), endpoint, &CreateAppSessionRequest{
+		FQDN:        "panel.example.com",
+		PublicAddr:  "panel.example.com",
+		ClusterName: "localhost",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "this Teleport cluster doesn't support application access")
+}
+
 // TestCreateAppSession verifies that an existing session to the Web UI can
 // be exchanged for a application specific session.
 func (s *WebSuite) TestCreateAppSession(c *C) {
@@ -1816,18 +1870,52 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		inComment       CommentInterface
 		inCreateRequest *CreateAppSessionRequest
 		outError        bool
+		outFQDN         string
 		outUsername     string
-		outParentHash   string
 	}{
 		{
-			inComment: Commentf("Valid request."),
+			inComment: Commentf("Valid request: all fields."),
 			inCreateRequest: &CreateAppSessionRequest{
 				FQDN:        "panel.example.com",
 				PublicAddr:  "panel.example.com",
 				ClusterName: "localhost",
 			},
 			outError:    false,
+			outFQDN:     "panel.example.com",
 			outUsername: "foo@example.com",
+		},
+		{
+			inComment: Commentf("Valid request: without FQDN."),
+			inCreateRequest: &CreateAppSessionRequest{
+				PublicAddr:  "panel.example.com",
+				ClusterName: "localhost",
+			},
+			outError:    false,
+			outFQDN:     "panel.example.com",
+			outUsername: "foo@example.com",
+		},
+		{
+			inComment: Commentf("Valid request: only FQDN."),
+			inCreateRequest: &CreateAppSessionRequest{
+				FQDN: "panel.example.com",
+			},
+			outError:    false,
+			outFQDN:     "panel.example.com",
+			outUsername: "foo@example.com",
+		},
+		{
+			inComment: Commentf("Invalid request: only public address."),
+			inCreateRequest: &CreateAppSessionRequest{
+				PublicAddr: "panel.example.com",
+			},
+			outError: true,
+		},
+		{
+			inComment: Commentf("Invalid request: only cluster name."),
+			inCreateRequest: &CreateAppSessionRequest{
+				ClusterName: "localhost",
+			},
+			outError: true,
 		},
 		{
 			inComment: Commentf("Invalid application."),
@@ -1848,10 +1936,20 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 			outError: true,
 		},
 		{
-			inComment: Commentf("Missing FQDN."),
+			inComment: Commentf("Malicious request: all fields."),
 			inCreateRequest: &CreateAppSessionRequest{
+				FQDN:        "panel.example.com@malicious.com",
 				PublicAddr:  "panel.example.com",
 				ClusterName: "localhost",
+			},
+			outError:    false,
+			outFQDN:     "panel.example.com",
+			outUsername: "foo@example.com",
+		},
+		{
+			inComment: Commentf("Malicious request: only FQDN."),
+			inCreateRequest: &CreateAppSessionRequest{
+				FQDN: "panel.example.com@malicious.com",
 			},
 			outError: true,
 		},
@@ -1869,14 +1967,15 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		// Unmarshal the response.
 		var response *CreateAppSessionResponse
 		c.Assert(json.Unmarshal(resp.Bytes(), &response), IsNil, tt.inComment)
+		c.Assert(response.FQDN, Equals, tt.outFQDN, tt.inComment)
 
 		// Verify that the application session was created.
 		session, err := s.server.Auth().GetAppSession(context.Background(), services.GetAppSessionRequest{
 			SessionID: response.CookieValue,
 		})
 		c.Assert(err, IsNil)
-		c.Assert(session.GetUser(), Equals, tt.outUsername)
-		c.Assert(session.GetName(), Equals, response.CookieValue)
+		c.Assert(session.GetUser(), Equals, tt.outUsername, tt.inComment)
+		c.Assert(session.GetName(), Equals, response.CookieValue, tt.inComment)
 	}
 }
 
@@ -1887,7 +1986,6 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 // See https://github.com/gravitational/teleport/issues/5265
 func TestWebSessionsRenewDoesNotBreakExistingTerminalSession(t *testing.T) {
 	env := newWebPack(t, 2)
-	defer env.close(t)
 
 	proxy1, proxy2 := env.proxies[0], env.proxies[1]
 	// Connect to both proxies
@@ -1895,7 +1993,6 @@ func TestWebSessionsRenewDoesNotBreakExistingTerminalSession(t *testing.T) {
 	pack2 := proxy2.authPackFromPack(t, pack1)
 
 	ws := proxy2.makeTerminal(t, pack2, session.NewID())
-	defer ws.Close()
 
 	// Advance the time before renewing the session.
 	// This will allow the new session to have a more plausible
@@ -1927,7 +2024,6 @@ func TestWebSessionsRenewDoesNotBreakExistingTerminalSession(t *testing.T) {
 func TestWebSessionsRenewAllowsOldBearerTokenToLinger(t *testing.T) {
 	// Login to implicitly create a new web session
 	env := newWebPack(t, 1)
-	defer env.close(t)
 
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "foo")
@@ -2255,9 +2351,11 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 		Clock:       clock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
 
 	server, err := authServer.NewTestTLSServer()
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, server.Close()) })
 
 	// start auth server
 	certs, err := server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
@@ -2278,6 +2376,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 		},
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, nodeClient.Close()) })
 
 	hostSigners := []ssh.Signer{signer}
 	// create SSH service:
@@ -2302,6 +2401,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	require.NoError(t, err)
 
 	require.NoError(t, node.Start())
+	t.Cleanup(func() { require.NoError(t, node.Close()) })
 	require.NoError(t, auth.CreateUploaderDir(nodeDataDir))
 
 	var proxies []*proxy
@@ -2314,11 +2414,11 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	for start := time.Now(); ; {
 		proxies, err := proxies[0].client.GetProxies()
 		require.NoError(t, err)
-		if len(proxies) != numProxies {
+		if len(proxies) == numProxies {
 			break
 		}
 		if time.Since(start) > 5*time.Second {
-			t.Fatal("Proxy didn't register within 5s after startup.")
+			t.Fatalf("Proxies didn't register within 5s after startup; registered: %d, want: %d", len(proxies), numProxies)
 		}
 	}
 
@@ -2341,9 +2441,11 @@ func createProxy(t *testing.T, proxyID string, node *regular.Server, authServer 
 		},
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, client.Close()) })
 
 	revTunListener, err := net.Listen("tcp", fmt.Sprintf("%v:0", authServer.ClusterName()))
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, revTunListener.Close()) })
 
 	revTunServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ID:                    node.ID(),
@@ -2359,6 +2461,7 @@ func createProxy(t *testing.T, proxyID string, node *regular.Server, authServer 
 		DataDir:               t.TempDir(),
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, revTunServer.Close()) })
 
 	proxyServer, err := regular.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
@@ -2377,6 +2480,7 @@ func createProxy(t *testing.T, proxyID string, node *regular.Server, authServer 
 		regular.SetClock(clock),
 	)
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, proxyServer.Close()) })
 
 	fs, err := NewDebugFileSystem("../../webassets/teleport")
 	require.NoError(t, err)
@@ -2394,8 +2498,8 @@ func createProxy(t *testing.T, proxyID string, node *regular.Server, authServer 
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(clock))
 	require.NoError(t, err)
 
-	webServer := httptest.NewUnstartedServer(handler)
-	webServer.StartTLS()
+	webServer := httptest.NewTLSServer(handler)
+	t.Cleanup(webServer.Close)
 	require.NoError(t, proxyServer.Start())
 
 	proxyAddr := utils.MustParseAddr(proxyServer.Addr())
@@ -2431,17 +2535,6 @@ type webPack struct {
 	server  *auth.TestTLSServer
 	node    *regular.Server
 	clock   clockwork.FakeClock
-}
-
-func (r *webPack) close(t *testing.T) {
-	for _, p := range r.proxies {
-		p.web.Close()
-		p.proxy.Close()
-		p.revTun.Close()
-	}
-	require.NoError(t, r.node.Close())
-	require.NoError(t, r.server.Close())
-
 }
 
 type proxy struct {
@@ -2619,6 +2712,7 @@ func (r *proxy) makeTerminal(t *testing.T, pack *authPack, sessionID session.ID)
 
 	ws, err := websocket.DialConfig(wscfg)
 	require.NoError(t, err)
+	t.Cleanup(func() { ws.Close() })
 
 	return ws
 }

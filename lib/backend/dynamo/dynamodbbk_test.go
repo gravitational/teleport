@@ -30,6 +30,11 @@ import (
 	"gopkg.in/check.v1"
 )
 
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
+
 func TestDynamoDB(t *testing.T) { check.TestingT(t) }
 
 type DynamoDBSuite struct {
@@ -41,9 +46,6 @@ type DynamoDBSuite struct {
 var _ = check.Suite(&DynamoDBSuite{})
 
 func (s *DynamoDBSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-	var err error
-
 	s.tableName = "teleport.dynamo.test"
 	newBackend := func() (backend.Backend, error) {
 		return New(context.Background(), map[string]interface{}{

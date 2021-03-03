@@ -18,6 +18,7 @@ package native
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -33,6 +34,11 @@ import (
 	"gopkg.in/check.v1"
 )
 
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
+
 func TestNative(t *testing.T) { check.TestingT(t) }
 
 type NativeSuite struct {
@@ -42,8 +48,6 @@ type NativeSuite struct {
 var _ = check.Suite(&NativeSuite{})
 
 func (s *NativeSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	fakeClock := clockwork.NewFakeClockAt(time.Date(2016, 9, 8, 7, 6, 5, 0, time.UTC))
 
 	a := New(

@@ -18,6 +18,7 @@ package labels
 
 import (
 	"context"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -29,16 +30,17 @@ import (
 	"gopkg.in/check.v1"
 )
 
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
+
 type LabelSuite struct {
 }
 
 var _ = check.Suite(&LabelSuite{})
 
 func TestLabels(t *testing.T) { check.TestingT(t) }
-
-func (s *LabelSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (s *LabelSuite) TestSync(c *check.C) {
 	// Create dynamic labels and sync right away.

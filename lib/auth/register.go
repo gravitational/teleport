@@ -158,7 +158,11 @@ func Register(params RegisterParams) (*Identity, error) {
 // authServerIsProxy returns true if the first specified auth server
 // to register with appears to be a proxy.
 func authServerIsProxy(servers []utils.NetAddr) bool {
-	return len(servers) > 0 && servers[0].Port(0) == defaults.HTTPListenPort
+	if len(servers) == 0 {
+		return false
+	}
+	port := servers[0].Port(0)
+	return port == defaults.HTTPListenPort || port == teleport.StandardHTTPSPort
 }
 
 // registerThroughProxy is used to register through the proxy server.
@@ -256,7 +260,12 @@ func insecureRegisterClient(params RegisterParams) (*Client, error) {
 		log.Infof("Joining remote cluster %v, validating connection with certificate on disk.", cert.Subject.CommonName)
 	}
 
-	client, err := NewClient(client.Config{Addrs: utils.NetAddrsToStrings(params.Servers), TLS: tlsConfig})
+	client, err := NewClient(client.Config{
+		Addrs: utils.NetAddrsToStrings(params.Servers),
+		Credentials: []client.Credentials{
+			client.LoadTLS(tlsConfig),
+		},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -289,7 +298,12 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
 	tlsConfig.InsecureSkipVerify = true
 	tlsConfig.Time = params.Clock.Now
-	authClient, err := NewClient(client.Config{Addrs: utils.NetAddrsToStrings(params.Servers), TLS: tlsConfig})
+	authClient, err := NewClient(client.Config{
+		Addrs: utils.NetAddrsToStrings(params.Servers),
+		Credentials: []client.Credentials{
+			client.LoadTLS(tlsConfig),
+		},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -314,6 +328,12 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// Check that the fetched CA is valid at the current time.
+	err = utils.VerifyCertificateExpiry(tlsCA, params.Clock)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	log.Infof("Joining remote cluster %v with CA pin.", tlsCA.Subject.CommonName)
 
 	// Create another client, but this time with the CA provided to validate
@@ -324,7 +344,12 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 	certPool.AddCert(tlsCA)
 	tlsConfig.RootCAs = certPool
 
-	authClient, err = NewClient(client.Config{Addrs: utils.NetAddrsToStrings(params.Servers), TLS: tlsConfig})
+	authClient, err = NewClient(client.Config{
+		Addrs: utils.NetAddrsToStrings(params.Servers),
+		Credentials: []client.Credentials{
+			client.LoadTLS(tlsConfig),
+		},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

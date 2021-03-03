@@ -20,20 +20,24 @@ limitations under the License.
 Package uacc concerns itself with updating the user account database and log on nodes
 that a client connects to with an interactive session.
 
-This is a stub version that doesn't do anything and exists purely for compatability purposes with systems we don't support.
+This is a stub version that doesn't do anything and exists purely for compatibility purposes with systems we don't support.
 
 We do not support macOS yet because they introduced ASL for user accounting with Mac OS X 10.6 (Snow Leopard)
 and integrating with that takes additional effort.
 */
 package uacc
 
+import (
+	"os"
+)
+
 // Open is a stub function.
-func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32, ttyName string) error {
+func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32, tty *os.File) error {
 	return nil
 }
 
 // Close is a stub function.
-func Close(utmpPath, wtmpPath string, ttyName string) error {
+func Close(utmpPath, wtmpPath string, tty *os.File) error {
 	return nil
 }
 

@@ -28,6 +28,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -37,11 +38,12 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/trace"
 )
 
 func TestListKeys(t *testing.T) {
@@ -394,8 +396,6 @@ func newSelfSignedCA(privateKey []byte) (*tlsca.CertAuthority, auth.TrustedCerts
 }
 
 func newTest(t *testing.T) (keyStoreTest, func()) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	dir, err := ioutil.TempDir("", "teleport-keystore")
 	require.NoError(t, err)
 

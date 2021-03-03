@@ -57,12 +57,13 @@ import (
 
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	saml2 "github.com/russellhaering/gosaml2"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/trace"
 )
 
 // ServerOption allows setting options as functional arguments to Server
@@ -538,7 +539,7 @@ func (a *Server) GenerateUserAppTestCert(publicKey []byte, username string, ttl 
 		// used to log into servers but SSH certificate generation code requires a
 		// principal be in the certificate.
 		traits: wrappers.Traits(map[string][]string{
-			teleport.TraitLogins: []string{uuid.New()},
+			teleport.TraitLogins: {uuid.New()},
 		}),
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},
@@ -648,6 +649,20 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if req.routeToCluster != "" && clusterName != req.routeToCluster {
+		// Authorize access to a remote cluster.
+		rc, err := a.Presence.GetRemoteCluster(req.routeToCluster)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := req.checker.CheckAccessToRemoteCluster(rc); err != nil {
+			if trace.IsAccessDenied(err) {
+				return nil, trace.NotFound("remote cluster %q not found", req.routeToCluster)
+			}
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	ca, err := a.Trust.GetCertAuthority(services.CertAuthID{
 		Type:       services.UserCA,
 		DomainName: clusterName,
@@ -696,7 +711,7 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 			if !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
 			}
-			log.WithError(err).Debug("Failed setting default kubernetes cluster for user login (user did not provide a cluster); leaving KubernetesCluster extension in the TLS certificate empty")
+			log.Debug("Failed setting default kubernetes cluster for user login (user did not provide a cluster); leaving KubernetesCluster extension in the TLS certificate empty")
 		}
 	}
 

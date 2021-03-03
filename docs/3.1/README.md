@@ -35,7 +35,7 @@ by borrowing from our previous experiences at Rackspace. It has been extracted f
 and remotely manage their SaaS applications on many cloud regions or even on-premise.
 
 ## Resources
-To get started with Teleport we recommend starting with the [Architecture Document](pages/architecture.md). Then if you want to jump right in and play with Teleport, you can read the [Quick Start](pages/quickstart.md). For a deeper understanding of how everything works and recommended production setup, please review the [Admin Manual](pages/admin-guide.md) to setup Teleport and the [User Manual](pages/user-manual.md) for daily usage. There is also an [FAQ](pages/faq.md) where we'll be collecting common questions. Finally, you can always type `tsh`, `tctl` or `teleport` in terminal after Teleport has been installed to review those reference guides.
+To get started with Teleport we recommend starting with the [Architecture Document](pages/architecture.mdx). Then if you want to jump right in and play with Teleport, you can read the [Quick Start](pages/quickstart.mdx). For a deeper understanding of how everything works and recommended production setup, please review the [Admin Manual](pages/admin-guide.mdx) to setup Teleport and the [User Manual](pages/user-manual.mdx) for daily usage. There is also an [FAQ](pages/faq.mdx) where we'll be collecting common questions. Finally, you can always type `tsh`, `tctl` or `teleport` in terminal after Teleport has been installed to review those reference guides.
 
 The best way to ask questions or file issues regarding Teleport is by creating a Github issue or pull request. Otherwise, you can reach us through the contact form or chat on our [website](https://gravitational.com/).
 

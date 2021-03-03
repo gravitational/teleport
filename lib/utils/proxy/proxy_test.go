@@ -25,15 +25,16 @@ import (
 	"gopkg.in/check.v1"
 )
 
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
+
 func TestProxy(t *testing.T) { check.TestingT(t) }
 
 type ProxySuite struct{}
 
 var _ = check.Suite(&ProxySuite{})
-
-func (s *ProxySuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (s *ProxySuite) TestGetProxyAddress(c *check.C) {
 	type env struct {

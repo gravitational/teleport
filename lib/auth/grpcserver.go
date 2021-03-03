@@ -1,5 +1,5 @@
 /*
-Copyright 2018-2020 Gravitational, Inc.
+Copyright 2018-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,12 +23,12 @@ import (
 	"net"
 	"time"
 
-	"github.com/jonboulle/clockwork"
-
+	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -36,10 +36,9 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -56,6 +55,15 @@ type GRPCServer struct {
 	*logrus.Entry
 	APIConfig
 	server *grpc.Server
+}
+
+// GetServer returns an instance of grpc server
+func (g *GRPCServer) GetServer() (*grpc.Server, error) {
+	if g.server == nil {
+		return nil, trace.BadParameter("grpc server has not been initialized")
+	}
+
+	return g.server, nil
 }
 
 // EmitAuditEvent emits audit event
@@ -108,6 +116,7 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 	}
 
 	var eventStream events.Stream
+	var sessionID session.ID
 	g.Debugf("CreateAuditStream connection from %v.", auth.User.GetName())
 	streamStart := time.Now()
 	processed := int64(0)
@@ -150,6 +159,7 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 			if err != nil {
 				return trace.Wrap(err)
 			}
+			sessionID = session.ID(create.SessionID)
 			g.Debugf("Created stream: %v.", err)
 			go forwardEvents(eventStream)
 			defer closeStream(eventStream)
@@ -171,6 +181,31 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 			// do not use stream context to give the auth server finish the upload
 			// even if the stream's context is cancelled
 			err := eventStream.Complete(auth.CloseContext())
+			if err != nil {
+				return trail.ToGRPC(err)
+			}
+			clusterName, err := auth.GetClusterName()
+			if err != nil {
+				return trail.ToGRPC(err)
+			}
+			if g.APIConfig.MetadataGetter != nil {
+				sessionData := g.APIConfig.MetadataGetter.GetUploadMetadata(sessionID)
+				event := &apievents.SessionUpload{
+					Metadata: events.Metadata{
+						Type:        events.SessionUploadEvent,
+						Code:        events.SessionUploadCode,
+						Index:       events.SessionUploadIndex,
+						ClusterName: clusterName.GetClusterName(),
+					},
+					SessionMetadata: events.SessionMetadata{
+						SessionID: string(sessionData.SessionID),
+					},
+					SessionURL: sessionData.URL,
+				}
+				if err := g.Emitter.EmitAuditEvent(auth.CloseContext(), event); err != nil {
+					return trail.ToGRPC(err)
+				}
+			}
 			g.Debugf("Completed stream: %v.", err)
 			if err != nil {
 				return trail.ToGRPC(err)
