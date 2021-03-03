@@ -45,7 +45,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/docker/docker/pkg/term"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
 )
@@ -117,7 +116,6 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 		ClusterName:       "localhost",
 		srv: &fakeServer{
 			accessPoint: s.a,
-			auditLog:    &fakeLog{},
 			id:          "00000000-0000-0000-0000-000000000000",
 		},
 	}
@@ -263,7 +261,6 @@ func (s *ExecSuite) TestContinue(c *check.C) {
 		IsTestStub:        true,
 		srv: &fakeServer{
 			accessPoint: s.a,
-			auditLog:    &fakeLog{},
 			id:          "00000000-0000-0000-0000-000000000000",
 		},
 	}
@@ -410,7 +407,6 @@ func (f *fakeTerminal) SetTermType(string) {
 
 // fakeServer is stub for tests
 type fakeServer struct {
-	auditLog events.IAuditLog
 	events.MockEmitter
 	accessPoint auth.AccessPoint
 	id          string
@@ -474,47 +470,4 @@ func (f *fakeServer) UseTunnel() bool {
 
 func (f *fakeServer) GetBPF() bpf.BPF {
 	return &bpf.NOP{}
-}
-
-// fakeLog is used in tests to obtain the last event emit to the Audit Log.
-type fakeLog struct {
-}
-
-func (a *fakeLog) EmitAuditEventLegacy(e events.Event, f events.EventFields) error {
-	return trace.NotImplemented("not implemented")
-}
-
-func (a *fakeLog) PostSessionSlice(s events.SessionSlice) error {
-	return trace.NotImplemented("not implemented")
-}
-
-func (a *fakeLog) UploadSessionRecording(r events.SessionRecording) error {
-	return trace.NotImplemented("not implemented")
-}
-
-func (a *fakeLog) GetSessionChunk(namespace string, sid rsession.ID, offsetBytes int, maxBytes int) ([]byte, error) {
-	return nil, trace.NotFound("")
-}
-
-func (a *fakeLog) GetSessionEvents(namespace string, sid rsession.ID, after int, includePrintEvents bool) ([]events.EventFields, error) {
-	return nil, trace.NotFound("")
-}
-
-func (a *fakeLog) SearchEvents(fromUTC, toUTC time.Time, query string, limit int) ([]events.EventFields, error) {
-	return nil, trace.NotFound("")
-}
-
-func (a *fakeLog) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int) ([]events.EventFields, error) {
-	return nil, trace.NotFound("")
-}
-
-func (a *fakeLog) WaitForDelivery(context.Context) error {
-	return trace.NotImplemented("not implemented")
-}
-
-func (a *fakeLog) Close() error {
-	return trace.NotFound("")
-}
-func (a *fakeLog) EmitAuditEvent(ctx context.Context, e events.AuditEvent) error {
-	return trace.NotImplemented("not implemented")
 }
