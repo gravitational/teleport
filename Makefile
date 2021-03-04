@@ -642,7 +642,7 @@ update-vendor:
 	rm -r vendor/github.com/gravitational/teleport/api
 	ln -s -r $(shell readlink -f api) vendor/github.com/gravitational/teleport
 
-# update-webassets updates updates the webassets repo using the latest webapps
+# update-webassets updates the minified code in the webassets repo using the latest webapps
 # repo and creates a PR in the teleport repo to update webassets submodule.
 .PHONY: update-webassets
 update-webassets: WEBAPPS_BRANCH ?= 'master'
