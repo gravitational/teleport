@@ -110,7 +110,7 @@ func TestSend(t *testing.T) {
 	var testCases = []struct {
 		desc   string
 		config Config
-		fs     testFS
+		fs     *testFS
 		args   []string
 	}{
 		{
@@ -157,7 +157,7 @@ func TestSend(t *testing.T) {
 			require.NoError(t, err)
 
 			fs := newEmptyTestFS(logger)
-			fromOS(t, targetDir, &fs)
+			fromOS(t, targetDir, fs)
 			validateSCPTimes(t, fs, tt.fs)
 			validateSCPContents(t, fs, tt.fs)
 		})
@@ -172,22 +172,23 @@ func TestReceive(t *testing.T) {
 	dirAtime := testNow.Add(3 * time.Second)
 	logger := logrus.WithField(trace.Component, "t:recv")
 	var testCases = []struct {
-		desc   string
-		config Config
-		fs     testFS
-		args   []string
+		desc       string
+		config     Config
+		source     string
+		sourceFS   *testFS
+		expectedFS *testFS
 	}{
 		{
-			desc:   "regular file preserving the attributes",
-			config: newTargetConfig("file", Flags{PreserveAttrs: true}),
-			args:   args("-v", "-f", "-p"),
-			fs:     newTestFS(logger, newFileTimes("file", modtime, atime, "file contents")),
+			desc:     "regular file preserving the attributes",
+			config:   newTargetConfig("file", Flags{PreserveAttrs: true}),
+			source:   "file",
+			sourceFS: newTestFS(logger, newFileTimes("file", modtime, atime, "file contents")),
 		},
 		{
 			desc:   "directory preserving the attributes",
 			config: newTargetConfig("dir", Flags{PreserveAttrs: true, Recursive: true}),
-			args:   args("-v", "-f", "-r", "-p"),
-			fs: newTestFS(
+			source: "dir",
+			sourceFS: newTestFS(
 				logger,
 				// Use timestamps extending backwards to test time application
 				newDirTimes("dir", dirModtime.Add(1*time.Second), dirAtime.Add(2*time.Second),
@@ -197,38 +198,94 @@ func TestReceive(t *testing.T) {
 				),
 			),
 		},
+		{
+			desc:       "regular file into different filename (rename)",
+			config:     newTargetConfig("remote_file", Flags{}),
+			source:     "file",
+			expectedFS: newTestFS(logger, newFile("remote_file", "file contents")),
+			sourceFS:   newTestFS(logger, newFile("file", "file contents")),
+		},
+		{
+			desc:       "regular file into different filename in a directory (rename)",
+			config:     newTargetConfigWithFS("dir/remote_file", Flags{}, newTestFS(logger, newDir("dir"))),
+			source:     "file",
+			expectedFS: newTestFS(logger, newDir("dir", newFile("dir/remote_file", "file contents"))),
+			sourceFS:   newTestFS(logger, newFile("file", "file contents")),
+		},
+		{
+			desc:       "directory into different directory name (rename)",
+			config:     newTargetConfig("remote_dir", Flags{Recursive: true}),
+			source:     "dir",
+			expectedFS: newTestFS(logger, newDir("remote_dir", newFile("remote_dir/file", "file contents"))),
+			sourceFS:   newTestFS(logger, newDir("dir", newFile("dir/file", "file contents"))),
+		},
+		{
+			desc:       "directory into different directory name in subdirectory (rename)",
+			config:     newTargetConfigWithFS("dir/remote_dir", Flags{Recursive: true}, newTestFS(logger, newDir("dir"))),
+			source:     "dir",
+			expectedFS: newTestFS(logger, newDir("dir/remote_dir", newFile("dir/remote_dir/file", "file contents"))),
+			sourceFS:   newTestFS(logger, newDir("dir", newFile("dir/file", "file contents"))),
+		},
 	}
 	for _, tt := range testCases {
 		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
+			logger := logger.WithField("test", tt.desc)
 			t.Parallel()
+
+			sourceDir := t.TempDir()
+			source := filepath.Join(sourceDir, tt.source)
+			args := []string{"-v", "-f"}
+			if tt.config.Flags.PreserveAttrs {
+				args = append(args, "-p")
+			}
+			if tt.config.Flags.Recursive {
+				args = append(args, "-r")
+			}
+			args = append(args, source)
+
+			if tt.config.FileSystem == nil {
+				tt.config.FileSystem = newEmptyTestFS(logger)
+			}
 			cmd, err := CreateCommand(tt.config)
 			require.NoError(t, err)
 
-			sourceDir := t.TempDir()
-			source := filepath.Join(sourceDir, tt.config.Flags.Target[0])
-			args := append(tt.args, source)
+			writeData(t, sourceDir, tt.sourceFS)
+			if tt.config.Flags.PreserveAttrs {
+				writeFileTimes(t, sourceDir, tt.sourceFS)
+			}
 
-			// Source is missing, expect an error.
-			err = runSCP(cmd, args...)
-			require.Regexp(t, ".*No such file or directory", err)
-
-			tt.config.FileSystem = newEmptyTestFS(logger)
-			cmd, err = CreateCommand(tt.config)
-			require.NoError(t, err)
-
-			writeData(t, sourceDir, tt.fs)
-			writeFileTimes(t, sourceDir, tt.fs)
-
-			// Resend the data
+			// Send the data
 			err = runSCP(cmd, args...)
 			require.NoError(t, err)
 
-			validateSCPTimes(t, tt.fs, tt.config.FileSystem)
-			validateSCPContents(t, tt.fs, tt.config.FileSystem)
-
+			expectedFS := tt.sourceFS
+			if tt.expectedFS != nil {
+				expectedFS = tt.expectedFS
+			}
+			if tt.config.Flags.PreserveAttrs {
+				validateSCPTimes(t, expectedFS, tt.config.FileSystem)
+			} else {
+				validateSCP(t, expectedFS, tt.config.FileSystem)
+			}
+			validateSCPContents(t, expectedFS, tt.config.FileSystem)
 		})
 	}
+}
+
+func TestSCPFailsIfNoSource(t *testing.T) {
+	t.Parallel()
+	config := newTargetConfig("file", Flags{})
+
+	cmd, err := CreateCommand(config)
+	require.NoError(t, err)
+
+	sourceDir := t.TempDir()
+	source := filepath.Join(sourceDir, config.Flags.Target[0])
+
+	// Source is missing, expect an error.
+	err = runSCP(cmd, "-v", "-f", source)
+	require.Regexp(t, ".*No such file or directory", err)
 }
 
 // TestReceiveIntoExistingDirectory validates that the target remote directory
@@ -266,7 +323,6 @@ func TestReceiveIntoExistingDirectory(t *testing.T) {
 	require.NoError(t, err)
 
 	writeData(t, sourceDir, sourceFS)
-	writeFileTimes(t, sourceDir, sourceFS)
 
 	err = runSCP(cmd, args...)
 	require.NoError(t, err)
@@ -275,14 +331,65 @@ func TestReceiveIntoExistingDirectory(t *testing.T) {
 	validateSCPContents(t, expectedFS, config.FileSystem)
 }
 
+// TestReceiveIntoNonExistingDirectoryFailsWithCorrectMessage validates that copying a file into a non-existing
+// directory fails with a correct error.
+//
+// See https://github.com/gravitational/teleport/issues/5695
+func TestReceiveIntoNonExistingDirectoryFailsWithCorrectMessage(t *testing.T) {
+	logger := logrus.WithField("test", t.Name())
+	// Target configuration with no existing directory
+	root := t.TempDir()
+	config := newTargetConfigWithFS(filepath.Join(root, "dir"),
+		Flags{PreserveAttrs: true},
+		newTestFS(logger),
+	)
+	sourceFS := newTestFS(
+		logger,
+		newFile("file", "file contents"),
+	)
+	sourceDir := t.TempDir()
+	source := filepath.Join(sourceDir, "file")
+	args := append(args("-v", "-f"), source)
+
+	cmd, err := CreateCommand(config)
+	require.NoError(t, err)
+
+	writeData(t, sourceDir, sourceFS)
+
+	err = runSCP(cmd, args...)
+	require.Error(t, err)
+	require.Equal(t, fmt.Sprintf("no such file or directory %q", root), err.Error())
+}
+
+// TestCopyIntoNestedNonExistingDirectoriesDoesNotCreateIntermediateDirectories validates that copying a directory
+// into a remote '/path/to/remote' where '/path/to' does not exist causes an error.
+func TestCopyIntoNestedNonExistingDirectoriesDoesNotCreateIntermediateDirectories(t *testing.T) {
+	logger := logrus.WithField("test", t.Name())
+
+	config := newTargetConfig("non-existing/remote_dir", Flags{Recursive: true})
+	sourceFS := newTestFS(logger, newDir("dir"))
+
+	cmd, err := CreateCommand(config)
+	require.NoError(t, err)
+
+	sourceDir := t.TempDir()
+	writeData(t, sourceDir, sourceFS)
+
+	// Send the data
+	err = runSCP(cmd, "-v", "-f", "-r", filepath.Join(sourceDir, "dir"))
+	require.Error(t, err)
+	require.Equal(t, "mkdir non-existing/remote_dir: no such file or directory", err.Error())
+}
+
 func TestInvalidDir(t *testing.T) {
 	t.Parallel()
 
 	cmd, err := CreateCommand(Config{
 		User: "test-user",
 		Flags: Flags{
-			Sink:      true,
-			Target:    []string{},
+			Sink: true,
+			// Target is always defined
+			Target:    []string{"./dir"},
 			Recursive: true,
 		},
 	})
@@ -338,10 +445,10 @@ func TestInvalidDir(t *testing.T) {
 	}
 }
 
-// TestVerifyDir makes sure that if scp was started in directory mode (the
+// TestVerifyDirectoryModeFailsWithFile makes sure that if scp was started in directory mode (the
 // user attempts to copy multiple files or a directory), the target is a
 // directory.
-func TestVerifyDir(t *testing.T) {
+func TestVerifyDirectoryModeFailsWithFile(t *testing.T) {
 	// Create temporary directory with a file "target" in it.
 	dir := t.TempDir()
 	target := filepath.Join(dir, "target")
@@ -363,6 +470,32 @@ func TestVerifyDir(t *testing.T) {
 	// it should fail.
 	err = runSCP(cmd, "-t", "-d", target)
 	require.Regexp(t, ".*Not a directory", err)
+}
+
+// TestVerifyDirectoryModeIsRequiredForDirectory verifies that if a directory
+// scp is attempted in non-recursive mode, the command fails as expected.
+func TestVerifyDirectoryModeIsRequiredForDirectory(t *testing.T) {
+	// Create temporary directory with a file "target" in it.
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target")
+	err := ioutil.WriteFile(target, []byte{}, 0666)
+	require.NoError(t, err)
+
+	cmd, err := CreateCommand(
+		Config{
+			User: "test-user",
+			Flags: Flags{
+				Source: true,
+				Target: []string{dir},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	// Run command in non-recursive mode. Since the source is a directory,
+	// it should fail.
+	err = runSCP(cmd, "-t", dir)
+	require.Regexp(t, fmt.Sprintf("%s is a directory, use -r flag to copy recursively", filepath.Base(dir)), err)
 }
 
 func TestSCPParsing(t *testing.T) {
@@ -493,7 +626,7 @@ func fromOS(t *testing.T, dir string, fs *testFS) {
 
 // writeData recreates the file/directory structure in dir
 // as specified with the file system fs
-func writeData(t *testing.T, dir string, fs testFS) {
+func writeData(t *testing.T, dir string, fs *testFS) {
 	for _, f := range fs.fs {
 		if f.IsDir() {
 			require.NoError(t, os.MkdirAll(filepath.Join(dir, f.path), f.perms))
@@ -517,7 +650,7 @@ func writeData(t *testing.T, dir string, fs testFS) {
 
 // writeFileTimes applies access/modification times on files/directories in dir
 // as specified in the file system fs.
-func writeFileTimes(t *testing.T, dir string, fs testFS) {
+func writeFileTimes(t *testing.T, dir string, fs *testFS) {
 	for _, f := range fs.fs {
 		require.NoError(t, os.Chtimes(filepath.Join(dir, f.path), f.atime, f.modtime))
 	}
@@ -525,7 +658,7 @@ func writeFileTimes(t *testing.T, dir string, fs testFS) {
 
 // validateSCPContents verifies that the file contents in the specified
 // file systems match in the corresponding files
-func validateSCPContents(t *testing.T, expected testFS, actual FileSystem) {
+func validateSCPContents(t *testing.T, expected *testFS, actual FileSystem) {
 	for path, fileinfo := range expected.fs {
 		if fileinfo.IsDir() {
 			continue
@@ -540,10 +673,10 @@ func validateSCPContents(t *testing.T, expected testFS, actual FileSystem) {
 }
 
 // validateSCP verifies that the specified pair of FileSystems match.
-func validateSCP(t *testing.T, expected testFS, actual FileSystem) {
+func validateSCP(t *testing.T, expected *testFS, actual FileSystem) {
 	for path, fileinfo := range expected.fs {
 		targetFileinfo, err := actual.GetFileInfo(path)
-		require.NoError(t, err, "expected %v", path)
+		require.NoError(t, err, "expected %v (%v)", path, fileinfo)
 		if fileinfo.IsDir() {
 			require.True(t, targetFileinfo.IsDir())
 		} else {
@@ -554,29 +687,29 @@ func validateSCP(t *testing.T, expected testFS, actual FileSystem) {
 
 // validateSCPTimes verifies that the specified pair of FileSystems match.
 // FileSystem match if their contents match incl. access/modification times
-func validateSCPTimes(t *testing.T, expected testFS, actual FileSystem) {
+func validateSCPTimes(t *testing.T, expected *testFS, actual FileSystem) {
 	for path, fileinfo := range expected.fs {
 		targetFileinfo, err := actual.GetFileInfo(path)
-		require.NoError(t, err, "expected %v", path)
+		require.NoError(t, err, "expected %v (%v)", path, fileinfo)
 		if fileinfo.IsDir() {
 			require.True(t, targetFileinfo.IsDir())
 		} else {
 			require.True(t, targetFileinfo.GetModePerm().IsRegular())
 		}
-		validateFileTimes(t, *fileinfo, targetFileinfo)
+		validateFileTimes(t, fileinfo, targetFileinfo)
 	}
 }
 
 // validateFileTimes verifies that the specified pair of FileInfos match
-func validateFileTimes(t *testing.T, expected testFileInfo, actual FileInfo) {
+func validateFileTimes(t *testing.T, expected *testFileInfo, actual FileInfo) {
 	require.Empty(t, cmp.Diff(
 		expected.GetModTime().UTC().Format(time.RFC3339),
 		actual.GetModTime().UTC().Format(time.RFC3339),
-	))
+	), "validating modification times for %v", actual)
 	require.Empty(t, cmp.Diff(
 		expected.GetAccessTime().UTC().Format(time.RFC3339),
 		actual.GetAccessTime().UTC().Format(time.RFC3339),
-	))
+	), "validating access times for %v", actual)
 }
 
 type readWriter struct {
@@ -614,44 +747,41 @@ func newCmd(name string, args ...string) (cmd *exec.Cmd, stdin io.WriteCloser, s
 	return cmd, stdin, stdout, stderr
 }
 
-// newEmptyTestFS creates a new test FileSystem without content
-func newEmptyTestFS(l logrus.FieldLogger) testFS {
-	return testFS{
-		fs: make(map[string]*testFileInfo),
-		l:  l,
-	}
-}
-
 // newTestFS creates a new test FileSystem using the specified logger
 // and the set of top-level files
-func newTestFS(l logrus.FieldLogger, files ...*testFileInfo) testFS {
-	fs := make(map[string]*testFileInfo)
-	addFiles(fs, files...)
-	return testFS{
-		fs: fs,
-		l:  l,
+func newTestFS(logger logrus.FieldLogger, files ...*testFileInfo) *testFS {
+	fs := newEmptyTestFS(logger)
+	addFiles(fs.fs, files...)
+	return fs
+}
+
+// newEmptyTestFS creates a new test FileSystem without content
+func newEmptyTestFS(logger logrus.FieldLogger) *testFS {
+	return &testFS{
+		fs: make(map[string]*testFileInfo),
+		l:  logger,
 	}
 }
 
-func (r testFS) IsDir(path string) bool {
-	r.l.WithField("path", path).Info("IsDir.")
+func (r *testFS) IsDir(path string) bool {
+	r.l.WithField("path", path).Debug("IsDir.")
 	if fi, exists := r.fs[path]; exists {
 		return fi.IsDir()
 	}
 	return false
 }
 
-func (r testFS) GetFileInfo(path string) (FileInfo, error) {
-	r.l.WithField("path", path).Info("GetFileInfo.")
+func (r *testFS) GetFileInfo(path string) (FileInfo, error) {
+	r.l.WithField("path", path).Debug("GetFileInfo.")
 	fi, exists := r.fs[path]
 	if !exists {
-		return nil, errMissingFile
+		return nil, newErrMissingFile(path)
 	}
 	return fi, nil
 }
 
-func (r testFS) MkDir(path string, mode int) error {
-	r.l.WithField("path", path).WithField("mode", mode).Info("MkDir.")
+func (r *testFS) MkDir(path string, mode int) error {
+	r.l.WithFields(logrus.Fields{"path": path, "mode": mode}).Debug("MkDir.")
 	_, exists := r.fs[path]
 	if exists {
 		return trace.AlreadyExists("directory %v already exists", path)
@@ -664,18 +794,22 @@ func (r testFS) MkDir(path string, mode int) error {
 	return nil
 }
 
-func (r testFS) OpenFile(path string) (io.ReadCloser, error) {
-	r.l.WithField("path", path).Info("OpenFile.")
+func (r *testFS) OpenFile(path string) (io.ReadCloser, error) {
+	r.l.WithField("path", path).Debug("OpenFile.")
 	fi, exists := r.fs[path]
 	if !exists {
-		return nil, errMissingFile
+		return nil, newErrMissingFile(path)
 	}
 	rc := nopReadCloser{Reader: bytes.NewReader(fi.contents.Bytes())}
 	return rc, nil
 }
 
-func (r testFS) CreateFile(path string, length uint64) (io.WriteCloser, error) {
-	r.l.WithField("path", path).WithField("len", length).Info("CreateFile.")
+func (r *testFS) CreateFile(path string, length uint64) (io.WriteCloser, error) {
+	r.l.WithFields(logrus.Fields{"path": path, "len": length}).Debug("CreateFile.")
+	baseDir := filepath.Dir(path)
+	if _, exists := r.fs[baseDir]; baseDir != "." && !exists {
+		return nil, newErrMissingFile(baseDir)
+	}
 	fi := &testFileInfo{
 		path:     path,
 		size:     int64(length),
@@ -683,29 +817,29 @@ func (r testFS) CreateFile(path string, length uint64) (io.WriteCloser, error) {
 		contents: new(bytes.Buffer),
 	}
 	r.fs[path] = fi
-	if dir := filepath.Dir(path); dir != "." {
-		r.MkDir(dir, 0755)
-		r.fs[dir].ents = append(r.fs[dir].ents, fi)
-	}
 	wc := utils.NopWriteCloser(fi.contents)
 	return wc, nil
 }
 
-func (r testFS) Chmod(path string, mode int) error {
-	r.l.WithField("path", path).WithField("mode", mode).Info("Chmod.")
+func (r *testFS) Chmod(path string, mode int) error {
+	r.l.WithFields(logrus.Fields{"path": path, "mode": mode}).Debug("Chmod.")
 	fi, exists := r.fs[path]
 	if !exists {
-		return errMissingFile
+		return newErrMissingFile(path)
 	}
 	fi.perms = os.FileMode(mode)
 	return nil
 }
 
-func (r testFS) Chtimes(path string, atime, mtime time.Time) error {
-	r.l.WithField("path", path).WithField("atime", atime).WithField("mtime", mtime).Info("Chtimes.")
+func (r *testFS) Chtimes(path string, atime, mtime time.Time) error {
+	r.l.WithFields(logrus.Fields{
+		"path":  path,
+		"atime": atime,
+		"mtime": mtime,
+	}).Debug("Chtimes.")
 	fi, exists := r.fs[path]
 	if !exists {
-		return errMissingFile
+		return newErrMissingFile(path)
 	}
 	fi.modtime = mtime
 	fi.atime = atime
@@ -729,6 +863,15 @@ type testFileInfo struct {
 	contents *bytes.Buffer
 }
 
+func (r *testFileInfo) String() string {
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "fileinfo(path=%s,perms=%d,size=%d", r.path, r.perms, r.size)
+	if r.dir {
+		fmt.Fprintf(&buf, ",dir(ents=%d)", len(r.ents))
+	}
+	fmt.Fprint(&buf, ")")
+	return buf.String()
+}
 func (r *testFileInfo) IsDir() bool { return r.dir }
 func (r *testFileInfo) ReadDir() (fis []FileInfo, err error) {
 	fis = make([]FileInfo, 0, len(r.ents))
@@ -750,7 +893,9 @@ type nopReadCloser struct {
 	io.Reader
 }
 
-var errMissingFile = fmt.Errorf("no such file or directory")
+func newErrMissingFile(path string) error {
+	return fmt.Errorf("no such file or directory %q", path)
+}
 
 func newSourceConfig(path string, flags Flags) Config {
 	flags.Source = true
@@ -761,9 +906,9 @@ func newSourceConfig(path string, flags Flags) Config {
 	}
 }
 
-func newTargetConfigWithFS(path string, flags Flags, fs testFS) Config {
+func newTargetConfigWithFS(path string, flags Flags, fs *testFS) Config {
 	config := newTargetConfig(path, flags)
-	config.FileSystem = &fs
+	config.FileSystem = fs
 	return config
 }
 
