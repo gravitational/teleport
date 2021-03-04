@@ -60,6 +60,13 @@ CREATE USER 'alice'@'%' REQUIRE X509;
 ALTER USER 'alice'@'%' REQUIRE X509;
 ```
 
+By default the created user may not have access to anything and won't be able
+to connect so let's grant it some permissions:
+
+```sql
+GRANT ALL ON `%`.* TO 'alice'@'%';
+```
+
 See [Configuring MySQL to Use Encrypted Connections](https://dev.mysql.com/doc/refman/8.0/en/using-encrypted-connections.html)
 in MySQL documentation for more details.
 
