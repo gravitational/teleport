@@ -54,7 +54,13 @@ const auth = {
 
     return api.post(cfg.api.u2fSessionChallengePath, data, false).then(data => {
       const promise = new Promise((resolve, reject) => {
-        window.u2f.sign(data.appId, data.challenge, [data], function(res) {
+        var devices = [data];
+        // u2f_challenges is a new field returned by post-6.0 auth servers.
+        // It contains all registered U2F devices.
+        if (data.u2f_challenges) {
+          devices = data.u2f_challenges;
+        }
+        window.u2f.sign(data.appId, data.challenge, devices, function(res) {
           if (res.errorCode) {
             const err = auth._getU2fErr(res.errorCode);
             reject(err);
@@ -118,8 +124,14 @@ const auth = {
     };
 
     return api.post(cfg.api.u2fChangePassChallengePath, data).then(data => {
+      var devices = [data];
+      // u2f_challenges is a new field returned by post-6.0 auth servers.
+      // It contains all registered U2F devices.
+      if (data.u2f_challenges) {
+        devices = data.u2f_challenges;
+      }
       return new Promise((resolve, reject) => {
-        window.u2f.sign(data.appId, data.challenge, [data], function(res) {
+        window.u2f.sign(data.appId, data.challenge, devices, function(res) {
           if (res.errorCode) {
             const err = auth._getU2fErr(res.errorCode);
             reject(err);
