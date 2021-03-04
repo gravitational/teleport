@@ -2009,7 +2009,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u
 			}
 			u2fDevs = append(u2fDevs, dev)
 		default:
-			log.Warningf("skipping MFA device of unknown type %T", dev.Device)
+			log.Warningf("Skipping MFA device of unknown type %T.", dev.Device)
 		}
 	}
 	if len(u2fDevs) > 0 {
