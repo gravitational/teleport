@@ -1021,6 +1021,15 @@ func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, params ReissuePa
 	return proxyClient.ReissueUserCerts(ctx, params)
 }
 
+// IssueUserCertsWithMFA issues a single-use SSH or TLS certificate for
+// connecting to a target (node/k8s/db/app) specified in params with an MFA
+// check. A user has to be logged in, there should be a valid login cert
+// available.
+//
+// If access to this target does not require per-connection MFA checks
+// (according to RBAC), IssueCertsWithMFA will:
+// - for SSH certs, return the existing Key from the keystore.
+// - for TLS certs, fall back to ReissueUserCerts.
 func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams) (*Key, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {

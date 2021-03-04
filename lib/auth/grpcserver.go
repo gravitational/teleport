@@ -1691,13 +1691,14 @@ var errUserSingleUseUserCertNotNeeded = errors.New("single-use user certificate 
 // authentication is not required for this session. Any other error means
 // failed validation.
 func validateUserSingleUseCertRequest(ctx context.Context, actx *grpcContext, req *proto.UserCertsRequest) error {
-	if req.Username != actx.User.GetName() {
-		return trace.BadParameter("cannot request a single-use certificate for a different user")
+	if err := actx.currentUserAction(req.Username); err != nil {
+		return trace.Wrap(err)
 	}
 
-	var noMFAAccessErr error
+	var noMFAAccessErr, notFoundErr error
 	switch req.Usage {
 	case proto.UserCertsRequest_SSH:
+		notFoundErr = trace.NotFound("node %q not found", req.NodeName)
 		if req.NodeName == "" {
 			return trace.BadParameter("missing NodeName field in a ssh-only UserCertsRequest")
 		}
@@ -1719,14 +1720,17 @@ func validateUserSingleUseCertRequest(ctx context.Context, actx *grpcContext, re
 			}
 		}
 		if len(matches) == 0 {
-			return trace.NotFound("target resource not found")
+			return trace.Wrap(notFoundErr)
 		}
 		if len(matches) > 1 {
-			return trace.BadParameter("multiple nodes match %q, please use the node UUID to login instead", req.NodeName)
+			// We need to include the special placeholder NodeIsAmbiguous for a
+			// few client and test checks that handle it.
+			return trace.BadParameter("%s: multiple nodes match %q, please use the node UUID to login instead", teleport.NodeIsAmbiguous, req.NodeName)
 		}
 		noMFAAccessErr = actx.context.Checker.CheckAccessToServer(req.Username, matches[0], false)
 
 	case proto.UserCertsRequest_Kubernetes:
+		notFoundErr = trace.NotFound("kubernetes cluster %q not found", req.KubernetesCluster)
 		if req.KubernetesCluster == "" {
 			return trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
 		}
@@ -1746,11 +1750,12 @@ func validateUserSingleUseCertRequest(ctx context.Context, actx *grpcContext, re
 			}
 		}
 		if cluster == nil {
-			return trace.NotFound("target resource not found")
+			return trace.Wrap(notFoundErr)
 		}
 		noMFAAccessErr = actx.context.Checker.CheckAccessToKubernetes(defaults.Namespace, cluster, false)
 
 	case proto.UserCertsRequest_Database:
+		notFoundErr = trace.NotFound("database service %q not found", req.RouteToDatabase.ServiceName)
 		if req.RouteToDatabase.ServiceName == "" {
 			return trace.BadParameter("missing ServiceName field in a database-only UserCertsRequest")
 		}
@@ -1766,7 +1771,7 @@ func validateUserSingleUseCertRequest(ctx context.Context, actx *grpcContext, re
 			}
 		}
 		if db == nil {
-			return trace.NotFound("target resource not found")
+			return trace.Wrap(notFoundErr)
 		}
 		noMFAAccessErr = actx.context.Checker.CheckAccessToDatabase(db, false)
 
@@ -1784,8 +1789,13 @@ func validateUserSingleUseCertRequest(ctx context.Context, actx *grpcContext, re
 	// most likely access denied.
 	if !errors.Is(noMFAAccessErr, services.ErrSessionMFARequired) {
 		if trace.IsAccessDenied(noMFAAccessErr) {
+			// notFoundErr should always be set by this point, but check it
+			// just in case.
+			if notFoundErr == nil {
+				notFoundErr = trace.NotFound("target resource not found")
+			}
 			// Mask access denied errors to prevent resource name oracles.
-			return trace.NotFound("target resource not found")
+			return trace.Wrap(notFoundErr)
 		}
 		return trace.Wrap(noMFAAccessErr)
 	}
