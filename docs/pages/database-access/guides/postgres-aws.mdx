@@ -1,0 +1,293 @@
+---
+title: Database Access with PostgreSQL on AWS
+description: How to configure Teleport Database Access with AWS RDS/Aurora PostgreSQL
+---
+
+# PostgreSQL on AWS
+
+## Enable IAM Authentication
+
+Teleport Database Access for AWS RDS and Aurora uses IAM authentication which
+can be enabled with the following steps.
+
+Open [Amazon RDS console](https://console.aws.amazon.com/rds/) and create a new
+database instance with IAM authentication enabled, or modify an existing one to
+turn it on. Make sure to use PostgreSQL database type.
+
+See [Enabling and disabling IAM database authentication](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.Enabling.html)
+for more information.
+
+## Create IAM Policy
+
+To allow Teleport database service to log into the database instance using auth
+token, create an IAM policy and attach it to the user whose credentials the
+database service will be using. For example:
+
+```json
+{
+   "Version": "2012-10-17",
+   "Statement": [
+      {
+         "Effect": "Allow",
+         "Action": [
+             "rds-db:connect"
+         ],
+         "Resource": [
+             "arn:aws:rds-db:us-east-2:1234567890:dbuser:cluster-ABCDEFGHIJKL01234/*"
+         ]
+      }
+   ]
+}
+```
+
+The resource ARN in the policy has the following format:
+
+```
+arn:aws:rds-db:<region>:<account-id>:dbuser:<db-cluster-resource-id>/<db-user-name>
+```
+
+Parameters:
+
+* `region`: AWS region where the database cluster is deployed.
+* `account-id`: AWS account ID the database cluster is deployed under.
+* `db-cluster-resource-id`: identifier for the database cluster, can be found
+  under Configuration section in the RDS control panel.
+* `db-user-name`: name of the database account to associate with IAM
+  authentication. Can be a wildcard.
+
+See [Creating and using an IAM policy for IAM database access](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.IAMPolicy.html)
+for more information.
+
+## Create Database User
+
+Database users must have a `rds_iam` role in order to be allowed access. For
+PostgreSQL:
+
+```sql
+CREATE USER alice;
+GRANT rds_iam TO alice;
+```
+
+See [Creating a database account using IAM authentication](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html)
+for more information.
+
+## Configure Teleport
+
+Teleport Database Access is available starting from `6.0` release.
+
+Download the appropriate version of Teleport for your platform from the table
+below, or visit our [downloads page](https://goteleport.com/teleport/download).
+
+{!docs/pages/preview/releases-table.mdx!}
+
+Follow the installation [instructions](../../installation.mdx).
+
+### Start Auth/Proxy Service
+
+Create a configuration file for a Teleport service that will be running
+auth and proxy servers:
+
+```yaml
+teleport:
+  data_dir: /var/lib/teleport
+  nodename: test
+auth_service:
+  enabled: "yes"
+proxy_service:
+  enabled: "yes"
+  # Set public address proxy will be reachable at.
+  public_addr: teleport.example.com:3080
+  # PostgreSQL proxy is listening on a regular web proxy port.
+  web_listen_addr: 0.0.0.0:3080
+ssh_service:
+  enabled: "no"
+```
+
+Start the service:
+
+```sh
+$ teleport start --config=/path/to/teleport.yaml
+```
+
+Generate a short-lived join token for the database service and save it for
+example in `/tmp/token`:
+
+```sh
+$ tctl tokens add \
+    --type=db \
+    --db-name=test \
+    --db-protocol=postgres \
+    --db-uri=postgres.example.com:5432
+```
+
+### Create Role and User
+
+Create the role that will allow a user to connect to any database using any
+database account:
+
+```sh
+$ tctl --config=/path/to/teleport.yaml create <<EOF
+kind: role
+version: v3
+metadata:
+  name: db
+spec:
+  allow:
+    db_labels:
+      '*': '*'
+    db_names:
+    - '*'
+    db_users:
+    - '*'
+EOF
+```
+
+Create the user assigned the `db` role we've just created:
+
+```sh
+$ tctl --config=/path/to/teleport.yaml users add --roles=admin,db testuser
+```
+
+### Start Database Service with CLI Flags
+
+For a quick try-out, Teleport database service doesn't require a configuration
+file and can be launched using a single CLI command:
+
+```sh
+$ teleport start \
+   --roles=db \
+   --token=/tmp/token \
+   --auth-server=teleport.example.com:3080 \
+   --db-name=aurora \
+   --db-protocol=postgres \
+   --db-uri=postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432 \
+   --db-aws-region=us-east-1 \
+   --labels=env=dev
+```
+
+Note that the `--auth-server` flag must point to the Teleport cluster's proxy endpoint
+because database service always connects back to the cluster over a reverse
+tunnel.
+
+### Start Database Service with Config File
+
+Below is an example of a database service configuration file that proxies
+a single AWS Aurora PostgreSQL database:
+
+```yaml
+teleport:
+  data_dir: /var/lib/teleport-db
+  nodename: test
+  # Proxy address to connect to. Note that it has to be the proxy address
+  # because database service always connects to the cluster over reverse
+  # tunnel.
+  auth_servers:
+  - teleport.example.com:3080
+db_service:
+  enabled: "yes"
+  # This section contains definitions of all databases proxied by this
+  # service, can contain multiple items.
+  databases:
+    # Name of the database proxy instance, used to reference in CLI.
+  - name: "aurora"
+    # Free-form description of the database proxy instance.
+    description: "AWS Aurora PostgreSQL"
+    # Database protocol.
+    protocol: "postgres"
+    # Database address, example of a AWS Aurora endpoint in this case.
+    uri: "postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432"
+    # AWS specific configuration, only required for RDS and Aurora.
+    aws:
+      # Region the database is deployed in.
+      region: us-east-1
+    # Labels to assign to the database, used in RBAC.
+    static_labels:
+      env: dev
+auth_service:
+  enabled: "no"
+ssh_service:
+  enabled: "no"
+proxy_service:
+  enabled: "no"
+```
+
+<Admonition type="tip" title="Tip">
+A single Teleport process can run multiple different services, for example
+multiple database access proxies as well as running other services such an
+SSH service or an application access proxy.
+</Admonition>
+
+Start the database service:
+
+```sh
+$ teleport start --config=/path/to/teleport-db.yaml --token=/tmp/token
+```
+
+### AWS Credentials
+
+When setting up Teleport database service with AWS RDS or Aurora, it must have
+an IAM role allowing it to connect to that particular database instance. An
+example of such a policy is shown in the [Create IAM Policy](#create-iam-policy)
+section above. See [Creating and using an IAM policy for IAM database access](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.IAMPolicy.html)
+in AWS documentation.
+
+Teleport database service uses the default credential provider chain to find AWS
+credentials. See [Specifying Credentials](https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html#specifying-credentials)
+for more information.
+
+## Connect
+
+Once the database service has joined the cluster, login to see the available
+databases:
+
+```sh
+$ tsh login --proxy=teleport.example.com:3080 --user=testuser
+$ tsh db ls
+Name   Description           Labels
+------ --------------------- --------
+aurora AWS Aurora PostgreSQL env=dev
+```
+
+Note that you will only be able to see databases your role has access to. See
+[RBAC](../rbac.mdx) section for more details.
+
+To connect to a particular database server, first retrieve credentials from
+Teleport using `tsh db login` command:
+
+```sh
+$ tsh db login aurora
+```
+
+<Admonition type="tip" title="Tip">
+You can be logged into multiple databases simultaneously.
+</Admonition>
+
+You can optionally specify the database name and the user to use by default
+when connecting to the database instance:
+
+```sh
+$ tsh db login --db-user=postgres --db-name=postgres aurora
+```
+
+When logging into a PostgreSQL database, `tsh` automatically configures a section
+in the [connection service file](https://www.postgresql.org/docs/current/libpq-pgservice.html)
+with the name of `<cluster-name>-<database-service-name>`.
+
+Suppose the cluster name is "root", then you can connect to the database using
+the following `psql` command:
+
+```sh
+# Use default database user and database name.
+$ psql "service=root-aurora"
+# Specify database user and database name explicitly.
+$ psql "service=root-aurora user=alice dbname=metrics"
+```
+
+To log out of the database and remove credentials:
+
+```sh
+# Remove credentials for a particular database instance.
+$ tsh db logout aurora
+# Remove credentials for all database instances.
+$ tsh db logout
+```
