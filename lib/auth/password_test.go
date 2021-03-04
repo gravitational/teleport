@@ -121,7 +121,7 @@ func (s *PasswordSuite) TestTiming(c *C) {
 		go func() {
 			defer wg.Done()
 			start := time.Now()
-			err := s.a.CheckPasswordWOToken(username, []byte(password))
+			err := s.a.checkPasswordWOToken(username, []byte(password))
 			resCh <- res{
 				exists:  true,
 				elapsed: time.Since(start),
@@ -132,7 +132,7 @@ func (s *PasswordSuite) TestTiming(c *C) {
 		go func() {
 			defer wg.Done()
 			start := time.Now()
-			err := s.a.CheckPasswordWOToken("blah", []byte(password))
+			err := s.a.checkPasswordWOToken("blah", []byte(password))
 			resCh <- res{
 				exists:  false,
 				elapsed: time.Since(start),
@@ -167,7 +167,7 @@ func (s *PasswordSuite) TestUserNotFound(c *C) {
 	username := "unknown-user"
 	password := "barbaz"
 
-	err := s.a.CheckPasswordWOToken(username, []byte(password))
+	err := s.a.checkPasswordWOToken(username, []byte(password))
 	c.Assert(err, NotNil)
 	// Make sure the error is not a NotFound. That would be a username oracle.
 	c.Assert(trace.IsBadParameter(err), Equals, true)
@@ -259,7 +259,7 @@ func (s *PasswordSuite) TestChangePasswordWithToken(c *C) {
 	c.Assert(err, IsNil)
 
 	// password should be updated
-	err = s.a.CheckPasswordWOToken(username, password)
+	err = s.a.checkPasswordWOToken(username, password)
 	c.Assert(err, IsNil)
 }
 
@@ -296,7 +296,7 @@ func (s *PasswordSuite) TestChangePasswordWithTokenOTP(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	err = s.a.CheckPasswordWOToken(username, password)
+	err = s.a.checkPasswordWOToken(username, password)
 	c.Assert(err, IsNil)
 }
 
