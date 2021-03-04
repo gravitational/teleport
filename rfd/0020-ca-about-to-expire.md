@@ -3,7 +3,7 @@ authors: Andrej Tokarčík (andrej@goteleport.com)
 state: draft
 ---
 
-# RFD 20 - Automatic rotation of CAs about to expire
+# RFD 20 - Automatic rotation of about-to-expire CAs
 
 ## What
 
@@ -19,7 +19,7 @@ the `defaults.CATTL` constant whose value is currently set to 10 years.
 If such a long-lived key pair were obtained by a third party, they would be
 able to execute MITM or impersonation attacks for prolonged periods of time.
 
-A natural mitigation would be to lower the default CA TTL to a shorter interval
+A natural mitigation would be to lower the default CA TTL to a shorter duration
 (e.g., 1 year).  Alternatively the CA TTL values could be exposed via
 configuration options so that each user can determine the risk/convenience
 trade-off appropriate for their needs.
@@ -35,9 +35,9 @@ would be easy to introduce a check that periodically detects whether a CA is
 about to expire.  When the condition obtains, the CA will be auto-rotated with
 the default rotation grace period (`defaults.RotationGracePeriod`) of 30 hours.
 
-### The condition of "about to expire"
+### Meaning of *about-to-expire*
 
-A CA is said to be "about to expire" if the following condition is found to be
+A CA is said to be *about-to-expire* if the following condition is found to be
 satisfied:
 ```go
 time.Now() >= CA.NotAfter.Sub(CA.AboutToExpirePeriod)
