@@ -262,6 +262,18 @@ func IsGroupMember(gid int) (bool, error) {
 	return false, nil
 }
 
+// DNSName extracts DNS name from host:port string.
+func DNSName(hostport string) (string, error) {
+	host, err := Host(hostport)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if ip := net.ParseIP(host); len(ip) != 0 {
+		return "", trace.BadParameter("%v is an IP address", host)
+	}
+	return host, nil
+}
+
 // Host extracts host from host:port string
 func Host(hostname string) (string, error) {
 	if hostname == "" {
@@ -351,6 +363,15 @@ func IsCertExpiredError(err error) bool {
 		return false
 	}
 	return strings.Contains(trace.Unwrap(err).Error(), "ssh: cert has expired")
+}
+
+// OpaqueAccessDenied returns a generic NotFound instead of AccessDenied
+// so as to avoid leaking the existence of secret resources.
+func OpaqueAccessDenied(err error) error {
+	if trace.IsAccessDenied(err) {
+		return trace.NotFound("not found")
+	}
+	return trace.Wrap(err)
 }
 
 // PortList is a list of TCP port
@@ -527,6 +548,28 @@ func FileExists(fp string) bool {
 	}
 	return true
 }
+
+// StoreErrorOf stores the error returned by f within *err.
+func StoreErrorOf(f func() error, err *error) {
+	*err = trace.NewAggregate(*err, f())
+}
+
+// ReadAtMost reads up to limit bytes from r, and reports an error
+// when limit bytes are read.
+func ReadAtMost(r io.Reader, limit int64) ([]byte, error) {
+	limitedReader := &io.LimitedReader{R: r, N: limit}
+	data, err := ioutil.ReadAll(limitedReader)
+	if err != nil {
+		return data, err
+	}
+	if limitedReader.N <= 0 {
+		return data, ErrLimitReached
+	}
+	return data, nil
+}
+
+// ErrLimitReached means that the read limit is reached.
+var ErrLimitReached = &trace.LimitExceededError{Message: "the read limit is reached"}
 
 const (
 	// CertTeleportUser specifies teleport user

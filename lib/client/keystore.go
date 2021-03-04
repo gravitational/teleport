@@ -451,24 +451,22 @@ func (o withDBCerts) deleteKey(dirPath, username string) error {
 }
 
 // SaveCerts saves trusted TLS certificates of certificate authorities
-func (fs *FSLocalKeyStore) SaveCerts(proxy string, cas []auth.TrustedCerts) error {
+func (fs *FSLocalKeyStore) SaveCerts(proxy string, cas []auth.TrustedCerts) (retErr error) {
 	dir, err := fs.dirFor(proxy, true)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	fp, err := os.OpenFile(filepath.Join(dir, fileNameTLSCerts), os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0640)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.ConvertSystemError(err)
 	}
-	defer fp.Close()
+	defer utils.StoreErrorOf(fp.Close, &retErr)
 	for _, ca := range cas {
 		for _, cert := range ca.TLSCertificates {
-			_, err := fp.Write(cert)
-			if err != nil {
+			if _, err := fp.Write(cert); err != nil {
 				return trace.ConvertSystemError(err)
 			}
-			_, err = fp.WriteString("\n")
-			if err != nil {
+			if _, err := fmt.Fprintln(fp); err != nil {
 				return trace.ConvertSystemError(err)
 			}
 		}
@@ -531,12 +529,12 @@ func (fs *FSLocalKeyStore) GetCerts(proxy string) (*x509.CertPool, error) {
 }
 
 // AddKnownHostKeys adds a new entry to 'known_hosts' file
-func (fs *FSLocalKeyStore) AddKnownHostKeys(hostname string, hostKeys []ssh.PublicKey) error {
+func (fs *FSLocalKeyStore) AddKnownHostKeys(hostname string, hostKeys []ssh.PublicKey) (retErr error) {
 	fp, err := os.OpenFile(filepath.Join(fs.KeyDir, fileNameKnownHosts), os.O_CREATE|os.O_RDWR, 0640)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.ConvertSystemError(err)
 	}
-	defer fp.Close()
+	defer utils.StoreErrorOf(fp.Close, &retErr)
 	// read all existing entries into a map (this removes any pre-existing dupes)
 	entries := make(map[string]int)
 	output := make([]string, 0)

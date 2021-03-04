@@ -247,7 +247,7 @@ func (e *localExec) transformSecureCopy() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	e.Command = fmt.Sprintf("%s scp --remote-addr=%s --local-addr=%s %v",
+	e.Command = fmt.Sprintf("%s scp --remote-addr=%q --local-addr=%q %v",
 		teleportBin,
 		e.Ctx.ServerConn.RemoteAddr().String(),
 		e.Ctx.ServerConn.LocalAddr().String(),
