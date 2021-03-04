@@ -58,7 +58,7 @@ In addition, some Access Workflow Plugins will now become available to open sour
 
 API and Client Libraries support was introduced in [RFD #10](https://github.com/gravitational/teleport/blob/master/rfd/0010-api.md).
 
-The new API and client library reduces the dependencies needed to use the Teleport API as well as making it easier to user. An example of using the new API is below.
+The new API and client library reduces the dependencies needed to use the Teleport API as well as making it easier to use. An example of using the new API is below.
 
 ```go
 // Create a client connected to the Auth server with an exported identity file.

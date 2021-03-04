@@ -223,8 +223,11 @@ func (s *Server) initHeartbeat(ctx context.Context, server types.DatabaseServer)
 
 func (s *Server) getServerInfoFunc(server types.DatabaseServer) func() (services.Resource, error) {
 	return func() (services.Resource, error) {
-		s.mu.Lock()
-		defer s.mu.Unlock()
+		// Make sure to return a new object, because it gets cached by
+		// heartbeat and will always compare as equal otherwise.
+		s.mu.RLock()
+		server = server.Copy()
+		s.mu.RUnlock()
 		// Update dynamic labels.
 		labels, ok := s.dynamicLabels[server.GetName()]
 		if ok {
@@ -241,17 +244,8 @@ func (s *Server) getServerInfoFunc(server types.DatabaseServer) func() (services
 		}
 		// Update TTL.
 		server.SetExpiry(s.cfg.Clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
-		// Make sure to return a new object, because it gets cached by
-		// heartbeat and will always compare as equal otherwise.
-		return server.Copy(), nil
+		return server, nil
 	}
-}
-
-// getServers returns database servers this service is handling, used in tests.
-func (s *Server) getServers() []types.DatabaseServer {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.cfg.Servers
 }
 
 // Start starts heartbeating the presence of service.Databases that this
