@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
+	"github.com/gravitational/teleport/lib/sshutils"
 
 	"golang.org/x/crypto/ssh"
 
@@ -75,11 +76,8 @@ func (s *AuthSuite) GenerateHostCert(c *check.C) {
 		})
 	c.Assert(err, check.IsNil)
 
-	publicKey, _, _, _, err := ssh.ParseAuthorizedKey(cert)
+	certificate, err := sshutils.ParseCertificate(cert)
 	c.Assert(err, check.IsNil)
-
-	certificate, ok := publicKey.(*ssh.Certificate)
-	c.Assert(ok, check.Equals, true)
 
 	// Check the valid time is not more than 1 minute before the current time.
 	validAfter := time.Unix(int64(certificate.ValidAfter), 0)
@@ -107,11 +105,8 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	publicKey, _, _, _, err := ssh.ParseAuthorizedKey(cert)
+	certificate, err := sshutils.ParseCertificate(cert)
 	c.Assert(err, check.IsNil)
-
-	certificate, ok := publicKey.(*ssh.Certificate)
-	c.Assert(ok, check.Equals, true)
 
 	// Check the valid time is not more than 1 minute before the current time.
 	validAfter := time.Unix(int64(certificate.ValidAfter), 0)
@@ -177,10 +172,8 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 		Roles:                 inRoles,
 	})
 	c.Assert(err, check.IsNil)
-	parsedKey, _, _, _, err := ssh.ParseAuthorizedKey(cert)
+	parsedCert, err := sshutils.ParseCertificate(cert)
 	c.Assert(err, check.IsNil)
-	parsedCert, ok := parsedKey.(*ssh.Certificate)
-	c.Assert(ok, check.Equals, true)
 	outRoles, err := services.UnmarshalCertRoles(parsedCert.Extensions[teleport.CertExtensionTeleportRoles])
 	c.Assert(err, check.IsNil)
 	c.Assert(outRoles, check.DeepEquals, inRoles)
