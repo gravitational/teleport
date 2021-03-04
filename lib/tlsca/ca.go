@@ -116,9 +116,9 @@ type Identity struct {
 	DatabaseNames []string
 	// DatabaseUsers is a list of allowed database users.
 	DatabaseUsers []string
-	// MFAVerified is set when this Identity was confirmed immediately after an
-	// MFA check.
-	MFAVerified bool
+	// MFAVerified is the UUID of an MFA device when this Identity was
+	// confirmed immediately after an MFA check.
+	MFAVerified string
 	// ClientIP is an observed IP of the client that this Identity represents.
 	ClientIP string
 }
@@ -352,11 +352,11 @@ func (id *Identity) Subject() (pkix.Name, error) {
 				Value: id.TeleportCluster,
 			})
 	}
-	if id.MFAVerified {
+	if id.MFAVerified != "" {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
 				Type:  MFAVerifiedASN1ExtensionOID,
-				Value: "true",
+				Value: id.MFAVerified,
 			})
 	}
 	if id.ClientIP != "" {
@@ -489,7 +489,7 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		case attr.Type.Equal(MFAVerifiedASN1ExtensionOID):
 			val, ok := attr.Value.(string)
 			if ok {
-				id.MFAVerified = val == "true"
+				id.MFAVerified = val
 			}
 		case attr.Type.Equal(ClientIPASN1ExtensionOID):
 			val, ok := attr.Value.(string)

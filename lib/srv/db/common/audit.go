@@ -74,6 +74,7 @@ func (a *Audit) OnSessionStart(ctx context.Context, session Session, sessionErr 
 		},
 		SessionMetadata: events.SessionMetadata{
 			SessionID: session.ID,
+			WithMFA:   session.Identity.MFAVerified,
 		},
 		Status: events.Status{
 			Success: true,
@@ -117,6 +118,7 @@ func (a *Audit) OnSessionEnd(ctx context.Context, session Session) error {
 		},
 		SessionMetadata: events.SessionMetadata{
 			SessionID: session.ID,
+			WithMFA:   session.Identity.MFAVerified,
 		},
 		DatabaseMetadata: events.DatabaseMetadata{
 			DatabaseService:  session.Server.GetName(),
@@ -146,6 +148,7 @@ func (a *Audit) OnQuery(ctx context.Context, session Session, query string) erro
 		},
 		SessionMetadata: events.SessionMetadata{
 			SessionID: session.ID,
+			WithMFA:   session.Identity.MFAVerified,
 		},
 		DatabaseMetadata: events.DatabaseMetadata{
 			DatabaseService:  session.Server.GetName(),

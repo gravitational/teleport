@@ -277,8 +277,8 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 	if c.PermitPortForwarding {
 		cert.Permissions.Extensions[teleport.CertExtensionPermitPortForwarding] = ""
 	}
-	if c.MFAVerified {
-		cert.Permissions.Extensions[teleport.CertExtensionMFAVerified] = ""
+	if c.MFAVerified != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionMFAVerified] = c.MFAVerified
 	}
 	if c.ClientIP != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionClientIP] = c.ClientIP
