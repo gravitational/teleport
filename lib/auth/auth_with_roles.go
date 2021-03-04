@@ -2591,7 +2591,7 @@ func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s services.Serv
 	}
 
 	for _, kube := range s.GetKubernetesClusters() {
-		if err := a.context.Checker.CheckAccessToKubernetes(s.GetNamespace(), kube, a.context.Identity.GetIdentity().MFAVerified); err != nil {
+		if err := a.context.Checker.CheckAccessToKubernetes(s.GetNamespace(), kube, a.context.Identity.GetIdentity().MFAVerified != ""); err != nil {
 			return utils.OpaqueAccessDenied(err)
 		}
 	}

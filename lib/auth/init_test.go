@@ -90,10 +90,8 @@ func TestReadIdentity(t *testing.T) {
 		TTL:                 ttl,
 	})
 	require.NoError(t, err)
-	pk, _, _, _, err := ssh.ParseAuthorizedKey(bytes)
+	copy, err := sshutils.ParseCertificate(bytes)
 	require.NoError(t, err)
-	copy, ok := pk.(*ssh.Certificate)
-	require.True(t, ok)
 	require.Equal(t, uint64(expiryDate.Unix()), copy.ValidBefore)
 }
 
