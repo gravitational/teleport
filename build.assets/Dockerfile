@@ -25,6 +25,7 @@ RUN apt-get update -y --fix-missing && \
         gcc \
         gcc-multilib \
         git \
+        gnupg \
         gzip \
         libbpfcc-dev \
         libc6-dev \
@@ -50,6 +51,11 @@ RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home
 # Install etcd.
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz && \
      cp etcd-v3.3.9-linux-amd64/etcd* /bin/)
+
+# Install Google Cloud SDK.
+RUN (echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] http://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list && \
+     curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key --keyring /usr/share/keyrings/cloud.google.gpg add - && \
+     apt-get update -y && apt-get install google-cloud-sdk google-cloud-sdk-firestore-emulator -y)
 
 # Install Go.
 ARG RUNTIME
