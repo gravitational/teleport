@@ -365,6 +365,11 @@ const (
 	// KubeRequestEvent fires when a proxy handles a generic kubernetes
 	// request.
 	KubeRequestEvent = "kube.request"
+
+	// MFADeviceAddEvent is an event type for users adding MFA devices.
+	MFADeviceAddEvent = "mfa.add"
+	// MFADeviceDeleteEvent is an event type for users deleting MFA devices.
+	MFADeviceDeleteEvent = "mfa.delete"
 )
 
 const (
