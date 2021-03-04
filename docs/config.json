@@ -1,0 +1,133 @@
+{
+  "navigation": [
+    {
+      "icon": "stack",
+      "title": "Documentation",
+      "entries": [
+        { "title": "Introduction", "slug": "/" },
+        { "title": "Installation", "slug": "/installation/" },
+        { "title": "Quick Start Guide", "slug": "/quickstart/" },
+        { "title": "User Manual", "slug": "/user-manual/" },
+        { "title": "Application Guide", "slug": "/application-access/" },
+        { "title": "Kubernetes Guide", "slug": "/kubernetes-access/" },
+        { "title": "Database Access", "slug": "/database-access/" },
+        { "title": "Admin Manual", "slug": "/admin-guide/" },
+        { "title": "Cloud", "slug": "/cloud/" },
+        { "title": "Production Guide", "slug": "/production/" },
+        { "title": "FAQ", "slug": "/faq/" },
+        { "title": "Changelog", "slug": "/changelog/" }
+      ]
+    },
+    {
+      "icon": "wand",
+      "title": "Preview",
+      "entries": [
+        { "title": "Upcoming Releases", "slug": "/preview/upcoming-releases/" }
+      ]
+    },
+    {
+      "icon": "book",
+      "title": "Infrastructure Guides",
+      "entries": [
+        { "title": "AWS", "slug": "/aws-oss-guide/" },
+        { "title": "GCP", "slug": "/gcp-guide/" },
+        { "title": "IBM", "slug": "/ibm-cloud-guide/" },
+        { "title": "OpenSSH Guide", "slug": "/openssh-teleport/" }
+      ]
+    },
+    {
+      "icon": "database",
+      "title": "Database Access",
+      "entries": [
+        { "title": "Getting Started", "slug": "/database-access/getting-started/" },
+        {
+          "title": "Guides",
+          "slug": "/database-access/guides/",
+          "entries": [
+            { "title": "PostgreSQL on AWS", "slug": "/database-access/guides/postgres-aws" },
+            { "title": "MySQL on AWS", "slug": "/database-access/guides/mysql-aws" },
+            { "title": "Self-Hosted PostgreSQL", "slug": "/database-access/guides/postgres-self-hosted/" },
+            { "title": "Self-Hosted MySQL", "slug": "/database-access/guides/mysql-self-hosted/" },
+            { "title": "Database GUI Clients", "slug": "/database-access/guides/gui-clients/" }
+          ]
+        },
+        { "title": "RBAC", "slug": "/database-access/rbac/" },
+        { "title": "Architecture", "slug": "/database-access/architecture/" },
+        { "title": "Reference", "slug": "/database-access/reference/" },
+        { "title": "FAQ", "slug": "/database-access/faq/" }
+      ]
+    },
+    {
+      "icon": "building",
+      "title": "Teleport Enterprise",
+      "entries": [
+        { "title": "Introduction", "slug": "/enterprise/introduction/" },
+        {
+          "title": "Quick Start Guide",
+          "slug": "/enterprise/quickstart-enterprise/"
+        },
+        { "title": "Single sign-on (SSO)", "slug": "/enterprise/sso/ssh-sso/" },
+        { "title": "Access Workflows", "slug": "/enterprise/workflow/" },
+        {
+          "title": "FedRAMP for SSH & K8s",
+          "slug": "/enterprise/ssh-kubernetes-fedramp/"
+        },
+        { "title": "RBAC", "slug": "/enterprise/ssh-rbac/" }
+      ]
+    },
+    {
+      "icon": "cloud",
+      "title": "Cloud",
+      "entries": [
+        { "title": "Getting Started", "slug": "/cloud/getting-started/" },
+        { "title": "Architecture", "slug": "/cloud/architecture/" },
+        { "title": "FAQ", "slug": "/cloud/faq/" }
+      ]
+    },
+    {
+      "icon": "integrations",
+      "title": "Architecture",
+      "entries": [
+        { "title": "Architecture Overview", "slug": "/architecture/overview/" },
+        { "title": "Teleport Users", "slug": "/architecture/users/" },
+        { "title": "Teleport Nodes", "slug": "/architecture/nodes/" },
+        { "title": "Teleport Auth", "slug": "/architecture/authentication/" },
+        { "title": "Teleport Proxy", "slug": "/architecture/proxy/" },
+        { "title": "Trusted Clusters", "slug": "/trustedclusters/" }
+      ]
+    },
+    {
+      "icon": "bolt",
+      "title": "Advanced Features",
+      "entries": [
+        {
+          "title": "BPF Session Recording",
+          "slug": "/features/enhanced-session-recording/"
+        },
+        { "title": "Using Teleport with PAM", "slug": "/features/ssh-pam/" }
+      ]
+    },
+    {
+      "icon": "list",
+      "title": "Reference",
+      "entries": [
+        { "title": "YAML", "slug": "/config-reference/" },
+        { "title": "CLI", "slug": "/cli-docs/" },
+        { "title": "API", "slug": "/api-reference/" },
+        { "title": "Metrics", "slug": "/metrics-logs-reference/" }
+      ]
+    }
+  ],
+  "variables": {
+    "version": "6.0",
+    "teleport": {
+      "version": "6.0.0",
+      "golang": "1.15",
+      "plugin": {
+        "version": "0.2.0"
+      },
+      "latest_oss_docker_image": "quay.io/gravitational/teleport:6",
+      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:6"
+    }
+  }
+}
