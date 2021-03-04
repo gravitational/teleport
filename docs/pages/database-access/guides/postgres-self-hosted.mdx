@@ -63,6 +63,10 @@ hostssl all             all             ::/0                    cert
 hostssl all             all             0.0.0.0/0               cert
 ```
 
+You should also ensure that you have no higher-priority `md5` authentication 
+rules that will match, otherwise PostgreSQL will offer them first, and the 
+certificate-based Teleport login will fail.
+
 See [The pg_hba.conf File](https://www.postgresql.org/docs/current/auth-pg-hba-conf.html)
 in PostgreSQL documentation for more details.
 
