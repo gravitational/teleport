@@ -20,9 +20,7 @@ package test
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
-	"sort"
 	"sync/atomic"
 	"time"
 
@@ -345,7 +343,6 @@ func (s *BackendSuite) KeepAlive(c *check.C) {
 	// and collecting events takes arbitrary time, the expiration timestamps
 	// on the collected events might have a slight skew
 	events := collectEvents(c, watcher, 3)
-	fmt.Println("Recv events:", events)
 	verifyEvents(c, events, []backend.Event{
 		{Type: backend.OpInit, Item: backend.Item{}},
 		{Type: backend.OpPut, Item: backend.Item{Key: prefix("key"), Value: []byte("val1"), Expires: expiresAt}},
@@ -762,36 +759,27 @@ func ExpectItems(c *check.C, items, expected []backend.Item) {
 }
 
 func verifyEvents(c *check.C, obtained, expected []backend.Event) {
-	verifyIDsIncreasing(c, obtained)
-	verifyIDsNoDuplicates(c, obtained)
+	verifyIncreasingIDs(c, obtained)
+	verifyNoDuplicateIDs(c, obtained)
 	verifyExpireTimestampsIncreasing(c, obtained, expected)
 }
 
-func verifyIDsIncreasing(c *check.C, obtained []backend.Event) {
-	sorted := make([]backend.Event, len(obtained))
-	copy(sorted, obtained)
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].Item.ID < sorted[j].Item.ID
-	})
-	c.Assert(obtained, check.DeepEquals, sorted)
+func verifyIncreasingIDs(c *check.C, obtained []backend.Event) {
+	lastID := int64(-1)
+	for _, item := range obtained {
+		c.Assert(item.Item.ID > lastID, check.Equals, true, check.Commentf("must be increasing"))
+		lastID = item.Item.ID
+	}
 }
 
-func verifyIDsNoDuplicates(c *check.C, obtained []backend.Event) {
+func verifyNoDuplicateIDs(c *check.C, obtained []backend.Event) {
 	dedup := make(map[int64]struct{})
 	for _, event := range obtained {
+		if _, ok := dedup[event.Item.ID]; ok {
+			c.Fatalf("Duplicate ID for %v.", event.Item.ID)
+		}
 		dedup[event.Item.ID] = struct{}{}
 	}
-	var expectedIDs, obtainedIDs []int64
-	for id := range dedup {
-		expectedIDs = append(expectedIDs, id)
-	}
-	for _, event := range obtained {
-		obtainedIDs = append(obtainedIDs, event.Item.ID)
-	}
-	sort.Slice(expectedIDs, func(i, j int) bool {
-		return expectedIDs[i] < expectedIDs[j]
-	})
-	c.Assert(obtainedIDs, check.DeepEquals, expectedIDs)
 }
 
 func verifyExpireTimestampsIncreasing(c *check.C, obtained, expected []backend.Event) {
