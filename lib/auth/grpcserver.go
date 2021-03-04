@@ -23,10 +23,10 @@ import (
 	"net"
 	"time"
 
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -36,6 +36,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"github.com/jonboulle/clockwork"
@@ -1283,6 +1285,24 @@ func (g *GRPCServer) AddMFADevice(stream proto.AuthService_AddMFADeviceServer) e
 		return trail.ToGRPC(err)
 	}
 
+	clusterName, err := actx.GetClusterName()
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+	if err := g.Emitter.EmitAuditEvent(g.Context, &apievents.MFADeviceAdd{
+		Metadata: apievents.Metadata{
+			Type:        events.MFADeviceAddEvent,
+			Code:        events.MFADeviceAddEventCode,
+			ClusterName: clusterName.GetClusterName(),
+		},
+		UserMetadata: apievents.UserMetadata{
+			User: actx.Identity.GetIdentity().Username,
+		},
+		MFADeviceMetadata: mfaDeviceEventMetadata(dev),
+	}); err != nil {
+		return trail.ToGRPC(err)
+	}
+
 	// 6. send Ack
 	if err := stream.Send(&proto.AddMFADeviceResponse{
 		Response: &proto.AddMFADeviceResponse_Ack{Ack: &proto.AddMFADeviceResponseAck{Device: dev}},
@@ -1503,6 +1523,25 @@ func (g *GRPCServer) DeleteMFADevice(stream proto.AuthService_DeleteMFADeviceSer
 		if err := auth.DeleteMFADevice(ctx, user, d.Id); err != nil {
 			return trail.ToGRPC(err)
 		}
+
+		clusterName, err := actx.GetClusterName()
+		if err != nil {
+			return trail.ToGRPC(err)
+		}
+		if err := g.Emitter.EmitAuditEvent(g.Context, &apievents.MFADeviceDelete{
+			Metadata: apievents.Metadata{
+				Type:        events.MFADeviceDeleteEvent,
+				Code:        events.MFADeviceDeleteEventCode,
+				ClusterName: clusterName.GetClusterName(),
+			},
+			UserMetadata: apievents.UserMetadata{
+				User: actx.Identity.GetIdentity().Username,
+			},
+			MFADeviceMetadata: mfaDeviceEventMetadata(d),
+		}); err != nil {
+			return trail.ToGRPC(err)
+		}
+
 		// 4. send Ack
 		if err := stream.Send(&proto.DeleteMFADeviceResponse{
 			Response: &proto.DeleteMFADeviceResponse_Ack{Ack: &proto.DeleteMFADeviceResponseAck{}},
@@ -1546,6 +1585,23 @@ func deleteMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_De
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func mfaDeviceEventMetadata(d *types.MFADevice) apievents.MFADeviceMetadata {
+	m := apievents.MFADeviceMetadata{
+		DeviceName: d.Metadata.Name,
+		DeviceID:   d.Id,
+	}
+	switch d.Device.(type) {
+	case *types.MFADevice_Totp:
+		m.DeviceType = string(constants.SecondFactorOTP)
+	case *types.MFADevice_U2F:
+		m.DeviceType = string(constants.SecondFactorU2F)
+	default:
+		m.DeviceType = "unknown"
+		log.Warningf("Unknown MFA device type %T when generating audit event metadata", d.Device)
+	}
+	return m
 }
 
 func (g *GRPCServer) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error) {
