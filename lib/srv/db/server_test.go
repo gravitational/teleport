@@ -18,7 +18,6 @@ package db
 
 import (
 	"context"
-	"sort"
 	"testing"
 	"time"
 
@@ -41,15 +40,12 @@ func TestDatabaseServerStart(t *testing.T) {
 
 	tests := []struct {
 		server types.DatabaseServer
-		labels map[string]string
 	}{
 		{
 			server: testCtx.postgresDBServer,
-			labels: map[string]string{"a": "b"},
 		},
 		{
 			server: testCtx.mysqlDBServer,
-			labels: map[string]string{"c": "d"},
 		},
 	}
 
@@ -65,29 +61,10 @@ func TestDatabaseServerStart(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	// Make sure servers were announced and their labels updated.
 	servers, err := testCtx.authClient.GetDatabaseServers(ctx, defaults.Namespace)
 	require.NoError(t, err)
-	compareServersSorted(t, testCtx.server.getServers(), servers)
-
-	// Update the servers with labels and force the heartbeats.
-	for _, test := range tests {
-		test.server.SetStaticLabels(map[string]string{"a": "b"})
-
-		heartbeat, ok := testCtx.server.heartbeats[test.server.GetName()]
-		require.True(t, ok)
-
-		err = heartbeat.ForceSend(time.Second)
-		require.NoError(t, err)
+	for _, server := range servers {
+		require.Equal(t, map[string]string{"echo": "test"}, server.GetAllLabels())
 	}
-
-	// Make sure the servers were re-announced.
-	servers, err = testCtx.authClient.GetDatabaseServers(ctx, defaults.Namespace)
-	require.NoError(t, err)
-	compareServersSorted(t, testCtx.server.getServers(), servers)
-}
-
-func compareServersSorted(t *testing.T, setA, setB []types.DatabaseServer) {
-	sort.Sort(types.SortedDatabaseServers(setA))
-	sort.Sort(types.SortedDatabaseServers(setB))
-	require.EqualValues(t, setA, setB)
 }
