@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/fixtures"
 
+	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
 
 	"github.com/gravitational/trace"
@@ -543,5 +544,24 @@ func (s *UtilsSuite) TestRepeatReader(c *check.C) {
 		data, err := ioutil.ReadAll(NewRepeatReader(tc.repeat, tc.count))
 		c.Assert(err, check.IsNil)
 		c.Assert(string(data), check.Equals, tc.expected)
+	}
+}
+
+func TestReadAtMost(t *testing.T) {
+	testCases := []struct {
+		limit int64
+		data  string
+		err   error
+	}{
+		{4, "hell", ErrLimitReached},
+		{5, "hello", ErrLimitReached},
+		{6, "hello", nil},
+	}
+
+	for _, tc := range testCases {
+		r := strings.NewReader("hello")
+		data, err := ReadAtMost(r, tc.limit)
+		require.Equal(t, []byte(tc.data), data)
+		require.Equal(t, tc.err, err)
 	}
 }

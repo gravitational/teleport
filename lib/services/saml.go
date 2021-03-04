@@ -22,7 +22,6 @@ import (
 	"encoding/base64"
 	"encoding/xml"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
@@ -54,7 +53,7 @@ func ValidateSAMLConnector(sc SAMLConnector) error {
 			return trace.BadParameter("status code %v when fetching from %q", resp.StatusCode, sc.GetEntityDescriptorURL())
 		}
 		defer resp.Body.Close()
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
 		if err != nil {
 			return trace.Wrap(err)
 		}

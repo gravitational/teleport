@@ -83,6 +83,11 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	return c, nil
 }
 
+// GetConnection returns GRPC connection
+func (c *Client) GetConnection() *grpc.ClientConn {
+	return c.conn
+}
+
 // getDialer builds a grpc dialer for the client from a ContextDialer.
 // The ContextDialer is chosen from available options, preferring one from
 // credentials, then from configuration, and lastly from addresses.

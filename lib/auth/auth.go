@@ -57,13 +57,12 @@ import (
 
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	saml2 "github.com/russellhaering/gosaml2"
 	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/trace"
 )
 
 // ServerOption allows setting options as functional arguments to Server
@@ -876,7 +875,7 @@ func (a *Server) GetMFAAuthenticateChallenge(user string, password []byte) (*MFA
 	ctx := context.TODO()
 
 	err := a.WithUserLock(user, func() error {
-		return a.CheckPasswordWOToken(user, password)
+		return a.checkPasswordWOToken(user, password)
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -906,15 +905,15 @@ func (a *Server) GetMFAAuthenticateChallenge(user string, password []byte) (*MFA
 	return chal, nil
 }
 
-func (a *Server) CheckU2FSignResponse(ctx context.Context, user string, response *u2f.AuthenticateChallengeResponse) error {
+func (a *Server) CheckU2FSignResponse(ctx context.Context, user string, response *u2f.AuthenticateChallengeResponse) (*types.MFADevice, error) {
 	// before trying to register a user, see U2F is actually setup on the backend
 	cap, err := a.GetAuthPreference()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	_, err = cap.GetU2F()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	return a.checkU2F(ctx, user, *response, a.Identity)
@@ -2028,24 +2027,26 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u
 }
 
 func (a *Server) validateMFAAuthResponse(ctx context.Context, user string, resp *proto.MFAAuthenticateResponse, u2fStorage u2f.AuthenticationStorage) error {
+	var err error
 	switch res := resp.Response.(type) {
 	case *proto.MFAAuthenticateResponse_TOTP:
-		return a.checkOTP(user, res.TOTP.Code)
+		_, err = a.checkOTP(user, res.TOTP.Code)
 	case *proto.MFAAuthenticateResponse_U2F:
-		return a.checkU2F(ctx, user, u2f.AuthenticateChallengeResponse{
+		_, err = a.checkU2F(ctx, user, u2f.AuthenticateChallengeResponse{
 			KeyHandle:     res.U2F.KeyHandle,
 			ClientData:    res.U2F.ClientData,
 			SignatureData: res.U2F.Signature,
 		}, u2fStorage)
 	default:
-		return trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
+		err = trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
 	}
+	return trace.Wrap(err)
 }
 
-func (a *Server) checkU2F(ctx context.Context, user string, res u2f.AuthenticateChallengeResponse, u2fStorage u2f.AuthenticationStorage) error {
+func (a *Server) checkU2F(ctx context.Context, user string, res u2f.AuthenticateChallengeResponse, u2fStorage u2f.AuthenticationStorage) (*types.MFADevice, error) {
 	devs, err := a.GetMFADevices(ctx, user)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	for _, dev := range devs {
 		u2fDev := dev.GetU2F()
@@ -2066,11 +2067,11 @@ func (a *Server) checkU2F(ctx context.Context, user string, res u2f.Authenticate
 			Clock:      a.clock,
 		}); err != nil {
 			// Since key handles are unique, no need to check other devices.
-			return trace.AccessDenied("U2F response validation failed for device %q: %v", dev.GetName(), err)
+			return nil, trace.AccessDenied("U2F response validation failed for device %q: %v", dev.GetName(), err)
 		}
-		return nil
+		return dev, nil
 	}
-	return trace.AccessDenied("U2F response validation failed: no device matches the response")
+	return nil, trace.AccessDenied("U2F response validation failed: no device matches the response")
 }
 
 // WithClock is a functional server option that sets the server's clock

@@ -55,11 +55,11 @@ func (a *ServerWithRoles) CloseContext() context.Context {
 }
 
 func (a *ServerWithRoles) actionWithContext(ctx *services.Context, namespace string, resource string, action string) error {
-	return a.context.Checker.CheckAccessToRule(ctx, namespace, resource, action, false)
+	return utils.OpaqueAccessDenied(a.context.Checker.CheckAccessToRule(ctx, namespace, resource, action, false))
 }
 
 func (a *ServerWithRoles) action(namespace string, resource string, action string) error {
-	return a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, action, false)
+	return utils.OpaqueAccessDenied(a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, action, false))
 }
 
 // currentUserAction is a special checker that allows certain actions for users
@@ -69,8 +69,10 @@ func (a *ServerWithRoles) currentUserAction(username string) error {
 	if a.hasLocalUserRole(a.context.Checker) && username == a.context.User.GetName() {
 		return nil
 	}
-	return a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User},
-		defaults.Namespace, services.KindUser, services.VerbCreate, true)
+	return utils.OpaqueAccessDenied(
+		a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User},
+			defaults.Namespace, services.KindUser, services.VerbCreate, true),
+	)
 }
 
 // authConnectorAction is a special checker that grants access to auth
@@ -80,7 +82,7 @@ func (a *ServerWithRoles) currentUserAction(username string) error {
 func (a *ServerWithRoles) authConnectorAction(namespace string, resource string, verb string) error {
 	if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, verb, true); err != nil {
 		if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, services.KindAuthConnector, verb, false); err != nil {
-			return trace.Wrap(err)
+			return utils.OpaqueAccessDenied(err)
 		}
 	}
 	return nil
@@ -770,7 +772,8 @@ func (a *ServerWithRoles) CheckPassword(user string, password []byte, otpToken s
 	if err := a.currentUserAction(user); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.CheckPassword(user, password, otpToken)
+	_, err := a.authServer.checkPassword(user, password, otpToken)
+	return trace.Wrap(err)
 }
 
 func (a *ServerWithRoles) PreAuthenticatedSignIn(user string) (services.WebSession, error) {
@@ -2140,7 +2143,7 @@ func (a *ServerWithRoles) GetRemoteCluster(clusterName string) (services.RemoteC
 		return nil, trace.Wrap(err)
 	}
 	if err := a.context.Checker.CheckAccessToRemoteCluster(cluster); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, utils.OpaqueAccessDenied(err)
 	}
 	return cluster, nil
 }
@@ -2510,7 +2513,7 @@ func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s services.Serv
 
 	for _, kube := range s.GetKubernetesClusters() {
 		if err := a.context.Checker.CheckAccessToKubernetes(s.GetNamespace(), kube, a.context.Identity.GetIdentity().MFAVerified); err != nil {
-			return trace.Wrap(err)
+			return utils.OpaqueAccessDenied(err)
 		}
 	}
 	return a.authServer.UpsertKubeService(ctx, s)

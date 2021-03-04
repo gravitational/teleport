@@ -40,9 +40,8 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/jonboulle/clockwork"
-
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 // TestAuthServerConfig is auth server test config
@@ -238,7 +237,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	srv.Authorizer, err = NewAuthorizer(srv.AuthServer.Access, srv.AuthServer.Identity, srv.AuthServer.Trust)
+	srv.Authorizer, err = NewAuthorizer(srv.ClusterName, srv.AuthServer.Access, srv.AuthServer.Identity, srv.AuthServer.Trust)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -380,6 +379,7 @@ func (a *TestAuthServer) NewTestTLSServer() (*TestTLSServer, error) {
 		Authorizer:     a.Authorizer,
 		SessionService: a.SessionServer,
 		AuditLog:       a.AuditLog,
+		Emitter:        a.AuthServer.emitter,
 	}
 	srv, err := NewTestTLSServer(TestTLSServerConfig{
 		APIConfig:     apiConfig,
