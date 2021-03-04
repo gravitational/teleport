@@ -1521,6 +1521,7 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, flag
 }
 
 func (tc *TeleportClient) uploadConfig(ctx context.Context, tpl scp.Config, port int, args []string) (config *scpConfig, err error) {
+	// args are guaranteed to have len(args) > 1
 	filesToUpload := args[:len(args)-1]
 	// copy everything except the last arg (the destination)
 	destPath := args[len(args)-1]
@@ -1554,6 +1555,7 @@ func (tc *TeleportClient) uploadConfig(ctx context.Context, tpl scp.Config, port
 }
 
 func (tc *TeleportClient) downloadConfig(ctx context.Context, tpl scp.Config, port int, args []string) (config *scpConfig, err error) {
+	// args are guaranteed to have len(args) > 1
 	src, addr, err := getSCPDestination(args[0], port)
 	if err != nil {
 		return nil, trace.Wrap(err)
