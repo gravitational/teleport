@@ -1,0 +1,53 @@
+---
+title: Getting Started With Teleport Cloud
+description: Teleport hosted and managed by the Teleport team.
+---
+
+## Step 1/3 Signup
+
+Sign up [here](https://goteleport.com/get-started/).
+
+## Step 2/3 Install client tools
+
+Install client libraries:
+
+<Tabs>
+<TabItem label="Linux">
+```bash
+curl -O https://get.gravitational.com/teleport-ent-v{{ teleport.version }}-linux-amd64-bin.tar.gz
+tar -xzf teleport-ent-v{{ teleport.version }}-linux-amd64-bin.tar.gz
+cd teleport
+sudo ./install
+```
+</TabItem>
+</Tabs>
+
+Login into Teleport and test the connection:
+
+```bash
+# tsh logs you in and receives short-lived certificates
+$ tsh login --proxy=myinstance.teleport.sh:443 --user=email@example.com
+# tctl is a cluster configuration tool
+$ tctl status
+```
+
+## Step 3/3 Explore your cluster
+
+List nodes in the cluster:
+
+```bash
+$ tctl nodes ls
+```
+
+Generate a [dynamic token](../admin-guide.mdx#short-lived-dynamic-tokens):
+
+```bash
+$ tctl nodes add --ttl=5m --roles=node --token=$(uuid)
+```
+
+## Next Steps
+
+* Explore [cloud architecture](./architecture.mdx).
+* Check out [FAQ](./faq.mdx).
+* Join the [Teleport Discussons](https://github.com/gravitational/teleport/discussions) and ask a question.
+* Join the [Slack channel](https://goteleport.com/slack).

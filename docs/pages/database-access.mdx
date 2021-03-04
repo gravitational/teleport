@@ -1,0 +1,56 @@
+---
+title: Database Access
+description: Teleport Database Access introduction, demo and resources
+---
+
+# Database Access
+
+Teleport can provide secure access to PostgreSQL and MySQL databases, while
+improving both access control and visibility.
+
+Some of the things you can do with Database Access:
+
+* Users can retrieve short-lived database certificates using single sign-on
+  flow thus maintaining their organization-wide identity.
+* Configure role-based access controls for databases and implement custom
+  [access workflows](./enterprise/workflow/index.mdx).
+* Capture database access events as well as query activity in the audit log.
+
+## Demo
+
+Let's connect to a PostgreSQL server with `psql` and pgAdmin 4 after authenticating
+with Github, execute a few SQL queries and observe them in the audit log:
+
+<video autoPlay loop muted playsInline controls>
+  <source src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.mp4" type="video/mp4" />
+  <source src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.webm" type="video/webm" />
+Your browser does not support the video tag.
+</video>
+
+## Getting Started
+
+Configure Database Access in a 10 minute [Getting Started](./database-access/getting-started.mdx)
+guide.
+
+## Guides
+
+* [AWS RDS/Aurora PostgreSQL](./database-access/guides/postgres-aws.mdx)
+* [AWS RDS/Aurora MySQL](./database-access/guides/mysql-aws.mdx)
+* [Self-hosted PostgreSQL](./database-access/guides/postgres-self-hosted.mdx)
+* [Self-hosted MySQL](./database-access/guides/mysql-self-hosted.mdx)
+* [GUI clients](./database-access/guides/gui-clients.mdx)
+
+## Resources
+
+To learn more about configuring role-based access control for Database Access,
+check out [RBAC](./database-access/rbac.mdx) section.
+
+[Architecture](./database-access/architecture.mdx) provides a more in-depth
+look at Database Access internals such as networking and security.
+
+See [Reference](./database-access/reference.mdx) for an overview of
+Database Access related configuration and CLI commands.
+
+## FAQ
+
+Finally, check out [Frequently Asked Questions](./database-access/faq.mdx).
