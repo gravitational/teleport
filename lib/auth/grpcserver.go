@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -1297,7 +1298,7 @@ func (g *GRPCServer) AddMFADevice(stream proto.AuthService_AddMFADeviceServer) e
 		UserMetadata: apievents.UserMetadata{
 			User: actx.Identity.GetIdentity().Username,
 		},
-		Device: mfaDeviceEventMetadata(dev),
+		MFADeviceMetadata: mfaDeviceEventMetadata(dev),
 	}); err != nil {
 		return trail.ToGRPC(err)
 	}
@@ -1536,7 +1537,7 @@ func (g *GRPCServer) DeleteMFADevice(stream proto.AuthService_DeleteMFADeviceSer
 			UserMetadata: apievents.UserMetadata{
 				User: actx.Identity.GetIdentity().Username,
 			},
-			Device: mfaDeviceEventMetadata(d),
+			MFADeviceMetadata: mfaDeviceEventMetadata(d),
 		}); err != nil {
 			return trail.ToGRPC(err)
 		}
@@ -1588,15 +1589,16 @@ func deleteMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_De
 
 func mfaDeviceEventMetadata(d *types.MFADevice) apievents.MFADeviceMetadata {
 	m := apievents.MFADeviceMetadata{
-		Name: d.Metadata.Name,
-		ID:   d.Id,
+		DeviceName: d.Metadata.Name,
+		DeviceID:   d.Id,
 	}
 	switch d.Device.(type) {
 	case *types.MFADevice_Totp:
-		m.Type = apievents.MFADeviceMetadata_TOTP
+		m.DeviceType = string(constants.SecondFactorOTP)
 	case *types.MFADevice_U2F:
-		m.Type = apievents.MFADeviceMetadata_U2F
+		m.DeviceType = string(constants.SecondFactorU2F)
 	default:
+		m.DeviceType = "unknown"
 		log.Warningf("Unknown MFA device type %T when generating audit event metadata", d.Device)
 	}
 	return m

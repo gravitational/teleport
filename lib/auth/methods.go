@@ -140,6 +140,12 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 			log.Debugf("Failed to authenticate: %v.", err)
 			return nil, trace.AccessDenied("invalid U2F response")
 		}
+		if mfaDev == nil {
+			// provide obscure message on purpose, while logging the real
+			// error server side
+			log.Debugf("CheckU2FSignResponse returned no error and a nil MFA device.")
+			return nil, trace.AccessDenied("invalid U2F response")
+		}
 		return mfaDev, nil
 	case req.OTP != nil:
 		var mfaDev *types.MFADevice
