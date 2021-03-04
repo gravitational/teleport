@@ -4,8 +4,8 @@ if [[ "${DEBUG}" == "true" ]]; then
 fi
 
 ## Test functions
-# Returns 0 in test mode and 1 otherwise
-is_test() { if [[ "${TELEPORT_TEST_MODE}" == "true" ]]; then return 0; else return 1; fi }
+# Returns true in test mode and false otherwise
+is_test() { [[ "${TELEPORT_TEST_MODE}" == "true" ]] }
 # Check for FIPS
 # In regular mode, we do this by looking at the ExecStart command for teleport.service to see whether it
 # contains 'fips' or not (which is set during packer build). We use this to modify the auth service's
