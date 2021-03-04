@@ -68,6 +68,8 @@ export const CodeEnum = {
   DATABASE_SESSION_STARTED_FAILURE: 'TDB00W',
   DATABASE_SESSION_ENDED: 'TDB01I',
   DATABASE_SESSION_QUERY: 'TDB02I',
+  MFA_DEVICE_ADD: 'T1006I',
+  MFA_DEVICE_DELETE: 'T1007I',
 } as const;
 
 /**
@@ -314,6 +316,22 @@ export type RawEvents = {
       db_name: string;
       db_user: string;
       db_query: string;
+    }
+  >;
+  [CodeEnum.MFA_DEVICE_ADD]: RawEvent<
+    typeof CodeEnum.MFA_DEVICE_ADD,
+    {
+      mfa_device_name: string;
+      mfa_device_uuid: string;
+      mfa_device_type: string;
+    }
+  >;
+  [CodeEnum.MFA_DEVICE_DELETE]: RawEvent<
+    typeof CodeEnum.MFA_DEVICE_DELETE,
+    {
+      mfa_device_name: string;
+      mfa_device_uuid: string;
+      mfa_device_type: string;
     }
   >;
 };
