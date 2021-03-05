@@ -41,11 +41,11 @@ implementation and it is _fully compatible with OpenSSH_ and can be used with
 |---|----
 | [Teleport Website](https://goteleport.com/teleport) | The official website of the project. |
 | [Documentation](https://goteleport.com/teleport/docs/quickstart/) | Admin guide, user manual and more. |
-| [Demo Video](https://www.youtube.com/watch?v=DUlTAlEJr5w) | 5-minute video overview of the UI. |
+| [Demo Video](https://www.youtube.com/watch?v=0HlyGk8dihM) | 5-minute video overview of the UI. |
 | [Teleconsole](https://www.teleconsole.com) | The free service to "invite" SSH clients behind NAT, built on top of Teleport. |
 | [Blog](https://goteleport.com/blog/) | Our blog where we publish Teleport news. |
 | [Forum](https://github.com/gravitational/teleport/discussions) | Ask us a setup question, post your tutorial, feedback or idea on our forum. |
-| [Slack](https://join.slack.com/t/goteleport/shared_invite/zt-midnn9bn-AQKcq5NNDs9ojELKlgwJUA) | Need help with set-up? Ping us in Slack channel. |
+| [Slack](https://goteleport.com/slack) | Need help with set-up? Ping us in Slack channel. |
 
 [![Teleport 4.3 Demo](/docs/4.3/img/readme/teleport-4.3-video-thumb.png)](https://www.youtube.com/watch?v=DUlTAlEJr5w)
 
@@ -224,7 +224,7 @@ magically _teleported_. And Teleport was born!
 
 We offer a few different options for support. First of all, we try to provide clear and comprehensive documentation. The docs are also in Github, so feel free to create a PR or file an issue if you think improvements can be made. If you still have questions after reviewing our docs, you can also:
 
-* Join the [Teleport Community](https://community.goteleport.com/c/teleport) to ask questions. Our engineers are available there to help you.
+* Join [Teleport Discussions](https://github.com/gravitational/teleport/discussions) to ask questions. Our engineers are available there to help you.
 * If you want to contribute to Teleport or file a bug report/issue, you can do so by creating an issue here in Github.
 * If you are interested in Teleport Enterprise or more responsive support during a POC, we can also create a dedicated Slack channel for you during your POC. You can [reach out to us through our website](https://goteleport.com/teleport/) to arrange for a POC.
 
