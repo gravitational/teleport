@@ -8,28 +8,28 @@ in the Admin Guide we recommend you review that for an overview before continuin
 The Trusted Clusters chapter in the Admin Guide
 offers an example of a simple configuration which:
 
-* Uses a static cluster join token defined in a configuration file.
-* Does not cover inter-cluster role based access control (RBAC).
+- Uses a static cluster join token defined in a configuration file.
+- Does not cover inter-cluster role based access control (RBAC).
 
 This guide's focus is on more in-depth coverage of trusted clusters features and will cover the following topics:
 
-* How to add and remove trusted clusters using CLI commands.
-* Enable/disable trust between clusters.
-* Establish permissions mapping between clusters using Teleport roles.
+- How to add and remove trusted clusters using CLI commands.
+- Enable/disable trust between clusters.
+- Establish permissions mapping between clusters using Teleport roles.
 
 ## Introduction
 
-As explained in the [architecture document](architecture/#core-concepts),
+As explained in the [architecture document](architecture.mdx#core-concepts),
 Teleport can partition compute infrastructure into multiple clusters.
-A cluster is a group of SSH nodes connected to the cluster's _auth server_
+A cluster is a group of SSH nodes connected to the cluster's *auth server*
 acting as a certificate authority (CA) for all users and nodes.
 
 To retrieve an SSH certificate, users must authenticate with a cluster through a
-_proxy server_. So, if users want to connect to nodes belonging to different
+*proxy server*. So, if users want to connect to nodes belonging to different
 clusters, they would normally have to use different `--proxy` flags for each
 cluster. This is not always convenient.
 
-The concept of _trusted clusters_ allows Teleport administrators to connect
+The concept of *trusted clusters* allows Teleport administrators to connect
 multiple clusters together and establish trust between them. Trusted clusters
 allow users of one cluster to seamlessly SSH into the nodes of another cluster
 without having to "hop" between proxy servers. Moreover, users don't even need
@@ -52,7 +52,7 @@ $ tsh clusters
 ```
 
 Trusted clusters also have their own restrictions on user access, i.e.
-_permissions mapping_ takes place.
+*permissions mapping* takes place.
 
 ## Join Tokens
 
@@ -61,8 +61,8 @@ Lets start with the diagram of how connection between two clusters is establishe
 ![Tunnels](../img/tunnel.svg)
 
 The first step in establishing a secure tunnel between two clusters is for the
-_trusting_ cluster "east" to connect to the _trusted_ cluster "main". When this
-happens for _the first time_, clusters know nothing about each other, thus a
+*trusting* cluster "east" to connect to the *trusted* cluster "main". When this
+happens for *the first time*, clusters know nothing about each other, thus a
 shared secret needs to exist in order for "main" to accept the connection from
 "east".
 
@@ -70,10 +70,13 @@ This shared secret is called a "join token". There are two ways to create join
 tokens: to statically define them in a configuration file, or to create them on
 the fly using `tctl` tool.
 
-<Admonition type="tip" title="Important">
-It is important to realize that join tokens are only used to establish the
-connection for the first time. The clusters will exchange certificates and
-won't be using the token to re-establish the connection in the future.
+<Admonition
+  type="tip"
+  title="Important"
+>
+  It is important to realize that join tokens are only used to establish the
+  connection for the first time. The clusters will exchange certificates and
+  won't be using the token to re-establish the connection in the future.
 </Admonition>
 
 ### Static Tokens
@@ -97,7 +100,7 @@ Creating a token dynamically with a CLI tool offers the advantage of applying a
 time to live (TTL) interval on it, i.e. it will be impossible to re-use such
 token after a specified period of time.
 
-To create a token using the CLI tool, execute this command on the _auth server_
+To create a token using the CLI tool, execute this command on the *auth server*
 of cluster "main":
 
 ```bsh
@@ -126,31 +129,34 @@ more complicated.
 
 ## RBAC
 
-<Admonition type="warning" title="Version Warning">
-The RBAC section is applicable only to Teleport Enterprise. The open source
-version does not suppport SSH roles.
+<Admonition
+  type="warning"
+  title="Version Warning"
+>
+  The RBAC section is applicable only to Teleport Enterprise. The open source
+  version does not suppport SSH roles.
 </Admonition>
 
-When a _trusting_ cluster "east" from the diagram above establishes trust with
-the _trusted_ cluster "main", it needs a way to configure which users from
+When a *trusting* cluster "east" from the diagram above establishes trust with
+the *trusted* cluster "main", it needs a way to configure which users from
 "main" should be allowed in and what permissions should they have. Teleport
-Enterprise uses _role mapping_ to achieve this.
+Enterprise uses *role mapping* to achieve this.
 
 Consider the following:
 
-* Both clusters "main" and "east" have their own locally defined roles.
-* Every user in Teleport Enterprise is assigned a role.
-* When creating a _trusted cluster_ resource, the administrator of "east" must
+- Both clusters "main" and "east" have their own locally defined roles.
+- Every user in Teleport Enterprise is assigned a role.
+- When creating a *trusted cluster* resource, the administrator of "east" must
   define how roles from "main" map to roles on "east".
 
 ### Example
 
 Lets make a few assumptions for this example:
 
-* The cluster "main" has two roles: _user_ for regular users and _admin_ for
+- The cluster "main" has two roles: *user* for regular users and *admin* for
   local administrators.
 
-* We want administrators from "main" (but not regular users!) to have
+- We want administrators from "main" (but not regular users!) to have
   restricted access to "east". We want to deny them access to machines
   with "environment=production" label.
 
@@ -173,7 +179,7 @@ spec:
 ```
 
 Now, we need to establish trust between roles "main:admin" and "east:local-admin". This is
-done by creating a trusted cluster [resource](admin-guide/#resources) on "east"
+done by creating a trusted cluster [resource](admin-guide.mdx#resources) on "east"
 which looks like this:
 
 ```yaml
@@ -193,7 +199,7 @@ spec:
   web_proxy_addr: main.example.com:3080
 ```
 
-What if we wanted to let _any_ user from "main" to be allowed to connect to
+What if we wanted to let *any* user from "main" to be allowed to connect to
 nodes on "east"? In this case we can use a wildcard `*` in the `role_map` like this:
 
 ```yaml
@@ -250,9 +256,12 @@ db2.east  3879d133-fe81-3212 10.0.5.3:3022  role=db-follower
 $ tsh ssh --cluster=east root@db1.east
 ```
 
-<Admonition type="tip" title="Note">
-Trusted clusters work only one way. So, in the example above users from "east"
-cannot see or connect to the nodes in "main".
+<Admonition
+  type="tip"
+  title="Note"
+>
+  Trusted clusters work only one way. So, in the example above users from "east"
+  cannot see or connect to the nodes in "main".
 </Admonition>
 
 ### Disabling Trust
@@ -265,7 +274,6 @@ and set `enabled` to "false", then update it:
 $ tctl create --force cluster.yaml
 ```
 
-
 ## How does it work?
 
 At a first glance, Trusted Clusters in combination with RBAC may seem
@@ -275,13 +283,13 @@ which is fairly easy to reason about:
 One can think of an SSH certificate as a "permit" issued and time-stamped by a
 certificate authority. A certificate contains four important pieces of data:
 
-* List of allowed UNIX logins a user can use. They are called "principals" in
+- List of allowed UNIX logins a user can use. They are called "principals" in
   the certificate.
-* Signature of the certificate authority who issued it (the _auth_ server)
-* Metadata (certificate extensions): additional data protected by the signature
+- Signature of the certificate authority who issued it (the *auth* server)
+- Metadata (certificate extensions): additional data protected by the signature
   above. Teleport uses the metadata to store the list of user roles and SSH
   options like "permit-agent-forwarding".
-* The expiration date.
+- The expiration date.
 
 Try executing `tsh status` right after `tsh login` to see all these fields in the
 client certificate.
@@ -290,22 +298,22 @@ When a user from "main" tries to connect to a node inside "east" cluster, her
 certificate is presented to the auth server of "east" and it performs the
 following checks:
 
-* Checks that the certificate signature matches one of the trusted clusters.
-* Tries to find a local role which maps to the list of principals found in the certificate.
-* Checks if the local role allows the requested identity (UNIX login) to have access.
-* Checks that the certificate is not expired.
+- Checks that the certificate signature matches one of the trusted clusters.
+- Tries to find a local role which maps to the list of principals found in the certificate.
+- Checks if the local role allows the requested identity (UNIX login) to have access.
+- Checks that the certificate is not expired.
 
 ## Troubleshooting
 
 There are three common types of problems Teleport administrators can run into when configuring
 trust between two clusters:
 
-* **HTTPS configuration**: when the main cluster uses a self-sgined or invalid HTTPS certificate.
+- **HTTPS configuration**: when the main cluster uses a self-sgined or invalid HTTPS certificate.
 
-* **Connectivity problems**: when a trusting cluster "east" does not show up in
+- **Connectivity problems**: when a trusting cluster "east" does not show up in
   `tsh clusters` output on "main".
 
-* **Access problems**: when users from "main" get "access denied" error messages
+- **Access problems**: when users from "main" get "access denied" error messages
   trying to connect to nodes on "east".
 
 ### HTTPS configuration
@@ -346,11 +354,11 @@ how your network security groups are configured on AWS.
 Troubleshooting access denied messages can be challenging. A Teleport administrator
 should check to see the following:
 
-* Which roles a user is assigned on "main" when they retrieve their SSH
+- Which roles a user is assigned on "main" when they retrieve their SSH
   certificate via `tsh login`. You can inspect the retrieved certificate with
   `tsh status` command on the client side.
-* Which roles a user is assigned on "east" when the role mapping takes place.
+- Which roles a user is assigned on "east" when the role mapping takes place.
   The role mapping result is reflected in the Teleport audit log. By default,
-  it is stored in `/var/lib/teleport/log` on a _auth_ server of a cluster.
+  it is stored in `/var/lib/teleport/log` on a *auth* server of a cluster.
   Check the audit log messages on both clusters to get answers for the
   questions above.
