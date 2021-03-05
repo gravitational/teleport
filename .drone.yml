@@ -502,7 +502,7 @@ volumes:
 
 kind: pipeline
 type: kubernetes
-name: push-build-linux-i386
+name: push-build-linux-386
 environment:
   GID: "1000"
   RUNTIME: go1.15.5
@@ -2468,7 +2468,7 @@ volumes:
 ---
 kind: pipeline
 type: kubernetes
-name: build-linux-i386
+name: build-linux-386
 
 environment:
   RUNTIME: go1.15.5
@@ -2568,7 +2568,7 @@ volumes:
 ---
 kind: pipeline
 type: kubernetes
-name: build-linux-i386-rpm
+name: build-linux-386-rpm
 
 trigger:
   event:
@@ -2581,7 +2581,7 @@ trigger:
       - gravitational/*
 
 depends_on:
-  - build-linux-i386
+  - build-linux-386
 
 workspace:
   path: /go
@@ -2694,7 +2694,7 @@ volumes:
 ---
 kind: pipeline
 type: kubernetes
-name: build-linux-i386-deb
+name: build-linux-386-deb
 
 trigger:
   event:
@@ -2707,7 +2707,7 @@ trigger:
       - gravitational/*
 
 depends_on:
-  - build-linux-i386
+  - build-linux-386
 
 workspace:
   path: /go
