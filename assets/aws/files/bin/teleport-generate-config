@@ -111,39 +111,30 @@ write_ssh_and_tunnel_section() {
     if [[ "${TELEPORT_PROXY_SERVER_LB}" != "" ]]; then
         # ACM
         if [[ "${USE_ACM}" == "true" ]]; then
-            # if an alias for the ACM NLB is configured, use that for the proxy's ssh_public_addr
-            if [[ "${TELEPORT_PROXY_SERVER_NLB_ALIAS}" != "" ]]; then
-                SSH_HOSTNAME="${TELEPORT_PROXY_SERVER_NLB_ALIAS}"
-            else
-                SSH_HOSTNAME="${TELEPORT_PROXY_SERVER_LB}"
-            fi
-
-            # when using ACM, we have to set up a dedicated listener and target group as
-            # SSL termination is handled by the ACM ALB and it can't multiplex the tunnel connections
             TUNNEL_PORT="${TUNNEL_LISTEN_PORT}"
+            SSH_HOSTNAME="${TELEPORT_PROXY_SERVER_LB}"
+            TUNNEL_HOSTNAME="${TELEPORT_PROXY_SERVER_LB}"
+            
             if [[ "${TELEPORT_PROXY_SERVER_NLB_ALIAS}" != "" ]]; then
+                # if an alias for the ACM NLB is configured, use that for the proxy's ssh_public_addr
+                SSH_HOSTNAME="${TELEPORT_PROXY_SERVER_NLB_ALIAS}"
+                # when using ACM, we have to set up a dedicated listener and target group as
+                # SSL termination is handled by the ACM ALB and it can't multiplex the tunnel connections
                 TUNNEL_HOSTNAME="${TELEPORT_PROXY_SERVER_NLB_ALIAS}"
-            else
-                TUNNEL_HOSTNAME="${TELEPORT_PROXY_SERVER_LB}"
             fi
         # non-ACM
         else
-            # check whether an external domain name is configured (HA mode)
-            # if not (starter mode), use an external hostname if configured, and fall back to public IP
-            if [[ "${TELEPORT_DOMAIN_NAME}" != "" ]]; then
-                SSH_HOSTNAME="${TELEPORT_DOMAIN_NAME}"
-            else
-                SSH_HOSTNAME="${TELEPORT_EXTERNAL_HOSTNAME:-$PUBLIC_IP}"
-            fi
-
             TUNNEL_PORT="${PASSED_EXTERNAL_TUNNEL_PORT}"
-            # when ACM is not being used, Teleport handles SSL termination itself and so tunnel connections
-            # can be multiplexed over the same connection as regular web proxy traffic
-            # this is automatically enabled when Teleport's web and tunnel listeners are configured to use the same port
+            TUNNEL_HOSTNAME="${TELEPORT_EXTERNAL_HOSTNAME:-$PUBLIC_IP}"
+            SSH_HOSTNAME="${TELEPORT_EXTERNAL_HOSTNAME:-$PUBLIC_IP}"
             if [[ "${TELEPORT_DOMAIN_NAME}" != "" ]]; then
+                # check whether an external domain name is configured (HA mode)
+                # if not (starter mode), use an external hostname if configured, and fall back to public IP
+                SSH_HOSTNAME="${TELEPORT_DOMAIN_NAME}"
+                # when ACM is not being used, Teleport handles SSL termination itself and so tunnel connections
+                # can be multiplexed over the same connection as regular web proxy traffic
+                # this is automatically enabled when Teleport's web and tunnel listeners are configured to use the same port
                 TUNNEL_HOSTNAME="${TELEPORT_DOMAIN_NAME}"
-            else
-                TUNNEL_HOSTNAME="${TELEPORT_EXTERNAL_HOSTNAME:-$PUBLIC_IP}"
             fi
         fi
     fi
