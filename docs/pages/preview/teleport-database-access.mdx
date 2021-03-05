@@ -9,9 +9,9 @@ access control.
 To find out whether you can benefit from using Database Access, see if you're
 facing any of the following challenges in your organization:
 
-* Do you need to protect and segment access to your databases?
-* Do you need provide SSO and auditing for the database access?
-* Do you have compliance requirements for data protection and access monitoring
+- Do you need to protect and segment access to your databases?
+- Do you need provide SSO and auditing for the database access?
+- Do you have compliance requirements for data protection and access monitoring
   like PCI/FedRAMP?
 
 If so, Database Access might help you solve some of these challenges.
@@ -20,29 +20,32 @@ If so, Database Access might help you solve some of these challenges.
 
 With Database Access users can:
 
-* Provide secure access to databases without exposing them over the public
+- Provide secure access to databases without exposing them over the public
   network through Teleport's reverse tunnel subsystem.
-* Control access to specific database instances as well as individual
+- Control access to specific database instances as well as individual
   databases and database users through Teleport's RBAC model.
-* Track individual users' access to databases as well as query activity
+- Track individual users' access to databases as well as query activity
   through Teleport's audit log.
 
 ## Diagram
 
 The following diagram shows an example Database Access setup:
 
-* Root cluster provides access to an onprem instance of PostgreSQL.
-* Leaf cluster, connected to the root cluster, provides access to an
+- Root cluster provides access to an onprem instance of PostgreSQL.
+- Leaf cluster, connected to the root cluster, provides access to an
   onprem instance of MySQL and PostgreSQL-compatible AWS Aurora.
-* Node connects another on-premise PostgreSQL instance (perhaps, a
+- Node connects another on-premise PostgreSQL instance (perhaps, a
   metrics database) via tunnel to the root cluster.
 
 ![Teleport database access diagram](../../img/dbaccess.svg)
 
-<Admonition type="tip" title="info">
-Teleport Database Access is currently under active development, with a
-preview release slated for Teleport 5.1 in December 2020. The preview
-will include support for PostgreSQL, including Amazon RDS and Aurora.
+<Admonition
+  type="tip"
+  title="info"
+>
+  Teleport Database Access is currently under active development, with a
+  preview release slated for Teleport 5.1 in December 2020. The preview
+  will include support for PostgreSQL, including Amazon RDS and Aurora.
 </Admonition>
 
 ## Setup
@@ -111,8 +114,8 @@ First, head over to the Teleport [downloads page](https://gravitational.com/tele
 and download the latest version of Teleport.
 
 <Admonition type="warning">
-As of this writing, no Teleport release with Database Access has been
-published yet.
+  As of this writing, no Teleport release with Database Access has been
+  published yet.
 </Admonition>
 
 Follow the installation [instructions](https://gravitational.com/teleport/docs/installation/).
@@ -211,13 +214,15 @@ $ tsh db login postgres
 $ psql "service=postgres-aurora user=<db-user> database=<db-name>"
 ```
 
-{/* TODO Remove comment when ready ## Demo
+{
+  /* TODO Remove comment when ready ## Demo
 
-<video autoPlay loop muted playsInline controls>
-  <source src="/video/dbaccessdemo.mp4" type="video/mp4" />
-  <source src="/video/dbaccessdemo.webm" type="video/webm" />
-Your browser does not support the video tag.
-</video> */}
+  <video autoPlay loop muted playsInline controls>
+    <source src="/video/dbaccessdemo.mp4" type="video/mp4" />
+    <source src="/video/dbaccessdemo.webm" type="video/webm" />
+  Your browser does not support the video tag.
+  </video> */
+}
 
 ## RFD
 
