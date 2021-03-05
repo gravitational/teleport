@@ -11,9 +11,9 @@ access control.
 To find out whether you can benefit from using Database Access, see if you're
 facing any of the following challenges in your organization:
 
-* Do you need to protect and segment access to your databases?
-* Do you need provide SSO and auditing for the database access?
-* Do you have compliance requirements for data protection and access monitoring
+- Do you need to protect and segment access to your databases?
+- Do you need provide SSO and auditing for the database access?
+- Do you have compliance requirements for data protection and access monitoring
   like PCI/FedRAMP?
 
 If so, Database Access might help you solve some of these challenges.
@@ -22,19 +22,33 @@ If so, Database Access might help you solve some of these challenges.
 
 With Database Access users can:
 
-* Provide secure access to databases without exposing them over the public
+- Provide secure access to databases without exposing them over the public
   network through Teleport's reverse tunnel subsystem.
-* Control access to specific database instances as well as individual
+- Control access to specific database instances as well as individual
   databases and database users through Teleport's RBAC model.
-* Track individual users' access to databases as well as query activity
+- Track individual users' access to databases as well as query activity
   through Teleport's audit log.
 
 ## Demo
 
-<video autoPlay loop muted playsInline controls>
-  <source src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.mp4" type="video/mp4" />
-  <source src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.webm" type="video/webm" />
-Your browser does not support the video tag.
+<video
+  autoPlay
+  loop
+  muted
+  playsInline
+  controls
+>
+  <source
+    src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.mp4"
+    type="video/mp4"
+  />
+
+  <source
+    src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.webm"
+    type="video/webm"
+  />
+
+  Your browser does not support the video tag.
 </video>
 
 ## Getting Started
@@ -79,11 +93,14 @@ Teleport process will be using to allow it to connect to the database:
 }
 ```
 
-<Admonition type="note" title="Resource ID">
-Database resource ID is shown on the Configuration tab of a particular
-database instance in RDS control panel, under "Resource id". For regular
-RDS database it starts with `db-` prefix. For Aurora, use the database
-cluster resource ID (`cluster-`), not individual instance ID.
+<Admonition
+  type="note"
+  title="Resource ID"
+>
+  Database resource ID is shown on the Configuration tab of a particular
+  database instance in RDS control panel, under "Resource id". For regular
+  RDS database it starts with `db-` prefix. For Aurora, use the database
+  cluster resource ID (`cluster-`), not individual instance ID.
 </Admonition>
 
 Finally, connect to the database and create a database account with IAM auth
@@ -107,10 +124,10 @@ Teleport Database Access is available starting from `6.0.0-alpha.1` pre-release.
 Download the appropriate version of Teleport for your platform from the table
 below, or visit our [downloads page](https://goteleport.com/teleport/download).
 
-{!docs/pages/preview/releases-table.mdx!}
+`{!docs/pages/preview/releases-table.mdx!}`
 
 <Admonition type="warning">
-Note, pre-releases are not suitable for production usage!
+  Note, pre-releases are not suitable for production usage!
 </Admonition>
 
 Start Teleport using the following command and point it to your Aurora database
@@ -125,9 +142,12 @@ sudo teleport start \
   --db-aws-region=us-west-1
 ```
 
-<Admonition type="note" title="AWS credentials">
-The node where the Teleport process is started should have AWS credentials
-configured with the policy from [step 1](#step-13-setup-aurora).
+<Admonition
+  type="note"
+  title="AWS credentials"
+>
+  The node where the Teleport process is started should have AWS credentials
+  configured with the policy from [step 1](#step-13-setup-aurora).
 </Admonition>
 
 Create a Teleport user that is allowed to connect to a particular database
@@ -180,19 +200,19 @@ guide!
 For the next steps, dive deeper into the topics relevant to your Database
 Access use-case, for example:
 
-* Learn how to connect to a [self-hosted database](#self-hosted-postgresql).
-* Learn how to configure Database Access via Teleport [configuration file](#configure-teleport).
-* Learn about Database Access [RBAC](#rbac).
-* See [frequently asked questions](#faq).
+- Learn how to connect to a [self-hosted database](#self-hosted-postgresql).
+- Learn how to configure Database Access via Teleport [configuration file](#configure-teleport).
+- Learn about Database Access [RBAC](#rbac).
+- See [frequently asked questions](#faq).
 
 ## Diagram
 
 The following diagram shows an example Database Access setup:
 
-* Root cluster provides access to an onprem instance of PostgreSQL.
-* Leaf cluster, connected to the root cluster, provides access to an
+- Root cluster provides access to an onprem instance of PostgreSQL.
+- Leaf cluster, connected to the root cluster, provides access to an
   onprem instance of MySQL and PostgreSQL-compatible AWS Aurora.
-* Node connects another on-premise PostgreSQL instance (perhaps, a
+- Node connects another on-premise PostgreSQL instance (perhaps, a
   metrics database) via tunnel to the root cluster.
 
 ![Teleport database access diagram](../../img/dbaccess.svg)
@@ -210,9 +230,9 @@ See [release schedule](./upcoming-releases.mdx#release-schedule).
 ### Self-Hosted PostgreSQL
 
 <Admonition type="note">
-This section explains how to configure a self-hosted instance of PostgreSQL
-to work with Teleport Database Access. For information about configuring
-AWS RDS/Aurora see the [section below](#aws-rdsaurora-postgresql).
+  This section explains how to configure a self-hosted instance of PostgreSQL
+  to work with Teleport Database Access. For information about configuring
+  AWS RDS/Aurora see the [section below](#aws-rdsaurora-postgresql).
 </Admonition>
 
 #### Create Certificate/Key Pair
@@ -233,20 +253,23 @@ $ tctl auth sign --format=db --host=db.example.com --out=server --ttl=8760h
 
 Flag descriptions:
 
-* `--format=db`: instructs the command to produce secrets in the format suitable
+- `--format=db`: instructs the command to produce secrets in the format suitable
   for configuring a database server.
-* `--host=db.example.com`: server name to encode in the certificate, should
+- `--host=db.example.com`: server name to encode in the certificate, should
   match the hostname Teleport will be connecting to the database at.
-* `--out=server`: name prefix for output files.
-* `--ttl=8760h`: certificate validity period.
+- `--out=server`: name prefix for output files.
+- `--ttl=8760h`: certificate validity period.
 
 The command will create 3 files: `server.cas` with Teleport's certificate
 authority and `server.crt`/`server.key` with generated certificate/key pair.
 
-<Admonition type="note" title="Certificate Rotation">
-Teleport signs database certificates with the host authority. As such,
-when performing [host certificates rotation](../admin-guide.mdx#certificate-rotation),
-the database certificates must be updated as well.
+<Admonition
+  type="note"
+  title="Certificate Rotation"
+>
+  Teleport signs database certificates with the host authority. As such,
+  when performing [host certificates rotation](../admin-guide.mdx#certificate-rotation),
+  the database certificates must be updated as well.
 </Admonition>
 
 #### Configure PostgreSQL Server
@@ -279,9 +302,9 @@ in PostgreSQL documentation for more details.
 ### AWS RDS/Aurora PostgreSQL
 
 <Admonition type="note">
-This section explains how to configure a PostgreSQL-flavored instance of
-AWS RDS or Aurora database to work with Teleport Database Access. For
-information about configuring a self-hosted PostgreSQL see the [section above](#self-hosted-postgresql).
+  This section explains how to configure a PostgreSQL-flavored instance of
+  AWS RDS or Aurora database to work with Teleport Database Access. For
+  information about configuring a self-hosted PostgreSQL see the [section above](#self-hosted-postgresql).
 </Admonition>
 
 Teleport Database Access for AWS RDS and Aurora uses IAM authentication which
@@ -327,11 +350,11 @@ arn:aws:rds-db:<region>:<account-id>:dbuser:<db-cluster-resource-id>/<db-user-na
 
 Parameters:
 
-* `region`: AWS region where the database cluster is deployed.
-* `account-id`: AWS account ID the database cluster is deployed under.
-* `db-cluster-resource-id`: identifier for the database cluster, can be found
+- `region`: AWS region where the database cluster is deployed.
+- `account-id`: AWS account ID the database cluster is deployed under.
+- `db-cluster-resource-id`: identifier for the database cluster, can be found
   under Configuration section in the RDS control panel.
-* `db-user-name`: name of the database account to associate with IAM
+- `db-user-name`: name of the database account to associate with IAM
   authentication. Can be a wildcard.
 
 See [Creating and using an IAM policy for IAM database access](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.IAMPolicy.html)
@@ -357,10 +380,10 @@ Teleport Database Access is available starting from `6.0.0-alpha.1` pre-release.
 Download the appropriate version of Teleport for your platform from the table
 below, or visit our [downloads page](https://goteleport.com/teleport/download).
 
-{!docs/pages/preview/releases-table.mdx!}
+`{!docs/pages/preview/releases-table.mdx!}`
 
 <Admonition type="warning">
-Note, pre-releases are not suitable for production usage!
+  Note, pre-releases are not suitable for production usage!
 </Admonition>
 
 Follow the installation [instructions](../installation.mdx).
@@ -472,9 +495,9 @@ proxy_service:
 ```
 
 <Admonition type="tip">
-A single Teleport process can run multiple different services, for example
-multiple database access proxies as well as running other services such an
-SSH service or an application access proxy.
+  A single Teleport process can run multiple different services, for example
+  multiple database access proxies as well as running other services such an
+  SSH service or an application access proxy.
 </Admonition>
 
 Start the database service:
@@ -519,7 +542,7 @@ $ tsh db login aurora
 ```
 
 <Admonition type="tip">
-You can be logged into multiple databases simultaneously.
+  You can be logged into multiple databases simultaneously.
 </Admonition>
 
 You can optionally specify the database name and the user to use by default
@@ -624,10 +647,10 @@ with other databases to follow over the course of 2021 and beyond.
 
 The following PostgreSQL protocol features aren't currently supported:
 
-* [Canceling requests in progress](https://www.postgresql.org/docs/current/protocol-flow.html#id-1.10.5.7.9).
+- [Canceling requests in progress](https://www.postgresql.org/docs/current/protocol-flow.html#id-1.10.5.7.9).
   Cancel requests issued by the PostgreSQL clients connected to Teleport proxy
   won't be passed to the database server.
-* Any of the [authentication methods](https://www.postgresql.org/docs/current/auth-methods.html)
+- Any of the [authentication methods](https://www.postgresql.org/docs/current/auth-methods.html)
   except for client certificate authentication.
 
 ## RFD
