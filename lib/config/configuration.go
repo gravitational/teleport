@@ -22,12 +22,20 @@ package config
 
 import (
 	"bufio"
+	"bytes"
+	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
+	"regexp"
+	rundebug "runtime/debug"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -48,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
+	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
@@ -401,7 +410,249 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 	default:
 		return trace.BadParameter("unsupported logger severity: %q", loggerConfig.Severity)
 	}
+
+	tformat := &teleportFormatter{}
+	err := tformat.CheckAndSetDefaults(loggerConfig.Format)
+	if err != nil {
+		return trace.BadParameter("invalid logger format: %q err: %v", loggerConfig.Format, err)
+	}
+	logger.Formatter = tformat
+
 	return nil
+}
+
+type teleportFormatter struct {
+	F logrus.TextFormatter
+	// DisableTimestamp disables timestamp output (useful when outputting to
+	// systemd logs)
+	DisableTimestamp bool
+	// ComponentPadding is a padding to pick when displaying
+	// and formatting component field, defaults to DefaultComponentPadding
+	ComponentPadding int
+	// EnableColors enables colored output
+	EnableColors bool
+	// FormatCaller is a function to return (part) of source file path for output.
+	// Defaults to filePathAndLine() if unspecified
+	FormatCaller func() (caller string)
+
+	InputFormat []string
+}
+
+const (
+	noColor = -1
+	red     = 31
+	yellow  = 33
+	blue    = 36
+	gray    = 37
+)
+
+type writer struct {
+	bytes.Buffer
+}
+
+
+
+// CheckAndSetDefaults checks and sets log format configuration
+func (tf *teleportFormatter) CheckAndSetDefaults(logFormatInput string) error {
+	// DefaultLoggerFormat is the default format in which to display logs (i.e. logs.format in teleport.yaml is empty)
+	var DefaultLoggerFormat = []string{"level", "component", "message", "caller"}
+	var values = map[string]bool{"level": true, "component": true, "message": true, "caller": true, "timestamp": true, "data": true}
+	// Set formatter
+	// always set timestamp to true becuase later we can omit it if specified by user
+	tf.F = log.TextFormatter{
+		FullTimestamp:   true,
+		TimestampFormat: time.RFC3339,
+	}
+
+	// Set padding, always output the component field if available
+	if tf.ComponentPadding == 0 {
+		tf.ComponentPadding = trace.DefaultComponentPadding
+	}
+
+	if tf.FormatCaller == nil {
+		tf.FormatCaller = trace.FormatCallerWithPathAndLine
+	}
+
+	if logFormatInput == "" {
+		tf.InputFormat = DefaultLoggerFormat
+	} else {
+		var re = regexp.MustCompile(`(?m){{([a-z]+)}}+`)
+		var result []string
+		for _, match := range re.FindAllString(logFormatInput, -1) {
+			match = strings.Trim(match, "{{")
+			match = strings.Trim(match, "}}")
+			if !values[match] {
+				msg := fmt.Sprintf("key does not exist: %v", match)
+				return errors.New(msg)
+			}
+			result = append(result, match)
+		}
+		tf.InputFormat = result
+	}
+	return nil
+}
+
+func (tf *teleportFormatter) Format(e *log.Entry) (data []byte, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			data = append([]byte("panic in log formatter\n"), rundebug.Stack()...)
+			return
+		}
+	}()
+
+	caller := tf.FormatCaller()
+	w := &writer{}
+
+	for _, match := range tf.InputFormat {
+		switch match {
+		case "level":
+			// level
+			color := noColor
+			if tf.EnableColors {
+				switch e.Level {
+				case log.DebugLevel:
+					color = gray
+				case log.WarnLevel:
+					color = yellow
+				case log.ErrorLevel, log.FatalLevel, log.PanicLevel:
+					color = red
+				default:
+					color = blue
+				}
+			}
+			w.writeField(strings.ToUpper(padMax(e.Level.String(), trace.DefaultLevelPadding)), color)
+		case "component":
+			// always output the component field if available
+			padding := trace.DefaultComponentPadding
+			if tf.ComponentPadding != 0 {
+				padding = tf.ComponentPadding
+			}
+			if w.Len() > 0 {
+				w.WriteByte(' ')
+			}
+			value := e.Data[trace.Component]
+			var component string
+			if reflect.ValueOf(value).IsValid() {
+				component = fmt.Sprintf("[%v]", value)
+			}
+			component = strings.ToUpper(padMax(component, padding))
+			if component[len(component)-1] != ' ' {
+				component = component[:len(component)-1] + "]"
+			}
+			w.WriteString(component)
+		case "message":
+			// message
+			if e.Message != "" {
+				w.writeField(e.Message, noColor)
+			}
+		case "data":
+			// rest of the fields
+			if len(e.Data) > 0 {
+				w.writeMap(e.Data)
+			}
+		case "caller":
+			// caller, if present, always last
+			if caller != "" {
+				w.writeField(caller, noColor)
+			}
+		case "timestamp":
+			// if user disables time stamp with tf.Timestamp, which should take priority?
+			if !tf.DisableTimestamp {
+				w.writeField(e.Time.Format(time.RFC3339), noColor)
+			}
+		default:
+			return
+		}
+	}
+	w.WriteByte('\n')
+	data = w.Bytes()
+	return
+}
+
+func (w *writer) writeError(value interface{}) {
+	switch err := value.(type) {
+	case trace.Error:
+		w.WriteString(fmt.Sprintf("[%v]", err.DebugReport()))
+	default:
+		w.WriteString(fmt.Sprintf("[%v]", value))
+	}
+}
+
+func padMax(in string, chars int) string {
+	switch {
+	case len(in) < chars:
+		return in + strings.Repeat(" ", chars-len(in))
+	default:
+		return in[:chars]
+	}
+}
+
+func (w *writer) writeField(value interface{}, color int) {
+	if w.Len() > 0 {
+		w.WriteByte(' ')
+	}
+	w.writeValue(value, color)
+}
+
+func needsQuoting(text string) bool {
+	for _, r := range text {
+		if !strconv.IsPrint(r) {
+			return true
+		}
+	}
+	return false
+}
+
+func (w *writer) writeKeyValue(key string, value interface{}) {
+	if w.Len() > 0 {
+		w.WriteByte(' ')
+	}
+	w.WriteString(key)
+	w.WriteByte(':')
+	if key == log.ErrorKey {
+		w.writeError(value)
+		return
+	}
+	w.writeValue(value, noColor)
+}
+
+func (w *writer) writeValue(value interface{}, color int) {
+	var s string
+	switch v := value.(type) {
+	case string:
+		s = v
+		if needsQuoting(s) {
+			s = fmt.Sprintf("%q", v)
+		}
+	default:
+		s = fmt.Sprintf("%v", v)
+	}
+	if color != noColor {
+		s = fmt.Sprintf("\x1b[%dm%s\x1b[0m", color, s)
+	}
+	w.WriteString(s)
+}
+
+func (w *writer) writeMap(m map[string]interface{}) {
+	if len(m) == 0 {
+		return
+	}
+	keys := make([]string, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		if key == trace.Component {
+			continue
+		}
+		switch value := m[key].(type) {
+		case log.Fields:
+			w.writeMap(value)
+		default:
+			w.writeKeyValue(key, value)
+		}
+	}
 }
 
 // applyAuthConfig applies file configuration for the "auth_service" section.
