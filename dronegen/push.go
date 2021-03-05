@@ -43,7 +43,7 @@ func pushPipeline(params buildType) pipeline {
 		"ARCH":   value{raw: params.arch},
 	}
 	if params.fips {
-		pipelineName = fmt.Sprintf("push-build-%s-%s-fips", params.os, params.arch)
+		pipelineName += "-fips"
 		pushEnvironment["FIPS"] = value{raw: "yes"}
 	}
 
