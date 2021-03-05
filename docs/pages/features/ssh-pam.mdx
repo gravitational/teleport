@@ -65,7 +65,6 @@ removed if you uninstall the `openssh-server` package. We recommend creating you
 own PAM service file like `/etc/pam.d/teleport` and specifying it as
 `service_name` above.
 
-
 ## Setting Message of the Day (motd) with Teleport
 
 The file `/etc/motd` is normally displayed by login(1) after a user has logged in
@@ -97,6 +96,7 @@ ssh_service:
 ![Teleport SSH without MOTD](../../img/motd/teleport-no-MOTD.png)
 
 ### Example node with PAM enabled
+
 ```yaml
 teleport:
   nodename: graviton-node-1
@@ -231,6 +231,7 @@ This PAM module creates the user and home directory before attempting to launch
 a shell for said user.
 
 ### Examples
+
 **Using pam_exec.so**
 
 Using `pam_exec.so` is the easiest way to use the PAM stack to create a user if
@@ -250,9 +251,9 @@ session   required   pam_permit.so
 ```
 
 <Admonition type="note">
-Pay attention to the inclusion of `pam_motd.so` under the `session` facility. While `pam_motd.so` is
-not required for user creation, Teleport requires at least one module to be set under both
-the `account` and `session` facilities for it to work.
+  Pay attention to the inclusion of `pam_motd.so` under the `session` facility. While `pam_motd.so` is
+  not required for user creation, Teleport requires at least one module to be set under both
+  the `account` and `session` facilities for it to work.
 </Admonition>
 
 Next, create the script that will be run by `pam_exec.so` like below. This
@@ -264,7 +265,7 @@ to write richer scripts that may change the system in other ways based on
 identity information.
 
 <Admonition type="note">
-The `useradd` location can have a different path then the example below depending on your linux flavor.  Adjust to your particular system as needed from `which useradd` (Ex: `/usr/sbin/useradd` instead of the below example).
+  The `useradd` location can have a different path then the example below depending on your linux flavor.  Adjust to your particular system as needed from `which useradd` (Ex: `/usr/sbin/useradd` instead of the below example).
 </Admonition>
 
 ```bash
