@@ -1720,7 +1720,16 @@ func validateUserSingleUseCertRequest(ctx context.Context, actx *grpcContext, re
 			}
 		}
 		if len(matches) == 0 {
-			return trace.Wrap(notFoundErr)
+			// If req.NodeName is not a known registered node, it may be an
+			// unregistered host running OpenSSH with a certificate created via
+			// `tctl auth sign`. In these cases, let the user through without
+			// extra checks.
+			//
+			// If req.NodeName turns out to be an alias for a real node (e.g.
+			// private network IP), and MFA check was actually required, the
+			// Node itself will check the cert extensions and reject the
+			// connection.
+			return errUserSingleUseUserCertNotNeeded
 		}
 		if len(matches) > 1 {
 			// We need to include the special placeholder NodeIsAmbiguous for a
