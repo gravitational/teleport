@@ -400,7 +400,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:114
+# Generated at dronegen/push.go:50
 ################################################
 
 kind: pipeline
@@ -453,9 +453,8 @@ steps:
   commands:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
-  - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
   - cd /go/src/github.com/gravitational/teleport
-  - make -C build.assets release OS=$OS ARCH=$ARCH
+  - make -C build.assets release-amd64
   environment:
     ARCH: amd64
     GID: "1000"
@@ -497,7 +496,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:114
+# Generated at dronegen/push.go:50
 ################################################
 
 kind: pipeline
@@ -550,9 +549,8 @@ steps:
   commands:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
-  - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
   - cd /go/src/github.com/gravitational/teleport
-  - make -C build.assets release OS=$OS ARCH=$ARCH
+  - make -C build.assets release-386
   environment:
     ARCH: "386"
     GID: "1000"
@@ -594,7 +592,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:114
+# Generated at dronegen/push.go:50
 ################################################
 
 kind: pipeline
@@ -648,9 +646,8 @@ steps:
   commands:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
-  - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
   - cd /go/src/github.com/gravitational/teleport
-  - make -C build.assets release-fips VERSION=$VERSION OS=$OS ARCH=$ARCH FIPS=$FIPS
+  - make -C build.assets release-amd64-fips
   environment:
     ARCH: amd64
     FIPS: "yes"
@@ -693,7 +690,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:114
+# Generated at dronegen/push.go:50
 ################################################
 
 kind: pipeline
@@ -746,9 +743,8 @@ steps:
   commands:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
-  - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
   - cd /go/src/github.com/gravitational/teleport
-  - make -C build.assets release OS=$OS ARCH=$ARCH
+  - make -C build.assets release-amd64
   environment:
     ARCH: amd64
     GID: "1000"
@@ -887,7 +883,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:114
+# Generated at dronegen/push.go:50
 ################################################
 
 kind: pipeline
@@ -940,10 +936,8 @@ steps:
   commands:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
-  - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
-  - docker pull quay.io/gravitational/teleport-buildbox-arm:$RUNTIME || true
   - cd /go/src/github.com/gravitational/teleport
-  - make -C build.assets release-arm OS=$OS ARCH=$ARCH
+  - make -C build.assets release-arm
   environment:
     ARCH: arm
     GID: "1000"
@@ -985,7 +979,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:114
+# Generated at dronegen/push.go:50
 ################################################
 
 kind: pipeline
@@ -1039,10 +1033,8 @@ steps:
   commands:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
-  - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
-  - docker pull quay.io/gravitational/teleport-buildbox-arm-fips:$RUNTIME || true
   - cd /go/src/github.com/gravitational/teleport
-  - make -C build.assets release-arm-fips VERSION=$VERSION OS=$OS ARCH=$ARCH FIPS=$FIPS
+  - make -C build.assets release-arm-fips
   environment:
     ARCH: arm
     FIPS: "yes"
@@ -1085,7 +1077,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:114
+# Generated at dronegen/push.go:50
 ################################################
 
 kind: pipeline
@@ -1138,10 +1130,8 @@ steps:
   commands:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
-  - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
-  - docker pull quay.io/gravitational/teleport-buildbox-arm:$RUNTIME || true
   - cd /go/src/github.com/gravitational/teleport
-  - make -C build.assets release-arm64 OS=$OS ARCH=$ARCH
+  - make -C build.assets release-arm64
   environment:
     ARCH: arm64
     GID: "1000"
@@ -1183,7 +1173,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:114
+# Generated at dronegen/push.go:50
 ################################################
 
 kind: pipeline
@@ -1237,10 +1227,8 @@ steps:
   commands:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
-  - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
-  - docker pull quay.io/gravitational/teleport-buildbox-arm-fips:$RUNTIME || true
   - cd /go/src/github.com/gravitational/teleport
-  - make -C build.assets release-arm64-fips VERSION=$VERSION OS=$OS ARCH=$ARCH FIPS=$FIPS
+  - make -C build.assets release-arm64-fips
   environment:
     ARCH: arm64
     FIPS: "yes"
@@ -4367,6 +4355,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 0cc2b925979bfa523031aef06f92cfa24eafa4bf79fcc46ecbca9a4712b5ff6f
+hmac: 86a2048371b2ce8d89a0d1c5035c6c7ae63b5e04ac01a1d94db78a339f9273b5
 
 ...
