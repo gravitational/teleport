@@ -10,20 +10,23 @@ VM.
 
 ### Prerequisites
 
-* In this tutorial you will start a web UI which must be accessible via a web
+- In this tutorial you will start a web UI which must be accessible via a web
   browser. If you run this tutorial on a remote machine without a GUI, first
   make sure that this machine's IP can be reached over your network and that
   it accepts incoming traffic on port `3080` .
 
-* We recommend that you read the [Architecture Guide](architecture/teleport-architecture-overview.mdx)
+- We recommend that you read the [Architecture Guide](architecture/teleport-architecture-overview.mdx)
   before working through this tutorial. If you'd like to dive right in though this is
   the best place to start!
 
 This guide is only meant to demonstrate how to run Teleport in a sandbox or demo
 environment, and showcase a few basic tasks you can do with Teleport. For additional configuration examples, see [teleport/examples](https://github.com/gravitational/teleport/tree/master/examples), within the Teleport Github repository.
 
-<Admonition type="note" title="IMPORTANT">
-You should not follow this guide if you want to set up Teleport in production. Instead follow the [Production Guide](production.mdx).
+<Admonition
+  type="note"
+  title="IMPORTANT"
+>
+  You should not follow this guide if you want to set up Teleport in production. Instead follow the [Production Guide](production.mdx).
 </Admonition>
 
 ## Step 1: Install Teleport
@@ -37,7 +40,7 @@ it from source](installation.mdx#installing-from-source).
 You can also download `.deb` , `.rpm` , and `.pkg` files from
 [Downloads](https://gravitational.com/teleport/download/).
 
-``` bash
+```bash
 $ export version=v{{ teleport.version }}
 $ export os=linux # 'darwin' 'linux' or 'windows'
 $ export arch=amd64 # '386' 'arm' on linux or 'amd64' for all distros
@@ -60,27 +63,33 @@ $ which teleport
 First, create a directory for Teleport to keep its data (by default it's
 `/var/lib/teleport`):
 
-``` bash
+```bash
 $ mkdir -p -m0700 /var/lib/teleport
 ```
 
 Now we are ready to start Teleport. Start the `teleport` daemon:
 
-``` bash
+```bash
 $ teleport start # if you are not `root` you may need `sudo`
 ```
 
-<Admonition type="tip" title="Background Process">
-Avoid suspending your current shell session by
-running the process in the background like so:
-`teleport start > teleport.log 2>&1 &`.
-Access the process logs with `less teleport.log`.
+<Admonition
+  type="tip"
+  title="Background Process"
+>
+  Avoid suspending your current shell session by
+  running the process in the background like so:
+  `teleport start > teleport.log 2>&1 &`.
+  Access the process logs with `less teleport.log`.
 </Admonition>
 
-<Admonition type="tip" title="Debugging/Verbose Output">
-If you encounter errors with any `teleport`, `tsh` or `tctl`
-command you can enable verbose logging with the `-d, --debug`
-flag.
+<Admonition
+  type="tip"
+  title="Debugging/Verbose Output"
+>
+  If you encounter errors with any `teleport`, `tsh` or `tctl`
+  command you can enable verbose logging with the `-d, --debug`
+  flag.
 </Admonition>
 
 By default, Teleport services bind to 0.0.0.0. If you ran Teleport without any
@@ -106,19 +115,22 @@ For the following examples: `teleport@grav-00`, the **OS user** is
 
 Replace `OS user` and `hostname` as it fits your OS: `<your OS user>@<your hostname>`
 
-<Admonition type="tip" title="OS User Mappings">
-If you intend to use `teleport` as OS user (as shown in our examples), OS user `teleport` must exist!
-And you must explicitly state user as `teleport` in some subsequent commands. (We will remind you).
+<Admonition
+  type="tip"
+  title="OS User Mappings"
+>
+  If you intend to use `teleport` as OS user (as shown in our examples), OS user `teleport` must exist!
+  And you must explicitly state user as `teleport` in some subsequent commands. (We will remind you).
 
-On Linux, if it does not already exist, create it with `adduser teleport`. If you do not have
-the permission to create new users on the VM, run `tctl users add teleport
-<your-username> ` to explicitly map ` teleport` to an existing OS user.
+  On Linux, if it does not already exist, create it with `adduser teleport`. If you do not have
+  the permission to create new users on the VM, run `tctl users add teleport
+    <your-username> ` to explicitly map ` teleport` to an existing OS user.
 
-If you do not map to a real OS user you will get authentication errors later on in
-this tutorial!
+  If you do not map to a real OS user you will get authentication errors later on in
+  this tutorial!
 </Admonition>
 
-``` bash
+```bash
 # A new Teleport user will be assigned a
 # mapping to an OS user of the same name
 # This is the same as running `tctl users add teleport teleport`
@@ -138,20 +150,25 @@ open this URL in a web browser to complete the registration process.
 
 ## Step 4: Register a User
 
-* If the machine where you ran these commands has a web browser installed, you
-should be able to open the URL and connect to Teleport Proxy right away.
+- If the machine where you ran these commands has a web browser installed, you
+  should be able to open the URL and connect to Teleport Proxy right away.
 
-* If you are working on a remote machine, you may need to access the Teleport
-Proxy via the host machine and port `3080` in a web browser. One simple way to
-do this is to temporarily append `[HOST_IP] grav-00` to `/etc/hosts`.
+- If you are working on a remote machine, you may need to access the Teleport
+  Proxy via the host machine and port `3080` in a web browser. One simple way to
+  do this is to temporarily append `[HOST_IP] grav-00` to `/etc/hosts`.
 
-<Admonition type="warning" title="Warning">
-We haven't provisioned any SSL certs for Teleport yet.
-Your browser will throw a warning: **Your connection is not private**. Click
-**Advanced**, and **Proceed to [HOST_IP] (unsafe)** to preview the Teleport UI.
+<Admonition
+  type="warning"
+  title="Warning"
+>
+  We haven't provisioned any SSL certs for Teleport yet.
+  Your browser will throw a warning: **Your connection is not private**. Click
+  **Advanced**, and **Proceed to [HOST_IP] \(unsafe)** to preview the Teleport UI.
 </Admonition>
 
-{/* Link to networking/production guide */}
+{
+  /* Link to networking/production guide */
+}
 
 ![Teleport User Registration](../img/login.png)
 
@@ -172,15 +189,18 @@ Let's login using the `tsh` command line tool. Just as in the previous step, you
 will need to be able to resolve the **hostname** of the cluster to a network
 accessible IP.
 
-<Admonition type="warning" title="Warning">
-For the purposes of this quickstart we are using the
-`--insecure` flag which allows us to skip configuring the HTTP/TLS
-certificate for Teleport proxy.
+<Admonition
+  type="warning"
+  title="Warning"
+>
+  For the purposes of this quickstart we are using the
+  `--insecure` flag which allows us to skip configuring the HTTP/TLS
+  certificate for Teleport proxy.
 
-Never use `--insecure` in production unless you terminate SSL at a load balancer. You must configure a HTTP/TLS certificate for the Proxy. [Learn more in our SSL/TLS for Teleport Proxy - Production Guide](production.mdx#ssltls-for-teleport-proxy)
+  Never use `--insecure` in production unless you terminate SSL at a load balancer. You must configure a HTTP/TLS certificate for the Proxy. [Learn more in our SSL/TLS for Teleport Proxy - Production Guide](production.mdx#ssltls-for-teleport-proxy)
 </Admonition>
 
-``` bash
+```bash
 # here grav-00 is a resolvable hostname on the same network
 # --proxy can be an IP, hostname, or URL; you can also use "localhost" for this quickstart
 # --user (not shown) by default, is implicitly set to your last login, or primary OS username
@@ -210,7 +230,7 @@ At this point you have authenticated with Teleport Auth and can now start a reco
 
 Since you logged in the last step with  `tsh --proxy=grav-00 login`, the `--user` is defaulted to `teleport` and `--proxy` is defaulted to `grav-00`. In other words they are implicitly set.
 
-``` bash
+```bash
 # usage: tsh ssh [<flags>] <[user@]host> [<command>...]
 # by default, the user in <[user@]host>, is implicitly your primary OS user
 # if you didn't map `teleport` to your primary OS user OR
@@ -221,8 +241,8 @@ howdy
 # run whatever you want here, this is a regular SSH session.
 ```
 
-_Note: The `tsh` client always requires the `--proxy` flag because `tsh` needs to know which cluster you are connecting to.
-But if you execute `tsh --proxy=xxx login`, the current proxy (and user) will be saved in your `~/.tsh` profile and won't be needed for other tsh commands._
+*Note: The `tsh` client always requires the `--proxy` flag because `tsh` needs to know which cluster you are connecting to.
+But if you execute `tsh --proxy=xxx login`, the current proxy (and user) will be saved in your `~/.tsh` profile and won't be needed for other tsh commands.*
 
 Your command prompt may not look different, but you are now in a new SSH session
 which has been authenticated by Teleport!
@@ -232,10 +252,11 @@ Try a few things to get familiar with recorded sessions:
 ![Sessions View](../img/sessions.png)
 
 1. Navigate to `https://[HOST]:3080/web/sessions` in your web browser to see the
-list of current and past sessions on the cluster. The session you just created
-should be listed.
+   list of current and past sessions on the cluster. The session you just created
+   should be listed.
 
 2. After you end a session (type `$ exit` in session), replay it in your browser.
+
 3. Join the session in your web browser.
 
 ![Two Recorded Sessions](../img/recorded-session.png)
@@ -256,7 +277,7 @@ Joining a session via a browser is often the easiest way to see what another
 user is up to, but if you have access to the proxy server from your local
 machine (or any machine) you can also join a session on the CLI.
 
-``` bash
+```bash
 # This is the recorded session you started in Step 6
 $ tsh ssh grav-00
 $ echo 'howdy'
@@ -271,7 +292,7 @@ Session URL : https://grav-00:3080/web/cluster/grav-00/node/a3f67090-99cc-45cf-8
 
 Copy the Session ID obtained by running `teleport status` inside the session and open a new SSH session.
 
-``` bash
+```bash
 %~$ tsh join -d --proxy grav-00 --insecure
 cd908432-950a-4493-a561-9c272b0e0ea6
 # you will be asked to re-authenticate your user
@@ -302,8 +323,8 @@ certificates, security considerations, and YAML configuration.
 If you like to learn by doing, check out our collection of step-by-step guides for
 common Teleport tasks.
 
-* [Install Teleport](installation.mdx)
-* [Share Sessions](user-manual.mdx#sharing-sessions)
-* [Manage Users](admin-guide.mdx#adding-and-deleting-users)
-* [Label Nodes](admin-guide.mdx#labeling-nodes)
-* [Teleport with OpenSSH](admin-guide.mdx#using-teleport-with-openssh)
+- [Install Teleport](installation.mdx)
+- [Share Sessions](user-manual.mdx#sharing-sessions)
+- [Manage Users](admin-guide.mdx#adding-and-deleting-users)
+- [Label Nodes](admin-guide.mdx#labeling-nodes)
+- [Teleport with OpenSSH](admin-guide.mdx#using-teleport-with-openssh)

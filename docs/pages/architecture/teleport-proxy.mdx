@@ -38,8 +38,11 @@ client SSH connection:
    client connection that is authenticated using an OpenSSH certificate, so no
    special logic is needed.
 
-<Admonition type="note" title="SSL Encryption">
-When using the web UI, the Teleport Proxy terminates SSL traffic and re-encodes data for the SSH client connection.
+<Admonition
+  type="note"
+  title="SSL Encryption"
+>
+  When using the web UI, the Teleport Proxy terminates SSL traffic and re-encodes data for the SSH client connection.
 </Admonition>
 
 ### CLI to SSH Proxy
@@ -48,7 +51,7 @@ When using the web UI, the Teleport Proxy terminates SSL traffic and re-encodes 
 
 Teleport Proxy implements a special method to let clients get short-lived
 authentication certificates signed by the [Auth Service User Certificate
-Authority (CA)](./auth/#authentication-in-teleport).:
+Authority (CA)](teleport-auth.mdx#authentication-in-teleport).:
 
 ![Teleport Proxy SSH](../../img/proxy-ssh-1.svg)
 
@@ -76,19 +79,23 @@ client `ssh` or using `tsh`:
    port location. There are three lookup mechanisms a proxy uses to find the
    node's IP address:
 
-    * Use DNS to resolve the name requested by the client.
-    * Asks the Auth Server if there is a Node registered with this `nodename`.
-    * Asks the Auth Server to find a node (or nodes) with a label that matches
-      the requested name.
+   - Use DNS to resolve the name requested by the client.
+   - Asks the Auth Server if there is a Node registered with this `nodename`.
+   - Asks the Auth Server to find a node (or nodes) with a label that matches
+     the requested name.
 
 2. If the node is located, the Proxy establishes an SSH connection to the
    requested node and starts forwarding traffic from Node to client.
+
 3. The client uses the established SSH tunnel from Proxy to Node to open a new
    SSH connection. The client authenticates with the target Node using its
    client certificate.
 
-<Admonition type="tip" title="NOTE">
-Teleport's proxy command makes it compatible with [SSH jump hosts](https://wiki.gentoo.org/wiki/SSH_jump_host) implemented using OpenSSH's `ProxyCommand`. It also supports OpenSSH's ProxyJump/ssh -J implementation as of Teleport 4.1. See [User Manual](../user-manual.mdx#ssh-proxy-configuration)
+<Admonition
+  type="tip"
+  title="NOTE"
+>
+  Teleport's proxy command makes it compatible with [SSH jump hosts](https://wiki.gentoo.org/wiki/SSH_jump_host) implemented using OpenSSH's `ProxyCommand`. It also supports OpenSSH's ProxyJump/ssh -J implementation as of Teleport 4.1. See [User Manual](../user-manual.mdx#ssh-proxy-configuration)
 </Admonition>
 
 ## Recording Proxy Mode
@@ -101,7 +108,7 @@ session data to the auth server to be recorded, as shown below:
 
 ![recording-proxy](../../img/recording-proxy.svg)
 
-The recording proxy mode, although _less secure_, was added to allow Teleport
+The recording proxy mode, although *less secure*, was added to allow Teleport
 users to enable session recording for OpenSSH's servers running `sshd`, which is
 helpful when gradually transitioning large server fleets to Teleport.
 
@@ -129,7 +136,7 @@ Auth Server.
 
 ## More Concepts
 
-* [Architecture Overview](teleport-architecture-overview.mdx)
-* [Teleport Users](teleport-users.mdx)
-* [Teleport Auth](teleport-auth.mdx)
-* [Teleport Proxy](teleport-proxy.mdx)
+- [Architecture Overview](teleport-architecture-overview.mdx)
+- [Teleport Users](teleport-users.mdx)
+- [Teleport Auth](teleport-auth.mdx)
+- [Teleport Proxy](teleport-proxy.mdx)

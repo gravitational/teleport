@@ -7,14 +7,17 @@ This guide will cover how to configure an SSO provider using [OpenID Connect](ht
 When used in combination with role based access control (RBAC) it allows SSH
 administrators to define policies like:
 
-* Only members of "DBA" group can SSH into machines running PostgreSQL.
-* Developers must never SSH into production servers.
-* ... and many others.
+- Only members of "DBA" group can SSH into machines running PostgreSQL.
+- Developers must never SSH into production servers.
+- ... and many others.
 
-<Admonition type="warning" title="Version Warning">
-This guide requires an Enterprise edition of Teleport. The Community
-edition of Teleport only supports [Github](../../admin-guide.mdx#github-oauth-20) as
-an SSO provider.
+<Admonition
+  type="warning"
+  title="Version Warning"
+>
+  This guide requires an Enterprise edition of Teleport. The Community
+  edition of Teleport only supports [Github](../../admin-guide.mdx#github-oauth-20) as
+  an SSO provider.
 </Admonition>
 
 ## Enable OIDC Authentication
@@ -35,12 +38,12 @@ Register Teleport with the external identity provider you will be using and
 obtain your `client_id` and `client_secret`. This information should be
 documented on the identity providers website. Here are a few links:
 
-   * [Auth0 Client Configuration](https://auth0.com/docs/applications)
-   * [Google Identity Platform](https://developers.google.com/identity/protocols/OpenIDConnect)
-   * [Keycloak Client Registration](https://www.keycloak.org/docs/latest/securing_apps/index.html#_client_registration)
+- [Auth0 Client Configuration](https://auth0.com/docs/applications)
+- [Google Identity Platform](https://developers.google.com/identity/protocols/OpenIDConnect)
+- [Keycloak Client Registration](https://www.keycloak.org/docs/latest/securing_apps/index.html#_client_registration)
 
 <Admonition type="note">
-For Auth0, the "OIDC Conformant" setting should be off in Advanced Settings -> OAuth or claims will not populate properly.
+  For Auth0, the "OIDC Conformant" setting should be off in Advanced Settings -> OAuth or claims will not populate properly.
 </Admonition>
 
 Add your OIDC connector information to `teleport.yaml`. A few examples are
@@ -68,7 +71,6 @@ the `user` role depending on the value returned for `group` within the claims.
 ```yaml
 {!examples/resources/oidc-connector.yaml!}
 ```
-
 
 Create the connector:
 
@@ -163,7 +165,6 @@ spec:
 A list of available optional prompt parameters are available from the
 [OpenID website](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest).
 
-
 ### Optional: ACR Values
 
 Teleport supports sending Authentication Context Class Reference (ACR) values
@@ -229,4 +230,3 @@ $ sudo journalctl -fu teleport
 
 If you wish to increase the verbosity of Teleport's syslog, you can pass
 `--debug` flag to `teleport start` command.
-
