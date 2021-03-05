@@ -1,10 +1,6 @@
 package main
 
-type buildType struct {
-	os   string
-	arch string
-	fips bool
-}
+import "fmt"
 
 var (
 	triggerPullRequest = trigger{
@@ -26,3 +22,36 @@ var (
 		Path: "/tmpfs",
 	}
 )
+
+// getMakefileTarget gets the correct Makefile target for a given arch/fips combo
+func getMakefileTarget(params buildType) string {
+	makefileTarget := fmt.Sprintf("release-%s", params.arch)
+	if params.fips {
+		makefileTarget += "-fips"
+	}
+	return makefileTarget
+}
+
+// getBuildCheckoutCommands builds a list of commands for Drone to check out a git commit
+func getBuildCheckoutCommands(fips bool) []string {
+	commands := []string{
+		`mkdir -p /go/src/github.com/gravitational/teleport /go/cache`,
+		`cd /go/src/github.com/gravitational/teleport`,
+		`git init && git remote add origin ${DRONE_REMOTE_URL}`,
+		`git fetch origin`,
+		`git checkout -qf ${DRONE_COMMIT_SHA}`,
+		// this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+		`git submodule update --init webassets || true`,
+		`mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa`,
+		`ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts`,
+		`git submodule update --init e`,
+		// do a recursive submodule checkout to get both webassets and webassets/e
+		// this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+		`git submodule update --init --recursive webassets || true`,
+		`rm -f /root/.ssh/id_rsa`,
+	}
+	if fips {
+		commands = append(commands, `if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt`)
+	}
+	return commands
+}
