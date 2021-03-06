@@ -45,7 +45,7 @@ func TestLoadTLS(t *testing.T) {
 	require.Equal(t, tlsConfig.RootCAs.Subjects(), expectedTLSConfig.RootCAs.Subjects())
 
 	// Load invalid tls.Config.
-	invalidTLSCreds := LoadTLS(&tls.Config{})
+	invalidTLSCreds := LoadTLS(nil)
 	_, err = invalidTLSCreds.TLSConfig()
 	require.Error(t, err)
 	_, err = invalidTLSCreds.SSHClientConfig()

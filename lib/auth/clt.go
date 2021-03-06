@@ -108,7 +108,7 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 	// Auth Server using a multiplexer for protocol detection. Unless next
 	// protocol is specified it will attempt to upgrade to HTTP2 and at that point
 	// there is no way to distinguish between HTTP2/JSON or GPRC.
-	tlsConfig := apiClient.Config()
+	tlsConfig := apiClient.Config().Clone()
 	tlsConfig.NextProtos = []string{teleport.HTTPNextProtoTLS}
 	dialer, err := cfg.GetHTTPDialer()
 	if err != nil {

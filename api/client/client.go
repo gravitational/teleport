@@ -91,14 +91,12 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 // the first client to successfully connect is used to populate the client's connection
 // attributes. If none successfully connect, an aggregated error is returned.
 func (c *Client) connect(ctx context.Context) error {
-	// cltChan will either recieve a connected client or nil to
-	// indicate errors that all connections resulted in errors.
+	var wg sync.WaitGroup
 	cltChan := make(chan Client)
 	errChan := make(chan error)
 
 	// syncConnect is used to concurrently test several connections, and apply
 	// the first successful connection to the client's connection attributes.
-	var wg sync.WaitGroup
 	syncConnect := func(ctx context.Context, clt Client, addr string) {
 		wg.Add(1)
 		go func() {
@@ -121,6 +119,8 @@ func (c *Client) connect(ctx context.Context) error {
 	wg.Add(1)
 	go func(clt Client) {
 		defer wg.Done()
+
+		// Connect with provided credentials.
 		for _, creds := range clt.c.Credentials {
 			var err error
 			if clt.tlsConfig, err = creds.TLSConfig(); err != nil {
@@ -133,30 +133,30 @@ func (c *Client) connect(ctx context.Context) error {
 				continue
 			}
 
-			// connect with dialer provided in config.
+			// Connect with dialer provided in config.
 			if clt.dialer = clt.c.Dialer; clt.dialer != nil {
 				syncConnect(ctx, clt, constants.APIDomain)
 				continue
 			}
 
-			// connect with dialer provided in creds.
+			// Connect with dialer provided in creds.
 			if clt.dialer, err = creds.Dialer(); err == nil {
 				syncConnect(ctx, clt, constants.APIDomain)
 				continue
 			}
 
 			for _, addr := range clt.c.Addrs {
-				// connect to auth.
+				// Connect to auth.
 				clt.dialer = NewDialer(clt.c.KeepAlivePeriod, clt.c.DialTimeout)
 				syncConnect(ctx, clt, addr)
 
-				// connect to proxy.
+				// Connect to proxy.
 				if clt.sshConfig != nil {
 					clt.dialer = NewTunnelDialer(*clt.sshConfig, clt.c.KeepAlivePeriod, clt.c.DialTimeout)
 					wg.Add(1)
 					go func(clt Client, addr string) {
 						defer wg.Done()
-						// try connecting to web proxy to retrieve tunnel address.
+						// Try connecting to web proxy to retrieve tunnel address.
 						if tunAddr, err := findTunnelAddr(addr); err == nil {
 							addr = tunAddr
 						}
@@ -167,31 +167,29 @@ func (c *Client) connect(ctx context.Context) error {
 		}
 	}(*c)
 
-	// Start error receiver.
-	var errs error
-	go func() {
-		errs = <-errChan
-		for err := range errChan {
-			errs = trace.Errorf("%v,\n\t%v", errs, err)
-		}
-		// errChan closed, close cltChan to return errs.
-		close(cltChan)
-	}()
-
 	// Start goroutine to wait for wait group.
 	go func() {
 		wg.Wait()
-		// Signal error receiver to close.
 		close(errChan)
 	}()
 
-	if clt, ok := <-cltChan; ok {
-		// Point c to connected clt.
-		*c = clt
-		return nil
+	var errs error
+	for {
+		select {
+		case *c = <-cltChan:
+			// clt successfullly connected and copied to c.
+			return nil
+		case err, ok := <-errChan:
+			if !ok {
+				// errChan is closed, return errors.
+				if errs == nil {
+					return trace.Errorf("all auth methods failed")
+				}
+				return trace.Wrap(errs, "all auth methods failed")
+			}
+			errs = trace.Errorf("%v,\n\t%v", errs, err)
+		}
 	}
-
-	return trace.Wrap(errs, "all auth methods failed")
 }
 
 // findTunnelAddr retrieves the server's public tunnel address from the web proxy.

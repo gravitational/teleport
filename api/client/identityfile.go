@@ -64,7 +64,7 @@ type CACerts struct {
 	TLS [][]byte
 }
 
-// TLSConfig returns the identity file's associated TLSConfig config.
+// TLSConfig returns the identity file's associated TLSConfig.
 func (i *IdentityFile) TLSConfig() (*tls.Config, error) {
 	cert, err := tls.X509KeyPair(i.Certs.TLS, i.PrivateKey)
 	if err != nil {
@@ -84,8 +84,7 @@ func (i *IdentityFile) TLSConfig() (*tls.Config, error) {
 	}, nil
 }
 
-// SSHClientConfig returns an ssh.ClientConfig with SSH credentials from this
-// Key and HostKeyCallback matching SSH CAs in the Key.
+// SSHClientConfig returns the identity file's associated SSHClientConfig.
 func (i *IdentityFile) SSHClientConfig() (*ssh.ClientConfig, error) {
 	ssh, err := sshutils.SSHClientConfig(i.Certs.SSH, i.PrivateKey, i.CACerts.SSH)
 	if err != nil {
