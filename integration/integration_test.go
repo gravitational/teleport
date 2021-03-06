@@ -5201,7 +5201,8 @@ func TestWebProxyInsecure(t *testing.T) {
 
 	// Web proxy endpoint should just respond with 200 when called over http://,
 	// content doesn't matter.
-	resp, err := http.Get(fmt.Sprintf("http://%v", net.JoinHostPort(Loopback, rc.GetPortWeb())))
+	resp, err := http.Get(fmt.Sprintf("http://%v/webapi/ping", net.JoinHostPort(Loopback, rc.GetPortWeb())))
 	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 	require.NoError(t, resp.Body.Close())
 }

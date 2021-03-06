@@ -257,7 +257,7 @@ github.com/gravitational/kingpin
 ## explicit
 github.com/gravitational/license
 github.com/gravitational/license/constants
-# github.com/gravitational/oxy v0.0.0-20200916204440-3eb06d921a1d
+# github.com/gravitational/oxy v0.0.0-20210316180922-c73d80d27348
 ## explicit
 github.com/gravitational/oxy/connlimit
 github.com/gravitational/oxy/forward
