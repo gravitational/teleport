@@ -58,8 +58,8 @@ Therefore, I propose to switch to a more semver-like scheme, starting with 6.0.
 ## Details
 
 - Major versions are for teleport releases.
-- Minor versions are for regular, non-critical bugfix batches and important
-  backported fixes for users.
+- Minor versions are for backwards-compatible features and improvements, and
+  non-critical bugfix batches
 - Patch versions are for quick followup regression and critical bug fixes.
 - Suffixes:
   - `-dev` suffix is for development builds (e.g. off of the `master` branch)
@@ -91,6 +91,29 @@ versions. For example:
 - `v7.*.*`
 - `v6.*.*`
 
+### Git branches
+
+Teleport has several branches related to releases:
+- `master` - main development branch
+- `branch/vX` - for upcoming minor releases
+  - created when `vX.0.0-alpha.1` is cut
+- `branch/vX.Y` - for patch releases
+  - created when `vX.Y.0` is cut
+
+Here are how different kinds of changes made map to those branches:
+- work towards the next major release
+  - merged into `master`
+- work towards the next minor release
+  - merged into `master`
+  - backported into `branch/vX`
+- bugfixes that need to be backported
+  - merged into `master`
+  - backported into `branch/vX`
+  - backported into the latest `branch/vX.Y`
+  - repeat for all `vX` that need the backport
+- bugfixes that _do not_ need to be backported
+  - merged into `master`
+
 ### Example: new release
 
 The current release of teleport is `v5` and the next will be `v6`.
@@ -100,10 +123,13 @@ The current release of teleport is `v5` and the next will be `v6`.
 - when only small bugfix changes are pending, we cut `v6.0.0-beta.1`
 - all planned changes are merged, we cut `v6.0.0-rc.1`
 - during release testing, we fix bugs and cut `v6.0.0-rc.2`, `v6.0.0-rc.3`, etc
-- assuming `v6.0.0-rc.3` passes the tests, we tag it as `v6.0.0`
-- we discover a serious bug in `v6.0.0`, fix it and cut `v6.0.1`
+- assuming `v6.0.0-rc.3` passes the tests, create branch `branch/v6.0` and tag
+  it as `v6.0.0`
+- we discover a serious bug in `v6.0.0`, fix it in `master`, `branch/v6`,
+  `branch/v6.0` and cut `v6.0.1` from `branch/v6.0`
 - over the next few days/weeks, we gather user feedback
-- based on feedback, we fix a number of bugs and cut `v6.1.0`
+- based on feedback, we fix a number of bugs in `master`, backport them to
+  `branch/v6`, create branch `branch/v6.1` and cut `v6.1.0` from it
 
 ### Example: backports
 
@@ -111,10 +137,12 @@ The latest 3 released versions are `v8.0.1`, `v7.1.2`, `v6.3.2`.
 
 - we discover a bug affecting all versions
 - we fix it in `master`
-- if the bug is urgent, we backport to `branch/v8`, `branch/v7`, `branch/v6`
-  and release `v8.0.2`, `v7.1.3`, `v6.3.3`
+- if the bug is urgent, we backport to `branch/v8`, `branch/v8.0`, `branch/v7`,
+  `branch/v7.1`, `branch/v6`, `branch/v6.3` and release `v8.0.2`, `v7.1.3`,
+  `v6.3.3`
 - if the bug is not urgent and no customer has requested backports to older
-  versions, we backport to `branch/v8` and release `v8.1.0`
+  versions, we backport to `branch/v8`, create `branch/v8.1` and release
+  `v8.1.0`
   - optionally, we wait for more bug fixes to accumulate in `branch/v8` before
     releasing `v8.1.0`
 
@@ -123,7 +151,8 @@ The latest 3 released versions are `v8.0.1`, `v7.1.2`, `v6.3.2`.
 The latest 3 released versions are `v8.0.1`, `v7.1.2`, `v6.3.2`.
 
 - we discover a security bug affecting all versions
-- we fix it in `master` and backport to `branch/v8`, `branch/v7`, `branch/v6`
+- we fix it in `master` and backport to `branch/v8`, `branch/v8.0`,
+  `branch/v7`, `branch/v7.1`, `branch/v6`, `branch/v6.3`
 - after backports merge, we release `v8.0.2`, `v7.1.3`, `v6.3.3`
 
 ### Why not use minor versions, like we do now?
