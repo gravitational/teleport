@@ -1,5 +1,12 @@
 # Changelog
 
+## 6.0.1
+
+This release of Teleport contains multiple bug fixes.
+
+* Fixed issue that caused ACME default configuration to fail with `TLS-ALPN-01` challenge. [#5839](https://github.com/gravitational/teleport/pull/5839)
+* Fixed regression in ADFS integration. [#5880](https://github.com/gravitational/teleport/pull/5880)
+
 ## 6.0.0
 
 Teleport 6.0 is a major release with new features, functionality, and bug fixes.
