@@ -7,8 +7,8 @@ On a server side, Teleport is a single binary which enables convenient secure
 access to behind-NAT resources such as:
 
 * [SSH nodes](https://goteleport.com/teleport/docs/quickstart/) - SSH works in browsers too!
-* [Kubernetes clusters](https://goteleport.com/teleport/docs/kubernetes-ssh/)
-* [PostgreSQL and MySQL databases](https://goteleport.com/teleport/docs/application-access/)
+* [Kubernetes clusters](https://goteleport.com/teleport/docs/kubernetes-access/)
+* [PostgreSQL and MySQL databases](https://goteleport.com/teleport/docs/database-access/)
 * [Internal Web apps](https://goteleport.com/teleport/docs/application-access/)
 
 Teleport is trivial to setup as a Linux daemon or in a Kubernetes pod and it's rapidly
