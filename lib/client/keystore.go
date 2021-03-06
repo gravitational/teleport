@@ -31,6 +31,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -42,7 +43,7 @@ import (
 const (
 	defaultKeyDir      = ProfileDir
 	fileExtTLSCert     = "-x509.pem"
-	fileExtCert        = "-cert.pub"
+	fileExtCert        = constants.FileExtCert
 	fileExtPub         = ".pub"
 	sessionKeyDir      = "keys"
 	fileNameKnownHosts = "known_hosts"

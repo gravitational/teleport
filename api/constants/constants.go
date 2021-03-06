@@ -79,6 +79,9 @@ const (
 
 	// KeepAliveDatabase is the keep alive type for database server.
 	KeepAliveDatabase = "db"
+
+	// WindowsOS is the GOOS constant used for Microsoft Windows.
+	WindowsOS = "windows"
 )
 
 // SecondFactorType is the type of 2FA authentication.
@@ -99,4 +102,23 @@ const (
 	// SecondFactorOptional means that all 2FA protocols are supported and 2FA
 	// is required only for users that have MFA devices registered.
 	SecondFactorOptional = SecondFactorType("optional")
+)
+
+const (
+	// ChanTransport is a channel type that can be used to open a net.Conn
+	// through the reverse tunnel server. Used for trusted clusters and dial back
+	// nodes.
+	ChanTransport = "teleport-transport"
+
+	// ChanTransportDialReq is the first (and only) request sent on a
+	// chanTransport channel. It's payload is the address of the host a
+	// connection should be established to.
+	ChanTransportDialReq = "teleport-transport-dial"
+
+	// RemoteAuthServer is a special non-resolvable address that indicates client
+	// requests a connection to the remote auth server.
+	RemoteAuthServer = "@remote-auth-server"
+
+	// FileExtCert is a file extension used for Certificate files
+	FileExtCert = "-cert.pub"
 )

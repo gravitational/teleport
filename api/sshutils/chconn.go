@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,93 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package utils
+package sshutils
 
 import (
-	"io"
 	"net"
 	"sync"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/trace"
-
-	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 )
-
-// PipeNetConn implemetns net.Conn from io.Reader,io.Writer and io.Closer
-type PipeNetConn struct {
-	reader     io.Reader
-	writer     io.Writer
-	closer     io.Closer
-	localAddr  net.Addr
-	remoteAddr net.Addr
-}
-
-// NewPipeNetConn returns a net.Conn like object
-// using Pipe as an underlying implementation over reader, writer and closer
-func NewPipeNetConn(reader io.Reader,
-	writer io.Writer,
-	closer io.Closer,
-	fakelocalAddr net.Addr,
-	fakeRemoteAddr net.Addr) *PipeNetConn {
-
-	return &PipeNetConn{
-		reader:     reader,
-		writer:     writer,
-		closer:     closer,
-		localAddr:  fakelocalAddr,
-		remoteAddr: fakeRemoteAddr,
-	}
-}
-
-func (nc *PipeNetConn) Read(buf []byte) (n int, e error) {
-	return nc.reader.Read(buf)
-}
-
-func (nc *PipeNetConn) Write(buf []byte) (n int, e error) {
-	return nc.writer.Write(buf)
-}
-
-func (nc *PipeNetConn) Close() error {
-	if nc.closer != nil {
-		return nc.closer.Close()
-	}
-	return nil
-}
-
-func (nc *PipeNetConn) LocalAddr() net.Addr {
-	return nc.localAddr
-}
-
-func (nc *PipeNetConn) RemoteAddr() net.Addr {
-	return nc.remoteAddr
-}
-
-func (nc *PipeNetConn) SetDeadline(t time.Time) error {
-	return nil
-}
-
-func (nc *PipeNetConn) SetReadDeadline(t time.Time) error {
-	return nil
-}
-
-func (nc *PipeNetConn) SetWriteDeadline(t time.Time) error {
-	return nil
-}
-
-// DualPipeAddrConn creates a net.Pipe to connect a client and a server. The
-// two net.Conn instances are wrapped in an addrConn which holds the source and
-// destination addresses.
-func DualPipeNetConn(srcAddr net.Addr, dstAddr net.Addr) (*PipeNetConn, *PipeNetConn) {
-	server, client := net.Pipe()
-
-	serverConn := NewPipeNetConn(server, server, server, dstAddr, srcAddr)
-	clientConn := NewPipeNetConn(client, client, client, srcAddr, dstAddr)
-
-	return serverConn, clientConn
-}
 
 // NewChConn returns a new net.Conn implemented over
 // SSH channel
@@ -132,30 +55,6 @@ type ChConn struct {
 	// exclusive indicates that whenever this channel connection
 	// is getting closed, the underlying connection is closed as well
 	exclusive bool
-}
-
-// UseTunnel makes a channel request asking for the type of connection. If
-// the other side does not respond (older cluster) or takes to long to
-// respond, be on the safe side and assume it's not a tunnel connection.
-func (c *ChConn) UseTunnel() bool {
-	responseCh := make(chan bool, 1)
-
-	go func() {
-		ok, err := c.SendRequest(ConnectionTypeRequest, true, nil)
-		if err != nil {
-			responseCh <- false
-			return
-		}
-		responseCh <- ok
-	}()
-
-	select {
-	case response := <-responseCh:
-		return response
-	case <-time.After(1 * time.Second):
-		logrus.Debugf("Timed out waiting for response: returning false.")
-		return false
-	}
 }
 
 // Close closes channel and if the ChConn is exclusive, connection as well

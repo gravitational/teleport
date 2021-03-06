@@ -42,6 +42,7 @@ const (
 	KeepAliveNode              = constants.KeepAliveNode
 	KeepAliveApp               = constants.KeepAliveApp
 	KeepAliveDatabase          = constants.KeepAliveDatabase
+	WindowsOS                  = constants.WindowsOS
 )
 
 // WebAPIVersion is a current webapi version
@@ -316,9 +317,6 @@ const (
 
 	// LinuxOS is the GOOS constant used for Linux.
 	LinuxOS = "linux"
-
-	// WindowsOS is the GOOS constant used for Microsoft Windows.
-	WindowsOS = "windows"
 
 	// DarwinOS is the GOOS constant for Apple macOS/darwin.
 	DarwinOS = "darwin"

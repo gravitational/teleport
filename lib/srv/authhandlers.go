@@ -24,6 +24,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	apisshutils "github.com/gravitational/teleport/api/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -77,7 +78,7 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 	}
 
 	certRaw := []byte(sconn.Permissions.Extensions[utils.CertTeleportUserCertificate])
-	certificate, err := sshutils.ParseCertificate(certRaw)
+	certificate, err := apisshutils.ParseCertificate(certRaw)
 	if err != nil {
 		return IdentityContext{}, trace.Wrap(err)
 	}
@@ -423,12 +424,12 @@ func (h *AuthHandlers) authorityForCert(caType services.CertAuthType, key ssh.Pu
 			// host checkers.
 			switch v := key.(type) {
 			case *ssh.Certificate:
-				if sshutils.KeysEqual(v.SignatureKey, checker) {
+				if apisshutils.KeysEqual(v.SignatureKey, checker) {
 					ca = cas[i]
 					break
 				}
 			default:
-				if sshutils.KeysEqual(key, checker) {
+				if apisshutils.KeysEqual(key, checker) {
 					ca = cas[i]
 					break
 				}

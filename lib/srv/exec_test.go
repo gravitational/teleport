@@ -35,6 +35,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	apisshutils "github.com/gravitational/teleport/api/sshutils"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -115,7 +116,7 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	s.usr, _ = user.Current()
-	cert, err := sshutils.ParseCertificate([]byte(fixtures.UserCertificateStandard))
+	cert, err := apisshutils.ParseCertificate([]byte(fixtures.UserCertificateStandard))
 	c.Assert(err, check.IsNil)
 	s.ctx = &ServerContext{
 		ConnectionContext: &sshutils.ConnectionContext{

@@ -110,6 +110,10 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 	// there is no way to distinguish between HTTP2/JSON or GPRC.
 	tlsConfig := apiClient.Config()
 	tlsConfig.NextProtos = []string{teleport.HTTPNextProtoTLS}
+	dialer, err := cfg.GetHTTPDialer()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	transport := &http.Transport{
 		// notice that below roundtrip.Client is passed
@@ -117,7 +121,7 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 		// to make sure client verifies the DNS name of the API server
 		// custom DialContext overrides this DNS name to the real address
 		// in addition this dialer tries multiple adresses if provided
-		DialContext:           apiClient.Dialer().DialContext,
+		DialContext:           dialer.DialContext,
 		ResponseHeaderTimeout: defaults.DefaultDialTimeout,
 		TLSClientConfig:       tlsConfig,
 

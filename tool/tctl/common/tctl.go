@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/tsh/common"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/kingpin"
@@ -378,7 +377,7 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config, loadConfigExt LoadCon
 	authConfig := new(AuthServiceClientConfig)
 	// --identity flag
 	if ccf.IdentityFilePath != "" {
-		key, err := common.LoadIdentity(ccf.IdentityFilePath)
+		key, err := client.KeyFromIdentityFile(ccf.IdentityFilePath)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
