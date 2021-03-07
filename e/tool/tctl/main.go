@@ -1,5 +1,5 @@
 /*
-Copyright 2017-2019 Gravitational, Inc.
+Copyright 2017-2021 Gravitational, Inc.
 Package main contains the enterprise edition of tctl CLI tool.
 */
 
@@ -26,5 +26,5 @@ func main() {
 		&common.AppsCommand{},
 		&common.DBCommand{},
 	}
-	common.Run(commands, loadConfigFromProfile)
+	common.Run(commands)
 }
