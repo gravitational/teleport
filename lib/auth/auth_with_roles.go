@@ -1179,7 +1179,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		}
 		roles = user.GetRoles()
 		traits = user.GetTraits()
-	case req.Username == a.context.User.GetName():
+	case req.Username == a.context.UnmappedIdentity.GetIdentity().Username:
 		// user is requesting TTL for themselves,
 		// limit the TTL to the duration of the session, to prevent
 		// users renewing their certificates forever

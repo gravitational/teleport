@@ -236,7 +236,7 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, params ReissuePa
 	return key, nil
 }
 
-// IssueUserSingleUseCerts generates a single-use certificate for the user.
+// IssueUserCertsWithMFA generates a single-use certificate for the user.
 func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams) (*Key, error) {
 	clt, err := proxy.ConnectToCurrentCluster(ctx, true)
 	if err != nil {
@@ -742,7 +742,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 		return proxy.PortForwardToNode(ctx, nodeAddress, user, quiet)
 	}
 
-	authMethod, err := proxy.sessionSSHCertificate(ctx, nodeName(nodeAddress.Addr))
+	authMethod, err := proxy.sessionSSHCertificate(ctx, nodeAddress)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -870,7 +870,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress NodeAddr, user string, quiet bool) (*NodeClient, error) {
 	log.Infof("Client=%v jumping to node=%s", proxy.clientAddr, nodeAddress)
 
-	authMethod, err := proxy.sessionSSHCertificate(ctx, nodeName(nodeAddress.Addr))
+	authMethod, err := proxy.sessionSSHCertificate(ctx, nodeAddress)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1281,19 +1281,16 @@ func (proxy *ProxyClient) currentCluster() (*services.Site, error) {
 	return nil, trace.NotFound("cluster %v not found", proxy.siteName)
 }
 
-func (proxy *ProxyClient) sessionSSHCertificate(ctx context.Context, node string) (ssh.AuthMethod, error) {
+func (proxy *ProxyClient) sessionSSHCertificate(ctx context.Context, nodeAddr NodeAddr) (ssh.AuthMethod, error) {
 	if _, err := proxy.teleportClient.localAgent.GetKey(); trace.IsNotFound(err) {
 		// Either running inside the web UI in a proxy or using an identity
 		// file. Fall back to whatever AuthMethod we currently have.
 		return proxy.authMethod, nil
 	}
-	cluster, err := proxy.currentCluster()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	key, err := proxy.IssueUserCertsWithMFA(ctx, ReissueParams{
-		NodeName:       node,
-		RouteToCluster: cluster.Name,
+		NodeName:       nodeName(nodeAddr.Addr),
+		RouteToCluster: nodeAddr.Cluster,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

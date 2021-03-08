@@ -1658,6 +1658,7 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream proto.AuthService_Generat
 		return nil
 	}
 	if err != nil {
+		g.Entry.Debugf("Validation of single-use cert request failed: %v", err)
 		return trail.ToGRPC(err)
 	}
 
@@ -1665,12 +1666,14 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream proto.AuthService_Generat
 	// 3. receive and validate MFAResponse
 	mfaDev, err := userSingleUseCertsAuthChallenge(actx, stream)
 	if err != nil {
+		g.Entry.Debugf("Failed to perform single-use cert challenge: %v", err)
 		return trail.ToGRPC(err)
 	}
 
 	// Generate the cert.
 	respCert, err := userSingleUseCertsGenerate(ctx, actx, *initReq, mfaDev)
 	if err != nil {
+		g.Entry.Warningf("Failed to generate single-use cert: %v", err)
 		return trail.ToGRPC(err)
 	}
 
@@ -1691,8 +1694,11 @@ var errUserSingleUseUserCertNotNeeded = errors.New("single-use user certificate 
 // authentication is not required for this session. Any other error means
 // failed validation.
 func validateUserSingleUseCertRequest(ctx context.Context, actx *grpcContext, req *proto.UserCertsRequest) error {
-	if err := actx.currentUserAction(req.Username); err != nil {
-		return trace.Wrap(err)
+	// Check username from the original _unmapped_ identity, if this is a leaf
+	// cluster. Mapped username will always be different from req.Username.
+	user := actx.UnmappedIdentity.GetIdentity().Username
+	if user != req.Username {
+		return trace.AccessDenied("User %q cannot GenerateUserSingleUseCerts for user %q", user, req.Username)
 	}
 
 	var noMFAAccessErr, notFoundErr error
@@ -1798,6 +1804,7 @@ func validateUserSingleUseCertRequest(ctx context.Context, actx *grpcContext, re
 	// most likely access denied.
 	if !errors.Is(noMFAAccessErr, services.ErrSessionMFARequired) {
 		if trace.IsAccessDenied(noMFAAccessErr) {
+			log.Infof("Access to resource denied: %v", noMFAAccessErr)
 			// notFoundErr should always be set by this point, but check it
 			// just in case.
 			if notFoundErr == nil {
