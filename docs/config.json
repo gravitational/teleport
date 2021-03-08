@@ -5,14 +5,14 @@
       "title": "Documentation",
       "entries": [
         { "title": "Introduction", "slug": "/" },
+        { "title": "Getting Started", "slug": "/getting-started/" },        
         { "title": "Installation", "slug": "/installation/" },
-        { "title": "Quick Start Guide", "slug": "/quickstart/" },
-        { "title": "User Manual", "slug": "/user-manual/" },
-        { "title": "Application Guide", "slug": "/application-access/" },
-        { "title": "Kubernetes Guide", "slug": "/kubernetes-access/" },
+        { "title": "Application Access", "slug": "/application-access/" },
+        { "title": "Kubernetes Access", "slug": "/kubernetes-access/" },
         { "title": "Database Access", "slug": "/database-access/" },
+        { "title": "Cloud", "slug": "/cloud/" },        
+        { "title": "User Manual", "slug": "/user-manual/" },
         { "title": "Admin Manual", "slug": "/admin-guide/" },
-        { "title": "Cloud", "slug": "/cloud/" },
         { "title": "Production Guide", "slug": "/production/" },
         { "title": "FAQ", "slug": "/faq/" },
         { "title": "Changelog", "slug": "/changelog/" }
@@ -121,7 +121,7 @@
   "variables": {
     "version": "6.0",
     "teleport": {
-      "version": "6.0.0",
+      "version": "6.0.1",
       "golang": "1.15",
       "plugin": {
         "version": "0.2.0"
