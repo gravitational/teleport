@@ -120,6 +120,9 @@ type CheckingEmitterConfig struct {
 	Clock clockwork.Clock
 	// UIDGenerator is unique ID generator
 	UIDGenerator utils.UID
+	// ClusterName specifies the name of this teleport cluster
+	// as configured on the auth server
+	ClusterName string
 }
 
 // NewCheckingEmitter returns emitter that checks
@@ -155,7 +158,7 @@ func (w *CheckingEmitterConfig) CheckAndSetDefaults() error {
 
 // EmitAuditEvent emits audit event
 func (r *CheckingEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
-	if err := CheckAndSetEventFields(event, r.Clock, r.UIDGenerator); err != nil {
+	if err := checkAndSetEventFields(event, r.Clock, r.UIDGenerator, r.ClusterName); err != nil {
 		log.WithError(err).Errorf("Failed to emit audit event.")
 		AuditFailedEmit.Inc()
 		return trace.Wrap(err)
@@ -168,12 +171,12 @@ func (r *CheckingEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) 
 	return nil
 }
 
-// CheckAndSetEventFields updates passed event fields with additional information
+// checkAndSetEventFields updates passed event fields with additional information
 // common for all event types such as unique IDs, timestamps, codes, etc.
 //
 // This method is a "final stop" for various audit log implementations for
 // updating event fields before it gets persisted in the backend.
-func CheckAndSetEventFields(event AuditEvent, clock clockwork.Clock, uid utils.UID) error {
+func checkAndSetEventFields(event AuditEvent, clock clockwork.Clock, uid utils.UID, clusterName string) error {
 	if event.GetType() == "" {
 		return trace.BadParameter("missing mandatory event type field")
 	}
@@ -185,6 +188,9 @@ func CheckAndSetEventFields(event AuditEvent, clock clockwork.Clock, uid utils.U
 	}
 	if event.GetTime().IsZero() {
 		event.SetTime(clock.Now().UTC().Round(time.Millisecond))
+	}
+	if event.GetClusterName() == "" {
+		event.SetClusterName(clusterName)
 	}
 	return nil
 }
@@ -357,14 +363,17 @@ type CheckingStreamerConfig struct {
 	Clock clockwork.Clock
 	// UIDGenerator is unique ID generator
 	UIDGenerator utils.UID
+	// ClusterName specifies the name of this teleport cluster.
+	ClusterName string
 }
 
 // NewCheckingStream wraps stream and makes sure event UIDs and timing are in place
-func NewCheckingStream(stream Stream, clock clockwork.Clock) Stream {
+func NewCheckingStream(stream Stream, clock clockwork.Clock, clusterName string) Stream {
 	return &CheckingStream{
 		stream:       stream,
 		clock:        clock,
 		uidGenerator: utils.NewRealUID(),
+		clusterName:  clusterName,
 	}
 }
 
@@ -394,6 +403,7 @@ func (s *CheckingStreamer) CreateAuditStream(ctx context.Context, sid session.ID
 	return &CheckingStream{
 		clock:        s.CheckingStreamerConfig.Clock,
 		uidGenerator: s.CheckingStreamerConfig.UIDGenerator,
+		clusterName:  s.CheckingStreamerConfig.ClusterName,
 		stream:       stream,
 	}, nil
 }
@@ -407,6 +417,7 @@ func (s *CheckingStreamer) ResumeAuditStream(ctx context.Context, sid session.ID
 	return &CheckingStream{
 		clock:        s.CheckingStreamerConfig.Clock,
 		uidGenerator: s.CheckingStreamerConfig.UIDGenerator,
+		clusterName:  s.CheckingStreamerConfig.ClusterName,
 		stream:       stream,
 	}, nil
 }
@@ -414,7 +425,10 @@ func (s *CheckingStreamer) ResumeAuditStream(ctx context.Context, sid session.ID
 // CheckAndSetDefaults checks and sets default values
 func (w *CheckingStreamerConfig) CheckAndSetDefaults() error {
 	if w.Inner == nil {
-		return trace.BadParameter("missing parameter Inner")
+		return trace.BadParameter("checking streamer: missing parameter Inner")
+	}
+	if w.ClusterName == "" {
+		return trace.BadParameter("checking streamer: missing parameter ClusterName")
 	}
 	if w.Clock == nil {
 		w.Clock = clockwork.NewRealClock()
@@ -430,6 +444,7 @@ type CheckingStream struct {
 	stream       Stream
 	clock        clockwork.Clock
 	uidGenerator utils.UID
+	clusterName  string
 }
 
 // Close flushes non-uploaded flight stream data without marking
@@ -457,7 +472,7 @@ func (s *CheckingStream) Complete(ctx context.Context) error {
 
 // EmitAuditEvent emits audit event
 func (s *CheckingStream) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
-	if err := CheckAndSetEventFields(event, s.clock, s.uidGenerator); err != nil {
+	if err := checkAndSetEventFields(event, s.clock, s.uidGenerator, s.clusterName); err != nil {
 		log.WithError(err).Errorf("Failed to emit audit event %v(%v).", event.GetType(), event.GetCode())
 		AuditFailedEmit.Inc()
 		return trace.Wrap(err)
