@@ -7,7 +7,6 @@ Teleport's node service can be configured to integrate with [PAM](https://en.wik
 Teleport only supports the `account` and `session` stack. The `auth` PAM module is
 not currently supported with Teleport.
 
-
 ## Introduction to Pluggable Authentication Modules
 
 Pluggable Authentication Modules (PAM) date back to 1995 when Sun Microsystems
@@ -61,7 +60,6 @@ removed if you uninstall the `openssh-server` package. We recommend creating you
 own PAM service file like `/etc/pam.d/teleport` and specifying it as
 `service_name` above.
 
-
 ## Setting Message of the Day (motd) with Teleport
 
 The file `/etc/motd` is normally displayed by login(1) after a user has logged in
@@ -93,6 +91,7 @@ ssh_service:
 ![Teleport SSH without MOTD](../../img/motd/teleport-no-MOTD.png)
 
 ### Example node with PAM enabled
+
 ```yaml
 teleport:
   nodename: graviton-node-1
@@ -206,7 +205,6 @@ WARNING: All activity on this node is being recorded by Teleport
 
 ![Teleport SSH with updated MOTD](../../img/motd/teleport-with-updated-MOTD.png)
 
-
 ## Creating local users with Teleport
 
 Teleport 4.2.3 introduced the ability to create local (UNIX) users on login. This is
@@ -228,6 +226,7 @@ This PAM module creates the user and home directory before attempting to launch
 a shell for said user.
 
 ### Examples
+
 **Using pam_exec.so**
 
 Using `pam_exec.so` is the easiest way to use the PAM stack to create a user if

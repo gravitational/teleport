@@ -22,18 +22,21 @@ ping messages. They report their IP addresses and values of their assigned
 labels. Nodes can access the list of all Nodes in their cluster via the
 [Auth Server API](teleport-auth.mdx#auth-api).
 
-<Admonition type="tip" title="Tip">
-In most environments we advise replacing the OpenSSH daemon `sshd`
-with the Teleport Node Service unless there are existing workflows relying
-on `ssh` or in special cases such as embedded devices that can't run
-custom binaries.
+<Admonition
+  type="tip"
+  title="Tip"
+>
+  In most environments we advise replacing the OpenSSH daemon `sshd`
+  with the Teleport Node Service unless there are existing workflows relying
+  on `ssh` or in special cases such as embedded devices that can't run
+  custom binaries.
 </Admonition>
 
 The `node` service provides SSH access to every node with all of the following clients:
 
-* [OpenSSH: `ssh`](../admin-guide.mdx#using-teleport-with-openssh)
-* [Teleport CLI client: `tsh ssh`](../cli-docs.mdx#tsh-ssh)
-* [Teleport Proxy UI](teleport-proxy.mdx#web-to-ssh-proxy) accessed via a web browser.
+- [OpenSSH: `ssh`](../admin-guide.mdx#using-teleport-with-openssh)
+- [Teleport CLI client: `tsh ssh`](../cli-docs.mdx#tsh-ssh)
+- [Teleport Proxy UI](teleport-proxy.mdx#web-to-ssh-proxy) accessed via a web browser.
 
 Each client is authenticated via the [Auth Service](teleport-auth.mdx#authentication-in-teleport) before being granted access to a Node.
 
@@ -45,11 +48,11 @@ Node Identity is defined on the Cluster level by the certificate a node possesse
 
 This certificate contains information about the node including:
 
-* The **host ID**, a generated UUID unique to a node
-* A **nodename**, which defaults to `hostname` of the node, but can be configured.
-* The **cluster_name**, which defaults to the `hostname` of the auth server, but can be configured
-* The node **role** (i.e. `node,proxy`) encoded as a certificate extension
-* The cert **TTL** (time-to-live)
+- The **host ID**, a generated UUID unique to a node
+- A **nodename**, which defaults to `hostname` of the node, but can be configured.
+- The **cluster_name**, which defaults to the `hostname` of the auth server, but can be configured
+- The node **role** (i.e. `node,proxy`) encoded as a certificate extension
+- The cert **TTL** (time-to-live)
 
 A Teleport Cluster is a set of one or more machines whose certificates are signed
 by the same certificate authority (CA) operating in the Auth Server. A
@@ -57,8 +60,11 @@ certificate is issued to a node when it joins the cluster for the first time.
 Learn more about this process in the [Auth
 Guide](teleport-auth.mdx#authentication-in-teleport).
 
-<Admonition type="warning" title="Single-Node Clusters are Clusters">
-Once a Node gets a signed certificate from the Node CA, the Node is considered a member of the cluster, even if that cluster has only one node.
+<Admonition
+  type="warning"
+  title="Single-Node Clusters are Clusters"
+>
+  Once a Node gets a signed certificate from the Node CA, the Node is considered a member of the cluster, even if that cluster has only one node.
 </Admonition>
 
 ## Connecting to Nodes
@@ -84,11 +90,11 @@ such as keys or passwords.
 
 The cluster state information stored includes:
 
-* Node membership information and online/offline status for each node.
-* List of active sessions.
-* List of locally stored users.
-* RBAC configuration (roles and permissions).
-* Dynamic configuration.
+- Node membership information and online/offline status for each node.
+- List of active sessions.
+- List of locally stored users.
+- RBAC configuration (roles and permissions).
+- Dynamic configuration.
 
 Read more about what is stored in the [Auth Guide](teleport-auth.mdx#auth-state)
 
@@ -114,11 +120,13 @@ Teleport Auth Service can allow 3rd party users or nodes to connect to cluster
 nodes if their certificates are signed by a trusted CA. A "trusted cluster" is
 a public key of the trusted CA. It can be configured via `teleport.yaml` file.
 
-{/* TODO: incomplete, write more on this */}
+{
+  /* TODO: incomplete, write more on this */
+}
 
 ## More Concepts
 
-* [Architecture Overview](teleport-architecture-overview.mdx)
-* [Teleport Users](teleport-users.mdx)
-* [Teleport Auth](teleport-auth.mdx)
-* [Teleport Proxy](teleport-proxy.mdx)
+- [Architecture Overview](teleport-architecture-overview.mdx)
+- [Teleport Users](teleport-users.mdx)
+- [Teleport Auth](teleport-auth.mdx)
+- [Teleport Proxy](teleport-proxy.mdx)
