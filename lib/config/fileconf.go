@@ -380,10 +380,10 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	if flags.ACMEEnabled {
 		p.ACME.EnabledFlag = "yes"
 		p.ACME.Email = flags.ACMEEmail
-		p.PublicAddr = utils.Strings{
-			net.JoinHostPort(flags.ClusterName,
-				fmt.Sprintf("%d", conf.Proxy.WebAddr.Port(defaults.HTTPListenPort))),
-		}
+		// ACME uses TLS-ALPN-01 challenge that requires port 443
+		// https://letsencrypt.org/docs/challenge-types/#tls-alpn-01
+		p.PublicAddr = utils.Strings{net.JoinHostPort(flags.ClusterName, fmt.Sprintf("%d", teleport.StandardHTTPSPort))}
+		p.WebAddr = fmt.Sprintf(":%d", teleport.StandardHTTPSPort)
 	}
 
 	fc = &FileConfig{
