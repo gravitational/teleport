@@ -62,11 +62,13 @@ Therefore, I propose to switch to a more semver-like scheme, starting with 6.0.
   non-critical bugfix batches
 - Patch versions are for quick followup regression and critical bug fixes.
 - Suffixes:
-  - `-dev` suffix is for development builds (e.g. off of the `master` branch)
-  - `-alpha.X` suffix, good for demos and early deploys, but not staging
-  - `-beta.X` suffix, good for staging deploys, but not production
+  - `-dev` suffix is for development builds (e.g. off of the `main` branch)
+  - `-alpha.X` suffix, built from `main` branch, good for demos and early
+    deploys, but not staging
+  - `-beta.X` suffix, built from `main` branch, good for staging deploys, but
+    not production
   - `-rc.X` suffixes are for release candidates, potentially production-ready
-    but still in testing
+    but still in testing, built from `branch/vN`
 
 The benefits are:
 - Major version bumps clearly communicate to users to exercise caution when
@@ -94,41 +96,41 @@ versions. For example:
 ### Git branches
 
 Teleport has several branches related to releases:
-- `master` - main development branch
+- `main` - main development branch
 - `branch/vX` - for upcoming minor releases
-  - created when `vX.0.0-alpha.1` is cut
+  - created when `vX.0.0-rc.1` is cut
 - `branch/vX.Y` - for patch releases
   - created when `vX.Y.0` is cut
 
 Here are how different kinds of changes made map to those branches:
 - work towards the next major release
-  - merged into `master`
+  - merged into `main`
 - work towards the next minor release
-  - merged into `master`
+  - merged into `main`
   - backported into `branch/vX`
 - bugfixes that need to be backported
-  - merged into `master`
+  - merged into `main`
   - backported into `branch/vX`
   - backported into the latest `branch/vX.Y`
   - repeat for all `vX` that need the backport
 - bugfixes that _do not_ need to be backported
-  - merged into `master`
+  - merged into `main`
 
 ### Example: new release
 
 The current release of teleport is `v5` and the next will be `v6`.
 
-- initially, builds from `master` will be `v6.0.0-dev`
-- when most big changes are merged, we make `branch/v6` and cut `v6.0.0-alpha.1`
+- initially, builds from `main` will be `v6.0.0-dev`
+- when most big changes are merged, we cut `v6.0.0-alpha.1`
 - when only small bugfix changes are pending, we cut `v6.0.0-beta.1`
-- all planned changes are merged, we cut `v6.0.0-rc.1`
+- all planned changes are merged, we make `branch/v6` and cut `v6.0.0-rc.1`
 - during release testing, we fix bugs and cut `v6.0.0-rc.2`, `v6.0.0-rc.3`, etc
 - assuming `v6.0.0-rc.3` passes the tests, create branch `branch/v6.0` and tag
   it as `v6.0.0`
-- we discover a serious bug in `v6.0.0`, fix it in `master`, `branch/v6`,
+- we discover a serious bug in `v6.0.0`, fix it in `main`, `branch/v6`,
   `branch/v6.0` and cut `v6.0.1` from `branch/v6.0`
 - over the next few days/weeks, we gather user feedback
-- based on feedback, we fix a number of bugs in `master`, backport them to
+- based on feedback, we fix a number of bugs in `main`, backport them to
   `branch/v6`, create branch `branch/v6.1` and cut `v6.1.0` from it
 
 ### Example: backports
@@ -136,7 +138,7 @@ The current release of teleport is `v5` and the next will be `v6`.
 The latest 3 released versions are `v8.0.1`, `v7.1.2`, `v6.3.2`.
 
 - we discover a bug affecting all versions
-- we fix it in `master`
+- we fix it in `main`
 - if the bug is urgent, we backport to `branch/v8`, `branch/v8.0`, `branch/v7`,
   `branch/v7.1`, `branch/v6`, `branch/v6.3` and release `v8.0.2`, `v7.1.3`,
   `v6.3.3`
@@ -151,7 +153,7 @@ The latest 3 released versions are `v8.0.1`, `v7.1.2`, `v6.3.2`.
 The latest 3 released versions are `v8.0.1`, `v7.1.2`, `v6.3.2`.
 
 - we discover a security bug affecting all versions
-- we fix it in `master` and backport to `branch/v8`, `branch/v8.0`,
+- we fix it in `main` and backport to `branch/v8`, `branch/v8.0`,
   `branch/v7`, `branch/v7.1`, `branch/v6`, `branch/v6.3`
 - after backports merge, we release `v8.0.2`, `v7.1.3`, `v6.3.3`
 
