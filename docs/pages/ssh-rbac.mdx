@@ -5,9 +5,9 @@ title: Role Based Access Control for SSH
 ## Introduction
 
 Role Based Access Control (RBAC) gives Teleport administrators more
-granular access controls. An example of an RBAC policy could be:  _"admins can do
+granular access controls. An example of an RBAC policy could be:  *"admins can do
 anything, developers must never touch production servers and interns can only
-SSH into staging servers as guests"_
+SSH into staging servers as guests"*
 
 RBAC is almost always used in conjunction with
 Single Sign-On ([SSO](https://en.wikipedia.org/wiki/Single_sign-on)) but it also works with
@@ -21,9 +21,9 @@ would look like this:
 
 1. Configure Teleport to use existing user identities stored in Okta.
 2. Okta would have users placed in certain groups, perhaps "developers", "admins", "contractors", etc.
-3. Teleport would have certain _Teleport roles_ defined. For example: "developers" and "admins".
+3. Teleport would have certain *Teleport roles* defined. For example: "developers" and "admins".
 4. Mappings would connect the Okta groups (SAML assertions) to the Teleport roles.
-   Every Teleport user will be assigned a _Teleport role_ based on their Okta
+   Every Teleport user will be assigned a *Teleport role* based on their Okta
    group membership.
 
 ## Roles
@@ -36,18 +36,18 @@ user permissions.
 
 Some of the permissions a role could define include:
 
-* Which SSH nodes a user can or cannot access. Teleport uses [node
-  labels](admin-guide/#labeling-nodes) to do this, i.e. some nodes can be
+- Which SSH nodes a user can or cannot access. Teleport uses [node
+  labels](admin-guide.mdx#labeling-nodes) to do this, i.e. some nodes can be
   labeled "production" while others can be labeled "staging".
-* Ability to replay recorded sessions.
-* Ability to update cluster configuration.
-* Which UNIX logins a user is allowed to use when logging into servers.
+- Ability to replay recorded sessions.
+- Ability to update cluster configuration.
+- Which UNIX logins a user is allowed to use when logging into servers.
 
 A Teleport `role` works by having two lists of rules: `allow` rules and `deny` rules.
 When declaring access rules, keep in mind the following:
 
-* Everything is denied by default.
-* Deny rules get evaluated first and take priority.
+- Everything is denied by default.
+- Deny rules get evaluated first and take priority.
 
 A rule consists of two parts: the resources and verbs. Here's an example of an
 `allow` rule describing a `list` verb applied to the SSH `sessions` resource.  It means "allow
@@ -65,7 +65,7 @@ all of the available resources and verbs under the `allow` section in the `admin
 below.
 
 To manage cluster roles, a Teleport administrator can use the Web UI or the command
-line using [tctl resource commands](admin-guide#resources). To see the list of
+line using [tctl resource commands](admin-guide.mdx#resources). To see the list of
 roles in a Teleport cluster, an administrator can execute:
 
 ```bsh
@@ -140,16 +140,16 @@ spec:
 
 The following variables can be used with `logins` field:
 
-Variable                | Description
-------------------------|--------------------------
-`{{internal.logins}}` | Substituted with "allowed logins" parameter used in `tctl users add [user] <allowed logins>` command. This applies only to users stored in Teleport's own local database.
-`{{external.xyz}}`    | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on). If using SAML, this will be expanded with "xyz" assertion value. For OIDC, this will be expanded a value of "xyz" claim.
+| Variable | Description |
+| - | - |
+| `{{internal.logins}}` | Substituted with "allowed logins" parameter used in `tctl users add [user] <allowed logins>` command. This applies only to users stored in Teleport's own local database. |
+| `{{external.xyz}}` | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on). If using SAML, this will be expanded with "xyz" assertion value. For OIDC, this will be expanded a value of "xyz" claim. |
 
 Both variables above are there to deliver the same benefit: they allow Teleport
 administrators to define allowed OS logins via the user database, be it the
 local DB, or an identity manager behind a SAML or OIDC endpoint.
 
-#### An example of a SAML assertion:
+### An example of a SAML assertion
 
 Assuming you have the following SAML assertion attribute in your response:
 
@@ -160,30 +160,29 @@ Assuming you have the following SAML assertion attribute in your response:
 ```
 
 ... you can use the following format in your role:
+
 ```
 logins:
    - '{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}'
 ```
-
 
 ### Role Options
 
 As shown above, a role can define certain restrictions on SSH sessions initiated by users.
 The table below documents the behavior of each option if multiple roles are assigned to a user.
 
-Option                    | Description                          | Multi-role behavior
---------------------------|--------------------------------------|---------------------
-`max_session_ttl`         | Max. time to live (TTL) of a user's SSH certificates | The shortest TTL wins
-`forward_agent`           | Allow SSH agent forwarding         | Logical "OR" i.e. if any role allows agent forwarding, it's allowed
-`port_forwarding`         | Allow TCP port forwarding          | Logical "OR" i.e. if any role allows port forwarding, it's allowed
-`client_idle_timeout`     | Forcefully terminate active SSH sessions after an idle interval | The shortest timeout value wins, i.e. the most restrictive value is selected
-`disconnect_expired_cert` | Forcefully terminate active SSH sessions when a client certificate expires | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination
-
+| Option | Description | Multi-role behavior |
+| - | - | - |
+| `max_session_ttl` | Max. time to live (TTL) of a user's SSH certificates | The shortest TTL wins |
+| `forward_agent` | Allow SSH agent forwarding | Logical "OR" i.e. if any role allows agent forwarding, it's allowed |
+| `port_forwarding` | Allow TCP port forwarding | Logical "OR" i.e. if any role allows port forwarding, it's allowed |
+| `client_idle_timeout` | Forcefully terminate active SSH sessions after an idle interval | The shortest timeout value wins, i.e. the most restrictive value is selected |
+| `disconnect_expired_cert` | Forcefully terminate active SSH sessions when a client certificate expires | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
 
 ## RBAC for Hosts
 
 A Teleport role can also define which hosts (nodes) a user can have access to.
-This works by [labeling nodes](admin-guide/#labeling-nodes) and listing
+This works by [labeling nodes](admin-guide.mdx#labeling-nodes) and listing
 allow/deny labels in a role definition.
 
 Consider the following use case:
@@ -217,11 +216,14 @@ spec:
       'workload': ['database', 'backup']
 ```
 
-<Admonition type="tip" title="Dynamic RBAC">
-Node labels can be dynamic, i.e. determined at runtime by an output
-of an executable. In this case, you can implement "permissions follow workload"
-policies (eg., any server where PostgreSQL is running becomes _automatically_
-accessible only by the members of the "DBA" group and nobody else).
+<Admonition
+  type="tip"
+  title="Dynamic RBAC"
+>
+  Node labels can be dynamic, i.e. determined at runtime by an output
+  of an executable. In this case, you can implement "permissions follow workload"
+  policies (eg., any server where PostgreSQL is running becomes *automatically*
+  accessible only by the members of the "DBA" group and nobody else).
 </Admonition>
 
 ## RBAC for Sessions
@@ -235,13 +237,11 @@ rules:
     verbs: [list, read]
 ```
 
-* "list" determines if a user is allowed to see the list of past sessions.
-* "read" determines if a user is allowed to replay a session.
+- "list" determines if a user is allowed to see the list of past sessions.
+- "read" determines if a user is allowed to replay a session.
 
 It is possible to restrict "list" but to allow "read" (in this case a user will
 be able to replay a session using `tsh play` if they know the session ID)
-
-
 
 ## FAQ
 

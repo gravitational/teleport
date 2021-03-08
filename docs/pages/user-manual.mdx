@@ -5,12 +5,12 @@ title: Teleport User Manual
 This User Manual covers usage of the Teleport client tool, `tsh`. In this
 document you will learn how to:
 
-* Log into interactive shell on remote cluster nodes.
-* Copy files to and from cluster nodes.
-* Connect to SSH clusters behind firewalls without any open ports using SSH reverse tunnels.
-* Explore a cluster and execute commands on specific nodes in a cluster.
-* Share interactive shell sessions with colleagues or join someone else's session.
-* Replay recorded interactive sessions.
+- Log into interactive shell on remote cluster nodes.
+- Copy files to and from cluster nodes.
+- Connect to SSH clusters behind firewalls without any open ports using SSH reverse tunnels.
+- Explore a cluster and execute commands on specific nodes in a cluster.
+- Share interactive shell sessions with colleagues or join someone else's session.
+- Replay recorded interactive sessions.
 
 In addition to this document, you can always simply type `tsh` into your terminal for
 the CLI reference.
@@ -110,11 +110,10 @@ $ tsh login --proxy=work.example.com:5000
 $ tsh login --proxy=work.example.com:,23
 ```
 
-Port               | Description
--------------------|-------------------------------------
-https_proxy_port   | the HTTPS port the proxy host is listening to (defaults to 3080).
-ssh_proxy_port     | the SSH port the proxy is listening to (defaults to 3023).
-
+| Port | Description |
+| - | - |
+| https_proxy_port | the HTTPS port the proxy host is listening to (defaults to 3080). |
+| ssh_proxy_port | the SSH port the proxy is listening to (defaults to 3023). |
 
 The login command retrieves a user's certificate and stores it
 in `~/.tsh` directory as well as in the [ssh agent](https://en.wikipedia.org/wiki/Ssh-agent),
@@ -125,10 +124,13 @@ Subsequent `tsh ssh` commands will run without asking for credentials
 until the temporary certificate expires. By default, Teleport issues user
 certificates with a TTL (time to live) of 12 hours.
 
-<Admonition type="tip" title="Tip">
-It is recommended to always use `tsh login` before using any other `tsh` commands.
-This allows users to omit `--proxy` flag in subsequent tsh commands. For example
-`tsh ssh user@host` will work.
+<Admonition
+  type="tip"
+  title="Tip"
+>
+  It is recommended to always use `tsh login` before using any other `tsh` commands.
+  This allows users to omit `--proxy` flag in subsequent tsh commands. For example
+  `tsh ssh user@host` will work.
 </Admonition>
 
 A Teleport cluster can be configured for multiple user identity sources. For
@@ -308,7 +310,7 @@ via `--proxy` flag as shown:
 tsh --proxy=proxy.example.com:5000,5001
 ```
 
-This means _use port `5000` for HTTPS and `5001` for SSH_
+This means *use port `5000` for HTTPS and `5001` for SSH*
 
 ### Port Forwarding
 
@@ -447,7 +449,7 @@ $ tsh join 7645d523-60cb-436d-b732-99c5df14b7c4
 ```
 
 <Admonition type="note">
-Joining sessions is not supported in recording proxy mode (where `session_recording` is set to `proxy`).
+  Joining sessions is not supported in recording proxy mode (where `session_recording` is set to `proxy`).
 </Admonition>
 
 ## Connecting to SSH Clusters behind Firewalls
@@ -458,7 +460,7 @@ behind-firewall environments into a Teleport proxy you have access to. This
 feature is called "Trusted Clusters".
 
 This chapter explains how to a user may connect to a trusted cluster.
-Refer to [the admin manual](admin-guide/#trusted-clusters) to learn how a trusted
+Refer to [the admin manual](admin-guide.mdx#trusted-clusters) to learn how a trusted
 cluster can be configured.
 
 Assuming the "work" Teleport proxy server is configured with a few trusted
@@ -506,21 +508,24 @@ You can also join other users in active sessions.
 There are a few differences between Teleport's `tsh` and OpenSSH's `ssh` but most of them can be mitigated.
 
 1. `tsh` always requires the `--proxy` flag because `tsh` needs to know which cluster
-    you are connecting to. But if you execute `tsh --proxy=xxx login`, the
-    current proxy will be saved in your `~/.tsh` profile and won't be needed
-    for other `tsh` commands.
+   you are connecting to. But if you execute `tsh --proxy=xxx login`, the
+   current proxy will be saved in your `~/.tsh` profile and won't be needed
+   for other `tsh` commands.
 
-* `tsh ssh` operates _two_ usernames: one for the cluster and another for the node you
+- `tsh ssh` operates *two* usernames: one for the cluster and another for the node you
   are trying to log into. See [User Identities](#user-identities) section below.
   For convenience, `tsh` assumes `$USER` for both by default. But again, if you
   use `tsh login` before `tsh ssh`, your Teleport username will be stored in
   `~/.tsh`
 
-<Admonition type="tip" title="Tip">
-To avoid typing `tsh ssh user@host` when logging into servers, you can
-create a symlink `ssh -> tsh` and execute the symlink. It will behave exactly
-like a standard `ssh` command, i.e. `ssh login@host`. This is helpful with other
-tools that expect `ssh` to just work.
+<Admonition
+  type="tip"
+  title="Tip"
+>
+  To avoid typing `tsh ssh user@host` when logging into servers, you can
+  create a symlink `ssh -> tsh` and execute the symlink. It will behave exactly
+  like a standard `ssh` command, i.e. `ssh login@host`. This is helpful with other
+  tools that expect `ssh` to just work.
 </Admonition>
 
 Teleport is built using standard SSH constructs: keys, certificates and protocols.
@@ -584,7 +589,6 @@ Now he can SSH into any machine behind `lab.example.com` using the OpenSSH clien
 ```bash
 $ ssh jenkins.lab.example.com
 ```
-
 
 ## Troubleshooting
 

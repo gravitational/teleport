@@ -4,27 +4,30 @@ title: Teleport Enterprise
 
 This section will give an overview of Teleport Enterprise, the commercial product built around
 the open source Teleport Community core. For those that want to jump right in, you can play with
-the [Quick Start Guide of Teleport Enterprise](quickstart-enterprise).
+the [Quick Start Guide of Teleport Enterprise](quickstart-enterprise.mdx).
 
 The table below gives a quick overview of the
 benefits of Teleport Enterprise.
 
-|Teleport Enterprise Feature|Description
----------|--------------
-|[Role Based Access Control (RBAC)](#rbac)|Allows Teleport administrators to define User Roles and restrict each role to specific actions. RBAC also allows administrators to partition cluster nodes into groups with different access permissions.
-|[Single Sign-On (SSO)](#sso)| Allows Teleport to integrate with existing enterprise identity systems. Examples include Active Directory, Github, Google Apps and numerous identity middleware solutions like Auth0, Okta, and so on. Teleport supports SAML and OAuth/OpenID Connect protocols to interact with them.
-|Commercial Support | In addition to these features, Teleport Enterprise also comes with a premium support SLA with guaranteed response times.
+| Teleport Enterprise Feature | Description |
+| - | - |
+| [Role Based Access Control (RBAC)](#rbac) | Allows Teleport administrators to define User Roles and restrict each role to specific actions. RBAC also allows administrators to partition cluster nodes into groups with different access permissions. |
+| [Single Sign-On (SSO)](#sso) | Allows Teleport to integrate with existing enterprise identity systems. Examples include Active Directory, Github, Google Apps and numerous identity middleware solutions like Auth0, Okta, and so on. Teleport supports SAML and OAuth/OpenID Connect protocols to interact with them. |
+| Commercial Support | In addition to these features, Teleport Enterprise also comes with a premium support SLA with guaranteed response times. |
 
-<Admonition type="tip" title="Contact Information">
-If you are interested in Teleport Enterprise, please reach out to
-`sales@gravitational.com` for more information.
+<Admonition
+  type="tip"
+  title="Contact Information"
+>
+  If you are interested in Teleport Enterprise, please reach out to
+  `sales@gravitational.com` for more information.
 </Admonition>
 
 ## RBAC
 
-Role Based Access Control ("RBAC") allows Teleport administrators to grant granular access permissions to users. An example of an RBAC policy might be:  _"admins can do anything,
+Role Based Access Control ("RBAC") allows Teleport administrators to grant granular access permissions to users. An example of an RBAC policy might be:  *"admins can do anything,
 developers must never touch production servers, and interns can only SSH into
-staging servers as guests"_
+staging servers as guests"*
 
 ### How does it work?
 
@@ -64,7 +67,6 @@ Other identity management systems are supported as long as they provide an
 SSO mechanism based on either [SAML](https://en.wikipedia.org/wiki/Security_Assertion_Markup_Language)
 or [OAuth2/OpenID Connect](https://en.wikipedia.org/wiki/OpenID_Connect).
 
-
 ### How does SSO work with SSH?
 
 From the user's perspective they need to execute the following command to retrieve their SSH certificate.
@@ -80,9 +82,12 @@ prompt, along with the 2FA, as enforced by the SSO provider. If user supplies
 valid credentials, Teleport will issue an SSH certificate.
 
 Moreover, SSO can be used in combination with role-based access control (RBAC)
-to enforce SSH access policies like _"developers must not touch production data"_.
+to enforce SSH access policies like *"developers must not touch production data"*.
 See the [SSO for SSH](ssh-sso.mdx) chapter for more details.
 
-<Admonition type="tip" title="Contact Information">
-For more information about Teleport Enterprise or Telekube please reach out us to `sales@gravitational.com` or fill out the contact for on our [website](https://gravitational.com/demo)
+<Admonition
+  type="tip"
+  title="Contact Information"
+>
+  For more information about Teleport Enterprise or Telekube please reach out us to `sales@gravitational.com` or fill out the contact for on our [website](https://gravitational.com/demo)
 </Admonition>
