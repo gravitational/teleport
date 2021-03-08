@@ -14,7 +14,7 @@ AWS_REGION ?= us-west-2
 # This must be a _released_ version of Teleport, i.e. one which has binaries
 # available for download on https://gravitational.com/teleport/download
 # Unreleased versions will fail to build.
-TELEPORT_VERSION ?= 5.1.2
+TELEPORT_VERSION ?= 6.0.1
 
 # Teleport UID is the UID of a non-privileged 'teleport' user
 TELEPORT_UID ?= 1007
@@ -145,4 +145,4 @@ create-update-pr: update-ami-ids-cloudformation update-ami-ids-terraform
 	git checkout -b $(AUTO_BRANCH_NAME)
 	git commit -am "[auto] Update AMI IDs for $(TELEPORT_VERSION)"
 	git push --set-upstream origin $(AUTO_BRANCH_NAME)
-	gh pr create --fill --label automated --label terraform
+	gh pr create --fill --label automated,terraform --body "$*"
