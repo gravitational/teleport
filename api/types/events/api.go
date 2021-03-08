@@ -63,6 +63,12 @@ type AuditEvent interface {
 	GetIndex() int64
 	// SetIndex sets event index
 	SetIndex(idx int64)
+
+	// GetClusterName returns the name of the teleport cluster
+	// as set on the event.
+	GetClusterName() string
+	// SetClusterName sets the name of the teleport cluster on the event.
+	SetClusterName(string)
 }
 
 // Emitter creates and manages audit log streams

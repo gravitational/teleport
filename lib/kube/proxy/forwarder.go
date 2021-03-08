@@ -695,6 +695,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			Namespace:    f.cfg.Namespace,
 			RecordOutput: ctx.clusterConfig.GetSessionRecording() != services.RecordOff,
 			Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
+			ClusterName:  f.cfg.ClusterName,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

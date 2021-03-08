@@ -40,6 +40,10 @@ func (s *Server) newStreamWriter(sessionCtx *common.Session) (libevents.StreamWr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	clusterName, err := s.cfg.AccessPoint.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	// TODO(r0mant): Add support for record-at-proxy.
 	// Create a sync or async streamer depending on configuration of cluster.
 	streamer, err := s.newStreamer(s.closeContext, sessionCtx.ID, clusterConfig)
@@ -57,6 +61,7 @@ func (s *Server) newStreamWriter(sessionCtx *common.Session) (libevents.StreamWr
 		ServerID:     sessionCtx.Server.GetHostID(),
 		RecordOutput: clusterConfig.GetSessionRecording() != services.RecordOff,
 		Component:    teleport.ComponentDatabase,
+		ClusterName:  clusterName.GetClusterName(),
 	})
 }
 
