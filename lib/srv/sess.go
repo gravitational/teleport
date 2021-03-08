@@ -681,6 +681,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 			ServerID:     ctx.srv.HostUUID(),
 			RecordOutput: ctx.ClusterConfig.GetSessionRecording() != services.RecordOff,
 			Component:    teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
+			ClusterName:  ctx.ClusterName,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -874,6 +875,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 			ServerID:     ctx.srv.HostUUID(),
 			RecordOutput: ctx.ClusterConfig.GetSessionRecording() != services.RecordOff,
 			Component:    teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
+			ClusterName:  ctx.ClusterName,
 		})
 		if err != nil {
 			return trace.Wrap(err)
