@@ -33,6 +33,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
 	rundebug "runtime/debug"
 	"sort"
 	"strconv"
@@ -56,7 +57,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
-	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
@@ -411,21 +411,18 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 		return trace.BadParameter("unsupported logger severity: %q", loggerConfig.Severity)
 	}
 
-	tformat := &teleportFormatter{}
-	err := tformat.CheckAndSetDefaults(loggerConfig.Format)
+	formatter := &teleportFormatter{}
+	err := formatter.CheckAndSetDefaults(loggerConfig.Format)
 	if err != nil {
-		return trace.BadParameter("invalid logger format: %q err: %v", loggerConfig.Format, err)
+		return trace.Wrap(err)
 	}
-	logger.Formatter = tformat
-
+	logger.Formatter = formatter
 	return nil
 }
 
 type teleportFormatter struct {
-	F logrus.TextFormatter
-	// DisableTimestamp disables timestamp output (useful when outputting to
-	// systemd logs)
-	DisableTimestamp bool
+	// Formatter implements logrus.TextFormatter and formats based on file configuration
+	Formatter log.TextFormatter
 	// ComponentPadding is a padding to pick when displaying
 	// and formatting component field, defaults to DefaultComponentPadding
 	ComponentPadding int
@@ -434,7 +431,7 @@ type teleportFormatter struct {
 	// FormatCaller is a function to return (part) of source file path for output.
 	// Defaults to filePathAndLine() if unspecified
 	FormatCaller func() (caller string)
-
+	// InputFormat is the parsed format of each log line
 	InputFormat []string
 }
 
@@ -446,41 +443,40 @@ const (
 	gray    = 37
 )
 
+// DefaultLoggerFormat is the default format in which to display logs (i.e. log.format in teleport.yaml is empty)
+var DefaultLoggerFormat = []string{"level", "component", "message", "caller"}
+
 type writer struct {
 	bytes.Buffer
 }
 
-
-
 // CheckAndSetDefaults checks and sets log format configuration
 func (tf *teleportFormatter) CheckAndSetDefaults(logFormatInput string) error {
-	// DefaultLoggerFormat is the default format in which to display logs (i.e. logs.format in teleport.yaml is empty)
-	var DefaultLoggerFormat = []string{"level", "component", "message", "caller"}
-	var values = map[string]bool{"level": true, "component": true, "message": true, "caller": true, "timestamp": true, "data": true}
-	// Set formatter
-	// always set timestamp to true becuase later we can omit it if specified by user
-	tf.F = log.TextFormatter{
+	values := map[string]bool{"level": true, "component": true, "message": true, "caller": true, "timestamp": true}
+	// set formatter
+	// always set timestamp to true because later we can omit it if not used in config
+	tf.Formatter = log.TextFormatter{
 		FullTimestamp:   true,
 		TimestampFormat: time.RFC3339,
 	}
-
-	// Set padding, always output the component field if available
+	// set padding
 	if tf.ComponentPadding == 0 {
 		tf.ComponentPadding = trace.DefaultComponentPadding
 	}
-
+	// set caller
 	if tf.FormatCaller == nil {
-		tf.FormatCaller = trace.FormatCallerWithPathAndLine
+		tf.FormatCaller = formatCallerWithPathAndLine
 	}
-
+	// set log formatting
 	if logFormatInput == "" {
 		tf.InputFormat = DefaultLoggerFormat
 	} else {
-		var re = regexp.MustCompile(`(?m){{([a-z]+)}}+`)
+		var re = regexp.MustCompile(`(?m){{([a-zA-Z\s]*)}}+`)
 		var result []string
 		for _, match := range re.FindAllString(logFormatInput, -1) {
-			match = strings.Trim(match, "{{")
-			match = strings.Trim(match, "}}")
+			match = strings.TrimPrefix(match, "{{")
+			match = strings.TrimSuffix(match, "}}")
+			match = strings.TrimSpace(match)
 			if !values[match] {
 				msg := fmt.Sprintf("key does not exist: %v", match)
 				return errors.New(msg)
@@ -522,7 +518,6 @@ func (tf *teleportFormatter) Format(e *log.Entry) (data []byte, err error) {
 			}
 			w.writeField(strings.ToUpper(padMax(e.Level.String(), trace.DefaultLevelPadding)), color)
 		case "component":
-			// always output the component field if available
 			padding := trace.DefaultComponentPadding
 			if tf.ComponentPadding != 0 {
 				padding = tf.ComponentPadding
@@ -541,29 +536,24 @@ func (tf *teleportFormatter) Format(e *log.Entry) (data []byte, err error) {
 			}
 			w.WriteString(component)
 		case "message":
-			// message
 			if e.Message != "" {
 				w.writeField(e.Message, noColor)
 			}
-		case "data":
-			// rest of the fields
-			if len(e.Data) > 0 {
-				w.writeMap(e.Data)
-			}
 		case "caller":
-			// caller, if present, always last
 			if caller != "" {
 				w.writeField(caller, noColor)
 			}
 		case "timestamp":
-			// if user disables time stamp with tf.Timestamp, which should take priority?
-			if !tf.DisableTimestamp {
-				w.writeField(e.Time.Format(time.RFC3339), noColor)
-			}
+			w.writeField(e.Time.Format(time.RFC3339), noColor)
 		default:
 			return
 		}
 	}
+
+	if len(e.Data) > 0 {
+		w.writeMap(e.Data)
+	}
+
 	w.WriteByte('\n')
 	data = w.Bytes()
 	return
@@ -652,6 +642,80 @@ func (w *writer) writeMap(m map[string]interface{}) {
 		default:
 			w.writeKeyValue(key, value)
 		}
+	}
+}
+
+type frameCursor struct {
+	// current specifies the current stack frame.
+	// if omitted, rest contains the complete stack
+	current *runtime.Frame
+	// rest specifies the rest of stack frames to explore
+	rest *runtime.Frames
+	// n specifies the total number of stack frames
+	n int
+}
+
+// formatCallerWithPathAndLine formats the caller in the form path/segment:<line number>
+// for output in the log
+func formatCallerWithPathAndLine() (path string) {
+	if cursor := findFrame(); cursor != nil {
+		t := newTraceFromFrames(*cursor, nil)
+		return t.Loc()
+	}
+	return ""
+}
+
+var frameIgnorePattern = regexp.MustCompile(`github\.com/(S|s)irupsen/logrus`)
+
+// findFrames positions the stack pointer to the first
+// function that does not match the frameIngorePattern
+// and returns the rest of the stack frames
+func findFrame() *frameCursor {
+	var buf [32]uintptr
+	// Skip enough frames to start at user code.
+	// This number is a mere hint to the following loop
+	// to start as close to user code as possible and getting it right is not mandatory.
+	// The skip count might need to get updated if the call to findFrame is
+	// moved up/down the call stack
+	n := runtime.Callers(4, buf[:])
+	pcs := buf[:n]
+	frames := runtime.CallersFrames(pcs)
+	for i := 0; i < n; i++ {
+		frame, _ := frames.Next()
+		if !frameIgnorePattern.MatchString(frame.File) {
+			return &frameCursor{
+				current: &frame,
+				rest:    frames,
+				n:       n,
+			}
+		}
+	}
+	return nil
+}
+
+func newTraceFromFrames(cursor frameCursor, err error) *trace.TraceErr {
+	traces := make(trace.Traces, 0, cursor.n)
+	if cursor.current != nil {
+		traces = append(traces, frameToTrace(*cursor.current))
+	}
+	for {
+		frame, more := cursor.rest.Next()
+		traces = append(traces, frameToTrace(frame))
+		if !more {
+			break
+		}
+	}
+	return &trace.TraceErr{
+		Err:    err,
+		Traces: traces,
+	}
+}
+
+func frameToTrace(frame runtime.Frame) trace.Trace {
+	return trace.Trace{
+		Func: frame.Function,
+		Path: frame.File,
+		Line: frame.Line,
 	}
 }
 

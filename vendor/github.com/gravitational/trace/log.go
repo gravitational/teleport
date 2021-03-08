@@ -90,7 +90,7 @@ func (tf *TextFormatter) Format(e *log.Entry) (data []byte, err error) {
 
 	formatCaller := tf.FormatCaller
 	if formatCaller == nil {
-		formatCaller = FormatCallerWithPathAndLine
+		formatCaller = formatCallerWithPathAndLine
 	}
 
 	caller := formatCaller()
@@ -178,9 +178,9 @@ func (j *JSONFormatter) Format(e *log.Entry) ([]byte, error) {
 	return j.JSONFormatter.Format(e)
 }
 
-// FormatCallerWithPathAndLine formats the caller in the form path/segment:<line number>
+// formatCallerWithPathAndLine formats the caller in the form path/segment:<line number>
 // for output in the log
-func FormatCallerWithPathAndLine() (path string) {
+func formatCallerWithPathAndLine() (path string) {
 	if cursor := findFrame(); cursor != nil {
 		t := newTraceFromFrames(*cursor, nil)
 		return t.Loc()
