@@ -29,8 +29,11 @@ $ curl https://get.gravitational.com/teleport-$version-$os-$arch-bin.tar.gz.sha2
 
 ## Install Pre-built Binaries
 
-<Admonition type="tip" title="sudo">
-You may need to use `sudo` to run the installation commands.
+<Admonition
+  type="tip"
+  title="sudo"
+>
+  You may need to use `sudo` to run the installation commands.
 </Admonition>
 
 ### Linux
@@ -41,6 +44,7 @@ Release](https://gravitational.com/teleport/download/) page for the most
 up-to-date information.
 
 **Debian**
+
 ```bash
 $ curl https://get.gravitational.com/teleport_4.1.0_amd64.deb.sha256
 # <checksum> <filename>
@@ -53,6 +57,7 @@ $ which teleport
 ```
 
 **Tarball**
+
 ```bash
 $ curl https://get.gravitational.com/teleport-v4.1.0-linux-amd64-bin.tar.gz.sha256
 # <checksum> <filename>
@@ -67,6 +72,7 @@ $ which teleport
 ```
 
 **RPM**
+
 ```bash
 $ curl https://get.gravitational.com/teleport-4.1.0-1.x86_64.rpm.sha256
 # <checksum> <filename>
@@ -82,9 +88,10 @@ $ which teleport
 
 **Package**
 
-* **Option 1:** Download the `.pkg` file via your web browser and double-click
+- **Option 1:** Download the `.pkg` file via your web browser and double-click
   to run the Installer.
-* **Option 2:** Install on the command line with `installer`
+- **Option 2:** Install on the command line with `installer`
+
 ```bash
 $ curl -O https://get.gravitational.com/teleport-4.1.0.pkg
 $ sudo installer -pkg teleport-4.1.0.pkg -target / # Installs on Macintosh HD
@@ -97,6 +104,7 @@ $ which teleport
 ```
 
 **Tarball**
+
 ```bash
 $ curl https://get.gravitational.com/teleport-v4.1.0-darwin-amd64-bin.tar.gz.sha256
 # <checksum> <filename>
@@ -141,7 +149,7 @@ If you don't already have Golang installed you can [see installation
 instructions here](https://golang.org/doc/install). If you are new to Go there
 are a few quick set up things to note.
 
-- Go installs all dependencies _for all projects_ in a single directory
+- Go installs all dependencies *for all projects* in a single directory
   determined by the `$GOPATH` variable. The default directory is
   `GOPATH=$HOME/go` but you can set it to any directory you wish.
 - If you plan to use Golang for more than just this installation you may want to
@@ -165,4 +173,6 @@ $ sudo chown $USER /var/lib/teleport
 If the build succeeds the binaries `teleport, tsh`, and `tctl` are now in the
 directory `$GOPATH/src/github.com/gravitational/teleport/build`
 
-{/* Notes on what to do if the build does not succeed, troubleshooting */}
+{
+  /* Notes on what to do if the build does not succeed, troubleshooting */
+}
