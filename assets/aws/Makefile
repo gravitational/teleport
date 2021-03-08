@@ -145,4 +145,4 @@ create-update-pr: update-ami-ids-cloudformation update-ami-ids-terraform
 	git checkout -b $(AUTO_BRANCH_NAME)
 	git commit -am "[auto] Update AMI IDs for $(TELEPORT_VERSION)"
 	git push --set-upstream origin $(AUTO_BRANCH_NAME)
-	gh pr create --fill --label automated,terraform --body "$*"
+	gh pr create --fill --label automated --label terraform
