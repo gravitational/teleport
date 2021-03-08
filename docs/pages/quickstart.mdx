@@ -22,11 +22,11 @@ The `teleport` daemon runs all three of these services by default. This Quick St
 be using this default behavior to create a cluster and interact with it
 using Teleport's client-side tools:
 
-| Tool    | Description
-|---------|-------------
-| tctl    | Cluster administration tool used to invite nodes to a cluster and manage user accounts.
-| tsh     | Similar in principle to OpenSSH's `ssh`. Used to login into remote SSH nodes, list and search for nodes in a cluster, securely upload/download files, etc.
-| browser | You can use your web browser to login into any Teleport node by opening `https://<proxy-host>:3080`.
+| Tool | Description |
+| - | - |
+| tctl | Cluster administration tool used to invite nodes to a cluster and manage user accounts. |
+| tsh | Similar in principle to OpenSSH's `ssh`. Used to login into remote SSH nodes, list and search for nodes in a cluster, securely upload/download files, etc. |
+| browser | You can use your web browser to login into any Teleport node by opening `https://<proxy-host>:3080`. |
 
 ## Installing and Starting
 
@@ -113,10 +113,13 @@ $ tsh --proxy=localhost --insecure login
 Notice that `tsh` client always needs `--proxy` flag because all client connections
 in Teleport must to go through a proxy, sometimes called a "bastion".
 
-<Admonition type="warning" title="Warning">
-For the purposes of this quickstart we are using the `--insecure` flag which allows
-us to skip configuring the HTTP/TLS certificate for Teleport proxy.
-Never use `--insecure` in production. You must configure the HTTP/TLS proxy certificate.
+<Admonition
+  type="warning"
+  title="Warning"
+>
+  For the purposes of this quickstart we are using the `--insecure` flag which allows
+  us to skip configuring the HTTP/TLS certificate for Teleport proxy.
+  Never use `--insecure` in production. You must configure the HTTP/TLS proxy certificate.
 </Admonition>
 
 If successful, `tsh login` command will receive a user certificate for a given proxy
@@ -128,8 +131,11 @@ With a certificate in place, a user can SSH into any host behind the proxy:
 $ tsh ssh localhost
 ```
 
-<Admonition type="tip" title="Tip">
-To avoid typing "tsh ssh" a user may rename `tsh` binary to `ssh` and use the familiar syntax as in `ssh localhost`.
+<Admonition
+  type="tip"
+  title="Tip"
+>
+  To avoid typing "tsh ssh" a user may rename `tsh` binary to `ssh` and use the familiar syntax as in `ssh localhost`.
 </Admonition>
 
 ## Adding Nodes to Cluster
@@ -159,8 +165,11 @@ localhost     xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.1:3022
 new-node      xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.2:3022
 ```
 
-<Admonition type="tip" title="NOTE">
-Teleport also supports static pre-defined invitation tokens which can be set in the [configuration file](admin-guide.mdx#adding-nodes-to-the-cluster)
+<Admonition
+  type="tip"
+  title="NOTE"
+>
+  Teleport also supports static pre-defined invitation tokens which can be set in the [configuration file](admin-guide.mdx#adding-nodes-to-the-cluster)
 </Admonition>
 
 ## Using Node Labels
@@ -177,10 +186,10 @@ $ sudo teleport start --roles=node --auth-server=10.0.10.1 --nodename=db --label
 
 Notice a few things here:
 
-* We did not use `--token` flag this time, because this node is already a member of the cluster.
-* We explicitly named this node as "db" because this machine is running a database. This name only exists within Teleport, the actual hostname has not changed.
-* We assigned a static label "location" to this host and set it to "virginia".
-* We also assigned a dynamic label "arch" which will evaluate `/bin/uname -m` command once an hour and assign the output to this label value.
+- We did not use `--token` flag this time, because this node is already a member of the cluster.
+- We explicitly named this node as "db" because this machine is running a database. This name only exists within Teleport, the actual hostname has not changed.
+- We assigned a static label "location" to this host and set it to "virginia".
+- We also assigned a dynamic label "arch" which will evaluate `/bin/uname -m` command once an hour and assign the output to this label value.
 
 Let's take a look at our cluster now:
 
@@ -238,8 +247,11 @@ Also, people can join your session via terminal assuming they have Teleport inst
 $ tsh --proxy=teleport.example.com join 7645d523-60cb-436d-b732-99c5df14b7c4
 ```
 
-<Admonition type="tip" title="NOTE">
-For this to work, both of you must have proper user mappings allowing you access `db` under the same OS user.
+<Admonition
+  type="tip"
+  title="NOTE"
+>
+  For this to work, both of you must have proper user mappings allowing you access `db` under the same OS user.
 </Admonition>
 
 ## Running in Production
@@ -252,4 +264,3 @@ We hope this quickstart guide has helped you to quickly set up and play with Tel
 - Use a configuration file instead of command line flags because it gives you
   more flexibility.
 - Review the [Architecture Overview](architecture.mdx), [Admin Manual](admin-guide.mdx) and [User Manual](user-manual.mdx) for a better understanding of Teleport.
-

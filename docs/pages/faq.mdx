@@ -19,7 +19,7 @@ available unless the Teleport SSH daemon is present on all cluster nodes.
 ### Can I use OpenSSH with a Teleport cluster?
 
 Yes, this question comes up often and is related to the previous one. Take a
-look at [Using OpenSSH client](user-manual.mdx##using-teleport-with-openssh)
+look at [Using OpenSSH client](user-manual.mdx#using-openssh-client)
 section in the User Manual and [Using OpenSSH servers](admin-guide.mdx) in the
 Admin Manual.
 
@@ -52,10 +52,10 @@ Gravitational offers this feature for the [commercial versions of Teleport](ente
 
 The Teleport Enterprise offering gives users the following additional features:
 
-* Role-based access control, also known as [RBAC](enterprise#rbac).
-* Authentication via SAML and OpenID with providers like Okta, Active
+- Role-based access control, also known as [RBAC](enterprise.mdx#rbac).
+- Authentication via SAML and OpenID with providers like Okta, Active
   Directory, Auth0, etc. (aka, [SSO](http://localhost:6600/ssh-sso/)).
-* Premium support.
+- Premium support.
 
 We also offer implementation services, to help you integrate
 Teleport with your existing systems and processes.
@@ -70,8 +70,8 @@ commercial versions of Teleport may or may not be configured to send anonymized
 information to Gravitational, depending on the license purchased. This
 information contains the following:
 
-* Anonymized user ID: SHA256 hash of a username with a randomly generated prefix.
-* Anonymized server ID: SHA256 hash of a server IP with a randomly generated prefix.
+- Anonymized user ID: SHA256 hash of a username with a randomly generated prefix.
+- Anonymized server ID: SHA256 hash of a server IP with a randomly generated prefix.
 
 This allows Teleport Pro to print a warning if users are exceeding the usage limits
 of their license. The reporting library code is [on Github](https://github.com/gravitational/reporting).

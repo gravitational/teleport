@@ -7,14 +7,17 @@ This guide will cover how to configure an SSO provider using [OpenID Connect](ht
 When used in combination with role based access control (RBAC) it allows SSH
 administrators to define policies like:
 
-* Only members of "DBA" group can SSH into machines running PostgreSQL.
-* Developers must never SSH into production servers.
-* ... and many others.
+- Only members of "DBA" group can SSH into machines running PostgreSQL.
+- Developers must never SSH into production servers.
+- ... and many others.
 
-<Admonition type="warning" title="Version Warning">
-This guide requires a commercial edition of Teleport. The open source
-edition of Teleport only supports [Github](admin-guide/#github-oauth-20) as
-an SSO provider.
+<Admonition
+  type="warning"
+  title="Version Warning"
+>
+  This guide requires a commercial edition of Teleport. The open source
+  edition of Teleport only supports [Github](admin-guide.mdx#github-oauth-20) as
+  an SSO provider.
 </Admonition>
 
 ## Enable OIDC Authentication
@@ -35,9 +38,9 @@ Register Teleport with the external identity provider you will be using and
 obtain your `client_id` and `client_secret`. This information should be
 documented on the identity providers website. Here are a few links:
 
-   * [Auth0 Client Configuration](https://auth0.com/docs/clients)
-   * [Google Identity Platform](https://developers.google.com/identity/protocols/OpenIDConnect)
-   * [Keycloak Client Registration](https://www.keycloak.org/docs/latest/securing_apps/index.html#_client_registration)
+- [Auth0 Client Configuration](https://auth0.com/docs/clients)
+- [Google Identity Platform](https://developers.google.com/identity/protocols/OpenIDConnect)
+- [Keycloak Client Registration](https://www.keycloak.org/docs/latest/securing_apps/index.html#_client_registration)
 
 Add your OIDC connector information to `teleport.yaml`. A few examples are
 provided below.
@@ -54,7 +57,7 @@ should be `https://proxy.example.com:3080/v1/webapi/oidc/callback`
 ## OIDC connector configuration
 
 The next step is to add an OIDC connector to Teleport. The connectors are manipulated
-via `tctl` [resource commands](admin-guide#resources). To create a new connector,
+via `tctl` [resource commands](admin-guide.mdx#resources). To create a new connector,
 create a connector resource file in YAML format, for example `oidc-connector.yaml`.
 
 The file contents are shown below. This connector requests the scope `group`
@@ -102,7 +105,7 @@ $ tctl create oidc-connector.yaml
 ## Create Teleport Roles
 
 The next step is to define Teleport roles. They are created using the same
-`tctl` [resource commands](admin-guide#resources) as we used for the auth
+`tctl` [resource commands](admin-guide.mdx#resources) as we used for the auth
 connector.
 
 Below are two example roles that are mentioned above, the first is an admin
@@ -219,4 +222,3 @@ $ sudo journalctl -fu teleport
 
 If you wish to increase the verbocity of Teleport's syslog, you can pass
 `--debug` flag to `teleport start` command.
-
