@@ -228,6 +228,12 @@ auth_service:
     type: local
     # second_factor can be off, otp, or u2f
     second_factor: otp
+  
+  # If running the auth service behind a loadbalancer it is highly recommended to have the keepalive settings
+  # on your Teleport cluster match the value set on your loadbalancers
+  keep_alive_interval: 1m
+  keep_alive_count_max: 3  
+    
 ssh_service:
   enabled: "yes"
   labels:
