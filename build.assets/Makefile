@@ -286,8 +286,6 @@ docsbox:
 	docker pull $(DOCSBOX) || true
 
 .PHONY: test-docs
-test-docs: MAKEFILE_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
-test-docs: MAKEFILE_ROOT_DIR := $(shell readlink -f $(MAKEFILE_DIR)/..)
 test-docs: DOCS_VERSION := $(shell grep -E ^VERSION $(MAKEFILE_ROOT_DIR)/Makefile | cut -d= -f2 | cut -d. -f1-2)
 test-docs: docsbox
 	docker run -i $(NOROOT) -v $$(pwd)/..:/src/content/$(DOCS_VERSION) $(DOCSBOX) \
