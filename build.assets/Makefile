@@ -1,10 +1,6 @@
 #
 # This Makefile is used for producing official Teleport releases
 #
-DOCSBOX=teleport-docsbox:latest
-DOCSHOST=teleport-docs
-DOCSDIR=/teleport
-
 HOSTNAME=buildbox
 SRCDIR=/go/src/github.com/gravitational/teleport
 DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME)
@@ -27,6 +23,8 @@ BUILDBOX_CENTOS6=quay.io/gravitational/teleport-buildbox-centos6:$(RUNTIME)
 BUILDBOX_CENTOS6_FIPS=quay.io/gravitational/teleport-buildbox-centos6-fips:$(RUNTIME)
 BUILDBOX_ARM=quay.io/gravitational/teleport-buildbox-arm:$(RUNTIME)
 BUILDBOX_ARM_FIPS=quay.io/gravitational/teleport-buildbox-arm-fips:$(RUNTIME)
+
+DOCSBOX=node:12-slim
 
 ifneq ("$(KUBECONFIG)","")
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(KUBECONFIG):/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=$(TEST_KUBE)
@@ -77,8 +75,7 @@ build-binaries-fips: buildbox-fips
 		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) FIPS=yes full
 
 #
-# Builds a Docker container which is used for building official Teleport
-# binaries and docs
+# Builds a Docker container which is used for building official Teleport binaries
 #
 .PHONY:buildbox
 buildbox:
@@ -152,17 +149,6 @@ buildbox-arm-fips: buildbox-fips
 		--tag $(BUILDBOX_ARM_FIPS) -f Dockerfile-arm-fips .
 
 #
-# Builds a Docker container for building mkdocs documentation
-#
-.PHONY:
-docsbox:
-	docker build --build-arg UID=$$(id -u) \
-		         --build-arg GID=$$(id -g) \
-		         --build-arg USER=jenkins \
-	             --build-arg WORKDIR=$(DOCSDIR) \
-		         --tag $(DOCSBOX) -f docs.dockerfile .
-
-#
 # Removes the docker image
 #
 .PHONY:clean
@@ -201,43 +187,6 @@ integration-root: buildbox
 lint: buildbox
 	docker run $(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c "make -C $(SRCDIR) lint"
-
-#
-# Builds docs
-#
-.PHONY:docs
-docs: docsbox
-	docker run --rm=true $(NOROOT) \
-		-v $$(pwd)/..:$(DOCSDIR) \
-		-v /tmp:/tmp \
-		-w $(DOCSDIR) \
-		-h $(DOCSHOST) $(DOCSBOX) \
-		./docs/build.sh
-
-#
-# allows to enter into bash shell of docs container
-#
-.PHONY:
-enter-docs: docsbox
-	docker run --rm=true $(NOROOT) \
-		-v $$(pwd)/..:$(DOCSDIR) \
-		-v /tmp:/tmp \
-		-w $(DOCSDIR) \
-		-h $(DOCSHOST) \
-		-ti $(DOCSBOX) /bin/bash
-
-#
-# Runs docs website on localhost
-#
-.PHONY:run-docs
-run-docs: docsbox
-	docker run -ti $(NOROOT) \
-		-v $$(pwd)/..:$(DOCSDIR) \
-		-v /tmp:/tmp \
-		-e HOME=$(SRCDIR)/build.assets \
-		-p 6600:6600 \
-		-w $(DOCSDIR) \
-		$(DOCSBOX) docs/run.sh
 
 #
 # Starts shell inside the build container
@@ -328,3 +277,28 @@ release-arm64-fips: buildbox-arm-fips
 	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
 	docker run $(DOCKERFLAGS) $(BCCFLAGS) -i $(NOROOT) $(BUILDBOX_ARM_FIPS) \
 		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION)
+
+#
+# Run docs tester to detect problems.
+#
+.PHONY: docsbox
+docsbox:
+	docker pull $(DOCSBOX)
+
+.PHONY: test-docs
+test-docs: MAKEFILE_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
+test-docs: MAKEFILE_ROOT_DIR := $(shell readlink -f $(MAKEFILE_DIR)/..)
+test-docs: DOCS_VERSION := $(shell grep -E ^VERSION $(MAKEFILE_ROOT_DIR)/Makefile | cut -d= -f2 | cut -d. -f1-2)
+test-docs: DOCS_TEMP := $(shell mktemp -d --tmpdir=$(MAKEFILE_ROOT_DIR))
+test-docs: DOCS_TEMP_DIRNAME := $(shell basename $(DOCS_TEMP))
+test-docs: docsbox
+	@chown -R $(UID):$(GID) $(DOCS_TEMP)
+	cd $(DOCS_TEMP) && \
+		git clone https://github.com/gravitational/next . && \
+		rm -rf content/$(DOCS_VERSION) && \
+		ln -s $(MAKEFILE_ROOT_DIR) content/$(DOCS_VERSION)
+	bash -c " \
+		trap '{ rm -rf $(DOCS_TEMP); }' EXIT; \
+		docker run $(DOCKERFLAGS) -i $(NOROOT) $(DOCSBOX) \
+			/bin/sh -c \"yarn --cwd $(DOCS_TEMP_DIRNAME) && yarn --cwd $(DOCS_TEMP_DIRNAME) markdown-lint-external-links\" \
+	"
