@@ -1,7 +1,5 @@
 package main
 
-import "fmt"
-
 var (
 	triggerPullRequest = trigger{
 		Event: triggerRef{Include: []string{"pull_request"}},
@@ -23,17 +21,8 @@ var (
 	}
 )
 
-// getMakefileTarget gets the correct Makefile target for a given arch/fips combo
-func getMakefileTarget(params buildType) string {
-	makefileTarget := fmt.Sprintf("release-%s", params.arch)
-	if params.fips {
-		makefileTarget += "-fips"
-	}
-	return makefileTarget
-}
-
-// getBuildCheckoutCommands builds a list of commands for Drone to check out a git commit
-func getBuildCheckoutCommands(fips bool) []string {
+// buildCheckoutCommands builds a list of commands for Drone to check out a git commit
+func buildCheckoutCommands(fips bool) []string {
 	commands := []string{
 		`mkdir -p /go/src/github.com/gravitational/teleport /go/cache`,
 		`cd /go/src/github.com/gravitational/teleport`,

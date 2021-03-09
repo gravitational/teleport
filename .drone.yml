@@ -400,7 +400,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:50
+# Generated at dronegen/push.go:59
 ################################################
 
 kind: pipeline
@@ -496,7 +496,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:50
+# Generated at dronegen/push.go:59
 ################################################
 
 kind: pipeline
@@ -592,7 +592,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:50
+# Generated at dronegen/push.go:59
 ################################################
 
 kind: pipeline
@@ -690,7 +690,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:50
+# Generated at dronegen/push.go:59
 ################################################
 
 kind: pipeline
@@ -883,7 +883,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:50
+# Generated at dronegen/push.go:59
 ################################################
 
 kind: pipeline
@@ -979,7 +979,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:50
+# Generated at dronegen/push.go:59
 ################################################
 
 kind: pipeline
@@ -1077,7 +1077,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:50
+# Generated at dronegen/push.go:59
 ################################################
 
 kind: pipeline
@@ -1173,7 +1173,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:50
+# Generated at dronegen/push.go:59
 ################################################
 
 kind: pipeline
@@ -4355,6 +4355,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 86a2048371b2ce8d89a0d1c5035c6c7ae63b5e04ac01a1d94db78a339f9273b5
+hmac: c6b4ffef788718d08916fd620c2e6a0d06f4e145dcab63286a935c0e3491ff6a
 
 ...

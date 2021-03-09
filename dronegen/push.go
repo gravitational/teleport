@@ -8,6 +8,15 @@ type buildType struct {
 	fips bool
 }
 
+// makefileTarget gets the correct Makefile target for a given arch/fips combo
+func makefileTarget(params buildType) string {
+	makefileTarget := fmt.Sprintf("release-%s", params.arch)
+	if params.fips {
+		makefileTarget += "-fips"
+	}
+	return makefileTarget
+}
+
 // pushPipelines builds all applicable push pipeline combinations
 func pushPipelines() []pipeline {
 	var ps []pipeline
@@ -77,7 +86,7 @@ func pushPipeline(params buildType) pipeline {
 			Volumes: []volumeRef{
 				volumeRefTmpfs,
 			},
-			Commands: getBuildCheckoutCommands(params.fips),
+			Commands: buildCheckoutCommands(params.fips),
 		},
 		{
 			Name:        "Build artifacts",
@@ -90,7 +99,7 @@ func pushPipeline(params buildType) pipeline {
 				`apk add --no-cache make`,
 				`chown -R $UID:$GID /go`,
 				`cd /go/src/github.com/gravitational/teleport`,
-				fmt.Sprintf(`make -C build.assets %s`, getMakefileTarget(params)),
+				fmt.Sprintf(`make -C build.assets %s`, makefileTarget(params)),
 			},
 		},
 		{
