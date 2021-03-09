@@ -54,8 +54,7 @@ func testCodePipeline() pipeline {
 				`mkdir -p /tmpfs/go/src/github.com/gravitational/teleport /tmpfs/go/cache`,
 				`cd /tmpfs/go/src/github.com/gravitational/teleport`,
 				`git init && git remote add origin ${DRONE_REMOTE_URL}`,
-				`
-# handle pull requests
+				`# handle pull requests
 if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
   git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
   git checkout ${DRONE_COMMIT_BRANCH}
@@ -82,8 +81,7 @@ fi
 				// use the Github API to check whether this PR comes from a
 				// forked repo or not.
 				// if it does, don't check out the Enterprise code.
-				`
-if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
+				`if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
   apk add --no-cache curl jq
   export PR_REPO=$(curl -Ls https://api.github.com/repos/gravitational/${DRONE_REPO_NAME}/pulls/${DRONE_PULL_REQUEST} | jq -r '.head.repo.full_name')
   echo "---> Source repo for PR ${DRONE_PULL_REQUEST}: $${PR_REPO}"
@@ -145,8 +143,7 @@ fi
 				volumeRefTmpfs,
 			},
 			Commands: []string{
-				`
-cd /tmpfs/go/src/github.com/gravitational/teleport
+				`cd /tmpfs/go/src/github.com/gravitational/teleport
 echo -e "\n---> git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master}\n"
 git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master}
 git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -Ev '^docs/' | grep -Ev '.mdx$' | grep -Ev '.md$' | grep -v ^$ | wc -l > /tmp/.change_count.txt
@@ -247,8 +244,7 @@ func testDocsPipeline(external bool) pipeline {
 				`mkdir -p /tmpfs/go/src/github.com/gravitational/teleport`,
 				`cd /tmpfs/go/src/github.com/gravitational/teleport`,
 				`git init && git remote add origin ${DRONE_REMOTE_URL}`,
-				`
-# handle pull requests
+				`# handle pull requests
 if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
   git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
   git checkout ${DRONE_COMMIT_BRANCH}
@@ -280,8 +276,7 @@ fi
 			Commands: []string{
 				`cd /tmpfs/go/src/github.com/gravitational/teleport`,
 				`git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt`,
-				fmt.Sprintf(`
-if [ $(stat --printf="%%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
+				fmt.Sprintf(`if [ $(stat --printf="%%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
   echo "---> Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
   # Check trailing whitespace
   make docs-test-whitespace
