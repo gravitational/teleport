@@ -1,60 +1,53 @@
 # Teleport Docs
 
-Teleport docs are built using [mkdocs](http://www.mkdocs.org/) and hosted
-as a bunch of static files in S3.
+Teleport docs are built using [next.js](https://github.com/gravitational/next) and hosted using vercel.com
 
-Look at `build.sh` script to see how it works.
+## Writing guide
+
+[Please read the guide on docs](https://goteleport.com/teleport/docs/docs/)
 
 ## To Publish New Version
 
-* Update [build.sh](build.sh).
-* Update theme/scripts.html to add a new version to the docVersions array of versions
-* Create a new YAML file, like `4.3` if you are releasing version 4.3.
-
-## Deploying
-
-Teleport docs are published using a private `web` repository.
-See `web/README.md` for more info.
+Publishing is happening automatically once you merge PR to `master` branch.
 
 ## Running Locally
 
-We recommend using Docker to run and build the docs.
+We recommend using node directly to run local version.
+It is much faster and has less problems than docker based version.
 
-`make run-docs` will run the docs and setup a [livereload server](https://chrome.google.com/webstore/detail/livereload/jnihajbhpnppcggbcgedagnkighmdlei?hl=en) for easy previewing of changes.
+Local development is done from `https://github.com/gravitational/next` repository.
 
-`make docs` will build the docs, so they are ready to ship to production.
+### Getting Started
 
+**Requirements**
 
-## Tools used to build the Docs
-
-Teleport Docs are made with MkDocs and a few markdown extensions, First time users will need to install MkDocs https://www.mkdocs.org/#installation.
-
-To run the latest version of the docs on [http://127.0.0.1:8000](http://127.0.0.1:8000/quickstart):
-
-```bash
-$ ./run.sh
-```
-
-To run a specific version of the docs:
+ Node > 14.x
+ Linux or Mac
+ 
+**Installing**
 
 ```bash
-$ mkdocs serve --config-file 4.3.yaml
+# Install NVM
+# https://github.com/nvm-sh/nvm#installing-and-updating
+$ curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.37.2/install.sh | bash
+# Install node
+$ nvm install node --lts
+$ nvm use system
+$ npm install --global yarn
+$ git clone https://github.com/gravitational/next.git 
+$ cd next
+$ yarn install
+$ git submodule init
+$ git submodule update
+$ yarn dev
+# go to http://localhost:3000/teleport/docs
 ```
 
-## Checking for bad links
+**Running your local version**
 
-Install [milv (Markdown Internal Link Validator)](https://github.com/magicmatatjahu/milv) using `go get -u -v github.com/magicmatatjahu/milv`.
+To checkout version of Teleport's docs:
 
-Change to the appropriate base directory, then run `milv` and make sure it reports no errors:
-
-```bash
-$ cd docs/4.1`
-$ milv
-NO ISSUES :-)
 ```
-
-`milv` will validate all internal and external links by default. The external link checking can take 30 seconds or so to run. You can run `milv -v` to see all outgoing requests if you think it's taking too long. You can also skip external link checking altogether with `milv --ignore-external` - this can be useful if you're rapidly trying to fix internal links.
-
-Make sure that you fix any broken links or errors before committing your changes!
-
-If there is a genuine false positive or case where `milv` is failing to parse a link correctly but it does work (and you have validated this using `make run-docs` or `mkdocs serve`) then you can add a whitelist under the appropriate section in `milv.config.yaml` and commit this back to the repo.
+$ cd next/content/teleport
+$ git checkout your branch
+```
