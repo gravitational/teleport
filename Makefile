@@ -46,8 +46,8 @@ endif
 
 GO_LINTERS ?= "unused,govet,typecheck,deadcode,goimports,varcheck,structcheck,bodyclose,staticcheck,ineffassign,unconvert,misspell,gosimple,golint"
 
-OS ?= $(shell go env GOOS)
-ARCH ?= $(shell go env GOARCH)
+OS := $(shell go env GOOS)
+ARCH := $(shell go env GOARCH)
 FIPS ?=
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
 
@@ -177,6 +177,23 @@ ifeq ("$(OS)", "windows")
 else
 	$(MAKE) --no-print-directory release-unix
 endif
+
+# These are aliases used to make build commands uniform.
+.PHONY: release-amd64
+release-amd64:
+	$(MAKE) release ARCH=amd64
+
+.PHONY: release-386
+release-386:
+	$(MAKE) release ARCH=386
+
+.PHONY: release-arm
+release-arm:
+	$(MAKE) release ARCH=arm
+
+.PHONY: release-arm64
+release-arm64:
+	$(MAKE) release ARCH=arm64
 
 #
 # make release-unix - Produces a binary release tarball containing teleport,
