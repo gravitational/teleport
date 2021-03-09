@@ -708,9 +708,27 @@ message UserSingleUseCertsResponse {
     oneof Response {
         MFAAuthenticateChallenge MFAChallenge = 1;
         SingleUseUserCert Cert = 2;
-        SingleUseUserCertNotNeeded NotNeeded = 3;
     }
 }
+
+// IsMFARequiredRequest is a request to check whether MFA is required to access
+// the Target.
+message IsMFARequiredRequest {
+    // Username of the caller.
+    string Username = 1;
+    oneof Target {
+        // KubernetesCluster specifies the target kubernetes cluster.
+        string KubernetesCluster = 2;
+        // RouteToDatabase specifies the target database proxy name.
+        RouteToDatabase Database = 3;
+        // NodeName specifies the target SSH node. This can be node's hostname or
+        // UUID.
+        string Node = 4;
+    }
+}
+
+// IsMFARequiredResponse is a response for MFA requirement check.
+message IsMFARequiredResponse { bool Required = 1; }
 
 // SingleUseUserCert is a single-use user certificate, either SSH or TLS.
 message SingleUseUserCert {
@@ -719,12 +737,6 @@ message SingleUseUserCert {
         bytes TLS = 2;
     }
 }
-
-// SingleUseUserCertNotNeeded is a flag message to indicate that the user can
-// access a resource (ssh/kube/db/app) without the MFA challenge.
-//
-// It is used to avoid checking whether MFA is needed client-side.
-message SingleUseUserCertNotNeeded {}
 
 // AuthService is authentication/authorization service implementation
 service AuthService {
@@ -740,6 +752,9 @@ service AuthService {
     // certificates.
     rpc GenerateUserSingleUseCerts(stream UserSingleUseCertsRequest)
         returns (stream UserSingleUseCertsResponse);
+    // IsMFARequired checks whether MFA is required to access the specified
+    // target.
+    rpc IsMFARequired(IsMFARequiredRequest) returns (IsMFARequiredResponse);
     // GetUser gets a user resource by name.
     rpc GetUser(GetUserRequest) returns (types.UserV2);
     // GetUsers gets all current user resources.

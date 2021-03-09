@@ -18,6 +18,8 @@ package auth
 
 import (
 	"context"
+	"errors"
+	"net"
 	"net/url"
 	"time"
 
@@ -66,7 +68,10 @@ func (a *ServerWithRoles) action(namespace string, resource string, action strin
 // even if they are not admins, e.g. update their own passwords,
 // or generate certificates, otherwise it will require admin privileges
 func (a *ServerWithRoles) currentUserAction(username string) error {
-	if a.hasLocalUserRole(a.context.Checker) && username == a.context.User.GetName() {
+	if hasLocalUserRole(a.context.Checker) && username == a.context.Identity.GetIdentity().Username {
+		return nil
+	}
+	if hasRemoteUserRole(a.context.Checker) && username == a.context.UnmappedIdentity.GetIdentity().Username {
 		return nil
 	}
 	return utils.OpaqueAccessDenied(
@@ -120,12 +125,17 @@ func (a *ServerWithRoles) hasRemoteBuiltinRole(name string) bool {
 	return true
 }
 
+// hasRemoteUserRole checks if the type of the role set is a remote user or
+// not.
+func hasRemoteUserRole(checker services.AccessChecker) bool {
+	_, ok := checker.(RemoteUserRoleSet)
+	return ok
+}
+
 // hasLocalUserRole checks if the type of the role set is a local user or not.
-func (a *ServerWithRoles) hasLocalUserRole(checker services.AccessChecker) bool {
-	if _, ok := checker.(LocalUserRoleSet); !ok {
-		return false
-	}
-	return true
+func hasLocalUserRole(checker services.AccessChecker) bool {
+	_, ok := checker.(LocalUserRoleSet)
+	return ok
 }
 
 // AuthenticateWebUser authenticates web user, creates and returns a web session
@@ -1179,7 +1189,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		}
 		roles = user.GetRoles()
 		traits = user.GetTraits()
-	case req.Username == a.context.UnmappedIdentity.GetIdentity().Username:
+	case req.Username == a.context.User.GetName():
 		// user is requesting TTL for themselves,
 		// limit the TTL to the duration of the session, to prevent
 		// users renewing their certificates forever
@@ -2599,6 +2609,129 @@ func (a *ServerWithRoles) DeleteMFADevice(ctx context.Context) (proto.AuthServic
 // client.Client.GenerateUserSingleUseCerts instead.
 func (a *ServerWithRoles) GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error) {
 	return nil, trace.NotImplemented("bug: GenerateUserSingleUseCerts must not be called on auth.ServerWithRoles")
+}
+
+func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+	if err := a.currentUserAction(req.Username); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var noMFAAccessErr, notFoundErr error
+	switch t := req.Target.(type) {
+	case *proto.IsMFARequiredRequest_Node:
+		notFoundErr = trace.NotFound("node %q not found", t.Node)
+		if t.Node == "" {
+			return nil, trace.BadParameter("empty Node field")
+		}
+		// Find the target node and check whether MFA is required.
+		nodes, err := a.GetNodes(defaults.Namespace, services.SkipValidation())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		var matches []types.Server
+		for _, n := range nodes {
+			// Get the server address without port number.
+			addr, _, err := net.SplitHostPort(n.GetAddr())
+			if err != nil {
+				addr = n.GetAddr()
+			}
+			// Match NodeName to UUID, hostname or self-reported server address.
+			if n.GetName() == t.Node || n.GetHostname() == t.Node || addr == t.Node {
+				matches = append(matches, n)
+			}
+		}
+		if len(matches) == 0 {
+			// If t.Node is not a known registered node, it may be an
+			// unregistered host running OpenSSH with a certificate created via
+			// `tctl auth sign`. In these cases, let the user through without
+			// extra checks.
+			//
+			// If t.Node turns out to be an alias for a real node (e.g.
+			// private network IP), and MFA check was actually required, the
+			// Node itself will check the cert extensions and reject the
+			// connection.
+			return &proto.IsMFARequiredResponse{Required: false}, nil
+		}
+		if len(matches) > 1 {
+			// We need to include the special placeholder NodeIsAmbiguous for a
+			// few client and test checks that handle it.
+			return nil, trace.BadParameter("%s: multiple nodes match %q, please use the node UUID to login instead", teleport.NodeIsAmbiguous, t.Node)
+		}
+		noMFAAccessErr = a.context.Checker.CheckAccessToServer(req.Username, matches[0], false)
+
+	case *proto.IsMFARequiredRequest_KubernetesCluster:
+		notFoundErr = trace.NotFound("kubernetes cluster %q not found", t.KubernetesCluster)
+		if t.KubernetesCluster == "" {
+			return nil, trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
+		}
+		// Find the target cluster and check whether MFA is required.
+		svcs, err := a.authServer.GetKubeServices(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		var cluster *types.KubernetesCluster
+	outer:
+		for _, svc := range svcs {
+			for _, c := range svc.GetKubernetesClusters() {
+				if c.Name == t.KubernetesCluster {
+					cluster = c
+					break outer
+				}
+			}
+		}
+		if cluster == nil {
+			return nil, trace.Wrap(notFoundErr)
+		}
+		noMFAAccessErr = a.context.Checker.CheckAccessToKubernetes(defaults.Namespace, cluster, false)
+
+	case *proto.IsMFARequiredRequest_Database:
+		notFoundErr = trace.NotFound("database service %q not found", t.Database.ServiceName)
+		if t.Database.ServiceName == "" {
+			return nil, trace.BadParameter("missing ServiceName field in a database-only UserCertsRequest")
+		}
+		dbs, err := a.authServer.GetDatabaseServers(ctx, defaults.Namespace, services.SkipValidation())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		var db types.DatabaseServer
+		for _, d := range dbs {
+			if d.GetName() == t.Database.ServiceName {
+				db = d
+				break
+			}
+		}
+		if db == nil {
+			return nil, trace.Wrap(notFoundErr)
+		}
+		noMFAAccessErr = a.context.Checker.CheckAccessToDatabase(db, false)
+
+	default:
+		return nil, trace.BadParameter("unknown Target %T", req.Target)
+	}
+	// No error means that MFA is not required for this resource by
+	// AccessChecker.
+	if noMFAAccessErr == nil {
+		return &proto.IsMFARequiredResponse{Required: false}, nil
+	}
+	// Errors other than ErrSessionMFARequired mean something else is wrong,
+	// most likely access denied.
+	if !errors.Is(noMFAAccessErr, services.ErrSessionMFARequired) {
+		if trace.IsAccessDenied(noMFAAccessErr) {
+			log.Infof("Access to resource denied: %v", noMFAAccessErr)
+			// notFoundErr should always be set by this point, but check it
+			// just in case.
+			if notFoundErr == nil {
+				notFoundErr = trace.NotFound("target resource not found")
+			}
+			// Mask access denied errors to prevent resource name oracles.
+			return nil, trace.Wrap(notFoundErr)
+		}
+		return nil, trace.Wrap(noMFAAccessErr)
+	}
+	// If we reach here, the error from AccessChecker was
+	// ErrSessionMFARequired.
+
+	return &proto.IsMFARequiredResponse{Required: true}, nil
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

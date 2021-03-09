@@ -158,6 +158,21 @@ func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
 	}
 }
 
+func (p ReissueParams) isMFARequiredRequest(username string) *proto.IsMFARequiredRequest {
+	req := &proto.IsMFARequiredRequest{
+		Username: username,
+	}
+	switch {
+	case p.NodeName != "":
+		req.Target = &proto.IsMFARequiredRequest_Node{Node: p.NodeName}
+	case p.KubernetesCluster != "":
+		req.Target = &proto.IsMFARequiredRequest_KubernetesCluster{KubernetesCluster: p.KubernetesCluster}
+	case p.RouteToDatabase.ServiceName != "":
+		req.Target = &proto.IsMFARequiredRequest_Database{Database: &p.RouteToDatabase}
+	}
+	return req
+}
+
 // ReissueUserCerts generates certificates for the user
 // that have a metadata instructing server to route the requests to the cluster
 func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, params ReissueParams) error {
@@ -238,12 +253,6 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, params ReissuePa
 
 // IssueUserCertsWithMFA generates a single-use certificate for the user.
 func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams) (*Key, error) {
-	clt, err := proxy.ConnectToCurrentCluster(ctx, true)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer clt.Close()
-
 	localAgent := proxy.teleportClient.LocalAgent()
 	key, err := localAgent.GetKey(WithKubeCerts(params.RouteToCluster))
 	if err != nil {
@@ -252,6 +261,39 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	cert, err := key.SSHCert()
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	tlsCert, err := key.TeleportTLSCertificate()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rootClusterName, err := tlsca.ClusterName(tlsCert.Issuer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if params.RouteToCluster == "" {
+		params.RouteToCluster = rootClusterName
+	}
+
+	// Note: always connect to root for getting new credentials.
+	clt, err := proxy.ConnectToCluster(ctx, params.RouteToCluster, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer clt.Close()
+	requiredCheck, err := clt.IsMFARequired(ctx, params.isMFARequiredRequest(proxy.hostLogin))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !requiredCheck.Required {
+		log.Debug("MFA not required for access.")
+		// MFA is not required.
+		// SSH certs can be used without embedding the node name.
+		if params.usage() == proto.UserCertsRequest_SSH {
+			return key, nil
+		}
+		// All other targets need their name embedded in the cert for routing,
+		// fall back to non-MFA reissue.
+		return proxy.reissueUserCerts(ctx, params)
 	}
 
 	if len(params.AccessRequests) == 0 {
@@ -264,6 +306,17 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 			}
 		}
 		params.AccessRequests = activeRequests.AccessRequests
+	}
+
+	// Always connect to root for getting new credentials, but attempt to reuse
+	// the existing client if possible.
+	if params.RouteToCluster != rootClusterName {
+		clt.Close()
+		clt, err = proxy.ConnectToCluster(ctx, rootClusterName, true)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		defer clt.Close()
 	}
 
 	log.Debug("Attempting to issue a single-use user certificate with an MFA check.")
@@ -306,17 +359,6 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	resp, err := stream.Recv()
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	if resp.GetNotNeeded() != nil {
-		log.Debug("MFA not required for access.")
-		// MFA is not required.
-		// SSH certs can be used without embedding the node name.
-		if initReq.Usage == proto.UserCertsRequest_SSH {
-			return key, nil
-		}
-		// All other targets need their name embedded in the cert for routing,
-		// fall back to non-MFA reissue.
-		return proxy.reissueUserCerts(ctx, params)
 	}
 	mfaChal := resp.GetMFAChallenge()
 	if mfaChal == nil {

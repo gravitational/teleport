@@ -793,3 +793,11 @@ func (c *Client) GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthServ
 	}
 	return stream, nil
 }
+
+func (c *Client) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+	resp, err := c.grpc.IsMFARequired(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}

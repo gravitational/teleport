@@ -864,10 +864,9 @@ func testGenerateUserSingleUseCert(ctx context.Context, t *testing.T, cl *Client
 	require.NoError(t, stream.CloseSend())
 }
 
-func TestGenerateUserSingleUseCertMFANotRequired(t *testing.T) {
+func TestIsMFARequired(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
-	clock := srv.Clock()
 
 	// Enable MFA support.
 	authPref, err := services.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -897,7 +896,7 @@ func TestGenerateUserSingleUseCertMFANotRequired(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a fake user.
-	user, role, err := CreateUserAndRole(srv.Auth(), "mfa-user", []string{"role"})
+	user, role, err := CreateUserAndRole(srv.Auth(), "no-mfa-user", []string{"role"})
 	require.NoError(t, err)
 	// Make sure MFA is NOT required for this user.
 	roleOpt := role.GetOptions()
@@ -909,23 +908,10 @@ func TestGenerateUserSingleUseCertMFANotRequired(t *testing.T) {
 	cl, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
 
-	_, pub, err := srv.Auth().GenerateKeyPair("")
+	resp, err := cl.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
+		Username: user.GetName(),
+		Target:   &proto.IsMFARequiredRequest_Node{Node: "node-a"},
+	})
 	require.NoError(t, err)
-
-	stream, err := cl.GenerateUserSingleUseCerts(ctx)
-	require.NoError(t, err)
-	err = stream.Send(&proto.UserSingleUseCertsRequest{Request: &proto.UserSingleUseCertsRequest_Init{
-		Init: &proto.UserCertsRequest{
-			PublicKey: pub,
-			Username:  user.GetName(),
-			Expires:   clock.Now().Add(teleport.UserSingleUseCertTTL),
-			Usage:     proto.UserCertsRequest_SSH,
-			NodeName:  "node-a",
-		},
-	}})
-	require.NoError(t, err)
-
-	resp, err := stream.Recv()
-	require.NoError(t, err)
-	require.NotNil(t, resp.GetNotNeeded())
+	require.False(t, resp.Required)
 }
