@@ -47,7 +47,7 @@ implementation and it is _fully compatible with OpenSSH_ and can be used with
 | [Forum](https://github.com/gravitational/teleport/discussions) | Ask us a setup question, post your tutorial, feedback or idea on our forum. |
 | [Slack](https://goteleport.com/slack) | Need help with set-up? Ping us in Slack channel. |
 
-[![Teleport 6.0 Demo](/docs/6.0/img/readme/teleport-6.0-video-thumb.png)](https://www.youtube.com/watch?v=0HlyGk8dihM)
+[![Teleport 6.0 Demo](/docs/img/readme/teleport-6.0-video-thumb.png)](https://www.youtube.com/watch?v=0HlyGk8dihM)
 
 ## Installing and Running
 
