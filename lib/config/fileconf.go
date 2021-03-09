@@ -459,7 +459,7 @@ type Log struct {
 	Output string `yaml:"output,omitempty"`
 	// Severity defines how verbose the log will be. Possible valus are "error", "info", "warn"
 	Severity string `yaml:"severity,omitempty"`
-	// Format defines the format in which each log line will be outputted. Example format: "{{timestamp}} {{component}} {{message}}"
+	// Format defines the format in which each log line will be outputted. Example format: [timestamp, component, message]
 	Format []string `yaml:"format,omitempty"`
 }
 

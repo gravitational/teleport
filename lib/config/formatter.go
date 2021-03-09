@@ -48,7 +48,7 @@ type textFormatter struct {
 
 // DefaultLoggerFormat is the default format in which to display logs (i.e. log.format in teleport.yaml is empty)
 var DefaultLoggerFormat = []string{"level", "component", "message", "caller"}
-var re = regexp.MustCompile(`[a-zA-Z]*`)
+var re = regexp.MustCompile(`[a-z]*`)
 
 type writer struct {
 	bytes.Buffer
