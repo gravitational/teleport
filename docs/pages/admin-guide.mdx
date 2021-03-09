@@ -229,8 +229,9 @@ auth_service:
     # second_factor can be off, otp, or u2f
     second_factor: otp
   
-  # If running the auth service behind a loadbalancer it is highly recommended to have the keepalive settings
-  # on your Teleport cluster match the value set on your loadbalancers
+  # If running the auth service behind a load balancer, it is highly recommended to have the keepalive settings
+  # on your Teleport cluster match the value set on your load balancers.
+  # The default keep alive interval is 300 seconds.
   keep_alive_interval: 1m
   keep_alive_count_max: 3  
     
