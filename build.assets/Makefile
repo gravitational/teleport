@@ -24,7 +24,7 @@ BUILDBOX_CENTOS6_FIPS=quay.io/gravitational/teleport-buildbox-centos6-fips:$(RUN
 BUILDBOX_ARM=quay.io/gravitational/teleport-buildbox-arm:$(RUNTIME)
 BUILDBOX_ARM_FIPS=quay.io/gravitational/teleport-buildbox-arm-fips:$(RUNTIME)
 
-DOCSBOX=node:12-slim
+DOCSBOX=quay.io/gravitational/next:main
 
 ifneq ("$(KUBECONFIG)","")
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(KUBECONFIG):/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=$(TEST_KUBE)
@@ -283,21 +283,12 @@ release-arm64-fips: buildbox-arm-fips
 #
 .PHONY: docsbox
 docsbox:
-	docker pull $(DOCSBOX)
+	docker pull $(DOCSBOX) || true
 
 .PHONY: test-docs
 test-docs: MAKEFILE_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 test-docs: MAKEFILE_ROOT_DIR := $(shell readlink -f $(MAKEFILE_DIR)/..)
 test-docs: DOCS_VERSION := $(shell grep -E ^VERSION $(MAKEFILE_ROOT_DIR)/Makefile | cut -d= -f2 | cut -d. -f1-2)
-test-docs: DOCS_TEMP := $(shell mktemp -d -p $(MAKEFILE_ROOT_DIR))
-test-docs: DOCS_TEMP_DIRNAME := $(shell basename $(DOCS_TEMP))
 test-docs: docsbox
-	@chown -R $(UID):$(GID) $(DOCS_TEMP)
-	bash -c " \
-		trap '{ rm -rf $(DOCS_TEMP); }' EXIT; \
-		cd $(DOCS_TEMP) && \
-		git clone https://github.com/gravitational/next . && \
-		cp -r $(MAKEFILE_ROOT_DIR)/docs content/$(DOCS_VERSION)/docs && \
-		docker run $(DOCKERFLAGS) -i $(NOROOT) $(DOCSBOX) \
-			/bin/sh -c \"yarn --cwd $(DOCS_TEMP_DIRNAME) && yarn --cwd $(DOCS_TEMP_DIRNAME) markdown-lint-external-links\" \
-	"
+	docker run -i $(NOROOT) -v $$(pwd)/..:/src/content/$(DOCS_VERSION) $(DOCSBOX) \
+		/bin/sh -c "yarn markdown-lint-external-links"
