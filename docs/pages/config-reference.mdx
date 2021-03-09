@@ -60,7 +60,7 @@ teleport:
     log:
         output: /var/lib/teleport/teleport.log
         severity: ERROR
-        format: "{{level}} {{timestamp}} {{component}} {{message}}"
+        format: [level, timestamp, component, message]
 
     # Configuration for the storage back-end used for the cluster state and the
     # audit log. Several back-end types are supported. See the "High Availability"
