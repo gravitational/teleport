@@ -231,7 +231,7 @@ docs-fix-whitespace:
 # Test docs for trailing whitespace and broken links
 #
 .PHONY:docs-test
-docs-test: docs-test-whitespace docs-test-links
+docs-test: docs-test-whitespace
 
 #
 # Check for trailing whitespace in all markdown files under docs/

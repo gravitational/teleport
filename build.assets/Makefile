@@ -289,16 +289,16 @@ docsbox:
 test-docs: MAKEFILE_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 test-docs: MAKEFILE_ROOT_DIR := $(shell readlink -f $(MAKEFILE_DIR)/..)
 test-docs: DOCS_VERSION := $(shell grep -E ^VERSION $(MAKEFILE_ROOT_DIR)/Makefile | cut -d= -f2 | cut -d. -f1-2)
-test-docs: DOCS_TEMP := $(shell mktemp -d --tmpdir=$(MAKEFILE_ROOT_DIR))
+test-docs: DOCS_TEMP := $(shell mktemp -d -p $(MAKEFILE_ROOT_DIR))
 test-docs: DOCS_TEMP_DIRNAME := $(shell basename $(DOCS_TEMP))
 test-docs: docsbox
 	@chown -R $(UID):$(GID) $(DOCS_TEMP)
-	cd $(DOCS_TEMP) && \
-		git clone https://github.com/gravitational/next . && \
-		rm -rf content/$(DOCS_VERSION) && \
-		ln -s $(MAKEFILE_ROOT_DIR) content/$(DOCS_VERSION)
 	bash -c " \
 		trap '{ rm -rf $(DOCS_TEMP); }' EXIT; \
+		cd $(DOCS_TEMP) && \
+		git clone https://github.com/gravitational/next . && \
+		rm -rf content/$(DOCS_VERSION) && \
+		ln -s $(MAKEFILE_ROOT_DIR) content/$(DOCS_VERSION) && \
 		docker run $(DOCKERFLAGS) -i $(NOROOT) $(DOCSBOX) \
 			/bin/sh -c \"yarn --cwd $(DOCS_TEMP_DIRNAME) && yarn --cwd $(DOCS_TEMP_DIRNAME) markdown-lint-external-links\" \
 	"
