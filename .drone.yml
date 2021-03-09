@@ -267,7 +267,7 @@ steps:
         fi
 
   - name: Run docs tests
-    image: golang:1.15.5
+    image: docker:git
     environment:
       UID: 1000
       GID: 1000
@@ -279,6 +279,7 @@ steps:
         path: /tmpfs
     commands:
       - |
+        apk add --no-cache make
         cd /tmpfs/go/src/github.com/gravitational/teleport
         chown -R $UID:$GID /tmpfs/go
         git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | { grep -v ^$ || true; } > /tmp/docs-changes.txt
@@ -288,7 +289,6 @@ steps:
           echo "---> Checking for trailing whitespace"
           make docs-test-whitespace
           echo "---> Checking for dead links"
-          apt-get -y update && apt-get -y install docker.io
           make -C build.assets test-docs
         else
           echo "---> No changes to docs detected, not running tests"
@@ -4316,6 +4316,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 8ff57c4ccc4dcfaee63e82a53ff92b1170b7fcbe532f2d673583361e8d5ca4b7
+hmac: ec68269933efb56e5a8549b734ac085f83344750945dfe1dcd699c5ffe762f30
 
 ...
