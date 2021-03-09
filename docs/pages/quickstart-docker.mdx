@@ -84,7 +84,7 @@ docker run --hostname localhost --name teleport \
 To create a user inside your Teleport container, use `docker exec`.
 
 This example command will create a Teleport user called `testuser` which is allowed to log in as either OS user `root` or `ubuntu`. Feel free to change these to suit your needs -
-[there are more instructions above in Step 3](quickstart.mdx) if you'd like additional details):
+[there are more instructions above in Step 3](getting-started.mdx) if you'd like additional details):
 
 ```bash
 docker exec teleport tctl users add testuser root,ubuntu
@@ -99,5 +99,5 @@ https://localhost:3080/web/invite/4f2718a52ce107568b191f222ba069f7
 NOTE: Make sure localhost:3080 points at a Teleport proxy which users can access.
 ```
 
-You can now [follow this guide from Step 4 onwards](quickstart.mdx) to
+You can now [follow this guide from Step 4 onwards](getting-started.mdx) to
 create your user and log into Teleport.
