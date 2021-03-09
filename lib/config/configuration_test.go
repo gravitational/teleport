@@ -1363,3 +1363,50 @@ func TestDatabaseFlags(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckAndSetDefaults(t *testing.T) {
+	tests := []struct {
+		comment      string
+		formatConfig string
+		hasError     bool
+	}{
+		{
+			comment:      "invalid key (does not exist)",
+			formatConfig: "{{level}} {{invalidkey}}",
+			hasError:     true,
+		},
+		{
+			comment:      "invalid log formatting, no curly braces with valid keys",
+			formatConfig: "level component",
+			hasError:     true,
+		},
+		{
+			comment:      "invalid log formatting, inconsistent curly braces with valid keys",
+			formatConfig: "{level}} {component}",
+			hasError:     true,
+		},
+		{
+			comment:      "valid keys and formatting",
+			formatConfig: "{{level}} {{component}} {{message}}",
+			hasError:     false,
+		},
+		{
+			comment:      "valid keys and formatting with inconsistent spacing",
+			formatConfig: "{{level}} {{message   }}",
+			hasError:     false,
+		},
+	}
+
+	formatter := &teleportFormatter{}
+	for _, tt := range tests {
+		t.Run(tt.comment, func(t *testing.T) {
+			err := formatter.CheckAndSetDefaults(tt.formatConfig)
+			if tt.hasError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+
+}

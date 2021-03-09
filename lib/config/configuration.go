@@ -445,6 +445,7 @@ const (
 
 // DefaultLoggerFormat is the default format in which to display logs (i.e. log.format in teleport.yaml is empty)
 var DefaultLoggerFormat = []string{"level", "component", "message", "caller"}
+var re = regexp.MustCompile(`(?m){{([a-zA-Z\s]*)}}+`)
 
 type writer struct {
 	bytes.Buffer
@@ -452,7 +453,6 @@ type writer struct {
 
 // CheckAndSetDefaults checks and sets log format configuration
 func (tf *teleportFormatter) CheckAndSetDefaults(logFormatInput string) error {
-	values := map[string]bool{"level": true, "component": true, "message": true, "caller": true, "timestamp": true}
 	// set formatter
 	// always set timestamp to true because later we can omit it if not used in config
 	tf.Formatter = log.TextFormatter{
@@ -470,20 +470,37 @@ func (tf *teleportFormatter) CheckAndSetDefaults(logFormatInput string) error {
 	// set log formatting
 	if logFormatInput == "" {
 		tf.InputFormat = DefaultLoggerFormat
-	} else {
-		var re = regexp.MustCompile(`(?m){{([a-zA-Z\s]*)}}+`)
-		var result []string
-		for _, match := range re.FindAllString(logFormatInput, -1) {
-			match = strings.TrimPrefix(match, "{{")
-			match = strings.TrimSuffix(match, "}}")
-			match = strings.TrimSpace(match)
-			if !values[match] {
-				msg := fmt.Sprintf("key does not exist: %v", match)
-				return errors.New(msg)
-			}
-			result = append(result, match)
+		return nil
+	}
+	return setInputFormat(logFormatInput, tf)
+}
+
+func setInputFormat(formatInput string, formatter *teleportFormatter) error {
+	var sb strings.Builder
+	var result []string
+	values := map[string]bool{"level": true, "component": true, "message": true, "caller": true, "timestamp": true}
+	matches := re.FindAllString(formatInput, -1)
+	if len(matches) == 0 {
+		msg := fmt.Sprintf("invalid formatting %v", formatInput)
+		return errors.New(msg)
+	}
+	for _, match := range matches {
+		match = strings.TrimPrefix(match, "{{")
+		match = strings.TrimSuffix(match, "}}")
+		match = strings.TrimSpace(match)
+		if !values[match] {
+			msg := fmt.Sprintf("key does not exist: %v", match)
+			return errors.New(msg)
 		}
-		tf.InputFormat = result
+		str := fmt.Sprintf("{{%v}}", match)
+		sb.WriteString(str)
+		result = append(result, match)
+	}
+	formatter.InputFormat = result
+	userInput := strings.Join(strings.Fields(formatInput), "")
+	if userInput != sb.String() {
+		msg := fmt.Sprintf("invalid formatting %v", formatInput)
+		return errors.New(msg)
 	}
 	return nil
 }
