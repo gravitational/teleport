@@ -23,6 +23,9 @@ import localStorage, {
   BearerToken,
 } from 'teleport/services/localStorage';
 
+// Time to determine when to renew session which is
+// when expiry time of token is less than 3 minutes.
+const RENEW_TOKEN_TIME = 180 * 1000
 const TOKEN_CHECKER_INTERVAL = 15 * 1000; //  every 15 sec
 const logger = Logger.create('services/session');
 
@@ -109,12 +112,11 @@ const session = {
       return false;
     }
 
-    /*
-     * increase the threshold value for slow connections to avoid
-     * access-denied response due to concurrent renew token request
-     * made from another tab.
-     */
-    return this._timeLeft() < TOKEN_CHECKER_INTERVAL * 1.5;
+    // Renew session if token expiry time is less than 3 minutes.
+    // Browsers have js timer throttling behavior in inactive tabs that can go
+    // up to 100s between timer calls from testing. 3 minutes seems to be a safe number
+    // with extra padding.
+    return this._timeLeft() < RENEW_TOKEN_TIME;
   },
 
   _renewToken(requestId?: string) {

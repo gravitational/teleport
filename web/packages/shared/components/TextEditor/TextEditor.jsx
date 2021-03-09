@@ -56,8 +56,8 @@ class TextEditor extends React.Component {
     undoManager.markClean();
     session.setUndoManager(undoManager);
     session.setUseWrapMode(false);
-    session.setMode(mode);
     session.setOptions({ tabSize, useSoftTabs: true, useWorker: false });
+    session.setMode(mode);
     return session;
   }
 
