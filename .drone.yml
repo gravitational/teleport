@@ -279,7 +279,7 @@ steps:
         path: /tmpfs
     commands:
       - |
-        apk add --no-cache make
+        apk add --no-cache bash make
         cd /tmpfs/go/src/github.com/gravitational/teleport
         chown -R $UID:$GID /tmpfs/go
         git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | { grep -v ^$ || true; } > /tmp/docs-changes.txt
@@ -4316,6 +4316,6 @@ volumes:
 
 ---
 kind: signature
-hmac: ec68269933efb56e5a8549b734ac085f83344750945dfe1dcd699c5ffe762f30
+hmac: 46d877b939f49bd3f03325a58b2adbfedcd397fa85b208e4c1783bdbb24a9db8
 
 ...
