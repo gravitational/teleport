@@ -297,8 +297,7 @@ test-docs: docsbox
 		trap '{ rm -rf $(DOCS_TEMP); }' EXIT; \
 		cd $(DOCS_TEMP) && \
 		git clone https://github.com/gravitational/next . && \
-		rm -rf content/$(DOCS_VERSION) && \
-		ln -s $(MAKEFILE_ROOT_DIR) content/$(DOCS_VERSION) && \
+		cp -r $(MAKEFILE_ROOT_DIR)/docs content/$(DOCS_VERSION)/docs && \
 		docker run $(DOCKERFLAGS) -i $(NOROOT) $(DOCSBOX) \
 			/bin/sh -c \"yarn --cwd $(DOCS_TEMP_DIRNAME) && yarn --cwd $(DOCS_TEMP_DIRNAME) markdown-lint-external-links\" \
 	"
