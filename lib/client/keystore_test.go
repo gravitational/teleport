@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"testing"
 	"time"
 
@@ -77,6 +78,29 @@ func TestListKeys(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, samKey.Cert, skey.Cert)
 	require.Equal(t, samKey.Pub, skey.Pub)
+}
+
+func TestEmbeddedDirsInKeystoreIsNotAnError(t *testing.T) {
+	s, cleanup := newTest(t)
+	defer cleanup()
+
+	// Given a key store with a valid directory structure
+	host := "some-host"
+	user := "zaphod"
+	key := s.makeSignedKey(t, false)
+	require.NoError(t, s.addKey(host, user, key))
+
+	// ... *and* an invalid folder injected into it
+	p, err := s.store.dirFor(host, false)
+	require.NoError(t, err)
+	spuriousDirPath := path.Join(p, user+"-db", "root", "aaa-should-not-be-here")
+	require.NoError(t, os.MkdirAll(spuriousDirPath, 0700))
+
+	// When I attemp to enumerate the DB keys
+	_, err = s.store.GetKey(host, user, WithDBCerts(key.ClusterName, ""))
+
+	// Expect the key enumeration to succeed
+	require.NoError(t, err)
 }
 
 func TestKeyCRUD(t *testing.T) {

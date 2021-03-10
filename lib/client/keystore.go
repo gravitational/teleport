@@ -393,6 +393,9 @@ func (o withKubeCerts) getKey(store LocalKeyStore, idx keyIndex, key *Key) error
 			key.KubeTLSCerts = make(map[string][]byte)
 		}
 		for _, fi := range kubeFiles {
+			if fi.IsDir() {
+				continue
+			}
 			data, err := ioutil.ReadFile(filepath.Join(kubeDir, fi.Name()))
 			if err != nil {
 				return trace.Wrap(err)
@@ -459,6 +462,9 @@ func (o withDBCerts) getKey(store LocalKeyStore, idx keyIndex, key *Key) error {
 			key.DBTLSCerts = make(map[string][]byte)
 		}
 		for _, fi := range dbFiles {
+			if fi.IsDir() {
+				continue
+			}
 			data, err := ioutil.ReadFile(filepath.Join(dbDir, fi.Name()))
 			if err != nil {
 				return trace.Wrap(err)
