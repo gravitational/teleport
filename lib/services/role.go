@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
@@ -42,16 +43,24 @@ import (
 	"github.com/vulcand/predicate"
 )
 
-// ExtendedAdminUserRules provides access to the default set of rules assigned to
+// getExtendedAdminUserRules provides access to the default set of rules assigned to
 // all users.
-var ExtendedAdminUserRules = []Rule{
-	NewRule(KindRole, RW()),
-	NewRule(KindAuthConnector, RW()),
-	NewRule(KindSession, RO()),
-	NewRule(KindTrustedCluster, RW()),
-	NewRule(KindEvent, RO()),
-	NewRule(KindUser, RW()),
-	NewRule(KindToken, RW()),
+func getExtendedAdminUserRules(features modules.Features) []Rule {
+	rules := []Rule{
+		NewRule(KindRole, RW()),
+		NewRule(KindAuthConnector, RW()),
+		NewRule(KindSession, RO()),
+		NewRule(KindTrustedCluster, RW()),
+		NewRule(KindEvent, RO()),
+		NewRule(KindUser, RW()),
+		NewRule(KindToken, RW()),
+	}
+
+	if features.Cloud {
+		rules = append(rules, NewRule(KindBilling, RW()))
+	}
+
+	return rules
 }
 
 // DefaultImplicitRules provides access to the default set of implicit rules
@@ -99,8 +108,7 @@ func RoleNameForCertAuthority(name string) string {
 // NewAdminRole is the default admin role for all local users if another role
 // is not explicitly assigned (this role applies to all users in OSS version).
 func NewAdminRole() Role {
-	adminRules := CopyRulesSlice(ExtendedAdminUserRules)
-
+	adminRules := getExtendedAdminUserRules(modules.GetModules().Features())
 	role := &RoleV3{
 		Kind:    KindRole,
 		Version: V3,
