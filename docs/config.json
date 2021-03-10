@@ -19,6 +19,46 @@
       ]
     },
     {
+      "icon": "kubernetes",
+      "title": "Kubernetes Access",
+      "entries": [
+        { "title": "Getting Started", "slug": "/kubernetes-access/getting-started/" },
+        {
+          "title": "Guides",
+          "slug": "/kubernetes-access/guides/",
+          "entries": [
+            { "title": "Multiple Clusters", "slug": "/kubernetes-access/guides/multiple-clusters/" },
+            { "title": "CI/CD", "slug": "/kubernetes-access/guides/cicd/" },
+            { "title": "Federation", "slug": "/kubernetes-access/guides/federation/" },
+            { "title": "Migration", "slug": "/kubernetes-access/guides/migration/" }
+          ]
+        },
+        { "title": "Access Controls", "slug": "/kubernetes-access/controls/" }
+      ]
+    },
+    {
+      "icon": "database",
+      "title": "Database Access",
+      "entries": [
+        { "title": "Getting Started", "slug": "/database-access/getting-started/" },
+        {
+          "title": "Guides",
+          "slug": "/database-access/guides/",
+          "entries": [
+            { "title": "PostgreSQL on AWS", "slug": "/database-access/guides/postgres-aws/" },
+            { "title": "MySQL on AWS", "slug": "/database-access/guides/mysql-aws/" },
+            { "title": "Self-Hosted PostgreSQL", "slug": "/database-access/guides/postgres-self-hosted/" },
+            { "title": "Self-Hosted MySQL", "slug": "/database-access/guides/mysql-self-hosted/" },
+            { "title": "Database GUI Clients", "slug": "/database-access/guides/gui-clients/" }
+          ]
+        },
+        { "title": "RBAC", "slug": "/database-access/rbac/" },
+        { "title": "Architecture", "slug": "/database-access/architecture/" },
+        { "title": "Reference", "slug": "/database-access/reference/" },
+        { "title": "FAQ", "slug": "/database-access/faq/" }
+      ]
+    },
+    {
       "icon": "wand",
       "title": "Preview",
       "entries": [
@@ -34,29 +74,7 @@
         { "title": "IBM", "slug": "/ibm-cloud-guide/" },
         { "title": "OpenSSH Guide", "slug": "/openssh-teleport/" }
       ]
-    },
-    {
-      "icon": "database",
-      "title": "Database Access",
-      "entries": [
-        { "title": "Getting Started", "slug": "/database-access/getting-started/" },
-        {
-          "title": "Guides",
-          "slug": "/database-access/guides/",
-          "entries": [
-            { "title": "PostgreSQL on AWS", "slug": "/database-access/guides/postgres-aws" },
-            { "title": "MySQL on AWS", "slug": "/database-access/guides/mysql-aws" },
-            { "title": "Self-Hosted PostgreSQL", "slug": "/database-access/guides/postgres-self-hosted/" },
-            { "title": "Self-Hosted MySQL", "slug": "/database-access/guides/mysql-self-hosted/" },
-            { "title": "Database GUI Clients", "slug": "/database-access/guides/gui-clients/" }
-          ]
-        },
-        { "title": "RBAC", "slug": "/database-access/rbac/" },
-        { "title": "Architecture", "slug": "/database-access/architecture/" },
-        { "title": "Reference", "slug": "/database-access/reference/" },
-        { "title": "FAQ", "slug": "/database-access/faq/" }
-      ]
-    },
+    },    
     {
       "icon": "building",
       "title": "Teleport Enterprise",
