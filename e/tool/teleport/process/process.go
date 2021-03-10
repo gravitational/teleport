@@ -41,29 +41,33 @@ func NewTeleport(cfg *service.Config) (service.Process, error) {
 
 	cfg.PluginRegistry = pluginRegistry
 
-	// Init OSS teleport process
-	ossProcess, err := service.NewTeleport(cfg)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Only auth service requires a license and has extensions
-	needsLicense := ossProcess.Config.Auth.Enabled
-	if !needsLicense {
+	if !cfg.Auth.Enabled {
+		ossProcess, err := service.NewTeleport(cfg)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		return ossProcess, nil
 	}
 
-	logger := ossProcess.Config.Log
-	licenseFile, err := licensefile.ReadAndActivate(ossProcess.Config.Auth.LicenseFile)
+	logger := cfg.Log
+	licenseFile, err := licensefile.ReadAndActivate(cfg.Auth.LicenseFile)
 	if err != nil {
 		logger.Debug(trace.DebugReport(err))
 		return nil, trace.AccessDenied("auth server requires a valid license file to start, "+
 			"please set the correct license_file path under auth_service section "+
 			"in your teleport config or put the license into the default search "+
-			"location at %v", filepath.Join(ossProcess.Config.DataDir, defaults.LicenseFile))
+			"location at %v", filepath.Join(cfg.DataDir, defaults.LicenseFile))
 	}
 
 	logger.Infof("Using license from %v %v.", cfg.Auth.LicenseFile, licenseFile.License)
+
+	// Now when license is activated, initialize the OSS process
+	ossProcess, err := service.NewTeleport(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// Initialize teleport cloud
 	if modules.GetModules().Features().Cloud {

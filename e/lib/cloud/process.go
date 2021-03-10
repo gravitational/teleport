@@ -66,19 +66,20 @@ func NewTeleport(cfg Config) (*Process, error) {
 		TeleportProcess: cfg.OSSProcess,
 	}
 
+	apiServerAddr, err := getServerAddr(cfg.CloudAPIServerAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	tlsConfig, err := liblicense.MakeTLSConfig(*cfg.LicenseFile.KeyPair)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsConfig.ServerName, err = getServerName(cfg.CloudAPIServerAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+	tlsConfig.ServerName = apiServerAddr.Host()
 	tlsConfig.InsecureSkipVerify = lib.IsInsecureDevMode()
 
 	cloudClient, err := cloud.NewClient(cloud.ClientConfig{
-		Hostname:  cfg.CloudAPIServerAddr,
+		Hostname:  apiServerAddr.Addr,
 		TLSConfig: tlsConfig,
 	})
 	if err != nil {
@@ -188,11 +189,11 @@ func (c *Config) checkAndSetInterval() (err error) {
 	return nil
 }
 
-func getServerName(fqdn string) (string, error) {
-	addr, err := utils.ParseHostPortAddr(fqdn, defaultAPIServerPort)
+func getServerAddr(hostport string) (*utils.NetAddr, error) {
+	addr, err := utils.ParseHostPortAddr(hostport, defaultAPIServerPort)
 	if err != nil {
-		return "", trace.BadParameter("invalid cloud API server address")
+		return nil, trace.BadParameter("invalid cloud API server address")
 	}
 
-	return addr.Host(), nil
+	return addr, nil
 }
