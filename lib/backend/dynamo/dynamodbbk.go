@@ -19,6 +19,7 @@ package dynamo
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
@@ -94,10 +95,17 @@ type Config struct {
 
 // CheckAndSetDefaults is a helper returns an error if the supplied configuration
 // is not enough to connect to DynamoDB
-func (cfg *Config) CheckAndSetDefaults() error {
+func (cfg *Config) CheckAndSetDefaults(params backend.Params) error {
 	// Table name is required.
 	if cfg.TableName == "" {
 		return trace.BadParameter("DynamoDB: table_name is not specified")
+	}
+
+	if auditTableURI, ok := params["audit_events_uri"]; ok {
+		dataTableURI := fmt.Sprintf("%s://%s", GetName(), cfg.TableName)
+		if dataTableURI == auditTableURI {
+			return trace.BadParameter("DynamoDB: table_name may not refer to the same table as audit_events_uri")
+		}
 	}
 
 	if cfg.ReadCapacityUnits == 0 {
@@ -209,7 +217,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 
 	defer l.Debug("AWS session is created.")
 
-	if err := cfg.CheckAndSetDefaults(); err != nil {
+	if err := cfg.CheckAndSetDefaults(params); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

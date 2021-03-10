@@ -88,6 +88,18 @@ func TestAutoScaling(t *testing.T) {
 	})
 }
 
+func TestUsingAuditEventsTableIsAnError(t *testing.T) {
+	// values sourced from: https://github.com/gravitational/teleport/issues/2542
+	_, err := New(context.Background(), map[string]interface{}{
+		"type":               "dynamodb",
+		"region":             "ap-southeast-1",
+		"table_name":         "dynamodb.table.name",
+		"audit_events_uri":   "dynamodb://dynamodb.table.name",
+		"audit_sessions_uri": "s3://<redacted>",
+	})
+	require.Error(t, err)
+}
+
 // getContinuousBackups gets the state of continuous backups.
 func getContinuousBackups(ctx context.Context, svc *dynamodb.DynamoDB, tableName string) (bool, error) {
 	resp, err := svc.DescribeContinuousBackupsWithContext(ctx, &dynamodb.DescribeContinuousBackupsInput{
