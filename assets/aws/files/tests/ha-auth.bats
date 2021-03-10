@@ -70,3 +70,9 @@ load fixtures/common.bash
     echo "${AUTH_BLOCK?}"
     echo "${AUTH_BLOCK?}" | grep -E "^  authentication:" -A2 | grep -q "second_factor:"
 }
+
+@test "[${TEST_SUITE?}] auth_service.license_file is set" {
+    load ${TELEPORT_CONFD_DIR?}/conf
+    echo "${AUTH_BLOCK?}"
+    echo "${AUTH_BLOCK?}" | grep -E "^  license_file: "
+}
