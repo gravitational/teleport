@@ -52,15 +52,16 @@ func ConnectProxyTransport(sconn ssh.Conn, req *DialReq, exclusive bool) (*ChCon
 		return nil, false, trace.Wrap(err)
 	}
 
-	channel, _, err := sconn.OpenChannel(constants.ChanTransport, nil)
-	if err != nil {
-		return nil, false, trace.Wrap(err)
-	}
-
 	payload, err := json.Marshal(req)
 	if err != nil {
 		return nil, false, trace.Wrap(err)
 	}
+
+	channel, discard, err := sconn.OpenChannel(constants.ChanTransport, nil)
+	if err != nil {
+		return nil, false, trace.Wrap(err)
+	}
+	ssh.DiscardRequests(discard)
 
 	// Send a special SSH out-of-band request called "teleport-transport"
 	// the agent on the other side will create a new TCP/IP connection to

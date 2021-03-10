@@ -123,7 +123,7 @@ func ReadIdentityFile(path string) (*IdentityFile, error) {
 	if len(ident.Certs.SSH) == 0 {
 		certFn := path + constants.FileExtCert
 		if ident.Certs.SSH, err = ioutil.ReadFile(certFn); err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "could not find SSH cert in the identity file or %v", certFn)
 		}
 	}
 

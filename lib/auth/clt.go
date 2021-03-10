@@ -92,14 +92,7 @@ var _ ClientI = &Client{}
 // NewClient returns a new client that uses mutual TLS authentication
 // and dials the remote server using dialer.
 func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Many uses of the lib/client do not expect an open valid connection immediately after
-	// initialization, so WithoutDialBlock is used for backwards compatibility with this client.
-	cfg.WithoutDialBlock = true
-	apiClient, err := client.New(context.TODO(), cfg)
+	apiClient, err := client.NewTLSAuthClient(context.TODO(), cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -110,7 +103,7 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 	// there is no way to distinguish between HTTP2/JSON or GPRC.
 	tlsConfig := apiClient.Config().Clone()
 	tlsConfig.NextProtos = []string{teleport.HTTPNextProtoTLS}
-	dialer, err := cfg.GetHTTPDialer()
+	dialer, err := cfg.GetDialer()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
