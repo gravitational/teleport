@@ -2,14 +2,14 @@ package main
 
 import "fmt"
 
-type buildType struct {
+type pushBuildType struct {
 	os   string
 	arch string
 	fips bool
 }
 
-// makefileTarget gets the correct Makefile target for a given arch/fips combo
-func makefileTarget(params buildType) string {
+// pushMakefileTarget gets the correct push pipeline Makefile target for a given arch/fips combo
+func pushMakefileTarget(params pushBuildType) string {
 	makefileTarget := fmt.Sprintf("release-%s", params.arch)
 	if params.fips {
 		makefileTarget += "-fips"
@@ -17,25 +17,49 @@ func makefileTarget(params buildType) string {
 	return makefileTarget
 }
 
+// pushCheckoutCommands builds a list of commands for Drone to check out a git commit on a push build
+func pushCheckoutCommands(fips bool) []string {
+	commands := []string{
+		`mkdir -p /go/src/github.com/gravitational/teleport /go/cache`,
+		`cd /go/src/github.com/gravitational/teleport`,
+		`git init && git remote add origin ${DRONE_REMOTE_URL}`,
+		`git fetch origin`,
+		`git checkout -qf ${DRONE_COMMIT_SHA}`,
+		// this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+		`git submodule update --init webassets || true`,
+		`mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa`,
+		`ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts`,
+		`git submodule update --init e`,
+		// do a recursive submodule checkout to get both webassets and webassets/e
+		// this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+		`git submodule update --init --recursive webassets || true`,
+		`rm -f /root/.ssh/id_rsa`,
+	}
+	if fips {
+		commands = append(commands, `if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt`)
+	}
+	return commands
+}
+
 // pushPipelines builds all applicable push pipeline combinations
 func pushPipelines() []pipeline {
 	var ps []pipeline
 	for _, arch := range []string{"amd64", "386", "arm", "arm64"} {
 		for _, fips := range []bool{false, true} {
-			if arch == "386" && fips {
-				// FIPS mode not supported on i386
+			if (arch == "386" || arch == "arm") && fips {
+				// FIPS mode not supported on i386/ARM
 				continue
 			}
-			ps = append(ps, pushPipeline(buildType{os: "linux", arch: arch, fips: fips}))
+			ps = append(ps, pushPipeline(pushBuildType{os: "linux", arch: arch, fips: fips}))
 		}
 	}
 	// Only amd64 Windows is supported for now.
-	ps = append(ps, pushPipeline(buildType{os: "windows", arch: "amd64"}))
+	ps = append(ps, pushPipeline(pushBuildType{os: "windows", arch: "amd64"}))
 	return ps
 }
 
 // pushPipeline generates a push pipeline for a given combination of os/arch/FIPS
-func pushPipeline(params buildType) pipeline {
+func pushPipeline(params pushBuildType) pipeline {
 	if params.os == "" {
 		panic("params.os must be set")
 	}
@@ -86,7 +110,7 @@ func pushPipeline(params buildType) pipeline {
 			Volumes: []volumeRef{
 				volumeRefTmpfs,
 			},
-			Commands: buildCheckoutCommands(params.fips),
+			Commands: pushCheckoutCommands(params.fips),
 		},
 		{
 			Name:        "Build artifacts",
@@ -99,7 +123,7 @@ func pushPipeline(params buildType) pipeline {
 				`apk add --no-cache make`,
 				`chown -R $UID:$GID /go`,
 				`cd /go/src/github.com/gravitational/teleport`,
-				fmt.Sprintf(`make -C build.assets %s`, makefileTarget(params)),
+				fmt.Sprintf(`make -C build.assets %s`, pushMakefileTarget(params)),
 			},
 		},
 		{
