@@ -218,7 +218,7 @@ volumes:
 ---
 kind: pipeline
 type: kubernetes
-name: test-docs-internal
+name: test-docs
 
 trigger:
   event:
@@ -236,7 +236,7 @@ clone:
 
 steps:
   - name: Check out code
-    image: golang:1.15.5
+    image: docker:git
     volumes:
       - name: tmpfs
         path: /tmpfs
@@ -266,122 +266,46 @@ steps:
           fi
         fi
 
-  - name: Run docs tests (internal links only)
-    image: golang:1.15.5
+  - name: Run docs tests
+    image: docker:git
+    environment:
+      UID: 1000
+      GID: 1000
+      GOCACHE: /tmpfs/go/cache
     volumes:
+      - name: dockersock
+        path: /var/run
       - name: tmpfs
         path: /tmpfs
     commands:
       - |
+        apk add --no-cache make
         cd /tmpfs/go/src/github.com/gravitational/teleport
-        git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
-        if [ $(stat --printf="%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
-          echo "---> Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
-          # Check trailing whitespace
+        chown -R $UID:$GID /tmpfs/go
+        git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | { grep -v ^$ || true; } > /tmp/docs-changes.txt
+        if [ $(cat /tmp/docs-changes.txt | wc -l) -gt 0 ]; then
+          echo "---> Changes to docs detected"
+          cat /tmp/docs-changes.txt
+          echo "---> Checking for trailing whitespace"
           make docs-test-whitespace
-          # Check links
-          for VERSION in $(cat /tmp/docs-versions-changed.txt); do
-            if [ -f docs/$VERSION/milv.config.yaml ]; then
-              go get github.com/magicmatatjahu/milv
-              cd docs/$VERSION
-              echo "---> Running milv on docs/$VERSION:"
-              milv -ignore-external
-              echo "------------------------------\n"
-              cd -
-            else
-              echo "---> No milv config found, skipping docs/$VERSION"
-            fi
-          done
-          else echo "---> No changes to docs detected, not running tests"
-        fi
-
-volumes:
-  - name: tmpfs
-    temp:
-      medium: memory
-
----
-kind: pipeline
-type: kubernetes
-name: test-docs-external
-
-trigger:
-  event:
-    include:
-      - pull_request
-  repo:
-    include:
-      - gravitational/*
-
-workspace:
-  path: /go
-
-clone:
-  disable: true
-
-steps:
-  - name: Check out code
-    image: golang:1.15.5
-    volumes:
-      - name: tmpfs
-        path: /tmpfs
-    commands:
-      - mkdir -p /tmpfs/go/src/github.com/gravitational/teleport
-      - cd /tmpfs/go/src/github.com/gravitational/teleport
-      - git init && git remote add origin ${DRONE_REMOTE_URL}
-      - |
-        # handle pull requests
-        if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
-          git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
-          git checkout ${DRONE_COMMIT_BRANCH}
-          git fetch origin ${DRONE_COMMIT_REF}:
-          git merge ${DRONE_COMMIT}
-        # handle tags
-        elif [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
-          git fetch origin +refs/tags/${DRONE_TAG}:
-          git checkout -qf FETCH_HEAD
-        # handle pushes/other events
+          echo "---> Checking for dead links"
+          make -C build.assets test-docs
         else
-          if [ "${DRONE_COMMIT_BRANCH}" = "" ]; then
-            git fetch origin
-            git checkout -qf ${DRONE_COMMIT_SHA}
-          else
-            git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
-            git checkout ${DRONE_COMMIT} -b ${DRONE_COMMIT_BRANCH}
-          fi
+          echo "---> No changes to docs detected, not running tests"
         fi
 
-  - name: Run docs tests (external links only)
-    image: golang:1.15.5
-    failure: ignore
+services:
+  - name: Start Docker
+    image: docker:dind
     volumes:
+      - name: dockersock
+        path: /var/run
       - name: tmpfs
         path: /tmpfs
-    commands:
-      - |
-        cd /tmpfs/go/src/github.com/gravitational/teleport
-        git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
-        if [ $(stat --printf="%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
-          echo "---> Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
-          # Check trailing whitespace
-          make docs-test-whitespace
-          # Check links
-          for VERSION in $(cat /tmp/docs-versions-changed.txt); do
-            if [ -f docs/$VERSION/milv.config.yaml ]; then
-              go get github.com/magicmatatjahu/milv
-              cd docs/$VERSION
-              echo "---> Running milv on docs/$VERSION:"
-              milv -ignore-internal
-              echo "------------------------------\n"
-              cd -
-            else
-              echo "---> No milv config found, skipping docs/$VERSION"
-            fi
-          done
-          else echo "---> No changes to docs detected, not running tests"
-        fi
 
 volumes:
+  - name: dockersock
+    temp: {}
   - name: tmpfs
     temp:
       medium: memory
@@ -4392,6 +4316,6 @@ volumes:
 
 ---
 kind: signature
-hmac: f5139a805e2704ff54e8efa9a5f0ba9ae02081516234298d8e814f6092c4e360
+hmac: ec68269933efb56e5a8549b734ac085f83344750945dfe1dcd699c5ffe762f30
 
 ...
