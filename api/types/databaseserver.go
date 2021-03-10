@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 )
 
@@ -288,12 +289,7 @@ func (s *DatabaseServerV3) CheckAndSetDefaults() error {
 
 // Copy returns a copy of this database server object.
 func (s *DatabaseServerV3) Copy() DatabaseServer {
-	return &DatabaseServerV3{
-		Kind:     KindDatabaseServer,
-		Version:  V3,
-		Metadata: s.Metadata,
-		Spec:     s.Spec,
-	}
+	return proto.Clone(s).(*DatabaseServerV3)
 }
 
 const (

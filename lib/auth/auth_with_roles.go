@@ -772,7 +772,8 @@ func (a *ServerWithRoles) CheckPassword(user string, password []byte, otpToken s
 	if err := a.currentUserAction(user); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.CheckPassword(user, password, otpToken)
+	_, err := a.authServer.checkPassword(user, password, otpToken)
+	return trace.Wrap(err)
 }
 
 func (a *ServerWithRoles) PreAuthenticatedSignIn(user string) (services.WebSession, error) {
@@ -2511,7 +2512,7 @@ func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s services.Serv
 	}
 
 	for _, kube := range s.GetKubernetesClusters() {
-		if err := a.context.Checker.CheckAccessToKubernetes(s.GetNamespace(), kube, a.context.Identity.GetIdentity().MFAVerified); err != nil {
+		if err := a.context.Checker.CheckAccessToKubernetes(s.GetNamespace(), kube, a.context.Identity.GetIdentity().MFAVerified != ""); err != nil {
 			return utils.OpaqueAccessDenied(err)
 		}
 	}
