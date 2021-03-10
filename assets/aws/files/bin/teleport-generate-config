@@ -114,7 +114,7 @@ write_ssh_and_tunnel_section() {
             TUNNEL_PORT="${TUNNEL_LISTEN_PORT}"
             SSH_HOSTNAME="${TELEPORT_PROXY_SERVER_LB}"
             TUNNEL_HOSTNAME="${TELEPORT_PROXY_SERVER_LB}"
-            
+
             if [[ "${TELEPORT_PROXY_SERVER_NLB_ALIAS}" != "" ]]; then
                 # if an alias for the ACM NLB is configured, use that for the proxy's ssh_public_addr
                 SSH_HOSTNAME="${TELEPORT_PROXY_SERVER_NLB_ALIAS}"
