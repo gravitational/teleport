@@ -2524,6 +2524,10 @@ type IdentityService interface {
 	// (https://github.com/gravitational/teleport/blob/3a1cf9111c2698aede2056513337f32bfc16f1f1/rfd/0014-session-2FA.md#sessions).
 	GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error)
 
+	// IsMFARequiredRequest is a request to check whether MFA is required to
+	// access the Target.
+	IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error)
+
 	// DeleteAllUsers deletes all users
 	DeleteAllUsers() error
 

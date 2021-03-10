@@ -117,7 +117,7 @@ func (c *Client) grpcDialer() grpcDialer {
 		}
 		conn, err := c.dialer.DialContext(ctx, "tcp", addr)
 		if err != nil {
-			return nil, trace.ConnectionProblem(err, "failed to dial")
+			return nil, trace.ConnectionProblem(err, "failed to dial: %v", err)
 		}
 		return conn, nil
 	}
@@ -1062,4 +1062,12 @@ func (c *Client) DeleteToken(ctx context.Context, name string) error {
 	}
 	_, err := c.grpc.DeleteToken(ctx, &types.ResourceRequest{Name: name})
 	return trail.FromGRPC(err)
+}
+
+func (c *Client) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+	resp, err := c.grpc.IsMFARequired(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
 }
