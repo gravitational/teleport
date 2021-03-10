@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"runtime"
 	"strings"
 )
@@ -101,6 +102,10 @@ func (v *triggerRef) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return errors.New("can't unmarshal the value as either string or from_secret reference")
 }
 
+func (r workspace) join(elems ...string) (path string) {
+	return filepath.Join(append([]string{r.Path}, elems...)...)
+}
+
 type workspace struct {
 	Path string `yaml:"path"`
 }
@@ -145,8 +150,8 @@ type volumeRef struct {
 
 type step struct {
 	Name        string           `yaml:"name"`
-	Image       string           `yaml:"image"`
-	Commands    []string         `yaml:"commands"`
+	Image       string           `yaml:"image,omitempty"`
+	Commands    []string         `yaml:"commands,omitempty"`
 	Environment map[string]value `yaml:"environment,omitempty"`
 	Volumes     []volumeRef      `yaml:"volumes,omitempty"`
 	Settings    map[string]value `yaml:"settings,omitempty"`

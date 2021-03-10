@@ -325,7 +325,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:86
+# Generated at dronegen/push.go:88
 ################################################
 
 kind: pipeline
@@ -389,7 +389,6 @@ steps:
     path: /var/run
 - name: Send Slack notification
   image: plugins/slack
-  commands: []
   settings:
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
@@ -419,7 +418,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:86
+# Generated at dronegen/push.go:88
 ################################################
 
 kind: pipeline
@@ -483,7 +482,6 @@ steps:
     path: /var/run
 - name: Send Slack notification
   image: plugins/slack
-  commands: []
   settings:
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
@@ -513,7 +511,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:86
+# Generated at dronegen/push.go:88
 ################################################
 
 kind: pipeline
@@ -581,7 +579,6 @@ steps:
     path: /var/run
 - name: Send Slack notification
   image: plugins/slack
-  commands: []
   settings:
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
@@ -611,7 +608,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:86
+# Generated at dronegen/push.go:88
 ################################################
 
 kind: pipeline
@@ -675,7 +672,6 @@ steps:
     path: /var/run
 - name: Send Slack notification
   image: plugins/slack
-  commands: []
   settings:
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
@@ -798,11 +794,126 @@ steps:
         curl -sL -X POST -H 'Content-type: application/json' --data "{\"text\":\"Warning: \`$GOOS-$GOARCH\` artifact build failed for [\`${DRONE_REPO_NAME}\`] - please investigate immediately!\nBranch: \`${DRONE_BRANCH}\`\nCommit: \`${DRONE_COMMIT_SHA}\`\nLink: $DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK
     when:
       status: [failure]
+
 ---
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:86
+# Generated at dronegen/darwin_pipelines.go:40
+################################################
+
+kind: pipeline
+type: exec
+name: push-build-darwin-amd64-fips
+environment:
+  RUNTIME: go1.16.2
+trigger:
+  event:
+    include:
+    - push
+    exclude:
+    - pull_request
+  repo:
+    include:
+    - gravitational/*
+  branch:
+    include:
+    - master
+    - branch/*
+workspace:
+  path: /tmp/push-build-darwin-amd64-fips
+clone:
+  disable: true
+steps:
+- name: Set up exec runner storage
+  commands:
+  - mkdir -p $WORKSPACE_DIR
+  - chmod -R u+rw $WORKSPACE_DIR
+  - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
+  environment:
+    WORKSPACE_DIR: /tmp/push-build-darwin-amd64-fips
+- name: Check out code
+  commands:
+  - mkdir -p $TELEPORT_DIR $GODL_DIR
+  - cd $GODL_DIR
+  - git clone https://github.com/gravitational/godl.git .
+  - git checkout $BORINGCRYPTO_BRANCH
+  - cd $TELEPORT_DIR
+  - git clone https://github.com/gravitational/teleport.git .
+  - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+  - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
+    && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
+  - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
+  - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
+  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
+    -F /dev/null' git submodule update --init e
+  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
+    -F /dev/null' git submodule update --init --recursive webassets || true
+  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > $WORKSPACE_DIR/go/.version.txt;
+    else make print-version > $WORKSPACE_DIR/go/.version.txt; fi; cat $WORKSPACE_DIR/go/.version.txt
+  - rm -rf $WORKSPACE_DIR/.ssh
+  - mkdir -p $WORKSPACE_DIR/go/cache
+  environment:
+    BORINGCRYPTO_BRANCH: dev.boringcrypto.go1.16
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+    GODL_DIR: /tmp/push-build-darwin-amd64-fips/go/src/github.com/gravitational/godl
+    TELEPORT_DIR: /tmp/push-build-darwin-amd64-fips/go/src/github.com/gravitational/teleport
+    WORKSPACE_DIR: /tmp/push-build-darwin-amd64-fips
+- name: Build the boringcrypto Go builder
+  commands:
+  - cd $GODL_DIR
+  - mkdir build
+  - go build -o $GODL_DIR/build/$BORINGCRYPTO_BRANCH $BORINGCRYPTO_BRANCH/main.go
+  environment:
+    BORINGCRYPTO_BRANCH: dev.boringcrypto.go1.16
+    GODL_DIR: /tmp/push-build-darwin-amd64-fips/go/src/github.com/gravitational/godl
+    WORKSPACE_DIR: /tmp/push-build-darwin-amd64-fips
+- name: Pull boringcrypto build tarball from S3
+  commands:
+  - mkdir -p $HOME/sdk/$BORINGCRYPTO_BRANCH
+  - cd $HOME/sdk/$BORINGCRYPTO_BRANCH
+  - aws s3 cp s3://$AWS_S3_BUCKET/ci/go/$BORINGCRYPTO_BRANCH-darwin-amd64.tar.gz .
+  - aws s3 cp s3://$AWS_S3_BUCKET/ci/go/$BORINGCRYPTO_BRANCH-darwin-amd64.tar.gz.sha256
+    .
+  - $GODL_DIR/build/$BORINGCRYPTO_BRANCH download
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    BORINGCRYPTO_BRANCH: dev.boringcrypto.go1.16
+    GODL_DIR: /tmp/push-build-darwin-amd64-fips/go/src/github.com/gravitational/godl
+- name: Build Mac release artifacts
+  commands:
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+  - export VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
+  - make -C e clean release GITTAG=v$VERSION VERSION=$VERSION OS=$OS ARCH=$ARCH FIPS=$FIPS
+    GO_BINARY="$GODL_DIR/build/$BORINGCRYPTO_BRANCH"
+  environment:
+    ARCH: amd64
+    BORINGCRYPTO_BRANCH: dev.boringcrypto.go1.16
+    FIPS: "yes"
+    GOCACHE: /tmp/push-build-darwin-amd64-fips/go/cache
+    GODL_DIR: /tmp/push-build-darwin-amd64-fips/go/src/github.com/gravitational/godl
+    GOPATH: /tmp/push-build-darwin-amd64-fips/go
+    OS: darwin
+    WORKSPACE_DIR: /tmp/push-build-darwin-amd64-fips
+- name: Clean up exec runner storage (post)
+  commands:
+  - chmod -R u+rw $WORKSPACE_DIR
+  - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
+  environment:
+    WORKSPACE_DIR: /tmp/push-build-darwin-amd64-fips
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/push.go:88
 ################################################
 
 kind: pipeline
@@ -866,7 +977,6 @@ steps:
     path: /var/run
 - name: Send Slack notification
   image: plugins/slack
-  commands: []
   settings:
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
@@ -896,7 +1006,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:86
+# Generated at dronegen/push.go:88
 ################################################
 
 kind: pipeline
@@ -960,7 +1070,6 @@ steps:
     path: /var/run
 - name: Send Slack notification
   image: plugins/slack
-  commands: []
   settings:
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
@@ -990,7 +1099,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:86
+# Generated at dronegen/push.go:88
 ################################################
 
 kind: pipeline
@@ -1058,7 +1167,6 @@ steps:
     path: /var/run
 - name: Send Slack notification
   image: plugins/slack
-  commands: []
   settings:
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
@@ -1319,7 +1427,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:187
+# Generated at dronegen/tag.go:190
 ################################################
 
 kind: pipeline
@@ -1389,7 +1497,6 @@ steps:
     done && ls -l
 - name: Upload to S3
   image: plugins/s3
-  commands: []
   settings:
     access_key:
       from_secret: AWS_ACCESS_KEY_ID
@@ -1415,7 +1522,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:187
+# Generated at dronegen/tag.go:190
 ################################################
 
 kind: pipeline
@@ -1485,7 +1592,6 @@ steps:
     done && ls -l
 - name: Upload to S3
   image: plugins/s3
-  commands: []
   settings:
     access_key:
       from_secret: AWS_ACCESS_KEY_ID
@@ -1511,7 +1617,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:187
+# Generated at dronegen/tag.go:190
 ################################################
 
 kind: pipeline
@@ -1584,7 +1690,6 @@ steps:
     done && ls -l
 - name: Upload to S3
   image: plugins/s3
-  commands: []
   settings:
     access_key:
       from_secret: AWS_ACCESS_KEY_ID
@@ -1610,7 +1715,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:187
+# Generated at dronegen/tag.go:190
 ################################################
 
 kind: pipeline
@@ -1682,7 +1787,6 @@ steps:
     done && ls -l
 - name: Upload to S3
   image: plugins/s3
-  commands: []
   settings:
     access_key:
       from_secret: AWS_ACCESS_KEY_ID
@@ -1708,7 +1812,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:328
+# Generated at dronegen/tag.go:331
 ################################################
 
 kind: pipeline
@@ -1802,7 +1906,6 @@ steps:
     \;
 - name: Upload to S3
   image: plugins/s3
-  commands: []
   settings:
     access_key:
       from_secret: AWS_ACCESS_KEY_ID
@@ -1833,7 +1936,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:328
+# Generated at dronegen/tag.go:331
 ################################################
 
 kind: pipeline
@@ -1924,7 +2027,6 @@ steps:
     \;
 - name: Upload to S3
   image: plugins/s3
-  commands: []
   settings:
     access_key:
       from_secret: AWS_ACCESS_KEY_ID
@@ -1955,7 +2057,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:328
+# Generated at dronegen/tag.go:331
 ################################################
 
 kind: pipeline
@@ -2040,7 +2142,6 @@ steps:
     \;
 - name: Upload to S3
   image: plugins/s3
-  commands: []
   settings:
     access_key:
       from_secret: AWS_ACCESS_KEY_ID
@@ -2066,7 +2167,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:328
+# Generated at dronegen/tag.go:331
 ################################################
 
 kind: pipeline
@@ -2148,7 +2249,6 @@ steps:
     \;
 - name: Upload to S3
   image: plugins/s3
-  commands: []
   settings:
     access_key:
       from_secret: AWS_ACCESS_KEY_ID
@@ -2174,7 +2274,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:187
+# Generated at dronegen/tag.go:190
 ################################################
 
 kind: pipeline
@@ -2244,7 +2344,6 @@ steps:
     done && ls -l
 - name: Upload to S3
   image: plugins/s3
-  commands: []
   settings:
     access_key:
       from_secret: AWS_ACCESS_KEY_ID
@@ -2270,7 +2369,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:328
+# Generated at dronegen/tag.go:331
 ################################################
 
 kind: pipeline
@@ -2364,7 +2463,6 @@ steps:
     \;
 - name: Upload to S3
   image: plugins/s3
-  commands: []
   settings:
     access_key:
       from_secret: AWS_ACCESS_KEY_ID
@@ -2395,7 +2493,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:328
+# Generated at dronegen/tag.go:331
 ################################################
 
 kind: pipeline
@@ -2480,7 +2578,6 @@ steps:
     \;
 - name: Upload to S3
   image: plugins/s3
-  commands: []
   settings:
     access_key:
       from_secret: AWS_ACCESS_KEY_ID
@@ -2611,6 +2708,262 @@ steps:
       - set -u
       - chmod -R u+rw $WORKSPACE_DIR
       - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/darwin_pipelines.go:65
+################################################
+
+kind: pipeline
+type: exec
+name: build-darwin-amd64-fips
+environment:
+  RUNTIME: go1.16.2
+trigger:
+  event:
+    include:
+    - tag
+  ref:
+    include:
+    - refs/tags/v*
+  repo:
+    include:
+    - gravitational/*
+workspace:
+  path: /tmp/build-darwin-amd64-fips
+clone:
+  disable: true
+steps:
+- name: Set up exec runner storage
+  commands:
+  - mkdir -p $WORKSPACE_DIR
+  - chmod -R u+rw $WORKSPACE_DIR
+  - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
+  environment:
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips
+- name: Check out code
+  commands:
+  - mkdir -p $TELEPORT_DIR $GODL_DIR
+  - cd $GODL_DIR
+  - git clone https://github.com/gravitational/godl.git .
+  - git checkout $BORINGCRYPTO_BRANCH
+  - cd $TELEPORT_DIR
+  - git clone https://github.com/gravitational/teleport.git .
+  - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+  - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
+    && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
+  - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
+  - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
+  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
+    -F /dev/null' git submodule update --init e
+  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
+    -F /dev/null' git submodule update --init --recursive webassets || true
+  - rm -rf $WORKSPACE_DIR/.ssh
+  - mkdir -p $WORKSPACE_DIR/go/artifacts $WORKSPACE_DIR/go/cache
+  - echo "${DRONE_TAG##v}" > $WORKSPACE_DIR/go/.version.txt
+  - cat $WORKSPACE_DIR/go/.version.txt
+  environment:
+    BORINGCRYPTO_BRANCH: dev.boringcrypto.go1.16
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+    GODL_DIR: /tmp/build-darwin-amd64-fips/go/src/github.com/gravitational/godl
+    TELEPORT_DIR: /tmp/build-darwin-amd64-fips/go/src/github.com/gravitational/teleport
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips
+- name: Build the boringcrypto Go builder
+  commands:
+  - cd $GODL_DIR
+  - mkdir build
+  - go build -o $GODL_DIR/build/$BORINGCRYPTO_BRANCH $BORINGCRYPTO_BRANCH/main.go
+  environment:
+    BORINGCRYPTO_BRANCH: dev.boringcrypto.go1.16
+    GODL_DIR: /tmp/build-darwin-amd64-fips/go/src/github.com/gravitational/godl
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips
+- name: Pull boringcrypto build tarball from S3
+  commands:
+  - mkdir -p $HOME/sdk/$BORINGCRYPTO_BRANCH
+  - cd $HOME/sdk/$BORINGCRYPTO_BRANCH
+  - aws s3 cp s3://$AWS_S3_BUCKET/ci/go/$BORINGCRYPTO_BRANCH-darwin-amd64.tar.gz .
+  - aws s3 cp s3://$AWS_S3_BUCKET/ci/go/$BORINGCRYPTO_BRANCH-darwin-amd64.tar.gz.sha256
+    .
+  - $GODL_DIR/build/$BORINGCRYPTO_BRANCH download
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    BORINGCRYPTO_BRANCH: dev.boringcrypto.go1.16
+    GODL_DIR: /tmp/build-darwin-amd64-fips/go/src/github.com/gravitational/godl
+- name: Build Mac release artifacts
+  commands:
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+  - export VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
+  - make -C e clean release GITTAG=v$VERSION VERSION=$VERSION OS=$OS ARCH=$ARCH FIPS=$FIPS
+    GO_BINARY="$GODL_DIR/build/$BORINGCRYPTO_BRANCH"
+  environment:
+    ARCH: amd64
+    BORINGCRYPTO_BRANCH: dev.boringcrypto.go1.16
+    FIPS: "yes"
+    GOCACHE: /tmp/build-darwin-amd64-fips/go/cache
+    GODL_DIR: /tmp/build-darwin-amd64-fips/go/src/github.com/gravitational/godl
+    GOPATH: /tmp/build-darwin-amd64-fips/go
+    OS: darwin
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips
+- name: Copy Mac artifacts
+  commands:
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+  - cp e/teleport-ent*.tar.gz $WORKSPACE_DIR/go/artifacts
+  - cd $WORKSPACE_DIR/go/artifacts && for FILE in teleport*.tar.gz; do shasum -a 256
+    $FILE > $FILE.sha256; done && ls -l
+  environment:
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips
+- name: Copy Mac artifacts
+  commands:
+  - cd $WORKSPACE_DIR/go/artifacts
+  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips
+- name: Clean up exec runner storage (post)
+  commands:
+  - chmod -R u+rw $WORKSPACE_DIR
+  - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
+  environment:
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/darwin_pipelines.go:90
+################################################
+
+kind: pipeline
+type: exec
+name: build-darwin-amd64-fips-pkg
+environment:
+  RUNTIME: go1.16.2
+trigger:
+  event:
+    include:
+    - tag
+  ref:
+    include:
+    - refs/tags/v*
+  repo:
+    include:
+    - gravitational/*
+workspace:
+  path: /tmp/build-darwin-amd64-fips-pkg
+clone:
+  disable: true
+steps:
+- name: Set up exec runner storage
+  commands:
+  - mkdir -p $WORKSPACE_DIR
+  - chmod -R u+rw $WORKSPACE_DIR
+  - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
+  environment:
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips-pkg
+- name: Check out code
+  commands:
+  - mkdir -p $TELEPORT_DIR $GODL_DIR
+  - cd $GODL_DIR
+  - git clone https://github.com/gravitational/godl.git .
+  - git checkout $BORINGCRYPTO_BRANCH
+  - cd $TELEPORT_DIR
+  - git clone https://github.com/gravitational/teleport.git .
+  - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+  - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
+    && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
+  - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
+  - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
+  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
+    -F /dev/null' git submodule update --init e
+  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
+    -F /dev/null' git submodule update --init --recursive webassets || true
+  - rm -rf $WORKSPACE_DIR/.ssh
+  - mkdir -p $WORKSPACE_DIR/go/artifacts $WORKSPACE_DIR/go/cache
+  - echo "${DRONE_TAG##v}" > $WORKSPACE_DIR/go/.version.txt
+  - cat $WORKSPACE_DIR/go/.version.txt
+  environment:
+    BORINGCRYPTO_BRANCH: dev.boringcrypto.go1.16
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+    GODL_DIR: /tmp/build-darwin-amd64-fips-pkg/go/src/github.com/gravitational/godl
+    TELEPORT_DIR: /tmp/build-darwin-amd64-fips-pkg/go/src/github.com/gravitational/teleport
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips-pkg
+- name: Download built tarball artifact from S3
+  commands:
+  - export VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
+  - export S3_PATH="tag/$${DRONE_TAG##v}/"
+  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-darwin-amd64-fips-bin.tar.gz
+    $WORKSPACE_DIR/go/artifacts/
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips-pkg
+- name: Build Mac pkg release artifacts
+  commands:
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+  - export VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
+  - export HOME=/Users/build
+  - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
+  - security find-identity -v
+  - make -C e pkg VERSION=$VERSION OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
+  environment:
+    APPLE_PASSWORD:
+      from_secret: APPLE_PASSWORD
+    APPLE_USERNAME:
+      from_secret: APPLE_USERNAME
+    BUILDBOX_PASSWORD:
+      from_secret: BUILDBOX_PASSWORD
+    ENT_TARBALL_PATH: /tmp/build-darwin-amd64-fips-pkg/go/artifacts
+    RUNTIME: fips
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips-pkg
+- name: Copy Mac pkg artifacts
+  commands:
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+  - rm -rf $WORKSPACE_DIR/go/artifacts/*.tar.gz
+  - cp e/build/teleport-ent*.pkg $WORKSPACE_DIR/go/artifacts
+  - cd $WORKSPACE_DIR/go/artifacts && for FILE in teleport*.pkg; do shasum -a 256
+    $FILE > $FILE.sha256; done && ls -l
+  environment:
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips-pkg
+- name: Copy Mac artifacts
+  commands:
+  - cd $WORKSPACE_DIR/go/artifacts
+  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips-pkg
+- name: Clean up exec runner storage (post)
+  commands:
+  - chmod -R u+rw $WORKSPACE_DIR
+  - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
+  environment:
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips-pkg
 
 ---
 kind: pipeline
@@ -2892,7 +3245,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:187
+# Generated at dronegen/tag.go:190
 ################################################
 
 kind: pipeline
@@ -2962,7 +3315,6 @@ steps:
     done && ls -l
 - name: Upload to S3
   image: plugins/s3
-  commands: []
   settings:
     access_key:
       from_secret: AWS_ACCESS_KEY_ID
@@ -2988,7 +3340,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:187
+# Generated at dronegen/tag.go:190
 ################################################
 
 kind: pipeline
@@ -3058,7 +3410,6 @@ steps:
     done && ls -l
 - name: Upload to S3
   image: plugins/s3
-  commands: []
   settings:
     access_key:
       from_secret: AWS_ACCESS_KEY_ID
@@ -3084,7 +3435,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:187
+# Generated at dronegen/tag.go:190
 ################################################
 
 kind: pipeline
@@ -3154,7 +3505,6 @@ steps:
     done && ls -l
 - name: Upload to S3
   image: plugins/s3
-  commands: []
   settings:
     access_key:
       from_secret: AWS_ACCESS_KEY_ID
@@ -3180,7 +3530,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:328
+# Generated at dronegen/tag.go:331
 ################################################
 
 kind: pipeline
@@ -3265,7 +3615,6 @@ steps:
     \;
 - name: Upload to S3
   image: plugins/s3
-  commands: []
   settings:
     access_key:
       from_secret: AWS_ACCESS_KEY_ID
@@ -3291,7 +3640,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:328
+# Generated at dronegen/tag.go:331
 ################################################
 
 kind: pipeline
@@ -3373,7 +3722,6 @@ steps:
     \;
 - name: Upload to S3
   image: plugins/s3
-  commands: []
   settings:
     access_key:
       from_secret: AWS_ACCESS_KEY_ID
@@ -3399,7 +3747,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:328
+# Generated at dronegen/tag.go:331
 ################################################
 
 kind: pipeline
@@ -3484,7 +3832,6 @@ steps:
     \;
 - name: Upload to S3
   image: plugins/s3
-  commands: []
   settings:
     access_key:
       from_secret: AWS_ACCESS_KEY_ID
@@ -3510,7 +3857,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:328
+# Generated at dronegen/tag.go:331
 ################################################
 
 kind: pipeline
@@ -3604,7 +3951,6 @@ steps:
     \;
 - name: Upload to S3
   image: plugins/s3
-  commands: []
   settings:
     access_key:
       from_secret: AWS_ACCESS_KEY_ID
@@ -3635,7 +3981,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:328
+# Generated at dronegen/tag.go:331
 ################################################
 
 kind: pipeline
@@ -3726,7 +4072,6 @@ steps:
     \;
 - name: Upload to S3
   image: plugins/s3
-  commands: []
   settings:
     access_key:
       from_secret: AWS_ACCESS_KEY_ID
@@ -3757,7 +4102,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:328
+# Generated at dronegen/tag.go:331
 ################################################
 
 kind: pipeline
@@ -3851,7 +4196,6 @@ steps:
     \;
 - name: Upload to S3
   image: plugins/s3
-  commands: []
   settings:
     access_key:
       from_secret: AWS_ACCESS_KEY_ID
@@ -3882,7 +4226,132 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:187
+# Generated at dronegen/darwin_pipelines.go:115
+################################################
+
+kind: pipeline
+type: exec
+name: build-darwin-amd64-fips-pkg-tsh
+environment:
+  RUNTIME: go1.16.2
+trigger:
+  event:
+    include:
+    - tag
+  ref:
+    include:
+    - refs/tags/v*
+  repo:
+    include:
+    - gravitational/*
+workspace:
+  path: /tmp/build-darwin-amd64-fips-pkg-tsh
+clone:
+  disable: true
+steps:
+- name: Set up exec runner storage
+  commands:
+  - mkdir -p $WORKSPACE_DIR
+  - chmod -R u+rw $WORKSPACE_DIR
+  - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
+  environment:
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips-pkg-tsh
+- name: Check out code
+  commands:
+  - mkdir -p $TELEPORT_DIR $GODL_DIR
+  - cd $GODL_DIR
+  - git clone https://github.com/gravitational/godl.git .
+  - git checkout $BORINGCRYPTO_BRANCH
+  - cd $TELEPORT_DIR
+  - git clone https://github.com/gravitational/teleport.git .
+  - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+  - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
+    && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
+  - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
+  - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
+  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
+    -F /dev/null' git submodule update --init e
+  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
+    -F /dev/null' git submodule update --init --recursive webassets || true
+  - rm -rf $WORKSPACE_DIR/.ssh
+  - mkdir -p $WORKSPACE_DIR/go/artifacts $WORKSPACE_DIR/go/cache
+  - echo "${DRONE_TAG##v}" > $WORKSPACE_DIR/go/.version.txt
+  - cat $WORKSPACE_DIR/go/.version.txt
+  environment:
+    BORINGCRYPTO_BRANCH: dev.boringcrypto.go1.16
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+    GODL_DIR: /tmp/build-darwin-amd64-fips-pkg-tsh/go/src/github.com/gravitational/godl
+    TELEPORT_DIR: /tmp/build-darwin-amd64-fips-pkg-tsh/go/src/github.com/gravitational/teleport
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips-pkg-tsh
+- name: Download built tarball artifact from S3
+  commands:
+  - export VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
+  - export S3_PATH="tag/$${DRONE_TAG##v}/"
+  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-darwin-amd64-fips-bin.tar.gz
+    $WORKSPACE_DIR/go/artifacts/
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips-pkg-tsh
+- name: Build Mac tsh pkg release artifacts
+  commands:
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+  - export VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
+  - export HOME=/Users/build
+  - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
+  - security find-identity -v
+  - make pkg-tsh VERSION=$VERSION OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
+  environment:
+    APPLE_PASSWORD:
+      from_secret: APPLE_PASSWORD
+    APPLE_USERNAME:
+      from_secret: APPLE_USERNAME
+    BUILDBOX_PASSWORD:
+      from_secret: BUILDBOX_PASSWORD
+    ENT_TARBALL_PATH: /tmp/build-darwin-amd64-fips-pkg-tsh/go/artifacts
+    OS: darwin
+    RUNTIME: fips
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips-pkg-tsh
+- name: Copy Mac tsh pkg artifacts
+  commands:
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+  - rm -rf $WORKSPACE_DIR/go/artifacts/*.tar.gz
+  - cp build/tsh*.pkg $WORKSPACE_DIR/go/artifacts
+  - cd $WORKSPACE_DIR/go/artifacts && for FILE in tsh*.pkg; do shasum -a 256 $FILE
+    > $FILE.sha256; done && ls -l
+  environment:
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips-pkg-tsh
+- name: Copy Mac artifacts
+  commands:
+  - cd $WORKSPACE_DIR/go/artifacts
+  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips-pkg-tsh
+- name: Clean up exec runner storage (post)
+  commands:
+  - chmod -R u+rw $WORKSPACE_DIR
+  - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
+  environment:
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips-pkg-tsh
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/tag.go:190
 ################################################
 
 kind: pipeline
@@ -3951,7 +4420,6 @@ steps:
     done && ls -l
 - name: Upload to S3
   image: plugins/s3
-  commands: []
   settings:
     access_key:
       from_secret: AWS_ACCESS_KEY_ID
@@ -4742,6 +5210,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: ec33082c9821a6df75413d5cc21e3af92b916aefb1f80402266b289cab2d4aaf
+hmac: 0477fd731967c59ae2309142c53b59030e2fd747ab6a22d9029025c45aa6c1c6
 
 ...

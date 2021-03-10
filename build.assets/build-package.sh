@@ -105,10 +105,6 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
         echo "arch parameter is ignored when building for OS X"
         unset ARCH
     fi
-    if [[ "${RUNTIME}" != "" ]]; then
-        echo "runtime parameter is ignored when building for OS X"
-        unset RUNTIME
-    fi
     PLATFORM="darwin"
     ARCH="amd64"
     if [[ ! $(type pkgbuild) ]]; then
@@ -234,10 +230,8 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
     else
         FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport"
         BUNDLE_ID="com.gravitational.teleport"
-        # we can't sign/notarize full Teleport packages on Mac yet due to https://github.com/gravitational/teleport/issues/3158
-        # TODO(gus): uncomment/fix this when the teleport binary is fixed
-        SIGN_PKG="false"
-        NOTARIZE_PKG="false"
+        SIGN_PKG="true"
+        NOTARIZE_PKG="true"
         if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
             PKG_FILENAME="teleport-ent-${TELEPORT_VERSION}.${PACKAGE_TYPE}"
         else
