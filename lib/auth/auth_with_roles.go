@@ -2652,12 +2652,15 @@ func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFAReq
 			// connection.
 			return &proto.IsMFARequiredResponse{Required: false}, nil
 		}
-		if len(matches) > 1 {
-			// We need to include the special placeholder NodeIsAmbiguous for a
-			// few client and test checks that handle it.
-			return nil, trace.BadParameter("%s: multiple nodes match %q, please use the node UUID to login instead", teleport.NodeIsAmbiguous, t.Node)
+		// Check RBAC against all matching nodes and return the first error.
+		// If at least one node requires MFA, we'll catch it.
+		for _, n := range matches {
+			err := a.context.Checker.CheckAccessToServer(req.Username, n, false)
+			if err != nil {
+				noMFAAccessErr = err
+				break
+			}
 		}
-		noMFAAccessErr = a.context.Checker.CheckAccessToServer(req.Username, matches[0], false)
 
 	case *proto.IsMFARequiredRequest_KubernetesCluster:
 		notFoundErr = trace.NotFound("kubernetes cluster %q not found", t.KubernetesCluster)

@@ -5229,7 +5229,8 @@ func (*UserSingleUseCertsResponse) XXX_OneofWrappers() []interface{} {
 // IsMFARequiredRequest is a request to check whether MFA is required to access
 // the Target.
 type IsMFARequiredRequest struct {
-	// Username of the caller.
+	// Username of the caller. This is OS user, not necessarily a Teleport
+	// username.
 	Username string `protobuf:"bytes,1,opt,name=Username,proto3" json:"Username,omitempty"`
 	// Types that are valid to be assigned to Target:
 	//	*IsMFARequiredRequest_KubernetesCluster

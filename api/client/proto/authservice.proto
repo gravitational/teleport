@@ -714,7 +714,8 @@ message UserSingleUseCertsResponse {
 // IsMFARequiredRequest is a request to check whether MFA is required to access
 // the Target.
 message IsMFARequiredRequest {
-    // Username of the caller.
+    // Username of the caller. This is OS user, not necessarily a Teleport
+    // username.
     string Username = 1;
     oneof Target {
         // KubernetesCluster specifies the target kubernetes cluster.
