@@ -290,6 +290,10 @@ const (
 	UserDeleteCode = "T1004I"
 	// UserPasswordChangeCode is an event code for when user changes their own password.
 	UserPasswordChangeCode = "T1005I"
+	// MFADeviceAddEventCode is an event code for users adding MFA devices.
+	MFADeviceAddEventCode = "T1006I"
+	// MFADeviceDeleteEventCode is an event code for users deleting MFA devices.
+	MFADeviceDeleteEventCode = "T1007I"
 
 	// SessionRejectedCode is an event code for when a user's attempt to create an
 	// session/connection has been rejected.

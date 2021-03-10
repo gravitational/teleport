@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -13,25 +13,24 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
-package main
+package sshutils
 
 import (
-	"github.com/gravitational/teleport/tool/tctl/common"
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 )
 
-func main() {
-	commands := []common.CLICommand{
-		&common.UserCommand{},
-		&common.NodeCommand{},
-		&common.TokenCommand{},
-		&common.AuthCommand{},
-		&common.ResourceCommand{},
-		&common.StatusCommand{},
-		&common.TopCommand{},
-		&common.AccessRequestCommand{},
-		&common.AppsCommand{},
-		&common.DBCommand{},
+// ParseCertificate parses an SSH certificate from the authorized_keys format.
+func ParseCertificate(buf []byte) (*ssh.Certificate, error) {
+	k, _, _, _, err := ssh.ParseAuthorizedKey(buf)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	common.Run(commands)
+
+	cert, ok := k.(*ssh.Certificate)
+	if !ok {
+		return nil, trace.BadParameter("not an SSH certificate")
+	}
+
+	return cert, nil
 }
