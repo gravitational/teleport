@@ -176,11 +176,13 @@ a single self-hosted MySQL database:
 
 ```yaml
 teleport:
-  data_dir: /var/lib/teleport
-  nodename: test
+  # The data_dir should be a different location if running on the same
+  # machine as Teleport auth and proxy.
+  data_dir: /var/lib/teleport-db
+  nodename: teleport-db-instance
   # Teleport invitation token used to join a cluster.
   # can also be passed on start using --token flag
-  auth_token: xxxx-token-xxxx
+  auth_token: /tmp/token
   # Proxy address to connect to. Note that it has to be the proxy address
   # because database service always connects to the cluster over reverse
   # tunnel.
