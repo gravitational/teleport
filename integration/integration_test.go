@@ -3411,9 +3411,10 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 	defer svc.Shutdown(context.TODO())
 
 	cfg := ClientConfig{
-		Login: s.me.Username,
-		Host:  Loopback,
-		Port:  t.GetPortSSHInt(),
+		Login:   s.me.Username,
+		Cluster: Site,
+		Host:    Loopback,
+		Port:    t.GetPortSSHInt(),
 	}
 	clt, err := t.NewClientWithCreds(cfg, *initialCreds)
 	c.Assert(err, check.IsNil)
@@ -3558,9 +3559,10 @@ func (s *IntSuite) TestRotateRollback(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	cfg := ClientConfig{
-		Login: s.me.Username,
-		Host:  Loopback,
-		Port:  t.GetPortSSHInt(),
+		Login:   s.me.Username,
+		Cluster: Site,
+		Host:    Loopback,
+		Port:    t.GetPortSSHInt(),
 	}
 	clt, err := t.NewClientWithCreds(cfg, *initialCreds)
 	c.Assert(err, check.IsNil)
@@ -4334,8 +4336,9 @@ func (s *IntSuite) TestList(c *check.C) {
 
 		// Create a Teleport client.
 		cfg := ClientConfig{
-			Login: tt.inLogin,
-			Port:  t.GetPortSSHInt(),
+			Login:   tt.inLogin,
+			Cluster: Site,
+			Port:    t.GetPortSSHInt(),
 		}
 		userClt, err := t.NewClientWithCreds(cfg, *initialCreds)
 		c.Assert(err, check.IsNil)
@@ -4433,8 +4436,9 @@ func (s *IntSuite) TestCmdLabels(c *check.C) {
 
 	for _, tt := range tts {
 		cfg := ClientConfig{
-			Login:  s.me.Username,
-			Labels: tt.labels,
+			Login:   s.me.Username,
+			Cluster: Site,
+			Labels:  tt.labels,
 		}
 
 		output, err := runCommand(t, tt.command, cfg, 1)
