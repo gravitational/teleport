@@ -86,28 +86,33 @@ type Client struct {
 // New will try to open a connection with all combinations of addresses,
 // server types, and credentials. The first successful connection to a server
 // will be used, or an aggregated error will be returned if all combinations fail.
-func New(ctx context.Context, cfg Config) (*Client, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
+//
+// If cfg.DialWithoutBlock is true, New will only use the first credentials and
+// a predefined dialer or an auth server address must be provided in cfg.
+// The connection will be dialed in the background, so the connection is not
+// validated. This option is primarily meant for internal use where the client has
+// direct access to server values and can reliably validate them before dialing.
+func New(ctx context.Context, cfg Config) (clt *Client, err error) {
+	if err = cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := connect(ctx, cfg)
+	if cfg.DialInBackground {
+		clt, err = connectInBackground(ctx, cfg)
+	} else {
+		clt, err = connect(ctx, cfg)
+	}
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return clt, nil
 }
 
-// NewTLSAuthClient creates a new auth client and does not wait for the
-// connection to finish dialing before returning. This can only be used
-// to connect directly to the auth server a	nd only uses the first
-// credentials provided. This is primarily used by teleport services
-// to quickly create local clients from predefined values in the server.
-func NewTLSAuthClient(ctx context.Context, cfg Config) (*Client, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+// connectInBackground connects the client to the server in the background,
+// using the first credentials in cfg, and returns the client immediately.
+// A predefined dialer or an auth server address must be provided in cfg.
+func connectInBackground(ctx context.Context, cfg Config) (*Client, error) {
 	tls, err := cfg.Credentials[0].TLSConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -287,7 +292,7 @@ func findTunnelAddr(webAddr string) (string, error) {
 
 // dialGRPC dials a connection between server and client. If withBlock is false,
 // the dial will block until the connection is up, rather than returning
-// immediately and connecting to the server in the background
+// immediately and connecting to the server in the background.
 func (c *Client) dialGRPC(ctx context.Context, addr string, withBlock bool) error {
 	dialOptions := []grpc.DialOption{
 		grpc.WithContextDialer(c.grpcDialer(c.dialer)),
@@ -347,6 +352,10 @@ type Config struct {
 	// Credentials are a list of credentials to use when attempting
 	// to form a connection from client to server.
 	Credentials []Credentials
+	// DialInBackground specifies to dial the connection in the background
+	// rather than blocking until the connection is up. A predefined Dialer
+	// or an auth server address must be provided.
+	DialInBackground bool
 }
 
 // CheckAndSetDefaults checks and sets default config values.
