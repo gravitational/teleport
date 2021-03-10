@@ -55,7 +55,7 @@ var (
 	// TODO(gus): Set this from `make -C build.assets print-runtime-version` or similar rather
 	// than hardcoding it. Also remove the usage of RUNTIME as a pipeline-level environment variable
 	// (as support for these varies among Drone runners) and only set it for steps that need it.
-	goRuntime = value{raw: "go1.15.5"}
+	goRuntime = value{raw: "go1.16.2"}
 )
 
 type buildType struct {
