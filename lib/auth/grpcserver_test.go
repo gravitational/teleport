@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/base32"
 	"encoding/base64"
+	"fmt"
 	"net"
 	"sort"
 	"testing"
@@ -898,20 +899,26 @@ func TestIsMFARequired(t *testing.T) {
 	// Create a fake user.
 	user, role, err := CreateUserAndRole(srv.Auth(), "no-mfa-user", []string{"role"})
 	require.NoError(t, err)
-	// Make sure MFA is NOT required for this user.
-	roleOpt := role.GetOptions()
-	roleOpt.RequireSessionMFA = false
-	role.SetOptions(roleOpt)
-	err = srv.Auth().UpsertRole(ctx, role)
-	require.NoError(t, err)
 
-	cl, err := srv.NewClient(TestUser(user.GetName()))
-	require.NoError(t, err)
+	for _, required := range []bool{true, false} {
+		t.Run(fmt.Sprintf("required=%v", required), func(t *testing.T) {
+			roleOpt := role.GetOptions()
+			roleOpt.RequireSessionMFA = required
+			role.SetOptions(roleOpt)
+			err = srv.Auth().UpsertRole(ctx, role)
+			require.NoError(t, err)
 
-	resp, err := cl.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
-		Username: user.GetName(),
-		Target:   &proto.IsMFARequiredRequest_Node{Node: "node-a"},
-	})
-	require.NoError(t, err)
-	require.False(t, resp.Required)
+			cl, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			resp, err := cl.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
+				Target: &proto.IsMFARequiredRequest_Node{Node: &proto.NodeLogin{
+					Login: user.GetName(),
+					Node:  "node-a",
+				}},
+			})
+			require.NoError(t, err)
+			require.Equal(t, resp.Required, required)
+		})
+	}
 }

@@ -158,13 +158,11 @@ func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
 	}
 }
 
-func (p ReissueParams) isMFARequiredRequest(username string) *proto.IsMFARequiredRequest {
-	req := &proto.IsMFARequiredRequest{
-		Username: username,
-	}
+func (p ReissueParams) isMFARequiredRequest(sshLogin string) *proto.IsMFARequiredRequest {
+	req := new(proto.IsMFARequiredRequest)
 	switch {
 	case p.NodeName != "":
-		req.Target = &proto.IsMFARequiredRequest_Node{Node: p.NodeName}
+		req.Target = &proto.IsMFARequiredRequest_Node{Node: &proto.NodeLogin{Node: p.NodeName, Login: sshLogin}}
 	case p.KubernetesCluster != "":
 		req.Target = &proto.IsMFARequiredRequest_KubernetesCluster{KubernetesCluster: p.KubernetesCluster}
 	case p.RouteToDatabase.ServiceName != "":

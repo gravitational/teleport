@@ -714,18 +714,22 @@ message UserSingleUseCertsResponse {
 // IsMFARequiredRequest is a request to check whether MFA is required to access
 // the Target.
 message IsMFARequiredRequest {
-    // Username of the caller. This is OS user, not necessarily a Teleport
-    // username.
-    string Username = 1;
     oneof Target {
         // KubernetesCluster specifies the target kubernetes cluster.
-        string KubernetesCluster = 2;
+        string KubernetesCluster = 1;
         // RouteToDatabase specifies the target database proxy name.
-        RouteToDatabase Database = 3;
-        // NodeName specifies the target SSH node. This can be node's hostname or
-        // UUID.
-        string Node = 4;
+        RouteToDatabase Database = 2;
+        // Node specifies the target SSH node.
+        NodeLogin Node = 3;
     }
+}
+
+// NodeLogin specifies an SSH node and OS login.
+message NodeLogin {
+    // Node can be node's hostname or UUID.
+    string Node = 1;
+    // Login is the OS login name.
+    string Login = 2;
 }
 
 // IsMFARequiredResponse is a response for MFA requirement check.
