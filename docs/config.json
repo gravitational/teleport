@@ -19,20 +19,21 @@
       ]
     },
     {
-      "icon": "wand",
-      "title": "Preview",
+      "icon": "kubernetes",
+      "title": "Kubernetes Access",
       "entries": [
-        { "title": "Upcoming Releases", "slug": "/preview/upcoming-releases/" }
-      ]
-    },
-    {
-      "icon": "book",
-      "title": "Infrastructure Guides",
-      "entries": [
-        { "title": "AWS", "slug": "/aws-oss-guide/" },
-        { "title": "GCP", "slug": "/gcp-guide/" },
-        { "title": "IBM", "slug": "/ibm-cloud-guide/" },
-        { "title": "OpenSSH Guide", "slug": "/openssh-teleport/" }
+        { "title": "Getting Started", "slug": "/kubernetes-access/getting-started/" },
+        {
+          "title": "Guides",
+          "slug": "/kubernetes-access/guides/",
+          "entries": [
+            { "title": "Multiple Clusters", "slug": "/kubernetes-access/guides/multiple-clusters/" },
+            { "title": "CI/CD", "slug": "/kubernetes-access/guides/cicd/" },
+            { "title": "Federation", "slug": "/kubernetes-access/guides/federation/" },
+            { "title": "Migration", "slug": "/kubernetes-access/guides/migration/" }
+          ]
+        },
+        { "title": "Access Controls", "slug": "/kubernetes-access/controls/" }
       ]
     },
     {
@@ -57,6 +58,23 @@
         { "title": "FAQ", "slug": "/database-access/faq/" }
       ]
     },
+    {
+      "icon": "wand",
+      "title": "Preview",
+      "entries": [
+        { "title": "Upcoming Releases", "slug": "/preview/upcoming-releases/" }
+      ]
+    },
+    {
+      "icon": "book",
+      "title": "Infrastructure Guides",
+      "entries": [
+        { "title": "AWS", "slug": "/aws-oss-guide/" },
+        { "title": "GCP", "slug": "/gcp-guide/" },
+        { "title": "IBM", "slug": "/ibm-cloud-guide/" },
+        { "title": "OpenSSH Guide", "slug": "/openssh-teleport/" }
+      ]
+    },    
     {
       "icon": "building",
       "title": "Teleport Enterprise",
