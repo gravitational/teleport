@@ -17,8 +17,8 @@ func main() {
 	var pipelines []pipeline
 
 	pipelines = append(pipelines, testPipelines()...)
-	pipelines = append(pipelines, buildPipelines()...)
 	pipelines = append(pipelines, pushPipelines()...)
+	pipelines = append(pipelines, tagPipelines()...)
 	pipelines = append(pipelines, cronPipelines()...)
 	pipelines = append(pipelines, promoteBuildPipeline())
 	pipelines = append(pipelines, updateDocsPipeline())
