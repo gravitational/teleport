@@ -1488,6 +1488,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 			return nil, trace.Wrap(err)
 		}
 		regChallenge.Request = &proto.MFARegisterChallenge_U2F{U2F: &proto.U2FRegisterChallenge{
+			Version:   challenge.Version,
 			Challenge: challenge.Challenge,
 			AppID:     challenge.AppID,
 		}}

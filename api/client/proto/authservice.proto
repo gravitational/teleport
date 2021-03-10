@@ -582,6 +582,7 @@ message U2FChallenge {
     string KeyHandle = 1;
     string Challenge = 2;
     string AppID = 3;
+    string Version = 4;
 }
 
 // U2FResponse is a U2F auth challenge response.
@@ -623,6 +624,7 @@ message MFARegisterResponse {
 message U2FRegisterChallenge {
     string Challenge = 1;
     string AppID = 2;
+    string Version = 3;
 }
 
 // U2FRegisterResponse is a response to U2FRegisterChallenge.
