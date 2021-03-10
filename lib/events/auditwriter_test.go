@@ -269,7 +269,7 @@ func TestAuditWriter(t *testing.T) {
 				},
 			})
 		})
-		defer test.cancel()
+		defer test.Close(context.Background())
 		inEvents := GenerateTestSession(SessionParams{
 			SessionID: string(test.sid),
 			// ClusterName explicitly empty in parameters
@@ -278,7 +278,7 @@ func TestAuditWriter(t *testing.T) {
 			require.Empty(t, event.GetClusterName())
 			require.NoError(t, test.writer.EmitAuditEvent(test.ctx, event))
 		}
-		test.cancel()
+		test.Close(context.Background())
 		require.Equal(t, len(inEvents), len(emittedEvents))
 		for _, event := range emittedEvents {
 			require.Equal(t, event.GetClusterName(), "cluster")
@@ -364,4 +364,8 @@ func (a *auditWriterTest) collectEvents(t *testing.T) []AuditEvent {
 	log.WithFields(reader.GetStats().ToFields()).Debugf("Reader stats.")
 
 	return outEvents
+}
+
+func (a *auditWriterTest) Close(ctx context.Context) error {
+	return a.writer.Close(ctx)
 }
