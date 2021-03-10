@@ -272,7 +272,8 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		params.RouteToCluster = rootClusterName
 	}
 
-	// Note: always connect to root for getting new credentials.
+	// Connect to the target cluster (root or leaf) to check whether MFA is
+	// required.
 	clt, err := proxy.ConnectToCluster(ctx, params.RouteToCluster, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -376,7 +377,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		return nil, trace.Wrap(err)
 	}
 	certResp := resp.GetCert()
-	if cert == nil {
+	if certResp == nil {
 		return nil, trace.BadParameter("server sent a %T on GenerateUserSingleUseCerts, expected SingleUseUserCert", resp.Response)
 	}
 	switch crt := certResp.Cert.(type) {
