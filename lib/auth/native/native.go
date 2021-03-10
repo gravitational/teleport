@@ -237,7 +237,7 @@ func (k *Keygen) GenerateHostCertWithoutValidation(c services.HostCertParams) ([
 // GenerateUserCert generates a user certificate with the passed in parameters.
 // The private key of the CA to sign the certificate must be provided.
 func (k *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
-	if err := c.Check(); err != nil {
+	if err := c.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err, "error validating UserCertParams")
 	}
 	return k.GenerateUserCertWithoutValidation(c)

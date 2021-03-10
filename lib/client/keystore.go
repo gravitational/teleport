@@ -35,8 +35,9 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/trace"
 )
 
 const (
@@ -870,3 +871,35 @@ func (s *MemLocalKeyStore) DeleteKeyOption(proxyHost, username string, opts ...K
 	}
 	return nil
 }
+
+// noLocalKeyStore is a LocalKeyStore representing the absence of a keystore.
+// All methods return errors. This exists to avoid nil checking everywhere in
+// LocalKeyAgent and prevent nil pointer panics.
+type noLocalKeyStore struct{}
+
+var errNoLocalKeyStore = trace.NotFound("there is no local keystore")
+
+func (noLocalKeyStore) AddKey(proxy string, username string, key *Key) error {
+	return errNoLocalKeyStore
+}
+func (noLocalKeyStore) GetKey(proxy, username string, opts ...KeyOption) (*Key, error) {
+	return nil, errNoLocalKeyStore
+}
+func (noLocalKeyStore) DeleteKey(proxyHost, username string, opts ...KeyOption) error {
+	return errNoLocalKeyStore
+}
+func (noLocalKeyStore) DeleteKeyOption(proxyHost, username string, opts ...KeyOption) error {
+	return errNoLocalKeyStore
+}
+func (noLocalKeyStore) DeleteKeys() error { return errNoLocalKeyStore }
+func (noLocalKeyStore) AddKnownHostKeys(hostname string, keys []ssh.PublicKey) error {
+	return errNoLocalKeyStore
+}
+func (noLocalKeyStore) GetKnownHostKeys(hostname string) ([]ssh.PublicKey, error) {
+	return nil, errNoLocalKeyStore
+}
+func (noLocalKeyStore) SaveCerts(proxy string, cas []auth.TrustedCerts) error {
+	return errNoLocalKeyStore
+}
+func (noLocalKeyStore) GetCerts(proxy string) (*x509.CertPool, error) { return nil, errNoLocalKeyStore }
+func (noLocalKeyStore) GetCertsPEM(proxy string) ([][]byte, error)    { return nil, errNoLocalKeyStore }

@@ -66,7 +66,7 @@ func (a *ServerWithRoles) action(namespace string, resource string, action strin
 // even if they are not admins, e.g. update their own passwords,
 // or generate certificates, otherwise it will require admin privileges
 func (a *ServerWithRoles) currentUserAction(username string) error {
-	if a.hasLocalUserRole(a.context.Checker) && username == a.context.User.GetName() {
+	if hasLocalUserRole(a.context.Checker) && username == a.context.User.GetName() {
 		return nil
 	}
 	return utils.OpaqueAccessDenied(
@@ -120,12 +120,17 @@ func (a *ServerWithRoles) hasRemoteBuiltinRole(name string) bool {
 	return true
 }
 
+// hasRemoteUserRole checks if the type of the role set is a remote user or
+// not.
+func hasRemoteUserRole(checker services.AccessChecker) bool {
+	_, ok := checker.(RemoteUserRoleSet)
+	return ok
+}
+
 // hasLocalUserRole checks if the type of the role set is a local user or not.
-func (a *ServerWithRoles) hasLocalUserRole(checker services.AccessChecker) bool {
-	if _, ok := checker.(LocalUserRoleSet); !ok {
-		return false
-	}
-	return true
+func hasLocalUserRole(checker services.AccessChecker) bool {
+	_, ok := checker.(LocalUserRoleSet)
+	return ok
 }
 
 // AuthenticateWebUser authenticates web user, creates and returns a web session
@@ -2678,6 +2683,13 @@ func (a *ServerWithRoles) DeleteMFADevice(ctx context.Context) (proto.AuthServic
 // client.Client.GenerateUserSingleUseCerts instead.
 func (a *ServerWithRoles) GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error) {
 	return nil, trace.NotImplemented("bug: GenerateUserSingleUseCerts must not be called on auth.ServerWithRoles")
+}
+
+func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+	if !hasLocalUserRole(a.context.Checker) && !hasRemoteUserRole(a.context.Checker) {
+		return nil, trace.AccessDenied("only a user role can call IsMFARequired, got %T", a.context.Checker)
+	}
+	return a.authServer.isMFARequired(ctx, a.context.Checker, req)
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

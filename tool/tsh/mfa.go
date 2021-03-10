@@ -75,7 +75,7 @@ func (c *mfaLSCommand) run(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		defer pc.Close()
-		aci, err := pc.ConnectToCurrentCluster(cf.Context, false)
+		aci, err := pc.ConnectToRootCluster(cf.Context, false)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -189,7 +189,7 @@ func (c *mfaAddCommand) addDeviceRPC(cf *CLIConf, devName string, devType proto.
 			return trace.Wrap(err)
 		}
 		defer pc.Close()
-		aci, err := pc.ConnectToCurrentCluster(cf.Context, false)
+		aci, err := pc.ConnectToRootCluster(cf.Context, false)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -343,7 +343,7 @@ func (c *mfaRemoveCommand) run(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		defer pc.Close()
-		aci, err := pc.ConnectToCurrentCluster(cf.Context, false)
+		aci, err := pc.ConnectToRootCluster(cf.Context, false)
 		if err != nil {
 			return trace.Wrap(err)
 		}
