@@ -21,6 +21,7 @@ RUN apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
     apt-get install -q -y \
         apt-utils \
+        clang-format \
         curl \
         gcc \
         gcc-multilib \
@@ -38,6 +39,7 @@ RUN apt-get update -y --fix-missing && \
         shellcheck \
         tar \
         tree \
+        unzip \
         zip \
         && \
     dpkg-reconfigure locales && \
@@ -78,6 +80,24 @@ RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.24.0
 RUN (mkdir -p helm-tarball && curl -L https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
      cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
      rm -r helm-tarball*)
+
+# Install protobuf and grpc build tools.
+ARG PROTOC_VER
+ARG PROTOC_PLATFORM
+ARG GOGO_PROTO_TAG
+
+ENV PROTOC_TARBALL protoc-${PROTOC_VER}-${PROTOC_PLATFORM}.zip
+ENV GOGOPROTO_ROOT ${GOPATH}/src/github.com/gogo/protobuf
+
+RUN (curl -L -o /tmp/${PROTOC_TARBALL} https://github.com/google/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
+     cd /tmp && unzip /tmp/${PROTOC_TARBALL} -d /usr/local && \
+     rm /tmp/${PROTOC_TARBALL})
+RUN (go get -u github.com/gogo/protobuf/proto github.com/gogo/protobuf/protoc-gen-gogo github.com/gogo/protobuf/gogoproto golang.org/x/tools/cmd/goimports && \
+     cd ${GOPATH}/src/github.com/gogo/protobuf && \
+     git reset --hard ${GOGO_PROTO_TAG} && \
+     make install)
+
+ENV PROTO_INCLUDE "/usr/local/include":"${GOPATH}/src":"${GOPATH}/src/github.com/gogo/protobuf/protobuf":"${GOGOPROTO_ROOT}":"${GOGOPROTO_ROOT}/protobuf":"${GOPATH}/src/github.com/gravitational/teleport/lib/services"
 
 # Install PAM module and policies for testing.
 COPY pam/ /opt/pam_teleport/
