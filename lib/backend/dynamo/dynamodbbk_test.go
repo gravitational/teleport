@@ -20,6 +20,7 @@ package dynamo
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -51,6 +52,7 @@ func (s *DynamoDBSuite) SetUpSuite(c *check.C) {
 		return New(context.Background(), map[string]interface{}{
 			"table_name":         s.tableName,
 			"poll_stream_period": 300 * time.Millisecond,
+			"region":             "us-east-2",
 		})
 	}
 	bk, err := newBackend()
@@ -100,5 +102,5 @@ func (s *DynamoDBSuite) TestWatchersClose(c *check.C) {
 }
 
 func (s *DynamoDBSuite) TestLocking(c *check.C) {
-	s.suite.Locking(c)
+	s.suite.Locking(c, s.bk)
 }

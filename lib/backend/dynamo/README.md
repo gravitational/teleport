@@ -13,12 +13,12 @@ It should be covered by the free tier.
 ### Building
 
 DynamoDB backend is not enabled by default. To enable it you have to 
-compile Teleport with `dynamo` build flag.
+compile Teleport with `dynamodb` build flag.
 
 To build Teleport with DynamoDB enabled, run:
 
 ```
-ADDFLAGS='-tags dynamodb' make teleport
+ADDFLAGS='-tags dynamodb' make build/teleport
 ```
 
 ### Quick Start

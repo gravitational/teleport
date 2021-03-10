@@ -39,6 +39,7 @@ func TestContinuousBackups(t *testing.T) {
 	b, err := New(context.Background(), map[string]interface{}{
 		"table_name":         uuid.New() + "-test",
 		"continuous_backups": true,
+		"region":             "us-west-2",
 	})
 	require.NoError(t, err)
 
@@ -57,6 +58,7 @@ func TestContinuousBackups(t *testing.T) {
 func TestAutoScaling(t *testing.T) {
 	// Create new backend with auto scaling enabled.
 	b, err := New(context.Background(), map[string]interface{}{
+		"region":             "us-west-2",
 		"table_name":         uuid.New() + "-test",
 		"auto_scaling":       true,
 		"read_min_capacity":  10,

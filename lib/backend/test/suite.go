@@ -20,6 +20,7 @@ package test
 
 import (
 	"context"
+	"encoding/hex"
 	"math/rand"
 	"sync/atomic"
 	"time"
@@ -100,9 +101,14 @@ func (s *BackendSuite) CRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(string(out.Value), check.Equals, string(item.Value))
 
-	// put with binary key and value succeeds
-	key := make([]byte, 1024)
-	rand.Read(key)
+	// put with large key and binary value succeeds.
+	//  NB: DynamoDB has a maximum overall key length of 1024 bytes, so we trim
+	//      our largest keysize to match.
+	keyLen := (1024 / 2) - len(prefix(""))
+	keyBytes := make([]byte, keyLen)
+	rand.Read(keyBytes)
+	key := hex.EncodeToString(keyBytes)
+
 	data := make([]byte, 1024)
 	rand.Read(data)
 	item = backend.Item{Key: prefix(string(key)), Value: data}
@@ -728,6 +734,19 @@ func (s *BackendSuite) Mirror(c *check.C, b backend.Backend) {
 	item, err = b.Get(ctx, prefix("a"))
 	c.Assert(err, check.IsNil)
 	c.Assert(item.ID, check.Equals, originalID)
+}
+
+// MakeBinaryPrefix returns function that prepends unique,
+// not-guaranteed-to-be-UTF8 prefix to any key, used to make
+// test suite concurrent-run proof
+func MakeBinaryPrefix() func(k string) []byte {
+	id := make([]byte, 20)
+	id[0] = '/'
+	rand.Read(id[1:])
+
+	return func(k string) []byte {
+		return append(id, []byte(k)...)
+	}
 }
 
 // MakePrefix returns function that appends unique prefix

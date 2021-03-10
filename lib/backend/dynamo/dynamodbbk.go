@@ -25,6 +25,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -324,6 +325,10 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 
 // Create creates item if it does not exist
 func (b *Backend) Create(ctx context.Context, item backend.Item) (*backend.Lease, error) {
+	if err := validateKey(item.Key, "item key"); err != nil {
+		return nil, err
+	}
+
 	err := b.create(ctx, item, modeCreate)
 	if trace.IsCompareFailed(err) {
 		err = trace.AlreadyExists(err.Error())
@@ -337,6 +342,9 @@ func (b *Backend) Create(ctx context.Context, item backend.Item) (*backend.Lease
 // Put puts value into backend (creates if it does not
 // exists, updates it otherwise)
 func (b *Backend) Put(ctx context.Context, item backend.Item) (*backend.Lease, error) {
+	if err := validateKey(item.Key, "item key"); err != nil {
+		return nil, err
+	}
 	err := b.create(ctx, item, modePut)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -346,6 +354,10 @@ func (b *Backend) Put(ctx context.Context, item backend.Item) (*backend.Lease, e
 
 // Update updates value in the backend
 func (b *Backend) Update(ctx context.Context, item backend.Item) (*backend.Lease, error) {
+	if err := validateKey(item.Key, "item key"); err != nil {
+		return nil, err
+	}
+
 	err := b.create(ctx, item, modeUpdate)
 	if trace.IsCompareFailed(err) {
 		err = trace.NotFound(err.Error())
@@ -358,12 +370,14 @@ func (b *Backend) Update(ctx context.Context, item backend.Item) (*backend.Lease
 
 // GetRange returns range of elements
 func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, limit int) (*backend.GetResult, error) {
-	if len(startKey) == 0 {
-		return nil, trace.BadParameter("missing parameter startKey")
+	if err := validateKey(startKey, "startKey"); err != nil {
+		return nil, err
 	}
-	if len(endKey) == 0 {
-		return nil, trace.BadParameter("missing parameter endKey")
+
+	if err := validateKey(endKey, "endKey"); err != nil {
+		return nil, err
 	}
+
 	result, err := b.getAllRecords(ctx, startKey, endKey, limit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -403,12 +417,14 @@ func (b *Backend) getAllRecords(ctx context.Context, startKey []byte, endKey []b
 
 // DeleteRange deletes range of items with keys between startKey and endKey
 func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey []byte) error {
-	if len(startKey) == 0 {
-		return trace.BadParameter("missing parameter startKey")
+	if err := validateKey(startKey, "startKey"); err != nil {
+		return err
 	}
-	if len(endKey) == 0 {
-		return trace.BadParameter("missing parameter endKey")
+
+	if err := validateKey(endKey, "endKey"); err != nil {
+		return err
 	}
+
 	// keep fetching and deleting until no records left,
 	// keep the very large limit, just in case if someone else
 	// keeps adding records
@@ -450,6 +466,10 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey []byte) erro
 
 // Get returns a single item or not found error
 func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
+	if err := validateKey(key, "key"); err != nil {
+		return nil, err
+	}
+
 	r, err := b.getKey(ctx, key)
 	if err != nil {
 		return nil, err
@@ -469,12 +489,14 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 // CompareAndSwap compares item with existing item
 // and replaces is with replaceWith item
 func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, replaceWith backend.Item) (*backend.Lease, error) {
-	if len(expected.Key) == 0 {
-		return nil, trace.BadParameter("missing parameter Key")
+	if err := validateKey(expected.Key, "expected key"); err != nil {
+		return nil, err
 	}
-	if len(replaceWith.Key) == 0 {
-		return nil, trace.BadParameter("missing parameter Key")
+
+	if err := validateKey(replaceWith.Key, "replacement key"); err != nil {
+		return nil, err
 	}
+
 	if !bytes.Equal(expected.Key, replaceWith.Key) {
 		return nil, trace.BadParameter("expected and replaceWith keys should match")
 	}
@@ -519,9 +541,10 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 
 // Delete deletes item by key
 func (b *Backend) Delete(ctx context.Context, key []byte) error {
-	if len(key) == 0 {
-		return trace.BadParameter("missing parameter key")
+	if err := validateKey(key, "key"); err != nil {
+		return err
 	}
+
 	if _, err := b.getKey(ctx, key); err != nil {
 		return err
 	}
@@ -845,6 +868,10 @@ func (b *Backend) deleteKey(ctx context.Context, key []byte) error {
 }
 
 func (b *Backend) getKey(ctx context.Context, key []byte) (*record, error) {
+	if !utf8.Valid(key) {
+		trace.BadParameter("Key must be a valid UTF-8 Sequence")
+	}
+
 	av, err := dynamodbattribute.MarshalMap(keyLookup{
 		HashKey:  hashKey,
 		FullPath: prependPrefix(key),
@@ -873,6 +900,18 @@ func (b *Backend) getKey(ctx context.Context, key []byte) (*record, error) {
 		return nil, trace.NotFound("%q is not found", key)
 	}
 	return &r, nil
+}
+
+func validateKey(key []byte, name string) error {
+	if len(key) == 0 {
+		return trace.BadParameter("parameter %s is missing", name)
+	}
+
+	if !utf8.Valid(key) {
+		return trace.BadParameter("parameter %s must be valid UTF-8", name)
+	}
+
+	return nil
 }
 
 func convertError(err error) error {
