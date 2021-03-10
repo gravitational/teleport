@@ -117,7 +117,7 @@ func (c *Client) grpcDialer() grpcDialer {
 		}
 		conn, err := c.dialer.DialContext(ctx, "tcp", addr)
 		if err != nil {
-			return nil, trace.ConnectionProblem(err, "failed to dial")
+			return nil, trace.ConnectionProblem(err, "failed to dial: %v", err)
 		}
 		return conn, nil
 	}
@@ -792,4 +792,12 @@ func (c *Client) GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthServ
 		return nil, trail.FromGRPC(err)
 	}
 	return stream, nil
+}
+
+func (c *Client) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+	resp, err := c.grpc.IsMFARequired(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
 }
