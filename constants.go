@@ -260,6 +260,9 @@ const (
 	// ComponentKube is an Kubernetes API gateway.
 	ComponentKube = "kubernetes"
 
+	// ComponentSAML is a SAML service provider.
+	ComponentSAML = "saml"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 

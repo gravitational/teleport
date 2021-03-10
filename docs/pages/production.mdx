@@ -6,43 +6,46 @@ h1: Production Guide
 
 This guide provides more in-depth details for running Teleport in Production.
 
-{/* TODO: Minimal Config example */}
+{
+  /* TODO: Minimal Config example */
+}
 
 ## Prerequisites
 
-* Read the [Architecture Overview](architecture/overview.mdx)
-* Read through the [Installation Guide](installation.mdx) to see the available packages and binaries available.
-* Read the CLI Docs for [`teleport`](cli-docs.mdx#teleport)
+- Read the [Architecture Overview](architecture/overview.mdx)
+- Read through the [Installation Guide](installation.mdx) to see the available packages and binaries available.
+- Read the CLI Docs for [`teleport`](cli-docs.mdx#teleport)
 
 ## Designing Your Cluster
 
 Before installing anything there are a few things you should think about.
 
-* Where will you host Teleport?
-    * On-premises
-    * Cloud VMs such as [AWS EC2](aws-oss-guide.mdx) or [GCE](gcp-guide.mdx)
-    * An existing Kubernetes Cluster
-* What does your existing network configuration look like?
-    * Are you able to administer the network firewall rules yourself or do you need to work with a network admin?
-    * Are these nodes accessible to the public Internet or behind NAT?
-* Which users, ([Roles or ClusterRoles](https://kubernetes.io/docs/reference/access-authn-authz/rbac/) on k8s) are set up on the existing system?
-   * Can you add new users or Roles yourself or do you need to work with a system administrator?
+- Where will you host Teleport?
+  - On-premises
+  - Cloud VMs such as [AWS EC2](aws-oss-guide.mdx) or [GCE](gcp-guide.mdx)
+  - An existing Kubernetes Cluster
+- What does your existing network configuration look like?
+  - Are you able to administer the network firewall rules yourself or do you need to work with a network admin?
+  - Are these nodes accessible to the public Internet or behind NAT?
+- Which users, ([Roles or ClusterRoles](https://kubernetes.io/docs/reference/access-authn-authz/rbac/) on k8s) are set up on the existing system?
+  - Can you add new users or Roles yourself or do you need to work with a system administrator?
 
 ## Firewall Configuration
 
 Teleport services listen on several ports. This table shows the default port numbers.
 
-|Port      | Service    | Description | Ingress | Egress
-|----------|------------|-------------|---------|----------
-| `3080`      | Proxy      | HTTPS port clients connect to. Used to authenticate `tsh` users and web users into the cluster. | Allow inbound connections from HTTP and SSH clients. | Allow outbound connections to HTTP and SSH clients.
-| `3023`      | Proxy      | SSH port clients connect to after authentication. A proxy will forward this connection to port `3022` on the destination node. | Allow inbound traffic from SSH clients. | Allow outbound traffic to SSH clients.
-| `3022`      | Node       | SSH port to the Node Service. This is Teleport's equivalent of port `22` for SSH. | Allow inbound traffic from proxy host. | Allow outbound traffic to the proxy host.
-| `3025`      | Auth       | SSH port used by the Auth Service to serve its Auth API to other nodes in a cluster. | Allow inbound connections from all cluster nodes. | Allow outbound traffic to cluster nodes.
-| `3024`      | Proxy      | SSH port used to create "reverse SSH tunnels" from behind-firewall environments into a trusted proxy server. | {/* TODO */} | {/* TODO */}
-| `3026`      | Kubernetes  | Port used for `kubectl` to access Teleport | {/* TODO */} | {/* TODO */}
+| Port | Service | Description | Ingress | Egress |
+| - | - | - | - | - |
+| `3080` | Proxy | HTTPS port clients connect to. Used to authenticate `tsh` users and web users into the cluster. | Allow inbound connections from HTTP and SSH clients. | Allow outbound connections to HTTP and SSH clients. |
+| `3023` | Proxy | SSH port clients connect to after authentication. A proxy will forward this connection to port `3022` on the destination node. | Allow inbound traffic from SSH clients. | Allow outbound traffic to SSH clients. |
+| `3022` | Node | SSH port to the Node Service. This is Teleport's equivalent of port `22` for SSH. | Allow inbound traffic from proxy host. | Allow outbound traffic to the proxy host. |
+| `3025` | Auth | SSH port used by the Auth Service to serve its Auth API to other nodes in a cluster. | Allow inbound connections from all cluster nodes. | Allow outbound traffic to cluster nodes. |
+| `3024` | Proxy | SSH port used to create "reverse SSH tunnels" from behind-firewall environments into a trusted proxy server. | {/* TODO */} | {/* TODO */} |
+| `3026` | Kubernetes | Port used for `kubectl` to access Teleport | {/* TODO */} | {/* TODO */} |
 
-
-{/* TODO: Add several diagrams of firewall config examples */}
+{
+  /* TODO: Add several diagrams of firewall config examples */
+}
 
 ## Installation
 
@@ -57,8 +60,8 @@ finish your production install.
 By default a Teleport node has the following files present. The location of all
 of them is configurable.
 
-| Default path                 | Purpose |
-|------------------------------|---------|
+| Default path | Purpose |
+| - | - |
 | `/etc/teleport.yaml` | Teleport configuration file. |
 | `/usr/local/bin/teleport` | Teleport daemon binary. |
 | `/usr/local/bin/tctl` | Teleport admin tool. It is only needed for auth servers. |
@@ -79,9 +82,9 @@ There are a couple of important things to notice about this file:
    for Teleport should be done in the [configuration file](admin-guide.mdx#configuration).
 
 2. The **ExecReload** command allows admins to run `systemctl reload teleport`.
-   This will attempt to perform a graceful restart of Teleport _*but it only works if
+   This will attempt to perform a graceful restart of Teleport **but it only works if
    network-based backend storage like [DynamoDB](admin-guide.mdx#using-dynamodb) or
-   [etc 3.3](admin-guide.mdx#using-etcd) is configured*_. Graceful Restarts will
+   [etc 3.3](admin-guide.mdx#using-etcd) is configured**. Graceful Restarts will
    fork a new process to handle new incoming requests and leave the old daemon
    process running until existing clients disconnect.
 
@@ -119,12 +122,12 @@ $ systemctl reload teleport
 You can also perform restarts or upgrades by sending `kill` signals
 to a Teleport daemon manually.
 
-| Signal                  | Teleport Daemon Behavior |
-|-------------------------|--------------------------|
-| `USR1`                  | Dumps diagnostics/debugging information into syslog. |
+| Signal | Teleport Daemon Behavior |
+| - | - |
+| `USR1` | Dumps diagnostics/debugging information into syslog. |
 | `TERM`, `INT` or `KILL` | Immediate non-graceful shutdown. All existing connections will be dropped. |
-| `USR2`                  | Forks a new Teleport daemon to serve new connections. |
-| `HUP`                   | Forks a new Teleport daemon to serve new connections **and** initiates the graceful shutdown of the existing process when there are no more clients connected to it. This is the signal sent to trigger a graceful restart. |
+| `USR2` | Forks a new Teleport daemon to serve new connections. |
+| `HUP` | Forks a new Teleport daemon to serve new connections **and** initiates the graceful shutdown of the existing process when there are no more clients connected to it. This is the signal sent to trigger a graceful restart. |
 
 ### Adding Nodes to the Cluster
 
@@ -141,7 +144,7 @@ Secure Sockets Layer (SSL).  Teleport requires TLS authentication to ensure that
 communication between nodes, clients and web proxy remains secure and comes from
 a trusted source.
 
-During our [quickstart](quickstart.mdx) guide we skip over setting up TLS so that you can quickly try Teleport.
+During our [Getting Started Guide](getting-started.mdx) guide we skip over setting up TLS so that you can quickly try Teleport.
 Obtaining a TLS certificate is easy and is free with thanks to [Let's Encrypt](https://letsencrypt.org/).
 
 If you use [certbot](https://certbot.eff.org/), you get this list of files provided:
@@ -202,8 +205,9 @@ setting up the proxy nodes start Teleport with:
 
 See [Teleport Proxy HA](admin-guide.mdx#teleport-proxy-ha) for more info.
 
-
-{/* TODO SSL for Webproxy & Auth Section */}
+{
+  /* TODO SSL for Webproxy & Auth Section */
+}
 
 ### CA Pinning
 
@@ -249,14 +253,20 @@ teleport:
     - "10.12.0.6:3025"
 ```
 
-<Admonition type="warning" title="Warning">
-If a CA pin is not provided, Teleport node will join a cluster but it will
-print a `WARN` message (warning) into its standard error output.
+<Admonition
+  type="warning"
+  title="Warning"
+>
+  If a CA pin is not provided, Teleport node will join a cluster but it will
+  print a `WARN` message (warning) into its standard error output.
 </Admonition>
 
-<Admonition type="warning" title="Warning">
-The CA pin becomes invalid if a Teleport administrator performs the CA
-rotation by executing `tctl auth rotate`.
+<Admonition
+  type="warning"
+  title="Warning"
+>
+  The CA pin becomes invalid if a Teleport administrator performs the CA
+  rotation by executing `tctl auth rotate`.
 </Admonition>
 
 ### Secure Data Storage
@@ -280,4 +290,6 @@ $ adduser <username>
 $ su <username>
 ```
 
-{/*  Security considerations on installing tctl under root or not */}
+{
+  /*  Security considerations on installing tctl under root or not */
+}
