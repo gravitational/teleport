@@ -1,10 +1,6 @@
 #
 # This Makefile is used for producing official Teleport releases
 #
-DOCSBOX=teleport-docsbox:latest
-DOCSHOST=teleport-docs
-DOCSDIR=/teleport
-
 HOSTNAME=buildbox
 SRCDIR=/go/src/github.com/gravitational/teleport
 DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME)
@@ -85,8 +81,7 @@ build-binaries-fips: buildbox-fips
 		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) FIPS=yes full
 
 #
-# Builds a Docker container which is used for building official Teleport
-# binaries and docs
+# Builds a Docker container which is used for building official Teleport binaries
 #
 .PHONY:buildbox
 buildbox:
@@ -173,17 +168,6 @@ buildbox-arm-fips: buildbox-fips
 		--tag $(BUILDBOX_ARM_FIPS) -f Dockerfile-arm-fips .
 
 #
-# Builds a Docker container for building mkdocs documentation
-#
-.PHONY:
-docsbox:
-	docker build --build-arg UID=$$(id -u) \
-		         --build-arg GID=$$(id -g) \
-		         --build-arg USER=jenkins \
-	             --build-arg WORKDIR=$(DOCSDIR) \
-		         --tag $(DOCSBOX) -f docs.dockerfile .
-
-#
 # Removes the docker image
 #
 .PHONY:clean
@@ -221,43 +205,6 @@ integration-root: buildbox
 lint: buildbox
 	docker run $(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c "make -C $(SRCDIR) lint"
-
-#
-# Builds docs
-#
-.PHONY:docs
-docs: docsbox
-	docker run --rm=true $(NOROOT) \
-		-v $$(pwd)/..:$(DOCSDIR) \
-		-v /tmp:/tmp \
-		-w $(DOCSDIR) \
-		-h $(DOCSHOST) $(DOCSBOX) \
-		./docs/build.sh
-
-#
-# allows to enter into bash shell of docs container
-#
-.PHONY:
-enter-docs: docsbox
-	docker run --rm=true $(NOROOT) \
-		-v $$(pwd)/..:$(DOCSDIR) \
-		-v /tmp:/tmp \
-		-w $(DOCSDIR) \
-		-h $(DOCSHOST) \
-		-ti $(DOCSBOX) /bin/bash
-
-#
-# Runs docs website on localhost
-#
-.PHONY:run-docs
-run-docs: docsbox
-	docker run -ti $(NOROOT) \
-		-v $$(pwd)/..:$(DOCSDIR) \
-		-v /tmp:/tmp \
-		-e HOME=$(SRCDIR)/build.assets \
-		-p 6600:6600 \
-		-w $(DOCSDIR) \
-		$(DOCSBOX) docs/run.sh
 
 #
 # Starts shell inside the build container

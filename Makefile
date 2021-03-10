@@ -234,21 +234,6 @@ release-windows: clean all
 	@echo "---> Created $(RELEASE).zip."
 
 #
-# Builds docs using containerized mkdocs
-#
-.PHONY:docs
-docs: docs-test
-	$(MAKE) -C build.assets docs
-
-#
-# Runs the documentation site inside a container on localhost with live updates
-# Convenient for editing documentation.
-#
-.PHONY:run-docs
-run-docs:
-	$(MAKE) -C build.assets run-docs
-
-#
 # Remove trailing whitespace in all markdown files under docs/.
 #
 # Note: this runs in a busybox container to avoid incompatibilities between
@@ -263,7 +248,7 @@ docs-fix-whitespace:
 # Test docs for trailing whitespace and broken links
 #
 .PHONY:docs-test
-docs-test: docs-test-whitespace docs-test-links
+docs-test: docs-test-whitespace
 
 #
 # Check for trailing whitespace in all markdown files under docs/
@@ -276,17 +261,6 @@ docs-test-whitespace:
 		exit 1; \
 	fi
 
-#
-# Run milv in docs to detect broken internal links.
-# milv is installed if missing.
-#
-.PHONY:docs-test-links
-docs-test-links: DOCS_FOLDERS := $(shell find . -name milv.config.yaml -exec dirname {} \;)
-docs-test-links:
-	for docs_dir in $(DOCS_FOLDERS); do \
-		echo "running milv -ignore-external in $${docs_dir}"; \
-		cd $${docs_dir} && milv -ignore-external; cd $(PWD); \
-	done
 
 #
 # Runs all tests except integration, called by CI/CD.
