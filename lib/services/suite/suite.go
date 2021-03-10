@@ -750,7 +750,6 @@ func (s *ServicesTestSuite) U2FCRUD(c *check.C) {
 	token := "tok1"
 	appID := "https://localhost"
 	user1 := "user1"
-	devID := "device1"
 
 	challenge, err := u2f.NewChallenge(appID, []string{appID})
 	c.Assert(err, check.IsNil)
@@ -765,10 +764,10 @@ func (s *ServicesTestSuite) U2FCRUD(c *check.C) {
 	c.Assert(challenge.AppID, check.Equals, challengeOut.AppID)
 	c.Assert(challenge.TrustedFacets, check.DeepEquals, challengeOut.TrustedFacets)
 
-	err = s.WebS.UpsertU2FSignChallenge(user1, devID, challenge)
+	err = s.WebS.UpsertU2FSignChallenge(user1, challenge)
 	c.Assert(err, check.IsNil)
 
-	challengeOut, err = s.WebS.GetU2FSignChallenge(user1, devID)
+	challengeOut, err = s.WebS.GetU2FSignChallenge(user1)
 	c.Assert(err, check.IsNil)
 	c.Assert(challenge.Challenge, check.DeepEquals, challengeOut.Challenge)
 	c.Assert(challenge.Timestamp.Unix(), check.Equals, challengeOut.Timestamp.Unix())

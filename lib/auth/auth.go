@@ -922,6 +922,7 @@ func (a *Server) GetMFAAuthenticateChallenge(user string, password []byte) (*MFA
 	}
 	for _, u2fChal := range protoChal.U2F {
 		ch := u2f.AuthenticateChallenge{
+			Version:   u2fChal.Version,
 			Challenge: u2fChal.Challenge,
 			KeyHandle: u2fChal.KeyHandle,
 			AppID:     u2fChal.AppID,
@@ -2029,6 +2030,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u
 	}
 
 	challenge := new(proto.MFAAuthenticateChallenge)
+	var u2fDevs []*types.MFADevice
 	for _, dev := range devs {
 		switch dev.Device.(type) {
 		case *types.MFADevice_Totp:
@@ -2040,22 +2042,28 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u
 			if !enableU2F {
 				continue
 			}
-			ch, err := u2f.AuthenticateInit(ctx, u2f.AuthenticateInitParams{
-				AppConfig:  *u2fPref,
-				Dev:        dev,
-				Storage:    u2fStorage,
-				StorageKey: user,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
+			u2fDevs = append(u2fDevs, dev)
+		default:
+			log.Warningf("Skipping MFA device of unknown type %T.", dev.Device)
+		}
+	}
+	if len(u2fDevs) > 0 {
+		chals, err := u2f.AuthenticateInit(ctx, u2f.AuthenticateInitParams{
+			AppConfig:  *u2fPref,
+			Devs:       u2fDevs,
+			Storage:    u2fStorage,
+			StorageKey: user,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, ch := range chals {
 			challenge.U2F = append(challenge.U2F, &proto.U2FChallenge{
+				Version:   ch.Version,
 				KeyHandle: ch.KeyHandle,
 				Challenge: ch.Challenge,
 				AppID:     ch.AppID,
 			})
-		default:
-			log.Warningf("skipping MFA device of unknown type %T", dev.Device)
 		}
 	}
 	return challenge, nil

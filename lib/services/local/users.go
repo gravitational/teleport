@@ -631,7 +631,7 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string) ([]*ty
 	return devices, nil
 }
 
-func (s *IdentityService) UpsertU2FSignChallenge(user, deviceID string, challenge *u2f.Challenge) error {
+func (s *IdentityService) UpsertU2FSignChallenge(user string, challenge *u2f.Challenge) error {
 	if user == "" {
 		return trace.BadParameter("missing parameter user")
 	}
@@ -640,7 +640,7 @@ func (s *IdentityService) UpsertU2FSignChallenge(user, deviceID string, challeng
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, usersPrefix, user, u2fSignChallengePrefix, deviceID),
+		Key:     backend.Key(webPrefix, usersPrefix, user, u2fSignChallengePrefix),
 		Value:   value,
 		Expires: s.Clock().Now().UTC().Add(defaults.U2FChallengeTimeout),
 	}
@@ -651,11 +651,11 @@ func (s *IdentityService) UpsertU2FSignChallenge(user, deviceID string, challeng
 	return nil
 }
 
-func (s *IdentityService) GetU2FSignChallenge(user, deviceID string) (*u2f.Challenge, error) {
+func (s *IdentityService) GetU2FSignChallenge(user string) (*u2f.Challenge, error) {
 	if user == "" {
 		return nil, trace.BadParameter("missing parameter user")
 	}
-	item, err := s.Get(context.TODO(), backend.Key(webPrefix, usersPrefix, user, u2fSignChallengePrefix, deviceID))
+	item, err := s.Get(context.TODO(), backend.Key(webPrefix, usersPrefix, user, u2fSignChallengePrefix))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

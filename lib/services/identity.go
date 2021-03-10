@@ -115,10 +115,10 @@ type Identity interface {
 	GetU2FRegisterChallenge(token string) (*u2f.Challenge, error)
 
 	// UpsertU2FSignChallenge upserts a U2F sign (auth) challenge
-	UpsertU2FSignChallenge(user, deviceID string, u2fChallenge *u2f.Challenge) error
+	UpsertU2FSignChallenge(user string, u2fChallenge *u2f.Challenge) error
 
 	// GetU2FSignChallenge returns a U2F sign (auth) challenge
-	GetU2FSignChallenge(user, deviceID string) (*u2f.Challenge, error)
+	GetU2FSignChallenge(user string) (*u2f.Challenge, error)
 
 	// UpsertMFADevice upserts an MFA device for the user.
 	UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error
