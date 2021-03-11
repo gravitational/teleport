@@ -98,6 +98,31 @@ release:
 	@echo "---> $(RELEASE_ENT_MESSAGE)"
 	$(MAKE) --no-print-directory release-unix
 
+# These are aliases used to make build commands uniform.
+.PHONY: release-amd64
+release-amd64:
+	$(MAKE) release ARCH=amd64
+
+.PHONY: release-amd64-fips
+release-amd64-fips:
+	$(MAKE) release ARCH=amd64 FIPS=yes
+
+.PHONY: release-386
+release-386:
+	$(MAKE) release ARCH=386
+
+.PHONY: release-arm
+release-arm:
+	$(MAKE) release ARCH=arm
+
+.PHONY: release-arm64
+release-arm64:
+	$(MAKE) release ARCH=arm64
+
+.PHONY: release-arm64-fips
+release-arm64-fips:
+	$(MAKE) release ARCH=arm64 FIPS=yes
+
 # make release-unix - Produces a binary release tarball containing teleport,
 # tctl, and tsh.
 .PHONY:
