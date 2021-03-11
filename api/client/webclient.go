@@ -21,7 +21,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
-	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -31,29 +30,26 @@ import (
 )
 
 // initClient creates a new client to the HTTPS web proxy.
-func initClient(proxyAddr string, pool *x509.CertPool) (*http.Client, *url.URL, error) {
-	// validate proxyAddr:
+func initClient(proxyAddr string, pool *x509.CertPool) (*http.Client, error) {
+	// Validate proxyAddr.
 	host, port, err := net.SplitHostPort(proxyAddr)
 	if err != nil || host == "" || port == "" {
 		if err != nil {
-			return nil, nil, trace.Wrap(err, "'%v' is not a valid proxy address", proxyAddr)
+			return nil, trace.Wrap(err, "'%v' is not a valid proxy address", proxyAddr)
 		}
-		return nil, nil, trace.BadParameter("'%v' is not a valid proxy address", proxyAddr)
+		return nil, trace.BadParameter("'%v' is not a valid proxy address", proxyAddr)
 	}
-	proxyAddr = "https://" + net.JoinHostPort(host, port)
-	u, err := url.Parse(proxyAddr)
-	if err != nil {
-		return nil, nil, trace.BadParameter("'%v' is not a valid proxy address", proxyAddr)
+	if _, err := url.Parse("https://" + net.JoinHostPort(host, port)); err != nil {
+		return nil, trace.BadParameter("'%v' is not a valid proxy address", proxyAddr)
 	}
 
 	if pool != nil {
 		// use custom set of trusted CAs
-		return newClientWithPool(pool), u, nil
+		return newClientWithPool(pool), nil
 	}
 
 	// Skip https cert verification, print a warning that this is insecure.
-	fmt.Printf("WARNING: You are using insecure connection to SSH proxy %v\n", proxyAddr)
-	return NewInsecureWebClient(), u, nil
+	return NewInsecureWebClient(), nil
 }
 
 func NewInsecureWebClient() *http.Client {
@@ -82,12 +78,12 @@ func newClientWithPool(pool *x509.CertPool) *http.Client {
 // of authentication that the server supports. This also leads to better user
 // experience: users only get prompted for the type of authentication the server supports.
 func Ping(ctx context.Context, proxyAddr string, pool *x509.CertPool) (*PingResponse, error) {
-	clt, _, err := initClient(proxyAddr, pool)
+	clt, err := initClient(proxyAddr, pool)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := clt.Get("https://" + proxyAddr + "/webapi/find")
+	resp, err := clt.Get("https://" + proxyAddr + "/webapi/ping")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

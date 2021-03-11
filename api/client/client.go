@@ -140,7 +140,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 	errChan := make(chan error)
 
 	// sendError is used to send errors to errChan with context.
-	sendError := func(ctx context.Context, err error) {
+	sendError := func(err error) {
 		select {
 		case <-ctx.Done():
 		case errChan <- trace.Wrap(err):
@@ -154,7 +154,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 		go func() {
 			defer wg.Done()
 			if err := clt.dialGRPC(ctx, addr, true); err != nil {
-				sendError(ctx, trace.Wrap(err))
+				sendError(trace.Wrap(err))
 				wg.Done()
 				return
 			}
@@ -176,13 +176,13 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 		for _, creds := range cfg.Credentials {
 			tlsConfig, err := creds.TLSConfig()
 			if err != nil {
-				sendError(ctx, trace.Wrap(err))
+				sendError(trace.Wrap(err))
 				continue
 			}
 
 			sshConfig, err := creds.SSHClientConfig()
 			if err != nil && !trace.IsNotImplemented(err) {
-				sendError(ctx, trace.Wrap(err))
+				sendError(trace.Wrap(err))
 				continue
 			}
 
@@ -220,9 +220,9 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 					go func(addr string) {
 						defer wg.Done()
 						// Try connecting to web proxy to retrieve tunnel address.
-						// if pr, err := Ping(ctx, addr, nil); err == nil {
-						// 	addr = pr.Proxy.SSH.TunnelPublicAddr
-						// }
+						if pr, err := Ping(ctx, addr, nil); err == nil {
+							addr = pr.Proxy.SSH.TunnelPublicAddr
+						}
 
 						syncConnect(addr, &Client{
 							c:         cfg,
@@ -286,7 +286,7 @@ func (c *Client) dialGRPC(ctx context.Context, addr string, withBlock bool) erro
 
 	var err error
 	if c.conn, err = grpc.DialContext(dialContext, addr, dialOptions...); err != nil {
-		trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	c.grpc = proto.NewAuthServiceClient(c.conn)
 
