@@ -7,13 +7,34 @@
     <h3>Add the repo</h3>
     <pre>helm repo add teleport https://charts.releases.teleport.dev</pre>
     <h3>Install a chart</h3>
-    <pre><b><a href="https://github.com/gravitational/teleport/tree/master/examples/chart/teleport">teleport:</a></b> helm install ${RELEASE_NAME?} teleport/teleport</pre>
+    <pre><b><a href="https://github.com/gravitational/teleport/tree/master/examples/chart/teleport">teleport:</a></b>
+    # Install the original Teleport Helm chart (deprecated)
+    # Click the link above to read the README and discover values you can set to modify operation.
+
+    helm install ${RELEASE_NAME?} teleport/teleport</pre>
+    <br />
+    <pre><b><a href="https://github.com/gravitational/teleport/tree/master/examples/chart/teleport-cluster">teleport-cluster:</a></b>
+      # Install a single node Teleport cluster and provision a cert using ACME.
+      # Set clusterName to a unique hostname, for example teleport.example.com
+      # Set acmeEmail to receive correspondence from Letsencrypt certificate authority.
+
+      helm install ${RELEASE_NAME?} teleport/teleport-cluster \
+        --create-namespace \
+        --namespace ${NAMESPACE?} \
+        --set clusterName=${CLUSTER_NAME?} \
+        --set acme=true \
+        --set acmeEmail=${EMAIL?}</pre>
+    <br />
     <pre><b><a href="https://github.com/gravitational/teleport/tree/master/examples/chart/teleport-kube-agent">teleport-kube-agent:</a></b>
-    helm install ${RELEASE_NAME?} teleport/teleport-kube-agent \
-    --create-namespace \
-    --namespace ${NAMESPACE?} \
-    --set proxyAddr=${PROXY_ENDPOINT?} \
-    --set authToken=${JOIN_TOKEN?} \
-    --set kubeClusterName=${KUBERNETES_CLUSTER_NAME?}</pre>
+      # Install or upgrade the Teleport kube agent which can be used to provide remote access to
+      # a remote Kubernetes cluster. Can also be used to run Teleport database or app service agents.
+      # Click the link above to see the README.
+
+      helm install ${RELEASE_NAME?} teleport/teleport-kube-agent \
+        --create-namespace \
+        --namespace ${NAMESPACE?} \
+        --set proxyAddr=${PROXY_ENDPOINT?} \
+        --set authToken=${JOIN_TOKEN?} \
+        --set kubeClusterName=${KUBERNETES_CLUSTER_NAME?}</pre>
   </body>
 </html>

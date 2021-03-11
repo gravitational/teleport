@@ -42,7 +42,7 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 		return &proto.MFAAuthenticateResponse{}, nil
 	// TOTP only.
 	case c.TOTP != nil && len(c.U2F) == 0:
-		totpCode, err := prompt.Input(os.Stdout, os.Stdin, fmt.Sprintf("Enter an OTP code from a %sdevice", promptDevicePrefix))
+		totpCode, err := prompt.Input(os.Stderr, os.Stdin, fmt.Sprintf("Enter an OTP code from a %sdevice", promptDevicePrefix))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -51,7 +51,7 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 		}}, nil
 	// U2F only.
 	case c.TOTP == nil && len(c.U2F) > 0:
-		fmt.Printf("Tap any %ssecurity key\n", promptDevicePrefix)
+		fmt.Fprintf(os.Stderr, "Tap any %ssecurity key\n", promptDevicePrefix)
 
 		return promptU2FChallenges(ctx, proxyAddr, c.U2F)
 	// Both TOTP and U2F.
@@ -75,7 +75,7 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 		}()
 
 		go func() {
-			totpCode, err := prompt.Input(os.Stdout, os.Stdin, fmt.Sprintf("Tap any %[1]ssecurity key or enter a code from a %[1]sOTP device", promptDevicePrefix, promptDevicePrefix))
+			totpCode, err := prompt.Input(os.Stderr, os.Stdin, fmt.Sprintf("Tap any %[1]ssecurity key or enter a code from a %[1]sOTP device", promptDevicePrefix, promptDevicePrefix))
 			res := response{kind: "TOTP", err: err}
 			if err == nil {
 				res.resp = &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{
@@ -99,7 +99,7 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 
 				// Print a newline after the TOTP prompt, so that any future
 				// output doesn't print on the prompt line.
-				fmt.Println()
+				fmt.Fprintln(os.Stderr)
 
 				return res.resp, nil
 			case <-ctx.Done():
@@ -126,6 +126,7 @@ func promptU2FChallenges(ctx context.Context, proxyAddr string, challenges []*pr
 		})
 	}
 
+	log.Debugf("prompting U2F devices with facet %q", facet)
 	resp, err := u2f.AuthenticateSignChallenge(ctx, facet, u2fChallenges...)
 	if err != nil {
 		return nil, trace.Wrap(err)

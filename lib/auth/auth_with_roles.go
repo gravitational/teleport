@@ -66,7 +66,7 @@ func (a *ServerWithRoles) action(namespace string, resource string, action strin
 // even if they are not admins, e.g. update their own passwords,
 // or generate certificates, otherwise it will require admin privileges
 func (a *ServerWithRoles) currentUserAction(username string) error {
-	if a.hasLocalUserRole(a.context.Checker) && username == a.context.User.GetName() {
+	if hasLocalUserRole(a.context.Checker) && username == a.context.User.GetName() {
 		return nil
 	}
 	return utils.OpaqueAccessDenied(
@@ -120,12 +120,17 @@ func (a *ServerWithRoles) hasRemoteBuiltinRole(name string) bool {
 	return true
 }
 
+// hasRemoteUserRole checks if the type of the role set is a remote user or
+// not.
+func hasRemoteUserRole(checker services.AccessChecker) bool {
+	_, ok := checker.(RemoteUserRoleSet)
+	return ok
+}
+
 // hasLocalUserRole checks if the type of the role set is a local user or not.
-func (a *ServerWithRoles) hasLocalUserRole(checker services.AccessChecker) bool {
-	if _, ok := checker.(LocalUserRoleSet); !ok {
-		return false
-	}
-	return true
+func hasLocalUserRole(checker services.AccessChecker) bool {
+	_, ok := checker.(LocalUserRoleSet)
+	return ok
 }
 
 // AuthenticateWebUser authenticates web user, creates and returns a web session
@@ -772,7 +777,8 @@ func (a *ServerWithRoles) CheckPassword(user string, password []byte, otpToken s
 	if err := a.currentUserAction(user); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.CheckPassword(user, password, otpToken)
+	_, err := a.authServer.checkPassword(user, password, otpToken)
+	return trace.Wrap(err)
 }
 
 func (a *ServerWithRoles) PreAuthenticatedSignIn(user string) (services.WebSession, error) {
@@ -2530,7 +2536,7 @@ func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s services.Serv
 	}
 
 	for _, kube := range s.GetKubernetesClusters() {
-		if err := a.context.Checker.CheckAccessToKubernetes(s.GetNamespace(), kube, a.context.Identity.GetIdentity().MFAVerified); err != nil {
+		if err := a.context.Checker.CheckAccessToKubernetes(s.GetNamespace(), kube, a.context.Identity.GetIdentity().MFAVerified != ""); err != nil {
 			return utils.OpaqueAccessDenied(err)
 		}
 	}
@@ -2617,6 +2623,13 @@ func (a *ServerWithRoles) DeleteMFADevice(ctx context.Context) (proto.AuthServic
 // client.Client.GenerateUserSingleUseCerts instead.
 func (a *ServerWithRoles) GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error) {
 	return nil, trace.NotImplemented("bug: GenerateUserSingleUseCerts must not be called on auth.ServerWithRoles")
+}
+
+func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+	if !hasLocalUserRole(a.context.Checker) && !hasRemoteUserRole(a.context.Checker) {
+		return nil, trace.AccessDenied("only a user role can call IsMFARequired, got %T", a.context.Checker)
+	}
+	return a.authServer.isMFARequired(ctx, a.context.Checker, req)
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

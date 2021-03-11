@@ -39,6 +39,7 @@ import (
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -79,7 +80,7 @@ type CLICommand interface {
 // "distributions" like OSS or Enterprise
 //
 // distribution: name of the Teleport distribution
-func Run(commands []CLICommand, loadConfigExt LoadConfigFn) {
+func Run(commands []CLICommand) {
 	utils.InitLogger(utils.LoggingForCLI, log.WarnLevel)
 
 	// app is the command line parser
@@ -143,7 +144,7 @@ func Run(commands []CLICommand, loadConfigExt LoadConfigFn) {
 	}
 
 	// configure all commands with Teleport configuration (they share 'cfg')
-	clientConfig, err := applyConfig(&ccf, cfg, loadConfigExt)
+	clientConfig, err := applyConfig(&ccf, cfg)
 	if err != nil {
 		utils.FatalError(err)
 	}
@@ -170,9 +171,6 @@ func Run(commands []CLICommand, loadConfigExt LoadConfigFn) {
 		}
 	}
 }
-
-// LoadConfigFn is optional config loading function
-type LoadConfigFn func(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServiceClientConfig, error)
 
 // AuthServiceClientConfig is a client config for auth service
 type AuthServiceClientConfig struct {
@@ -316,7 +314,7 @@ func tunnelAddr(webAddr utils.NetAddr, settings client.ProxySettings) (string, e
 //
 // The returned authServiceClientConfig has the credentials needed to dial the
 // auth server.
-func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config, loadConfigExt LoadConfigFn) (*AuthServiceClientConfig, error) {
+func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServiceClientConfig, error) {
 	// --debug flag
 	if ccf.Debug {
 		cfg.Debug = ccf.Debug
@@ -344,11 +342,11 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config, loadConfigExt LoadCon
 	}
 
 	// Config file should take precedence, if available.
-	if fileConf == nil && ccf.IdentityFilePath == "" && loadConfigExt != nil {
+	if fileConf == nil && ccf.IdentityFilePath == "" {
 		// No config file or identity file.
 		// Try the extension loader.
 		log.Debug("No config file or identity file, loading auth config via extension.")
-		authConfig, err := loadConfigExt(ccf, cfg)
+		authConfig, err := loadConfigFromProfile(ccf, cfg)
 		if err == nil {
 			return authConfig, nil
 		}
@@ -413,6 +411,70 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config, loadConfigExt LoadCon
 		}
 	}
 	authConfig.TLS.InsecureSkipVerify = ccf.Insecure
+
+	return authConfig, nil
+}
+
+// loadConfigFromProfile applies config from ~/.tsh/ profile if it's present
+func loadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServiceClientConfig, error) {
+	if ccf.IdentityFilePath != "" {
+		return nil, trace.NotFound("identity has been supplied, skip loading the config")
+	}
+
+	proxyAddr := ""
+	if len(ccf.AuthServerAddr) != 0 {
+		proxyAddr = cfg.AuthServers[0].Addr
+	}
+
+	profile, _, err := client.Status("", proxyAddr)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+	}
+	// client is already logged in using tsh login and profile is not expired
+	if profile == nil {
+		return nil, trace.NotFound("profile is not found")
+	}
+	if profile.IsExpired(clockwork.NewRealClock()) {
+		return nil, trace.BadParameter("your credentials have expired, please login using `tsh login`")
+	}
+
+	log.Debugf("Found active profile: %v %v.", profile.ProxyURL, profile.Username)
+
+	c := client.MakeDefaultConfig()
+	if err := c.LoadProfile("", proxyAddr); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	keyStore, err := client.NewFSLocalKeyStore(c.KeysDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	webProxyHost, _ := c.WebProxyHostPort()
+	key, err := keyStore.GetKey(webProxyHost, c.Username)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authConfig := &AuthServiceClientConfig{}
+	authConfig.TLS, err = key.TeleportClientTLSConfig(cfg.CipherSuites)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authConfig.TLS.InsecureSkipVerify = ccf.Insecure
+	authConfig.SSH, err = client.ProxyClientSSHConfig(key, keyStore)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Do not override auth servers from command line
+	if len(ccf.AuthServerAddr) == 0 {
+		webProxyAddr, err := utils.ParseAddr(c.WebProxyAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		log.Debugf("Setting auth server to web proxy %v.", webProxyAddr)
+		cfg.AuthServers = []utils.NetAddr{*webProxyAddr}
+	}
 
 	return authConfig, nil
 }
