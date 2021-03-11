@@ -110,16 +110,15 @@ func UnmarshalGithubConnector(bytes []byte) (GithubConnector, error) {
 }
 
 // MarshalGithubConnector marshals the GithubConnector resource to JSON.
-func MarshalGithubConnector(c GithubConnector, opts ...MarshalOption) ([]byte, error) {
+func MarshalGithubConnector(githubConnector GithubConnector, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	version := c.GetVersion()
-	switch githubConnector := c.(type) {
+	switch githubConnector := githubConnector.(type) {
 	case *GithubConnectorV3:
-		if version != V3 {
+		if version := githubConnector.GetVersion(); version != V3 {
 			return nil, trace.BadParameter("mismatched github connector version %v and type %T", version, githubConnector)
 		}
 		if !cfg.PreserveResourceID {
@@ -131,6 +130,6 @@ func MarshalGithubConnector(c GithubConnector, opts ...MarshalOption) ([]byte, e
 		}
 		return utils.FastMarshal(githubConnector)
 	default:
-		return nil, trace.BadParameter("unrecognized github connector version %T", c)
+		return nil, trace.BadParameter("unrecognized github connector version %T", githubConnector)
 	}
 }

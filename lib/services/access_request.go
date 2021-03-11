@@ -496,16 +496,15 @@ func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (AccessRequest, 
 }
 
 // MarshalAccessRequest marshals the AccessRequest resource to JSON.
-func MarshalAccessRequest(r AccessRequest, opts ...MarshalOption) ([]byte, error) {
+func MarshalAccessRequest(accessRequest AccessRequest, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	version := r.GetVersion()
-	switch accessRequest := r.(type) {
+	switch accessRequest := accessRequest.(type) {
 	case *AccessRequestV3:
-		if version != V3 {
+		if version := accessRequest.GetVersion(); version != V3 {
 			return nil, trace.BadParameter("mismatched access request version %v and type %T", version, accessRequest)
 		}
 		if !cfg.PreserveResourceID {
@@ -517,6 +516,6 @@ func MarshalAccessRequest(r AccessRequest, opts ...MarshalOption) ([]byte, error
 		}
 		return utils.FastMarshal(accessRequest)
 	default:
-		return nil, trace.BadParameter("unrecognized access request type: %T", r)
+		return nil, trace.BadParameter("unrecognized access request type: %T", accessRequest)
 	}
 }

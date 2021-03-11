@@ -96,16 +96,15 @@ func UnmarshalWebSession(bytes []byte, opts ...MarshalOption) (types.WebSession,
 }
 
 // MarshalWebSession marshals the WebSession resource to JSON.
-func MarshalWebSession(s types.WebSession, opts ...MarshalOption) ([]byte, error) {
+func MarshalWebSession(webSession types.WebSession, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	version := s.GetVersion()
-	switch webSession := s.(type) {
+	switch webSession := webSession.(type) {
 	case *WebSessionV2:
-		if version != V2 {
+		if version := webSession.GetVersion(); version != V2 {
 			return nil, trace.BadParameter("mismatched web session version %v and type %T", version, webSession)
 		}
 		if !cfg.PreserveResourceID {
@@ -117,21 +116,20 @@ func MarshalWebSession(s types.WebSession, opts ...MarshalOption) ([]byte, error
 		}
 		return utils.FastMarshal(webSession)
 	default:
-		return nil, trace.BadParameter("unrecognized web session version %T", s)
+		return nil, trace.BadParameter("unrecognized web session version %T", webSession)
 	}
 }
 
 // MarshalWebToken serializes the web token as JSON-encoded payload
-func MarshalWebToken(t types.WebToken, opts ...MarshalOption) ([]byte, error) {
+func MarshalWebToken(webToken types.WebToken, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	version := cfg.GetVersion()
-	switch webToken := t.(type) {
+	switch webToken := webToken.(type) {
 	case *types.WebTokenV3:
-		if version != V3 {
+		if version := webToken.GetVersion(); version != V3 {
 			return nil, trace.BadParameter("mismatched web token version %v and type %T", version, webToken)
 		}
 		if !cfg.PreserveResourceID {
@@ -143,7 +141,7 @@ func MarshalWebToken(t types.WebToken, opts ...MarshalOption) ([]byte, error) {
 		}
 		return utils.FastMarshal(webToken)
 	default:
-		return nil, trace.BadParameter("unrecognized web token version %T", t)
+		return nil, trace.BadParameter("unrecognized web token version %T", webToken)
 	}
 }
 

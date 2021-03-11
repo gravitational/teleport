@@ -116,16 +116,15 @@ func UnmarshalTunnelConnection(data []byte, opts ...MarshalOption) (TunnelConnec
 }
 
 // MarshalTunnelConnection marshals the TunnelConnection resource to JSON.
-func MarshalTunnelConnection(c TunnelConnection, opts ...MarshalOption) ([]byte, error) {
+func MarshalTunnelConnection(tunnelConnection TunnelConnection, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	version := c.GetVersion()
-	switch tunnelConnection := c.(type) {
+	switch tunnelConnection := tunnelConnection.(type) {
 	case *TunnelConnectionV2:
-		if version != V2 {
+		if version := tunnelConnection.GetVersion(); version != V2 {
 			return nil, trace.BadParameter("mismatched tunnel connection version %v and type %T", version, tunnelConnection)
 		}
 		if !cfg.PreserveResourceID {
@@ -137,6 +136,6 @@ func MarshalTunnelConnection(c TunnelConnection, opts ...MarshalOption) ([]byte,
 		}
 		return utils.FastMarshal(tunnelConnection)
 	default:
-		return nil, trace.BadParameter("unrecognized tunnel connection version %T", c)
+		return nil, trace.BadParameter("unrecognized tunnel connection version %T", tunnelConnection)
 	}
 }

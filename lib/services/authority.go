@@ -477,16 +477,15 @@ func UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (CertAuthority,
 }
 
 // MarshalCertAuthority marshals the CertAuthority resource to JSON.
-func MarshalCertAuthority(ca CertAuthority, opts ...MarshalOption) ([]byte, error) {
+func MarshalCertAuthority(certAuthority CertAuthority, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	version := ca.GetVersion()
-	switch certAuthority := ca.(type) {
+	switch certAuthority := certAuthority.(type) {
 	case *CertAuthorityV2:
-		if version != V2 {
+		if version := certAuthority.GetVersion(); version != V2 {
 			return nil, trace.BadParameter("mismatched certificate authority version %v and type %T", version, certAuthority)
 		}
 		if !cfg.PreserveResourceID {
@@ -498,6 +497,6 @@ func MarshalCertAuthority(ca CertAuthority, opts ...MarshalOption) ([]byte, erro
 		}
 		return utils.FastMarshal(certAuthority)
 	default:
-		return nil, trace.BadParameter("unrecognized certificate authority version %T", ca)
+		return nil, trace.BadParameter("unrecognized certificate authority version %T", certAuthority)
 	}
 }

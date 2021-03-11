@@ -120,16 +120,15 @@ func UnmarshalStaticTokens(bytes []byte, opts ...MarshalOption) (StaticTokens, e
 }
 
 // MarshalStaticTokens marshals the StaticTokens resource to JSON.
-func MarshalStaticTokens(t StaticTokens, opts ...MarshalOption) ([]byte, error) {
+func MarshalStaticTokens(staticToken StaticTokens, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	version := t.GetVersion()
-	switch staticToken := t.(type) {
+	switch staticToken := staticToken.(type) {
 	case *StaticTokensV2:
-		if version != V2 {
+		if version := staticToken.GetVersion(); version != V2 {
 			return nil, trace.BadParameter("mismatched static token version %v and type %T", version, staticToken)
 		}
 		if !cfg.PreserveResourceID {
@@ -141,6 +140,6 @@ func MarshalStaticTokens(t StaticTokens, opts ...MarshalOption) ([]byte, error) 
 		}
 		return utils.FastMarshal(staticToken)
 	default:
-		return nil, trace.BadParameter("unrecognized static token version %T", t)
+		return nil, trace.BadParameter("unrecognized static token version %T", staticToken)
 	}
 }

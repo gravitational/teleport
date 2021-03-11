@@ -224,16 +224,15 @@ func UnmarshalTrustedCluster(bytes []byte, opts ...MarshalOption) (TrustedCluste
 }
 
 // MarshalTrustedCluster marshals the TrustedCluster resource to JSON.
-func MarshalTrustedCluster(c TrustedCluster, opts ...MarshalOption) ([]byte, error) {
+func MarshalTrustedCluster(trustedCluster TrustedCluster, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	version := c.GetVersion()
-	switch trustedCluster := c.(type) {
+	switch trustedCluster := trustedCluster.(type) {
 	case *TrustedClusterV2:
-		if version != V2 {
+		if version := trustedCluster.GetVersion(); version != V2 {
 			return nil, trace.BadParameter("mismatched trusted cluster version %v and type %T", version, trustedCluster)
 		}
 		if !cfg.PreserveResourceID {
@@ -245,6 +244,6 @@ func MarshalTrustedCluster(c TrustedCluster, opts ...MarshalOption) ([]byte, err
 		}
 		return utils.FastMarshal(trustedCluster)
 	default:
-		return nil, trace.BadParameter("unrecognized trusted cluster version %T", c)
+		return nil, trace.BadParameter("unrecognized trusted cluster version %T", trustedCluster)
 	}
 }

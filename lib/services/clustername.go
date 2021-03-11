@@ -86,16 +86,15 @@ func UnmarshalClusterName(bytes []byte, opts ...MarshalOption) (ClusterName, err
 }
 
 // MarshalClusterName marshals the ClusterName resource to JSON.
-func MarshalClusterName(c ClusterName, opts ...MarshalOption) ([]byte, error) {
+func MarshalClusterName(clusterName ClusterName, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	version := c.GetVersion()
-	switch clusterName := c.(type) {
+	switch clusterName := clusterName.(type) {
 	case *ClusterNameV2:
-		if version != V2 {
+		if version := clusterName.GetVersion(); version != V2 {
 			return nil, trace.BadParameter("mismatched cluster name version %v and type %T", version, clusterName)
 		}
 		if !cfg.PreserveResourceID {
@@ -107,6 +106,6 @@ func MarshalClusterName(c ClusterName, opts ...MarshalOption) ([]byte, error) {
 		}
 		return utils.FastMarshal(clusterName)
 	default:
-		return nil, trace.BadParameter("unrecognized cluster name version %T", c)
+		return nil, trace.BadParameter("unrecognized cluster name version %T", clusterName)
 	}
 }

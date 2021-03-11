@@ -93,16 +93,15 @@ func UnmarshalRemoteCluster(bytes []byte, opts ...MarshalOption) (RemoteCluster,
 }
 
 // MarshalRemoteCluster marshals the RemoteCluster resource to JSON.
-func MarshalRemoteCluster(c RemoteCluster, opts ...MarshalOption) ([]byte, error) {
+func MarshalRemoteCluster(remoteCluster RemoteCluster, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	version := c.GetVersion()
-	switch remoteCluster := c.(type) {
+	switch remoteCluster := remoteCluster.(type) {
 	case *RemoteClusterV3:
-		if version != V3 {
+		if version := remoteCluster.GetVersion(); version != V3 {
 			return nil, trace.BadParameter("mismatched remote cluster version %v and type %T", version, remoteCluster)
 		}
 		if !cfg.PreserveResourceID {
@@ -114,6 +113,6 @@ func MarshalRemoteCluster(c RemoteCluster, opts ...MarshalOption) ([]byte, error
 		}
 		return utils.FastMarshal(remoteCluster)
 	default:
-		return nil, trace.BadParameter("unrecognized remote cluster version %T", c)
+		return nil, trace.BadParameter("unrecognized remote cluster version %T", remoteCluster)
 	}
 }

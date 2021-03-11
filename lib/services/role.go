@@ -2083,16 +2083,15 @@ func UnmarshalRole(bytes []byte, opts ...MarshalOption) (Role, error) {
 }
 
 // MarshalRole marshals the Role resource to JSON.
-func MarshalRole(r Role, opts ...MarshalOption) ([]byte, error) {
+func MarshalRole(role Role, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	version := r.GetVersion()
-	switch role := r.(type) {
+	switch role := role.(type) {
 	case *RoleV3:
-		if version != V3 {
+		if version := role.GetVersion(); version != V3 {
 			return nil, trace.BadParameter("mismatched role version %v and type %T", version, role)
 		}
 		if !cfg.PreserveResourceID {
@@ -2104,6 +2103,6 @@ func MarshalRole(r Role, opts ...MarshalOption) ([]byte, error) {
 		}
 		return utils.FastMarshal(role)
 	default:
-		return nil, trace.BadParameter("unrecognized role version %T", r)
+		return nil, trace.BadParameter("unrecognized role version %T", role)
 	}
 }

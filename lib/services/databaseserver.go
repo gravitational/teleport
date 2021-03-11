@@ -69,8 +69,8 @@ func GetDatabaseServerSchema() string {
 }
 
 // MarshalDatabaseServer marshals the DatabaseServer resource to JSON.
-func MarshalDatabaseServer(s types.DatabaseServer, opts ...MarshalOption) ([]byte, error) {
-	if err := s.CheckAndSetDefaults(); err != nil {
+func MarshalDatabaseServer(databaseServer types.DatabaseServer, opts ...MarshalOption) ([]byte, error) {
+	if err := databaseServer.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	cfg, err := CollectOptions(opts)
@@ -78,10 +78,9 @@ func MarshalDatabaseServer(s types.DatabaseServer, opts ...MarshalOption) ([]byt
 		return nil, trace.Wrap(err)
 	}
 
-	version := s.GetVersion()
-	switch databaseServer := s.(type) {
+	switch databaseServer := databaseServer.(type) {
 	case *types.DatabaseServerV3:
-		if version != V3 {
+		if version := databaseServer.GetVersion(); version != V3 {
 			return nil, trace.BadParameter("mismatched database server version %v and type %T", version, databaseServer)
 		}
 		if !cfg.PreserveResourceID {
@@ -93,7 +92,7 @@ func MarshalDatabaseServer(s types.DatabaseServer, opts ...MarshalOption) ([]byt
 		}
 		return utils.FastMarshal(databaseServer)
 	default:
-		return nil, trace.BadParameter("unrecognized database server version %T", s)
+		return nil, trace.BadParameter("unrecognized database server version %T", databaseServer)
 	}
 }
 
