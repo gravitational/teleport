@@ -18,7 +18,7 @@ import {
 } from 'e-teleport/Workflow/fixtures';
 
 export default {
-  title: 'Teleport/Main',
+  title: 'TeleportE/Main',
 };
 
 export function Enterprise() {
@@ -33,6 +33,8 @@ export function Enterprise() {
     </Flex>
   );
 }
+
+Enterprise.storyName = 'Main';
 
 function useMainStory() {
   const [history] = React.useState(() => {

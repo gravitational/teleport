@@ -8,6 +8,11 @@ const cfg = {
   routes: {
     requests: '/web/requests',
     requestNew: '/web/requests/new',
+
+    billing: '/web/billing',
+    billingUsage: '/web/billing/usage',
+    billingAccount: '/web/billing/account',
+    billingInvoices: '/web/billing/invoices',
   },
 
   api: {
@@ -16,6 +21,11 @@ const cfg = {
     authConnectorsListPath: '/v1/enterprise/authconnectors',
     samlConnectorsPath: '/v1/enterprise/saml/:name?',
     oidcConnectorsPath: '/v1/enterprise/oidc/:name?',
+    billingPath: '/v1/enterprise/cloud/billing',
+    cyclesPath: '/v1/enterprise/cloud/cycles',
+    invoicesPath: '/v1/enterprise/cloud/invoices',
+    cardPath: '/v1/enterprise/cloud/card',
+    accountPath: '/v1/enterprise/cloud/account',
   },
 
   getAccessRequestUrl(requestId?: string) {
