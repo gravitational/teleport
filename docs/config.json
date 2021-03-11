@@ -155,6 +155,16 @@
       "permanent": true
     },
     {
+      "source": "/preview/database-access/",
+      "destination": "/database-access/",
+      "permanent": true
+    },
+    {
+      "source": "/preview/cloud/",
+      "destination": "/cloud/",
+      "permanent": true
+    },
+    {
       "source": "/kubernetes-ssh/",
       "destination": "/kubernetes-access/",
       "permanent": true
