@@ -151,6 +151,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		},
 		SessionMetadata: events.SessionMetadata{
 			SessionID: identity.RouteToApp.SessionID,
+			WithMFA:   identity.MFAVerified,
 		},
 		UserMetadata: events.UserMetadata{
 			User: ws.GetUser(),

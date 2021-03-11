@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
@@ -42,16 +43,24 @@ import (
 	"github.com/vulcand/predicate"
 )
 
-// ExtendedAdminUserRules provides access to the default set of rules assigned to
+// getExtendedAdminUserRules provides access to the default set of rules assigned to
 // all users.
-var ExtendedAdminUserRules = []Rule{
-	NewRule(KindRole, RW()),
-	NewRule(KindAuthConnector, RW()),
-	NewRule(KindSession, RO()),
-	NewRule(KindTrustedCluster, RW()),
-	NewRule(KindEvent, RO()),
-	NewRule(KindUser, RW()),
-	NewRule(KindToken, RW()),
+func getExtendedAdminUserRules(features modules.Features) []Rule {
+	rules := []Rule{
+		NewRule(KindRole, RW()),
+		NewRule(KindAuthConnector, RW()),
+		NewRule(KindSession, RO()),
+		NewRule(KindTrustedCluster, RW()),
+		NewRule(KindEvent, RO()),
+		NewRule(KindUser, RW()),
+		NewRule(KindToken, RW()),
+	}
+
+	if features.Cloud {
+		rules = append(rules, NewRule(KindBilling, RW()))
+	}
+
+	return rules
 }
 
 // DefaultImplicitRules provides access to the default set of implicit rules
@@ -81,6 +90,10 @@ var DefaultCertAuthorityRules = []Rule{
 	NewRule(KindCertAuthority, ReadNoSecrets()),
 }
 
+// ErrSessionMFARequired is returned by AccessChecker when access to a resource
+// requires an MFA check.
+var ErrSessionMFARequired = trace.AccessDenied("access to resource requires MFA")
+
 // RoleNameForUser returns role name associated with a user.
 func RoleNameForUser(name string) string {
 	return "user:" + name
@@ -95,8 +108,7 @@ func RoleNameForCertAuthority(name string) string {
 // NewAdminRole is the default admin role for all local users if another role
 // is not explicitly assigned (this role applies to all users in OSS version).
 func NewAdminRole() Role {
-	adminRules := CopyRulesSlice(ExtendedAdminUserRules)
-
+	adminRules := getExtendedAdminUserRules(modules.GetModules().Features())
 	role := &RoleV3{
 		Kind:    KindRole,
 		Version: V3,
@@ -1388,7 +1400,7 @@ func (set RoleSet) CheckAccessToServer(login string, s Server, mfaVerified bool)
 					trace.Component: teleport.ComponentRBAC,
 				}).Debugf("Access to node %q denied, role %q requires per-session MFA; match(namespace=%v, label=%v, login=%v)",
 					s.GetHostname(), role.GetName(), namespaceMessage, labelsMessage, loginMessage)
-				return trace.AccessDenied("access to server requires MFA")
+				return ErrSessionMFARequired
 			}
 			// Check all remaining roles, even if we found a match.
 			// RequireSessionMFA should be enforced when at least one role has
@@ -1456,7 +1468,7 @@ func (set RoleSet) CheckAccessToApp(namespace string, app *App, mfaVerified bool
 					trace.Component: teleport.ComponentRBAC,
 				}).Debugf("Access to app %q denied, role %q requires per-session MFA; match(namespace=%v, label=%v)",
 					app.Name, role.GetName(), namespaceMessage, labelsMessage)
-				return trace.AccessDenied("access to app requires MFA")
+				return ErrSessionMFARequired
 			}
 			// Check all remaining roles, even if we found a match.
 			// RequireSessionMFA should be enforced when at least one role has
@@ -1524,7 +1536,7 @@ func (set RoleSet) CheckAccessToKubernetes(namespace string, kube *KubernetesClu
 					trace.Component: teleport.ComponentRBAC,
 				}).Debugf("Access to kubernetes cluster %q denied, role %q requires per-session MFA; match(namespace=%v, label=%v)",
 					kube.Name, role.GetName(), namespaceMessage, labelsMessage)
-				return trace.AccessDenied("access to kubernetes cluster requires MFA")
+				return ErrSessionMFARequired
 			}
 			// Check all remaining roles, even if we found a match.
 			// RequireSessionMFA should be enforced when at least one role has
@@ -1676,7 +1688,7 @@ func (set RoleSet) CheckAccessToDatabase(server types.DatabaseServer, mfaVerifie
 				}
 				if role.GetOptions().RequireSessionMFA {
 					log.Debugf("Access to database %q denied, role %q requires per-session MFA", server.GetName(), role.GetName())
-					return trace.AccessDenied("access to database requires MFA")
+					return ErrSessionMFARequired
 				}
 				// Check all remaining roles, even if we found a match.
 				// RequireSessionMFA should be enforced when at least one role has
@@ -1908,7 +1920,8 @@ const RoleSpecV3SchemaTemplate = `{
 		  "max_connections": { "type": "number" },
 		  "max_sessions": {"type": "number"},
 		  "request_access": { "type": "string" },
-		  "request_prompt": { "type": "string" }
+		  "request_prompt": { "type": "string" },
+		  "require_session_mfa": { "type": ["boolean", "string"] }
 		}
 	  },
 	  "allow": { "$ref": "#/definitions/role_condition" },

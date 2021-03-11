@@ -213,7 +213,7 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 			// A caller has attempted to mix legacy and new format.
 			if len(u.allowedLogins) != 0 || len(u.createRoles) != 0 {
 				return trace.BadParameter(
-					"please use --roles flag without use of logins positional argument, --k8s-users and k8s-groups flags")
+					`please use --roles and --logins flags instead of deprecated positional arguments, --k8s-users and k8s-groups flags`)
 			}
 			return u.legacyAdd(client)
 			// This is a legacy OSS scenario: `tctl users add bob`
