@@ -89,14 +89,14 @@ func pushPipeline(params pushBuildType) pipeline {
 	p.Trigger = triggerPush
 	p.Workspace = workspace{Path: "/go"}
 	p.Volumes = []volume{
-		{Name: "dockersock", Temp: &volumeTemp{}},
+		volumeDocker,
 	}
 	p.Services = []service{
 		{
 			Name:  "Start Docker",
 			Image: "docker:dind",
 			Volumes: []volumeRef{
-				{Name: "dockersock", Path: "/var/run"},
+				volumeRefDocker,
 			},
 		},
 	}
@@ -117,7 +117,7 @@ func pushPipeline(params pushBuildType) pipeline {
 			Image:       "docker",
 			Environment: pushEnvironment,
 			Volumes: []volumeRef{
-				{Name: "dockersock", Path: "/var/run"},
+				volumeRefDocker,
 			},
 			Commands: []string{
 				`apk add --no-cache make`,

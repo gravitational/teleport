@@ -20,8 +20,17 @@ var (
 		Name: "tmpfs",
 		Temp: &volumeTemp{Medium: "memory"},
 	}
+	volumeDocker = volume{
+		Name: "dockersock",
+		Temp: &volumeTemp{},
+	}
+
 	volumeRefTmpfs = volumeRef{
 		Name: "tmpfs",
 		Path: "/tmpfs",
+	}
+	volumeRefDocker = volumeRef{
+		Name: "dockersock",
+		Path: "/var/run",
 	}
 )
