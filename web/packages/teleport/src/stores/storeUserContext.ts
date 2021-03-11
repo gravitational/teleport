@@ -65,6 +65,10 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.acl.accessRequests;
   }
 
+  getBillingAccess() {
+    return this.state.acl.billing;
+  }
+
   getAccessStrategy() {
     return this.state.accessStrategy;
   }

@@ -19,7 +19,7 @@ import { Flex, Box, Text } from '..';
 import theme from './theme';
 
 export default {
-  title: 'Design/Theme',
+  title: 'Design/Theme/Colors',
 };
 
 export const Colors = () => {

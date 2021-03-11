@@ -59,6 +59,4 @@ const defaultProps = {
   logout: () => null,
 };
 
-Story.story = {
-  name: 'TopBar',
-};
+Story.storyName = 'TopBar';

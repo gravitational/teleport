@@ -24,7 +24,7 @@ import { colors } from './colors';
 import ConsoleContext from './consoleContext';
 import ConsoleContextProvider from './consoleContextProvider';
 
-storiesOf('TeleportConsole', module).add('Console', () => {
+storiesOf('Teleport/Console', module).add('Console', () => {
   const ctx = new ConsoleContext();
   return (
     <TestLayout ctx={ctx}>

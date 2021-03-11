@@ -31,6 +31,4 @@ export const Button = () => (
   </div>
 );
 
-Button.story = {
-  name: 'ButtonSso',
-};
+Button.storyName = 'ButtonSso';

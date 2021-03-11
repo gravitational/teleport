@@ -28,10 +28,6 @@ import { sessions } from 'teleport/Sessions/fixtures';
 import { apps } from 'teleport/Apps/fixtures';
 import { userContext } from './fixtures';
 
-export default {
-  title: 'Teleport/Main',
-};
-
 export function OSS() {
   const state = useMainStory();
   return (
@@ -44,6 +40,12 @@ export function OSS() {
     </Flex>
   );
 }
+
+OSS.storyName = 'Main';
+
+export default {
+  title: 'Teleport/Main',
+};
 
 function useMainStory() {
   const [history] = React.useState(() => {

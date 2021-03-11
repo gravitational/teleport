@@ -21,7 +21,7 @@ import ClusterSelector from './ClusterSelector';
 import ThemeProvider from './../ThemeProvider';
 
 export default {
-  title: 'TeleportConsole/DocumentNodes/ClusterSelector',
+  title: 'Teleport/Console/DocumentNodes/ClusterSelector',
 };
 
 export const Component = () => {

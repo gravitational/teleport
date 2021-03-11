@@ -19,7 +19,7 @@ import typography from './typography';
 import { Text, Box } from './../';
 
 export default {
-  title: 'Design/Theme',
+  title: 'Design/Theme/Typography',
 };
 
 export const Typography = () => (

@@ -18,7 +18,7 @@ import React from 'react';
 import Component from './ShareSession';
 
 export default {
-  title: 'TeleportConsole/DocumentSsh',
+  title: 'Teleport/Console/DocumentSsh/ShareSession',
 };
 
 export const ShareSession = () => <Component closeShareSession={() => null} />;

@@ -24,7 +24,7 @@ import Dialog, {
 import { ButtonPrimary, Input, LabelInput } from './..';
 
 export default {
-  title: 'Design/Dialog',
+  title: 'Design/Dialog/Basic',
 };
 
 export const Basic = () => (

@@ -14,52 +14,58 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react'
+import React from 'react';
 import $ from 'jQuery';
-import { storiesOf } from '@storybook/react'
+import { storiesOf } from '@storybook/react';
 import { StepProgress } from './StepProgress';
 
-storiesOf('GravityInstaller', module)
+storiesOf('Gravity/Installer', module)
   .add('StepProgress', () => {
     const props = {
       ...defaultProps,
-    }
+    };
     return (
-      <StepProgress height="300px" {...props}
-        logProvider={ <MockLogProvider /> }
+      <StepProgress
+        height="300px"
+        {...props}
+        logProvider={<MockLogProvider />}
       />
-    )}
-  )
+    );
+  })
   .add('StepProgress-Completed', () => {
     const props = {
       ...defaultProps,
       progress: {
         ...defaultProps.progress,
-        isCompleted: true
-      }
-    }
+        isCompleted: true,
+      },
+    };
 
     return (
-      <StepProgress height="300px" {...props}
-        logProvider={ <MockLogProvider /> }
+      <StepProgress
+        height="300px"
+        {...props}
+        logProvider={<MockLogProvider />}
       />
-    )}
-  )
+    );
+  })
   .add('StepProgress-Failed', () => {
     const props = {
       ...defaultProps,
       progress: {
         ...defaultProps.progress,
-        isError: true
-      }
-    }
+        isError: true,
+      },
+    };
 
     return (
-      <StepProgress height="300px" {...props}
-        logProvider={ <MockLogProvider /> }
+      <StepProgress
+        height="300px"
+        {...props}
+        logProvider={<MockLogProvider />}
       />
-    )}
-  );
+    );
+  });
 
 const defaultProps = {
   onFetch: $.Deferred(),
@@ -69,10 +75,10 @@ const defaultProps = {
     step: 3,
     isError: '',
     isCompleted: '',
-    crashReportUrl: ''
+    crashReportUrl: '',
   },
-}
+};
 
 const MockLogProvider = () => {
   return null;
-}
+};

@@ -18,7 +18,7 @@ import React from 'react';
 import UploadForm from './UploadForm';
 
 export default {
-  title: 'TeleportConsole/FileTransfer',
+  title: 'Teleport/Console/FileTransfer/UploadWithFiles',
 };
 
 export const UploadWithFiles = () => {

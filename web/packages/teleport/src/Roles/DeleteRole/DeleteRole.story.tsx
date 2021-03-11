@@ -17,14 +17,16 @@ limitations under the License.
 import React from 'react';
 import DeleteRole from './DeleteRole';
 
-export const DeleteRoleDialog = () => <DeleteRole {...props} />;
-
-DeleteRoleDialog.story = {
-  name: 'Teleport/Roles/Delete',
+export default {
+  title: 'Teleport/Roles/DeleteRole',
 };
 
+export const DeleteRoleDialog = () => <DeleteRole {...props} />;
+
+DeleteRoleDialog.storyName = 'Confirm';
+
 const props = {
-  name: 'sample-role',
+  name: 'sample-role3',
   onDelete: () => {
     return Promise.reject(new Error('server error'));
   },

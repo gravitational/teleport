@@ -28,6 +28,7 @@ export default function FieldSelect({
   maxMenuHeight,
   clearable,
   isMulti,
+  menuPosition,
   rule = defaultRule,
   isSearchable = false,
   isSimpleValue = false,
@@ -42,6 +43,7 @@ export default function FieldSelect({
     <Box mb="4" {...styles}>
       {label && <LabelInput hasError={hasError}>{labelText}</LabelInput>}
       <Select
+        menuPosition={menuPosition}
         hasError={hasError}
         isSimpleValue={isSimpleValue}
         isSearchable={isSearchable}

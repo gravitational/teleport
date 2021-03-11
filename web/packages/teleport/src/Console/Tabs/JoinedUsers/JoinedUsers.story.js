@@ -18,7 +18,7 @@ import React from 'react';
 import Component from './JoinedUsers';
 
 export default {
-  title: 'TeleportConsole',
+  title: 'Teleport/Console/JoinedUsers',
 };
 
 export const JoinedUsers = () => {

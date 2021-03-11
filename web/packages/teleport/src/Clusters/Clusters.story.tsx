@@ -37,9 +37,7 @@ export function Story({ value }: { value: teleport.Context }) {
   );
 }
 
-Story.story = {
-  name: 'Clusters',
-};
+Story.storyName = 'Clusters';
 
 export function createContext() {
   const ctx = new teleport.Context();

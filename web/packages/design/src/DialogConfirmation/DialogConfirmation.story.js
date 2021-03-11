@@ -24,7 +24,7 @@ import DialogConfirmation, {
 import { ButtonPrimary } from './../Button';
 
 export default {
-  title: 'Design/Dialog',
+  title: 'Design/Dialog/Confirmation',
 };
 
 export const Confirmation = () => (

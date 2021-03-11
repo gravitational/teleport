@@ -20,7 +20,7 @@ import DocumentBlank from './DocumentBlank';
 import { TestLayout } from './../Console.story';
 
 export default {
-  title: 'TeleportConsole/DocumentBlank',
+  title: 'Teleport/Console/DocumentBlank',
 };
 
 export const Blank = () => (

@@ -20,7 +20,7 @@ import ConsoleCtx from './../consoleContext';
 import { TestLayout } from './../Console.story';
 
 export default {
-  title: 'TeleportConsole/DocumentNodes',
+  title: 'Teleport/Console/DocumentNodes',
   excludeStories: ['createContext'],
 };
 

@@ -21,7 +21,7 @@ import { Scp } from './scpContext';
 import { Uploader, Downloader } from 'teleport/Console/services/fileTransfer';
 
 export default {
-  title: 'TeleportConsole/FileTransfer',
+  title: 'Teleport/Console/FileTransfer',
 };
 
 const props = {

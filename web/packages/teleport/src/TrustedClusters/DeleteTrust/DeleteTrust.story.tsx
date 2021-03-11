@@ -21,13 +21,7 @@ export default {
   title: 'Teleport/TrustedClusters/Delete',
 };
 
-export const DeleteTrustedClusterDialog = () => (
-  <DeleteTrustedCluster {...props} />
-);
-
-DeleteTrustedClusterDialog.story = {
-  name: 'DeleteDialog',
-};
+export const Comfirm = () => <DeleteTrustedCluster {...props} />;
 
 const props = {
   name: 'sample-trusted-cluster',

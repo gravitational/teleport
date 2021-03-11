@@ -63,6 +63,7 @@ test('fetch user context, null response gives proper default values', async () =
     appServers: defaultAccess,
     tokens: defaultAccess,
     accessRequests: defaultAccess,
+    billing: defaultAccess,
   });
 
   expect(response.accessStrategy).toStrictEqual(defaultStrategy);

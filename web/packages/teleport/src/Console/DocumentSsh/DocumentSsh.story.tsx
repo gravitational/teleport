@@ -71,7 +71,7 @@ export const ServerError = () => {
 };
 
 export default {
-  title: 'TeleportConsole/DocumentSsh',
+  title: 'Teleport/Console/DocumentSsh',
 };
 
 const doc = {

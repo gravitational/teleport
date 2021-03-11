@@ -19,7 +19,7 @@ import Tabs from './Tabs';
 import { TestLayout } from './../Console.story';
 
 export default {
-  title: 'TeleportConsole',
+  title: 'Teleport/Console',
 };
 
 export const ConsoleTabs = () => (
@@ -37,9 +37,7 @@ export const ConsoleTabs = () => (
   </TestLayout>
 );
 
-ConsoleTabs.story = {
-  name: 'Tabs',
-};
+ConsoleTabs.storyName = 'Tabs';
 
 const parties = {
   '16': [{ user: 'jiawu@ninu.fo' }, { user: 'gigbu@fe.ac' }],

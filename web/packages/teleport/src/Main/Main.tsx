@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import * as RouterDOM from 'react-router-dom';
-import React from 'react';
+import React, { Suspense } from 'react';
 import styled from 'styled-components';
 import { Indicator } from 'design';
 import { Failed } from 'design/CardError';
@@ -55,7 +55,9 @@ export function Main(props: State) {
     return (
       <Route title={title} key={index} path={path} exact={exact}>
         <CatchError>
-          <Cmpt />
+          <Suspense fallback={null}>
+            <Cmpt />
+          </Suspense>
         </CatchError>
       </Route>
     );

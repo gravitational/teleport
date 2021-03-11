@@ -22,7 +22,7 @@ import { Flex, Box } from '..';
 import { getContrastText } from './theme';
 
 export default {
-  title: 'Design/Theme',
+  title: 'Design/Theme/Palette',
 };
 
 export const Palette = () => <Color />;

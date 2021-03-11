@@ -61,9 +61,7 @@ export function U2f() {
   return <FormInvite {...props} />;
 }
 
-U2f.story = {
-  name: 'U2f',
-};
+U2f.storyName = 'U2f';
 
 export function U2fError() {
   const props = {
@@ -79,9 +77,7 @@ export function U2fError() {
   return <FormInvite {...props} />;
 }
 
-U2fError.story = {
-  name: 'U2fError',
-};
+U2fError.storyName = 'U2fError';
 
 const userToken = {
   user: 'test@gravitational.com',
