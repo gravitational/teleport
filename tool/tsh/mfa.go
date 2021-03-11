@@ -56,7 +56,7 @@ type mfaLSCommand struct {
 
 func newMFALSCommand(parent *kingpin.CmdClause) *mfaLSCommand {
 	c := &mfaLSCommand{
-		CmdClause: parent.Command("ls", "Get a list of registered MFA devices").Hidden(),
+		CmdClause: parent.Command("ls", "Get a list of registered MFA devices"),
 	}
 	c.Flag("verbose", "Print more information about MFA devices").Short('v').BoolVar(&c.verbose)
 	return c
@@ -130,7 +130,7 @@ type mfaAddCommand struct {
 
 func newMFAAddCommand(parent *kingpin.CmdClause) *mfaAddCommand {
 	c := &mfaAddCommand{
-		CmdClause: parent.Command("add", "Add a new MFA device").Hidden(),
+		CmdClause: parent.Command("add", "Add a new MFA device"),
 	}
 	c.Flag("name", "Name of the new MFA device").StringVar(&c.devName)
 	c.Flag("type", "Type of the new MFA device (TOTP or U2F)").StringVar(&c.devType)
@@ -325,7 +325,7 @@ type mfaRemoveCommand struct {
 
 func newMFARemoveCommand(parent *kingpin.CmdClause) *mfaRemoveCommand {
 	c := &mfaRemoveCommand{
-		CmdClause: parent.Command("rm", "Remove a MFA device").Hidden(),
+		CmdClause: parent.Command("rm", "Remove a MFA device"),
 	}
 	c.Arg("name", "Name or ID of the MFA device to remove").Required().StringVar(&c.name)
 	return c
