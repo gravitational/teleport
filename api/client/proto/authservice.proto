@@ -256,8 +256,8 @@ message PingResponse {
     string ServerVersion = 2 [ (gogoproto.jsontag) = "server_version" ];
     // ServerFeatures are the features supported by the auth server.
     Features ServerFeatures = 3 [ (gogoproto.jsontag) = "server_features" ];
-    // PublicProxyAddr is the server's public proxy address.
-    string PublicProxyAddr = 4 [ (gogoproto.jsontag) = "public_proxy_addr" ];
+    // ProxyPublicAddr is the server's public proxy address.
+    string ProxyPublicAddr = 4 [ (gogoproto.jsontag) = "proxy_public_addr" ];
 }
 
 // Features are auth server features.
