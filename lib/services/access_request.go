@@ -1193,22 +1193,26 @@ func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (AccessRequest, 
 }
 
 // MarshalAccessRequest marshals the AccessRequest resource to JSON.
-func MarshalAccessRequest(req AccessRequest, opts ...MarshalOption) ([]byte, error) {
+func MarshalAccessRequest(accessRequest AccessRequest, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	switch r := req.(type) {
+
+	switch accessRequest := accessRequest.(type) {
 	case *AccessRequestV3:
+		if version := accessRequest.GetVersion(); version != V3 {
+			return nil, trace.BadParameter("mismatched access request version %v and type %T", version, accessRequest)
+		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
-			cp := *r
-			cp.SetResourceID(0)
-			r = &cp
+			copy := *accessRequest
+			copy.SetResourceID(0)
+			accessRequest = &copy
 		}
-		return utils.FastMarshal(r)
+		return utils.FastMarshal(accessRequest)
 	default:
-		return nil, trace.BadParameter("unrecognized access request type: %T", req)
+		return nil, trace.BadParameter("unrecognized access request type: %T", accessRequest)
 	}
 }

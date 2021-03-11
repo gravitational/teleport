@@ -480,8 +480,8 @@ func UnmarshalServer(bytes []byte, kind string, opts ...MarshalOption) (Server, 
 }
 
 // MarshalServer marshals the Server resource to JSON.
-func MarshalServer(s Server, opts ...MarshalOption) ([]byte, error) {
-	if err := s.CheckAndSetDefaults(); err != nil {
+func MarshalServer(server Server, opts ...MarshalOption) ([]byte, error) {
+	if err := server.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	cfg, err := CollectOptions(opts)
@@ -489,8 +489,11 @@ func MarshalServer(s Server, opts ...MarshalOption) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	switch server := s.(type) {
+	switch server := server.(type) {
 	case *ServerV2:
+		if version := server.GetVersion(); version != V2 {
+			return nil, trace.BadParameter("mismatched server version %v and type %T", version, server)
+		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
@@ -500,7 +503,7 @@ func MarshalServer(s Server, opts ...MarshalOption) ([]byte, error) {
 		}
 		return utils.FastMarshal(server)
 	default:
-		return nil, trace.BadParameter("unrecognized server version %T", s)
+		return nil, trace.BadParameter("unrecognized server version %T", server)
 	}
 }
 
