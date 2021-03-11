@@ -1,5 +1,13 @@
 # Changelog
 
+## 6.0.2
+
+This release of Teleport contains bug fixes and adds new default roles.
+
+* Fixed an issue with proxy web endpoint resetting connection when run with `--insecure-no-tls` flag. [#5923](https://github.com/gravitational/teleport/pull/5923)
+* Introduced role presets: `auditor`, `editor` and `access`. [#5968](https://github.com/gravitational/teleport/pull/5968)
+* Added ability to inline `google_service_account` field into Google Workspace OIDC connector. [#5563](http://github.com/gravitational/teleport/pull/5563)
+
 ## 6.0.1
 
 This release of Teleport contains multiple bug fixes.
