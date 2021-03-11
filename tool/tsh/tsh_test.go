@@ -18,7 +18,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -36,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -50,15 +50,42 @@ const staticToken = "test-static-token"
 var randomLocalAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 
 func TestMain(m *testing.M) {
-	// parse cli flags (e.g. `-test.v`)
-	flag.Parse()
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests()
 	os.Exit(m.Run())
+}
+
+type cliModules struct{}
+
+// BuildType returns build type (OSS or Enterprise)
+func (p *cliModules) BuildType() string {
+	return "CLI"
+}
+
+// PrintVersion prints the Teleport version.
+func (p *cliModules) PrintVersion() {
+	fmt.Printf("Teleport CLI\n")
+}
+
+// Features returns supported features
+func (p *cliModules) Features() modules.Features {
+	return modules.Features{
+		Kubernetes:              true,
+		DB:                      true,
+		App:                     true,
+		AdvancedAccessWorkflows: true,
+		AccessControls:          true,
+	}
+}
+
+// IsBoringBinary checks if the binary was compiled with BoringCrypto.
+func (p *cliModules) IsBoringBinary() bool {
+	return false
 }
 
 func TestOIDCLogin(t *testing.T) {
 	os.RemoveAll(client.FullProfilePath(""))
 
+	modules.SetModules(&cliModules{})
 	defer os.RemoveAll(client.FullProfilePath(""))
 
 	ctx, cancel := context.WithCancel(context.Background())

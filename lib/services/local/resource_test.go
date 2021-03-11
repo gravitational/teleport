@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
@@ -46,10 +45,6 @@ type ResourceSuite struct {
 }
 
 var _ = check.Suite(&ResourceSuite{})
-
-func (r *ResourceSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (r *ResourceSuite) SetUpTest(c *check.C) {
 	var err error

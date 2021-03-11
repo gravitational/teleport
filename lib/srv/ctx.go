@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -120,6 +121,9 @@ type Server interface {
 
 	// Context returns server shutdown context
 	Context() context.Context
+
+	// GetUtmpPath returns the path of the user accounting database and log. Returns empty for system defaults.
+	GetUtmpPath() (utmp, wtmp string)
 }
 
 // IdentityContext holds all identity information associated with the user
@@ -133,7 +137,7 @@ type IdentityContext struct {
 
 	// Certificate is the SSH user certificate bytes marshalled in the OpenSSH
 	// authorized_keys format.
-	Certificate []byte
+	Certificate *ssh.Certificate
 
 	// CertAuthority is the Certificate Authority that signed the Certificate.
 	CertAuthority services.CertAuthority
@@ -148,21 +152,6 @@ type IdentityContext struct {
 
 	// RouteToCluster is derived from the certificate
 	RouteToCluster string
-}
-
-// GetCertificate parses the SSH certificate bytes and returns a *ssh.Certificate.
-func (c IdentityContext) GetCertificate() (*ssh.Certificate, error) {
-	k, _, _, _, err := ssh.ParseAuthorizedKey(c.Certificate)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cert, ok := k.(*ssh.Certificate)
-	if !ok {
-		return nil, trace.BadParameter("not a certificate")
-	}
-
-	return cert, nil
 }
 
 // ServerContext holds session specific context, such as SSH auth agents, PTYs,
@@ -575,6 +564,10 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 			ServerID:        c.GetServer().HostUUID(),
 			ServerNamespace: c.GetServer().GetNamespace(),
 		},
+		SessionMetadata: events.SessionMetadata{
+			SessionID: string(c.SessionID()),
+			WithMFA:   c.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
+		},
 		UserMetadata: events.UserMetadata{
 			User:  c.Identity.TeleportUser,
 			Login: c.Identity.Login,
@@ -587,10 +580,6 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 	}
 	if !c.srv.UseTunnel() {
 		sessionDataEvent.ConnectionMetadata.LocalAddr = c.ServerConn.LocalAddr().String()
-	}
-	sessionID := string(c.SessionID())
-	if sessionID != "" {
-		sessionDataEvent.SessionMetadata.SessionID = sessionID
 	}
 	if err := c.GetServer().EmitAuditEvent(c.GetServer().Context(), sessionDataEvent); err != nil {
 		c.WithError(err).Warn("Failed to emit session data event.")
@@ -639,7 +628,7 @@ func (c *ServerContext) SendExecResult(r ExecResult) {
 	select {
 	case c.ExecResultCh <- r:
 	default:
-		log.Infof("blocked on sending exec result %v", r)
+		c.Infof("Blocked on sending exec result %v.", r)
 	}
 }
 
@@ -649,7 +638,7 @@ func (c *ServerContext) SendSubsystemResult(r SubsystemResult) {
 	select {
 	case c.SubsystemResultCh <- r:
 	default:
-		c.Infof("blocked on sending subsystem result")
+		c.Info("Blocked on sending subsystem result.")
 	}
 }
 
@@ -722,6 +711,11 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		requestType = c.request.Type
 	}
 
+	uaccMetadata, err := newUaccMetadata(c)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Create the execCommand that will be sent to the child process.
 	return &ExecCommand{
 		Command:               command,
@@ -737,6 +731,7 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		ServiceName:           pamServiceName,
 		UsePAMAuth:            pamUseAuth,
 		IsTestStub:            c.IsTestStub,
+		UaccMetadata:          *uaccMetadata,
 	}, nil
 }
 
@@ -806,4 +801,24 @@ func closeAll(closers ...io.Closer) error {
 	}
 
 	return trace.NewAggregate(errs...)
+}
+
+func newUaccMetadata(c *ServerContext) (*UaccMetadata, error) {
+	addr := c.ConnectionContext.ServerConn.Conn.RemoteAddr()
+	hostname, _, err := net.SplitHostPort(addr.String())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	preparedAddr, err := uacc.PrepareAddr(addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	utmpPath, wtmpPath := c.srv.GetUtmpPath()
+
+	return &UaccMetadata{
+		Hostname:   hostname,
+		RemoteAddr: preparedAddr,
+		UtmpPath:   utmpPath,
+		WtmpPath:   wtmpPath,
+	}, nil
 }

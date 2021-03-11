@@ -563,13 +563,26 @@ func (s *IdentityService) GetU2FRegisterChallenge(token string) (*u2f.Challenge,
 }
 
 func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error {
-	// TODO(awly): mfa: ensure device name uniqueness.
 	if user == "" {
 		return trace.BadParameter("missing parameter user")
 	}
-	if d.Id == "" {
-		return trace.BadParameter("missing ID in MFADevice")
+	if err := d.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
 	}
+
+	// Check device Name for uniqueness.
+	devs, err := s.GetMFADevices(ctx, user)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, dd := range devs {
+		// Same ID and Name is OK - it means update existing resource.
+		// Different Id and same Name is not OK - it means a duplicate device.
+		if d.Metadata.Name == dd.Metadata.Name && d.Id != dd.Id {
+			return trace.AlreadyExists("MFA device with name %q already exists with ID %q", dd.Metadata.Name, dd.Id)
+		}
+	}
+
 	value, err := json.Marshal(d)
 	if err != nil {
 		return trace.Wrap(err)
@@ -618,7 +631,7 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string) ([]*ty
 	return devices, nil
 }
 
-func (s *IdentityService) UpsertU2FSignChallenge(user, deviceID string, challenge *u2f.Challenge) error {
+func (s *IdentityService) UpsertU2FSignChallenge(user string, challenge *u2f.Challenge) error {
 	if user == "" {
 		return trace.BadParameter("missing parameter user")
 	}
@@ -627,7 +640,7 @@ func (s *IdentityService) UpsertU2FSignChallenge(user, deviceID string, challeng
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, usersPrefix, user, u2fSignChallengePrefix, deviceID),
+		Key:     backend.Key(webPrefix, usersPrefix, user, u2fSignChallengePrefix),
 		Value:   value,
 		Expires: s.Clock().Now().UTC().Add(defaults.U2FChallengeTimeout),
 	}
@@ -638,11 +651,11 @@ func (s *IdentityService) UpsertU2FSignChallenge(user, deviceID string, challeng
 	return nil
 }
 
-func (s *IdentityService) GetU2FSignChallenge(user, deviceID string) (*u2f.Challenge, error) {
+func (s *IdentityService) GetU2FSignChallenge(user string) (*u2f.Challenge, error) {
 	if user == "" {
 		return nil, trace.BadParameter("missing parameter user")
 	}
-	item, err := s.Get(context.TODO(), backend.Key(webPrefix, usersPrefix, user, u2fSignChallengePrefix, deviceID))
+	item, err := s.Get(context.TODO(), backend.Key(webPrefix, usersPrefix, user, u2fSignChallengePrefix))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

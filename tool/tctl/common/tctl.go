@@ -39,6 +39,7 @@ import (
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -79,7 +80,7 @@ type CLICommand interface {
 // "distributions" like OSS or Enterprise
 //
 // distribution: name of the Teleport distribution
-func Run(commands []CLICommand, loadConfigExt LoadConfigFn) {
+func Run(commands []CLICommand) {
 	utils.InitLogger(utils.LoggingForCLI, log.WarnLevel)
 
 	// app is the command line parser
@@ -94,12 +95,25 @@ func Run(commands []CLICommand, loadConfigExt LoadConfigFn) {
 		commands[i].Initialize(app, cfg)
 	}
 
-	// these global flags apply to all commands
 	var ccf GlobalCLIFlags
+
+	// If the config file path is being overridden by environment variable, set that.
+	// If not, check whether the default config file path exists and set that if so.
+	// This preserves tctl's default behavior for backwards compatibility.
+	configFileEnvar, isSet := os.LookupEnv(defaults.ConfigFileEnvar)
+	if isSet {
+		ccf.ConfigFile = configFileEnvar
+	} else {
+		if utils.FileExists(defaults.ConfigFilePath) {
+			ccf.ConfigFile = defaults.ConfigFilePath
+		}
+	}
+
+	// these global flags apply to all commands
 	app.Flag("debug", "Enable verbose logging to stderr").
 		Short('d').
 		BoolVar(&ccf.Debug)
-	app.Flag("config", fmt.Sprintf("Path to a configuration file [%v]", defaults.ConfigFilePath)).
+	app.Flag("config", fmt.Sprintf("Path to a configuration file [%v]. Can also be set via the %v environment variable.", defaults.ConfigFilePath, defaults.ConfigFileEnvar)).
 		Short('c').
 		ExistingFileVar(&ccf.ConfigFile)
 	app.Flag("config-string",
@@ -130,7 +144,7 @@ func Run(commands []CLICommand, loadConfigExt LoadConfigFn) {
 	}
 
 	// configure all commands with Teleport configuration (they share 'cfg')
-	clientConfig, err := applyConfig(&ccf, cfg, loadConfigExt)
+	clientConfig, err := applyConfig(&ccf, cfg)
 	if err != nil {
 		utils.FatalError(err)
 	}
@@ -158,9 +172,6 @@ func Run(commands []CLICommand, loadConfigExt LoadConfigFn) {
 	}
 }
 
-// LoadConfigFn is optional config loading function
-type LoadConfigFn func(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServiceClientConfig, error)
-
 // AuthServiceClientConfig is a client config for auth service
 type AuthServiceClientConfig struct {
 	// TLS holds credentials for mTLS
@@ -182,7 +193,12 @@ func connectToAuthService(ctx context.Context, cfg *service.Config, clientConfig
 	log.Debugf("Connecting to auth servers: %v.", cfg.AuthServers)
 
 	// Try connecting to the auth server directly over TLS.
-	client, err := auth.NewClient(apiclient.Config{Addrs: utils.NetAddrsToStrings(cfg.AuthServers), TLS: clientConfig.TLS})
+	client, err := auth.NewClient(apiclient.Config{
+		Addrs: utils.NetAddrsToStrings(cfg.AuthServers),
+		Credentials: []apiclient.Credentials{
+			apiclient.LoadTLS(clientConfig.TLS),
+		},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err, "failed direct dial to auth server: %v", err)
 	}
@@ -220,7 +236,9 @@ func connectToAuthService(ctx context.Context, cfg *service.Config, clientConfig
 				ProxyAddr:    tunAddr,
 				ClientConfig: clientConfig.SSH,
 			},
-			TLS: clientConfig.TLS,
+			Credentials: []apiclient.Credentials{
+				apiclient.LoadTLS(clientConfig.TLS),
+			},
 		})
 		if err != nil {
 			errs = append(errs, trace.Wrap(err, "failed dial to auth server through reverse tunnel: %v", err))
@@ -296,7 +314,7 @@ func tunnelAddr(webAddr utils.NetAddr, settings client.ProxySettings) (string, e
 //
 // The returned authServiceClientConfig has the credentials needed to dial the
 // auth server.
-func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config, loadConfigExt LoadConfigFn) (*AuthServiceClientConfig, error) {
+func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServiceClientConfig, error) {
 	// --debug flag
 	if ccf.Debug {
 		cfg.Debug = ccf.Debug
@@ -304,11 +322,16 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config, loadConfigExt LoadCon
 		log.Debugf("Debug logging has been enabled.")
 	}
 
-	// load /etc/teleport.yaml and apply its values:
-	fileConf, err := config.ReadConfigFile(ccf.ConfigFile)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// If the config file path provided is not a blank string, load the file and apply its values
+	var fileConf *config.FileConfig
+	var err error
+	if ccf.ConfigFile != "" {
+		fileConf, err = config.ReadConfigFile(ccf.ConfigFile)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
+
 	// if configuration is passed as an environment variable,
 	// try to decode it and override the config file
 	if ccf.ConfigString != "" {
@@ -319,11 +342,11 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config, loadConfigExt LoadCon
 	}
 
 	// Config file should take precedence, if available.
-	if fileConf == nil && ccf.IdentityFilePath == "" && loadConfigExt != nil {
+	if fileConf == nil && ccf.IdentityFilePath == "" {
 		// No config file or identity file.
 		// Try the extension loader.
 		log.Debug("No config file or identity file, loading auth config via extension.")
-		authConfig, err := loadConfigExt(ccf, cfg)
+		authConfig, err := loadConfigFromProfile(ccf, cfg)
 		if err == nil {
 			return authConfig, nil
 		}
@@ -388,6 +411,70 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config, loadConfigExt LoadCon
 		}
 	}
 	authConfig.TLS.InsecureSkipVerify = ccf.Insecure
+
+	return authConfig, nil
+}
+
+// loadConfigFromProfile applies config from ~/.tsh/ profile if it's present
+func loadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServiceClientConfig, error) {
+	if ccf.IdentityFilePath != "" {
+		return nil, trace.NotFound("identity has been supplied, skip loading the config")
+	}
+
+	proxyAddr := ""
+	if len(ccf.AuthServerAddr) != 0 {
+		proxyAddr = cfg.AuthServers[0].Addr
+	}
+
+	profile, _, err := client.Status("", proxyAddr)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+	}
+	// client is already logged in using tsh login and profile is not expired
+	if profile == nil {
+		return nil, trace.NotFound("profile is not found")
+	}
+	if profile.IsExpired(clockwork.NewRealClock()) {
+		return nil, trace.BadParameter("your credentials have expired, please login using `tsh login`")
+	}
+
+	log.Debugf("Found active profile: %v %v.", profile.ProxyURL, profile.Username)
+
+	c := client.MakeDefaultConfig()
+	if err := c.LoadProfile("", proxyAddr); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	keyStore, err := client.NewFSLocalKeyStore(c.KeysDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	webProxyHost, _ := c.WebProxyHostPort()
+	key, err := keyStore.GetKey(webProxyHost, c.Username)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authConfig := &AuthServiceClientConfig{}
+	authConfig.TLS, err = key.TeleportClientTLSConfig(cfg.CipherSuites)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authConfig.TLS.InsecureSkipVerify = ccf.Insecure
+	authConfig.SSH, err = client.ProxyClientSSHConfig(key, keyStore)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Do not override auth servers from command line
+	if len(ccf.AuthServerAddr) == 0 {
+		webProxyAddr, err := utils.ParseAddr(c.WebProxyAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		log.Debugf("Setting auth server to web proxy %v.", webProxyAddr)
+		cfg.AuthServers = []utils.NetAddr{*webProxyAddr}
+	}
 
 	return authConfig, nil
 }

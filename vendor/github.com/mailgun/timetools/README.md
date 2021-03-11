@@ -1,3 +1,5 @@
+**This repo is deprecated, functionality has moved to http://github.com/mailgun/holster (See Clock)**
+
 timetools
 =========
 

@@ -449,7 +449,7 @@ func Run(args []string, opts ...cliOption) error {
 
 	if cf.Gops {
 		log.Debugf("Starting gops agent.")
-		err = gops.Listen(&gops.Options{Addr: cf.GopsAddr})
+		err = gops.Listen(gops.Options{Addr: cf.GopsAddr})
 		if err != nil {
 			log.Warningf("Failed to start gops agent %v.", err)
 		}
@@ -717,7 +717,7 @@ func onLogin(cf *CLIConf) error {
 		// connection, so we use WithRootClusterClient to speed things up.
 		err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
 			for _, roleName := range roleNames {
-				role, err := clt.GetRole(roleName)
+				role, err := clt.GetRole(cf.Context, roleName)
 				if err != nil {
 					return trace.Wrap(err)
 				}
@@ -1410,18 +1410,17 @@ func onSCP(cf *CLIConf) error {
 		PreserveAttrs: cf.PreserveAttrs,
 	}
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		return tc.SCP(context.TODO(), cf.CopySpec, int(cf.NodePort), flags, cf.Quiet)
+		return tc.SCP(cf.Context, cf.CopySpec, int(cf.NodePort), flags, cf.Quiet)
 	})
-	if err != nil {
-		// exit with the same exit status as the failed command:
-		if tc.ExitStatus != 0 {
-			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-			os.Exit(tc.ExitStatus)
-		} else {
-			return trace.Wrap(err)
-		}
+	if err == nil {
+		return nil
 	}
-	return nil
+	// exit with the same exit status as the failed command:
+	if tc.ExitStatus != 0 {
+		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
+		os.Exit(tc.ExitStatus)
+	}
+	return trace.Wrap(err)
 }
 
 // makeClient takes the command-line configuration and constructs & returns
@@ -1816,13 +1815,6 @@ func printProfiles(debug bool, profile *client.ProfileStatus, profiles []*client
 	// Print all other profiles.
 	for _, p := range profiles {
 		printStatus(debug, p, false)
-	}
-
-	// If we are printing profile, add a note that even though roles are listed
-	// here, they are only available in Enterprise.
-	if profile != nil || len(profiles) > 0 {
-		fmt.Printf("\n* RBAC is only available in Teleport Enterprise\n")
-		fmt.Printf("  https://goteleport.com/teleport/docs/enterprise\n")
 	}
 }
 

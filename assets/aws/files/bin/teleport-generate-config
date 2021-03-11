@@ -10,6 +10,39 @@ if [ -f /etc/teleport.yaml ]; then
     exit 0
 fi
 
+# Functions
+write_kubernetes_section() {
+  # use the value of the variable name which was passed in
+  # this is done because there are two different ways of getting the external hostname
+  # depending on how the AMI is being used and we should support both
+  EXTERNAL_HOSTNAME="${!1}"
+  if [[ "${USE_ACM}" == "true" && "${TELEPORT_PROXY_SERVER_LB}" != "" ]]; then
+    # if an alias for the ACM NLB is configured, also add that to the proxy's kubernetes public_addr
+    if [[ "${TELEPORT_PROXY_SERVER_NLB_ALIAS}" != "" ]]; then
+      KUBERNETES_PUBLIC_ADDR="'${TELEPORT_PROXY_SERVER_LB}:3026', '${TELEPORT_PROXY_SERVER_NLB_ALIAS}:3026'"
+    else
+      KUBERNETES_PUBLIC_ADDR="'${TELEPORT_PROXY_SERVER_LB}:3026'"
+    fi
+  else
+    KUBERNETES_PUBLIC_ADDR="'${EXTERNAL_HOSTNAME:-$PUBLIC_IP}:3026'"
+  fi
+  # set up the kubernetes listener
+  cat << EOS >> /etc/teleport.yaml
+  kubernetes:
+    enabled: yes
+    listen_addr: 0.0.0.0:3026
+    public_addr: [${KUBERNETES_PUBLIC_ADDR}]
+EOS
+}
+
+write_https_keypairs_section() {
+  cat << EOS >> /etc/teleport.yaml
+  https_keypairs:
+    - cert_file: /var/lib/teleport/fullchain.pem
+      key_file: /var/lib/teleport/privkey.pem
+EOS
+}
+
 # Setup Teleport config file
 IMDS_TOKEN=$(curl -sS -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
 IMDS_TOKEN_HEADER="-H \"X-aws-ec2-metadata-token: ${IMDS_TOKEN}\""
@@ -161,9 +194,11 @@ EOF
 
     # if we are using letsencrypt (i.e. not ACM) then append config lines
     if [[ "${USE_ACM}" != "true" ]]; then
-        echo "  https_cert_file: /var/lib/teleport/fullchain.pem" >> /etc/teleport.yaml
-        echo "  https_key_file: /var/lib/teleport/privkey.pem" >> /etc/teleport.yaml
+        write_https_keypairs_section
     fi
+
+    # set up the kubernetes listener
+    write_kubernetes_section TELEPORT_DOMAIN_NAME
 
     # enable/start cert services and timers
     systemctl enable teleport-check-cert.service teleport-check-cert.timer
@@ -313,7 +348,7 @@ EOF
 
   # if we have an SSH proxy LB address, append it
   if [[ "${TELEPORT_PROXY_SERVER_LB}" != "" ]]; then
-      echo "  ssh_public_addr: ${TELEPORT_PROXY_SERVER_LB}" >> /etc/teleport.yaml
+      echo "  ssh_public_addr: ${TELEPORT_PROXY_SERVER_LB}:3023" >> /etc/teleport.yaml
       # when using ACM, we have to set up a dedicated listener and target group as
       # SSL termination is handled by the ACM ALB and it can't multiplex the tunnel connections
       if [[ "${USE_ACM}" == "true" ]]; then
@@ -332,8 +367,7 @@ EOF
       # these variables must all be set for letsencrypt to work
       # it also needs the running instance to have permissions to read from/write to the S3 bucket
       if [[ "${TELEPORT_DOMAIN_ADMIN_EMAIL}" != "" && "${TELEPORT_DOMAIN_NAME}" != "" && "${TELEPORT_S3_BUCKET}" != "" ]]; then
-          echo "  https_cert_file: /var/lib/teleport/fullchain.pem" >> /etc/teleport.yaml
-          echo "  https_key_file: /var/lib/teleport/privkey.pem" >> /etc/teleport.yaml
+          write_https_keypairs_section
 
           # enable/start cert services and timers
           systemctl enable teleport-get-cert.service teleport-get-cert.timer
@@ -349,6 +383,10 @@ EOF
       fi
   elif [[ "${USE_ACM}" == "true" ]]; then
       echo "ACM support enabled"
+
+      # set up the kubernetes listener
+      write_kubernetes_section TELEPORT_EXTERNAL_HOSTNAME
+
       systemctl disable teleport.service
       systemctl stop --no-block teleport.service
 
@@ -413,7 +451,7 @@ EOF
 
     # if we have an SSH proxy LB address, append it
     if [[ "${TELEPORT_PROXY_SERVER_LB}" != "" ]]; then
-        echo "  ssh_public_addr: ${TELEPORT_PROXY_SERVER_LB}" >> /etc/teleport.yaml
+        echo "  ssh_public_addr: ${TELEPORT_PROXY_SERVER_LB}:3023" >> /etc/teleport.yaml
         # when using ACM, we have to set up a dedicated listener and target group as
         # SSL termination is handled by the ACM ALB and it can't multiplex the tunnel connections
         if [[ "${USE_ACM}" == "true" ]]; then
@@ -426,14 +464,16 @@ EOF
         fi
     fi
 
+    # set up the kubernetes listener
+    write_kubernetes_section TELEPORT_EXTERNAL_HOSTNAME
+
     # if we are using letsencrypt, append config lines
     if [[ "${USE_LETSENCRYPT}" == "true" ]]; then
         echo "Letsencrypt support enabled"
         # these variables must all be set for letsencrypt to work
         # it also needs the running instance to have permissions to read from/write to the S3 bucket
         if [[ "${TELEPORT_DOMAIN_ADMIN_EMAIL}" != "" && "${TELEPORT_DOMAIN_NAME}" != "" && "${TELEPORT_S3_BUCKET}" != "" ]]; then
-            echo "  https_cert_file: /var/lib/teleport/fullchain.pem" >> /etc/teleport.yaml
-            echo "  https_key_file: /var/lib/teleport/privkey.pem" >> /etc/teleport.yaml
+            write_https_keypairs_section
 
             # enable/start cert services and timers
             systemctl enable teleport-get-cert.service teleport-get-cert.timer
@@ -449,6 +489,10 @@ EOF
         fi
     elif [[ "${USE_ACM}" == "true" ]]; then
         echo "ACM support enabled"
+
+        # set up the kubernetes listener
+        write_kubernetes_section TELEPORT_EXTERNAL_HOSTNAME
+
         systemctl disable teleport.service
         systemctl stop --no-block teleport.service
 

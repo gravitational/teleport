@@ -35,8 +35,9 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/trace"
 )
 
 const (
@@ -451,24 +452,22 @@ func (o withDBCerts) deleteKey(dirPath, username string) error {
 }
 
 // SaveCerts saves trusted TLS certificates of certificate authorities
-func (fs *FSLocalKeyStore) SaveCerts(proxy string, cas []auth.TrustedCerts) error {
+func (fs *FSLocalKeyStore) SaveCerts(proxy string, cas []auth.TrustedCerts) (retErr error) {
 	dir, err := fs.dirFor(proxy, true)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	fp, err := os.OpenFile(filepath.Join(dir, fileNameTLSCerts), os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0640)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.ConvertSystemError(err)
 	}
-	defer fp.Close()
+	defer utils.StoreErrorOf(fp.Close, &retErr)
 	for _, ca := range cas {
 		for _, cert := range ca.TLSCertificates {
-			_, err := fp.Write(cert)
-			if err != nil {
+			if _, err := fp.Write(cert); err != nil {
 				return trace.ConvertSystemError(err)
 			}
-			_, err = fp.WriteString("\n")
-			if err != nil {
+			if _, err := fmt.Fprintln(fp); err != nil {
 				return trace.ConvertSystemError(err)
 			}
 		}
@@ -531,12 +530,12 @@ func (fs *FSLocalKeyStore) GetCerts(proxy string) (*x509.CertPool, error) {
 }
 
 // AddKnownHostKeys adds a new entry to 'known_hosts' file
-func (fs *FSLocalKeyStore) AddKnownHostKeys(hostname string, hostKeys []ssh.PublicKey) error {
+func (fs *FSLocalKeyStore) AddKnownHostKeys(hostname string, hostKeys []ssh.PublicKey) (retErr error) {
 	fp, err := os.OpenFile(filepath.Join(fs.KeyDir, fileNameKnownHosts), os.O_CREATE|os.O_RDWR, 0640)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.ConvertSystemError(err)
 	}
-	defer fp.Close()
+	defer utils.StoreErrorOf(fp.Close, &retErr)
 	// read all existing entries into a map (this removes any pre-existing dupes)
 	entries := make(map[string]int)
 	output := make([]string, 0)
@@ -656,3 +655,35 @@ func initKeysDir(dirPath string) (string, error) {
 
 	return dirPath, nil
 }
+
+// noLocalKeyStore is a LocalKeyStore representing the absence of a keystore.
+// All methods return errors. This exists to avoid nil checking everywhere in
+// LocalKeyAgent and prevent nil pointer panics.
+type noLocalKeyStore struct{}
+
+var errNoLocalKeyStore = trace.NotFound("there is no local keystore")
+
+func (noLocalKeyStore) AddKey(proxy string, username string, key *Key) error {
+	return errNoLocalKeyStore
+}
+func (noLocalKeyStore) GetKey(proxy, username string, opts ...KeyOption) (*Key, error) {
+	return nil, errNoLocalKeyStore
+}
+func (noLocalKeyStore) DeleteKey(proxyHost, username string, opts ...KeyOption) error {
+	return errNoLocalKeyStore
+}
+func (noLocalKeyStore) DeleteKeyOption(proxyHost, username string, opts ...KeyOption) error {
+	return errNoLocalKeyStore
+}
+func (noLocalKeyStore) DeleteKeys() error { return errNoLocalKeyStore }
+func (noLocalKeyStore) AddKnownHostKeys(hostname string, keys []ssh.PublicKey) error {
+	return errNoLocalKeyStore
+}
+func (noLocalKeyStore) GetKnownHostKeys(hostname string) ([]ssh.PublicKey, error) {
+	return nil, errNoLocalKeyStore
+}
+func (noLocalKeyStore) SaveCerts(proxy string, cas []auth.TrustedCerts) error {
+	return errNoLocalKeyStore
+}
+func (noLocalKeyStore) GetCerts(proxy string) (*x509.CertPool, error) { return nil, errNoLocalKeyStore }
+func (noLocalKeyStore) GetCertsPEM(proxy string) ([][]byte, error)    { return nil, errNoLocalKeyStore }

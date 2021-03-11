@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 )
 
@@ -288,12 +289,7 @@ func (s *DatabaseServerV3) CheckAndSetDefaults() error {
 
 // Copy returns a copy of this database server object.
 func (s *DatabaseServerV3) Copy() DatabaseServer {
-	return &DatabaseServerV3{
-		Kind:     KindDatabaseServer,
-		Version:  V3,
-		Metadata: s.Metadata,
-		Spec:     s.Spec,
-	}
+	return proto.Clone(s).(*DatabaseServerV3)
 }
 
 const (
@@ -302,3 +298,15 @@ const (
 	// DatabaseTypeRDS is AWS-hosted RDS or Aurora database.
 	DatabaseTypeRDS = "rds"
 )
+
+// SortedDatabaseServers implements sorter for database servers.
+type SortedDatabaseServers []DatabaseServer
+
+// Len returns the slice length.
+func (s SortedDatabaseServers) Len() int { return len(s) }
+
+// Less compares database servers by name.
+func (s SortedDatabaseServers) Less(i, j int) bool { return s[i].GetName() < s[j].GetName() }
+
+// Swap swaps two database servers.
+func (s SortedDatabaseServers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }

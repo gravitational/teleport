@@ -163,6 +163,9 @@ func TestParseInt(t *testing.T) {
 ```go
 func TestMain(m *testing.M) {
 	// Setup
+	//
+	// Note: TestMain can only use ioutil.TempDir for temporary directories.
+	// For actual tests, use t.TempDir().
 	tmpDir, err := ioutil.TempDir("", "teleport")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -183,24 +186,24 @@ func TestMain(m *testing.M) {
 Shared test setup/teardown
 
 ```go
-func expensiveTestSetup(t *testing.T) (*Foo, func()) {
-	f, err := newFoo()
+func expensiveTestSetup(t *testing.T) *Foo {
+	tmp := t.TempDir()
+	
+	f, err := newFoo(tmp)
 	require.NoError(t, err)
-	return f, func() {
-		f.Close()
-	}
+	t.Cleanup(func() { f.Close() })
+	
+	return f
 }
 
 func TestFoo1(t *testing.T) {
-	f, done := expensiveTestSetup(t)
-	defer done()
+	f := expensiveTestSetup(t)
 
 	// Test something with f.
 }
 
 func TestFoo2(t *testing.T) {
-	f, done := expensiveTestSetup(t)
-	defer done()
+	f := expensiveTestSetup(t)
 
 	// Test something else with f.
 }

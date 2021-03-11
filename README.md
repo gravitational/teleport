@@ -1,32 +1,37 @@
 # Teleport
 
-Teleport is a unified access plane for infrastructure:
+Teleport is an identity-aware, multi-protocol access proxy which understands
+SSH, HTTPS, Kubernetes API, MySQL and PostgreSQL wire protocols.
 
-* [Clusters of Linux servers](https://goteleport.com/teleport/docs/quickstart/) via SSH or SSH-over-HTTPS in a browser
-* [Kubernetes clusters](https://goteleport.com/teleport/docs/kubernetes-ssh/)
-* [Web Applications](https://goteleport.com/teleport/docs/application-access/)
-* [Databases - (Postgres Preview)](https://goteleport.com/teleport/docs/preview/teleport-database-access/)
+On a server side, Teleport is a single binary which enables convenient secure
+access to behind-NAT resources such as:
 
-It is intended to be used instead or together with `sshd` for organizations who
-need:
+* [SSH nodes](https://goteleport.com/teleport/docs/quickstart/) - SSH works in browsers too!
+* [Kubernetes clusters](https://goteleport.com/teleport/docs/kubernetes-access/)
+* [PostgreSQL and MySQL databases](https://goteleport.com/teleport/docs/database-access/)
+* [Internal Web apps](https://goteleport.com/teleport/docs/application-access/)
 
-* SSH audit with session recording/replay.
-* Kubernetes API Access with audit and `kubectl exec` recording/replay.
+Teleport is trivial to setup as a Linux daemon or in a Kubernetes pod and it's rapidly
+replacing legacy `sshd` based setups at organizations who need:
+
+* Developer convenience of having instant secure access to everything they need
+  across many environments and cloud providers.
+* Audit log with session recording/replay for multiple protocols
 * Easily manage trust between teams, organizations and data centers.
-* Application, SSH or Kubernetes access to behind-firewall clusters without any open ports.
-* Role-based access control (RBAC) for SSH protocol.
-* Unified RBAC for SSH and Kubernetes.
+* Role-based access control (RBAC) and flexible access workflows (one-time access requests)
 
 In addition to its hallmark features, Teleport is interesting for smaller teams
 because it facilitates easy adoption of the best infrastructure security
 practices like:
 
-- No need to distribute keys: Teleport uses certificate-based access with automatic certificate expiration time.
-- 2nd factor authentication (2FA) for Apps, SSH and Kubernetes.
+- No need to manage shared secrets such as SSH keys: Teleport uses
+  certificate-based access with automatic certificate expiration time for all protocols.
+- 2nd factor authentication (2FA) for everything.
 - Collaboratively troubleshoot issues through session sharing.
-- Single sign-on (SSO) for Applications, SSH/Kubernetes and your organization identities via
-  Github Auth, OpenID Connect or SAML with endpoints like Okta or Active Directory.
-- Cluster introspection: every SSH node and its status can be queried via CLI and Web UI.
+- Single sign-on (SSO) for everything via Github Auth, OpenID Connect or SAML
+  with endpoints like Okta or Active Directory.
+- Infrastructure introspection: every SSH node, database instance, Kubernetes cluster
+  or an internal web app and its status can be queried via CLI and Web UI.
 
 Teleport is built on top of the high-quality [Golang SSH](https://godoc.org/golang.org/x/crypto/ssh)
 implementation and it is _fully compatible with OpenSSH_ and can be used with
@@ -34,12 +39,13 @@ implementation and it is _fully compatible with OpenSSH_ and can be used with
 
 |Project Links| Description
 |---|----
-| [Teleport Website](https://goteleport.com/teleport) | The official website of the project |
-| [Documentation](https://goteleport.com/teleport/docs/quickstart/) | Admin guide, user manual and more |
-| [Demo Video](https://www.youtube.com/watch?v=DUlTAlEJr5w) | 5-minute video overview of the UI. |
-| [Teleconsole](https://www.teleconsole.com) | The free service to "invite" SSH clients behind NAT, built on top of Teleport |
-| [Blog](https://goteleport.com/blog/) | Our blog where we publish Teleport news |
-| [Community Forum](https://community.goteleport.com) | Teleport Community Forum|
+| [Teleport Website](https://goteleport.com/teleport) | The official website of the project. |
+| [Documentation](https://goteleport.com/teleport/docs/quickstart/) | Admin guide, user manual and more. |
+| [Demo Video](https://www.youtube.com/watch?v=0HlyGk8dihM) | 5-minute video overview of the UI. |
+| [Teleconsole](https://www.teleconsole.com) | The free service to "invite" SSH clients behind NAT, built on top of Teleport. |
+| [Blog](https://goteleport.com/blog/) | Our blog where we publish Teleport news. |
+| [Forum](https://github.com/gravitational/teleport/discussions) | Ask us a setup question, post your tutorial, feedback or idea on our forum. |
+| [Slack](https://goteleport.com/slack) | Need help with set-up? Ping us in Slack channel. |
 
 [![Teleport 4.3 Demo](/docs/4.3/img/readme/teleport-4.3-video-thumb.png)](https://www.youtube.com/watch?v=DUlTAlEJr5w)
 
@@ -99,9 +105,12 @@ will not work.
 
 NOTE: This will build the latest version of Teleport, regardless of whether it is stable. If you want to build the latest stable release, `git checkout` to that tag (e.g. `git checkout v5.0.0`) before running `make full`.
 
-### Rebuilding Web UI
+### Web UI
 
-Teleport Web UI is located in the [Gravitational Webapps](https://github.com/gravitational/webapps) monorepo.
+Teleport Web UI is located in the [Gravitational Webapps](https://github.com/gravitational/webapps) repo.
+
+#### Rebuilding Web UI for development
+
 You can clone that repository and rebuild teleport UI package with:
 
 ```bash
@@ -110,12 +119,12 @@ $ cd webapps
 $ make build-teleport
 ```
 
-Then you can replace Teleport web UI files with the one found in the generated `/dist` folder.
+Then you can replace Teleport Web UI files with the one found in the generated `/dist` folder.
 
 To enable speedy iterations on the Web UI, you can run a
 [local web-dev server](https://github.com/gravitational/webapps/tree/master/packages/teleport).
 
-You can also tell teleport to load the web UI assets from the source directory.
+You can also tell teleport to load the Web UI assets from the source directory.
 To enable this behavior, set the environment variable `DEBUG=1` and rebuild with the default target:
 
 ```bash
@@ -125,6 +134,18 @@ $ DEBUG=1 ./build/teleport start -d
 
 Keep the server running in this mode, and make your UI changes in `/dist` directory.
 Refer to [the webapps README](https://github.com/gravitational/webapps/blob/master/README.md) for instructions on how to update the Web UI.
+
+#### Updating Web UI assets
+
+After you commit a change to [the webapps
+repo](https://github.com/gravitational/webapps), you need to update the Web UI
+assets in the `webassets/` git submodule.
+
+Use `make update-webassets` to update the `webassets` repo and create a PR for
+`teleport` to update its git submodule.
+
+You will need to have the `gh` utility installed on your system for the script
+to work. You can download it from https://github.com/cli/cli/releases/latest
 
 ### Updating Documentation
 
@@ -218,7 +239,7 @@ magically _teleported_. And Teleport was born!
 
 We offer a few different options for support. First of all, we try to provide clear and comprehensive documentation. The docs are also in Github, so feel free to create a PR or file an issue if you think improvements can be made. If you still have questions after reviewing our docs, you can also:
 
-* Join the [Teleport Community](https://community.goteleport.com/c/teleport) to ask questions. Our engineers are available there to help you.
+* Join [Teleport Discussions](https://github.com/gravitational/teleport/discussions) to ask questions. Our engineers are available there to help you.
 * If you want to contribute to Teleport or file a bug report/issue, you can do so by creating an issue here in Github.
 * If you are interested in Teleport Enterprise or more responsive support during a POC, we can also create a dedicated Slack channel for you during your POC. You can [reach out to us through our website](https://goteleport.com/teleport/) to arrange for a POC.
 

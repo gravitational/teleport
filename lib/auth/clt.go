@@ -96,22 +96,19 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 		return nil, trace.Wrap(err)
 	}
 
-	// This logic is necessary for the client to force client to always send
-	// a certificate regardless of the server setting. Otherwise the client may pick
-	// not to send the client certificate by looking at certificate request.
-	if len(cfg.TLS.Certificates) != 0 {
-		cert := cfg.TLS.Certificates[0]
-		cfg.TLS.Certificates = nil
-		cfg.TLS.GetClientCertificate = func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
-			return &cert, nil
-		}
+	// Many uses of the lib/client do not expect an open valid connection immediately after
+	// initialization, so WithoutDialBlock is used for backwards compatibility with this client.
+	cfg.WithoutDialBlock = true
+	apiClient, err := client.New(context.TODO(), cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Clone the tls.Config and set the next protocol. This is needed due to the
 	// Auth Server using a multiplexer for protocol detection. Unless next
 	// protocol is specified it will attempt to upgrade to HTTP2 and at that point
 	// there is no way to distinguish between HTTP2/JSON or GPRC.
-	tlsConfig := cfg.TLS.Clone()
+	tlsConfig := apiClient.Config()
 	tlsConfig.NextProtos = []string{teleport.HTTPNextProtoTLS}
 
 	transport := &http.Transport{
@@ -120,7 +117,7 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 		// to make sure client verifies the DNS name of the API server
 		// custom DialContext overrides this DNS name to the real address
 		// in addition this dialer tries multiple adresses if provided
-		DialContext:           cfg.Dialer.DialContext,
+		DialContext:           apiClient.Dialer().DialContext,
 		ResponseHeaderTimeout: defaults.DefaultDialTimeout,
 		TLSClientConfig:       tlsConfig,
 
@@ -156,10 +153,7 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	apiClient, err := client.NewClient(cfg)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	return &Client{
 		APIClient: *apiClient,
 		Client:    *roundtripClient,
@@ -237,7 +231,9 @@ func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, e
 		DialTimeout:     cfg.DialTimeout,
 		KeepAlivePeriod: cfg.KeepAlivePeriod,
 		KeepAliveCount:  cfg.KeepAliveCount,
-		TLS:             cfg.TLS,
+		Credentials: []client.Credentials{
+			client.LoadTLS(cfg.TLS),
+		},
 	}
 
 	return NewClient(c, params...)
@@ -1074,8 +1070,8 @@ func (c *Client) CheckPassword(user string, password []byte, otpToken string) er
 	return trace.Wrap(err)
 }
 
-// GetU2FSignRequest generates request for user trying to authenticate with U2F token
-func (c *Client) GetU2FSignRequest(user string, password []byte) (*U2FAuthenticateChallenge, error) {
+// GetMFAAuthenticateChallenge generates request for user trying to authenticate with U2F token
+func (c *Client) GetMFAAuthenticateChallenge(user string, password []byte) (*MFAAuthenticateChallenge, error) {
 	out, err := c.PostJSON(
 		c.Endpoint("u2f", "users", user, "sign"),
 		signInReq{
@@ -1085,7 +1081,7 @@ func (c *Client) GetU2FSignRequest(user string, password []byte) (*U2FAuthentica
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var signRequest *U2FAuthenticateChallenge
+	var signRequest *MFAAuthenticateChallenge
 	if err := json.Unmarshal(out.Bytes(), &signRequest); err != nil {
 		return nil, err
 	}
@@ -1779,7 +1775,16 @@ func (c *Client) DeleteNamespace(name string) error {
 }
 
 // GetRoles returns a list of roles
-func (c *Client) GetRoles() ([]services.Role, error) {
+func (c *Client) GetRoles(ctx context.Context) ([]services.Role, error) {
+	roles, err := c.APIClient.GetRoles(ctx)
+	if err == nil {
+		return roles, nil
+	} else if !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 7.0
 	out, err := c.Get(c.Endpoint("roles"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1788,7 +1793,7 @@ func (c *Client) GetRoles() ([]services.Role, error) {
 	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roles := make([]services.Role, len(items))
+	roles = make([]services.Role, len(items))
 	for i, roleBytes := range items {
 		role, err := services.UnmarshalRole(roleBytes, services.SkipValidation())
 		if err != nil {
@@ -1806,6 +1811,14 @@ func (c *Client) CreateRole(role services.Role) error {
 
 // UpsertRole creates or updates role
 func (c *Client) UpsertRole(ctx context.Context, role services.Role) error {
+	if err := c.APIClient.UpsertRole(ctx, role); err == nil {
+		return nil
+	} else if !trace.IsNotImplemented(err) {
+		return trace.Wrap(err)
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 7.0
 	data, err := services.MarshalRole(role)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1815,15 +1828,25 @@ func (c *Client) UpsertRole(ctx context.Context, role services.Role) error {
 }
 
 // GetRole returns role by name
-func (c *Client) GetRole(name string) (services.Role, error) {
+func (c *Client) GetRole(ctx context.Context, name string) (services.Role, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing name")
 	}
+
+	role, err := c.APIClient.GetRole(ctx, name)
+	if err == nil {
+		return role, nil
+	} else if !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 7.0
 	out, err := c.Get(c.Endpoint("roles", name), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	role, err := services.UnmarshalRole(out.Bytes(), services.SkipValidation())
+	role, err = services.UnmarshalRole(out.Bytes(), services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1832,6 +1855,14 @@ func (c *Client) GetRole(name string) (services.Role, error) {
 
 // DeleteRole deletes role by name
 func (c *Client) DeleteRole(ctx context.Context, name string) error {
+	if err := c.APIClient.DeleteRole(ctx, name); err == nil {
+		return nil
+	} else if !trace.IsNotImplemented(err) {
+		return trace.Wrap(err)
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 7.0
 	_, err := c.Delete(c.Endpoint("roles", name))
 	return trace.Wrap(err)
 }
@@ -2225,8 +2256,8 @@ type IdentityService interface {
 	// ValidateGithubAuthCallback validates Github auth callback
 	ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error)
 
-	// GetU2FSignRequest generates request for user trying to authenticate with U2F token
-	GetU2FSignRequest(user string, password []byte) (*U2FAuthenticateChallenge, error)
+	// GetMFAAuthenticateChallenge generates request for user trying to authenticate with U2F token
+	GetMFAAuthenticateChallenge(user string, password []byte) (*MFAAuthenticateChallenge, error)
 
 	// GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite token
 	GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error)
@@ -2279,6 +2310,15 @@ type IdentityService interface {
 	// text format, signs it using User Certificate Authority signing key and
 	// returns the resulting certificates.
 	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
+
+	// GenerateUserSingleUseCerts is like GenerateUserCerts but issues a
+	// certificate for a single session
+	// (https://github.com/gravitational/teleport/blob/3a1cf9111c2698aede2056513337f32bfc16f1f1/rfd/0014-session-2FA.md#sessions).
+	GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error)
+
+	// IsMFARequiredRequest is a request to check whether MFA is required to
+	// access the Target.
+	IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error)
 
 	// DeleteAllUsers deletes all users
 	DeleteAllUsers() error

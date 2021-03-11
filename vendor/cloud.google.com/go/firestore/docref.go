@@ -122,9 +122,11 @@ func (d *DocumentRef) Get(ctx context.Context) (_ *DocumentSnapshot, err error) 
 //
 //   - omitempty: Do not encode this field if it is empty. A value is empty
 //     if it is a zero value, or an array, slice or map of length zero.
-//   - serverTimestamp: The field must be of type time.Time. When writing, if
-//     the field has the zero value, the server will populate the stored document with
-//     the time that the request is processed.
+//   - serverTimestamp: The field must be of type time.Time. serverTimestamp
+//     is a sentinel token that tells Firestore to substitute the server time
+//     into that field. When writing, if the field has the zero value, the
+//     server will populate the stored document with the time that the request
+//     is processed. However, if the field value is non-zero it won't be saved.
 func (d *DocumentRef) Create(ctx context.Context, data interface{}) (_ *WriteResult, err error) {
 	ctx = trace.StartSpan(ctx, "cloud.google.com/go/firestore.DocumentRef.Create")
 	defer func() { trace.EndSpan(ctx, err) }()

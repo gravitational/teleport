@@ -19,14 +19,21 @@ package firestoreevents
 import (
 	"context"
 	"net"
+	"os"
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/events/test"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
+
+	"github.com/gravitational/teleport/lib/events/test"
+	"github.com/gravitational/teleport/lib/utils"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 func TestFirestoreevents(t *testing.T) { check.TestingT(t) }
 
@@ -38,8 +45,6 @@ type FirestoreeventsSuite struct {
 var _ = check.Suite(&FirestoreeventsSuite{})
 
 func (s *FirestoreeventsSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	if !emulatorRunning() {
 		c.Skip("Firestore emulator is not running, start it with: gcloud beta emulators firestore start --host-port=localhost:8618")
 	}

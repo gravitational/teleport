@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2019 Gravitational, Inc.
+Copyright 2015-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -46,6 +47,7 @@ import (
 )
 
 type APIConfig struct {
+	PluginRegistry plugin.Registry
 	AuthServer     *Server
 	SessionService session.Service
 	AuditLog       events.IAuditLog
@@ -56,6 +58,9 @@ type APIConfig struct {
 	// KeepAliveCount specifies amount of missed keep alives
 	// to wait for until declaring connection as broken
 	KeepAliveCount int
+	// MetadataGetter retrieves additional metadata about session uploads.
+	// Will be nil if audit logging is not enabled.
+	MetadataGetter events.UploadMetadataGetter
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -77,7 +82,7 @@ type APIServer struct {
 }
 
 // NewAPIServer returns a new instance of APIServer HTTP handler
-func NewAPIServer(config *APIConfig) http.Handler {
+func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv := APIServer{
 		APIConfig: *config,
 		Clock:     clockwork.NewRealClock(),
@@ -185,7 +190,8 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.GET("/:version/namespaces/:namespace", srv.withAuth(srv.getNamespace))
 	srv.DELETE("/:version/namespaces/:namespace", srv.withAuth(srv.deleteNamespace))
 
-	// Roles
+	// Roles - Moved to grpc
+	// DELETE IN 7.0
 	srv.POST("/:version/roles", srv.withAuth(srv.upsertRole))
 	srv.GET("/:version/roles", srv.withAuth(srv.getRoles))
 	srv.GET("/:version/roles/:role", srv.withAuth(srv.getRole))
@@ -243,15 +249,17 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.GET("/:version/events", srv.withAuth(srv.searchEvents))
 	srv.GET("/:version/events/session", srv.withAuth(srv.searchSessionEvents))
 
-	if plugin := GetPlugin(); plugin != nil {
-		plugin.AddHandlers(&srv)
+	if config.PluginRegistry != nil {
+		if err := config.PluginRegistry.RegisterAuthWebHandlers(&srv); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return httplib.RewritePaths(&srv.Router,
 		httplib.Rewrite("/v1/nodes", "/v1/namespaces/default/nodes"),
 		httplib.Rewrite("/v1/sessions", "/v1/namespaces/default/sessions"),
 		httplib.Rewrite("/v1/sessions/([^/]+)/(.*)", "/v1/namespaces/default/sessions/$1/$2"),
-	)
+	), nil
 }
 
 // HandlerWithAuthFunc is http handler with passed auth context
@@ -744,7 +752,7 @@ func (s *APIServer) u2fSignRequest(auth ClientI, w http.ResponseWriter, r *http.
 	}
 	user := p.ByName("user")
 	pass := []byte(req.Password)
-	u2fSignReq, err := auth.GetU2FSignRequest(user, pass)
+	u2fSignReq, err := auth.GetMFAAuthenticateChallenge(user, pass)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2127,7 +2135,7 @@ func (s *APIServer) upsertRole(auth ClientI, w http.ResponseWriter, r *http.Requ
 }
 
 func (s *APIServer) getRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	role, err := auth.GetRole(p.ByName("role"))
+	role, err := auth.GetRole(r.Context(), p.ByName("role"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2135,7 +2143,7 @@ func (s *APIServer) getRole(auth ClientI, w http.ResponseWriter, r *http.Request
 }
 
 func (s *APIServer) getRoles(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	roles, err := auth.GetRoles()
+	roles, err := auth.GetRoles(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -112,6 +112,10 @@ func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateResetPa
 		return nil, trace.Wrap(err)
 	}
 
+	if err := s.resetMFA(ctx, req.Name); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	token, err := s.newResetPasswordToken(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -146,6 +150,18 @@ func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateResetPa
 	}
 
 	return s.GetResetPasswordToken(ctx, token.GetName())
+}
+
+func (s *Server) resetMFA(ctx context.Context, user string) error {
+	devs, err := s.GetMFADevices(ctx, user)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	var errs []error
+	for _, d := range devs {
+		errs = append(errs, s.DeleteMFADevice(ctx, user, d.Id))
+	}
+	return trace.NewAggregate(errs...)
 }
 
 // proxyDomainGetter is a reduced subset of the Auth API for formatAccountName.

@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2018 Gravitational, Inc.
+Copyright 2015-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/url"
 	"os"
 	"strings"
@@ -32,6 +33,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -45,11 +47,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
-)
-
-const (
-	// randomTokenLenBytes is the length of random token generated for the example config
-	randomTokenLenBytes = 24
 )
 
 var (
@@ -172,6 +169,7 @@ var (
 		"kubernetes_service":      true,
 		"kube_cluster_name":       false,
 		"kube_listen_addr":        false,
+		"kube_public_addr":        false,
 		"app_service":             true,
 		"db_service":              true,
 		"protocol":                false,
@@ -234,7 +232,7 @@ func ReadFromString(configString string) (*FileConfig, error) {
 	data, err := base64.StdEncoding.DecodeString(configString)
 	if err != nil {
 		return nil, trace.BadParameter(
-			"confiugraion should be base64 encoded: %v", err)
+			"configuration should be base64 encoded: %v", err)
 	}
 	return ReadConfig(bytes.NewBuffer(data))
 }
@@ -323,28 +321,34 @@ func ReadConfig(reader io.Reader) (*FileConfig, error) {
 	return &fc, nil
 }
 
-// MakeSampleFileConfig returns a sample config structure populated by defaults,
-// useful to generate sample configuration files
-func MakeSampleFileConfig() (fc *FileConfig, err error) {
-	conf := service.MakeDefaultConfig()
+// SampleFlags specifies standalone configuration parameters
+type SampleFlags struct {
+	// ClusterName is an optional cluster name
+	ClusterName string
+	// LicensePath adds license path to config
+	LicensePath string
+	// ACMEEmail is acme email
+	ACMEEmail string
+	// ACMEEnabled turns on ACME
+	ACMEEnabled bool
+}
 
-	// generate a secure random token
-	randomJoinToken, err := utils.CryptoRandomHex(randomTokenLenBytes)
-	if err != nil {
-		return nil, trace.Wrap(err)
+// MakeSampleFileConfig returns a sample config to start
+// a standalone server
+func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
+	if flags.ACMEEnabled && flags.ClusterName == "" {
+		return nil, trace.BadParameter("please provide --cluster-name when using acme, for example --cluster-name=example.com")
 	}
 
-	// sample global config:
+	conf := service.MakeDefaultConfig()
+
 	var g Global
 	g.NodeName = conf.Hostname
-	g.AuthToken = randomJoinToken
-	g.CAPin = "sha256:ca-pin-hash-goes-here"
 	g.Logger.Output = "stderr"
 	g.Logger.Severity = "INFO"
-	g.AuthServers = []string{fmt.Sprintf("%s:%d", defaults.Localhost, defaults.AuthListenPort)}
 	g.DataDir = defaults.DataDir
 
-	// sample SSH config:
+	// SSH config:
 	var s SSH
 	s.EnabledFlag = "yes"
 	s.ListenAddress = conf.SSH.Addr.Addr
@@ -354,29 +358,33 @@ func MakeSampleFileConfig() (fc *FileConfig, err error) {
 			Command: []string{"hostname"},
 			Period:  time.Minute,
 		},
-		{
-			Name:    "arch",
-			Command: []string{"uname", "-p"},
-			Period:  time.Hour,
-		},
 	}
 	s.Labels = map[string]string{
-		"env": "staging",
+		"env": "example",
 	}
 
-	// sample Auth config:
+	// Auth config:
 	var a Auth
 	a.ListenAddress = conf.Auth.SSHAddr.Addr
+	a.ClusterName = ClusterName(flags.ClusterName)
 	a.EnabledFlag = "yes"
-	a.StaticTokens = []StaticToken{StaticToken(fmt.Sprintf("proxy,node:%s", randomJoinToken))}
-	a.LicenseFile = "/path/to/license-if-using-teleport-enterprise.pem"
+
+	if flags.LicensePath != "" {
+		a.LicenseFile = flags.LicensePath
+	}
 
 	// sample proxy config:
 	var p Proxy
 	p.EnabledFlag = "yes"
 	p.ListenAddress = conf.Proxy.SSHAddr.Addr
-	p.WebAddr = conf.Proxy.WebAddr.Addr
-	p.TunAddr = conf.Proxy.ReverseTunnelListenAddr.Addr
+	if flags.ACMEEnabled {
+		p.ACME.EnabledFlag = "yes"
+		p.ACME.Email = flags.ACMEEmail
+		// ACME uses TLS-ALPN-01 challenge that requires port 443
+		// https://letsencrypt.org/docs/challenge-types/#tls-alpn-01
+		p.PublicAddr = utils.Strings{net.JoinHostPort(flags.ClusterName, fmt.Sprintf("%d", teleport.StandardHTTPSPort))}
+		p.WebAddr = fmt.Sprintf(":%d", teleport.StandardHTTPSPort)
+	}
 
 	fc = &FileConfig{
 		Global: g,
@@ -739,10 +747,10 @@ func (t StaticToken) Parse() (*services.ProvisionTokenV1, error) {
 
 // AuthenticationConfig describes the auth_service/authentication section of teleport.yaml
 type AuthenticationConfig struct {
-	Type          string                 `yaml:"type"`
-	SecondFactor  string                 `yaml:"second_factor,omitempty"`
-	ConnectorName string                 `yaml:"connector_name,omitempty"`
-	U2F           *UniversalSecondFactor `yaml:"u2f,omitempty"`
+	Type          string                     `yaml:"type"`
+	SecondFactor  constants.SecondFactorType `yaml:"second_factor,omitempty"`
+	ConnectorName string                     `yaml:"connector_name,omitempty"`
+	U2F           *UniversalSecondFactor     `yaml:"u2f,omitempty"`
 
 	// LocalAuth controls if local authentication is allowed.
 	LocalAuth *services.Bool `yaml:"local_auth"`
@@ -971,6 +979,8 @@ type Proxy struct {
 	// KubeAddr is a shorthand for enabling the Kubernetes endpoint without a
 	// local Kubernetes cluster.
 	KubeAddr string `yaml:"kube_listen_addr,omitempty"`
+	// KubePublicAddr is a public address of the kubernetes endpoint.
+	KubePublicAddr utils.Strings `yaml:"kube_public_addr,omitempty"`
 
 	// PublicAddr sets the hostport the proxy advertises for the HTTP endpoint.
 	// The hosts in PublicAddr are included in the list of host principals

@@ -143,6 +143,19 @@ message UserCertsRequest {
     // certificate so database client requests are routed appropriately.
     RouteToDatabase RouteToDatabase = 8
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "route_to_database,omitempty" ];
+
+    // NodeName is the name of the SSH node that this user certificate will be
+    // scoped to.
+    string NodeName = 9 [ (gogoproto.jsontag) = "node_name,omitempty" ];
+
+    enum CertUsage {
+        All = 0;
+        SSH = 1;
+        Kubernetes = 2;
+        Database = 3;
+    }
+    // CertUsage limits the resulting user certificate to a single protocol.
+    CertUsage Usage = 10 [ (gogoproto.jsontag) = "usage,omitempty" ];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -241,6 +254,30 @@ message PingResponse {
     string ClusterName = 1 [ (gogoproto.jsontag) = "cluster_name" ];
     // ServerVersion is the version of the auth server.
     string ServerVersion = 2 [ (gogoproto.jsontag) = "server_version" ];
+    // ServerFeatures are the features supported by the auth server.
+    Features ServerFeatures = 3 [ (gogoproto.jsontag) = "server_features" ];
+    // ProxyPublicAddr is the server's public proxy address.
+    string ProxyPublicAddr = 4 [ (gogoproto.jsontag) = "proxy_public_addr" ];
+}
+
+// Features are auth server features.
+message Features {
+    // Kubernetes enables Kubernetes Access product
+    bool Kubernetes = 1 [ (gogoproto.jsontag) = "kubernetes" ];
+    // App enables Application Access product
+    bool App = 2 [ (gogoproto.jsontag) = "app" ];
+    // DB enables database access product
+    bool DB = 3 [ (gogoproto.jsontag) = "db" ];
+    // OIDC enables OIDC connectors
+    bool OIDC = 4 [ (gogoproto.jsontag) = "oidc" ];
+    // SAML enables SAML connectors
+    bool SAML = 5 [ (gogoproto.jsontag) = "saml" ];
+    // AccessControls enables FIPS access controls
+    bool AccessControls = 6 [ (gogoproto.jsontag) = "access_controls" ];
+    // AdvancedAccessWorkflows enables advanced access workflows
+    bool AdvancedAccessWorkflows = 7 [ (gogoproto.jsontag) = "advanced_access_workflows" ];
+    // Cloud enables some cloud-related features
+    bool Cloud = 8 [ (gogoproto.jsontag) = "cloud" ];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.
@@ -509,6 +546,24 @@ message DatabaseCertResponse {
     repeated bytes CACerts = 2 [ (gogoproto.jsontag) = "ca_certs" ];
 }
 
+// GetRoleRequest is a request to query a role.
+message GetRoleRequest {
+    // Name is the name of the role to get.
+    string Name = 1;
+}
+
+// GetRolesResponse is a response to querying for all roles.
+message GetRolesResponse {
+    // Roles is a list of roles.
+    repeated types.RoleV3 Roles = 1;
+}
+
+// DeleteRoleRequest is a request to delete a role.
+message DeleteRoleRequest {
+    // Name is the role name to delete.
+    string Name = 1;
+}
+
 // MFAAuthenticateChallenge is a challenge for all MFA devices registered for a
 // user.
 message MFAAuthenticateChallenge {
@@ -535,6 +590,7 @@ message U2FChallenge {
     string KeyHandle = 1;
     string Challenge = 2;
     string AppID = 3;
+    string Version = 4;
 }
 
 // U2FResponse is a U2F auth challenge response.
@@ -576,6 +632,7 @@ message MFARegisterResponse {
 message U2FRegisterChallenge {
     string Challenge = 1;
     string AppID = 2;
+    string Version = 3;
 }
 
 // U2FRegisterResponse is a response to U2FRegisterChallenge.
@@ -680,6 +737,54 @@ message GetMFADevicesRequest {}
 // GetMFADeviceResponse is a response for GetMFADevices RPC.
 message GetMFADevicesResponse { repeated types.MFADevice Devices = 1; }
 
+// UserSingleUseCertsRequest is a request for a single-use user certificate.
+message UserSingleUseCertsRequest {
+    oneof Request {
+        UserCertsRequest Init = 1;
+        MFAAuthenticateResponse MFAResponse = 2;
+    }
+}
+
+// UserSingleUseCertsResponse is a response with a single-use user certificate.
+message UserSingleUseCertsResponse {
+    oneof Response {
+        MFAAuthenticateChallenge MFAChallenge = 1;
+        SingleUseUserCert Cert = 2;
+    }
+}
+
+// IsMFARequiredRequest is a request to check whether MFA is required to access
+// the Target.
+message IsMFARequiredRequest {
+    oneof Target {
+        // KubernetesCluster specifies the target kubernetes cluster.
+        string KubernetesCluster = 1;
+        // RouteToDatabase specifies the target database proxy name.
+        RouteToDatabase Database = 2;
+        // Node specifies the target SSH node.
+        NodeLogin Node = 3;
+    }
+}
+
+// NodeLogin specifies an SSH node and OS login.
+message NodeLogin {
+    // Node can be node's hostname or UUID.
+    string Node = 1;
+    // Login is the OS login name.
+    string Login = 2;
+}
+
+// IsMFARequiredResponse is a response for MFA requirement check.
+message IsMFARequiredResponse { bool Required = 1; }
+
+// SingleUseUserCert is a single-use user certificate, either SSH or TLS.
+message SingleUseUserCert {
+    oneof Cert {
+        bytes SSH = 1;
+        bytes TLS = 2;
+    }
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -688,13 +793,16 @@ service AuthService {
     rpc WatchEvents(Watch) returns (stream Event);
     // UpsertNode upserts node
     rpc UpsertNode(types.ServerV2) returns (types.KeepAlive);
-    // GenerateUserCerts generates a set of user certificates for use by `tctl
-    // auth sign`.
+    // GenerateUserCerts generates a set of user certificates.
     rpc GenerateUserCerts(UserCertsRequest) returns (Certs);
-    // GetUser gets a user resource by name.
-    rpc GetUser(GetUserRequest) returns (types.UserV2);
-    // GetUsers gets all current user resources.
-    rpc GetUsers(GetUsersRequest) returns (stream types.UserV2);
+    // GenerateUserSingleUseCerts generates a set of single-use user
+    // certificates.
+    rpc GenerateUserSingleUseCerts(stream UserSingleUseCertsRequest)
+        returns (stream UserSingleUseCertsResponse);
+    // IsMFARequired checks whether MFA is required to access the specified
+    // target.
+    rpc IsMFARequired(IsMFARequiredRequest) returns (IsMFARequiredResponse);
+
     // GetAccessRequests gets all pending access requests.
     rpc GetAccessRequests(types.AccessRequestFilter) returns (AccessRequests);
     // CreateAccessRequest creates a new access request.
@@ -714,6 +822,7 @@ service AuthService {
     // to mimic the behavior of the proxy's Ping method, and may be used by
     // clients for verification or configuration on startup.
     rpc Ping(PingRequest) returns (PingResponse);
+
     // RotateResetPasswordTokenSecrets rotates token secrets for a given tokenID.
     rpc RotateResetPasswordTokenSecrets(RotateResetPasswordTokenSecretsRequest)
         returns (types.ResetPasswordTokenSecretsV3);
@@ -722,6 +831,11 @@ service AuthService {
     // CreateResetPasswordToken creates ResetPasswordToken.
     rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest)
         returns (types.ResetPasswordTokenV3);
+
+    // GetUser gets a user resource by name.
+    rpc GetUser(GetUserRequest) returns (types.UserV2);
+    // GetUsers gets all current user resources.
+    rpc GetUsers(GetUsersRequest) returns (stream types.UserV2);
     // CreateUser inserts a new user entry to a backend.
     rpc CreateUser(types.UserV2) returns (google.protobuf.Empty);
     // UpdateUser updates an existing user in a backend.
@@ -814,6 +928,15 @@ service AuthService {
     // GenerateDatabaseCert generates client certificate used by a database
     // service to authenticate with the database instance.
     rpc GenerateDatabaseCert(DatabaseCertRequest) returns (DatabaseCertResponse);
+
+    // GetRole retrieves a role described by the given request.
+    rpc GetRole(GetRoleRequest) returns (types.RoleV3);
+    // GetRole retrieves all roles.
+    rpc GetRoles(google.protobuf.Empty) returns (GetRolesResponse);
+    // UpsertRole upserts a role in a backend.
+    rpc UpsertRole(types.RoleV3) returns (google.protobuf.Empty);
+    // DeleteRole deletes an existing role in a backend described by the given request.
+    rpc DeleteRole(DeleteRoleRequest) returns (google.protobuf.Empty);
 
     // AddMFADevice adds an MFA device for the user calling this RPC.
     //

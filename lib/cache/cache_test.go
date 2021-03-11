@@ -19,6 +19,7 @@ package cache
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -37,12 +38,18 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
+
+	"github.com/gravitational/trace"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 type CacheSuite struct{}
 
@@ -50,10 +57,6 @@ var _ = check.Suite(&CacheSuite{})
 
 // bootstrap check
 func TestState(t *testing.T) { check.TestingT(t) }
-
-func (s *CacheSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 // testPack contains pack of
 // services used for test run
@@ -1024,7 +1027,7 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 	err = p.accessS.UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 
-	role, err = p.accessS.GetRole(role.GetName())
+	role, err = p.accessS.GetRole(ctx, role.GetName())
 	c.Assert(err, check.IsNil)
 
 	select {
@@ -1034,7 +1037,7 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	out, err := p.cache.GetRole(role.GetName())
+	out, err := p.cache.GetRole(ctx, role.GetName())
 	c.Assert(err, check.IsNil)
 	role.SetResourceID(out.GetResourceID())
 	fixtures.DeepCompare(c, role, out)
@@ -1045,7 +1048,7 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 	err = p.accessS.UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 
-	role, err = p.accessS.GetRole(role.GetName())
+	role, err = p.accessS.GetRole(ctx, role.GetName())
 	c.Assert(err, check.IsNil)
 
 	select {
@@ -1055,7 +1058,7 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	out, err = p.cache.GetRole(role.GetName())
+	out, err = p.cache.GetRole(ctx, role.GetName())
 	c.Assert(err, check.IsNil)
 	role.SetResourceID(out.GetResourceID())
 	fixtures.DeepCompare(c, role, out)
@@ -1069,7 +1072,7 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	_, err = p.cache.GetRole(role.GetName())
+	_, err = p.cache.GetRole(ctx, role.GetName())
 	fixtures.ExpectNotFound(c, err)
 }
 

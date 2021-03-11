@@ -114,6 +114,11 @@ type Identity struct {
 	DatabaseNames []string
 	// DatabaseUsers is a list of allowed database users.
 	DatabaseUsers []string
+	// MFAVerified is the UUID of an MFA device when this Identity was
+	// confirmed immediately after an MFA check.
+	MFAVerified string
+	// ClientIP is an observed IP of the client that this Identity represents.
+	ClientIP string
 }
 
 // RouteToApp holds routing information for applications.
@@ -216,6 +221,14 @@ var (
 	// origin teleport cluster name into certificates.
 	TeleportClusterASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 7}
 
+	// MFAVerifiedASN1ExtensionOID is an extension ID used when encoding/decoding
+	// the MFAVerified flag into certificates.
+	MFAVerifiedASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 8}
+
+	// ClientIPASN1ExtensionOID is an extension ID used when encoding/decoding
+	// the client IP into certificates.
+	ClientIPASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 9}
+
 	// DatabaseServiceNameASN1ExtensionOID is an extension ID used when encoding/decoding
 	// database service name into certificates.
 	DatabaseServiceNameASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 1}
@@ -317,6 +330,20 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			pkix.AttributeTypeAndValue{
 				Type:  TeleportClusterASN1ExtensionOID,
 				Value: id.TeleportCluster,
+			})
+	}
+	if id.MFAVerified != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  MFAVerifiedASN1ExtensionOID,
+				Value: id.MFAVerified,
+			})
+	}
+	if id.ClientIP != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  ClientIPASN1ExtensionOID,
+				Value: id.ClientIP,
 			})
 	}
 
@@ -425,6 +452,16 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			val, ok := attr.Value.(string)
 			if ok {
 				id.TeleportCluster = val
+			}
+		case attr.Type.Equal(MFAVerifiedASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.MFAVerified = val
+			}
+		case attr.Type.Equal(ClientIPASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.ClientIP = val
 			}
 		case attr.Type.Equal(DatabaseServiceNameASN1ExtensionOID):
 			val, ok := attr.Value.(string)

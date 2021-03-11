@@ -73,6 +73,12 @@ var TeamMappingSchema = `{
         "items": {
           "type": "string"
         }
+      },
+      "kubernetes_users": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
       }
     }
   }`
@@ -104,22 +110,26 @@ func UnmarshalGithubConnector(bytes []byte) (GithubConnector, error) {
 }
 
 // MarshalGithubConnector marshals the GithubConnector resource to JSON.
-func MarshalGithubConnector(c GithubConnector, opts ...MarshalOption) ([]byte, error) {
+func MarshalGithubConnector(githubConnector GithubConnector, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	switch resource := c.(type) {
+
+	switch githubConnector := githubConnector.(type) {
 	case *GithubConnectorV3:
+		if version := githubConnector.GetVersion(); version != V3 {
+			return nil, trace.BadParameter("mismatched github connector version %v and type %T", version, githubConnector)
+		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
-			copy := *resource
+			copy := *githubConnector
 			copy.SetResourceID(0)
-			resource = &copy
+			githubConnector = &copy
 		}
-		return utils.FastMarshal(resource)
+		return utils.FastMarshal(githubConnector)
 	default:
-		return nil, trace.BadParameter("unrecognized resource version %T", c)
+		return nil, trace.BadParameter("unrecognized github connector version %T", githubConnector)
 	}
 }
