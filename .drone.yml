@@ -182,20 +182,20 @@ services:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: tmp-dind
-    path: /tmp
   - name: tmpfs
     path: /tmpfs
+  - name: tmp-dind
+    path: /tmp
 volumes:
 - name: dockersock
-  temp: {}
-- name: tmp-dind
-  temp: {}
-- name: tmp-integration
   temp: {}
 - name: tmpfs
   temp:
     medium: memory
+- name: tmp-dind
+  temp: {}
+- name: tmp-integration
+  temp: {}
 
 ---
 ################################################
@@ -4138,6 +4138,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: d085dedc5560b239c093eabe2c7f10139f8d7046e68ee2a9c89c2de23b4e1247
+hmac: 1d109a083ee2ec315c11984b75d1040a991456415cadf50df573e49b82de4aad
 
 ...
