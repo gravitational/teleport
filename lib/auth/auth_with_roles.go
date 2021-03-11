@@ -1596,7 +1596,7 @@ func (a *ServerWithRoles) checkGithubConnector(connector services.GithubConnecto
 			return trace.BadParameter("since 6.0 teleport uses teams_to_logins to reference a role, use it instead of local kubernetes_users and kubernetes_groups ")
 		}
 		for _, localRole := range team.Logins {
-			_, err := a.GetRole(localRole)
+			_, err := a.GetRole(context.TODO(), localRole)
 			if err != nil {
 				if trace.IsNotFound(err) {
 					return trace.BadParameter("since 6.0 teleport uses teams_to_logins to reference a role, role %q referenced in mapping for organization %q is not found", localRole, team.Organization)
@@ -1884,14 +1884,14 @@ func (a *ServerWithRoles) DeleteNamespace(name string) error {
 }
 
 // GetRoles returns a list of roles
-func (a *ServerWithRoles) GetRoles() ([]services.Role, error) {
+func (a *ServerWithRoles) GetRoles(ctx context.Context) ([]services.Role, error) {
 	if err := a.action(defaults.Namespace, services.KindRole, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := a.action(defaults.Namespace, services.KindRole, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetRoles()
+	return a.authServer.GetRoles(ctx)
 }
 
 // CreateRole not implemented: can only be called locally.
@@ -1926,7 +1926,7 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role services.Role) er
 }
 
 // GetRole returns role by name
-func (a *ServerWithRoles) GetRole(name string) (services.Role, error) {
+func (a *ServerWithRoles) GetRole(ctx context.Context, name string) (services.Role, error) {
 	// Current-user exception: we always allow users to read roles
 	// that they hold.  This requirement is checked first to avoid
 	// misleading denial messages in the logs.
@@ -1935,7 +1935,7 @@ func (a *ServerWithRoles) GetRole(name string) (services.Role, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.GetRole(name)
+	return a.authServer.GetRole(ctx, name)
 }
 
 // DeleteRole deletes role by name

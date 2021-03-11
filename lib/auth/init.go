@@ -535,7 +535,7 @@ func migrateOSS(ctx context.Context, asrv *Server) error {
 		return nil
 	}
 	role := services.NewDowngradedOSSAdminRole()
-	existing, err := asrv.GetRole(role.GetName())
+	existing, err := asrv.GetRole(ctx, role.GetName())
 	if err != nil {
 		return trace.Wrap(err, "expected to find built-in admin role")
 	}
@@ -1175,7 +1175,7 @@ func migrateRemoteClusters(asrv *Server) error {
 // DELETE IN: 4.3.0.
 // migrateRoleOptions adds the "enhanced_recording" option to all roles.
 func migrateRoleOptions(ctx context.Context, asrv *Server) error {
-	roles, err := asrv.GetRoles()
+	roles, err := asrv.GetRoles(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

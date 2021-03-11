@@ -190,7 +190,8 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.GET("/:version/namespaces/:namespace", srv.withAuth(srv.getNamespace))
 	srv.DELETE("/:version/namespaces/:namespace", srv.withAuth(srv.deleteNamespace))
 
-	// Roles
+	// Roles - Moved to grpc
+	// DELETE IN 7.0
 	srv.POST("/:version/roles", srv.withAuth(srv.upsertRole))
 	srv.GET("/:version/roles", srv.withAuth(srv.getRoles))
 	srv.GET("/:version/roles/:role", srv.withAuth(srv.getRole))
@@ -2134,7 +2135,7 @@ func (s *APIServer) upsertRole(auth ClientI, w http.ResponseWriter, r *http.Requ
 }
 
 func (s *APIServer) getRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	role, err := auth.GetRole(p.ByName("role"))
+	role, err := auth.GetRole(r.Context(), p.ByName("role"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2142,7 +2143,7 @@ func (s *APIServer) getRole(auth ClientI, w http.ResponseWriter, r *http.Request
 }
 
 func (s *APIServer) getRoles(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	roles, err := auth.GetRoles()
+	roles, err := auth.GetRoles(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

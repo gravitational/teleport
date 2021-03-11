@@ -1195,7 +1195,7 @@ func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	}
 	var roles services.RoleSet
 	for _, roleName := range user.GetRoles() {
-		role, err := clt.GetRole(roleName)
+		role, err := clt.GetRole(context.TODO(), roleName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

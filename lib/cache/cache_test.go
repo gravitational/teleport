@@ -1027,7 +1027,7 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 	err = p.accessS.UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 
-	role, err = p.accessS.GetRole(role.GetName())
+	role, err = p.accessS.GetRole(ctx, role.GetName())
 	c.Assert(err, check.IsNil)
 
 	select {
@@ -1037,7 +1037,7 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	out, err := p.cache.GetRole(role.GetName())
+	out, err := p.cache.GetRole(ctx, role.GetName())
 	c.Assert(err, check.IsNil)
 	role.SetResourceID(out.GetResourceID())
 	fixtures.DeepCompare(c, role, out)
@@ -1048,7 +1048,7 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 	err = p.accessS.UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 
-	role, err = p.accessS.GetRole(role.GetName())
+	role, err = p.accessS.GetRole(ctx, role.GetName())
 	c.Assert(err, check.IsNil)
 
 	select {
@@ -1058,7 +1058,7 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	out, err = p.cache.GetRole(role.GetName())
+	out, err = p.cache.GetRole(ctx, role.GetName())
 	c.Assert(err, check.IsNil)
 	role.SetResourceID(out.GetResourceID())
 	fixtures.DeepCompare(c, role, out)
@@ -1072,7 +1072,7 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	_, err = p.cache.GetRole(role.GetName())
+	_, err = p.cache.GetRole(ctx, role.GetName())
 	fixtures.ExpectNotFound(c, err)
 }
 

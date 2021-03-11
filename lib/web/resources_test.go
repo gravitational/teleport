@@ -162,7 +162,7 @@ version: v2
 func TestGetRoles(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
 
-	m.mockGetRoles = func() ([]types.Role, error) {
+	m.mockGetRoles = func(ctx context.Context) ([]types.Role, error) {
 		role, err := types.NewRole("test", types.RoleSpecV3{
 			Allow: types.RoleConditions{
 				Logins: []string{"test"},
@@ -186,7 +186,7 @@ func TestUpsertRole(t *testing.T) {
 	m.mockUpsertRole = func(ctx context.Context, role types.Role) error {
 		return nil
 	}
-	m.mockGetRole = func(name string) (types.Role, error) {
+	m.mockGetRole = func(ctx context.Context, name string) (types.Role, error) {
 		return nil, trace.NotFound("")
 	}
 
@@ -325,8 +325,8 @@ version: v2`
 }
 
 type mockedResourceAPIGetter struct {
-	mockGetRole               func(name string) (types.Role, error)
-	mockGetRoles              func() ([]types.Role, error)
+	mockGetRole               func(ctx context.Context, name string) (types.Role, error)
+	mockGetRoles              func(ctx context.Context) ([]types.Role, error)
 	mockUpsertRole            func(ctx context.Context, role types.Role) error
 	mockUpsertGithubConnector func(ctx context.Context, connector types.GithubConnector) error
 	mockGetGithubConnectors   func(withSecrets bool) ([]types.GithubConnector, error)
@@ -338,16 +338,16 @@ type mockedResourceAPIGetter struct {
 	mockDeleteTrustedCluster  func(ctx context.Context, name string) error
 }
 
-func (m *mockedResourceAPIGetter) GetRole(name string) (types.Role, error) {
+func (m *mockedResourceAPIGetter) GetRole(ctx context.Context, name string) (types.Role, error) {
 	if m.mockGetRole != nil {
-		return m.mockGetRole(name)
+		return m.mockGetRole(ctx, name)
 	}
 	return nil, trace.NotImplemented("mockGetRole not implemented")
 }
 
-func (m *mockedResourceAPIGetter) GetRoles() ([]types.Role, error) {
+func (m *mockedResourceAPIGetter) GetRoles(ctx context.Context) ([]types.Role, error) {
 	if m.mockGetRoles != nil {
-		return m.mockGetRoles()
+		return m.mockGetRoles(ctx)
 	}
 	return nil, trace.NotImplemented("mockGetRoles not implemented")
 }

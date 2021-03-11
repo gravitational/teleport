@@ -873,6 +873,8 @@ func (s *TLSSuite) TestNopUser(c *check.C) {
 
 // TestOwnRole tests that user can read roles assigned to them (used by web UI)
 func (s *TLSSuite) TestReadOwnRole(c *check.C) {
+	ctx := context.Background()
+
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
 
@@ -886,14 +888,14 @@ func (s *TLSSuite) TestReadOwnRole(c *check.C) {
 	userClient, err := s.server.NewClient(TestUser(user1.GetName()))
 	c.Assert(err, check.IsNil)
 
-	_, err = userClient.GetRole(userRole.GetName())
+	_, err = userClient.GetRole(ctx, userRole.GetName())
 	c.Assert(err, check.IsNil)
 
 	// user2 can't read user1 role
 	userClient2, err := s.server.NewClient(TestIdentity{I: LocalUser{Username: user2.GetName()}})
 	c.Assert(err, check.IsNil)
 
-	_, err = userClient2.GetRole(userRole.GetName())
+	_, err = userClient2.GetRole(ctx, userRole.GetName())
 	fixtures.ExpectNotFound(c, err)
 }
 
