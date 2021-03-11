@@ -217,21 +217,6 @@ release-windows: clean all
 	@echo "---> Created $(RELEASE).zip."
 
 #
-# Builds docs using containerized mkdocs
-#
-.PHONY:docs
-docs: docs-test
-	$(MAKE) -C build.assets docs
-
-#
-# Runs the documentation site inside a container on localhost with live updates
-# Convenient for editing documentation.
-#
-.PHONY:run-docs
-run-docs:
-	$(MAKE) -C build.assets run-docs
-
-#
 # Remove trailing whitespace in all markdown files under docs/.
 #
 # Note: this runs in a busybox container to avoid incompatibilities between
@@ -246,7 +231,7 @@ docs-fix-whitespace:
 # Test docs for trailing whitespace and broken links
 #
 .PHONY:docs-test
-docs-test: docs-test-whitespace docs-test-links
+docs-test: docs-test-whitespace
 
 #
 # Check for trailing whitespace in all markdown files under docs/
@@ -259,17 +244,6 @@ docs-test-whitespace:
 		exit 1; \
 	fi
 
-#
-# Run milv in docs to detect broken internal links.
-# milv is installed if missing.
-#
-.PHONY:docs-test-links
-docs-test-links: DOCS_FOLDERS := $(shell find . -name milv.config.yaml -exec dirname {} \;)
-docs-test-links:
-	for docs_dir in $(DOCS_FOLDERS); do \
-		echo "running milv -ignore-external in $${docs_dir}"; \
-		cd $${docs_dir} && milv -ignore-external; cd $(PWD); \
-	done
 
 #
 # Runs all tests except integration, called by CI/CD.
@@ -429,29 +403,12 @@ docker-binaries: clean
 enter:
 	make -C build.assets enter
 
-PROTOC_VER ?= 3.6.1
-GOGO_PROTO_TAG ?= v1.1.1
-PLATFORM := linux-x86_64
-BUILDBOX_TAG := teleport-grpc-buildbox:0.0.1
-
-# buildbox builds docker buildbox image used to compile binaries and generate GRPc stuff
-.PHONY: buildbox
-buildbox:
-	cd build.assets/grpc && docker build \
-          --build-arg PROTOC_VER=$(PROTOC_VER) \
-          --build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
-          --build-arg PLATFORM=$(PLATFORM) \
-          -t $(BUILDBOX_TAG) .
-
-# proto generates GRPC defs from service definitions
+# grpc generates GRPC stubs from service definitions
 .PHONY: grpc
-grpc: buildbox
-	docker run \
-		--rm \
-		-v $(shell pwd):/go/src/github.com/gravitational/teleport $(BUILDBOX_TAG) \
-		make -C /go/src/github.com/gravitational/teleport buildbox-grpc
+grpc:
+	make -C build.assets grpc
 
-# proto generates GRPC stuff inside buildbox
+# buildbox-grpc generates GRPC stubs inside buildbox
 .PHONY: buildbox-grpc
 buildbox-grpc:
 # standard GRPC output
@@ -641,3 +598,11 @@ update-vendor:
 	# create a symlink to the the original api package
 	rm -r vendor/github.com/gravitational/teleport/api
 	ln -s -r $(shell readlink -f api) vendor/github.com/gravitational/teleport
+
+# update-webassets updates the minified code in the webassets repo using the latest webapps
+# repo and creates a PR in the teleport repo to update webassets submodule.
+.PHONY: update-webassets
+update-webassets: WEBAPPS_BRANCH ?= 'master'
+update-webassets: TELEPORT_BRANCH ?= 'master'
+update-webassets:
+	build.assets/webapps/update-teleport-webassets.sh -w $(WEBAPPS_BRANCH) -t $(TELEPORT_BRANCH)

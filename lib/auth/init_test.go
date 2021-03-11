@@ -90,10 +90,8 @@ func TestReadIdentity(t *testing.T) {
 		TTL:                 ttl,
 	})
 	require.NoError(t, err)
-	pk, _, _, _, err := ssh.ParseAuthorizedKey(bytes)
+	copy, err := sshutils.ParseCertificate(bytes)
 	require.NoError(t, err)
-	copy, ok := pk.(*ssh.Certificate)
-	require.True(t, ok)
 	require.Equal(t, uint64(expiryDate.Unix()), copy.ValidBefore)
 }
 
@@ -503,7 +501,7 @@ func TestMigrateOSS(t *testing.T) {
 		require.NoError(t, err)
 
 		// OSS user role was updated
-		role, err := as.GetRole(teleport.AdminRoleName)
+		role, err := as.GetRole(ctx, teleport.AdminRoleName)
 		require.NoError(t, err)
 		require.Equal(t, types.True, role.GetMetadata().Labels[teleport.OSSMigratedV6])
 	})
@@ -640,7 +638,7 @@ func TestMigrateOSS(t *testing.T) {
 		require.Len(t, mappings, 2)
 		require.Len(t, mappings[0].Logins, 1)
 
-		r, err := as.GetRole(mappings[0].Logins[0])
+		r, err := as.GetRole(ctx, mappings[0].Logins[0])
 		require.NoError(t, err)
 		require.Equal(t, connector.GetTeamsToLogins()[0].Logins, r.GetLogins(types.Allow))
 		require.Equal(t, connector.GetTeamsToLogins()[0].KubeGroups, r.GetKubeGroups(types.Allow))
@@ -649,7 +647,7 @@ func TestMigrateOSS(t *testing.T) {
 		require.Len(t, mappings[0].KubeUsers, 0)
 
 		require.Len(t, mappings[1].Logins, 1)
-		r2, err := as.GetRole(mappings[1].Logins[0])
+		r2, err := as.GetRole(ctx, mappings[1].Logins[0])
 		require.NoError(t, err)
 		require.Equal(t, connector.GetTeamsToLogins()[1].Logins, r2.GetLogins(types.Allow))
 		require.Equal(t, connector.GetTeamsToLogins()[1].KubeGroups, r2.GetKubeGroups(types.Allow))

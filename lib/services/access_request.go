@@ -166,7 +166,7 @@ func GetTraitMappings(c AccessRequestConditions) TraitMappingSet {
 type UserAndRoleGetter interface {
 	UserGetter
 	RoleGetter
-	GetRoles() ([]Role, error)
+	GetRoles(ctx context.Context) ([]Role, error)
 }
 
 // appendRoleMatchers constructs all role matchers for a given
@@ -261,7 +261,7 @@ func NewRequestValidator(getter UserAndRoleGetter, username string, opts ...Vali
 	// load all statically assigned roles for the user and
 	// use them to build our validation state.
 	for _, roleName := range m.user.GetRoles() {
-		role, err := m.getter.GetRole(roleName)
+		role, err := m.getter.GetRole(context.TODO(), roleName)
 		if err != nil {
 			return RequestValidator{}, trace.Wrap(err)
 		}
@@ -333,7 +333,7 @@ func (m *RequestValidator) Validate(req AccessRequest) error {
 // roles in order to determine the role list.  Prefer calling CanRequestRole
 // when checking againt a known role list.
 func (m *RequestValidator) GetRequestableRoles() ([]string, error) {
-	allRoles, err := m.getter.GetRoles()
+	allRoles, err := m.getter.GetRoles(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

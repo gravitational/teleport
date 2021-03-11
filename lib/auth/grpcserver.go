@@ -40,7 +40,6 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
-	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -590,7 +589,7 @@ func (g *GRPCServer) CreateUser(ctx context.Context, req *services.UserV2) (*emp
 	}
 
 	if err := services.ValidateUser(req); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trail.ToGRPC(err)
 	}
 
 	if err := auth.CreateUser(ctx, req); err != nil {
@@ -610,7 +609,7 @@ func (g *GRPCServer) UpdateUser(ctx context.Context, req *services.UserV2) (*emp
 	}
 
 	if err := services.ValidateUser(req); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trail.ToGRPC(err)
 	}
 
 	if err := auth.UpdateUser(ctx, req); err != nil {
@@ -1250,6 +1249,81 @@ func (g *GRPCServer) DeleteAllKubeServices(ctx context.Context, req *proto.Delet
 	return &empty.Empty{}, nil
 }
 
+// GetRole retrieves a role by name.
+func (g *GRPCServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*types.RoleV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	role, err := auth.GetRole(ctx, req.Name)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	roleV3, ok := role.(*types.RoleV3)
+	if !ok {
+		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected role type"))
+	}
+	return roleV3, nil
+}
+
+// GetRoles retrieves all roles.
+func (g *GRPCServer) GetRoles(ctx context.Context, _ *empty.Empty) (*proto.GetRolesResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	roles, err := auth.GetRoles(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	var rolesV3 []*types.RoleV3
+	for _, r := range roles {
+		role, ok := r.(*types.RoleV3)
+		if !ok {
+
+			return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", r))
+		}
+		rolesV3 = append(rolesV3, role)
+	}
+	return &proto.GetRolesResponse{
+		Roles: rolesV3,
+	}, nil
+}
+
+// UpsertRole upserts a role.
+func (g *GRPCServer) UpsertRole(ctx context.Context, role *types.RoleV3) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err = services.ValidateRole(role); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	err = auth.UpsertRole(ctx, role)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	g.Debugf("%q role upserted", role.GetName())
+
+	return &empty.Empty{}, nil
+}
+
+// DeleteRole deletes a role by name.
+func (g *GRPCServer) DeleteRole(ctx context.Context, req *proto.DeleteRoleRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err := auth.DeleteRole(ctx, req.Name); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	g.Debugf("%q role deleted", req.GetName())
+
+	return &empty.Empty{}, nil
+}
+
 func (g *GRPCServer) AddMFADevice(stream proto.AuthService_AddMFADeviceServer) error {
 	actx, err := g.authenticate(stream.Context())
 	if err != nil {
@@ -1363,7 +1437,7 @@ func addMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_AddMF
 	}
 	// Only validate if there was a challenge.
 	if authChallenge.TOTP != nil || len(authChallenge.U2F) > 0 {
-		if err := auth.validateMFAAuthResponse(ctx, user, authResp, u2fStorage); err != nil {
+		if _, err := auth.validateMFAAuthResponse(ctx, user, authResp, u2fStorage); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1415,6 +1489,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 			return nil, trace.Wrap(err)
 		}
 		regChallenge.Request = &proto.MFARegisterChallenge_U2F{U2F: &proto.U2FRegisterChallenge{
+			Version:   challenge.Version,
 			Challenge: challenge.Challenge,
 			AppID:     challenge.AppID,
 		}}
@@ -1581,7 +1656,7 @@ func deleteMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_De
 	if authResp == nil {
 		return trace.BadParameter("expected MFAAuthenticateResponse, got %T", req)
 	}
-	if err := auth.validateMFAAuthResponse(ctx, user, authResp, u2fStorage); err != nil {
+	if _, err := auth.validateMFAAuthResponse(ctx, user, authResp, u2fStorage); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -1621,7 +1696,8 @@ func (g *GRPCServer) GetMFADevices(ctx context.Context, req *proto.GetMFADevices
 }
 
 func (g *GRPCServer) GenerateUserSingleUseCerts(stream proto.AuthService_GenerateUserSingleUseCertsServer) error {
-	actx, err := g.authenticate(stream.Context())
+	ctx := stream.Context()
+	actx, err := g.authenticate(ctx)
 	if err != nil {
 		return trail.ToGRPC(err)
 	}
@@ -1643,19 +1719,23 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream proto.AuthService_Generat
 	if initReq == nil {
 		return trail.ToGRPC(trace.BadParameter("expected UserCertsRequest, got %T", req.Request))
 	}
-	if err := validateUserSingleUseCertRequest(initReq, g.AuthServer.GetClock()); err != nil {
+	if err := validateUserSingleUseCertRequest(ctx, actx, initReq); err != nil {
+		g.Entry.Debugf("Validation of single-use cert request failed: %v", err)
 		return trail.ToGRPC(err)
 	}
 
 	// 2. send MFAChallenge
 	// 3. receive and validate MFAResponse
-	if err := userSingleUseCertsAuthChallenge(actx, stream); err != nil {
+	mfaDev, err := userSingleUseCertsAuthChallenge(actx, stream)
+	if err != nil {
+		g.Entry.Debugf("Failed to perform single-use cert challenge: %v", err)
 		return trail.ToGRPC(err)
 	}
 
 	// Generate the cert.
-	respCert, err := userSingleUseCertsGenerate(stream.Context(), actx, *initReq)
+	respCert, err := userSingleUseCertsGenerate(ctx, actx, *initReq, mfaDev)
 	if err != nil {
+		g.Entry.Warningf("Failed to generate single-use cert: %v", err)
 		return trail.ToGRPC(err)
 	}
 
@@ -1668,7 +1748,13 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream proto.AuthService_Generat
 	return nil
 }
 
-func validateUserSingleUseCertRequest(req *proto.UserCertsRequest, clock clockwork.Clock) error {
+// validateUserSingleUseCertRequest validates the request for a single-use user
+// cert.
+func validateUserSingleUseCertRequest(ctx context.Context, actx *grpcContext, req *proto.UserCertsRequest) error {
+	if err := actx.currentUserAction(req.Username); err != nil {
+		return trace.Wrap(err)
+	}
+
 	switch req.Usage {
 	case proto.UserCertsRequest_SSH:
 		if req.NodeName == "" {
@@ -1687,47 +1773,52 @@ func validateUserSingleUseCertRequest(req *proto.UserCertsRequest, clock clockwo
 	default:
 		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
 	}
-	maxExpiry := clock.Now().Add(teleport.UserSingleUseCertTTL)
+
+	maxExpiry := actx.authServer.GetClock().Now().Add(teleport.UserSingleUseCertTTL)
 	if req.Expires.After(maxExpiry) {
 		req.Expires = maxExpiry
 	}
 	return nil
 }
 
-func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService_GenerateUserSingleUseCertsServer) error {
+func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService_GenerateUserSingleUseCertsServer) (*types.MFADevice, error) {
 	ctx := stream.Context()
 	auth := gctx.authServer
 	user := gctx.User.GetName()
 	u2fStorage, err := u2f.InMemoryAuthenticationStorage(auth.Identity)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	authChallenge, err := auth.mfaAuthChallenge(ctx, user, u2fStorage)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
+	}
+	if authChallenge.TOTP == nil && len(authChallenge.U2F) == 0 {
+		return nil, trace.AccessDenied("MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices")
 	}
 	if err := stream.Send(&proto.UserSingleUseCertsResponse{
 		Response: &proto.UserSingleUseCertsResponse_MFAChallenge{MFAChallenge: authChallenge},
 	}); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	req, err := stream.Recv()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	authResp := req.GetMFAResponse()
 	if authResp == nil {
-		return trace.BadParameter("expected MFAAuthenticateResponse, got %T", req.Request)
+		return nil, trace.BadParameter("expected MFAAuthenticateResponse, got %T", req.Request)
 	}
-	if err := auth.validateMFAAuthResponse(ctx, user, authResp, u2fStorage); err != nil {
-		return trace.Wrap(err)
+	mfaDev, err := auth.validateMFAAuthResponse(ctx, user, authResp, u2fStorage)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return nil
+	return mfaDev, nil
 }
 
-func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req proto.UserCertsRequest) (*proto.SingleUseUserCert, error) {
+func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req proto.UserCertsRequest, mfaDev *types.MFADevice) (*proto.SingleUseUserCert, error) {
 	// Get the client IP.
 	clientPeer, ok := peer.FromContext(ctx)
 	if !ok {
@@ -1739,7 +1830,7 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req prot
 	}
 
 	// Generate the cert.
-	certs, err := actx.generateUserCerts(ctx, req, certRequestMFAVerified, certRequestClientIP(clientIP))
+	certs, err := actx.generateUserCerts(ctx, req, certRequestMFAVerified(mfaDev.Id), certRequestClientIP(clientIP))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1751,6 +1842,18 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req prot
 		resp.Cert = &proto.SingleUseUserCert_TLS{TLS: certs.TLS}
 	default:
 		return nil, trace.BadParameter("unknown certificate usage %q", req.Usage)
+	}
+	return resp, nil
+}
+
+func (g *GRPCServer) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+	actx, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	resp, err := actx.IsMFARequired(ctx, req)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
 	}
 	return resp, nil
 }

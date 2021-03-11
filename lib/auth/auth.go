@@ -28,8 +28,10 @@ import (
 	"crypto"
 	"crypto/subtle"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"math/rand"
+	"net"
 	"net/url"
 	"strings"
 	"sync"
@@ -478,16 +480,18 @@ type certRequest struct {
 	// dbName is the optional database name which, if provided, will be used
 	// as a default database.
 	dbName string
-	// mfaVerified is set when this certRequest was created immediately after
-	// an MFA check.
-	mfaVerified bool
+	// mfaVerified is the UUID of an MFA device when this certRequest was
+	// created immediately after an MFA check.
+	mfaVerified string
 	// clientIP is an IP of the client requesting the certificate.
 	clientIP string
 }
 
 type certRequestOption func(*certRequest)
 
-func certRequestMFAVerified(r *certRequest) { r.mfaVerified = true }
+func certRequestMFAVerified(mfaID string) certRequestOption {
+	return func(r *certRequest) { r.mfaVerified = mfaID }
+}
 func certRequestClientIP(ip string) certRequestOption {
 	return func(r *certRequest) { r.clientIP = ip }
 }
@@ -892,6 +896,7 @@ func (a *Server) GetMFAAuthenticateChallenge(user string, password []byte) (*MFA
 	}
 	for _, u2fChal := range protoChal.U2F {
 		ch := u2f.AuthenticateChallenge{
+			Version:   u2fChal.Version,
 			Challenge: u2fChal.Challenge,
 			KeyHandle: u2fChal.KeyHandle,
 			AppID:     u2fChal.AppID,
@@ -1708,7 +1713,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req services.AccessReq
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ttl, err := a.calculateMaxAccessTTL(req)
+	ttl, err := a.calculateMaxAccessTTL(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1796,10 +1801,10 @@ func (a *Server) GetAccessCapabilities(ctx context.Context, req services.AccessC
 // calculateMaxAccessTTL determines the maximum allowable TTL for a given access request
 // based on the MaxSessionTTLs of the roles being requested (a access request's life cannot
 // exceed the smallest allowable MaxSessionTTL value of the roles that it requests).
-func (a *Server) calculateMaxAccessTTL(req services.AccessRequest) (time.Duration, error) {
+func (a *Server) calculateMaxAccessTTL(ctx context.Context, req services.AccessRequest) (time.Duration, error) {
 	minTTL := defaults.MaxAccessDuration
 	for _, roleName := range req.GetRoles() {
-		role, err := a.GetRole(roleName)
+		role, err := a.GetRole(context.TODO(), roleName)
 		if err != nil {
 			return 0, trace.Wrap(err)
 		}
@@ -1847,13 +1852,13 @@ func (a *Server) GetToken(token string) (services.ProvisionToken, error) {
 }
 
 // GetRoles is a part of auth.AccessPoint implementation
-func (a *Server) GetRoles() ([]services.Role, error) {
-	return a.GetCache().GetRoles()
+func (a *Server) GetRoles(ctx context.Context) ([]services.Role, error) {
+	return a.GetCache().GetRoles(ctx)
 }
 
 // GetRole is a part of auth.AccessPoint implementation
-func (a *Server) GetRole(name string) (services.Role, error) {
-	return a.GetCache().GetRole(name)
+func (a *Server) GetRole(ctx context.Context, name string) (services.Role, error) {
+	return a.GetCache().GetRole(ctx, name)
 }
 
 // GetNamespace returns namespace
@@ -1957,6 +1962,131 @@ func (a *Server) GetDatabaseServers(ctx context.Context, namespace string, opts 
 	return a.GetCache().GetDatabaseServers(ctx, namespace, opts...)
 }
 
+func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+	var noMFAAccessErr, notFoundErr error
+	switch t := req.Target.(type) {
+	case *proto.IsMFARequiredRequest_Node:
+		notFoundErr = trace.NotFound("node %q not found", t.Node)
+		if t.Node.Node == "" {
+			return nil, trace.BadParameter("empty Node field")
+		}
+		if t.Node.Login == "" {
+			return nil, trace.BadParameter("empty Login field")
+		}
+		// Find the target node and check whether MFA is required.
+		nodes, err := a.GetNodes(defaults.Namespace, services.SkipValidation())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		var matches []types.Server
+		for _, n := range nodes {
+			// Get the server address without port number.
+			addr, _, err := net.SplitHostPort(n.GetAddr())
+			if err != nil {
+				addr = n.GetAddr()
+			}
+			// Match NodeName to UUID, hostname or self-reported server address.
+			if n.GetName() == t.Node.Node || n.GetHostname() == t.Node.Node || addr == t.Node.Node {
+				matches = append(matches, n)
+			}
+		}
+		if len(matches) == 0 {
+			// If t.Node.Node is not a known registered node, it may be an
+			// unregistered host running OpenSSH with a certificate created via
+			// `tctl auth sign`. In these cases, let the user through without
+			// extra checks.
+			//
+			// If t.Node.Node turns out to be an alias for a real node (e.g.
+			// private network IP), and MFA check was actually required, the
+			// Node itself will check the cert extensions and reject the
+			// connection.
+			return &proto.IsMFARequiredResponse{Required: false}, nil
+		}
+		// Check RBAC against all matching nodes and return the first error.
+		// If at least one node requires MFA, we'll catch it.
+		for _, n := range matches {
+			err := checker.CheckAccessToServer(t.Node.Login, n, false)
+			if err != nil {
+				noMFAAccessErr = err
+				break
+			}
+		}
+
+	case *proto.IsMFARequiredRequest_KubernetesCluster:
+		notFoundErr = trace.NotFound("kubernetes cluster %q not found", t.KubernetesCluster)
+		if t.KubernetesCluster == "" {
+			return nil, trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
+		}
+		// Find the target cluster and check whether MFA is required.
+		svcs, err := a.GetKubeServices(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		var cluster *types.KubernetesCluster
+	outer:
+		for _, svc := range svcs {
+			for _, c := range svc.GetKubernetesClusters() {
+				if c.Name == t.KubernetesCluster {
+					cluster = c
+					break outer
+				}
+			}
+		}
+		if cluster == nil {
+			return nil, trace.Wrap(notFoundErr)
+		}
+		noMFAAccessErr = checker.CheckAccessToKubernetes(defaults.Namespace, cluster, false)
+
+	case *proto.IsMFARequiredRequest_Database:
+		notFoundErr = trace.NotFound("database service %q not found", t.Database.ServiceName)
+		if t.Database.ServiceName == "" {
+			return nil, trace.BadParameter("missing ServiceName field in a database-only UserCertsRequest")
+		}
+		dbs, err := a.GetDatabaseServers(ctx, defaults.Namespace, services.SkipValidation())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		var db types.DatabaseServer
+		for _, d := range dbs {
+			if d.GetName() == t.Database.ServiceName {
+				db = d
+				break
+			}
+		}
+		if db == nil {
+			return nil, trace.Wrap(notFoundErr)
+		}
+		noMFAAccessErr = checker.CheckAccessToDatabase(db, false)
+
+	default:
+		return nil, trace.BadParameter("unknown Target %T", req.Target)
+	}
+	// No error means that MFA is not required for this resource by
+	// AccessChecker.
+	if noMFAAccessErr == nil {
+		return &proto.IsMFARequiredResponse{Required: false}, nil
+	}
+	// Errors other than ErrSessionMFARequired mean something else is wrong,
+	// most likely access denied.
+	if !errors.Is(noMFAAccessErr, services.ErrSessionMFARequired) {
+		if trace.IsAccessDenied(noMFAAccessErr) {
+			log.Infof("Access to resource denied: %v", noMFAAccessErr)
+			// notFoundErr should always be set by this point, but check it
+			// just in case.
+			if notFoundErr == nil {
+				notFoundErr = trace.NotFound("target resource not found")
+			}
+			// Mask access denied errors to prevent resource name oracles.
+			return nil, trace.Wrap(notFoundErr)
+		}
+		return nil, trace.Wrap(noMFAAccessErr)
+	}
+	// If we reach here, the error from AccessChecker was
+	// ErrSessionMFARequired.
+
+	return &proto.IsMFARequiredResponse{Required: true}, nil
+}
+
 // mfaAuthChallenge constructs an MFAAuthenticateChallenge for all MFA devices
 // registered by the user.
 func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u2f.AuthenticationStorage) (*proto.MFAAuthenticateChallenge, error) {
@@ -1994,6 +2124,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u
 	}
 
 	challenge := new(proto.MFAAuthenticateChallenge)
+	var u2fDevs []*types.MFADevice
 	for _, dev := range devs {
 		switch dev.Device.(type) {
 		case *types.MFADevice_Totp:
@@ -2005,42 +2136,46 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u
 			if !enableU2F {
 				continue
 			}
-			ch, err := u2f.AuthenticateInit(ctx, u2f.AuthenticateInitParams{
-				AppConfig:  *u2fPref,
-				Dev:        dev,
-				Storage:    u2fStorage,
-				StorageKey: user,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
+			u2fDevs = append(u2fDevs, dev)
+		default:
+			log.Warningf("Skipping MFA device of unknown type %T.", dev.Device)
+		}
+	}
+	if len(u2fDevs) > 0 {
+		chals, err := u2f.AuthenticateInit(ctx, u2f.AuthenticateInitParams{
+			AppConfig:  *u2fPref,
+			Devs:       u2fDevs,
+			Storage:    u2fStorage,
+			StorageKey: user,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, ch := range chals {
 			challenge.U2F = append(challenge.U2F, &proto.U2FChallenge{
+				Version:   ch.Version,
 				KeyHandle: ch.KeyHandle,
 				Challenge: ch.Challenge,
 				AppID:     ch.AppID,
 			})
-		default:
-			log.Warningf("skipping MFA device of unknown type %T", dev.Device)
 		}
 	}
 	return challenge, nil
 }
 
-func (a *Server) validateMFAAuthResponse(ctx context.Context, user string, resp *proto.MFAAuthenticateResponse, u2fStorage u2f.AuthenticationStorage) error {
-	var err error
+func (a *Server) validateMFAAuthResponse(ctx context.Context, user string, resp *proto.MFAAuthenticateResponse, u2fStorage u2f.AuthenticationStorage) (*types.MFADevice, error) {
 	switch res := resp.Response.(type) {
 	case *proto.MFAAuthenticateResponse_TOTP:
-		_, err = a.checkOTP(user, res.TOTP.Code)
+		return a.checkOTP(user, res.TOTP.Code)
 	case *proto.MFAAuthenticateResponse_U2F:
-		_, err = a.checkU2F(ctx, user, u2f.AuthenticateChallengeResponse{
+		return a.checkU2F(ctx, user, u2f.AuthenticateChallengeResponse{
 			KeyHandle:     res.U2F.KeyHandle,
 			ClientData:    res.U2F.ClientData,
 			SignatureData: res.U2F.Signature,
 		}, u2fStorage)
 	default:
-		err = trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
+		return nil, trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
 	}
-	return trace.Wrap(err)
 }
 
 func (a *Server) checkU2F(ctx context.Context, user string, res u2f.AuthenticateChallengeResponse, u2fStorage u2f.AuthenticationStorage) (*types.MFADevice, error) {

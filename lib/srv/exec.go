@@ -366,10 +366,9 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 		ServerNamespace: ctx.srv.GetNamespace(),
 	}
 
-	var sessionMeta events.SessionMetadata
-	sessionID := string(ctx.SessionID())
-	if sessionID != "" {
-		sessionMeta.SessionID = sessionID
+	sessionMeta := events.SessionMetadata{
+		SessionID: string(ctx.SessionID()),
+		WithMFA:   ctx.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
 	}
 
 	userMeta := events.UserMetadata{
