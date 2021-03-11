@@ -17,6 +17,10 @@ RUNTIME ?= go1.15.5
 UID ?= $$(id -u)
 GID ?= $$(id -g)
 
+PROTOC_VER ?= 3.6.1
+PROTOC_PLATFORM := linux-x86_64
+GOGO_PROTO_TAG ?= v1.3.2
+
 BUILDBOX=quay.io/gravitational/teleport-buildbox:$(RUNTIME)
 BUILDBOX_FIPS=quay.io/gravitational/teleport-buildbox-fips:$(RUNTIME)
 BUILDBOX_CENTOS6=quay.io/gravitational/teleport-buildbox-centos6:$(RUNTIME)
@@ -83,6 +87,9 @@ buildbox:
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg RUNTIME=$(RUNTIME) \
+		--build-arg PROTOC_VER=$(PROTOC_VER) \
+		--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
+		--build-arg PROTOC_PLATFORM=$(PROTOC_PLATFORM) \
 		--cache-from $(BUILDBOX) \
 		--tag $(BUILDBOX) .
 
@@ -147,6 +154,13 @@ buildbox-arm-fips: buildbox-fips
 		--cache-from $(BUILDBOX_FIPS) \
 		--cache-from $(BUILDBOX_ARM_FIPS) \
 		--tag $(BUILDBOX_ARM_FIPS) -f Dockerfile-arm-fips .
+
+# grpc generates GRPC stubs from service definitions
+.PHONY: grpc
+grpc: buildbox
+	docker run \
+		$(DOCKERFLAGS) $(BCCFLAGS) -t $(BUILDBOX) \
+		make -C /go/src/github.com/gravitational/teleport buildbox-grpc
 
 #
 # Removes the docker image
