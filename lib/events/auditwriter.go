@@ -54,11 +54,11 @@ func NewAuditWriter(cfg AuditWriterConfig) (*AuditWriter, error) {
 		cancel:   cancel,
 		closeCtx: ctx,
 		eventsCh: make(chan AuditEvent),
+		doneCh:   make(chan struct{}),
 	}
-	writer.wg.Add(1)
 	go func() {
 		writer.processEvents()
-		writer.wg.Done()
+		close(writer.doneCh)
 	}()
 	return writer, nil
 }
@@ -151,7 +151,8 @@ type AuditWriter struct {
 	stream         Stream
 	cancel         context.CancelFunc
 	closeCtx       context.Context
-	wg             sync.WaitGroup
+	// doneCh is closed when all internal processes have exited
+	doneCh chan struct{}
 
 	backoffUntil   time.Time
 	lostEvents     atomic.Int64
@@ -369,7 +370,7 @@ func (a *AuditWriter) Stats() AuditWriterStats {
 // the interface - io.WriteCloser has only close method
 func (a *AuditWriter) Close(ctx context.Context) error {
 	a.cancel()
-	a.wg.Wait()
+	<-a.doneCh
 	stats := a.Stats()
 	if stats.LostEvents != 0 {
 		a.log.Errorf("Session has lost %v out of %v audit events because of disk or network issues. Check disk and network on this server.", stats.LostEvents, stats.AcceptedEvents)
