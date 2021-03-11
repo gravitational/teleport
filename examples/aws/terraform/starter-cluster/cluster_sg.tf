@@ -38,7 +38,7 @@ resource "aws_security_group_rule" "cluster_ingress_web" {
 resource "aws_security_group_rule" "cluster_ingress_services" {
   type              = "ingress"
   from_port         = 3022
-  to_port           = 3025
+  to_port           = 3026
   protocol          = "tcp"
   cidr_blocks       = ["0.0.0.0/0"]
   security_group_id = aws_security_group.cluster.id

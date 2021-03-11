@@ -309,6 +309,7 @@ proxy_service:
   tunnel_listen_addr: 0.0.0.0:${TUNNEL_LISTEN_PORT}
   web_listen_addr: 0.0.0.0:3080
   public_addr: ${TELEPORT_EXTERNAL_HOSTNAME:-$PUBLIC_IP}:${TELEPORT_EXTERNAL_PORT:-3080}
+  kube_listen_addr: 0.0.0.0:3026
 EOF
 
   # if we have an SSH proxy LB address, append it
