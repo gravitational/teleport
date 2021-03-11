@@ -403,7 +403,7 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 	}
 
 	formatter := &textFormatter{
-		InitFormat:   loggerConfig.Format,
+		LogFormat:    loggerConfig.Format,
 		EnableColors: trace.IsTerminal(os.Stderr),
 	}
 	err := formatter.CheckAndSetDefaults()

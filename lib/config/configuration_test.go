@@ -1364,35 +1364,31 @@ func TestDatabaseFlags(t *testing.T) {
 	}
 }
 
-func TestCheckAndSetDefaults(t *testing.T) {
+func TestTextFormatter(t *testing.T) {
 	tests := []struct {
 		comment      string
 		formatConfig []string
-		hasError     bool
+		assertErr    require.ErrorAssertionFunc
 	}{
 		{
 			comment:      "invalid key (does not exist)",
 			formatConfig: []string{"level", "invalid key"},
-			hasError:     true,
+			assertErr:    require.Error,
 		},
 		{
 			comment:      "valid keys and formatting",
-			formatConfig: []string{"level", "component", "message"},
-			hasError:     false,
+			formatConfig: []string{"level", "component", "timestamp"},
+			assertErr:    require.NoError,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.comment, func(t *testing.T) {
 			formatter := &textFormatter{
-				InitFormat: tt.formatConfig,
+				LogFormat: tt.formatConfig,
 			}
-			err := formatter.CheckAndSetDefaults()
-			if tt.hasError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
+			tt.assertErr(t, formatter.CheckAndSetDefaults())
+
 		})
 	}
 

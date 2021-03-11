@@ -40,27 +40,32 @@ type textFormatter struct {
 	// FormatCaller is a function to return (part) of source file path for output.
 	// Defaults to filePathAndLine() if unspecified
 	FormatCaller func() (caller string)
-	// InitFormat is the initial format of log configuration
-	InitFormat []string
 	// InputFormat is the parsed format of each log line
-	InputFormat []string
+	LogFormat []string
+	// TimestampEnabled specifies if timestamp is enabled in logs
+	TimestampEnabled bool
+	// CallerEnabled specifies if caller is enabled in logs
+	CallerEnabled bool
 }
-
-// DefaultLoggerFormat is the default format in which to display logs (i.e. log.format in teleport.yaml is empty)
-var DefaultLoggerFormat = []string{"level", "component", "message", "caller"}
-var re = regexp.MustCompile(`[a-z]*`)
 
 type writer struct {
 	bytes.Buffer
 }
 
 const (
-	noColor = -1
-	red     = 31
-	yellow  = 33
-	blue    = 36
-	gray    = 37
+	noColor        = -1
+	red            = 31
+	yellow         = 33
+	blue           = 36
+	gray           = 37
+	levelField     = "level"
+	componentField = "component"
+	callerField    = "caller"
+	timestampField = "timestamp"
 )
+
+// TextFormatterFields are the fields for log format
+var TextFormatterFields = []string{"level", "component", "caller", "timestamp"}
 
 // CheckAndSetDefaults checks and sets log format configuration
 func (tf *textFormatter) CheckAndSetDefaults() error {
@@ -69,36 +74,30 @@ func (tf *textFormatter) CheckAndSetDefaults() error {
 		tf.ComponentPadding = trace.DefaultComponentPadding
 	}
 	// set caller
-	if tf.FormatCaller == nil {
-		tf.FormatCaller = formatCallerWithPathAndLine
-	}
+	tf.FormatCaller = formatCallerWithPathAndLine
+
 	// set log formatting
-	if tf.InitFormat == nil {
-		tf.InputFormat = DefaultLoggerFormat
+	if tf.LogFormat == nil {
+		tf.TimestampEnabled = true
+		tf.CallerEnabled = true
+		tf.LogFormat = KnownFormatFields.names()
 		return nil
 	}
 	// parse input
-	res, err := parseInputFormat(tf.InitFormat)
+	res, err := parseInputFormat(tf.LogFormat)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tf.InputFormat = res
-	return nil
-}
-
-func parseInputFormat(formatInput []string) ([]string, error) {
-	var result []string
-	values := map[string]bool{"level": true, "component": true, "message": true, "caller": true, "timestamp": true}
-	var key string
-	for _, component := range formatInput {
-		key = re.FindString(component)
-		key = strings.TrimSpace(key)
-		if !values[key] {
-			return nil, trace.BadParameter("invalid log format key: %v", key)
-		}
-		result = append(result, key)
+	if contains(res, timestampField) {
+		tf.TimestampEnabled = true
 	}
-	return result, nil
+
+	if contains(res, callerField) {
+		tf.CallerEnabled = true
+	}
+
+	tf.LogFormat = res
+	return nil
 }
 
 // Format formats each log line as confiured in teleport config file
@@ -107,7 +106,12 @@ func (tf *textFormatter) Format(e *log.Entry) ([]byte, error) {
 	caller := tf.FormatCaller()
 	w := &writer{}
 
-	for _, match := range tf.InputFormat {
+	// write timestamp first if enabled
+	if tf.TimestampEnabled {
+		w.writeField(e.Time.Format(time.RFC3339), noColor)
+	}
+
+	for _, match := range tf.LogFormat {
 		switch match {
 		case "level":
 			color := noColor
@@ -142,23 +146,28 @@ func (tf *textFormatter) Format(e *log.Entry) ([]byte, error) {
 				component = component[:len(component)-1] + "]"
 			}
 			w.WriteString(component)
-		case "message":
-			if e.Message != "" {
-				w.writeField(e.Message, noColor)
-			}
-		case "caller":
-			if caller != "" {
-				w.writeField(caller, noColor)
-			}
-		case "timestamp":
-			w.writeField(e.Time.Format(time.RFC3339), noColor)
 		default:
-			return nil, trace.BadParameter("invalid log format key: %v", match)
+			if !KnownFormatFields.has(match) {
+				return nil, trace.BadParameter("invalid log format key: %v", match)
+			}
 		}
 	}
+
+	// always use message
+	if e.Message != "" {
+		w.writeField(e.Message, noColor)
+	}
+
 	if len(e.Data) > 0 {
 		w.writeMap(e.Data)
 	}
+
+	// write caller last if enabled
+	if tf.CallerEnabled && caller != "" {
+		w.writeField(caller, noColor)
+
+	}
+
 	w.WriteByte('\n')
 	data = w.Bytes()
 	return data, nil
@@ -322,4 +331,47 @@ func frameToTrace(frame runtime.Frame) trace.Trace {
 		Path: frame.File,
 		Line: frame.Line,
 	}
+}
+
+func (r knownFormatFieldsMap) has(name string) bool {
+	_, ok := r[name]
+	return ok
+}
+
+func (r knownFormatFieldsMap) names() (result []string) {
+	for k := range r {
+		result = append(result, k)
+	}
+	return result
+}
+
+type knownFormatFieldsMap map[string]struct{}
+
+// KnownFormatFields ...
+var KnownFormatFields = knownFormatFieldsMap{
+	levelField:     {},
+	componentField: {},
+	callerField:    {},
+	timestampField: {},
+}
+
+func parseInputFormat(formatInput []string) (result []string, err error) {
+	for _, component := range formatInput {
+		component = strings.TrimSpace(component)
+		if !KnownFormatFields.has(component) {
+			return nil, trace.BadParameter("invalid log format key: %q", component)
+		}
+		result = append(result, component)
+	}
+	return result, nil
+}
+
+func contains(s []string, str string) bool {
+	for _, v := range s {
+		if v == str {
+			return true
+		}
+	}
+
+	return false
 }
