@@ -2249,7 +2249,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 	}
 
 	if !cfg.Proxy.MySQLAddr.IsEmpty() {
-		process.log.Debug("Setup Proxy: MySQL proxy address: %v.", cfg.Proxy.MySQLAddr.Addr)
+		process.log.Debugf("Setup Proxy: MySQL proxy address: %v.", cfg.Proxy.MySQLAddr.Addr)
 		listener, err := process.importOrCreateListener(listenerProxyMySQL, cfg.Proxy.MySQLAddr.Addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2330,7 +2330,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			// Unless database proxy is explicitly disabled (which is currently
 			// only done by tests and not exposed via file config), the web
 			// listener is multiplexing both web and db client connections.
-			if !cfg.Proxy.DisableDatabaseProxy {
+			if !cfg.Proxy.DisableDatabaseProxy && !cfg.Proxy.DisableTLS {
 				process.log.Debug("Setup Proxy: Multiplexing web and database proxy on the same port.")
 				listeners.mux, err = multiplexer.New(multiplexer.Config{
 					EnableProxyProtocol: cfg.Proxy.EnableProxyProtocol,
@@ -2349,6 +2349,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 				listeners.db = listeners.mux.DB()
 				go listeners.mux.Serve()
 			} else {
+				process.log.Debug("Setup Proxy: TLS is disabled, multiplexing is off.")
 				listeners.web = listener
 			}
 		}

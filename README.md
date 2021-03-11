@@ -105,9 +105,12 @@ will not work.
 
 NOTE: This will build the latest version of Teleport, regardless of whether it is stable. If you want to build the latest stable release, `git checkout` to that tag (e.g. `git checkout v5.0.0`) before running `make full`.
 
-### Rebuilding Web UI
+### Web UI
 
-Teleport Web UI is located in the [Gravitational Webapps](https://github.com/gravitational/webapps) monorepo.
+Teleport Web UI is located in the [Gravitational Webapps](https://github.com/gravitational/webapps) repo.
+
+#### Rebuilding Web UI for development
+
 You can clone that repository and rebuild teleport UI package with:
 
 ```bash
@@ -116,12 +119,12 @@ $ cd webapps
 $ make build-teleport
 ```
 
-Then you can replace Teleport web UI files with the one found in the generated `/dist` folder.
+Then you can replace Teleport Web UI files with the one found in the generated `/dist` folder.
 
 To enable speedy iterations on the Web UI, you can run a
 [local web-dev server](https://github.com/gravitational/webapps/tree/master/packages/teleport).
 
-You can also tell teleport to load the web UI assets from the source directory.
+You can also tell teleport to load the Web UI assets from the source directory.
 To enable this behavior, set the environment variable `DEBUG=1` and rebuild with the default target:
 
 ```bash
@@ -131,6 +134,18 @@ $ DEBUG=1 ./build/teleport start -d
 
 Keep the server running in this mode, and make your UI changes in `/dist` directory.
 Refer to [the webapps README](https://github.com/gravitational/webapps/blob/master/README.md) for instructions on how to update the Web UI.
+
+#### Updating Web UI assets
+
+After you commit a change to [the webapps
+repo](https://github.com/gravitational/webapps), you need to update the Web UI
+assets in the `webassets/` git submodule.
+
+Use `make update-webassets` to update the `webassets` repo and create a PR for
+`teleport` to update its git submodule.
+
+You will need to have the `gh` utility installed on your system for the script
+to work. You can download it from https://github.com/cli/cli/releases/latest
 
 ### Updating Documentation
 
