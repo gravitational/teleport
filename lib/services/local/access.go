@@ -42,7 +42,7 @@ func (s *AccessService) DeleteAllRoles() error {
 }
 
 // GetRoles returns a list of roles registered with the local auth server
-func (s *AccessService) GetRoles() ([]services.Role, error) {
+func (s *AccessService) GetRoles(ctx context.Context) ([]services.Role, error) {
 	result, err := s.GetRange(context.TODO(), backend.Key(rolesPrefix), backend.RangeEnd(backend.Key(rolesPrefix)), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -102,7 +102,7 @@ func (s *AccessService) UpsertRole(ctx context.Context, role services.Role) erro
 }
 
 // GetRole returns a role by name
-func (s *AccessService) GetRole(name string) (services.Role, error) {
+func (s *AccessService) GetRole(ctx context.Context, name string) (services.Role, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing role name")
 	}

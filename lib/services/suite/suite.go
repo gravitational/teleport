@@ -660,7 +660,9 @@ func (s *ServicesTestSuite) TokenCRUD(c *check.C) {
 }
 
 func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
-	out, err := s.Access.GetRoles()
+	ctx := context.Background()
+
+	out, err := s.Access.GetRoles(ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Equals, 0)
 
@@ -694,10 +696,10 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 			},
 		},
 	}
-	ctx := context.Background()
+
 	err = s.Access.UpsertRole(ctx, &role)
 	c.Assert(err, check.IsNil)
-	rout, err := s.Access.GetRole(role.Metadata.Name)
+	rout, err := s.Access.GetRole(ctx, role.Metadata.Name)
 	c.Assert(err, check.IsNil)
 	role.SetResourceID(rout.GetResourceID())
 	fixtures.DeepCompare(c, rout, &role)
@@ -705,7 +707,7 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 	role.Spec.Allow.Logins = []string{"bob"}
 	err = s.Access.UpsertRole(ctx, &role)
 	c.Assert(err, check.IsNil)
-	rout, err = s.Access.GetRole(role.Metadata.Name)
+	rout, err = s.Access.GetRole(ctx, role.Metadata.Name)
 	c.Assert(err, check.IsNil)
 	role.SetResourceID(rout.GetResourceID())
 	c.Assert(rout, check.DeepEquals, &role)
@@ -713,7 +715,7 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 	err = s.Access.DeleteRole(ctx, role.Metadata.Name)
 	c.Assert(err, check.IsNil)
 
-	_, err = s.Access.GetRole(role.Metadata.Name)
+	_, err = s.Access.GetRole(ctx, role.Metadata.Name)
 	fixtures.ExpectNotFound(c, err)
 }
 
@@ -747,7 +749,6 @@ func (s *ServicesTestSuite) U2FCRUD(c *check.C) {
 	token := "tok1"
 	appID := "https://localhost"
 	user1 := "user1"
-	devID := "device1"
 
 	challenge, err := u2f.NewChallenge(appID, []string{appID})
 	c.Assert(err, check.IsNil)
@@ -762,10 +763,10 @@ func (s *ServicesTestSuite) U2FCRUD(c *check.C) {
 	c.Assert(challenge.AppID, check.Equals, challengeOut.AppID)
 	c.Assert(challenge.TrustedFacets, check.DeepEquals, challengeOut.TrustedFacets)
 
-	err = s.WebS.UpsertU2FSignChallenge(user1, devID, challenge)
+	err = s.WebS.UpsertU2FSignChallenge(user1, challenge)
 	c.Assert(err, check.IsNil)
 
-	challengeOut, err = s.WebS.GetU2FSignChallenge(user1, devID)
+	challengeOut, err = s.WebS.GetU2FSignChallenge(user1)
 	c.Assert(err, check.IsNil)
 	c.Assert(challenge.Challenge, check.DeepEquals, challengeOut.Challenge)
 	c.Assert(challenge.Timestamp.Unix(), check.Equals, challengeOut.Timestamp.Unix())
@@ -1520,7 +1521,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				err = s.Access.UpsertRole(ctx, role)
 				c.Assert(err, check.IsNil)
 
-				out, err := s.Access.GetRole(role.GetName())
+				out, err := s.Access.GetRole(ctx, role.GetName())
 				c.Assert(err, check.IsNil)
 
 				err = s.Access.DeleteRole(ctx, role.GetName())

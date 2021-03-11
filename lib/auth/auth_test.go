@@ -886,7 +886,7 @@ func (s *AuthSuite) TestUpsertDeleteRoleEventsEmitted(c *C) {
 	c.Assert(s.mockEmitter.LastEvent().(*events.RoleCreate).Name, Equals, "test")
 	s.mockEmitter.Reset()
 
-	roleRetrieved, err := s.a.GetRole("test")
+	roleRetrieved, err := s.a.GetRole(ctx, "test")
 	c.Assert(err, IsNil)
 	c.Assert(roleRetrieved.Equals(roleTest), Equals, true)
 
@@ -906,7 +906,7 @@ func (s *AuthSuite) TestUpsertDeleteRoleEventsEmitted(c *C) {
 	s.mockEmitter.Reset()
 
 	// test role has been deleted
-	roleRetrieved, err = s.a.GetRole("test")
+	roleRetrieved, err = s.a.GetRole(ctx, "test")
 	c.Assert(trace.IsNotFound(err), Equals, true)
 	c.Assert(roleRetrieved, IsNil)
 
