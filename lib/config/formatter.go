@@ -43,9 +43,9 @@ type textFormatter struct {
 	// InputFormat is the parsed format of each log line
 	LogFormat []string
 	// TimestampEnabled specifies if timestamp is enabled in logs
-	TimestampEnabled bool
+	timestampEnabled bool
 	// CallerEnabled specifies if caller is enabled in logs
-	CallerEnabled bool
+	callerEnabled bool
 }
 
 type writer struct {
@@ -64,9 +64,6 @@ const (
 	timestampField = "timestamp"
 )
 
-// TextFormatterFields are the fields for log format
-var TextFormatterFields = []string{"level", "component", "caller", "timestamp"}
-
 // CheckAndSetDefaults checks and sets log format configuration
 func (tf *textFormatter) CheckAndSetDefaults() error {
 	// set padding
@@ -78,8 +75,8 @@ func (tf *textFormatter) CheckAndSetDefaults() error {
 
 	// set log formatting
 	if tf.LogFormat == nil {
-		tf.TimestampEnabled = true
-		tf.CallerEnabled = true
+		tf.timestampEnabled = true
+		tf.callerEnabled = true
 		tf.LogFormat = KnownFormatFields.names()
 		return nil
 	}
@@ -89,11 +86,11 @@ func (tf *textFormatter) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 	if contains(res, timestampField) {
-		tf.TimestampEnabled = true
+		tf.timestampEnabled = true
 	}
 
 	if contains(res, callerField) {
-		tf.CallerEnabled = true
+		tf.callerEnabled = true
 	}
 
 	tf.LogFormat = res
@@ -107,7 +104,7 @@ func (tf *textFormatter) Format(e *log.Entry) ([]byte, error) {
 	w := &writer{}
 
 	// write timestamp first if enabled
-	if tf.TimestampEnabled {
+	if tf.timestampEnabled {
 		w.writeField(e.Time.Format(time.RFC3339), noColor)
 	}
 
@@ -163,7 +160,7 @@ func (tf *textFormatter) Format(e *log.Entry) ([]byte, error) {
 	}
 
 	// write caller last if enabled
-	if tf.CallerEnabled && caller != "" {
+	if tf.callerEnabled && caller != "" {
 		w.writeField(caller, noColor)
 
 	}
@@ -347,7 +344,7 @@ func (r knownFormatFieldsMap) names() (result []string) {
 
 type knownFormatFieldsMap map[string]struct{}
 
-// KnownFormatFields ...
+// KnownFormatFields are the known fields for log entries
 var KnownFormatFields = knownFormatFieldsMap{
 	levelField:     {},
 	componentField: {},
