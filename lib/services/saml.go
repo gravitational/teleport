@@ -312,6 +312,10 @@ func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (SAMLConnector,
 
 // MarshalSAMLConnector marshals the SAMLConnector resource to JSON.
 func MarshalSAMLConnector(samlConnector SAMLConnector, opts ...MarshalOption) ([]byte, error) {
+	if err := ValidateSAMLConnector(samlConnector); err != nil {
+		return nil, err
+	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -319,9 +323,6 @@ func MarshalSAMLConnector(samlConnector SAMLConnector, opts ...MarshalOption) ([
 
 	switch samlConnector := samlConnector.(type) {
 	case *SAMLConnectorV2:
-		if version := samlConnector.GetVersion(); version != V2 {
-			return nil, trace.BadParameter("mismatched SAML connector version %v and type %T", version, samlConnector)
-		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

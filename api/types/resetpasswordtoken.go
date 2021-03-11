@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/trace"
 )
 
 // ResetPasswordToken represents a temporary token used to reset passwords
@@ -44,15 +44,16 @@ type ResetPasswordToken interface {
 }
 
 // NewResetPasswordToken creates an instance of ResetPasswordToken.
-func NewResetPasswordToken(tokenID string) ResetPasswordToken {
-	return &ResetPasswordTokenV3{
-		Kind:    KindResetPasswordToken,
-		Version: V3,
+func NewResetPasswordToken(tokenID string) (ResetPasswordToken, error) {
+	t := &ResetPasswordTokenV3{
 		Metadata: Metadata{
-			Name:      tokenID,
-			Namespace: defaults.Namespace,
+			Name: tokenID,
 		},
 	}
+	if err := t.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return t, nil
 }
 
 // GetName returns Name
@@ -149,6 +150,10 @@ func (u *ResetPasswordTokenV3) SetSubKind(s string) {
 
 // CheckAndSetDefaults checks and set default values for any missing fields.
 func (u ResetPasswordTokenV3) CheckAndSetDefaults() error {
+	u.Version = V3
+	if u.Kind == "" {
+		u.Kind = KindResetPasswordToken
+	}
 	return u.Metadata.CheckAndSetDefaults()
 }
 

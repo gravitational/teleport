@@ -915,7 +915,7 @@ func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (services.CertAut
 	}
 
 	// create a new certificate authority
-	ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:         services.UserCA,
 		ClusterName:  clusterName,
 		SigningKeys:  nil,
@@ -923,6 +923,9 @@ func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (services.CertAut
 		Roles:        nil,
 		SigningAlg:   services.CertAuthoritySpecV2_UNKNOWN,
 	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 
 	// transform old allowed logins into roles
 	role := services.RoleForCertAuthority(ca)
@@ -956,11 +959,14 @@ func parseKnownHosts(bytes []byte, allowedLogins []string) (services.CertAuthori
 	const prefix = "*."
 	domainName := strings.TrimPrefix(options[0], prefix)
 
-	ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:         authType,
 		ClusterName:  domainName,
 		CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(pubKey)},
 	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 
 	// transform old allowed logins into roles
 	role := services.RoleForCertAuthority(ca)
@@ -1063,7 +1069,11 @@ func readTrustedClusters(clusters []TrustedCluster, conf *service.Config) error 
 			tunnelAddresses = append(tunnelAddresses, addr.FullAddress())
 		}
 		if len(tunnelAddresses) > 0 {
-			conf.ReverseTunnels = append(conf.ReverseTunnels, services.NewReverseTunnel(clusterName, tunnelAddresses))
+			rt, err := services.NewReverseTunnel(clusterName, tunnelAddresses)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			conf.ReverseTunnels = append(conf.ReverseTunnels, rt)
 		}
 	}
 	return nil

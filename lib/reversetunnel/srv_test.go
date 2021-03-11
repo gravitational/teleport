@@ -39,17 +39,20 @@ func TestServerKeyAuth(t *testing.T) {
 	priv, pub, err := ca.GenerateKeyPair("")
 	require.NoError(t, err)
 
+	mockCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:         services.HostCA,
+		ClusterName:  "cluster-name",
+		SigningKeys:  [][]byte{priv},
+		CheckingKeys: [][]byte{pub},
+		Roles:        nil,
+		SigningAlg:   services.CertAuthoritySpecV2_RSA_SHA2_256,
+	})
+	require.NoError(t, err)
+
 	s := &server{
 		log: testlog.FailureOnly(t),
 		localAccessPoint: mockAccessPoint{
-			ca: types.NewCertAuthority(types.CertAuthoritySpecV2{
-				Type:         services.HostCA,
-				ClusterName:  "cluster-name",
-				SigningKeys:  [][]byte{priv},
-				CheckingKeys: [][]byte{pub},
-				Roles:        nil,
-				SigningAlg:   services.CertAuthoritySpecV2_RSA_SHA2_256,
-			}),
+			ca: mockCA,
 		},
 	}
 	con := mockSSHConnMetadata{}

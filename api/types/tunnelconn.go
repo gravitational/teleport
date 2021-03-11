@@ -21,8 +21,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
-
 	"github.com/gravitational/trace"
 )
 
@@ -57,12 +55,8 @@ type TunnelConnection interface {
 // NewTunnelConnection returns new connection from V2 spec
 func NewTunnelConnection(name string, spec TunnelConnectionSpecV2) (TunnelConnection, error) {
 	conn := &TunnelConnectionV2{
-		Kind:    KindTunnelConnection,
-		SubKind: spec.ClusterName,
-		Version: V2,
 		Metadata: Metadata{
-			Name:      name,
-			Namespace: defaults.Namespace,
+			Name: name,
 		},
 		Spec: spec,
 	}
@@ -153,6 +147,14 @@ func (r *TunnelConnectionV2) V2() *TunnelConnectionV2 {
 
 // CheckAndSetDefaults checks and sets default values
 func (r *TunnelConnectionV2) CheckAndSetDefaults() error {
+	r.Version = V2
+	if r.Kind == "" {
+		r.Kind = KindTunnelConnection
+	}
+	if r.SubKind == "" {
+		r.SubKind = r.Spec.ClusterName
+	}
+
 	err := r.Metadata.CheckAndSetDefaults()
 	if err != nil {
 		return trace.Wrap(err)

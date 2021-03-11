@@ -282,15 +282,17 @@ func UnmarshalSemaphore(bytes []byte, opts ...MarshalOption) (Semaphore, error) 
 
 // MarshalSemaphore marshals the Semaphore resource to JSON.
 func MarshalSemaphore(semaphore Semaphore, opts ...MarshalOption) ([]byte, error) {
+	if err := semaphore.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	switch semaphore := semaphore.(type) {
 	case *SemaphoreV3:
-		if version := semaphore.GetVersion(); version != V3 {
-			return nil, trace.BadParameter("mismatched semaphore version %v and type %T", version, semaphore)
-		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

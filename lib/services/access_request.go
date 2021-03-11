@@ -497,6 +497,10 @@ func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (AccessRequest, 
 
 // MarshalAccessRequest marshals the AccessRequest resource to JSON.
 func MarshalAccessRequest(accessRequest AccessRequest, opts ...MarshalOption) ([]byte, error) {
+	if err := ValidateAccessRequest(accessRequest); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -504,9 +508,6 @@ func MarshalAccessRequest(accessRequest AccessRequest, opts ...MarshalOption) ([
 
 	switch accessRequest := accessRequest.(type) {
 	case *AccessRequestV3:
-		if version := accessRequest.GetVersion(); version != V3 {
-			return nil, trace.BadParameter("mismatched access request version %v and type %T", version, accessRequest)
-		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

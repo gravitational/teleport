@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
@@ -68,36 +67,18 @@ type AuthPreference interface {
 
 // NewAuthPreference is a convenience method to to create AuthPreferenceV2.
 func NewAuthPreference(spec AuthPreferenceSpecV2) (AuthPreference, error) {
-	pref := AuthPreferenceV2{
-		Kind:    KindClusterAuthPreference,
-		Version: V2,
-		Metadata: Metadata{
-			Name:      MetaNameClusterAuthPreference,
-			Namespace: defaults.Namespace,
-		},
-		Spec: spec,
-	}
-
+	pref := &AuthPreferenceV2{Spec: spec}
 	if err := pref.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &pref, nil
+	return pref, nil
 }
 
 // DefaultAuthPreference returns the default authentication preferences.
 func DefaultAuthPreference() AuthPreference {
-	return &AuthPreferenceV2{
-		Kind:    KindClusterAuthPreference,
-		Version: V2,
-		Metadata: Metadata{
-			Name:      MetaNameClusterAuthPreference,
-			Namespace: defaults.Namespace,
-		},
-		Spec: AuthPreferenceSpecV2{
-			Type:         constants.Local,
-			SecondFactor: constants.SecondFactorOTP,
-		},
-	}
+	pref := &AuthPreferenceV2{}
+	pref.CheckAndSetDefaults()
+	return pref
 }
 
 // AuthPreferenceV2 implements AuthPreference.
@@ -227,9 +208,16 @@ func (c *AuthPreferenceV2) SetU2F(u2f *U2F) {
 
 // CheckAndSetDefaults verifies the constraints for AuthPreference.
 func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
+	c.Version = V2
+	if c.Kind == "" {
+		c.Kind = KindClusterAuthPreference
+	}
+	if c.Metadata.Name == "" {
+		c.Metadata.Name = MetaNameClusterAuthPreference
+	}
+
 	// make sure we have defaults for all metadata fields
-	err := c.Metadata.CheckAndSetDefaults()
-	if err != nil {
+	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 

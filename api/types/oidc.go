@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
@@ -92,16 +91,17 @@ type OIDCConnector interface {
 }
 
 // NewOIDCConnector returns a new OIDCConnector based off a name and OIDCConnectorSpecV2.
-func NewOIDCConnector(name string, spec OIDCConnectorSpecV2) OIDCConnector {
-	return &OIDCConnectorV2{
-		Kind:    KindOIDCConnector,
-		Version: V2,
+func NewOIDCConnector(name string, spec OIDCConnectorSpecV2) (OIDCConnector, error) {
+	c := &OIDCConnectorV2{
 		Metadata: Metadata{
-			Name:      name,
-			Namespace: defaults.Namespace,
+			Name: name,
 		},
 		Spec: spec,
 	}
+	if err := c.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return c, nil
 }
 
 // OIDCConnectorV2 is version 1 resource spec for OIDC connector
@@ -363,13 +363,16 @@ func (o *OIDCConnectorV2) Check() error {
 
 // CheckAndSetDefaults checks and set default values for any missing fields.
 func (o *OIDCConnectorV2) CheckAndSetDefaults() error {
-	err := o.Metadata.CheckAndSetDefaults()
-	if err != nil {
+	o.Version = V2
+	if o.Kind == "" {
+		o.Kind = KindOIDCConnector
+	}
+
+	if err := o.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = o.Check()
-	if err != nil {
+	if err := o.Check(); err != nil {
 		return trace.Wrap(err)
 	}
 

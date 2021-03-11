@@ -308,15 +308,15 @@ func LabelsAsString(static map[string]string, dynamic map[string]CommandLabelV2)
 
 // CheckAndSetDefaults checks and set default values for any missing fields.
 func (s *ServerV2) CheckAndSetDefaults() error {
+	s.Version = V2
+	if s.Kind == "" {
+		return trace.BadParameter("server Kind is empty")
+	}
 	// TODO(awly): default s.Metadata.Expiry if not set (use
 	// defaults.ServerAnnounceTTL).
 
-	err := s.Metadata.CheckAndSetDefaults()
-	if err != nil {
+	if err := s.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
-	}
-	if s.Kind == "" {
-		return trace.BadParameter("server Kind is empty")
 	}
 
 	for key := range s.Spec.CmdLabels {

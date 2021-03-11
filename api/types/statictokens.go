@@ -20,8 +20,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
-
 	"github.com/gravitational/trace"
 )
 
@@ -41,19 +39,10 @@ type StaticTokens interface {
 
 // NewStaticTokens is a convenience wrapper to create a StaticTokens resource.
 func NewStaticTokens(spec StaticTokensSpecV2) (StaticTokens, error) {
-	st := StaticTokensV2{
-		Kind:    KindStaticTokens,
-		Version: V2,
-		Metadata: Metadata{
-			Name:      MetaNameStaticTokens,
-			Namespace: defaults.Namespace,
-		},
-		Spec: spec,
-	}
+	st := StaticTokensV2{Spec: spec}
 	if err := st.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return &st, nil
 }
 
@@ -131,9 +120,15 @@ func (c *StaticTokensV2) GetStaticTokens() []ProvisionToken {
 
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.
 func (c *StaticTokensV2) CheckAndSetDefaults() error {
+	c.Kind = KindStaticTokens
+	if c.Version == "" {
+		c.Version = V2
+	}
+	if c.Metadata.Name == "" {
+		c.Metadata.Name = MetaNameStaticTokens
+	}
 	// make sure we have defaults for all metadata fields
-	err := c.Metadata.CheckAndSetDefaults()
-	if err != nil {
+	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 

@@ -80,7 +80,8 @@ spec:
   teams_to_logins: null
 version: v3
 `
-	githubConn := types.NewGithubConnector("githubName", types.GithubConnectorSpecV3{})
+	githubConn, err := types.NewGithubConnector("githubName", types.GithubConnectorSpecV3{})
+	require.NoError(t, err)
 	item, err := ui.NewResourceItem(githubConn)
 	require.Nil(t, err)
 	require.Equal(t, item, &ui.ResourceItem{
@@ -223,8 +224,10 @@ func TestGetGithubConnectors(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
 
 	m.mockGetGithubConnectors = func(withSecrets bool) ([]types.GithubConnector, error) {
-		connector := types.NewGithubConnector("test", types.GithubConnectorSpecV3{})
-
+		connector, err := types.NewGithubConnector("test", types.GithubConnectorSpecV3{})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		return []types.GithubConnector{connector}, nil
 	}
 

@@ -1560,9 +1560,13 @@ func (s *WebSuite) TestMultipleConnectors(c *C) {
 			},
 		},
 	}
-	err := s.server.Auth().UpsertOIDCConnector(ctx, services.NewOIDCConnector("foo", oidcConnectorSpec))
+	oidc, err := services.NewOIDCConnector("foo", oidcConnectorSpec)
 	c.Assert(err, IsNil)
-	err = s.server.Auth().UpsertOIDCConnector(ctx, services.NewOIDCConnector("bar", oidcConnectorSpec))
+	err = s.server.Auth().UpsertOIDCConnector(ctx, oidc)
+	c.Assert(err, IsNil)
+	oidc, err = services.NewOIDCConnector("bar", oidcConnectorSpec)
+	c.Assert(err, IsNil)
+	err = s.server.Auth().UpsertOIDCConnector(ctx, oidc)
 	c.Assert(err, IsNil)
 
 	// set the auth preferences to oidc with no connector name

@@ -1579,7 +1579,7 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (services.WebSess
 		return nil, trace.Wrap(err)
 	}
 	bearerTokenTTL := utils.MinTTL(sessionTTL, BearerTokenTTL)
-	return services.NewWebSession(token, services.KindWebSession, services.KindWebSession, services.WebSessionSpecV2{
+	ws, err := services.NewWebSession(token, services.KindWebSession, services.KindWebSession, services.WebSessionSpecV2{
 		User:               req.User,
 		Priv:               priv,
 		Pub:                certs.ssh,
@@ -1587,7 +1587,11 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (services.WebSess
 		Expires:            a.clock.Now().UTC().Add(sessionTTL),
 		BearerToken:        bearerToken,
 		BearerTokenExpires: a.clock.Now().UTC().Add(bearerTokenTTL),
-	}), nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ws, nil
 }
 
 // GetWebSessionInfo returns the web session specified with sessionID for the given user.
@@ -2220,10 +2224,13 @@ func (a *Server) upsertWebSession(ctx context.Context, user string, session serv
 	if err := a.WebSessions().Upsert(ctx, session); err != nil {
 		return trace.Wrap(err)
 	}
-	token := types.NewWebToken(session.GetBearerTokenExpiryTime(), types.WebTokenSpecV3{
+	token, err := types.NewWebToken(session.GetBearerTokenExpiryTime(), types.WebTokenSpecV3{
 		User:  session.GetUser(),
 		Token: session.GetBearerToken(),
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	if err := a.WebTokens().Upsert(ctx, token); err != nil {
 		return trace.Wrap(err)
 	}

@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/trace"
 )
 
 // RemoteCluster represents a remote cluster that has connected via reverse tunnel
@@ -47,14 +47,15 @@ type RemoteCluster interface {
 
 // NewRemoteCluster is a convenience way to create a RemoteCluster resource.
 func NewRemoteCluster(name string) (RemoteCluster, error) {
-	return &RemoteClusterV3{
-		Kind:    KindRemoteCluster,
-		Version: V3,
+	rc := &RemoteClusterV3{
 		Metadata: Metadata{
-			Name:      name,
-			Namespace: defaults.Namespace,
+			Name: name,
 		},
-	}, nil
+	}
+	if err := rc.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rc, nil
 }
 
 // GetVersion returns resource version
@@ -89,6 +90,10 @@ func (c *RemoteClusterV3) SetResourceID(id int64) {
 
 // CheckAndSetDefaults checks and sets default values
 func (c *RemoteClusterV3) CheckAndSetDefaults() error {
+	c.Version = V3
+	if c.Kind == "" {
+		c.Kind = KindRemoteCluster
+	}
 	return c.Metadata.CheckAndSetDefaults()
 }
 

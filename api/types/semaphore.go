@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
 
 	"github.com/gravitational/trace"
 )
@@ -58,12 +57,9 @@ type Semaphore interface {
 // these acquire parameters.
 func (s *AcquireSemaphoreRequest) ConfigureSemaphore() (Semaphore, error) {
 	sem := SemaphoreV3{
-		Kind:    KindSemaphore,
 		SubKind: s.SemaphoreKind,
-		Version: V3,
 		Metadata: Metadata{
-			Name:      s.SemaphoreName,
-			Namespace: defaults.Namespace,
+			Name: s.SemaphoreName,
 		},
 	}
 	sem.SetExpiry(s.Expires)
@@ -282,6 +278,11 @@ func (c *SemaphoreV3) String() string {
 
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.
 func (c *SemaphoreV3) CheckAndSetDefaults() error {
+	c.Version = V3
+	if c.Kind == "" {
+		c.Kind = KindSemaphore
+	}
+
 	// make sure we have defaults for all metadata fields
 	err := c.Metadata.CheckAndSetDefaults()
 	if err != nil {

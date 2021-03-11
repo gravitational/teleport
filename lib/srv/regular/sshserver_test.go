@@ -763,8 +763,9 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 
 	// Create a reverse tunnel and remote cluster simulating what the trusted
 	// cluster exchange does.
-	err = s.server.Auth().UpsertReverseTunnel(
-		services.NewReverseTunnel(s.server.ClusterName(), []string{reverseTunnelAddress.String()}))
+	rt, err := services.NewReverseTunnel(s.server.ClusterName(), []string{reverseTunnelAddress.String()})
+	c.Assert(err, IsNil)
+	err = s.server.Auth().UpsertReverseTunnel(rt)
 	c.Assert(err, IsNil)
 	remoteCluster, err := services.NewRemoteCluster("localhost")
 	c.Assert(err, IsNil)

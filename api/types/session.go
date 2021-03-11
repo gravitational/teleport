@@ -93,18 +93,19 @@ type WebSession interface {
 }
 
 // NewWebSession returns new instance of the web session based on the V2 spec
-func NewWebSession(name string, kind string, subkind string, spec WebSessionSpecV2) WebSession {
-	return &WebSessionV2{
+func NewWebSession(name string, kind string, subkind string, spec WebSessionSpecV2) (WebSession, error) {
+	w := &WebSessionV2{
 		Kind:    kind,
 		SubKind: subkind,
-		Version: V2,
 		Metadata: Metadata{
-			Name:      name,
-			Namespace: defaults.Namespace,
-			Expires:   &spec.Expires,
+			Name: name,
 		},
 		Spec: spec,
 	}
+	if err := w.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return w, nil
 }
 
 // GetKind gets resource Kind
@@ -177,6 +178,17 @@ func (ws *WebSessionV2) WithoutSecrets() WebSession {
 
 // CheckAndSetDefaults checks and set default values for any missing fields.
 func (ws *WebSessionV2) CheckAndSetDefaults() error {
+	ws.Version = V2
+	if ws.Kind == "" {
+		ws.Kind = KindWebSession
+	}
+	if ws.SubKind == "" {
+		ws.SubKind = KindWebSession
+	}
+	if ws.Metadata.Expires == nil {
+		ws.Metadata.Expires = &ws.Spec.Expires
+	}
+
 	err := ws.Metadata.CheckAndSetDefaults()
 	if err != nil {
 		return trace.Wrap(err)
@@ -305,17 +317,17 @@ type DeleteAppSessionRequest struct {
 }
 
 // NewWebToken returns a new web token with the given expiration and spec
-func NewWebToken(expires time.Time, spec WebTokenSpecV3) WebToken {
-	return &WebTokenV3{
-		Kind:    KindWebToken,
-		Version: V3,
+func NewWebToken(expires time.Time, spec WebTokenSpecV3) (WebToken, error) {
+	t := &WebTokenV3{
 		Metadata: Metadata{
-			Name:      spec.Token,
-			Namespace: defaults.Namespace,
-			Expires:   &expires,
+			Expires: &expires,
 		},
 		Spec: spec,
 	}
+	if err := t.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return t, nil
 }
 
 // WebTokensGetter provides access to web tokens
@@ -448,6 +460,13 @@ func (r *WebTokenV3) SetExpiry(t time.Time) {
 
 // CheckAndSetDefaults validates this token value and sets defaults
 func (r *WebTokenV3) CheckAndSetDefaults() error {
+	r.Kind = KindWebToken
+	if r.Version == "" {
+		r.Version = V3
+	}
+	if r.Metadata.Name == "" {
+		r.Metadata.Name = r.Spec.Token
+	}
 	if err := r.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}

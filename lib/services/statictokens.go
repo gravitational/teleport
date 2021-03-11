@@ -105,8 +105,7 @@ func UnmarshalStaticTokens(bytes []byte, opts ...MarshalOption) (StaticTokens, e
 		}
 	}
 
-	err = staticTokens.CheckAndSetDefaults()
-	if err != nil {
+	if err = staticTokens.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -120,26 +119,27 @@ func UnmarshalStaticTokens(bytes []byte, opts ...MarshalOption) (StaticTokens, e
 }
 
 // MarshalStaticTokens marshals the StaticTokens resource to JSON.
-func MarshalStaticTokens(staticToken StaticTokens, opts ...MarshalOption) ([]byte, error) {
+func MarshalStaticTokens(staticTokens StaticTokens, opts ...MarshalOption) ([]byte, error) {
+	if err := staticTokens.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	switch staticToken := staticToken.(type) {
+	switch staticTokens := staticTokens.(type) {
 	case *StaticTokensV2:
-		if version := staticToken.GetVersion(); version != V2 {
-			return nil, trace.BadParameter("mismatched static token version %v and type %T", version, staticToken)
-		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
-			copy := *staticToken
+			copy := *staticTokens
 			copy.SetResourceID(0)
-			staticToken = &copy
+			staticTokens = &copy
 		}
-		return utils.FastMarshal(staticToken)
+		return utils.FastMarshal(staticTokens)
 	default:
-		return nil, trace.BadParameter("unrecognized static token version %T", staticToken)
+		return nil, trace.BadParameter("unrecognized static token version %T", staticTokens)
 	}
 }

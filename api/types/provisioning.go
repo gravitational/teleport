@@ -47,12 +47,9 @@ type ProvisionToken interface {
 // NewProvisionToken returns a new instance of provision token resource
 func NewProvisionToken(token string, roles SystemRoles, expires time.Time) (ProvisionToken, error) {
 	t := &ProvisionTokenV2{
-		Kind:    KindToken,
-		Version: V2,
 		Metadata: Metadata{
-			Name:      token,
-			Expires:   &expires,
-			Namespace: defaults.Namespace,
+			Name:    token,
+			Expires: &expires,
 		},
 		Spec: ProvisionTokenSpecV2{
 			Roles: roles,
@@ -76,7 +73,11 @@ func MustCreateProvisionToken(token string, roles SystemRoles, expires time.Time
 
 // CheckAndSetDefaults checks and set default values for any missing fields.
 func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
-	p.Kind = KindToken
+	p.Version = V2
+	if p.Kind == "" {
+		p.Kind = KindToken
+	}
+
 	err := p.Metadata.CheckAndSetDefaults()
 	if err != nil {
 		return trace.Wrap(err)

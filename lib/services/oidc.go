@@ -185,6 +185,10 @@ func UnmarshalOIDCConnector(bytes []byte, opts ...MarshalOption) (OIDCConnector,
 
 // MarshalOIDCConnector marshals the OIDCConnector resource to JSON.
 func MarshalOIDCConnector(oidcConnector OIDCConnector, opts ...MarshalOption) ([]byte, error) {
+	if err := ValidateOIDCConnector(oidcConnector); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -192,9 +196,6 @@ func MarshalOIDCConnector(oidcConnector OIDCConnector, opts ...MarshalOption) ([
 
 	switch oidcConnector := oidcConnector.(type) {
 	case *OIDCConnectorV2:
-		if version := oidcConnector.GetVersion(); version != V2 {
-			return nil, trace.BadParameter("mismatched OIDC connector version %v and type %T", version, oidcConnector)
-		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

@@ -346,9 +346,10 @@ func (c *SessionContext) Close() error {
 // is only useful immediately after a session has been created to query
 // the token.
 func (c *SessionContext) getToken() types.WebToken {
-	return types.NewWebToken(c.session.GetBearerTokenExpiryTime(), types.WebTokenSpecV3{
+	t, _ := types.NewWebToken(c.session.GetBearerTokenExpiryTime(), types.WebTokenSpecV3{
 		Token: c.session.GetBearerToken(),
 	})
+	return t
 }
 
 // expired returns whether this context has expired.

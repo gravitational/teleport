@@ -41,7 +41,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:         services.HostCA,
 		ClusterName:  "example.com",
 		SigningKeys:  nil,
@@ -49,6 +49,9 @@ func TestAuthSignKubeconfig(t *testing.T) {
 		Roles:        nil,
 		SigningAlg:   services.CertAuthoritySpecV2_RSA_SHA2_512,
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	ca.SetTLSKeyPairs([]services.TLSKeyPair{{Cert: []byte("TLS CA cert")}})
 
 	client := mockClient{

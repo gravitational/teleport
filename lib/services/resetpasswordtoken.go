@@ -52,11 +52,17 @@ func UnmarshalResetPasswordToken(bytes []byte, opts ...MarshalOption) (ResetPass
 	if err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
+	if err := token.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return &token, nil
 }
 
 // MarshalResetPasswordToken marshals the ResetPasswordToken resource to JSON.
 func MarshalResetPasswordToken(token ResetPasswordToken, opts ...MarshalOption) ([]byte, error) {
+	if err := token.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return utils.FastMarshal(token)
 }

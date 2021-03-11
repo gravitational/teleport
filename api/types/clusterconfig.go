@@ -106,20 +106,11 @@ type ClusterConfig interface {
 
 // NewClusterConfig is a convenience wrapper to create a ClusterConfig resource.
 func NewClusterConfig(spec ClusterConfigSpecV3) (ClusterConfig, error) {
-	cc := ClusterConfigV3{
-		Kind:    KindClusterConfig,
-		Version: V3,
-		Metadata: Metadata{
-			Name:      MetaNameClusterConfig,
-			Namespace: defaults.Namespace,
-		},
-		Spec: spec,
-	}
+	cc := &ClusterConfigV3{Spec: spec}
 	if err := cc.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return &cc, nil
+	return cc, nil
 }
 
 // GetVersion returns resource version
@@ -288,9 +279,16 @@ func (c *ClusterConfigV3) SetLocalAuth(b bool) {
 
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.
 func (c *ClusterConfigV3) CheckAndSetDefaults() error {
+	c.Version = V3
+	if c.Kind == "" {
+		c.Kind = KindClusterConfig
+	}
+	if c.Metadata.Name == "" {
+		c.Metadata.Name = MetaNameClusterConfig
+	}
+
 	// make sure we have defaults for all metadata fields
-	err := c.Metadata.CheckAndSetDefaults()
-	if err != nil {
+	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 

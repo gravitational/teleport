@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
@@ -71,11 +70,8 @@ type User interface {
 // NewUser creates new empty user
 func NewUser(name string) (User, error) {
 	u := &UserV2{
-		Kind:    KindUser,
-		Version: V2,
 		Metadata: Metadata{
-			Name:      name,
-			Namespace: defaults.Namespace,
+			Name: name,
 		},
 	}
 	if err := u.CheckAndSetDefaults(); err != nil {
@@ -174,13 +170,16 @@ func (u *UserV2) SetTraits(traits map[string][]string) {
 
 // CheckAndSetDefaults checks and set default values for any missing fields.
 func (u *UserV2) CheckAndSetDefaults() error {
-	err := u.Metadata.CheckAndSetDefaults()
-	if err != nil {
+	u.Version = V2
+	if u.Kind == "" {
+		u.Kind = KindUser
+	}
+
+	if err := u.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = u.Check()
-	if err != nil {
+	if err := u.Check(); err != nil {
 		return trace.Wrap(err)
 	}
 

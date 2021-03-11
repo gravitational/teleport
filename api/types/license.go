@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/trace"
 )
 
 // License defines teleport License Information
@@ -79,15 +79,16 @@ type License interface {
 
 // NewLicense is a convenience method to to create LicenseV3.
 func NewLicense(name string, spec LicenseSpecV3) (License, error) {
-	return &LicenseV3{
-		Kind:    KindLicense,
-		Version: V3,
+	license := &LicenseV3{
 		Metadata: Metadata{
-			Name:      name,
-			Namespace: defaults.Namespace,
+			Name: name,
 		},
 		Spec: spec,
-	}, nil
+	}
+	if err := license.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return license, nil
 }
 
 // LicenseV3 represents License resource version V3
@@ -203,6 +204,10 @@ func (c *LicenseV3) SetReportsUsage(reports Bool) {
 
 // CheckAndSetDefaults verifies the constraints for License.
 func (c *LicenseV3) CheckAndSetDefaults() error {
+	c.Version = V3
+	if c.Kind == "" {
+		c.Kind = KindLicense
+	}
 	return c.Metadata.CheckAndSetDefaults()
 }
 

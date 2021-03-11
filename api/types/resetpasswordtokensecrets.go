@@ -45,20 +45,15 @@ type ResetPasswordTokenSecrets interface {
 
 // NewResetPasswordTokenSecrets creates an instance of ResetPasswordTokenSecrets.
 func NewResetPasswordTokenSecrets(tokenID string) (ResetPasswordTokenSecrets, error) {
-	secrets := ResetPasswordTokenSecretsV3{
-		Kind:    KindResetPasswordTokenSecrets,
-		Version: V3,
+	secrets := &ResetPasswordTokenSecretsV3{
 		Metadata: Metadata{
 			Name: tokenID,
 		},
 	}
-
-	err := secrets.CheckAndSetDefaults()
-	if err != nil {
-		return &ResetPasswordTokenSecretsV3{}, trace.Wrap(err)
+	if err := secrets.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
 	}
-
-	return &secrets, nil
+	return secrets, nil
 }
 
 // GetName returns Name
@@ -155,6 +150,10 @@ func (u *ResetPasswordTokenSecretsV3) SetSubKind(s string) {
 
 // CheckAndSetDefaults checks and set default values for any missing fields.
 func (u ResetPasswordTokenSecretsV3) CheckAndSetDefaults() error {
+	u.Version = V3
+	if u.Kind == "" {
+		u.Kind = KindResetPasswordTokenSecrets
+	}
 	return u.Metadata.CheckAndSetDefaults()
 }
 

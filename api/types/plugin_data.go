@@ -45,8 +45,6 @@ type PluginData interface {
 // name of an access request).
 func NewPluginData(resourceName string, resourceKind string) (PluginData, error) {
 	data := PluginDataV3{
-		Kind:    KindPluginData,
-		Version: V3,
 		// If additional resource kinds become supported, make
 		// this a parameter.
 		SubKind: resourceKind,
@@ -131,9 +129,15 @@ func (r *PluginDataV3) String() string {
 
 // CheckAndSetDefaults checks and sets default values for PluginData.
 func (r *PluginDataV3) CheckAndSetDefaults() error {
+	r.Version = V3
+	if r.Kind == "" {
+		r.Kind = KindPluginData
+	}
+
 	if err := r.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+
 	if r.SubKind == "" {
 		return trace.BadParameter("plugin data missing subkind")
 	}

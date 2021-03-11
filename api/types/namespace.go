@@ -24,21 +24,29 @@ import (
 )
 
 // NewNamespace returns new namespace
-func NewNamespace(name string) Namespace {
-	return Namespace{
-		Kind:    KindNamespace,
-		Version: V2,
+func NewNamespace(name string) (Namespace, error) {
+	n := Namespace{
 		Metadata: Metadata{
 			Name: name,
 		},
 	}
+	if err := n.CheckAndSetDefaults(); err != nil {
+		return Namespace{}, trace.Wrap(err)
+	}
+	return n, nil
 }
 
 // CheckAndSetDefaults checks validity of all parameters and sets defaults
 func (n *Namespace) CheckAndSetDefaults() error {
+	n.Version = V2
+	if n.Kind == "" {
+		n.Kind = KindNamespace
+	}
+
 	if err := n.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+
 	isValid := IsValidNamespace(n.Metadata.Name)
 	if !isValid {
 		return trace.BadParameter("namespace %q is invalid", n.Metadata.Name)

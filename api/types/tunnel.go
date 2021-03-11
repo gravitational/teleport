@@ -20,8 +20,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
-
 	"github.com/gravitational/trace"
 )
 
@@ -48,19 +46,20 @@ type ReverseTunnel interface {
 }
 
 // NewReverseTunnel returns new version of reverse tunnel
-func NewReverseTunnel(clusterName string, dialAddrs []string) ReverseTunnel {
-	return &ReverseTunnelV2{
-		Kind:    KindReverseTunnel,
-		Version: V2,
+func NewReverseTunnel(clusterName string, dialAddrs []string) (ReverseTunnel, error) {
+	t := &ReverseTunnelV2{
 		Metadata: Metadata{
-			Name:      clusterName,
-			Namespace: defaults.Namespace,
+			Name: clusterName,
 		},
 		Spec: ReverseTunnelSpecV2{
 			ClusterName: clusterName,
 			DialAddrs:   dialAddrs,
 		},
 	}
+	if err := t.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return t, nil
 }
 
 // GetVersion returns resource version
@@ -127,6 +126,11 @@ func (r *ReverseTunnelV2) SetName(e string) {
 
 // CheckAndSetDefaults checks and sets defaults
 func (r *ReverseTunnelV2) CheckAndSetDefaults() error {
+	r.Version = V2
+	if r.Kind == "" {
+		r.Kind = KindReverseTunnel
+	}
+
 	err := r.Metadata.CheckAndSetDefaults()
 	if err != nil {
 		return trace.Wrap(err)

@@ -50,19 +50,24 @@ func GetNamespaceSchema() string {
 }
 
 // MarshalNamespace marshals the Namespace resource to JSON.
-func MarshalNamespace(resource Namespace, opts ...MarshalOption) ([]byte, error) {
+func MarshalNamespace(namespace Namespace, opts ...MarshalOption) ([]byte, error) {
+	if err := namespace.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if !cfg.PreserveResourceID {
 		// avoid modifying the original object
 		// to prevent unexpected data races
-		copy := resource
+		copy := namespace
 		copy.SetResourceID(0)
-		resource = copy
+		namespace = copy
 	}
-	return utils.FastMarshal(resource)
+	return utils.FastMarshal(namespace)
 }
 
 // UnmarshalNamespace unmarshals the Namespace resource from JSON.

@@ -298,7 +298,10 @@ func (s *Server) newResetPasswordToken(req CreateResetPasswordTokenRequest) (ser
 		return nil, trace.Wrap(err)
 	}
 
-	token := services.NewResetPasswordToken(tokenID)
+	token, err := services.NewResetPasswordToken(tokenID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	token.SetExpiry(s.clock.Now().UTC().Add(req.TTL))
 	token.SetUser(req.Name)
 	token.SetCreated(s.clock.Now().UTC())

@@ -115,20 +115,16 @@ type Role interface {
 
 // NewRole constructs new standard role
 func NewRole(name string, spec RoleSpecV3) (Role, error) {
-	role := RoleV3{
-		Kind:    KindRole,
-		Version: V3,
+	role := &RoleV3{
 		Metadata: Metadata{
-			Name:      name,
-			Namespace: defaults.Namespace,
+			Name: name,
 		},
 		Spec: spec,
 	}
 	if err := role.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return &role, nil
+	return role, nil
 }
 
 // RoleConditionType specifies if it's an allow rule (true) or deny rule (false).
@@ -493,6 +489,11 @@ func (r *RoleV3) SetRules(rct RoleConditionType, in []Rule) {
 
 // CheckAndSetDefaults checks validity of all parameters and sets defaults
 func (r *RoleV3) CheckAndSetDefaults() error {
+	r.Version = V3
+	if r.Kind == "" {
+		r.Kind = KindRole
+	}
+
 	err := r.Metadata.CheckAndSetDefaults()
 	if err != nil {
 		return trace.Wrap(err)

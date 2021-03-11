@@ -69,6 +69,7 @@ type AccessRequest interface {
 	// CheckAndSetDefaults validates the access request and
 	// supplies default values where appropriate.
 	CheckAndSetDefaults() error
+
 	// Equals checks equality between access request values.
 	Equals(AccessRequest) bool
 }
@@ -76,15 +77,12 @@ type AccessRequest interface {
 // NewAccessRequest assembled an AccessRequest resource.
 func NewAccessRequest(name string, user string, roles ...string) (AccessRequest, error) {
 	req := AccessRequestV3{
-		Kind:    KindAccessRequest,
-		Version: V3,
 		Metadata: Metadata{
 			Name: name,
 		},
 		Spec: AccessRequestSpecV3{
 			User:  user,
 			Roles: roles,
-			State: RequestState_PENDING,
 		},
 	}
 	if err := req.CheckAndSetDefaults(); err != nil {
@@ -187,9 +185,15 @@ func (r *AccessRequestV3) SetSystemAnnotations(annotations map[string][]string) 
 
 // CheckAndSetDefaults validates set values and sets default values
 func (r *AccessRequestV3) CheckAndSetDefaults() error {
+	r.Version = V3
+	if r.Kind == "" {
+		r.Kind = KindAccessRequest
+	}
+
 	if err := r.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+
 	if r.GetState().IsNone() {
 		if err := r.SetState(RequestState_PENDING); err != nil {
 			return trace.Wrap(err)
@@ -202,6 +206,8 @@ func (r *AccessRequestV3) CheckAndSetDefaults() error {
 }
 
 // Check validates AccessRequest values
+// Deprecated in favor of CheckAndSetDefaults
+// DELETE IN 7.0.0
 func (r *AccessRequestV3) Check() error {
 	if r.Kind == "" {
 		return trace.BadParameter("access request kind not set")

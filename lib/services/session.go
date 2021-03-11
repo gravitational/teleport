@@ -97,6 +97,10 @@ func UnmarshalWebSession(bytes []byte, opts ...MarshalOption) (types.WebSession,
 
 // MarshalWebSession marshals the WebSession resource to JSON.
 func MarshalWebSession(webSession types.WebSession, opts ...MarshalOption) ([]byte, error) {
+	if err := webSession.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -104,9 +108,6 @@ func MarshalWebSession(webSession types.WebSession, opts ...MarshalOption) ([]by
 
 	switch webSession := webSession.(type) {
 	case *WebSessionV2:
-		if version := webSession.GetVersion(); version != V2 {
-			return nil, trace.BadParameter("mismatched web session version %v and type %T", version, webSession)
-		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
@@ -122,6 +123,10 @@ func MarshalWebSession(webSession types.WebSession, opts ...MarshalOption) ([]by
 
 // MarshalWebToken serializes the web token as JSON-encoded payload
 func MarshalWebToken(webToken types.WebToken, opts ...MarshalOption) ([]byte, error) {
+	if err := webToken.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -129,9 +134,6 @@ func MarshalWebToken(webToken types.WebToken, opts ...MarshalOption) ([]byte, er
 
 	switch webToken := webToken.(type) {
 	case *types.WebTokenV3:
-		if version := webToken.GetVersion(); version != V3 {
-			return nil, trace.BadParameter("mismatched web token version %v and type %T", version, webToken)
-		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

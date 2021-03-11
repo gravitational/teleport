@@ -111,6 +111,10 @@ func UnmarshalGithubConnector(bytes []byte) (GithubConnector, error) {
 
 // MarshalGithubConnector marshals the GithubConnector resource to JSON.
 func MarshalGithubConnector(githubConnector GithubConnector, opts ...MarshalOption) ([]byte, error) {
+	if err := githubConnector.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -118,9 +122,6 @@ func MarshalGithubConnector(githubConnector GithubConnector, opts ...MarshalOpti
 
 	switch githubConnector := githubConnector.(type) {
 	case *GithubConnectorV3:
-		if version := githubConnector.GetVersion(); version != V3 {
-			return nil, trace.BadParameter("mismatched github connector version %v and type %T", version, githubConnector)
-		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

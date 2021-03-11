@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
@@ -457,11 +458,13 @@ func setupTestContext(ctx context.Context, t *testing.T) *testContext {
 	require.NoError(t, err)
 
 	// Create database servers for the test database services.
-	postgresDBServer := makeDatabaseServer(postgresServerName, net.JoinHostPort("localhost", postgresServer.Port()), defaults.ProtocolPostgres, hostID)
+	postgresDBServer, err := makeDatabaseServer(postgresServerName, net.JoinHostPort("localhost", postgresServer.Port()), defaults.ProtocolPostgres, hostID)
+	require.NoError(t, err)
 	_, err = dbAuthClient.UpsertDatabaseServer(ctx, postgresDBServer)
 	require.NoError(t, err)
 
-	mysqlDBServer := makeDatabaseServer(mysqlServerName, net.JoinHostPort("localhost", mysqlServer.Port()), defaults.ProtocolMySQL, hostID)
+	mysqlDBServer, err := makeDatabaseServer(mysqlServerName, net.JoinHostPort("localhost", mysqlServer.Port()), defaults.ProtocolMySQL, hostID)
+	require.NoError(t, err)
 	_, err = dbAuthClient.UpsertDatabaseServer(ctx, mysqlDBServer)
 	require.NoError(t, err)
 
@@ -518,8 +521,8 @@ func setupTestContext(ctx context.Context, t *testing.T) *testContext {
 	}
 }
 
-func makeDatabaseServer(name, uri, protocol, hostID string) types.DatabaseServer {
-	return types.NewDatabaseServerV3(
+func makeDatabaseServer(name, uri, protocol, hostID string) (types.DatabaseServer, error) {
+	s, err := types.NewDatabaseServerV3(
 		name,
 		nil,
 		types.DatabaseServerSpecV3{
@@ -535,4 +538,8 @@ func makeDatabaseServer(name, uri, protocol, hostID string) types.DatabaseServer
 				},
 			}),
 		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return s, nil
 }

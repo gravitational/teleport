@@ -116,12 +116,12 @@ func TestOIDCLogin(t *testing.T) {
 
 	// connector must exist, but does not need to be functional since we
 	// are going to mock the actual login operation.
-	connector := types.NewOIDCConnector("auth.example.com", types.OIDCConnectorSpecV2{
+	connector, err := types.NewOIDCConnector("auth.example.com", types.OIDCConnectorSpecV2{
 		IssuerURL:   "https://auth.example.com",
 		RedirectURL: "https://cluster.example.com",
 		ClientID:    "fake-client",
 	})
-	require.NoError(t, connector.CheckAndSetDefaults())
+	require.NoError(t, err)
 
 	authProcess, proxyProcess := makeTestServers(t, populist, dictator, connector, alice)
 

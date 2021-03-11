@@ -307,6 +307,9 @@ func UnmarshalAuthPreference(bytes []byte, opts ...MarshalOption) (AuthPreferenc
 			return nil, trace.BadParameter(err.Error())
 		}
 	}
+	if err := authPreference.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if cfg.ID != 0 {
 		authPreference.SetResourceID(cfg.ID)
 	}
@@ -317,6 +320,9 @@ func UnmarshalAuthPreference(bytes []byte, opts ...MarshalOption) (AuthPreferenc
 }
 
 // MarshalAuthPreference marshals the AuthPreference resource to JSON.
-func MarshalAuthPreference(c AuthPreference, opts ...MarshalOption) ([]byte, error) {
-	return json.Marshal(c)
+func MarshalAuthPreference(authPreference AuthPreference, opts ...MarshalOption) ([]byte, error) {
+	if err := authPreference.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return json.Marshal(authPreference)
 }

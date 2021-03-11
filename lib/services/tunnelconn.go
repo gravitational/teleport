@@ -117,6 +117,10 @@ func UnmarshalTunnelConnection(data []byte, opts ...MarshalOption) (TunnelConnec
 
 // MarshalTunnelConnection marshals the TunnelConnection resource to JSON.
 func MarshalTunnelConnection(tunnelConnection TunnelConnection, opts ...MarshalOption) ([]byte, error) {
+	if err := tunnelConnection.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -124,9 +128,6 @@ func MarshalTunnelConnection(tunnelConnection TunnelConnection, opts ...MarshalO
 
 	switch tunnelConnection := tunnelConnection.(type) {
 	case *TunnelConnectionV2:
-		if version := tunnelConnection.GetVersion(); version != V2 {
-			return nil, trace.BadParameter("mismatched tunnel connection version %v and type %T", version, tunnelConnection)
-		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

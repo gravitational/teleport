@@ -84,7 +84,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	// Create database server for each of the proxied databases.
 	var databaseServers []types.DatabaseServer
 	for _, db := range process.Config.Databases.Databases {
-		databaseServers = append(databaseServers, types.NewDatabaseServerV3(
+		s, err := types.NewDatabaseServerV3(
 			db.Name,
 			db.StaticLabels,
 			types.DatabaseServerSpecV3{
@@ -97,7 +97,11 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 				Version:       teleport.Version,
 				Hostname:      process.Config.Hostname,
 				HostID:        process.Config.HostUUID,
-			}))
+			})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		databaseServers = append(databaseServers, s)
 	}
 
 	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
