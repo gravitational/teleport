@@ -14,17 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package client holds the implementation of the Teleport gRPC api client
+// Package client holds the implementation of the Teleport gRPC api client.
 package client
 
 import (
 	"compress/gzip"
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"io"
 	"net"
-	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -176,7 +174,6 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 
 		// Connect with provided credentials.
 		for _, creds := range cfg.Credentials {
-			var err error
 			tlsConfig, err := creds.TLSConfig()
 			if err != nil {
 				sendError(ctx, trace.Wrap(err))
@@ -223,9 +220,9 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 					go func(addr string) {
 						defer wg.Done()
 						// Try connecting to web proxy to retrieve tunnel address.
-						if tunAddr, err := findTunnelAddr(addr); err == nil {
-							addr = tunAddr
-						}
+						// if pr, err := Ping(ctx, addr, nil); err == nil {
+						// 	addr = pr.Proxy.SSH.TunnelPublicAddr
+						// }
 
 						syncConnect(addr, &Client{
 							c:         cfg,
@@ -264,30 +261,6 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 			return nil, trace.Errorf("process terminated")
 		}
 	}
-}
-
-// findTunnelAddr retrieves the server's public tunnel address from the web proxy.
-func findTunnelAddr(webAddr string) (string, error) {
-	tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
-	client := &http.Client{Transport: tr}
-	resp, err := client.Get("https://" + webAddr + "/webapi/find")
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	defer resp.Body.Close()
-	findResponse := &struct {
-		Proxy struct {
-			SSH struct {
-				TunnelPublicAddr string `json:"ssh_tunnel_public_addr,omitempty"`
-			} `json:"ssh"`
-		} `json:"proxy"`
-	}{}
-	if err := json.NewDecoder(resp.Body).Decode(findResponse); err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return findResponse.Proxy.SSH.TunnelPublicAddr, nil
 }
 
 // dialGRPC dials a connection between server and client. If withBlock is false,
@@ -379,12 +352,11 @@ func (c *Config) CheckAndSetDefaults() error {
 // GetDialer returns the configured dialer,
 // or builds a dialer from configured addresses.
 func (c *Config) GetDialer() (ContextDialer, error) {
-	var err error
 	if c.Dialer != nil {
 		return c.Dialer, nil
 	}
-	c.Dialer, err = NewAddrsDialer(c.Addrs, c.KeepAlivePeriod, c.DialTimeout)
-	if err != nil {
+	var err error
+	if c.Dialer, err = NewAddrsDialer(c.Addrs, c.KeepAlivePeriod, c.DialTimeout); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return c.Dialer, nil
