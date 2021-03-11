@@ -49,7 +49,7 @@ func roleCRUD(ctx context.Context, client *auth.Client) {
 	}()
 
 	// retrieve auditor role
-	role, err = client.GetRole("auditor")
+	role, err = client.GetRole(ctx, "auditor")
 	if err != nil {
 		log.Printf("Failed to retrieve role for updating: %v", err)
 		return

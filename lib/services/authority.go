@@ -33,8 +33,9 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+
+	"github.com/gravitational/trace"
 )
 
 // NewJWTAuthority creates and returns a services.CertAuthority with a new
@@ -273,12 +274,12 @@ type UserCertParams struct {
 }
 
 // Check checks the user certificate parameters
-func (c UserCertParams) Check() error {
+func (c *UserCertParams) CheckAndSetDefaults() error {
 	if len(c.PrivateCASigningKey) == 0 || c.CASigningAlg == "" {
 		return trace.BadParameter("PrivateCASigningKey and CASigningAlg are required")
 	}
 	if c.TTL < defaults.MinCertDuration {
-		return trace.BadParameter("TTL can't be less than %v", defaults.MinCertDuration)
+		c.TTL = defaults.MinCertDuration
 	}
 	if len(c.AllowedLogins) == 0 {
 		return trace.BadParameter("AllowedLogins are required")
