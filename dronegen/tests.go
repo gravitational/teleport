@@ -20,19 +20,19 @@ func testCodePipeline() pipeline {
 	p.Trigger = triggerPullRequest
 	p.Workspace = workspace{Path: "/go"}
 	p.Volumes = []volume{
-		{Name: "dockersock", Temp: &volumeTemp{}},
+		volumeDocker,
+		volumeTmpfs,
 		{Name: "tmp-dind", Temp: &volumeTemp{}},
 		{Name: "tmp-integration", Temp: &volumeTemp{}},
-		volumeTmpfs,
 	}
 	p.Services = []service{
 		{
 			Name:  "Start Docker",
 			Image: "docker:dind",
 			Volumes: []volumeRef{
-				{Name: "dockersock", Path: "/var/run"},
-				{Name: "tmp-dind", Path: "/tmp"},
+				volumeRefDocker,
 				volumeRefTmpfs,
+				{Name: "tmp-dind", Path: "/tmp"},
 			},
 		},
 	}
@@ -103,7 +103,7 @@ fi
 			Name:  "Build buildbox",
 			Image: "docker",
 			Volumes: []volumeRef{
-				{Name: "dockersock", Path: "/var/run"},
+				volumeRefDocker,
 				volumeRefTmpfs,
 			},
 			Commands: []string{
@@ -119,7 +119,7 @@ fi
 			Image:       "docker",
 			Environment: goEnvironment,
 			Volumes: []volumeRef{
-				{Name: "dockersock", Path: "/var/run"},
+				volumeRefDocker,
 				volumeRefTmpfs,
 			},
 			Commands: []string{
@@ -164,7 +164,7 @@ echo ""
 			Image:       "docker",
 			Environment: goEnvironment,
 			Volumes: []volumeRef{
-				{Name: "dockersock", Path: "/var/run"},
+				volumeRefDocker,
 				volumeRefTmpfs,
 			},
 			Commands: []string{
@@ -181,7 +181,7 @@ echo ""
 			Image:       "docker",
 			Environment: goEnvironment,
 			Volumes: []volumeRef{
-				{Name: "dockersock", Path: "/var/run"},
+				volumeRefDocker,
 				volumeRefTmpfs,
 				{Name: "tmp-integration", Path: "/tmp"},
 			},
@@ -202,7 +202,7 @@ echo ""
 				"TEST_KUBE":                 value{raw: "true"},
 			},
 			Volumes: []volumeRef{
-				{Name: "dockersock", Path: "/var/run"},
+				volumeRefDocker,
 				volumeRefTmpfs,
 				{Name: "tmp-integration", Path: "/tmp"},
 			},
