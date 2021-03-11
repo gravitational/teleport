@@ -159,6 +159,7 @@ func (p *transport) start() {
 			return
 		}
 		if len(authServers) == 0 {
+			p.log.Warn("No auth servers registered in the cluster.")
 			p.reply(req, false, []byte("connection rejected: failed to connect to auth server"))
 			return
 		}
@@ -249,7 +250,7 @@ func (p *transport) start() {
 		p.log.Errorf("Failed responding OK to %q request: %v", req.Type, err)
 		return
 	}
-	p.log.Debugf("Successfully dialed to %v %v, start proxying.", dreq.Address, dreq.ServerID)
+	p.log.Debugf("Successfully dialed to %v %q, start proxying.", dreq.Address, dreq.ServerID)
 
 	// Start processing channel requests. Pass in a context that wraps the passed
 	// in context with a context that closes when this function returns to
@@ -313,7 +314,7 @@ func (p *transport) handleChannelRequests(closeContext context.Context, useTunne
 func (p *transport) getConn(servers []string, r *sshutils.DialReq) (net.Conn, bool, error) {
 	// This function doesn't attempt to dial if a host with one of the
 	// search names is not registered. It's a fast check.
-	p.log.Debugf("Attempting to dial through tunnel with server ID %v.", r.ServerID)
+	p.log.Debugf("Attempting to dial through tunnel with server ID %q.", r.ServerID)
 	conn, err := p.tunnelDial(r)
 	if err != nil {
 		if !trace.IsNotFound(err) {
