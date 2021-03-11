@@ -775,7 +775,10 @@ service AuthService {
     // certificates.
     rpc GenerateUserSingleUseCerts(stream UserSingleUseCertsRequest)
         returns (stream UserSingleUseCertsResponse);
-        
+    // IsMFARequired checks whether MFA is required to access the specified
+    // target.
+    rpc IsMFARequired(IsMFARequiredRequest) returns (IsMFARequiredResponse);
+
     // GetAccessRequests gets all pending access requests.
     rpc GetAccessRequests(types.AccessRequestFilter) returns (AccessRequests);
     // CreateAccessRequest creates a new access request.
@@ -804,7 +807,6 @@ service AuthService {
     // CreateResetPasswordToken creates ResetPasswordToken.
     rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest)
         returns (types.ResetPasswordTokenV3);
-
 
     // GetUser gets a user resource by name.
     rpc GetUser(GetUserRequest) returns (types.UserV2);
