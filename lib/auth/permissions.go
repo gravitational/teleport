@@ -204,6 +204,8 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*Context, error) {
 		KubernetesCluster: u.Identity.KubernetesCluster,
 		RouteToApp:        u.Identity.RouteToApp,
 		RouteToDatabase:   u.Identity.RouteToDatabase,
+		MFAVerified:       u.Identity.MFAVerified,
+		ClientIP:          u.Identity.ClientIP,
 	}
 
 	return &Context{

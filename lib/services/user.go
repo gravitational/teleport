@@ -230,14 +230,17 @@ func UnmarshalUser(bytes []byte, opts ...MarshalOption) (User, error) {
 }
 
 // MarshalUser marshals the User resource to JSON.
-func MarshalUser(u User, opts ...MarshalOption) ([]byte, error) {
+func MarshalUser(user User, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	switch user := u.(type) {
+	switch user := user.(type) {
 	case *UserV2:
+		if version := user.GetVersion(); version != V2 {
+			return nil, trace.BadParameter("mismatched user version %v and type %T", version, user)
+		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
@@ -247,6 +250,6 @@ func MarshalUser(u User, opts ...MarshalOption) ([]byte, error) {
 		}
 		return utils.FastMarshal(user)
 	default:
-		return nil, trace.BadParameter("unrecognized user version %T", u)
+		return nil, trace.BadParameter("unrecognized user version %T", user)
 	}
 }

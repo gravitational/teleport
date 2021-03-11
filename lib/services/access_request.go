@@ -166,7 +166,7 @@ func GetTraitMappings(c AccessRequestConditions) TraitMappingSet {
 type UserAndRoleGetter interface {
 	UserGetter
 	RoleGetter
-	GetRoles() ([]Role, error)
+	GetRoles(ctx context.Context) ([]Role, error)
 }
 
 // appendRoleMatchers constructs all role matchers for a given
@@ -261,7 +261,7 @@ func NewRequestValidator(getter UserAndRoleGetter, username string, opts ...Vali
 	// load all statically assigned roles for the user and
 	// use them to build our validation state.
 	for _, roleName := range m.user.GetRoles() {
-		role, err := m.getter.GetRole(roleName)
+		role, err := m.getter.GetRole(context.TODO(), roleName)
 		if err != nil {
 			return RequestValidator{}, trace.Wrap(err)
 		}
@@ -333,7 +333,7 @@ func (m *RequestValidator) Validate(req AccessRequest) error {
 // roles in order to determine the role list.  Prefer calling CanRequestRole
 // when checking againt a known role list.
 func (m *RequestValidator) GetRequestableRoles() ([]string, error) {
-	allRoles, err := m.getter.GetRoles()
+	allRoles, err := m.getter.GetRoles(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -496,22 +496,26 @@ func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (AccessRequest, 
 }
 
 // MarshalAccessRequest marshals the AccessRequest resource to JSON.
-func MarshalAccessRequest(req AccessRequest, opts ...MarshalOption) ([]byte, error) {
+func MarshalAccessRequest(accessRequest AccessRequest, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	switch r := req.(type) {
+
+	switch accessRequest := accessRequest.(type) {
 	case *AccessRequestV3:
+		if version := accessRequest.GetVersion(); version != V3 {
+			return nil, trace.BadParameter("mismatched access request version %v and type %T", version, accessRequest)
+		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
-			cp := *r
-			cp.SetResourceID(0)
-			r = &cp
+			copy := *accessRequest
+			copy.SetResourceID(0)
+			accessRequest = &copy
 		}
-		return utils.FastMarshal(r)
+		return utils.FastMarshal(accessRequest)
 	default:
-		return nil, trace.BadParameter("unrecognized access request type: %T", req)
+		return nil, trace.BadParameter("unrecognized access request type: %T", accessRequest)
 	}
 }

@@ -181,7 +181,10 @@ func GetSAMLServiceProvider(sc SAMLConnector, clock clockwork.Clock) (*saml2.SAM
 	}
 
 	// adfs specific settings
-	if sc.GetAudience() == teleport.ADFS {
+	if sc.GetProvider() == teleport.ADFS {
+		log.WithFields(log.Fields{
+			trace.Component: teleport.ComponentSAML,
+		}).Debug("Setting ADFS values.")
 		if sp.SignAuthnRequests {
 			// adfs does not support C14N11, we have to use the C14N10 canonicalizer
 			sp.SignAuthnRequestsCanonicalizer = dsig.MakeC14N10ExclusiveCanonicalizerWithPrefixList(dsig.DefaultPrefix)
@@ -308,23 +311,26 @@ func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (SAMLConnector,
 }
 
 // MarshalSAMLConnector marshals the SAMLConnector resource to JSON.
-func MarshalSAMLConnector(c SAMLConnector, opts ...MarshalOption) ([]byte, error) {
+func MarshalSAMLConnector(samlConnector SAMLConnector, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	switch connector := c.(type) {
+	switch samlConnector := samlConnector.(type) {
 	case *SAMLConnectorV2:
+		if version := samlConnector.GetVersion(); version != V2 {
+			return nil, trace.BadParameter("mismatched SAML connector version %v and type %T", version, samlConnector)
+		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
-			copy := *connector
+			copy := *samlConnector
 			copy.SetResourceID(0)
-			connector = &copy
+			samlConnector = &copy
 		}
-		return utils.FastMarshal(connector)
+		return utils.FastMarshal(samlConnector)
 	default:
-		return nil, trace.BadParameter("unrecognized SAMLConnector version %T", c)
+		return nil, trace.BadParameter("unrecognized SAML connector version %T", samlConnector)
 	}
 }
