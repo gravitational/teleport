@@ -379,6 +379,7 @@ version: v3
 - [ ] Verify that editing  OIDC/SAML/GITHUB connectors works
 - [ ] Verify that error is shown when saving an invalid YAML
 - [ ] Verify that correct hint text is shown on the right side
+- [ ] Verify that encrypted SAML assertions work with an identity provider that supports it (Azure).
 
 #### Auth Connectors Card Icons
 - [ ] Verify that GITHUB card has github icon
