@@ -153,14 +153,14 @@ func tagPipeline(params tagBuildType) pipeline {
 	p.Trigger = triggerTag
 	p.Workspace = workspace{Path: "/go"}
 	p.Volumes = []volume{
-		{Name: "dockersock", Temp: &volumeTemp{}},
+		volumeDocker,
 	}
 	p.Services = []service{
 		{
 			Name:  "Start Docker",
 			Image: "docker:dind",
 			Volumes: []volumeRef{
-				{Name: "dockersock", Path: "/var/run"},
+				volumeRefDocker,
 			},
 		},
 	}
@@ -178,7 +178,7 @@ func tagPipeline(params tagBuildType) pipeline {
 			Image:       "docker",
 			Environment: tagEnvironment,
 			Volumes: []volumeRef{
-				{Name: "dockersock", Path: "/var/run"},
+				volumeRefDocker,
 			},
 			Commands: tagBuildCommands(params),
 		},
@@ -309,7 +309,7 @@ func tagPackagePipeline(packageType string, params tagBuildType) pipeline {
 	p.DependsOn = []string{dependentPipeline}
 	p.Workspace = workspace{Path: "/go"}
 	p.Volumes = []volume{
-		{Name: "dockersock", Temp: &volumeTemp{}},
+		volumeDocker,
 		volumeTmpfs,
 	}
 	p.Services = []service{
@@ -317,7 +317,7 @@ func tagPackagePipeline(packageType string, params tagBuildType) pipeline {
 			Name:  "Start Docker",
 			Image: "docker:dind",
 			Volumes: []volumeRef{
-				{Name: "dockersock", Path: "/var/run"},
+				volumeRefDocker,
 			},
 		},
 	}
@@ -345,7 +345,7 @@ func tagPackagePipeline(packageType string, params tagBuildType) pipeline {
 			Image:       "docker",
 			Environment: environment,
 			Volumes: []volumeRef{
-				{Name: "dockersock", Path: "/var/run"},
+				volumeRefDocker,
 				volumeRefTmpfs,
 			},
 			Commands: packageBuildCommands,
