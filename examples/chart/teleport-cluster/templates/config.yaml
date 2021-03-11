@@ -1,0 +1,32 @@
+{{- if not .Values.customConfig -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}
+data:
+  teleport.yaml: |
+    teleport:
+    auth_service:
+      enabled: true
+      cluster_name: {{ required "clusterName is required in chart values" .Values.clusterName }}
+{{- if .Values.enterprise }}
+      license_file: '/var/lib/license/license-enterprise.pem'
+{{- end }}
+    kubernetes_service:
+      enabled: true
+      listen_addr: 0.0.0.0:3027
+      labels:
+{{- if .Values.labels }}
+{{ toYaml .Values.labels | indent 8 }}
+{{- end }}
+    proxy_service:
+      public_addr: '{{ required "clusterName is required in chart values" .Values.clusterName }}:443'
+      kube_listen_addr: 0.0.0.0:3026
+      enabled: true
+      acme:
+        enabled: {{ .Values.acme }}
+        email: {{ .Values.acmeEmail }}
+        uri: {{ .Values.acmeURI }}
+    ssh_service:
+      enabled: false
+{{- end -}}

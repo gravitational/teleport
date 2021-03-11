@@ -18,7 +18,7 @@ package local
 
 import (
 	"context"
-	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -32,22 +32,22 @@ import (
 	"gopkg.in/check.v1"
 )
 
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
+
 type ServicesSuite struct {
 	bk    backend.Backend
 	suite *suite.ServicesTestSuite
 }
 
-var _ = fmt.Printf
 var _ = check.Suite(&ServicesSuite{})
-
-func (s *ServicesSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (s *ServicesSuite) SetUpTest(c *check.C) {
 	var err error
 
-	clock := clockwork.NewFakeClockAt(time.Now())
+	clock := clockwork.NewFakeClock()
 
 	s.bk, err = lite.NewWithConfig(context.TODO(), lite.Config{
 		Path:             c.MkDir(),

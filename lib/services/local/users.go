@@ -19,14 +19,14 @@ package local
 import (
 	"bytes"
 	"context"
-	"crypto/ecdsa"
-	"crypto/x509"
 	"encoding/json"
 	"sort"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -34,19 +34,21 @@ import (
 	"github.com/gokyle/hotp"
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
-	"github.com/tstranex/u2f"
+	"github.com/sirupsen/logrus"
 )
 
 // IdentityService is responsible for managing web users and currently
 // user accounts as well
 type IdentityService struct {
 	backend.Backend
+	log logrus.FieldLogger
 }
 
 // NewIdentityService returns a new instance of IdentityService object
 func NewIdentityService(backend backend.Backend) *IdentityService {
 	return &IdentityService{
 		Backend: backend,
+		log:     logrus.WithField(trace.Component, "identity"),
 	}
 }
 
@@ -71,7 +73,7 @@ func (s *IdentityService) GetUsers(withSecrets bool) ([]services.User, error) {
 		if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
 			continue
 		}
-		u, err := services.GetUserMarshaler().UnmarshalUser(
+		u, err := services.UnmarshalUser(
 			item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -107,7 +109,7 @@ func (s *IdentityService) getUsersWithSecrets() ([]services.User, error) {
 
 // CreateUser creates user if it does not exist.
 func (s *IdentityService) CreateUser(user services.User) error {
-	if err := user.Check(); err != nil {
+	if err := services.ValidateUser(user); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -120,7 +122,7 @@ func (s *IdentityService) CreateUser(user services.User) error {
 		return trace.AlreadyExists("user %q already registered", user.GetName())
 	}
 
-	value, err := services.GetUserMarshaler().MarshalUser(user.WithoutSecrets().(services.User))
+	value, err := services.MarshalUser(user.WithoutSecrets().(services.User))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -145,7 +147,7 @@ func (s *IdentityService) CreateUser(user services.User) error {
 
 // UpdateUser updates an existing user.
 func (s *IdentityService) UpdateUser(ctx context.Context, user services.User) error {
-	if err := user.Check(); err != nil {
+	if err := services.ValidateUser(user); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -154,7 +156,7 @@ func (s *IdentityService) UpdateUser(ctx context.Context, user services.User) er
 		return trace.Wrap(err)
 	}
 
-	value, err := services.GetUserMarshaler().MarshalUser(user.WithoutSecrets().(services.User))
+	value, err := services.MarshalUser(user.WithoutSecrets().(services.User))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -178,10 +180,10 @@ func (s *IdentityService) UpdateUser(ctx context.Context, user services.User) er
 
 // UpsertUser updates parameters about user, or creates an entry if not exist.
 func (s *IdentityService) UpsertUser(user services.User) error {
-	if err := user.Check(); err != nil {
+	if err := services.ValidateUser(user); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := services.GetUserMarshaler().MarshalUser(user.WithoutSecrets().(services.User))
+	value, err := services.MarshalUser(user.WithoutSecrets().(services.User))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -215,7 +217,7 @@ func (s *IdentityService) GetUser(user string, withSecrets bool) (services.User,
 	if err != nil {
 		return nil, trace.NotFound("user %q is not found", user)
 	}
-	u, err := services.GetUserMarshaler().UnmarshalUser(
+	u, err := services.UnmarshalUser(
 		item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -237,8 +239,8 @@ func (s *IdentityService) getUserWithSecrets(user string) (services.User, error)
 	}
 	var uitems userItems
 	for _, item := range result.Items {
-		suffix := trimToSuffix(string(item.Key))
-		uitems.Set(suffix, item) // Result of Set i
+		suffix := bytes.TrimPrefix(item.Key, append(startKey, byte(backend.Separator)))
+		uitems.Set(string(suffix), item) // Result of Set i
 	}
 	u, err := userFromUserItems(user, uitems)
 	if err != nil {
@@ -254,25 +256,8 @@ func (s *IdentityService) upsertLocalAuthSecrets(user string, auth services.Loca
 			return trace.Wrap(err)
 		}
 	}
-	if len(auth.TOTPKey) > 0 {
-		err := s.UpsertTOTP(user, auth.TOTPKey)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	if auth.U2FRegistration != nil {
-		reg, err := auth.GetU2FRegistration()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		err = s.UpsertU2FRegistration(user, reg)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	if auth.U2FCounter > 0 || auth.U2FRegistration != nil {
-		err := s.UpsertU2FRegistrationCounter(user, auth.U2FCounter)
-		if err != nil {
+	for _, d := range auth.MFA {
+		if err := s.UpsertMFADevice(context.TODO(), user, d); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -346,11 +331,7 @@ func (s *IdentityService) UpsertPasswordHash(username string, hash []byte) error
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	user, err := services.GetUserMarshaler().GenerateUser(userPrototype)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = s.CreateUser(user)
+	err = s.CreateUser(userPrototype)
 	if err != nil {
 		if !trace.IsAlreadyExists(err) {
 			return trace.Wrap(err)
@@ -383,7 +364,7 @@ func (s *IdentityService) GetPasswordHash(user string) ([]byte, error) {
 }
 
 // UpsertHOTP upserts HOTP state for user
-// Deprecated: HOTP use is deprecated, use UpsertTOTP instead.
+// Deprecated: HOTP use is deprecated, use UpsertMFADevice instead.
 func (s *IdentityService) UpsertHOTP(user string, otp *hotp.HOTP) error {
 	if user == "" {
 		return trace.BadParameter("missing user name")
@@ -407,7 +388,7 @@ func (s *IdentityService) UpsertHOTP(user string, otp *hotp.HOTP) error {
 }
 
 // GetHOTP gets HOTP token state for a user
-// Deprecated: HOTP use is deprecated, use GetTOTP instead.
+// Deprecated: HOTP use is deprecated, use GetMFADevices instead.
 func (s *IdentityService) GetHOTP(user string) (*hotp.HOTP, error) {
 	if user == "" {
 		return nil, trace.BadParameter("missing user name")
@@ -427,42 +408,6 @@ func (s *IdentityService) GetHOTP(user string) (*hotp.HOTP, error) {
 	}
 
 	return otp, nil
-}
-
-// UpsertTOTP upserts TOTP secret key for a user that can be used to generate and validate tokens.
-func (s *IdentityService) UpsertTOTP(user string, secretKey string) error {
-	if user == "" {
-		return trace.BadParameter("missing user name")
-	}
-
-	item := backend.Item{
-		Key:   backend.Key(webPrefix, usersPrefix, user, totpPrefix),
-		Value: []byte(secretKey),
-	}
-
-	_, err := s.Put(context.TODO(), item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// GetTOTP returns the secret key used by the TOTP algorithm to validate tokens
-func (s *IdentityService) GetTOTP(user string) (string, error) {
-	if user == "" {
-		return "", trace.BadParameter("missing user name")
-	}
-
-	item, err := s.Get(context.TODO(), backend.Key(webPrefix, usersPrefix, user, totpPrefix))
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return "", trace.NotFound("OTP key for user(%q) is not found", user)
-		}
-		return "", trace.Wrap(err)
-	}
-
-	return string(item.Value), nil
 }
 
 // UpsertUsedTOTPToken upserts a TOTP token to the backend so it can't be used again
@@ -506,26 +451,6 @@ func (s *IdentityService) DeleteUsedTOTPToken(user string) error {
 		return trace.BadParameter("missing user name")
 	}
 	return s.Delete(context.TODO(), backend.Key(webPrefix, usersPrefix, user, usedTOTPPrefix))
-}
-
-// UpsertWebSession updates or inserts a web session for a user and session id
-// the session will be created with bearer token expiry time TTL, because
-// it is expected to be extended by the client before then
-func (s *IdentityService) UpsertWebSession(user, sid string, session services.WebSession) error {
-	session.SetUser(user)
-	session.SetName(sid)
-	value, err := services.GetWebSessionMarshaler().MarshalWebSession(session)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	sessionMetadata := session.GetMetadata()
-	item := backend.Item{
-		Key:     backend.Key(webPrefix, usersPrefix, user, sessionsPrefix, sid),
-		Value:   value,
-		Expires: backend.EarliestExpiry(session.GetBearerTokenExpiryTime(), sessionMetadata.Expiry()),
-	}
-	_, err = s.Put(context.TODO(), item)
-	return trace.Wrap(err)
 }
 
 // AddUserLoginAttempt logs user login attempt
@@ -577,41 +502,6 @@ func (s *IdentityService) DeleteUserLoginAttempts(user string) error {
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// GetWebSession returns a web session state for a given user and session id
-func (s *IdentityService) GetWebSession(user, sid string) (services.WebSession, error) {
-	if user == "" {
-		return nil, trace.BadParameter("missing username")
-	}
-	if sid == "" {
-		return nil, trace.BadParameter("missing session id")
-	}
-	item, err := s.Get(context.TODO(), backend.Key(webPrefix, usersPrefix, user, sessionsPrefix, sid))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	session, err := services.GetWebSessionMarshaler().UnmarshalWebSession(item.Value)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// this is for backwards compatibility to ensure we
-	// always have these values
-	session.SetUser(user)
-	session.SetName(sid)
-	return session, nil
-}
-
-// DeleteWebSession deletes web session from the storage
-func (s *IdentityService) DeleteWebSession(user, sid string) error {
-	if user == "" {
-		return trace.BadParameter("missing username")
-	}
-	if sid == "" {
-		return trace.BadParameter("missing session id")
-	}
-	err := s.Delete(context.TODO(), backend.Key(webPrefix, usersPrefix, user, sessionsPrefix, sid))
-	return trace.Wrap(err)
 }
 
 // UpsertPassword upserts new password hash into a backend.
@@ -672,111 +562,73 @@ func (s *IdentityService) GetU2FRegisterChallenge(token string) (*u2f.Challenge,
 	return &u2fChal, nil
 }
 
-// u2fRegistration is a marshallable version of u2f.Registration that cannot be
-// json marshalled due to the pointer in the public key
-type u2fRegistration struct {
-	Raw              []byte `json:"raw"`
-	KeyHandle        []byte `json:"keyhandle"`
-	MarshalledPubKey []byte `json:"marshalled_pubkey"`
-	// AttestationCert is not needed for authentication so we don't need to store it
-}
-
-func (s *IdentityService) UpsertU2FRegistration(user string, u2fReg *u2f.Registration) error {
+func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error {
 	if user == "" {
 		return trace.BadParameter("missing parameter user")
 	}
-
-	pubKeyValue, err := x509.MarshalPKIXPublicKey(&u2fReg.PubKey)
-	if err != nil {
+	if err := d.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	value, err := json.Marshal(u2fRegistration{
-		Raw:              u2fReg.Raw,
-		KeyHandle:        u2fReg.KeyHandle,
-		MarshalledPubKey: pubKeyValue,
-	})
+	// Check device Name for uniqueness.
+	devs, err := s.GetMFADevices(ctx, user)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, dd := range devs {
+		// Same ID and Name is OK - it means update existing resource.
+		// Different Id and same Name is not OK - it means a duplicate device.
+		if d.Metadata.Name == dd.Metadata.Name && d.Id != dd.Id {
+			return trace.AlreadyExists("MFA device with name %q already exists with ID %q", dd.Metadata.Name, dd.Id)
+		}
+	}
+
+	value, err := json.Marshal(d)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:   backend.Key(webPrefix, usersPrefix, user, u2fRegistrationPrefix),
+		Key:   backend.Key(webPrefix, usersPrefix, user, mfaDevicePrefix, d.Id),
 		Value: value,
 	}
 
-	_, err = s.Put(context.TODO(), item)
-	if err != nil {
+	if _, err := s.Put(ctx, item); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-func (s *IdentityService) GetU2FRegistration(user string) (*u2f.Registration, error) {
-	item, err := s.Get(context.TODO(), backend.Key(webPrefix, usersPrefix, user, u2fRegistrationPrefix))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var reg u2fRegistration
-	err = json.Unmarshal(item.Value, &reg)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	pubKeyI, err := x509.ParsePKIXPublicKey(reg.MarshalledPubKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	pubKey, ok := pubKeyI.(*ecdsa.PublicKey)
-	if !ok {
-		return nil, trace.BadParameter("failed to convert crypto.PublicKey back to ecdsa.PublicKey")
-	}
-
-	return &u2f.Registration{
-		Raw:       reg.Raw,
-		KeyHandle: reg.KeyHandle,
-		PubKey:    *pubKey,
-	}, nil
-}
-
-type u2fRegistrationCounter struct {
-	Counter uint32 `json:"counter"`
-}
-
-func (s *IdentityService) UpsertU2FRegistrationCounter(user string, counter uint32) error {
+func (s *IdentityService) DeleteMFADevice(ctx context.Context, user, id string) error {
 	if user == "" {
-		return trace.BadParameter("missing parameter")
+		return trace.BadParameter("missing parameter user")
 	}
-	value, err := json.Marshal(u2fRegistrationCounter{
-		Counter: counter,
-	})
-	if err != nil {
-		return trace.Wrap(err)
+	if id == "" {
+		return trace.BadParameter("missing parameter id")
 	}
 
-	item := backend.Item{
-		Key:   backend.Key(webPrefix, usersPrefix, user, u2fRegistrationCounterPrefix),
-		Value: value,
-	}
-	_, err = s.Put(context.TODO(), item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	err := s.Delete(ctx, backend.Key(webPrefix, usersPrefix, user, mfaDevicePrefix, id))
+	return trace.Wrap(err)
 }
 
-func (s *IdentityService) GetU2FRegistrationCounter(user string) (uint32, error) {
-	item, err := s.Get(context.TODO(), backend.Key(webPrefix, usersPrefix, user, u2fRegistrationCounterPrefix))
-	if err != nil {
-		return 0, trace.Wrap(err)
+func (s *IdentityService) GetMFADevices(ctx context.Context, user string) ([]*types.MFADevice, error) {
+	if user == "" {
+		return nil, trace.BadParameter("missing parameter user")
 	}
-	var counter u2fRegistrationCounter
-	err = json.Unmarshal(item.Value, &counter)
+
+	startKey := backend.Key(webPrefix, usersPrefix, user, mfaDevicePrefix)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
-		return 0, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return counter.Counter, nil
+	devices := make([]*types.MFADevice, 0, len(result.Items))
+	for _, item := range result.Items {
+		var d types.MFADevice
+		if err := json.Unmarshal(item.Value, &d); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		devices = append(devices, &d)
+	}
+	return devices, nil
 }
 
 func (s *IdentityService) UpsertU2FSignChallenge(user string, challenge *u2f.Challenge) error {
@@ -820,7 +672,7 @@ func (s *IdentityService) UpsertOIDCConnector(connector services.OIDCConnector) 
 	if err := connector.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := services.GetOIDCConnectorMarshaler().MarshalOIDCConnector(connector)
+	value, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -859,7 +711,7 @@ func (s *IdentityService) GetOIDCConnector(name string, withSecrets bool) (servi
 		}
 		return nil, trace.Wrap(err)
 	}
-	conn, err := services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(item.Value,
+	conn, err := services.UnmarshalOIDCConnector(item.Value,
 		services.WithExpires(item.Expires))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -879,7 +731,7 @@ func (s *IdentityService) GetOIDCConnectors(withSecrets bool) ([]services.OIDCCo
 	}
 	connectors := make([]services.OIDCConnector, len(result.Items))
 	for i, item := range result.Items {
-		conn, err := services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(
+		conn, err := services.UnmarshalOIDCConnector(
 			item.Value, services.WithExpires(item.Expires))
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -931,10 +783,10 @@ func (s *IdentityService) GetOIDCAuthRequest(stateToken string) (*services.OIDCA
 
 // CreateSAMLConnector creates SAML Connector
 func (s *IdentityService) CreateSAMLConnector(connector services.SAMLConnector) error {
-	if err := connector.CheckAndSetDefaults(); err != nil {
+	if err := services.ValidateSAMLConnector(connector); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := services.GetSAMLConnectorMarshaler().MarshalSAMLConnector(connector)
+	value, err := services.MarshalSAMLConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -952,10 +804,10 @@ func (s *IdentityService) CreateSAMLConnector(connector services.SAMLConnector) 
 
 // UpsertSAMLConnector upserts SAML Connector
 func (s *IdentityService) UpsertSAMLConnector(connector services.SAMLConnector) error {
-	if err := connector.CheckAndSetDefaults(); err != nil {
+	if err := services.ValidateSAMLConnector(connector); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := services.GetSAMLConnectorMarshaler().MarshalSAMLConnector(connector)
+	value, err := services.MarshalSAMLConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -993,7 +845,7 @@ func (s *IdentityService) GetSAMLConnector(name string, withSecrets bool) (servi
 		}
 		return nil, trace.Wrap(err)
 	}
-	conn, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(
+	conn, err := services.UnmarshalSAMLConnector(
 		item.Value, services.WithExpires(item.Expires))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1018,7 +870,7 @@ func (s *IdentityService) GetSAMLConnectors(withSecrets bool) ([]services.SAMLCo
 	}
 	connectors := make([]services.SAMLConnector, len(result.Items))
 	for i, item := range result.Items {
-		conn, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(
+		conn, err := services.UnmarshalSAMLConnector(
 			item.Value, services.WithExpires(item.Expires))
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1077,7 +929,7 @@ func (s *IdentityService) CreateGithubConnector(connector services.GithubConnect
 	if err := connector.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := services.GetGithubConnectorMarshaler().Marshal(connector)
+	value, err := services.MarshalGithubConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1098,7 +950,7 @@ func (s *IdentityService) UpsertGithubConnector(connector services.GithubConnect
 	if err := connector.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := services.GetGithubConnectorMarshaler().Marshal(connector)
+	value, err := services.MarshalGithubConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1124,7 +976,7 @@ func (s *IdentityService) GetGithubConnectors(withSecrets bool) ([]services.Gith
 	}
 	connectors := make([]services.GithubConnector, len(result.Items))
 	for i, item := range result.Items {
-		connector, err := services.GetGithubConnectorMarshaler().Unmarshal(item.Value)
+		connector, err := services.UnmarshalGithubConnector(item.Value)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1148,7 +1000,7 @@ func (s *IdentityService) GetGithubConnector(name string, withSecrets bool) (ser
 		}
 		return nil, trace.Wrap(err)
 	}
-	connector, err := services.GetGithubConnectorMarshaler().Unmarshal(item.Value)
+	connector, err := services.UnmarshalGithubConnector(item.Value)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1206,22 +1058,26 @@ func (s *IdentityService) GetGithubAuthRequest(stateToken string) (*services.Git
 }
 
 const (
-	webPrefix                    = "web"
-	usersPrefix                  = "users"
-	sessionsPrefix               = "sessions"
-	attemptsPrefix               = "attempts"
-	pwdPrefix                    = "pwd"
-	hotpPrefix                   = "hotp"
+	webPrefix              = "web"
+	usersPrefix            = "users"
+	sessionsPrefix         = "sessions"
+	attemptsPrefix         = "attempts"
+	pwdPrefix              = "pwd"
+	hotpPrefix             = "hotp"
+	connectorsPrefix       = "connectors"
+	oidcPrefix             = "oidc"
+	samlPrefix             = "saml"
+	githubPrefix           = "github"
+	requestsPrefix         = "requests"
+	u2fRegChalPrefix       = "adduseru2fchallenges"
+	usedTOTPPrefix         = "used_totp"
+	usedTOTPTTL            = 30 * time.Second
+	mfaDevicePrefix        = "mfa"
+	u2fSignChallengePrefix = "u2fsignchallenge"
+
+	// DELETE IN 7.0: these prefixes are migrated to mfaDevicePrefix in 6.0 on
+	// first startup.
 	totpPrefix                   = "totp"
-	connectorsPrefix             = "connectors"
-	oidcPrefix                   = "oidc"
-	samlPrefix                   = "saml"
-	githubPrefix                 = "github"
-	requestsPrefix               = "requests"
-	u2fRegChalPrefix             = "adduseru2fchallenges"
-	usedTOTPPrefix               = "used_totp"
-	usedTOTPTTL                  = 30 * time.Second
 	u2fRegistrationPrefix        = "u2fregistration"
 	u2fRegistrationCounterPrefix = "u2fregistrationcounter"
-	u2fSignChallengePrefix       = "u2fsignchallenge"
 )

@@ -91,7 +91,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster servic
 	case exists == false && enable == true:
 		log.Debugf("Creating enabled Trusted Cluster relationship.")
 
-		if err := a.checkLocalRoles(trustedCluster.GetRoleMap()); err != nil {
+		if err := a.checkLocalRoles(ctx, trustedCluster.GetRoleMap()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -115,7 +115,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster servic
 	case exists == false && enable == false:
 		log.Debugf("Creating disabled Trusted Cluster relationship.")
 
-		if err := a.checkLocalRoles(trustedCluster.GetRoleMap()); err != nil {
+		if err := a.checkLocalRoles(ctx, trustedCluster.GetRoleMap()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -159,7 +159,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster servic
 	return tc, nil
 }
 
-func (a *Server) checkLocalRoles(roleMap services.RoleMap) error {
+func (a *Server) checkLocalRoles(ctx context.Context, roleMap services.RoleMap) error {
 	for _, mapping := range roleMap {
 		for _, localRole := range mapping.Local {
 			// expansion means dynamic mapping is in place,
@@ -167,7 +167,7 @@ func (a *Server) checkLocalRoles(roleMap services.RoleMap) error {
 			if utils.ContainsExpansion(localRole) {
 				continue
 			}
-			_, err := a.GetRole(localRole)
+			_, err := a.GetRole(ctx, localRole)
 			if err != nil {
 				if trace.IsNotFound(err) {
 					return trace.NotFound("a role %q referenced in a mapping %v:%v is not defined", localRole, mapping.Remote, mapping.Local)
@@ -595,7 +595,7 @@ func (v *ValidateTrustedClusterRequest) ToRaw() (*ValidateTrustedClusterRequestR
 	cas := [][]byte{}
 
 	for _, certAuthority := range v.CAs {
-		data, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(certAuthority)
+		data, err := services.MarshalCertAuthority(certAuthority)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -618,7 +618,7 @@ func (v *ValidateTrustedClusterRequestRaw) ToNative() (*ValidateTrustedClusterRe
 	cas := []services.CertAuthority{}
 
 	for _, rawCertAuthority := range v.CAs {
-		certAuthority, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(rawCertAuthority)
+		certAuthority, err := services.UnmarshalCertAuthority(rawCertAuthority)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -640,7 +640,7 @@ func (v *ValidateTrustedClusterResponse) ToRaw() (*ValidateTrustedClusterRespons
 	cas := [][]byte{}
 
 	for _, certAuthority := range v.CAs {
-		data, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(certAuthority)
+		data, err := services.MarshalCertAuthority(certAuthority)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -661,7 +661,7 @@ func (v *ValidateTrustedClusterResponseRaw) ToNative() (*ValidateTrustedClusterR
 	cas := []services.CertAuthority{}
 
 	for _, rawCertAuthority := range v.CAs {
-		certAuthority, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(rawCertAuthority)
+		certAuthority, err := services.UnmarshalCertAuthority(rawCertAuthority)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

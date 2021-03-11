@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"testing"
 	"time"
 
@@ -41,14 +42,18 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
+	"github.com/jackc/pgproto3/v2"
 	"github.com/stretchr/testify/require"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 // TestMux tests multiplexing protocols
 // using the same listener.
 func TestMux(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	_, signer, err := utils.CreateCertificate("foo", ssh.HostCert)
 	require.Nil(t, err)
 
@@ -509,6 +514,37 @@ func TestMux(t *testing.T) {
 			err := <-errCh
 			require.Nil(t, err)
 		}
+	})
+
+	t.Run("PostgresProxy", func(t *testing.T) {
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		mux, err := New(Config{
+			Context:  ctx,
+			Listener: listener,
+		})
+		require.NoError(t, err)
+		go mux.Serve()
+		defer mux.Close()
+
+		// Connect to the listener and send Postgres SSLRequest which is what
+		// psql or other Postgres client will do.
+		conn, err := net.Dial("tcp", listener.Addr().String())
+		require.NoError(t, err)
+		defer conn.Close()
+
+		frontend := pgproto3.NewFrontend(pgproto3.NewChunkReader(conn), conn)
+		err = frontend.Send(&pgproto3.SSLRequest{})
+		require.NoError(t, err)
+
+		// This should not hang indefinitely since we set timeout on the mux context above.
+		conn, err = mux.DB().Accept()
+		require.NoError(t, err, "detected Postgres connection")
+		require.Equal(t, ProtoPostgres, conn.(*Conn).Protocol())
 	})
 }
 

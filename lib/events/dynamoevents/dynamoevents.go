@@ -499,45 +499,64 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, filter string, limit int) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	input := dynamodb.QueryInput{
-		KeyConditionExpression:    aws.String(query),
-		TableName:                 aws.String(l.Tablename),
-		ExpressionAttributeValues: attributeValues,
-		IndexName:                 aws.String(indexTimeSearch),
-	}
-	start := time.Now()
-	out, err := l.svc.Query(&input)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	g.WithFields(log.Fields{"duration": time.Since(start), "items": len(out.Items)}).Debugf("Query completed.")
+
+	var lastEvaluatedKey map[string]*dynamodb.AttributeValue
 	var total int
-	for _, item := range out.Items {
-		var e event
-		if err := dynamodbattribute.UnmarshalMap(item, &e); err != nil {
-			return nil, trace.BadParameter("failed to unmarshal event for %v", err)
+
+	// Because the maximum size of the dynamo db response size is 900K according to documentation,
+	// we arbitrary limit the total size to 100MB to prevent runaway loops.
+	for pageCount := 0; pageCount < 100; pageCount++ {
+		input := dynamodb.QueryInput{
+			KeyConditionExpression:    aws.String(query),
+			TableName:                 aws.String(l.Tablename),
+			ExpressionAttributeValues: attributeValues,
+			IndexName:                 aws.String(indexTimeSearch),
+			ExclusiveStartKey:         lastEvaluatedKey,
 		}
-		var fields events.EventFields
-		data := []byte(e.Fields)
-		if err := json.Unmarshal(data, &fields); err != nil {
-			return nil, trace.BadParameter("failed to unmarshal event %v", err)
+		start := time.Now()
+		out, err := l.svc.Query(&input)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-		var accepted bool
-		for i := range eventFilter {
-			if fields.GetString(events.EventType) == eventFilter[i] {
-				accepted = true
-				break
+		g.WithFields(log.Fields{"duration": time.Since(start), "items": len(out.Items)}).Debugf("Query completed.")
+
+		for _, item := range out.Items {
+			var e event
+			if err := dynamodbattribute.UnmarshalMap(item, &e); err != nil {
+				return nil, trace.BadParameter("failed to unmarshal event for %v", err)
+			}
+			var fields events.EventFields
+			data := []byte(e.Fields)
+			if err := json.Unmarshal(data, &fields); err != nil {
+				return nil, trace.BadParameter("failed to unmarshal event %v", err)
+			}
+			var accepted bool
+			for i := range eventFilter {
+				if fields.GetString(events.EventType) == eventFilter[i] {
+					accepted = true
+					break
+				}
+			}
+			if accepted || !doFilter {
+				values = append(values, fields)
+				total++
+				if limit > 0 && total >= limit {
+					break
+				}
 			}
 		}
-		if accepted || !doFilter {
-			values = append(values, fields)
-			total++
-			if limit > 0 && total >= limit {
-				break
-			}
+
+		// AWS returns a `lastEvaluatedKey` in case the response is truncated, i.e. needs to be fetched with
+		// multiple requests. According to their documentation, the final response is signaled by not setting
+		// this value - therefore we use it as our break condition.
+		lastEvaluatedKey = out.LastEvaluatedKey
+		if len(lastEvaluatedKey) == 0 {
+			sort.Sort(events.ByTimeAndIndex(values))
+			return values, nil
 		}
 	}
-	sort.Sort(events.ByTimeAndIndex(values))
+
+	g.Error("DynamoDB response size exceeded limit.")
 	return values, nil
 }
 
@@ -640,7 +659,7 @@ func (l *Log) createTable(tableName string) error {
 		KeySchema:             elems,
 		ProvisionedThroughput: &provisionedThroughput,
 		GlobalSecondaryIndexes: []*dynamodb.GlobalSecondaryIndex{
-			&dynamodb.GlobalSecondaryIndex{
+			{
 				IndexName: aws.String(indexTimeSearch),
 				KeySchema: []*dynamodb.KeySchemaElement{
 					{

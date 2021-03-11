@@ -25,43 +25,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// NewSigner returns new ssh Signer from private key + certificate pair.  The
-// signer can be used to create "auth methods" i.e. login into Teleport SSH
-// servers.
-func NewSigner(keyBytes, certBytes []byte) (ssh.Signer, error) {
-	keySigner, err := ssh.ParsePrivateKey(keyBytes)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse SSH private key")
-	}
-
-	pubkey, _, _, _, err := ssh.ParseAuthorizedKey(certBytes)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse SSH certificate")
-	}
-
-	cert, ok := pubkey.(*ssh.Certificate)
-	if !ok {
-		return nil, trace.BadParameter("expected SSH certificate, got %T ", pubkey)
-	}
-
-	return ssh.NewCertSigner(cert, keySigner)
-}
-
-// CryptoPublicKey extracts public key from RSA public key in authorized_keys format
-func CryptoPublicKey(publicKey []byte) (crypto.PublicKey, error) {
-	// reuse the same RSA keys for SSH and TLS keys
-	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(publicKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cryptoPubKey, ok := pubKey.(ssh.CryptoPublicKey)
-	if !ok {
-		return nil, trace.BadParameter("expected ssh.CryptoPublicKey, got %T", pubKey)
-	}
-	return cryptoPubKey.CryptoPublicKey(), nil
-}
-
-// AlgSigner wraps a provided ssh.Signer to ensure signature algorithm
+// AlgSigner wraps the provided ssh.Signer to ensure signature algorithm
 // compatibility with OpenSSH.
 //
 // Right now it allows forcing SHA-2 signatures with RSA keys, instead of the
@@ -104,4 +68,35 @@ func (s fixedAlgorithmSigner) SignWithAlgorithm(rand io.Reader, data []byte, alg
 
 func (s fixedAlgorithmSigner) Sign(rand io.Reader, data []byte) (*ssh.Signature, error) {
 	return s.AlgorithmSigner.SignWithAlgorithm(rand, data, s.alg)
+}
+
+// NewSigner returns new ssh Signer from private key + certificate pair.  The
+// signer can be used to create "auth methods" i.e. login into Teleport SSH
+// servers.
+func NewSigner(keyBytes, certBytes []byte) (ssh.Signer, error) {
+	keySigner, err := ssh.ParsePrivateKey(keyBytes)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse SSH private key")
+	}
+
+	cert, err := ParseCertificate(certBytes)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse SSH certificate")
+	}
+
+	return ssh.NewCertSigner(cert, keySigner)
+}
+
+// CryptoPublicKey extracts public key from RSA public key in authorized_keys format
+func CryptoPublicKey(publicKey []byte) (crypto.PublicKey, error) {
+	// reuse the same RSA keys for SSH and TLS keys
+	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(publicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cryptoPubKey, ok := pubKey.(ssh.CryptoPublicKey)
+	if !ok {
+		return nil, trace.BadParameter("expected ssh.CryptoPublicKey, got %T", pubKey)
+	}
+	return cryptoPubKey.CryptoPublicKey(), nil
 }

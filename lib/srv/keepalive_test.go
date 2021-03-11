@@ -18,12 +18,9 @@ package srv
 
 import (
 	"context"
-	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 
@@ -32,14 +29,9 @@ import (
 
 type KeepAliveSuite struct{}
 
-var _ = fmt.Printf
 var _ = check.Suite(&KeepAliveSuite{})
 
 func TestSrv(t *testing.T) { check.TestingT(t) }
-
-func (s *KeepAliveSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (s *KeepAliveSuite) TestServerClose(c *check.C) {
 	doneCh := make(chan bool, 1)

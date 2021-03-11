@@ -290,6 +290,10 @@ const (
 	UserDeleteCode = "T1004I"
 	// UserPasswordChangeCode is an event code for when user changes their own password.
 	UserPasswordChangeCode = "T1005I"
+	// MFADeviceAddEventCode is an event code for users adding MFA devices.
+	MFADeviceAddEventCode = "T1006I"
+	// MFADeviceDeleteEventCode is an event code for users deleting MFA devices.
+	MFADeviceDeleteEventCode = "T1007I"
 
 	// SessionRejectedCode is an event code for when a user's attempt to create an
 	// session/connection has been rejected.
@@ -316,6 +320,15 @@ const (
 	AppSessionChunkCode = "T2008I"
 	// AppSessionRequestCode is the application request/response code.
 	AppSessionRequestCode = "T2009I"
+
+	// DatabaseSessioStartCode is the database session start event code.
+	DatabaseSessionStartCode = "TDB00I"
+	// DatabaseSessionStartFailureCode is the database session start failure event code.
+	DatabaseSessionStartFailureCode = "TDB00W"
+	// DatabaseSessionEndCode is the database session end event code.
+	DatabaseSessionEndCode = "TDB01I"
+	// DatabaseSessionQueryCode is the database query event code.
+	DatabaseSessionQueryCode = "TDB02I"
 
 	// SubsystemCode is the subsystem event code.
 	SubsystemCode = "T3001I"

@@ -153,6 +153,12 @@ type Server struct {
 
 	// onHeartbeat is a callback for heartbeat status.
 	onHeartbeat func(error)
+
+	// utmpPath is the path to the user accounting database.
+	utmpPath string
+
+	// wtmpPath is the path to the user accounting log.
+	wtmpPath string
 }
 
 // GetClock returns server clock implementation
@@ -178,6 +184,11 @@ func (s *Server) GetSessionServer() rsession.Service {
 		return rsession.NewDiscardSessionServer()
 	}
 	return s.sessionServer
+}
+
+// GetUtmpPath returns the optional override of the utmp and wtmp path.
+func (s *Server) GetUtmpPath() (string, string) {
+	return s.utmpPath, s.wtmpPath
 }
 
 // GetPAM returns the PAM configuration for this server.
@@ -296,6 +307,24 @@ func (s *Server) HandleConnection(conn net.Conn) {
 
 // RotationGetter returns rotation state
 type RotationGetter func(role teleport.Role) (*services.Rotation, error)
+
+// SetUtmpPath is a functional server option to override the user accounting database and log path.
+func SetUtmpPath(utmpPath, wtmpPath string) ServerOption {
+	return func(s *Server) error {
+		s.utmpPath = utmpPath
+		s.wtmpPath = wtmpPath
+		return nil
+	}
+}
+
+// SetClock is a functional server option to override the internal
+// clock
+func SetClock(clock clockwork.Clock) ServerOption {
+	return func(s *Server) error {
+		s.clock = clock
+		return nil
+	}
+}
 
 // SetRotationGetter sets rotation state getter
 func SetRotationGetter(getter RotationGetter) ServerOption {
@@ -542,6 +571,7 @@ func New(addr utils.NetAddr,
 		AccessPoint: s.authService,
 		FIPS:        s.fips,
 		Emitter:     s.StreamEmitter,
+		Clock:       s.clock,
 	}
 
 	// common term handlers
@@ -710,7 +740,7 @@ func (s *Server) GetInfo() services.Server {
 	}
 }
 
-func (s *Server) getServerInfo() (services.Server, error) {
+func (s *Server) getServerInfo() (services.Resource, error) {
 	server := s.GetInfo()
 	if s.getRotation != nil {
 		rotation, err := s.getRotation(s.getRole())
@@ -722,7 +752,7 @@ func (s *Server) getServerInfo() (services.Server, error) {
 			server.SetRotation(*rotation)
 		}
 	}
-	server.SetTTL(s.clock, defaults.ServerAnnounceTTL)
+	server.SetExpiry(s.clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
 	server.SetPublicAddr(s.proxyPublicAddr.String())
 	return server, nil
 }

@@ -1,5 +1,5 @@
 /*
-Copyright 2017-2020 Gravitational, Inc.
+Copyright 2017-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,15 +20,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -259,7 +258,12 @@ func (a *Server) validateGithubAuthCallback(q url.Values) (*githubAuthResponse, 
 
 	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
-		session, err := a.createWebSession(user, params.sessionTTL)
+		session, err := a.createWebSession(context.TODO(), types.NewWebSessionRequest{
+			User:       user.GetName(),
+			Roles:      user.GetRoles(),
+			Traits:     user.GetTraits(),
+			SessionTTL: params.sessionTTL,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -296,23 +300,16 @@ func (a *Server) validateGithubAuthCallback(q url.Values) (*githubAuthResponse, 
 	return re, nil
 }
 
-func (a *Server) createWebSession(user services.User, sessionTTL time.Duration) (services.WebSession, error) {
+func (a *Server) createWebSession(ctx context.Context, req types.NewWebSessionRequest) (services.WebSession, error) {
 	// It's safe to extract the roles and traits directly from services.User
 	// because this occurs during the user creation process and services.User
 	// is not fetched from the backend.
-	session, err := a.NewWebSession(user.GetName(), user.GetRoles(), user.GetTraits())
+	session, err := a.NewWebSession(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Session expiry time is the same as the user expiry time.
-	session.SetExpiryTime(a.clock.Now().UTC().Add(sessionTTL))
-
-	// Bearer tokens expire quicker than the overall session time and need to be refreshed.
-	bearerTTL := utils.MinTTL(BearerTokenTTL, sessionTTL)
-	session.SetBearerTokenExpiryTime(a.clock.Now().UTC().Add(bearerTTL))
-
-	err = a.UpsertWebSession(user.GetName(), session)
+	err = a.upsertWebSession(ctx, req.User, session)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -387,8 +384,12 @@ func (a *Server) calculateGithubUser(connector services.GithubConnector, claims 
 			"user %q does not belong to any teams configured in %q connector",
 			claims.Username, connector.GetName())
 	}
-	p.roles = modules.GetModules().RolesFromLogins(p.logins)
-	p.traits = modules.GetModules().TraitsFromLogins(p.username, p.logins, p.kubeGroups, p.kubeUsers)
+	p.roles = p.logins
+	p.traits = map[string][]string{
+		teleport.TraitLogins:     []string{p.username},
+		teleport.TraitKubeGroups: p.kubeGroups,
+		teleport.TraitKubeUsers:  p.kubeUsers,
+	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.
 	roles, err := services.FetchRoles(p.roles, a.Access, p.traits)
@@ -409,7 +410,7 @@ func (a *Server) createGithubUser(p *createUserParams) (services.User, error) {
 
 	expires := a.GetClock().Now().UTC().Add(p.sessionTTL)
 
-	user, err := services.GetUserMarshaler().GenerateUser(&services.UserV2{
+	user := &services.UserV2{
 		Kind:    services.KindUser,
 		Version: services.V2,
 		Metadata: services.Metadata{
@@ -428,15 +429,12 @@ func (a *Server) createGithubUser(p *createUserParams) (services.User, error) {
 				User: services.UserRef{Name: teleport.UserSystem},
 				Time: a.GetClock().Now().UTC(),
 				Connector: &services.ConnectorRef{
-					Type:     teleport.ConnectorGithub,
+					Type:     teleport.Github,
 					ID:       p.connectorName,
 					Identity: p.username,
 				},
 			},
 		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	existingUser, err := a.GetUser(p.username, false)
@@ -663,7 +661,7 @@ func (c *githubAPIClient) get(url string) ([]byte, string, error) {
 		return nil, "", trace.Wrap(err)
 	}
 	defer response.Body.Close()
-	bytes, err := ioutil.ReadAll(response.Body)
+	bytes, err := utils.ReadAtMost(response.Body, teleport.MaxHTTPResponseSize)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}

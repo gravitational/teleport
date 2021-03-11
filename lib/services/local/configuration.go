@@ -46,7 +46,7 @@ func (s *ClusterConfigurationService) GetClusterName(opts ...services.MarshalOpt
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.GetClusterNameMarshaler().Unmarshal(item.Value,
+	return services.UnmarshalClusterName(item.Value,
 		services.AddOptions(opts, services.WithResourceID(item.ID))...)
 }
 
@@ -65,7 +65,7 @@ func (s *ClusterConfigurationService) DeleteClusterName() error {
 // SetClusterName sets the name of the cluster in the backend. SetClusterName
 // can only be called once on a cluster after which it will return trace.AlreadyExists.
 func (s *ClusterConfigurationService) SetClusterName(c services.ClusterName) error {
-	value, err := services.GetClusterNameMarshaler().Marshal(c)
+	value, err := services.MarshalClusterName(c)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -84,7 +84,7 @@ func (s *ClusterConfigurationService) SetClusterName(c services.ClusterName) err
 
 // UpsertClusterName sets the name of the cluster in the backend.
 func (s *ClusterConfigurationService) UpsertClusterName(c services.ClusterName) error {
-	value, err := services.GetClusterNameMarshaler().Marshal(c)
+	value, err := services.MarshalClusterName(c)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -111,13 +111,13 @@ func (s *ClusterConfigurationService) GetStaticTokens() (services.StaticTokens, 
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.GetStaticTokensMarshaler().Unmarshal(item.Value,
+	return services.UnmarshalStaticTokens(item.Value,
 		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 }
 
 // SetStaticTokens sets the list of static tokens used to provision nodes.
 func (s *ClusterConfigurationService) SetStaticTokens(c services.StaticTokens) error {
-	value, err := services.GetStaticTokensMarshaler().Marshal(c)
+	value, err := services.MarshalStaticTokens(c)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -156,14 +156,14 @@ func (s *ClusterConfigurationService) GetAuthPreference() (services.AuthPreferen
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.GetAuthPreferenceMarshaler().Unmarshal(item.Value,
+	return services.UnmarshalAuthPreference(item.Value,
 		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 }
 
 // SetAuthPreference sets the cluster authentication preferences
 // on the backend.
 func (s *ClusterConfigurationService) SetAuthPreference(preferences services.AuthPreference) error {
-	value, err := services.GetAuthPreferenceMarshaler().Marshal(preferences)
+	value, err := services.MarshalAuthPreference(preferences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -191,7 +191,7 @@ func (s *ClusterConfigurationService) GetClusterConfig(opts ...services.MarshalO
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.GetClusterConfigMarshaler().Unmarshal(item.Value,
+	return services.UnmarshalClusterConfig(item.Value,
 		services.AddOptions(opts, services.WithResourceID(item.ID),
 			services.WithExpires(item.Expires))...)
 }
@@ -210,7 +210,7 @@ func (s *ClusterConfigurationService) DeleteClusterConfig() error {
 
 // SetClusterConfig sets services.ClusterConfig on the backend.
 func (s *ClusterConfigurationService) SetClusterConfig(c services.ClusterConfig) error {
-	value, err := services.GetClusterConfigMarshaler().Marshal(c)
+	value, err := services.MarshalClusterConfig(c)
 	if err != nil {
 		return trace.Wrap(err)
 	}

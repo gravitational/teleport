@@ -26,6 +26,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
@@ -107,9 +108,11 @@ func (s *remoteSite) getRemoteClient() (auth.ClientI, bool, error) {
 		// connecting to the remote one (it is used to find the right certificate
 		// authority to verify)
 		tlsConfig.ServerName = auth.EncodeClusterName(s.srv.ClusterName)
-		clt, err := auth.NewTLSClient(auth.ClientConfig{
+		clt, err := auth.NewClient(client.Config{
 			Dialer: auth.ContextDialerFunc(s.authServerContextDialer),
-			TLS:    tlsConfig,
+			Credentials: []client.Credentials{
+				client.LoadTLS(tlsConfig),
+			},
 		})
 		if err != nil {
 			return nil, false, trace.Wrap(err)

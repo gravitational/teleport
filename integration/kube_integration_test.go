@@ -31,7 +31,6 @@ import (
 	"os/user"
 	"strconv"
 	"strings"
-	"testing"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -48,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testlog"
 
-	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/check.v1"
 	v1 "k8s.io/api/core/v1"
@@ -61,6 +59,8 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport"
 	"k8s.io/client-go/transport/spdy"
+
+	"github.com/gravitational/trace"
 )
 
 var _ = check.Suite(&KubeSuite{})
@@ -99,7 +99,6 @@ func (s *KubeSuite) SetUpSuite(c *check.C) {
 	kubeproxy.TestOnlySkipSelfPermissionCheck(true)
 
 	var err error
-	utils.InitLoggerForTests(testing.Verbose())
 	SetTestTimeouts(time.Millisecond * time.Duration(100))
 
 	s.priv, s.pub, err = testauthority.New().GenerateKeyPair("")
@@ -178,7 +177,7 @@ func (s *KubeSuite) TestKubeExec(c *check.C) {
 		ClusterName: Site,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(5),
+		Ports:       s.ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
@@ -352,7 +351,7 @@ func (s *KubeSuite) TestKubeDeny(c *check.C) {
 		ClusterName: Site,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(5),
+		Ports:       s.ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
@@ -408,7 +407,7 @@ func (s *KubeSuite) TestKubePortForward(c *check.C) {
 		ClusterName: Site,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(5),
+		Ports:       s.ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
@@ -507,7 +506,7 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 		ClusterName: clusterMain,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(5),
+		Ports:       s.ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
@@ -531,7 +530,7 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 		ClusterName: clusterAux,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(5),
+		Ports:       s.ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
@@ -768,7 +767,7 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 		ClusterName: clusterMain,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(5),
+		Ports:       s.ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
@@ -792,7 +791,7 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 		ClusterName: clusterAux,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(5),
+		Ports:       s.ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
@@ -1051,7 +1050,7 @@ func (s *KubeSuite) runKubeDisconnectTest(c *check.C, tc disconnectTestCase) {
 		ClusterName: Site,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(5),
+		Ports:       s.ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
@@ -1206,7 +1205,7 @@ func kubeProxyClient(cfg kubeProxyConfig) (*kubernetes.Clientset, *rest.Config, 
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	tlsCA, err := ca.TLSCA()
+	tlsCA, err := tlsca.FromAuthority(ca)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

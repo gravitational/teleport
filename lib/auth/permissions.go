@@ -20,9 +20,12 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 
@@ -32,7 +35,7 @@ import (
 
 // NewAdminContext returns new admin auth context
 func NewAdminContext() (*Context, error) {
-	authContext, err := contextForBuiltinRole("", nil, teleport.RoleAdmin, fmt.Sprintf("%v", teleport.RoleAdmin))
+	authContext, err := contextForBuiltinRole(BuiltinRole{Role: teleport.RoleAdmin, Username: fmt.Sprintf("%v", teleport.RoleAdmin)}, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -40,7 +43,10 @@ func NewAdminContext() (*Context, error) {
 }
 
 // NewAuthorizer returns new authorizer using backends
-func NewAuthorizer(access services.Access, identity services.UserGetter, trust services.Trust) (Authorizer, error) {
+func NewAuthorizer(clusterName string, access services.Access, identity services.UserGetter, trust services.Trust) (Authorizer, error) {
+	if clusterName == "" {
+		return nil, trace.BadParameter("missing parameter clusterName")
+	}
 	if access == nil {
 		return nil, trace.BadParameter("missing parameter access")
 	}
@@ -50,7 +56,7 @@ func NewAuthorizer(access services.Access, identity services.UserGetter, trust s
 	if trust == nil {
 		return nil, trace.BadParameter("missing parameter trust")
 	}
-	return &authorizer{access: access, identity: identity, trust: trust}, nil
+	return &authorizer{clusterName: clusterName, access: access, identity: identity, trust: trust}, nil
 }
 
 // Authorizer authorizes identity and returns auth context
@@ -61,9 +67,10 @@ type Authorizer interface {
 
 // authorizer creates new local authorizer
 type authorizer struct {
-	access   services.Access
-	identity services.UserGetter
-	trust    services.Trust
+	clusterName string
+	access      services.Access
+	identity    services.UserGetter
+	trust       services.Trust
 }
 
 // AuthContext is authorization context
@@ -72,9 +79,18 @@ type Context struct {
 	User services.User
 	// Checker is access checker
 	Checker services.AccessChecker
-	// Identity holds user identity - whether it's a local or remote user,
-	// local or remote node, proxy or auth server
+	// Identity holds the caller identity:
+	// 1. If caller is a user
+	//   a. local user identity
+	//   b. remote user identity remapped to local identity based on trusted
+	//      cluster role mapping.
+	// 2. If caller is a teleport instance, Identity holds their identity as-is
+	//    (because there's no role mapping for non-human roles)
 	Identity IdentityGetter
+	// UnmappedIdentity holds the original caller identity. If this is a remote
+	// user, UnmappedIdentity holds the data before role mapping. Otherwise,
+	// it's identical to Identity.
+	UnmappedIdentity IdentityGetter
 }
 
 // Authorize authorizes user based on identity supplied via context
@@ -83,15 +99,10 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 		return nil, trace.AccessDenied("missing authentication context")
 	}
 	userI := ctx.Value(ContextUser)
-	userWithIdentity, ok := userI.(IdentityGetter)
-	if !ok {
-		return nil, trace.AccessDenied("unsupported context type %T", userI)
-	}
 	authContext, err := a.fromUser(userI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	authContext.Identity = userWithIdentity
 	return authContext, nil
 }
 
@@ -121,12 +132,12 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*Context, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleNames, err := ca.CombinedMapping().Map(u.RemoteRoles)
+	roleNames, err := services.MapRoles(ca.CombinedMapping(), u.RemoteRoles)
 	if err != nil {
-		return nil, trace.AccessDenied("failed to map roles for remote user %q from cluster %q", u.Username, u.ClusterName)
+		return nil, trace.AccessDenied("failed to map roles for remote user %q from cluster %q with remote roles %v", u.Username, u.ClusterName, u.RemoteRoles)
 	}
 	if len(roleNames) == 0 {
-		return nil, trace.AccessDenied("no roles mapped for remote user %q from cluster %q", u.Username, u.ClusterName)
+		return nil, trace.AccessDenied("no roles mapped for remote user %q from cluster %q with remote roles %v", u.Username, u.ClusterName, u.RemoteRoles)
 	}
 	// Set "logins" trait and "kubernetes_groups" for the remote user. This allows Teleport to work by
 	// passing exact logins, kubernetes groups and users to the remote cluster. Note that claims (OIDC/SAML)
@@ -137,6 +148,8 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*Context, error) {
 		teleport.TraitLogins:     u.Principals,
 		teleport.TraitKubeGroups: u.KubernetesGroups,
 		teleport.TraitKubeUsers:  u.KubernetesUsers,
+		teleport.TraitDBNames:    u.DatabaseNames,
+		teleport.TraitDBUsers:    u.DatabaseUsers,
 	}
 	log.Debugf("Mapped roles %v of remote user %q to local roles %v and traits %v.",
 		u.RemoteRoles, u.Username, roleNames, traits)
@@ -155,9 +168,51 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*Context, error) {
 	// Set the list of roles this user has in the remote cluster.
 	user.SetRoles(roleNames)
 
+	// Adjust expiry based on locally mapped roles.
+	ttl := time.Until(u.Identity.Expires)
+	ttl = checker.AdjustSessionTTL(ttl)
+
+	kubeUsers, kubeGroups, err := checker.CheckKubeGroupsAndUsers(ttl, false)
+	// IsNotFound means that the user has no k8s users or groups, which is fine
+	// in many cases. The downstream k8s handler will ensure that users/groups
+	// are set if this is a k8s request.
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+	principals, err := checker.CheckLoginDuration(ttl)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Convert u.Identity into the mapped local identity.
+	//
+	// This prevents downstream users from accidentally using the unmapped
+	// identity information and confusing who's accessing a resource.
+	identity := tlsca.Identity{
+		Username:         user.GetName(),
+		Groups:           user.GetRoles(),
+		Traits:           wrappers.Traits(traits),
+		Principals:       principals,
+		KubernetesGroups: kubeGroups,
+		KubernetesUsers:  kubeUsers,
+		TeleportCluster:  a.clusterName,
+		Expires:          time.Now().Add(ttl),
+
+		// These fields are for routing and restrictions, safe to re-use from
+		// unmapped identity.
+		Usage:             u.Identity.Usage,
+		RouteToCluster:    u.Identity.RouteToCluster,
+		KubernetesCluster: u.Identity.KubernetesCluster,
+		RouteToApp:        u.Identity.RouteToApp,
+		RouteToDatabase:   u.Identity.RouteToDatabase,
+		MFAVerified:       u.Identity.MFAVerified,
+		ClientIP:          u.Identity.ClientIP,
+	}
+
 	return &Context{
-		User:    user,
-		Checker: RemoteUserRoleSet{checker},
+		User:             user,
+		Checker:          RemoteUserRoleSet{checker},
+		Identity:         WrapIdentity(identity),
+		UnmappedIdentity: u,
 	}, nil
 }
 
@@ -167,7 +222,7 @@ func (a *authorizer) authorizeBuiltinRole(r BuiltinRole) (*Context, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return contextForBuiltinRole(r.ClusterName, config, r.Role, r.Username)
+	return contextForBuiltinRole(r, config)
 }
 
 func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, error) {
@@ -214,8 +269,10 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 	}
 	user.SetRoles([]string{string(teleport.RoleRemoteProxy)})
 	return &Context{
-		User:    user,
-		Checker: RemoteBuiltinRoleSet{roles},
+		User:             user,
+		Checker:          RemoteBuiltinRoleSet{roles},
+		Identity:         r,
+		UnmappedIdentity: r,
 	}, nil
 }
 
@@ -277,7 +334,29 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 						services.NewRule(services.KindClusterConfig, services.RO()),
 						services.NewRule(services.KindAppServer, services.RW()),
 						services.NewRule(services.KindWebSession, services.RO()),
+						services.NewRule(services.KindWebToken, services.RO()),
 						services.NewRule(services.KindJWT, services.RW()),
+					},
+				},
+			})
+	case teleport.RoleDatabase:
+		return services.FromSpec(
+			role.String(),
+			services.RoleSpecV3{
+				Allow: services.RoleConditions{
+					Namespaces: []string{services.Wildcard},
+					Rules: []services.Rule{
+						services.NewRule(services.KindEvent, services.RW()),
+						services.NewRule(services.KindProxy, services.RO()),
+						services.NewRule(services.KindCertAuthority, services.ReadNoSecrets()),
+						services.NewRule(services.KindUser, services.RO()),
+						services.NewRule(services.KindNamespace, services.RO()),
+						services.NewRule(services.KindRole, services.RO()),
+						services.NewRule(services.KindAuthServer, services.RO()),
+						services.NewRule(services.KindReverseTunnel, services.RW()),
+						services.NewRule(services.KindTunnelConnection, services.RO()),
+						services.NewRule(services.KindClusterConfig, services.RO()),
+						services.NewRule(types.KindDatabaseServer, services.RW()),
 					},
 				},
 			})
@@ -319,7 +398,9 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 							services.NewRule(services.KindSemaphore, services.RW()),
 							services.NewRule(services.KindAppServer, services.RO()),
 							services.NewRule(services.KindWebSession, services.RW()),
+							services.NewRule(services.KindWebToken, services.RW()),
 							services.NewRule(services.KindKubeService, services.RW()),
+							services.NewRule(types.KindDatabaseServer, services.RO()),
 							// this rule allows local proxy to update the remote cluster's host certificate authorities
 							// during certificates renewal
 							{
@@ -374,7 +455,9 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 						services.NewRule(services.KindSemaphore, services.RW()),
 						services.NewRule(services.KindAppServer, services.RO()),
 						services.NewRule(services.KindWebSession, services.RW()),
+						services.NewRule(services.KindWebToken, services.RW()),
 						services.NewRule(services.KindKubeService, services.RW()),
+						services.NewRule(types.KindDatabaseServer, services.RO()),
 						// this rule allows local proxy to update the remote cluster's host certificate authorities
 						// during certificates renewal
 						{
@@ -403,6 +486,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 					Namespaces: []string{services.Wildcard},
 					Rules: []services.Rule{
 						services.NewRule(services.KindWebSession, services.RW()),
+						services.NewRule(services.KindWebToken, services.RW()),
 						services.NewRule(services.KindSSHSession, services.RW()),
 						services.NewRule(services.KindAuthServer, services.RO()),
 						services.NewRule(services.KindUser, services.RO()),
@@ -472,19 +556,21 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 	return nil, trace.NotFound("%q is not recognized", role.String())
 }
 
-func contextForBuiltinRole(clusterName string, clusterConfig services.ClusterConfig, r teleport.Role, username string) (*Context, error) {
-	checker, err := GetCheckerForBuiltinRole(clusterName, clusterConfig, r)
+func contextForBuiltinRole(r BuiltinRole, clusterConfig services.ClusterConfig) (*Context, error) {
+	checker, err := GetCheckerForBuiltinRole(r.ClusterName, clusterConfig, r.Role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user, err := services.NewUser(username)
+	user, err := services.NewUser(r.Username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user.SetRoles([]string{string(r)})
+	user.SetRoles([]string{string(r.Role)})
 	return &Context{
-		User:    user,
-		Checker: BuiltinRoleSet{checker},
+		User:             user,
+		Checker:          BuiltinRoleSet{checker},
+		Identity:         r,
+		UnmappedIdentity: r,
 	}, nil
 }
 
@@ -513,8 +599,10 @@ func contextForLocalUser(u LocalUser, identity services.UserGetter, access servi
 	user.SetTraits(traits)
 
 	return &Context{
-		User:    user,
-		Checker: LocalUserRoleSet{checker},
+		User:             user,
+		Checker:          LocalUserRoleSet{checker},
+		Identity:         u,
+		UnmappedIdentity: u,
 	}, nil
 }
 
@@ -525,10 +613,10 @@ const (
 	ContextUser contextKey = "teleport-user"
 	// ContextClientAddr is a client address set in the context of the request
 	ContextClientAddr contextKey = "client-addr"
-	// ContextDelegator is a delegator for access requests set in the context
-	// of the request
-	ContextDelegator contextKey = events.AccessRequestDelegator
 )
+
+// WithDelegator alias for backwards compatibility
+var WithDelegator = client.WithDelegator
 
 // clientUsername returns the username of a remote HTTP client making the call.
 // If ctx didn't pass through auth middleware or did not come from an HTTP
@@ -559,7 +647,11 @@ func (l LocalUser) GetIdentity() tlsca.Identity {
 	return l.Identity
 }
 
-// IdentityGetter returns client identity
+// IdentityGetter returns the unmapped client identity.
+//
+// Unmapped means that if the client is a remote cluster user, the returned
+// tlsca.Identity contains data from the remote cluster before role mapping is
+// applied.
 type IdentityGetter interface {
 	// GetIdentity  returns x509-derived identity of the user
 	GetIdentity() tlsca.Identity
@@ -597,7 +689,8 @@ func (r BuiltinRole) IsServer() bool {
 		r.Role == teleport.RoleNode ||
 		r.Role == teleport.RoleAuth ||
 		r.Role == teleport.RoleApp ||
-		r.Role == teleport.RoleKube
+		r.Role == teleport.RoleKube ||
+		r.Role == teleport.RoleDatabase
 }
 
 // GetServerID extracts the identity from the full name. The username
@@ -683,6 +776,12 @@ type RemoteUser struct {
 
 	// KubernetesUsers is a list of Kubernetes users
 	KubernetesUsers []string `json:"kubernetes_users"`
+
+	// DatabaseNames is a list of database names a user can connect to.
+	DatabaseNames []string `json:"database_names"`
+
+	// DatabaseUsers is a list of database users a user can connect as.
+	DatabaseUsers []string `json:"database_users"`
 
 	// Identity is source x509 used to build this role
 	Identity tlsca.Identity

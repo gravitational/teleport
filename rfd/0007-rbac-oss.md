@@ -1,6 +1,6 @@
 ---
-authors: Alexander Klizhentas (sasha@gravitational.com)
-state: discussion
+authors: Alexander Klizhentas (sasha@goteleport.com)
+state: draft
 ---
 
 # RFD 2 - Open Source Roles
@@ -63,7 +63,7 @@ OIDC and SAML connectors
 **Extended access workflows**
 
 New feature flags allowing waiting room and always requesting flow
-will be enterprise only. 
+will be enterprise only.
 
 ```yaml
 role:

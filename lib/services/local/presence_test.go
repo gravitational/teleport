@@ -18,17 +18,21 @@ package local
 
 import (
 	"context"
-	"fmt"
 	"testing"
+	"time"
 
+	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/check.v1"
+
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-
-	"gopkg.in/check.v1"
 )
 
 type PresenceSuite struct {
@@ -36,12 +40,6 @@ type PresenceSuite struct {
 }
 
 var _ = check.Suite(&PresenceSuite{})
-var _ = testing.Verbose
-var _ = fmt.Printf
-
-func (s *PresenceSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (s *PresenceSuite) SetUpTest(c *check.C) {
 	var err error
@@ -106,4 +104,89 @@ func (s *PresenceSuite) TestTrustedClusterCRUD(c *check.C) {
 	_, err = presenceBackend.GetTrustedCluster("foo")
 	c.Assert(err, check.NotNil)
 	c.Assert(trace.IsNotFound(err), check.Equals, true)
+}
+
+func TestDatabaseServersCRUD(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	backend, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:  t.TempDir(),
+		Clock: clock,
+	})
+	require.NoError(t, err)
+
+	presence := NewPresenceService(backend)
+
+	// Create a database server.
+	server := types.NewDatabaseServerV3("foo", nil,
+		types.DatabaseServerSpecV3{
+			Protocol: defaults.ProtocolPostgres,
+			URI:      "localhost:5432",
+			Hostname: "localhost",
+			HostID:   uuid.New(),
+		})
+
+	// Initially expect not to be returned any servers.
+	out, err := presence.GetDatabaseServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(out))
+
+	// Upsert server.
+	lease, err := presence.UpsertDatabaseServer(ctx, server)
+	require.NoError(t, err)
+	require.Equal(t, &types.KeepAlive{}, lease)
+
+	// Check again, expect a single server to be found.
+	out, err = presence.GetDatabaseServers(ctx, server.GetNamespace())
+	require.NoError(t, err)
+	server.SetResourceID(out[0].GetResourceID())
+	require.EqualValues(t, []types.DatabaseServer{server}, out)
+
+	// Make sure can't delete with empty namespace or host ID or name.
+	err = presence.DeleteDatabaseServer(ctx, server.GetNamespace(), server.GetHostID(), "")
+	require.Error(t, err)
+	require.IsType(t, trace.BadParameter(""), err)
+	err = presence.DeleteDatabaseServer(ctx, server.GetNamespace(), "", server.GetName())
+	require.Error(t, err)
+	require.IsType(t, trace.BadParameter(""), err)
+	err = presence.DeleteDatabaseServer(ctx, "", server.GetHostID(), server.GetName())
+	require.Error(t, err)
+	require.IsType(t, trace.BadParameter(""), err)
+
+	// Remove the server.
+	err = presence.DeleteDatabaseServer(ctx, server.GetNamespace(), server.GetHostID(), server.GetName())
+	require.NoError(t, err)
+
+	// Now expect no servers to be returned.
+	out, err = presence.GetDatabaseServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(out))
+
+	// Upsert server with TTL.
+	server.SetExpiry(clock.Now().UTC().Add(time.Hour))
+	lease, err = presence.UpsertDatabaseServer(ctx, server)
+	require.NoError(t, err)
+	require.Equal(t, &types.KeepAlive{
+		Type:      types.KeepAlive_DATABASE,
+		LeaseID:   lease.LeaseID,
+		Name:      server.GetName(),
+		Namespace: server.GetNamespace(),
+		HostID:    server.GetHostID(),
+		Expires:   server.Expiry(),
+	}, lease)
+
+	// Make sure can't delete all with empty namespace.
+	err = presence.DeleteAllDatabaseServers(ctx, "")
+	require.Error(t, err)
+	require.IsType(t, trace.BadParameter(""), err)
+
+	// Delete all.
+	err = presence.DeleteAllDatabaseServers(ctx, server.GetNamespace())
+	require.NoError(t, err)
+
+	// Now expect no servers to be returned.
+	out, err = presence.GetDatabaseServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(out))
 }

@@ -27,6 +27,7 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -68,7 +69,7 @@ func init() {
 
 // server is a "reverse tunnel server". it exposes the cluster capabilities
 // (like access to a cluster's auth) to remote trusted clients
-// (also known as 'reverse tunnel agents'.
+// (also known as 'reverse tunnel agents').
 type server struct {
 	sync.RWMutex
 	Config
@@ -633,6 +634,9 @@ func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.N
 	// Kubernetes service is dialing back.
 	case teleport.RoleKube:
 		s.handleNewService(role, conn, sconn, nch, services.KubeTunnel)
+	// Database proxy is dialing back.
+	case teleport.RoleDatabase:
+		s.handleNewService(role, conn, sconn, nch, types.DatabaseTunnel)
 	// Proxy is dialing back.
 	case teleport.RoleProxy:
 		s.handleNewCluster(conn, sconn, nch)
@@ -700,7 +704,7 @@ func (s *server) getTrustedCAKeysByID(id services.CertAuthID) ([]ssh.PublicKey, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ca.Checkers()
+	return sshutils.GetCheckers(ca)
 }
 
 func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Permissions, err error) {
@@ -1048,22 +1052,22 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	return remoteSite, nil
 }
 
-// DELETE IN: 5.1.0.
+// DELETE IN: 7.0.0.
 //
-// isOldCluster checks if the cluster is older than 5.0.0.
+// isOldCluster checks if the cluster is older than 6.0.0.
 func isOldCluster(ctx context.Context, conn ssh.Conn) (bool, error) {
 	version, err := sendVersionRequest(ctx, conn)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
 
-	// Return true if the version is older than 5.0.0, the check is actually for
-	// 4.5.0, a non-existent version, to allow this check to work during development.
+	// Return true if the version is older than 6.0.0, the check is actually for
+	// 5.99.99, a non-existent version, to allow this check to work during development.
 	remoteClusterVersion, err := semver.NewVersion(version)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	minClusterVersion, err := semver.NewVersion("4.5.0")
+	minClusterVersion, err := semver.NewVersion("5.99.99")
 	if err != nil {
 		return false, trace.Wrap(err)
 	}

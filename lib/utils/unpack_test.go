@@ -18,20 +18,13 @@ package utils
 
 import (
 	"archive/tar"
-	"fmt"
-	"testing"
 
 	"gopkg.in/check.v1"
 )
 
 type UnpackSuite struct{}
 
-var _ = fmt.Printf
 var _ = check.Suite(&UnpackSuite{})
-
-func (s *UnpackSuite) SetUpSuite(c *check.C) {
-	InitLoggerForTests(testing.Verbose())
-}
 
 func (s *UnpackSuite) TestSanitizeTarPath(c *check.C) {
 	cases := []struct {

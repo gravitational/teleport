@@ -17,22 +17,14 @@ limitations under the License.
 package services
 
 import (
-	"testing"
 	"time"
-
-	"github.com/gravitational/teleport/lib/utils"
 
 	"gopkg.in/check.v1"
 )
 
-type SemaphoreSuite struct {
-}
+type SemaphoreSuite struct{}
 
 var _ = check.Suite(&SemaphoreSuite{})
-
-func (s *SemaphoreSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (s *SemaphoreSuite) TestAcquireSemaphoreRequest(c *check.C) {
 	ok := AcquireSemaphoreRequest{

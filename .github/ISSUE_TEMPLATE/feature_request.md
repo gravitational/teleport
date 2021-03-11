@@ -1,13 +1,16 @@
 ---
 name: Feature Request 💡
-about: Suggest a new idea for the project.
-labels: "type: feature request"
+about: Have an idea? Tell us about it.
+labels: feature-request
 ---
-### Feature Request
-Describe in as much detail as possible what feature you would like to see added and how it should work. 
+### What
+What would you like Teleport to do differently?
 
-### Motivation
-Describe why we should work on this feature request.
+### How
+How would you implement this?
 
-### Who's it for?
-OSS User, Pro, Enterprise
+### Why
+Why do you need this?
+
+### Workaround
+If a workaround exists, please include it.

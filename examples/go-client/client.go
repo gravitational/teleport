@@ -7,8 +7,8 @@ import (
 	"io/ioutil"
 	"os"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // connectClient establishes a gRPC connection to an auth server.
@@ -18,11 +18,12 @@ func connectClient() (*auth.Client, error) {
 		return nil, fmt.Errorf("Failed to setup TLS config: %v", err)
 	}
 
-	// replace 127.0.0.1:3025 (default) with your auth server address
-	authServerAddr := utils.MustParseAddrList("127.0.0.1:3025")
-	clientConfig := auth.ClientConfig{Addrs: authServerAddr, TLS: tlsConfig}
-
-	return auth.NewTLSClient(clientConfig)
+	config := client.Config{
+		// replace 127.0.0.1:3025 (default) with your auth server address
+		Addrs:       []string{"127.0.0.1:3025"},
+		Credentials: []client.Credentials{client.LoadTLS(tlsConfig)},
+	}
+	return auth.NewClient(config)
 }
 
 // LoadTLSConfig loads and sets up client TLS config for authentication

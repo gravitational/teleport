@@ -32,10 +32,11 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 
-	"github.com/docker/docker/pkg/term"
-	"github.com/gravitational/trace"
 	"github.com/kr/pty"
+	"github.com/moby/term"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/trace"
 )
 
 // LookupUser is used to mock the value returned by user.Lookup(string).
@@ -634,7 +635,7 @@ func (t *remoteTerminal) prepareRemoteSession(session *ssh.Session, ctx *ServerC
 		teleport.SSHSessionWebproxyAddr: ctx.ProxyPublicAddress(),
 		teleport.SSHTeleportHostUUID:    ctx.srv.ID(),
 		teleport.SSHTeleportClusterName: ctx.ClusterName,
-		teleport.SSHSessionID:           string(ctx.session.id),
+		teleport.SSHSessionID:           string(ctx.SessionID()),
 	}
 
 	for k, v := range envs {

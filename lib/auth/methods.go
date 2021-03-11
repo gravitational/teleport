@@ -17,17 +17,19 @@ limitations under the License.
 package auth
 
 import (
+	"context"
 	"time"
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/tstranex/u2f"
 )
 
 // AuthenticateUserRequest is a request to authenticate interactive user
@@ -64,7 +66,7 @@ type PassCreds struct {
 // U2FSignResponseCreds is a U2F signature sent by U2F device
 type U2FSignResponseCreds struct {
 	// SignResponse is a U2F sign resposne
-	SignResponse u2f.SignResponse `json:"sign_response"`
+	SignResponse u2f.AuthenticateChallengeResponse `json:"sign_response"`
 }
 
 // OTPCreds is a two factor authencication credentials
@@ -83,7 +85,7 @@ type SessionCreds struct {
 
 // AuthenticateUser authenticates user based on the request type
 func (s *Server) AuthenticateUser(req AuthenticateUserRequest) error {
-	err := s.authenticateUser(req)
+	mfaDev, err := s.authenticateUser(context.TODO(), req)
 	event := &events.UserLogin{
 		Metadata: events.Metadata{
 			Type: events.UserLoginEvent,
@@ -93,6 +95,10 @@ func (s *Server) AuthenticateUser(req AuthenticateUserRequest) error {
 			User: req.Username,
 		},
 		Method: events.LoginMethodLocal,
+	}
+	if mfaDev != nil {
+		m := mfaDeviceEventMetadata(mfaDev)
+		event.MFADevice = &m
 	}
 	if err != nil {
 		event.Code = events.UserLocalLoginFailureCode
@@ -108,67 +114,99 @@ func (s *Server) AuthenticateUser(req AuthenticateUserRequest) error {
 	return err
 }
 
-func (s *Server) authenticateUser(req AuthenticateUserRequest) error {
+func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserRequest) (*types.MFADevice, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	authPreference, err := s.GetAuthPreference()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	switch {
+	case req.U2F != nil:
+		// authenticate using U2F - code checks challenge response
+		// signed by U2F device of the user
+		var mfaDev *types.MFADevice
+		err := s.WithUserLock(req.Username, func() error {
+			var err error
+			mfaDev, err = s.CheckU2FSignResponse(ctx, req.Username, &req.U2F.SignResponse)
+			return err
+		})
+		if err != nil {
+			// provide obscure message on purpose, while logging the real
+			// error server side
+			log.Debugf("Failed to authenticate: %v.", err)
+			return nil, trace.AccessDenied("invalid U2F response")
+		}
+		if mfaDev == nil {
+			// provide obscure message on purpose, while logging the real
+			// error server side
+			log.Debugf("CheckU2FSignResponse returned no error and a nil MFA device.")
+			return nil, trace.AccessDenied("invalid U2F response")
+		}
+		return mfaDev, nil
+	case req.OTP != nil:
+		var mfaDev *types.MFADevice
+		err := s.WithUserLock(req.Username, func() error {
+			res, err := s.checkPassword(req.Username, req.OTP.Password, req.OTP.Token)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			mfaDev = res.mfaDev
+			return nil
+		})
+		if err != nil {
+			// provide obscure message on purpose, while logging the real
+			// error server side
+			log.Debugf("Failed to authenticate: %v.", err)
+			return nil, trace.AccessDenied("invalid username, password or second factor")
+		}
+		return mfaDev, nil
 	case req.Pass != nil:
 		// authenticate using password only, make sure
 		// that auth preference does not require second factor
 		// otherwise users can bypass the second factor
-		if authPreference.GetSecondFactor() != teleport.OFF {
-			return trace.AccessDenied("missing second factor")
+		switch authPreference.GetSecondFactor() {
+		case constants.SecondFactorOff:
+			// No 2FA required, check password only.
+		case constants.SecondFactorOptional:
+			// 2FA is optional. Make sure that a user does not have MFA devices
+			// registered.
+			devs, err := s.GetMFADevices(ctx, req.Username)
+			if err != nil && !trace.IsNotFound(err) {
+				return nil, trace.Wrap(err)
+			}
+			if len(devs) != 0 {
+				log.Warningf("MFA bypass attempt by user %q, access denied.", req.Username)
+				return nil, trace.AccessDenied("missing second factor authentication")
+			}
+		default:
+			// Some form of MFA is required but none provided. Either client is
+			// buggy (didn't send MFA response) or someone is trying to bypass
+			// MFA.
+			log.Warningf("MFA bypass attempt by user %q, access denied.", req.Username)
+			return nil, trace.AccessDenied("missing second factor")
 		}
 		err := s.WithUserLock(req.Username, func() error {
-			return s.CheckPasswordWOToken(req.Username, req.Pass.Password)
+			return s.checkPasswordWOToken(req.Username, req.Pass.Password)
 		})
 		if err != nil {
 			// provide obscure message on purpose, while logging the real
 			// error server side
 			log.Debugf("Failed to authenticate: %v.", err)
-			return trace.AccessDenied("invalid username or password")
+			return nil, trace.AccessDenied("invalid username or password")
 		}
-		return nil
-	case req.U2F != nil:
-		// authenticate using U2F - code checks challenge response
-		// signed by U2F device of the user
-		err := s.WithUserLock(req.Username, func() error {
-			return s.CheckU2FSignResponse(req.Username, &req.U2F.SignResponse)
-		})
-		if err != nil {
-			// provide obscure message on purpose, while logging the real
-			// error server side
-			log.Debugf("Failed to authenticate: %v.", err)
-			return trace.AccessDenied("invalid U2F response")
-		}
-		return nil
-	case req.OTP != nil:
-		err := s.WithUserLock(req.Username, func() error {
-			return s.CheckPassword(req.Username, req.OTP.Password, req.OTP.Token)
-		})
-		if err != nil {
-			// provide obscure message on purpose, while logging the real
-			// error server side
-			log.Debugf("Failed to authenticate: %v.", err)
-			return trace.AccessDenied("invalid username, password or second factor")
-		}
-		return nil
+		return nil, nil
 	default:
-		return trace.AccessDenied("unsupported authentication method")
+		return nil, trace.AccessDenied("unsupported authentication method")
 	}
 }
 
-// AuthenticateWebUser authenticates web user, creates and  returns web session
-// in case if authentication is successful. In case if existing session id
-// is used to authenticate, returns session associated with the existing session id
-// instead of creating the new one
+// AuthenticateWebUser authenticates web user, creates and returns a web session
+// if authentication is successful. In case the existing session ID is used to authenticate,
+// returns the existing session instead of creating a new one
 func (s *Server) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebSession, error) {
 	clusterConfig, err := s.GetClusterConfig()
 	if err != nil {
@@ -185,7 +223,10 @@ func (s *Server) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebS
 	}
 
 	if req.Session != nil {
-		session, err := s.GetWebSession(req.Username, req.Session.ID)
+		session, err := s.GetWebSession(context.TODO(), types.GetWebSessionRequest{
+			User:      req.Username,
+			SessionID: req.Session.ID,
+		})
 		if err != nil {
 			return nil, trace.AccessDenied("session is invalid or has expired")
 		}
@@ -201,15 +242,11 @@ func (s *Server) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebS
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := s.createUserWebSession(user)
+	sess, err := s.createUserWebSession(context.TODO(), user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err = services.GetWebSessionMarshaler().GenerateWebSession(sess)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	return sess, nil
 }
 
@@ -293,7 +330,7 @@ func AuthoritiesToTrustedCerts(authorities []services.CertAuthority) []TrustedCe
 		out[i] = TrustedCerts{
 			ClusterName:      ca.GetClusterName(),
 			HostCertificates: ca.GetCheckingKeys(),
-			TLSCertificates:  services.TLSCerts(ca),
+			TLSCertificates:  services.GetTLSCerts(ca),
 		}
 	}
 	return out
@@ -383,19 +420,14 @@ func (s *Server) emitNoLocalAuthEvent(username string) {
 	}
 }
 
-func (s *Server) createUserWebSession(user services.User) (services.WebSession, error) {
-	// It's safe to extract the roles and traits directly from services.User as	this method
+func (s *Server) createUserWebSession(ctx context.Context, user services.User) (services.WebSession, error) {
+	// It's safe to extract the roles and traits directly from services.User as this method
 	// is only used for local accounts.
-	sess, err := s.NewWebSession(user.GetName(), user.GetRoles(), user.GetTraits())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = s.UpsertWebSession(user.GetName(), sess)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return sess, nil
+	return s.createWebSession(ctx, types.NewWebSessionRequest{
+		User:   user.GetName(),
+		Roles:  user.GetRoles(),
+		Traits: user.GetTraits(),
+	})
 }
 
 const noLocalAuth = "local auth disabled"

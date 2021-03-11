@@ -18,8 +18,6 @@ package local
 
 import (
 	"context"
-	"fmt"
-	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
@@ -27,7 +25,6 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
@@ -38,12 +35,6 @@ type ClusterConfigurationSuite struct {
 }
 
 var _ = check.Suite(&ClusterConfigurationSuite{})
-var _ = testing.Verbose
-var _ = fmt.Printf
-
-func (s *ClusterConfigurationSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (s *ClusterConfigurationSuite) SetUpTest(c *check.C) {
 	var err error
@@ -167,10 +158,10 @@ func (s *ClusterConfigurationSuite) TestClusterConfigMarshal(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	data, err := services.GetClusterConfigMarshaler().Marshal(clusterConfig)
+	data, err := services.MarshalClusterConfig(clusterConfig)
 	c.Assert(err, check.IsNil)
 
-	out, err := services.GetClusterConfigMarshaler().Unmarshal(data)
+	out, err := services.UnmarshalClusterConfig(data)
 	c.Assert(err, check.IsNil)
 	fixtures.DeepCompare(c, clusterConfig, out)
 
@@ -190,10 +181,10 @@ func (s *ClusterConfigurationSuite) TestClusterConfigMarshal(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	data, err = services.GetClusterConfigMarshaler().Marshal(clusterConfig)
+	data, err = services.MarshalClusterConfig(clusterConfig)
 	c.Assert(err, check.IsNil)
 
-	out, err = services.GetClusterConfigMarshaler().Unmarshal(data)
+	out, err = services.UnmarshalClusterConfig(data)
 	c.Assert(err, check.IsNil)
 	fixtures.DeepCompare(c, clusterConfig, out)
 }

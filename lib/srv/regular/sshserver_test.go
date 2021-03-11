@@ -52,6 +52,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 	"github.com/sirupsen/logrus"
 	. "gopkg.in/check.v1"
@@ -76,6 +77,7 @@ type SrvSuite struct {
 	nodeID      string
 	adminClient *auth.Client
 	testServer  *auth.TestAuthServer
+	clock       clockwork.FakeClock
 }
 
 // teleportTestUser is additional user used for tests
@@ -91,6 +93,7 @@ var _ = Suite(&SrvSuite{})
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise it will run tests as normal.
 func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
 	if len(os.Args) == 2 &&
 		(os.Args[1] == teleport.ExecSubCommand || os.Args[1] == teleport.ForwardSubCommand) {
 		srv.RunAndExit(os.Args[1])
@@ -101,10 +104,6 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func (s *SrvSuite) SetUpSuite(c *C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
-
 const hostID = "00000000-0000-0000-0000-000000000000"
 
 func (s *SrvSuite) SetUpTest(c *C) {
@@ -112,9 +111,12 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.user = u.Username
 
+	s.clock = clockwork.NewFakeClock()
+
 	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		ClusterName: "localhost",
 		Dir:         c.MkDir(),
+		Clock:       s.clock,
 	})
 	c.Assert(err, IsNil)
 	s.server, err = authServer.NewTestTLSServer()
@@ -184,6 +186,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 			},
 		),
 		SetBPF(&bpf.NOP{}),
+		SetClock(s.clock),
 	)
 	c.Assert(err, IsNil)
 	s.srv = srv
@@ -215,7 +218,6 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(agent.ForwardToAgent(client, keyring), IsNil)
 	s.clt = client
-
 }
 
 func (s *SrvSuite) TearDownTest(c *C) {
@@ -298,7 +300,7 @@ func (s *SrvSuite) TestAgentForwardPermission(c *C) {
 	ctx := context.Background()
 	// make sure the role does not allow agent forwarding
 	roleName := services.RoleNameForUser(s.user)
-	role, err := s.server.Auth().GetRole(roleName)
+	role, err := s.server.Auth().GetRole(ctx, roleName)
 	c.Assert(err, IsNil)
 	roleOptions := role.GetOptions()
 	roleOptions.ForwardAgent = services.NewBool(false)
@@ -328,7 +330,7 @@ func (s *SrvSuite) TestMaxSessions(c *C) {
 	ctx := context.Background()
 	// make sure the role does not allow agent forwarding
 	roleName := services.RoleNameForUser(s.user)
-	role, err := s.server.Auth().GetRole(roleName)
+	role, err := s.server.Auth().GetRole(ctx, roleName)
 	c.Assert(err, IsNil)
 	roleOptions := role.GetOptions()
 	roleOptions.MaxSessions = maxSessions
@@ -372,7 +374,7 @@ func (s *SrvSuite) TestOpenExecSessionSetsSession(c *C) {
 func (s *SrvSuite) TestAgentForward(c *C) {
 	ctx := context.Background()
 	roleName := services.RoleNameForUser(s.user)
-	role, err := s.server.Auth().GetRole(roleName)
+	role, err := s.server.Auth().GetRole(ctx, roleName)
 	c.Assert(err, IsNil)
 	roleOptions := role.GetOptions()
 	roleOptions.ForwardAgent = services.NewBool(true)
@@ -736,6 +738,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
+		SetClock(s.clock),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
@@ -813,8 +816,8 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetEmitter(s.nodeClient),
+		SetClock(s.clock),
 	)
-	c.Assert(err, IsNil)
 	c.Assert(err, IsNil)
 	c.Assert(srv2.Start(), IsNil)
 	c.Assert(srv2.heartbeat.ForceSend(time.Second), IsNil)
@@ -903,6 +906,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
+		SetClock(s.clock),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
@@ -1008,6 +1012,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
+		SetClock(s.clock),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
@@ -1087,12 +1092,12 @@ func (s *SrvSuite) TestLimiter(c *C) {
 		limiter.Config{
 			MaxConnections: 2,
 			Rates: []limiter.Rate{
-				limiter.Rate{
+				{
 					Period:  10 * time.Second,
 					Average: 1,
 					Burst:   3,
 				},
-				limiter.Rate{
+				{
 					Period:  40 * time.Millisecond,
 					Average: 10,
 					Burst:   30,
@@ -1118,6 +1123,7 @@ func (s *SrvSuite) TestLimiter(c *C) {
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
+		SetClock(s.clock),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(srv.Start(), IsNil)

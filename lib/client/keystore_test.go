@@ -28,6 +28,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -37,11 +38,12 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/trace"
 )
 
 func TestListKeys(t *testing.T) {
@@ -66,7 +68,7 @@ func TestListKeys(t *testing.T) {
 	// read all bob keys:
 	for i := 0; i < keyNum; i++ {
 		host := fmt.Sprintf("host-%v", i)
-		keys2, err := s.store.GetKey(host, "bob")
+		keys2, err := s.store.GetKey(host, "bob", WithDBCerts(samKey.ClusterName, ""))
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(*keys2, keys[i], cmpopts.EquateEmpty()))
 	}
@@ -89,9 +91,17 @@ func TestKeyCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// load back and compare:
-	keyCopy, err := s.store.GetKey("host.a", "bob")
+	keyCopy, err := s.store.GetKey("host.a", "bob", WithDBCerts(key.ClusterName, ""))
 	require.NoError(t, err)
 	key.ProxyHost = keyCopy.ProxyHost
+	require.Empty(t, cmp.Diff(key, keyCopy, cmpopts.EquateEmpty()))
+
+	// Delete just the db cert, reload & verify it's gone
+	err = s.store.DeleteKeyOption("host.a", "bob", WithDBCerts(key.ClusterName, ""))
+	require.NoError(t, err)
+	keyCopy, err = s.store.GetKey("host.a", "bob", WithDBCerts(key.ClusterName, ""))
+	require.NoError(t, err)
+	key.DBTLSCerts = nil
 	require.Empty(t, cmp.Diff(key, keyCopy, cmpopts.EquateEmpty()))
 
 	// Delete & verify that it's gone
@@ -356,11 +366,13 @@ func (s *keyStoreTest) makeSignedKey(t *testing.T, makeExpired bool) *Key {
 	})
 	require.NoError(t, err)
 	return &Key{
-		Priv:      priv,
-		Pub:       pub,
-		Cert:      cert,
-		TLSCert:   tlsCert,
-		TrustedCA: []auth.TrustedCerts{s.tlsCACert},
+		Priv:        priv,
+		Pub:         pub,
+		Cert:        cert,
+		TLSCert:     tlsCert,
+		TrustedCA:   []auth.TrustedCerts{s.tlsCACert},
+		DBTLSCerts:  map[string][]byte{"example-db": tlsCert},
+		ClusterName: "root",
 	}
 }
 
@@ -376,7 +388,7 @@ func newSelfSignedCA(privateKey []byte) (*tlsca.CertAuthority, auth.TrustedCerts
 	if err != nil {
 		return nil, auth.TrustedCerts{}, trace.Wrap(err)
 	}
-	ca, err := tlsca.New(cert, key)
+	ca, err := tlsca.FromKeys(cert, key)
 	if err != nil {
 		return nil, auth.TrustedCerts{}, trace.Wrap(err)
 	}
@@ -384,8 +396,6 @@ func newSelfSignedCA(privateKey []byte) (*tlsca.CertAuthority, auth.TrustedCerts
 }
 
 func newTest(t *testing.T) (keyStoreTest, func()) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	dir, err := ioutil.TempDir("", "teleport-keystore")
 	require.NoError(t, err)
 

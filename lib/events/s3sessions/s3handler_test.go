@@ -29,10 +29,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
+
 // TestStreams tests various streaming upload scenarios
 func TestStreams(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	handler, err := NewHandler(Config{
 		Region: "us-west-1",
 		Path:   "/test/",

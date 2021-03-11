@@ -26,14 +26,21 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 	"gopkg.in/check.v1"
+
+	"github.com/gravitational/trace"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 func TestDynamoevents(t *testing.T) { check.TestingT(t) }
 
@@ -45,8 +52,6 @@ type DynamoeventsSuite struct {
 var _ = check.Suite(&DynamoeventsSuite{})
 
 func (s *DynamoeventsSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	testEnabled := os.Getenv(teleport.AWSRunTests)
 	if ok, _ := strconv.ParseBool(testEnabled); !ok {
 		c.Skip("Skipping AWS-dependent test suite.")
@@ -74,6 +79,29 @@ func (s *DynamoeventsSuite) SetUpTest(c *check.C) {
 
 func (s *DynamoeventsSuite) TestSessionEventsCRUD(c *check.C) {
 	s.SessionEventsCRUD(c)
+
+	// In addition to the normal CRUD test above, we also check that we can retrieve all items from a large table
+	// at once.
+	err := s.log.deleteAllItems()
+	c.Assert(err, check.IsNil)
+
+	for i := 0; i < 4000; i++ {
+		err := s.Log.EmitAuditEventLegacy(events.UserLocalLoginE, events.EventFields{
+			events.LoginMethod:        events.LoginMethodSAML,
+			events.AuthAttemptSuccess: true,
+			events.EventUser:          "bob",
+			events.EventTime:          s.Clock.Now().UTC(),
+		})
+		c.Assert(err, check.IsNil)
+	}
+
+	time.Sleep(s.EventsSuite.QueryDelay)
+
+	history, err := s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), "", 0)
+	c.Assert(err, check.IsNil)
+
+	// `check.HasLen` prints the entire array on failure, which pollutes the output
+	c.Assert(len(history), check.Equals, 4000)
 }
 
 func (s *DynamoeventsSuite) TearDownSuite(c *check.C) {

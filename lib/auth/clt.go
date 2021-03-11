@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2020 Gravitational, Inc.
+Copyright 2015-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,53 +18,37 @@ package auth
 
 import (
 	"bytes"
-	"compress/gzip"
 	"context"
 	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
-	"golang.org/x/net/http2"
-
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth/proto"
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
-	empty "github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"github.com/jonboulle/clockwork"
-	"github.com/tstranex/u2f"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials"
-	ggzip "google.golang.org/grpc/encoding/gzip"
-	"google.golang.org/grpc/keepalive"
-	"google.golang.org/grpc/status"
 )
-
-func init() {
-	ggzip.SetLevel(gzip.BestSpeed)
-}
 
 const (
 	// CurrentVersion is a current API version
@@ -74,177 +58,68 @@ const (
 	MissingNamespaceError = "missing required parameter: namespace"
 )
 
-// Dialer defines dialer function
-type Dialer func(network, addr string) (net.Conn, error)
+// ContextDialer type alias for backwards compatibility
+type ContextDialer = client.ContextDialer
 
-// Client is HTTP Auth API client. It works by connecting to auth servers
-// via HTTP.
+// ContextDialerFunc type alias for backwards compatibility
+type ContextDialerFunc = client.ContextDialerFunc
+
+// APIClient is aliased here so that it can be embedded in Client
+type APIClient = client.Client
+
+// Client is the Auth API client. It works by connecting to auth servers
+// via gRPC and HTTP.
 //
 // When Teleport servers connect to auth API, they usually establish an SSH
 // tunnel first, and then do HTTP-over-SSH. This client is wrapped by auth.TunClient
 // in lib/auth/tun.go
 type Client struct {
+	// APIClient is embedded so that Client can inherit its grpc endpoint
+	// methods to satisfy the ClientI interface. Client uses APIClient.Config
+	// for its own config, except TLS config is kept separate.
+	APIClient
+	// http client is deprecated and will be gradually phased out in favor of APIClient (gRPC).
 	sync.Mutex
-	ClientConfig
 	roundtrip.Client
-	transport  *http.Transport
-	conn       *grpc.ClientConn
-	grpcClient proto.AuthServiceClient
-	// closedFlag is set to indicate that the services are closed
-	closedFlag int32
+	transport *http.Transport
+	// TLS holds the TLS config for the http client.
+	TLS *tls.Config
 }
 
 // Make sure Client implements all the necessary methods.
 var _ ClientI = &Client{}
 
-// TLSConfig returns TLS config used by the client, could return nil
-// if the client is not using TLS
-func (c *Client) TLSConfig() *tls.Config {
-	return c.ClientConfig.TLS
-}
-
-// ContextDialer represents network dialer interface that uses context
-type ContextDialer interface {
-	// DialContext is a function that dials to the specified address
-	DialContext(in context.Context, network, addr string) (net.Conn, error)
-}
-
-// ContextDialerFunc is a function wrapper that implements
-// ContextDialer interface
-type ContextDialerFunc func(in context.Context, network, addr string) (net.Conn, error)
-
-// DialContext is a function that dials to the specified address
-func (f ContextDialerFunc) DialContext(in context.Context, network, addr string) (net.Conn, error) {
-	return f(in, network, addr)
-}
-
-// EncodeClusterName encodes cluster name in the SNI hostname
-func EncodeClusterName(clusterName string) string {
-	// hex is used to hide "." that will prevent wildcard *. entry to match
-	return fmt.Sprintf("%v.%v", hex.EncodeToString([]byte(clusterName)), teleport.APIDomain)
-}
-
-// DecodeClusterName decodes cluster name, returns NotFound
-// if no cluster name is encoded (empty subdomain),
-// so servers can detect cases when no server name passed
-// returns BadParameter if encoding does not match
-func DecodeClusterName(serverName string) (string, error) {
-	if serverName == teleport.APIDomain {
-		return "", trace.NotFound("no cluster name is encoded")
-	}
-	const suffix = "." + teleport.APIDomain
-	if !strings.HasSuffix(serverName, suffix) {
-		return "", trace.NotFound("no cluster name is encoded")
-	}
-	clusterName := strings.TrimSuffix(serverName, suffix)
-
-	decoded, err := hex.DecodeString(clusterName)
-	if err != nil {
-		return "", trace.BadParameter("failed to decode cluster name: %v", err)
-	}
-	return string(decoded), nil
-}
-
-// NewAddrDialer returns new dialer from a list of addresses
-func NewAddrDialer(addrs []utils.NetAddr, keepAliveInterval time.Duration) ContextDialer {
-	dialer := net.Dialer{
-		Timeout:   defaults.DefaultDialTimeout,
-		KeepAlive: keepAliveInterval,
-	}
-	return ContextDialerFunc(func(in context.Context, network, _ string) (net.Conn, error) {
-		var err error
-		var conn net.Conn
-		for _, addr := range addrs {
-			conn, err = dialer.DialContext(in, network, addr.Addr)
-			if err == nil {
-				return conn, nil
-			}
-			log.Errorf("Failed to dial auth server %v: %v.", addr.Addr, err)
-		}
-		// not wrapping on purpose to preserve the original error
-		return nil, err
-	})
-}
-
-// ClientTimeout sets idle and dial timeouts of the HTTP transport
-// used by the client.
-func ClientTimeout(timeout time.Duration) roundtrip.ClientParam {
-	return func(c *roundtrip.Client) error {
-		transport, ok := (c.HTTPClient().Transport).(*http.Transport)
-		if !ok {
-			return nil
-		}
-		transport.IdleConnTimeout = timeout
-		transport.ResponseHeaderTimeout = timeout
-		return nil
-	}
-}
-
-// ClientConfig contains configuration of the client
-type ClientConfig struct {
-	// Addrs is a list of addresses to dial
-	Addrs []utils.NetAddr
-	// Dialer is a custom dialer, if provided
-	// is used instead of the list of addresses
-	Dialer ContextDialer
-	// KeepAlivePeriod defines period between keep alives
-	KeepAlivePeriod time.Duration
-	// KeepAliveCount specifies amount of missed keep alives
-	// to wait for until declaring connection as broken
-	KeepAliveCount int
-	// TLS is a TLS config
-	TLS *tls.Config
-}
-
-// CheckAndSetDefaults checks and sets default config values
-func (c *ClientConfig) CheckAndSetDefaults() error {
-	if len(c.Addrs) == 0 && c.Dialer == nil {
-		return trace.BadParameter("set parameter Addrs or DialContext")
-	}
-	if c.TLS == nil {
-		return trace.BadParameter("missing parameter TLS")
-	}
-	if c.KeepAlivePeriod == 0 {
-		c.KeepAlivePeriod = defaults.ServerKeepAliveTTL
-	}
-	if c.KeepAliveCount == 0 {
-		c.KeepAliveCount = defaults.KeepAliveCountMax
-	}
-	if c.Dialer == nil {
-		c.Dialer = NewAddrDialer(c.Addrs, c.KeepAlivePeriod)
-	}
-	if c.TLS.ServerName == "" {
-		c.TLS.ServerName = teleport.APIDomain
-	}
-	// this logic is necessary to force client to always send certificate
-	// regardless of the server setting, otherwise client may pick
-	// not to send the client certificate by looking at certificate request
-	if len(c.TLS.Certificates) != 0 {
-		cert := c.TLS.Certificates[0]
-		c.TLS.Certificates = nil
-		c.TLS.GetClientCertificate = func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
-			return &cert, nil
-		}
-	}
-
-	return nil
-}
-
-// NewTLSClient returns a new TLS client that uses mutual TLS authentication
-// and dials the remote server using dialer
-func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, error) {
+// NewClient returns a new client that uses mutual TLS authentication
+// and dials the remote server using dialer.
+func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Many uses of the lib/client do not expect an open valid connection immediately after
+	// initialization, so WithoutDialBlock is used for backwards compatibility with this client.
+	cfg.WithoutDialBlock = true
+	apiClient, err := client.New(context.TODO(), cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Clone the tls.Config and set the next protocol. This is needed due to the
+	// Auth Server using a multiplexer for protocol detection. Unless next
+	// protocol is specified it will attempt to upgrade to HTTP2 and at that point
+	// there is no way to distinguish between HTTP2/JSON or GPRC.
+	tlsConfig := apiClient.Config()
+	tlsConfig.NextProtos = []string{teleport.HTTPNextProtoTLS}
+
 	transport := &http.Transport{
 		// notice that below roundtrip.Client is passed
 		// teleport.APIEndpoint as an address for the API server, this is
 		// to make sure client verifies the DNS name of the API server
 		// custom DialContext overrides this DNS name to the real address
 		// in addition this dialer tries multiple adresses if provided
-		DialContext:           cfg.Dialer.DialContext,
+		DialContext:           apiClient.Dialer().DialContext,
 		ResponseHeaderTimeout: defaults.DefaultDialTimeout,
-		TLSClientConfig:       cfg.TLS,
+		TLSClientConfig:       tlsConfig,
 
 		// Increase the size of the connection pool. This substantially improves the
 		// performance of Teleport under load as it reduces the number of TLS
@@ -278,59 +153,95 @@ func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return &Client{
-		ClientConfig: cfg,
-		Client:       *roundtripClient,
-		transport:    transport,
+		APIClient: *apiClient,
+		Client:    *roundtripClient,
+		transport: transport,
+		TLS:       tlsConfig,
 	}, nil
 }
 
-func (c *Client) isClosed() bool {
-	return atomic.LoadInt32(&c.closedFlag) == 1
+// EncodeClusterName encodes cluster name in the SNI hostname
+func EncodeClusterName(clusterName string) string {
+	// hex is used to hide "." that will prevent wildcard *. entry to match
+	return fmt.Sprintf("%v.%v", hex.EncodeToString([]byte(clusterName)), teleport.APIDomain)
 }
 
-func (c *Client) setClosed() {
-	atomic.StoreInt32(&c.closedFlag, 1)
-}
-
-// grpc returns grpc client
-func (c *Client) grpc() (proto.AuthServiceClient, error) {
-	// it's ok to lock here, because Dial below is not locking
-	c.Lock()
-	defer c.Unlock()
-
-	if c.grpcClient != nil {
-		return c.grpcClient, nil
+// DecodeClusterName decodes cluster name, returns NotFound
+// if no cluster name is encoded (empty subdomain),
+// so servers can detect cases when no server name passed
+// returns BadParameter if encoding does not match
+func DecodeClusterName(serverName string) (string, error) {
+	if serverName == teleport.APIDomain {
+		return "", trace.NotFound("no cluster name is encoded")
 	}
-	dialer := grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
-		if c.isClosed() {
-			return nil, trace.ConnectionProblem(nil, "client is closed")
-		}
-		c, err := c.Dialer.DialContext(ctx, "tcp", addr)
-		if err != nil {
-			log.Debugf("Dial to addr %v failed: %v.", addr, err)
-		}
-		return c, err
-	})
-	tlsConfig := c.TLS.Clone()
-	tlsConfig.NextProtos = []string{http2.NextProtoTLS}
-	log.Debugf("GRPC(CLIENT): keep alive %v count: %v.", c.KeepAlivePeriod, c.KeepAliveCount)
-	conn, err := grpc.Dial(teleport.APIDomain,
-		dialer,
-		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
-		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:                c.KeepAlivePeriod,
-			Timeout:             c.KeepAlivePeriod * time.Duration(c.KeepAliveCount),
-			PermitWithoutStream: true,
-		}),
-	)
+	const suffix = "." + teleport.APIDomain
+	if !strings.HasSuffix(serverName, suffix) {
+		return "", trace.NotFound("no cluster name is encoded")
+	}
+	clusterName := strings.TrimSuffix(serverName, suffix)
+
+	decoded, err := hex.DecodeString(clusterName)
 	if err != nil {
-		return nil, trail.FromGRPC(err)
+		return "", trace.BadParameter("failed to decode cluster name: %v", err)
 	}
-	c.conn = conn
-	c.grpcClient = proto.NewAuthServiceClient(c.conn)
+	return string(decoded), nil
+}
 
-	return c.grpcClient, nil
+// ClientTimeout sets idle and dial timeouts of the HTTP transport
+// used by the client.
+func ClientTimeout(timeout time.Duration) roundtrip.ClientParam {
+	return func(c *roundtrip.Client) error {
+		transport, ok := (c.HTTPClient().Transport).(*http.Transport)
+		if !ok {
+			return nil
+		}
+		transport.IdleConnTimeout = timeout
+		transport.ResponseHeaderTimeout = timeout
+		return nil
+	}
+}
+
+// ClientConfig contains configuration of the client
+// DELETE IN: 7.0.0.
+type ClientConfig struct {
+	// Addrs is a list of addresses to dial
+	Addrs []utils.NetAddr
+	// Dialer is a custom dialer that is used instead of Addrs when provided
+	Dialer ContextDialer
+	// DialTimeout defines how long to attempt dialing before timing out
+	DialTimeout time.Duration
+	// KeepAlivePeriod defines period between keep alives
+	KeepAlivePeriod time.Duration
+	// KeepAliveCount specifies the amount of missed keep alives
+	// to wait for before declaring the connection as broken
+	KeepAliveCount int
+	// TLS is the client's TLS config
+	TLS *tls.Config
+}
+
+// NewTLSClient returns a new TLS client that uses mutual TLS authentication
+// and dials the remote server using dialer.
+// DELETE IN: 7.0.0.
+func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, error) {
+	c := client.Config{
+		Addrs:           utils.NetAddrsToStrings(cfg.Addrs),
+		Dialer:          cfg.Dialer,
+		DialTimeout:     cfg.DialTimeout,
+		KeepAlivePeriod: cfg.KeepAlivePeriod,
+		KeepAliveCount:  cfg.KeepAliveCount,
+		Credentials: []client.Credentials{
+			client.LoadTLS(cfg.TLS),
+		},
+	}
+
+	return NewClient(c, params...)
+}
+
+// TLSConfig returns the client's http TLS config
+func (c *Client) TLSConfig() *tls.Config {
+	return c.TLS
 }
 
 func (c *Client) GetTransport() *http.Transport {
@@ -472,16 +383,10 @@ func (c *Client) GetClusterCACert() (*LocalCAResponse, error) {
 func (c *Client) Close() error {
 	c.Lock()
 	defer c.Unlock()
-	c.setClosed()
 	if c.transport != nil {
 		c.transport.CloseIdleConnections()
 	}
-	if c.conn != nil {
-		err := c.conn.Close()
-		c.conn = nil
-		return err
-	}
-	return nil
+	return c.APIClient.Close()
 }
 
 func (c *Client) WaitForDelivery(context.Context) error {
@@ -507,10 +412,10 @@ func (c *Client) RotateCertAuthority(req RotateRequest) error {
 // this method is used to update only public keys and certificates of the
 // the certificate authorities of trusted clusters.
 func (c *Client) RotateExternalCertAuthority(ca services.CertAuthority) error {
-	if err := ca.Check(); err != nil {
+	if err := services.ValidateCertAuthority(ca); err != nil {
 		return trace.Wrap(err)
 	}
-	data, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(ca)
+	data, err := services.MarshalCertAuthority(ca)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -521,10 +426,10 @@ func (c *Client) RotateExternalCertAuthority(ca services.CertAuthority) error {
 
 // UpsertCertAuthority updates or inserts new cert authority
 func (c *Client) UpsertCertAuthority(ca services.CertAuthority) error {
-	if err := ca.Check(); err != nil {
+	if err := services.ValidateCertAuthority(ca); err != nil {
 		return trace.Wrap(err)
 	}
-	data, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(ca)
+	data, err := services.MarshalCertAuthority(ca)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -556,7 +461,7 @@ func (c *Client) GetCertAuthorities(caType services.CertAuthType, loadKeys bool,
 	}
 	re := make([]services.CertAuthority, len(items))
 	for i, raw := range items {
-		ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(raw, services.SkipValidation())
+		ca, err := services.UnmarshalCertAuthority(raw, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -577,7 +482,7 @@ func (c *Client) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(
+	return services.UnmarshalCertAuthority(
 		out.Bytes(), services.SkipValidation())
 }
 
@@ -705,27 +610,6 @@ func (c *Client) RegisterNewAuthServer(token string) error {
 	return trace.Wrap(err)
 }
 
-// UpsertNode is used by SSH servers to reprt their presence
-// to the auth servers in form of hearbeat expiring after ttl period.
-func (c *Client) UpsertNode(s services.Server) (*services.KeepAlive, error) {
-	if s.GetNamespace() == "" {
-		return nil, trace.BadParameter("missing node namespace")
-	}
-	protoServer, ok := s.(*services.ServerV2)
-	if !ok {
-		return nil, trace.BadParameter("unsupported client")
-	}
-	clt, err := c.grpc()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	keepAlive, err := clt.UpsertNode(context.TODO(), protoServer)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-	return keepAlive, nil
-}
-
 // DELETE IN: 5.1.0
 //
 // This logic has been moved to KeepAliveServer.
@@ -740,183 +624,13 @@ func (c *Client) KeepAliveServer(ctx context.Context, keepAlive services.KeepAli
 	return trace.BadParameter("not implemented, use StreamKeepAlives instead")
 }
 
-// NewKeepAliver returns a new instance of keep aliver
-func (c *Client) NewKeepAliver(ctx context.Context) (services.KeepAliver, error) {
-	clt, err := c.grpc()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cancelCtx, cancel := context.WithCancel(ctx)
-	stream, err := clt.SendKeepAlives(cancelCtx)
-	if err != nil {
-		cancel()
-		return nil, trail.FromGRPC(err)
-	}
-	k := &streamKeepAliver{
-		stream:      stream,
-		ctx:         cancelCtx,
-		cancel:      cancel,
-		keepAlivesC: make(chan services.KeepAlive),
-	}
-	go k.forwardKeepAlives()
-	go k.recv()
-	return k, nil
-}
-
-type streamKeepAliver struct {
-	sync.RWMutex
-	stream      proto.AuthService_SendKeepAlivesClient
-	ctx         context.Context
-	cancel      context.CancelFunc
-	keepAlivesC chan services.KeepAlive
-	err         error
-}
-
-func (k *streamKeepAliver) KeepAlives() chan<- services.KeepAlive {
-	return k.keepAlivesC
-}
-
-func (k *streamKeepAliver) forwardKeepAlives() {
-	for {
-		select {
-		case <-k.ctx.Done():
-			return
-		case keepAlive := <-k.keepAlivesC:
-			err := k.stream.Send(&keepAlive)
-			if err != nil {
-				k.closeWithError(trail.FromGRPC(err))
-				return
-			}
-		}
-	}
-}
-
-func (k *streamKeepAliver) Error() error {
-	k.RLock()
-	defer k.RUnlock()
-	return k.err
-}
-
-func (k *streamKeepAliver) Done() <-chan struct{} {
-	return k.ctx.Done()
-}
-
-// recv is necessary to receive errors from the
-// server, otherwise no errors will be propagated
-func (k *streamKeepAliver) recv() {
-	err := k.stream.RecvMsg(&empty.Empty{})
-	k.closeWithError(trail.FromGRPC(err))
-}
-
-func (k *streamKeepAliver) closeWithError(err error) {
-	k.Close()
-	k.Lock()
-	defer k.Unlock()
-	k.err = err
-}
-
-func (k *streamKeepAliver) Close() error {
-	k.cancel()
-	return nil
-}
-
-// NewWatcher returns a new event watcher
-func (c *Client) NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error) {
-	clt, err := c.grpc()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cancelCtx, cancel := context.WithCancel(ctx)
-	var protoWatch proto.Watch
-	for _, kind := range watch.Kinds {
-		protoWatch.Kinds = append(protoWatch.Kinds, proto.WatchKind{
-			Name:        kind.Name,
-			Kind:        kind.Kind,
-			LoadSecrets: kind.LoadSecrets,
-			Filter:      kind.Filter,
-		})
-	}
-	stream, err := clt.WatchEvents(cancelCtx, &protoWatch)
-	if err != nil {
-		cancel()
-		return nil, trail.FromGRPC(err)
-	}
-	w := &streamWatcher{
-		stream:  stream,
-		ctx:     cancelCtx,
-		cancel:  cancel,
-		eventsC: make(chan services.Event),
-	}
-	go w.receiveEvents()
-	return w, nil
-}
-
-type streamWatcher struct {
-	sync.RWMutex
-	stream  proto.AuthService_WatchEventsClient
-	ctx     context.Context
-	cancel  context.CancelFunc
-	eventsC chan services.Event
-	err     error
-}
-
-func (w *streamWatcher) Error() error {
-	w.RLock()
-	defer w.RUnlock()
-	if w.err == nil {
-		return trace.Wrap(w.ctx.Err())
-	}
-	return w.err
-}
-
-func (w *streamWatcher) closeWithError(err error) {
-	w.Close()
-	w.Lock()
-	defer w.Unlock()
-	w.err = err
-}
-
-func (w *streamWatcher) Events() <-chan services.Event {
-	return w.eventsC
-}
-
-func (w *streamWatcher) receiveEvents() {
-	for {
-		event, err := w.stream.Recv()
-		if err != nil {
-			w.closeWithError(trail.FromGRPC(err))
-			return
-		}
-		out, err := eventFromGRPC(*event)
-		if err != nil {
-			log.Warningf("Failed to convert from GRPC: %v", err)
-			w.Close()
-			return
-		}
-		select {
-		case w.eventsC <- *out:
-		case <-w.Done():
-			return
-		}
-	}
-}
-
-func (w *streamWatcher) Done() <-chan struct{} {
-	return w.ctx.Done()
-}
-
-func (w *streamWatcher) Close() error {
-	w.cancel()
-	return nil
-}
-
 // UpsertNodes bulk inserts nodes.
 func (c *Client) UpsertNodes(namespace string, servers []services.Server) error {
 	if namespace == "" {
 		return trace.BadParameter("missing node namespace")
 	}
 
-	bytes, err := services.GetServerMarshaler().MarshalServers(servers)
+	bytes, err := services.MarshalServers(servers)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -975,7 +689,7 @@ func (c *Client) GetNodes(namespace string, opts ...services.MarshalOption) ([]s
 	}
 	re := make([]services.Server, len(items))
 	for i, raw := range items {
-		s, err := services.GetServerMarshaler().UnmarshalServer(
+		s, err := services.UnmarshalServer(
 			raw,
 			services.KindNode,
 			services.AddOptions(opts, services.SkipValidation())...)
@@ -991,7 +705,7 @@ func (c *Client) GetNodes(namespace string, opts ...services.MarshalOption) ([]s
 // UpsertReverseTunnel is used by admins to create a new reverse tunnel
 // to the remote proxy to bypass firewall restrictions
 func (c *Client) UpsertReverseTunnel(tunnel services.ReverseTunnel) error {
-	data, err := services.GetReverseTunnelMarshaler().MarshalReverseTunnel(tunnel)
+	data, err := services.MarshalReverseTunnel(tunnel)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1019,7 +733,7 @@ func (c *Client) GetReverseTunnels(opts ...services.MarshalOption) ([]services.R
 	}
 	tunnels := make([]services.ReverseTunnel, len(items))
 	for i, raw := range items {
-		tunnel, err := services.GetReverseTunnelMarshaler().UnmarshalReverseTunnel(raw, services.SkipValidation())
+		tunnel, err := services.UnmarshalReverseTunnel(raw, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1201,29 +915,10 @@ func (c *Client) CreateRemoteCluster(rc services.RemoteCluster) error {
 	return trace.Wrap(err)
 }
 
-// UpdateRemoteCluster updates remote cluster.
-func (c *Client) UpdateRemoteCluster(ctx context.Context, rc services.RemoteCluster) error {
-	clt, err := c.grpc()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	rcV3, ok := rc.(*services.RemoteClusterV3)
-	if !ok {
-		return trace.BadParameter("unsupported remote cluster type %T", rcV3)
-	}
-
-	if _, err := clt.UpdateRemoteCluster(ctx, rcV3); err != nil {
-		return trail.FromGRPC(err)
-	}
-
-	return nil
-}
-
 // UpsertAuthServer is used by auth servers to report their presence
 // to other auth servers in form of hearbeat expiring after ttl period.
 func (c *Client) UpsertAuthServer(s services.Server) error {
-	data, err := services.GetServerMarshaler().MarshalServer(s)
+	data, err := services.MarshalServer(s)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1246,7 +941,7 @@ func (c *Client) GetAuthServers() ([]services.Server, error) {
 	}
 	re := make([]services.Server, len(items))
 	for i, raw := range items {
-		server, err := services.GetServerMarshaler().UnmarshalServer(raw, services.KindAuthServer, services.SkipValidation())
+		server, err := services.UnmarshalServer(raw, services.KindAuthServer, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1268,7 +963,7 @@ func (c *Client) DeleteAuthServer(name string) error {
 // UpsertProxy is used by proxies to report their presence
 // to other auth servers in form of hearbeat expiring after ttl period.
 func (c *Client) UpsertProxy(s services.Server) error {
-	data, err := services.GetServerMarshaler().MarshalServer(s)
+	data, err := services.MarshalServer(s)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1291,7 +986,7 @@ func (c *Client) GetProxies() ([]services.Server, error) {
 	}
 	re := make([]services.Server, len(items))
 	for i, raw := range items {
-		server, err := services.GetServerMarshaler().UnmarshalServer(raw, services.KindProxy, services.SkipValidation())
+		server, err := services.UnmarshalServer(raw, services.KindProxy, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1348,47 +1043,9 @@ func (c *Client) UpsertPassword(user string, password []byte) error {
 	return nil
 }
 
-// CreateUser inserts a new user entry in a backend.
-func (c *Client) CreateUser(ctx context.Context, user services.User) error {
-	clt, err := c.grpc()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	userV2, ok := user.(*services.UserV2)
-	if !ok {
-		return trace.BadParameter("unsupported user type %T", user)
-	}
-
-	if _, err := clt.CreateUser(ctx, userV2); err != nil {
-		return trail.FromGRPC(err)
-	}
-
-	return nil
-}
-
-// UpdateUser updates an existing user in a backend.
-func (c *Client) UpdateUser(ctx context.Context, user services.User) error {
-	clt, err := c.grpc()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	userV2, ok := user.(*services.UserV2)
-	if !ok {
-		return trace.BadParameter("unsupported user type %T", user)
-	}
-
-	if _, err := clt.UpdateUser(ctx, userV2); err != nil {
-		return trail.FromGRPC(err)
-	}
-
-	return nil
-}
-
 // UpsertUser user updates user entry.
 func (c *Client) UpsertUser(user services.User) error {
-	data, err := services.GetUserMarshaler().MarshalUser(user)
+	data, err := services.MarshalUser(user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1413,8 +1070,8 @@ func (c *Client) CheckPassword(user string, password []byte, otpToken string) er
 	return trace.Wrap(err)
 }
 
-// GetU2FSignRequest generates request for user trying to authenticate with U2F token
-func (c *Client) GetU2FSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
+// GetMFAAuthenticateChallenge generates request for user trying to authenticate with U2F token
+func (c *Client) GetMFAAuthenticateChallenge(user string, password []byte) (*MFAAuthenticateChallenge, error) {
 	out, err := c.PostJSON(
 		c.Endpoint("u2f", "users", user, "sign"),
 		signInReq{
@@ -1424,7 +1081,7 @@ func (c *Client) GetU2FSignRequest(user string, password []byte) (*u2f.SignReque
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var signRequest *u2f.SignRequest
+	var signRequest *MFAAuthenticateChallenge
 	if err := json.Unmarshal(out.Bytes(), &signRequest); err != nil {
 		return nil, err
 	}
@@ -1444,7 +1101,7 @@ func (c *Client) ExtendWebSession(user string, prevSessionID string, accessReque
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.GetWebSessionMarshaler().UnmarshalWebSession(out.Bytes())
+	return services.UnmarshalWebSession(out.Bytes())
 }
 
 // CreateWebSession creates a new web session for a user
@@ -1456,7 +1113,7 @@ func (c *Client) CreateWebSession(user string) (services.WebSession, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.GetWebSessionMarshaler().UnmarshalWebSession(out.Bytes())
+	return services.UnmarshalWebSession(out.Bytes())
 }
 
 // AuthenticateWebUser authenticates web user, creates and  returns web session
@@ -1469,7 +1126,7 @@ func (c *Client) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebS
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.GetWebSessionMarshaler().UnmarshalWebSession(out.Bytes())
+	return services.UnmarshalWebSession(out.Bytes())
 }
 
 // AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
@@ -1491,142 +1148,19 @@ func (c *Client) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 
 // GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
 // it is valid, or error otherwise.
-func (c *Client) GetWebSessionInfo(user string, sid string) (services.WebSession, error) {
+func (c *Client) GetWebSessionInfo(ctx context.Context, user, sessionID string) (services.WebSession, error) {
 	out, err := c.Get(
-		c.Endpoint("users", user, "web", "sessions", sid), url.Values{})
+		c.Endpoint("users", user, "web", "sessions", sessionID), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.GetWebSessionMarshaler().UnmarshalWebSession(out.Bytes())
+	return services.UnmarshalWebSession(out.Bytes())
 }
 
-// DeleteWebSession deletes a web session for this user by id
+// DeleteWebSession deletes the web session specified with sid for the given user
 func (c *Client) DeleteWebSession(user string, sid string) error {
 	_, err := c.Delete(c.Endpoint("users", user, "web", "sessions", sid))
 	return trace.Wrap(err)
-}
-
-// GetUser returns a list of usernames registered in the system
-func (c *Client) GetUser(name string, withSecrets bool) (services.User, error) {
-	if name == "" {
-		return nil, trace.BadParameter("missing username")
-	}
-	user, err := c.grpcGetUser(name, withSecrets)
-	if err == nil {
-		return user, nil
-	}
-	if status.Code(err) != codes.Unimplemented {
-		return nil, trace.Wrap(err)
-	}
-	if withSecrets {
-		return nil, trace.BadParameter("server API appears outdated; cannot get user with secrets")
-	}
-	out, err := c.Get(c.Endpoint("users", name), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	user, err = services.GetUserMarshaler().UnmarshalUser(out.Bytes(), services.SkipValidation())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return user, nil
-}
-
-func (c *Client) grpcGetUser(name string, withSecrets bool) (services.User, error) {
-	clt, err := c.grpc()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	user, err := clt.GetUser(context.TODO(), &proto.GetUserRequest{
-		Name:        name,
-		WithSecrets: withSecrets,
-	})
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-	return user, nil
-}
-
-// GetUsers returns a list of usernames registered in the system
-func (c *Client) GetUsers(withSecrets bool) ([]services.User, error) {
-	users, err := c.grpcGetUsers(withSecrets)
-	if err == nil {
-		return users, nil
-	}
-	if status.Code(err) != codes.Unimplemented {
-		return nil, trace.Wrap(err)
-	}
-	if withSecrets {
-		return nil, trace.BadParameter("server API appears outdated; cannot get users with secrets")
-	}
-	out, err := c.Get(c.Endpoint("users"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	users = make([]services.User, len(items))
-	for i, userBytes := range items {
-		user, err := services.GetUserMarshaler().UnmarshalUser(userBytes, services.SkipValidation())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		users[i] = user
-	}
-	return users, nil
-}
-
-func (c *Client) grpcGetUsers(withSecrets bool) ([]services.User, error) {
-	clt, err := c.grpc()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	stream, err := clt.GetUsers(context.TODO(), &proto.GetUsersRequest{
-		WithSecrets: withSecrets,
-	})
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-	var users []services.User
-	for {
-		user, err := stream.Recv()
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return nil, trail.FromGRPC(err)
-		}
-		users = append(users, user)
-	}
-	return users, nil
-}
-
-// DeleteUser deletes a user by username.
-func (c *Client) DeleteUser(ctx context.Context, user string) error {
-	clt, err := c.grpc()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	req := &proto.DeleteUserRequest{Name: user}
-	_, err = clt.DeleteUser(ctx, req)
-	if err == nil {
-		return nil
-	}
-
-	// Allows cross-version compatibility.
-	// DELETE IN: 5.2 REST method is replaced by grpc with context.
-	if status.Code(err) != codes.Unimplemented {
-		return trace.Wrap(trail.FromGRPC(err))
-	}
-
-	if _, err := c.Delete(c.Endpoint("users", user)); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
 }
 
 // GenerateKeyPair generates SSH private/public key pair optionally protected
@@ -1672,28 +1206,13 @@ func (c *Client) GenerateHostCert(
 	return []byte(cert), nil
 }
 
-// GenerateUserCerts takes the public key in the OpenSSH `authorized_keys` plain
-// text format, signs it using User Certificate Authority signing key and
-// returns the resulting certificates.
-func (c *Client) GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
-	clt, err := c.grpc()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	certs, err := clt.GenerateUserCerts(ctx, &req)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-	return certs, nil
-}
-
 // GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite tokenx
-func (c *Client) GetSignupU2FRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
+func (c *Client) GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error) {
 	out, err := c.Get(c.Endpoint("u2f", "signuptokens", token), url.Values{})
 	if err != nil {
 		return nil, err
 	}
-	var u2fRegReq u2f.RegisterRequest
+	var u2fRegReq u2f.RegisterChallenge
 	if err := json.Unmarshal(out.Bytes(), &u2fRegReq); err != nil {
 		return nil, err
 	}
@@ -1706,12 +1225,12 @@ func (c *Client) ChangePasswordWithToken(ctx context.Context, req ChangePassword
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.GetWebSessionMarshaler().UnmarshalWebSession(out.Bytes())
+	return services.UnmarshalWebSession(out.Bytes())
 }
 
 // UpsertOIDCConnector updates or creates OIDC connector
 func (c *Client) UpsertOIDCConnector(ctx context.Context, connector services.OIDCConnector) error {
-	data, err := services.GetOIDCConnectorMarshaler().MarshalOIDCConnector(connector)
+	data, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1734,10 +1253,10 @@ func (c *Client) GetOIDCConnector(id string, withSecrets bool) (services.OIDCCon
 	if err != nil {
 		return nil, err
 	}
-	return services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(out.Bytes(), services.SkipValidation())
+	return services.UnmarshalOIDCConnector(out.Bytes(), services.SkipValidation())
 }
 
-// GetOIDCConnector gets OIDC connectors list
+// GetOIDCConnectors gets OIDC connectors list
 func (c *Client) GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, error) {
 	out, err := c.Get(c.Endpoint("oidc", "connectors"),
 		url.Values{"with_secrets": []string{fmt.Sprintf("%t", withSecrets)}})
@@ -1750,7 +1269,7 @@ func (c *Client) GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, 
 	}
 	connectors := make([]services.OIDCConnector, len(items))
 	for i, raw := range items {
-		connector, err := services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(raw, services.SkipValidation())
+		connector, err := services.UnmarshalOIDCConnector(raw, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1803,7 +1322,7 @@ func (c *Client) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, erro
 		TLSCert:  rawResponse.TLSCert,
 	}
 	if len(rawResponse.Session) != 0 {
-		session, err := services.GetWebSessionMarshaler().UnmarshalWebSession(rawResponse.Session)
+		session, err := services.UnmarshalWebSession(rawResponse.Session)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1811,7 +1330,7 @@ func (c *Client) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, erro
 	}
 	response.HostSigners = make([]services.CertAuthority, len(rawResponse.HostSigners))
 	for i, raw := range rawResponse.HostSigners {
-		ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(raw)
+		ca, err := services.UnmarshalCertAuthority(raw)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1820,9 +1339,9 @@ func (c *Client) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, erro
 	return &response, nil
 }
 
-// CreateOIDCConnector creates SAML connector
+// CreateSAMLConnector creates SAML connector
 func (c *Client) CreateSAMLConnector(ctx context.Context, connector services.SAMLConnector) error {
-	data, err := services.GetSAMLConnectorMarshaler().MarshalSAMLConnector(connector)
+	data, err := services.MarshalSAMLConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1837,7 +1356,7 @@ func (c *Client) CreateSAMLConnector(ctx context.Context, connector services.SAM
 
 // UpsertSAMLConnector updates or creates OIDC connector
 func (c *Client) UpsertSAMLConnector(ctx context.Context, connector services.SAMLConnector) error {
-	data, err := services.GetSAMLConnectorMarshaler().MarshalSAMLConnector(connector)
+	data, err := services.MarshalSAMLConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1850,7 +1369,7 @@ func (c *Client) UpsertSAMLConnector(ctx context.Context, connector services.SAM
 	return nil
 }
 
-// GetOIDCConnector returns SAML connector information by id
+// GetSAMLConnector returns SAML connector information by id
 func (c *Client) GetSAMLConnector(id string, withSecrets bool) (services.SAMLConnector, error) {
 	if id == "" {
 		return nil, trace.BadParameter("missing connector id")
@@ -1860,7 +1379,7 @@ func (c *Client) GetSAMLConnector(id string, withSecrets bool) (services.SAMLCon
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(out.Bytes(), services.SkipValidation())
+	return services.UnmarshalSAMLConnector(out.Bytes(), services.SkipValidation())
 }
 
 // GetSAMLConnectors gets SAML connectors list
@@ -1876,7 +1395,7 @@ func (c *Client) GetSAMLConnectors(withSecrets bool) ([]services.SAMLConnector, 
 	}
 	connectors := make([]services.SAMLConnector, len(items))
 	for i, raw := range items {
-		connector, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(raw, services.SkipValidation())
+		connector, err := services.UnmarshalSAMLConnector(raw, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1929,7 +1448,7 @@ func (c *Client) ValidateSAMLResponse(re string) (*SAMLAuthResponse, error) {
 		TLSCert:  rawResponse.TLSCert,
 	}
 	if len(rawResponse.Session) != 0 {
-		session, err := services.GetWebSessionMarshaler().UnmarshalWebSession(rawResponse.Session)
+		session, err := services.UnmarshalWebSession(rawResponse.Session)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1937,7 +1456,7 @@ func (c *Client) ValidateSAMLResponse(re string) (*SAMLAuthResponse, error) {
 	}
 	response.HostSigners = make([]services.CertAuthority, len(rawResponse.HostSigners))
 	for i, raw := range rawResponse.HostSigners {
-		ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(raw)
+		ca, err := services.UnmarshalCertAuthority(raw)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1948,7 +1467,7 @@ func (c *Client) ValidateSAMLResponse(re string) (*SAMLAuthResponse, error) {
 
 // CreateGithubConnector creates a new Github connector
 func (c *Client) CreateGithubConnector(connector services.GithubConnector) error {
-	bytes, err := services.GetGithubConnectorMarshaler().Marshal(connector)
+	bytes, err := services.MarshalGithubConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1963,7 +1482,7 @@ func (c *Client) CreateGithubConnector(connector services.GithubConnector) error
 
 // UpsertGithubConnector creates or updates a Github connector
 func (c *Client) UpsertGithubConnector(ctx context.Context, connector services.GithubConnector) error {
-	bytes, err := services.GetGithubConnectorMarshaler().Marshal(connector)
+	bytes, err := services.MarshalGithubConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1990,7 +1509,7 @@ func (c *Client) GetGithubConnectors(withSecrets bool) ([]services.GithubConnect
 	}
 	connectors := make([]services.GithubConnector, len(items))
 	for i, raw := range items {
-		connector, err := services.GetGithubConnectorMarshaler().Unmarshal(raw)
+		connector, err := services.UnmarshalGithubConnector(raw)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2007,7 +1526,7 @@ func (c *Client) GetGithubConnector(id string, withSecrets bool) (services.Githu
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.GetGithubConnectorMarshaler().Unmarshal(out.Bytes())
+	return services.UnmarshalGithubConnector(out.Bytes())
 }
 
 // DeleteGithubConnector deletes the specified Github connector
@@ -2052,7 +1571,7 @@ func (c *Client) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, 
 		TLSCert:  rawResponse.TLSCert,
 	}
 	if len(rawResponse.Session) != 0 {
-		session, err := services.GetWebSessionMarshaler().UnmarshalWebSession(
+		session, err := services.UnmarshalWebSession(
 			rawResponse.Session)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2061,165 +1580,13 @@ func (c *Client) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, 
 	}
 	response.HostSigners = make([]services.CertAuthority, len(rawResponse.HostSigners))
 	for i, raw := range rawResponse.HostSigners {
-		ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(raw)
+		ca, err := services.UnmarshalCertAuthority(raw)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		response.HostSigners[i] = ca
 	}
 	return &response, nil
-}
-
-// ResumeAuditStream resumes existing audit stream
-func (c *Client) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (events.Stream, error) {
-	return c.createOrResumeAuditStream(ctx, proto.AuditStreamRequest{
-		Request: &proto.AuditStreamRequest_ResumeStream{
-			ResumeStream: &proto.ResumeStream{
-				SessionID: string(sid),
-				UploadID:  uploadID,
-			}},
-	})
-}
-
-// CreateAuditStream creates new audit stream
-func (c *Client) CreateAuditStream(ctx context.Context, sid session.ID) (events.Stream, error) {
-	return c.createOrResumeAuditStream(ctx, proto.AuditStreamRequest{
-		Request: &proto.AuditStreamRequest_CreateStream{
-			CreateStream: &proto.CreateStream{SessionID: string(sid)}},
-	})
-}
-
-// createOrResumeAuditStream creates or resumes audit stream
-func (c *Client) createOrResumeAuditStream(ctx context.Context, request proto.AuditStreamRequest) (events.Stream, error) {
-	clt, err := c.grpc()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	closeCtx, cancel := context.WithCancel(ctx)
-	stream, err := clt.CreateAuditStream(closeCtx, grpc.UseCompressor(ggzip.Name))
-	if err != nil {
-		cancel()
-		return nil, trail.FromGRPC(err)
-	}
-	s := &auditStreamer{
-		stream:   stream,
-		statusCh: make(chan events.StreamStatus, 1),
-		closeCtx: closeCtx,
-		cancel:   cancel,
-	}
-	go s.recv()
-	err = s.stream.Send(&request)
-	if err != nil {
-		return nil, trace.NewAggregate(s.Close(ctx), trail.FromGRPC(err))
-	}
-	return s, nil
-}
-
-type auditStreamer struct {
-	statusCh chan events.StreamStatus
-	sync.RWMutex
-	stream   proto.AuthService_CreateAuditStreamClient
-	err      error
-	closeCtx context.Context
-	cancel   context.CancelFunc
-}
-
-// Close flushes non-uploaded flight stream data without marking
-// the stream completed and closes the stream instance
-func (s *auditStreamer) Close(ctx context.Context) error {
-	defer s.closeWithError(nil)
-	return trail.FromGRPC(s.stream.Send(&proto.AuditStreamRequest{
-		Request: &proto.AuditStreamRequest_FlushAndCloseStream{
-			FlushAndCloseStream: &proto.FlushAndCloseStream{},
-		},
-	}))
-}
-
-// Complete completes stream
-func (s *auditStreamer) Complete(ctx context.Context) error {
-	return trail.FromGRPC(s.stream.Send(&proto.AuditStreamRequest{
-		Request: &proto.AuditStreamRequest_CompleteStream{
-			CompleteStream: &proto.CompleteStream{},
-		},
-	}))
-}
-
-// Status returns channel receiving updates about stream status
-// last event index that was uploaded and upload ID
-func (s *auditStreamer) Status() <-chan events.StreamStatus {
-	return s.statusCh
-}
-
-// EmitAuditEvent emits audit event
-func (s *auditStreamer) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
-	oneof, err := events.ToOneOf(event)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = trail.FromGRPC(s.stream.Send(&proto.AuditStreamRequest{
-		Request: &proto.AuditStreamRequest_Event{Event: oneof},
-	}))
-	if err != nil {
-		log.WithError(err).Errorf("Failed to send event.")
-		s.closeWithError(err)
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// Done returns channel closed when streamer is closed
-// should be used to detect sending errors
-func (s *auditStreamer) Done() <-chan struct{} {
-	return s.closeCtx.Done()
-}
-
-// Error returns last error of the stream
-func (s *auditStreamer) Error() error {
-	s.RLock()
-	defer s.RUnlock()
-	return s.err
-}
-
-// recv is necessary to receive errors from the
-// server, otherwise no errors will be propagated
-func (s *auditStreamer) recv() {
-	for {
-		status, err := s.stream.Recv()
-		if err != nil {
-			s.closeWithError(trail.FromGRPC(err))
-			return
-		}
-		select {
-		case <-s.closeCtx.Done():
-			return
-		case s.statusCh <- *status:
-		default:
-		}
-	}
-}
-
-func (s *auditStreamer) closeWithError(err error) {
-	s.cancel()
-	s.Lock()
-	defer s.Unlock()
-	s.err = err
-}
-
-// EmitAuditEvent sends an auditable event to the auth server
-func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
-	grpcEvent, err := events.ToOneOf(event)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	clt, err := c.grpc()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = clt.EmitAuditEvent(ctx, grpcEvent)
-	if err != nil {
-		return trail.FromGRPC(err)
-	}
-	return nil
 }
 
 // EmitAuditEventLegacy sends an auditable event to the auth server (part of events.IAuditLog interface)
@@ -2408,7 +1775,16 @@ func (c *Client) DeleteNamespace(name string) error {
 }
 
 // GetRoles returns a list of roles
-func (c *Client) GetRoles() ([]services.Role, error) {
+func (c *Client) GetRoles(ctx context.Context) ([]services.Role, error) {
+	roles, err := c.APIClient.GetRoles(ctx)
+	if err == nil {
+		return roles, nil
+	} else if !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 7.0
 	out, err := c.Get(c.Endpoint("roles"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2417,9 +1793,9 @@ func (c *Client) GetRoles() ([]services.Role, error) {
 	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roles := make([]services.Role, len(items))
+	roles = make([]services.Role, len(items))
 	for i, roleBytes := range items {
-		role, err := services.GetRoleMarshaler().UnmarshalRole(roleBytes, services.SkipValidation())
+		role, err := services.UnmarshalRole(roleBytes, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2435,7 +1811,15 @@ func (c *Client) CreateRole(role services.Role) error {
 
 // UpsertRole creates or updates role
 func (c *Client) UpsertRole(ctx context.Context, role services.Role) error {
-	data, err := services.GetRoleMarshaler().MarshalRole(role)
+	if err := c.APIClient.UpsertRole(ctx, role); err == nil {
+		return nil
+	} else if !trace.IsNotImplemented(err) {
+		return trace.Wrap(err)
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 7.0
+	data, err := services.MarshalRole(role)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2444,15 +1828,25 @@ func (c *Client) UpsertRole(ctx context.Context, role services.Role) error {
 }
 
 // GetRole returns role by name
-func (c *Client) GetRole(name string) (services.Role, error) {
+func (c *Client) GetRole(ctx context.Context, name string) (services.Role, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing name")
 	}
+
+	role, err := c.APIClient.GetRole(ctx, name)
+	if err == nil {
+		return role, nil
+	} else if !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 7.0
 	out, err := c.Get(c.Endpoint("roles", name), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	role, err := services.GetRoleMarshaler().UnmarshalRole(out.Bytes(), services.SkipValidation())
+	role, err = services.UnmarshalRole(out.Bytes(), services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2461,6 +1855,14 @@ func (c *Client) GetRole(name string) (services.Role, error) {
 
 // DeleteRole deletes role by name
 func (c *Client) DeleteRole(ctx context.Context, name string) error {
+	if err := c.APIClient.DeleteRole(ctx, name); err == nil {
+		return nil
+	} else if !trace.IsNotImplemented(err) {
+		return trace.Wrap(err)
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 7.0
 	_, err := c.Delete(c.Endpoint("roles", name))
 	return trace.Wrap(err)
 }
@@ -2472,7 +1874,7 @@ func (c *Client) GetClusterConfig(opts ...services.MarshalOption) (services.Clus
 		return nil, trace.Wrap(err)
 	}
 
-	cc, err := services.GetClusterConfigMarshaler().Unmarshal(out.Bytes(), services.SkipValidation())
+	cc, err := services.UnmarshalClusterConfig(out.Bytes(), services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2482,7 +1884,7 @@ func (c *Client) GetClusterConfig(opts ...services.MarshalOption) (services.Clus
 
 // SetClusterConfig sets cluster level configuration information.
 func (c *Client) SetClusterConfig(cc services.ClusterConfig) error {
-	data, err := services.GetClusterConfigMarshaler().Marshal(cc)
+	data, err := services.MarshalClusterConfig(cc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2502,7 +1904,7 @@ func (c *Client) GetClusterName(opts ...services.MarshalOption) (services.Cluste
 		return nil, trace.Wrap(err)
 	}
 
-	cn, err := services.GetClusterNameMarshaler().Unmarshal(out.Bytes(), services.SkipValidation())
+	cn, err := services.UnmarshalClusterName(out.Bytes(), services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2513,7 +1915,7 @@ func (c *Client) GetClusterName(opts ...services.MarshalOption) (services.Cluste
 // SetClusterName sets cluster name once, will
 // return Already Exists error if the name is already set
 func (c *Client) SetClusterName(cn services.ClusterName) error {
-	data, err := services.GetClusterNameMarshaler().Marshal(cn)
+	data, err := services.MarshalClusterName(cn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2544,7 +1946,7 @@ func (c *Client) GetStaticTokens() (services.StaticTokens, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	st, err := services.GetStaticTokensMarshaler().Unmarshal(out.Bytes(), services.SkipValidation())
+	st, err := services.UnmarshalStaticTokens(out.Bytes(), services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2554,7 +1956,7 @@ func (c *Client) GetStaticTokens() (services.StaticTokens, error) {
 
 // SetStaticTokens sets a list of static register tokens
 func (c *Client) SetStaticTokens(st services.StaticTokens) error {
-	data, err := services.GetStaticTokensMarshaler().Marshal(st)
+	data, err := services.MarshalStaticTokens(st)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2573,7 +1975,7 @@ func (c *Client) GetAuthPreference() (services.AuthPreference, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	cap, err := services.GetAuthPreferenceMarshaler().Unmarshal(out.Bytes())
+	cap, err := services.UnmarshalAuthPreference(out.Bytes())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2582,7 +1984,7 @@ func (c *Client) GetAuthPreference() (services.AuthPreference, error) {
 }
 
 func (c *Client) SetAuthPreference(cap services.AuthPreference) error {
-	data, err := services.GetAuthPreferenceMarshaler().Marshal(cap)
+	data, err := services.MarshalAuthPreference(cap)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2646,7 +2048,7 @@ func (c *Client) GetTrustedCluster(name string) (services.TrustedCluster, error)
 		return nil, trace.Wrap(err)
 	}
 
-	trustedCluster, err := services.GetTrustedClusterMarshaler().Unmarshal(out.Bytes(), services.SkipValidation())
+	trustedCluster, err := services.UnmarshalTrustedCluster(out.Bytes(), services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2666,7 +2068,7 @@ func (c *Client) GetTrustedClusters() ([]services.TrustedCluster, error) {
 	}
 	trustedClusters := make([]services.TrustedCluster, len(items))
 	for i, bytes := range items {
-		trustedCluster, err := services.GetTrustedClusterMarshaler().Unmarshal(bytes, services.SkipValidation())
+		trustedCluster, err := services.UnmarshalTrustedCluster(bytes, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2678,7 +2080,7 @@ func (c *Client) GetTrustedClusters() ([]services.TrustedCluster, error) {
 
 // UpsertTrustedCluster creates or updates a trusted cluster.
 func (c *Client) UpsertTrustedCluster(ctx context.Context, trustedCluster services.TrustedCluster) (services.TrustedCluster, error) {
-	trustedClusterBytes, err := services.GetTrustedClusterMarshaler().Marshal(trustedCluster)
+	trustedClusterBytes, err := services.MarshalTrustedCluster(trustedCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2688,7 +2090,7 @@ func (c *Client) UpsertTrustedCluster(ctx context.Context, trustedCluster servic
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.GetTrustedClusterMarshaler().Unmarshal(out.Bytes())
+	return services.UnmarshalTrustedCluster(out.Bytes())
 }
 
 func (c *Client) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
@@ -2722,408 +2124,43 @@ func (c *Client) DeleteTrustedCluster(ctx context.Context, name string) error {
 	return trace.Wrap(err)
 }
 
-func (c *Client) GetAccessRequests(ctx context.Context, filter services.AccessRequestFilter) ([]services.AccessRequest, error) {
-	clt, err := c.grpc()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	rsp, err := clt.GetAccessRequests(ctx, &filter)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-	reqs := make([]services.AccessRequest, 0, len(rsp.AccessRequests))
-	for _, req := range rsp.AccessRequests {
-		reqs = append(reqs, req)
-	}
-	return reqs, nil
-}
-
-func (c *Client) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
-	r, ok := req.(*services.AccessRequestV3)
-	if !ok {
-		return trace.BadParameter("unexpected access request type %T", req)
-	}
-	clt, err := c.grpc()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = clt.CreateAccessRequest(ctx, r)
-	if err != nil {
-		return trail.FromGRPC(err)
-	}
-	return nil
-}
-
-func (c *Client) RotateResetPasswordTokenSecrets(ctx context.Context, tokenID string) (services.ResetPasswordTokenSecrets, error) {
-	clt, err := c.grpc()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	secrets, err := clt.RotateResetPasswordTokenSecrets(ctx, &proto.RotateResetPasswordTokenSecretsRequest{
-		TokenID: tokenID,
-	})
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	return secrets, nil
-}
-
-func (c *Client) GetResetPasswordToken(ctx context.Context, tokenID string) (services.ResetPasswordToken, error) {
-	clt, err := c.grpc()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	token, err := clt.GetResetPasswordToken(ctx, &proto.GetResetPasswordTokenRequest{
-		TokenID: tokenID,
-	})
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	return token, nil
-}
-
 // CreateResetPasswordToken creates reset password token
 func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateResetPasswordTokenRequest) (services.ResetPasswordToken, error) {
-	clt, err := c.grpc()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	token, err := clt.CreateResetPasswordToken(ctx, &proto.CreateResetPasswordTokenRequest{
+	return c.APIClient.CreateResetPasswordToken(ctx, &proto.CreateResetPasswordTokenRequest{
 		Name: req.Name,
 		TTL:  proto.Duration(req.TTL),
 		Type: req.Type,
 	})
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	return token, nil
-}
-
-func (c *Client) DeleteAccessRequest(ctx context.Context, reqID string) error {
-	clt, err := c.grpc()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = clt.DeleteAccessRequest(ctx, &proto.RequestID{
-		ID: reqID,
-	})
-	if err != nil {
-		return trail.FromGRPC(err)
-	}
-	return nil
-}
-
-func (c *Client) SetAccessRequestState(ctx context.Context, params services.AccessRequestUpdate) error {
-	clt, err := c.grpc()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	setter := proto.RequestStateSetter{
-		ID:          params.RequestID,
-		State:       params.State,
-		Reason:      params.Reason,
-		Annotations: params.Annotations,
-		Roles:       params.Roles,
-	}
-	if d := getDelegator(ctx); d != "" {
-		setter.Delegator = d
-	}
-	_, err = clt.SetAccessRequestState(ctx, &setter)
-	if err != nil {
-		return trail.FromGRPC(err)
-	}
-	return nil
-}
-
-// GetPluginData loads all plugin data matching the supplied filter.
-func (c *Client) GetPluginData(ctx context.Context, filter services.PluginDataFilter) ([]services.PluginData, error) {
-	clt, err := c.grpc()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	seq, err := clt.GetPluginData(ctx, &filter)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-	data := make([]services.PluginData, 0, len(seq.PluginData))
-	for _, d := range seq.PluginData {
-		data = append(data, d)
-	}
-	return data, nil
-}
-
-// UpdatePluginData updates a per-resource PluginData entry.
-func (c *Client) UpdatePluginData(ctx context.Context, params services.PluginDataUpdateParams) error {
-	clt, err := c.grpc()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if _, err := clt.UpdatePluginData(ctx, &params); err != nil {
-		return trail.FromGRPC(err)
-	}
-	return nil
-}
-
-// Ping gets basic info about the auth server.
-func (c *Client) Ping(ctx context.Context) (proto.PingResponse, error) {
-	clt, err := c.grpc()
-	if err != nil {
-		return proto.PingResponse{}, trace.Wrap(err)
-	}
-	rsp, err := clt.Ping(ctx, &proto.PingRequest{})
-	if err != nil {
-		return proto.PingResponse{}, trail.FromGRPC(err)
-	}
-	return *rsp, nil
-}
-
-// AcquireSemaphore acquires lease with requested resources from semaphore.
-func (c *Client) AcquireSemaphore(ctx context.Context, params services.AcquireSemaphoreRequest) (*services.SemaphoreLease, error) {
-	clt, err := c.grpc()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	lease, err := clt.AcquireSemaphore(ctx, &params)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-	return lease, nil
-}
-
-// KeepAliveSemaphoreLease updates semaphore lease.
-func (c *Client) KeepAliveSemaphoreLease(ctx context.Context, lease services.SemaphoreLease) error {
-	clt, err := c.grpc()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if _, err := clt.KeepAliveSemaphoreLease(ctx, &lease); err != nil {
-		return trail.FromGRPC(err)
-	}
-	return nil
-}
-
-// CancelSemaphoreLease cancels semaphore lease early.
-func (c *Client) CancelSemaphoreLease(ctx context.Context, lease services.SemaphoreLease) error {
-	clt, err := c.grpc()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if _, err := clt.CancelSemaphoreLease(ctx, &lease); err != nil {
-		return trail.FromGRPC(err)
-	}
-	return nil
-}
-
-// GetSemaphores returns a list of all semaphores matching the supplied filter.
-func (c *Client) GetSemaphores(ctx context.Context, filter services.SemaphoreFilter) ([]services.Semaphore, error) {
-	clt, err := c.grpc()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	rsp, err := clt.GetSemaphores(ctx, &filter)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-	sems := make([]services.Semaphore, 0, len(rsp.Semaphores))
-	for _, s := range rsp.Semaphores {
-		sems = append(sems, s)
-	}
-	return sems, nil
-}
-
-// DeleteSemaphore deletes a semaphore matching the supplied filter.
-func (c *Client) DeleteSemaphore(ctx context.Context, filter services.SemaphoreFilter) error {
-	clt, err := c.grpc()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if _, err := clt.DeleteSemaphore(ctx, &filter); err != nil {
-		return trail.FromGRPC(err)
-	}
-	return nil
-}
-
-// UpsertKubeService is used by kubernetes services to report their presence
-// to other auth servers in form of hearbeat expiring after ttl period.
-func (c *Client) UpsertKubeService(ctx context.Context, s services.Server) error {
-	clt, err := c.grpc()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	server, ok := s.(*services.ServerV2)
-	if !ok {
-		return trace.BadParameter("invalid type %T, expected *services.ServerV2", server)
-	}
-	_, err = clt.UpsertKubeService(ctx, &proto.UpsertKubeServiceRequest{
-		Server: server,
-	})
-	return trace.Wrap(err)
-}
-
-// GetKubeServices returns the list of kubernetes services registered in the
-// cluster.
-func (c *Client) GetKubeServices(ctx context.Context) ([]services.Server, error) {
-	clt, err := c.grpc()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	resp, err := clt.GetKubeServices(ctx, &proto.GetKubeServicesRequest{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var servers []services.Server
-	for _, server := range resp.GetServers() {
-		servers = append(servers, server)
-	}
-	return servers, nil
 }
 
 // GetAppServers gets all application servers.
-func (c *Client) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
-	clt, err := c.grpc()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+func (c *Client) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
 	cfg, err := services.CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := clt.GetAppServers(ctx, &proto.GetAppServersRequest{
-		Namespace:      namespace,
-		SkipValidation: cfg.SkipValidation,
-	})
+	resp, err := c.APIClient.GetAppServers(ctx, namespace, cfg.SkipValidation)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
 
-	var servers []services.Server
-	for _, server := range resp.GetServers() {
-		servers = append(servers, server)
-	}
-
-	return servers, nil
+	return resp, nil
 }
 
-// UpsertAppServer adds an application server.
-func (c *Client) UpsertAppServer(ctx context.Context, server services.Server) (*services.KeepAlive, error) {
-	clt, err := c.grpc()
+// GetDatabaseServers returns all registered database proxy servers.
+func (c *Client) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
+	cfg, err := services.CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	s, ok := server.(*services.ServerV2)
-	if !ok {
-		return nil, trace.BadParameter("invalid type %T", server)
-	}
-
-	keepAlive, err := clt.UpsertAppServer(ctx, &proto.UpsertAppServerRequest{
-		Server: s,
-	})
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-	return keepAlive, nil
-}
-
-// DeleteAppServer removes an application server.
-func (c *Client) DeleteAppServer(ctx context.Context, namespace string, name string) error {
-	clt, err := c.grpc()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = clt.DeleteAppServer(ctx, &proto.DeleteAppServerRequest{
-		Namespace: namespace,
-		Name:      name,
-	})
-	if err != nil {
-		return trail.FromGRPC(err)
-	}
-
-	return nil
-}
-
-// DeleteAllAppServers removes all application servers.
-func (c *Client) DeleteAllAppServers(ctx context.Context, namespace string) error {
-	clt, err := c.grpc()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = clt.DeleteAllAppServers(ctx, &proto.DeleteAllAppServersRequest{
-		Namespace: namespace,
-	})
-	if err != nil {
-		return trail.FromGRPC(err)
-	}
-
-	return nil
-}
-
-// GetAppSession gets an application web session.
-func (c *Client) GetAppSession(ctx context.Context, req services.GetAppSessionRequest) (services.WebSession, error) {
-	clt, err := c.grpc()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resp, err := clt.GetAppSession(ctx, &proto.GetAppSessionRequest{
-		SessionID: req.SessionID,
-	})
+	resp, err := c.APIClient.GetDatabaseServers(ctx, namespace, cfg.SkipValidation)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
 
-	return resp.GetSession(), nil
-}
-
-// GetAppSessions gets all application web sessions.
-func (c *Client) GetAppSessions(ctx context.Context) ([]services.WebSession, error) {
-	clt, err := c.grpc()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resp, err := clt.GetAppSessions(ctx, &empty.Empty{})
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	out := make([]services.WebSession, 0, len(resp.GetSessions()))
-	for _, v := range resp.GetSessions() {
-		out = append(out, v)
-	}
-	return out, nil
-}
-
-// CreateAppSession creates an application web session. Application web
-// sessions represent a browser session the client holds.
-func (c *Client) CreateAppSession(ctx context.Context, req services.CreateAppSessionRequest) (services.WebSession, error) {
-	clt, err := c.grpc()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resp, err := clt.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
-		Username:      req.Username,
-		ParentSession: req.ParentSession,
-		PublicAddr:    req.PublicAddr,
-		ClusterName:   req.ClusterName,
-	})
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	return resp.GetSession(), nil
+	return resp, nil
 }
 
 // UpsertAppSession not implemented: can only be called locally.
@@ -3131,91 +2168,30 @@ func (c *Client) UpsertAppSession(ctx context.Context, session services.WebSessi
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAppSession removes an application web session.
-func (c *Client) DeleteAppSession(ctx context.Context, req services.DeleteAppSessionRequest) error {
-	clt, err := c.grpc()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = clt.DeleteAppSession(ctx, &proto.DeleteAppSessionRequest{
-		SessionID: req.SessionID,
-	})
-	if err != nil {
-		return trail.FromGRPC(err)
-	}
-
-	return nil
+// ResumeAuditStream resumes existing audit stream.
+// This is a wrapper on the grpc endpoint and is deprecated.
+// DELETE IN 7.0.0
+func (c *Client) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (events.Stream, error) {
+	return c.APIClient.ResumeAuditStream(ctx, string(sid), uploadID)
 }
 
-// DeleteAllAppSessions removes all application web sessions.
-func (c *Client) DeleteAllAppSessions(ctx context.Context) error {
-	clt, err := c.grpc()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if _, err := clt.DeleteAllAppSessions(ctx, &empty.Empty{}); err != nil {
-		return trail.FromGRPC(err)
-	}
-
-	return nil
-}
-
-// GenerateAppToken creates a JWT token with application access.
-func (c *Client) GenerateAppToken(ctx context.Context, req jwt.GenerateAppTokenRequest) (string, error) {
-	clt, err := c.grpc()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	resp, err := clt.GenerateAppToken(ctx, &proto.GenerateAppTokenRequest{
-		Username: req.Username,
-		Roles:    req.Roles,
-		URI:      req.URI,
-		Expires:  req.Expires,
-	})
-	if err != nil {
-		return "", trail.FromGRPC(err)
-	}
-
-	return resp.GetToken(), nil
-}
-
-// DeleteKubeService deletes a named kubernetes service.
-func (c *Client) DeleteKubeService(ctx context.Context, name string) error {
-	clt, err := c.grpc()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = clt.DeleteKubeService(ctx, &proto.DeleteKubeServiceRequest{
-		Name: name,
-	})
-	return trace.Wrap(err)
-}
-
-// DeleteAllKubeServices deletes all registered kubernetes services.
-func (c *Client) DeleteAllKubeServices(ctx context.Context) error {
-	clt, err := c.grpc()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = clt.DeleteAllKubeServices(ctx, &proto.DeleteAllKubeServicesRequest{})
-	return trace.Wrap(err)
+// CreateAuditStream creates new audit stream.
+// This is a wrapper on the grpc endpoint and is deprecated.
+// DELETE IN 7.0.0
+func (c *Client) CreateAuditStream(ctx context.Context, sid session.ID) (events.Stream, error) {
+	return c.APIClient.CreateAuditStream(ctx, string(sid))
 }
 
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
 	// it is valid, or error otherwise.
-	GetWebSessionInfo(user string, sid string) (services.WebSession, error)
+	GetWebSessionInfo(ctx context.Context, user, sessionID string) (types.WebSession, error)
 	// ExtendWebSession creates a new web session for a user based on another
 	// valid web session
-	ExtendWebSession(user string, prevSessionID string, accessRequestID string) (services.WebSession, error)
+	ExtendWebSession(user, prevSessionID, accessRequestID string) (types.WebSession, error)
 	// CreateWebSession creates a new web session for a user
-	CreateWebSession(user string) (services.WebSession, error)
-	// DeleteWebSession deletes a web session for this user by id
-	DeleteWebSession(user string, sid string) error
+	CreateWebSession(user string) (types.WebSession, error)
 
 	// AppSession defines application session features.
 	services.AppSession
@@ -3280,11 +2256,11 @@ type IdentityService interface {
 	// ValidateGithubAuthCallback validates Github auth callback
 	ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error)
 
-	// GetU2FSignRequest generates request for user trying to authenticate with U2F token
-	GetU2FSignRequest(user string, password []byte) (*u2f.SignRequest, error)
+	// GetMFAAuthenticateChallenge generates request for user trying to authenticate with U2F token
+	GetMFAAuthenticateChallenge(user string, password []byte) (*MFAAuthenticateChallenge, error)
 
 	// GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite token
-	GetSignupU2FRegisterRequest(token string) (*u2f.RegisterRequest, error)
+	GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error)
 
 	// GetUser returns user by name
 	GetUser(name string, withSecrets bool) (services.User, error)
@@ -3335,6 +2311,15 @@ type IdentityService interface {
 	// returns the resulting certificates.
 	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
 
+	// GenerateUserSingleUseCerts is like GenerateUserCerts but issues a
+	// certificate for a single session
+	// (https://github.com/gravitational/teleport/blob/3a1cf9111c2698aede2056513337f32bfc16f1f1/rfd/0014-session-2FA.md#sessions).
+	GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error)
+
+	// IsMFARequiredRequest is a request to check whether MFA is required to
+	// access the Target.
+	IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error)
+
 	// DeleteAllUsers deletes all users
 	DeleteAllUsers() error
 
@@ -3349,6 +2334,13 @@ type IdentityService interface {
 
 	// RotateResetPasswordTokenSecrets rotates token secrets for a given tokenID
 	RotateResetPasswordTokenSecrets(ctx context.Context, tokenID string) (services.ResetPasswordTokenSecrets, error)
+
+	// GetMFADevices fetches all MFA devices registered for the calling user.
+	GetMFADevices(ctx context.Context, in *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error)
+	// AddMFADevice adds a new MFA device for the calling user.
+	AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error)
+	// DeleteMFADevice deletes a MFA device for the calling user.
+	DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error)
 }
 
 // ProvisioningService is a service in control
@@ -3389,10 +2381,14 @@ type ClientI interface {
 	services.Presence
 	services.Access
 	services.DynamicAccess
+	services.DynamicAccessOracle
 	WebService
 	session.Service
 	services.ClusterConfiguration
 	services.Events
+
+	types.WebSessionsGetter
+	types.WebTokensGetter
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (services.KeepAliver, error)
@@ -3436,4 +2432,16 @@ type ClientI interface {
 	// CreateAppSession creates an application web session. Application web
 	// sessions represent a browser session the client holds.
 	CreateAppSession(context.Context, services.CreateAppSessionRequest) (services.WebSession, error)
+
+	// GenerateDatabaseCert generates client certificate used by a database
+	// service to authenticate with the database instance.
+	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
+
+	// GetWebSession queries the existing web session described with req.
+	// Implements ReadAccessPoint.
+	GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error)
+
+	// GetWebToken queries the existing web token described with req.
+	// Implements ReadAccessPoint.
+	GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
 }

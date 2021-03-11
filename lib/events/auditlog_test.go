@@ -28,14 +28,20 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 type AuditTestSuite struct {
 	dataDir string
@@ -78,10 +84,6 @@ func (a *AuditTestSuite) makeLogWithClock(c *check.C, dataDir string, recordSess
 		return nil, trace.Wrap(err)
 	}
 	return alog, nil
-}
-
-func (a *AuditTestSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
 }
 
 func (a *AuditTestSuite) SetUpTest(c *check.C) {
@@ -143,14 +145,14 @@ func (a *AuditTestSuite) TestSessionsOnOneAuthServer(c *check.C) {
 		SessionID: sessionID,
 		Chunks: []*SessionChunk{
 			// start the session
-			&SessionChunk{
+			{
 				Time:       fakeClock.Now().UTC().UnixNano(),
 				EventIndex: 0,
 				EventType:  SessionStartEvent,
 				Data:       marshal(EventFields{EventLogin: "bob"}),
 			},
 			// type "hello" into session "100"
-			&SessionChunk{
+			{
 				Time:       fakeClock.Now().UTC().UnixNano(),
 				EventIndex: 1,
 				ChunkIndex: 0,
@@ -159,7 +161,7 @@ func (a *AuditTestSuite) TestSessionsOnOneAuthServer(c *check.C) {
 				Data:       firstMessage,
 			},
 			// emitting session end event should close the session
-			&SessionChunk{
+			{
 				Time:       fakeClock.Now().UTC().UnixNano(),
 				EventIndex: 4,
 				EventType:  SessionEndEvent,
@@ -263,14 +265,14 @@ func (a *AuditTestSuite) TestSessionRecordingOff(c *check.C) {
 		SessionID: sessionID,
 		Chunks: []*SessionChunk{
 			// start the session
-			&SessionChunk{
+			{
 				Time:       alog.Clock.Now().UTC().UnixNano(),
 				EventIndex: 0,
 				EventType:  SessionStartEvent,
 				Data:       marshal(EventFields{EventLogin: username}),
 			},
 			// type "hello" into session "100"
-			&SessionChunk{
+			{
 				Time:       alog.Clock.Now().UTC().UnixNano(),
 				EventIndex: 1,
 				ChunkIndex: 0,
@@ -279,7 +281,7 @@ func (a *AuditTestSuite) TestSessionRecordingOff(c *check.C) {
 				Data:       firstMessage,
 			},
 			// end the session
-			&SessionChunk{
+			{
 				Time:       alog.Clock.Now().UTC().UnixNano(),
 				EventIndex: 0,
 				EventType:  SessionEndEvent,
@@ -311,11 +313,10 @@ func (a *AuditTestSuite) TestSessionRecordingOff(c *check.C) {
 }
 
 func (a *AuditTestSuite) TestBasicLogging(c *check.C) {
-	now := time.Now().In(time.UTC).Round(time.Second)
 	// create audit log, write a couple of events into it, close it
-	alog, err := a.makeLog(c, a.dataDir, true)
+	clock := clockwork.NewFakeClock()
+	alog, err := a.makeLogWithClock(c, a.dataDir, true, clock)
 	c.Assert(err, check.IsNil)
-	alog.Clock = clockwork.NewFakeClockAt(now)
 
 	// emit regular event:
 	err = alog.EmitAuditEventLegacy(Event{Name: "user.joined"}, EventFields{"apples?": "yes"})
@@ -327,7 +328,8 @@ func (a *AuditTestSuite) TestBasicLogging(c *check.C) {
 	bytes, err := ioutil.ReadFile(logfile)
 	c.Assert(err, check.IsNil)
 	c.Assert(string(bytes), check.Equals,
-		fmt.Sprintf("{\"apples?\":\"yes\",\"event\":\"user.joined\",\"time\":\"%s\",\"uid\":\"%s\"}\n", now.Format(time.RFC3339), fixtures.UUID))
+		fmt.Sprintf("{\"apples?\":\"yes\",\"event\":\"user.joined\",\"time\":\"%s\",\"uid\":\"%s\"}\n",
+			clock.Now().Format(time.RFC3339), fixtures.UUID))
 }
 
 // TestLogRotation makes sure that logs are rotated
@@ -395,7 +397,6 @@ func (a *AuditTestSuite) TestForwardAndUpload(c *check.C) {
 // TestLegacyHandler tests playback for legacy sessions
 // that are stored on disk in unpacked format
 func (a *AuditTestSuite) TestLegacyHandler(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
 	memory := NewMemoryUploader()
 	wrapper, err := NewLegacyHandler(LegacyHandlerConfig{
 		Handler: memory,
@@ -499,14 +500,14 @@ func (a *AuditTestSuite) forwardAndUpload(c *check.C, fakeClock clockwork.Clock,
 		SessionID: string(sessionID),
 		Chunks: []*SessionChunk{
 			// start the seession
-			&SessionChunk{
+			{
 				Time:       fakeClock.Now().UTC().UnixNano(),
 				EventIndex: 0,
 				EventType:  SessionStartEvent,
 				Data:       marshal(EventFields{EventLogin: "bob"}),
 			},
 			// type "hello" into session "100"
-			&SessionChunk{
+			{
 				Time:       fakeClock.Now().UTC().UnixNano(),
 				EventIndex: 1,
 				ChunkIndex: 0,
@@ -515,7 +516,7 @@ func (a *AuditTestSuite) forwardAndUpload(c *check.C, fakeClock clockwork.Clock,
 				Data:       firstMessage,
 			},
 			// emitting session end event should close the session
-			&SessionChunk{
+			{
 				Time:       fakeClock.Now().UTC().UnixNano(),
 				EventIndex: 4,
 				EventType:  SessionEndEvent,

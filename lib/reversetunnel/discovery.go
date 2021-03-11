@@ -59,14 +59,13 @@ type discoveryRequestRaw struct {
 
 func marshalDiscoveryRequest(req discoveryRequest) ([]byte, error) {
 	var out discoveryRequestRaw
-	m := services.GetServerMarshaler()
 	for _, p := range req.Proxies {
 		// Clone the server value to avoid a potential race
 		// since the proxies are shared.
 		// Marshaling attempts to enforce defaults which modifies
 		// the original value.
 		p = p.DeepCopy()
-		data, err := m.MarshalServer(p)
+		data, err := services.MarshalServer(p)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -86,10 +85,9 @@ func unmarshalDiscoveryRequest(data []byte) (*discoveryRequest, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	m := services.GetServerMarshaler()
 	var out discoveryRequest
 	for _, bytes := range raw.Proxies {
-		proxy, err := m.UnmarshalServer([]byte(bytes), services.KindProxy, services.SkipValidation())
+		proxy, err := services.UnmarshalServer([]byte(bytes), services.KindProxy, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

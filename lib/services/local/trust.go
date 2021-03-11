@@ -30,10 +30,10 @@ func (s *CA) DeleteAllCertAuthorities(caType services.CertAuthType) error {
 
 // CreateCertAuthority updates or inserts a new certificate authority
 func (s *CA) CreateCertAuthority(ca services.CertAuthority) error {
-	if err := ca.Check(); err != nil {
+	if err := services.ValidateCertAuthority(ca); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(ca)
+	value, err := services.MarshalCertAuthority(ca)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -55,10 +55,10 @@ func (s *CA) CreateCertAuthority(ca services.CertAuthority) error {
 
 // UpsertCertAuthority updates or inserts a new certificate authority
 func (s *CA) UpsertCertAuthority(ca services.CertAuthority) error {
-	if err := ca.Check(); err != nil {
+	if err := services.ValidateCertAuthority(ca); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(ca)
+	value, err := services.MarshalCertAuthority(ca)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -80,10 +80,10 @@ func (s *CA) UpsertCertAuthority(ca services.CertAuthority) error {
 // if the existing value matches existing parameter, returns nil if succeeds,
 // trace.CompareFailed otherwise.
 func (s *CA) CompareAndSwapCertAuthority(new, existing services.CertAuthority) error {
-	if err := new.Check(); err != nil {
+	if err := services.ValidateCertAuthority(new); err != nil {
 		return trace.Wrap(err)
 	}
-	newValue, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(new)
+	newValue, err := services.MarshalCertAuthority(new)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -93,7 +93,7 @@ func (s *CA) CompareAndSwapCertAuthority(new, existing services.CertAuthority) e
 		Expires: new.Expiry(),
 	}
 
-	existingValue, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(existing)
+	existingValue, err := services.MarshalCertAuthority(existing)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -144,7 +144,7 @@ func (s *CA) ActivateCertAuthority(id services.CertAuthID) error {
 		return trace.Wrap(err)
 	}
 
-	certAuthority, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(
+	certAuthority, err := services.UnmarshalCertAuthority(
 		item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 	if err != nil {
 		return trace.Wrap(err)
@@ -179,7 +179,7 @@ func (s *CA) DeactivateCertAuthority(id services.CertAuthID) error {
 		return trace.Wrap(err)
 	}
 
-	value, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(certAuthority)
+	value, err := services.MarshalCertAuthority(certAuthority)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -208,12 +208,12 @@ func (s *CA) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool, opts
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(
+	ca, err := services.UnmarshalCertAuthority(
 		item.Value, services.AddOptions(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := ca.Check(); err != nil {
+	if err := services.ValidateCertAuthority(ca); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	setSigningKeys(ca, loadSigningKeys)
@@ -244,14 +244,14 @@ func (s *CA) GetCertAuthorities(caType services.CertAuthType, loadSigningKeys bo
 	// Marshal values into a []services.CertAuthority slice.
 	cas := make([]services.CertAuthority, len(result.Items))
 	for i, item := range result.Items {
-		ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(
+		ca, err := services.UnmarshalCertAuthority(
 			item.Value, services.AddOptions(opts,
 				services.WithResourceID(item.ID),
 				services.WithExpires(item.Expires))...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := ca.Check(); err != nil {
+		if err := services.ValidateCertAuthority(ca); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		setSigningKeys(ca, loadSigningKeys)

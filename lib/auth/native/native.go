@@ -28,10 +28,10 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/wrappers"
 
 	"github.com/gravitational/trace"
 
@@ -65,27 +65,25 @@ type Keygen struct {
 }
 
 // KeygenOption is a functional optional argument for key generator
-type KeygenOption func(k *Keygen) error
+type KeygenOption func(k *Keygen)
 
 // SetClock sets the clock to use for key generation.
 func SetClock(clock clockwork.Clock) KeygenOption {
-	return func(k *Keygen) error {
+	return func(k *Keygen) {
 		k.clock = clock
-		return nil
 	}
 }
 
 // PrecomputeKeys sets up a number of private keys to pre-compute
 // in background, 0 disables the process
 func PrecomputeKeys(count int) KeygenOption {
-	return func(k *Keygen) error {
+	return func(k *Keygen) {
 		k.precomputeCount = count
-		return nil
 	}
 }
 
 // New returns a new key generator.
-func New(ctx context.Context, opts ...KeygenOption) (*Keygen, error) {
+func New(ctx context.Context, opts ...KeygenOption) *Keygen {
 	ctx, cancel := context.WithCancel(ctx)
 	k := &Keygen{
 		ctx:             ctx,
@@ -94,9 +92,7 @@ func New(ctx context.Context, opts ...KeygenOption) (*Keygen, error) {
 		clock:           clockwork.NewRealClock(),
 	}
 	for _, opt := range opts {
-		if err := opt(k); err != nil {
-			return nil, trace.Wrap(err)
-		}
+		opt(k)
 	}
 
 	if k.precomputeCount > 0 {
@@ -107,7 +103,7 @@ func New(ctx context.Context, opts ...KeygenOption) (*Keygen, error) {
 		log.Debugf("SSH cert authority started with no keys pre-compute.")
 	}
 
-	return k, nil
+	return k
 }
 
 // Close stops the precomputation of keys (if enabled) and releases all resources.
@@ -184,6 +180,12 @@ func (k *Keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	return k.GenerateHostCertWithoutValidation(c)
+}
+
+// GenerateHostCertWithoutValidation generates a host certificate with the
+// passed in parameters without validating them. For use in tests only.
+func (k *Keygen) GenerateHostCertWithoutValidation(c services.HostCertParams) ([]byte, error) {
 	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(c.PublicHostKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -232,12 +234,18 @@ func (k *Keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
 
-// GenerateUserCert generates a host certificate with the passed in parameters.
+// GenerateUserCert generates a user certificate with the passed in parameters.
 // The private key of the CA to sign the certificate must be provided.
 func (k *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
-	if err := c.Check(); err != nil {
+	if err := c.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err, "error validating UserCertParams")
 	}
+	return k.GenerateUserCertWithoutValidation(c)
+}
+
+// GenerateUserCertWithoutValidation generates a user certificate with the
+// passed in parameters without validating them. For use in tests only.
+func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([]byte, error) {
 	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(c.PublicUserKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -258,8 +266,7 @@ func (k *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 		CertType:        ssh.UserCert,
 	}
 	cert.Permissions.Extensions = map[string]string{
-		teleport.CertExtensionPermitPTY:            "",
-		teleport.CertExtensionPermitPortForwarding: "",
+		teleport.CertExtensionPermitPTY: "",
 	}
 	if c.PermitX11Forwarding {
 		cert.Permissions.Extensions[teleport.CertExtensionPermitX11Forwarding] = ""
@@ -267,9 +274,16 @@ func (k *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 	if c.PermitAgentForwarding {
 		cert.Permissions.Extensions[teleport.CertExtensionPermitAgentForwarding] = ""
 	}
-	if !c.PermitPortForwarding {
-		delete(cert.Permissions.Extensions, teleport.CertExtensionPermitPortForwarding)
+	if c.PermitPortForwarding {
+		cert.Permissions.Extensions[teleport.CertExtensionPermitPortForwarding] = ""
 	}
+	if c.MFAVerified != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionMFAVerified] = c.MFAVerified
+	}
+	if c.ClientIP != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionClientIP] = c.ClientIP
+	}
+
 	// Add roles, traits, and route to cluster in the certificate extensions if
 	// the standard format was requested. Certificate extensions are not included
 	// legacy SSH certificates due to a bug in OpenSSH <= OpenSSH 7.1:

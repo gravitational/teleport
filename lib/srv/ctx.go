@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -120,6 +121,9 @@ type Server interface {
 
 	// Context returns server shutdown context
 	Context() context.Context
+
+	// GetUtmpPath returns the path of the user accounting database and log. Returns empty for system defaults.
+	GetUtmpPath() (utmp, wtmp string)
 }
 
 // IdentityContext holds all identity information associated with the user
@@ -133,7 +137,7 @@ type IdentityContext struct {
 
 	// Certificate is the SSH user certificate bytes marshalled in the OpenSSH
 	// authorized_keys format.
-	Certificate []byte
+	Certificate *ssh.Certificate
 
 	// CertAuthority is the Certificate Authority that signed the Certificate.
 	CertAuthority services.CertAuthority
@@ -150,21 +154,6 @@ type IdentityContext struct {
 	RouteToCluster string
 }
 
-// GetCertificate parses the SSH certificate bytes and returns a *ssh.Certificate.
-func (c IdentityContext) GetCertificate() (*ssh.Certificate, error) {
-	k, _, _, _, err := ssh.ParseAuthorizedKey(c.Certificate)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cert, ok := k.(*ssh.Certificate)
-	if !ok {
-		return nil, trace.BadParameter("not a certificate")
-	}
-
-	return cert, nil
-}
-
 // ServerContext holds session specific context, such as SSH auth agents, PTYs,
 // and other resources. SessionContext also holds a ServerContext which can be
 // used to access resources on the underlying server. SessionContext can also
@@ -175,7 +164,7 @@ type ServerContext struct {
 	*sshutils.ConnectionContext
 	*log.Entry
 
-	sync.RWMutex
+	mu sync.RWMutex
 
 	// env is a list of environment variables passed to the session.
 	env map[string]string
@@ -387,6 +376,11 @@ func (c *ServerContext) ID() int {
 
 // SessionID returns the ID of the session in the context.
 func (c *ServerContext) SessionID() rsession.ID {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.session == nil {
+		return ""
+	}
 	return c.session.id
 }
 
@@ -398,9 +392,11 @@ func (c *ServerContext) GetServer() Server {
 // CreateOrJoinSession will look in the SessionRegistry for the session ID. If
 // no session is found, a new one is created. If one is found, it is returned.
 func (c *ServerContext) CreateOrJoinSession(reg *SessionRegistry) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	// As SSH conversation progresses, at some point a session will be created and
 	// its ID will be added to the environment
-	ssid, found := c.GetEnv(sshutils.SessionEnvVar)
+	ssid, found := c.getEnvLocked(sshutils.SessionEnvVar)
 	if !found {
 		return nil
 	}
@@ -411,9 +407,9 @@ func (c *ServerContext) CreateOrJoinSession(reg *SessionRegistry) error {
 	}
 
 	findSession := func() (*session, bool) {
-		reg.Lock()
-		defer reg.Unlock()
-		return reg.findSession(rsession.ID(ssid))
+		reg.mu.Lock()
+		defer reg.mu.Unlock()
+		return reg.findSessionLocked(rsession.ID(ssid))
 	}
 
 	// update ctx with a session ID
@@ -421,7 +417,7 @@ func (c *ServerContext) CreateOrJoinSession(reg *SessionRegistry) error {
 	if c.session == nil {
 		log.Debugf("Will create new session for SSH connection %v.", c.ServerConn.RemoteAddr())
 	} else {
-		log.Debugf("Will join session %v for SSH connection %v.", c.session, c.ServerConn.RemoteAddr())
+		log.Debugf("Will join session %v for SSH connection %v.", c.session.id, c.ServerConn.RemoteAddr())
 	}
 
 	return nil
@@ -435,45 +431,47 @@ func (c *ServerContext) TrackActivity(ch ssh.Channel) ssh.Channel {
 
 // GetClientLastActive returns time when client was last active
 func (c *ServerContext) GetClientLastActive() time.Time {
-	c.RLock()
-	defer c.RUnlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.clientLastActive
 }
 
 // UpdateClientActivity sets last recorded client activity associated with this context
 // either channel or session
 func (c *ServerContext) UpdateClientActivity() {
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.clientLastActive = c.srv.GetClock().Now().UTC()
 }
 
 // AddCloser adds any closer in ctx that will be called
 // whenever server closes session channel
 func (c *ServerContext) AddCloser(closer io.Closer) {
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.closers = append(c.closers, closer)
 }
 
 // GetTerm returns a Terminal.
 func (c *ServerContext) GetTerm() Terminal {
-	c.RLock()
-	defer c.RUnlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	return c.term
 }
 
 // SetTerm set a Terminal.
 func (c *ServerContext) SetTerm(t Terminal) {
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	c.term = t
 }
 
 // VisitEnv grants visitor-style access to env variables.
 func (c *ServerContext) VisitEnv(visit func(key, val string)) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	// visit the parent env first since locally defined variables
 	// effectively "override" parent defined variables.
 	c.Parent().VisitEnv(visit)
@@ -484,11 +482,19 @@ func (c *ServerContext) VisitEnv(visit func(key, val string)) {
 
 // SetEnv sets a environment variable within this context.
 func (c *ServerContext) SetEnv(key, val string) {
+	c.mu.Lock()
 	c.env[key] = val
+	c.mu.Unlock()
 }
 
 // GetEnv returns a environment variable within this context.
 func (c *ServerContext) GetEnv(key string) (string, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.getEnvLocked(key)
+}
+
+func (c *ServerContext) getEnvLocked(key string) (string, bool) {
 	val, ok := c.env[key]
 	if ok {
 		return val, true
@@ -496,12 +502,26 @@ func (c *ServerContext) GetEnv(key string) (string, bool) {
 	return c.Parent().GetEnv(key)
 }
 
+// setSession sets the context's session
+func (c *ServerContext) setSession(sess *session) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.session = sess
+}
+
+// getSession returns the context's session
+func (c *ServerContext) getSession() *session {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.session
+}
+
 // takeClosers returns all resources that should be closed and sets the properties to null
 // we do this to avoid calling Close() under lock to avoid potential deadlocks
 func (c *ServerContext) takeClosers() []io.Closer {
 	// this is done to avoid any operation holding the lock for too long
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	closers := []io.Closer{}
 	if c.term != nil {
@@ -544,6 +564,10 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 			ServerID:        c.GetServer().HostUUID(),
 			ServerNamespace: c.GetServer().GetNamespace(),
 		},
+		SessionMetadata: events.SessionMetadata{
+			SessionID: string(c.SessionID()),
+			WithMFA:   c.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
+		},
 		UserMetadata: events.UserMetadata{
 			User:  c.Identity.TeleportUser,
 			Login: c.Identity.Login,
@@ -556,9 +580,6 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 	}
 	if !c.srv.UseTunnel() {
 		sessionDataEvent.ConnectionMetadata.LocalAddr = c.ServerConn.LocalAddr().String()
-	}
-	if c.session != nil {
-		sessionDataEvent.SessionMetadata.SessionID = string(c.session.id)
 	}
 	if err := c.GetServer().EmitAuditEvent(c.GetServer().Context(), sessionDataEvent); err != nil {
 		c.WithError(err).Warn("Failed to emit session data event.")
@@ -607,7 +628,7 @@ func (c *ServerContext) SendExecResult(r ExecResult) {
 	select {
 	case c.ExecResultCh <- r:
 	default:
-		log.Infof("blocked on sending exec result %v", r)
+		c.Infof("Blocked on sending exec result %v.", r)
 	}
 }
 
@@ -617,7 +638,7 @@ func (c *ServerContext) SendSubsystemResult(r SubsystemResult) {
 	select {
 	case c.SubsystemResultCh <- r:
 	default:
-		c.Infof("blocked on sending subsystem result")
+		c.Info("Blocked on sending subsystem result.")
 	}
 }
 
@@ -690,6 +711,11 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		requestType = c.request.Type
 	}
 
+	uaccMetadata, err := newUaccMetadata(c)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Create the execCommand that will be sent to the child process.
 	return &ExecCommand{
 		Command:               command,
@@ -705,6 +731,7 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		ServiceName:           pamServiceName,
 		UsePAMAuth:            pamUseAuth,
 		IsTestStub:            c.IsTestStub,
+		UaccMetadata:          *uaccMetadata,
 	}, nil
 }
 
@@ -735,13 +762,14 @@ func buildEnvironment(ctx *ServerContext) []string {
 	}
 
 	// If a session has been created try and set TERM, SSH_TTY, and SSH_SESSION_ID.
-	if ctx.session != nil {
-		if ctx.session.term != nil {
-			env = append(env, fmt.Sprintf("TERM=%v", ctx.session.term.GetTermType()))
-			env = append(env, fmt.Sprintf("SSH_TTY=%s", ctx.session.term.TTY().Name()))
+	session := ctx.getSession()
+	if session != nil {
+		if session.term != nil {
+			env = append(env, fmt.Sprintf("TERM=%v", session.term.GetTermType()))
+			env = append(env, fmt.Sprintf("SSH_TTY=%s", session.term.TTY().Name()))
 		}
-		if ctx.session.id != "" {
-			env = append(env, fmt.Sprintf("%s=%s", teleport.SSHSessionID, ctx.session.id))
+		if session.id != "" {
+			env = append(env, fmt.Sprintf("%s=%s", teleport.SSHSessionID, session.id))
 		}
 	}
 
@@ -773,4 +801,24 @@ func closeAll(closers ...io.Closer) error {
 	}
 
 	return trace.NewAggregate(errs...)
+}
+
+func newUaccMetadata(c *ServerContext) (*UaccMetadata, error) {
+	addr := c.ConnectionContext.ServerConn.Conn.RemoteAddr()
+	hostname, _, err := net.SplitHostPort(addr.String())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	preparedAddr, err := uacc.PrepareAddr(addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	utmpPath, wtmpPath := c.srv.GetUtmpPath()
+
+	return &UaccMetadata{
+		Hostname:   hostname,
+		RemoteAddr: preparedAddr,
+		UtmpPath:   utmpPath,
+		WtmpPath:   wtmpPath,
+	}, nil
 }

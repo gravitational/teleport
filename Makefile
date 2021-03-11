@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=5.0.0-dev
+VERSION=6.0.0-alpha.2
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
@@ -27,18 +27,36 @@ TELEPORT_DEBUG ?= no
 GITTAG=v$(VERSION)
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
 CGOFLAG ?= CGO_ENABLED=1
+# Windows requires extra parameters to cross-compile with CGO.
+ifeq ("$(OS)","windows")
+BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s' -buildmode=exe
+CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
+endif
+
+ifeq ("$(OS)","linux")
+# ARM builds need to specify the correct C compiler
+ifeq ("$(ARCH)","arm")
+CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
+endif
+# ARM64 builds need to specify the correct C compiler
+ifeq ("$(ARCH)","arm64")
+CGOFLAG = CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc
+endif
+endif
+
 GO_LINTERS ?= "unused,govet,typecheck,deadcode,goimports,varcheck,structcheck,bodyclose,staticcheck,ineffassign,unconvert,misspell,gosimple,golint"
 
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
 FIPS ?=
-RELEASE=teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
+RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
 
 # FIPS support must be requested at build time.
 FIPS_MESSAGE := "without FIPS support"
 ifneq ("$(FIPS)","")
 FIPS_TAG := fips
 FIPS_MESSAGE := "with FIPS support"
+RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-fips-bin
 endif
 
 # PAM support will only be built into Teleport if headers exist at build time.
@@ -57,9 +75,14 @@ endif
 
 # BPF support will only be built into Teleport if headers exist at build time.
 BPF_MESSAGE := "without BPF support"
+
+# BPF cannot currently be compiled on ARMv7 due to this bug: https://github.com/iovisor/gobpf/issues/272
+# ARM64 builds are not affected.
+ifneq ("$(ARCH)","arm")
 ifneq ("$(wildcard /usr/include/bcc/libbpf.h)","")
 BPF_TAG := bpf
 BPF_MESSAGE := "with BPF support"
+endif
 endif
 
 # On Windows only build tsh. On all other platforms build teleport, tctl,
@@ -194,21 +217,6 @@ release-windows: clean all
 	@echo "---> Created $(RELEASE).zip."
 
 #
-# Builds docs using containerized mkdocs
-#
-.PHONY:docs
-docs: docs-test
-	$(MAKE) -C build.assets docs
-
-#
-# Runs the documentation site inside a container on localhost with live updates
-# Convenient for editing documentation.
-#
-.PHONY:run-docs
-run-docs:
-	$(MAKE) -C build.assets run-docs
-
-#
 # Remove trailing whitespace in all markdown files under docs/.
 #
 # Note: this runs in a busybox container to avoid incompatibilities between
@@ -223,7 +231,7 @@ docs-fix-whitespace:
 # Test docs for trailing whitespace and broken links
 #
 .PHONY:docs-test
-docs-test: docs-test-whitespace docs-test-links
+docs-test: docs-test-whitespace
 
 #
 # Check for trailing whitespace in all markdown files under docs/
@@ -236,17 +244,6 @@ docs-test-whitespace:
 		exit 1; \
 	fi
 
-#
-# Run milv in docs to detect broken internal links.
-# milv is installed if missing.
-#
-.PHONY:docs-test-links
-docs-test-links: DOCS_FOLDERS := $(shell find . -name milv.config.yaml -exec dirname {} \;)
-docs-test-links:
-	for docs_dir in $(DOCS_FOLDERS); do \
-		echo "running milv -ignore-external in $${docs_dir}"; \
-		cd $${docs_dir} && milv -ignore-external; cd $(PWD); \
-	done
 
 #
 # Runs all tests except integration, called by CI/CD.
@@ -264,6 +261,7 @@ test: $(VERSRC)
 
 #
 # Integration tests. Need a TTY to work.
+# Any tests which need to run as root must be skipped during regular integration testing.
 #
 .PHONY: integration
 integration: FLAGS ?= -v -race
@@ -273,12 +271,23 @@ integration:
 	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS)
 
 #
+# Integration tests which need to be run as root in order to complete successfully
+# are run separately to all other integration tests. Need a TTY to work.
+#
+INTEGRATION_ROOT_REGEX := ^TestRoot
+.PHONY: integration-root
+integration-root: FLAGS ?= -v -race
+integration-root: PACKAGES := $(shell go list ./... | grep integration)
+integration-root:
+	go test -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS)
+
+#
 # Lint the Go code.
 # By default lint scans the entire repo. Pass FLAGS='--new' to only scan local
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-go lint-sh
+lint: lint-sh lint-helm lint-go
 
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
@@ -310,7 +319,25 @@ lint-sh:
 		shellcheck \
 		--exclude=SC2086 \
 		--exclude=SC1091 \
+		--exclude=SC2129 \
 		$(SH_LINT_FLAGS)
+
+# Lints all the Helm charts found in directories under examples/chart and exits on failure
+# If there is a .lint directory inside, the chart gets linted once for each .yaml file in that directory
+.PHONY: lint-helm
+lint-helm:
+	for CHART in $$(find examples/chart -mindepth 1 -maxdepth 1 -type d); do \
+		if [ -d $$CHART/.lint ]; then \
+			for VALUES in $$CHART/.lint/*.yaml; do \
+				echo "$$CHART: $$VALUES"; \
+				helm lint --strict $$CHART -f $$VALUES || exit 1; \
+				helm template test $$CHART -f $$VALUES 1>/dev/null || exit 1; \
+			done \
+		else \
+			helm lint --strict $$CHART || exit 1; \
+			helm template test $$CHART 1>/dev/null || exit 1; \
+		fi \
+	done
 
 # This rule triggers re-generation of version.go and gitref.go if Makefile changes
 $(VERSRC): Makefile
@@ -376,57 +403,45 @@ docker-binaries: clean
 enter:
 	make -C build.assets enter
 
-PROTOC_VER ?= 3.6.1
-GOGO_PROTO_TAG ?= v1.1.1
-PLATFORM := linux-x86_64
-BUILDBOX_TAG := teleport-grpc-buildbox:0.0.1
-
-# buildbox builds docker buildbox image used to compile binaries and generate GRPc stuff
-.PHONY: buildbox
-buildbox:
-	cd build.assets/grpc && docker build \
-          --build-arg PROTOC_VER=$(PROTOC_VER) \
-          --build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
-          --build-arg PLATFORM=$(PLATFORM) \
-          -t $(BUILDBOX_TAG) .
-
-# proto generates GRPC defs from service definitions
+# grpc generates GRPC stubs from service definitions
 .PHONY: grpc
-grpc: buildbox
-	docker run \
-		--rm \
-		-v $(shell pwd):/go/src/github.com/gravitational/teleport $(BUILDBOX_TAG) \
-		make -C /go/src/github.com/gravitational/teleport buildbox-grpc
+grpc:
+	make -C build.assets grpc
 
-# proto generates GRPC stuff inside buildbox
+# buildbox-grpc generates GRPC stubs inside buildbox
 .PHONY: buildbox-grpc
 buildbox-grpc:
 # standard GRPC output
 	echo $$PROTO_INCLUDE
 	find lib/ -iname *.proto | xargs clang-format -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
+	find api/ -iname *.proto | xargs clang-format -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
 
-	cd lib/events && protoc -I=.:$$PROTO_INCLUDE \
-	  --gofast_out=plugins=grpc:.\
-    *.proto
+	protoc -I=.:$$PROTO_INCLUDE \
+		--proto_path=api/types/events \
+		--gogofast_out=plugins=grpc:api/types/events \
+		events.proto
 
-	cd lib/services && protoc -I=.:$$PROTO_INCLUDE \
-	  --gofast_out=plugins=grpc:.\
-    *.proto
+	protoc -I=.:$$PROTO_INCLUDE \
+		--proto_path=api/types/wrappers \
+		--gogofast_out=plugins=grpc:api/types/wrappers \
+		wrappers.proto
 
-	cd lib/auth/proto && protoc -I=.:$$PROTO_INCLUDE \
-	  --gofast_out=plugins=grpc:.\
-    *.proto
+	protoc -I=.:$$PROTO_INCLUDE \
+		--proto_path=api/types \
+		--gogofast_out=plugins=grpc:api/types \
+		types.proto
 
-	cd lib/wrappers && protoc -I=.:$$PROTO_INCLUDE \
-	  --gofast_out=plugins=grpc:.\
-    *.proto
+	protoc -I=.:$$PROTO_INCLUDE \
+		--proto_path=api/client/proto \
+		--gogofast_out=plugins=grpc:api/client/proto \
+		authservice.proto
 
 	cd lib/multiplexer/test && protoc -I=.:$$PROTO_INCLUDE \
-	  --gofast_out=plugins=grpc:.\
+	  --gogofast_out=plugins=grpc:.\
     *.proto
 
 	cd lib/web && protoc -I=.:$$PROTO_INCLUDE \
-	  --gofast_out=plugins=grpc:.\
+	  --gogofast_out=plugins=grpc:.\
     *.proto
 
 .PHONY: goinstall
@@ -579,3 +594,15 @@ init-submodules-e: init-webapps-submodules-e
 update-vendor:
 	go mod tidy
 	go mod vendor
+	# delete the vendored api package. In its place
+	# create a symlink to the the original api package
+	rm -r vendor/github.com/gravitational/teleport/api
+	ln -s -r $(shell readlink -f api) vendor/github.com/gravitational/teleport
+
+# update-webassets updates the minified code in the webassets repo using the latest webapps
+# repo and creates a PR in the teleport repo to update webassets submodule.
+.PHONY: update-webassets
+update-webassets: WEBAPPS_BRANCH ?= 'master'
+update-webassets: TELEPORT_BRANCH ?= 'master'
+update-webassets:
+	build.assets/webapps/update-teleport-webassets.sh -w $(WEBAPPS_BRANCH) -t $(TELEPORT_BRANCH)

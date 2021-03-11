@@ -23,61 +23,52 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/stretchr/testify/require"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
-	check "gopkg.in/check.v1"
+	"github.com/stretchr/testify/require"
 )
-
-func TestTLSCA(t *testing.T) { check.TestingT(t) }
-
-type TLSCASuite struct {
-	clock clockwork.Clock
-}
-
-var _ = check.Suite(&TLSCASuite{
-	clock: clockwork.NewFakeClock(),
-})
 
 // TestPrincipals makes sure that SAN extension of generated x509 cert gets
 // correctly set with DNS names and IP addresses based on the provided
 // principals.
-func (s *TLSCASuite) TestPrincipals(c *check.C) {
-	ca, err := New([]byte(fixtures.SigningCertPEM), []byte(fixtures.SigningKeyPEM))
-	c.Assert(err, check.IsNil)
+func TestPrincipals(t *testing.T) {
+	ca, err := FromKeys([]byte(fixtures.SigningCertPEM), []byte(fixtures.SigningKeyPEM))
+	require.NoError(t, err)
 
 	privateKey, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	hostnames := []string{"localhost", "example.com"}
 	ips := []string{"127.0.0.1", "192.168.1.1"}
 
+	clock := clockwork.NewFakeClock()
+
 	certBytes, err := ca.GenerateCertificate(CertificateRequest{
-		Clock:     s.clock,
+		Clock:     clock,
 		PublicKey: privateKey.Public(),
 		Subject:   pkix.Name{CommonName: "test"},
-		NotAfter:  s.clock.Now().Add(time.Hour),
+		NotAfter:  clock.Now().Add(time.Hour),
 		DNSNames:  append(hostnames, ips...),
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	cert, err := ParseCertificatePEM(certBytes)
-	c.Assert(err, check.IsNil)
-	c.Assert(cert.DNSNames, check.DeepEquals, hostnames)
+	require.NoError(t, err)
+	require.ElementsMatch(t, cert.DNSNames, hostnames)
 	var certIPs []string
 	for _, ip := range cert.IPAddresses {
 		certIPs = append(certIPs, ip.String())
 	}
-	c.Assert(certIPs, check.DeepEquals, ips)
+	require.ElementsMatch(t, certIPs, ips)
 }
 
 // TestKubeExtensions test ASN1 subject kubernetes extensions
 func TestKubeExtensions(t *testing.T) {
 	clock := clockwork.NewFakeClock()
-	ca, err := New([]byte(fixtures.SigningCertPEM), []byte(fixtures.SigningKeyPEM))
+	ca, err := FromKeys([]byte(fixtures.SigningCertPEM), []byte(fixtures.SigningKeyPEM))
 	require.NoError(t, err)
 
 	privateKey, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
@@ -95,7 +86,14 @@ func TestKubeExtensions(t *testing.T) {
 		KubernetesUsers:   []string{"IAM#alice@example.com"},
 		KubernetesCluster: "kube-cluster",
 		TeleportCluster:   "tele-cluster",
-		Expires:           expires,
+		RouteToDatabase: RouteToDatabase{
+			ServiceName: "postgres-rds",
+			Protocol:    "postgres",
+			Username:    "postgres",
+		},
+		DatabaseNames: []string{"postgres", "main"},
+		DatabaseUsers: []string{"postgres", "alice"},
+		Expires:       expires,
 	}
 
 	subj, err := identity.Subject()

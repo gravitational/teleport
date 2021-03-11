@@ -18,14 +18,21 @@ package client
 
 import (
 	"context"
+	"os"
 	"testing"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"gopkg.in/check.v1"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 // register test suite
 type APITestSuite struct {
@@ -35,10 +42,6 @@ type APITestSuite struct {
 func TestClientAPI(t *testing.T) { check.TestingT(t) }
 
 var _ = check.Suite(&APITestSuite{})
-
-func (s *APITestSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (s *APITestSuite) TestConfig(c *check.C) {
 	var conf Config
@@ -350,8 +353,16 @@ func (t *testCertGetter) GetTrustedCA(ctx context.Context, clusterName string) (
 	var cas []services.CertAuthority
 
 	for _, clusterName := range t.clusterNames {
-		// Only the cluster name is checked in tests, pass in nil for the keys.
-		cas = append(cas, services.NewCertAuthority(services.HostCA, clusterName, nil, nil, nil, services.CertAuthoritySpecV2_UNKNOWN))
+		// Only the cluster name is checked in tests, pass in nil for the keys.\
+		ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
+			Type:         services.HostCA,
+			ClusterName:  clusterName,
+			SigningKeys:  nil,
+			CheckingKeys: nil,
+			Roles:        nil,
+			SigningAlg:   services.CertAuthoritySpecV2_UNKNOWN,
+		})
+		cas = append(cas, ca)
 	}
 
 	return cas, nil

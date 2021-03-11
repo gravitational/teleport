@@ -16,10 +16,8 @@ limitations under the License.
 package utils
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
-	"testing"
 
 	"gopkg.in/check.v1"
 )
@@ -27,11 +25,6 @@ import (
 type EnvironmentSuite struct{}
 
 var _ = check.Suite(&EnvironmentSuite{})
-var _ = fmt.Printf
-
-func (s *EnvironmentSuite) SetUpSuite(c *check.C) {
-	InitLoggerForTests(testing.Verbose())
-}
 
 func (s *EnvironmentSuite) TestReadEnvironmentFile(c *check.C) {
 	// contents of environment file

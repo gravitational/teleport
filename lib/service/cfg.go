@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2020 Gravitational, Inc.
+Copyright 2015-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -38,8 +38,10 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
+	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/ghodss/yaml"
@@ -90,6 +92,9 @@ type Config struct {
 
 	// App service configuration. Manages applications running within the cluster.
 	Apps AppsConfig
+
+	// Databases defines database proxy service configuration.
+	Databases DatabasesConfig
 
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
@@ -196,6 +201,9 @@ type Config struct {
 
 	// Log optionally specifies the logger
 	Log utils.Logger
+
+	// PluginRegistry allows adding enterprise logic to Teleport services
+	PluginRegistry plugin.Registry
 }
 
 // ApplyToken assigns a given token to all internal services but only if token
@@ -318,6 +326,9 @@ type ProxyConfig struct {
 	// DisableReverseTunnel disables reverse tunnel on the proxy
 	DisableReverseTunnel bool
 
+	// DisableDatabaseProxy disables database access proxy listener
+	DisableDatabaseProxy bool
+
 	// ReverseTunnelListenAddr is address where reverse tunnel dialers connect to
 	ReverseTunnelListenAddr utils.NetAddr
 
@@ -329,6 +340,9 @@ type ProxyConfig struct {
 
 	// SSHAddr is address of ssh proxy
 	SSHAddr utils.NetAddr
+
+	// MySQLAddr is address of MySQL proxy.
+	MySQLAddr utils.NetAddr
 
 	Limiter limiter.Config
 
@@ -352,6 +366,19 @@ type ProxyConfig struct {
 
 	// KeyPairs are the key and certificate pairs that the proxy will load.
 	KeyPairs []KeyPairPath
+
+	// ACME is ACME protocol support config
+	ACME ACME
+}
+
+// ACME configures ACME automatic certificate renewal
+type ACME struct {
+	// Enabled enables or disables ACME support
+	Enabled bool
+	// Email receives notifications from ACME server
+	Email string
+	// URI is ACME server URI
+	URI string
 }
 
 // KeyPairPath are paths to a key and certificate file.
@@ -506,6 +533,68 @@ type KubeConfig struct {
 	Limiter limiter.Config
 }
 
+// DatabasesConfig configures the database proxy service.
+type DatabasesConfig struct {
+	// Enabled enables the database proxy service.
+	Enabled bool
+	// Databases is a list of databases proxied by this service.
+	Databases []Database
+}
+
+// Database represents a single database that's being proxied.
+type Database struct {
+	// Name is the database name, used to refer to in CLI.
+	Name string
+	// Description is a free-form database description.
+	Description string
+	// Protocol is the database type, e.g. postgres or mysql.
+	Protocol string
+	// URI is the database endpoint to connect to.
+	URI string
+	// StaticLabels is a map of database static labels.
+	StaticLabels map[string]string
+	// DynamicLabels is a list of database dynamic labels.
+	DynamicLabels services.CommandLabels
+	// CACert is an optional database CA certificate.
+	CACert []byte
+	// AWS contains AWS specific settings for RDS/Aurora.
+	AWS DatabaseAWS
+}
+
+// DatabaseAWS contains AWS specific settings for RDS/Aurora databases.
+type DatabaseAWS struct {
+	// Region is the cloud region database is running in when using AWS RDS.
+	Region string
+}
+
+// Check validates the database proxy configuration.
+func (d *Database) Check() error {
+	if d.Name == "" {
+		return trace.BadParameter("empty database name")
+	}
+	// Unlike application access proxy, database proxy name doesn't necessarily
+	// need to be a valid subdomain but use the same validation logic for the
+	// simplicity and consistency.
+	if errs := validation.IsDNS1035Label(d.Name); len(errs) > 0 {
+		return trace.BadParameter("invalid database %q name: %v", d.Name, errs)
+	}
+	if !utils.SliceContainsStr(defaults.DatabaseProtocols, d.Protocol) {
+		return trace.BadParameter("unsupported database %q protocol %q, supported are: %v",
+			d.Name, d.Protocol, defaults.DatabaseProtocols)
+	}
+	if _, _, err := net.SplitHostPort(d.URI); err != nil {
+		return trace.BadParameter("invalid database %q address %q: %v",
+			d.Name, d.URI, err)
+	}
+	if len(d.CACert) != 0 {
+		if _, err := tlsca.ParseCertificatePEM(d.CACert); err != nil {
+			return trace.BadParameter("provided database %q CA doesn't appear to be a valid x509 certificate: %v",
+				d.Name, err)
+		}
+	}
+	return nil
+}
+
 // AppsConfig configures application proxy service.
 type AppsConfig struct {
 	// Enabled enables application proxying service.
@@ -634,11 +723,8 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	cfg.Auth.StaticTokens = services.DefaultStaticTokens()
 	cfg.Auth.ClusterConfig = services.DefaultClusterConfig()
+	cfg.Auth.Preference = services.DefaultAuthPreference()
 	defaults.ConfigureLimiter(&cfg.Auth.Limiter)
-	// set new style default auth preferences
-	ap := &services.AuthPreferenceV2{}
-	ap.CheckAndSetDefaults()
-	cfg.Auth.Preference = ap
 	cfg.Auth.LicenseFile = filepath.Join(cfg.DataDir, defaults.LicenseFile)
 
 	// Proxy service defaults.
@@ -665,6 +751,9 @@ func ApplyDefaults(cfg *Config) {
 
 	// Apps service defaults. It's disabled by default.
 	cfg.Apps.Enabled = false
+
+	// Databases proxy service is disabled by default.
+	cfg.Databases.Enabled = false
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2

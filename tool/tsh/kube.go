@@ -98,18 +98,19 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 
 	log.Debugf("Requesting TLS cert for kubernetes cluster %q", c.kubeCluster)
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		return tc.ReissueUserCerts(cf.Context, client.ReissueParams{
+		var err error
+		k, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
 			RouteToCluster:    c.teleportCluster,
 			KubernetesCluster: c.kubeCluster,
 		})
+		return err
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// ReissueUserCerts should cache the new cert on disk, re-read them.
-	k, err = tc.LocalAgent().GetKey(client.WithKubeCerts(c.teleportCluster))
-	if err != nil {
+	// Cache the new cert on disk for reuse.
+	if _, err := tc.LocalAgent().AddKey(k); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -121,11 +122,15 @@ func (c *kubeCredentialsCommand) writeResponse(key *client.Key, kubeClusterName 
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	expiry := crt.NotAfter
+	// Indicate slightly earlier expiration to avoid the cert expiring
+	// mid-request, if possible.
+	if time.Until(expiry) > time.Minute {
+		expiry = expiry.Add(-1 * time.Minute)
+	}
 	resp := &clientauthentication.ExecCredential{
 		Status: &clientauthentication.ExecCredentialStatus{
-			// Indicate  slightly earlier expiration to avoid the cert expiring
-			// mid-request.
-			ExpirationTimestamp:   &metav1.Time{Time: crt.NotAfter.Add(-1 * time.Minute)},
+			ExpirationTimestamp:   &metav1.Time{Time: expiry},
 			ClientCertificateData: string(key.KubeTLSCerts[kubeClusterName]),
 			ClientKeyData:         string(key.Priv),
 		},

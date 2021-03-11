@@ -40,27 +40,6 @@ resource "aws_autoscaling_group" "auth" {
   }
 }
 
-data "template_file" "auth_user_data" {
-  template = file("auth-user-data.tpl")
-
-  vars = {
-    region                   = var.region
-    locks_table_name         = aws_dynamodb_table.locks.name
-    auth_server_addr         = aws_lb.auth.dns_name
-    cluster_name             = var.cluster_name
-    dynamo_table_name        = aws_dynamodb_table.teleport.name
-    dynamo_events_table_name = aws_dynamodb_table.teleport_events.name
-    email                    = var.email
-    domain_name              = var.route53_domain
-    s3_bucket                = var.s3_bucket_name
-    influxdb_addr            = "http://${aws_lb.monitor.dns_name}:8086"
-    license_path             = var.license_path
-    telegraf_version         = var.telegraf_version
-    teleport_uid             = var.teleport_uid
-    use_acm                  = var.use_acm
-  }
-}
-
 resource "aws_launch_configuration" "auth" {
   lifecycle {
     create_before_destroy = true
@@ -68,7 +47,25 @@ resource "aws_launch_configuration" "auth" {
   name_prefix                 = "${var.cluster_name}-auth-"
   image_id                    = data.aws_ami.base.id
   instance_type               = var.auth_instance_type
-  user_data                   = data.template_file.auth_user_data.rendered
+  user_data                   = templatefile(
+    "${path.module}/auth-user-data.tpl",
+    {
+      region                   = var.region
+      locks_table_name         = aws_dynamodb_table.locks.name
+      auth_server_addr         = aws_lb.auth.dns_name
+      cluster_name             = var.cluster_name
+      dynamo_table_name        = aws_dynamodb_table.teleport.name
+      dynamo_events_table_name = aws_dynamodb_table.teleport_events.name
+      email                    = var.email
+      domain_name              = var.route53_domain
+      s3_bucket                = var.s3_bucket_name
+      influxdb_addr            = "http://${aws_lb.monitor.dns_name}:8086"
+      license_path             = var.license_path
+      telegraf_version         = var.telegraf_version
+      teleport_uid             = var.teleport_uid
+      use_acm                  = var.use_acm
+    }
+  )
   key_name                    = var.key_name
   ebs_optimized               = true
   associate_public_ip_address = false

@@ -41,16 +41,23 @@ Examples:
     --app-uri="http://localhost:8080" \
     --labels=group:dev
   Same as the above, but the app server runs with "group=dev" label which only
-  allows access to users with the role "group=dev".`
+  allows access to users with the role "group=dev".
+  
+> teleport start --roles=database --token=xyz --auth-server=proxy.example.com:3080 \
+    --db-name="example-db" \
+    --db-protocol="postgres" \
+    --db-uri="localhost:5432"
+  Starts a database server that proxies PostgreSQL database "example-db" running
+  at localhost:5432. The database must be configured with Teleport CA and key
+  pair issued by "tctl auth sign --format=db".
+`
 
 	sampleConfComment = `#
-# Sample Teleport configuration file
+# A Sample Teleport configuration file.
 # Creates a single proxy, auth and node server.
 #
 # Things to update:
-#  1. ca_pin: Obtain the CA pin hash for joining more nodes by running 'tctl status'
-#     on the auth server once Teleport is running.
-#  2. license-if-using-teleport-enterprise.pem: If you are an Enterprise customer,
-#     obtain this from https://dashboard.gravitational.com/web/
+#  1. license.pem: You only need a license from https://dashboard.goteleport.com
+#     if you are an Enterprise customer.
 #`
 )
