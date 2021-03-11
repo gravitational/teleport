@@ -833,7 +833,7 @@ func (s *ServicesTestSuite) SAMLCRUD(c *check.C) {
 				{Name: "groups", Value: "admin", Roles: []string{"admin"}},
 			},
 			Cert: fixtures.SigningCertPEM,
-			SigningKeyPair: &services.SigningKeyPair{
+			SigningKeyPair: &services.AsymmetricKeyPair{
 				PrivateKey: fixtures.SigningKeyPEM,
 				Cert:       fixtures.SigningCertPEM,
 			},
