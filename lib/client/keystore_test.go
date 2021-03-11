@@ -96,7 +96,7 @@ func TestEmbeddedDirsInKeystoreIsNotAnError(t *testing.T) {
 	spuriousDirPath := path.Join(p, user+"-db", "root", "aaa-should-not-be-here")
 	require.NoError(t, os.MkdirAll(spuriousDirPath, 0700))
 
-	// When I attemp to enumerate the DB keys
+	// When I attempt to enumerate the DB keys
 	_, err = s.store.GetKey(host, user, WithDBCerts(key.ClusterName, ""))
 
 	// Expect the key enumeration to succeed
