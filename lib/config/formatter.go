@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 )
@@ -85,11 +86,11 @@ func (tf *textFormatter) CheckAndSetDefaults() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if contains(res, timestampField) {
+	if utils.SliceContainsStr(res, timestampField) {
 		tf.timestampEnabled = true
 	}
 
-	if contains(res, callerField) {
+	if utils.SliceContainsStr(res, callerField) {
 		tf.callerEnabled = true
 	}
 
@@ -361,14 +362,4 @@ func parseInputFormat(formatInput []string) (result []string, err error) {
 		result = append(result, component)
 	}
 	return result, nil
-}
-
-func contains(s []string, str string) bool {
-	for _, v := range s {
-		if v == str {
-			return true
-		}
-	}
-
-	return false
 }
