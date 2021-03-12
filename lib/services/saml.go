@@ -88,7 +88,7 @@ func ValidateSAMLConnector(sc SAMLConnector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		sc.SetSigningKeyPair(&SigningKeyPair{
+		sc.SetSigningKeyPair(&AsymmetricKeyPair{
 			PrivateKey: string(keyPEM),
 			Cert:       string(certPEM),
 		})
@@ -161,9 +161,21 @@ func GetSAMLServiceProvider(sc SAMLConnector, clock clockwork.Clock) (*saml2.SAM
 		return nil, trace.BadParameter("no identity provider certificate provided, either set certificate as a parameter or via entity_descriptor")
 	}
 
-	keyStore, err := utils.ParseSigningKeyStorePEM(sc.GetSigningKeyPair().PrivateKey, sc.GetSigningKeyPair().Cert)
+	signingKeyStore, err := utils.ParseSigningKeyStorePEM(sc.GetSigningKeyPair().PrivateKey, sc.GetSigningKeyPair().Cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// The encryption keystore here is defaulted to the value of the signing keystore
+	// if no separate assertion decryption keys are provided. We do this here to initialize
+	// the variable but if set to nil, gosaml2 will do this internally anyway.
+	encryptionKeyStore := signingKeyStore
+	encryptionKeyPair := sc.GetEncryptionKeyPair()
+	if encryptionKeyPair != nil {
+		encryptionKeyStore, err = utils.ParseSigningKeyStorePEM(encryptionKeyPair.PrivateKey, encryptionKeyPair.Cert)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	sp := &saml2.SAMLServiceProvider{
@@ -175,7 +187,8 @@ func GetSAMLServiceProvider(sc SAMLConnector, clock clockwork.Clock) (*saml2.SAM
 		SignAuthnRequestsCanonicalizer: dsig.MakeC14N11Canonicalizer(),
 		AudienceURI:                    sc.GetAudience(),
 		IDPCertificateStore:            &certStore,
-		SPKeyStore:                     keyStore,
+		SPKeyStore:                     encryptionKeyStore,
+		SPSigningKeyStore:              signingKeyStore,
 		Clock:                          dsig.NewFakeClock(clock),
 		NameIdFormat:                   "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified",
 	}
