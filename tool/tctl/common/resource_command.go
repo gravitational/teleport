@@ -351,7 +351,7 @@ func (rc *ResourceCommand) createRole(client auth.ClientI, raw services.UnknownR
 		return trace.Wrap(err)
 	}
 	roleName := role.GetName()
-	_, err = client.GetRole(roleName)
+	_, err = client.GetRole(ctx, roleName)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -650,13 +650,13 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollect
 		return &serverCollection{servers: servers}, nil
 	case services.KindRole:
 		if rc.ref.Name == "" {
-			roles, err := client.GetRoles()
+			roles, err := client.GetRoles(context.TODO())
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return &roleCollection{roles: roles}, nil
 		}
-		role, err := client.GetRole(rc.ref.Name)
+		role, err := client.GetRole(context.TODO(), rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
