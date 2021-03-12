@@ -89,17 +89,21 @@ func MarshalLicense(license License, opts ...MarshalOption) ([]byte, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	switch resource := license.(type) {
+
+	switch license := license.(type) {
 	case *LicenseV3:
+		if version := license.GetVersion(); version != V3 {
+			return nil, trace.BadParameter("mismatched license version %v and type %T", version, license)
+		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
-			copy := *resource
+			copy := *license
 			copy.SetResourceID(0)
-			resource = &copy
+			license = &copy
 		}
-		return utils.FastMarshal(resource)
+		return utils.FastMarshal(license)
 	default:
-		return nil, trace.BadParameter("unrecognized resource version %T", license)
+		return nil, trace.BadParameter("unrecognized license version %T", license)
 	}
 }

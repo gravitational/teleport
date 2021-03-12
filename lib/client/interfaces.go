@@ -329,16 +329,7 @@ func (k *Key) AsAuthMethod() (ssh.AuthMethod, error) {
 
 // SSHCert returns parsed SSH certificate
 func (k *Key) SSHCert() (*ssh.Certificate, error) {
-	key, _, _, _, err := ssh.ParseAuthorizedKey(k.Cert)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cert, ok := key.(*ssh.Certificate)
-	if !ok {
-		return nil, trace.BadParameter("found key, not certificate")
-	}
-	return cert, nil
+	return sshutils.ParseCertificate(k.Cert)
 }
 
 // CheckCert makes sure the SSH certificate is valid.

@@ -512,7 +512,7 @@ func migrateOSS(ctx context.Context, asrv *Server) error {
 		return nil
 	}
 	role := services.NewDowngradedOSSAdminRole()
-	existing, err := asrv.GetRole(role.GetName())
+	existing, err := asrv.GetRole(ctx, role.GetName())
 	if err != nil {
 		return trace.Wrap(err, "expected to find built-in admin role")
 	}
@@ -1016,14 +1016,9 @@ func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 		return nil, trace.BadParameter("Cert: missing parameter")
 	}
 
-	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(certBytes)
+	cert, err := sshutils.ParseCertificate(certBytes)
 	if err != nil {
 		return nil, trace.BadParameter("failed to parse server certificate: %v", err)
-	}
-
-	cert, ok := pubKey.(*ssh.Certificate)
-	if !ok {
-		return nil, trace.BadParameter("expected ssh.Certificate, got %v", pubKey)
 	}
 
 	signer, err := ssh.ParsePrivateKey(keyBytes)
@@ -1152,7 +1147,7 @@ func migrateRemoteClusters(asrv *Server) error {
 // DELETE IN: 4.3.0.
 // migrateRoleOptions adds the "enhanced_recording" option to all roles.
 func migrateRoleOptions(ctx context.Context, asrv *Server) error {
-	roles, err := asrv.GetRoles()
+	roles, err := asrv.GetRoles(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
