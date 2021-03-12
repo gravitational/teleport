@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -427,7 +427,7 @@ type OIDCConnectorSpecV2 struct {
 	// GoogleServiceAccountURI is a path to google service account uri
 	GoogleServiceAccountURI string `json:"google_service_account_uri,omitempty"`
 	// GoogleServiceAccount is a string containing the google service account credentials
-	GoogleServiceAccount string `json:"google_service_account,omitempty"`
+  GoogleServiceAccount string `json:"google_service_account,omitempty"`
 	// GoogleAdminEmail is email of google admin to impersonate
 	GoogleAdminEmail string `json:"google_admin_email,omitempty"`
 }
