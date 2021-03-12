@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 )
 
@@ -503,23 +502,6 @@ func (r *Rotation) CheckAndSetDefaults() error {
 			r.State, RotationStateStandby, RotationStateInProgress)
 	}
 	return nil
-}
-
-// Merge overwrites r from src and
-// is part of support for cloning Server values
-// using proto.Clone.
-//
-// Note: this does not implement the full Merger interface,
-// specifically, it assumes that r is zero value.
-// See https://github.com/gogo/protobuf/blob/v1.3.1/proto/clone.go#L58-L60
-//
-// Implements proto.Merger
-func (r *Rotation) Merge(src proto.Message) {
-	s, ok := src.(*Rotation)
-	if !ok {
-		return
-	}
-	*r = *s
 }
 
 // GenerateSchedule generates schedule based on the time period, using
