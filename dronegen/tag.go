@@ -46,7 +46,7 @@ func tagCheckoutCommands(fips bool) []string {
 		`git submodule update --init --recursive webassets || true`,
 		`rm -f /root/.ssh/id_rsa`,
 		// create necessary directories
-		`mkdir -p /go/cache /go/artifacts/e`,
+		`mkdir -p /go/cache /go/artifacts`,
 		// set version
 		`if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt`,
 	}
@@ -83,6 +83,41 @@ func tagBuildCommands(params tagBuildType) []string {
 			`mv /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos6-bin.tar.gz`,
 		)
 	}
+	return commands
+}
+
+// tagCopyArtifactCommands generates a set of commands to find and copy built tarball artifacts as part of a tag build
+func tagCopyArtifactCommands(params tagBuildType) []string {
+	extension := ".tar.gz"
+	if params.os == "windows" {
+		extension = ".zip"
+	}
+
+	commands := []string{
+		`cd /go/src/github.com/gravitational/teleport`,
+	}
+
+	// don't copy OSS artifacts for FIPS builds
+	if !params.fips {
+		commands = append(commands,
+			fmt.Sprintf(`find . -maxdepth 1 -iname "teleport*%s" -print -exec cp {} /go/artifacts \;`, extension),
+		)
+	}
+
+	// copy enterprise artifacts
+	if params.os == "windows" {
+		commands = append(commands,
+			`export VERSION=$(cat /go/.version.txt)`,
+			`cp /go/artifacts/teleport-v$${VERSION}-windows-amd64-bin.zip /go/artifacts/teleport-ent-v$${VERSION}-windows-amd64-bin.zip`,
+		)
+	} else {
+		commands = append(commands,
+			`find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;`,
+		)
+	}
+
+	// generate checksums
+	commands = append(commands, fmt.Sprintf(`cd /go/artifacts && for FILE in teleport*%s; do sha256sum $FILE > $FILE.sha256; done && ls -l`, extension))
 	return commands
 }
 
@@ -183,16 +218,9 @@ func tagPipeline(params tagBuildType) pipeline {
 			Commands: tagBuildCommands(params),
 		},
 		{
-			Name:  "Copy artifacts",
-			Image: "docker",
-			Commands: []string{
-				`cd /go/src/github.com/gravitational/teleport`,
-				// copy release archives to artifact directory
-				`find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;`,
-				`find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;`,
-				// generate checksums
-				`cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l`,
-			},
+			Name:     "Copy artifacts",
+			Image:    "docker",
+			Commands: tagCopyArtifactCommands(params),
 		},
 		{
 			Name:  "Upload to S3",
@@ -204,7 +232,7 @@ func tagPipeline(params tagBuildType) pipeline {
 				"region":       value{raw: "us-west-2"},
 				"source":       value{raw: "/go/artifacts/*"},
 				"target":       value{raw: "teleport/tag/${DRONE_TAG##v}"},
-				"strip_prefix": value{raw: "/go/artifacts"},
+				"strip_prefix": value{raw: "/go/artifacts/"},
 			},
 		},
 	}
@@ -239,8 +267,8 @@ func tagDownloadArtifactCommands(params tagBuildType) []string {
 	return commands
 }
 
-// tagCopyArtifactCommands generates a set of commands to find and copy built package artifacts as part of a tag build
-func tagCopyArtifactCommands(params tagBuildType, packageType string) []string {
+// tagCopyPackageArtifactCommands generates a set of commands to find and copy built package artifacts as part of a tag build
+func tagCopyPackageArtifactCommands(params tagBuildType, packageType string) []string {
 	commands := []string{
 		`cd /go/src/github.com/gravitational/teleport`,
 	}
@@ -286,6 +314,12 @@ func tagPackagePipeline(packageType string, params tagBuildType) pipeline {
 		environment["OSS_TARBALL_PATH"] = value{raw: "/go/artifacts"}
 	}
 
+	tagVolumes := []volume{
+		volumeDocker,
+	}
+	tagVolumeRefs := []volumeRef{
+		volumeRefDocker,
+	}
 	if packageType == rpmPackage {
 		environment["GNUPG_DIR"] = value{raw: "/tmpfs/gnupg"}
 		environment["GPG_RPM_SIGNING_ARCHIVE"] = value{fromSecret: "GPG_RPM_SIGNING_ARCHIVE"}
@@ -296,6 +330,15 @@ func tagPackagePipeline(packageType string, params tagBuildType) pipeline {
 			makeCommand,
 			`rm -rf $GNUPG_DIR`,
 		)
+		tagVolumes = []volume{
+			volumeDocker,
+			volumeTmpfs,
+		}
+		tagVolumeRefs = []volumeRef{
+			volumeRefDocker,
+			volumeRefTmpfs,
+		}
+
 	} else if packageType == debPackage {
 		packageBuildCommands = append(packageBuildCommands,
 			makeCommand,
@@ -308,17 +351,12 @@ func tagPackagePipeline(packageType string, params tagBuildType) pipeline {
 	p.Trigger = triggerTag
 	p.DependsOn = []string{dependentPipeline}
 	p.Workspace = workspace{Path: "/go"}
-	p.Volumes = []volume{
-		volumeDocker,
-		volumeTmpfs,
-	}
+	p.Volumes = tagVolumes
 	p.Services = []service{
 		{
-			Name:  "Start Docker",
-			Image: "docker:dind",
-			Volumes: []volumeRef{
-				volumeRefDocker,
-			},
+			Name:    "Start Docker",
+			Image:   "docker:dind",
+			Volumes: tagVolumeRefs,
 		},
 	}
 	p.Steps = []step{
@@ -334,6 +372,7 @@ func tagPackagePipeline(packageType string, params tagBuildType) pipeline {
 			Name:  "Download built tarball artifacts from S3",
 			Image: "amazon/aws-cli",
 			Environment: map[string]value{
+				"AWS_REGION":            value{raw: "us-west-2"},
 				"AWS_S3_BUCKET":         value{fromSecret: "AWS_S3_BUCKET"},
 				"AWS_ACCESS_KEY_ID":     value{fromSecret: "AWS_ACCESS_KEY_ID"},
 				"AWS_SECRET_ACCESS_KEY": value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
@@ -344,16 +383,13 @@ func tagPackagePipeline(packageType string, params tagBuildType) pipeline {
 			Name:        fmt.Sprintf("Build %s artifacts", strings.ToUpper(packageType)),
 			Image:       "docker",
 			Environment: environment,
-			Volumes: []volumeRef{
-				volumeRefDocker,
-				volumeRefTmpfs,
-			},
-			Commands: packageBuildCommands,
+			Volumes:     tagVolumeRefs,
+			Commands:    packageBuildCommands,
 		},
 		{
 			Name:     fmt.Sprintf("Copy %s artifacts", strings.ToUpper(packageType)),
 			Image:    "docker",
-			Commands: tagCopyArtifactCommands(params, packageType),
+			Commands: tagCopyPackageArtifactCommands(params, packageType),
 		},
 		{
 			Name:  "Upload to S3",
@@ -365,7 +401,7 @@ func tagPackagePipeline(packageType string, params tagBuildType) pipeline {
 				"region":       value{raw: "us-west-2"},
 				"source":       value{raw: "/go/artifacts/*"},
 				"target":       value{raw: "teleport/tag/${DRONE_TAG##v}"},
-				"strip_prefix": value{raw: "/go/artifacts"},
+				"strip_prefix": value{raw: "/go/artifacts/"},
 			},
 		},
 	}
