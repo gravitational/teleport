@@ -472,7 +472,6 @@ func (o withDBCerts) getKey(store LocalKeyStore, idx keyIndex, key *Key) error {
 	default:
 		return trace.BadParameter("unexpected key store type %T", store)
 	}
-	return nil
 	if key.ClusterName == "" {
 		key.ClusterName = o.teleportClusterName
 	}
