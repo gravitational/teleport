@@ -38,23 +38,27 @@ func GetPluginDataSchema() string {
 }
 
 //MarshalPluginData marshals the PluginData resource to JSON.
-func MarshalPluginData(data PluginData, opts ...MarshalOption) ([]byte, error) {
+func MarshalPluginData(pluginData PluginData, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	switch r := data.(type) {
+
+	switch pluginData := pluginData.(type) {
 	case *PluginDataV3:
+		if version := pluginData.GetVersion(); version != V3 {
+			return nil, trace.BadParameter("mismatched plugin data version %v and type %T", version, pluginData)
+		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
-			cp := *r
+			cp := *pluginData
 			cp.SetResourceID(0)
-			r = &cp
+			pluginData = &cp
 		}
-		return utils.FastMarshal(r)
+		return utils.FastMarshal(pluginData)
 	default:
-		return nil, trace.BadParameter("unrecognized plugin data type: %T", data)
+		return nil, trace.BadParameter("unrecognized plugin data type: %T", pluginData)
 	}
 }
 
