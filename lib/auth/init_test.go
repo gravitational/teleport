@@ -481,6 +481,59 @@ func TestMigrateMFADevices(t *testing.T) {
 	require.Empty(t, cmp.Diff(users, wantUsers, cmpOpts...))
 }
 
+// TestPresets tests behavior of presets
+func TestPresets(t *testing.T) {
+	ctx := context.Background()
+	roles := []services.Role{
+		services.NewPresetEditorRole(),
+		services.NewPresetAccessRole(),
+		services.NewPresetAuditorRole()}
+
+	t.Run("EmptyCluster", func(t *testing.T) {
+		as := newTestAuthServer(t)
+		clock := clockwork.NewFakeClock()
+		as.SetClock(clock)
+
+		err := createPresets(ctx, as)
+		require.NoError(t, err)
+
+		// Second call should not fail
+		err = createPresets(ctx, as)
+		require.NoError(t, err)
+
+		// Presets were created
+		for _, role := range roles {
+			_, err := as.GetRole(role.GetName())
+			require.NoError(t, err)
+		}
+	})
+
+	// Makes sure that existing role with the same name is not modified
+	t.Run("ExistingRole", func(t *testing.T) {
+		as := newTestAuthServer(t)
+		clock := clockwork.NewFakeClock()
+		as.SetClock(clock)
+
+		access := services.NewPresetEditorRole()
+		access.SetLogins(types.Allow, []string{"root"})
+		err := as.CreateRole(access)
+		require.NoError(t, err)
+
+		err = createPresets(ctx, as)
+		require.NoError(t, err)
+
+		// Presets were created
+		for _, role := range roles {
+			_, err := as.GetRole(role.GetName())
+			require.NoError(t, err)
+		}
+
+		out, err := as.GetRole(access.GetName())
+		require.NoError(t, err)
+		require.Equal(t, access.GetLogins(types.Allow), out.GetLogins(types.Allow))
+	})
+}
+
 // TestMigrateOSS tests migration of OSS users, github connectors
 // and trusted clusters
 func TestMigrateOSS(t *testing.T) {
