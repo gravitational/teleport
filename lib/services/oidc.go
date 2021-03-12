@@ -38,7 +38,6 @@ func ValidateOIDCConnector(oc types.OIDCConnector) error {
 	if _, err := url.Parse(oc.GetRedirectURL()); err != nil {
 		return trace.BadParameter("RedirectURL: bad url: '%v'", oc.GetRedirectURL())
 	}
-
 	if oc.GetGoogleServiceAccountURI() != "" && oc.GetGoogleServiceAccount() != "" {
 		return trace.BadParameter("one of either google_service_account_uri or google_service_account is supported, not both")
 	}
@@ -105,7 +104,7 @@ var OIDCConnectorSpecV2Schema = fmt.Sprintf(`{
 	  "display": {"type": "string"},
 	  "prompt": {"type": "string"},
 	  "google_service_account_uri": {"type": "string"},
-	  "google_service_account": {"type": "string"},
+	  "google_service_account": {"type": "string"},		
 	  "google_admin_email": {"type": "string"},
 	  "scope": {
 		"type": "array",
