@@ -18,6 +18,7 @@ package client
 
 import (
 	"bufio"
+	"compress/gzip"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -31,6 +32,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"os/user"
+	"path"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -1314,95 +1316,120 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 
 // Play replays the recorded session
 func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string) (err error) {
-	if namespace == "" {
-		return trace.BadParameter(auth.MissingNamespaceError)
-	}
-	sid, err := session.ParseID(sessionID)
-	if err != nil {
-		return fmt.Errorf("'%v' is not a valid session ID (must be GUID)", sid)
-	}
-	// connect to the auth server (site) who made the recording
-	proxyClient, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer proxyClient.Close()
-
-	site, err := proxyClient.ConnectToCurrentCluster(ctx, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// request events for that session (to get timing data)
-	sessionEvents, err := site.GetSessionEvents(namespace, *sid, 0, true)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// read the stream into a buffer:
+	var sessionEvents []events.EventFields
 	var stream []byte
-	for {
-		tmp, err := site.GetSessionChunk(namespace, *sid, len(stream), events.MaxChunkBytes)
+	// check if user used file as argument
+	if path.Ext(sessionID) == ".tar" {
+		tarFile, err := os.Open(sessionID)
+		if err != nil {
+			return trace.ConvertSystemError(err)
+		}
+		defer tarFile.Close()
+		protoReader := events.NewProtoReader(tarFile)
+		file := filepath.Base(sessionID)
+		sid := strings.TrimSuffix(file, ".tar")
+		// extract files to temp directory
+		err = events.WriteForPlayback(ctx, session.ID(sid), protoReader, os.TempDir())
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if len(tmp) == 0 {
-			break
-		}
-		stream = append(stream, tmp...)
-	}
+		// create temp paths for chunk and event files
+		chunksPath := path.Join(os.TempDir(), fmt.Sprintf("%v-0.chunks.gz", sid))
+		eventsPath := path.Join(os.TempDir(), fmt.Sprintf("%v-0.events.gz", sid))
 
-	// configure terminal for direct unbuffered echo-less input:
-	if term.IsTerminal(0) {
-		state, err := term.MakeRaw(0)
+		// chunks
+		chunkFile, err := os.Open(chunksPath)
 		if err != nil {
-			return nil
+			log.Fatal(err)
 		}
-		defer term.Restore(0, state)
-	}
-	player := newSessionPlayer(sessionEvents, stream)
-	// keys:
-	const (
-		keyCtrlC = 3
-		keyCtrlD = 4
-		keySpace = 32
-		keyLeft  = 68
-		keyRight = 67
-		keyUp    = 65
-		keyDown  = 66
-	)
-	// playback control goroutine
-	go func() {
-		defer player.Stop()
-		key := make([]byte, 1)
-		for {
-			_, err = os.Stdin.Read(key)
+		defer chunkFile.Close()
+		// remove chunk file from temp dir when done playing
+		defer os.Remove(chunkFile.Name())
+		grChunk, err := gzip.NewReader(chunkFile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer grChunk.Close()
+
+		//events
+		eventFile, err := os.Open(eventsPath)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer eventFile.Close()
+		// remove event file from temp dir when done playing
+		defer os.Remove(eventFile.Name())
+		grEvents, err := gzip.NewReader(eventFile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer grEvents.Close()
+
+		scanner := bufio.NewScanner(grEvents)
+		for scanner.Scan() {
+			var f events.EventFields
+			err := utils.FastUnmarshal(scanner.Bytes(), &f)
 			if err != nil {
-				return
+				return trace.Wrap(err)
 			}
-			switch key[0] {
-			// Ctrl+C or Ctrl+D
-			case keyCtrlC, keyCtrlD:
-				return
-			// Space key
-			case keySpace:
-				player.TogglePause()
-			// <- arrow
-			case keyLeft, keyDown:
-				player.Rewind()
-			// -> arrow
-			case keyRight, keyUp:
-				player.Forward()
-			}
+			sessionEvents = append(sessionEvents, f)
 		}
-	}()
 
-	// player starts playing in its own goroutine
-	player.Play()
+		if err := scanner.Err(); err != nil {
+			return trace.Wrap(err)
+		}
 
-	// wait for keypresses loop to end
-	<-player.stopC
-	fmt.Println("\n\nend of session playback")
-	return trace.Wrap(err)
+		stream, err = ioutil.ReadAll(grChunk)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		if namespace == "" {
+			return trace.BadParameter(auth.MissingNamespaceError)
+		}
+		sid, err := session.ParseID(sessionID)
+		if err != nil {
+			return fmt.Errorf("'%v' is not a valid session ID (must be GUID)", sid)
+		}
+		// connect to the auth server (site) who made the recording
+		proxyClient, err := tc.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		site, err := proxyClient.ConnectToCurrentCluster(ctx, false)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// request events for that session (to get timing data)
+		sessionEvents, err = site.GetSessionEvents(namespace, *sid, 0, true)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// read the stream into a buffer:
+		for {
+			tmp, err := site.GetSessionChunk(namespace, *sid, len(stream), events.MaxChunkBytes)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if len(tmp) == 0 {
+				break
+			}
+			stream = append(stream, tmp...)
+		}
+
+		// configure terminal for direct unbuffered echo-less input:
+		if term.IsTerminal(0) {
+			state, err := term.MakeRaw(0)
+			if err != nil {
+				return nil
+			}
+			defer term.Restore(0, state)
+		}
+	}
+	return playSession(sessionEvents, stream)
 }
 
 // ExecuteSCP executes SCP command. It executes scp.Command using
@@ -2743,4 +2770,52 @@ func InsecureSkipHostKeyChecking(host string, remote net.Addr, key ssh.PublicKey
 // FedRAMP/FIPS 140-2 mode for tsh.
 func isFIPS() bool {
 	return modules.GetModules().IsBoringBinary()
+}
+
+// playSession plays session in the terminal
+func playSession(sessionEvents []events.EventFields, stream []byte) error {
+	var err error
+	player := newSessionPlayer(sessionEvents, stream)
+	fmt.Println("past session player")
+	// keys:
+	const (
+		keyCtrlC = 3
+		keyCtrlD = 4
+		keySpace = 32
+		keyLeft  = 68
+		keyRight = 67
+		keyUp    = 65
+		keyDown  = 66
+	)
+	// playback control goroutine
+	go func() {
+		defer player.Stop()
+		key := make([]byte, 1)
+		for {
+			_, err = os.Stdin.Read(key)
+			if err != nil {
+				return
+			}
+			switch key[0] {
+			// Ctrl+C or Ctrl+D
+			case keyCtrlC, keyCtrlD:
+				return
+			// Space key
+			case keySpace:
+				player.TogglePause()
+			// <- arrow
+			case keyLeft, keyDown:
+				player.Rewind()
+			// -> arrow
+			case keyRight, keyUp:
+				player.Forward()
+			}
+		}
+	}()
+	// player starts playing in its own goroutine
+	player.Play()
+	// wait for keypresses loop to end
+	<-player.stopC
+	fmt.Println("\n\nend of session playback")
+	return trace.Wrap(err)
 }
