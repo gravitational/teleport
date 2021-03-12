@@ -93,7 +93,7 @@ $ kubectl get services
 NAME                   TYPE           CLUSTER-IP   EXTERNAL-IP      PORT(S)                        AGE
 teleport-cluster-ent   LoadBalancer   10.4.4.73    104.199.126.88   443:31204/TCP,3026:32690/TCP   89s
 
-# Save the pod IP. If the IP is not available, check the pod and load balancer status.
+# Save the pod IP or Hostname. If the IP is not available, check the pod and load balancer status.
 $ MYIP=$(kubectl get services teleport-cluster-ent -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 $ echo $MYIP
 192.168.2.1
@@ -151,7 +151,7 @@ Teleport will respond back with a discovery info:
 ```bash
 $ curl https://tele.example.com/webapi/ping
 
-{"server_version":"5.0.0-dev","min_client_version":"3.0.0"}
+{"auth":{"type":"local","second_factor":"otp"},"proxy":{"kube":{"enabled":true,"listen_addr":"0.0.0.0:3026"},"ssh":{"listen_addr":"[::]:3023","tunnel_listen_addr":"0.0.0.0:3024","public_addr":"tele.example.com:443"},"db":{}},"server_version":"6.0.1","min_client_version":"3.0.0"}
 ```
 
 ## Step 2/3 Create a local admin
@@ -178,13 +178,13 @@ Create the role and add a user:
 
 ```bash
 # To create a local user, we are going to run Teleport's admin tool tctl from the pod.
-$ POD=$(kubectl get po -l app=teleport-cluster -o jsonpath='{.items[0].metadata.name}')
+$ POD=$(kubectl get pod -l app=teleport-cluster -o jsonpath='{.items[0].metadata.name}')
 
 # Create a role
-$ kubectl exec -i ${POD?} tctl -- create -f < member.yaml
+$ kubectl exec -i ${POD?} -- tctl create -f < member.yaml
 
 # Generate an invite link for the user.
-$ kubectl exec -ti ${POD?} tctl -- users add alice --roles=member
+$ kubectl exec -ti ${POD?} -- tctl  users add alice --roles=member
 
 User "alice" has been created but requires a password. Share this URL with the user to
 complete user setup, link is valid for 1h:
@@ -240,7 +240,7 @@ teleport-cluster-6c9b88fd8f-glmhf   1/1     Running   0          127m
 
 ## Step 3/3 SSO for Kubernetes
 
-We are going to setup Github connector for OSS and Okta for Enterpise version.
+We are going to setup Github connector for OSS and Okta for Enterprise version.
 
 <Tabs>
 <TabItem label="Open Source">
