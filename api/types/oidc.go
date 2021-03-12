@@ -85,9 +85,13 @@ type OIDCConnector interface {
 	SetDisplay(string)
 	// GetGoogleServiceAccountURI returns path to google service account URI
 	GetGoogleServiceAccountURI() string
+	// GetGoogleServiceAccount returns google service account json for Google
+	GetGoogleServiceAccount() string
+	// SetGoogleServiceAccount sets the google service account json contents
+	SetGoogleServiceAccount(string)
 	// GetGoogleAdminEmail returns a google admin user email
 	// https://developers.google.com/identity/protocols/OAuth2ServiceAccount#delegatingauthority
-	// "Note: Although you can use service accounts in applications that run from a G Suite domain, service accounts are not members of your G Suite account and aren’t subject to domain policies set by G Suite administrators. For example, a policy set in the G Suite admin console to restrict the ability of G Suite end users to share documents outside of the domain would not apply to service accounts."
+	// "Note: Although you can use service accounts in applications that run from a Google Workspace (formerly G Suite) domain, service accounts are not members of your Google Workspace account and aren’t subject to domain policies set by  administrators. For example, a policy set in the Google Workspace admin console to restrict the ability of end users to share documents outside of the domain would not apply to service accounts."
 	GetGoogleAdminEmail() string
 }
 
@@ -139,6 +143,16 @@ func (o *OIDCConnectorV2) GetGoogleServiceAccountURI() string {
 	return o.Spec.GoogleServiceAccountURI
 }
 
+// GetGoogleServiceAccount returns a string representing a Google service account
+func (o *OIDCConnectorV2) GetGoogleServiceAccount() string {
+	return o.Spec.GoogleServiceAccount
+}
+
+// SetGoogleServiceAccount sets a string representing a Google service account
+func (o *OIDCConnectorV2) SetGoogleServiceAccount(s string) {
+	o.Spec.GoogleServiceAccount = s
+}
+
 // GetGoogleAdminEmail returns a google admin user email
 func (o *OIDCConnectorV2) GetGoogleAdminEmail() string {
 	return o.Spec.GoogleAdminEmail
@@ -176,11 +190,14 @@ func (o *OIDCConnectorV2) SetResourceID(id int64) {
 
 // WithoutSecrets returns an instance of resource without secrets.
 func (o *OIDCConnectorV2) WithoutSecrets() Resource {
-	if o.GetClientSecret() == "" {
+	if o.GetClientSecret() == "" && o.GetGoogleServiceAccount() == "" {
 		return o
 	}
 	o2 := *o
+
 	o2.SetClientSecret("")
+	o2.SetGoogleServiceAccount("")
+
 	return &o2
 }
 
@@ -410,6 +427,9 @@ type OIDCConnectorSpecV2 struct {
 	ClaimsToRoles []ClaimMapping `json:"claims_to_roles,omitempty"`
 	// GoogleServiceAccountURI is a path to google service account uri
 	GoogleServiceAccountURI string `json:"google_service_account_uri,omitempty"`
+	// GoogleServiceAccount is a string containing the google service account credentials
+	GoogleServiceAccount string `json:"google_service_account,omitempty"`
+
 	// GoogleAdminEmail is email of google admin to impersonate
 	GoogleAdminEmail string `json:"google_admin_email,omitempty"`
 }
