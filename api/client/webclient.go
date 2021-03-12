@@ -19,7 +19,6 @@ package client
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"net"
 	"net/http"
@@ -30,7 +29,7 @@ import (
 )
 
 // initClient creates a new client to the HTTPS web proxy.
-func initClient(proxyAddr string, pool *x509.CertPool) (*http.Client, error) {
+func initClient(proxyAddr string) (*http.Client, error) {
 	// Validate proxyAddr.
 	host, port, err := net.SplitHostPort(proxyAddr)
 	if err != nil || host == "" || port == "" {
@@ -41,11 +40,6 @@ func initClient(proxyAddr string, pool *x509.CertPool) (*http.Client, error) {
 	}
 	if _, err := url.Parse("https://" + net.JoinHostPort(host, port)); err != nil {
 		return nil, trace.BadParameter("'%v' is not a valid proxy address", proxyAddr)
-	}
-
-	if pool != nil {
-		// use custom set of trusted CAs
-		return newClientWithPool(pool), nil
 	}
 
 	// Skip https cert verification, print a warning that this is insecure.
@@ -62,23 +56,13 @@ func NewInsecureWebClient() *http.Client {
 	}
 }
 
-func newClientWithPool(pool *x509.CertPool) *http.Client {
-	return &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				RootCAs: pool,
-			},
-		},
-	}
-}
-
 // Ping serves two purposes. The first is to validate the HTTP endpoint of a
 // Teleport proxy. This leads to better user experience: users get connection
 // errors before being asked for passwords. The second is to return the form
 // of authentication that the server supports. This also leads to better user
 // experience: users only get prompted for the type of authentication the server supports.
-func Ping(ctx context.Context, proxyAddr string, pool *x509.CertPool) (*PingResponse, error) {
-	clt, err := initClient(proxyAddr, pool)
+func Ping(ctx context.Context, proxyAddr string) (*PingResponse, error) {
+	clt, err := initClient(proxyAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

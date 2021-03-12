@@ -155,7 +155,6 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 			defer wg.Done()
 			if err := clt.dialGRPC(ctx, addr, true); err != nil {
 				sendError(trace.Wrap(err))
-				wg.Done()
 				return
 			}
 
@@ -220,10 +219,9 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 					go func(addr string) {
 						defer wg.Done()
 						// Try connecting to web proxy to retrieve tunnel address.
-						if pr, err := Ping(ctx, addr, nil); err == nil {
+						if pr, err := Ping(ctx, addr); err == nil {
 							addr = pr.Proxy.SSH.TunnelPublicAddr
 						}
-
 						syncConnect(addr, &Client{
 							c:         cfg,
 							tlsConfig: tlsConfig,
