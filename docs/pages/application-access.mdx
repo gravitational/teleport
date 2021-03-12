@@ -1,7 +1,7 @@
 ---
 title: Application Access Guide
 description: How to set up and configure Teleport for Application access with SSO and RBAC
-h1: Upcoming Teleport Releases
+h1: Application Access Guide
 ---
 
 ## Introduction
@@ -10,37 +10,54 @@ Teleport Application Access has been designed to provide secure access to intern
 
 You can secure any web application using application access:
 
-* Internal control panels
-* Wikis / Tooling that's only available on the VPN.
-* Infra dashboards - Kubernetes, Grafana
-* Developer tools, such as Jenkins, Gitlab or Opsgenie
+- Internal control panels
+- Wikis / Tooling that's only available on the VPN.
+- Infra dashboards - Kubernetes, Grafana
+- Developer tools, such as Jenkins, Gitlab or Opsgenie
 
 ## Demo
 
-<video autoPlay loop muted playsInline controls>
-  <source src="https://goteleport.com/teleport/videos/k8s-application-access/k8s-taa.mp4" type="video/mp4" />
-  <source src="https://goteleport.com/teleport/videos/k8s-application-access/k8s-taa.webm" type="video/webm" />
-Your browser does not support the video tag.
+<video
+  autoPlay
+  loop
+  muted
+  playsInline
+  controls
+>
+  <source
+    src="https://goteleport.com/teleport/videos/k8s-application-access/k8s-taa.mp4"
+    type="video/mp4"
+  />
+
+  <source
+    src="https://goteleport.com/teleport/videos/k8s-application-access/k8s-taa.webm"
+    type="video/webm"
+  />
+
+  Your browser does not support the video tag.
 </video>
 
+### Hardware Requirements
 
-#### Hardware Requirements
 [How it works](https://gravitational.com/teleport/how-it-works/) page will give you a good overview of the setup.
 
-#### Networking Requirements
+### Networking Requirements
 
-<Admonition type="note" title="Why do I see SSH Ports for Application Access?">
-Teleport uses SSH reverse tunnels to connect applications to the proxy. This is why the configuration below mentions SSH ports.
+<Admonition
+  type="note"
+  title="Why do I see SSH Ports for Application Access?"
+>
+  Teleport uses SSH reverse tunnels to connect applications to the proxy. This is why the configuration below mentions SSH ports.
 </Admonition>
 
-|Port      | Service    | Description
-|----------|------------|-------------------------------------------
-| 3023     | Proxy      | SSH port for clients who need tsh login
-| 3024     | Proxy      | SSH port used to create reverse SSH tunnels from behind-firewall environments into a trusted proxy server.
-| 3025     | Auth       | TLS port used by the Auth Service to serve its API to other nodes in a cluster.
-| 3080     | Proxy      | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Teleport UI.
+| Port | Service | Description |
+| - | - | - |
+| 3023 | Proxy | SSH port for clients who need tsh login |
+| 3024 | Proxy | SSH port used to create reverse SSH tunnels from behind-firewall environments into a trusted proxy server. |
+| 3025 | Auth | TLS port used by the Auth Service to serve its API to other nodes in a cluster. |
+| 3080 | Proxy | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Teleport UI. |
 
-#### TLS Requirements
+### TLS Requirements
 
 TLS is required to secure Teleport's Unified Access Plane and any connected applications. When setting up Teleport, the minimum requirement is a certificate for the proxy and a wildcard certificate for its sub-domain. This is where everyone will log into Teleport.
 
@@ -62,9 +79,12 @@ proxy_service:
     cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
 ```
 
-<Admonition type="tip" title="Using Certbot to obtain Wildcard Certs">
-Let's Encrypt provides free wildcard certificates. If using [certbot](https://certbot.eff.org/)
-with DNS challenge, the below script will make setup easy. Update [EMAIL] and [DOMAIN]
+<Admonition
+  type="tip"
+  title="Using Certbot to obtain Wildcard Certs"
+>
+  Let's Encrypt provides free wildcard certificates. If using [certbot](https://certbot.eff.org/)
+  with DNS challenge, the below script will make setup easy. Update [EMAIL] and [DOMAIN]
 
   ```sh
   certbot certonly --manual \
@@ -83,13 +103,13 @@ inline options using `teleport start` or using a `teleport.yaml` config file.
 
 ### Starting Teleport
 
-| Variable to replace | Description  |
-|-|-|
+| Variable to replace | Description |
+| - | - |
 | `--roles=app` | The 'app' role will set up the reverse proxy for applications |
 | `--token` | A dynamic or static `app` token obtained from the root cluster |
 | `--auth-server` | URL of the root cluster auth server or public proxy address |
 | `--app-name` | Application name |
-| `--app-uri` |  URI and Port of Application  |
+| `--app-uri` | URI and Port of Application |
 
 ```sh
 teleport start --roles=app --token=xyz --auth-server=proxy.example.com:3080 \
@@ -98,6 +118,7 @@ teleport start --roles=app --token=xyz --auth-server=proxy.example.com:3080 \
 ```
 
 ### Application Name
+
 When picking an application name, it's important to make sure the name will make a valid sub-domain (&lt;=63 characters, no spaces, only `a-z 0-9 _ -` allowed).
 
 After Teleport is running, the application will be accessible at `app-name.proxy_public_addr.com` e.g. `jenkins.teleport.example.com`.  Teleport also provides the ability to override `public_addr`. e.g `jenkins.acme.com` if you configure the appropriate DNS entry to point to the Teleport proxy server.
@@ -106,8 +127,8 @@ After Teleport is running, the application will be accessible at `app-name.proxy
 
 **Define `/etc/teleport.yaml`**
 
-| Variable to replace | Description  |
-|-|-|
+| Variable to replace | Description |
+| - | - |
 | `auth_token` & `tokens` | Example static join tokens |
 | `proxy_service: public_addr` | Public URL and Port for Teleport. |
 | `https_keypairs` | HTTPS TLS Certificate key pairs |
@@ -160,12 +181,15 @@ proxy_service:
   - key_file: /etc/letsencrypt/live/*.teleport.example.com/privkey.pem
     cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
 ```
-#### [ Optional ] Obtain a new App Token
+
+#### [Optional] Obtain a new App Token
+
 In the above example we've hard coded a join token `a3aff444e182cf4ee5c2f78ad2a4cc47d8a30c95747a08f8`. You can use this to join apps or create a dynamic token using the `tctl` command below.
 
 ```bash
 $ tctl tokens add --type=app
 ```
+
 ## Advanced Options
 
 ### Running Debug Application
@@ -177,6 +201,7 @@ app_service:
    enabled: yes
    debug_app: true
 ```
+
 ### Customize Public Address
 
 ```yaml
@@ -184,9 +209,10 @@ app_service:
      uri: "https://localhost:8001"
      public_addr: "jira.example.com"
 ```
+
 ### Skip TLS certificate verification
 
-  Corporations often use self-signed certificates for internal applications. Teleport attempts to check if the certificates are signed by a trusted CA (Certificate Authority). If using self-signed certificates use `insecure_skip_verify: true` to skip this verification step.
+Corporations often use self-signed certificates for internal applications. Teleport attempts to check if the certificates are signed by a trusted CA (Certificate Authority). If using self-signed certificates use `insecure_skip_verify: true` to skip this verification step.
 
 ```yaml
    - name: "app"
@@ -205,7 +231,9 @@ the subdirectory.
      uri: "http://10.0.1.60:8001/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/#/overview?namespace=default"
      public_addr: "k8s.example.com"
 ```
+
 ### Rewrite
+
 We provide simple rewrites. This is helpful for applications that provide internal redirect
 headers.
 
@@ -233,25 +261,26 @@ below.
 
 When you log into an application, you'll get a certificate and login session per your defined RBAC. If you want to force logout before this period you can force a log out by hitting the `/teleport-logout` endpoint:
 
-https://internal-app.teleport.example.com/teleport-logout
-
+[https://internal-app.teleport.example.com/teleport-logout](https://internal-app.teleport.example.com/teleport-logout)
 
 ## Integrating with JWTs
 
 ### Introduction to JWTs
+
 JSON Web Token (JWT) is an open standard that defines a secure way to transfer information between parties as a JSON Object.
 
 For a in-depth explanation please visit [https://jwt.io/introduction/](https://jwt.io/introduction/)
 
 Teleport JSON Web Tokens (JWT) include three sections:
 
-+ Header
-+ Payload
-+ Signature
+- Header
+- Payload
+- Signature
 
 ### Header
 
 **Example Header**
+
 ```json
 {
   "alg": "RS256",
@@ -278,17 +307,20 @@ Teleport JSON Web Tokens (JWT) include three sections:
   "username": "benarent"
 }
 ```
+
 The JWT will be sent with the header: `Teleport-Jwt-Assertion`
 
 **Example Teleport JWT Assertion**
+
 ```json
 eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsiaHR0cDovLzEyNy4wLjAuMTozNDY3OSJdLCJleHAiOjE2MDM5NDM4MDAsImlzcyI6ImF3cyIsIm5iZiI6MTYwMzgzNTc5NSwicm9sZXMiOlsiYWRtaW4iXSwic3ViIjoiYmVuYXJlbnQiLCJ1c2VybmFtZSI6ImJlbmFyZW50In0.PZGUyFfhEWl22EDniWRLmKAjb3fL0D4cTmkxEfb-Q30hVMzVhka5WB8AUsPsLPVhTzsQ6Nkk1DnXHdz6oxrqDDfumuRrDnpJpjiXj_l0D3bExrchN61enzBHxSD13VkRIqP1V6l4i8yt8kXDIBWc-QejLTodA_GtczkDfnnpuAfaxIbD7jEwF27KI4kZu7uES9LMu2iCLdV9ZqarA-6HeDhXPA37OJ3P6eVQzYpgaOBYro5brEiVpuJLr1yA0gncmR4FqmhCpCj-KmHi2vmjmJAuuHId6HZoEZJjC9IAsNlrSA4GHH9j82o7FF1F4J2s38bRy3wZv46MT8X8-QBSpg
 ```
+
 ## Validate JWT with JSON Web Key Set (JWKS)
 
 Teleport provides a jwks endpoint to verify that the JWT can be trusted. This endpoint is `https://[cluster-name]:3080/.well-known/jwks.json`
 
-_Example jwks.json_
+*Example jwks.json*
 
 ```json
 {
@@ -303,24 +335,23 @@ _Example jwks.json_
 }
 ```
 
-
 ## Example Applications
 
 As outlined in our introduction, Application Access has been designed to support two types of applications.
 
-**Example Legacy App**<br />
+**Example Legacy App**<br/>
 A device such as a load balancer might come with a control panel, but it doesn't have any authentication and can only be access via a privileged network. These applications are supported and can extend access beyond your network.
 
 Other example legacy apps:
 
-+ An internal admin tool
-+ Control panel for networking devices
+- An internal admin tool
+- Control panel for networking devices
 
-**Example Modern App**<br />
+**Example Modern App**<br/>
 Teleport Application Access supports all modern applications, these could be built in-house or off-the-shelf software such as Jenkins, Kubernetes Dashboard and Jupyter workbooks.
 
-+ Kubernetes Internal Dashboard
-+ Grafana
-+ Jupyter notebooks
-+ In-house Single Page Apps (SPA)
-+ SPA with custom Json Web Token support (JWT)
+- Kubernetes Internal Dashboard
+- Grafana
+- Jupyter notebooks
+- In-house Single Page Apps (SPA)
+- SPA with custom Json Web Token support (JWT)

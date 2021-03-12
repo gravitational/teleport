@@ -12,14 +12,16 @@ Sign up [here](https://goteleport.com/get-started/).
 Install client libraries:
 
 <Tabs>
-<TabItem label="Linux">
-```bash
-curl -O https://get.gravitational.com/teleport-ent-v{{ teleport.version }}-linux-amd64-bin.tar.gz
-tar -xzf teleport-ent-v{{ teleport.version }}-linux-amd64-bin.tar.gz
-cd teleport
-sudo ./install
-```
-</TabItem>
+  <TabItem label="Linux">
+    ````bash
+    curl -O https://get.gravitational.com/teleport-ent-v{{ teleport.version }}-linux-amd64-bin.tar.gz
+    tar -xzf teleport-ent-v{{ teleport.version }}-linux-amd64-bin.tar.gz
+    cd teleport
+    sudo ./install
+    ```
+
+    ````
+  </TabItem>
 </Tabs>
 
 Login into Teleport and test the connection:
@@ -47,7 +49,7 @@ $ tctl nodes add --ttl=5m --roles=node --token=$(uuid)
 
 ## Next Steps
 
-* Explore [cloud architecture](./architecture.mdx).
-* Check out [FAQ](./faq.mdx).
-* Join the [Teleport Discussons](https://github.com/gravitational/teleport/discussions) and ask a question.
-* Join the [Slack channel](https://goteleport.com/slack).
+- Explore [cloud architecture](./architecture.mdx).
+- Check out [FAQ](./faq.mdx).
+- Join the [Teleport Discussons](https://github.com/gravitational/teleport/discussions) and ask a question.
+- Join the [Slack channel](https://goteleport.com/slack).

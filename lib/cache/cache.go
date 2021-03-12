@@ -1019,29 +1019,29 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (services.Cluster
 }
 
 // GetRoles is a part of auth.AccessPoint implementation
-func (c *Cache) GetRoles() ([]services.Role, error) {
+func (c *Cache) GetRoles(ctx context.Context) ([]services.Role, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.access.GetRoles()
+	return rg.access.GetRoles(ctx)
 }
 
 // GetRole is a part of auth.AccessPoint implementation
-func (c *Cache) GetRole(name string) (services.Role, error) {
+func (c *Cache) GetRole(ctx context.Context, name string) (services.Role, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	role, err := rg.access.GetRole(name)
+	role, err := rg.access.GetRole(ctx, name)
 	if trace.IsNotFound(err) && rg.IsCacheRead() {
 		// release read lock early
 		rg.Release()
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
-		if role, err := c.Config.Access.GetRole(name); err == nil {
+		if role, err := c.Config.Access.GetRole(ctx, name); err == nil {
 			return role, nil
 		}
 	}

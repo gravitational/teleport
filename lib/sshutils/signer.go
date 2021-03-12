@@ -79,14 +79,9 @@ func NewSigner(keyBytes, certBytes []byte) (ssh.Signer, error) {
 		return nil, trace.Wrap(err, "failed to parse SSH private key")
 	}
 
-	pubkey, _, _, _, err := ssh.ParseAuthorizedKey(certBytes)
+	cert, err := ParseCertificate(certBytes)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse SSH certificate")
-	}
-
-	cert, ok := pubkey.(*ssh.Certificate)
-	if !ok {
-		return nil, trace.BadParameter("expected SSH certificate, got %T ", pubkey)
 	}
 
 	return ssh.NewCertSigner(cert, keySigner)
