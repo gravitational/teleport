@@ -226,7 +226,7 @@ auth_service:
     # default authentication type. possible values are 'local' and 'github' for OSS
     #  and 'oidc', 'saml' and 'false' for Enterprise.
     type: local
-    # second_factor can be off, otp, or u2f
+    # second_factor can be off, on, optional, otp, or u2f
     second_factor: otp
 ssh_service:
   enabled: "yes"
@@ -290,7 +290,7 @@ types of authentication connectors:
 Local authentication is used to authenticate against a local Teleport user
 database. This database is managed by [`tctl users`](cli-docs.mdx#tctl-users-add)
 command. Teleport also supports second factor authentication (2FA) for the local
-connector. There are three possible values (types) of 2FA:
+connector. There are several possible values (types) of 2FA:
 
 - `otp` is the default. It implements [TOTP](https://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm)
   standard. You can use [Google Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator)
@@ -299,6 +299,14 @@ connector. There are three possible values (types) of 2FA:
 - `u2f` implements [U2F](https://en.wikipedia.org/wiki/Universal_2nd_Factor)
   standard for utilizing hardware (USB) keys for second factor. You can use [YubiKeys](https://www.yubico.com/),
   [SoloKeys](https://solokeys.com/) or any other hardware token which implements the FIDO U2F standard.
+
+- `on` enables both TOTP and U2F, and all local users are required to have at
+  least one 2FA device registered.
+
+- `optional` enables both TOTP and U2F but makes it optional for users. Local
+  users that register a 2FA device will be prompted for it during login. This
+  option is useful when you need to gradually enable 2FA usage before switching
+  the value to `on`.
 
 - `off` turns off second factor authentication.
 
@@ -310,6 +318,12 @@ auth_service:
     type: local
     second_factor: off
 ```
+
+<Admonition type="note">
+  SSO users can also register 2FA devices, but Teleport will not prompt them
+  for 2FA during login. Login 2FA for SSO users should be handled by the SSO
+  provider.
+</Admonition>
 
 ### Github OAuth 2.0 Connector
 
@@ -370,8 +384,8 @@ start using U2F:
 auth_service:
   authentication:
     type: local
+    # to enabled U2F support, set this field to 'u2f', 'on' or 'optional'
     second_factor: u2f
-    # this section is needed only if second_factor is set to 'u2f'
     u2f:
        # app_id must point to the URL of the Teleport Web UI (proxy) accessible
        # by the end users

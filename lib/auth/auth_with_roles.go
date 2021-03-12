@@ -66,7 +66,7 @@ func (a *ServerWithRoles) action(namespace string, resource string, action strin
 // even if they are not admins, e.g. update their own passwords,
 // or generate certificates, otherwise it will require admin privileges
 func (a *ServerWithRoles) currentUserAction(username string) error {
-	if a.hasLocalUserRole(a.context.Checker) && username == a.context.User.GetName() {
+	if hasLocalUserRole(a.context.Checker) && username == a.context.User.GetName() {
 		return nil
 	}
 	return utils.OpaqueAccessDenied(
@@ -120,12 +120,17 @@ func (a *ServerWithRoles) hasRemoteBuiltinRole(name string) bool {
 	return true
 }
 
+// hasRemoteUserRole checks if the type of the role set is a remote user or
+// not.
+func hasRemoteUserRole(checker services.AccessChecker) bool {
+	_, ok := checker.(RemoteUserRoleSet)
+	return ok
+}
+
 // hasLocalUserRole checks if the type of the role set is a local user or not.
-func (a *ServerWithRoles) hasLocalUserRole(checker services.AccessChecker) bool {
-	if _, ok := checker.(LocalUserRoleSet); !ok {
-		return false
-	}
-	return true
+func hasLocalUserRole(checker services.AccessChecker) bool {
+	_, ok := checker.(LocalUserRoleSet)
+	return ok
 }
 
 // AuthenticateWebUser authenticates web user, creates and returns a web session
@@ -1045,10 +1050,31 @@ func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) 
 	if err != nil {
 		return proto.PingResponse{}, trace.Wrap(err)
 	}
+
 	return proto.PingResponse{
-		ClusterName:   cn.GetClusterName(),
-		ServerVersion: teleport.Version,
+		ClusterName:     cn.GetClusterName(),
+		ServerVersion:   teleport.Version,
+		ServerFeatures:  modules.GetModules().Features().ToProto(),
+		ProxyPublicAddr: a.getProxyPublicAddr(),
 	}, nil
+}
+
+// getProxyPublicAddr gets the server's public proxy address.
+func (a *ServerWithRoles) getProxyPublicAddr() string {
+	if proxies, err := a.authServer.GetProxies(); err == nil {
+		for _, p := range proxies {
+			addr := p.GetPublicAddr()
+			if addr == "" {
+				continue
+			}
+			if _, err := utils.ParseAddr(addr); err != nil {
+				log.Warningf("Invalid public address on the proxy %q: %q: %v.", p.GetName(), addr, err)
+				continue
+			}
+			return addr
+		}
+	}
+	return ""
 }
 
 func (a *ServerWithRoles) DeleteAccessRequest(ctx context.Context, name string) error {
@@ -1526,7 +1552,7 @@ func (a *ServerWithRoles) checkGithubConnector(connector services.GithubConnecto
 			return trace.BadParameter("since 6.0 teleport uses teams_to_logins to reference a role, use it instead of local kubernetes_users and kubernetes_groups ")
 		}
 		for _, localRole := range team.Logins {
-			_, err := a.GetRole(localRole)
+			_, err := a.GetRole(context.TODO(), localRole)
 			if err != nil {
 				if trace.IsNotFound(err) {
 					return trace.BadParameter("since 6.0 teleport uses teams_to_logins to reference a role, role %q referenced in mapping for organization %q is not found", localRole, team.Organization)
@@ -1814,14 +1840,14 @@ func (a *ServerWithRoles) DeleteNamespace(name string) error {
 }
 
 // GetRoles returns a list of roles
-func (a *ServerWithRoles) GetRoles() ([]services.Role, error) {
+func (a *ServerWithRoles) GetRoles(ctx context.Context) ([]services.Role, error) {
 	if err := a.action(defaults.Namespace, services.KindRole, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := a.action(defaults.Namespace, services.KindRole, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetRoles()
+	return a.authServer.GetRoles(ctx)
 }
 
 // CreateRole not implemented: can only be called locally.
@@ -1856,7 +1882,7 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role services.Role) er
 }
 
 // GetRole returns role by name
-func (a *ServerWithRoles) GetRole(name string) (services.Role, error) {
+func (a *ServerWithRoles) GetRole(ctx context.Context, name string) (services.Role, error) {
 	// Current-user exception: we always allow users to read roles
 	// that they hold.  This requirement is checked first to avoid
 	// misleading denial messages in the logs.
@@ -1865,7 +1891,7 @@ func (a *ServerWithRoles) GetRole(name string) (services.Role, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.GetRole(name)
+	return a.authServer.GetRole(ctx, name)
 }
 
 // DeleteRole deletes role by name
@@ -2599,6 +2625,13 @@ func (a *ServerWithRoles) DeleteMFADevice(ctx context.Context) (proto.AuthServic
 // client.Client.GenerateUserSingleUseCerts instead.
 func (a *ServerWithRoles) GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error) {
 	return nil, trace.NotImplemented("bug: GenerateUserSingleUseCerts must not be called on auth.ServerWithRoles")
+}
+
+func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+	if !hasLocalUserRole(a.context.Checker) && !hasRemoteUserRole(a.context.Checker) {
+		return nil, trace.AccessDenied("only a user role can call IsMFARequired, got %T", a.context.Checker)
+	}
+	return a.authServer.isMFARequired(ctx, a.context.Checker, req)
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

@@ -22,7 +22,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/flynn/u2f/u2ftoken"
@@ -60,8 +59,8 @@ type (
 type AuthenticationStorage interface {
 	DeviceStorage
 
-	UpsertU2FSignChallenge(user, deviceID string, c *Challenge) error
-	GetU2FSignChallenge(user, deviceID string) (*Challenge, error)
+	UpsertU2FSignChallenge(user string, c *Challenge) error
+	GetU2FSignChallenge(user string) (*Challenge, error)
 }
 
 const (
@@ -89,16 +88,12 @@ func InMemoryAuthenticationStorage(ds DeviceStorage) (AuthenticationStorage, err
 	return inMemoryAuthenticationStorage{DeviceStorage: ds, challenges: m}, nil
 }
 
-func (s inMemoryAuthenticationStorage) key(user, deviceID string) string {
-	return fmt.Sprintf("%s-%s", user, deviceID)
+func (s inMemoryAuthenticationStorage) UpsertU2FSignChallenge(user string, c *Challenge) error {
+	return s.challenges.Set(user, c, inMemoryChallengeTTL)
 }
 
-func (s inMemoryAuthenticationStorage) UpsertU2FSignChallenge(user, deviceID string, c *Challenge) error {
-	return s.challenges.Set(s.key(user, deviceID), c, inMemoryChallengeTTL)
-}
-
-func (s inMemoryAuthenticationStorage) GetU2FSignChallenge(user, deviceID string) (*Challenge, error) {
-	v, ok := s.challenges.Get(s.key(user, deviceID))
+func (s inMemoryAuthenticationStorage) GetU2FSignChallenge(user string) (*Challenge, error) {
+	v, ok := s.challenges.Get(user)
 	if !ok {
 		return nil, trace.NotFound("U2F challenge not found or expired")
 	}
@@ -113,7 +108,7 @@ func (s inMemoryAuthenticationStorage) GetU2FSignChallenge(user, deviceID string
 // sequence.
 type AuthenticateInitParams struct {
 	AppConfig  types.U2F
-	Dev        *types.MFADevice
+	Devs       []*types.MFADevice
 	StorageKey string
 	Storage    AuthenticationStorage
 }
@@ -121,28 +116,33 @@ type AuthenticateInitParams struct {
 // AuthenticateInit is the first step in the authentication sequence. It runs
 // on the server and the returned AuthenticateChallenge must be sent to the
 // client.
-func AuthenticateInit(ctx context.Context, params AuthenticateInitParams) (*AuthenticateChallenge, error) {
-	if params.Dev == nil {
-		return nil, trace.BadParameter("bug: missing Dev field in u2f.AuthenticateInitParams")
-	}
-	dev := params.Dev.GetU2F()
-	if dev == nil {
-		return nil, trace.BadParameter("bug: u2f.AuthenticateInit called with %T instead of MFADevice_U2F", params.Dev.Device)
-	}
-	reg, err := DeviceToRegistration(dev)
-	if err != nil {
-		return nil, trace.Wrap(err)
+func AuthenticateInit(ctx context.Context, params AuthenticateInitParams) ([]*AuthenticateChallenge, error) {
+	if len(params.Devs) == 0 {
+		return nil, trace.BadParameter("bug: missing Devs field in u2f.AuthenticateInitParams")
 	}
 
 	challenge, err := NewChallenge(params.AppConfig.AppID, params.AppConfig.Facets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = params.Storage.UpsertU2FSignChallenge(params.StorageKey, params.Dev.Id, challenge); err != nil {
+	if err = params.Storage.UpsertU2FSignChallenge(params.StorageKey, challenge); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return challenge.SignRequest(*reg), nil
+	challenges := make([]*AuthenticateChallenge, 0, len(params.Devs))
+	for _, dev := range params.Devs {
+		u2fDev := dev.GetU2F()
+		if u2fDev == nil {
+			return nil, trace.BadParameter("bug: u2f.AuthenticateInit called with %T instead of MFADevice_U2F", dev)
+		}
+		reg, err := DeviceToRegistration(u2fDev)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		challenges = append(challenges, challenge.SignRequest(*reg))
+	}
+
+	return challenges, nil
 }
 
 // AuthenticateSignChallenge is the second step in the authentication sequence.
@@ -259,7 +259,7 @@ func AuthenticateVerify(ctx context.Context, params AuthenticateVerifyParams) er
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	challenge, err := params.Storage.GetU2FSignChallenge(params.StorageKey, params.Dev.Id)
+	challenge, err := params.Storage.GetU2FSignChallenge(params.StorageKey)
 	if err != nil {
 		return trace.Wrap(err)
 	}
