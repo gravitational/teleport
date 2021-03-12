@@ -117,7 +117,7 @@ example in `/tmp/token`:
 $ tctl tokens add \
     --type=db \
     --db-name=test \
-    --db-protocol=postgres \
+    --db-protocol=mysql \
     --db-uri=postgres.example.com:5432
 ```
 
@@ -127,7 +127,7 @@ Create the role that will allow a user to connect to any database using any
 database account:
 
 ```sh
-$ tctl --config=/path/to/teleport.yaml create <<EOF
+$ tctl --config=/path/to/teleport-db-role.yaml create <<EOF
 kind: role
 version: v3
 metadata:
@@ -146,7 +146,7 @@ EOF
 Create the user assigned the `db` role we've just created:
 
 ```sh
-$ tctl --config=/path/to/teleport.yaml users add --roles=admin,db testuser
+$ tctl --config=/path/to/teleport-db-role.yaml users add --roles=admin,db testuser
 ```
 
 ### Start Database Service with CLI Flags
@@ -176,8 +176,13 @@ a single self-hosted MySQL database:
 
 ```yaml
 teleport:
+  # The data_dir should be a different location if running on the same
+  # machine as Teleport auth and proxy.
   data_dir: /var/lib/teleport-db
-  nodename: test
+  nodename: teleport-db-instance
+  # Teleport invitation token used to join a cluster.
+  # can also be passed on start using --token flag
+  auth_token: /tmp/token
   # Proxy address to connect to. Note that it has to be the proxy address
   # because database service always connects to the cluster over reverse
   # tunnel.
