@@ -42,7 +42,7 @@ func (h *Handler) getRolesHandle(w http.ResponseWriter, r *http.Request, params 
 }
 
 func getRoles(clt resourcesAPIGetter) ([]ui.ResourceItem, error) {
-	roles, err := clt.GetRoles()
+	roles, err := clt.GetRoles(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -88,7 +88,7 @@ func upsertRole(ctx context.Context, clt resourcesAPIGetter, content, httpMethod
 		return nil, trace.BadParameter("resource kind %q is invalid", extractedRes.Kind)
 	}
 
-	_, err = clt.GetRole(extractedRes.Metadata.Name)
+	_, err = clt.GetRole(ctx, extractedRes.Metadata.Name)
 	if err := CheckResourceUpsertableByError(err, httpMethod, extractedRes.Metadata.Name); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -290,9 +290,9 @@ func ExtractResourceAndValidate(yaml string) (*services.UnknownResource, error) 
 
 type resourcesAPIGetter interface {
 	// GetRole returns role by name
-	GetRole(name string) (types.Role, error)
+	GetRole(ctx context.Context, name string) (types.Role, error)
 	// GetRoles returns a list of roles
-	GetRoles() ([]types.Role, error)
+	GetRoles(ctx context.Context) ([]types.Role, error)
 	// UpsertRole creates or updates role
 	UpsertRole(ctx context.Context, role types.Role) error
 	// UpsertGithubConnector creates or updates a Github connector

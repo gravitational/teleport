@@ -1282,7 +1282,7 @@ func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerConte
 			// recording proxy mode.
 			err := s.handleAgentForwardProxy(req, ctx)
 			if err != nil {
-				log.Debug(err)
+				log.Warn(err)
 			}
 			return nil
 		default:
@@ -1319,7 +1319,7 @@ func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerConte
 		// processing requests.
 		err := s.handleAgentForwardNode(req, ctx)
 		if err != nil {
-			log.Debug(err)
+			log.Warn(err)
 		}
 		return nil
 	default:

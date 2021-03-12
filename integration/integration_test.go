@@ -1576,8 +1576,19 @@ func (s *IntSuite) TestHA(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(output.String(), check.Equals, "hello world\n")
 
-	// stop auth server a now
+	// Stop cluster "a" to force existing tunnels to close.
 	c.Assert(a.StopAuth(true), check.IsNil)
+	// Restart cluster "a".
+	c.Assert(a.Reset(), check.IsNil)
+	c.Assert(a.Start(), check.IsNil)
+	// Wait for the tunnels to reconnect.
+	abortTime = time.Now().Add(time.Second * 10)
+	for len(checkGetClusters(c, a.Tunnel)) < 2 && len(checkGetClusters(c, b.Tunnel)) < 2 {
+		time.Sleep(time.Millisecond * 2000)
+		if time.Now().After(abortTime) {
+			c.Fatalf("two sites do not see each other: tunnels are not working")
+		}
+	}
 
 	// try to execute an SSH command using the same old client to site-B
 	// "site-A" and "site-B" reverse tunnels are supposed to reconnect,
