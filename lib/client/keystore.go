@@ -232,7 +232,7 @@ func (fs *FSLocalKeyStore) DeleteKey(host, username string, opts ...KeyOption) e
 		}
 	}
 	for _, o := range opts {
-		if err := o.deleteKey(dirPath, username); err != nil {
+		if err := o.deleteKey(fs, keyIndex{proxyHost: host, username: username}); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -245,9 +245,8 @@ func (fs *FSLocalKeyStore) DeleteKey(host, username string, opts ...KeyOption) e
 // Useful when needing to log out of a specific service, like a particular
 // database proxy.
 func (fs *FSLocalKeyStore) DeleteKeyOption(host, username string, opts ...KeyOption) error {
-	dirPath := fs.dirFor(host)
 	for _, o := range opts {
-		if err := o.deleteKey(dirPath, username); err != nil {
+		if err := o.deleteKey(fs, keyIndex{proxyHost: host, username: username}); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -317,7 +316,7 @@ func (fs *FSLocalKeyStore) GetKey(proxyHost, username string, opts ...KeyOption)
 	}
 
 	for _, o := range opts {
-		if err := o.getKey(dirPath, username, key); err != nil {
+		if err := o.getKey(fs, keyIndex{proxyHost: proxyHost, username: username}, key); err != nil {
 			fs.log.Error(err)
 			return nil, trace.Wrap(err)
 		}
@@ -349,12 +348,18 @@ func (fs *FSLocalKeyStore) GetKey(proxyHost, username string, opts ...KeyOption)
 	return key, nil
 }
 
+type keyIndex struct {
+	proxyHost   string
+	username    string
+	clusterName string
+}
+
 // KeyOption is an additional step to run when loading (LocalKeyStore.GetKey)
 // or deleting (LocalKeyStore.DeleteKey) keys. These are the steps skipped by
 // default to reduce the amount of work that Get/DeleteKey performs by default.
 type KeyOption interface {
-	getKey(dirPath, username string, key *Key) error
-	deleteKey(dirPath, username string) error
+	getKey(store LocalKeyStore, idx keyIndex, key *Key) error
+	deleteKey(store LocalKeyStore, idx keyIndex) error
 }
 
 // WithKubeCerts returns a GetKeyOption to load kubernetes certificates from
@@ -368,22 +373,37 @@ type withKubeCerts struct {
 }
 
 // TODO(awly): unit test this.
-func (o withKubeCerts) getKey(dirPath, username string, key *Key) error {
-	kubeDir := filepath.Join(dirPath, username+kubeDirSuffix, o.teleportClusterName)
-	kubeFiles, err := ioutil.ReadDir(kubeDir)
-	if err != nil && !os.IsNotExist(err) {
-		return trace.Wrap(err)
-	}
-	if key.KubeTLSCerts == nil {
-		key.KubeTLSCerts = make(map[string][]byte)
-	}
-	for _, fi := range kubeFiles {
-		data, err := ioutil.ReadFile(filepath.Join(kubeDir, fi.Name()))
-		if err != nil {
+func (o withKubeCerts) getKey(store LocalKeyStore, idx keyIndex, key *Key) error {
+	switch s := store.(type) {
+	case *FSLocalKeyStore:
+		dirPath := s.dirFor(idx.proxyHost)
+		kubeDir := filepath.Join(dirPath, idx.username+kubeDirSuffix, o.teleportClusterName)
+		kubeFiles, err := ioutil.ReadDir(kubeDir)
+		if err != nil && !os.IsNotExist(err) {
 			return trace.Wrap(err)
 		}
-		kubeCluster := strings.TrimSuffix(filepath.Base(fi.Name()), fileExtTLSCert)
-		key.KubeTLSCerts[kubeCluster] = data
+		if key.KubeTLSCerts == nil {
+			key.KubeTLSCerts = make(map[string][]byte)
+		}
+		for _, fi := range kubeFiles {
+			data, err := ioutil.ReadFile(filepath.Join(kubeDir, fi.Name()))
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			kubeCluster := strings.TrimSuffix(filepath.Base(fi.Name()), fileExtTLSCert)
+			key.KubeTLSCerts[kubeCluster] = data
+		}
+	case *MemLocalKeyStore:
+		if len(key.KubeTLSCerts) == 0 {
+			idx.clusterName = o.teleportClusterName
+			stored, ok := s.inMem[idx]
+			if !ok {
+				return trace.NotFound("key for %v not found", idx)
+			}
+			key.KubeTLSCerts = stored.KubeTLSCerts
+		}
+	default:
+		return trace.BadParameter("unexpected key store type %T", store)
 	}
 	if key.ClusterName == "" {
 		key.ClusterName = o.teleportClusterName
@@ -391,10 +411,23 @@ func (o withKubeCerts) getKey(dirPath, username string, key *Key) error {
 	return nil
 }
 
-func (o withKubeCerts) deleteKey(dirPath, username string) error {
-	kubeCertsDir := filepath.Join(dirPath, username+kubeDirSuffix, o.teleportClusterName)
-	if err := os.RemoveAll(kubeCertsDir); err != nil {
-		return trace.Wrap(err)
+func (o withKubeCerts) deleteKey(store LocalKeyStore, idx keyIndex) error {
+	switch s := store.(type) {
+	case *FSLocalKeyStore:
+		dirPath := s.dirFor(idx.proxyHost)
+		kubeCertsDir := filepath.Join(dirPath, idx.username+kubeDirSuffix, o.teleportClusterName)
+		if err := os.RemoveAll(kubeCertsDir); err != nil {
+			return trace.Wrap(err)
+		}
+	case *MemLocalKeyStore:
+		idx.clusterName = o.teleportClusterName
+		stored, ok := s.inMem[idx]
+		if !ok {
+			return trace.NotFound("key for %v not found", idx)
+		}
+		stored.KubeTLSCerts = nil
+	default:
+		return trace.BadParameter("unexpected key store type %T", store)
 	}
 	return nil
 }
@@ -409,36 +442,68 @@ type withDBCerts struct {
 	teleportClusterName, dbName string
 }
 
-func (o withDBCerts) getKey(dirPath, username string, key *Key) error {
-	dbDir := filepath.Join(dirPath, username+dbDirSuffix, o.teleportClusterName)
-	dbFiles, err := ioutil.ReadDir(dbDir)
-	if err != nil && !os.IsNotExist(err) {
-		return trace.Wrap(err)
-	}
-	if key.DBTLSCerts == nil {
-		key.DBTLSCerts = make(map[string][]byte)
-	}
-	for _, fi := range dbFiles {
-		data, err := ioutil.ReadFile(filepath.Join(dbDir, fi.Name()))
-		if err != nil {
+func (o withDBCerts) getKey(store LocalKeyStore, idx keyIndex, key *Key) error {
+	switch s := store.(type) {
+	case *FSLocalKeyStore:
+		dirPath := s.dirFor(idx.proxyHost)
+		dbDir := filepath.Join(dirPath, idx.username+dbDirSuffix, o.teleportClusterName)
+		dbFiles, err := ioutil.ReadDir(dbDir)
+		if err != nil && !os.IsNotExist(err) {
 			return trace.Wrap(err)
 		}
-		dbName := strings.TrimSuffix(filepath.Base(fi.Name()), fileExtTLSCert)
-		key.DBTLSCerts[dbName] = data
+		if key.DBTLSCerts == nil {
+			key.DBTLSCerts = make(map[string][]byte)
+		}
+		for _, fi := range dbFiles {
+			data, err := ioutil.ReadFile(filepath.Join(dbDir, fi.Name()))
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			dbName := strings.TrimSuffix(filepath.Base(fi.Name()), fileExtTLSCert)
+			key.DBTLSCerts[dbName] = data
+		}
+	case *MemLocalKeyStore:
+		idx.clusterName = o.teleportClusterName
+		stored, ok := s.inMem[idx]
+		if !ok {
+			return trace.NotFound("key for %v not found", idx)
+		}
+		stored.DBTLSCerts = nil
+	default:
+		return trace.BadParameter("unexpected key store type %T", store)
 	}
+	return nil
 	if key.ClusterName == "" {
 		key.ClusterName = o.teleportClusterName
 	}
 	return nil
 }
 
-func (o withDBCerts) deleteKey(dirPath, username string) error {
+func (o withDBCerts) deleteKey(store LocalKeyStore, idx keyIndex) error {
 	// If database name is specified, remove only that cert, otherwise remove
 	// certs for all databases a user is logged into.
-	if o.dbName != "" {
-		return os.Remove(filepath.Join(dirPath, username+dbDirSuffix, o.teleportClusterName, o.dbName+fileExtTLSCert))
+	switch s := store.(type) {
+	case *FSLocalKeyStore:
+		dirPath := s.dirFor(idx.proxyHost)
+		if o.dbName != "" {
+			return os.Remove(filepath.Join(dirPath, idx.username+dbDirSuffix, o.teleportClusterName, o.dbName+fileExtTLSCert))
+		}
+		return os.RemoveAll(filepath.Join(dirPath, idx.username+dbDirSuffix, o.teleportClusterName))
+	case *MemLocalKeyStore:
+		idx.clusterName = o.teleportClusterName
+		stored, ok := s.inMem[idx]
+		if !ok {
+			return trace.NotFound("key for %v not found", idx)
+		}
+		if o.dbName != "" {
+			stored.DBTLSCerts[o.dbName] = nil
+		} else {
+			stored.DBTLSCerts = nil
+		}
+	default:
+		return trace.BadParameter("unexpected key store type %T", store)
 	}
-	return os.RemoveAll(filepath.Join(dirPath, username+dbDirSuffix, o.teleportClusterName))
+	return nil
 }
 
 // initKeysDir initializes the keystore root directory. Usually it is ~/.tsh
@@ -482,8 +547,7 @@ type fsLocalNonSessionKeyStore struct {
 // for fs.KeyDir is typically "~/.tsh", sessionKeyDir is typically "keys",
 // and proxyHost typically has values like "proxy.example.com".
 func (fs *fsLocalNonSessionKeyStore) dirFor(proxyHost string) string {
-	dirPath := filepath.Join(fs.KeyDir, sessionKeyDir, proxyHost)
-	return dirPath
+	return filepath.Join(fs.KeyDir, sessionKeyDir, proxyHost)
 }
 
 // GetCertsPEM returns trusted TLS certificates of certificate authorities PEM
@@ -680,15 +744,10 @@ func (noLocalKeyStore) SaveCerts(proxy string, cas []auth.TrustedCerts) error {
 func (noLocalKeyStore) GetCerts(proxy string) (*x509.CertPool, error) { return nil, errNoLocalKeyStore }
 func (noLocalKeyStore) GetCertsPEM(proxy string) ([][]byte, error)    { return nil, errNoLocalKeyStore }
 
-type usernameProxyPair struct {
-	username string
-	proxy    string
-}
-
 // MemLocalKeyStore is an in-memory session keystore implementation.
 type MemLocalKeyStore struct {
 	fsLocalNonSessionKeyStore
-	inMem map[usernameProxyPair]*Key
+	inMem map[keyIndex]*Key
 }
 
 // NewMemLocalKeyStore initializes a MemLocalKeyStore, the key directory here is only used
@@ -699,7 +758,7 @@ func NewMemLocalKeyStore(dirPath string) (*MemLocalKeyStore, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	inMem := make(map[usernameProxyPair]*Key)
+	inMem := make(map[keyIndex]*Key)
 	return &MemLocalKeyStore{fsLocalNonSessionKeyStore: fsLocalNonSessionKeyStore{
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentKeyStore,
@@ -710,15 +769,22 @@ func NewMemLocalKeyStore(dirPath string) (*MemLocalKeyStore, error) {
 
 // AddKey writes a key to the underlying key store.
 func (s *MemLocalKeyStore) AddKey(proxy string, username string, key *Key) error {
-	s.inMem[usernameProxyPair{username, proxy}] = key
+	s.inMem[keyIndex{proxyHost: proxy, username: username}] = key
 	return nil
 }
 
 // GetKey returns the session key for the given username and proxy.
 func (s *MemLocalKeyStore) GetKey(proxy, username string, opts ...KeyOption) (*Key, error) {
-	entry, ok := s.inMem[usernameProxyPair{username, proxy}]
+	idx := keyIndex{proxyHost: proxy, username: username}
+	entry, ok := s.inMem[idx]
 	if !ok {
-		return nil, trace.NotFound("key for proxy: %q and username: %q not found", proxy, username)
+		return nil, trace.NotFound("key for %v not found", idx)
+	}
+	for _, o := range opts {
+		if err := o.getKey(s, idx, entry); err != nil {
+			s.log.Error(err)
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return entry, nil
@@ -726,18 +792,23 @@ func (s *MemLocalKeyStore) GetKey(proxy, username string, opts ...KeyOption) (*K
 
 // DeleteKey removes a specific session key from a proxy.
 func (s *MemLocalKeyStore) DeleteKey(proxyHost, username string, opts ...KeyOption) error {
-	delete(s.inMem, usernameProxyPair{username: username, proxy: proxyHost})
+	delete(s.inMem, keyIndex{proxyHost: proxyHost, username: username})
 	return nil
 }
 
 // DeleteKeys removes all session keys.
 func (s *MemLocalKeyStore) DeleteKeys() error {
-	s.inMem = make(map[usernameProxyPair]*Key)
+	s.inMem = make(map[keyIndex]*Key)
 	return nil
 }
 
 // DeleteKeyOption deletes only secrets specified by the provided key
 // options keeping user's SSH/TLS certificates and private key intact.
 func (s *MemLocalKeyStore) DeleteKeyOption(proxyHost, username string, opts ...KeyOption) error {
+	for _, o := range opts {
+		if err := o.deleteKey(s, keyIndex{proxyHost: proxyHost, username: username}); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	return nil
 }
