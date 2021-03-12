@@ -769,6 +769,9 @@ func NewMemLocalKeyStore(dirPath string) (*MemLocalKeyStore, error) {
 // AddKey writes a key to the underlying key store.
 func (s *MemLocalKeyStore) AddKey(proxy string, username string, key *Key) error {
 	s.inMem[keyIndex{proxyHost: proxy, username: username}] = key
+	if key.ClusterName != "" {
+		s.inMem[keyIndex{proxyHost: proxy, username: username, clusterName: key.ClusterName}] = key
+	}
 	return nil
 }
 
@@ -785,7 +788,6 @@ func (s *MemLocalKeyStore) GetKey(proxy, username string, opts ...KeyOption) (*K
 			return nil, trace.Wrap(err)
 		}
 	}
-
 	return entry, nil
 }
 
