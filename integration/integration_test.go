@@ -26,6 +26,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
@@ -61,10 +62,11 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testlog"
 
-	log "github.com/sirupsen/logrus"
-	"gopkg.in/check.v1"
-
 	"github.com/gravitational/trace"
+	"github.com/pborman/uuid"
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/check.v1"
 )
 
 const (
@@ -1574,8 +1576,19 @@ func (s *IntSuite) TestHA(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(output.String(), check.Equals, "hello world\n")
 
-	// stop auth server a now
+	// Stop cluster "a" to force existing tunnels to close.
 	c.Assert(a.StopAuth(true), check.IsNil)
+	// Restart cluster "a".
+	c.Assert(a.Reset(), check.IsNil)
+	c.Assert(a.Start(), check.IsNil)
+	// Wait for the tunnels to reconnect.
+	abortTime = time.Now().Add(time.Second * 10)
+	for len(checkGetClusters(c, a.Tunnel)) < 2 && len(checkGetClusters(c, b.Tunnel)) < 2 {
+		time.Sleep(time.Millisecond * 2000)
+		if time.Now().After(abortTime) {
+			c.Fatalf("two sites do not see each other: tunnels are not working")
+		}
+	}
 
 	// try to execute an SSH command using the same old client to site-B
 	// "site-A" and "site-B" reverse tunnels are supposed to reconnect,
@@ -5147,4 +5160,48 @@ func canTestBPF() error {
 
 func dumpGoroutineProfile() {
 	pprof.Lookup("goroutine").WriteTo(os.Stderr, 2)
+}
+
+// TestWebProxyInsecure makes sure that proxy endpoint works when TLS is disabled.
+func TestWebProxyInsecure(t *testing.T) {
+	startPort := utils.PortStartingNumber + (4 * AllocatePortsNum) + 1
+	ports, err := utils.GetFreeTCPPorts(AllocatePortsNum, startPort)
+	require.NoError(t, err)
+
+	privateKey, publicKey, err := testauthority.New().GenerateKeyPair("")
+	require.NoError(t, err)
+
+	rc := NewInstance(InstanceConfig{
+		ClusterName: "example.com",
+		HostID:      uuid.New(),
+		NodeName:    Host,
+		Ports:       ports.PopIntSlice(6),
+		Priv:        privateKey,
+		Pub:         publicKey,
+		log:         testlog.FailureOnly(t),
+	})
+
+	rcConf := service.MakeDefaultConfig()
+	rcConf.DataDir = t.TempDir()
+	rcConf.Auth.Enabled = true
+	rcConf.Auth.Preference.SetSecondFactor("off")
+	rcConf.Proxy.Enabled = true
+	rcConf.Proxy.DisableWebInterface = true
+	// DisableTLS flag should turn off TLS termination and multiplexing.
+	rcConf.Proxy.DisableTLS = true
+
+	err = rc.CreateEx(nil, rcConf)
+	require.NoError(t, err)
+
+	err = rc.Start()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		rc.StopAll()
+	})
+
+	// Web proxy endpoint should just respond with 200 when called over http://,
+	// content doesn't matter.
+	resp, err := http.Get(fmt.Sprintf("http://%v", net.JoinHostPort(Loopback, rc.GetPortWeb())))
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
 }

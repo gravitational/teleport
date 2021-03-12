@@ -117,7 +117,7 @@ func (c *Client) grpcDialer() grpcDialer {
 		}
 		conn, err := c.dialer.DialContext(ctx, "tcp", addr)
 		if err != nil {
-			return nil, trace.ConnectionProblem(err, "failed to dial")
+			return nil, trace.ConnectionProblem(err, "failed to dial: %v", err)
 		}
 		return conn, nil
 	}
@@ -373,29 +373,6 @@ func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) er
 	return nil
 }
 
-// GetAccessRequests retrieves a list of all access requests matching the provided filter.
-func (c *Client) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
-	rsp, err := c.grpc.GetAccessRequests(ctx, &filter)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-	reqs := make([]types.AccessRequest, 0, len(rsp.AccessRequests))
-	for _, req := range rsp.AccessRequests {
-		reqs = append(reqs, req)
-	}
-	return reqs, nil
-}
-
-// CreateAccessRequest registers a new access request with the auth server.
-func (c *Client) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
-	r, ok := req.(*types.AccessRequestV3)
-	if !ok {
-		return trace.BadParameter("unexpected access request type %T", req)
-	}
-	_, err := c.grpc.CreateAccessRequest(ctx, r)
-	return trail.FromGRPC(err)
-}
-
 // RotateResetPasswordTokenSecrets rotates secrets for a given tokenID.
 // It gets called every time a user fetches 2nd-factor secrets during registration attempt.
 // This ensures that an attacker that gains the ResetPasswordToken link can not view it,
@@ -431,6 +408,29 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req *proto.Create
 	}
 
 	return token, nil
+}
+
+// GetAccessRequests retrieves a list of all access requests matching the provided filter.
+func (c *Client) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
+	rsp, err := c.grpc.GetAccessRequests(ctx, &filter)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	reqs := make([]types.AccessRequest, 0, len(rsp.AccessRequests))
+	for _, req := range rsp.AccessRequests {
+		reqs = append(reqs, req)
+	}
+	return reqs, nil
+}
+
+// CreateAccessRequest registers a new access request with the auth server.
+func (c *Client) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
+	r, ok := req.(*types.AccessRequestV3)
+	if !ok {
+		return trace.BadParameter("unexpected access request type %T", req)
+	}
+	_, err := c.grpc.CreateAccessRequest(ctx, r)
+	return trail.FromGRPC(err)
 }
 
 // DeleteAccessRequest deletes an access request.
@@ -762,6 +762,50 @@ func (c *Client) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 	return resp, nil
 }
 
+// GetRole returns role by name
+func (c *Client) GetRole(ctx context.Context, name string) (types.Role, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing name")
+	}
+	resp, err := c.grpc.GetRole(ctx, &proto.GetRoleRequest{Name: name})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// GetRoles returns a list of roles
+func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
+	resp, err := c.grpc.GetRoles(ctx, &empty.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	roles := make([]types.Role, 0, len(resp.GetRoles()))
+	for _, role := range resp.GetRoles() {
+		roles = append(roles, role)
+	}
+	return roles, nil
+}
+
+// UpsertRole creates or updates role
+func (c *Client) UpsertRole(ctx context.Context, role types.Role) error {
+	roleV3, ok := role.(*types.RoleV3)
+	if !ok {
+		return trace.BadParameter("invalid type %T", role)
+	}
+	_, err := c.grpc.UpsertRole(ctx, roleV3)
+	return trail.FromGRPC(err)
+}
+
+// DeleteRole deletes role by name
+func (c *Client) DeleteRole(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("missing name")
+	}
+	_, err := c.grpc.DeleteRole(ctx, &proto.DeleteRoleRequest{Name: name})
+	return trail.FromGRPC(err)
+}
+
 func (c *Client) AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error) {
 	stream, err := c.grpc.AddMFADevice(ctx)
 	if err != nil {
@@ -792,4 +836,12 @@ func (c *Client) GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthServ
 		return nil, trail.FromGRPC(err)
 	}
 	return stream, nil
+}
+
+func (c *Client) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+	resp, err := c.grpc.IsMFARequired(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
 }
