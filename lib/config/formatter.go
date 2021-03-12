@@ -86,6 +86,7 @@ func (tf *textFormatter) CheckAndSetDefaults() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	if utils.SliceContainsStr(res, timestampField) {
 		tf.timestampEnabled = true
 	}
