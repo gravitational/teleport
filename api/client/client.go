@@ -52,6 +52,8 @@ func init() {
 }
 
 // Client is a gRPC Client that connects to a teleport server through TLS.
+// If SSH credentials are provided, the client will also attempt to connect
+// over SSH to a proxy server.
 type Client struct {
 	// c contains configuration values for the client.
 	c Config
@@ -85,8 +87,8 @@ type Client struct {
 // server types, and credentials. The first successful connection to a server
 // will be used, or an aggregated error will be returned if all combinations fail.
 //
-// If cfg.DialWithoutBlock is true, New will only use the first credentials and
-// a predefined dialer or an auth server address must be provided in cfg.
+// If cfg.DialInBackground is true, New will only use the first credentials listed.
+// A predefined dialer or an auth server address must be provided in cfg.
 // The connection will be dialed in the background, so the connection is not
 // validated. This option is primarily meant for internal use where the client has
 // direct access to server values and can reliably validate them before dialing.
@@ -225,6 +227,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 						syncConnect(addr, &Client{
 							c:         cfg,
 							tlsConfig: tlsConfig,
+							sshConfig: sshConfig,
 							dialer:    NewTunnelDialer(*sshConfig, cfg.KeepAlivePeriod, cfg.DialTimeout),
 						})
 					}(addr)

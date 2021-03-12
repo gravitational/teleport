@@ -70,20 +70,30 @@ type ContextDialerFunc = client.ContextDialerFunc
 // When Teleport servers connect to auth API, they usually establish an SSH
 // tunnel first, and then do HTTP-over-SSH. This client is wrapped by auth.TunClient
 // in lib/auth/tun.go
+//
+// NOTE: This client is being deprecated in favor of the gRPC Client in
+// teleport/api/client. This Client should only be used internally, or for
+// functionality that hasn't been ported to the new client yet.
 type Client struct {
-	// APIClient is used to make grpc requests to the server
+	// APIClient is used to make gRPC requests to the server
 	*APIClient
 	// HTTPClient is used to make http requests to the server
-	// will be gradually phased out in favor of APIClient (gRPC).
 	*HTTPClient
 }
 
 // Make sure Client implements all the necessary methods.
 var _ ClientI = &Client{}
 
-// NewClient returns a new client that uses mutual TLS authentication
-// and dials the remote server using dialer.
+// NewClient creates a new API client with a connection to a Teleport server.
+//
+// NewClient will only use the first credentials listed in cfg.
+// A predefined dialer or an auth server address must be provided in cfg.
+//
+// NOTE: This client is being deprecated in favor of the gRPC Client in
+// teleport/api/client. This Client should only be used internally, or for
+// functionality that hasn't been ported to the new client yet.
 func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, error) {
+	cfg.DialInBackground = true
 	apiClient, err := client.New(context.TODO(), cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -91,11 +101,7 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 
 	// apiClient configures the tls.Config, so we clone it and reuse it for http.
 	tlsConfig := apiClient.Config().Clone()
-	dialer, err := cfg.GetDialer()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	httpClient, err := NewHTTPClient(cfg, tlsConfig, dialer, params...)
+	httpClient, err := NewHTTPClient(cfg, tlsConfig, apiClient.Dialer(), params...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -109,7 +115,7 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 // APIClient is aliased here so that it can be embedded in Client.
 type APIClient = client.Client
 
-// HTTPClient is deprecated and will be gradually phased out in favor of APIClient (gRPC).
+// HTTPClient is a teleport HTTP API client.
 type HTTPClient struct {
 	roundtrip.Client
 	mux sync.Mutex
@@ -119,7 +125,7 @@ type HTTPClient struct {
 	tls *tls.Config
 }
 
-// NewHTTPClient creates a new Client with the http transport and client initialized.
+// NewHTTPClient creates a new HTTP client with TLS authentication and the given dialer.
 func NewHTTPClient(cfg client.Config, tls *tls.Config, dialer ContextDialer, params ...roundtrip.ClientParam) (*HTTPClient, error) {
 	// Set the next protocol. This is needed due to the Auth Server using a
 	// multiplexer for protocol detection. Unless next protocol is specified
