@@ -282,7 +282,7 @@ following use cases:
 ## Authentication
 
 Teleport uses the concept of "authentication connectors" to authenticate users
-when they execute `tsh login`](cli-docs.mdx#tsh-login) command. There are three
+when they execute [`tsh login`](cli-docs.mdx#tsh-login) command. There are three
 types of authentication connectors:
 
 ### Local Connector
@@ -1200,7 +1200,7 @@ The value of `HTTPS_PROXY` or `HTTP_PROXY` should be in the format
 `host:port` , Teleport will prepend `http` .
 
 It's important to note that in order for Teleport to use HTTP CONNECT
-tunnelling, the `HTTP_PROXY` and `HTTPS_PROXY` environment variables must be set
+tunneling, the `HTTP_PROXY` and `HTTPS_PROXY` environment variables must be set
 within Teleport's environment. You can also optionally set the `NO_PROXY`
 environment variable to avoid use of the proxy when accessing specified
 hosts/netmasks. When launching Teleport with systemd, this will probably involve
@@ -1408,7 +1408,7 @@ highly available below.
 ### Teleport Scalability Tweaks
 
 When running Teleport at scale (for example in the case where there are 10,000+ nodes connected
-to a cluster via [node tunnelling mode](#adding-a-node-located-behind-nat), the following settings
+to a cluster via [node tunneling mode](#adding-a-node-located-behind-nat), the following settings
 should be set on Teleport auth and proxies:
 
 #### Proxy Servers
