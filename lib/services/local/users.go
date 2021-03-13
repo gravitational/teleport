@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -718,6 +718,7 @@ func (s *IdentityService) GetOIDCConnector(name string, withSecrets bool) (servi
 	}
 	if !withSecrets {
 		conn.SetClientSecret("")
+		conn.SetGoogleServiceAccount("")
 	}
 	return conn, nil
 }
@@ -738,6 +739,7 @@ func (s *IdentityService) GetOIDCConnectors(withSecrets bool) ([]services.OIDCCo
 		}
 		if !withSecrets {
 			conn.SetClientSecret("")
+			conn.SetGoogleServiceAccount("")
 		}
 		connectors[i] = conn
 	}
