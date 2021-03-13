@@ -187,7 +187,11 @@ func (ns *NodeSession) createServerSession() (*ssh.Session, error) {
 	// forward the agent to endpoint.
 	tc := ns.nodeClient.Proxy.teleportClient
 	if tc.ForwardAgent && tc.localAgent.Agent != nil {
-		err = agent.ForwardToAgent(ns.nodeClient.Client, tc.localAgent.Agent)
+		var forwardAgent = tc.localAgent.Agent
+		if tc.UseLocalSSHAgent && tc.localAgent.sshAgent != nil {
+			forwardAgent = tc.localAgent.sshAgent
+		}
+		err = agent.ForwardToAgent(ns.nodeClient.Client, forwardAgent)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
