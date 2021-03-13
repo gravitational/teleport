@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 )
 
 // Features provides supported and unsupported features
@@ -44,6 +45,20 @@ type Features struct {
 	AdvancedAccessWorkflows bool
 	// Cloud enables some cloud-related features
 	Cloud bool
+}
+
+// ToProto converts Features into proto.Features
+func (f Features) ToProto() *proto.Features {
+	return &proto.Features{
+		Kubernetes:              f.Kubernetes,
+		App:                     f.App,
+		DB:                      f.DB,
+		OIDC:                    f.OIDC,
+		SAML:                    f.SAML,
+		AccessControls:          f.AccessControls,
+		AdvancedAccessWorkflows: f.AdvancedAccessWorkflows,
+		Cloud:                   f.Cloud,
+	}
 }
 
 // Modules defines interface that external libraries can implement customizing

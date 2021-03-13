@@ -137,7 +137,7 @@ func (s *ServerSuite) TestGuessProxyHostAndVersion(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
-func TestUnmarshalServerResourceKubernetes(t *testing.T) {
+func TestUnmarshalServerKubernetes(t *testing.T) {
 	// Regression test for
 	// https://github.com/gravitational/teleport/issues/4862
 	//
@@ -200,7 +200,7 @@ func TestUnmarshalServerResourceKubernetes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			got, err := UnmarshalServerResource([]byte(tt.in), KindKubeService, &MarshalConfig{})
+			got, err := UnmarshalServer([]byte(tt.in), KindKubeService)
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(got, tt.want))
 		})

@@ -148,7 +148,7 @@ func (s *Server) UpsertUser(user services.User) error {
 
 // DeleteUser deletes an existng user in a backend by username.
 func (s *Server) DeleteUser(ctx context.Context, user string) error {
-	role, err := s.Access.GetRole(services.RoleNameForUser(user))
+	role, err := s.Access.GetRole(ctx, services.RoleNameForUser(user))
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)

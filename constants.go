@@ -556,8 +556,22 @@ const SCP = "scp"
 const Root = "root"
 
 // AdminRoleName is the name of the default admin role for all local users if
-// another role is not explicitly assigned (Enterprise only).
+// another role is not explicitly assigned
 const AdminRoleName = "admin"
+
+const (
+	// PresetEditorRoleName is a name of a preset role that allows
+	// editing cluster configuration.
+	PresetEditorRoleName = "editor"
+
+	// PresetAccessRoleName is a name of a preset role that allows
+	// accessing cluster resources.
+	PresetAccessRoleName = "access"
+
+	// PresetAuditorRoleName is a name of a preset role that allows
+	// reading cluster events and playing back session records.
+	PresetAuditorRoleName = "auditor"
+)
 
 // OSSMigratedV6 is a label to mark migrated OSS users and resources
 const OSSMigratedV6 = "migrate-v6.0"
