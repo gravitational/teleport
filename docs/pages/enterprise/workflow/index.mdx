@@ -14,7 +14,7 @@ h1: Teleport Access Workflows
 
 ## Access Workflows Setup
 
-Teleport 4.2 introduced the ability for users to request additional roles. The
+Teleport has the ability for users to request additional roles. The
 workflow API makes it easy to dynamically approve or deny these requests.
 
 ### Setup
@@ -128,8 +128,7 @@ deny:
 
 ## Adding a Reason to Access Workflows
 
-Teleport 4.4.4 introduced the ability for users to request additional roles. `tctl`
-or the Access Workflows API makes it easy to dynamically approve or deny these requests.
+When requesting a new role users can add provide a reason along with their request `tsh login --request-roles="db" --request-reason="Need access to db"
 
 By requiring a reason along with an access request, you can provide users with a default
 unprivileged state where they must always go through the Access Workflows API in order to
