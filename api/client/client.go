@@ -36,7 +36,6 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
-	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	ggzip "google.golang.org/grpc/encoding/gzip"
@@ -52,15 +51,11 @@ func init() {
 }
 
 // Client is a gRPC Client that connects to a teleport server through TLS.
-// If SSH credentials are provided, the client will also attempt to connect
-// over SSH to a proxy server.
 type Client struct {
 	// c contains configuration values for the client.
 	c Config
 	// tlsConfig is the *tls.Config for a successfully connected client.
 	tlsConfig *tls.Config
-	// sshConfig is the *ssh.ClientConfig for a successfully connected proxy client.
-	sshConfig *ssh.ClientConfig
 	// dialer is the ContextDialer for a successfully connected client.
 	dialer ContextDialer
 	// conn is a grpc connection to the auth server.
@@ -88,10 +83,10 @@ type Client struct {
 // will be used, or an aggregated error will be returned if all combinations fail.
 //
 // If cfg.DialInBackground is true, New will only use the first credentials listed.
-// A predefined dialer or an auth server address must be provided in cfg.
-// The connection will be dialed in the background, so the connection is not
-// validated. This option is primarily meant for internal use where the client has
-// direct access to server values and can reliably validate them before dialing.
+// A predefined dialer or an auth server address must be provided in cfg. The
+// connection will be dialed in the background, so the connection is not guarenteed
+// to be open. This option is primarily meant for internal use where the client has
+// direct access to server values that guarentee a successful connection.
 func New(ctx context.Context, cfg Config) (clt *Client, err error) {
 	if err = cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -110,7 +105,7 @@ func New(ctx context.Context, cfg Config) (clt *Client, err error) {
 }
 
 // connectInBackground connects the client to the server in the background,
-// using the first credentials in cfg, and returns the client immediately.
+// uses the first credentials in cfg, and returns the client immediately.
 // A predefined dialer or an auth server address must be provided in cfg.
 func connectInBackground(ctx context.Context, cfg Config) (*Client, error) {
 	tls, err := cfg.Credentials[0].TLSConfig()
@@ -131,12 +126,14 @@ func connectInBackground(ctx context.Context, cfg Config) (*Client, error) {
 	return clt, nil
 }
 
-// connect connects the client to the server, using the Credentials and
+// connect connects the client to the server using the Credentials and
 // Dialer/Addresses provided in the client's config. Multiple goroutines are started
-// to attempt dialing the server with different combinations of dialers + creds, and
-// the first client to successfully connect is used to populate the client's connection
+// to make dial atempts with different combinations of dialers and credential The
+// first client to successfully connect is used to populate the client's connection
 // attributes. If none successfully connect, an aggregated error is returned.
 func connect(ctx context.Context, cfg Config) (*Client, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	var wg sync.WaitGroup
 	cltChan := make(chan *Client)
 	errChan := make(chan error)
@@ -194,7 +191,6 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 					tlsConfig: tlsConfig,
 					dialer:    cfg.Dialer,
 				})
-				continue
 			}
 
 			// Connect with dialer provided in creds.
@@ -204,7 +200,6 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 					tlsConfig: tlsConfig,
 					dialer:    dialer,
 				})
-				continue
 			}
 
 			for _, addr := range cfg.Addrs {
@@ -227,7 +222,6 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 						syncConnect(addr, &Client{
 							c:         cfg,
 							tlsConfig: tlsConfig,
-							sshConfig: sshConfig,
 							dialer:    NewTunnelDialer(*sshConfig, cfg.KeepAlivePeriod, cfg.DialTimeout),
 						})
 					}(addr)
@@ -264,12 +258,12 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 	}
 }
 
-// dialGRPC dials a connection between server and client. If withBlock is false,
+// dialGRPC dials a connection between server and client. If withBlock is true,
 // the dial will block until the connection is up, rather than returning
 // immediately and connecting to the server in the background.
 func (c *Client) dialGRPC(ctx context.Context, addr string, withBlock bool) error {
 	dialOptions := []grpc.DialOption{
-		grpc.WithContextDialer(c.grpcDialer(c.dialer)),
+		grpc.WithContextDialer(c.grpcDialer()),
 		grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConfig)),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
 			Time:                c.c.KeepAlivePeriod,
@@ -294,14 +288,13 @@ func (c *Client) dialGRPC(ctx context.Context, addr string, withBlock bool) erro
 	return nil
 }
 
-// grpcDialer wraps the given ContextDialer with a grpcDialer, which
-// can be used to create a DialOption with grpc.WithContextDialer.
-func (c *Client) grpcDialer(dialer ContextDialer) func(ctx context.Context, addr string) (net.Conn, error) {
+// grpcDialer wraps the client's dialer with a grpcDialer.
+func (c *Client) grpcDialer() func(ctx context.Context, addr string) (net.Conn, error) {
 	return func(ctx context.Context, addr string) (net.Conn, error) {
 		if c.isClosed() {
 			return nil, trace.ConnectionProblem(nil, "client is closed")
 		}
-		conn, err := dialer.DialContext(ctx, "tcp", addr)
+		conn, err := c.dialer.DialContext(ctx, "tcp", addr)
 		if err != nil {
 			return nil, trace.ConnectionProblem(err, "failed to dial: %v", err)
 		}
@@ -356,11 +349,11 @@ func (c *Config) GetDialer() (ContextDialer, error) {
 	if c.Dialer != nil {
 		return c.Dialer, nil
 	}
-	var err error
-	if c.Dialer, err = NewAddrsDialer(c.Addrs, c.KeepAlivePeriod, c.DialTimeout); err != nil {
+	dialer, err := NewAddrsDialer(c.Addrs, c.KeepAlivePeriod, c.DialTimeout)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return c.Dialer, nil
+	return dialer, nil
 }
 
 // Config returns the tls.Config the client connected with.

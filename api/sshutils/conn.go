@@ -17,11 +17,11 @@ limitations under the License.
 package sshutils
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -76,12 +76,12 @@ func ConnectProxyTransport(sconn ssh.Conn, req *DialReq, exclusive bool) (*ChCon
 
 		// Pull the error message from the tunnel client (remote cluster)
 		// passed to us via stderr.
-		errMessage, _ := ioutil.ReadAll(channel.Stderr())
-		errMessage = bytes.TrimSpace(errMessage)
+		errMessageBytes, _ := ioutil.ReadAll(channel.Stderr())
+		errMessage := strings.TrimSpace(string(errMessageBytes))
 		if len(errMessage) == 0 {
-			errMessage = []byte(fmt.Sprintf("failed connecting to %v [%v]", req.Address, req.ServerID))
+			errMessage = fmt.Sprintf("failed connecting to %v [%v]", req.Address, req.ServerID)
 		}
-		return nil, false, trace.Errorf(string(errMessage))
+		return nil, false, trace.Errorf(errMessage)
 	}
 
 	if exclusive {

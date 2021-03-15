@@ -44,7 +44,6 @@ import (
 const (
 	defaultKeyDir      = ProfileDir
 	fileExtTLSCert     = "-x509.pem"
-	fileExtCert        = constants.FileExtCert
 	fileExtPub         = ".pub"
 	sessionKeyDir      = "keys"
 	fileNameKnownHosts = "known_hosts"
@@ -173,7 +172,7 @@ func (fs *FSLocalKeyStore) AddKey(host, username string, key *Key) error {
 		}
 		return err
 	}
-	if err = writeBytes(username+fileExtCert, key.Cert); err != nil {
+	if err = writeBytes(username+constants.FileExtSSHCert, key.Cert); err != nil {
 		return trace.Wrap(err)
 	}
 	if err = writeBytes(username+fileExtTLSCert, key.TLSCert); err != nil {
@@ -226,7 +225,7 @@ func (fs *FSLocalKeyStore) DeleteKey(host, username string, opts ...KeyOption) e
 		return trace.Wrap(err)
 	}
 	files := []string{
-		filepath.Join(dirPath, username+fileExtCert),
+		filepath.Join(dirPath, username+constants.FileExtSSHCert),
 		filepath.Join(dirPath, username+fileExtTLSCert),
 		filepath.Join(dirPath, username+fileExtPub),
 		filepath.Join(dirPath, username),
@@ -286,7 +285,7 @@ func (fs *FSLocalKeyStore) GetKey(proxyHost, username string, opts ...KeyOption)
 		return nil, trace.NotFound("no session keys for %v in %v", username, proxyHost)
 	}
 
-	certFile := filepath.Join(dirPath, username+fileExtCert)
+	certFile := filepath.Join(dirPath, username+constants.FileExtSSHCert)
 	cert, err := ioutil.ReadFile(certFile)
 	if err != nil {
 		fs.log.Error(err)

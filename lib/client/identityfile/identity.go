@@ -126,7 +126,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 	// dump user identity into separate files:
 	case FormatOpenSSH:
 		keyPath := cfg.OutputPath
-		certPath := keyPath + constants.FileExtCert
+		certPath := keyPath + constants.FileExtSSHCert
 		filesWritten = append(filesWritten, keyPath, certPath)
 		if err := checkOverwrite(cfg.OverwriteDestination, filesWritten...); err != nil {
 			return nil, trace.Wrap(err)

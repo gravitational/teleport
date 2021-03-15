@@ -28,18 +28,22 @@ import (
 	"github.com/gravitational/trace"
 )
 
+const (
+	invalidProxyAddressMessage = "'%v' is not a valid proxy address"
+)
+
 // initClient creates a new client to the HTTPS web proxy.
 func initClient(proxyAddr string) (*http.Client, error) {
 	// Validate proxyAddr.
 	host, port, err := net.SplitHostPort(proxyAddr)
 	if err != nil || host == "" || port == "" {
 		if err != nil {
-			return nil, trace.Wrap(err, "'%v' is not a valid proxy address", proxyAddr)
+			return nil, trace.Wrap(err, invalidProxyAddressMessage, proxyAddr)
 		}
-		return nil, trace.BadParameter("'%v' is not a valid proxy address", proxyAddr)
+		return nil, trace.BadParameter(invalidProxyAddressMessage, proxyAddr)
 	}
 	if _, err := url.Parse("https://" + net.JoinHostPort(host, port)); err != nil {
-		return nil, trace.BadParameter("'%v' is not a valid proxy address", proxyAddr)
+		return nil, trace.BadParameter(invalidProxyAddressMessage, proxyAddr)
 	}
 
 	// Skip https cert verification, print a warning that this is insecure.
@@ -121,7 +125,8 @@ type SSHProxySettings struct {
 	// connections on.
 	ListenAddr string `json:"listen_addr,omitempty"`
 
-	// TunnelListenAddr
+	// TunnelListenAddr is the address that the SSH reverse tunnel is
+	// listening for connections on.
 	TunnelListenAddr string `json:"tunnel_listen_addr,omitempty"`
 
 	// PublicAddr is the public address of the HTTP proxy.

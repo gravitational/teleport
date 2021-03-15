@@ -38,7 +38,7 @@ func TestWrite(t *testing.T) {
 	require.Equal(t, string(out), "priv")
 
 	// cert is OK:
-	out, err = ioutil.ReadFile(cfg.OutputPath + constants.FileExtCert)
+	out, err = ioutil.ReadFile(cfg.OutputPath + constants.FileExtSSHCert)
 	require.NoError(t, err)
 	require.Equal(t, string(out), "cert")
 

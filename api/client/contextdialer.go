@@ -79,8 +79,7 @@ func NewTunnelDialer(ssh ssh.ClientConfig, keepAliveInterval, dialTimeout time.D
 
 		sconn, err := sshutils.NewClientConnWithDeadline(conn, addr, &ssh)
 		if err != nil {
-			conn.Close()
-			return nil, trace.Wrap(err)
+			return nil, trace.NewAggregate(err, conn.Close())
 		}
 
 		// Build a net.Conn over the tunnel. Make this an exclusive connection:
@@ -89,8 +88,7 @@ func NewTunnelDialer(ssh ssh.ClientConfig, keepAliveInterval, dialTimeout time.D
 			Address: constants.RemoteAuthServer,
 		}, true)
 		if err != nil {
-			err2 := sconn.Close()
-			return nil, trace.NewAggregate(err, err2)
+			return nil, trace.NewAggregate(err, sconn.Close())
 		}
 		return conn, nil
 	})

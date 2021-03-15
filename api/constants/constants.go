@@ -119,6 +119,6 @@ const (
 	// requests a connection to the remote auth server.
 	RemoteAuthServer = "@remote-auth-server"
 
-	// FileExtCert is a file extension used for Certificate files
-	FileExtCert = "-cert.pub"
+	// FileExtSSHCert is a file extension used for Certificate files
+	FileExtSSHCert = "-cert.pub"
 )
