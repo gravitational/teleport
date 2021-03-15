@@ -1329,14 +1329,10 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 		file := filepath.Base(sessionID)
 		sid := strings.TrimSuffix(file, ".tar")
 		// extract files to temp directory
-		err = events.WriteForPlayback(ctx, session.ID(sid), protoReader, os.TempDir())
+		chunksPath, eventsPath,  err := events.WriteForPlayback(ctx, session.ID(sid), protoReader, os.TempDir())
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		// create temp paths for chunk and event files
-		chunksPath := path.Join(os.TempDir(), fmt.Sprintf("%v-0.chunks.gz", sid))
-		eventsPath := path.Join(os.TempDir(), fmt.Sprintf("%v-0.events.gz", sid))
-
 		// chunks
 		chunkFile, err := os.Open(chunksPath)
 		if err != nil {

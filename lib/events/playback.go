@@ -122,7 +122,7 @@ func Export(ctx context.Context, rs io.ReadSeeker, w io.Writer, exportFormat str
 
 // WriteForPlayback reads events from audit reader
 // and writes them to the format optimized for playback
-func WriteForPlayback(ctx context.Context, sid session.ID, reader AuditReader, dir string) error {
+func WriteForPlayback(ctx context.Context, sid session.ID, reader AuditReader, dir string) (string, string, error) {
 	w := &PlaybackWriter{
 		sid:        sid,
 		reader:     reader,
@@ -134,7 +134,7 @@ func WriteForPlayback(ctx context.Context, sid session.ID, reader AuditReader, d
 			log.WithError(err).Warningf("Failed to close writer.")
 		}
 	}()
-	return w.Write(ctx)
+	return w.chunksPath, w.eventsPath, w.Write(ctx)
 }
 
 // PlaybackWriter reads messages until end of file
@@ -147,6 +147,8 @@ type PlaybackWriter struct {
 	eventsFile *gzipWriter
 	chunksFile *gzipWriter
 	eventIndex int64
+	eventsPath string
+	chunksPath string
 }
 
 // Close closes all files
@@ -300,6 +302,7 @@ func (w *PlaybackWriter) openEventsFile(eventIndex int64) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	w.eventsPath = eventsFileName
 	w.eventsFile = newGzipWriter(file)
 	return nil
 }
@@ -332,6 +335,7 @@ func (w *PlaybackWriter) openChunksFile(offset int64) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	w.chunksPath = chunksFileName
 	w.chunksFile = newGzipWriter(file)
 	return nil
 }
