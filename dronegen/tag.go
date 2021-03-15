@@ -60,29 +60,19 @@ func tagBuildCommands(params tagBuildType) []string {
 		`chown -R $UID:$GID /go`,
 		`cd /go/src/github.com/gravitational/teleport`,
 	}
+
 	if params.fips {
 		commands = append(commands,
 			"export VERSION=$(cat /go/.version.txt)",
-			fmt.Sprintf(
-				`make -C build.assets %s VERSION=$VERSION OS=%s ARCH=%s FIPS=%s`, tagMakefileTarget(params), params.os, params.arch, "yes",
-			),
-		)
-	} else {
-		commands = append(commands,
-			fmt.Sprintf(
-				`make -C build.assets %s OS=%s ARCH=%s`, tagMakefileTarget(params), params.os, params.arch,
-			),
 		)
 	}
-	// we need to rename artifacts created for CentOS 6; these are the only kind where renaming is not handled inside the Makefile
-	if params.centos6 {
-		commands = append(commands,
-			// rename artifacts
-			`export VERSION=$(cat /go/.version.txt)`,
-			`mv /go/artifacts/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-v$${VERSION}-linux-amd64-centos6-bin.tar.gz`,
-			`mv /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos6-bin.tar.gz`,
-		)
-	}
+
+	commands = append(commands,
+		fmt.Sprintf(
+			`make -C build.assets %s`, tagMakefileTarget(params),
+		),
+	)
+
 	return commands
 }
 
@@ -97,7 +87,7 @@ func tagCopyArtifactCommands(params tagBuildType) []string {
 		`cd /go/src/github.com/gravitational/teleport`,
 	}
 
-	// don't copy OSS artifacts for FIPS builds
+	// don't copy OSS artifacts for any FIPS build
 	if !params.fips {
 		commands = append(commands,
 			fmt.Sprintf(`find . -maxdepth 1 -iname "teleport*%s" -print -exec cp {} /go/artifacts \;`, extension),
@@ -114,6 +104,22 @@ func tagCopyArtifactCommands(params tagBuildType) []string {
 		commands = append(commands,
 			`find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;`,
 		)
+	}
+
+	// we need to specifically rename artifacts which are created for CentOS 6
+	// these is the only special case where renaming is not handled inside the Makefile
+	if params.centos6 {
+		commands = append(commands, `export VERSION=$(cat /go/.version.txt)`)
+		if !params.fips {
+			commands = append(commands,
+				`mv /go/artifacts/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-v$${VERSION}-linux-amd64-centos6-bin.tar.gz`,
+				`mv /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos6-bin.tar.gz`,
+			)
+		} else {
+			commands = append(commands,
+				`mv /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos6-fips-bin.tar.gz`,
+			)
+		}
 	}
 
 	// generate checksums
@@ -153,6 +159,9 @@ func tagPipelines() []pipeline {
 
 	// Only amd64 Windows is supported for now.
 	ps = append(ps, tagPipeline(tagBuildType{os: "windows", arch: "amd64"}))
+	// Also add the two CentOS 6 artifacts.
+	ps = append(ps, tagPipeline(tagBuildType{os: "linux", arch: "amd64", centos6: true}))
+	ps = append(ps, tagPipeline(tagBuildType{os: "linux", arch: "amd64", centos6: true, fips: true}))
 	return ps
 }
 
@@ -166,8 +175,10 @@ func tagPipeline(params tagBuildType) pipeline {
 	}
 
 	pipelineName := fmt.Sprintf("build-%s-%s", params.os, params.arch)
+	pipelineTitleSegment := "release artifacts"
 	if params.centos6 {
 		pipelineName += "-centos6"
+		pipelineTitleSegment = "CentOS 6 release artifacts"
 	}
 	tagEnvironment := map[string]value{
 		"UID":    value{raw: "1000"},
@@ -179,6 +190,11 @@ func tagPipeline(params tagBuildType) pipeline {
 	if params.fips {
 		pipelineName += "-fips"
 		tagEnvironment["FIPS"] = value{raw: "yes"}
+		if params.centos6 {
+			pipelineTitleSegment = "CentOS 6 FIPS release artifacts"
+		} else {
+			pipelineTitleSegment = "FIPS release artifacts"
+		}
 	}
 
 	p := newKubePipeline(pipelineName)
@@ -209,7 +225,7 @@ func tagPipeline(params tagBuildType) pipeline {
 			Commands: tagCheckoutCommands(params.fips),
 		},
 		{
-			Name:        "Build release artifacts",
+			Name:        fmt.Sprintf("Build %s", pipelineTitleSegment),
 			Image:       "docker",
 			Environment: tagEnvironment,
 			Volumes: []volumeRef{
@@ -218,7 +234,7 @@ func tagPipeline(params tagBuildType) pipeline {
 			Commands: tagBuildCommands(params),
 		},
 		{
-			Name:     "Copy artifacts",
+			Name:     fmt.Sprintf("Copy %s", pipelineTitleSegment),
 			Image:    "docker",
 			Commands: tagCopyArtifactCommands(params),
 		},
