@@ -41,6 +41,24 @@ func pushCheckoutCommands(fips bool) []string {
 	return commands
 }
 
+// pushBuildCommands generates a list of commands for Drone to build an artifact as part of a push build
+func pushBuildCommands(params pushBuildType) []string {
+	commands := []string{
+		`apk add --no-cache make`,
+		`chown -R $UID:$GID /go`,
+		`cd /go/src/github.com/gravitational/teleport`,
+	}
+	if params.fips {
+		commands = append(commands,
+			`export VERSION=$(cat /go/.version.txt)`,
+		)
+	}
+	commands = append(commands,
+		fmt.Sprintf(`make -C build.assets %s`, pushMakefileTarget(params)),
+	)
+	return commands
+}
+
 // pushPipelines builds all applicable push pipeline combinations
 func pushPipelines() []pipeline {
 	var ps []pipeline
@@ -107,9 +125,6 @@ func pushPipeline(params pushBuildType) pipeline {
 			Environment: map[string]value{
 				"GITHUB_PRIVATE_KEY": value{fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
-			Volumes: []volumeRef{
-				volumeRefTmpfs,
-			},
 			Commands: pushCheckoutCommands(params.fips),
 		},
 		{
@@ -119,12 +134,7 @@ func pushPipeline(params pushBuildType) pipeline {
 			Volumes: []volumeRef{
 				volumeRefDocker,
 			},
-			Commands: []string{
-				`apk add --no-cache make`,
-				`chown -R $UID:$GID /go`,
-				`cd /go/src/github.com/gravitational/teleport`,
-				fmt.Sprintf(`make -C build.assets %s`, pushMakefileTarget(params)),
-			},
+			Commands: pushBuildCommands(params),
 		},
 		{
 			Name:  "Send Slack notification",
