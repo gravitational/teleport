@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2019 Gravitational, Inc.
+Copyright 2015-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -46,6 +47,7 @@ import (
 )
 
 type APIConfig struct {
+	PluginRegistry plugin.Registry
 	AuthServer     *Server
 	SessionService session.Service
 	AuditLog       events.IAuditLog
@@ -80,7 +82,7 @@ type APIServer struct {
 }
 
 // NewAPIServer returns a new instance of APIServer HTTP handler
-func NewAPIServer(config *APIConfig) http.Handler {
+func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv := APIServer{
 		APIConfig: *config,
 		Clock:     clockwork.NewRealClock(),
@@ -246,15 +248,17 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.GET("/:version/events", srv.withAuth(srv.searchEvents))
 	srv.GET("/:version/events/session", srv.withAuth(srv.searchSessionEvents))
 
-	if plugin := GetPlugin(); plugin != nil {
-		plugin.AddHandlers(&srv)
+	if config.PluginRegistry != nil {
+		if err := config.PluginRegistry.RegisterAuthWebHandlers(&srv); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return httplib.RewritePaths(&srv.Router,
 		httplib.Rewrite("/v1/nodes", "/v1/namespaces/default/nodes"),
 		httplib.Rewrite("/v1/sessions", "/v1/namespaces/default/sessions"),
 		httplib.Rewrite("/v1/sessions/([^/]+)/(.*)", "/v1/namespaces/default/sessions/$1/$2"),
-	)
+	), nil
 }
 
 // HandlerWithAuthFunc is http handler with passed auth context
