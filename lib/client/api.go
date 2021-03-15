@@ -1329,7 +1329,7 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 		file := filepath.Base(sessionID)
 		sid := strings.TrimSuffix(file, ".tar")
 		// extract files to temp directory
-		chunksPath, eventsPath,  err := events.WriteForPlayback(ctx, session.ID(sid), protoReader, os.TempDir())
+		chunksPath, eventsPath, err := events.WriteForPlayback(ctx, session.ID(sid), protoReader, os.TempDir())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2772,7 +2772,6 @@ func isFIPS() bool {
 func playSession(sessionEvents []events.EventFields, stream []byte) error {
 	var err error
 	player := newSessionPlayer(sessionEvents, stream)
-	fmt.Println("past session player")
 	// keys:
 	const (
 		keyCtrlC = 3
