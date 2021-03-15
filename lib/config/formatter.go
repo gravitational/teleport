@@ -76,7 +76,6 @@ func (tf *textFormatter) CheckAndSetDefaults() error {
 
 	// set log formatting
 	if tf.LogFormat == nil {
-		tf.timestampEnabled = true
 		tf.callerEnabled = true
 		tf.LogFormat = KnownFormatFields.names()
 		return nil
