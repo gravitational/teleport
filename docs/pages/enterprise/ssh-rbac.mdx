@@ -156,6 +156,8 @@ spec:
       verbs: [list, read]
     - resources: [trusted_cluster]
       verbs: [list, create, read, update, delete]
+    - resources: [remote_cluster]
+      verbs: [list, create, read, update, delete]
     - resources: [event]
       verbs: [list, read]
     - resources: [user]
@@ -310,6 +312,10 @@ List of all rule options defined below.
     # Trusted Clusters:  CRUD options for managing Trusted Clusters
     - resources:
       - trusted_cluster
+      verbs: [list, create, read, update, delete]
+    # Remote Clusters:  CRUD options for managing Remote Clusters
+    - resources:
+      - remote_cluster
       verbs: [list, create, read, update, delete]
     # Events: Can view the audit log and session recordings.
     - resources:
