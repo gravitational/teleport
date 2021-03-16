@@ -537,3 +537,23 @@ func (c *dbCollection) toMarshal() interface{} {
 func (c *dbCollection) writeYAML(w io.Writer) error {
 	return utils.WriteYAML(w, c.toMarshal())
 }
+
+type clusterConfigOverrideCollection struct {
+	configs []types.ClusterConfigOverride
+}
+
+func (c *clusterConfigOverrideCollection) resources() (r []types.Resource) {
+	for _, resource := range c.configs {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (c *clusterConfigOverrideCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Session Recording"})
+	for _, override := range c.configs {
+		t.AddRow([]string{override.GetSessionRecording()})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}

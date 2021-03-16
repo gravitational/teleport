@@ -64,6 +64,12 @@ func (c *StatusCommand) Status(client auth.ClientI) error {
 	serverVersion := pingRsp.ServerVersion
 	clusterName := pingRsp.ClusterName
 
+	clusterConfig, err := client.GetClusterConfig()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	sessionRecording := clusterConfig.GetSessionRecording()
+
 	authorities := []services.CertAuthority{}
 
 	hostCAs, err := client.GetCertAuthorities(services.HostCA, false)
@@ -95,6 +101,7 @@ func (c *StatusCommand) Status(client auth.ClientI) error {
 		table := asciitable.MakeHeadlessTable(2)
 		table.AddRow([]string{"Cluster", clusterName})
 		table.AddRow([]string{"Version", serverVersion})
+		table.AddRow([]string{"Session recording", sessionRecording})
 		for _, ca := range authorities {
 			if ca.GetClusterName() != clusterName {
 				continue

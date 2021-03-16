@@ -19,6 +19,7 @@ package services
 import (
 	"fmt"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
@@ -135,6 +136,17 @@ const ClusterConfigSpecSchemaTemplate = `{
 	}
   }`
 
+// ClusterConfigOverrideSchemaTemplate is a template for ClusterConfigOverride schema.
+const ClusterConfigOverrideSchemaTemplate = `{
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+	  "session_recording": {
+		"type": "string"
+		}%v
+	}
+  }`
+
 // GetClusterConfigSchema returns the schema with optionally injected
 // schema for extensions.
 func GetClusterConfigSchema(extensionSchema string) string {
@@ -144,43 +156,19 @@ func GetClusterConfigSchema(extensionSchema string) string {
 	} else {
 		clusterConfigSchema = fmt.Sprintf(ClusterConfigSpecSchemaTemplate, ","+extensionSchema)
 	}
+	clusterConfigSchema += `, "override": ` + fmt.Sprintf(ClusterConfigOverrideSchemaTemplate, "")
 	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, clusterConfigSchema, DefaultDefinitions)
 }
 
 // UnmarshalClusterConfig unmarshals the ClusterConfig resource from JSON.
 func UnmarshalClusterConfig(bytes []byte, opts ...MarshalOption) (ClusterConfig, error) {
 	var clusterConfig ClusterConfigV3
-
-	if len(bytes) == 0 {
-		return nil, trace.BadParameter("missing resource data")
-	}
-
-	cfg, err := CollectOptions(opts)
-	if err != nil {
+	schema := GetClusterConfigSchema("")
+	if err := unmarshalResource(schema, &clusterConfig, bytes, opts...); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	if cfg.SkipValidation {
-		if err := utils.FastUnmarshal(bytes, &clusterConfig); err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-	} else {
-		err = utils.UnmarshalWithSchema(GetClusterConfigSchema(""), &clusterConfig, bytes)
-		if err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-	}
-
-	err = clusterConfig.CheckAndSetDefaults()
-	if err != nil {
+	if err := clusterConfig.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	if cfg.ID != 0 {
-		clusterConfig.SetResourceID(cfg.ID)
-	}
-	if !cfg.Expires.IsZero() {
-		clusterConfig.SetExpiry(cfg.Expires)
 	}
 	return &clusterConfig, nil
 }
@@ -208,4 +196,61 @@ func MarshalClusterConfig(clusterConfig ClusterConfig, opts ...MarshalOption) ([
 	default:
 		return nil, trace.BadParameter("unrecognized cluster config version %T", clusterConfig)
 	}
+}
+
+// GetClusterConfigOverrideSchema returns the schema with optionally injected
+// schema for extensions.
+func GetClusterConfigOverrideSchema(extensionSchema string) string {
+	var clusterConfigOverrideSchema string
+	if clusterConfigOverrideSchema == "" {
+		clusterConfigOverrideSchema = fmt.Sprintf(ClusterConfigOverrideSchemaTemplate, "")
+	} else {
+		clusterConfigOverrideSchema = fmt.Sprintf(ClusterConfigOverrideSchemaTemplate, ","+extensionSchema)
+	}
+	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, clusterConfigOverrideSchema, DefaultDefinitions)
+}
+
+// UnmarshalClusterConfigOverride unmarshals the ClusterConfigOverride resource from JSON.
+func UnmarshalClusterConfigOverride(bytes []byte, opts ...MarshalOption) (types.ClusterConfigOverride, error) {
+	var override types.ClusterConfigOverrideV3
+	schema := GetClusterConfigOverrideSchema("")
+	if err := unmarshalResource(schema, &override, bytes, opts...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := override.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &override, nil
+}
+
+// TODO(andrej): Use this helper for all services.Unarmshal* functions.
+// Also make CheckAndSetDefaults part of Resource interface.
+func unmarshalResource(schema string, res Resource, bytes []byte, opts ...MarshalOption) error {
+	if len(bytes) == 0 {
+		return trace.BadParameter("missing resource data")
+	}
+
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if cfg.SkipValidation {
+		if err := utils.FastUnmarshal(bytes, res); err != nil {
+			return trace.BadParameter(err.Error())
+		}
+	} else {
+		err = utils.UnmarshalWithSchema(schema, res, bytes)
+		if err != nil {
+			return trace.BadParameter(err.Error())
+		}
+	}
+
+	if cfg.ID != 0 {
+		res.SetResourceID(cfg.ID)
+	}
+	if !cfg.Expires.IsZero() {
+		res.SetExpiry(cfg.Expires)
+	}
+	return nil
 }

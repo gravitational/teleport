@@ -1776,6 +1776,39 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream proto.AuthService_Generat
 	return nil
 }
 
+// GetClusterConfigOverride returns overrides for the cluster configuration.
+func (g *GRPCServer) GetClusterConfigOverride(ctx context.Context, _ *empty.Empty) (*types.ClusterConfigOverrideV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	override, err := auth.GetClusterConfigOverride(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	overrideV3, ok := override.(*types.ClusterConfigOverrideV3)
+	if !ok {
+		return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T, expected *types.ClusterConfigOverrideV3", override))
+	}
+	return overrideV3, nil
+}
+
+// SetClusterConfigOverride sets overrides for the cluster configuration.
+func (g *GRPCServer) SetClusterConfigOverride(ctx context.Context, override *types.ClusterConfigOverrideV3) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err := override.CheckAndSetDefaults(); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err := auth.SetClusterConfigOverride(ctx, override); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	g.Debugf("cluster config override set")
+	return &empty.Empty{}, nil
+}
+
 // validateUserSingleUseCertRequest validates the request for a single-use user
 // cert.
 func validateUserSingleUseCertRequest(ctx context.Context, actx *grpcContext, req *proto.UserCertsRequest) error {

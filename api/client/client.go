@@ -1001,3 +1001,22 @@ func (c *Client) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequ
 	}
 	return resp, nil
 }
+
+// GetClusterConfigOverride returns overrides for the cluster configuration.
+func (c *Client) GetClusterConfigOverride(ctx context.Context) (types.ClusterConfigOverride, error) {
+	resp, err := c.grpc.GetClusterConfigOverride(ctx, &empty.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// SetClusterConfigOverride sets overrides for the cluster configuration.
+func (c *Client) SetClusterConfigOverride(ctx context.Context, override types.ClusterConfigOverride) error {
+	config, ok := override.(*types.ClusterConfigOverrideV3)
+	if !ok {
+		return trace.BadParameter("invalid type %T, expected *types.ClusterConfigOverrideV3", override)
+	}
+	_, err := c.grpc.SetClusterConfigOverride(ctx, config)
+	return trail.FromGRPC(err)
+}

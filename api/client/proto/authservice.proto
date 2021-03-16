@@ -979,4 +979,9 @@ service AuthService {
     // GetMFADevices returns all MFA devices registered for the user calling
     // this RPC.
     rpc GetMFADevices(GetMFADevicesRequest) returns (GetMFADevicesResponse);
+
+    // GetClusterConfigOverride returns overrides for the cluster configuration.
+    rpc GetClusterConfigOverride(google.protobuf.Empty) returns (types.ClusterConfigOverrideV3);
+    // SetClusterConfigOverride sets overrides for the cluster configuration.
+    rpc SetClusterConfigOverride(types.ClusterConfigOverrideV3) returns (google.protobuf.Empty);
 }

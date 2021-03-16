@@ -102,6 +102,15 @@ type ClusterConfig interface {
 
 	// Copy creates a copy of the resource and returns it.
 	Copy() ClusterConfig
+
+	// ApplyOverride applies overrides specified in ClusterConfigOverride.
+	ApplyOverride(ClusterConfigOverride) error
+
+	// ExtractOverride returns the currently applied override.
+	ExtractOverride() (ClusterConfigOverride, error)
+
+	// HasOverride returns true if there is an override currently applied.
+	HasOverride() bool
 }
 
 // NewClusterConfig is a convenience wrapper to create a ClusterConfig resource.
@@ -186,6 +195,9 @@ func (c *ClusterConfigV3) GetMetadata() Metadata {
 
 // GetSessionRecording gets the cluster's SessionRecording
 func (c *ClusterConfigV3) GetSessionRecording() string {
+	if c.HasOverride() && c.Override.SessionRecording != "" {
+		return c.Override.SessionRecording
+	}
 	return c.Spec.SessionRecording
 }
 
@@ -304,7 +316,7 @@ func (c *ClusterConfigV3) CheckAndSetDefaults() error {
 	// check if the recording type is valid
 	all := []string{RecordAtNode, RecordAtProxy, RecordAtNodeSync, RecordAtProxySync, RecordOff}
 	if !utils.SliceContainsStr(all, c.Spec.SessionRecording) {
-		return trace.BadParameter("session_recording must either be: %v", strings.Join(all, ","))
+		return trace.BadParameter("session_recording must be one of: %v", strings.Join(all, ","))
 	}
 
 	// check if host key checking mode is valid
@@ -322,7 +334,64 @@ func (c *ClusterConfigV3) CheckAndSetDefaults() error {
 		c.Spec.KeepAliveCountMax = int64(defaults.KeepAliveCountMax)
 	}
 
+	// Detect invalid or inconsistent overrides.
+	if err := c.keepOnlyValidOverrides(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
+}
+
+// keepOnlyValidOverrides checks for inconsistencies with the current override
+// profile, and resets inadmissible overrides so that they do not impact the
+// value of the corresponding ClusterConfig field.
+func (c *ClusterConfigV3) keepOnlyValidOverrides() error {
+	var errs []error
+	if !c.HasOverride() {
+		return nil
+	}
+
+	if c.Override.SessionRecording != "" {
+		var err error
+		allowedOverrides := []string{RecordAtNode, RecordAtNodeSync, RecordOff}
+		if !utils.SliceContainsStr(allowedOverrides, c.Override.SessionRecording) {
+			err = trace.BadParameter("session_recording can be overriden only with one of: %v", strings.Join(allowedOverrides, ","))
+		}
+		if !utils.SliceContainsStr(allowedOverrides, c.Spec.SessionRecording) {
+			err = trace.BadParameter("session_recording=%q cannot be overriden", c.Spec.SessionRecording)
+		}
+		if err != nil {
+			errs = append(errs, err)
+			c.Override.SessionRecording = ""
+		}
+	}
+
+	// Return an aggregate of all the errors found while applying the overrides.
+	return trace.NewAggregate(errs...)
+}
+
+// ApplyOverride applies overrides specified in ClusterConfigOverride.
+func (c *ClusterConfigV3) ApplyOverride(override ClusterConfigOverride) error {
+	overrideV3, ok := override.(*ClusterConfigOverrideV3)
+	if !ok {
+		return trace.BadParameter("unexpected override type %T, expected *ClusterConfigOverrideV3", override)
+	}
+	c.Override = &overrideV3.Spec
+	return c.keepOnlyValidOverrides()
+}
+
+// ExtractOverride returns the currently applied override.
+func (c *ClusterConfigV3) ExtractOverride() (ClusterConfigOverride, error) {
+	overrideSpec := ClusterConfigOverrideSpecV3{}
+	if c.Override != nil {
+		overrideSpec = *c.Override
+	}
+	return NewClusterConfigOverride(overrideSpec)
+}
+
+// HasOverride returns true if there is an override currently applied.
+func (c *ClusterConfigV3) HasOverride() bool {
+	return c.Override != nil
 }
 
 // Copy creates a copy of the resource and returns it.
@@ -331,7 +400,7 @@ func (c *ClusterConfigV3) Copy() ClusterConfig {
 	return &out
 }
 
-// String represents a human readable version of the cluster name.
+// String represents a human readable version of the cluster config.
 func (c *ClusterConfigV3) String() string {
 	return fmt.Sprintf("ClusterConfig(SessionRecording=%v, ClusterID=%v, ProxyChecksHostKeys=%v)",
 		c.Spec.SessionRecording, c.Spec.ClusterID, c.Spec.ProxyChecksHostKeys)

@@ -759,7 +759,7 @@ type mockAccessPoint struct {
 	kubeServices  []services.Server
 }
 
-func (ap mockAccessPoint) GetClusterConfig(...services.MarshalOption) (services.ClusterConfig, error) {
+func (ap mockAccessPoint) GetClusterConfig(opts ...services.MarshalOption) (services.ClusterConfig, error) {
 	return ap.clusterConfig, nil
 }
 

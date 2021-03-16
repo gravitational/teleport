@@ -141,11 +141,17 @@ const (
 	// KindClusterConfig is the resource that holds cluster level configuration.
 	KindClusterConfig = "cluster_config"
 
-	// KindSemaphore is the resource that provides distributed semaphore functionality
-	KindSemaphore = "semaphore"
-
 	// MetaNameClusterConfig is the exact name of the cluster config singleton resource.
 	MetaNameClusterConfig = "cluster-config"
+
+	// KindClusterConfigOverride is the resource that holds overrides for the cluster configuration.
+	KindClusterConfigOverride = "cluster_config_override"
+
+	// MetaNameClusterConfigOverride is the exact name of the cluster config override singleton resource.
+	MetaNameClusterConfigOverride = "cluster-config-override"
+
+	// KindSemaphore is the resource that provides distributed semaphore functionality
+	KindSemaphore = "semaphore"
 
 	// KindClusterName is a type of configuration resource that contains the cluster name.
 	KindClusterName = "cluster_name"

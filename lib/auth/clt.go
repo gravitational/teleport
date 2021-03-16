@@ -1937,6 +1937,24 @@ func (c *Client) SetClusterConfig(cc services.ClusterConfig) error {
 	return nil
 }
 
+// GetClusterConfigOverride returns overrides for the cluster configuration.
+func (c *Client) GetClusterConfigOverride(ctx context.Context, opts ...services.MarshalOption) (types.ClusterConfigOverride, error) {
+	resp, err := c.APIClient.GetClusterConfigOverride(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// SetClusterConfigOverride sets overrides for the cluster configuration.
+func (c *Client) SetClusterConfigOverride(ctx context.Context, override types.ClusterConfigOverride) error {
+	err := c.APIClient.SetClusterConfigOverride(ctx, override)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // GetClusterName returns a cluster name
 func (c *Client) GetClusterName(opts ...services.MarshalOption) (services.ClusterName, error) {
 	out, err := c.Get(c.Endpoint("configuration", "name"), url.Values{})

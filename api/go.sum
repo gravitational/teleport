@@ -25,6 +25,8 @@ github.com/google/go-cmp v0.3.0/go.mod h1:8QqcDgzrUqlUb/G2PQTWiueGozuR1884gddMyw
 github.com/google/go-cmp v0.3.1/go.mod h1:8QqcDgzrUqlUb/G2PQTWiueGozuR1884gddMywk6iLU=
 github.com/google/go-cmp v0.4.0 h1:xsAVV57WRhGj6kEIi8ReJzQlHHqcBYCElAvkovg3B/4=
 github.com/google/go-cmp v0.4.0/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/gNBxE=
+github.com/gravitational/teleport v1.3.2 h1:pGwoTN/RXGFCBo/D9i2Rnkj7yk6k35MX+4WcWff3vLU=
+github.com/gravitational/teleport v4.3.10+incompatible h1:4oVevufX2zHnPN05alSE4BCPz7uwGsVFSNRhgju3+B0=
 github.com/gravitational/trace v1.1.13 h1:4vSuBtVQCbUGj28dm5ke8UPnuejcxeSlz9GEW9X7HIM=
 github.com/gravitational/trace v1.1.13/go.mod h1:RvdOUHE4SHqR3oXlFFKnGzms8a5dugHygGw1bqDstYI=
 github.com/jonboulle/clockwork v0.2.2 h1:UOGuzwb1PwsrDAObMuhUnj0p5ULPj8V/xJ7Kx9qUBdQ=

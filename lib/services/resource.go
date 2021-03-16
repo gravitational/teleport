@@ -161,6 +161,8 @@ func ParseShortcut(in string) (string, error) {
 		return KindSemaphore, nil
 	case KindKubeService, "kube_services":
 		return KindKubeService, nil
+	case types.KindClusterConfigOverride, "cluster_config_overrides", "cc_override", "cc_overrides":
+		return types.KindClusterConfigOverride, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }

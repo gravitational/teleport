@@ -19,21 +19,25 @@ package local
 import (
 	"context"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 // ClusterConfigurationService is responsible for managing cluster configuration.
 type ClusterConfigurationService struct {
 	backend.Backend
+	log logrus.FieldLogger
 }
 
 // NewClusterConfigurationService returns a new ClusterConfigurationService.
 func NewClusterConfigurationService(backend backend.Backend) *ClusterConfigurationService {
 	return &ClusterConfigurationService{
 		Backend: backend,
+		log:     logrus.WithField(trace.Component, "ClustrCfg"),
 	}
 }
 
@@ -221,24 +225,89 @@ func (s *ClusterConfigurationService) DeleteClusterConfig() error {
 }
 
 // SetClusterConfig sets services.ClusterConfig on the backend.
-func (s *ClusterConfigurationService) SetClusterConfig(c services.ClusterConfig) error {
-	value, err := services.MarshalClusterConfig(c)
+func (s *ClusterConfigurationService) SetClusterConfig(newConfig services.ClusterConfig) error {
+	ctx := context.TODO()
+
+	storedConfig, err := s.GetClusterConfig()
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
+	// Reapply the stored override to the new config unless it already has
+	// its own overide specified.
+	if storedConfig != nil && storedConfig.HasOverride() && !newConfig.HasOverride() {
+		storedOverride, err := storedConfig.ExtractOverride()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := newConfig.ApplyOverride(storedOverride); err != nil {
+			s.log.WithError(err).Warnf("Failed to fully apply override %v to %v.", storedOverride, newConfig)
+		}
+		return s.compareAndSwapClusterConfig(ctx, storedConfig, newConfig)
+	}
+
+	newItem, err := clusterConfigToBackendItem(newConfig)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := s.Put(ctx, newItem); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *ClusterConfigurationService) compareAndSwapClusterConfig(ctx context.Context, existingConfig, newConfig services.ClusterConfig) error {
+	existingItem, err := clusterConfigToBackendItem(existingConfig)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	newItem, err := clusterConfigToBackendItem(newConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	if _, err := s.CompareAndSwap(ctx, existingItem, newItem); err != nil {
+		if trace.IsCompareFailed(err) {
+			return trace.CompareFailed("cluster config was updated in the meantime, try again")
+		}
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func clusterConfigToBackendItem(c services.ClusterConfig) (backend.Item, error) {
+	value, err := services.MarshalClusterConfig(c)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
 	item := backend.Item{
 		Key:   backend.Key(clusterConfigPrefix, generalPrefix),
 		Value: value,
 		ID:    c.GetResourceID(),
 	}
+	return item, nil
+}
 
-	_, err = s.Put(context.TODO(), item)
+// GetClusterConfigOverride gets services.ClusterConfigOverride from the backend.
+func (s *ClusterConfigurationService) GetClusterConfigOverride(ctx context.Context, opts ...services.MarshalOption) (types.ClusterConfigOverride, error) {
+	clusterConfig, err := s.GetClusterConfig(opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return clusterConfig.ExtractOverride()
+}
+
+// SetClusterConfigOverride sets services.ClusterConfigOverride on the backend.
+func (s *ClusterConfigurationService) SetClusterConfigOverride(ctx context.Context, override types.ClusterConfigOverride) error {
+	storedConfig, err := s.GetClusterConfig()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	return nil
+	newConfig := storedConfig.Copy()
+	if err := newConfig.ApplyOverride(override); err != nil {
+		return trace.Wrap(err)
+	}
+	return s.compareAndSwapClusterConfig(ctx, storedConfig, newConfig)
 }
 
 const (

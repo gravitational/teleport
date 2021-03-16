@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -81,11 +82,12 @@ Same as above, but using JSON output:
 // Initialize allows ResourceCommand to plug itself into the CLI parser
 func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.Config) {
 	rc.CreateHandlers = map[ResourceKind]ResourceCreateHandler{
-		services.KindUser:            rc.createUser,
-		services.KindRole:            rc.createRole,
-		services.KindTrustedCluster:  rc.createTrustedCluster,
-		services.KindGithubConnector: rc.createGithubConnector,
-		services.KindCertAuthority:   rc.createCertAuthority,
+		services.KindUser:               rc.createUser,
+		services.KindRole:               rc.createRole,
+		services.KindTrustedCluster:     rc.createTrustedCluster,
+		services.KindGithubConnector:    rc.createGithubConnector,
+		services.KindCertAuthority:      rc.createCertAuthority,
+		types.KindClusterConfigOverride: rc.createClusterConfigOverride,
 	}
 	rc.config = config
 
@@ -412,6 +414,22 @@ func (rc *ResourceCommand) createUser(client auth.ClientI, raw services.UnknownR
 	return nil
 }
 
+// createClusterConfigOverride updates cluster config override.
+func (rc *ResourceCommand) createClusterConfigOverride(client auth.ClientI, raw services.UnknownResource) error {
+	ctx := context.TODO()
+
+	newOverride, err := services.UnmarshalClusterConfigOverride(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := client.SetClusterConfigOverride(ctx, newOverride); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("cluster config override has been updated\n")
+	return nil
+}
+
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 	if rc.ref.Kind == "" || rc.ref.Name == "" {
@@ -659,13 +677,13 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollect
 		return &serverCollection{servers: servers}, nil
 	case services.KindRole:
 		if rc.ref.Name == "" {
-			roles, err := client.GetRoles(context.TODO())
+			roles, err := client.GetRoles(ctx)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return &roleCollection{roles: roles}, nil
 		}
-		role, err := client.GetRole(context.TODO(), rc.ref.Name)
+		role, err := client.GetRole(ctx, rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -710,7 +728,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollect
 		}
 		return &remoteClusterCollection{remoteClusters: []services.RemoteCluster{remoteCluster}}, nil
 	case services.KindSemaphore:
-		sems, err := client.GetSemaphores(context.TODO(), services.SemaphoreFilter{
+		sems, err := client.GetSemaphores(ctx, services.SemaphoreFilter{
 			SemaphoreKind: rc.ref.SubKind,
 			SemaphoreName: rc.ref.Name,
 		})
@@ -719,7 +737,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollect
 		}
 		return &semaphoreCollection{sems: sems}, nil
 	case services.KindKubeService:
-		servers, err := client.GetKubeServices(context.TODO())
+		servers, err := client.GetKubeServices(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -731,6 +749,12 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollect
 		}
 		authPrefs := []services.AuthPreference{authPref}
 		return &authPrefCollection{authPrefs: authPrefs}, nil
+	case types.KindClusterConfigOverride:
+		config, err := client.GetClusterConfigOverride(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &clusterConfigOverrideCollection{[]types.ClusterConfigOverride{config}}, nil
 	}
 	return nil, trace.BadParameter("'%v' is not supported", rc.ref.Kind)
 }

@@ -16,7 +16,11 @@ limitations under the License.
 
 package services
 
-import "context"
+import (
+	"context"
+
+	"github.com/gravitational/teleport/api/types"
+)
 
 // ClusterConfiguration stores the cluster configuration in the backend. All
 // the resources modified by this interface can only have a single instance
@@ -28,7 +32,6 @@ type ClusterConfiguration interface {
 	SetClusterName(ClusterName) error
 	// UpsertClusterName upserts cluster name
 	UpsertClusterName(ClusterName) error
-
 	// DeleteClusterName deletes cluster name resource
 	DeleteClusterName() error
 
@@ -52,4 +55,9 @@ type ClusterConfiguration interface {
 	SetClusterConfig(ClusterConfig) error
 	// DeleteClusterConfig deletes cluster config resource
 	DeleteClusterConfig() error
+
+	// GetClusterConfigOverride gets services.ClusterConfigOverride from the backend.
+	GetClusterConfigOverride(context.Context, ...MarshalOption) (types.ClusterConfigOverride, error)
+	// SetClusterConfigOverride sets services.ClusterConfigOverride on the backend.
+	SetClusterConfigOverride(context.Context, types.ClusterConfigOverride) error
 }

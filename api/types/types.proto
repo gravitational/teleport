@@ -475,6 +475,9 @@ message ClusterConfigV3 {
     Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is a cluster config V3 spec
     ClusterConfigSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+    // Override is a cluster config V3 override
+    ClusterConfigOverrideSpecV3 Override = 6
+        [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "override,omitempty" ];
 }
 
 // ClusterConfigSpecV3 is the actual data we care about for ClusterConfig.
@@ -560,6 +563,35 @@ message AuditConfig {
     int64 WriteMinCapacity = 12 [ (gogoproto.jsontag) = "write_min_capacity,omitempty" ];
     // WriteTargetValue is the ratio of consumed write to provisioned capacity.
     double WriteTargetValue = 13 [ (gogoproto.jsontag) = "write_target_value,omitempty" ];
+}
+
+// ClusterConfigOverrideV3 represents a subset of ClusterConfig that can be
+// dynamically overriden.
+message ClusterConfigOverrideV3 {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
+    // Kind is a resource kind
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is version
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is User metadata
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec specifies a cluster config V3 override
+    ClusterConfigOverrideSpecV3 Spec = 5
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// ClusterConfigOverrideV3 specifies a cluster config V3 override.
+//
+// NOTE: Care must be taken so that the default value of none of the fields
+// below can be misinterpreted as an intended override.  Use gogoproto.nullable
+// where needed.
+message ClusterConfigOverrideSpecV3 {
+    // SessionRecording controls where (or if) the session is recorded.
+    string SessionRecording = 1 [ (gogoproto.jsontag) = "session_recording" ];
 }
 
 // Namespace represents namespace resource specification

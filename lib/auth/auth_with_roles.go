@@ -2128,6 +2128,25 @@ func (a *ServerWithRoles) SetClusterConfig(c services.ClusterConfig) error {
 	return a.authServer.SetClusterConfig(c)
 }
 
+// GetClusterConfigOverride gets overrides for the cluster configuration.
+func (a *ServerWithRoles) GetClusterConfigOverride(ctx context.Context, opts ...services.MarshalOption) (types.ClusterConfigOverride, error) {
+	if err := a.action(defaults.Namespace, types.KindClusterConfigOverride, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetClusterConfigOverride(ctx, opts...)
+}
+
+// SetClusterConfigOverride sets overrides for the cluster configuration.
+func (a *ServerWithRoles) SetClusterConfigOverride(ctx context.Context, o types.ClusterConfigOverride) error {
+	if err := a.action(defaults.Namespace, types.KindClusterConfigOverride, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, types.KindClusterConfigOverride, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.SetClusterConfigOverride(ctx, o)
+}
+
 // GetClusterName gets the name of the cluster.
 func (a *ServerWithRoles) GetClusterName(opts ...services.MarshalOption) (services.ClusterName, error) {
 	if err := a.action(defaults.Namespace, services.KindClusterName, services.VerbRead); err != nil {
