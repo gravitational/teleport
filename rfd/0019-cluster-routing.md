@@ -7,7 +7,7 @@ state: draft
 
 ## What
 
-This RFD proposes changes to how Teleport issues certificates and routes SSH requests within clusters. These changes would make using certificate issues by a root cluster directly on leaf clusters substantially easier.
+This RFD proposes changes to how Teleport issues certificates and routes SSH requests within clusters. These changes would make using certificate issued by a root cluster directly on leaf clusters substantially easier.
 
 ## Why
 
@@ -15,7 +15,7 @@ At the moment connections to a leaf cluster typically go through a root cluster.
 
 Teleport supports this use case.
 
-Users can run `tsh login clusterName` to obtain a certificate with `RouteToCluster` set to a leaf cluster then use `tsh ssh -J clusterName severName` to bypass the root cluster. However, switching between multiple leaf clusters is cumbersome as `tsh login clusterName` has to be issued each time the user wishes to switch between clusters. It also makes working on multiple clusters concurrently almost impossible.
+Users can run `tsh login clusterName` to obtain a certificate with `RouteToCluster` set to a leaf cluster then use `tsh ssh -J clusterName serverName` to bypass the root cluster. However, switching between multiple leaf clusters is cumbersome as `tsh login clusterName` has to be issued each time the user wishes to switch between clusters. It also makes working on multiple clusters concurrently almost impossible.
 
 ## Original Solution: `-J` only, proxy to cluster mapping
 
