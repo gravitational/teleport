@@ -18,10 +18,13 @@ package events
 
 import (
 	"archive/tar"
+	"bufio"
+	"compress/gzip"
 	"context"
 	"encoding/binary"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -120,8 +123,8 @@ func Export(ctx context.Context, rs io.ReadSeeker, w io.Writer, exportFormat str
 	}
 }
 
-// WriteForPlayback reads events from audit reader
-// and writes them to the format optimized for playback
+// WriteForPlayback reads events from audit reader and writes them to the format optimized for playback
+// this function returns the path of the gzip chunks file, path of gzip events file, and error, respectively
 func WriteForPlayback(ctx context.Context, sid session.ID, reader AuditReader, dir string) (string, string, error) {
 	w := &PlaybackWriter{
 		sid:        sid,
@@ -135,6 +138,65 @@ func WriteForPlayback(ctx context.Context, sid session.ID, reader AuditReader, d
 		}
 	}()
 	return w.chunksPath, w.eventsPath, w.Write(ctx)
+}
+
+// SessionEvents returns slice of event fields from gzipped events file
+func SessionEvents(eventsPath string) ([]EventFields, error) {
+	var sessionEvents []EventFields
+	//events
+	eventFile, err := os.Open(eventsPath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer eventFile.Close()
+
+	// remove event file from temp dir when done playing
+	grEvents, err := gzip.NewReader(eventFile)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer grEvents.Close()
+	defer os.Remove(eventFile.Name())
+	scanner := bufio.NewScanner(grEvents)
+	for scanner.Scan() {
+		var f EventFields
+		err := utils.FastUnmarshal(scanner.Bytes(), &f)
+		if err != nil {
+			if err == io.EOF {
+				return sessionEvents, nil
+			}
+			return nil, trace.Wrap(err)
+		}
+		sessionEvents = append(sessionEvents, f)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return sessionEvents, nil
+}
+
+// SessionChunks reads gzip chunks file and returns stream
+func SessionChunks(chunksPath string) ([]byte, error) {
+	var stream []byte
+	chunkFile, err := os.Open(chunksPath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer chunkFile.Close()
+	// remove chunk file from temp dir when done playing
+	defer os.Remove(chunkFile.Name())
+	grChunk, err := gzip.NewReader(chunkFile)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer grChunk.Close()
+	stream, err = ioutil.ReadAll(grChunk)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return stream, nil
 }
 
 // PlaybackWriter reads messages until end of file

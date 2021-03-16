@@ -18,7 +18,6 @@ package client
 
 import (
 	"bufio"
-	"compress/gzip"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -32,7 +31,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"os/user"
-	"path"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -1318,112 +1316,70 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string) (err error) {
 	var sessionEvents []events.EventFields
 	var stream []byte
-	// check if user used file as argument
-	if path.Ext(sessionID) == ".tar" {
-		tarFile, err := os.Open(sessionID)
-		if err != nil {
-			return trace.ConvertSystemError(err)
-		}
-		defer tarFile.Close()
-		protoReader := events.NewProtoReader(tarFile)
-		file := filepath.Base(sessionID)
-		sid := strings.TrimSuffix(file, ".tar")
-		// extract files to temp directory
-		chunksPath, eventsPath, err := events.WriteForPlayback(ctx, session.ID(sid), protoReader, os.TempDir())
+	if namespace == "" {
+		return trace.BadParameter(auth.MissingNamespaceError)
+	}
+	sid, err := session.ParseID(sessionID)
+	if err != nil {
+		return fmt.Errorf("'%v' is not a valid session ID (must be GUID)", sid)
+	}
+	// connect to the auth server (site) who made the recording
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	site, err := proxyClient.ConnectToCurrentCluster(ctx, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// request events for that session (to get timing data)
+	sessionEvents, err = site.GetSessionEvents(namespace, *sid, 0, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// read the stream into a buffer:
+	for {
+		tmp, err := site.GetSessionChunk(namespace, *sid, len(stream), events.MaxChunkBytes)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		// chunks
-		chunkFile, err := os.Open(chunksPath)
-		if err != nil {
-			log.Fatal(err)
+		if len(tmp) == 0 {
+			break
 		}
-		defer chunkFile.Close()
-		// remove chunk file from temp dir when done playing
-		defer os.Remove(chunkFile.Name())
-		grChunk, err := gzip.NewReader(chunkFile)
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer grChunk.Close()
+		stream = append(stream, tmp...)
+	}
 
-		//events
-		eventFile, err := os.Open(eventsPath)
+	// configure terminal for direct unbuffered echo-less input:
+	if term.IsTerminal(0) {
+		state, err := term.MakeRaw(0)
 		if err != nil {
-			log.Fatal(err)
+			return nil
 		}
-		defer eventFile.Close()
-		// remove event file from temp dir when done playing
-		defer os.Remove(eventFile.Name())
-		grEvents, err := gzip.NewReader(eventFile)
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer grEvents.Close()
+		defer term.Restore(0, state)
+	}
+	return playSession(sessionEvents, stream)
+}
 
-		scanner := bufio.NewScanner(grEvents)
-		for scanner.Scan() {
-			var f events.EventFields
-			err := utils.FastUnmarshal(scanner.Bytes(), &f)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			sessionEvents = append(sessionEvents, f)
-		}
+// PlayFile plays the recorded session from a tar file
+func (tc *TeleportClient) PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
+	var sessionEvents []events.EventFields
+	var stream []byte
+	protoReader := events.NewProtoReader(tarFile)
+	chunksPath, eventsPath, err := events.WriteForPlayback(ctx, session.ID(sid), protoReader, os.TempDir())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	sessionEvents, err = events.SessionEvents(eventsPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-		if err := scanner.Err(); err != nil {
-			return trace.Wrap(err)
-		}
-
-		stream, err = ioutil.ReadAll(grChunk)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	} else {
-		if namespace == "" {
-			return trace.BadParameter(auth.MissingNamespaceError)
-		}
-		sid, err := session.ParseID(sessionID)
-		if err != nil {
-			return fmt.Errorf("'%v' is not a valid session ID (must be GUID)", sid)
-		}
-		// connect to the auth server (site) who made the recording
-		proxyClient, err := tc.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		site, err := proxyClient.ConnectToCurrentCluster(ctx, false)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		// request events for that session (to get timing data)
-		sessionEvents, err = site.GetSessionEvents(namespace, *sid, 0, true)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		// read the stream into a buffer:
-		for {
-			tmp, err := site.GetSessionChunk(namespace, *sid, len(stream), events.MaxChunkBytes)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if len(tmp) == 0 {
-				break
-			}
-			stream = append(stream, tmp...)
-		}
-
-		// configure terminal for direct unbuffered echo-less input:
-		if term.IsTerminal(0) {
-			state, err := term.MakeRaw(0)
-			if err != nil {
-				return nil
-			}
-			defer term.Restore(0, state)
-		}
+	stream, err = events.SessionChunks(chunksPath)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 	return playSession(sessionEvents, stream)
 }
@@ -2770,7 +2726,7 @@ func isFIPS() bool {
 
 // playSession plays session in the terminal
 func playSession(sessionEvents []events.EventFields, stream []byte) error {
-	var err error
+	var errorCh = make(chan error)
 	player := newSessionPlayer(sessionEvents, stream)
 	// keys:
 	const (
@@ -2787,8 +2743,9 @@ func playSession(sessionEvents []events.EventFields, stream []byte) error {
 		defer player.Stop()
 		key := make([]byte, 1)
 		for {
-			_, err = os.Stdin.Read(key)
+			_, err := os.Stdin.Read(key)
 			if err != nil {
+				errorCh <- err
 				return
 			}
 			switch key[0] {
@@ -2810,7 +2767,11 @@ func playSession(sessionEvents []events.EventFields, stream []byte) error {
 	// player starts playing in its own goroutine
 	player.Play()
 	// wait for keypresses loop to end
-	<-player.stopC
-	fmt.Println("\n\nend of session playback")
-	return trace.Wrap(err)
+	select {
+	case <-player.stopC:
+		fmt.Println("\n\nend of session playback")
+		return nil
+	case err := <-errorCh:
+		return trace.Wrap(err)
+	}
 }
