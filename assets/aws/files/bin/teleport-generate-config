@@ -179,6 +179,11 @@ AUTHENTICATION_STANZA="second_factor: otp"
 if is_fips; then
     AUTHENTICATION_STANZA="local_auth: false"
 fi
+# If auth type is set in the Terraform variables, add this to the config on the auth servers.
+if [[ "${TELEPORT_AUTH_TYPE}" != "" ]]; then
+  AUTHENTICATION_STANZA="type: ${TELEPORT_AUTH_TYPE}
+    ${AUTHENTICATION_STANZA}"
+fi
 
 if [[ "${TELEPORT_ROLE}" == "auth" ]]; then
     echo "auth" > ${USE_CONFD_DIR}/role.auth

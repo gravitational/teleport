@@ -143,42 +143,11 @@ variable "autoscale_max_write_capacity" {
   default = 100
 }
 
-// InfluxDB and Telegraf versions
-variable "influxdb_version" {
+# Default auth type to configure for this Teleport cluster
+# Affects the default connector chosen when logging in using `tsh login`
+# Can be `local`, `oidc`, `saml` or `github`
+# Default is `local`
+variable "auth_type" {
   type    = string
-  default = "1.4.2"
-}
-
-variable "telegraf_version" {
-  type    = string
-  default = "1.5.1-1"
-}
-
-variable "grafana_version" {
-  type    = string
-  default = "4.6.3"
-}
-
-// Password for grafana admin user
-variable "grafana_pass" {
-  type = string
-}
-
-// Whether to use Amazon-issued certificates via ACM or not
-// This must be set to true for any use of ACM whatsoever, regardless of whether Terraform generates/approves the cert
-variable "use_acm" {
-  type = string
-  default = "false"
-}
-
-// Optional domain name to use for Teleport proxy NLB alias
-// Only applied when using ACM, it will do nothing when ACM is disabled
-// When using ACM we have one ALB (for port 443 with TLS termination) and one NLB
-// (for all other traffic - 3023/3024/3026 etc)
-// As this NLB is at a different address, we add an alias record in Route 53 so that
-// it can be used by applications which connect to it directly (like kubectl) rather
-// than discovering the NLB's address through the Teleport API (like tsh does)
-variable "route53_domain_acm_nlb_alias" {
-  type = string
-  default = ""
+  default = "local"
 }

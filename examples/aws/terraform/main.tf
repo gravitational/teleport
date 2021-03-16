@@ -60,7 +60,7 @@ module "teleport-ha-autoscale-cluster" {
   route53_domain = "gus-tfmodule.gravitational.io"
 
   # Email for LetsEncrypt domain registration
-  email = "gus@goteleport.com"
+  email = "terraform@goteleport.com"
 
   # S3 bucket to create for encrypted LetsEncrypt certificates
   # This is also used for storing the Teleport license which is downloaded to auth servers
@@ -92,4 +92,8 @@ module "teleport-ha-autoscale-cluster" {
   autoscale_max_read_capacity = 100
   autoscale_min_write_capacity = 5
   autoscale_max_write_capacity = 100
+
+  # Default auth type to use on Teleport cluster
+  # Useful when you have SAML or OIDC connectors configured in DynamoDB and want to relaunch instances with a new AMI
+  auth_type = "saml"
 }

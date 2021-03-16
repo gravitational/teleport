@@ -52,6 +52,7 @@ resource "aws_launch_configuration" "auth" {
     {
       region                   = data.aws_region.current.name
       locks_table_name         = aws_dynamodb_table.locks.name
+      auth_type                = var.auth_type
       auth_server_addr         = aws_lb.auth.dns_name
       cluster_name             = var.cluster_name
       dynamo_table_name        = aws_dynamodb_table.teleport.name
