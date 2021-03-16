@@ -183,7 +183,7 @@ const auth = {
   },
 
   _getU2fErr(errorCode) {
-    let errorMsg = '';
+    let errorMsg = `error code ${errorCode}`;
     // lookup error message...
     for (var msg in window.u2f.ErrorCodes) {
       if (window.u2f.ErrorCodes[msg] == errorCode) {

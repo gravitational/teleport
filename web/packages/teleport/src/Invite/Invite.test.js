@@ -21,6 +21,7 @@ import { Logger } from 'shared/libs/logger';
 import auth from 'teleport/services/auth';
 import cfg from 'teleport/config';
 import Invite from './Invite';
+import { AuthTfaOn, AuthTfaOptional } from './Invite.story';
 
 describe('teleport/components/Invite', () => {
   beforeEach(() => {
@@ -123,6 +124,16 @@ describe('teleport/components/Invite', () => {
     });
 
     expect(screen.getByText('server_error')).toBeDefined();
+  });
+
+  it('should render form with token requirement when auth2fatype is on', async () => {
+    const { container } = render(<AuthTfaOn />);
+    expect(container).toMatchSnapshot();
+  });
+
+  it('should render form with token requirement when auth2fatype is optional', async () => {
+    const { container } = render(<AuthTfaOptional />);
+    expect(container).toMatchSnapshot();
   });
 });
 

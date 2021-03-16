@@ -43,6 +43,22 @@ export function ResetPasswordScreen() {
   return <Component {...props} />;
 }
 
+export function AuthTfaOn() {
+  const props = {
+    ...defaultProps,
+    auth2faType: 'on',
+  };
+  return <Component {...props} />;
+}
+
+export function AuthTfaOptional() {
+  const props = {
+    ...defaultProps,
+    auth2faType: 'optional',
+  };
+  return <Component {...props} />;
+}
+
 const defaultProps = {
   auth2faType: 'off',
   submitAttempt: {},

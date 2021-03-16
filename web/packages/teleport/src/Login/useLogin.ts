@@ -61,6 +61,7 @@ export default function useLogin() {
     authProviders,
     auth2faType,
     isLocalAuthEnabled,
+    clearAttempt: attemptActions.clear,
   };
 }
 

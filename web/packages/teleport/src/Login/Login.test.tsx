@@ -15,7 +15,7 @@
  */
 
 import React from 'react';
-import { render, fireEvent, wait } from 'design/utils/testing';
+import { render, fireEvent, wait, screen } from 'design/utils/testing';
 import auth from 'teleport/services/auth/auth';
 import history from 'teleport/services/history';
 import cfg from 'teleport/config';
@@ -24,10 +24,7 @@ import Login from './Login';
 beforeEach(() => {
   jest.spyOn(history, 'push').mockImplementation();
   jest.spyOn(history, 'getRedirectParam').mockImplementation(() => '/');
-});
-
-afterEach(() => {
-  jest.clearAllMocks();
+  jest.resetAllMocks();
 });
 
 test('basic rendering', () => {
@@ -101,4 +98,93 @@ test('login with SSO', () => {
     'http://localhost/github/login/web?redirect_url=http:%2F%2Flocalhost%2Fwebconnector_id=github',
     true
   );
+});
+
+test('login with 2fa set to "optional", select option: none', () => {
+  jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'optional' as any);
+
+  render(<Login />);
+
+  // mfa dropdown default set to none
+  expect(screen.getByTestId('mfa-select').textContent).toMatch(/none/i);
+  expect(screen.queryAllByLabelText(/two factor token/i)).toHaveLength(0);
+});
+
+test('login with 2fa set to "optional", select option: u2f', async () => {
+  jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'optional' as any);
+  jest.spyOn(auth, 'loginWithU2f').mockResolvedValue(null);
+
+  render(<Login />);
+
+  // select u2f from mfa dropdown
+  const selectEl = screen.getByTestId('mfa-select').querySelector('input');
+  fireEvent.focus(selectEl);
+  fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
+  fireEvent.click(screen.getByText(/u2f/i));
+  screen.getByText(/u2f/i);
+  expect(screen.queryAllByLabelText(/two factor token/i)).toHaveLength(0);
+
+  // fill form
+  const username = screen.getByPlaceholderText(/user name/i);
+  const password = screen.getByPlaceholderText(/password/i);
+  fireEvent.change(username, { target: { value: 'username' } });
+  fireEvent.change(password, { target: { value: '123' } });
+
+  // test login pathway
+  await wait(() => fireEvent.click(screen.getByText(/login/i)));
+  screen.getByText(/Insert your U2F key/i);
+  expect(auth.loginWithU2f).toHaveBeenCalledWith('username', '123');
+});
+
+test('login with 2fa set to "optional", select option: totp', async () => {
+  jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'optional' as any);
+  jest.spyOn(auth, 'login').mockResolvedValue(null);
+
+  render(<Login />);
+
+  // select totp from mfa dropdown
+  const selectEl = screen.getByTestId('mfa-select').querySelector('input');
+  fireEvent.focus(selectEl);
+  fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
+  fireEvent.click(screen.getByText(/totp/i));
+  screen.getByText(/totp/i);
+
+  // fill form
+  const username = screen.getByPlaceholderText(/user name/i);
+  const password = screen.getByPlaceholderText(/password/i);
+  fireEvent.change(username, { target: { value: 'username' } });
+  fireEvent.change(password, { target: { value: '123' } });
+
+  // test token requirement
+  fireEvent.click(screen.getByText(/login/i));
+  screen.getByText(/token is require/i);
+  expect(auth.login).not.toHaveBeenCalled();
+
+  // test login pathway
+  const token = screen.getByPlaceholderText('123 456');
+  fireEvent.change(token, { target: { value: '0' } });
+
+  await wait(() => fireEvent.click(screen.getByText(/login/i)));
+  expect(auth.login).toHaveBeenCalledWith('username', '123', '0');
+});
+
+test('login with 2fa set to "on" have correct select options', async () => {
+  jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'on' as any);
+
+  render(<Login />);
+
+  // default mfa dropdown is set to u2f
+  expect(screen.getByTestId('mfa-select').textContent).toMatch(/u2f/i);
+
+  // select totp from mfa dropdown
+  const selectEl = screen.getByTestId('mfa-select').querySelector('input');
+  fireEvent.focus(selectEl);
+  fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
+  fireEvent.click(screen.getByText(/totp/i));
+  screen.getByText(/totp/i);
+
+  // none type is not part of mfa dropdown
+  fireEvent.focus(selectEl);
+  fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
+  expect(screen.queryAllByText(/none/i)).toHaveLength(0);
 });

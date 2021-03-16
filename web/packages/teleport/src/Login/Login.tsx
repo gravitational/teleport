@@ -34,6 +34,7 @@ export function Login({
   authProviders,
   auth2faType,
   isLocalAuthEnabled,
+  clearAttempt,
 }: State) {
   return (
     <>
@@ -47,6 +48,7 @@ export function Login({
         onLoginWithU2f={onLoginWithU2f}
         onLogin={onLogin}
         attempt={attempt}
+        clearAttempt={clearAttempt}
       />
     </>
   );

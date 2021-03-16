@@ -17,50 +17,37 @@ limitations under the License.
 import React from 'react';
 import FormLogin from './FormLogin';
 
-const defaultProps = {
+const props = {
+  title: 'Custom Title',
   attempt: {
     isFailed: false,
     isSuccess: undefined,
     isProcessing: undefined,
     message: undefined,
   },
-  cb() {},
+  authProviders: [],
+  onLoginWithSso: () => null,
+  onLoginWithU2f: () => null,
+  onLogin: () => null,
 };
 
 export default {
   title: 'Shared/FormLogin',
 };
 
-export const Basic = () => (
-  <FormLogin
-    title="Custom Title"
-    authProviders={[]}
-    auth2faType="otp"
-    onLoginWithSso={defaultProps.cb}
-    onLoginWithU2f={defaultProps.cb}
-    onLogin={defaultProps.cb}
-    attempt={defaultProps.attempt}
-  />
-);
+export const Basic = () => <FormLogin {...props} auth2faType="otp" />;
+
+export const Multi = () => <FormLogin {...props} auth2faType="optional" />;
 
 export const ServerError = () => {
   const attempt = {
-    ...defaultProps.attempt,
+    ...props.attempt,
     isFailed: true,
     message:
       'invalid credentials with looooooooooooooooooooooooooooooooong text',
   };
 
-  return (
-    <FormLogin
-      title="Welcome!"
-      authProviders={[]}
-      onLoginWithSso={defaultProps.cb}
-      onLoginWithU2f={defaultProps.cb}
-      onLogin={defaultProps.cb}
-      attempt={attempt}
-    />
-  );
+  return <FormLogin {...props} title="Welcome!" attempt={attempt} />;
 };
 
 export const SSOProviders = () => {
@@ -96,32 +83,20 @@ export const SSOProviders = () => {
     } as const,
   ];
 
-  return (
-    <FormLogin
-      title="Welcome!"
-      authProviders={ssoProvider}
-      onLoginWithSso={defaultProps.cb}
-      onLoginWithU2f={defaultProps.cb}
-      onLogin={defaultProps.cb}
-      attempt={defaultProps.attempt}
-    />
-  );
+  return <FormLogin {...props} title="Welcome!" authProviders={ssoProvider} />;
 };
 
 export const Universal2ndFactor = () => {
   const attempt = {
-    ...defaultProps.attempt,
+    ...props.attempt,
     isProcessing: true,
   };
 
   return (
     <FormLogin
+      {...props}
       title="Welcome!"
-      authProviders={[]}
       auth2faType="u2f"
-      onLoginWithSso={defaultProps.cb}
-      onLoginWithU2f={defaultProps.cb}
-      onLogin={defaultProps.cb}
       attempt={attempt}
     />
   );
@@ -135,24 +110,14 @@ export const LocalAuthDisabled = () => {
 
   return (
     <FormLogin
+      {...props}
       title="Welcome!"
       authProviders={ssoProvider}
-      onLoginWithSso={defaultProps.cb}
-      onLoginWithU2f={defaultProps.cb}
-      onLogin={defaultProps.cb}
-      attempt={defaultProps.attempt}
       isLocalAuthEnabled={false}
     />
   );
 };
 
 export const LocalAuthDisabledNoSSO = () => (
-  <FormLogin
-    title="Welcome!"
-    onLoginWithSso={defaultProps.cb}
-    onLoginWithU2f={defaultProps.cb}
-    onLogin={defaultProps.cb}
-    attempt={defaultProps.attempt}
-    isLocalAuthEnabled={false}
-  />
+  <FormLogin {...props} title="Welcome!" isLocalAuthEnabled={false} />
 );

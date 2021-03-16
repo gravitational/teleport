@@ -16,7 +16,7 @@ limitations under the License.
 
 export type AuthProviderType = 'oidc' | 'saml' | 'github';
 
-export type Auth2faType = 'u2f' | 'otp' | 'off';
+export type Auth2faType = 'u2f' | 'otp' | 'off' | 'optional' | 'on';
 
 export type AuthProvider = {
   displayName?: string;

@@ -23,7 +23,10 @@ const U2F_HELP_URL = 'https://support.google.com/accounts/answer/6103523?hl=en';
 export default function TwoFAData({ auth2faType, qr }: Props) {
   const imgSrc = `data:image/png;base64,${qr}`;
 
-  if (auth2faType === 'otp') {
+  // Temporary hack: if cluster supports all 2FA types, require the user to
+  // sign up with OTP. We should ideally let the user choose a different 2FA
+  // method when there's engineering capacity to build this.
+  if (auth2faType === 'otp' || auth2faType === 'on' || auth2faType === 'optional') {
     return (
       <div>
         <Text typography="paragraph2" mb={3}>
