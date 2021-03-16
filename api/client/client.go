@@ -216,7 +216,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 					go func(addr string) {
 						defer wg.Done()
 						// Try connecting to web proxy to retrieve tunnel address.
-						if pr, err := Ping(ctx, addr); err == nil {
+						if pr, err := Find(ctx, addr, true, nil); err == nil {
 							addr = pr.Proxy.SSH.TunnelPublicAddr
 						}
 						syncConnect(addr, &Client{

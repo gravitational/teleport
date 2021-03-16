@@ -19,6 +19,7 @@ package client
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"net/http"
 
@@ -27,28 +28,22 @@ import (
 )
 
 // newWebClient creates a new client to the HTTPS web proxy.
-func newWebClient(proxyAddr string) (*http.Client, error) {
-	// Skip https cert verification.
+func newWebClient(insecure bool, pool *x509.CertPool) *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
+				RootCAs:            pool,
+				InsecureSkipVerify: insecure,
 			},
 		},
-	}, nil
+	}
 }
 
-// Ping serves two purposes. The first is to validate the HTTP endpoint of a
-// Teleport proxy. This leads to better user experience: users get connection
-// errors before being asked for passwords. The second is to return the form
-// of authentication that the server supports. This also leads to better user
-// experience: users only get prompted for the type of authentication the server supports.
-func Ping(ctx context.Context, proxyAddr string) (*PingResponse, error) {
-	clt, err := newWebClient(proxyAddr)
+// Find fetches discovery data by connecting to the given web proxy address.
+// It is designed to fetch proxy public addresses without any inefficiencies.
+func Find(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertPool) (*PingResponse, error) {
+	clt := newWebClient(insecure, pool)
 	defer clt.CloseIdleConnections()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	resp, err := clt.Get("https://" + proxyAddr + "/webapi/ping")
 	if err != nil {
