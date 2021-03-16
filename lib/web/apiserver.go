@@ -1196,7 +1196,7 @@ func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	}
 	var roles services.RoleSet
 	for _, roleName := range user.GetRoles() {
-		role, err := clt.GetRole(roleName)
+		role, err := clt.GetRole(context.TODO(), roleName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1242,8 +1242,14 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	switch cap.GetSecondFactor() {
 	case constants.SecondFactorOff:
 		webSession, err = h.auth.AuthWithoutOTP(req.User, req.Pass)
-	case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
+	case constants.SecondFactorOTP, constants.SecondFactorOn:
 		webSession, err = h.auth.AuthWithOTP(req.User, req.Pass, req.SecondFactorToken)
+	case constants.SecondFactorOptional:
+		if req.SecondFactorToken == "" {
+			webSession, err = h.auth.AuthWithoutOTP(req.User, req.Pass)
+		} else {
+			webSession, err = h.auth.AuthWithOTP(req.User, req.Pass, req.SecondFactorToken)
+		}
 	default:
 		return nil, trace.AccessDenied("unknown second factor type: %q", cap.GetSecondFactor())
 	}

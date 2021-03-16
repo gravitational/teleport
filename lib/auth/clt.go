@@ -1775,7 +1775,16 @@ func (c *Client) DeleteNamespace(name string) error {
 }
 
 // GetRoles returns a list of roles
-func (c *Client) GetRoles() ([]services.Role, error) {
+func (c *Client) GetRoles(ctx context.Context) ([]services.Role, error) {
+	roles, err := c.APIClient.GetRoles(ctx)
+	if err == nil {
+		return roles, nil
+	} else if !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 7.0
 	out, err := c.Get(c.Endpoint("roles"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1784,7 +1793,7 @@ func (c *Client) GetRoles() ([]services.Role, error) {
 	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roles := make([]services.Role, len(items))
+	roles = make([]services.Role, len(items))
 	for i, roleBytes := range items {
 		role, err := services.UnmarshalRole(roleBytes, services.SkipValidation())
 		if err != nil {
@@ -1802,6 +1811,14 @@ func (c *Client) CreateRole(role services.Role) error {
 
 // UpsertRole creates or updates role
 func (c *Client) UpsertRole(ctx context.Context, role services.Role) error {
+	if err := c.APIClient.UpsertRole(ctx, role); err == nil {
+		return nil
+	} else if !trace.IsNotImplemented(err) {
+		return trace.Wrap(err)
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 7.0
 	data, err := services.MarshalRole(role)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1811,15 +1828,25 @@ func (c *Client) UpsertRole(ctx context.Context, role services.Role) error {
 }
 
 // GetRole returns role by name
-func (c *Client) GetRole(name string) (services.Role, error) {
+func (c *Client) GetRole(ctx context.Context, name string) (services.Role, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing name")
 	}
+
+	role, err := c.APIClient.GetRole(ctx, name)
+	if err == nil {
+		return role, nil
+	} else if !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 7.0
 	out, err := c.Get(c.Endpoint("roles", name), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	role, err := services.UnmarshalRole(out.Bytes(), services.SkipValidation())
+	role, err = services.UnmarshalRole(out.Bytes(), services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1828,6 +1855,14 @@ func (c *Client) GetRole(name string) (services.Role, error) {
 
 // DeleteRole deletes role by name
 func (c *Client) DeleteRole(ctx context.Context, name string) error {
+	if err := c.APIClient.DeleteRole(ctx, name); err == nil {
+		return nil
+	} else if !trace.IsNotImplemented(err) {
+		return trace.Wrap(err)
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 7.0
 	_, err := c.Delete(c.Endpoint("roles", name))
 	return trace.Wrap(err)
 }
@@ -2280,6 +2315,10 @@ type IdentityService interface {
 	// certificate for a single session
 	// (https://github.com/gravitational/teleport/blob/3a1cf9111c2698aede2056513337f32bfc16f1f1/rfd/0014-session-2FA.md#sessions).
 	GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error)
+
+	// IsMFARequiredRequest is a request to check whether MFA is required to
+	// access the Target.
+	IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error)
 
 	// DeleteAllUsers deletes all users
 	DeleteAllUsers() error

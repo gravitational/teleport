@@ -331,7 +331,7 @@ type (
 	SAMLConnectorV2     = types.SAMLConnectorV2
 	SAMLConnectorSpecV2 = types.SAMLConnectorSpecV2
 	AttributeMapping    = types.AttributeMapping
-	SigningKeyPair      = types.SigningKeyPair
+	AsymmetricKeyPair   = types.AsymmetricKeyPair
 )
 
 var (

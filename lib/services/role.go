@@ -90,6 +90,10 @@ var DefaultCertAuthorityRules = []Rule{
 	NewRule(KindCertAuthority, ReadNoSecrets()),
 }
 
+// ErrSessionMFARequired is returned by AccessChecker when access to a resource
+// requires an MFA check.
+var ErrSessionMFARequired = trace.AccessDenied("access to resource requires MFA")
+
 // RoleNameForUser returns role name associated with a user.
 func RoleNameForUser(name string) string {
 	return "user:" + name
@@ -305,7 +309,7 @@ func RoleForCertAuthority(ca CertAuthority) Role {
 // Access service manages roles and permissions
 type Access interface {
 	// GetRoles returns a list of roles
-	GetRoles() ([]Role, error)
+	GetRoles(ctx context.Context) ([]Role, error)
 
 	// CreateRole creates a role
 	CreateRole(role Role) error
@@ -317,7 +321,7 @@ type Access interface {
 	DeleteAllRoles() error
 
 	// GetRole returns role by name
-	GetRole(name string) (Role, error)
+	GetRole(ctx context.Context, name string) (Role, error)
 
 	// DeleteRole deletes role by name
 	DeleteRole(ctx context.Context, name string) error
@@ -841,7 +845,7 @@ func ReadNoSecrets() []string {
 // RoleGetter is an interface that defines GetRole method
 type RoleGetter interface {
 	// GetRole returns role by name
-	GetRole(name string) (Role, error)
+	GetRole(ctx context.Context, name string) (Role, error)
 }
 
 // ExtractFromCertificate will extract roles and traits from a *ssh.Certificate
@@ -903,7 +907,7 @@ func FetchRoles(roleNames []string, access RoleGetter, traits map[string][]strin
 	var roles []Role
 
 	for _, roleName := range roleNames {
-		role, err := access.GetRole(roleName)
+		role, err := access.GetRole(context.TODO(), roleName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1396,7 +1400,7 @@ func (set RoleSet) CheckAccessToServer(login string, s Server, mfaVerified bool)
 					trace.Component: teleport.ComponentRBAC,
 				}).Debugf("Access to node %q denied, role %q requires per-session MFA; match(namespace=%v, label=%v, login=%v)",
 					s.GetHostname(), role.GetName(), namespaceMessage, labelsMessage, loginMessage)
-				return trace.AccessDenied("access to server requires MFA")
+				return ErrSessionMFARequired
 			}
 			// Check all remaining roles, even if we found a match.
 			// RequireSessionMFA should be enforced when at least one role has
@@ -1464,7 +1468,7 @@ func (set RoleSet) CheckAccessToApp(namespace string, app *App, mfaVerified bool
 					trace.Component: teleport.ComponentRBAC,
 				}).Debugf("Access to app %q denied, role %q requires per-session MFA; match(namespace=%v, label=%v)",
 					app.Name, role.GetName(), namespaceMessage, labelsMessage)
-				return trace.AccessDenied("access to app requires MFA")
+				return ErrSessionMFARequired
 			}
 			// Check all remaining roles, even if we found a match.
 			// RequireSessionMFA should be enforced when at least one role has
@@ -1532,7 +1536,7 @@ func (set RoleSet) CheckAccessToKubernetes(namespace string, kube *KubernetesClu
 					trace.Component: teleport.ComponentRBAC,
 				}).Debugf("Access to kubernetes cluster %q denied, role %q requires per-session MFA; match(namespace=%v, label=%v)",
 					kube.Name, role.GetName(), namespaceMessage, labelsMessage)
-				return trace.AccessDenied("access to kubernetes cluster requires MFA")
+				return ErrSessionMFARequired
 			}
 			// Check all remaining roles, even if we found a match.
 			// RequireSessionMFA should be enforced when at least one role has
@@ -1684,7 +1688,7 @@ func (set RoleSet) CheckAccessToDatabase(server types.DatabaseServer, mfaVerifie
 				}
 				if role.GetOptions().RequireSessionMFA {
 					log.Debugf("Access to database %q denied, role %q requires per-session MFA", server.GetName(), role.GetName())
-					return trace.AccessDenied("access to database requires MFA")
+					return ErrSessionMFARequired
 				}
 				// Check all remaining roles, even if we found a match.
 				// RequireSessionMFA should be enforced when at least one role has
@@ -1916,7 +1920,8 @@ const RoleSpecV3SchemaTemplate = `{
 		  "max_connections": { "type": "number" },
 		  "max_sessions": {"type": "number"},
 		  "request_access": { "type": "string" },
-		  "request_prompt": { "type": "string" }
+		  "request_prompt": { "type": "string" },
+		  "require_session_mfa": { "type": ["boolean", "string"] }
 		}
 	  },
 	  "allow": { "$ref": "#/definitions/role_condition" },
@@ -2078,13 +2083,17 @@ func UnmarshalRole(bytes []byte, opts ...MarshalOption) (Role, error) {
 }
 
 // MarshalRole marshals the Role resource to JSON.
-func MarshalRole(r Role, opts ...MarshalOption) ([]byte, error) {
+func MarshalRole(role Role, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	switch role := r.(type) {
+
+	switch role := role.(type) {
 	case *RoleV3:
+		if version := role.GetVersion(); version != V3 {
+			return nil, trace.BadParameter("mismatched role version %v and type %T", version, role)
+		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
@@ -2094,6 +2103,6 @@ func MarshalRole(r Role, opts ...MarshalOption) ([]byte, error) {
 		}
 		return utils.FastMarshal(role)
 	default:
-		return nil, trace.BadParameter("unrecognized role version %T", r)
+		return nil, trace.BadParameter("unrecognized role version %T", role)
 	}
 }

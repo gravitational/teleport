@@ -401,6 +401,16 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 	default:
 		return trace.BadParameter("unsupported logger severity: %q", loggerConfig.Severity)
 	}
+
+	formatter := &textFormatter{
+		LogFormat:    loggerConfig.Format,
+		EnableColors: trace.IsTerminal(os.Stderr),
+	}
+	err := formatter.CheckAndSetDefaults()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	logger.Formatter = formatter
 	return nil
 }
 

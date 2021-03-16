@@ -147,5 +147,27 @@
       "latest_oss_docker_image": "quay.io/gravitational/teleport:6",
       "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:6"
     }
-  }
+  },
+  "redirects": [
+    {
+      "source": "/quickstart/",
+      "destination": "/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/preview/database-access/",
+      "destination": "/database-access/",
+      "permanent": true
+    },
+    {
+      "source": "/preview/cloud/",
+      "destination": "/cloud/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-ssh/",
+      "destination": "/kubernetes-access/",
+      "permanent": true
+    }
+  ]
 }

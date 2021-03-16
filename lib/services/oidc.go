@@ -38,6 +38,11 @@ func ValidateOIDCConnector(oc types.OIDCConnector) error {
 	if _, err := url.Parse(oc.GetRedirectURL()); err != nil {
 		return trace.BadParameter("RedirectURL: bad url: '%v'", oc.GetRedirectURL())
 	}
+
+	if oc.GetGoogleServiceAccountURI() != "" && oc.GetGoogleServiceAccount() != "" {
+		return trace.BadParameter("one of either google_service_account_uri or google_service_account is supported, not both")
+	}
+
 	if oc.GetGoogleServiceAccountURI() != "" {
 		uri, err := utils.ParseSessionsURI(oc.GetGoogleServiceAccountURI())
 		if err != nil {
@@ -48,6 +53,11 @@ func ValidateOIDCConnector(oc types.OIDCConnector) error {
 		}
 		if oc.GetGoogleAdminEmail() == "" {
 			return trace.BadParameter("whenever google_service_account_uri is specified, google_admin_email should be set as well, read https://developers.google.com/identity/protocols/OAuth2ServiceAccount#delegatingauthority for more details")
+		}
+	}
+	if oc.GetGoogleServiceAccount() != "" {
+		if oc.GetGoogleAdminEmail() == "" {
+			return trace.BadParameter("whenever google_service_account is specified, google_admin_email should be set as well, read https://developers.google.com/identity/protocols/OAuth2ServiceAccount#delegatingauthority for more details")
 		}
 	}
 	return nil
@@ -95,6 +105,7 @@ var OIDCConnectorSpecV2Schema = fmt.Sprintf(`{
 	  "display": {"type": "string"},
 	  "prompt": {"type": "string"},
 	  "google_service_account_uri": {"type": "string"},
+	  "google_service_account": {"type": "string"},
 	  "google_admin_email": {"type": "string"},
 	  "scope": {
 		"type": "array",
@@ -184,14 +195,17 @@ func UnmarshalOIDCConnector(bytes []byte, opts ...MarshalOption) (OIDCConnector,
 }
 
 // MarshalOIDCConnector marshals the OIDCConnector resource to JSON.
-func MarshalOIDCConnector(c OIDCConnector, opts ...MarshalOption) ([]byte, error) {
+func MarshalOIDCConnector(oidcConnector OIDCConnector, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	switch oidcConnector := c.(type) {
+	switch oidcConnector := oidcConnector.(type) {
 	case *OIDCConnectorV2:
+		if version := oidcConnector.GetVersion(); version != V2 {
+			return nil, trace.BadParameter("mismatched OIDC connector version %v and type %T", version, oidcConnector)
+		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
@@ -201,6 +215,6 @@ func MarshalOIDCConnector(c OIDCConnector, opts ...MarshalOption) ([]byte, error
 		}
 		return utils.FastMarshal(oidcConnector)
 	default:
-		return nil, trace.BadParameter("unrecognized OIDC connector version %T", c)
+		return nil, trace.BadParameter("unrecognized OIDC connector version %T", oidcConnector)
 	}
 }

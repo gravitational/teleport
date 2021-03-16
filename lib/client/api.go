@@ -940,7 +940,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		// if the client was passed an agent in the configuration and skip local auth, use
 		// the passed in agent.
 		if c.Agent != nil {
-			tc.localAgent = &LocalKeyAgent{Agent: c.Agent}
+			tc.localAgent = &LocalKeyAgent{Agent: c.Agent, keyStore: noLocalKeyStore{}}
 		}
 	} else {
 		// initialize the local agent (auth agent which uses local SSH keys signed by the CA):
@@ -1019,6 +1019,25 @@ func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, params ReissuePa
 	defer proxyClient.Close()
 
 	return proxyClient.ReissueUserCerts(ctx, params)
+}
+
+// IssueUserCertsWithMFA issues a single-use SSH or TLS certificate for
+// connecting to a target (node/k8s/db/app) specified in params with an MFA
+// check. A user has to be logged in, there should be a valid login cert
+// available.
+//
+// If access to this target does not require per-connection MFA checks
+// (according to RBAC), IssueCertsWithMFA will:
+// - for SSH certs, return the existing Key from the keystore.
+// - for TLS certs, fall back to ReissueUserCerts.
+func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams) (*Key, error) {
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	return proxyClient.IssueUserCertsWithMFA(ctx, params)
 }
 
 // CreateAccessRequest registers a new access request with the auth server.
@@ -1129,6 +1148,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	if len(nodeAddrs) == 0 {
 		return trace.BadParameter("no target host specified")
 	}
+
 	nodeClient, err := proxyClient.ConnectToNode(
 		ctx,
 		NodeAddr{Addr: nodeAddrs[0], Namespace: tc.Namespace, Cluster: siteInfo.Name},

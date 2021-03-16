@@ -660,7 +660,9 @@ func (s *ServicesTestSuite) TokenCRUD(c *check.C) {
 }
 
 func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
-	out, err := s.Access.GetRoles()
+	ctx := context.Background()
+
+	out, err := s.Access.GetRoles(ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Equals, 0)
 
@@ -694,10 +696,10 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 			},
 		},
 	}
-	ctx := context.Background()
+
 	err = s.Access.UpsertRole(ctx, &role)
 	c.Assert(err, check.IsNil)
-	rout, err := s.Access.GetRole(role.Metadata.Name)
+	rout, err := s.Access.GetRole(ctx, role.Metadata.Name)
 	c.Assert(err, check.IsNil)
 	role.SetResourceID(rout.GetResourceID())
 	fixtures.DeepCompare(c, rout, &role)
@@ -705,7 +707,7 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 	role.Spec.Allow.Logins = []string{"bob"}
 	err = s.Access.UpsertRole(ctx, &role)
 	c.Assert(err, check.IsNil)
-	rout, err = s.Access.GetRole(role.Metadata.Name)
+	rout, err = s.Access.GetRole(ctx, role.Metadata.Name)
 	c.Assert(err, check.IsNil)
 	role.SetResourceID(rout.GetResourceID())
 	c.Assert(rout, check.DeepEquals, &role)
@@ -713,7 +715,7 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 	err = s.Access.DeleteRole(ctx, role.Metadata.Name)
 	c.Assert(err, check.IsNil)
 
-	_, err = s.Access.GetRole(role.Metadata.Name)
+	_, err = s.Access.GetRole(ctx, role.Metadata.Name)
 	fixtures.ExpectNotFound(c, err)
 }
 
@@ -832,7 +834,7 @@ func (s *ServicesTestSuite) SAMLCRUD(c *check.C) {
 				{Name: "groups", Value: "admin", Roles: []string{"admin"}},
 			},
 			Cert: fixtures.SigningCertPEM,
-			SigningKeyPair: &services.SigningKeyPair{
+			SigningKeyPair: &services.AsymmetricKeyPair{
 				PrivateKey: fixtures.SigningKeyPEM,
 				Cert:       fixtures.SigningCertPEM,
 			},
@@ -1519,7 +1521,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				err = s.Access.UpsertRole(ctx, role)
 				c.Assert(err, check.IsNil)
 
-				out, err := s.Access.GetRole(role.GetName())
+				out, err := s.Access.GetRole(ctx, role.GetName())
 				c.Assert(err, check.IsNil)
 
 				err = s.Access.DeleteRole(ctx, role.GetName())

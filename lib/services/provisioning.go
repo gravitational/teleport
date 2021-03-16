@@ -119,33 +119,29 @@ func UnmarshalProvisionToken(data []byte, opts ...MarshalOption) (ProvisionToken
 }
 
 // MarshalProvisionToken marshals the ProvisionToken resource to JSON.
-func MarshalProvisionToken(t ProvisionToken, opts ...MarshalOption) ([]byte, error) {
+func MarshalProvisionToken(provisionToken ProvisionToken, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	type token1 interface {
-		V1() *ProvisionTokenV1
-	}
-	type token2 interface {
-		V2() *ProvisionTokenV2
-	}
 
-	version := cfg.GetVersion()
-	switch version {
-	case V1:
-		v, ok := t.(token1)
-		if !ok {
-			return nil, trace.BadParameter("don't know how to marshal %v", V1)
+	switch provisionToken := provisionToken.(type) {
+	case *types.ProvisionTokenV2:
+		if version := provisionToken.GetVersion(); version != V2 {
+			return nil, trace.BadParameter("mismatched provision token version %v and type %T", version, provisionToken)
 		}
-		return utils.FastMarshal(v.V1())
-	case V2:
-		v, ok := t.(token2)
-		if !ok {
-			return nil, trace.BadParameter("don't know how to marshal %v", V2)
+		if !cfg.PreserveResourceID {
+			// avoid modifying the original object
+			// to prevent unexpected data races
+			copy := *provisionToken
+			copy.SetResourceID(0)
+			provisionToken = &copy
 		}
-		return utils.FastMarshal(v.V2())
+		if cfg.GetVersion() == V1 {
+			return utils.FastMarshal(provisionToken.V1())
+		}
+		return utils.FastMarshal(provisionToken)
 	default:
-		return nil, trace.BadParameter("version %v is not supported", version)
+		return nil, trace.BadParameter("unrecognized provision token version %T", provisionToken)
 	}
 }

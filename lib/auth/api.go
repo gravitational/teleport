@@ -101,10 +101,10 @@ type ReadAccessPoint interface {
 	GetUsers(withSecrets bool) ([]services.User, error)
 
 	// GetRole returns role by name
-	GetRole(name string) (services.Role, error)
+	GetRole(ctx context.Context, name string) (services.Role, error)
 
 	// GetRoles returns a list of roles
-	GetRoles() ([]services.Role, error)
+	GetRoles(ctx context.Context) ([]services.Role, error)
 
 	// GetAllTunnelConnections returns all tunnel connections
 	GetAllTunnelConnections(opts ...services.MarshalOption) ([]services.TunnelConnection, error)

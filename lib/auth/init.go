@@ -467,6 +467,12 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// Create presets - convenience and example resources.
+	err = createPresets(ctx, asrv)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if !cfg.SkipPeriodicOperations {
 		log.Infof("Auth server is running periodic operations.")
 		go asrv.runPeriodicOperations()
@@ -500,6 +506,23 @@ func migrateLegacyResources(ctx context.Context, cfg InitConfig, asrv *Server) e
 	return nil
 }
 
+// createPresets creates preset resources - roles
+func createPresets(ctx context.Context, asrv *Server) error {
+	roles := []services.Role{
+		services.NewPresetEditorRole(),
+		services.NewPresetAccessRole(),
+		services.NewPresetAuditorRole()}
+	for _, role := range roles {
+		err := asrv.CreateRole(role)
+		if err != nil {
+			if !trace.IsAlreadyExists(err) {
+				return trace.Wrap(err, "failed to create preset role")
+			}
+		}
+	}
+	return nil
+}
+
 const migrationAbortedMessage = "migration to RBAC has aborted because of the backend error, restart teleport to try again"
 
 // migrateOSS performs migration to enable role-based access controls
@@ -512,7 +535,7 @@ func migrateOSS(ctx context.Context, asrv *Server) error {
 		return nil
 	}
 	role := services.NewDowngradedOSSAdminRole()
-	existing, err := asrv.GetRole(role.GetName())
+	existing, err := asrv.GetRole(ctx, role.GetName())
 	if err != nil {
 		return trace.Wrap(err, "expected to find built-in admin role")
 	}
@@ -1147,7 +1170,7 @@ func migrateRemoteClusters(asrv *Server) error {
 // DELETE IN: 4.3.0.
 // migrateRoleOptions adds the "enhanced_recording" option to all roles.
 func migrateRoleOptions(ctx context.Context, asrv *Server) error {
-	roles, err := asrv.GetRoles()
+	roles, err := asrv.GetRoles(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

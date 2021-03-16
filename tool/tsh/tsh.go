@@ -717,7 +717,7 @@ func onLogin(cf *CLIConf) error {
 		// connection, so we use WithRootClusterClient to speed things up.
 		err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
 			for _, roleName := range roleNames {
-				role, err := clt.GetRole(roleName)
+				role, err := clt.GetRole(cf.Context, roleName)
 				if err != nil {
 					return trace.Wrap(err)
 				}

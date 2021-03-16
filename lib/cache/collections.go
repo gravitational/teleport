@@ -1226,7 +1226,7 @@ func (c *role) erase(ctx context.Context) error {
 }
 
 func (c *role) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	resources, err := c.Access.GetRoles()
+	resources, err := c.Access.GetRoles(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
