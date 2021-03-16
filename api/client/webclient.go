@@ -67,6 +67,7 @@ func NewInsecureWebClient() *http.Client {
 // experience: users only get prompted for the type of authentication the server supports.
 func Ping(ctx context.Context, proxyAddr string) (*PingResponse, error) {
 	clt, err := initClient(proxyAddr)
+	defer clt.CloseIdleConnections()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

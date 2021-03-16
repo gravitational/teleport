@@ -77,6 +77,7 @@ func NewTunnelDialer(ssh ssh.ClientConfig, keepAliveInterval, dialTimeout time.D
 			return nil, trace.Wrap(err)
 		}
 
+		ssh.Timeout = dialTimeout
 		sconn, err := sshutils.NewClientConnWithDeadline(conn, addr, &ssh)
 		if err != nil {
 			return nil, trace.NewAggregate(err, conn.Close())
