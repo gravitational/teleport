@@ -29,7 +29,7 @@ This would allow users to use `tsh ssh -J clusterName serverName` to work on mul
 
 It is not immediately clear what data the jumphost address should be matched against. Clusters, and especially trusted clusters, need not be configured with options like `ssh_public_addr` or `public_addr`. Even if these options were defined there is no guarantee to their accuracy. There might be other, equally functional public addresses that can be entered by some users. It seems possible to even have multiple trusted clusters that are configured with identical `*public_addr` values (whether by accident or as part of some unconventional setup).
 
-If a jumphost input resolution fails, the client will fall back to routing through the root cluster, in spite of the user's expectation to the contrary. This may cause poor user experience as there is no easy way for an ordinary user to find out the exact leaf proxy address in the form known to the root cluster.
+If a jumphost input resolution fails, the client will still connect directly to the leaf proxy but with an incorrect `RouteToCluster` value. This may cause poor user experience as there is no easy way for an ordinary user to find out the exact leaf proxy address in the form known to the root cluster.
 
 ## Alternative: `-J` with `--cluster`
 
