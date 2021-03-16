@@ -1242,8 +1242,14 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	switch cap.GetSecondFactor() {
 	case constants.SecondFactorOff:
 		webSession, err = h.auth.AuthWithoutOTP(req.User, req.Pass)
-	case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
+	case constants.SecondFactorOTP, constants.SecondFactorOn:
 		webSession, err = h.auth.AuthWithOTP(req.User, req.Pass, req.SecondFactorToken)
+	case constants.SecondFactorOptional:
+		if req.SecondFactorToken == "" {
+			webSession, err = h.auth.AuthWithoutOTP(req.User, req.Pass)
+		} else {
+			webSession, err = h.auth.AuthWithOTP(req.User, req.Pass, req.SecondFactorToken)
+		}
 	default:
 		return nil, trace.AccessDenied("unknown second factor type: %q", cap.GetSecondFactor())
 	}
