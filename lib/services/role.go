@@ -802,6 +802,10 @@ type AccessChecker interface {
 	// CheckAccessToDatabase checks whether a user has access to the provided
 	// database server.
 	CheckAccessToDatabase(server types.DatabaseServer, mfaVerified bool, matchers ...RoleMatcher) error
+
+	// CanImpersonate checks whether current user is allowed to impersonate
+	// users and roles
+	CanImpersonate(currentUser, impersonateUser types.User, impersonateRoles []types.Role) error
 }
 
 // FromSpec returns new RoleSet created from spec
@@ -1548,6 +1552,111 @@ func (set RoleSet) CheckAccessToKubernetes(namespace string, kube *KubernetesClu
 		}).Debugf("Access to kubernetes cluster %v denied, no allow rule matched; %v", kube.Name, errs)
 	}
 	return trace.AccessDenied("access to kubernetes cluster denied")
+}
+
+// CanImpersonate returns nil if this role set can impersonate
+// a user and their roles, returns AccessDenied otherwise
+// CanImpersonate checks whether current user is allowed to impersonate
+// users and roles
+func (set RoleSet) CanImpersonate(currentUser, impersonateUser types.User, impersonateRoles []types.Role) error {
+	ctx := &impersonateContext{
+		user:            currentUser,
+		impersonateUser: impersonateUser,
+	}
+	whereParser, err := newImpersonateWhereParser(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// check deny: a single match on a deny rule prohibits access
+	for _, role := range set {
+		cond := role.GetImpersonateConditions(Deny)
+
+		matchNamespace, _ := MatchNamespace(role.GetNamespaces(Deny), ProcessNamespace(namespace))
+		if matchNamespace {
+			matched, err := MakeRuleSet(role.GetRules(Deny)).Match(whereParser, actionsParser, resource, verb)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if matched {
+				if !silent {
+					log.WithFields(log.Fields{
+						trace.Component: teleport.ComponentRBAC,
+					}).Infof("Access to %v %v in namespace %v denied to %v: deny rule matched.",
+						verb, resource, namespace, role.GetName())
+				}
+				return trace.AccessDenied("access denied to perform action '%s' on %s", verb, resource)
+			}
+		}
+	}
+
+	// check allow: if rule matches, grant access to resource
+	for _, role := range set {
+		matchNamespace, _ := MatchNamespace(role.GetNamespaces(Allow), ProcessNamespace(namespace))
+		if matchNamespace {
+			match, err := MakeRuleSet(role.GetRules(Allow)).Match(whereParser, actionsParser, resource, verb)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if match {
+				return nil
+			}
+		}
+	}
+
+	if !silent {
+		log.WithFields(log.Fields{
+			trace.Component: teleport.ComponentRBAC,
+		}).Infof("Access to %v %v in namespace %v denied to %v: no allow rule matched.",
+			verb, resource, namespace, set)
+	}
+	return trace.AccessDenied("access denied to perform action %q on %q", verb, resource)
+}
+
+// Match tests if the resource name and verb are in a given list of rules.
+// More specific rules will be matched first. See Rule.IsMoreSpecificThan
+// for exact specs on whether the rule is more or less specific.
+//
+// Specifying order solves the problem on having multiple rules, e.g. one wildcard
+// rule can override more specific rules with 'where' sections that can have
+// 'actions' lists with side effects that will not be triggered otherwise.
+//
+func matchImpersonateCondition(cond types.ImpersonateConditions, whereParser predicate.Parser, role types.Role) (bool, error) {
+	// empty sets match nothing
+	if len(cond.Users) == 0 || len(cond.Roles) == 0 {
+		return false, nil
+	}
+
+	// check for matching resource by name
+	// the most specific rule should win
+	rules := set[resource]
+	for _, rule := range rules {
+		match, err := matchesWhere(&rule, whereParser)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if match && (rule.HasVerb(Wildcard) || rule.HasVerb(verb)) {
+			if err := processActions(&rule, actionsParser); err != nil {
+				return true, trace.Wrap(err)
+			}
+			return true, nil
+		}
+	}
+
+	// check for wildcard resource matcher
+	for _, rule := range set[Wildcard] {
+		match, err := matchesWhere(&rule, whereParser)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if match && (rule.HasVerb(Wildcard) || rule.HasVerb(verb)) {
+			if err := processActions(&rule, actionsParser); err != nil {
+				return true, trace.Wrap(err)
+			}
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 // RoleMatcher defines an interface for a generic role matcher.
