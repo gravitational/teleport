@@ -70,63 +70,10 @@ func (cp *Profile) Name() string {
 	return addr
 }
 
-// migrateCurrentProfile makes a best-effort attempt to migrate
-// the old symlink based current-profile link to the new
-// file based current-profile link.
-//
-// DELETE IN: 6.0
-func migrateCurrentProfile(dir string) {
-	link := filepath.Join(dir, CurrentProfileSymlink)
-	linfo, err := os.Lstat(link)
-	if err != nil {
-		return
-	}
-	if finfo, err := os.Stat(filepath.Join(dir, CurrentProfileFilename)); err == nil {
-		if linfo.ModTime().Before(finfo.ModTime()) {
-			// current-profile is as new or newer than the legacy symlink,
-			// no migration necessary.
-			return
-		}
-	}
-	linked, err := os.Readlink(link)
-	if err != nil || linked == "" {
-		return
-	}
-	name := strings.TrimSuffix(filepath.Base(linked), ".yaml")
-	if name == "" {
-		return
-	}
-	if err := SetCurrentProfileName(dir, name); err != nil {
-		return
-	}
-
-	// TODO IN 5.2: Re-enable removal after verifying that nothing else
-	// relis on `link` (note: exact version that this happens doesn't matter
-	// too much, but it should happen at least one version prior to removal
-	// of the migration).
-	//
-	//os.Remove(link)
-}
-
-// DELETE IN: 6.0
-func setLegacySymlink(dir string, name string) error {
-	link := filepath.Join(dir, CurrentProfileSymlink)
-	if err := os.Remove(link); err != nil && !os.IsNotExist(err) {
-		log.Warningf("Failed to remove legacy symlink: %v", err)
-	}
-	return trace.ConvertSystemError(os.Symlink(name+".yaml", link))
-}
-
 // SetCurrentProfileName attempts to set the current profile name.
 func SetCurrentProfileName(dir string, name string) error {
 	if dir == "" {
 		return trace.BadParameter("cannot set current profile: missing dir")
-	}
-
-	// set legacy symlink first so that the current-profile file will have
-	// a more recent modification time.
-	if err := setLegacySymlink(dir, name); err != nil {
-		log.Warningf("Failed to set legacy symlink: %v", err)
 	}
 
 	path := filepath.Join(dir, CurrentProfileFilename)
@@ -141,8 +88,6 @@ func GetCurrentProfileName(dir string) (name string, err error) {
 	if dir == "" {
 		return "", trace.BadParameter("cannot get current profile: missing dir")
 	}
-	// DELETE IN 6.0
-	migrateCurrentProfile(dir)
 
 	data, err := ioutil.ReadFile(filepath.Join(dir, CurrentProfileFilename))
 	if err != nil {
