@@ -724,8 +724,9 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 					SessionID: string(sessionID),
 				},
 				UserMetadata: events.UserMetadata{
-					User:  ctx.User.GetName(),
-					Login: ctx.User.GetName(),
+					User:         ctx.User.GetName(),
+					Login:        ctx.User.GetName(),
+					Impersonator: ctx.Identity.GetIdentity().Impersonator,
 				},
 				TerminalSize:              params.Serialize(),
 				KubernetesClusterMetadata: ctx.eventClusterMeta(),
@@ -765,8 +766,9 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 				SessionID: string(sessionID),
 			},
 			UserMetadata: events.UserMetadata{
-				User:  ctx.User.GetName(),
-				Login: ctx.User.GetName(),
+				User:         ctx.User.GetName(),
+				Login:        ctx.User.GetName(),
+				Impersonator: ctx.Identity.GetIdentity().Impersonator,
 			},
 			ConnectionMetadata: events.ConnectionMetadata{
 				RemoteAddr: req.RemoteAddr,
@@ -847,8 +849,9 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 				SessionID: string(sessionID),
 			},
 			UserMetadata: events.UserMetadata{
-				User:  ctx.User.GetName(),
-				Login: ctx.User.GetName(),
+				User:         ctx.User.GetName(),
+				Login:        ctx.User.GetName(),
+				Impersonator: ctx.Identity.GetIdentity().Impersonator,
 			},
 			ConnectionMetadata: events.ConnectionMetadata{
 				RemoteAddr: req.RemoteAddr,
@@ -877,8 +880,9 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 				SessionID: string(sessionID),
 			},
 			UserMetadata: events.UserMetadata{
-				User:  ctx.User.GetName(),
-				Login: ctx.User.GetName(),
+				User:         ctx.User.GetName(),
+				Login:        ctx.User.GetName(),
+				Impersonator: ctx.Identity.GetIdentity().Impersonator,
 			},
 			ConnectionMetadata: events.ConnectionMetadata{
 				RemoteAddr: req.RemoteAddr,
@@ -912,8 +916,9 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 				SessionID: string(sessionID),
 			},
 			UserMetadata: events.UserMetadata{
-				User:  ctx.User.GetName(),
-				Login: ctx.User.GetName(),
+				User:         ctx.User.GetName(),
+				Login:        ctx.User.GetName(),
+				Impersonator: ctx.Identity.GetIdentity().Impersonator,
 			},
 			ConnectionMetadata: events.ConnectionMetadata{
 				RemoteAddr: req.RemoteAddr,
@@ -975,8 +980,9 @@ func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *ht
 				Code: events.PortForwardCode,
 			},
 			UserMetadata: events.UserMetadata{
-				Login: ctx.User.GetName(),
-				User:  ctx.User.GetName(),
+				Login:        ctx.User.GetName(),
+				User:         ctx.User.GetName(),
+				Impersonator: ctx.Identity.GetIdentity().Impersonator,
 			},
 			ConnectionMetadata: events.ConnectionMetadata{
 				LocalAddr:  sess.teleportCluster.targetAddr,
@@ -1165,8 +1171,9 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 			Code: events.KubeRequestCode,
 		},
 		UserMetadata: events.UserMetadata{
-			User:  ctx.User.GetName(),
-			Login: ctx.User.GetName(),
+			User:         ctx.User.GetName(),
+			Login:        ctx.User.GetName(),
+			Impersonator: ctx.Identity.GetIdentity().Impersonator,
 		},
 		ConnectionMetadata: events.ConnectionMetadata{
 			RemoteAddr: req.RemoteAddr,

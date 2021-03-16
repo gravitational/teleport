@@ -712,8 +712,9 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 			Code: events.PortForwardCode,
 		},
 		UserMetadata: events.UserMetadata{
-			Login: s.identityContext.Login,
-			User:  s.identityContext.TeleportUser,
+			Login:        s.identityContext.Login,
+			User:         s.identityContext.TeleportUser,
+			Impersonator: s.identityContext.Impersonator,
 		},
 		ConnectionMetadata: events.ConnectionMetadata{
 			LocalAddr:  s.sconn.LocalAddr().String(),
@@ -1049,8 +1050,9 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 			Type: events.X11ForwardEvent,
 		},
 		UserMetadata: events.UserMetadata{
-			Login: s.identityContext.Login,
-			User:  s.identityContext.TeleportUser,
+			Login:        s.identityContext.Login,
+			User:         s.identityContext.TeleportUser,
+			Impersonator: s.identityContext.Impersonator,
 		},
 		ConnectionMetadata: events.ConnectionMetadata{
 			LocalAddr:  s.sconn.LocalAddr().String(),
