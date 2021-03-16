@@ -1,5 +1,11 @@
 # Changelog
 
+### 4.4.9
+
+This release of Teleport contains a bug fix.
+
+* Restored `session.upload` event to Audit Log. [#5636](https://github.com/gravitational/teleport/pull/5636)
+
 ### 4.4.8
 
 This release of Teleport contains multiple security fixes.
