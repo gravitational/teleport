@@ -20,44 +20,22 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
-	"net"
 	"net/http"
-	"net/url"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
 )
 
-const (
-	invalidProxyAddressMessage = "'%v' is not a valid proxy address"
-)
-
-// initClient creates a new client to the HTTPS web proxy.
-func initClient(proxyAddr string) (*http.Client, error) {
-	// Validate proxyAddr.
-	host, port, err := net.SplitHostPort(proxyAddr)
-	if err != nil || host == "" || port == "" {
-		if err != nil {
-			return nil, trace.Wrap(err, invalidProxyAddressMessage, proxyAddr)
-		}
-		return nil, trace.BadParameter(invalidProxyAddressMessage, proxyAddr)
-	}
-	if _, err := url.Parse("https://" + net.JoinHostPort(host, port)); err != nil {
-		return nil, trace.BadParameter(invalidProxyAddressMessage, proxyAddr)
-	}
-
-	// Skip https cert verification, print a warning that this is insecure.
-	return NewInsecureWebClient(), nil
-}
-
-func NewInsecureWebClient() *http.Client {
+// newWebClient creates a new client to the HTTPS web proxy.
+func newWebClient(proxyAddr string) (*http.Client, error) {
+	// Skip https cert verification.
 	return &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: true,
 			},
 		},
-	}
+	}, nil
 }
 
 // Ping serves two purposes. The first is to validate the HTTP endpoint of a
@@ -66,7 +44,7 @@ func NewInsecureWebClient() *http.Client {
 // of authentication that the server supports. This also leads to better user
 // experience: users only get prompted for the type of authentication the server supports.
 func Ping(ctx context.Context, proxyAddr string) (*PingResponse, error) {
-	clt, err := initClient(proxyAddr)
+	clt, err := newWebClient(proxyAddr)
 	defer clt.CloseIdleConnections()
 	if err != nil {
 		return nil, trace.Wrap(err)

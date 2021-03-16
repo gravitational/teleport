@@ -84,7 +84,7 @@ type Client struct {
 //
 // If cfg.DialInBackground is true, New will only use the first credentials listed.
 // A predefined dialer or an auth server address must be provided in cfg. The
-// connection will be dialed in the background, so the connection is not guarenteed
+// connection will be dialed in the background, so the connection is not guaranteed
 // to be open. This option is primarily meant for internal use where the client has
 // direct access to server values that guarentee a successful connection.
 func New(ctx context.Context, cfg Config) (clt *Client, err error) {
@@ -128,7 +128,7 @@ func connectInBackground(ctx context.Context, cfg Config) (*Client, error) {
 
 // connect connects the client to the server using the Credentials and
 // Dialer/Addresses provided in the client's config. Multiple goroutines are started
-// to make dial atempts with different combinations of dialers and credential The
+// to make dial attempts with different combinations of dialers and credentials. The
 // first client to successfully connect is used to populate the client's connection
 // attributes. If none successfully connect, an aggregated error is returned.
 func connect(ctx context.Context, cfg Config) (*Client, error) {
@@ -253,7 +253,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 			}
 			return nil, trace.Wrap(trace.NewAggregate(errs...), "all auth methods failed")
 		case <-ctx.Done():
-			return nil, trace.Errorf("process terminated")
+			return nil, trace.Wrap(ctx.Err())
 		}
 	}
 }

@@ -28,7 +28,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -118,7 +117,6 @@ type APIClient = client.Client
 // HTTPClient is a teleport HTTP API client.
 type HTTPClient struct {
 	roundtrip.Client
-	mux sync.Mutex
 	// transport defines the methods by which the client can reach the server.
 	transport *http.Transport
 	// TLS holds the TLS config for the http client.
@@ -185,11 +183,7 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, dialer ContextDialer, par
 
 // Close closes the HTTP client connection to the auth server.
 func (c *HTTPClient) Close() {
-	c.mux.Lock()
-	defer c.mux.Unlock()
-	if c.transport != nil {
-		c.transport.CloseIdleConnections()
-	}
+	c.transport.CloseIdleConnections()
 }
 
 // TLSConfig returns the HTTP client's TLS config.
