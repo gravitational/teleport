@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -100,7 +101,7 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 
 	// apiClient configures the tls.Config, so we clone it and reuse it for http.
 	tlsConfig := apiClient.Config().Clone()
-	httpClient, err := NewHTTPClient(cfg, tlsConfig, apiClient.Dialer(), params...)
+	httpClient, err := NewHTTPClient(cfg, tlsConfig, params...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -124,7 +125,25 @@ type HTTPClient struct {
 }
 
 // NewHTTPClient creates a new HTTP client with TLS authentication and the given dialer.
-func NewHTTPClient(cfg client.Config, tls *tls.Config, dialer ContextDialer, params ...roundtrip.ClientParam) (*HTTPClient, error) {
+func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.ClientParam) (*HTTPClient, error) {
+	dialer := cfg.Dialer
+	if dialer == nil {
+		if len(cfg.Addrs) == 0 {
+			return nil, trace.BadParameter("no addresses to dial")
+		}
+		contextDialer := client.NewDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
+		dialer = ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
+			for _, addr := range cfg.Addrs {
+				conn, err = contextDialer.DialContext(ctx, network, addr)
+				if err == nil {
+					return conn, nil
+				}
+			}
+			// not wrapping on purpose to preserve the original error
+			return nil, err
+		})
+	}
+
 	// Set the next protocol. This is needed due to the Auth Server using a
 	// multiplexer for protocol detection. Unless next protocol is specified
 	// it will attempt to upgrade to HTTP2 and at that point there is no way

@@ -83,8 +83,8 @@ type Client struct {
 // will be used, or an aggregated error will be returned if all combinations fail.
 //
 // If cfg.DialInBackground is true, New will only use the first credentials listed.
-// A predefined dialer or an auth server address must be provided in cfg. The
-// connection will be dialed in the background, so the connection is not guaranteed
+// A predefined dialer must be provided in cfg, or the first addr must be to an auth server.
+// The connection will be dialed in the background, so the connection is not guaranteed
 // to be open. This option is primarily meant for internal use where the client has
 // direct access to server values that guarentee a successful connection.
 func New(ctx context.Context, cfg Config) (clt *Client, err error) {
@@ -104,23 +104,26 @@ func New(ctx context.Context, cfg Config) (clt *Client, err error) {
 	return clt, nil
 }
 
-// connectInBackground connects the client to the server in the background,
-// uses the first credentials in cfg, and returns the client immediately.
-// A predefined dialer or an auth server address must be provided in cfg.
+// connectInBackground connects the client to the server in the background.
+// All combinations of credentials, addresses, and dialers will be dialed in
+// the background, and the first successful connection will replace the initially
+// returned client. The initially returned client will always be set using the
+// first credentials and first address or dialer in cfg.
 func connectInBackground(ctx context.Context, cfg Config) (*Client, error) {
-	tls, err := cfg.Credentials[0].TLSConfig()
+	// Dial with the first credentials and first address or dialer.
+	tlsConfig, err := cfg.Credentials[0].TLSConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	dialer, err := cfg.GetDialer()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	dialer := cfg.Dialer
+	if dialer == nil {
+		dialer = NewDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
 	}
 
-	clt := &Client{c: cfg, tlsConfig: tls, dialer: dialer}
-	if err := clt.dialGRPC(ctx, constants.APIDomain, false); err != nil {
-		return nil, err
+	clt := &Client{c: cfg, tlsConfig: tlsConfig, dialer: dialer}
+	if err := clt.dialGRPC(ctx, cfg.Addrs[0], false); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return clt, nil
@@ -341,19 +344,6 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.DialTimeout = defaults.DefaultDialTimeout
 	}
 	return nil
-}
-
-// GetDialer returns the configured dialer,
-// or builds a dialer from configured addresses.
-func (c *Config) GetDialer() (ContextDialer, error) {
-	if c.Dialer != nil {
-		return c.Dialer, nil
-	}
-	dialer, err := NewAddrsDialer(c.Addrs, c.KeepAlivePeriod, c.DialTimeout)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return dialer, nil
 }
 
 // Config returns the tls.Config the client connected with.

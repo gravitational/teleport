@@ -50,24 +50,6 @@ func NewDialer(keepAliveInterval, dialTimeout time.Duration) ContextDialer {
 	}
 }
 
-// NewAddrsDialer makes a new dialer from a list of addresses.
-func NewAddrsDialer(addrs []string, keepAliveInterval, dialTimeout time.Duration) (ContextDialer, error) {
-	if len(addrs) == 0 {
-		return nil, trace.BadParameter("no addresses to dial")
-	}
-	dialer := NewDialer(keepAliveInterval, dialTimeout)
-	return ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
-		for _, addr := range addrs {
-			conn, err = dialer.DialContext(ctx, network, addr)
-			if err == nil {
-				return conn, nil
-			}
-		}
-		// not wrapping on purpose to preserve the original error
-		return nil, err
-	}), nil
-}
-
 // NewTunnelDialer make a new ssh tunnel dialer
 func NewTunnelDialer(ssh ssh.ClientConfig, keepAliveInterval, dialTimeout time.Duration) ContextDialer {
 	dialer := NewDialer(keepAliveInterval, dialTimeout)
