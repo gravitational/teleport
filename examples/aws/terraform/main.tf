@@ -1,6 +1,6 @@
 # load license from file in local directory
 data "local_file" "license" {
-    filename = "license.pem"
+    filename = "/home/gus/downloads/teleport/license-gus.pem"
 }
 
 # alternatvely, load the license from a variable and write the file locally
@@ -24,7 +24,7 @@ module "teleport-ha-autoscale-cluster" {
 
   # Teleport cluster name to set up
   # This cannot be changed later, so pick something descriptive
-  cluster_name = "gus-tfmodule"
+  cluster_name = "gus-tfmodulev3"
 
   # SSH key name to provision instances with
   # This must be a key that already exists in the AWS account
@@ -32,7 +32,11 @@ module "teleport-ha-autoscale-cluster" {
 
   # AMI ID to use
   # See https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/AMIS.md
-  ami_id = "ami-0dffa937ccf604a2f"
+  ami_id = "ami-05bc569710d7e6cda"
+
+  # Account ID which owns the AMIs used to spin up instances
+  # You should only need to set this if you're building your own AMIs for testing purposes.
+  ami_owner_account_id = "278576220453"
 
   # Password for Grafana admin user
   # Grafana is hosted on https://<route53_domain>:8443
@@ -53,19 +57,27 @@ module "teleport-ha-autoscale-cluster" {
 
   # Zone name which will host DNS records, e.g. example.com
   # This must already be configured in Route 53
-  route53_zone = "gravitational.io"
+  route53_zone = "teleportdemo.net"
 
   # Domain name to use for Teleport proxies, e.g. proxy.example.com
   # This will be the domain that Teleport users will connect to via web UI or the tsh client
-  route53_domain = "gus-tfmodule.gravitational.io"
+  route53_domain = "gus-tfmodulev3.teleportdemo.net"
+
+  # Optional domain name to use for Teleport proxy NLB alias
+  # When using ACM we have one ALB (for port 443 with TLS termination) and one NLB
+  # (for all other traffic - 3023/3024/3026 etc)
+  # As this NLB is at a different address, we add an alias record in Route 53 so that
+  # it can be used by applications which connect to it directly (like kubectl) rather
+  # than discovering the NLB's address through the Teleport API (like tsh does)
+  route53_domain_acm_nlb_alias = "gus-tfmodulev3-nlb.teleportdemo.net"
 
   # Email for LetsEncrypt domain registration
-  email = "terraform@goteleport.com"
+  email = "gus@goteleport.com"
 
   # S3 bucket to create for encrypted LetsEncrypt certificates
   # This is also used for storing the Teleport license which is downloaded to auth servers
   # This cannot be a pre-existing bucket
-  s3_bucket_name = "gus-tfmodule.gravitational.io"
+  s3_bucket_name = "gus-tfmodulev3.teleportdemo.net"
 
   # Path to Teleport Enterprise license file
   license_path = local_file.license.filename
@@ -95,5 +107,5 @@ module "teleport-ha-autoscale-cluster" {
 
   # Default auth type to use on Teleport cluster
   # Useful when you have SAML or OIDC connectors configured in DynamoDB and want to relaunch instances with a new AMI
-  auth_type = "saml"
+  auth_type = "local"
 }
