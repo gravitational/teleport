@@ -1359,6 +1359,12 @@ func (set RoleSet) hasPossibleLogins() bool {
 // adding logging to this function (which is called on every server returned
 // by GetNodes) can slow down this function by 50x for large clusters!
 func (set RoleSet) CheckAccessToServer(login string, s Server, mfa AccessMFAParams) error {
+	if mfa.AlwaysRequired && !mfa.Verified {
+		log.WithFields(log.Fields{
+			trace.Component: teleport.ComponentRBAC,
+		}).Debugf("Access to node %q denied, cluster requires per-session MFA", s.GetHostname())
+		return ErrSessionMFARequired
+	}
 	var errs []error
 
 	// Check deny rules first: a single matching namespace, label, or login from
@@ -1395,7 +1401,7 @@ func (set RoleSet) CheckAccessToServer(login string, s Server, mfa AccessMFAPara
 			if mfa.Verified {
 				return nil
 			}
-			if mfa.AlwaysRequired || role.GetOptions().RequireSessionMFA {
+			if role.GetOptions().RequireSessionMFA {
 				log.WithFields(log.Fields{
 					trace.Component: teleport.ComponentRBAC,
 				}).Debugf("Access to node %q denied, role %q requires per-session MFA; match(namespace=%v, label=%v, login=%v)",
@@ -1430,6 +1436,12 @@ func (set RoleSet) CheckAccessToServer(login string, s Server, mfa AccessMFAPara
 // are checked first, then allow rules. Access to an application is determined by
 // namespaces and labels.
 func (set RoleSet) CheckAccessToApp(namespace string, app *App, mfa AccessMFAParams) error {
+	if mfa.AlwaysRequired && !mfa.Verified {
+		log.WithFields(log.Fields{
+			trace.Component: teleport.ComponentRBAC,
+		}).Debugf("Access to app %q denied, cluster requires per-session MFA", app.Name)
+		return ErrSessionMFARequired
+	}
 	var errs []error
 
 	// Check deny rules: a matching namespace and label in the deny section
@@ -1463,7 +1475,7 @@ func (set RoleSet) CheckAccessToApp(namespace string, app *App, mfa AccessMFAPar
 			if mfa.Verified {
 				return nil
 			}
-			if mfa.AlwaysRequired || role.GetOptions().RequireSessionMFA {
+			if role.GetOptions().RequireSessionMFA {
 				log.WithFields(log.Fields{
 					trace.Component: teleport.ComponentRBAC,
 				}).Debugf("Access to app %q denied, role %q requires per-session MFA; match(namespace=%v, label=%v)",
@@ -1498,6 +1510,12 @@ func (set RoleSet) CheckAccessToApp(namespace string, app *App, mfa AccessMFAPar
 // Deny rules are checked first, then allow rules. Access to a kubernetes
 // cluster is determined by namespaces and labels.
 func (set RoleSet) CheckAccessToKubernetes(namespace string, kube *KubernetesCluster, mfa AccessMFAParams) error {
+	if mfa.AlwaysRequired && !mfa.Verified {
+		log.WithFields(log.Fields{
+			trace.Component: teleport.ComponentRBAC,
+		}).Debugf("Access to kubernetes cluster %q denied, cluster requires per-session MFA", kube.Name)
+		return ErrSessionMFARequired
+	}
 	var errs []error
 
 	// Check deny rules: a matching namespace and label in the deny section
@@ -1531,7 +1549,7 @@ func (set RoleSet) CheckAccessToKubernetes(namespace string, kube *KubernetesClu
 			if mfa.Verified {
 				return nil
 			}
-			if mfa.AlwaysRequired || role.GetOptions().RequireSessionMFA {
+			if role.GetOptions().RequireSessionMFA {
 				log.WithFields(log.Fields{
 					trace.Component: teleport.ComponentRBAC,
 				}).Debugf("Access to kubernetes cluster %q denied, role %q requires per-session MFA; match(namespace=%v, label=%v)",
@@ -1654,6 +1672,10 @@ func (m *DatabaseNameMatcher) String() string {
 // by the caller.
 func (set RoleSet) CheckAccessToDatabase(server types.DatabaseServer, mfa AccessMFAParams, matchers ...RoleMatcher) error {
 	log := log.WithField(trace.Component, teleport.ComponentRBAC)
+	if mfa.AlwaysRequired && !mfa.Verified {
+		log.Debugf("Access to database %q denied, cluster requires per-session MFA", server.GetName())
+		return ErrSessionMFARequired
+	}
 	// Check deny rules.
 	for _, role := range set {
 		matchNamespace, _ := MatchNamespace(role.GetNamespaces(Deny), server.GetNamespace())
@@ -1686,7 +1708,7 @@ func (set RoleSet) CheckAccessToDatabase(server types.DatabaseServer, mfa Access
 				if mfa.Verified {
 					return nil
 				}
-				if mfa.AlwaysRequired || role.GetOptions().RequireSessionMFA {
+				if role.GetOptions().RequireSessionMFA {
 					log.Debugf("Access to database %q denied, role %q requires per-session MFA", server.GetName(), role.GetName())
 					return ErrSessionMFARequired
 				}

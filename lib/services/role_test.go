@@ -586,6 +586,25 @@ func TestCheckAccessToServer(t *testing.T) {
 			Labels:    map[string]string{"role": "db01", "status": "follower01"},
 		},
 	}
+	newRole := func(mut func(*RoleV3)) RoleV3 {
+		r := RoleV3{
+			Metadata: Metadata{
+				Name:      "name",
+				Namespace: defaults.Namespace,
+			},
+			Spec: RoleSpecV3{
+				Options: RoleOptions{
+					MaxSessionTTL: Duration(20 * time.Hour),
+				},
+				Allow: RoleConditions{
+					NodeLabels: Labels{Wildcard: []string{Wildcard}},
+					Namespaces: []string{Wildcard},
+				},
+			},
+		}
+		mut(&r)
+		return r
+	}
 	testCases := []struct {
 		name      string
 		roles     []RoleV3
@@ -604,22 +623,10 @@ func TestCheckAccessToServer(t *testing.T) {
 		{
 			name: "role is limited to default namespace",
 			roles: []RoleV3{
-				{
-					Metadata: Metadata{
-						Name:      "name1",
-						Namespace: defaults.Namespace,
-					},
-					Spec: RoleSpecV3{
-						Options: RoleOptions{
-							MaxSessionTTL: Duration(20 * time.Hour),
-						},
-						Allow: RoleConditions{
-							Namespaces: []string{defaults.Namespace},
-							Logins:     []string{"admin"},
-							NodeLabels: Labels{Wildcard: []string{Wildcard}},
-						},
-					},
-				},
+				newRole(func(r *RoleV3) {
+					r.Spec.Allow.Logins = []string{"admin"}
+					r.Spec.Allow.Namespaces = []string{defaults.Namespace}
+				}),
 			},
 			checks: []check{
 				{server: serverNoLabels, login: "root", hasAccess: false},
@@ -633,22 +640,10 @@ func TestCheckAccessToServer(t *testing.T) {
 		{
 			name: "role is limited to labels in default namespace",
 			roles: []RoleV3{
-				{
-					Metadata: Metadata{
-						Name:      "name1",
-						Namespace: defaults.Namespace,
-					},
-					Spec: RoleSpecV3{
-						Options: RoleOptions{
-							MaxSessionTTL: Duration(20 * time.Hour),
-						},
-						Allow: RoleConditions{
-							Logins:     []string{"admin"},
-							NodeLabels: Labels{"role": []string{"worker"}},
-							Namespaces: []string{defaults.Namespace},
-						},
-					},
-				},
+				newRole(func(r *RoleV3) {
+					r.Spec.Allow.Logins = []string{"admin"}
+					r.Spec.Allow.NodeLabels = Labels{"role": []string{"worker"}}
+				}),
 			},
 			checks: []check{
 				{server: serverNoLabels, login: "root", hasAccess: false},
@@ -662,22 +657,10 @@ func TestCheckAccessToServer(t *testing.T) {
 		{
 			name: "role matches any label out of multiple labels",
 			roles: []RoleV3{
-				{
-					Metadata: Metadata{
-						Name:      "name1",
-						Namespace: defaults.Namespace,
-					},
-					Spec: RoleSpecV3{
-						Options: RoleOptions{
-							MaxSessionTTL: Duration(20 * time.Hour),
-						},
-						Allow: RoleConditions{
-							Logins:     []string{"admin"},
-							NodeLabels: Labels{"role": []string{"worker2", "worker"}},
-							Namespaces: []string{defaults.Namespace},
-						},
-					},
-				},
+				newRole(func(r *RoleV3) {
+					r.Spec.Allow.Logins = []string{"admin"}
+					r.Spec.Allow.NodeLabels = Labels{"role": []string{"worker2", "worker"}}
+				}),
 			},
 			checks: []check{
 				{server: serverNoLabels, login: "root", hasAccess: false},
@@ -691,22 +674,10 @@ func TestCheckAccessToServer(t *testing.T) {
 		{
 			name: "node_labels with empty list value matches nothing",
 			roles: []RoleV3{
-				{
-					Metadata: Metadata{
-						Name:      "name1",
-						Namespace: defaults.Namespace,
-					},
-					Spec: RoleSpecV3{
-						Options: RoleOptions{
-							MaxSessionTTL: Duration(20 * time.Hour),
-						},
-						Allow: RoleConditions{
-							Logins:     []string{"admin"},
-							NodeLabels: Labels{"role": []string{}},
-							Namespaces: []string{defaults.Namespace},
-						},
-					},
-				},
+				newRole(func(r *RoleV3) {
+					r.Spec.Allow.Logins = []string{"admin"}
+					r.Spec.Allow.NodeLabels = Labels{"role": []string{}}
+				}),
 			},
 			checks: []check{
 				{server: serverNoLabels, login: "root", hasAccess: false},
@@ -720,38 +691,14 @@ func TestCheckAccessToServer(t *testing.T) {
 		{
 			name: "one role is more permissive than another",
 			roles: []RoleV3{
-				{
-					Metadata: Metadata{
-						Name:      "name1",
-						Namespace: defaults.Namespace,
-					},
-					Spec: RoleSpecV3{
-						Options: RoleOptions{
-							MaxSessionTTL: Duration(20 * time.Hour),
-						},
-						Allow: RoleConditions{
-							Logins:     []string{"admin"},
-							NodeLabels: Labels{"role": []string{"worker"}},
-							Namespaces: []string{defaults.Namespace},
-						},
-					},
-				},
-				{
-					Metadata: Metadata{
-						Name:      "name1",
-						Namespace: defaults.Namespace,
-					},
-					Spec: RoleSpecV3{
-						Options: RoleOptions{
-							MaxSessionTTL: Duration(20 * time.Hour),
-						},
-						Allow: RoleConditions{
-							Logins:     []string{"root", "admin"},
-							NodeLabels: Labels{Wildcard: []string{Wildcard}},
-							Namespaces: []string{Wildcard},
-						},
-					},
-				},
+				newRole(func(r *RoleV3) {
+					r.Spec.Allow.Logins = []string{"admin"}
+					r.Spec.Allow.Namespaces = []string{defaults.Namespace}
+					r.Spec.Allow.NodeLabels = Labels{"role": []string{"worker"}}
+				}),
+				newRole(func(r *RoleV3) {
+					r.Spec.Allow.Logins = []string{"root", "admin"}
+				}),
 			},
 			checks: []check{
 				{server: serverNoLabels, login: "root", hasAccess: true},
@@ -765,22 +712,11 @@ func TestCheckAccessToServer(t *testing.T) {
 		{
 			name: "one role needs to access servers sharing the partially same label value",
 			roles: []RoleV3{
-				{
-					Metadata: Metadata{
-						Name:      "name1",
-						Namespace: namespaceC,
-					},
-					Spec: RoleSpecV3{
-						Options: RoleOptions{
-							MaxSessionTTL: Duration(20 * time.Hour),
-						},
-						Allow: RoleConditions{
-							Logins:     []string{"admin"},
-							NodeLabels: Labels{"role": []string{"^db(.*)$"}, "status": []string{"follow*"}},
-							Namespaces: []string{namespaceC},
-						},
-					},
-				},
+				newRole(func(r *RoleV3) {
+					r.Spec.Allow.Logins = []string{"admin"}
+					r.Spec.Allow.NodeLabels = Labels{"role": []string{"^db(.*)$"}, "status": []string{"follow*"}}
+					r.Spec.Allow.Namespaces = []string{namespaceC}
+				}),
 			},
 			checks: []check{
 				{server: serverNoLabels, login: "root", hasAccess: false},
@@ -796,22 +732,9 @@ func TestCheckAccessToServer(t *testing.T) {
 		{
 			name: "no logins means no access",
 			roles: []RoleV3{
-				{
-					Metadata: Metadata{
-						Name:      "somerole",
-						Namespace: defaults.Namespace,
-					},
-					Spec: RoleSpecV3{
-						Options: RoleOptions{
-							MaxSessionTTL: Duration(20 * time.Hour),
-						},
-						Allow: RoleConditions{
-							Logins:     nil,
-							NodeLabels: Labels{Wildcard: []string{Wildcard}},
-							Namespaces: []string{Wildcard},
-						},
-					},
-				},
+				newRole(func(r *RoleV3) {
+					r.Spec.Allow.Logins = nil
+				}),
 			},
 			checks: []check{
 				{server: serverNoLabels, login: "root", hasAccess: false},
@@ -825,39 +748,15 @@ func TestCheckAccessToServer(t *testing.T) {
 		{
 			name: "one role requires MFA but MFA was not verified",
 			roles: []RoleV3{
-				{
-					Metadata: Metadata{
-						Name:      "name1",
-						Namespace: defaults.Namespace,
-					},
-					Spec: RoleSpecV3{
-						Options: RoleOptions{
-							MaxSessionTTL:     Duration(20 * time.Hour),
-							RequireSessionMFA: true,
-						},
-						Allow: RoleConditions{
-							Logins:     []string{"root"},
-							NodeLabels: Labels{"role": []string{"worker"}},
-							Namespaces: []string{Wildcard},
-						},
-					},
-				},
-				{
-					Metadata: Metadata{
-						Name:      "name1",
-						Namespace: defaults.Namespace,
-					},
-					Spec: RoleSpecV3{
-						Options: RoleOptions{
-							MaxSessionTTL: Duration(20 * time.Hour),
-						},
-						Allow: RoleConditions{
-							Logins:     []string{"root"},
-							NodeLabels: Labels{Wildcard: []string{Wildcard}},
-							Namespaces: []string{Wildcard},
-						},
-					},
-				},
+				newRole(func(r *RoleV3) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Allow.NodeLabels = Labels{"role": []string{"worker"}}
+					r.Spec.Options.RequireSessionMFA = true
+				}),
+				newRole(func(r *RoleV3) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Options.RequireSessionMFA = false
+				}),
 			},
 			mfaParams: AccessMFAParams{Verified: false},
 			checks: []check{
@@ -869,39 +768,15 @@ func TestCheckAccessToServer(t *testing.T) {
 		{
 			name: "one role requires MFA and MFA was verified",
 			roles: []RoleV3{
-				{
-					Metadata: Metadata{
-						Name:      "name1",
-						Namespace: defaults.Namespace,
-					},
-					Spec: RoleSpecV3{
-						Options: RoleOptions{
-							MaxSessionTTL:     Duration(20 * time.Hour),
-							RequireSessionMFA: true,
-						},
-						Allow: RoleConditions{
-							Logins:     []string{"root"},
-							NodeLabels: Labels{"role": []string{"worker"}},
-							Namespaces: []string{Wildcard},
-						},
-					},
-				},
-				{
-					Metadata: Metadata{
-						Name:      "name1",
-						Namespace: defaults.Namespace,
-					},
-					Spec: RoleSpecV3{
-						Options: RoleOptions{
-							MaxSessionTTL: Duration(20 * time.Hour),
-						},
-						Allow: RoleConditions{
-							Logins:     []string{"root"},
-							NodeLabels: Labels{Wildcard: []string{Wildcard}},
-							Namespaces: []string{Wildcard},
-						},
-					},
-				},
+				newRole(func(r *RoleV3) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Allow.NodeLabels = Labels{"role": []string{"worker"}}
+					r.Spec.Options.RequireSessionMFA = true
+				}),
+				newRole(func(r *RoleV3) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Options.RequireSessionMFA = false
+				}),
 			},
 			mfaParams: AccessMFAParams{Verified: true},
 			checks: []check{
@@ -913,22 +788,9 @@ func TestCheckAccessToServer(t *testing.T) {
 		{
 			name: "cluster requires MFA but MFA was not verified",
 			roles: []RoleV3{
-				{
-					Metadata: Metadata{
-						Name:      "name1",
-						Namespace: defaults.Namespace,
-					},
-					Spec: RoleSpecV3{
-						Options: RoleOptions{
-							MaxSessionTTL: Duration(20 * time.Hour),
-						},
-						Allow: RoleConditions{
-							Logins:     []string{"root"},
-							NodeLabels: Labels{Wildcard: []string{Wildcard}},
-							Namespaces: []string{Wildcard},
-						},
-					},
-				},
+				newRole(func(r *RoleV3) {
+					r.Spec.Allow.Logins = []string{"root"}
+				}),
 			},
 			mfaParams: AccessMFAParams{Verified: false, AlwaysRequired: true},
 			checks: []check{
@@ -940,22 +802,9 @@ func TestCheckAccessToServer(t *testing.T) {
 		{
 			name: "cluster requires MFA and MFA was verified",
 			roles: []RoleV3{
-				{
-					Metadata: Metadata{
-						Name:      "name1",
-						Namespace: defaults.Namespace,
-					},
-					Spec: RoleSpecV3{
-						Options: RoleOptions{
-							MaxSessionTTL: Duration(20 * time.Hour),
-						},
-						Allow: RoleConditions{
-							Logins:     []string{"root"},
-							NodeLabels: Labels{Wildcard: []string{Wildcard}},
-							Namespaces: []string{Wildcard},
-						},
-					},
-				},
+				newRole(func(r *RoleV3) {
+					r.Spec.Allow.Logins = []string{"root"}
+				}),
 			},
 			mfaParams: AccessMFAParams{Verified: true, AlwaysRequired: true},
 			checks: []check{
