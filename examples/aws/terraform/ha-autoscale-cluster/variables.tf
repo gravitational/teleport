@@ -151,3 +151,10 @@ variable "auth_type" {
   type    = string
   default = "local"
 }
+
+# Account ID which owns the AMIs used to spin up instances
+# You should only need to change this if you're building your own AMIs for testing purposes.
+variable "ami_owner_account_id" {
+  type    = string
+  default = "126027368216"
+}

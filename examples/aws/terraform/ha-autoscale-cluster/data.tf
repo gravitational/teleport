@@ -2,7 +2,7 @@
 # are changed and ASGs recreated because the AMI ID gets updated externally
 data "aws_ami" "base" {
   most_recent = true
-  owners      = [126027368216]
+  owners      = [var.ami_owner_account_id]
 
   filter {
     name   = "image-id"
