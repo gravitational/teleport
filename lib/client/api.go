@@ -2741,9 +2741,9 @@ func playSession(sessionEvents []events.EventFields, stream []byte) error {
 	// playback control goroutine
 	go func() {
 		defer player.Stop()
-		key := make([]byte, 1)
+		var key [1]byte
 		for {
-			_, err := os.Stdin.Read(key)
+			_, err := os.Stdin.Read(key[:])
 			if err != nil {
 				errorCh <- err
 				return

@@ -125,7 +125,7 @@ func Export(ctx context.Context, rs io.ReadSeeker, w io.Writer, exportFormat str
 
 // WriteForPlayback reads events from audit reader and writes them to the format optimized for playback
 // this function returns the path of the gzip chunks file, path of gzip events file, and error, respectively
-func WriteForPlayback(ctx context.Context, sid session.ID, reader AuditReader, dir string) (string, string, error) {
+func WriteForPlayback(ctx context.Context, sid session.ID, reader AuditReader, dir string) (chunksPath string, eventsPath string, err error) {
 	w := &PlaybackWriter{
 		sid:        sid,
 		reader:     reader,
@@ -140,7 +140,8 @@ func WriteForPlayback(ctx context.Context, sid session.ID, reader AuditReader, d
 	return w.chunksPath, w.eventsPath, w.Write(ctx)
 }
 
-// SessionEvents returns slice of event fields from gzipped events file
+// SessionEvents returns slice of event fields from gzipped events file.
+// The file at eventsPath will be removed.
 func SessionEvents(eventsPath string) ([]EventFields, error) {
 	var sessionEvents []EventFields
 	//events
@@ -177,7 +178,9 @@ func SessionEvents(eventsPath string) ([]EventFields, error) {
 	return sessionEvents, nil
 }
 
-// SessionChunks reads gzip chunks file and returns stream
+// SessionChunks interprets the file at the given path as gzip-compressed list of session events and returns
+// the uncompressed contents as a result.
+// The file at chunksPath will be removed.
 func SessionChunks(chunksPath string) ([]byte, error) {
 	var stream []byte
 	chunkFile, err := os.Open(chunksPath)
