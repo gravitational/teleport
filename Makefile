@@ -246,18 +246,28 @@ docs-test-whitespace:
 
 
 #
-# Runs all tests except integration, called by CI/CD.
-#
-# Chaos tests have high concurrency, run without race detector and have TestChaos prefix.
+# Runs all Go/shell tests, called by CI/CD.
 #
 .PHONY: test
-test: ensure-webassets
-test: FLAGS ?= '-race'
-test: PACKAGES := $(shell go list ./... | grep -v integration)
-test: CHAOS_FOLDERS := $(shell find . -type f -name '*chaos*.go' -not -path '*/vendor/*' | xargs dirname | uniq)
-test: $(VERSRC)
+test: test-sh test-go
+
+#
+# Runs all Go tests except integration, called by CI/CD.
+# Chaos tests have high concurrency, run without race detector and have TestChaos prefix.
+#
+.PHONY: test-go
+test-go: ensure-webassets
+test-go: FLAGS ?= '-race'
+test-go: PACKAGES := $(shell go list ./... | grep -v integration)
+test-go: CHAOS_FOLDERS := $(shell find . -type f -name '*chaos*.go' -not -path '*/vendor/*' | xargs dirname | uniq)
+test-go: $(VERSRC)
 	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) -cover
+
+# Find and run all shell script unit tests (using https://github.com/bats-core/bats-core)
+.PHONY: test-sh
+test-sh:
+	@find . -iname "*.bats" -exec dirname {} \; | uniq | xargs -t -L1 bats $(BATSFLAGS)
 
 #
 # Integration tests. Need a TTY to work.
