@@ -91,13 +91,12 @@ func TestEmbeddedDirsInKeystoreIsNotAnError(t *testing.T) {
 	require.NoError(t, s.addKey(host, user, key))
 
 	// ... *and* an invalid folder injected into it
-	p, err := s.store.dirFor(host, false)
-	require.NoError(t, err)
+	p := s.store.dirFor(host)
 	spuriousDirPath := path.Join(p, user+"-db", "root", "aaa-should-not-be-here")
 	require.NoError(t, os.MkdirAll(spuriousDirPath, 0700))
 
 	// When I attempt to enumerate the DB keys
-	_, err = s.store.GetKey(host, user, WithDBCerts(key.ClusterName, ""))
+	_, err := s.store.GetKey(host, user, WithDBCerts(key.ClusterName, ""))
 
 	// Expect the key enumeration to succeed
 	require.NoError(t, err)
