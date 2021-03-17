@@ -105,24 +105,27 @@ func New(ctx context.Context, cfg Config) (clt *Client, err error) {
 }
 
 // connectInBackground connects the client to the server in the background.
-// All combinations of credentials, addresses, and dialers will be dialed in
-// the background, and the first successful connection will replace the initially
-// returned client. The initially returned client will always be set using the
-// first credentials and first address or dialer in cfg.
+// The client will use the first credentials and the given dialer. If
+// no dialer is given, the first address will be used. This address must
+// be an auth server address.
 func connectInBackground(ctx context.Context, cfg Config) (*Client, error) {
-	// Dial with the first credentials and first address or dialer.
 	tlsConfig, err := cfg.Credentials[0].TLSConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	dialer := cfg.Dialer
+	addr := constants.APIDomain
 	if dialer == nil {
+		if len(cfg.Addrs) == 0 {
+			return nil, trace.BadParameter("must have a Dialer or Addrs in config")
+		}
 		dialer = NewDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
+		addr = cfg.Addrs[0]
 	}
 
 	clt := &Client{c: cfg, tlsConfig: tlsConfig, dialer: dialer}
-	if err := clt.dialGRPC(ctx, cfg.Addrs[0], false); err != nil {
+	if err := clt.dialGRPC(ctx, addr, false); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

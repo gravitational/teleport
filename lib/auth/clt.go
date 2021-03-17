@@ -86,8 +86,9 @@ var _ ClientI = &Client{}
 
 // NewClient creates a new API client with a connection to a Teleport server.
 //
-// NewClient will only use the first credentials listed in cfg.
-// A predefined dialer or an auth server address must be provided in cfg.
+// The client will use the first credentials and the given dialer. If
+// no dialer is given, the first address will be used. This address must
+// be an auth server address.
 //
 // NOTE: This client is being deprecated in favor of the gRPC Client in
 // teleport/api/client. This Client should only be used internally, or for
