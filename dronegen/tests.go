@@ -91,10 +91,7 @@ func testCodePipeline() pipeline {
 				"GITHUB_PRIVATE_KEY": value{fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
 			Volumes: []volumeRef{
-				volumeRef{
-					Name: "tmpfs",
-					Path: "/tmpfs",
-				},
+				volumeRefTmpfs,
 			},
 			Commands: testCheckoutCommands(true),
 		},
@@ -133,10 +130,7 @@ func testCodePipeline() pipeline {
 			Name:  "Optionally skip tests",
 			Image: "docker:git",
 			Volumes: []volumeRef{
-				volumeRef{
-					Name: "tmpfs",
-					Path: "/tmpfs",
-				},
+				volumeRefTmpfs,
 			},
 			Commands: []string{
 				`cd /tmpfs/go/src/github.com/gravitational/teleport
@@ -218,10 +212,7 @@ func testDocsPipeline() pipeline {
 			Name:  "Check out code",
 			Image: "docker:git",
 			Volumes: []volumeRef{
-				volumeRef{
-					Name: "tmpfs",
-					Path: "/tmpfs",
-				},
+				volumeRefTmpfs,
 			},
 			Commands: testCheckoutCommands(false),
 		},
