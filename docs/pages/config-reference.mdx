@@ -9,6 +9,9 @@ Teleport uses the YAML file format for configuration. A full configuration refer
 file is shown below, this provides comments and all available options for `teleport.yaml`
 By default, it is stored in `/etc/teleport.yaml`.
 
+This document aims to be a reference rather than a starting point for a real cluster. To
+get a good starting file, run `teleport configure -o teleport.yaml`.
+
 ```yaml
 # By default, this file should be stored in /etc/teleport.yaml
 
@@ -21,8 +24,11 @@ teleport:
 
     # Data directory where Teleport daemon keeps its data.
     # See "Filesystem Layout" for more details
-    # (https://goteleport.com/teleport/docs/admin-guide/#filesystem-layout).
+    # (https://goteleport.com/docs/admin-guide/#filesystem-layout).
     data_dir: /var/lib/teleport
+
+    # PID file for Teleport process
+    #pid_file: /var/run/teleport.pid
 
     # Invitation token used to join a cluster. it is not used on
     # subsequent starts
@@ -30,7 +36,7 @@ teleport:
 
     # Optional CA pin of the auth server. This enables more secure way of adding new
     # nodes to a cluster. See "Adding Nodes to the Cluster"
-    # (https://goteleport.com/teleport/docs/admin-guide/#adding-nodes-to-the-cluster).
+    # (https://goteleport.com/docs/admin-guide/#adding-nodes-to-the-cluster).
     ca_pin: "sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1"
 
     # When running in multi-homed or NATed environments Teleport nodes need
@@ -48,6 +54,18 @@ teleport:
         - 10.1.0.5:3025
         - 10.1.0.6:3025
 
+    # For use on a Teleport Proxy
+    # See the "Teleport Scalability Tweaks" of the admin manual
+    # (https://goteleport.com/docs/admin-guide/#teleport-scalability-tweaks)
+    #cache:
+    #  # use an in-memory cache to speed up the connection of many teleport nodes
+    #  # back to proxy
+    #  type: in-memory
+    #  enabled: true
+    #  # can be "never" or a duration such as 300m (300 minutes),
+    #  # 2.5h (2 and a half hours), etc. Default is 20h (twenty hours).
+    #  ttl: 20h
+
     # Teleport throttles all connections to avoid abuse. These settings allow
     # you to adjust the default limits
     connection_limits:
@@ -64,7 +82,7 @@ teleport:
 
     # Configuration for the storage back-end used for the cluster state and the
     # audit log. Several back-end types are supported. See the "High Availability"
-    # section of the Admin Manual (https://goteleport.com/teleport/docs/admin-guide/#high-availability)
+    # section of the Admin Manual (https://goteleport.com/docs/admin-guide/#high-availability)
     # to learn how to configure DynamoDB, S3, etcd and other highly available back-ends.
     storage:
         # By default teleport uses the `data_dir` directory on a local filesystem
@@ -79,7 +97,7 @@ teleport:
 
         # Use this setting to configure teleport to store the recorded sessions in
         # an AWS S3 bucket or use GCP Storage with 'gs://'. See "Using Amazon S3"
-        # for more information (https://goteleport.com/teleport/docs/admin-guide/#using-amazon-s3).
+        # for more information (https://goteleport.com/docs/admin-guide/#using-amazon-s3).
         audit_sessions_uri: 's3://example.com/path/to/bucket?region=us-east-1'
 
         # DynamoDB Specific Section
@@ -157,11 +175,15 @@ auth_service:
     authentication:
         # default authentication type. possible values are 'local' and 'github' for OSS
         #  and 'oidc', 'saml' and 'false' for Enterprise.
-        # 'false' is required for FedRAMP / FIPS, see
-        #  https://gravitational.com/teleport/docs/enterprise/ssh-kubernetes-fedramp/
         #  only local authentication (Teleport's own user DB) & Github is supported in the open
         #  source version
         type: local
+
+        # Sets whether local auth is enabled alongside any other authentication
+        # type. Default is true. local_auth must be 'false' for FedRAMP / FIPS.
+        # (https://goteleport.com/docs/enterprise/ssh-kubernetes-fedramp/)
+        #local_auth: true
+
         # second_factor can be off, otp, or u2f
         second_factor: otp
         # this section is used if second_factor is set to 'u2f'
@@ -180,7 +202,7 @@ auth_service:
 
     # The optional DNS name the auth server if located behind a load balancer.
     # See the "Public Addr" section for more details
-    # (https://goteleport.com/teleport/docs/admin-guide/#public-addr).
+    # (https://goteleport.com/docs/admin-guide/#public-addr).
     public_addr: auth.example.com:3025
 
     # Pre-defined tokens for adding new nodes to a cluster. Each token specifies
@@ -197,7 +219,7 @@ auth_service:
     # Optional setting for configuring session recording. Possible values are:
     #    "node"  : sessions will be recorded on the node level  (the default)
     #    "proxy" : recording on the proxy level, see "Recording Proxy Mode"
-    #              (https://goteleport.com/teleport/docs/architecture/proxy/#recording-proxy-mode).
+    #              (https://goteleport.com/docs/architecture/proxy/#recording-proxy-mode).
     #    "off"   : session recording is turned off
     #
     # EXPERIMENTAL *-sync modes
@@ -212,7 +234,7 @@ auth_service:
 
     # This setting determines if a Teleport proxy performs strict host key checks.
     # Only applicable if session_recording=proxy, see "Recording Proxy Mode" for details
-    # (https://goteleport.com/teleport/docs/architecture/proxy/#recording-proxy-mode).
+    # (https://goteleport.com/docs/architecture/proxy/#recording-proxy-mode).
     proxy_checks_host_keys: yes
 
     # Determines if SSH sessions to cluster nodes are forcefully terminated
@@ -259,18 +281,18 @@ ssh_service:
     # The optional public address the SSH service. This is useful if administrators
     # want to allow users to connect to nodes directly, bypassing a Teleport proxy.
     # See the "Public Addr" section for more details
-    # (https://goteleport.com/teleport/docs/admin-guide/#public-addr).
+    # (https://goteleport.com/docs/admin-guide/#public-addr).
     public_addr: node.example.com:3022
 
     # See explanation of labels in "Labeling Nodes and Applications" section
-    # (https://goteleport.com/teleport/docs/admin-guide/#labeling-nodes-and-applications).
+    # (https://goteleport.com/docs/admin-guide/#labeling-nodes-and-applications).
     labels:
         role: leader
         type: postgres
 
     # List of the commands to periodically execute. Their output will be used as node labels.
     # See "Labeling Nodes" section for more information and more examples
-    # (https://goteleport.com/teleport/docs/admin-guide/#labeling-nodes-and-applications).
+    # (https://goteleport.com/docs/admin-guide/#labeling-nodes-and-applications).
     commands:
     # this command will add a label 'arch=x86_64' to a node
     - name: arch
@@ -282,7 +304,7 @@ ssh_service:
     permit_user_env: false
 
     # Enhanced Session Recording
-    # see https://gravitational.com/teleport/docs/features/enhanced-session-recording
+    # see https://goteleport.com/docs/features/enhanced-session-recording/
     enhanced_recording:
        # Enable or disable enhanced auditing for this node. Default value:
        # false.
@@ -302,10 +324,15 @@ ssh_service:
        cgroup_path: /cgroup2
 
     # Configures PAM integration. See our PAM guide for more details
-    # (https://goteleport.com/teleport/docs/features/ssh-pam/).
+    # (https://goteleport.com/docs/features/ssh-pam/).
     pam:
-        enabled: no
-        service_name: teleport
+        # "no" by default
+        enabled: yes
+        # use /etc/pam.d/sshd configuration (the default)
+        service_name: "sshd"
+        # use the "auth" modules in the PAM config
+        # "false" by default
+        use_pam_auth: true
 
 # This section configures the 'proxy service'
 proxy_service:
@@ -324,13 +351,18 @@ proxy_service:
 
     # The HTTPS listen address to serve the Web UI and also to authenticate the
     # command line (CLI) users via password+HOTP
+    # Also handles the PostgreSQL proxy if database access is enabled.
     web_listen_addr: 0.0.0.0:3080
 
     # The DNS name of the proxy HTTPS endpoint as accessible by cluster users.
     # Defaults to the proxy's hostname if not specified. If running multiple
     # proxies behind a load balancer, this name must point to the load balancer
     # See the "Public Addr" section for more details
-    # (https://goteleport.com/teleport/docs/admin-guide/#public-addr).
+
+    # (https://goteleport.com/docs/admin-guide/#public-addr).
+    # If database access is enabled, Database clients will connect to the Proxy
+    # over this hostname.
+    # (https://goteleport.com/docs/database-access/architecture/#database-client-to-proxy)
     public_addr: proxy.example.com:3080
 
     # The DNS name of the proxy SSH endpoint as accessible by cluster clients.
@@ -358,6 +390,16 @@ proxy_service:
     # optional: set a different public address for kubernetes access
     kube_public_addr: kube.example.com:3026
 
+    # If database access is enabled, the MySQL proxy listens on a separate port and
+    # needs to be enabled in the proxy server
+    #mysql_listen_addr: 0.0.0.0:3036
+
+    # Get automatic certificate from Letsencrypt.org using ACME via TLS_ALPN-01 challenge.
+    # Requires the proxy_service to be publicly accessible over port 443.
+    #acme:
+    #  enabled: yes
+    #  email: "user@example.com"
+
 # This section configures the 'application service'
 app_service:
     # Turns 'app' role on. Default is 'no'
@@ -370,6 +412,8 @@ app_service:
     - name: "kubernetes-dashboard"
       # URI and Port of Application.
       uri: "http://10.0.1.27:8000"
+      # Optionally skip TLS verification. default false
+      # insecure_skip_verify: true
       # Optional Public Addr
       public_addr: "example.com"
       # Optional Label: These can be used in combination with RBAC rules
@@ -381,7 +425,12 @@ app_service:
       - name: "os"
         command: ["/usr/bin/uname"]
         period: "5s"
-
+      # Optional simple rewriting of Location header
+      # Rewrite the "Location" header on redirect responses replacing the
+      # host with the public address of this application.
+      # redirect:
+      #   - "localhost"
+      #   - "jenkins.internal.dev"
 
 ## This section configures the 'kubernetes service'
 kubernetes_service:
@@ -417,5 +466,34 @@ kubernetes_service:
     # Get cluster name on GKE.
     - name: cluster-name
       command: ['curl', 'http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-name', '-H', 'Metadata-Flavor: Google']
+      period: 1m0s
+
+db_service:
+  # Enables the Database Service.
+  enabled: "yes"
+  # This section contains definitions of all databases proxied by this
+  # service, it can contain multiple database instances.
+  databases:
+    # Name of the database proxy instance, used to reference in CLI.
+  - name: "prod"
+    # Free-form description of the database proxy instance.
+    description: "Production database"
+    # Database protocol. Can be "postgres" or "mysql".
+    protocol: "postgres"
+    # Database connection endpoint. Must be reachable from Database Service.
+    uri: "postgres.example.com:5432"
+    # Optional path to the CA used to validate the database certificate.
+    ca_cert_file: /path/to/ca.pem
+    # AWS specific configuration, only required for RDS and Aurora.
+    aws:
+      # Region the database is deployed in.
+      region: "us-east-1"
+    # Static labels to assign to the database. Used in RBAC.
+    static_labels:
+      env: "prod"
+    # Dynamic labels ("commands"). Used in RBAC.
+    dynamic_labels:
+    - name: "hostname"
+      command: ["hostname"]
       period: 1m0s
 ```
