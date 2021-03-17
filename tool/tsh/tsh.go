@@ -194,7 +194,12 @@ type CLIConf struct {
 
 	// UseLocalSSHAgent set to false will prevent this client from attempting to
 	// connect to the local ssh-agent (or similar) socket at $SSH_AUTH_SOCK.
+	//
+	// Deprecated in favor of `AddKeysToAgent`.
 	UseLocalSSHAgent bool
+
+	// AddKeysToAgent specifies the behaviour of how certs are handled.
+	AddKeysToAgent string
 
 	// EnableEscapeSequences will scan stdin for SSH escape sequences during
 	// command/shell execution. This also requires stdin to be an interactive
@@ -243,6 +248,7 @@ const (
 	// cluster. All new code should use TELEPORT_CLUSTER instead.
 	siteEnvVar             = "TELEPORT_SITE"
 	userEnvVar             = "TELEPORT_USER"
+	addKeysToAgentEnvVar   = "TELEPORT_ADD_KEYS_TO_AGENT"
 	useLocalSSHAgentEnvVar = "TELEPORT_USE_LOCAL_SSH_AGENT"
 
 	clusterHelp = "Specify the cluster to connect"
@@ -279,7 +285,9 @@ func Run(args []string, opts ...cliOption) error {
 	app.Flag("gops-addr", "Specify gops addr to listen on").Hidden().StringVar(&cf.GopsAddr)
 	app.Flag("skip-version-check", "Skip version checking between server and client.").BoolVar(&cf.SkipVersionCheck)
 	app.Flag("debug", "Verbose logging to stdout").Short('d').BoolVar(&cf.Debug)
-	app.Flag("use-local-ssh-agent", fmt.Sprintf("Load generated SSH certificates into the local ssh-agent (specified via $SSH_AUTH_SOCK). You can also set %v environment variable. Default is true.", useLocalSSHAgentEnvVar)).
+	app.Flag("add-keys-to-agent", fmt.Sprintf("Controls how keys are handled. Valid values are %v.", client.AllAddKeysOptions)).Short('k').Envar(addKeysToAgentEnvVar).Default(client.AddKeysToAgentAuto).StringVar(&cf.AddKeysToAgent)
+	app.Flag("use-local-ssh-agent", "Deprecated in favor of the add-keys-to-agent flag.").
+		Hidden().
 		Envar(useLocalSSHAgentEnvVar).
 		Default("true").
 		BoolVar(&cf.UseLocalSSHAgent)
@@ -457,6 +465,10 @@ func Run(args []string, opts ...cliOption) error {
 
 	cf.executablePath, err = os.Executable()
 	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := client.ValidateAgentKeyOption(cf.AddKeysToAgent); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1634,11 +1646,10 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	// (not currently implemented) or set to 'none' to suppress browser opening entirely.
 	c.Browser = cf.Browser
 
-	// Do not write SSH certs into the local ssh-agent if user requested it.
-	//
-	// This is specifically for gpg-agent, which doesn't support SSH
-	// certificates (https://dev.gnupg.org/T1756)
-	c.UseLocalSSHAgent = cf.UseLocalSSHAgent
+	c.AddKeysToAgent = cf.AddKeysToAgent
+	if !cf.UseLocalSSHAgent {
+		c.AddKeysToAgent = client.AddKeysToAgentNo
+	}
 
 	c.EnableEscapeSequences = cf.EnableEscapeSequences
 
