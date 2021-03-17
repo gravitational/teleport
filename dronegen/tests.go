@@ -69,28 +69,15 @@ fi
 func testCodePipeline() pipeline {
 	p := newKubePipeline("test")
 	p.Environment = map[string]value{
-		"RUNTIME": value{raw: "go1.15.5"},
+		"RUNTIME": goRuntime,
 		"UID":     value{raw: "1000"},
 		"GID":     value{raw: "1000"},
 	}
 	p.Trigger = triggerPullRequest
 	p.Workspace = workspace{Path: "/go"}
-	p.Volumes = []volume{
-		volumeDocker,
-		volumeTmpfs,
-		{Name: "tmp-dind", Temp: &volumeTemp{}},
-		{Name: "tmp-integration", Temp: &volumeTemp{}},
-	}
+	p.Volumes = volumes(extraVolumes{tmpfs: true, tmpDind: true, tmpIntegration: true})
 	p.Services = []service{
-		{
-			Name:  "Start Docker",
-			Image: "docker:dind",
-			Volumes: []volumeRef{
-				volumeRefDocker,
-				volumeRefTmpfs,
-				{Name: "tmp-dind", Path: "/tmp"},
-			},
-		},
+		dockerService(extraVolumes{tmpfs: true, tmpDind: true}),
 	}
 	goEnvironment := map[string]value{
 		"GOCACHE": value{raw: "/tmpfs/go/cache"},
@@ -104,17 +91,17 @@ func testCodePipeline() pipeline {
 				"GITHUB_PRIVATE_KEY": value{fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
 			Volumes: []volumeRef{
-				volumeRefTmpfs,
+				volumeRef{
+					Name: "tmpfs",
+					Path: "/tmpfs",
+				},
 			},
 			Commands: testCheckoutCommands(true),
 		},
 		{
-			Name:  "Build buildbox",
-			Image: "docker",
-			Volumes: []volumeRef{
-				volumeRefDocker,
-				volumeRefTmpfs,
-			},
+			Name:    "Build buildbox",
+			Image:   "docker",
+			Volumes: volumeRefs(extraVolumes{tmpfs: true}),
 			Commands: []string{
 				`apk add --no-cache make`,
 				`chown -R $UID:$GID /tmpfs/go`,
@@ -127,10 +114,7 @@ func testCodePipeline() pipeline {
 			Name:        "Run linter",
 			Image:       "docker",
 			Environment: goEnvironment,
-			Volumes: []volumeRef{
-				volumeRefDocker,
-				volumeRefTmpfs,
-			},
+			Volumes:     volumeRefs(extraVolumes{tmpfs: true}),
 			Commands: []string{
 				`apk add --no-cache make`,
 				`chown -R $UID:$GID /tmpfs/go`,
@@ -149,7 +133,10 @@ func testCodePipeline() pipeline {
 			Name:  "Optionally skip tests",
 			Image: "docker:git",
 			Volumes: []volumeRef{
-				volumeRefTmpfs,
+				volumeRef{
+					Name: "tmpfs",
+					Path: "/tmpfs",
+				},
 			},
 			Commands: []string{
 				`cd /tmpfs/go/src/github.com/gravitational/teleport
@@ -172,10 +159,7 @@ echo ""
 			Name:        "Run unit and chaos tests",
 			Image:       "docker",
 			Environment: goEnvironment,
-			Volumes: []volumeRef{
-				volumeRefDocker,
-				volumeRefTmpfs,
-			},
+			Volumes:     volumeRefs(extraVolumes{tmpfs: true}),
 			Commands: []string{
 				`apk add --no-cache make`,
 				`chown -R $UID:$GID /tmpfs/go`,
@@ -189,11 +173,7 @@ echo ""
 			Name:        "Run root-only integration tests",
 			Image:       "docker",
 			Environment: goEnvironment,
-			Volumes: []volumeRef{
-				volumeRefDocker,
-				volumeRefTmpfs,
-				{Name: "tmp-integration", Path: "/tmp"},
-			},
+			Volumes:     volumeRefs(extraVolumes{tmpfs: true, tmpIntegration: true}),
 			Commands: []string{
 				`apk add --no-cache make`,
 				`cd /tmpfs/go/src/github.com/gravitational/teleport`,
@@ -210,11 +190,7 @@ echo ""
 				"KUBECONFIG":                value{raw: "/tmpfs/go/kubeconfig.ci"},
 				"TEST_KUBE":                 value{raw: "true"},
 			},
-			Volumes: []volumeRef{
-				volumeRefDocker,
-				volumeRefTmpfs,
-				{Name: "tmp-integration", Path: "/tmp"},
-			},
+			Volumes: volumeRefs(extraVolumes{tmpfs: true, tmpIntegration: true}),
 			Commands: []string{
 				`apk add --no-cache make`,
 				// write kubeconfig to disk for use in kube integration tests
@@ -233,26 +209,19 @@ func testDocsPipeline() pipeline {
 	p := newKubePipeline("test-docs")
 	p.Trigger = triggerPullRequest
 	p.Workspace = workspace{Path: "/go"}
-	p.Volumes = []volume{
-		volumeDocker,
-		volumeTmpfs,
-	}
+	p.Volumes = volumes(extraVolumes{tmpfs: true})
 	p.Services = []service{
-		{
-			Name:  "Start Docker",
-			Image: "docker:dind",
-			Volumes: []volumeRef{
-				volumeRefDocker,
-				volumeRefTmpfs,
-			},
-		},
+		dockerService(extraVolumes{tmpfs: true}),
 	}
 	p.Steps = []step{
 		{
 			Name:  "Check out code",
 			Image: "docker:git",
 			Volumes: []volumeRef{
-				volumeRefTmpfs,
+				volumeRef{
+					Name: "tmpfs",
+					Path: "/tmpfs",
+				},
 			},
 			Commands: testCheckoutCommands(false),
 		},
@@ -264,10 +233,7 @@ func testDocsPipeline() pipeline {
 				"UID":     value{raw: "1000"},
 				"GID":     value{raw: "1000"},
 			},
-			Volumes: []volumeRef{
-				volumeRefDocker,
-				volumeRefTmpfs,
-			},
+			Volumes: volumeRefs(extraVolumes{tmpfs: true}),
 			Commands: []string{
 				`apk add --no-cache make`,
 				`cd /tmpfs/go/src/github.com/gravitational/teleport`,

@@ -2,16 +2,10 @@ package main
 
 import "fmt"
 
-type pushBuildType struct {
-	os   string
-	arch string
-	fips bool
-}
-
 // pushMakefileTarget gets the correct push pipeline Makefile target for a given arch/fips combo
-func pushMakefileTarget(params pushBuildType) string {
-	makefileTarget := fmt.Sprintf("release-%s", params.arch)
-	if params.fips {
+func pushMakefileTarget(b buildType) string {
+	makefileTarget := fmt.Sprintf("release-%s", b.arch)
+	if b.fips {
 		makefileTarget += "-fips"
 	}
 	return makefileTarget
@@ -42,19 +36,19 @@ func pushCheckoutCommands(fips bool) []string {
 }
 
 // pushBuildCommands generates a list of commands for Drone to build an artifact as part of a push build
-func pushBuildCommands(params pushBuildType) []string {
+func pushBuildCommands(b buildType) []string {
 	commands := []string{
 		`apk add --no-cache make`,
 		`chown -R $UID:$GID /go`,
 		`cd /go/src/github.com/gravitational/teleport`,
 	}
-	if params.fips {
+	if b.fips {
 		commands = append(commands,
 			`export VERSION=$(cat /go/.version.txt)`,
 		)
 	}
 	commands = append(commands,
-		fmt.Sprintf(`make -C build.assets %s`, pushMakefileTarget(params)),
+		fmt.Sprintf(`make -C build.assets %s`, pushMakefileTarget(b)),
 	)
 	return commands
 }
@@ -68,55 +62,47 @@ func pushPipelines() []pipeline {
 				// FIPS mode not supported on i386/ARM
 				continue
 			}
-			ps = append(ps, pushPipeline(pushBuildType{os: "linux", arch: arch, fips: fips}))
+			ps = append(ps, pushPipeline(buildType{os: "linux", arch: arch, fips: fips}))
 		}
 	}
 	// Only amd64 Windows is supported for now.
-	ps = append(ps, pushPipeline(pushBuildType{os: "windows", arch: "amd64"}))
+	ps = append(ps, pushPipeline(buildType{os: "windows", arch: "amd64"}))
 	return ps
 }
 
 // pushPipeline generates a push pipeline for a given combination of os/arch/FIPS
-func pushPipeline(params pushBuildType) pipeline {
-	if params.os == "" {
-		panic("params.os must be set")
+func pushPipeline(b buildType) pipeline {
+	if b.os == "" {
+		panic("b.os must be set")
 	}
-	if params.arch == "" {
-		panic("params.arch must be set")
+	if b.arch == "" {
+		panic("b.arch must be set")
 	}
 
-	pipelineName := fmt.Sprintf("push-build-%s-%s", params.os, params.arch)
+	pipelineName := fmt.Sprintf("push-build-%s-%s", b.os, b.arch)
 	pushEnvironment := map[string]value{
 		"UID":    value{raw: "1000"},
 		"GID":    value{raw: "1000"},
 		"GOPATH": value{raw: "/go"},
-		"OS":     value{raw: params.os},
-		"ARCH":   value{raw: params.arch},
+		"OS":     value{raw: b.os},
+		"ARCH":   value{raw: b.arch},
 	}
-	if params.fips {
+	if b.fips {
 		pipelineName += "-fips"
 		pushEnvironment["FIPS"] = value{raw: "yes"}
 	}
 
 	p := newKubePipeline(pipelineName)
 	p.Environment = map[string]value{
-		"RUNTIME": value{raw: "go1.15.5"},
+		"RUNTIME": goRuntime,
 		"UID":     value{raw: "1000"},
 		"GID":     value{raw: "1000"},
 	}
 	p.Trigger = triggerPush
 	p.Workspace = workspace{Path: "/go"}
-	p.Volumes = []volume{
-		volumeDocker,
-	}
+	p.Volumes = volumes(extraVolumes{})
 	p.Services = []service{
-		{
-			Name:  "Start Docker",
-			Image: "docker:dind",
-			Volumes: []volumeRef{
-				volumeRefDocker,
-			},
-		},
+		dockerService(extraVolumes{}),
 	}
 	p.Steps = []step{
 		{
@@ -125,16 +111,14 @@ func pushPipeline(params pushBuildType) pipeline {
 			Environment: map[string]value{
 				"GITHUB_PRIVATE_KEY": value{fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
-			Commands: pushCheckoutCommands(params.fips),
+			Commands: pushCheckoutCommands(b.fips),
 		},
 		{
 			Name:        "Build artifacts",
 			Image:       "docker",
 			Environment: pushEnvironment,
-			Volumes: []volumeRef{
-				volumeRefDocker,
-			},
-			Commands: pushBuildCommands(params),
+			Volumes:     volumeRefs(extraVolumes{}),
+			Commands:    pushBuildCommands(b),
 		},
 		{
 			Name:  "Send Slack notification",
