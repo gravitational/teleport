@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"strings"
 )
 
 const (
@@ -12,20 +11,13 @@ const (
 	debPackage = "deb"
 )
 
-type tagBuildType struct {
-	os      string
-	arch    string
-	fips    bool
-	centos6 bool
-}
-
 // tagMakefileTarget gets the correct tag pipeline Makefile target for a given arch/fips combo
-func tagMakefileTarget(params tagBuildType) string {
-	makefileTarget := fmt.Sprintf("release-%s", params.arch)
-	if params.centos6 {
+func tagMakefileTarget(b buildType) string {
+	makefileTarget := fmt.Sprintf("release-%s", b.arch)
+	if b.centos6 {
 		makefileTarget += "-centos6"
 	}
-	if params.fips {
+	if b.fips {
 		makefileTarget += "-fips"
 	}
 	return makefileTarget
@@ -54,14 +46,14 @@ func tagCheckoutCommands(fips bool) []string {
 }
 
 // tagBuildCommands generates a list of commands for Drone to build an artifact as part of a tag build
-func tagBuildCommands(params tagBuildType) []string {
+func tagBuildCommands(b buildType) []string {
 	commands := []string{
 		`apk add --no-cache make`,
 		`chown -R $UID:$GID /go`,
 		`cd /go/src/github.com/gravitational/teleport`,
 	}
 
-	if params.fips {
+	if b.fips {
 		commands = append(commands,
 			"export VERSION=$(cat /go/.version.txt)",
 		)
@@ -69,7 +61,7 @@ func tagBuildCommands(params tagBuildType) []string {
 
 	commands = append(commands,
 		fmt.Sprintf(
-			`make -C build.assets %s`, tagMakefileTarget(params),
+			`make -C build.assets %s`, tagMakefileTarget(b),
 		),
 	)
 
@@ -77,9 +69,9 @@ func tagBuildCommands(params tagBuildType) []string {
 }
 
 // tagCopyArtifactCommands generates a set of commands to find and copy built tarball artifacts as part of a tag build
-func tagCopyArtifactCommands(params tagBuildType) []string {
+func tagCopyArtifactCommands(b buildType) []string {
 	extension := ".tar.gz"
-	if params.os == "windows" {
+	if b.os == "windows" {
 		extension = ".zip"
 	}
 
@@ -88,14 +80,14 @@ func tagCopyArtifactCommands(params tagBuildType) []string {
 	}
 
 	// don't copy OSS artifacts for any FIPS build
-	if !params.fips {
+	if !b.fips {
 		commands = append(commands,
 			fmt.Sprintf(`find . -maxdepth 1 -iname "teleport*%s" -print -exec cp {} /go/artifacts \;`, extension),
 		)
 	}
 
 	// copy enterprise artifacts
-	if params.os == "windows" {
+	if b.os == "windows" {
 		commands = append(commands,
 			`export VERSION=$(cat /go/.version.txt)`,
 			`cp /go/artifacts/teleport-v$${VERSION}-windows-amd64-bin.zip /go/artifacts/teleport-ent-v$${VERSION}-windows-amd64-bin.zip`,
@@ -108,9 +100,9 @@ func tagCopyArtifactCommands(params tagBuildType) []string {
 
 	// we need to specifically rename artifacts which are created for CentOS 6
 	// these is the only special case where renaming is not handled inside the Makefile
-	if params.centos6 {
+	if b.centos6 {
 		commands = append(commands, `export VERSION=$(cat /go/.version.txt)`)
-		if !params.fips {
+		if !b.fips {
 			commands = append(commands,
 				`mv /go/artifacts/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-v$${VERSION}-linux-amd64-centos6-bin.tar.gz`,
 				`mv /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos6-bin.tar.gz`,
@@ -127,6 +119,30 @@ func tagCopyArtifactCommands(params tagBuildType) []string {
 	return commands
 }
 
+type s3Settings struct {
+	region      string
+	source      string
+	target      string
+	stripPrefix string
+}
+
+// uploadToS3Step generates an S3 upload step
+func uploadToS3Step(s s3Settings) step {
+	return step{
+		Name:  "Upload to S3",
+		Image: "plugins/s3",
+		Settings: map[string]value{
+			"bucket":       value{fromSecret: "AWS_S3_BUCKET"},
+			"access_key":   value{fromSecret: "AWS_ACCESS_KEY_ID"},
+			"secret_key":   value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
+			"region":       value{raw: s.region},
+			"source":       value{raw: s.source},
+			"target":       value{raw: s.target},
+			"strip_prefix": value{raw: s.stripPrefix},
+		},
+	}
+}
+
 // tagPipelines builds all applicable tag pipeline combinations
 func tagPipelines() []pipeline {
 	var ps []pipeline
@@ -137,10 +153,10 @@ func tagPipelines() []pipeline {
 				// FIPS mode not supported on i386 or ARM
 				continue
 			}
-			ps = append(ps, tagPipeline(tagBuildType{os: "linux", arch: arch, fips: fips}))
+			ps = append(ps, tagPipeline(buildType{os: "linux", arch: arch, fips: fips}))
 			// TODO(gus): support needs to be added upstream for building ARM/ARM64 packages first
-			// ps = append(ps, tagPackagePipeline(rpmPackage, tagBuildType{os: "linux", arch: arch, fips: fips}))
-			// ps = append(ps, tagPackagePipeline(debPackage, tagBuildType{os: "linux", arch: arch, fips: fips}))
+			// ps = append(ps, tagPackagePipeline(rpmPackage, buildType{os: "linux", arch: arch, fips: fips}))
+			// ps = append(ps, tagPackagePipeline(debPackage, buildType{os: "linux", arch: arch, fips: fips}))
 		}
 	}
 
@@ -152,68 +168,53 @@ func tagPipelines() []pipeline {
 				// FIPS mode not supported on i386 or ARM
 				continue
 			}
-			ps = append(ps, tagPackagePipeline(rpmPackage, tagBuildType{os: "linux", arch: arch, fips: fips}))
-			ps = append(ps, tagPackagePipeline(debPackage, tagBuildType{os: "linux", arch: arch, fips: fips}))
+			ps = append(ps, tagPackagePipeline(rpmPackage, buildType{os: "linux", arch: arch, fips: fips}))
+			ps = append(ps, tagPackagePipeline(debPackage, buildType{os: "linux", arch: arch, fips: fips}))
 		}
 	}
 
 	// Only amd64 Windows is supported for now.
-	ps = append(ps, tagPipeline(tagBuildType{os: "windows", arch: "amd64"}))
+	ps = append(ps, tagPipeline(buildType{os: "windows", arch: "amd64"}))
 	// Also add the two CentOS 6 artifacts.
-	ps = append(ps, tagPipeline(tagBuildType{os: "linux", arch: "amd64", centos6: true}))
-	ps = append(ps, tagPipeline(tagBuildType{os: "linux", arch: "amd64", centos6: true, fips: true}))
+	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos6: true}))
+	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos6: true, fips: true}))
 	return ps
 }
 
 // tagPipeline generates a tag pipeline for a given combination of os/arch/FIPS
-func tagPipeline(params tagBuildType) pipeline {
-	if params.os == "" {
-		panic("params.os must be set")
+func tagPipeline(b buildType) pipeline {
+	if b.os == "" {
+		panic("b.os must be set")
 	}
-	if params.arch == "" {
-		panic("params.arch must be set")
+	if b.arch == "" {
+		panic("b.arch must be set")
 	}
 
-	pipelineName := fmt.Sprintf("build-%s-%s", params.os, params.arch)
-	pipelineTitleSegment := "release artifacts"
-	if params.centos6 {
+	pipelineName := fmt.Sprintf("build-%s-%s", b.os, b.arch)
+	if b.centos6 {
 		pipelineName += "-centos6"
-		pipelineTitleSegment = "CentOS 6 release artifacts"
 	}
 	tagEnvironment := map[string]value{
 		"UID":    value{raw: "1000"},
 		"GID":    value{raw: "1000"},
 		"GOPATH": value{raw: "/go"},
-		"OS":     value{raw: params.os},
-		"ARCH":   value{raw: params.arch},
+		"OS":     value{raw: b.os},
+		"ARCH":   value{raw: b.arch},
 	}
-	if params.fips {
+	if b.fips {
 		pipelineName += "-fips"
 		tagEnvironment["FIPS"] = value{raw: "yes"}
-		if params.centos6 {
-			pipelineTitleSegment = "CentOS 6 FIPS release artifacts"
-		} else {
-			pipelineTitleSegment = "FIPS release artifacts"
-		}
 	}
 
 	p := newKubePipeline(pipelineName)
 	p.Environment = map[string]value{
-		"RUNTIME": value{raw: "go1.15.5"},
+		"RUNTIME": goRuntime,
 	}
 	p.Trigger = triggerTag
 	p.Workspace = workspace{Path: "/go"}
-	p.Volumes = []volume{
-		volumeDocker,
-	}
+	p.Volumes = volumes(extraVolumes{})
 	p.Services = []service{
-		{
-			Name:  "Start Docker",
-			Image: "docker:dind",
-			Volumes: []volumeRef{
-				volumeRefDocker,
-			},
-		},
+		dockerService(extraVolumes{}),
 	}
 	p.Steps = []step{
 		{
@@ -222,50 +223,39 @@ func tagPipeline(params tagBuildType) pipeline {
 			Environment: map[string]value{
 				"GITHUB_PRIVATE_KEY": value{fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
-			Commands: tagCheckoutCommands(params.fips),
+			Commands: tagCheckoutCommands(b.fips),
 		},
 		{
-			Name:        fmt.Sprintf("Build %s", pipelineTitleSegment),
+			Name:        "Build artifacts",
 			Image:       "docker",
 			Environment: tagEnvironment,
-			Volumes: []volumeRef{
-				volumeRefDocker,
-			},
-			Commands: tagBuildCommands(params),
+			Volumes:     volumeRefs(extraVolumes{}),
+			Commands:    tagBuildCommands(b),
 		},
 		{
-			Name:     fmt.Sprintf("Copy %s", pipelineTitleSegment),
+			Name:     "Copy artifacts",
 			Image:    "docker",
-			Commands: tagCopyArtifactCommands(params),
+			Commands: tagCopyArtifactCommands(b),
 		},
-		{
-			Name:  "Upload to S3",
-			Image: "plugins/s3",
-			Settings: map[string]value{
-				"bucket":       value{fromSecret: "AWS_S3_BUCKET"},
-				"access_key":   value{fromSecret: "AWS_ACCESS_KEY_ID"},
-				"secret_key":   value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
-				"region":       value{raw: "us-west-2"},
-				"source":       value{raw: "/go/artifacts/*"},
-				"target":       value{raw: "teleport/tag/${DRONE_TAG##v}"},
-				"strip_prefix": value{raw: "/go/artifacts/"},
-			},
-		},
+		uploadToS3Step(s3Settings{
+			region:      "us-west-2",
+			source:      "/go/artifacts/*",
+			target:      "teleport/tag/${DRONE_TAG##v}",
+			stripPrefix: "/go/artifacts/",
+		}),
 	}
 	return p
 }
 
 // tagDownloadArtifactCommands generates a set of commands to download appropriate artifacts for creating a package as part of a tag build
-func tagDownloadArtifactCommands(params tagBuildType) []string {
+func tagDownloadArtifactCommands(b buildType) []string {
 	commands := []string{
 		`export VERSION=$(cat /go/.version.txt)`,
 		`if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi`,
 	}
 	artifactOSS := true
-	artifactEnterprise := true
-
-	artifactType := fmt.Sprintf("%s-%s", params.os, params.arch)
-	if params.fips {
+	artifactType := fmt.Sprintf("%s-%s", b.os, b.arch)
+	if b.fips {
 		artifactType += "-fips"
 		artifactOSS = false
 	}
@@ -275,20 +265,18 @@ func tagDownloadArtifactCommands(params tagBuildType) []string {
 			fmt.Sprintf(`aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-%s-bin.tar.gz /go/artifacts/`, artifactType),
 		)
 	}
-	if artifactEnterprise {
-		commands = append(commands,
-			fmt.Sprintf(`aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-%s-bin.tar.gz /go/artifacts/`, artifactType),
-		)
-	}
+	commands = append(commands,
+		fmt.Sprintf(`aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-%s-bin.tar.gz /go/artifacts/`, artifactType),
+	)
 	return commands
 }
 
 // tagCopyPackageArtifactCommands generates a set of commands to find and copy built package artifacts as part of a tag build
-func tagCopyPackageArtifactCommands(params tagBuildType, packageType string) []string {
+func tagCopyPackageArtifactCommands(b buildType, packageType string) []string {
 	commands := []string{
 		`cd /go/src/github.com/gravitational/teleport`,
 	}
-	if !params.fips {
+	if !b.fips {
 		commands = append(commands, fmt.Sprintf(`find build -maxdepth 1 -iname "teleport*.%s*" -print -exec cp {} /go/artifacts \;`, packageType))
 	}
 	commands = append(commands, fmt.Sprintf(`find e/build -maxdepth 1 -iname "teleport*.%s*" -print -exec cp {} /go/artifacts \;`, packageType))
@@ -296,24 +284,24 @@ func tagCopyPackageArtifactCommands(params tagBuildType, packageType string) []s
 }
 
 // tagPackagePipeline generates a tag package pipeline for a given combination of os/arch/FIPS
-func tagPackagePipeline(packageType string, params tagBuildType) pipeline {
+func tagPackagePipeline(packageType string, b buildType) pipeline {
 	if packageType == "" {
 		panic("packageType must be set")
 	}
-	if params.os == "" {
-		panic("params.os must be set")
+	if b.os == "" {
+		panic("b.os must be set")
 	}
-	if params.arch == "" {
-		panic("params.arch must be set")
+	if b.arch == "" {
+		panic("b.arch must be set")
 	}
 
 	environment := map[string]value{
-		"ARCH":             value{raw: params.arch},
+		"ARCH":             value{raw: b.arch},
 		"TMPDIR":           value{raw: "/go"},
 		"ENT_TARBALL_PATH": value{raw: "/go/artifacts"},
 	}
 
-	dependentPipeline := fmt.Sprintf("build-%s-%s", params.os, params.arch)
+	dependentPipeline := fmt.Sprintf("build-%s-%s", b.os, b.arch)
 	packageBuildCommands := []string{
 		`apk add --no-cache bash curl gzip make tar`,
 		`cd /go/src/github.com/gravitational/teleport`,
@@ -321,7 +309,7 @@ func tagPackagePipeline(packageType string, params tagBuildType) pipeline {
 	}
 
 	makeCommand := fmt.Sprintf("make %s", packageType)
-	if params.fips {
+	if b.fips {
 		dependentPipeline += "-fips"
 		environment["FIPS"] = value{raw: "yes"}
 		environment["RUNTIME"] = value{raw: "fips"}
@@ -330,13 +318,10 @@ func tagPackagePipeline(packageType string, params tagBuildType) pipeline {
 		environment["OSS_TARBALL_PATH"] = value{raw: "/go/artifacts"}
 	}
 
-	tagVolumes := []volume{
-		volumeDocker,
-	}
-	tagVolumeRefs := []volumeRef{
-		volumeRefDocker,
-	}
-	if packageType == rpmPackage {
+	tagExtraVolumes := extraVolumes{}
+
+	switch packageType {
+	case rpmPackage:
 		environment["GNUPG_DIR"] = value{raw: "/tmpfs/gnupg"}
 		environment["GPG_RPM_SIGNING_ARCHIVE"] = value{fromSecret: "GPG_RPM_SIGNING_ARCHIVE"}
 		packageBuildCommands = append(packageBuildCommands,
@@ -346,19 +331,13 @@ func tagPackagePipeline(packageType string, params tagBuildType) pipeline {
 			makeCommand,
 			`rm -rf $GNUPG_DIR`,
 		)
-		tagVolumes = []volume{
-			volumeDocker,
-			volumeTmpfs,
-		}
-		tagVolumeRefs = []volumeRef{
-			volumeRefDocker,
-			volumeRefTmpfs,
-		}
-
-	} else if packageType == debPackage {
+		tagExtraVolumes = extraVolumes{tmpfs: true}
+	case debPackage:
 		packageBuildCommands = append(packageBuildCommands,
 			makeCommand,
 		)
+	default:
+		panic("packageType is not set")
 	}
 
 	pipelineName := fmt.Sprintf("%s-%s", dependentPipeline, packageType)
@@ -367,13 +346,9 @@ func tagPackagePipeline(packageType string, params tagBuildType) pipeline {
 	p.Trigger = triggerTag
 	p.DependsOn = []string{dependentPipeline}
 	p.Workspace = workspace{Path: "/go"}
-	p.Volumes = tagVolumes
+	p.Volumes = volumes(tagExtraVolumes)
 	p.Services = []service{
-		{
-			Name:    "Start Docker",
-			Image:   "docker:dind",
-			Volumes: tagVolumeRefs,
-		},
+		dockerService(tagExtraVolumes),
 	}
 	p.Steps = []step{
 		{
@@ -382,10 +357,10 @@ func tagPackagePipeline(packageType string, params tagBuildType) pipeline {
 			Environment: map[string]value{
 				"GITHUB_PRIVATE_KEY": value{fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
-			Commands: tagCheckoutCommands(params.fips),
+			Commands: tagCheckoutCommands(b.fips),
 		},
 		{
-			Name:  "Download built tarball artifacts from S3",
+			Name:  "Download artifacts from S3",
 			Image: "amazon/aws-cli",
 			Environment: map[string]value{
 				"AWS_REGION":            value{raw: "us-west-2"},
@@ -393,33 +368,26 @@ func tagPackagePipeline(packageType string, params tagBuildType) pipeline {
 				"AWS_ACCESS_KEY_ID":     value{fromSecret: "AWS_ACCESS_KEY_ID"},
 				"AWS_SECRET_ACCESS_KEY": value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
 			},
-			Commands: tagDownloadArtifactCommands(params),
+			Commands: tagDownloadArtifactCommands(b),
 		},
 		{
-			Name:        fmt.Sprintf("Build %s artifacts", strings.ToUpper(packageType)),
+			Name:        "Build artifacts",
 			Image:       "docker",
 			Environment: environment,
-			Volumes:     tagVolumeRefs,
+			Volumes:     volumeRefs(tagExtraVolumes),
 			Commands:    packageBuildCommands,
 		},
 		{
-			Name:     fmt.Sprintf("Copy %s artifacts", strings.ToUpper(packageType)),
+			Name:     "Copy artifacts",
 			Image:    "docker",
-			Commands: tagCopyPackageArtifactCommands(params, packageType),
+			Commands: tagCopyPackageArtifactCommands(b, packageType),
 		},
-		{
-			Name:  "Upload to S3",
-			Image: "plugins/s3",
-			Settings: map[string]value{
-				"bucket":       value{fromSecret: "AWS_S3_BUCKET"},
-				"access_key":   value{fromSecret: "AWS_ACCESS_KEY_ID"},
-				"secret_key":   value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
-				"region":       value{raw: "us-west-2"},
-				"source":       value{raw: "/go/artifacts/*"},
-				"target":       value{raw: "teleport/tag/${DRONE_TAG##v}"},
-				"strip_prefix": value{raw: "/go/artifacts/"},
-			},
-		},
+		uploadToS3Step(s3Settings{
+			region:      "us-west-2",
+			source:      "/go/artifacts/*",
+			target:      "teleport/tag/${DRONE_TAG##v}",
+			stripPrefix: "/go/artifacts/",
+		}),
 	}
 	return p
 }
