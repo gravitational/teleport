@@ -1217,6 +1217,30 @@ message MFADeviceDelete {
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
+// BillingAccountUpdate is emitted when a user updates their billing account.
+message BillingAccountUpdate {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // CompanyName is billing account company name.
+    string CompanyName = 3 [ (gogoproto.jsontag) = "company_name,omitempty" ];
+    // CompanyEmail is billing account email.
+    string CompanyEmail = 4 [ (gogoproto.jsontag) = "company_email" ];
+}
+
+// BillingCard is emitted when a user creates, updates, deletes credit cards.
+message BillingCard {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
 // OneOf is a union of one of audit events submitted to the auth service
 message OneOf {
     // Event is one of the audit events
@@ -1266,6 +1290,8 @@ message OneOf {
         events.SessionUpload SessionUpload = 43;
         events.MFADeviceAdd MFADeviceAdd = 44;
         events.MFADeviceDelete MFADeviceDelete = 45;
+        events.BillingAccountUpdate BillingAccountUpdate = 46;
+        events.BillingCard BillingCard = 47;
     }
 }
 

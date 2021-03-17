@@ -622,10 +622,10 @@ const (
 // WithDelegator alias for backwards compatibility
 var WithDelegator = client.WithDelegator
 
-// clientUsername returns the username of a remote HTTP client making the call.
+// ClientUsername returns the username of a remote HTTP client making the call.
 // If ctx didn't pass through auth middleware or did not come from an HTTP
 // request, teleport.UserSystem is returned.
-func clientUsername(ctx context.Context) string {
+func ClientUsername(ctx context.Context) string {
 	userI := ctx.Value(ContextUser)
 	userWithIdentity, ok := userI.(IdentityGetter)
 	if !ok {

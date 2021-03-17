@@ -37,7 +37,7 @@ import (
 func (s *Server) CreateUser(ctx context.Context, user services.User) error {
 	if user.GetCreatedBy().IsEmpty() {
 		user.SetCreatedBy(services.CreatedBy{
-			User: services.UserRef{Name: clientUsername(ctx)},
+			User: services.UserRef{Name: ClientUsername(ctx)},
 			Time: s.GetClock().Now().UTC(),
 		})
 	}
@@ -97,7 +97,7 @@ func (s *Server) UpdateUser(ctx context.Context, user services.User) error {
 			Code: events.UserUpdateCode,
 		},
 		UserMetadata: events.UserMetadata{
-			User:         clientUsername(ctx),
+			User:         ClientUsername(ctx),
 			Impersonator: clientImpersonator(ctx),
 		},
 		ResourceMetadata: events.ResourceMetadata{
@@ -175,7 +175,7 @@ func (s *Server) DeleteUser(ctx context.Context, user string) error {
 			Code: events.UserDeleteCode,
 		},
 		UserMetadata: events.UserMetadata{
-			User:         clientUsername(ctx),
+			User:         ClientUsername(ctx),
 			Impersonator: clientImpersonator(ctx),
 		},
 		ResourceMetadata: events.ResourceMetadata{

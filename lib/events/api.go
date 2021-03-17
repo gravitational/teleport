@@ -192,6 +192,15 @@ const (
 	// AccessRequestID is the ID of an access request.
 	AccessRequestID = "id"
 
+	// BillingCardCreateEvent is emitted when a user creates a new credit card.
+	BillingCardCreateEvent = "billing.create_card"
+	// BillingCardDeleteEvent is emitted when a user deletes a credit card.
+	BillingCardDeleteEvent = "billing.delete_card"
+	// BillingCardUpdateEvent is emitted when a user updates an existing credit card.
+	BillingCardUpdateEvent = "billing.update_card"
+	// BillingAccountUpdateEvent is emitted when a user updates their billing account.
+	BillingAccountUpdateEvent = "billing.update_account"
+
 	// UpdatedBy indicates the user who modified some resource:
 	//  - updating a request state
 	//  - updating a user record

@@ -147,7 +147,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster servic
 			Code: events.TrustedClusterCreateCode,
 		},
 		UserMetadata: events.UserMetadata{
-			User:         clientUsername(ctx),
+			User:         ClientUsername(ctx),
 			Impersonator: clientImpersonator(ctx),
 		},
 		ResourceMetadata: events.ResourceMetadata{
@@ -221,7 +221,7 @@ func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
 			Code: events.TrustedClusterDeleteCode,
 		},
 		UserMetadata: events.UserMetadata{
-			User:         clientUsername(ctx),
+			User:         ClientUsername(ctx),
 			Impersonator: clientImpersonator(ctx),
 		},
 		ResourceMetadata: events.ResourceMetadata{
