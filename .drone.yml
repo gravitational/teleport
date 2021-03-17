@@ -201,7 +201,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tests.go:233
+# Generated at dronegen/tests.go:203
 ################################################
 
 kind: pipeline
@@ -324,7 +324,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:101
+# Generated at dronegen/push.go:95
 ################################################
 
 kind: pipeline
@@ -417,7 +417,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:101
+# Generated at dronegen/push.go:95
 ################################################
 
 kind: pipeline
@@ -510,7 +510,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:101
+# Generated at dronegen/push.go:95
 ################################################
 
 kind: pipeline
@@ -606,7 +606,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:101
+# Generated at dronegen/push.go:95
 ################################################
 
 kind: pipeline
@@ -796,7 +796,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:101
+# Generated at dronegen/push.go:95
 ################################################
 
 kind: pipeline
@@ -990,7 +990,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:101
+# Generated at dronegen/push.go:95
 ################################################
 
 kind: pipeline
@@ -1083,7 +1083,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:101
+# Generated at dronegen/push.go:95
 ################################################
 
 kind: pipeline
@@ -1410,7 +1410,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:200
+# Generated at dronegen/tag.go:209
 ################################################
 
 kind: pipeline
@@ -1450,7 +1450,7 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-- name: Build release artifacts
+- name: Build artifacts
   image: docker
   commands:
   - apk add --no-cache make
@@ -1466,7 +1466,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: Copy release artifacts
+- name: Copy artifacts
   image: docker
   commands:
   - cd /go/src/github.com/gravitational/teleport
@@ -1501,7 +1501,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:200
+# Generated at dronegen/tag.go:209
 ################################################
 
 kind: pipeline
@@ -1541,7 +1541,7 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-- name: Build FIPS release artifacts
+- name: Build artifacts
   image: docker
   commands:
   - apk add --no-cache make
@@ -1559,7 +1559,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: Copy FIPS release artifacts
+- name: Copy artifacts
   image: docker
   commands:
   - cd /go/src/github.com/gravitational/teleport
@@ -1593,7 +1593,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:200
+# Generated at dronegen/tag.go:209
 ################################################
 
 kind: pipeline
@@ -1633,7 +1633,7 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-- name: Build CentOS 6 release artifacts
+- name: Build artifacts
   image: docker
   commands:
   - apk add --no-cache make
@@ -1649,7 +1649,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: Copy CentOS 6 release artifacts
+- name: Copy artifacts
   image: docker
   commands:
   - cd /go/src/github.com/gravitational/teleport
@@ -1687,7 +1687,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:200
+# Generated at dronegen/tag.go:209
 ################################################
 
 kind: pipeline
@@ -1727,7 +1727,7 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-- name: Build CentOS 6 FIPS release artifacts
+- name: Build artifacts
   image: docker
   commands:
   - apk add --no-cache make
@@ -1745,7 +1745,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: Copy CentOS 6 FIPS release artifacts
+- name: Copy artifacts
   image: docker
   commands:
   - cd /go/src/github.com/gravitational/teleport
@@ -1781,7 +1781,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:366
+# Generated at dronegen/tag.go:345
 ################################################
 
 kind: pipeline
@@ -1821,7 +1821,7 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-- name: Download built tarball artifacts from S3
+- name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
@@ -1836,7 +1836,7 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
-- name: Build RPM artifacts
+- name: Build artifacts
   image: docker
   commands:
   - apk add --no-cache bash curl gzip make tar
@@ -1860,7 +1860,7 @@ steps:
     path: /var/run
   - name: tmpfs
     path: /tmpfs
-- name: Copy RPM artifacts
+- name: Copy artifacts
   image: docker
   commands:
   - cd /go/src/github.com/gravitational/teleport
@@ -1899,7 +1899,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:366
+# Generated at dronegen/tag.go:345
 ################################################
 
 kind: pipeline
@@ -1939,7 +1939,7 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-- name: Download built tarball artifacts from S3
+- name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
@@ -1953,7 +1953,7 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
-- name: Build RPM artifacts
+- name: Build artifacts
   image: docker
   commands:
   - apk add --no-cache bash curl gzip make tar
@@ -1978,7 +1978,7 @@ steps:
     path: /var/run
   - name: tmpfs
     path: /tmpfs
-- name: Copy RPM artifacts
+- name: Copy artifacts
   image: docker
   commands:
   - cd /go/src/github.com/gravitational/teleport
@@ -2016,7 +2016,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:366
+# Generated at dronegen/tag.go:345
 ################################################
 
 kind: pipeline
@@ -2056,7 +2056,7 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-- name: Download built tarball artifacts from S3
+- name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
@@ -2071,7 +2071,7 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
-- name: Build DEB artifacts
+- name: Build artifacts
   image: docker
   commands:
   - apk add --no-cache bash curl gzip make tar
@@ -2086,7 +2086,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: Copy DEB artifacts
+- name: Copy artifacts
   image: docker
   commands:
   - cd /go/src/github.com/gravitational/teleport
@@ -2120,7 +2120,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:366
+# Generated at dronegen/tag.go:345
 ################################################
 
 kind: pipeline
@@ -2160,7 +2160,7 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-- name: Download built tarball artifacts from S3
+- name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
@@ -2174,7 +2174,7 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
-- name: Build DEB artifacts
+- name: Build artifacts
   image: docker
   commands:
   - apk add --no-cache bash curl gzip make tar
@@ -2190,7 +2190,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: Copy DEB artifacts
+- name: Copy artifacts
   image: docker
   commands:
   - cd /go/src/github.com/gravitational/teleport
@@ -2223,7 +2223,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:200
+# Generated at dronegen/tag.go:209
 ################################################
 
 kind: pipeline
@@ -2263,7 +2263,7 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-- name: Build release artifacts
+- name: Build artifacts
   image: docker
   commands:
   - apk add --no-cache make
@@ -2279,7 +2279,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: Copy release artifacts
+- name: Copy artifacts
   image: docker
   commands:
   - cd /go/src/github.com/gravitational/teleport
@@ -2314,7 +2314,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:366
+# Generated at dronegen/tag.go:345
 ################################################
 
 kind: pipeline
@@ -2354,7 +2354,7 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-- name: Download built tarball artifacts from S3
+- name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
@@ -2369,7 +2369,7 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
-- name: Build RPM artifacts
+- name: Build artifacts
   image: docker
   commands:
   - apk add --no-cache bash curl gzip make tar
@@ -2393,7 +2393,7 @@ steps:
     path: /var/run
   - name: tmpfs
     path: /tmpfs
-- name: Copy RPM artifacts
+- name: Copy artifacts
   image: docker
   commands:
   - cd /go/src/github.com/gravitational/teleport
@@ -2432,7 +2432,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:366
+# Generated at dronegen/tag.go:345
 ################################################
 
 kind: pipeline
@@ -2472,7 +2472,7 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-- name: Download built tarball artifacts from S3
+- name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
@@ -2487,7 +2487,7 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
-- name: Build DEB artifacts
+- name: Build artifacts
   image: docker
   commands:
   - apk add --no-cache bash curl gzip make tar
@@ -2502,7 +2502,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: Copy DEB artifacts
+- name: Copy artifacts
   image: docker
   commands:
   - cd /go/src/github.com/gravitational/teleport
@@ -2922,7 +2922,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:200
+# Generated at dronegen/tag.go:209
 ################################################
 
 kind: pipeline
@@ -2962,7 +2962,7 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-- name: Build release artifacts
+- name: Build artifacts
   image: docker
   commands:
   - apk add --no-cache make
@@ -2978,7 +2978,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: Copy release artifacts
+- name: Copy artifacts
   image: docker
   commands:
   - cd /go/src/github.com/gravitational/teleport
@@ -3013,7 +3013,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:200
+# Generated at dronegen/tag.go:209
 ################################################
 
 kind: pipeline
@@ -3053,7 +3053,7 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-- name: Build release artifacts
+- name: Build artifacts
   image: docker
   commands:
   - apk add --no-cache make
@@ -3069,7 +3069,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: Copy release artifacts
+- name: Copy artifacts
   image: docker
   commands:
   - cd /go/src/github.com/gravitational/teleport
@@ -3104,7 +3104,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:200
+# Generated at dronegen/tag.go:209
 ################################################
 
 kind: pipeline
@@ -3144,7 +3144,7 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-- name: Build FIPS release artifacts
+- name: Build artifacts
   image: docker
   commands:
   - apk add --no-cache make
@@ -3162,7 +3162,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: Copy FIPS release artifacts
+- name: Copy artifacts
   image: docker
   commands:
   - cd /go/src/github.com/gravitational/teleport
@@ -3196,7 +3196,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:200
+# Generated at dronegen/tag.go:209
 ################################################
 
 kind: pipeline
@@ -3236,7 +3236,7 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-- name: Build release artifacts
+- name: Build artifacts
   image: docker
   commands:
   - apk add --no-cache make
@@ -3252,7 +3252,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: Copy release artifacts
+- name: Copy artifacts
   image: docker
   commands:
   - cd /go/src/github.com/gravitational/teleport
@@ -4053,6 +4053,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 7c68271ee80313336eb89b0bf6751d0b6f4a6fd1541b3ae47555d2ba39ba7719
+hmac: 38e3aea7410c56e084300b100c1d74fda4efdcc017b546f033bffd82fa614360
 
 ...
