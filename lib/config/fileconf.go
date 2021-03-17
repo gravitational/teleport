@@ -749,10 +749,11 @@ func (t StaticToken) Parse() (*services.ProvisionTokenV1, error) {
 
 // AuthenticationConfig describes the auth_service/authentication section of teleport.yaml
 type AuthenticationConfig struct {
-	Type          string                     `yaml:"type"`
-	SecondFactor  constants.SecondFactorType `yaml:"second_factor,omitempty"`
-	ConnectorName string                     `yaml:"connector_name,omitempty"`
-	U2F           *UniversalSecondFactor     `yaml:"u2f,omitempty"`
+	Type              string                     `yaml:"type"`
+	SecondFactor      constants.SecondFactorType `yaml:"second_factor,omitempty"`
+	ConnectorName     string                     `yaml:"connector_name,omitempty"`
+	U2F               *UniversalSecondFactor     `yaml:"u2f,omitempty"`
+	RequireSessionMFA bool                       `yaml:"require_session_mfa,omitempty"`
 
 	// LocalAuth controls if local authentication is allowed.
 	LocalAuth *services.Bool `yaml:"local_auth"`
@@ -768,10 +769,11 @@ func (a *AuthenticationConfig) Parse() (services.AuthPreference, error) {
 	}
 
 	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
-		Type:          a.Type,
-		SecondFactor:  a.SecondFactor,
-		ConnectorName: a.ConnectorName,
-		U2F:           &u,
+		Type:              a.Type,
+		SecondFactor:      a.SecondFactor,
+		ConnectorName:     a.ConnectorName,
+		U2F:               &u,
+		RequireSessionMFA: a.RequireSessionMFA,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
