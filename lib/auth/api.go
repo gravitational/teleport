@@ -73,6 +73,9 @@ type ReadAccessPoint interface {
 	// GetClusterConfig returns cluster level configuration.
 	GetClusterConfig(opts ...services.MarshalOption) (services.ClusterConfig, error)
 
+	// GetAuthPreference returns the cluster authentication configuration.
+	GetAuthPreference() (services.AuthPreference, error)
+
 	// GetNamespaces returns a list of namespaces
 	GetNamespaces() ([]services.Namespace, error)
 

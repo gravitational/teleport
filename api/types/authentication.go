@@ -58,6 +58,10 @@ type AuthPreference interface {
 	// SetU2F sets the U2F configuration settings.
 	SetU2F(*U2F)
 
+	// GetRequireSessionMFA returns true when all sessions in this cluster
+	// require an MFA check.
+	GetRequireSessionMFA() bool
+
 	// CheckAndSetDefaults sets and default values and then
 	// verifies the constraints for AuthPreference.
 	CheckAndSetDefaults() error
@@ -225,6 +229,12 @@ func (c *AuthPreferenceV2) SetU2F(u2f *U2F) {
 	c.Spec.U2F = u2f
 }
 
+// GetRequireSessionMFA returns true when all sessions in this cluster require
+// an MFA check.
+func (c *AuthPreferenceV2) GetRequireSessionMFA() bool {
+	return c.Spec.RequireSessionMFA
+}
+
 // CheckAndSetDefaults verifies the constraints for AuthPreference.
 func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	// make sure we have defaults for all metadata fields
@@ -284,6 +294,10 @@ type AuthPreferenceSpecV2 struct {
 
 	// U2F are the settings for the U2F device.
 	U2F *U2F `json:"u2f,omitempty"`
+
+	// RequireSessionMFA causes all sessions in this cluster to require MFA
+	// checks.
+	RequireSessionMFA bool `json:"require_session_mfa,omitempty"`
 }
 
 // U2F defines settings for U2F device.

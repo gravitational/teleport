@@ -2165,6 +2165,11 @@ func (c *Client) SetAuthPreference(cap services.AuthPreference) error {
 	return nil
 }
 
+// DeleteAuthPreference not implemented: can only be called locally.
+func (c *Client) DeleteAuthPreference(context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 // GetLocalClusterName returns local cluster name
 func (c *Client) GetLocalClusterName() (string, error) {
 	return c.GetDomainName()

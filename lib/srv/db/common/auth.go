@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -262,4 +263,9 @@ func getVerifyCloudSQLCertificate(roots *x509.CertPool) func(tls.ConnectionState
 		_, err := cs.PeerCertificates[0].Verify(opts)
 		return err
 	}
+}
+
+// GetAuthPreference returns the cluster authentication config.
+func (a *Auth) GetAuthPreference() (services.AuthPreference, error) {
+	return a.cfg.AuthClient.GetAuthPreference()
 }
