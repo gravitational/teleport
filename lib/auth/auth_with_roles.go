@@ -555,11 +555,11 @@ func (a *ServerWithRoles) filterNodes(nodes []services.Server) ([]services.Serve
 	filteredNodes := make([]services.Server, 0, len(nodes))
 	// MFA is not required to list the nodes, but will be required to connect
 	// to them.
-	mfaVerified := true
+	mfaParams := services.AccessMFAParams{Verified: true}
 NextNode:
 	for _, node := range nodes {
 		for login := range allowedLogins {
-			err := roleset.CheckAccessToServer(login, node, mfaVerified)
+			err := roleset.CheckAccessToServer(login, node, mfaParams)
 			if err == nil {
 				filteredNodes = append(filteredNodes, node)
 				continue NextNode
@@ -2020,6 +2020,11 @@ func (a *ServerWithRoles) SetAuthPreference(cap services.AuthPreference) error {
 	return a.authServer.SetAuthPreference(cap)
 }
 
+// DeleteAuthPreference not implemented: can only be called locally.
+func (a *ServerWithRoles) DeleteAuthPreference(context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 // DeleteAllTokens not implemented: can only be called locally.
 func (a *ServerWithRoles) DeleteAllTokens() error {
 	return trace.NotImplemented(notImplementedMessage)
@@ -2289,9 +2294,9 @@ func (a *ServerWithRoles) GetDatabaseServers(ctx context.Context, namespace stri
 	var filtered []types.DatabaseServer
 	// MFA is not required to list the databases, but will be required to
 	// connect to them.
-	mfaVerified := true
+	mfaParams := services.AccessMFAParams{Verified: true}
 	for _, server := range servers {
-		err := a.context.Checker.CheckAccessToDatabase(server, mfaVerified, &services.DatabaseLabelsMatcher{Labels: server.GetAllLabels()})
+		err := a.context.Checker.CheckAccessToDatabase(server, mfaParams, &services.DatabaseLabelsMatcher{Labels: server.GetAllLabels()})
 		if err != nil && !trace.IsAccessDenied(err) {
 			return nil, trace.Wrap(err)
 		} else if err == nil {
@@ -2373,11 +2378,11 @@ func (a *ServerWithRoles) GetAppServers(ctx context.Context, namespace string, o
 	//
 	// MFA is not required to list the apps, but will be required to connect to
 	// them.
-	mfaVerified := true
+	mfaParams := services.AccessMFAParams{Verified: true}
 	for _, server := range servers {
 		filteredApps := make([]*services.App, 0, len(server.GetApps()))
 		for _, app := range server.GetApps() {
-			err := a.context.Checker.CheckAccessToApp(server.GetNamespace(), app, mfaVerified)
+			err := a.context.Checker.CheckAccessToApp(server.GetNamespace(), app, mfaParams)
 			if err != nil {
 				if trace.IsAccessDenied(err) {
 					continue
@@ -2537,8 +2542,16 @@ func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s services.Serv
 		return trace.Wrap(err)
 	}
 
+	ap, err := a.authServer.GetAuthPreference()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	mfaParams := services.AccessMFAParams{
+		Verified:       a.context.Identity.GetIdentity().MFAVerified != "",
+		AlwaysRequired: ap.GetRequireSessionMFA(),
+	}
 	for _, kube := range s.GetKubernetesClusters() {
-		if err := a.context.Checker.CheckAccessToKubernetes(s.GetNamespace(), kube, a.context.Identity.GetIdentity().MFAVerified != ""); err != nil {
+		if err := a.context.Checker.CheckAccessToKubernetes(s.GetNamespace(), kube, mfaParams); err != nil {
 			return utils.OpaqueAccessDenied(err)
 		}
 	}
@@ -2564,11 +2577,11 @@ func (a *ServerWithRoles) GetKubeServices(ctx context.Context) ([]services.Serve
 	//
 	// MFA is not required to list the clusters, but will be required to
 	// connect to them.
-	mfaVerified := true
+	mfaParams := services.AccessMFAParams{Verified: true}
 	for _, server := range servers {
 		filtered := make([]*services.KubernetesCluster, 0, len(server.GetKubernetesClusters()))
 		for _, kube := range server.GetKubernetesClusters() {
-			if err := a.context.Checker.CheckAccessToKubernetes(server.GetNamespace(), kube, mfaVerified); err != nil {
+			if err := a.context.Checker.CheckAccessToKubernetes(server.GetNamespace(), kube, mfaParams); err != nil {
 				if trace.IsAccessDenied(err) {
 					continue
 				}
