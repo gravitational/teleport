@@ -6,10 +6,6 @@ h1: Teleport Slack Plugin Setup
 
 This guide will talk through how to setup Teleport with Slack. Teleport to Slack integration allows you to treat Teleport access and permission requests via Slack message and inline interactive components.
 
-<Admonition type="warning">
-  The Approval Workflow only works with Teleport Enterprise as it requires several roles.
-</Admonition>
-
 #### Example Slack Request
 
 <video controls>
@@ -32,7 +28,7 @@ This guide will talk through how to setup Teleport with Slack. Teleport to Slack
 
 This guide assumes that you have:
 
-- Teleport Enterprise 4.2.8 or newer
+- A running Teleport Cluster
 - Admin privileges with access to `tctl`
 - Slack Admin Privileges to create an app and install it to your workspace.
 
@@ -118,6 +114,8 @@ Visit [https://api.slack.com/apps](https://api.slack.com/apps) to create a new S
 This URL must match the URL setting in Teleport Plugin settings file (we'll cover that later), and be publicly accessible.
 
 For now, just think of the URL you'll use and set it in the Slack App's settings screen in Features > Interactive Components > Request URL.
+
+Request URL: `https://[cluster-url]:8081`
 
 ![Interactive Components](../../../img/enterprise/plugins/slack/setup-interactive-component.png)
 

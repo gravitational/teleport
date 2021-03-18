@@ -182,6 +182,18 @@ func (s *ClusterConfigurationService) SetAuthPreference(preferences services.Aut
 	return nil
 }
 
+// DeleteAuthPreference deletes services.AuthPreference from the backend.
+func (s *ClusterConfigurationService) DeleteAuthPreference(ctx context.Context) error {
+	err := s.Delete(ctx, backend.Key(authPrefix, preferencePrefix, generalPrefix))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("auth preference not found")
+		}
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // GetClusterConfig gets services.ClusterConfig from the backend.
 func (s *ClusterConfigurationService) GetClusterConfig(opts ...services.MarshalOption) (services.ClusterConfig, error) {
 	item, err := s.Get(context.TODO(), backend.Key(clusterConfigPrefix, generalPrefix))
