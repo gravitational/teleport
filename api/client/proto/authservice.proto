@@ -827,6 +827,8 @@ service AuthService {
     rpc DeleteAccessRequest(RequestID) returns (google.protobuf.Empty);
     // SetAccessRequestState sets the state of an access request.
     rpc SetAccessRequestState(RequestStateSetter) returns (google.protobuf.Empty);
+    // SubmitAccessReview applies a review to a request and returns the post-application state.
+    rpc SubmitAccessReview(types.AccessReviewSubmission) returns (types.AccessRequestV3);
     // GetAccessCapabilities requests the access capabilites of a user.
     rpc GetAccessCapabilities(types.AccessCapabilitiesRequest) returns (types.AccessCapabilities);
 

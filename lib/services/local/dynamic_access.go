@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -121,6 +122,67 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 		return nil
 	}
 	return trace.CompareFailed("too many concurrent writes to access request %s, try again later", params.RequestID)
+}
+
+// ApplyAccessReview applies a review to a request and returns the post-application state.
+func (s *DynamicAccessService) ApplyAccessReview(ctx context.Context, params types.AccessReviewSubmission, checker services.ReviewPermissionChecker) (services.AccessRequest, error) {
+	if err := params.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	retryPeriod := retryPeriodMs * time.Millisecond
+	retry, err := utils.NewLinear(utils.LinearConfig{
+		Step: retryPeriod / 7,
+		Max:  retryPeriod,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Review application is attempted multiple times in the event of concurrent writes.
+	for i := 0; i < maxCmpAttempts; i++ {
+		item, err := s.Get(ctx, accessRequestKey(params.RequestID))
+		if err != nil {
+			if trace.IsNotFound(err) {
+				return nil, trace.NotFound("cannot apply review to access request %q (not found)", params.RequestID)
+			}
+			return nil, trace.Wrap(err)
+		}
+		req, err := itemToAccessRequest(*item)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// verify review permissions against request details
+		if ok, err := checker.CanReviewRequest(req); err != nil || !ok {
+			if err == nil {
+				err = trace.AccessDenied("user %q cannot review request %q", params.Review.Author, params.RequestID)
+			}
+			return nil, trace.Wrap(err)
+		}
+
+		// run the application logic
+		if err := services.ApplyAccessReview(req, params.Review, checker.User); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		newItem, err := itemFromAccessRequest(req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if _, err := s.CompareAndSwap(ctx, *item, newItem); err != nil {
+			if trace.IsCompareFailed(err) {
+				select {
+				case <-retry.After():
+					retry.Inc()
+					continue
+				case <-ctx.Done():
+					return nil, trace.Wrap(ctx.Err())
+				}
+			}
+			return nil, trace.Wrap(err)
+		}
+		return req, nil
+	}
+	return nil, trace.CompareFailed("too many concurrent writes to access request %s, try again later", params.RequestID)
 }
 
 func (s *DynamicAccessService) GetAccessRequest(ctx context.Context, name string) (services.AccessRequest, error) {

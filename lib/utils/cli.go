@@ -29,6 +29,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"unicode"
 
 	"github.com/gravitational/teleport"
 
@@ -245,6 +246,14 @@ func InitCLIParser(appName, appHelp string) (app *kingpin.Application) {
 
 	// set our own help template
 	return app.UsageTemplate(defaultUsageTemplate)
+}
+
+// SplitIdentifiers splits list of identifiers by commas/spaces/newlines.  Helpful when
+// accepting lists of identifiers in CLI (role names, request IDs, etc).
+func SplitIdentifiers(s string) []string {
+	return strings.FieldsFunc(s, func(r rune) bool {
+		return r == ',' || unicode.IsSpace(r)
+	})
 }
 
 // EscapeControl escapes all ANSI escape sequences from string and returns a
