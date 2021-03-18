@@ -198,8 +198,8 @@ const (
 	BillingCardDeleteEvent = "billing.delete_card"
 	// BillingCardUpdateEvent is emitted when a user updates an existing credit card.
 	BillingCardUpdateEvent = "billing.update_card"
-	// BillingAccountUpdateEvent is emitted when a user updates their billing account.
-	BillingAccountUpdateEvent = "billing.update_account"
+	// BillingInformationUpdateEvent is emitted when a user updates their billing information.
+	BillingInformationUpdateEvent = "billing.update_info"
 
 	// UpdatedBy indicates the user who modified some resource:
 	//  - updating a request state

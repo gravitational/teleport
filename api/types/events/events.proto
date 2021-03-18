@@ -1217,18 +1217,14 @@ message MFADeviceDelete {
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
-// BillingAccountUpdate is emitted when a user updates their billing account.
-message BillingAccountUpdate {
+// BillingInformationUpdate is emitted when a user updates the billing information.
+message BillingInformationUpdate {
     // Metadata is a common event metadata.
     Metadata Metadata = 1
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
     // User is a common user event metadata.
     UserMetadata User = 2
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
-    // CompanyName is billing account company name.
-    string CompanyName = 3 [ (gogoproto.jsontag) = "company_name,omitempty" ];
-    // CompanyEmail is billing account email.
-    string CompanyEmail = 4 [ (gogoproto.jsontag) = "company_email" ];
 }
 
 // BillingCardCreate is emitted when a user creates or updates a credit card.
@@ -1300,7 +1296,7 @@ message OneOf {
         events.SessionUpload SessionUpload = 43;
         events.MFADeviceAdd MFADeviceAdd = 44;
         events.MFADeviceDelete MFADeviceDelete = 45;
-        events.BillingAccountUpdate BillingAccountUpdate = 46;
+        events.BillingInformationUpdate BillingInformationUpdate = 46;
         events.BillingCardCreate BillingCardCreate = 47;
         events.BillingCardDelete BillingCardDelete = 48;
     }
