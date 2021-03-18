@@ -83,10 +83,10 @@ steps:
   - cd /tmpfs/go/src/github.com/gravitational/teleport
   - make -C build.assets buildbox
   volumes:
-  - name: dockersock
-    path: /var/run
   - name: tmpfs
     path: /tmpfs
+  - name: dockersock
+    path: /var/run
 - name: Run linter
   image: docker
   commands:
@@ -98,10 +98,10 @@ steps:
     GOCACHE: /tmpfs/go/cache
     GOPATH: /tmpfs/go
   volumes:
-  - name: dockersock
-    path: /var/run
   - name: tmpfs
     path: /tmpfs
+  - name: dockersock
+    path: /var/run
 - name: Optionally skip tests
   image: docker:git
   commands:
@@ -133,10 +133,10 @@ steps:
     GOCACHE: /tmpfs/go/cache
     GOPATH: /tmpfs/go
   volumes:
-  - name: dockersock
-    path: /var/run
   - name: tmpfs
     path: /tmpfs
+  - name: dockersock
+    path: /var/run
 - name: Run root-only integration tests
   image: docker
   commands:
@@ -147,12 +147,12 @@ steps:
     GOCACHE: /tmpfs/go/cache
     GOPATH: /tmpfs/go
   volumes:
-  - name: dockersock
-    path: /var/run
   - name: tmpfs
     path: /tmpfs
   - name: tmp-integration
     path: /tmp
+  - name: dockersock
+    path: /var/run
 - name: Run integration tests
   image: docker
   commands:
@@ -170,31 +170,31 @@ steps:
     KUBECONFIG: /tmpfs/go/kubeconfig.ci
     TEST_KUBE: "true"
   volumes:
-  - name: dockersock
-    path: /var/run
   - name: tmpfs
     path: /tmpfs
   - name: tmp-integration
     path: /tmp
+  - name: dockersock
+    path: /var/run
 services:
 - name: Start Docker
   image: docker:dind
   volumes:
-  - name: dockersock
-    path: /var/run
   - name: tmpfs
     path: /tmpfs
   - name: tmp-dind
     path: /tmp
+  - name: dockersock
+    path: /var/run
 volumes:
-- name: dockersock
-  temp: {}
 - name: tmpfs
   temp:
     medium: memory
 - name: tmp-dind
   temp: {}
 - name: tmp-integration
+  temp: {}
+- name: dockersock
   temp: {}
 
 ---
@@ -273,24 +273,24 @@ steps:
     GOCACHE: /tmpfs/go/cache
     UID: "1000"
   volumes:
-  - name: dockersock
-    path: /var/run
   - name: tmpfs
     path: /tmpfs
+  - name: dockersock
+    path: /var/run
 services:
 - name: Start Docker
   image: docker:dind
   volumes:
-  - name: dockersock
-    path: /var/run
   - name: tmpfs
     path: /tmpfs
+  - name: dockersock
+    path: /var/run
 volumes:
-- name: dockersock
-  temp: {}
 - name: tmpfs
   temp:
     medium: memory
+- name: dockersock
+  temp: {}
 
 ---
 kind: pipeline
@@ -325,7 +325,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:95
+# Generated at dronegen/push.go:86
 ################################################
 
 kind: pipeline
@@ -419,7 +419,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:95
+# Generated at dronegen/push.go:86
 ################################################
 
 kind: pipeline
@@ -513,7 +513,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:95
+# Generated at dronegen/push.go:86
 ################################################
 
 kind: pipeline
@@ -611,7 +611,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:95
+# Generated at dronegen/push.go:86
 ################################################
 
 kind: pipeline
@@ -802,7 +802,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:95
+# Generated at dronegen/push.go:86
 ################################################
 
 kind: pipeline
@@ -997,7 +997,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:95
+# Generated at dronegen/push.go:86
 ################################################
 
 kind: pipeline
@@ -1091,7 +1091,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:95
+# Generated at dronegen/push.go:86
 ################################################
 
 kind: pipeline
@@ -1420,7 +1420,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:209
+# Generated at dronegen/tag.go:190
 ################################################
 
 kind: pipeline
@@ -1516,7 +1516,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:209
+# Generated at dronegen/tag.go:190
 ################################################
 
 kind: pipeline
@@ -1612,7 +1612,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:209
+# Generated at dronegen/tag.go:190
 ################################################
 
 kind: pipeline
@@ -1711,7 +1711,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:209
+# Generated at dronegen/tag.go:190
 ################################################
 
 kind: pipeline
@@ -1809,7 +1809,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:345
+# Generated at dronegen/tag.go:331
 ################################################
 
 kind: pipeline
@@ -1889,10 +1889,10 @@ steps:
     OSS_TARBALL_PATH: /go/artifacts
     TMPDIR: /go
   volumes:
-  - name: dockersock
-    path: /var/run
   - name: tmpfs
     path: /tmpfs
+  - name: dockersock
+    path: /var/run
 - name: Copy artifacts
   image: docker
   commands:
@@ -1919,22 +1919,22 @@ services:
 - name: Start Docker
   image: docker:dind
   volumes:
-  - name: dockersock
-    path: /var/run
   - name: tmpfs
     path: /tmpfs
+  - name: dockersock
+    path: /var/run
 volumes:
-- name: dockersock
-  temp: {}
 - name: tmpfs
   temp:
     medium: memory
+- name: dockersock
+  temp: {}
 
 ---
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:345
+# Generated at dronegen/tag.go:331
 ################################################
 
 kind: pipeline
@@ -2013,10 +2013,10 @@ steps:
     RUNTIME: fips
     TMPDIR: /go
   volumes:
-  - name: dockersock
-    path: /var/run
   - name: tmpfs
     path: /tmpfs
+  - name: dockersock
+    path: /var/run
 - name: Copy artifacts
   image: docker
   commands:
@@ -2041,22 +2041,22 @@ services:
 - name: Start Docker
   image: docker:dind
   volumes:
-  - name: dockersock
-    path: /var/run
   - name: tmpfs
     path: /tmpfs
+  - name: dockersock
+    path: /var/run
 volumes:
-- name: dockersock
-  temp: {}
 - name: tmpfs
   temp:
     medium: memory
+- name: dockersock
+  temp: {}
 
 ---
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:345
+# Generated at dronegen/tag.go:331
 ################################################
 
 kind: pipeline
@@ -2167,7 +2167,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:345
+# Generated at dronegen/tag.go:331
 ################################################
 
 kind: pipeline
@@ -2275,7 +2275,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:209
+# Generated at dronegen/tag.go:190
 ################################################
 
 kind: pipeline
@@ -2371,7 +2371,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:345
+# Generated at dronegen/tag.go:331
 ################################################
 
 kind: pipeline
@@ -2451,10 +2451,10 @@ steps:
     OSS_TARBALL_PATH: /go/artifacts
     TMPDIR: /go
   volumes:
-  - name: dockersock
-    path: /var/run
   - name: tmpfs
     path: /tmpfs
+  - name: dockersock
+    path: /var/run
 - name: Copy artifacts
   image: docker
   commands:
@@ -2481,22 +2481,22 @@ services:
 - name: Start Docker
   image: docker:dind
   volumes:
-  - name: dockersock
-    path: /var/run
   - name: tmpfs
     path: /tmpfs
+  - name: dockersock
+    path: /var/run
 volumes:
-- name: dockersock
-  temp: {}
 - name: tmpfs
   temp:
     medium: memory
+- name: dockersock
+  temp: {}
 
 ---
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:345
+# Generated at dronegen/tag.go:331
 ################################################
 
 kind: pipeline
@@ -2993,7 +2993,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:209
+# Generated at dronegen/tag.go:190
 ################################################
 
 kind: pipeline
@@ -3089,7 +3089,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:209
+# Generated at dronegen/tag.go:190
 ################################################
 
 kind: pipeline
@@ -3185,7 +3185,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:209
+# Generated at dronegen/tag.go:190
 ################################################
 
 kind: pipeline
@@ -3281,7 +3281,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:209
+# Generated at dronegen/tag.go:190
 ################################################
 
 kind: pipeline
@@ -4141,6 +4141,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 236cd2c0e2551d149eb3ef2895f91ff40d5ffe892618f1e91a08823ba2d1d672
+hmac: 7a9ec29171dbac101b86854673876e96cc0f541183409873b38eb965adc57520
 
 ...
