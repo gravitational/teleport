@@ -281,6 +281,15 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	defer clt.Close()
 	requiredCheck, err := clt.IsMFARequired(ctx, params.isMFARequiredRequest(proxy.hostLogin))
 	if err != nil {
+		if status.Code(err) == codes.Unimplemented {
+			// Probably talking to an older server, use the old non-MFA endpoint.
+			log.WithError(err).Debug("Auth server does not implement IsMFARequired.")
+			// SSH certs can be used without reissuing.
+			if params.usage() == proto.UserCertsRequest_SSH {
+				return key, nil
+			}
+			return proxy.reissueUserCerts(ctx, params)
+		}
 		return nil, trace.Wrap(err)
 	}
 	if !requiredCheck.Required {

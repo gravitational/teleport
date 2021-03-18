@@ -207,6 +207,9 @@ const AuthPreferenceSpecSchemaTemplate = `{
 					}
 				}
 			}
+		},
+		"require_session_mfa": {
+			"type": "boolean"
 		}%v
 	}
 }`

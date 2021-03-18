@@ -35,7 +35,7 @@ import (
 // TestAuditWriter tests audit writer - a component used for
 // session recording
 func TestAuditWriter(t *testing.T) {
-	// SessionTests multiple session
+	// Session tests emission of multiple session events
 	t.Run("Session", func(t *testing.T) {
 		test := newAuditWriterTest(t, nil)
 		defer test.cancel()
@@ -73,11 +73,10 @@ func TestAuditWriter(t *testing.T) {
 			outEvents = append(outEvents, out...)
 		}
 
-		require.Equal(t, len(inEvents), len(outEvents))
 		require.Equal(t, inEvents, outEvents)
 	})
 
-	// ResumeStart resumes stream after it was broken at the start of trasmission
+	// ResumeStart resumes stream after it was broken at the start of transmission
 	t.Run("ResumeStart", func(t *testing.T) {
 		streamCreated := atomic.NewUint64(0)
 		terminateConnection := atomic.NewUint64(1)
@@ -255,9 +254,35 @@ func TestAuditWriter(t *testing.T) {
 		outEvents := test.collectEvents(t)
 
 		submittedEvents := inEvents[:submitEvents]
-		require.Equal(t, len(submittedEvents), len(outEvents))
 		require.Equal(t, submittedEvents, outEvents)
 		require.Equal(t, 1, int(streamResumed.Load()), "Stream resumed.")
+	})
+
+	t.Run("SetsEventDefaults", func(t *testing.T) {
+		var emittedEvents []AuditEvent
+		test := newAuditWriterTest(t, func(streamer Streamer) (*CallbackStreamer, error) {
+			return NewCallbackStreamer(CallbackStreamerConfig{
+				Inner: streamer,
+				OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event AuditEvent) error {
+					emittedEvents = append(emittedEvents, event)
+					return nil
+				},
+			})
+		})
+		defer test.Close(context.Background())
+		inEvents := GenerateTestSession(SessionParams{
+			SessionID: string(test.sid),
+			// ClusterName explicitly empty in parameters
+		})
+		for _, event := range inEvents {
+			require.Empty(t, event.GetClusterName())
+			require.NoError(t, test.writer.EmitAuditEvent(test.ctx, event))
+		}
+		test.Close(context.Background())
+		require.Equal(t, len(inEvents), len(emittedEvents))
+		for _, event := range emittedEvents {
+			require.Equal(t, event.GetClusterName(), "cluster")
+		}
 	})
 
 }
@@ -299,6 +324,7 @@ func newAuditWriterTest(t *testing.T, newStreamer newStreamerFn) *auditWriterTes
 		RecordOutput: true,
 		Streamer:     streamer,
 		Context:      ctx,
+		ClusterName:  "cluster",
 	})
 	require.NoError(t, err)
 
@@ -338,4 +364,8 @@ func (a *auditWriterTest) collectEvents(t *testing.T) []AuditEvent {
 	log.WithFields(reader.GetStats().ToFields()).Debugf("Reader stats.")
 
 	return outEvents
+}
+
+func (a *auditWriterTest) Close(ctx context.Context) error {
+	return a.writer.Close(ctx)
 }
