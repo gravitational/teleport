@@ -47,7 +47,7 @@ implementation and it is _fully compatible with OpenSSH_ and can be used with
 | [Forum](https://github.com/gravitational/teleport/discussions) | Ask us a setup question, post your tutorial, feedback or idea on our forum. |
 | [Slack](https://goteleport.com/slack) | Need help with set-up? Ping us in Slack channel. |
 
-[![Teleport 4.3 Demo](/docs/4.3/img/readme/teleport-4.3-video-thumb.png)](https://www.youtube.com/watch?v=DUlTAlEJr5w)
+[Teleport 6.0 - 4:00m Demo Video](https://www.youtube.com/watch?v=0HlyGk8dihM)
 
 ## Installing and Running
 
@@ -69,9 +69,8 @@ and run it under `$USER`, in this case you will not be able to login as someone 
 ### Deploy Teleport
 If you wish to deploy Teleport inside a Docker container:
 ```
-# This command will pull the Teleport container image for version 5.0
-# Replace 5.0 with the version you need:
-$ docker pull quay.io/gravitational/teleport:5.0
+# This command will pull the Teleport container image for version 6
+$ docker pull quay.io/gravitational/teleport:6
 ```
 View latest tags on [Quay.io | gravitational/teleport](https://quay.io/repository/gravitational/teleport?tab=tags)
 
@@ -103,7 +102,7 @@ NOTE: The Go compiler is somewhat sensitive to amount of memory: you will need
 at least 1GB of virtual memory to compile Teleport. 512MB instance without swap
 will not work.
 
-NOTE: This will build the latest version of Teleport, regardless of whether it is stable. If you want to build the latest stable release, `git checkout` to that tag (e.g. `git checkout v5.0.0`) before running `make full`.
+NOTE: This will build the latest version of Teleport, regardless of whether it is stable. If you want to build the latest stable release, `git checkout` to that tag (e.g. `git checkout v6.0.0`) before running `make full`.
 
 ### Web UI
 

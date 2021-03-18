@@ -1117,16 +1117,18 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 
 	checkingEmitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
-		Inner: events.NewMultiEmitter(events.NewLoggingEmitter(), emitter),
-		Clock: process.Clock,
+		Inner:       events.NewMultiEmitter(events.NewLoggingEmitter(), emitter),
+		Clock:       process.Clock,
+		ClusterName: cfg.Auth.ClusterName.GetClusterName(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	checkingStreamer, err := events.NewCheckingStreamer(events.CheckingStreamerConfig{
-		Inner: streamer,
-		Clock: process.Clock,
+		Inner:       streamer,
+		Clock:       process.Clock,
+		ClusterName: cfg.Auth.ClusterName.GetClusterName(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1707,9 +1709,15 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
+		clusterName, err := authClient.GetClusterName()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		streamer, err := events.NewCheckingStreamer(events.CheckingStreamerConfig{
-			Inner: conn.Client,
-			Clock: process.Clock,
+			Inner:       conn.Client,
+			Clock:       process.Clock,
+			ClusterName: clusterName.GetClusterName(),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2402,6 +2410,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		trace.Component: teleport.Component(teleport.ComponentReverseTunnelServer, process.id),
 	})
 
+	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
+
 	// asyncEmitter makes sure that sessions do not block
 	// in case if connections are slow
 	asyncEmitter, err := process.newAsyncEmitter(conn.Client)
@@ -2409,8 +2419,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 	streamer, err := events.NewCheckingStreamer(events.CheckingStreamerConfig{
-		Inner: conn.Client,
-		Clock: process.Clock,
+		Inner:       conn.Client,
+		Clock:       process.Clock,
+		ClusterName: clusterName,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -2419,7 +2430,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		Emitter:  asyncEmitter,
 		Streamer: streamer,
 	}
-	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
 
 	// register SSH reverse tunnel server that accepts connections
 	// from remote teleport nodes
