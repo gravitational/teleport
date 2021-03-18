@@ -109,8 +109,8 @@ type InitConfig struct {
 	// Access is service controlling access to resources
 	Access services.Access
 
-	// DynamicAccess is a service that manages dynamic RBAC.
-	DynamicAccess services.DynamicAccess
+	// DynamicAccessExt is a service that manages dynamic RBAC.
+	DynamicAccessExt services.DynamicAccessExt
 
 	// Events is an event service
 	Events services.Events

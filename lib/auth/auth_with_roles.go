@@ -58,8 +58,24 @@ func (a *ServerWithRoles) actionWithContext(ctx *services.Context, namespace str
 	return utils.OpaqueAccessDenied(a.context.Checker.CheckAccessToRule(ctx, namespace, resource, action, false))
 }
 
-func (a *ServerWithRoles) action(namespace string, resource string, action string) error {
-	return utils.OpaqueAccessDenied(a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, action, false))
+type actionConfig struct {
+	quiet bool
+}
+
+type actionOption func(*actionConfig)
+
+func quietAction(quiet bool) actionOption {
+	return func(cfg *actionConfig) {
+		cfg.quiet = quiet
+	}
+}
+
+func (a *ServerWithRoles) action(namespace string, resource string, action string, opts ...actionOption) error {
+	var cfg actionConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	return utils.OpaqueAccessDenied(a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, action, cfg.quiet))
 }
 
 // currentUserAction is a special checker that allows certain actions for users
@@ -958,21 +974,68 @@ type webTokensWithRoles struct {
 }
 
 type accessChecker interface {
-	action(namespace, resource, action string) error
+	action(namespace, resource, action string, opts ...actionOption) error
 	currentUserAction(user string) error
 }
 
 func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter services.AccessRequestFilter) ([]services.AccessRequest, error) {
-	// An exception is made to allow users to get their own access requests.
-	if filter.User == "" || a.currentUserAction(filter.User) != nil {
-		if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbList); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbRead); err != nil {
-			return nil, trace.Wrap(err)
+	// users can always view their own access requests
+	if filter.User != "" && a.currentUserAction(filter.User) == nil {
+		return a.authServer.GetAccessRequests(ctx, filter)
+	}
+
+	// users with read + list permissions can get all requests
+	if a.action(defaults.Namespace, services.KindAccessRequest, services.VerbList, quietAction(true)) == nil {
+		if a.action(defaults.Namespace, services.KindAccessRequest, services.VerbRead, quietAction(true)) == nil {
+			return a.authServer.GetAccessRequests(ctx, filter)
 		}
 	}
-	return a.authServer.GetAccessRequests(ctx, filter)
+
+	// user does not have read/list permissions and is not specifically requesting only
+	// their own requests.  we therefore subselect the filter results to show only those requests
+	// that the user *is* allowed to see (specifically, their own requests + requests that they
+	// are allowed to review).
+
+	checker, err := services.NewReviewPermissionChecker(ctx, a.authServer, a.context.User.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// unless the user has allow directives for reviewing, they will never be able to
+	// see any requests other than their own.
+	if !checker.HasAllowDirectives() {
+		if filter.User != "" {
+			// filter specifies a user, but it wasn't caught by the preceding exception,
+			// so just return nothing.
+			return nil, nil
+		}
+		filter.User = a.context.User.GetName()
+		return a.authServer.GetAccessRequests(ctx, filter)
+	}
+
+	reqs, err := a.authServer.GetAccessRequests(ctx, filter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// filter in place
+	filtered := reqs[:0]
+	for _, req := range reqs {
+		if req.GetUser() == a.context.User.GetName() {
+			filtered = append(filtered, req)
+			continue
+		}
+
+		ok, err := checker.CanReviewRequest(req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if ok {
+			filtered = append(filtered, req)
+			continue
+		}
+	}
+	return filtered, nil
 }
 
 func (a *ServerWithRoles) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
@@ -994,6 +1057,34 @@ func (a *ServerWithRoles) SetAccessRequestState(ctx context.Context, params serv
 		return trace.Wrap(err)
 	}
 	return a.authServer.SetAccessRequestState(ctx, params)
+}
+
+func (a *ServerWithRoles) SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (services.AccessRequest, error) {
+	// review author defaults to username of caller.
+	if params.Review.Author == "" {
+		params.Review.Author = a.context.User.GetName()
+	}
+
+	// review author must match calling user, except in the case of the builtin admin role.  we make this
+	// exception in order to allow for convenient testing with local tctl connections.
+	if !a.hasBuiltinRole(string(teleport.RoleAdmin)) {
+		if params.Review.Author != a.context.User.GetName() {
+			return nil, trace.AccessDenied("user %q cannot submit reviews on behalf of %q", a.context.User.GetName(), params.Review.Author)
+		}
+
+		// MaybeCanReviewRequests returns false positives, but it will tell us
+		// if the user definitely can't review requests, which saves a lot of work.
+		if !a.context.Checker.MaybeCanReviewRequests() {
+			return nil, trace.AccessDenied("user %q cannot submit reviews", a.context.User.GetName())
+		}
+	}
+
+	// note that we haven't actually enforced any access-control other than requiring
+	// the author field to match the calling user.  fine-grained permissions are evaluated
+	// under optimistic locking at the level of the backend service.  the correctness of the
+	// author field is all that need be enforced at this level.
+
+	return a.authServer.SubmitAccessReview(ctx, params)
 }
 
 func (a *ServerWithRoles) GetAccessCapabilities(ctx context.Context, req services.AccessCapabilitiesRequest) (*services.AccessCapabilities, error) {
@@ -1917,6 +2008,7 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role services.Role) er
 	// Some options are only available with enterprise subscription
 	features := modules.GetModules().Features()
 	options := role.GetOptions()
+	allowReq, allowRev := role.GetAccessRequestConditions(types.Allow), role.GetAccessReviewConditions(types.Allow)
 
 	switch {
 	case features.AccessControls == false && options.MaxSessions > 0:
@@ -1926,6 +2018,19 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role services.Role) er
 		(options.RequestAccess == types.RequestStrategyReason || options.RequestAccess == types.RequestStrategyAlways):
 		return trace.AccessDenied(
 			"role option request_access: %v is only available in enterprise subscriptions", options.RequestAccess)
+	case features.AdvancedAccessWorkflows == false && len(allowReq.Thresholds) != 0:
+		return trace.AccessDenied(
+			"role field allow.request.thresholds is only available in enterprise subscriptions")
+	case features.AdvancedAccessWorkflows == false && !allowRev.IsZero():
+		return trace.AccessDenied(
+			"role field allow.review_requests is only available in enterprise subscriptions")
+	}
+
+	// access predicate syntax is not checked as part of normal role validation in order
+	// to allow the available namespaces to be extended without breaking compatibility with
+	// older nodes/proxies (which do not need to ever evaluate said predicates).
+	if err := services.ValidateAccessPredicates(role); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return a.authServer.upsertRole(ctx, role)
