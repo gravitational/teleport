@@ -5,17 +5,34 @@
       "title": "Documentation",
       "entries": [
         { "title": "Introduction", "slug": "/" },
-        { "title": "Getting Started", "slug": "/getting-started/" },        
+        { "title": "Getting Started", "slug": "/getting-started/" },
         { "title": "Installation", "slug": "/installation/" },
         { "title": "Application Access", "slug": "/application-access/" },
         { "title": "Kubernetes Access", "slug": "/kubernetes-access/" },
         { "title": "Database Access", "slug": "/database-access/" },
-        { "title": "Cloud", "slug": "/cloud/" },        
+        { "title": "Cloud", "slug": "/cloud/" },
         { "title": "User Manual", "slug": "/user-manual/" },
         { "title": "Admin Manual", "slug": "/admin-guide/" },
         { "title": "Production Guide", "slug": "/production/" },
         { "title": "FAQ", "slug": "/faq/" },
         { "title": "Changelog", "slug": "/changelog/" }
+      ]
+    },
+    {
+      "icon": "window",
+      "title": "Application Access",
+      "entries": [
+        { "title": "Getting Started", "slug": "/application-access/getting-started/" },
+        {
+          "title": "Guides",
+          "slug": "/application-access/guides/",
+          "entries": [
+            { "title": "General Usage", "slug": "/application-access/guides/usage/" },
+            { "title": "Integrating with JWT", "slug": "/application-access/guides/jwt/" },
+            { "title": "API Access", "slug": "/application-access/guides/api-access/" }
+          ]
+        },
+        { "title": "Reference", "slug": "/application-access/reference/" }
       ]
     },
     {
