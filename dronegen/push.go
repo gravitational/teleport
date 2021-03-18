@@ -2,15 +2,6 @@ package main
 
 import "fmt"
 
-// pushMakefileTarget gets the correct push pipeline Makefile target for a given arch/fips combo
-func pushMakefileTarget(b buildType) string {
-	makefileTarget := fmt.Sprintf("release-%s", b.arch)
-	if b.fips {
-		makefileTarget += "-fips"
-	}
-	return makefileTarget
-}
-
 // pushCheckoutCommands builds a list of commands for Drone to check out a git commit on a push build
 func pushCheckoutCommands(fips bool) []string {
 	commands := []string{
@@ -48,7 +39,7 @@ func pushBuildCommands(b buildType) []string {
 		)
 	}
 	commands = append(commands,
-		fmt.Sprintf(`make -C build.assets %s`, pushMakefileTarget(b)),
+		fmt.Sprintf(`make -C build.assets %s`, releaseMakefileTarget(b)),
 	)
 	return commands
 }
@@ -100,9 +91,9 @@ func pushPipeline(b buildType) pipeline {
 	}
 	p.Trigger = triggerPush
 	p.Workspace = workspace{Path: "/go"}
-	p.Volumes = volumes(extraVolumes{})
+	p.Volumes = dockerVolumes()
 	p.Services = []service{
-		dockerService(extraVolumes{}),
+		dockerService(),
 	}
 	p.Steps = []step{
 		{
@@ -117,7 +108,7 @@ func pushPipeline(b buildType) pipeline {
 			Name:        "Build artifacts",
 			Image:       "docker",
 			Environment: pushEnvironment,
-			Volumes:     volumeRefs(extraVolumes{}),
+			Volumes:     dockerVolumeRefs(),
 			Commands:    pushBuildCommands(b),
 		},
 		{
