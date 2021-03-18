@@ -603,6 +603,15 @@ func (c *Client) SetAccessRequestState(ctx context.Context, params types.AccessR
 	return trail.FromGRPC(err)
 }
 
+// SubmitAccessReview applies a review to a request and returns the post-application state.
+func (c *Client) SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error) {
+	req, err := c.grpc.SubmitAccessReview(ctx, &params)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return req, nil
+}
+
 // GetAccessCapabilities requests the access capabilities of a user.
 func (c *Client) GetAccessCapabilities(ctx context.Context, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
 	caps, err := c.grpc.GetAccessCapabilities(ctx, &req)
