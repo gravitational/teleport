@@ -1490,41 +1490,17 @@ func (h *Handler) createSessionWithU2FSignResponse(w http.ResponseWriter, r *htt
 }
 
 // getClusters returns a list of cluster and its data.
-//
-// GET /v1/webapi/sites
-//
-// Successful response:
-//
-// {"sites": {"name": "localhost", "last_connected": "RFC3339 time", "status": "active"}}
-//
 func (h *Handler) getClusters(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (interface{}, error) {
-	// Get a client to the Auth Server with the logged in users identity. The
-	// identity of the logged in user is used to fetch the list of nodes.
-	clt, err := c.GetClient()
+	clusters, err := h.cfg.Proxy.GetSites()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	remoteClusters, err := clt.GetRemoteClusters(services.SkipValidation())
+
+	out, err := ui.NewClusters(clusters)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clusterName, err := clt.GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	rc, err := services.NewRemoteCluster(clusterName.GetClusterName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	rc.SetLastHeartbeat(time.Now().UTC())
-	rc.SetConnectionStatus(teleport.RemoteClusterStatusOnline)
-	clusters := make([]services.RemoteCluster, 0, len(remoteClusters)+1)
-	clusters = append(clusters, rc)
-	clusters = append(clusters, remoteClusters...)
-	out, err := ui.NewClustersFromRemote(clusters)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	return out, nil
 }
 
