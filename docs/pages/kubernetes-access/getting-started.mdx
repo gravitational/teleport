@@ -151,7 +151,7 @@ Teleport will respond back with a discovery info:
 ```bash
 $ curl https://tele.example.com/webapi/ping
 
-{"auth":{"type":"local","second_factor":"otp"},"proxy":{"kube":{"enabled":true,"listen_addr":"0.0.0.0:3026"},"ssh":{"listen_addr":"[::]:3023","tunnel_listen_addr":"0.0.0.0:3024","public_addr":"tele.example.com:443"},"db":{}},"server_version":"6.0.1","min_client_version":"3.0.0"}
+{"server_version":"6.0.0","min_client_version":"3.0.0"}
 ```
 
 ## Step 2/3 Create a local admin
@@ -178,7 +178,7 @@ Create the role and add a user:
 
 ```bash
 # To create a local user, we are going to run Teleport's admin tool tctl from the pod.
-$ POD=$(kubectl get pod -l app=teleport-cluster -o jsonpath='{.items[0].metadata.name}')
+$ POD=$(kubectl get po -l app=teleport-cluster -o jsonpath='{.items[0].metadata.name}')
 
 # Create a role
 $ kubectl exec -i ${POD?} -- tctl create -f < member.yaml
