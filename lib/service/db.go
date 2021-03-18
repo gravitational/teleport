@@ -122,8 +122,9 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	}()
 
 	streamer, err := events.NewCheckingStreamer(events.CheckingStreamerConfig{
-		Inner: conn.Client,
-		Clock: process.Clock,
+		Inner:       conn.Client,
+		Clock:       process.Clock,
+		ClusterName: clusterName,
 	})
 	if err != nil {
 		return trace.Wrap(err)

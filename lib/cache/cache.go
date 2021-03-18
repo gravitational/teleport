@@ -46,6 +46,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: true},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: services.KindClusterAuthPreference},
 		{Kind: services.KindStaticTokens},
 		{Kind: services.KindToken},
 		{Kind: services.KindUser},
@@ -76,6 +77,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: false},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: services.KindClusterAuthPreference},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindNamespace},
@@ -152,6 +154,7 @@ func ForNode(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: false},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: services.KindClusterAuthPreference},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		// Node only needs to "know" about default
@@ -170,6 +173,7 @@ func ForKubernetes(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: false},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: services.KindClusterAuthPreference},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindNamespace, Name: defaults.Namespace},
@@ -186,6 +190,7 @@ func ForApps(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: false},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: services.KindClusterAuthPreference},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindProxy},
@@ -203,6 +208,7 @@ func ForDatabases(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: false},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: services.KindClusterAuthPreference},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindProxy},
@@ -1247,4 +1253,14 @@ func (c *Cache) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (
 	}
 	defer rg.Release()
 	return rg.webToken.Get(ctx, req)
+}
+
+// GetAuthPreference gets the cluster authentication config.
+func (c *Cache) GetAuthPreference() (services.AuthPreference, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.clusterConfig.GetAuthPreference()
 }

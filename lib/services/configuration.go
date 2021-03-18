@@ -16,6 +16,8 @@ limitations under the License.
 
 package services
 
+import "context"
+
 // ClusterConfiguration stores the cluster configuration in the backend. All
 // the resources modified by this interface can only have a single instance
 // in the backend.
@@ -41,6 +43,8 @@ type ClusterConfiguration interface {
 	GetAuthPreference() (AuthPreference, error)
 	// SetAuthPreference sets services.AuthPreference from the backend.
 	SetAuthPreference(AuthPreference) error
+	// DeleteAuthPreference deletes services.AuthPreference from the backend.
+	DeleteAuthPreference(ctx context.Context) error
 
 	// GetClusterConfig gets services.ClusterConfig from the backend.
 	GetClusterConfig(opts ...MarshalOption) (ClusterConfig, error)
