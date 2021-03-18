@@ -1231,8 +1231,18 @@ message BillingAccountUpdate {
     string CompanyEmail = 4 [ (gogoproto.jsontag) = "company_email" ];
 }
 
-// BillingCard is emitted when a user creates, updates, deletes credit cards.
-message BillingCard {
+// BillingCardCreate is emitted when a user creates or updates a credit card.
+message BillingCardCreate {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
+// BillingCardDelete is emitted when a user deletes a credit card.
+message BillingCardDelete {
     // Metadata is a common event metadata.
     Metadata Metadata = 1
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
@@ -1291,7 +1301,8 @@ message OneOf {
         events.MFADeviceAdd MFADeviceAdd = 44;
         events.MFADeviceDelete MFADeviceDelete = 45;
         events.BillingAccountUpdate BillingAccountUpdate = 46;
-        events.BillingCard BillingCard = 47;
+        events.BillingCardCreate BillingCardCreate = 47;
+        events.BillingCardDelete BillingCardDelete = 48;
     }
 }
 

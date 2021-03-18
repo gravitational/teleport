@@ -101,7 +101,8 @@ type (
 	AppSessionChunk                 = events.AppSessionChunk
 	AppSessionRequest               = events.AppSessionRequest
 	BillingAccountUpdate            = events.BillingAccountUpdate
-	BillingCard                     = events.BillingCard
+	BillingCardCreate               = events.BillingCardCreate
+	BillingCardDelete               = events.BillingCardDelete
 	OneOf                           = events.OneOf
 	OneOf_UserLogin                 = events.OneOf_UserLogin                 //nolint
 	OneOf_UserCreate                = events.OneOf_UserCreate                //nolint
