@@ -282,7 +282,7 @@ var (
 	// Median sleep time between node pings is this value / 2 + random
 	// deviation added to this time to avoid lots of simultaneous
 	// heartbeats coming to auth server
-	ServerAnnounceTTL = 600 * time.Second
+	ServerAnnounceTTL = defaults.ServerAnnounceTTL
 
 	// ServerKeepAliveTTL is a period between server keep alives,
 	// when servers announce only presence withough sending full data
