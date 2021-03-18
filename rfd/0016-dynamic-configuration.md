@@ -251,8 +251,8 @@ This logic implies Choices 2.B and 3.B.
    --confirm flags.
    ```
 
-   Invocation with both `--force` and `--confirm` will temporarily replace the
-   stored resource with the YAML one.
+   Invocation with both `--force` and `--confirm` will replace the
+   stored resource with the YAML one until the auth server restart.
 
 This logic implies Choice 5.A and an adaptation of Choice 6.A.
 
@@ -276,8 +276,8 @@ The `tctl rm` subcommand can be used to reset dynamic resources back to their de
    If you would still like to proceed, re-run the command with --confirm flag.
    ```
 
-   Invocation with `--confirm` will temporarily replace the stored resource with
-   the default one.
+   Invocation with `--confirm` will replace the stored resource with
+   the default one until the auth server restart.
 
 Note the use of `--confirm` on its own as opposed to in conjunction with
 `--force`.  This decision is meant to retain compatibility with [the unrelated
