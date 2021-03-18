@@ -439,6 +439,26 @@ func (g *GRPCServer) SetAccessRequestState(ctx context.Context, req *proto.Reque
 	return &empty.Empty{}, nil
 }
 
+func (g *GRPCServer) SubmitAccessReview(ctx context.Context, review *types.AccessReviewSubmission) (*types.AccessRequestV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	req, err := auth.ServerWithRoles.SubmitAccessReview(ctx, *review)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	r, ok := req.(*services.AccessRequestV3)
+	if !ok {
+		err = trace.BadParameter("unexpected access request type %T", req)
+		return nil, trail.ToGRPC(err)
+	}
+
+	return r, nil
+}
+
 func (g *GRPCServer) GetAccessCapabilities(ctx context.Context, req *services.AccessCapabilitiesRequest) (*services.AccessCapabilities, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {

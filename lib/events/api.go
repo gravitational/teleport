@@ -184,6 +184,8 @@ const (
 	AccessRequestCreateEvent = "access_request.create"
 	// AccessRequestUpdateEvent is emitted when a request's state is updated.
 	AccessRequestUpdateEvent = "access_request.update"
+	// AccessRequestReviewEvent is emitted when a review is applied to a request.
+	AccessRequestReviewEvent = "access_request.review"
 	// AccessRequestDelegator is used by teleport plugins to indicate the identity
 	// which caused them to update state.
 	AccessRequestDelegator = "delegator"

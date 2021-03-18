@@ -375,6 +375,8 @@ const (
 	AccessRequestCreateCode = "T5000I"
 	// AccessRequestUpdateCode is the access request state update code.
 	AccessRequestUpdateCode = "T5001I"
+	// AccessRequestReviewCode is the access review application code.
+	AccessRequestReviewCode = "T5002I"
 
 	// ResetPasswordTokenCreateCode is the token create event code.
 	ResetPasswordTokenCreateCode = "T6000I"
