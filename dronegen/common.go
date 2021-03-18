@@ -1,5 +1,7 @@
 package main
 
+import "fmt"
+
 var (
 	triggerPullRequest = trigger{
 		Event: triggerRef{Include: []string{"pull_request"}},
@@ -16,9 +18,38 @@ var (
 		Repo:  triggerRef{Include: []string{"gravitational/*"}},
 	}
 
+	volumeDocker = volume{
+		Name: "dockersock",
+		Temp: &volumeTemp{},
+	}
+	volumeTmpfs = volume{
+		Name: "tmpfs",
+		Temp: &volumeTemp{Medium: "memory"},
+	}
+	volumeTmpDind = volume{
+		Name: "tmp-dind",
+		Temp: &volumeTemp{},
+	}
+	volumeTmpIntegration = volume{
+		Name: "tmp-integration",
+		Temp: &volumeTemp{},
+	}
+
 	volumeRefTmpfs = volumeRef{
 		Name: "tmpfs",
 		Path: "/tmpfs",
+	}
+	volumeRefDocker = volumeRef{
+		Name: "dockersock",
+		Path: "/var/run",
+	}
+	volumeRefTmpDind = volumeRef{
+		Name: "tmp-dind",
+		Path: "/tmp",
+	}
+	volumeRefTmpIntegration = volumeRef{
+		Name: "tmp-integration",
+		Path: "/tmp",
 	}
 
 	// TODO(gus): Set this from `make -C build.assets print-runtime-version` or similar rather
@@ -34,78 +65,36 @@ type buildType struct {
 	centos6 bool
 }
 
-type extraVolumes struct {
-	tmpfs          bool
-	tmpDind        bool
-	tmpIntegration bool
-}
-
-// dockerService generates a docker:dind service and includes any extra volumes configured
-// in extraVolumes.
-func dockerService(v extraVolumes) service {
+// dockerService generates a docker:dind service
+// It includes the Docker socket volume by default, plus any extra volumes passed in
+func dockerService(v ...volumeRef) service {
 	return service{
 		Name:    "Start Docker",
 		Image:   "docker:dind",
-		Volumes: volumeRefs(v),
+		Volumes: append(v, volumeRefDocker),
 	}
 }
 
-// volumes generates a slice of volumes including the Docker socket by default,
-// plus any extra volumes configured in extraVolumes.
-func volumes(v extraVolumes) []volume {
-	volumes := []volume{
-		volume{
-			Name: "dockersock",
-			Temp: &volumeTemp{},
-		},
-	}
-	if v.tmpfs {
-		volumes = append(volumes, volume{
-			Name: "tmpfs",
-			Temp: &volumeTemp{Medium: "memory"},
-		})
-	}
-	if v.tmpDind {
-		volumes = append(volumes, volume{
-			Name: "tmp-dind",
-			Temp: &volumeTemp{},
-		})
-	}
-	if v.tmpIntegration {
-		volumes = append(volumes, volume{
-			Name: "tmp-integration",
-			Temp: &volumeTemp{},
-		})
-	}
-	return volumes
+// dockerVolumes returns a slice of volumes
+// It includes the Docker socket volume by default, plus any extra volumes passed in
+func dockerVolumes(v ...volume) []volume {
+	return append(v, volumeDocker)
 }
 
-// volumeRefs generates a slice of volumeRefs including the Docker socket by default,
-// plus any extra volumes configured in extraVolumes.
-func volumeRefs(v extraVolumes) []volumeRef {
-	volumeRefs := []volumeRef{
-		volumeRef{
-			Name: "dockersock",
-			Path: "/var/run",
-		},
+// dockerVolumeRefs returns a slice of volumeRefs
+// It includes the Docker socket volumeRef as a default, plus any extra volumeRefs passed in
+func dockerVolumeRefs(v ...volumeRef) []volumeRef {
+	return append(v, volumeRefDocker)
+}
+
+// releaseMakefileTarget gets the correct Makefile target for a given arch/fips/centos6 combo
+func releaseMakefileTarget(b buildType) string {
+	makefileTarget := fmt.Sprintf("release-%s", b.arch)
+	if b.centos6 {
+		makefileTarget += "-centos6"
 	}
-	if v.tmpfs {
-		volumeRefs = append(volumeRefs, volumeRef{
-			Name: "tmpfs",
-			Path: "/tmpfs",
-		})
+	if b.fips {
+		makefileTarget += "-fips"
 	}
-	if v.tmpDind {
-		volumeRefs = append(volumeRefs, volumeRef{
-			Name: "tmp-dind",
-			Path: "/tmp",
-		})
-	}
-	if v.tmpIntegration {
-		volumeRefs = append(volumeRefs, volumeRef{
-			Name: "tmp-integration",
-			Path: "/tmp",
-		})
-	}
-	return volumeRefs
+	return makefileTarget
 }

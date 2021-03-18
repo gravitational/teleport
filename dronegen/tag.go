@@ -11,18 +11,6 @@ const (
 	debPackage = "deb"
 )
 
-// tagMakefileTarget gets the correct tag pipeline Makefile target for a given arch/fips combo
-func tagMakefileTarget(b buildType) string {
-	makefileTarget := fmt.Sprintf("release-%s", b.arch)
-	if b.centos6 {
-		makefileTarget += "-centos6"
-	}
-	if b.fips {
-		makefileTarget += "-fips"
-	}
-	return makefileTarget
-}
-
 // tagCheckoutCommands builds a list of commands for Drone to check out a git commit on a tag build
 func tagCheckoutCommands(fips bool) []string {
 	commands := []string{
@@ -61,7 +49,7 @@ func tagBuildCommands(b buildType) []string {
 
 	commands = append(commands,
 		fmt.Sprintf(
-			`make -C build.assets %s`, tagMakefileTarget(b),
+			`make -C build.assets %s`, releaseMakefileTarget(b),
 		),
 	)
 
@@ -154,27 +142,20 @@ func tagPipelines() []pipeline {
 				continue
 			}
 			ps = append(ps, tagPipeline(buildType{os: "linux", arch: arch, fips: fips}))
-			// TODO(gus): support needs to be added upstream for building ARM/ARM64 packages first
-			// ps = append(ps, tagPackagePipeline(rpmPackage, buildType{os: "linux", arch: arch, fips: fips}))
-			// ps = append(ps, tagPackagePipeline(debPackage, buildType{os: "linux", arch: arch, fips: fips}))
-		}
-	}
 
-	// TODO(gus): needed until support is added upstream for building ARM/ARM64 packages
-	// Remove this section and uncomment above once this is added.
-	for _, arch := range []string{"amd64", "386"} {
-		for _, fips := range []bool{false, true} {
-			if (arch == "386" || arch == "arm") && fips {
-				// FIPS mode not supported on i386 or ARM
+			if arch == "arm" || arch == "arm64" {
+				// TODO(gus): support needs to be added upstream for building ARM/ARM64 packages first
 				continue
 			}
-			ps = append(ps, tagPackagePipeline(rpmPackage, buildType{os: "linux", arch: arch, fips: fips}))
-			ps = append(ps, tagPackagePipeline(debPackage, buildType{os: "linux", arch: arch, fips: fips}))
+			for _, packageType := range []string{rpmPackage, debPackage} {
+				ps = append(ps, tagPackagePipeline(packageType, buildType{os: "linux", arch: arch, fips: fips}))
+			}
 		}
 	}
 
 	// Only amd64 Windows is supported for now.
 	ps = append(ps, tagPipeline(buildType{os: "windows", arch: "amd64"}))
+
 	// Also add the two CentOS 6 artifacts.
 	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos6: true}))
 	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos6: true, fips: true}))
@@ -212,9 +193,9 @@ func tagPipeline(b buildType) pipeline {
 	}
 	p.Trigger = triggerTag
 	p.Workspace = workspace{Path: "/go"}
-	p.Volumes = volumes(extraVolumes{})
+	p.Volumes = dockerVolumes()
 	p.Services = []service{
-		dockerService(extraVolumes{}),
+		dockerService(),
 	}
 	p.Steps = []step{
 		{
@@ -229,7 +210,7 @@ func tagPipeline(b buildType) pipeline {
 			Name:        "Build artifacts",
 			Image:       "docker",
 			Environment: tagEnvironment,
-			Volumes:     volumeRefs(extraVolumes{}),
+			Volumes:     dockerVolumeRefs(),
 			Commands:    tagBuildCommands(b),
 		},
 		{
@@ -318,7 +299,9 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 		environment["OSS_TARBALL_PATH"] = value{raw: "/go/artifacts"}
 	}
 
-	tagExtraVolumes := extraVolumes{}
+	packageDockerVolumes := dockerVolumes()
+	packageDockerVolumeRefs := dockerVolumeRefs()
+	packageDockerService := dockerService()
 
 	switch packageType {
 	case rpmPackage:
@@ -331,7 +314,10 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			makeCommand,
 			`rm -rf $GNUPG_DIR`,
 		)
-		tagExtraVolumes = extraVolumes{tmpfs: true}
+		// RPM builds require tmpfs to hold the key material in memory.
+		packageDockerVolumes = dockerVolumes(volumeTmpfs)
+		packageDockerVolumeRefs = dockerVolumeRefs(volumeRefTmpfs)
+		packageDockerService = dockerService(volumeRefTmpfs)
 	case debPackage:
 		packageBuildCommands = append(packageBuildCommands,
 			makeCommand,
@@ -346,9 +332,9 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 	p.Trigger = triggerTag
 	p.DependsOn = []string{dependentPipeline}
 	p.Workspace = workspace{Path: "/go"}
-	p.Volumes = volumes(tagExtraVolumes)
+	p.Volumes = packageDockerVolumes
 	p.Services = []service{
-		dockerService(tagExtraVolumes),
+		packageDockerService,
 	}
 	p.Steps = []step{
 		{
@@ -374,7 +360,7 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			Name:        "Build artifacts",
 			Image:       "docker",
 			Environment: environment,
-			Volumes:     volumeRefs(tagExtraVolumes),
+			Volumes:     packageDockerVolumeRefs,
 			Commands:    packageBuildCommands,
 		},
 		{
