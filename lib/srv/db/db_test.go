@@ -71,8 +71,8 @@ func TestPostgresAccess(t *testing.T) {
 		desc         string
 		user         string
 		role         string
-		allowDbNames []string
-		allowDbUsers []string
+		allowDBNames []string
+		allowDBUsers []string
 		dbName       string
 		dbUser       string
 		err          string
@@ -81,8 +81,8 @@ func TestPostgresAccess(t *testing.T) {
 			desc:         "has access to all database names and users",
 			user:         "alice",
 			role:         "admin",
-			allowDbNames: []string{types.Wildcard},
-			allowDbUsers: []string{types.Wildcard},
+			allowDBNames: []string{types.Wildcard},
+			allowDBUsers: []string{types.Wildcard},
 			dbName:       "postgres",
 			dbUser:       "postgres",
 		},
@@ -90,8 +90,8 @@ func TestPostgresAccess(t *testing.T) {
 			desc:         "has access to nothing",
 			user:         "alice",
 			role:         "admin",
-			allowDbNames: []string{},
-			allowDbUsers: []string{},
+			allowDBNames: []string{},
+			allowDBUsers: []string{},
 			dbName:       "postgres",
 			dbUser:       "postgres",
 			err:          "access to database denied",
@@ -100,8 +100,8 @@ func TestPostgresAccess(t *testing.T) {
 			desc:         "no access to databases",
 			user:         "alice",
 			role:         "admin",
-			allowDbNames: []string{},
-			allowDbUsers: []string{types.Wildcard},
+			allowDBNames: []string{},
+			allowDBUsers: []string{types.Wildcard},
 			dbName:       "postgres",
 			dbUser:       "postgres",
 			err:          "access to database denied",
@@ -110,8 +110,8 @@ func TestPostgresAccess(t *testing.T) {
 			desc:         "no access to users",
 			user:         "alice",
 			role:         "admin",
-			allowDbNames: []string{types.Wildcard},
-			allowDbUsers: []string{},
+			allowDBNames: []string{types.Wildcard},
+			allowDBUsers: []string{},
 			dbName:       "postgres",
 			dbUser:       "postgres",
 			err:          "access to database denied",
@@ -120,8 +120,8 @@ func TestPostgresAccess(t *testing.T) {
 			desc:         "access allowed to specific user/database",
 			user:         "alice",
 			role:         "admin",
-			allowDbNames: []string{"metrics"},
-			allowDbUsers: []string{"alice"},
+			allowDBNames: []string{"metrics"},
+			allowDBUsers: []string{"alice"},
 			dbName:       "metrics",
 			dbUser:       "alice",
 		},
@@ -129,8 +129,8 @@ func TestPostgresAccess(t *testing.T) {
 			desc:         "access denied to specific user/database",
 			user:         "alice",
 			role:         "admin",
-			allowDbNames: []string{"metrics"},
-			allowDbUsers: []string{"alice"},
+			allowDBNames: []string{"metrics"},
+			allowDBUsers: []string{"alice"},
 			dbName:       "postgres",
 			dbUser:       "postgres",
 			err:          "access to database denied",
@@ -143,8 +143,8 @@ func TestPostgresAccess(t *testing.T) {
 			_, role, err := auth.CreateUserAndRole(testCtx.tlsServer.Auth(), test.user, []string{test.role})
 			require.NoError(t, err)
 
-			role.SetDatabaseNames(types.Allow, test.allowDbNames)
-			role.SetDatabaseUsers(types.Allow, test.allowDbUsers)
+			role.SetDatabaseNames(types.Allow, test.allowDBNames)
+			role.SetDatabaseUsers(types.Allow, test.allowDBUsers)
 			err = testCtx.tlsServer.Auth().UpsertRole(ctx, role)
 			require.NoError(t, err)
 
@@ -207,8 +207,8 @@ func TestMySQLAccess(t *testing.T) {
 		user string
 		// role is the Teleport role name to create and assign to the user.
 		role string
-		// allowDbUsers is the role's list of allowed database users.
-		allowDbUsers []string
+		// allowDBUsers is the role's list of allowed database users.
+		allowDBUsers []string
 		// dbUser is the database user to simulate connect as.
 		dbUser string
 		// err is the expected test case error.
@@ -218,14 +218,14 @@ func TestMySQLAccess(t *testing.T) {
 			desc:         "has access to all database users",
 			user:         "alice",
 			role:         "admin",
-			allowDbUsers: []string{types.Wildcard},
+			allowDBUsers: []string{types.Wildcard},
 			dbUser:       "root",
 		},
 		{
 			desc:         "has access to nothing",
 			user:         "alice",
 			role:         "admin",
-			allowDbUsers: []string{},
+			allowDBUsers: []string{},
 			dbUser:       "root",
 			err:          "access to database denied",
 		},
@@ -233,14 +233,14 @@ func TestMySQLAccess(t *testing.T) {
 			desc:         "access allowed to specific user",
 			user:         "alice",
 			role:         "admin",
-			allowDbUsers: []string{"alice"},
+			allowDBUsers: []string{"alice"},
 			dbUser:       "alice",
 		},
 		{
 			desc:         "access denied to specific user",
 			user:         "alice",
 			role:         "admin",
-			allowDbUsers: []string{"alice"},
+			allowDBUsers: []string{"alice"},
 			dbUser:       "root",
 			err:          "access to database denied",
 		},
@@ -252,7 +252,7 @@ func TestMySQLAccess(t *testing.T) {
 			_, role, err := auth.CreateUserAndRole(testCtx.tlsServer.Auth(), test.user, []string{test.role})
 			require.NoError(t, err)
 
-			role.SetDatabaseUsers(types.Allow, test.allowDbUsers)
+			role.SetDatabaseUsers(types.Allow, test.allowDBUsers)
 			err = testCtx.tlsServer.Auth().UpsertRole(ctx, role)
 			require.NoError(t, err)
 
