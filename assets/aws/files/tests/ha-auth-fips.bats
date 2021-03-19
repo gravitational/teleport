@@ -17,7 +17,7 @@ EOF
     export TELEPORT_TEST_FIPS_MODE=true
 }
 
-load fixtures/common.bash
+load fixtures/common
 
 @test "[${TEST_SUITE?}] config file was generated without error" {
     [ ${GENERATE_EXIT_CODE?} -eq 0 ]
