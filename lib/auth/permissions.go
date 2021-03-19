@@ -638,6 +638,18 @@ func clientUsername(ctx context.Context) string {
 	return identity.Username
 }
 
+// clientImpersonator returns the impersonator username of a remote client
+// making the call. If not present, returns an empty string
+func clientImpersonator(ctx context.Context) string {
+	userI := ctx.Value(ContextUser)
+	userWithIdentity, ok := userI.(IdentityGetter)
+	if !ok {
+		return ""
+	}
+	identity := userWithIdentity.GetIdentity()
+	return identity.Impersonator
+}
+
 // LocalUser is a local user
 type LocalUser struct {
 	// Username is local username

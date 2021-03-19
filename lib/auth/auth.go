@@ -433,6 +433,9 @@ type certs struct {
 type certRequest struct {
 	// user is a user to generate certificate for
 	user services.User
+	// impersonator is a user who generates the certificate,
+	// is set when different from the user in the certificate
+	impersonator string
 	// checker is used to perform RBAC checks.
 	checker services.AccessChecker
 	// ttl is Duration of the certificate
@@ -677,11 +680,12 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sshCert, err := a.Authority.GenerateUserCert(services.UserCertParams{
+	params := services.UserCertParams{
 		PrivateCASigningKey:   privateKey,
 		CASigningAlg:          sshutils.GetSigningAlgName(ca),
 		PublicUserKey:         req.publicKey,
 		Username:              req.user.GetName(),
+		Impersonator:          req.impersonator,
 		AllowedLogins:         allowedLogins,
 		TTL:                   sessionTTL,
 		Roles:                 req.checker.RoleNames(),
@@ -694,7 +698,8 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 		ActiveRequests:        req.activeRequests,
 		MFAVerified:           req.mfaVerified,
 		ClientIP:              req.clientIP,
-	})
+	}
+	sshCert, err := a.Authority.GenerateUserCert(params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -731,6 +736,7 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	}
 	identity := tlsca.Identity{
 		Username:          req.user.GetName(),
+		Impersonator:      req.impersonator,
 		Groups:            req.checker.RoleNames(),
 		Principals:        allowedLogins,
 		Usage:             req.usage,
@@ -1105,7 +1111,8 @@ func (a *Server) GenerateToken(ctx context.Context, req GenerateTokenRequest) (s
 					Code: events.TrustedClusterTokenCreateCode,
 				},
 				UserMetadata: events.UserMetadata{
-					User: user,
+					User:         user,
+					Impersonator: clientImpersonator(ctx),
 				},
 			}); err != nil {
 				log.WithError(err).Warn("Failed to emit trusted cluster token create event.")
@@ -1666,7 +1673,8 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 			Code: events.RoleDeletedCode,
 		},
 		UserMetadata: events.UserMetadata{
-			User: clientUsername(ctx),
+			User:         clientUsername(ctx),
+			Impersonator: clientImpersonator(ctx),
 		},
 		ResourceMetadata: events.ResourceMetadata{
 			Name: name,
@@ -1743,7 +1751,8 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req services.AccessReq
 			Code: events.AccessRequestCreateCode,
 		},
 		UserMetadata: events.UserMetadata{
-			User: req.GetUser(),
+			User:         req.GetUser(),
+			Impersonator: clientImpersonator(ctx),
 		},
 		Roles:        req.GetRoles(),
 		RequestID:    req.GetName(),
