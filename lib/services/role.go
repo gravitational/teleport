@@ -451,9 +451,9 @@ func ApplyTraits(r Role, traits map[string][]string) Role {
 		r.SetKubeUsers(condition, utils.Deduplicate(outKubeUsers))
 
 		// apply templates to database names
-		inDbNames := r.GetDatabaseNames(condition)
-		var outDbNames []string
-		for _, name := range inDbNames {
+		inDBNames := r.GetDatabaseNames(condition)
+		var outDBNames []string
+		for _, name := range inDBNames {
 			variableValues, err := applyValueTraits(name, traits)
 			if err != nil {
 				if !trace.IsNotFound(err) {
@@ -461,14 +461,14 @@ func ApplyTraits(r Role, traits map[string][]string) Role {
 				}
 				continue
 			}
-			outDbNames = append(outDbNames, variableValues...)
+			outDBNames = append(outDBNames, variableValues...)
 		}
-		r.SetDatabaseNames(condition, utils.Deduplicate(outDbNames))
+		r.SetDatabaseNames(condition, utils.Deduplicate(outDBNames))
 
 		// apply templates to database users
-		inDbUsers := r.GetDatabaseUsers(condition)
-		var outDbUsers []string
-		for _, user := range inDbUsers {
+		inDBUsers := r.GetDatabaseUsers(condition)
+		var outDBUsers []string
+		for _, user := range inDBUsers {
 			variableValues, err := applyValueTraits(user, traits)
 			if err != nil {
 				if !trace.IsNotFound(err) {
@@ -476,9 +476,9 @@ func ApplyTraits(r Role, traits map[string][]string) Role {
 				}
 				continue
 			}
-			outDbUsers = append(outDbUsers, variableValues...)
+			outDBUsers = append(outDBUsers, variableValues...)
 		}
-		r.SetDatabaseUsers(condition, utils.Deduplicate(outDbUsers))
+		r.SetDatabaseUsers(condition, utils.Deduplicate(outDBUsers))
 
 		// apply templates to node labels
 		inLabels := r.GetNodeLabels(condition)
