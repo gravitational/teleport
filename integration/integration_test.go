@@ -4807,10 +4807,11 @@ func (s *IntSuite) TestBPFSessionDifferentiation(c *check.C) {
 	// Wait 10 seconds for both events to arrive, otherwise timeout.
 	timeout := time.After(10 * time.Second)
 	for i := 0; i < 2; i++ {
+	out:
 		select {
 		case <-doneCh:
 			if i == 1 {
-				break
+				break out
 			}
 		case <-timeout:
 			dumpGoroutineProfile()
