@@ -72,8 +72,8 @@ ENV GOPATH="/go" \
     PATH="$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
 
 # Install meta-linter.
-RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.24.0/golangci-lint-1.24.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz && \
-     cp golangci-lint-1.24.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ && \
+RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.38.0/golangci-lint-1.38.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz && \
+     cp golangci-lint-1.38.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ && \
      rm -r golangci-lint*)
 
 # Install helm.

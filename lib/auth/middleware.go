@@ -216,9 +216,8 @@ func (t *TLSServer) Shutdown(ctx context.Context) error {
 func (t *TLSServer) Serve() error {
 	errC := make(chan error, 2)
 	go func() {
-		if err := t.mux.Serve(); err != nil {
-			t.log.WithError(err).Warningf("Mux serve failed.")
-		}
+		err := t.mux.Serve()
+		t.log.WithError(err).Warningf("Mux serve failed.")
 	}()
 	go func() {
 		errC <- t.httpServer.Serve(t.mux.HTTP())
