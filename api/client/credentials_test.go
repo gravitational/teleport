@@ -41,8 +41,8 @@ func TestLoadTLS(t *testing.T) {
 	// Build tls.Config and compare to expected tls.Config.
 	tlsConfig, err := creds.TLSConfig()
 	require.NoError(t, err)
-	require.Equal(t, tlsConfig.Certificates, expectedTLSConfig.Certificates)
-	require.Equal(t, tlsConfig.RootCAs.Subjects(), expectedTLSConfig.RootCAs.Subjects())
+	require.Equal(t, expectedTLSConfig.Certificates, tlsConfig.Certificates)
+	require.Equal(t, expectedTLSConfig.RootCAs.Subjects(), tlsConfig.RootCAs.Subjects())
 
 	// Load invalid tls.Config.
 	invalidTLSCreds := LoadTLS(nil)
@@ -81,13 +81,13 @@ func TestLoadIdentityFile(t *testing.T) {
 	// Build tls.Config and compare to expected tls.Config.
 	tlsConfig, err := creds.TLSConfig()
 	require.NoError(t, err)
-	require.Equal(t, tlsConfig.Certificates, expectedTLSConfig.Certificates)
-	require.Equal(t, tlsConfig.RootCAs.Subjects(), expectedTLSConfig.RootCAs.Subjects())
+	require.Equal(t, expectedTLSConfig.Certificates, tlsConfig.Certificates)
+	require.Equal(t, expectedTLSConfig.RootCAs.Subjects(), tlsConfig.RootCAs.Subjects())
 
 	// Build ssh.ClientConfig and compare to expected ssh.ClientConfig.
 	sshConfig, err := creds.SSHClientConfig()
 	require.NoError(t, err)
-	require.Equal(t, sshConfig.User, expectedSSHConfig.User)
+	require.Equal(t, expectedSSHConfig.User, sshConfig.User)
 
 	// Load invalid identity.
 	creds = LoadIdentityFile("invalid_path")
@@ -119,8 +119,8 @@ func TestLoadKeyPair(t *testing.T) {
 	// Build tls.Config and compare to expected tls.Config.
 	tlsConfig, err := creds.TLSConfig()
 	require.NoError(t, err)
-	require.Equal(t, tlsConfig.Certificates, expectedTLSConfig.Certificates)
-	require.Equal(t, tlsConfig.RootCAs.Subjects(), expectedTLSConfig.RootCAs.Subjects())
+	require.Equal(t, expectedTLSConfig.Certificates, tlsConfig.Certificates)
+	require.Equal(t, expectedTLSConfig.RootCAs.Subjects(), tlsConfig.RootCAs.Subjects())
 
 	// Load invalid keypairs.
 	invalidIdentityCreds := LoadKeyPair("invalid_path", "invalid_path", "invalid_path")

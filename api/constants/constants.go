@@ -82,6 +82,12 @@ const (
 
 	// WindowsOS is the GOOS constant used for Microsoft Windows.
 	WindowsOS = "windows"
+
+	// LinuxOS is the GOOS constant used for Linux.
+	LinuxOS = "linux"
+
+	// DarwinOS is the GOOS constant for Apple macOS/darwin.
+	DarwinOS = "darwin"
 )
 
 // SecondFactorType is the type of 2FA authentication.

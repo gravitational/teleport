@@ -129,7 +129,8 @@ func LoadIdentityFile(path string) *IdentityCreds {
 // IdentityCreds are used to authenticate the client
 // with an identity file generated in the given file path.
 type IdentityCreds struct {
-	path string
+	path         string
+	identityFile *IdentityFile
 }
 
 // Dialer is used to dial a connection to Auth.
@@ -139,12 +140,11 @@ func (c *IdentityCreds) Dialer() (ContextDialer, error) {
 
 // TLSConfig returns TLS configuration used to connect to Auth.
 func (c *IdentityCreds) TLSConfig() (*tls.Config, error) {
-	identityFile, err := ReadIdentityFile(c.path)
-	if err != nil {
-		return nil, trace.BadParameter("identity file could not be decoded: %v", err)
+	if err := c.load(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	tlsConfig, err := identityFile.TLSConfig()
+	tlsConfig, err := c.identityFile.TLSConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -154,17 +154,27 @@ func (c *IdentityCreds) TLSConfig() (*tls.Config, error) {
 
 // SSHClientConfig returns SSH configuration used to connect to Proxy.
 func (c *IdentityCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
-	identityFile, err := ReadIdentityFile(c.path)
-	if err != nil {
-		return nil, trace.BadParameter("identity file could not be decoded: %v", err)
+	if err := c.load(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	sshConfig, err := identityFile.SSHClientConfig()
+	sshConfig, err := c.identityFile.SSHClientConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return sshConfig, nil
+}
+
+func (c *IdentityCreds) load() error {
+	if c.identityFile != nil {
+		return nil
+	}
+	var err error
+	if c.identityFile, err = ReadIdentityFile(c.path); err != nil {
+		return trace.BadParameter("identity file could not be decoded: %v", err)
+	}
+	return nil
 }
 
 func configure(c *tls.Config) *tls.Config {

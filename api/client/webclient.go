@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -45,7 +46,36 @@ func Find(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertP
 	clt := newWebClient(insecure, pool)
 	defer clt.CloseIdleConnections()
 
-	resp, err := clt.Get("https://" + proxyAddr + "/webapi/ping")
+	endpoint := fmt.Sprintf("https://%s/webapi/find", proxyAddr)
+	resp, err := clt.Get(endpoint)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defer resp.Body.Close()
+	pr := &PingResponse{}
+	if err := json.NewDecoder(resp.Body).Decode(pr); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return pr, nil
+}
+
+// Ping serves two purposes. The first is to validate the HTTP endpoint of a
+// Teleport proxy. This leads to better user experience: users get connection
+// errors before being asked for passwords. The second is to return the form
+// of authentication that the server supports. This also leads to better user
+// experience: users only get prompted for the type of authentication the server supports.
+func Ping(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertPool, connectorName string) (*PingResponse, error) {
+	clt := newWebClient(insecure, pool)
+	defer clt.CloseIdleConnections()
+
+	endpoint := fmt.Sprintf("https://%s/webapi/ping", proxyAddr)
+	if connectorName != "" {
+		endpoint = fmt.Sprintf("%s/%s", endpoint, connectorName)
+	}
+
+	resp, err := clt.Get(endpoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

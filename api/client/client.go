@@ -116,10 +116,10 @@ func connectInBackground(ctx context.Context, cfg Config) (*Client, error) {
 
 	dialer := cfg.Dialer
 	addr := constants.APIDomain
+	if dialer == nil && len(cfg.Addrs) == 0 {
+		return nil, trace.BadParameter("must have a Dialer or Addrs in config")
+	}
 	if dialer == nil {
-		if len(cfg.Addrs) == 0 {
-			return nil, trace.BadParameter("must have a Dialer or Addrs in config")
-		}
 		dialer = NewDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
 		addr = cfg.Addrs[0]
 	}

@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -242,36 +241,6 @@ func initClient(proxyAddr string, insecure bool, pool *x509.CertPool) (*WebClien
 	}
 
 	return clt, u, nil
-}
-
-// Ping serves two purposes. The first is to validate the HTTP endpoint of a
-// Teleport proxy. This leads to better user experience: users get connection
-// errors before being asked for passwords. The second is to return the form
-// of authentication that the server supports. This also leads to better user
-// experience: users only get prompted for the type of authentication the server supports.
-func Ping(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertPool, connectorName string) (*client.PingResponse, error) {
-	clt, _, err := initClient(proxyAddr, insecure, pool)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	endpoint := clt.Endpoint("webapi", "ping")
-	if connectorName != "" {
-		endpoint = clt.Endpoint("webapi", "ping", connectorName)
-	}
-
-	response, err := clt.Get(ctx, endpoint, url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var pr *client.PingResponse
-	err = json.Unmarshal(response.Bytes(), &pr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return pr, nil
 }
 
 // SSHAgentSSOLogin is used by tsh to fetch user credentials using OpenID Connect (OIDC) or SAML.

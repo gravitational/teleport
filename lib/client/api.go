@@ -2074,7 +2074,7 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*client.PingResponse, error
 	if tc.lastPing != nil {
 		return tc.lastPing, nil
 	}
-	pr, err := Ping(
+	pr, err := client.Ping(
 		ctx,
 		tc.WebProxyAddr,
 		tc.InsecureSkipVerify,
