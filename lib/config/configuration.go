@@ -1471,7 +1471,7 @@ func validateRoles(roles string) error {
 			defaults.RoleProxy,
 			defaults.RoleApp,
 			defaults.RoleDatabase:
-			break
+			// Do nothing in these cases.
 		default:
 			return trace.Errorf("unknown role: '%s'", role)
 		}
