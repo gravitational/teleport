@@ -54,6 +54,7 @@ func NewPresetEditorRole() Role {
 					NewRule(KindClusterConfig, RW()),
 					NewRule(KindTrustedCluster, RW()),
 					NewRule(KindRemoteCluster, RW()),
+					NewRule(KindToken, RW()),
 				},
 			},
 		},

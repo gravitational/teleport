@@ -69,7 +69,8 @@ func (a *Audit) OnSessionStart(ctx context.Context, session Session, sessionErr 
 			ServerNamespace: defaults.Namespace,
 		},
 		UserMetadata: events.UserMetadata{
-			User: session.Identity.Username,
+			User:         session.Identity.Username,
+			Impersonator: session.Identity.Impersonator,
 		},
 		SessionMetadata: events.SessionMetadata{
 			SessionID: session.ID,
@@ -111,7 +112,8 @@ func (a *Audit) OnSessionEnd(ctx context.Context, session Session) error {
 			ClusterName: session.ClusterName,
 		},
 		UserMetadata: events.UserMetadata{
-			User: session.Identity.Username,
+			User:         session.Identity.Username,
+			Impersonator: session.Identity.Impersonator,
 		},
 		SessionMetadata: events.SessionMetadata{
 			SessionID: session.ID,
@@ -139,7 +141,8 @@ func (a *Audit) OnQuery(ctx context.Context, session Session, query string) erro
 			ClusterName: session.ClusterName,
 		},
 		UserMetadata: events.UserMetadata{
-			User: session.Identity.Username,
+			User:         session.Identity.Username,
+			Impersonator: session.Identity.Impersonator,
 		},
 		SessionMetadata: events.SessionMetadata{
 			SessionID: session.ID,
