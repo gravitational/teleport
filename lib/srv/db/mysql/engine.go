@@ -119,6 +119,14 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 // checkAccess does authorization check for MySQL connection about to be established.
 func (e *Engine) checkAccess(sessionCtx *common.Session) error {
+	ap, err := e.Auth.GetAuthPreference()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	mfaParams := services.AccessMFAParams{
+		Verified:       sessionCtx.Identity.MFAVerified != "",
+		AlwaysRequired: ap.GetRequireSessionMFA(),
+	}
 	// In MySQL, unlike Postgres, "database" and "schema" are the same thing
 	// and there's no good way to prevent users from performing cross-database
 	// queries once they're connected, apart from granting proper privileges
@@ -129,7 +137,7 @@ func (e *Engine) checkAccess(sessionCtx *common.Session) error {
 	// on queries, we might be able to restrict db_names as well e.g. by
 	// detecting full-qualified table names like db.table, until then the
 	// proper way is to use MySQL grants system.
-	err := sessionCtx.Checker.CheckAccessToDatabase(sessionCtx.Server, sessionCtx.Identity.MFAVerified != "",
+	err = sessionCtx.Checker.CheckAccessToDatabase(sessionCtx.Server, mfaParams,
 		&services.DatabaseLabelsMatcher{Labels: sessionCtx.Server.GetAllLabels()},
 		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser})
 	if err != nil {
