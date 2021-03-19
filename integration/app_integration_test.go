@@ -46,9 +46,9 @@ import (
 	"github.com/gravitational/teleport/lib/web/app"
 
 	"github.com/gravitational/trace"
-
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/net/websocket"
 )
 
 // TestForward tests that requests get forwarded to the target application
@@ -89,6 +89,57 @@ func TestForward(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tt.outStatusCode, status)
 			require.Contains(t, body, tt.outMessage)
+		})
+	}
+}
+
+// TestAppAccessWebsockets makes sure that websocket requests get forwarded.
+func TestAppAccessWebsockets(t *testing.T) {
+	// Create cluster, user, sessions, and credentials package.
+	pack := setup(t)
+
+	tests := []struct {
+		desc       string
+		inCookie   string
+		outMessage string
+		err        error
+	}{
+		{
+			desc:       "root cluster, valid application session cookie, successful websocket (ws://) request",
+			inCookie:   pack.createAppSession(t, pack.rootWSPublicAddr, pack.rootAppClusterName),
+			outMessage: pack.rootWSMessage,
+		},
+		{
+			desc:       "root cluster, valid application session cookie, successful secure websocket (wss://) request",
+			inCookie:   pack.createAppSession(t, pack.rootWSSPublicAddr, pack.rootAppClusterName),
+			outMessage: pack.rootWSSMessage,
+		},
+		{
+			desc:       "leaf cluster, valid application session cookie, successful websocket (ws://) request",
+			inCookie:   pack.createAppSession(t, pack.leafWSPublicAddr, pack.leafAppClusterName),
+			outMessage: pack.leafWSMessage,
+		},
+		{
+			desc:       "leaf cluster, valid application session cookie, successful secure websocket (wss://) request",
+			inCookie:   pack.createAppSession(t, pack.leafWSSPublicAddr, pack.leafAppClusterName),
+			outMessage: pack.leafWSSMessage,
+		},
+		{
+			desc:     "invalid application session cookie, websocket request fails to dial",
+			inCookie: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+			err:      &websocket.DialError{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			tt := tt
+			body, err := pack.makeWebsocketRequest(tt.inCookie, "/")
+			if tt.err != nil {
+				require.IsType(t, tt.err, trace.Unwrap(err))
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.outMessage, body)
+			}
 		})
 	}
 }
@@ -259,6 +310,14 @@ type pack struct {
 	rootAppClusterName string
 	rootMessage        string
 
+	rootWSAppName    string
+	rootWSPublicAddr string
+	rootWSMessage    string
+
+	rootWSSAppName    string
+	rootWSSPublicAddr string
+	rootWSSMessage    string
+
 	jwtAppName        string
 	jwtAppPublicAddr  string
 	jwtAppClusterName string
@@ -271,6 +330,14 @@ type pack struct {
 	leafAppPublicAddr  string
 	leafAppClusterName string
 	leafMessage        string
+
+	leafWSAppName    string
+	leafWSPublicAddr string
+	leafWSMessage    string
+
+	leafWSSAppName    string
+	leafWSSPublicAddr string
+	leafWSSMessage    string
 
 	headerAppName        string
 	headerAppPublicAddr  string
@@ -296,10 +363,26 @@ func setup(t *testing.T) *pack {
 		rootAppClusterName: "example.com",
 		rootMessage:        uuid.New(),
 
+		rootWSAppName:    "ws-01",
+		rootWSPublicAddr: "ws-01.example.com",
+		rootWSMessage:    uuid.New(),
+
+		rootWSSAppName:    "wss-01",
+		rootWSSPublicAddr: "wss-01.example.com",
+		rootWSSMessage:    uuid.New(),
+
 		leafAppName:        "app-02",
 		leafAppPublicAddr:  "app-02.example.com",
 		leafAppClusterName: "leaf.example.com",
 		leafMessage:        uuid.New(),
+
+		leafWSAppName:    "ws-02",
+		leafWSPublicAddr: "ws-02.example.com",
+		leafWSMessage:    uuid.New(),
+
+		leafWSSAppName:    "wss-02",
+		leafWSSPublicAddr: "wss-02.example.com",
+		leafWSSMessage:    uuid.New(),
 
 		jwtAppName:        "app-03",
 		jwtAppPublicAddr:  "app-03.example.com",
@@ -315,10 +398,34 @@ func setup(t *testing.T) *pack {
 		fmt.Fprintln(w, p.rootMessage)
 	}))
 	t.Cleanup(rootServer.Close)
+	// Websockets server in root cluster (ws://).
+	rootWSServer := httptest.NewServer(websocket.Handler(func(conn *websocket.Conn) {
+		conn.Write([]byte(p.rootWSMessage))
+		conn.Close()
+	}))
+	t.Cleanup(rootWSServer.Close)
+	// Secure websockets server in root cluster (wss://).
+	rootWSSServer := httptest.NewTLSServer(websocket.Handler(func(conn *websocket.Conn) {
+		conn.Write([]byte(p.rootWSSMessage))
+		conn.Close()
+	}))
+	t.Cleanup(rootWSSServer.Close)
 	leafServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, p.leafMessage)
 	}))
 	t.Cleanup(leafServer.Close)
+	// Websockets server in leaf cluster (ws://).
+	leafWSServer := httptest.NewServer(websocket.Handler(func(conn *websocket.Conn) {
+		conn.Write([]byte(p.leafWSMessage))
+		conn.Close()
+	}))
+	t.Cleanup(leafWSServer.Close)
+	// Secure websockets server in leaf cluster (wss://).
+	leafWSSServer := httptest.NewTLSServer(websocket.Handler(func(conn *websocket.Conn) {
+		conn.Write([]byte(p.leafWSSMessage))
+		conn.Close()
+	}))
+	t.Cleanup(leafWSSServer.Close)
 	jwtServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, r.Header.Get(teleport.AppJWTHeader))
 	}))
@@ -430,6 +537,16 @@ func setup(t *testing.T) *pack {
 			PublicAddr: p.rootAppPublicAddr,
 		},
 		{
+			Name:       p.rootWSAppName,
+			URI:        rootWSServer.URL,
+			PublicAddr: p.rootWSPublicAddr,
+		},
+		{
+			Name:       p.rootWSSAppName,
+			URI:        rootWSSServer.URL,
+			PublicAddr: p.rootWSSPublicAddr,
+		},
+		{
 			Name:       p.jwtAppName,
 			URI:        jwtServer.URL,
 			PublicAddr: p.jwtAppPublicAddr,
@@ -466,6 +583,16 @@ func setup(t *testing.T) *pack {
 			Name:       p.leafAppName,
 			URI:        leafServer.URL,
 			PublicAddr: p.leafAppPublicAddr,
+		},
+		{
+			Name:       p.leafWSAppName,
+			URI:        leafWSServer.URL,
+			PublicAddr: p.leafWSPublicAddr,
+		},
+		{
+			Name:       p.leafWSSAppName,
+			URI:        leafWSSServer.URL,
+			PublicAddr: p.leafWSSPublicAddr,
 		},
 	}
 	p.leafAppServer, err = p.leafCluster.StartApp(laConf)
@@ -620,6 +747,35 @@ func (p *pack) makeRequest(sessionCookie string, method string, endpoint string)
 	}
 
 	return p.sendRequest(req)
+}
+
+// makeWebsocketRequest makes a websocket request with the given session cookie.
+func (p *pack) makeWebsocketRequest(sessionCookie, endpoint string) (string, error) {
+	config, err := websocket.NewConfig(
+		fmt.Sprintf("wss://%s%s", net.JoinHostPort(Loopback, p.rootCluster.GetPortWeb()), endpoint),
+		"https://localhost")
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if sessionCookie != "" {
+		config.Header.Set("Cookie", (&http.Cookie{
+			Name:  app.CookieName,
+			Value: sessionCookie,
+		}).String())
+	}
+	config.TlsConfig = &tls.Config{
+		InsecureSkipVerify: true,
+	}
+	conn, err := websocket.DialConfig(config)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	defer conn.Close()
+	data, err := ioutil.ReadAll(conn)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return string(data), nil
 }
 
 // assembleRootProxyURL returns the URL string of an endpoint at the root
