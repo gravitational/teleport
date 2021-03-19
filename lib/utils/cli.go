@@ -32,7 +32,6 @@ import (
 
 	"github.com/gravitational/teleport"
 
-	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/kingpin"
@@ -289,7 +288,7 @@ func (r *stdlogAdapter) Write(p []byte) (n int, err error) {
 }
 
 // stdlogAdapter is an io.Writer that writes into an instance
-// of logrus.Logger
+// of log.Logger
 type stdlogAdapter struct {
 	log LeveledOutputFunc
 }
@@ -299,19 +298,19 @@ type stdlogAdapter struct {
 type LeveledOutputFunc func(args ...interface{})
 
 // GetLevel returns the level of the underlying logger
-func (r *logWrapper) GetLevel() logrus.Level {
+func (r *logWrapper) GetLevel() log.Level {
 	return r.Entry.Logger.GetLevel()
 }
 
 // SetLevel sets the logging level to the given value
-func (r *logWrapper) SetLevel(level logrus.Level) {
+func (r *logWrapper) SetLevel(level log.Level) {
 	r.Entry.Logger.SetLevel(level)
 }
 
 // logWrapper wraps a log entry.
 // Implements Logger
 type logWrapper struct {
-	*logrus.Entry
+	*log.Entry
 }
 
 // needsQuoting returns true if any non-printable characters are found.
