@@ -1230,6 +1230,16 @@ func (c *Client) ChangePasswordWithToken(ctx context.Context, req ChangePassword
 
 // UpsertOIDCConnector updates or creates OIDC connector
 func (c *Client) UpsertOIDCConnector(ctx context.Context, connector services.OIDCConnector) error {
+	if err := c.APIClient.UpsertOIDCConnector(ctx, connector); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return trace.Wrap(err)
+		}
+	} else {
+		return nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	data, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1245,6 +1255,16 @@ func (c *Client) UpsertOIDCConnector(ctx context.Context, connector services.OID
 
 // GetOIDCConnector returns OIDC connector information by id
 func (c *Client) GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (services.OIDCConnector, error) {
+	if resp, err := c.APIClient.GetOIDCConnector(ctx, id, withSecrets); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return resp, nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	if id == "" {
 		return nil, trace.BadParameter("missing connector id")
 	}
@@ -1258,6 +1278,16 @@ func (c *Client) GetOIDCConnector(ctx context.Context, id string, withSecrets bo
 
 // GetOIDCConnectors gets OIDC connectors list
 func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]services.OIDCConnector, error) {
+	if resp, err := c.APIClient.GetOIDCConnectors(ctx, withSecrets); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return resp, nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	out, err := c.Get(c.Endpoint("oidc", "connectors"),
 		url.Values{"with_secrets": []string{fmt.Sprintf("%t", withSecrets)}})
 	if err != nil {
@@ -1280,6 +1310,16 @@ func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]ser
 
 // DeleteOIDCConnector deletes OIDC connector by ID
 func (c *Client) DeleteOIDCConnector(ctx context.Context, connectorID string) error {
+	if err := c.APIClient.DeleteOIDCConnector(ctx, connectorID); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return trace.Wrap(err)
+		}
+	} else {
+		return nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	if connectorID == "" {
 		return trace.BadParameter("missing connector id")
 	}

@@ -71,6 +71,9 @@ const (
 	// prompt the End-User to select a user account.
 	OIDCPromptSelectAccount = "select_account"
 
+	// OIDCPromptNone instructs the Authorization Server to skip the prompt.
+	OIDCPromptNone = "none"
+
 	// KeepAliveNode is the keep alive type for SSH servers.
 	KeepAliveNode = "node"
 
