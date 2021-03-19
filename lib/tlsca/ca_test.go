@@ -76,8 +76,9 @@ func TestKubeExtensions(t *testing.T) {
 
 	expires := clock.Now().Add(time.Hour)
 	identity := Identity{
-		Username: "alice@example.com",
-		Groups:   []string{"admin"},
+		Username:     "alice@example.com",
+		Groups:       []string{"admin"},
+		Impersonator: "bob@example.com",
 		// Generate a certificate restricted for
 		// use against a kubernetes endpoint, and not the API server endpoint
 		// otherwise proxies can generate certs for any user.
