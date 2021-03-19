@@ -46,6 +46,9 @@ message UserMetadata {
 
     // Login is OS login
     string Login = 2 [ (gogoproto.jsontag) = "login,omitempty" ];
+
+    // Impersonator is a user acting on behalf of another user
+    string Impersonator = 3 [ (gogoproto.jsontag) = "impersonator,omitempty" ];
 }
 
 // Server is a server metadata

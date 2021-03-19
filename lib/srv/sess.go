@@ -141,8 +141,9 @@ func (s *SessionRegistry) emitSessionJoinEvent(ctx *ServerContext) {
 			SessionID: string(ctx.SessionID()),
 		},
 		UserMetadata: events.UserMetadata{
-			User:  ctx.Identity.TeleportUser,
-			Login: ctx.Identity.Login,
+			User:         ctx.Identity.TeleportUser,
+			Login:        ctx.Identity.Login,
+			Impersonator: ctx.Identity.Impersonator,
 		},
 		ConnectionMetadata: events.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
@@ -409,8 +410,9 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 			SessionID: string(sid),
 		},
 		UserMetadata: events.UserMetadata{
-			User:  ctx.Identity.TeleportUser,
-			Login: ctx.Identity.Login,
+			User:         ctx.Identity.TeleportUser,
+			Login:        ctx.Identity.Login,
+			Impersonator: ctx.Identity.Impersonator,
 		},
 		TerminalSize: params.Serialize(),
 	}
@@ -754,8 +756,9 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 			SessionID: string(s.id),
 		},
 		UserMetadata: events.UserMetadata{
-			User:  ctx.Identity.TeleportUser,
-			Login: ctx.Identity.Login,
+			User:         ctx.Identity.TeleportUser,
+			Login:        ctx.Identity.Login,
+			Impersonator: ctx.Identity.Impersonator,
 		},
 		ConnectionMetadata: events.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
@@ -897,8 +900,9 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 			SessionID: string(s.id),
 		},
 		UserMetadata: events.UserMetadata{
-			User:  ctx.Identity.TeleportUser,
-			Login: ctx.Identity.Login,
+			User:         ctx.Identity.TeleportUser,
+			Login:        ctx.Identity.Login,
+			Impersonator: ctx.Identity.Impersonator,
 		},
 		ConnectionMetadata: events.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
@@ -992,8 +996,9 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 				SessionID: string(s.id),
 			},
 			UserMetadata: events.UserMetadata{
-				User:  ctx.Identity.TeleportUser,
-				Login: ctx.Identity.Login,
+				User:         ctx.Identity.TeleportUser,
+				Login:        ctx.Identity.Login,
+				Impersonator: ctx.Identity.Impersonator,
 			},
 			EnhancedRecording: s.hasEnhancedRecording,
 			Interactive:       false,

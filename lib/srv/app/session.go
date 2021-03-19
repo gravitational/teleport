@@ -151,7 +151,8 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 			WithMFA:   identity.MFAVerified,
 		},
 		UserMetadata: events.UserMetadata{
-			User: identity.Username,
+			User:         identity.Username,
+			Impersonator: identity.Impersonator,
 		},
 		SessionChunkID: chunkID,
 	}
