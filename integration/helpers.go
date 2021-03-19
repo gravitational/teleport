@@ -998,12 +998,13 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error)
 	// receipt of a ProxyReverseTunnelReady event
 	var tunnel reversetunnel.Server
 	for _, re := range receivedEvents {
+	out:
 		switch re.Name {
 		case service.ProxyReverseTunnelReady:
 			ts, ok := re.Payload.(reversetunnel.Server)
 			if ok {
 				tunnel = ts
-				break
+				break out
 			}
 		}
 	}
