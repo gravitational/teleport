@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2020 Gravitational, Inc.
+Copyright 2015-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -1598,24 +1598,26 @@ func TestCheckRuleSorting(t *testing.T) {
 
 func TestApplyTraits(t *testing.T) {
 	type rule struct {
-		inLogins      []string
-		outLogins     []string
-		inLabels      Labels
-		outLabels     Labels
-		inKubeLabels  Labels
-		outKubeLabels Labels
-		inKubeGroups  []string
-		outKubeGroups []string
-		inKubeUsers   []string
-		outKubeUsers  []string
-		inAppLabels   Labels
-		outAppLabels  Labels
-		inDBLabels    Labels
-		outDBLabels   Labels
-		inDBNames     []string
-		outDBNames    []string
-		inDBUsers     []string
-		outDBUsers    []string
+		inLogins       []string
+		outLogins      []string
+		inLabels       Labels
+		outLabels      Labels
+		inKubeLabels   Labels
+		outKubeLabels  Labels
+		inKubeGroups   []string
+		outKubeGroups  []string
+		inKubeUsers    []string
+		outKubeUsers   []string
+		inAppLabels    Labels
+		outAppLabels   Labels
+		inDBLabels     Labels
+		outDBLabels    Labels
+		inDBNames      []string
+		outDBNames     []string
+		inDBUsers      []string
+		outDBUsers     []string
+		inImpersonate  types.ImpersonateConditions
+		outImpersonate types.ImpersonateConditions
 	}
 	var tests = []struct {
 		comment  string
@@ -1916,6 +1918,38 @@ func TestApplyTraits(t *testing.T) {
 				outDBLabels: Labels{`key`: []string{"bar", "baz"}},
 			},
 		},
+
+		{
+			comment: "impersonate roles",
+			inTraits: map[string][]string{
+				"teams":         {"devs"},
+				"users":         {"alice", "bob"},
+				"blocked_users": {"root"},
+				"blocked_teams": {"admins"},
+			},
+			allow: rule{
+				inImpersonate: types.ImpersonateConditions{
+					Users: []string{"{{external.users}}"},
+					Roles: []string{"{{external.teams}}"},
+					Where: `contains(user.spec.traits, "hello")`,
+				},
+				outImpersonate: types.ImpersonateConditions{
+					Users: []string{"alice", "bob"},
+					Roles: []string{"devs"},
+					Where: `contains(user.spec.traits, "hello")`,
+				},
+			},
+			deny: rule{
+				inImpersonate: types.ImpersonateConditions{
+					Users: []string{"{{external.blocked_users}}"},
+					Roles: []string{"{{external.blocked_teams}}"},
+				},
+				outImpersonate: types.ImpersonateConditions{
+					Users: []string{"root"},
+					Roles: []string{"admins"},
+				},
+			},
+		},
 	}
 
 	for i, tt := range tests {
@@ -1940,6 +1974,7 @@ func TestApplyTraits(t *testing.T) {
 					DatabaseLabels:   tt.allow.inDBLabels,
 					DatabaseNames:    tt.allow.inDBNames,
 					DatabaseUsers:    tt.allow.inDBUsers,
+					Impersonate:      &tt.allow.inImpersonate,
 				},
 				Deny: RoleConditions{
 					Logins:           tt.deny.inLogins,
@@ -1952,6 +1987,7 @@ func TestApplyTraits(t *testing.T) {
 					DatabaseLabels:   tt.deny.inDBLabels,
 					DatabaseNames:    tt.deny.inDBNames,
 					DatabaseUsers:    tt.deny.inDBUsers,
+					Impersonate:      &tt.deny.inImpersonate,
 				},
 			},
 		}
@@ -1967,6 +2003,7 @@ func TestApplyTraits(t *testing.T) {
 		require.Equal(t, outRole.GetDatabaseLabels(Allow), tt.allow.outDBLabels, comment)
 		require.Equal(t, outRole.GetDatabaseNames(Allow), tt.allow.outDBNames, comment)
 		require.Equal(t, outRole.GetDatabaseUsers(Allow), tt.allow.outDBUsers, comment)
+		require.Equal(t, outRole.GetImpersonateConditions(Allow), tt.allow.outImpersonate, comment)
 
 		require.Equal(t, outRole.GetLogins(Deny), tt.deny.outLogins, comment)
 		require.Equal(t, outRole.GetNodeLabels(Deny), tt.deny.outLabels, comment)
@@ -1978,6 +2015,7 @@ func TestApplyTraits(t *testing.T) {
 		require.Equal(t, outRole.GetDatabaseLabels(Deny), tt.deny.outDBLabels, comment)
 		require.Equal(t, outRole.GetDatabaseNames(Deny), tt.deny.outDBNames, comment)
 		require.Equal(t, outRole.GetDatabaseUsers(Deny), tt.deny.outDBUsers, comment)
+		require.Equal(t, outRole.GetImpersonateConditions(Deny), tt.deny.outImpersonate, comment)
 	}
 }
 

@@ -29,6 +29,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -297,8 +298,16 @@ func (p *transport) start() {
 				return
 			}
 
-			p.log.Debug("Handing off connection to a local SSH service")
-			p.server.HandleConnection(utils.NewChConn(p.sconn, p.channel))
+			p.log.Debugf("Handing off connection to a local %q service.", dreq.ConnType)
+			switch dreq.ConnType {
+			case types.AppTunnel:
+				// Use channel connection wrapper that supports deadlines when
+				// proxying applications. This is required for websockets to
+				// work over Application Access.
+				p.server.HandleConnection(utils.NewCancelableChConn(p.sconn, p.channel))
+			default:
+				p.server.HandleConnection(utils.NewChConn(p.sconn, p.channel))
+			}
 			return
 		}
 		// If this is a proxy and not an SSH node, try finding an inbound

@@ -22,11 +22,9 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/trace"
-
 	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 )
 
 // PipeNetConn implemetns net.Conn from io.Reader,io.Writer and io.Closer
@@ -105,21 +103,20 @@ func DualPipeNetConn(srcAddr net.Addr, dstAddr net.Addr) (*PipeNetConn, *PipeNet
 // NewChConn returns a new net.Conn implemented over
 // SSH channel
 func NewChConn(conn ssh.Conn, ch ssh.Channel) *ChConn {
-	c := &ChConn{}
-	c.Channel = ch
-	c.conn = conn
-	return c
+	return &ChConn{
+		Channel: ch,
+		conn:    conn,
+	}
 }
 
 // NewExclusiveChConn returns a new net.Conn implemented over
 // SSH channel, whenever this connection closes
 func NewExclusiveChConn(conn ssh.Conn, ch ssh.Channel) *ChConn {
-	c := &ChConn{
+	return &ChConn{
+		Channel:   ch,
+		conn:      conn,
 		exclusive: true,
 	}
-	c.Channel = ch
-	c.conn = conn
-	return c
 }
 
 // ChConn is a net.Conn like object
@@ -199,6 +196,64 @@ func (c *ChConn) SetReadDeadline(t time.Time) error {
 // ignored for the channel connection
 func (c *ChConn) SetWriteDeadline(t time.Time) error {
 	return nil
+}
+
+// CancelableChConn is a wrapped SSH channel connection that supports deadlines.
+type CancelableChConn struct {
+	// ChConn is the base wrapped SSH channel connection.
+	*ChConn
+	// reader is the part of the pipe that clients read from.
+	reader net.Conn
+	// writer is the part of the pipe that receives data from SSH channel.
+	writer net.Conn
+}
+
+// NewCancelableChConn returns a new instance of wrapped SSH channel connection
+// that supports deadlines.
+func NewCancelableChConn(conn ssh.Conn, ch ssh.Channel) *CancelableChConn {
+	reader, writer := net.Pipe()
+	c := &CancelableChConn{
+		ChConn: NewChConn(conn, ch),
+		reader: reader,
+		writer: writer,
+	}
+	// Start copying from the SSH channel to the writer part of the pipe. The
+	// clients are reading from the reader part of the pipe (see Read below).
+	//
+	// This goroutine stops when either the SSH channel closes or this
+	// connection is closed e.g. by a http.Server (see Close below).
+	go io.Copy(writer, ch)
+	return c
+}
+
+// Read reads from the channel.
+func (c *CancelableChConn) Read(data []byte) (int, error) {
+	return c.reader.Read(data)
+}
+
+// SetDeadline sets the channel connection read/write deadlines.
+func (c *CancelableChConn) SetDeadline(t time.Time) error {
+	return c.reader.SetDeadline(t)
+}
+
+// SetReadDeadline sets the channel connection read deadline.
+func (c *CancelableChConn) SetReadDeadline(t time.Time) error {
+	return c.reader.SetReadDeadline(t)
+}
+
+// Closes closes all parts of the connection.
+func (c *CancelableChConn) Close() error {
+	var errors []error
+	if err := c.ChConn.Close(); err != nil {
+		errors = append(errors, err)
+	}
+	if err := c.reader.Close(); err != nil {
+		errors = append(errors, err)
+	}
+	if err := c.writer.Close(); err != nil {
+		errors = append(errors, err)
+	}
+	return trace.NewAggregate(errors...)
 }
 
 const (

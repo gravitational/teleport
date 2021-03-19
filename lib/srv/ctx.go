@@ -132,6 +132,9 @@ type IdentityContext struct {
 	// TeleportUser is the Teleport user associated with the connection.
 	TeleportUser string
 
+	// Impersonator is a user acting on behalf of other user
+	Impersonator string
+
 	// Login is the operating system user associated with the connection.
 	Login string
 
@@ -580,8 +583,9 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 			ServerNamespace: c.GetServer().GetNamespace(),
 		},
 		UserMetadata: events.UserMetadata{
-			User:  c.Identity.TeleportUser,
-			Login: c.Identity.Login,
+			User:         c.Identity.TeleportUser,
+			Login:        c.Identity.Login,
+			Impersonator: c.Identity.Impersonator,
 		},
 		ConnectionMetadata: events.ConnectionMetadata{
 			RemoteAddr: c.ServerConn.RemoteAddr().String(),
