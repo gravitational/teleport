@@ -38,7 +38,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
 	"gopkg.in/check.v1"
-	. "gopkg.in/check.v1"
 )
 
 type PasswordSuite struct {
@@ -47,19 +46,19 @@ type PasswordSuite struct {
 	mockEmitter *events.MockEmitter
 }
 
-var _ = Suite(&PasswordSuite{})
+var _ = check.Suite(&PasswordSuite{})
 
-func (s *PasswordSuite) SetUpTest(c *C) {
+func (s *PasswordSuite) SetUpTest(c *check.C) {
 	var err error
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 	s.bk, err = lite.New(context.TODO(), backend.Params{"path": c.MkDir()})
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	// set cluster name
 	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
 		ClusterName: "me.localhost",
 	})
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 	authConfig := &InitConfig{
 		ClusterName:            clusterName,
 		Backend:                s.bk,
@@ -67,40 +66,40 @@ func (s *PasswordSuite) SetUpTest(c *C) {
 		SkipPeriodicOperations: true,
 	}
 	s.a, err = NewServer(authConfig)
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	err = s.a.SetClusterName(clusterName)
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
 		LocalAuth: services.NewBool(true),
 	})
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	err = s.a.SetClusterConfig(clusterConfig)
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	// set static tokens
 	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
 		StaticTokens: []services.ProvisionTokenV1{},
 	})
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 	err = s.a.SetStaticTokens(staticTokens)
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	s.mockEmitter = &events.MockEmitter{}
 	s.a.emitter = s.mockEmitter
 }
 
-func (s *PasswordSuite) TearDownTest(c *C) {
+func (s *PasswordSuite) TearDownTest(c *check.C) {
 }
 
-func (s *PasswordSuite) TestTiming(c *C) {
+func (s *PasswordSuite) TestTiming(c *check.C) {
 	username := "foo"
 	password := "barbaz"
 
 	err := s.a.UpsertPassword(username, []byte(password))
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	type res struct {
 		exists  bool
@@ -148,10 +147,10 @@ func (s *PasswordSuite) TestTiming(c *C) {
 	var elapsedExists, elapsedNotExists time.Duration
 	for r := range resCh {
 		if r.exists {
-			c.Assert(r.err, IsNil)
+			c.Assert(r.err, check.IsNil)
 			elapsedExists += r.elapsed
 		} else {
-			c.Assert(r.err, NotNil)
+			c.Assert(r.err, check.IsNil)
 			elapsedNotExists += r.elapsed
 		}
 	}
@@ -159,32 +158,32 @@ func (s *PasswordSuite) TestTiming(c *C) {
 	// Get the relative percentage difference in runtimes of password check
 	// with real and non-existent users. It should be <10%.
 	diffFraction := math.Abs(1.0 - (float64(elapsedExists) / float64(elapsedNotExists)))
-	comment := Commentf("elapsed difference (%v%%) greater than 10%%", 100*diffFraction)
-	c.Assert(diffFraction < 0.1, Equals, true, comment)
+	comment := check.Commentf("elapsed difference (%v%%) greater than 10%%", 100*diffFraction)
+	c.Assert(diffFraction < 0.1, check.Equals, true, comment)
 }
 
-func (s *PasswordSuite) TestUserNotFound(c *C) {
+func (s *PasswordSuite) TestUserNotFound(c *check.C) {
 	username := "unknown-user"
 	password := "barbaz"
 
 	err := s.a.checkPasswordWOToken(username, []byte(password))
-	c.Assert(err, NotNil)
+	c.Assert(err, check.NotNil)
 	// Make sure the error is not a NotFound. That would be a username oracle.
-	c.Assert(trace.IsBadParameter(err), Equals, true)
+	c.Assert(trace.IsBadParameter(err), check.Equals, true)
 }
 
-func (s *PasswordSuite) TestChangePassword(c *C) {
+func (s *PasswordSuite) TestChangePassword(c *check.C) {
 	req, err := s.prepareForPasswordChange("user1", []byte("abc123"), constants.SecondFactorOff)
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	fakeClock := clockwork.NewFakeClock()
 	s.a.SetClock(fakeClock)
 	req.NewPassword = []byte("abce456")
 
 	err = s.a.ChangePassword(req)
-	c.Assert(err, IsNil)
-	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.UserPasswordChangeEvent)
-	c.Assert(s.mockEmitter.LastEvent().(*events.UserPasswordChange).User, Equals, "user1")
+	c.Assert(err, check.IsNil)
+	c.Assert(s.mockEmitter.LastEvent().GetType(), check.DeepEquals, events.UserPasswordChangeEvent)
+	c.Assert(s.mockEmitter.LastEvent().(*events.UserPasswordChange).User, check.Equals, "user1")
 
 	s.shouldLockAfterFailedAttempts(c, req)
 
@@ -193,12 +192,12 @@ func (s *PasswordSuite) TestChangePassword(c *C) {
 	req.OldPassword = req.NewPassword
 	req.NewPassword = []byte("abc5555")
 	err = s.a.ChangePassword(req)
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 }
 
-func (s *PasswordSuite) TestChangePasswordWithOTP(c *C) {
+func (s *PasswordSuite) TestChangePasswordWithOTP(c *check.C) {
 	req, err := s.prepareForPasswordChange("user2", []byte("abc123"), constants.SecondFactorOTP)
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	fakeClock := clockwork.NewFakeClock()
 	s.a.SetClock(fakeClock)
@@ -211,13 +210,13 @@ func (s *PasswordSuite) TestChangePasswordWithOTP(c *C) {
 	c.Assert(err, check.IsNil)
 
 	validToken, err := totp.GenerateCode(otpSecret, s.a.GetClock().Now())
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	// change password
 	req.NewPassword = []byte("abce456")
 	req.SecondFactorToken = validToken
 	err = s.a.ChangePassword(req)
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	s.shouldLockAfterFailedAttempts(c, req)
 
@@ -229,92 +228,92 @@ func (s *PasswordSuite) TestChangePasswordWithOTP(c *C) {
 	req.NewPassword = []byte("abc5555")
 	req.SecondFactorToken = validToken
 	err = s.a.ChangePassword(req)
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 }
 
-func (s *PasswordSuite) TestChangePasswordWithToken(c *C) {
+func (s *PasswordSuite) TestChangePasswordWithToken(c *check.C) {
 	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
 		SecondFactor: constants.SecondFactorOff,
 	})
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	err = s.a.SetAuthPreference(authPreference)
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	username := "joe@example.com"
 	password := []byte("qweqweqwe")
 	_, _, err = CreateUserAndRole(s.a, username, []string{username})
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	token, err := s.a.CreateResetPasswordToken(context.TODO(), CreateResetPasswordTokenRequest{
 		Name: username,
 	})
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	_, err = s.a.changePasswordWithToken(context.TODO(), ChangePasswordWithTokenRequest{
 		TokenID:  token.GetName(),
 		Password: password,
 	})
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	// password should be updated
 	err = s.a.checkPasswordWOToken(username, password)
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 }
 
-func (s *PasswordSuite) TestChangePasswordWithTokenOTP(c *C) {
+func (s *PasswordSuite) TestChangePasswordWithTokenOTP(c *check.C) {
 	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
 		SecondFactor: constants.SecondFactorOTP,
 	})
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	err = s.a.SetAuthPreference(authPreference)
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	username := "joe@example.com"
 	password := []byte("qweqweqwe")
 	_, _, err = CreateUserAndRole(s.a, username, []string{username})
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	token, err := s.a.CreateResetPasswordToken(context.TODO(), CreateResetPasswordTokenRequest{
 		Name: username,
 	})
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	secrets, err := s.a.RotateResetPasswordTokenSecrets(context.TODO(), token.GetName())
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	otpToken, err := totp.GenerateCode(secrets.GetOTPKey(), s.bk.Clock().Now())
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	_, err = s.a.changePasswordWithToken(context.TODO(), ChangePasswordWithTokenRequest{
 		TokenID:           token.GetName(),
 		Password:          password,
 		SecondFactorToken: otpToken,
 	})
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	err = s.a.checkPasswordWOToken(username, password)
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 }
 
-func (s *PasswordSuite) TestChangePasswordWithTokenErrors(c *C) {
+func (s *PasswordSuite) TestChangePasswordWithTokenErrors(c *check.C) {
 	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
 		SecondFactor: constants.SecondFactorOTP,
 	})
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	username := "joe@example.com"
 	_, _, err = CreateUserAndRole(s.a, username, []string{username})
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	token, err := s.a.CreateResetPasswordToken(context.TODO(), CreateResetPasswordTokenRequest{
 		Name: username,
 	})
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	validPassword := []byte("qweQWE1")
 	validTokenID := token.GetName()
@@ -365,42 +364,42 @@ func (s *PasswordSuite) TestChangePasswordWithTokenErrors(c *C) {
 		// set new auth preference settings
 		authPreference.SetSecondFactor(tc.secondFactor)
 		err = s.a.SetAuthPreference(authPreference)
-		c.Assert(err, IsNil)
+		c.Assert(err, check.IsNil)
 
 		_, err = s.a.changePasswordWithToken(context.TODO(), tc.req)
-		c.Assert(err, NotNil, Commentf("test case %q", tc.desc))
+		c.Assert(err, check.IsNil, check.Commentf("test case %q", tc.desc))
 	}
 
 	authPreference.SetSecondFactor(constants.SecondFactorOff)
 	err = s.a.SetAuthPreference(authPreference)
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	_, err = s.a.changePasswordWithToken(context.TODO(), ChangePasswordWithTokenRequest{
 		TokenID:  validTokenID,
 		Password: validPassword,
 	})
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 
 	// invite token cannot be reused
 	_, err = s.a.changePasswordWithToken(context.TODO(), ChangePasswordWithTokenRequest{
 		TokenID:  validTokenID,
 		Password: validPassword,
 	})
-	c.Assert(err, NotNil)
+	c.Assert(err, check.NotNil)
 }
 
-func (s *PasswordSuite) shouldLockAfterFailedAttempts(c *C, req services.ChangePasswordReq) {
+func (s *PasswordSuite) shouldLockAfterFailedAttempts(c *check.C, req services.ChangePasswordReq) {
 	loginAttempts, _ := s.a.GetUserLoginAttempts(req.User)
-	c.Assert(len(loginAttempts), Equals, 0)
+	c.Assert(len(loginAttempts), check.Equals, 0)
 	for i := 0; i < defaults.MaxLoginAttempts; i++ {
 		err := s.a.ChangePassword(req)
-		c.Assert(err, NotNil)
+		c.Assert(err, check.NotNil)
 		loginAttempts, _ = s.a.GetUserLoginAttempts(req.User)
-		c.Assert(len(loginAttempts), Equals, i+1)
+		c.Assert(len(loginAttempts), check.Equals, i+1)
 	}
 
 	err := s.a.ChangePassword(req)
-	c.Assert(trace.IsAccessDenied(err), Equals, true)
+	c.Assert(trace.IsAccessDenied(err), check.Equals, true)
 }
 
 func (s *PasswordSuite) prepareForPasswordChange(user string, pass []byte, secondFactorType constants.SecondFactorType) (services.ChangePasswordReq, error) {

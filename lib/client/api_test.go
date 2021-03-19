@@ -167,7 +167,7 @@ func (s *APITestSuite) TestPortsParsing(c *check.C) {
 	spec = []string{"foo", "bar"}
 	ports, err = ParsePortForwardSpec(spec)
 	c.Assert(ports, check.IsNil)
-	c.Assert(err, check.ErrorMatches, "^Invalid port forwarding spec: .foo.*")
+	c.Assert(err, check.ErrorMatches, "^invalid port forwarding spec: .foo.*")
 }
 
 func (s *APITestSuite) TestDynamicPortsParsing(c *check.C) {
