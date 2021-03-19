@@ -66,6 +66,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch services.Watch) (s
 			parser = newStaticTokensParser()
 		case services.KindClusterConfig:
 			parser = newClusterConfigParser()
+		case types.KindClusterAuthPreference:
+			parser = newAuthPreferenceParser()
 		case services.KindClusterName:
 			parser = newClusterNameParser()
 		case services.KindNamespace:
@@ -376,6 +378,41 @@ func (p *clusterConfigParser) parse(event backend.Event) (services.Resource, err
 			return nil, trace.Wrap(err)
 		}
 		return clusterConfig, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newAuthPreferenceParser() *authPreferenceParser {
+	return &authPreferenceParser{
+		baseParser: baseParser{matchPrefix: backend.Key(authPrefix, preferencePrefix, generalPrefix)},
+	}
+}
+
+type authPreferenceParser struct {
+	baseParser
+}
+
+func (p *authPreferenceParser) parse(event backend.Event) (services.Resource, error) {
+	switch event.Type {
+	case backend.OpDelete:
+		h, err := resourceHeader(event, services.KindClusterAuthPreference, services.V2, 0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		h.SetName(services.MetaNameClusterAuthPreference)
+		return h, nil
+	case backend.OpPut:
+		ap, err := services.UnmarshalAuthPreference(
+			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+			services.SkipValidation(),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ap, nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

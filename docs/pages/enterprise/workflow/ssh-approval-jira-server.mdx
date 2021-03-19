@@ -8,22 +8,18 @@ h1: SSH login approvals using Jira Server
 
 This guide will talk through how to setup Teleport with Jira Server. Teleport to Jira Server integration allows you to treat Teleport access and permission requests as Jira Tasks.
 
-<Admonition type="warning">
-  The Approval Workflow only works with Teleport Enterprise as it requires several roles.
-</Admonition>
-
 <Admonition type="note">
   Teleport's tsh request workflow is synchronous and needs to be approved within 1 hour of the request.
 </Admonition>
 
 <video controls>
   <source
-    src="../../../../img/enterprise/plugins/jira/jira-server.mp4"
+    src="../../../img/enterprise/plugins/jira/jira-server.mp4"
     type="video/mp4"
   />
 
   <source
-    src="../../../../img/enterprise/plugins/jira/jira-server.webm"
+    src="../../../img/enterprise/plugins/jira/jira-server.webm"
     type="video/webm"
   />
 
@@ -34,7 +30,7 @@ This guide will talk through how to setup Teleport with Jira Server. Teleport to
 
 ### Prerequisites
 
-- An Enterprise or Pro Teleport Cluster
+- A running Teleport Cluster
 - Admin Privileges with access and control of [`tctl`](https://gravitational.com/teleport/docs/cli-docs/#tctl)
 - Jira Server installation with owner privileges, specifically to setup webhooks, issue types, and workflows. This plugin has been tested with Jira Software 8.8.0
 

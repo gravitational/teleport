@@ -467,6 +467,12 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// Create presets - convenience and example resources.
+	err = createPresets(ctx, asrv)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if !cfg.SkipPeriodicOperations {
 		log.Infof("Auth server is running periodic operations.")
 		go asrv.runPeriodicOperations()
@@ -497,6 +503,23 @@ func migrateLegacyResources(ctx context.Context, cfg InitConfig, asrv *Server) e
 		return trace.Wrap(err)
 	}
 
+	return nil
+}
+
+// createPresets creates preset resources - roles
+func createPresets(ctx context.Context, asrv *Server) error {
+	roles := []services.Role{
+		services.NewPresetEditorRole(),
+		services.NewPresetAccessRole(),
+		services.NewPresetAuditorRole()}
+	for _, role := range roles {
+		err := asrv.CreateRole(role)
+		if err != nil {
+			if !trace.IsAlreadyExists(err) {
+				return trace.Wrap(err, "failed to create preset role")
+			}
+		}
+	}
 	return nil
 }
 

@@ -103,6 +103,11 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 		return nil, trace.Wrap(err)
 	}
 
+	clusterName, err := s.c.AccessPoint.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Each chunk has its own ID. Create a new UUID for this chunk which will be
 	// emitted in a new event to the audit log that can be use to aggregate all
 	// chunks for a particular session.
@@ -124,6 +129,7 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 		ServerID:     s.c.Server.GetName(),
 		RecordOutput: clusterConfig.GetSessionRecording() != services.RecordOff,
 		Component:    teleport.ComponentApp,
+		ClusterName:  clusterName.GetClusterName(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
