@@ -37,7 +37,7 @@ import (
 )
 
 // Due to thread safety design in glibc we must serialize all access to the accounting database.
-var accountDb sync.Mutex
+var accountDB sync.Mutex
 
 // Max length of username and hostname as defined by glibc.
 const nameMaxLen = 255
@@ -96,9 +96,9 @@ func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32,
 	secondsElapsed := (C.int32_t)(timestamp.Unix())
 	microsFraction := (C.int32_t)((timestamp.UnixNano() % int64(time.Second)) / int64(time.Microsecond))
 
-	accountDb.Lock()
+	accountDB.Lock()
 	status := C.uacc_add_utmp_entry(cUtmpPath, cWtmpPath, cUsername, cHostname, &cIP[0], cTtyName, cIDName, secondsElapsed, microsFraction)
-	accountDb.Unlock()
+	accountDB.Unlock()
 
 	switch status {
 	case C.UACC_UTMP_MISSING_PERMISSIONS:
@@ -152,9 +152,9 @@ func Close(utmpPath, wtmpPath string, tty *os.File) error {
 	secondsElapsed := (C.int32_t)(timestamp.Unix())
 	microsFraction := (C.int32_t)((timestamp.UnixNano() % int64(time.Second)) / int64(time.Microsecond))
 
-	accountDb.Lock()
+	accountDB.Lock()
 	status := C.uacc_mark_utmp_entry_dead(cUtmpPath, cWtmpPath, cTtyName, secondsElapsed, microsFraction)
-	accountDb.Unlock()
+	accountDB.Unlock()
 
 	switch status {
 	case C.UACC_UTMP_MISSING_PERMISSIONS:
@@ -192,9 +192,9 @@ func UserWithPtyInDatabase(utmpPath string, username string) error {
 	cUsername := C.CString(username)
 	defer C.free(unsafe.Pointer(cUsername))
 
-	accountDb.Lock()
+	accountDB.Lock()
 	status := C.uacc_has_entry_with_user(cUtmpPath, cUsername)
-	accountDb.Unlock()
+	accountDB.Unlock()
 
 	switch status {
 	case C.UACC_UTMP_FAILED_OPEN:
