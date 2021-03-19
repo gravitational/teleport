@@ -15,7 +15,7 @@ import (
 func connectClient() (*auth.Client, error) {
 	tlsConfig, err := LoadTLSConfig("certs/api-admin.crt", "certs/api-admin.key", "certs/api-admin.cas")
 	if err != nil {
-		return nil, fmt.Errorf("Failed to setup TLS config: %v", err)
+		return nil, fmt.Errorf("failed to setup TLS config: %v", err)
 	}
 
 	config := client.Config{
