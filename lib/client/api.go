@@ -2692,7 +2692,7 @@ func ParsePortForwardSpec(spec []string) (ports ForwardedPorts, err error) {
 	if len(spec) == 0 {
 		return ports, nil
 	}
-	const errTemplate = "Invalid port forwarding spec: '%s'. Could be like `80:remote.host:80`"
+	const errTemplate = "invalid port forwarding spec: '%s'. Could be like `80:remote.host:80`"
 	ports = make([]ForwardedPort, len(spec))
 
 	for i, str := range spec {
