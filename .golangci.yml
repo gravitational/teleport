@@ -2,7 +2,13 @@ issues:
   exclude-rules:
     - linters: gosimple
       text: "S1002: should omit comparison to bool constant"
-  exclude-use-default: true
+    # EXC0002 (https://golangci-lint.run/usage/configuration/)
+    - linters: golint
+      text: "(comment on exported (method|function|type|const)|should have( a package)? comment|comment should be of the form)"
+    # EXC0011 (https://golangci-lint.run/usage/configuration/)
+    - linters: stylecheck
+      text: "(comment on exported (method|function|type|const)|should have( a package)? comment|comment should be of the form)"
+  exclude-use-default: false
   max-same-issues: 0
   max-issues-per-linter: 0
 
@@ -19,6 +25,7 @@ linters:
     - misspell
     - staticcheck
     - structcheck
+    - stylecheck
     - typecheck
     - unused
     - unconvert
