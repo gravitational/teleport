@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -86,7 +85,7 @@ func (s *AuthSuite) SetUpTest(c *C) {
 	authConfig := &InitConfig{
 		ClusterName:            clusterName,
 		Backend:                s.bk,
-		Authority:              authority.New(),
+		Authority:              testauthority.New(),
 		SkipPeriodicOperations: true,
 	}
 	s.a, err = NewServer(authConfig)
@@ -786,7 +785,7 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 	authConfig := &InitConfig{
 		ClusterName:            clusterName,
 		Backend:                s.bk,
-		Authority:              authority.New(),
+		Authority:              testauthority.New(),
 		SkipPeriodicOperations: true,
 	}
 	authServer, err := NewServer(authConfig)
