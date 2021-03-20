@@ -263,7 +263,7 @@ func (a *Server) establishTrust(trustedCluster services.TrustedCluster) ([]servi
 	// send the request to the remote auth server via the proxy
 	validateResponse, err := a.sendValidateRequestToProxy(trustedCluster.GetProxyAddress(), &validateRequest)
 	if err != nil {
-		log.Error(err)
+		log.Errorf("DEBUG SESSION: %v", trace.DebugReport(err))
 		if strings.Contains(err.Error(), "x509") {
 			return nil, trace.AccessDenied("the trusted cluster uses misconfigured HTTP/TLS certificate.")
 		}
