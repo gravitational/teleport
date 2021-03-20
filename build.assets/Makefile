@@ -232,29 +232,37 @@ release: buildbox
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME)
 
 # These are aliases used to make build commands uniform.
-#.PHONY: release-amd64
+.PHONY: release-amd64
 release-amd64: buildbox
 	$(MAKE) release ARCH=amd64
 
-#.PHONY: release-386
+.PHONY: release-386
 release-386: buildbox
 	$(MAKE) release ARCH=386
 
-#.PHONY: release-arm
+.PHONY: release-arm
 release-arm: buildbox-arm
 	$(MAKE) release ARCH=arm BUILDBOX=$(BUILDBOX_ARM)
 
-#.PHONY: release-arm64
+.PHONY: release-arm64
 release-arm64: buildbox-arm
 	$(MAKE) release ARCH=arm64 BUILDBOX=$(BUILDBOX_ARM)
 
-#.PHONY: release-amd64-fips
+.PHONY: release-amd64-fips
 release-amd64-fips: buildbox-fips
 	$(MAKE) release-fips ARCH=amd64 FIPS=yes BUILDBOX_FIPS=$(BUILDBOX_FIPS)
 
-#.PHONY: release-arm64-fips
+.PHONY: release-arm64-fips
 release-arm64-fips: buildbox-arm-fips
 	$(MAKE) release-fips ARCH=arm64 FIPS=yes BUILDBOX_FIPS=$(BUILDBOX_ARM_FIPS)
+
+.PHONY: release-amd64-centos6
+release-amd64-centos6: buildbox-centos6
+	$(MAKE) release-centos6 ARCH=amd64
+
+.PHONY: release-amd64-centos6-fips
+release-amd64-centos6-fips: buildbox-centos6-fips
+	$(MAKE) release-centos6-fips ARCH=amd64 FIPS=yes BUILDBOX_FIPS=$(BUILDBOX_CENTOS6_FIPS)
 
 #
 # Create a Teleport FIPS package using the build container.
@@ -291,45 +299,6 @@ release-centos6-fips: buildbox-centos6-fips
 release-windows: buildbox
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX) \
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=windows
-
-#
-# Create an ARM Teleport package using the build container.
-#
-.PHONY:release-arm
-release-arm: ARCH=arm
-release-arm: buildbox-arm
-	docker run $(DOCKERFLAGS) $(BCCFLAGS) -i $(NOROOT) $(BUILDBOX_ARM) \
-		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME)
-
-#
-# Create an ARM64 Teleport package using the build container.
-#
-.PHONY:release-arm64
-release-arm64: ARCH=arm64
-release-arm64: buildbox-arm
-	docker run $(DOCKERFLAGS) $(BCCFLAGS) -i $(NOROOT) $(BUILDBOX_ARM) \
-		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME)
-
-#
-# Create an ARM FIPS Teleport package using the build container.
-#
-.PHONY:release-arm-fips
-release-arm-fips: ARCH=arm
-release-arm-fips: buildbox-arm-fips
-	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
-	docker run $(DOCKERFLAGS) $(BCCFLAGS) -i $(NOROOT) $(BUILDBOX_ARM_FIPS) \
-		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION)
-
-
-#
-# Create an ARM64 FIPS Teleport package using the build container.
-#
-.PHONY:release-arm64-fips
-release-arm64-fips: ARCH=arm64
-release-arm64-fips: buildbox-arm-fips
-	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
-	docker run $(DOCKERFLAGS) $(BCCFLAGS) -i $(NOROOT) $(BUILDBOX_ARM_FIPS) \
-		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION)
 
 #
 # Run docs tester to detect problems.
