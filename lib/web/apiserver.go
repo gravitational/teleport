@@ -2162,16 +2162,19 @@ func (h *Handler) createSSHCertWithMFAChallengeResponse(w http.ResponseWriter, r
 func (h *Handler) validateTrustedCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var validateRequestRaw auth.ValidateTrustedClusterRequestRaw
 	if err := httplib.ReadJSON(r, &validateRequestRaw); err != nil {
+		h.log.Errorf("ROOT DEBUG SESSION (1): %v", trace.DebugReport(err))
 		return nil, trace.Wrap(err)
 	}
 
 	validateRequest, err := validateRequestRaw.ToNative()
 	if err != nil {
+		h.log.Errorf("ROOT DEBUG SESSION (2): %v", trace.DebugReport(err))
 		return nil, trace.Wrap(err)
 	}
 
 	validateResponse, err := h.auth.ValidateTrustedCluster(validateRequest)
 	if err != nil {
+		h.log.Errorf("ROOT DEBUG SESSION (3): %v", trace.DebugReport(err))
 		h.log.WithError(err).Error("Failed validating trusted cluster")
 		if trace.IsAccessDenied(err) {
 			return nil, trace.AccessDenied("access denied: the cluster token has been rejected")
@@ -2181,6 +2184,7 @@ func (h *Handler) validateTrustedCluster(w http.ResponseWriter, r *http.Request,
 
 	validateResponseRaw, err := validateResponse.ToRaw()
 	if err != nil {
+		h.log.Errorf("ROOT DEBUG SESSION (4): %v", trace.DebugReport(err))
 		return nil, trace.Wrap(err)
 	}
 
