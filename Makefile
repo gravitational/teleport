@@ -44,8 +44,8 @@ CGOFLAG = CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc
 endif
 endif
 
-OS := $(shell go env GOOS)
-ARCH := $(shell go env GOARCH)
+OS ?= $(shell go env GOOS)
+ARCH ?= $(shell go env GOARCH)
 FIPS ?=
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
 
