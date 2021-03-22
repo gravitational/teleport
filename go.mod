@@ -3,7 +3,7 @@ module github.com/gravitational/teleport
 go 1.15
 
 require (
-	cloud.google.com/go v0.60.0 // indirect
+	cloud.google.com/go v0.60.0
 	cloud.google.com/go/firestore v1.2.0
 	cloud.google.com/go/storage v1.10.0
 	github.com/HdrHistogram/hdrhistogram-go v1.0.1
@@ -113,6 +113,7 @@ require (
 	gopkg.in/square/go-jose.v2 v2.5.1
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
+	honnef.co/go/tools v0.0.1-2020.1.5 // indirect
 	k8s.io/api v0.0.0-20200821051526-051d027c14e1
 	k8s.io/apimachinery v0.20.4
 	k8s.io/client-go v0.0.0-20200827131824-5d33118d4742

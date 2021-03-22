@@ -838,6 +838,10 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 			AWS: service.DatabaseAWS{
 				Region: database.AWS.Region,
 			},
+			GCP: service.DatabaseGCP{
+				ProjectID:  database.GCP.ProjectID,
+				InstanceID: database.GCP.InstanceID,
+			},
 		}
 		if err := db.Check(); err != nil {
 			return trace.Wrap(err)

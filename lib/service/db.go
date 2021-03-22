@@ -93,6 +93,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 				URI:           db.URI,
 				CACert:        db.CACert,
 				AWS:           types.AWS{Region: db.AWS.Region},
+				GCP:           types.GCPCloudSQL{ProjectID: db.GCP.ProjectID, InstanceID: db.GCP.InstanceID},
 				DynamicLabels: types.LabelsToV2(db.DynamicLabels),
 				Version:       teleport.Version,
 				Hostname:      process.Config.Hostname,
