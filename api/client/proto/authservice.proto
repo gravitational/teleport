@@ -153,9 +153,14 @@ message UserCertsRequest {
         SSH = 1;
         Kubernetes = 2;
         Database = 3;
+        App = 4;
     }
     // CertUsage limits the resulting user certificate to a single protocol.
     CertUsage Usage = 10 [ (gogoproto.jsontag) = "usage,omitempty" ];
+
+    // RouteToApp specifies application to issue certificate for.
+    RouteToApp RouteToApp = 11
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "route_to_app,omitempty" ];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -168,6 +173,18 @@ message RouteToDatabase {
     string Username = 3 [ (gogoproto.jsontag) = "username,omitempty" ];
     // Database is an optional database name to embed.
     string Database = 4 [ (gogoproto.jsontag) = "database,omitempty" ];
+}
+
+// RouteToApp contains parameters for application access certificate requests.
+message RouteToApp {
+    // Name is the application name certificate is being requested for.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+    // SessionID is the ID of the application session.
+    string SessionID = 2 [ (gogoproto.jsontag) = "session_id" ];
+    // PublicAddr is the application public address.
+    string PublicAddr = 3 [ (gogoproto.jsontag) = "public_addr" ];
+    // ClusterName is the cluster where the application resides.
+    string ClusterName = 4 [ (gogoproto.jsontag) = "cluster_name" ];
 }
 
 // GetUserRequest specifies parameters for the GetUser method.
@@ -408,10 +425,9 @@ message GetAppSessionsResponse {
 
 // CreateAppSessionRequest contains the parameters to request a application web session.
 message CreateAppSessionRequest {
+    reserved 2;
     // Username is the name of the user requesting the session.
     string Username = 1 [ (gogoproto.jsontag) = "username" ];
-    // ParentSession is the session ID of the parent session.
-    string ParentSession = 2 [ (gogoproto.jsontag) = "parent_session" ];
     // PublicAddr is the public address the application.
     string PublicAddr = 3 [ (gogoproto.jsontag) = "public_addr" ];
     // ClusterName is cluster within which the application is running.

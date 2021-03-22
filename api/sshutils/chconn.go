@@ -17,6 +17,7 @@ limitations under the License.
 package sshutils
 
 import (
+	"io"
 	"net"
 	"sync"
 	"time"
@@ -28,20 +29,30 @@ import (
 // NewChConn returns a new net.Conn implemented over
 // SSH channel
 func NewChConn(conn ssh.Conn, ch ssh.Channel) *ChConn {
-	c := &ChConn{}
-	c.Channel = ch
-	c.conn = conn
-	return c
+	return newChConn(conn, ch, false)
 }
 
 // NewExclusiveChConn returns a new net.Conn implemented over
 // SSH channel, whenever this connection closes
 func NewExclusiveChConn(conn ssh.Conn, ch ssh.Channel) *ChConn {
+	return newChConn(conn, ch, true)
+}
+
+func newChConn(conn ssh.Conn, ch ssh.Channel, exclusive bool) *ChConn {
+	reader, writer := net.Pipe()
 	c := &ChConn{
-		exclusive: true,
+		Channel:   ch,
+		conn:      conn,
+		exclusive: exclusive,
+		reader:    reader,
+		writer:    writer,
 	}
-	c.Channel = ch
-	c.conn = conn
+	// Start copying from the SSH channel to the writer part of the pipe. The
+	// clients are reading from the reader part of the pipe (see Read below).
+	//
+	// This goroutine stops when either the SSH channel closes or this
+	// connection is closed e.g. by a http.Server (see Close below).
+	go io.Copy(writer, ch)
 	return c
 }
 
@@ -55,19 +66,35 @@ type ChConn struct {
 	// exclusive indicates that whenever this channel connection
 	// is getting closed, the underlying connection is closed as well
 	exclusive bool
+
+	// reader is the part of the pipe that clients read from.
+	reader net.Conn
+	// writer is the part of the pipe that receives data from SSH channel.
+	writer net.Conn
 }
 
 // Close closes channel and if the ChConn is exclusive, connection as well
 func (c *ChConn) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
-	err := c.Channel.Close()
-	if !c.exclusive {
-		return trace.Wrap(err)
+	var errors []error
+	if err := c.Channel.Close(); err != nil {
+		errors = append(errors, err)
 	}
-	err2 := c.conn.Close()
-	return trace.NewAggregate(err, err2)
+	if err := c.reader.Close(); err != nil {
+		errors = append(errors, err)
+	}
+	if err := c.writer.Close(); err != nil {
+		errors = append(errors, err)
+	}
+	// Exclusive means close the underlying SSH connection as well.
+	if !c.exclusive {
+		return trace.NewAggregate(errors...)
+	}
+	if err := c.conn.Close(); err != nil {
+		errors = append(errors, err)
+	}
+	return trace.NewAggregate(errors...)
 }
 
 // LocalAddr returns a local address of a connection
@@ -82,16 +109,19 @@ func (c *ChConn) RemoteAddr() net.Addr {
 	return c.conn.RemoteAddr()
 }
 
-// SetDeadline sets a connection deadline
-// ignored for the channel connection
-func (c *ChConn) SetDeadline(t time.Time) error {
-	return nil
+// Read reads from the channel.
+func (c *ChConn) Read(data []byte) (int, error) {
+	return c.reader.Read(data)
 }
 
-// SetReadDeadline sets a connection read deadline
-// ignored for the channel connection
+// SetDeadline sets a connection deadline.
+func (c *ChConn) SetDeadline(t time.Time) error {
+	return c.reader.SetDeadline(t)
+}
+
+// SetReadDeadline sets a connection read deadline.
 func (c *ChConn) SetReadDeadline(t time.Time) error {
-	return nil
+	return c.reader.SetReadDeadline(t)
 }
 
 // SetWriteDeadline sets write deadline on a connection

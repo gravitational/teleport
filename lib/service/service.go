@@ -2586,6 +2586,31 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				tlsConfig.Certificates = append(tlsConfig.Certificates, certificate)
 			}
 
+			tlsConfig.GetConfigForClient = func(*tls.ClientHelloInfo) (*tls.Config, error) {
+				tlsClone := tlsConfig.Clone()
+
+				// Set client auth to "verify client cert if given" to support
+				// app access CLI flow.
+				//
+				// Clients (like curl) connecting to the web proxy endpoint will
+				// present a client certificate signed by the cluster's user CA.
+				//
+				// Browser connections to web UI and other clients (like database
+				// access) connecting to web proxy won't be affected since they
+				// don't present a certificate.
+				tlsClone.ClientAuth = tls.VerifyClientCertIfGiven
+
+				// Build the client CA pool containing the cluster's user CA in
+				// order to be able to validate certificates provided by app
+				// access CLI clients.
+				tlsClone.ClientCAs, err = auth.ClientCertPool(accessPoint, clusterName)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				return tlsClone, nil
+			}
+
 			listeners.web = tls.NewListener(listeners.web, tlsConfig)
 		}
 		webServer = &http.Server{
@@ -2971,6 +2996,7 @@ func (process *TeleportProcess) initApps() {
 
 			a := &services.App{
 				Name:               app.Name,
+				Description:        app.Description,
 				URI:                app.URI,
 				PublicAddr:         publicAddr,
 				StaticLabels:       app.StaticLabels,

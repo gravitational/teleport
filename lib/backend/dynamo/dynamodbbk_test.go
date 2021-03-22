@@ -20,6 +20,7 @@ package dynamo
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -100,5 +101,5 @@ func (s *DynamoDBSuite) TestWatchersClose(c *check.C) {
 }
 
 func (s *DynamoDBSuite) TestLocking(c *check.C) {
-	s.suite.Locking(c)
+	s.suite.Locking(c, s.bk)
 }

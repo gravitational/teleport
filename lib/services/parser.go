@@ -188,6 +188,10 @@ const (
 	UserIdentifier = "user"
 	// ResourceIdentifier represents resource registered identifier in the rules
 	ResourceIdentifier = "resource"
+	// ImpersonateRoleIdentifier is a role to impersonate
+	ImpersonateRoleIdentifier = "impersonate_role"
+	// ImpersonateUserIdentifier is a user to impersonate
+	ImpersonateUserIdentifier = "impersonate_user"
 )
 
 // GetResource returns resource specified in the context,

@@ -906,12 +906,22 @@ type Database struct {
 	DynamicLabels []CommandLabel `yaml:"dynamic_labels,omitempty"`
 	// AWS contains AWS specific settings for RDS/Aurora databases.
 	AWS DatabaseAWS `yaml:"aws"`
+	// GCP contains GCP specific settings for Cloud SQL databases.
+	GCP DatabaseGCP `yaml:"gcp"`
 }
 
 // DatabaseAWS contains AWS specific settings for RDS/Aurora databases.
 type DatabaseAWS struct {
 	// Region is a cloud region for RDS/Aurora database endpoint.
 	Region string `yaml:"region,omitempty"`
+}
+
+// DatabaseGCP contains GCP specific settings for Cloud SQL databases.
+type DatabaseGCP struct {
+	// ProjectID is the GCP project ID where the database is deployed.
+	ProjectID string `yaml:"project_id,omitempty"`
+	// InstanceID is the Cloud SQL database instance ID.
+	InstanceID string `yaml:"instance_id,omitempty"`
 }
 
 // Apps represents the configuration for the collection of applications this
@@ -934,6 +944,9 @@ type Apps struct {
 type App struct {
 	// Name of the application.
 	Name string `yaml:"name"`
+
+	// Description is an optional free-form app description.
+	Description string `yaml:"description,omitempty"`
 
 	// URI is the internal address of the application.
 	URI string `yaml:"uri"`

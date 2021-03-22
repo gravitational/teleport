@@ -442,6 +442,9 @@ const (
 	// CertExtensionClientIP is used to embed the IP of the client that created
 	// the certificate.
 	CertExtensionClientIP = "client-ip"
+	// CertExtensionImpersonator is set when one user has requested certificates
+	// for another user
+	CertExtensionImpersonator = "impersonator"
 )
 
 const (

@@ -245,6 +245,8 @@ type UserCertParams struct {
 	TTL time.Duration
 	// Username is teleport username
 	Username string
+	// Impersonator is set when a user requests certificate for another user
+	Impersonator string
 	// AllowedLogins is a list of SSH principals
 	AllowedLogins []string
 	// PermitX11Forwarding permits X11 forwarding for this cert
