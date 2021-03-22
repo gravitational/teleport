@@ -20,6 +20,7 @@ package test
 
 import (
 	"context"
+	"encoding/hex"
 	"math/rand"
 	"sync/atomic"
 	"time"
