@@ -167,6 +167,35 @@ type Matcher interface {
 	Match(in string) bool
 }
 
+// MatcherFn converts function to a matcher interface
+type MatcherFn func(in string) bool
+
+// Match matches string against a regexp
+func (fn MatcherFn) Match(in string) bool {
+	return fn(in)
+}
+
+// NewAnyMatcher returns a matcher function based
+// on incoming values
+func NewAnyMatcher(in []string) (Matcher, error) {
+	matchers := make([]Matcher, len(in))
+	for i, v := range in {
+		m, err := NewMatcher(v)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		matchers[i] = m
+	}
+	return MatcherFn(func(in string) bool {
+		for _, m := range matchers {
+			if m.Match(in) {
+				return true
+			}
+		}
+		return false
+	}), nil
+}
+
 // NewMatcher parses a matcher expression. Currently supported expressions:
 // - string literal: `foo`
 // - wildcard expression: `*` or `foo*bar`

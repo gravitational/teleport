@@ -97,6 +97,7 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		return IdentityContext{}, trace.Wrap(err)
 	}
 	identity.RoleSet = roleSet
+	identity.Impersonator = certificate.Extensions[teleport.CertExtensionImpersonator]
 
 	return identity, nil
 }
@@ -123,8 +124,9 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext) error {
 				Code: events.PortForwardFailureCode,
 			},
 			UserMetadata: events.UserMetadata{
-				Login: ctx.Identity.Login,
-				User:  ctx.Identity.TeleportUser,
+				Login:        ctx.Identity.Login,
+				User:         ctx.Identity.TeleportUser,
+				Impersonator: ctx.Identity.Impersonator,
 			},
 			ConnectionMetadata: events.ConnectionMetadata{
 				LocalAddr:  ctx.ServerConn.LocalAddr().String(),

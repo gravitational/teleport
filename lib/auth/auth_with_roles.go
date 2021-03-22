@@ -494,8 +494,14 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch services.Watch) 
 				return nil, trace.Wrap(err)
 			}
 		case services.KindWebSession:
-			if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbRead); err != nil {
+			var filter types.WebSessionFilter
+			if err := filter.FromMap(kind.Filter); err != nil {
 				return nil, trace.Wrap(err)
+			}
+			if filter.User == "" || a.currentUserAction(filter.User) != nil {
+				if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbRead); err != nil {
+					return nil, trace.Wrap(err)
+				}
 			}
 		case services.KindWebToken:
 			if err := a.action(defaults.Namespace, services.KindWebToken, services.VerbRead); err != nil {
@@ -1194,21 +1200,52 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	var roles []string
 	var traits wrappers.Traits
 
-	switch {
-	case a.hasBuiltinRole(string(teleport.RoleAdmin)):
-		// If it's an admin generating the certificate, the roles and traits for
-		// the user have to be fetched from the backend. This should be safe since
-		// this is typically done against a local user.
-		user, err := a.GetUser(req.Username, false)
-		if err != nil {
-			return nil, trace.Wrap(err)
+	// this prevents clients who have no chance at getting a cert and impersonating anyone
+	// from enumerating local users and hitting database
+	if !a.hasBuiltinRole(string(teleport.RoleAdmin)) && !a.context.Checker.CanImpersonateSomeone() && req.Username != a.context.User.GetName() {
+		return nil, trace.AccessDenied("access denied: impersonation is not allowed")
+	}
+
+	// Prohibit recursive impersonation behavior:
+	//
+	// Alice can impersonate Bob
+	// Bob can impersonate Grace <- this code block prohibits the escape
+	//
+	// Allow cases:
+	//
+	// Alice can impersonate Bob
+	//
+	// Bob (impersonated by Alice) can renew the cert with route to cluster
+	//
+	if a.context.Identity != nil && a.context.Identity.GetIdentity().Impersonator != "" {
+		if len(req.AccessRequests) > 0 {
+			return nil, trace.AccessDenied("access denied: impersonated user can not request new roles")
 		}
-		roles = user.GetRoles()
-		traits = user.GetTraits()
-	case req.Username == a.context.User.GetName():
-		// user is requesting TTL for themselves,
-		// limit the TTL to the duration of the session, to prevent
-		// users renewing their certificates forever
+		if req.Username != a.context.User.GetName() {
+			return nil, trace.AccessDenied("access denied: impersonated user can not impersonate anyone else")
+		}
+	}
+
+	// Extract the user and role set for whom the certificate will be generated.
+	// This should be safe since this is typically done against a local user.
+	//
+	// This call bypasses RBAC check for users read on purpose.
+	// Users who are allowed to impersonate other users might not have
+	// permissions to read user data.
+	user, err := a.authServer.GetUser(req.Username, false)
+	if err != nil {
+		log.WithError(err).Debugf("Could not impersonate user %v. The user could not be fetched from local store.", req.Username)
+		return nil, trace.AccessDenied("access denied")
+	}
+	// Do not allow SSO users to be impersonated.
+	if req.Username != a.context.User.GetName() && user.GetCreatedBy().Connector != nil {
+		log.Warningf("User %v tried to issue a cert for externally managed user %v, this is not supported.", a.context.User.GetName(), req.Username)
+		return nil, trace.AccessDenied("access denied")
+	}
+
+	// For users renewing certificates limit the TTL to the duration of the session, to prevent
+	// users renewing certificates forever.
+	if req.Username == a.context.User.GetName() {
 		expires := a.context.Identity.GetIdentity().Expires
 		if expires.IsZero() {
 			log.Warningf("Encountered identity with no expiry: %v and denied request. Must be internal logic error.", a.context.Identity)
@@ -1220,31 +1257,22 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		if req.Expires.Before(a.authServer.GetClock().Now()) {
 			return nil, trace.AccessDenied("access denied: client credentials have expired, please relogin.")
 		}
-		// If the user is generating a certificate, the roles and traits come from
-		// the logged in identity.
+	}
+
+	// If the user is generating a certificate, the roles and traits come from the logged in identity.
+	if req.Username == a.context.User.GetName() {
 		roles, traits, err = services.ExtractFromIdentity(a.authServer, a.context.Identity.GetIdentity())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	default:
-		err := trace.AccessDenied("user %q has requested to generate certs for %q.", a.context.User.GetName(), req.Username)
-		log.Warning(err)
-		if err := a.authServer.emitter.EmitAuditEvent(a.CloseContext(), &events.UserLogin{
-			Metadata: events.Metadata{
-				Type: events.UserLoginEvent,
-				Code: events.UserLocalLoginFailureCode,
-			},
-			Method: events.LoginMethodClientCert,
-			Status: events.Status{
-				Success:     false,
-				Error:       trace.Unwrap(err).Error(),
-				UserMessage: err.Error(),
-			},
-		}); err != nil {
-			log.WithError(err).Warn("Failed to emit local login failure event.")
+	} else {
+		// Do not allow combining impersonation and access requests
+		if len(req.AccessRequests) > 0 {
+			log.WithError(err).Warningf("User %v tried to issue a cert for %v and added access requests. This is not supported.", a.context.User.GetName(), req.Username)
+			return nil, trace.AccessDenied("access denied")
 		}
-		// this error is vague on purpose, it should not happen unless someone is trying something out of loop
-		return nil, trace.AccessDenied("this request can be only executed by an admin")
+		roles = user.GetRoles()
+		traits = user.GetTraits()
 	}
 
 	if len(req.AccessRequests) > 0 {
@@ -1284,14 +1312,45 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		roles = utils.Deduplicate(roles)
 	}
 
-	// Extract the user and role set for whom the certificate will be generated.
-	user, err := a.GetUser(req.Username, false)
+	parsedRoles, err := services.FetchRoleList(roles, a.authServer, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(roles, a.authServer, traits)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// add implicit roles to the set and build a checker
+	checker := services.NewRoleSet(parsedRoles...)
+
+	switch {
+	case a.hasBuiltinRole(string(teleport.RoleAdmin)):
+		// builtin admins can impersonate anyone
+		// this is required for local tctl commands to work
+	case req.Username == a.context.User.GetName():
+		// users can impersonate themselves
+	default:
+		// check if this user is allowed to impersonate other users
+		err = a.context.Checker.CheckImpersonate(a.context.User, user, parsedRoles)
+		// adjust session TTL based on the impersonated role set limit
+		ttl := req.Expires.Sub(a.authServer.GetClock().Now())
+		ttl = checker.AdjustSessionTTL(ttl)
+		req.Expires = a.authServer.GetClock().Now().Add(ttl)
+		if err != nil {
+			log.Warning(err)
+			err := trace.AccessDenied("user %q has requested to generate certs for %q.", a.context.User.GetName(), roles)
+			if err := a.authServer.emitter.EmitAuditEvent(a.CloseContext(), &events.UserLogin{
+				Metadata: events.Metadata{
+					Type: events.UserLoginEvent,
+					Code: events.UserLocalLoginFailureCode,
+				},
+				Method: events.LoginMethodClientCert,
+				Status: events.Status{
+					Success:     false,
+					Error:       trace.Unwrap(err).Error(),
+					UserMessage: err.Error(),
+				},
+			}); err != nil {
+				log.WithError(err).Warn("Failed to emit local login failure event.")
+			}
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Generate certificate, note that the roles TTL will be ignored because
@@ -1308,15 +1367,27 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		dbProtocol:        req.RouteToDatabase.Protocol,
 		dbUser:            req.RouteToDatabase.Username,
 		dbName:            req.RouteToDatabase.Database,
+		appName:           req.RouteToApp.Name,
+		appSessionID:      req.RouteToApp.SessionID,
+		appPublicAddr:     req.RouteToApp.PublicAddr,
+		appClusterName:    req.RouteToApp.ClusterName,
 		checker:           checker,
 		traits:            traits,
 		activeRequests: services.RequestIDs{
 			AccessRequests: req.AccessRequests,
 		},
 	}
+	if user.GetName() != a.context.User.GetName() {
+		certReq.impersonator = a.context.User.GetName()
+	} else if a.context.Identity != nil && a.context.Identity.GetIdentity().Impersonator != "" {
+		// impersonating users can receive new certs
+		certReq.impersonator = a.context.Identity.GetIdentity().Impersonator
+	}
 	switch req.Usage {
 	case proto.UserCertsRequest_Database:
 		certReq.usage = []string{teleport.UsageDatabaseOnly}
+	case proto.UserCertsRequest_App:
+		certReq.usage = []string{teleport.UsageAppsOnly}
 	case proto.UserCertsRequest_Kubernetes:
 		certReq.usage = []string{teleport.UsageKubeOnly}
 	case proto.UserCertsRequest_SSH:
@@ -2438,13 +2509,15 @@ func (a *ServerWithRoles) DeleteAllAppServers(ctx context.Context, namespace str
 
 // GetAppSession gets an application web session.
 func (a *ServerWithRoles) GetAppSession(ctx context.Context, req services.GetAppSessionRequest) (services.WebSession, error) {
-	if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	session, err := a.authServer.GetAppSession(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	// Users can only fetch their own app sessions.
+	if err := a.currentUserAction(session.GetUser()); err != nil {
+		if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	return session, nil
 }
@@ -2472,7 +2545,7 @@ func (a *ServerWithRoles) CreateAppSession(ctx context.Context, req services.Cre
 		return nil, trace.Wrap(err)
 	}
 
-	session, err := a.authServer.CreateAppSession(ctx, req, a.context.User, a.context.Checker)
+	session, err := a.authServer.CreateAppSession(ctx, req, a.context.User, a.context.Identity.GetIdentity(), a.context.Checker)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2485,11 +2558,17 @@ func (a *ServerWithRoles) UpsertAppSession(ctx context.Context, session services
 }
 
 // DeleteAppSession removes an application web session.
-func (a *ServerWithRoles) DeleteAppSession(ctx context.Context, req services.DeleteAppSessionRequest) error {
-	if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbDelete); err != nil {
+func (a *ServerWithRoles) DeleteAppSession(ctx context.Context, req types.DeleteAppSessionRequest) error {
+	session, err := a.authServer.GetAppSession(ctx, types.GetAppSessionRequest(req))
+	if err != nil {
 		return trace.Wrap(err)
 	}
-
+	// Users can only delete their own app sessions.
+	if err := a.currentUserAction(session.GetUser()); err != nil {
+		if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbDelete); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	if err := a.authServer.DeleteAppSession(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}

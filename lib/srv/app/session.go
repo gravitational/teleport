@@ -84,6 +84,8 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *
 	fwd, err := forward.New(
 		forward.RoundTripper(transport),
 		forward.Logger(logrus.StandardLogger()),
+		forward.WebsocketRewriter(transport.ws),
+		forward.WebsocketDial(transport.ws.dialer),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -151,7 +153,8 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 			WithMFA:   identity.MFAVerified,
 		},
 		UserMetadata: events.UserMetadata{
-			User: identity.Username,
+			User:         identity.Username,
+			Impersonator: identity.Impersonator,
 		},
 		SessionChunkID: chunkID,
 	}
