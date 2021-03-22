@@ -156,8 +156,22 @@ $ curl https://tele.example.com/webapi/ping
 
 ## Step 2/3 Create a local admin
 
-Local users are a reliable fallback for cases when the SSO provider is down.
-Let's create a local admin `teleport-admin` who has access to Kubernetes group `system:masters`.
+Local users are a reliable fallback for cases when the SSO provider is down. Let's create a local admin `alic`e` who has access to Kubernetes group `system:masters`.
+
+Save this role as `member.yaml`:
+
+```yaml
+kind: role
+version: v3
+metadata:
+  name: member
+spec:
+  allow:
+    # This field is used for SSH logins. You have to keep 'logins' as a non-empty random value
+    # for Kubernetes to work until we fix it.
+    logins: ['keep-this-value-here']
+    kubernetes_groups: ["system:masters"]
+```
 
 Create the role and add a user:
 
@@ -165,10 +179,13 @@ Create the role and add a user:
 # To create a local user, we are going to run Teleport's admin tool tctl from the pod.
 $ POD=$(kubectl get po -l app=teleport-cluster -o jsonpath='{.items[0].metadata.name}')
 
-# Generate an invite link for the user.
-$ kubectl exec -ti ${POD?} -- tctl users add teleport-admin --roles=editor,access --kubernetes_groups=system:masters --logins=k8s-keep-this-login
+# Create a role
+$ kubectl exec -i ${POD?} -- tctl create -f < member.yaml
 
-User "teleport-admin" has been created but requires a password. Share this URL with the user to
+# Generate an invite link for the user.
+$ kubectl exec -ti ${POD?} -- tctl users add alice --roles=member
+
+User "alice" has been created but requires a password. Share this URL with the user to
 complete user setup, link is valid for 1h:
 
 https://tele.example.com:443/web/invite/random-token-id-goes-here
@@ -285,7 +302,7 @@ To create a connector, we are going to run Teleport's admin tool `tctl` from the
 # To create a Github connector, we are going to run Teleport's admin tool tctl from the pod.
 $ POD=$(kubectl get po -l app=teleport-cluster -o jsonpath='{.items[0].metadata.name}')
 
-$ kubectl exec -i ${POD?} tctl -- create -f < github.yaml
+$ kubectl exec -i ${POD?} -- tctl create -f < github.yaml
 authentication connector "github" has been created
 ```
 </TabItem>
@@ -294,7 +311,7 @@ authentication connector "github" has been created
 # To create an Okta connector, we are going to run Teleport's admin tool tctl from the pod.
 $ POD=$(kubectl get po -l app=teleport-cluster-ent -o jsonpath='{.items[0].metadata.name}')
 
-$ kubectl exec -i ${POD?} tctl -- create -f < okta.yaml
+$ kubectl exec -i ${POD?} -- tctl create -f < okta.yaml
 authentication connector 'okta' has been created
 ```
 </TabItem>
@@ -322,7 +339,7 @@ If you are getting a login error, take a look at the audit log for details:
 ```bash
 kubectl exec -ti "${POD?}" -- tail -n 100 /var/lib/teleport/log/events.log
 
-{"error":"user \"teleport-admin\" does not belong to any teams configured in \"github\" connector","method":"github","attributes":{"octocats":["devs"]}}
+{"error":"user \"alice\" does not belong to any teams configured in \"github\" connector","method":"github","attributes":{"octocats":["devs"]}}
 ```
 </Admonition>
 
