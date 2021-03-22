@@ -98,7 +98,7 @@ func (v *triggerRef) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		v.Exclude = regular.Exclude
 		return nil
 	}
-	return errors.New("can't unmarshal the value as neither string nor from_secret reference")
+	return errors.New("can't unmarshal the value as either string or from_secret reference")
 }
 
 type workspace struct {
@@ -193,5 +193,5 @@ func (v *value) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		v.fromSecret = fs.FromSecret
 		return nil
 	}
-	return errors.New("can't unmarshal the value as neither string nor from_secret reference")
+	return errors.New("can't unmarshal the value as either string or from_secret reference")
 }
