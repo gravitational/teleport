@@ -614,6 +614,9 @@ type App struct {
 	// Name of the application.
 	Name string
 
+	// Description is the app description.
+	Description string
+
 	// URI is the internal address of the application.
 	URI string
 

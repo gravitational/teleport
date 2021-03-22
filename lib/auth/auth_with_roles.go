@@ -489,8 +489,14 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch services.Watch) 
 				return nil, trace.Wrap(err)
 			}
 		case services.KindWebSession:
-			if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbRead); err != nil {
+			var filter types.WebSessionFilter
+			if err := filter.FromMap(kind.Filter); err != nil {
 				return nil, trace.Wrap(err)
+			}
+			if filter.User == "" || a.currentUserAction(filter.User) != nil {
+				if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbRead); err != nil {
+					return nil, trace.Wrap(err)
+				}
 			}
 		case services.KindWebToken:
 			if err := a.action(defaults.Namespace, services.KindWebToken, services.VerbRead); err != nil {
@@ -1334,6 +1340,10 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		dbProtocol:        req.RouteToDatabase.Protocol,
 		dbUser:            req.RouteToDatabase.Username,
 		dbName:            req.RouteToDatabase.Database,
+		appName:           req.RouteToApp.Name,
+		appSessionID:      req.RouteToApp.SessionID,
+		appPublicAddr:     req.RouteToApp.PublicAddr,
+		appClusterName:    req.RouteToApp.ClusterName,
 		checker:           checker,
 		traits:            traits,
 		activeRequests: services.RequestIDs{
@@ -1349,6 +1359,8 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	switch req.Usage {
 	case proto.UserCertsRequest_Database:
 		certReq.usage = []string{teleport.UsageDatabaseOnly}
+	case proto.UserCertsRequest_App:
+		certReq.usage = []string{teleport.UsageAppsOnly}
 	case proto.UserCertsRequest_Kubernetes:
 		certReq.usage = []string{teleport.UsageKubeOnly}
 	case proto.UserCertsRequest_SSH:
@@ -2465,13 +2477,15 @@ func (a *ServerWithRoles) DeleteAllAppServers(ctx context.Context, namespace str
 
 // GetAppSession gets an application web session.
 func (a *ServerWithRoles) GetAppSession(ctx context.Context, req services.GetAppSessionRequest) (services.WebSession, error) {
-	if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	session, err := a.authServer.GetAppSession(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	// Users can only fetch their own app sessions.
+	if err := a.currentUserAction(session.GetUser()); err != nil {
+		if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	return session, nil
 }
@@ -2499,7 +2513,7 @@ func (a *ServerWithRoles) CreateAppSession(ctx context.Context, req services.Cre
 		return nil, trace.Wrap(err)
 	}
 
-	session, err := a.authServer.CreateAppSession(ctx, req, a.context.User, a.context.Checker)
+	session, err := a.authServer.CreateAppSession(ctx, req, a.context.User, a.context.Identity.GetIdentity(), a.context.Checker)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2512,11 +2526,17 @@ func (a *ServerWithRoles) UpsertAppSession(ctx context.Context, session services
 }
 
 // DeleteAppSession removes an application web session.
-func (a *ServerWithRoles) DeleteAppSession(ctx context.Context, req services.DeleteAppSessionRequest) error {
-	if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbDelete); err != nil {
+func (a *ServerWithRoles) DeleteAppSession(ctx context.Context, req types.DeleteAppSessionRequest) error {
+	session, err := a.authServer.GetAppSession(ctx, types.GetAppSessionRequest(req))
+	if err != nil {
 		return trace.Wrap(err)
 	}
-
+	// Users can only delete their own app sessions.
+	if err := a.currentUserAction(session.GetUser()); err != nil {
+		if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbDelete); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	if err := a.authServer.DeleteAppSession(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}
