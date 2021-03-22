@@ -360,6 +360,9 @@ type ProfileStatus struct {
 	// Databases is a list of database services this profile is logged into.
 	Databases []tlsca.RouteToDatabase
 
+	// Apps is a list of apps this profile is logged into.
+	Apps []tlsca.RouteToApp
+
 	// ValidUntil is the time at which this SSH certificate will expire.
 	ValidUntil time.Time
 
@@ -407,10 +410,29 @@ func (p *ProfileStatus) DatabaseCertPath(name string) string {
 		fmt.Sprintf("%v%v", name, fileExtTLSCert))
 }
 
+// AppCertPath returns path to the specified app access certificate
+// for this profile.
+//
+// It's kept in ~/.tsh/keys/<proxy>/<user>-app/<cluster>/<name>-x509.pem
+func (p *ProfileStatus) AppCertPath(name string) string {
+	return filepath.Join(p.Dir, sessionKeyDir, p.Name,
+		fmt.Sprintf("%v%v", p.Username, appDirSuffix),
+		p.Cluster,
+		fmt.Sprintf("%v%v", name, fileExtTLSCert))
+}
+
 // DatabaseServices returns a list of database service names for this profile.
 func (p *ProfileStatus) DatabaseServices() (result []string) {
 	for _, db := range p.Databases {
 		result = append(result, db.ServiceName)
+	}
+	return result
+}
+
+// AppNames returns a list of app names this profile is logged into.
+func (p *ProfileStatus) AppNames() (result []string) {
+	for _, app := range p.Apps {
+		result = append(result, app.Name)
 	}
 	return result
 }
@@ -476,7 +498,10 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	key, err := store.GetKey(profile.Name(), profile.Username, WithKubeCerts(profile.SiteName), WithDBCerts(profile.SiteName, ""))
+	key, err := store.GetKey(profile.Name(), profile.Username,
+		WithKubeCerts(profile.SiteName),
+		WithDBCerts(profile.SiteName, ""),
+		WithAppCerts(profile.SiteName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -568,6 +593,21 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 		}
 	}
 
+	appCerts, err := key.AppTLSCertificates()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var apps []tlsca.RouteToApp
+	for _, cert := range appCerts {
+		tlsID, err := tlsca.FromSubject(cert.Subject, time.Time{})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if tlsID.RouteToApp.PublicAddr != "" {
+			apps = append(apps, tlsID.RouteToApp)
+		}
+	}
+
 	return &ProfileStatus{
 		Name: profileName,
 		Dir:  profileDir,
@@ -588,6 +628,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 		KubeUsers:      tlsID.KubernetesUsers,
 		KubeGroups:     tlsID.KubernetesGroups,
 		Databases:      databases,
+		Apps:           apps,
 	}, nil
 }
 
@@ -837,6 +878,12 @@ func (c *Config) WebProxyHostPort() (string, int) {
 
 	webProxyHost, _ := c.WebProxyHostPort()
 	return webProxyHost, defaults.HTTPListenPort
+}
+
+// WebProxyPort returns the port of the web proxy.
+func (c *Config) WebProxyPort() int {
+	_, port := c.WebProxyHostPort()
+	return port
 }
 
 // SSHProxyHostPort returns the host and port of the SSH proxy.
@@ -1675,6 +1722,26 @@ func (tc *TeleportClient) ListAppServers(ctx context.Context) ([]services.Server
 	return proxyClient.GetAppServers(ctx, tc.Namespace)
 }
 
+// CreateAppSession creates a new application access session.
+func (tc *TeleportClient) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+	return proxyClient.CreateAppSession(ctx, req)
+}
+
+// DeleteAppSession removes the specified application access session.
+func (tc *TeleportClient) DeleteAppSession(ctx context.Context, sessionID string) error {
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+	return proxyClient.DeleteAppSession(ctx, sessionID)
+}
+
 // ListDatabaseServers returns all registered database proxy servers.
 func (tc *TeleportClient) ListDatabaseServers(ctx context.Context) ([]types.DatabaseServer, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
@@ -1900,7 +1967,8 @@ func (tc *TeleportClient) Logout() error {
 	}
 	return tc.localAgent.DeleteKey(
 		WithKubeCerts(tc.SiteName),
-		WithDBCerts(tc.SiteName, ""))
+		WithDBCerts(tc.SiteName, ""),
+		WithAppCerts(tc.SiteName))
 }
 
 // LogoutDatabase removes certificate for a particular database.
@@ -1915,6 +1983,20 @@ func (tc *TeleportClient) LogoutDatabase(dbName string) error {
 		tc.localAgent.proxyHost,
 		tc.localAgent.username,
 		WithDBCerts(tc.SiteName, dbName))
+}
+
+// LogoutApp removes certificate for the specified app.
+func (tc *TeleportClient) LogoutApp(appName string) error {
+	if tc.localAgent == nil {
+		return nil
+	}
+	if appName == "" {
+		return trace.BadParameter("please specify app name to log out of")
+	}
+	return tc.localAgent.keyStore.DeleteKeyOption(
+		tc.localAgent.proxyHost,
+		tc.localAgent.username,
+		WithNamedAppCerts(tc.SiteName, appName))
 }
 
 // LogoutAll removes all certificates for all users from the filesystem

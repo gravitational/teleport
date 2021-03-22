@@ -887,6 +887,7 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 		// Add the application to the list of proxied applications.
 		app := service.App{
 			Name:               application.Name,
+			Description:        application.Description,
 			URI:                application.URI,
 			PublicAddr:         application.PublicAddr,
 			StaticLabels:       staticLabels,
