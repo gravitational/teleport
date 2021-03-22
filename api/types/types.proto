@@ -1825,3 +1825,52 @@ message AsymmetricKeyPair {
     // Cert is a PEM-encoded x509 certificate.
     string Cert = 2 [ (gogoproto.jsontag) = "cert" ];
 }
+
+// GithubConnectorV3 represents a Github connector.
+message GithubConnectorV3 {
+    // Kind is a resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is a resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata holds resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is an Github connector specification.
+    GithubConnectorSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// GithubConnectorV3List is a list of Github connectors.
+message GithubConnectorV3List {
+    // GithubConnectors is a list of Github connectors.
+    repeated types.GithubConnectorV3 GithubConnectors = 1;
+}
+
+// GithubConnectorSpecV3 is a Github connector specification.
+message GithubConnectorSpecV3 {
+    // ClientID is the Github OAuth app client ID.
+    string ClientID = 1 [ (gogoproto.jsontag) = "client_id" ];
+    // ClientSecret is the Github OAuth app client secret.
+    string ClientSecret = 2 [ (gogoproto.jsontag) = "client_secret" ];
+    // RedirectURL is the authorization callback URL.
+    string RedirectURL = 3 [ (gogoproto.jsontag) = "redirect_url" ];
+    // TeamsToLogins maps Github team memberships onto allowed logins/roles.
+    repeated TeamMapping TeamsToLogins = 4
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "teams_to_logins" ];
+    // Display is the connector display name.
+    string Display = 5 [ (gogoproto.jsontag) = "display" ];
+}
+
+// TeamMapping represents a single team membership mapping.
+message TeamMapping {
+    // Organization is a Github organization a user belongs to.
+    string Organization = 1 [ (gogoproto.jsontag) = "organization" ];
+    // Team is a team within the organization a user belongs to.
+    string Team = 2 [ (gogoproto.jsontag) = "team" ];
+    // Logins is a list of allowed logins for this org/team.
+    repeated string Logins = 3 [ (gogoproto.jsontag) = "logins,omitempty" ];
+    // KubeGroups is a list of allowed kubernetes groups for this org/team.
+    repeated string KubeGroups = 4 [ (gogoproto.jsontag) = "kubernetes_groups,omitempty" ];
+    // KubeUsers is a list of allowed kubernetes users to impersonate for this org/team.
+    repeated string KubeUsers = 5 [ (gogoproto.jsontag) = "kubernetes_users,omitempty" ];
+}
