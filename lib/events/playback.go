@@ -124,7 +124,7 @@ func Export(ctx context.Context, rs io.ReadSeeker, w io.Writer, exportFormat str
 }
 
 // WriteForPlayback reads events from audit reader and writes them to the format optimized for playback
-// this function returns the path of the gzip chunks file, path of gzip events file, and error, respectively
+// this function returns *PlaybackWriter and error
 func WriteForPlayback(ctx context.Context, sid session.ID, reader AuditReader, dir string) (*PlaybackWriter, error) {
 	w := &PlaybackWriter{
 		sid:        sid,
