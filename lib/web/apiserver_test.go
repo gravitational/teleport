@@ -1582,7 +1582,7 @@ func (s *WebSuite) TestMultipleConnectors(c *C) {
 
 	// make sure the connector name we got back was the first connector
 	// in the backend, in this case it's "bar"
-	oidcConnectors, err := s.server.Auth().GetOIDCConnectors(false)
+	oidcConnectors, err := s.server.Auth().GetOIDCConnectors(ctx, false)
 	c.Assert(err, IsNil)
 	c.Assert(out.Auth.OIDC.Name, Equals, oidcConnectors[0].GetName())
 

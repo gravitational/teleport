@@ -45,7 +45,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster servic
 	var existingCluster services.TrustedCluster
 	if trustedCluster.GetName() != "" {
 		var err error
-		if existingCluster, err = a.Presence.GetTrustedCluster(trustedCluster.GetName()); err == nil {
+		if existingCluster, err = a.Presence.GetTrustedCluster(ctx, trustedCluster.GetName()); err == nil {
 			exists = true
 		}
 	}

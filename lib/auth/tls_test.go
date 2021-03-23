@@ -3042,16 +3042,16 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 		"tok2", teleport.Roles{teleport.RoleProxy}, time.Now().UTC().Add(3*time.Hour))
 	c.Assert(err, check.IsNil)
 
-	err = s.server.Auth().UpsertToken(token)
+	err = s.server.Auth().UpsertToken(ctx, token)
 	c.Assert(err, check.IsNil)
 
-	token, err = s.server.Auth().GetToken(token.GetName())
+	token, err = s.server.Auth().GetToken(ctx, token.GetName())
 	c.Assert(err, check.IsNil)
 
 	suite.ExpectResource(c, w, 3*time.Second, token)
 
 	// delete token and expect delete event
-	err = s.server.Auth().DeleteToken(token.GetName())
+	err = s.server.Auth().DeleteToken(ctx, token.GetName())
 	c.Assert(err, check.IsNil)
 	suite.ExpectDeleteResource(c, w, 3*time.Second, &services.ResourceHeader{
 		Kind:    services.KindToken,

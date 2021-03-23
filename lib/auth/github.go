@@ -38,7 +38,8 @@ import (
 
 // CreateGithubAuthRequest creates a new request for Github OAuth2 flow
 func (a *Server) CreateGithubAuthRequest(req services.GithubAuthRequest) (*services.GithubAuthRequest, error) {
-	connector, err := a.Identity.GetGithubConnector(req.ConnectorID, true)
+	ctx := context.TODO()
+	connector, err := a.Identity.GetGithubConnector(ctx, req.ConnectorID, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -63,7 +64,7 @@ func (a *Server) CreateGithubAuthRequest(req services.GithubAuthRequest) (*servi
 
 // upsertGithubConnector creates or updates a Github connector.
 func (a *Server) upsertGithubConnector(ctx context.Context, connector services.GithubConnector) error {
-	if err := a.Identity.UpsertGithubConnector(connector); err != nil {
+	if err := a.Identity.UpsertGithubConnector(ctx, connector); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(a.closeCtx, &events.GithubConnectorCreate{
@@ -87,7 +88,7 @@ func (a *Server) upsertGithubConnector(ctx context.Context, connector services.G
 
 // deleteGithubConnector deletes a Github connector by name.
 func (a *Server) deleteGithubConnector(ctx context.Context, connectorName string) error {
-	if err := a.Identity.DeleteGithubConnector(connectorName); err != nil {
+	if err := a.Identity.DeleteGithubConnector(ctx, connectorName); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -182,6 +183,7 @@ type githubAuthResponse struct {
 
 // ValidateGithubAuthCallback validates Github auth callback redirect
 func (a *Server) validateGithubAuthCallback(q url.Values) (*githubAuthResponse, error) {
+	ctx := context.TODO()
 	logger := log.WithFields(logrus.Fields{trace.Component: "github"})
 	error := q.Get("error")
 	if error != "" {
@@ -201,7 +203,7 @@ func (a *Server) validateGithubAuthCallback(q url.Values) (*githubAuthResponse, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connector, err := a.Identity.GetGithubConnector(req.ConnectorID, true)
+	connector, err := a.Identity.GetGithubConnector(ctx, req.ConnectorID, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
