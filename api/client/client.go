@@ -200,7 +200,11 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 			}
 
 			// Connect with dialer provided in creds.
-			if dialer, err := creds.Dialer(); err == nil {
+			if dialer, err := creds.Dialer(cfg.KeepAlivePeriod, cfg.DialTimeout); err != nil {
+				if !trace.IsNotImplemented(err) {
+					sendError(trace.Wrap(err))
+				}
+			} else {
 				syncConnect(constants.APIDomain, &Client{
 					c:         cfg,
 					tlsConfig: tlsConfig,
@@ -255,6 +259,10 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 			}
 			// errChan is closed, return errors.
 			if len(errs) == 0 {
+				if len(cfg.Addrs) == 0 && cfg.Dialer == nil {
+					// Some credentials don't require these fields. If no errors propogate, then they need to provide these fields.
+					return nil, trace.Errorf("all auth methods failed: try providing Addrs or Dialer in config")
+				}
 				return nil, trace.Errorf("all auth methods failed")
 			}
 			return nil, trace.Wrap(trace.NewAggregate(errs...), "all auth methods failed")

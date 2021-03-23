@@ -1,5 +1,5 @@
 /*
-Copyright 2016-2019 Gravitational, Inc.
+Copyright 2016-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -43,6 +43,7 @@ func TestProfileBasics(t *testing.T) {
 		Username:              "testuser",
 		ForwardedPorts:        []string{"8000:example.com:8000"},
 		DynamicForwardedPorts: []string{"localhost:8080"},
+		Dir:                   dir,
 	}
 
 	// verify that profile name is proxy host component
