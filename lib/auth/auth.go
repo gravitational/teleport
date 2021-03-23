@@ -1134,7 +1134,7 @@ func (a *Server) GenerateToken(ctx context.Context, req GenerateTokenRequest) (s
 				},
 				UserMetadata: events.UserMetadata{
 					User:         user,
-					Impersonator: clientImpersonator(ctx),
+					Impersonator: ClientImpersonator(ctx),
 				},
 			}); err != nil {
 				log.WithError(err).Warn("Failed to emit trusted cluster token create event.")
@@ -1696,7 +1696,7 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 		},
 		UserMetadata: events.UserMetadata{
 			User:         ClientUsername(ctx),
-			Impersonator: clientImpersonator(ctx),
+			Impersonator: ClientImpersonator(ctx),
 		},
 		ResourceMetadata: events.ResourceMetadata{
 			Name: name,
@@ -1774,7 +1774,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req services.AccessReq
 		},
 		UserMetadata: events.UserMetadata{
 			User:         req.GetUser(),
-			Impersonator: clientImpersonator(ctx),
+			Impersonator: ClientImpersonator(ctx),
 		},
 		Roles:        req.GetRoles(),
 		RequestID:    req.GetName(),

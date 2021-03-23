@@ -148,7 +148,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster servic
 		},
 		UserMetadata: events.UserMetadata{
 			User:         ClientUsername(ctx),
-			Impersonator: clientImpersonator(ctx),
+			Impersonator: ClientImpersonator(ctx),
 		},
 		ResourceMetadata: events.ResourceMetadata{
 			Name: trustedCluster.GetName(),
@@ -222,7 +222,7 @@ func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
 		},
 		UserMetadata: events.UserMetadata{
 			User:         ClientUsername(ctx),
-			Impersonator: clientImpersonator(ctx),
+			Impersonator: ClientImpersonator(ctx),
 		},
 		ResourceMetadata: events.ResourceMetadata{
 			Name: name,

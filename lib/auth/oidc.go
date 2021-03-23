@@ -156,7 +156,7 @@ func (a *Server) UpsertOIDCConnector(ctx context.Context, connector services.OID
 		},
 		UserMetadata: events.UserMetadata{
 			User:         ClientUsername(ctx),
-			Impersonator: clientImpersonator(ctx),
+			Impersonator: ClientImpersonator(ctx),
 		},
 		ResourceMetadata: events.ResourceMetadata{
 			Name: connector.GetName(),
@@ -180,7 +180,7 @@ func (a *Server) DeleteOIDCConnector(ctx context.Context, connectorName string) 
 		},
 		UserMetadata: events.UserMetadata{
 			User:         ClientUsername(ctx),
-			Impersonator: clientImpersonator(ctx),
+			Impersonator: ClientImpersonator(ctx),
 		},
 		ResourceMetadata: events.ResourceMetadata{
 			Name: connectorName,
