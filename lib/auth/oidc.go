@@ -243,43 +243,44 @@ func (a *Server) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.
 // returned by OIDC Provider, if everything checks out, auth server
 // will respond with OIDCAuthResponse, otherwise it will return error
 func (a *Server) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error) {
-	re, err := a.validateOIDCAuthCallback(q)
 	event := &events.UserLogin{
 		Metadata: events.Metadata{
 			Type: events.UserLoginEvent,
 		},
 		Method: events.LoginMethodOIDC,
 	}
+
+	re, err := a.validateOIDCAuthCallback(q)
+	if re != nil && re.claims != nil {
+		attributes, err := events.EncodeMap(re.claims)
+		if err != nil {
+			event.Status.UserMessage = fmt.Sprintf("Failed to encode identity attributes: %v", err.Error())
+			log.WithError(err).Debug("Failed to encode identity attributes.")
+		} else {
+			event.IdentityAttributes = attributes
+		}
+	}
+
 	if err != nil {
 		event.Code = events.UserSSOLoginFailureCode
 		event.Status.Success = false
 		event.Status.Error = trace.Unwrap(err).Error()
 		event.Status.UserMessage = err.Error()
-		if re != nil && re.claims != nil {
-			attributes, err := events.EncodeMap(re.claims)
-			if err != nil {
-				log.WithError(err).Debugf("Failed to encode identity attributes.")
-			} else {
-				event.IdentityAttributes = attributes
-			}
+
+		if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
+			log.WithError(err).Warn("Failed to emit OIDC login failed event.")
 		}
-		a.emitter.EmitAuditEvent(a.closeCtx, event)
+
 		return nil, trace.Wrap(err)
 	}
 	event.Code = events.UserSSOLoginCode
 	event.User = re.auth.Username
 	event.Status.Success = true
-	if re.claims != nil {
-		attributes, err := events.EncodeMap(re.claims)
-		if err != nil {
-			log.WithError(err).Debugf("Failed to encode identity attributes.")
-		} else {
-			event.IdentityAttributes = attributes
-		}
-	}
+
 	if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
 		log.WithError(err).Warn("Failed to emit OIDC login event.")
 	}
+
 	return &re.auth, nil
 }
 
@@ -329,14 +330,7 @@ func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, erro
 	// extract claims from both the id token and the userinfo endpoint and merge them
 	claims, err := a.getClaims(oidcClient, connector, code)
 	if err != nil {
-		return nil, trace.WrapWithMessage(
-			// preserve the original error message, to avoid leaking
-			// server errors to the user in the UI, but override
-			// user message to the high level instruction to check audit log for details
-			trace.OAuth2(
-				oauth2.ErrorUnsupportedResponseType, err.Error(), q),
-			"unable to construct claims, check audit log for details",
-		)
+		return nil, trace.Wrap(err)
 	}
 	re := &oidcAuthResponse{
 		claims: claims,
@@ -785,13 +779,18 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector services.OIDCConne
 
 	t, err := oac.RequestToken(oauth2.GrantTypeAuthCode, code)
 	if err != nil {
+		if e, ok := err.(*oauth2.Error); ok {
+			if e.Type == oauth2.ErrorAccessDenied {
+				return nil, trace.Wrap(err, "the client_id and/or client_secret may be incorrect")
+			}
+		}
 		return nil, trace.Wrap(err)
 	}
 
 	idTokenClaims, err := claimsFromIDToken(oidcClient, t.IDToken)
 	if err != nil {
 		log.Debugf("Unable to fetch OIDC ID token claims: %v.", err)
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "unable to fetch OIDC ID token claims")
 	}
 	log.Debugf("OIDC ID Token claims: %v.", idTokenClaims)
 
@@ -802,7 +801,7 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector services.OIDCConne
 			return idTokenClaims, nil
 		}
 		log.Debugf("Unable to fetch UserInfo claims: %v.", err)
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "unable to fetch UserInfo claims")
 	}
 	log.Debugf("UserInfo claims: %v.", userInfoClaims)
 
@@ -814,21 +813,21 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector services.OIDCConne
 	var exists bool
 	if idsub, exists, err = idTokenClaims.StringClaim("sub"); err != nil || !exists {
 		log.Debugf("Unable to extract OIDC sub claim from ID token.")
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "unable to extract OIDC sub claim from ID token")
 	}
 	if uisub, exists, err = userInfoClaims.StringClaim("sub"); err != nil || !exists {
 		log.Debugf("Unable to extract OIDC sub claim from UserInfo.")
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "unable to extract OIDC sub claim from UserInfo")
 	}
 	if idsub != uisub {
-		log.Debugf("OIDC claim subjects don't match '%v' != '%v'.", idsub, uisub)
-		return nil, trace.BadParameter("invalid subject in UserInfo")
+		log.Debugf("OIDC claim subjects does not match '%v' != '%v'.", idsub, uisub)
+		return nil, trace.BadParameter("OIDC claim subjects in UserInfo does not match")
 	}
 
 	claims, err := mergeClaims(idTokenClaims, userInfoClaims)
 	if err != nil {
 		log.Debugf("Unable to merge OIDC claims: %v.", err)
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "unable to merge OIDC claims")
 	}
 
 	// for GSuite users, fetch extra data from the proprietary google API
