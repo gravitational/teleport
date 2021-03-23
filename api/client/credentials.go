@@ -22,7 +22,9 @@ import (
 	"io/ioutil"
 
 	"github.com/gravitational/teleport/api/constants"
+
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/http2"
 )
 
@@ -30,8 +32,10 @@ import (
 type Credentials interface {
 	// Dialer is used to dial a connection to Auth.
 	Dialer() (ContextDialer, error)
-	// Config returns TLS configuration used to connect to Auth.
-	Config() (*tls.Config, error)
+	// TLSConfig returns TLS configuration used to connect to Auth.
+	TLSConfig() (*tls.Config, error)
+	// SSHClientConfig returns SSH configuration used to connect to Proxy through tunnel.
+	SSHClientConfig() (*ssh.ClientConfig, error)
 }
 
 // LoadTLS is used to load credentials directly from another *tls.Config.
@@ -52,9 +56,17 @@ func (c *TLSConfigCreds) Dialer() (ContextDialer, error) {
 	return nil, trace.NotImplemented("no dialer")
 }
 
-// Config returns TLS configuration used to connect to Auth.
-func (c *TLSConfigCreds) Config() (*tls.Config, error) {
+// TLSConfig returns TLS configuration used to connect to Auth.
+func (c *TLSConfigCreds) TLSConfig() (*tls.Config, error) {
+	if c.tlsConfig == nil {
+		return nil, trace.BadParameter("tls config is nil")
+	}
 	return configure(c.tlsConfig), nil
+}
+
+// SSHClientConfig returns SSH configuration used to connect to Proxy.
+func (c *TLSConfigCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
+	return nil, trace.NotImplemented("no ssh config")
 }
 
 // LoadKeyPair is used to load credentials from files on disk.
@@ -79,8 +91,8 @@ func (c *KeyPairCreds) Dialer() (ContextDialer, error) {
 	return nil, trace.NotImplemented("no dialer")
 }
 
-// Config returns TLS configuration used to connect to Auth.
-func (c *KeyPairCreds) Config() (*tls.Config, error) {
+// TLSConfig returns TLS configuration used to connect to Auth.
+func (c *KeyPairCreds) TLSConfig() (*tls.Config, error) {
 	cert, err := tls.LoadX509KeyPair(c.certFile, c.keyFile)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -102,6 +114,11 @@ func (c *KeyPairCreds) Config() (*tls.Config, error) {
 	}), nil
 }
 
+// SSHClientConfig returns SSH configuration used to connect to Proxy.
+func (c *KeyPairCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
+	return nil, trace.NotImplemented("no ssh config")
+}
+
 // LoadIdentityFile is used to load credentials from an identity file on disk.
 func LoadIdentityFile(path string) *IdentityCreds {
 	return &IdentityCreds{
@@ -112,7 +129,8 @@ func LoadIdentityFile(path string) *IdentityCreds {
 // IdentityCreds are used to authenticate the client
 // with an identity file generated in the given file path.
 type IdentityCreds struct {
-	path string
+	path         string
+	identityFile *IdentityFile
 }
 
 // Dialer is used to dial a connection to Auth.
@@ -120,19 +138,43 @@ func (c *IdentityCreds) Dialer() (ContextDialer, error) {
 	return nil, trace.NotImplemented("no dialer")
 }
 
-// Config returns TLS configuration used to connect to Auth.
-func (c *IdentityCreds) Config() (*tls.Config, error) {
-	identityFile, err := ReadIdentityFile(c.path)
-	if err != nil {
-		return nil, trace.BadParameter("identity file could not be decoded: %v", err)
+// TLSConfig returns TLS configuration used to connect to Auth.
+func (c *IdentityCreds) TLSConfig() (*tls.Config, error) {
+	if err := c.load(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	tlsConfig, err := identityFile.TLS()
+	tlsConfig, err := c.identityFile.TLSConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return configure(tlsConfig), nil
+}
+
+// SSHClientConfig returns SSH configuration used to connect to Proxy.
+func (c *IdentityCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
+	if err := c.load(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sshConfig, err := c.identityFile.SSHClientConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return sshConfig, nil
+}
+
+func (c *IdentityCreds) load() error {
+	if c.identityFile != nil {
+		return nil
+	}
+	var err error
+	if c.identityFile, err = ReadIdentityFile(c.path); err != nil {
+		return trace.BadParameter("identity file could not be decoded: %v", err)
+	}
+	return nil
 }
 
 func configure(c *tls.Config) *tls.Config {
