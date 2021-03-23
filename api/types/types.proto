@@ -1742,3 +1742,45 @@ message TeamMapping {
     // KubeUsers is a list of allowed kubernetes users to impersonate for this org/team.
     repeated string KubeUsers = 5 [ (gogoproto.jsontag) = "kubernetes_users,omitempty" ];
 }
+
+// TrustedClusterV2 represents a Trusted Cluster.
+message TrustedClusterV2 {
+    option (gogoproto.goproto_stringer) = false;
+    // Kind is a resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is a resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata holds resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is a Trusted Cluster specification.
+    TrustedClusterSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// TrustedClusterV2List is a list of trusted cluster.
+message TrustedClusterV2List {
+    // TrustedClusters is a list of trusted cluster.
+    repeated types.TrustedClusterV2 TrustedClusters = 1;
+}
+
+// TrustedClusterSpecV2 is a Trusted Cluster specification.
+message TrustedClusterSpecV2 {
+    // Enabled is a bool that indicates if the TrustedCluster is enabled or disabled.
+    // Setting Enabled to false has a side effect of deleting the user and host certificate
+    // authority (CA).
+    bool Enabled = 1 [ (gogoproto.jsontag) = "enabled" ];
+    // Roles is a list of roles that users will be assuming when connecting to this cluster.
+    repeated string Roles = 2 [ (gogoproto.jsontag) = "roles,omitempty" ];
+    // Token is the authorization token provided by another cluster needed by this cluster to join.
+    string Token = 3 [ (gogoproto.jsontag) = "token" ];
+    // ProxyAddress is the address of the web proxy server of the cluster to join. If not set,
+    // it is derived from <metadata.name>:<default web proxy server port>.
+    string ProxyAddress = 4 [ (gogoproto.jsontag) = "web_proxy_addr" ];
+    // ReverseTunnelAddress is the address of the SSH proxy server of the cluster to join. If
+    // not set, it is derived from <metadata.name>:<default reverse tunnel port>.
+    string ReverseTunnelAddress = 5 [ (gogoproto.jsontag) = "tunnel_addr" ];
+    // RoleMap specifies role mappings to remote roles.
+    repeated RoleMapping RoleMap = 6
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "role_map,omitempty" ];
+}
