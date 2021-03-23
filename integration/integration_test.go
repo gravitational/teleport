@@ -775,7 +775,7 @@ func (s *IntSuite) TestInteractiveRegular(c *check.C) {
 	s.verifySessionJoin(c, t)
 }
 
-// TestInteractive covers SSH into shell and joining the same session from another client
+// TestInteractiveReverseTunnel covers SSH into shell and joining the same session from another client
 // against a reversetunnel node.
 func (s *IntSuite) TestInteractiveReverseTunnel(c *check.C) {
 	s.setUpTest(c)
@@ -792,6 +792,69 @@ func (s *IntSuite) TestInteractiveReverseTunnel(c *check.C) {
 	defer t.StopAll()
 
 	s.verifySessionJoin(c, t)
+}
+
+// TestCustomReverseTunnel tests that the SSH node falls back to configured
+// proxy address if it cannot connect via the proxy address from the reverse
+// tunnel discovery query.
+// See https://github.com/gravitational/teleport/issues/4141 for context.
+func (s *IntSuite) TestCustomReverseTunnel(c *check.C) {
+	s.setUpTest(c)
+	defer s.tearDownTest(c)
+
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	// InsecureDevMode needed for IoT node handshake
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	failingListener, err := net.Listen("tcp", "localhost:0")
+	c.Assert(err, check.IsNil)
+	failingAddr := failingListener.Addr().String()
+	failingListener.Close()
+
+	// Create a Teleport instance with Auth/Proxy.
+	conf := s.defaultServiceConfig()
+	conf.Auth.Enabled = true
+	conf.Proxy.Enabled = true
+	conf.Proxy.DisableWebService = false
+	conf.Proxy.DisableWebInterface = true
+	conf.Proxy.DisableDatabaseProxy = true
+	conf.Proxy.TunnelPublicAddrs = []utils.NetAddr{
+		{
+			// Connect on the address that refuses connection on purpose
+			// to test address fallback behavior
+			Addr:        failingAddr,
+			AddrNetwork: "tcp",
+		},
+	}
+	conf.SSH.Enabled = false
+
+	instanceConfig := s.defaultInstanceConfig()
+	instanceConfig.MultiplexProxy = true
+	main := NewInstance(instanceConfig)
+
+	c.Assert(main.CreateEx(nil, conf), check.IsNil)
+	c.Assert(main.Start(), check.IsNil)
+	defer main.StopAll()
+
+	// Create a Teleport instance with a Node.
+	nodeConf := s.defaultServiceConfig()
+	nodeConf.Hostname = Host
+	nodeConf.Token = "token"
+	nodeConf.Auth.Enabled = false
+	nodeConf.Proxy.Enabled = false
+	nodeConf.SSH.Enabled = true
+	nodeConf.SSH.ProxyReverseTunnelFallbackAddr = &utils.NetAddr{
+		// Configure the original proxy address as a fallback so the node is able to connect
+		Addr:        main.Secrets.WebProxyAddr,
+		AddrNetwork: "tcp",
+	}
+
+	// verify the node is able to join the cluster
+	_, err = main.StartReverseTunnelNode(nodeConf)
+	c.Assert(err, check.IsNil)
 }
 
 // verifySessionJoin covers SSH into shell and joining the same session from another client
@@ -5044,7 +5107,11 @@ func (s *IntSuite) getPorts(num int) []int {
 }
 
 func (s *IntSuite) newTeleportInstance(c *check.C) *TeleInstance {
-	return NewInstance(InstanceConfig{
+	return NewInstance(s.defaultInstanceConfig())
+}
+
+func (s *IntSuite) defaultInstanceConfig() InstanceConfig {
+	return InstanceConfig{
 		ClusterName: Site,
 		HostID:      HostID,
 		NodeName:    Host,
@@ -5052,7 +5119,7 @@ func (s *IntSuite) newTeleportInstance(c *check.C) *TeleInstance {
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
-	})
+	}
 }
 
 func (s *IntSuite) newNamedTeleportInstance(c *check.C, clusterName string) *TeleInstance {
