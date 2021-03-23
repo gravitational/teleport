@@ -28,8 +28,8 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/trace"
@@ -483,28 +483,8 @@ func (a *LocalKeyAgent) AuthMethods() (m []ssh.AuthMethod) {
 		// filter out non-certificates (like regular public SSH keys stored in the SSH agent):
 		_, ok := signers[i].PublicKey().(*ssh.Certificate)
 		if ok {
-			m = append(m, NewAuthMethodForCert(signers[i]))
+			m = append(m, sshutils.NewAuthMethodForCert(signers[i]))
 		}
 	}
 	return m
-}
-
-// CertAuthMethod is a wrapper around ssh.Signer (certificate signer) object.
-// CertAuthMethod then implements ssh.Authmethod interface around this one certificate signer.
-//
-// We need this wrapper because Golang's SSH library's unfortunate API design. It uses
-// callbacks with 'authMethod' interfaces and without this wrapper it is impossible to
-// tell which certificate an 'authMethod' passed via a callback had succeeded authenticating with.
-type CertAuthMethod struct {
-	ssh.AuthMethod
-	Cert ssh.Signer
-}
-
-func NewAuthMethodForCert(cert ssh.Signer) *CertAuthMethod {
-	return &CertAuthMethod{
-		Cert: cert,
-		AuthMethod: ssh.PublicKeysCallback(func() ([]ssh.Signer, error) {
-			return []ssh.Signer{cert}, nil
-		}),
-	}
 }

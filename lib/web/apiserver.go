@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -125,7 +126,7 @@ type Config struct {
 	CipherSuites []uint16
 
 	// ProxySettings is a settings communicated to proxy
-	ProxySettings client.ProxySettings
+	ProxySettings apiclient.ProxySettings
 
 	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
 	// configuration.
@@ -511,8 +512,8 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	return userContext, nil
 }
 
-func localSettings(authClient auth.ClientI, cap services.AuthPreference) (client.AuthenticationSettings, error) {
-	as := client.AuthenticationSettings{
+func localSettings(authClient auth.ClientI, cap services.AuthPreference) (apiclient.AuthenticationSettings, error) {
+	as := apiclient.AuthenticationSettings{
 		Type:         teleport.Local,
 		SecondFactor: cap.GetSecondFactor(),
 	}
@@ -524,17 +525,17 @@ func localSettings(authClient auth.ClientI, cap services.AuthPreference) (client
 		return as, nil
 	}
 	if err != nil {
-		return client.AuthenticationSettings{}, trace.Wrap(err)
+		return apiclient.AuthenticationSettings{}, trace.Wrap(err)
 	}
-	as.U2F = &client.U2FSettings{AppID: u2fs.AppID}
+	as.U2F = &apiclient.U2FSettings{AppID: u2fs.AppID}
 
 	return as, nil
 }
 
-func oidcSettings(connector services.OIDCConnector, cap services.AuthPreference) client.AuthenticationSettings {
-	return client.AuthenticationSettings{
+func oidcSettings(connector services.OIDCConnector, cap services.AuthPreference) apiclient.AuthenticationSettings {
+	return apiclient.AuthenticationSettings{
 		Type: teleport.OIDC,
-		OIDC: &client.OIDCSettings{
+		OIDC: &apiclient.OIDCSettings{
 			Name:    connector.GetName(),
 			Display: connector.GetDisplay(),
 		},
@@ -543,10 +544,10 @@ func oidcSettings(connector services.OIDCConnector, cap services.AuthPreference)
 	}
 }
 
-func samlSettings(connector services.SAMLConnector, cap services.AuthPreference) client.AuthenticationSettings {
-	return client.AuthenticationSettings{
+func samlSettings(connector services.SAMLConnector, cap services.AuthPreference) apiclient.AuthenticationSettings {
+	return apiclient.AuthenticationSettings{
 		Type: teleport.SAML,
-		SAML: &client.SAMLSettings{
+		SAML: &apiclient.SAMLSettings{
 			Name:    connector.GetName(),
 			Display: connector.GetDisplay(),
 		},
@@ -555,10 +556,10 @@ func samlSettings(connector services.SAMLConnector, cap services.AuthPreference)
 	}
 }
 
-func githubSettings(connector services.GithubConnector, cap services.AuthPreference) client.AuthenticationSettings {
-	return client.AuthenticationSettings{
+func githubSettings(connector services.GithubConnector, cap services.AuthPreference) apiclient.AuthenticationSettings {
+	return apiclient.AuthenticationSettings{
 		Type: teleport.Github,
-		Github: &client.GithubSettings{
+		Github: &apiclient.GithubSettings{
 			Name:    connector.GetName(),
 			Display: connector.GetDisplay(),
 		},
@@ -566,35 +567,35 @@ func githubSettings(connector services.GithubConnector, cap services.AuthPrefere
 	}
 }
 
-func defaultAuthenticationSettings(ctx context.Context, authClient auth.ClientI) (client.AuthenticationSettings, error) {
+func defaultAuthenticationSettings(ctx context.Context, authClient auth.ClientI) (apiclient.AuthenticationSettings, error) {
 	cap, err := authClient.GetAuthPreference()
 	if err != nil {
-		return client.AuthenticationSettings{}, trace.Wrap(err)
+		return apiclient.AuthenticationSettings{}, trace.Wrap(err)
 	}
 
-	var as client.AuthenticationSettings
+	var as apiclient.AuthenticationSettings
 
 	switch cap.GetType() {
 	case teleport.Local:
 		as, err = localSettings(authClient, cap)
 		if err != nil {
-			return client.AuthenticationSettings{}, trace.Wrap(err)
+			return apiclient.AuthenticationSettings{}, trace.Wrap(err)
 		}
 	case teleport.OIDC:
 		if cap.GetConnectorName() != "" {
 			oidcConnector, err := authClient.GetOIDCConnector(ctx, cap.GetConnectorName(), false)
 			if err != nil {
-				return client.AuthenticationSettings{}, trace.Wrap(err)
+				return apiclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 
 			as = oidcSettings(oidcConnector, cap)
 		} else {
 			oidcConnectors, err := authClient.GetOIDCConnectors(ctx, false)
 			if err != nil {
-				return client.AuthenticationSettings{}, trace.Wrap(err)
+				return apiclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 			if len(oidcConnectors) == 0 {
-				return client.AuthenticationSettings{}, trace.BadParameter("no oidc connectors found")
+				return apiclient.AuthenticationSettings{}, trace.BadParameter("no oidc connectors found")
 			}
 
 			as = oidcSettings(oidcConnectors[0], cap)
@@ -603,17 +604,17 @@ func defaultAuthenticationSettings(ctx context.Context, authClient auth.ClientI)
 		if cap.GetConnectorName() != "" {
 			samlConnector, err := authClient.GetSAMLConnector(ctx, cap.GetConnectorName(), false)
 			if err != nil {
-				return client.AuthenticationSettings{}, trace.Wrap(err)
+				return apiclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 
 			as = samlSettings(samlConnector, cap)
 		} else {
 			samlConnectors, err := authClient.GetSAMLConnectors(ctx, false)
 			if err != nil {
-				return client.AuthenticationSettings{}, trace.Wrap(err)
+				return apiclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 			if len(samlConnectors) == 0 {
-				return client.AuthenticationSettings{}, trace.BadParameter("no saml connectors found")
+				return apiclient.AuthenticationSettings{}, trace.BadParameter("no saml connectors found")
 			}
 
 			as = samlSettings(samlConnectors[0], cap)
@@ -622,21 +623,21 @@ func defaultAuthenticationSettings(ctx context.Context, authClient auth.ClientI)
 		if cap.GetConnectorName() != "" {
 			githubConnector, err := authClient.GetGithubConnector(ctx, cap.GetConnectorName(), false)
 			if err != nil {
-				return client.AuthenticationSettings{}, trace.Wrap(err)
+				return apiclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 			as = githubSettings(githubConnector, cap)
 		} else {
 			githubConnectors, err := authClient.GetGithubConnectors(ctx, false)
 			if err != nil {
-				return client.AuthenticationSettings{}, trace.Wrap(err)
+				return apiclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 			if len(githubConnectors) == 0 {
-				return client.AuthenticationSettings{}, trace.BadParameter("no github connectors found")
+				return apiclient.AuthenticationSettings{}, trace.BadParameter("no github connectors found")
 			}
 			as = githubSettings(githubConnectors[0], cap)
 		}
 	default:
-		return client.AuthenticationSettings{}, trace.BadParameter("unknown type %v", cap.GetType())
+		return apiclient.AuthenticationSettings{}, trace.BadParameter("unknown type %v", cap.GetType())
 	}
 
 	return as, nil
@@ -650,7 +651,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		return nil, trace.Wrap(err)
 	}
 
-	return client.PingResponse{
+	return apiclient.PingResponse{
 		Auth:             defaultSettings,
 		Proxy:            h.cfg.ProxySettings,
 		ServerVersion:    teleport.Version,
@@ -659,7 +660,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 }
 
 func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	return client.PingResponse{
+	return apiclient.PingResponse{
 		Proxy:            h.cfg.ProxySettings,
 		ServerVersion:    teleport.Version,
 		MinClientVersion: teleport.MinClientVersion,
@@ -675,7 +676,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 		return nil, trace.Wrap(err)
 	}
 
-	response := &client.PingResponse{
+	response := &apiclient.PingResponse{
 		Proxy:         h.cfg.ProxySettings,
 		ServerVersion: teleport.Version,
 	}
