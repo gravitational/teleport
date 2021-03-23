@@ -1529,6 +1529,14 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 			return nil, trace.Wrap(err)
 		}
 	case *proto.MFARegisterResponse_U2F:
+		cap, err := auth.GetAuthPreference()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		u2fConfig, err := cap.GetU2F()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		// u2f.RegisterVerify will upsert the new device internally.
 		dev, err = u2f.RegisterVerify(ctx, u2f.RegisterVerifyParams{
 			DevName: initReq.DeviceName,
@@ -1540,6 +1548,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 			RegistrationStorageKey: user,
 			Storage:                u2fStorage,
 			Clock:                  auth.clock,
+			AttestationCAs:         u2fConfig.DeviceAttestationCAs,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

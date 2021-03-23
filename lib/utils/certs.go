@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -35,7 +36,7 @@ import (
 
 // ParseSigningKeyStore parses signing key store from PEM encoded key pair
 func ParseSigningKeyStorePEM(keyPEM, certPEM string) (*SigningKeyStore, error) {
-	_, err := ParseCertificatePEM([]byte(certPEM))
+	_, err := tlsutils.ParseCertificatePEM([]byte(certPEM))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -100,19 +101,6 @@ func GenerateSelfSignedSigningCert(entity pkix.Name, dnsNames []string, ttl time
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
 
 	return keyPEM, certPEM, nil
-}
-
-// ParseCertificatePEM parses PEM-encoded certificate
-func ParseCertificatePEM(bytes []byte) (*x509.Certificate, error) {
-	block, _ := pem.Decode(bytes)
-	if block == nil {
-		return nil, trace.BadParameter("expected PEM-encoded block")
-	}
-	cert, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return nil, trace.BadParameter(err.Error())
-	}
-	return cert, nil
 }
 
 // ParsePrivateKeyPEM parses PEM-encoded private key
