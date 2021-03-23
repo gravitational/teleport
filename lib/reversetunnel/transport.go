@@ -297,7 +297,7 @@ func (p *transport) start() {
 				return
 			}
 
-			p.log.Debug("Handing off connection to a local SSH service")
+			p.log.Debugf("Handing off connection to a local %q service.", dreq.ConnType)
 			p.server.HandleConnection(utils.NewChConn(p.sconn, p.channel))
 			return
 		}

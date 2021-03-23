@@ -40,6 +40,14 @@ const DatabaseServerSpecV3Schema = `{
 		  "region": {"type": "string"}
 		}
 	  },
+	  "gcp": {
+		"type": "object",
+		"additionalProperties": false,
+		"properties": {
+		  "project_id": {"type": "string"},
+		  "instance_id": {"type": "string"}
+		}
+	  },
 	  "version": {"type": "string"},
 	  "hostname": {"type": "string"},
 	  "host_id": {"type": "string"},
