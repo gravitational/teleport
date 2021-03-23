@@ -1088,10 +1088,8 @@ func TestEmitSSOLoginFailureEvent(t *testing.T) {
 	mockE := &events.MockEmitter{}
 
 	emitSSOLoginFailureEvent(context.Background(), mockE, "test", trace.BadParameter("some error"))
-	event := mockE.LastEvent().(*events.UserLogin)
 
-	require.Equal(t, event.Method, "test")
-	require.Equal(t, event, &events.UserLogin{
+	require.Equal(t, mockE.LastEvent(), &events.UserLogin{
 		Metadata: events.Metadata{
 			Type: events.UserLoginEvent,
 			Code: events.UserSSOLoginFailureCode,

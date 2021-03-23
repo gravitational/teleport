@@ -66,6 +66,11 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+const (
+	// ssoLoginConsoleErr is a generic error message to hide revealing sso login failure msgs.
+	ssoLoginConsoleErr = "Failed to login. Please check Teleport's log for more details."
+)
+
 // Handler is HTTP web proxy handler
 type Handler struct {
 	log logrus.FieldLogger
@@ -906,14 +911,22 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 }
 
 func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	h.log.WithField("auth", "github").Debug("Console login start.")
+	logger := h.log.WithField("auth", "github")
+	logger.Debug("Console login start.")
+
+	generalErr := trace.AccessDenied(ssoLoginConsoleErr)
+
 	req := new(client.SSOLoginConsoleReq)
 	if err := httplib.ReadJSON(r, req); err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Error reading json.")
+		return nil, generalErr
 	}
+
 	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Missing request parameters.")
+		return nil, generalErr
 	}
+
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(
 		services.GithubAuthRequest{
 			ConnectorID:       req.ConnectorID,
@@ -925,8 +938,10 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 			KubernetesCluster: req.KubernetesCluster,
 		})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Failed to create Github auth request.")
+		return nil, generalErr
 	}
+
 	return &client.SSOLoginConsoleResponse{
 		RedirectURL: response.RedirectURL,
 	}, nil
@@ -986,14 +1001,22 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 }
 
 func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	h.log.WithField("auth", "oidc").Debug("Console login start.")
+	logger := h.log.WithField("auth", "oidc")
+	logger.Debug("Console login start.")
+
+	generalErr := trace.AccessDenied(ssoLoginConsoleErr)
+
 	req := new(client.SSOLoginConsoleReq)
 	if err := httplib.ReadJSON(r, req); err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Error reading json.")
+		return nil, generalErr
 	}
+
 	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Missing request parameters.")
+		return nil, generalErr
 	}
+
 	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(
 		services.OIDCAuthRequest{
 			ConnectorID:       req.ConnectorID,
@@ -1006,8 +1029,10 @@ func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 			KubernetesCluster: req.KubernetesCluster,
 		})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Failed to create OIDC auth request.")
+		return nil, generalErr
 	}
+
 	return &client.SSOLoginConsoleResponse{
 		RedirectURL: response.RedirectURL,
 	}, nil

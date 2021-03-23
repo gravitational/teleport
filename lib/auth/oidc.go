@@ -103,25 +103,7 @@ func (a *Server) createOIDCClient(conn services.OIDCConnector) (*oidc.Client, er
 				"unknown problem with connector %v, most likely URL %q is not valid or not accessible, check configuration and try to re-create the connector",
 				conn.GetName(), conn.GetIssuerURL())
 		}
-		if err := a.emitter.EmitAuditEvent(ctx, &events.UserLogin{
-			Metadata: events.Metadata{
-				Type: events.UserLoginEvent,
-				Code: events.UserSSOLoginFailureCode,
-			},
-			Method: events.LoginMethodOIDC,
-			Status: events.Status{
-				Success:     false,
-				Error:       trace.Unwrap(ctx.Err()).Error(),
-				UserMessage: err.Error(),
-			},
-		}); err != nil {
-			log.WithError(err).Warn("Failed to emit OIDC login failure event.")
-		}
-		// return user-friendly error hiding the actual error in the event
-		// logs for security purposes
-		return nil, trace.ConnectionProblem(nil,
-			"failed to login with %v",
-			conn.GetDisplay())
+		return nil, err
 	}
 
 	a.lock.Lock()
@@ -820,7 +802,7 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector services.OIDCConne
 		return nil, trace.Wrap(err, "unable to extract OIDC sub claim from UserInfo")
 	}
 	if idsub != uisub {
-		log.Debugf("OIDC claim subjects does not match '%v' != '%v'.", idsub, uisub)
+		log.Debugf("OIDC claim subjects don't match '%v' != '%v'.", idsub, uisub)
 		return nil, trace.BadParameter("OIDC claim subjects in UserInfo does not match")
 	}
 

@@ -54,14 +54,22 @@ func (h *Handler) samlSSO(w http.ResponseWriter, r *http.Request, p httprouter.P
 }
 
 func (h *Handler) samlSSOConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	h.log.WithField("auth", "saml").Debug("SSO console start.")
+	logger := h.log.WithField("auth", "saml")
+	logger.Debug("Console login start.")
+
+	generalErr := trace.AccessDenied(ssoLoginConsoleErr)
+
 	req := new(client.SSOLoginConsoleReq)
 	if err := httplib.ReadJSON(r, req); err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Error reading json.")
+		return nil, generalErr
 	}
+
 	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Missing request parameters.")
+		return nil, generalErr
 	}
+
 	response, err := h.cfg.ProxyClient.CreateSAMLAuthRequest(
 		services.SAMLAuthRequest{
 			ConnectorID:       req.ConnectorID,
@@ -73,8 +81,10 @@ func (h *Handler) samlSSOConsole(w http.ResponseWriter, r *http.Request, p httpr
 			KubernetesCluster: req.KubernetesCluster,
 		})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Failed to create SAML auth request.")
+		return nil, generalErr
 	}
+
 	return &client.SSOLoginConsoleResponse{RedirectURL: response.RedirectURL}, nil
 }
 
