@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
@@ -90,10 +91,8 @@ func TestReadIdentity(t *testing.T) {
 		TTL:                 ttl,
 	})
 	require.NoError(t, err)
-	pk, _, _, _, err := ssh.ParseAuthorizedKey(bytes)
+	copy, err := apisshutils.ParseCertificate(bytes)
 	require.NoError(t, err)
-	copy, ok := pk.(*ssh.Certificate)
-	require.True(t, ok)
 	require.Equal(t, uint64(expiryDate.Unix()), copy.ValidBefore)
 }
 

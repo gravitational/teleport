@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
@@ -925,7 +926,7 @@ func (i *Identity) hostKeyCallback(hostname string, remote net.Addr, key ssh.Pub
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if sshutils.KeysEqual(cert.SignatureKey, pubkey) {
+		if apisshutils.KeysEqual(cert.SignatureKey, pubkey) {
 			return nil
 		}
 	}
@@ -1039,14 +1040,9 @@ func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 		return nil, trace.BadParameter("Cert: missing parameter")
 	}
 
-	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(certBytes)
+	cert, err := apisshutils.ParseCertificate(certBytes)
 	if err != nil {
 		return nil, trace.BadParameter("failed to parse server certificate: %v", err)
-	}
-
-	cert, ok := pubKey.(*ssh.Certificate)
-	if !ok {
-		return nil, trace.BadParameter("expected ssh.Certificate, got %v", pubKey)
 	}
 
 	signer, err := ssh.ParsePrivateKey(keyBytes)

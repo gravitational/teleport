@@ -24,11 +24,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -64,52 +64,92 @@ type ContextDialer = client.ContextDialer
 // ContextDialerFunc type alias for backwards compatibility
 type ContextDialerFunc = client.ContextDialerFunc
 
-// APIClient is aliased here so that it can be embedded in Client
-type APIClient = client.Client
-
 // Client is the Auth API client. It works by connecting to auth servers
 // via gRPC and HTTP.
 //
 // When Teleport servers connect to auth API, they usually establish an SSH
 // tunnel first, and then do HTTP-over-SSH. This client is wrapped by auth.TunClient
 // in lib/auth/tun.go
+//
+// NOTE: This client is being deprecated in favor of the gRPC Client in
+// teleport/api/client. This Client should only be used internally, or for
+// functionality that hasn't been ported to the new client yet.
 type Client struct {
-	// APIClient is embedded so that Client can inherit its grpc endpoint
-	// methods to satisfy the ClientI interface. Client uses APIClient.Config
-	// for its own config, except TLS config is kept separate.
-	APIClient
-	// http client is deprecated and will be gradually phased out in favor of APIClient (gRPC).
-	sync.Mutex
-	roundtrip.Client
-	transport *http.Transport
-	// TLS holds the TLS config for the http client.
-	TLS *tls.Config
+	// APIClient is used to make gRPC requests to the server
+	*APIClient
+	// HTTPClient is used to make http requests to the server
+	*HTTPClient
 }
 
 // Make sure Client implements all the necessary methods.
 var _ ClientI = &Client{}
 
-// NewClient returns a new client that uses mutual TLS authentication
-// and dials the remote server using dialer.
+// NewClient creates a new API client with a connection to a Teleport server.
+//
+// The client will use the first credentials and the given dialer. If
+// no dialer is given, the first address will be used. This address must
+// be an auth server address.
+//
+// NOTE: This client is being deprecated in favor of the gRPC Client in
+// teleport/api/client. This Client should only be used internally, or for
+// functionality that hasn't been ported to the new client yet.
 func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Many uses of the lib/client do not expect an open valid connection immediately after
-	// initialization, so WithoutDialBlock is used for backwards compatibility with this client.
-	cfg.WithoutDialBlock = true
+	cfg.DialInBackground = true
 	apiClient, err := client.New(context.TODO(), cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Clone the tls.Config and set the next protocol. This is needed due to the
-	// Auth Server using a multiplexer for protocol detection. Unless next
-	// protocol is specified it will attempt to upgrade to HTTP2 and at that point
-	// there is no way to distinguish between HTTP2/JSON or GPRC.
-	tlsConfig := apiClient.Config()
-	tlsConfig.NextProtos = []string{teleport.HTTPNextProtoTLS}
+	// apiClient configures the tls.Config, so we clone it and reuse it for http.
+	tlsConfig := apiClient.Config().Clone()
+	httpClient, err := NewHTTPClient(cfg, tlsConfig, params...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &Client{
+		APIClient:  apiClient,
+		HTTPClient: httpClient,
+	}, nil
+}
+
+// APIClient is aliased here so that it can be embedded in Client.
+type APIClient = client.Client
+
+// HTTPClient is a teleport HTTP API client.
+type HTTPClient struct {
+	roundtrip.Client
+	// transport defines the methods by which the client can reach the server.
+	transport *http.Transport
+	// TLS holds the TLS config for the http client.
+	tls *tls.Config
+}
+
+// NewHTTPClient creates a new HTTP client with TLS authentication and the given dialer.
+func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.ClientParam) (*HTTPClient, error) {
+	dialer := cfg.Dialer
+	if dialer == nil {
+		if len(cfg.Addrs) == 0 {
+			return nil, trace.BadParameter("no addresses to dial")
+		}
+		contextDialer := client.NewDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
+		dialer = ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
+			for _, addr := range cfg.Addrs {
+				conn, err = contextDialer.DialContext(ctx, network, addr)
+				if err == nil {
+					return conn, nil
+				}
+			}
+			// not wrapping on purpose to preserve the original error
+			return nil, err
+		})
+	}
+
+	// Set the next protocol. This is needed due to the Auth Server using a
+	// multiplexer for protocol detection. Unless next protocol is specified
+	// it will attempt to upgrade to HTTP2 and at that point there is no way
+	// to distinguish between HTTP2/JSON or GPRC.
+	tls.NextProtos = []string{teleport.HTTPNextProtoTLS}
 
 	transport := &http.Transport{
 		// notice that below roundtrip.Client is passed
@@ -117,9 +157,9 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 		// to make sure client verifies the DNS name of the API server
 		// custom DialContext overrides this DNS name to the real address
 		// in addition this dialer tries multiple adresses if provided
-		DialContext:           apiClient.Dialer().DialContext,
+		DialContext:           dialer.DialContext,
 		ResponseHeaderTimeout: defaults.DefaultDialTimeout,
-		TLSClientConfig:       tlsConfig,
+		TLSClientConfig:       tls,
 
 		// Increase the size of the connection pool. This substantially improves the
 		// performance of Teleport under load as it reduces the number of TLS
@@ -149,17 +189,66 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 		},
 		params...,
 	)
-	roundtripClient, err := roundtrip.NewClient("https://"+teleport.APIDomain, CurrentVersion, clientParams...)
+	httpClient, err := roundtrip.NewClient("https://"+teleport.APIDomain, CurrentVersion, clientParams...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &Client{
-		APIClient: *apiClient,
-		Client:    *roundtripClient,
+	return &HTTPClient{
+		Client:    *httpClient,
 		transport: transport,
-		TLS:       tlsConfig,
+		tls:       tls,
 	}, nil
+}
+
+// Close closes the HTTP client connection to the auth server.
+func (c *HTTPClient) Close() {
+	c.transport.CloseIdleConnections()
+}
+
+// TLSConfig returns the HTTP client's TLS config.
+func (c *HTTPClient) TLSConfig() *tls.Config {
+	return c.tls
+}
+
+// GetTransport returns the HTTP client's transport.
+func (c *HTTPClient) GetTransport() *http.Transport {
+	return c.transport
+}
+
+// ClientConfig contains configuration of the client
+// DELETE IN: 7.0.0.
+type ClientConfig struct {
+	// Addrs is a list of addresses to dial
+	Addrs []utils.NetAddr
+	// Dialer is a custom dialer that is used instead of Addrs when provided
+	Dialer ContextDialer
+	// DialTimeout defines how long to attempt dialing before timing out
+	DialTimeout time.Duration
+	// KeepAlivePeriod defines period between keep alives
+	KeepAlivePeriod time.Duration
+	// KeepAliveCount specifies the amount of missed keep alives
+	// to wait for before declaring the connection as broken
+	KeepAliveCount int
+	// TLS is the client's TLS config
+	TLS *tls.Config
+}
+
+// NewTLSClient returns a new TLS client that uses mutual TLS authentication
+// and dials the remote server using dialer.
+// DELETE IN: 7.0.0.
+func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, error) {
+	c := client.Config{
+		Addrs:           utils.NetAddrsToStrings(cfg.Addrs),
+		Dialer:          cfg.Dialer,
+		DialTimeout:     cfg.DialTimeout,
+		KeepAlivePeriod: cfg.KeepAlivePeriod,
+		KeepAliveCount:  cfg.KeepAliveCount,
+		Credentials: []client.Credentials{
+			client.LoadTLS(cfg.TLS),
+		},
+	}
+	return NewClient(c, params...)
 }
 
 // EncodeClusterName encodes cluster name in the SNI hostname
@@ -201,51 +290,6 @@ func ClientTimeout(timeout time.Duration) roundtrip.ClientParam {
 		transport.ResponseHeaderTimeout = timeout
 		return nil
 	}
-}
-
-// ClientConfig contains configuration of the client
-// DELETE IN: 7.0.0.
-type ClientConfig struct {
-	// Addrs is a list of addresses to dial
-	Addrs []utils.NetAddr
-	// Dialer is a custom dialer that is used instead of Addrs when provided
-	Dialer ContextDialer
-	// DialTimeout defines how long to attempt dialing before timing out
-	DialTimeout time.Duration
-	// KeepAlivePeriod defines period between keep alives
-	KeepAlivePeriod time.Duration
-	// KeepAliveCount specifies the amount of missed keep alives
-	// to wait for before declaring the connection as broken
-	KeepAliveCount int
-	// TLS is the client's TLS config
-	TLS *tls.Config
-}
-
-// NewTLSClient returns a new TLS client that uses mutual TLS authentication
-// and dials the remote server using dialer.
-// DELETE IN: 7.0.0.
-func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, error) {
-	c := client.Config{
-		Addrs:           utils.NetAddrsToStrings(cfg.Addrs),
-		Dialer:          cfg.Dialer,
-		DialTimeout:     cfg.DialTimeout,
-		KeepAlivePeriod: cfg.KeepAlivePeriod,
-		KeepAliveCount:  cfg.KeepAliveCount,
-		Credentials: []client.Credentials{
-			client.LoadTLS(cfg.TLS),
-		},
-	}
-
-	return NewClient(c, params...)
-}
-
-// TLSConfig returns the client's http TLS config
-func (c *Client) TLSConfig() *tls.Config {
-	return c.TLS
-}
-
-func (c *Client) GetTransport() *http.Transport {
-	return c.transport
 }
 
 // PostJSON is a generic method that issues http POST request to the server
@@ -381,11 +425,7 @@ func (c *Client) GetClusterCACert() (*LocalCAResponse, error) {
 }
 
 func (c *Client) Close() error {
-	c.Lock()
-	defer c.Unlock()
-	if c.transport != nil {
-		c.transport.CloseIdleConnections()
-	}
+	c.HTTPClient.Close()
 	return c.APIClient.Close()
 }
 
