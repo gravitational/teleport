@@ -29,6 +29,7 @@ import (
 	"syscall"
 	"time"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -271,7 +272,7 @@ func execute(m benchMeasure) error {
 // makeTeleportClient creates an instance of a teleport client
 func makeTeleportClient(host, login, proxy string) (*client.TeleportClient, error) {
 	c := client.Config{Host: host}
-	path := client.FullProfilePath("")
+	path := apiclient.FullProfilePath("")
 	if login != "" {
 		c.HostLogin = login
 		c.Username = login

@@ -43,16 +43,16 @@ func (f ContextDialerFunc) DialContext(ctx context.Context, network, addr string
 }
 
 // NewDialer makes a new dialer.
-func NewDialer(keepAliveInterval, dialTimeout time.Duration) ContextDialer {
+func NewDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 	return &net.Dialer{
 		Timeout:   dialTimeout,
-		KeepAlive: keepAliveInterval,
+		KeepAlive: keepAlivePeriod,
 	}
 }
 
-// NewTunnelDialer make a new ssh tunnel dialer
-func NewTunnelDialer(ssh ssh.ClientConfig, keepAliveInterval, dialTimeout time.Duration) ContextDialer {
-	dialer := NewDialer(keepAliveInterval, dialTimeout)
+// NewTunnelDialer make a new ssh tunnel dialer.
+func NewTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
+	dialer := NewDialer(keepAlivePeriod, dialTimeout)
 	return ContextDialerFunc(func(ctx context.Context, network, addr string) (conn net.Conn, err error) {
 		conn, err = dialer.DialContext(ctx, network, addr)
 		if err != nil {
