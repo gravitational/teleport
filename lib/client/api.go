@@ -1053,6 +1053,20 @@ func (tc *TeleportClient) LoadKeyForCluster(clusterName string) error {
 	return nil
 }
 
+// LoadKeyForCluster fetches a cluster-specific SSH key and loads it into the
+// SSH agent.  If the key is not found, it is requested to be reissued.
+func (tc *TeleportClient) LoadKeyForClusterWithReissue(ctx context.Context, clusterName string) error {
+	err := tc.LoadKeyForCluster(clusterName)
+	if err == nil {
+		return nil
+	}
+	if !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	// Reissuing also loads the new key.
+	return tc.ReissueUserCerts(ctx, ReissueParams{RouteToCluster: clusterName})
+}
+
 // accessPoint returns access point based on the cache policy
 func (tc *TeleportClient) accessPoint(clt auth.AccessPoint, proxyHostPort string, clusterName string) (auth.AccessPoint, error) {
 	// If no caching policy was set or on Windows (where Teleport does not
@@ -1912,20 +1926,40 @@ func (tc *TeleportClient) ConnectToProxy(ctx context.Context) (*ProxyClient, err
 // successful.
 func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, error) {
 	proxyPrincipal := tc.getProxySSHPrincipal()
-	sshConfig := &ssh.ClientConfig{
-		User:            proxyPrincipal,
-		HostKeyCallback: tc.HostKeyCallback,
-	}
 
 	sshProxyAddr := tc.Config.SSHProxyAddr
 	if len(tc.JumpHosts) > 0 {
 		log.Debugf("Overriding SSH proxy to JumpHosts's address %q", tc.JumpHosts[0].Addr.String())
 		sshProxyAddr = tc.JumpHosts[0].Addr.Addr
+
+		// Perform a "dummy" connection to the jumphost to examine its certificate
+		// and load a different user certificate if appropriate.
+		tmpConfig := &ssh.ClientConfig{
+			User:            proxyPrincipal,
+			HostKeyCallback: tc.loadKeyForClusterFromCert(ctx),
+		}
+		ssh.Dial("tcp", sshProxyAddr, tmpConfig)
 	}
 
-	// helper to create a ProxyClient struct
-	makeProxyClient := func(sshClient *ssh.Client, m ssh.AuthMethod) *ProxyClient {
-		return &ProxyClient{
+	sshConfig := &ssh.ClientConfig{
+		User:            proxyPrincipal,
+		HostKeyCallback: tc.HostKeyCallback,
+	}
+	// try to authenticate using every non interactive auth method we have:
+	var errs []error
+	for i, m := range tc.authMethods() {
+		log.Infof("Connecting proxy=%v login=%q method=%d", sshProxyAddr, sshConfig.User, i)
+
+		sshConfig.Auth = []ssh.AuthMethod{m}
+		sshClient, err := ssh.Dial("tcp", sshProxyAddr, sshConfig)
+		if err != nil {
+			log.WithError(err).Warnf("Failed to authenticate with proxy %v.", sshProxyAddr)
+			errs = append(errs, err)
+			continue
+		}
+
+		log.Infof("Successful auth with proxy %v.", sshProxyAddr)
+		proxyClient := ProxyClient{
 			teleportClient:  tc,
 			Client:          sshClient,
 			proxyAddress:    sshProxyAddr,
@@ -1936,30 +1970,51 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 			siteName:        tc.SiteName,
 			clientAddr:      tc.ClientAddr,
 		}
+		return &proxyClient, nil
 	}
-	successMsg := fmt.Sprintf("Successful auth with proxy %v", sshProxyAddr)
-	var err error
-	// try to authenticate using every non interactive auth method we have:
-	for i, m := range tc.authMethods() {
-		log.Infof("Connecting proxy=%v login='%v' method=%d", sshProxyAddr, sshConfig.User, i)
-		var sshClient *ssh.Client
 
-		sshConfig.Auth = []ssh.AuthMethod{m}
-		sshClient, err = ssh.Dial("tcp", sshProxyAddr, sshConfig)
-		if err != nil {
-			log.Warningf("Failed to authenticate with proxy: %v", err)
-			err = trace.BadParameter("failed to authenticate with proxy %v: %v", sshProxyAddr, err)
-			continue
-		}
-		log.Infof(successMsg)
-		return makeProxyClient(sshClient, m), nil
-	}
 	// we have exhausted all auth existing auth methods and local login
 	// is disabled in configuration, or the user refused connecting to untrusted hosts
-	if err == nil {
-		err = trace.BadParameter("failed to authenticate with proxy %v", tc.Config.SSHProxyAddr)
+	return nil, trace.Wrap(trace.NewAggregate(errs...), "failed to authenticate with proxy %v", sshProxyAddr)
+}
+
+// loadKeyForClusterFromCert is a HostKeyCallback that attempts to detect the
+// cluster name associated with the host being connected to, in which case it
+// loads or reissues a corresponding SSH certificate for the user.
+func (tc *TeleportClient) loadKeyForClusterFromCert(ctx context.Context) ssh.HostKeyCallback {
+	return func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+		if err := tc.HostKeyCallback(hostname, remote, key); err != nil {
+			return trace.Wrap(err)
+		}
+		cert, ok := key.(*ssh.Certificate)
+		if !ok {
+			return nil
+		}
+		proxyClusterName := cert.Permissions.Extensions[utils.CertExtensionAuthority]
+		if proxyClusterName == "" {
+			return nil
+		}
+		err := tc.WithoutJumpHosts(func(tcNoJump *TeleportClient) error {
+			return tc.LoadKeyForClusterWithReissue(ctx, proxyClusterName)
+		})
+		if err != nil {
+			log.WithError(err).Warnf("Failed to load/reissue keys for cluster %q.", proxyClusterName)
+			return trace.Wrap(err)
+		}
+		tc.SiteName = proxyClusterName
+		return trace.BadParameter("(do not proceed with the SSH connection)")
 	}
-	return nil, trace.Wrap(err)
+}
+
+// WithoutJumpHosts executes the given function with a Teleport client that has
+// no JumpHosts set, i.e. presumably falling back to the proxy specified in the
+// profile.
+func (tc *TeleportClient) WithoutJumpHosts(fn func(tcNoJump *TeleportClient) error) error {
+	storedJumpHosts := tc.JumpHosts
+	tc.JumpHosts = nil
+	err := fn(tc)
+	tc.JumpHosts = storedJumpHosts
+	return trace.Wrap(err)
 }
 
 // Logout removes certificate and key for the currently logged in user from
