@@ -961,4 +961,13 @@ service AuthService {
     rpc UpsertTrustedCluster(types.TrustedClusterV2) returns (types.TrustedClusterV2);
     // DeleteTrustedCluster deletes an existing Trusted Cluster in a backend by name.
     rpc DeleteTrustedCluster(types.ResourceRequest) returns (google.protobuf.Empty);
+
+    // GetToken retrieves a token described by the given request.
+    rpc GetToken(types.ResourceRequest) returns (types.ProvisionTokenV2);
+    // GetToken retrieves all tokens.
+    rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List);
+    // UpsertToken upserts a token in a backend.
+    rpc UpsertToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
+    // DeleteToken deletes an existing token in a backend described by the given request.
+    rpc DeleteToken(types.ResourceRequest) returns (google.protobuf.Empty);
 }
