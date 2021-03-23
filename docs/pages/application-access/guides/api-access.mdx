@@ -34,6 +34,8 @@ app_service:
   - name: "grafana"
     description: "Test Grafana server"
     uri: "http://localhost:3000"
+    labels:
+      "env": "dev"
 ```
 
 ## Accessing API
@@ -44,8 +46,8 @@ Log into your Teleport cluster and view available applications:
 $ tsh login --proxy=teleport.example.com:3080
 $ tsh app ls
 Application Description         Public Address               Labels
------------ ------------------- ---------------------------- ------
-grafana     Test Grafana server grafana.teleport.example.com
+----------- ------------------- ---------------------------- -------
+grafana     Test Grafana server grafana.teleport.example.com env=dev
 ```
 
 Retrieve short-lived X.509 certificate for the application:
@@ -62,9 +64,12 @@ curl \
 ```
 
 The login message shows an example `curl` command you can run to call the
-target application's API through Teleport App Access. Note the paths to the
-CA certificate and your user's certificate/key pair in the command - `curl`
-will use a client certificate to authenticate with Teleport.
+target application's API through Teleport App Access.
+
+<Admonition type="note" title="CA and Key Pair Files">
+Note the paths to the CA certificate and your user's certificate/key pair in
+the command - `curl` will use a client certificate to authenticate with Teleport.
+</Admonition>
 
 As Grafana's API requires authentication, let's update the `curl` command to
 provide basic auth information using default Grafana username/password and
@@ -89,8 +94,7 @@ Logged out of app "grafana"
 
 ## App Information
 
-Teleport provides a way to see information about the application you're
-logged into via CLI, such as app URI and paths to the secrets. This is useful
+`tsh app config` shows current app URI and paths to the secrets. This is useful
 when configuring CLI tools (such as `curl`) or GUI tools (such as Postman).
 
 Let's print the app information in a table format:

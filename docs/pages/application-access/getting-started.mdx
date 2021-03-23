@@ -5,9 +5,7 @@ description: Getting started with Teleport Application Access
 
 # Getting Started
 
-Let's connect to Grafana using Teleport Application Access.
-
-To achieve this we will:
+Let's connect to Grafana using Teleport Application Access in 3 steps:
 
 1. Launch Grafana in a Docker container.
 2. Install Teleport and configure it it to proxy Grafana.
@@ -15,12 +13,12 @@ To achieve this we will:
 
 ## Prerequisites
 
-* Docker to launch Grafana in a container. Alternatively, if you have another
-  web application you'd like to protect with App Access, you can use that instead.
-* Configured DNS records for the host where Teleport service will be running
-  are required to automatically fetch a Let's Encrypt certificate. For this
-  guide we will assume your Teleport cluster will be accessible at `teleport.example.com`
-  and `*.teleport.example.com`.
+* We will use Docker to launch Grafana in a container. Alternatively, if you
+  have another web application you'd like to protect with App Access, you can
+  use that instead.
+* We will assume your Teleport cluster is accessible at `teleport.example.com`
+  and `*.teleport.example.com`. Configured DNS records are required to
+  automatically fetch a Let's Encrypt certificate.
 
 ## Step 1/3. Start Grafana
 
@@ -35,9 +33,6 @@ with a single command:
 $ docker run -d -p 3000:3000 grafana/grafana
 ```
 
-Make sure to launch it on the same node where your Teleport service will be
-running, for the simplicity of the tutorial.
-
 ## Step 2/3. Install and Configure Teleport
 
 Download the latest version of Teleport for your platform from our
@@ -46,28 +41,29 @@ Download the latest version of Teleport for your platform from our
 Teleport requires a valid TLS certificate to operate and can fetch one automatically
 using Let's Encrypt [ACME](https://letsencrypt.org/how-it-works/) protocol.
 
-As mentioned in prerequisites above, we will assume that you have configured DNS
-records for `teleport.example.com` and `*.teleport.example.com` to point to the
-node where you're launching Teleport.
+We will assume that you have configured DNS records for `teleport.example.com`
+and `*.teleport.example.com` to point to the Teleport node.
 
 Let's generate a Teleport config with ACME enabled:
 
 ```shell
-$ teleport configure --cluster-name=teleport.example.com --acme --acme-email=alice@example.com > /tmp/teleport.yaml
+$ teleport configure --cluster-name=teleport.example.com --acme --acme-email=alice@example.com -o file
 ```
 
 <Admonition
-  type="warning"
+  type="note"
   title="Web Proxy Port"
 >
-  Teleport's ACME protocol integration currently requires web proxy to run on
-  port 443.
+  Teleport uses [TLS-ALPN-01](https://letsencrypt.org/docs/challenge-types/#tls-alpn-01)
+  ACME challenge to validate certificate requests which only works on port `443`.
+  As such, in order to use ACME for certificate management, web proxy needs to
+  be accessible on port `443`.
 </Admonition>
 
 Now start Teleport and point it to the application endpoint:
 
 ```shell
-$ sudo teleport start --config=/tmp/teleport.yaml \
+$ sudo teleport start \
   --roles=proxy,auth,app \
   --app-name=grafana \
   --app-uri=http://localhost:3000
@@ -106,7 +102,7 @@ to access it.
 
 Dive deeper into the topics relevant to your Application Access use-case:
 
-* Learn in more detail about Application Access [usage](./guides/usage.mdx).
+* Learn in more detail about [connecting applications](./guides/connecting-apps.mdx) with Application Access.
 * Learn about integrating with [JWT tokens](./guides/jwt.mdx) for auth.
 * Learn how to use Application Access with [RESTful APIs](./guides/api-access.mdx).
 * See full configuration and CLI [reference](./reference.mdx).

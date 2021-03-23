@@ -3,7 +3,7 @@ title: Using Application Access Guide
 description: How to configure Teleport for Application Access
 ---
 
-# Application Access Usage
+# Connecting Web Applications
 
 Download the latest version of Teleport for your platform from our [downloads page](https://goteleport.com/teleport/download)
 and follow the installation [instructions](../../installation.mdx).
@@ -57,48 +57,51 @@ In our example:
 * `teleport.example.com` will host the Access Plane.
 * `*.teleport.example.com` will host all of the applications e.g. `grafana.teleport.example.com`.
 
-Teleport supports accessing these applications on other domains if required.
-DNS entries must be configured and the correct certificates need to be obtained
-for this to work.
+Teleport can obtain a certificate automatically from Let's Encrypt using
+[ACME](https://letsencrypt.org/how-it-works/) protocol.
+
+Enable ACME in your proxy config:
 
 ```yaml
 proxy_service:
   enabled: "yes"
-  listen_addr: 0.0.0.0:3023
-  tunnel_listen_addr: 0.0.0.0:3024
-  public_addr: teleport.example.com:443
-  # Example of two HTTPs keypairs.
-  https_keypairs:
-  - key_file: /etc/letsencrypt/live/teleport.example.com/privkey.pem
-    cert_file: /etc/letsencrypt/live/teleport.example.com/fullchain.pem
-  - key_file: /etc/letsencrypt/live/*.teleport.example.com/privkey.pem
-    cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
+  web_listen_addr: ":443"
+  public_addr: "teleport.example.com:443"
+  acme:
+    enabled: "yes"
+    email: "alice@example.com"
 ```
 
 <Admonition
-  type="tip"
-  title="Using certbot to obtain wildcard certs"
+  type="note"
+  title="Web Proxy Port"
 >
-  Let's Encrypt provides free wildcard certificates. If using [certbot](https://certbot.eff.org/)
-  with DNS challenge, the below script will make setup easy. Update [EMAIL] and [DOMAIN]
-
-  ```sh
-  certbot certonly --manual \
-    --preferred-challenges=dns \
-    --email [EMAIL] \
-    --agree-tos \
-    --manual-public-ip-logging-ok \
-    -d "teleport.example.com, *.teleport.example.com"
-  ```
+  Teleport uses [TLS-ALPN-01](https://letsencrypt.org/docs/challenge-types/#tls-alpn-01)
+  ACME challenge to validate certificate requests which only works on port `443`.
+  As such, in order to use ACME for certificate management, web proxy needs to
+  be accessible on port `443`.
 </Admonition>
+
+Alternatively, if you have obtained certificate/key pairs for your domain
+(e.g. using [certbot](https://certbot.eff.org/)), they can be provided directly
+to the proxy service:
+
+```yaml
+proxy_service:
+  enabled: "yes"
+  web_listen_addr: ":443"
+  public_addr: "teleport.example.com:443"
+  https_keypairs:
+  - key_file: "/etc/letsencrypt/live/teleport.example.com/privkey.pem"
+    cert_file: "/etc/letsencrypt/live/teleport.example.com/fullchain.pem"
+  - key_file: "/etc/letsencrypt/live/*.teleport.example.com/privkey.pem"
+    cert_file: "/etc/letsencrypt/live/*.teleport.example.com/fullchain.pem"
+```
 
 ### Create a User
 
-In order to be able to access the application, a Teleport user needs to have
-a role that allows them to see it.
-
-Teleport comes with a built-in `access` role that provides access to all
-applications:
+A Teleport user needs their role's permission to access an application. Teleport
+comes with a built-in `access` role that grants access to all apps:
 
 ```sh
 $ tctl --config=/path/to/teleport.yaml users add --roles=access appuser
@@ -124,17 +127,16 @@ a reverse tunnel.
 
 ### Application Name
 
-When picking an application name, it's important to make sure the name will
-make a valid sub-domain (&lt;=63 characters, no spaces, only `a-z 0-9 _ -` allowed).
+An application name should make a valid sub-domain (&lt;=63 characters, no spaces, only `a-z 0-9 _ -` allowed).
 
-After Teleport is running, the application will be accessible at
-`app-name.proxy_public_addr.com` e.g. `grafana.teleport.example.com`. Teleport
-also provides the ability to override `public_addr` e.g `grafana.acme.com`
-if you configure the appropriate DNS entry to point to the Teleport proxy server.
+After Teleport is running, users can access the app at `app-name.proxy_public_addr.com`
+e.g. `grafana.teleport.example.com`. You can also override `public_addr` e.g
+`grafana.acme.com` if you configure the appropriate DNS entry to point to the
+Teleport proxy server.
 
 ## Start Application Service with Config File
 
-Example `/etc/teleport-app.yaml` configuration:
+Example `teleport.yaml` configuration:
 
 ```yaml
 teleport:
@@ -183,7 +185,7 @@ proxy_service:
 Start the application service:
 
 ```sh
-$ teleport start --config=/etc/teleport-app.yaml
+$ teleport start --config=/path/to/teleport.yaml
 ```
 
 ## Advanced Options
@@ -214,10 +216,14 @@ address. To override the public address, specify the `public_addr` field:
 
 ### Skip TLS Certificate Verification
 
-Teleport attempts to check if the certificates presented by the applications
-are signed by a trusted CA (Certificate Authority). When using self-signed
-certificates for internal applications, use `insecure_skip_verify: true` to
-skip this verification step:
+<Admonition type="warning" title="Danger Zone">
+This is insecure and not recommended for use in production.
+</Admonition>
+
+Teleport checks if the certificates presented by the applications are signed
+by a trusted Certificate Authority. When using self-signed certificates for
+internal applications, use `insecure_skip_verify: true` to skip this
+verification step:
 
 ```yaml
 - name: "app"

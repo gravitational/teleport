@@ -27,7 +27,7 @@
           "title": "Guides",
           "slug": "/application-access/guides/",
           "entries": [
-            { "title": "General Usage", "slug": "/application-access/guides/usage/" },
+            { "title": "Connecting Apps", "slug": "/application-access/guides/connecting-apps/" },
             { "title": "Integrating with JWT", "slug": "/application-access/guides/jwt/" },
             { "title": "API Access", "slug": "/application-access/guides/api-access/" }
           ]
