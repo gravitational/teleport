@@ -27,7 +27,9 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -567,7 +569,7 @@ func (s *server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 		s.handleHeartbeat(conn, sconn, nch)
 	// Transport requests come from nodes requesting a connection to the Auth
 	// Server through the reverse tunnel.
-	case chanTransport:
+	case constants.ChanTransport:
 		s.handleTransport(sconn, nch)
 	default:
 		msg := fmt.Sprintf("reversetunnel received unknown channel request %v from %v",
@@ -793,7 +795,7 @@ func (s *server) checkClientCert(logger *log.Entry, user string, clusterName str
 	// match key of the certificate authority with the signature key
 	var match bool
 	for _, k := range keys {
-		if sshutils.KeysEqual(k, cert.SignatureKey) {
+		if apisshutils.KeysEqual(k, cert.SignatureKey) {
 			match = true
 			break
 		}

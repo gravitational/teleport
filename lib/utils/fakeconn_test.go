@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/sshutils"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -53,7 +54,7 @@ func TestChConn(t *testing.T) {
 
 	select {
 	case sshConn := <-sshConnCh:
-		chConn := NewChConn(sshConn.conn, sshConn.ch)
+		chConn := sshutils.NewChConn(sshConn.conn, sshConn.ch)
 		t.Cleanup(func() { chConn.Close() })
 		doneCh := make(chan error, 1)
 		go func() {

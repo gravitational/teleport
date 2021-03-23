@@ -13,24 +13,26 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package sshutils
+
+// Package tlsutils contains utilities for TLS configuration and formats.
+package tlsutils
 
 import (
+	"crypto/x509"
+	"encoding/pem"
+
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 )
 
-// ParseCertificate parses an SSH certificate from the authorized_keys format.
-func ParseCertificate(buf []byte) (*ssh.Certificate, error) {
-	k, _, _, _, err := ssh.ParseAuthorizedKey(buf)
+// ParseCertificatePEM parses PEM-encoded x509 certificate.
+func ParseCertificatePEM(bytes []byte) (*x509.Certificate, error) {
+	block, _ := pem.Decode(bytes)
+	if block == nil {
+		return nil, trace.BadParameter("expected PEM-encoded block")
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.BadParameter(err.Error())
 	}
-
-	cert, ok := k.(*ssh.Certificate)
-	if !ok {
-		return nil, trace.BadParameter("not an SSH certificate")
-	}
-
 	return cert, nil
 }
