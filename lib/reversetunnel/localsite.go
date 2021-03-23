@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -258,7 +259,7 @@ func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
 }
 
 // dialTunnel connects to the target host through a tunnel.
-func (s *localSite) dialTunnel(dreq *dialReq) (net.Conn, error) {
+func (s *localSite) dialTunnel(dreq *sshutils.DialReq) (net.Conn, error) {
 	rconn, err := s.getRemoteConn(dreq)
 	if err != nil {
 		return nil, trace.NotFound("no tunnel connection found: %v", err)
@@ -275,7 +276,7 @@ func (s *localSite) dialTunnel(dreq *dialReq) (net.Conn, error) {
 }
 
 func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, err error) {
-	dreq := &dialReq{
+	dreq := &sshutils.DialReq{
 		ServerID: params.ServerID,
 		ConnType: params.ConnType,
 	}
@@ -423,7 +424,7 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 	}
 }
 
-func (s *localSite) getRemoteConn(dreq *dialReq) (*remoteConn, error) {
+func (s *localSite) getRemoteConn(dreq *sshutils.DialReq) (*remoteConn, error) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -450,10 +451,10 @@ func (s *localSite) getRemoteConn(dreq *dialReq) (*remoteConn, error) {
 	return rconn, nil
 }
 
-func (s *localSite) chanTransportConn(rconn *remoteConn, dreq *dialReq) (net.Conn, error) {
+func (s *localSite) chanTransportConn(rconn *remoteConn, dreq *sshutils.DialReq) (net.Conn, error) {
 	s.log.Debugf("Connecting to %v through tunnel.", rconn.conn.RemoteAddr())
 
-	conn, markInvalid, err := connectProxyTransport(rconn.sconn, dreq, false)
+	conn, markInvalid, err := sshutils.ConnectProxyTransport(rconn.sconn, dreq, false)
 	if err != nil {
 		if markInvalid {
 			rconn.markInvalid(err)

@@ -21,7 +21,11 @@ import (
 	"net"
 	"time"
 
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/sshutils"
+
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 )
 
 // ContextDialer represents network dialer interface that uses context
@@ -38,23 +42,37 @@ func (f ContextDialerFunc) DialContext(ctx context.Context, network, addr string
 	return f(ctx, network, addr)
 }
 
-// NewAddrDialer makes a new dialer from a list of addresses
-func NewAddrDialer(addrs []string, keepAliveInterval, dialTimeout time.Duration) (ContextDialer, error) {
-	if len(addrs) == 0 {
-		return nil, trace.BadParameter("no addreses to dial")
-	}
-	dialer := net.Dialer{
+// NewDialer makes a new dialer.
+func NewDialer(keepAliveInterval, dialTimeout time.Duration) ContextDialer {
+	return &net.Dialer{
 		Timeout:   dialTimeout,
 		KeepAlive: keepAliveInterval,
 	}
-	return ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
-		for _, addr := range addrs {
-			conn, err = dialer.DialContext(ctx, network, addr)
-			if err == nil {
-				return conn, nil
-			}
+}
+
+// NewTunnelDialer make a new ssh tunnel dialer
+func NewTunnelDialer(ssh ssh.ClientConfig, keepAliveInterval, dialTimeout time.Duration) ContextDialer {
+	dialer := NewDialer(keepAliveInterval, dialTimeout)
+	return ContextDialerFunc(func(ctx context.Context, network, addr string) (conn net.Conn, err error) {
+		conn, err = dialer.DialContext(ctx, network, addr)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-		// not wrapping on purpose to preserve the original error
-		return nil, err
-	}), nil
+
+		ssh.Timeout = dialTimeout
+		sconn, err := sshutils.NewClientConnWithDeadline(conn, addr, &ssh)
+		if err != nil {
+			return nil, trace.NewAggregate(err, conn.Close())
+		}
+
+		// Build a net.Conn over the tunnel. Make this an exclusive connection:
+		// close the net.Conn as well as the channel upon close.
+		conn, _, err = sshutils.ConnectProxyTransport(sconn.Conn, &sshutils.DialReq{
+			Address: constants.RemoteAuthServer,
+		}, true)
+		if err != nil {
+			return nil, trace.NewAggregate(err, sconn.Close())
+		}
+		return conn, nil
+	})
 }
