@@ -156,7 +156,7 @@ $ curl https://tele.example.com/webapi/ping
 
 ## Step 2/3 Create a local admin
 
-Local users are a reliable fallback for cases when the SSO provider is down. Let's create a local admin `alic`e` who has access to Kubernetes group `system:masters`.
+Local users are a reliable fallback for cases when the SSO provider is down. Let's create a local admin `alice` who has access to Kubernetes group `system:masters`.
 
 Save this role as `member.yaml`:
 
@@ -225,8 +225,15 @@ $ KUBECONFIG=${HOME?}/teleport.yaml tsh login --proxy=tele.example.com:443 --use
 Teleport updated `KUBECONFIG` with a short-lived 12 hour certificate.
 
 ```bash
+# List connected Kubernetes clusters
 $ tsh kube ls
 
+Kube Cluster Name Selected
+----------------- --------
+tele.example.com
+
+# Login to Kubernetes by name
+$ tsh kube login tele.example.com
 Kube Cluster Name Selected
 ----------------- --------
 tele.example.com  *
@@ -246,7 +253,7 @@ We are going to setup Github connector for OSS and Okta for Enterprises version.
 
 Save the file below as `github.yaml` and update the fields. You will need to set up
 [Github OAuth 2.0 Connector](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/) app.
-Any member with the team `admin` in the organization `octocats` will be able to assume a builtin role `access`.
+Any member on the Github team `admin` under the `octocats` organization will be able to assume a built-in role `access`.
 
 ```yaml
 kind: github
@@ -300,6 +307,7 @@ To create a connector, we are going to run Teleport's admin tool `tctl` from the
 <TabItem label="Open Source">
 ```bash
 # To create a Github connector, we are going to run Teleport's admin tool tctl from the pod.
+$ kubectl config set-context --current --namespace=teleport-cluster
 $ POD=$(kubectl get po -l app=teleport-cluster -o jsonpath='{.items[0].metadata.name}')
 
 $ kubectl exec -i ${POD?} -- tctl create -f < github.yaml
