@@ -1007,4 +1007,13 @@ service AuthService {
     rpc UpsertGithubConnector(types.GithubConnectorV3) returns (google.protobuf.Empty);
     // DeleteGithubConnector deletes an existing Github connector in a backend by name.
     rpc DeleteGithubConnector(types.ResourceRequest) returns (google.protobuf.Empty);
+
+    // GetTrustedCluster gets a Trusted Cluster resource by name.
+    rpc GetTrustedCluster(types.ResourceRequest) returns (types.TrustedClusterV2);
+    // GetTrustedClusters gets all current Trusted Cluster resources.
+    rpc GetTrustedClusters(google.protobuf.Empty) returns (types.TrustedClusterV2List);
+    // UpsertTrustedCluster upserts a Trusted Cluster in a backend.
+    rpc UpsertTrustedCluster(types.TrustedClusterV2) returns (types.TrustedClusterV2);
+    // DeleteTrustedCluster deletes an existing Trusted Cluster in a backend by name.
+    rpc DeleteTrustedCluster(types.ResourceRequest) returns (google.protobuf.Empty);
 }
