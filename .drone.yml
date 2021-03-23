@@ -2504,6 +2504,36 @@ volumes:
 
 ---
 kind: pipeline
+type: kubernetes
+name: build-linux-arm64-deb
+
+---
+kind: pipeline
+type: kubernetes
+name: build-linux-arm64-fips-deb
+
+---
+kind: pipeline
+type: kubernetes
+name: build-linux-arm-deb
+
+---
+kind: pipeline
+type: kubernetes
+name: build-linux-arm64-rpm
+
+---
+kind: pipeline
+type: kubernetes
+name: build-linux-arm64-fips-rpm
+
+---
+kind: pipeline
+type: kubernetes
+name: build-linux-arm-rpm
+
+---
+kind: pipeline
 type: exec
 name: build-darwin-amd64
 
