@@ -80,6 +80,8 @@ type CertAuthority struct {
 type Identity struct {
 	// Username is a username or name of the node connection
 	Username string
+	// Impersonator is a username of a user impersonating this user
+	Impersonator string
 	// Groups is a list of groups (Teleport roles) encoded in the identity
 	Groups []string
 	// Usage is a list of usage restrictions encoded in the identity
@@ -137,6 +139,9 @@ type RouteToApp struct {
 	// ClusterName (and PublicAddr) are used to route requests issued with this
 	// certificate to the appropriate application proxy/cluster.
 	ClusterName string
+
+	// Name is the app name.
+	Name string
 }
 
 // RouteToDatabase contains routing information for databases.
@@ -229,6 +234,10 @@ var (
 	// the client IP into certificates.
 	ClientIPASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 9}
 
+	// AppNameASN1ExtensionOID is an extension ID used when encoding/decoding
+	// application name into a certificate.
+	AppNameASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 10}
+
 	// DatabaseServiceNameASN1ExtensionOID is an extension ID used when encoding/decoding
 	// database service name into certificates.
 	DatabaseServiceNameASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 1}
@@ -252,6 +261,10 @@ var (
 	// DatabaseUsersASN1ExtensionOID is an extension OID used when encoding/decoding
 	// allowed database users into certificates.
 	DatabaseUsersASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 6}
+
+	// ImpersonatorASN1ExtensionOID is an extension OID used when encoding/decoding
+	// impersonator user
+	ImpersonatorASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 7}
 )
 
 // Subject converts identity to X.509 subject name
@@ -325,6 +338,13 @@ func (id *Identity) Subject() (pkix.Name, error) {
 				Value: id.RouteToApp.ClusterName,
 			})
 	}
+	if id.RouteToApp.Name != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  AppNameASN1ExtensionOID,
+				Value: id.RouteToApp.Name,
+			})
+	}
 	if id.TeleportCluster != "" {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
@@ -394,6 +414,14 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			})
 	}
 
+	if id.Impersonator != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  ImpersonatorASN1ExtensionOID,
+				Value: id.Impersonator,
+			})
+	}
+
 	return subject, nil
 }
 
@@ -448,6 +476,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if ok {
 				id.RouteToApp.ClusterName = val
 			}
+		case attr.Type.Equal(AppNameASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.RouteToApp.Name = val
+			}
 		case attr.Type.Equal(TeleportClusterASN1ExtensionOID):
 			val, ok := attr.Value.(string)
 			if ok {
@@ -492,6 +525,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			val, ok := attr.Value.(string)
 			if ok {
 				id.DatabaseUsers = append(id.DatabaseUsers, val)
+			}
+		case attr.Type.Equal(ImpersonatorASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.Impersonator = val
 			}
 		}
 	}

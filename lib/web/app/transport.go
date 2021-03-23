@@ -82,7 +82,11 @@ func (c transportConfig) Check() error {
 type transport struct {
 	c *transportConfig
 
+	// tr is used for forwarding http connections.
 	tr http.RoundTripper
+
+	// dialer is used for forwarding websocket connections.
+	dialer forward.Dialer
 }
 
 // newTransport creates a new transport.
@@ -103,8 +107,9 @@ func newTransport(c *transportConfig) (*transport, error) {
 	}
 
 	return &transport{
-		c:  c,
-		tr: tr,
+		c:      c,
+		tr:     tr,
+		dialer: websocketsDialer(tr),
 	}, nil
 }
 
@@ -154,6 +159,19 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 	}
 
 	return nil
+}
+
+// websocketsDialer returns a function that dials a websocket connection
+// over the transport's reverse tunnel.
+func websocketsDialer(tr *http.Transport) forward.Dialer {
+	return func(network, address string) (net.Conn, error) {
+		conn, err := tr.DialContext(context.Background(), network, address)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// App access connections over reverse tunnel use mutual TLS.
+		return tls.Client(conn, tr.TLSClientConfig), nil
+	}
 }
 
 // dialFunc returns a function that can Dial and connect to the application

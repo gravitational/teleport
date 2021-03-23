@@ -632,10 +632,9 @@ func (c *Client) GetAppSessions(ctx context.Context) ([]types.WebSession, error)
 // sessions represent a browser session the client holds.
 func (c *Client) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
 	resp, err := c.grpc.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
-		Username:      req.Username,
-		ParentSession: req.ParentSession,
-		PublicAddr:    req.PublicAddr,
-		ClusterName:   req.ClusterName,
+		Username:    req.Username,
+		PublicAddr:  req.PublicAddr,
+		ClusterName: req.ClusterName,
 	})
 	if err != nil {
 		return nil, trail.FromGRPC(err)

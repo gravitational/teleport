@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
 )
 
@@ -77,6 +78,8 @@ type transport struct {
 	tr http.RoundTripper
 
 	uri *url.URL
+
+	ws *websocketTransport
 }
 
 // newTransport creates a new transport.
@@ -106,6 +109,7 @@ func newTransport(ctx context.Context, c *transportConfig) (*transport, error) {
 		c:            c,
 		uri:          uri,
 		tr:           tr,
+		ws:           newWebsocketTransport(uri, tr.TLSClientConfig),
 	}, nil
 }
 
@@ -279,4 +283,40 @@ func isRedirect(code int) bool {
 		return true
 	}
 	return false
+}
+
+// websocketTransport combines parameters for websockets transport.
+//
+// Implements forward.ReqRewriter.
+type websocketTransport struct {
+	uri    *url.URL
+	dialer forward.Dialer
+}
+
+// newWebsocketTransport returns transport that knows how to rewrite and
+// dial websocket requests.
+func newWebsocketTransport(uri *url.URL, tlsConfig *tls.Config) *websocketTransport {
+	return &websocketTransport{
+		uri: uri,
+		dialer: func(network, address string) (net.Conn, error) {
+			// Request is going to "wss://".
+			if uri.Scheme == "https" {
+				return tls.Dial(network, address, tlsConfig)
+			}
+			// Request is going to "ws://".
+			return net.Dial(network, address)
+		},
+	}
+}
+
+// Rewrite rewrites the websocket request.
+func (r *websocketTransport) Rewrite(req *http.Request) {
+	// Update scheme and host to those of the target app's to make sure
+	// it's forwarded correctly.
+	req.URL.Scheme = "ws"
+	if r.uri.Scheme == "https" {
+		req.URL.Scheme = "wss"
+	}
+	req.URL.Host = r.uri.Host
+	req.Host = r.uri.Host
 }

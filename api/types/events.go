@@ -124,17 +124,22 @@ func (kind WatchKind) Matches(e Event) (bool, error) {
 	// we don't have a good model for filtering non-put events,
 	// so only apply filters to OpPut events.
 	if len(kind.Filter) > 0 && e.Type == OpPut {
-		// Currently only access request make use of filters,
-		// so expect the resource to be an access request.
-		req, ok := e.Resource.(AccessRequest)
-		if !ok {
-			return false, trace.BadParameter("unfilterable resource type: %T", e.Resource)
+		switch res := e.Resource.(type) {
+		case AccessRequest:
+			var filter AccessRequestFilter
+			if err := filter.FromMap(kind.Filter); err != nil {
+				return false, trace.Wrap(err)
+			}
+			return filter.Match(res), nil
+		case WebSession:
+			var filter WebSessionFilter
+			if err := filter.FromMap(kind.Filter); err != nil {
+				return false, trace.Wrap(err)
+			}
+			return filter.Match(res), nil
+		default:
+			return false, trace.BadParameter("unfilterable resource type %T", e.Resource)
 		}
-		var filter AccessRequestFilter
-		if err := filter.FromMap(kind.Filter); err != nil {
-			return false, trace.Wrap(err)
-		}
-		return filter.Match(req), nil
 	}
 	return true, nil
 }

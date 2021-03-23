@@ -56,6 +56,9 @@ type Key struct {
 	// DBTLSCerts are PEM-encoded TLS certificates for database access.
 	// Map key is the database service name.
 	DBTLSCerts map[string][]byte `json:"DBCerts,omitempty"`
+	// AppTLSCerts are TLS certificates for application access.
+	// Map key is the application name.
+	AppTLSCerts map[string][]byte `json:"AppCerts,omitempty"`
 
 	// ProxyHost (optionally) contains the hostname of the proxy server
 	// which issued this key
@@ -282,6 +285,18 @@ func (k *Key) KubeTLSCertificate(kubeClusterName string) (*x509.Certificate, err
 // DBTLSCertificates returns all parsed x509 database access certificates.
 func (k *Key) DBTLSCertificates() (certs []x509.Certificate, err error) {
 	for _, bytes := range k.DBTLSCerts {
+		cert, err := tlsca.ParseCertificatePEM(bytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		certs = append(certs, *cert)
+	}
+	return certs, nil
+}
+
+// AppTLSCertificates returns all parsed x509 app access certificates.
+func (k *Key) AppTLSCertificates() (certs []x509.Certificate, err error) {
+	for _, bytes := range k.AppTLSCerts {
 		cert, err := tlsca.ParseCertificatePEM(bytes)
 		if err != nil {
 			return nil, trace.Wrap(err)

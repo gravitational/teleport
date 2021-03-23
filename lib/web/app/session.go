@@ -85,6 +85,7 @@ func (h *Handler) newSession(ctx context.Context, ws services.WebSession) (*sess
 		forward.RoundTripper(transport),
 		forward.Logger(h.log),
 		forward.PassHostHeader(true),
+		forward.WebsocketDial(transport.dialer),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
