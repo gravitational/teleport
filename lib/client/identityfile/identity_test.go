@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
@@ -37,7 +38,7 @@ func TestWrite(t *testing.T) {
 	require.Equal(t, string(out), "priv")
 
 	// cert is OK:
-	out, err = ioutil.ReadFile(cfg.OutputPath + "-cert.pub")
+	out, err = ioutil.ReadFile(cfg.OutputPath + constants.FileExtSSHCert)
 	require.NoError(t, err)
 	require.Equal(t, string(out), "cert")
 

@@ -36,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -115,7 +116,7 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	s.usr, _ = user.Current()
-	cert, err := sshutils.ParseCertificate([]byte(fixtures.UserCertificateStandard))
+	cert, err := apisshutils.ParseCertificate([]byte(fixtures.UserCertificateStandard))
 	c.Assert(err, check.IsNil)
 	s.ctx = &ServerContext{
 		ConnectionContext: &sshutils.ConnectionContext{

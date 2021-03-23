@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/tsh/common"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/kingpin"
@@ -260,7 +259,7 @@ func findReverseTunnel(ctx context.Context, addrs []utils.NetAddr, insecureTLS b
 	for _, addr := range addrs {
 		// In insecure mode, any certificate is accepted. In secure mode the hosts
 		// CAs are used to validate the certificate on the proxy.
-		resp, err := client.Find(ctx, addr.String(), insecureTLS, nil)
+		resp, err := apiclient.Find(ctx, addr.String(), insecureTLS, nil)
 		if err == nil {
 			return tunnelAddr(addr, resp.Proxy)
 		}
@@ -274,7 +273,7 @@ func findReverseTunnel(ctx context.Context, addrs []utils.NetAddr, insecureTLS b
 //  2. SSH Proxy Public Address.
 //  3. HTTP Proxy Public Address.
 //  4. Tunnel Listen Address.
-func tunnelAddr(webAddr utils.NetAddr, settings client.ProxySettings) (string, error) {
+func tunnelAddr(webAddr utils.NetAddr, settings apiclient.ProxySettings) (string, error) {
 	// Extract the port the tunnel server is listening on.
 	netAddr, err := utils.ParseHostPortAddr(settings.SSH.TunnelListenAddr, defaults.SSHProxyTunnelListenPort)
 	if err != nil {
@@ -376,7 +375,7 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServiceClientCo
 	authConfig := new(AuthServiceClientConfig)
 	// --identity flag
 	if ccf.IdentityFilePath != "" {
-		key, err := common.LoadIdentity(ccf.IdentityFilePath)
+		key, err := client.KeyFromIdentityFile(ccf.IdentityFilePath)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

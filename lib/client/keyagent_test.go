@@ -30,6 +30,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -107,7 +108,7 @@ func (s *KeyAgentTestSuite) TestAddKey(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// check that the key has been written to disk
-	for _, ext := range []string{fileExtCert, "", fileExtPub} {
+	for _, ext := range []string{constants.FileExtSSHCert, "", fileExtPub} {
 		_, err := os.Stat(fmt.Sprintf("%v/keys/%v/%v%v", s.keyDir, s.hostname, s.username, ext))
 		c.Assert(err, check.IsNil)
 	}

@@ -21,7 +21,6 @@ package sshutils
 import (
 	"bytes"
 	"context"
-	"crypto/subtle"
 	"encoding/json"
 	"io"
 	"net"
@@ -601,13 +600,6 @@ func validateHostSigner(fips bool, signer ssh.Signer) error {
 
 type PublicKeyFunc func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error)
 type PasswordFunc func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error)
-
-// KeysEqual is constant time compare of the keys to avoid timing attacks
-func KeysEqual(ak, bk ssh.PublicKey) bool {
-	a := ssh.Marshal(ak)
-	b := ssh.Marshal(bk)
-	return (len(a) == len(b) && subtle.ConstantTimeCompare(a, b) == 1)
-}
 
 // HandshakePayload structure is sent as a JSON blob by the teleport
 // proxy to every SSH server who identifies itself as Teleport server
