@@ -205,6 +205,12 @@ const AuthPreferenceSpecSchemaTemplate = `{
 					"items": {
 						"type": "string"
 					}
+				},
+				"device_attestation_cas": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
 				}
 			}
 		},

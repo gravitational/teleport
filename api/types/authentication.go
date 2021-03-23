@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
@@ -307,6 +308,10 @@ type U2F struct {
 
 	// Facets returns the facets for universal second factor.
 	Facets []string `json:"facets,omitempty"`
+
+	// DeviceAttestationCAs contains the trusted attestation CAs for U2F
+	// devices.
+	DeviceAttestationCAs []string `json:"device_attestation_cas,omitempty"`
 }
 
 func (u *U2F) Check() error {
@@ -315,6 +320,11 @@ func (u *U2F) Check() error {
 	}
 	if len(u.Facets) == 0 {
 		return trace.BadParameter("u2f configuration missing facets")
+	}
+	for _, ca := range u.DeviceAttestationCAs {
+		if _, err := tlsutils.ParseCertificatePEM([]byte(ca)); err != nil {
+			return trace.BadParameter("u2f configuration has an invalid attestation CA: %v", err)
+		}
 	}
 	return nil
 }
