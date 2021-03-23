@@ -138,7 +138,8 @@ func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateResetPa
 			Code: events.ResetPasswordTokenCreateCode,
 		},
 		UserMetadata: events.UserMetadata{
-			User: clientUsername(ctx),
+			User:         clientUsername(ctx),
+			Impersonator: clientImpersonator(ctx),
 		},
 		ResourceMetadata: events.ResourceMetadata{
 			Name:    req.Name,

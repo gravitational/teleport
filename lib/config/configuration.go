@@ -848,6 +848,10 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 			AWS: service.DatabaseAWS{
 				Region: database.AWS.Region,
 			},
+			GCP: service.DatabaseGCP{
+				ProjectID:  database.GCP.ProjectID,
+				InstanceID: database.GCP.InstanceID,
+			},
 		}
 		if err := db.Check(); err != nil {
 			return trace.Wrap(err)
@@ -887,6 +891,7 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 		// Add the application to the list of proxied applications.
 		app := service.App{
 			Name:               application.Name,
+			Description:        application.Description,
 			URI:                application.URI,
 			PublicAddr:         application.PublicAddr,
 			StaticLabels:       staticLabels,

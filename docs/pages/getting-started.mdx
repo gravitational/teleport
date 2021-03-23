@@ -9,7 +9,7 @@ Teleport on Linux machines.
 ### Prerequisites
 
 - A Linux machine with ports `3023`, `3024`, `3025` and `443` open.
-- A domain name. 
+- A domain name.
 - Around 20 minutes to complete; half of this may be waiting for DNS propagation.
 
 ### Follow along with our video guide
@@ -17,7 +17,7 @@ Teleport on Linux machines.
 <iframe
   width="712"
   height="400"
-  src="https://www.youtube-nocookie.com/embed/yLnaCW8b-8U?rel=0&modestbranding=1"
+  src="https://www.youtube-nocookie.com/embed/jvaCmQyHghY?rel=0&modestbranding=1"
   frameBorder="0"
   allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
   allowFullScreen
@@ -77,11 +77,10 @@ Take a look at the [Installation Guide](installation.mdx) for more options.
 Generate a configuration file for Teleport using `teleport configure`.
 
 Acme turns on automatic TLS certificates from [Letsencrypt](https://letsencrypt.org).
-Set up email to receive updates from Letsencrypt, and use a valid DNS name for a cluster name.
+Set up email to receive updates from Let's Encrypt, and use a valid DNS name for a cluster name.
 
 ```bash
-$ sudo teleport configure --acme --acme-email=your-email@example.com --cluster-name=tele.example.com -o file
-Wrote config to file "/etc/teleport.yaml". Now you can start the server. Happy Teleporting!
+sudo teleport configure --acme --acme-email=your-email@example.com --cluster-name=tele.example.com -o file
 ```
 
 ## Step 1c: Configure Domain Name and obtain TLS certificates using Let's Encrypt
@@ -219,7 +218,7 @@ tsh ssh root@node-name
 Generate a short-lived dynamic join token using `tctl`:
 
 ```bash
-sudo tctl tokens add --type=node
+tctl tokens add --type=node
 ```
 
 Bootstrap a new node:
@@ -277,7 +276,7 @@ runcmd:
 Generate a short-lived dynamic token to join apps:
 
 ```bash
-sudo tctl tokens add --type=app
+tctl tokens add --type=app
 ```
 
 Add a new application:

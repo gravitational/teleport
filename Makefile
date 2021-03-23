@@ -44,8 +44,6 @@ CGOFLAG = CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc
 endif
 endif
 
-GO_LINTERS ?= "unused,govet,typecheck,deadcode,goimports,varcheck,structcheck,bodyclose,staticcheck,ineffassign,unconvert,misspell,gosimple,golint"
-
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
 FIPS ?=
@@ -178,6 +176,23 @@ else
 	$(MAKE) --no-print-directory release-unix
 endif
 
+# These are aliases used to make build commands uniform.
+.PHONY: release-amd64
+release-amd64:
+	$(MAKE) release ARCH=amd64
+
+.PHONY: release-386
+release-386:
+	$(MAKE) release ARCH=386
+
+.PHONY: release-arm
+release-arm:
+	$(MAKE) release ARCH=arm
+
+.PHONY: release-arm64
+release-arm64:
+	$(MAKE) release ARCH=arm64
+
 #
 # make release-unix - Produces a binary release tarball containing teleport,
 # tctl, and tsh.
@@ -293,7 +308,7 @@ integration-root:
 
 #
 # Lint the Go code.
-# By default lint scans the entire repo. Pass FLAGS='--new' to only scan local
+# By default lint scans the entire repo. Pass GO_LINT_FLAGS='--new' to only scan local
 # changes (or last commit).
 #
 .PHONY: lint
@@ -302,17 +317,7 @@ lint: lint-sh lint-helm lint-go
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
 lint-go:
-	golangci-lint run \
-		--disable-all \
-		--exclude-use-default \
-		--exclude='S1002: should omit comparison to bool constant' \
-		--skip-dirs vendor \
-		--uniq-by-line=false \
-		--max-same-issues=0 \
-		--max-issues-per-linter 0 \
-		--timeout=5m \
-		--enable $(GO_LINTERS) \
-		$(GO_LINT_FLAGS)
+	golangci-lint run -c .golangci.yml $(GO_LINT_FLAGS)
 
 # TODO(awly): remove the `--exclude` flag after cleaning up existing scripts
 .PHONY: lint-sh
@@ -616,3 +621,8 @@ update-webassets: WEBAPPS_BRANCH ?= 'master'
 update-webassets: TELEPORT_BRANCH ?= 'master'
 update-webassets:
 	build.assets/webapps/update-teleport-webassets.sh -w $(WEBAPPS_BRANCH) -t $(TELEPORT_BRANCH)
+
+# dronegen generates .drone.yml config
+.PHONY: dronegen
+dronegen:
+	go run ./dronegen

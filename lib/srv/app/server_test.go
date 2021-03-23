@@ -179,7 +179,13 @@ func (s *Suite) SetUpTest(c *check.C) {
 	// Generate certificate for user.
 	privateKey, publicKey, err := s.tlsServer.Auth().GenerateKeyPair("")
 	c.Assert(err, check.IsNil)
-	certificate, err := s.tlsServer.Auth().GenerateUserAppTestCert(publicKey, s.user.GetName(), 1*time.Hour, "foo.example.com", "root.example.com")
+	certificate, err := s.tlsServer.Auth().GenerateUserAppTestCert(auth.AppTestCertRequest{
+		PublicKey:   publicKey,
+		Username:    s.user.GetName(),
+		TTL:         1 * time.Hour,
+		PublicAddr:  "foo.example.com",
+		ClusterName: "root.example.com",
+	})
 	c.Assert(err, check.IsNil)
 	s.clientCertificate, err = tls.X509KeyPair(certificate, privateKey)
 	c.Assert(err, check.IsNil)

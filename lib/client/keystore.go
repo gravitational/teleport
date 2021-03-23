@@ -31,6 +31,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -43,13 +44,13 @@ import (
 const (
 	defaultKeyDir      = ProfileDir
 	fileExtTLSCert     = "-x509.pem"
-	fileExtCert        = "-cert.pub"
 	fileExtPub         = ".pub"
 	sessionKeyDir      = "keys"
 	fileNameKnownHosts = "known_hosts"
 	fileNameTLSCerts   = "certs.pem"
 	kubeDirSuffix      = "-kube"
 	dbDirSuffix        = "-db"
+	appDirSuffix       = "-app"
 
 	// profileDirPerms is the default permissions applied to the profile
 	// directory (usually ~/.tsh)
@@ -173,7 +174,7 @@ func (fs *FSLocalKeyStore) AddKey(host, username string, key *Key) error {
 		}
 		return err
 	}
-	if err := writeBytes(username+fileExtCert, key.Cert); err != nil {
+	if err := writeBytes(username+constants.FileExtSSHCert, key.Cert); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := writeBytes(username+fileExtTLSCert, key.TLSCert); err != nil {
@@ -216,6 +217,15 @@ func (fs *FSLocalKeyStore) AddKey(host, username string, key *Key) error {
 			return trace.Wrap(err)
 		}
 	}
+	for app, cert := range key.AppTLSCerts {
+		fname := filepath.Join(username+appDirSuffix, key.ClusterName, filepath.Clean(app)+fileExtTLSCert)
+		if err := os.MkdirAll(filepath.Join(dirPath, filepath.Dir(fname)), os.ModeDir|profileDirPerms); err != nil {
+			return trace.Wrap(err)
+		}
+		if err := writeBytes(fname, cert); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	return nil
 }
 
@@ -223,7 +233,7 @@ func (fs *FSLocalKeyStore) AddKey(host, username string, key *Key) error {
 func (fs *FSLocalKeyStore) DeleteKey(host, username string, opts ...KeyOption) error {
 	dirPath := fs.dirFor(host)
 	files := []string{
-		filepath.Join(dirPath, username+fileExtCert),
+		filepath.Join(dirPath, username+constants.FileExtSSHCert),
 		filepath.Join(dirPath, username+fileExtTLSCert),
 		filepath.Join(dirPath, username+fileExtPub),
 		filepath.Join(dirPath, username),
@@ -276,7 +286,7 @@ func (fs *FSLocalKeyStore) GetKey(proxyHost, username string, opts ...KeyOption)
 		return nil, trace.NotFound("no session keys for %v in %v", username, proxyHost)
 	}
 
-	certFile := filepath.Join(dirPath, username+fileExtCert)
+	certFile := filepath.Join(dirPath, username+constants.FileExtSSHCert)
 	cert, err := ioutil.ReadFile(certFile)
 	if err != nil {
 		fs.log.Error(err)
@@ -315,6 +325,7 @@ func (fs *FSLocalKeyStore) GetKey(proxyHost, username string, opts ...KeyOption)
 		}},
 		KubeTLSCerts: make(map[string][]byte),
 		DBTLSCerts:   make(map[string][]byte),
+		AppTLSCerts:  make(map[string][]byte),
 	}
 
 	for _, o := range opts {
@@ -497,6 +508,85 @@ func (o withDBCerts) deleteKey(store LocalKeyStore, idx keyIndex) error {
 			stored.DBTLSCerts[o.dbName] = nil
 		} else {
 			stored.DBTLSCerts = nil
+		}
+	default:
+		return trace.BadParameter("unexpected key store type %T", store)
+	}
+	return nil
+}
+
+// WithAppCerts returns a GetKeyOption to load application access certificates
+// from the store for a given Teleport cluster.
+func WithAppCerts(teleportClusterName string) KeyOption {
+	return withAppCerts{teleportClusterName: teleportClusterName}
+}
+
+// WithNamedAppCerts returns a GetKeyOption to load application access certificates
+// from the store for a given Teleport cluster and particular application.
+func WithNamedAppCerts(teleportClusterName, appName string) KeyOption {
+	return withAppCerts{teleportClusterName: teleportClusterName, appName: appName}
+}
+
+type withAppCerts struct {
+	teleportClusterName, appName string
+}
+
+func (o withAppCerts) getKey(store LocalKeyStore, idx keyIndex, key *Key) error {
+	switch s := store.(type) {
+	case *FSLocalKeyStore:
+		dirPath := s.dirFor(idx.proxyHost)
+		appDir := filepath.Join(dirPath, idx.username+appDirSuffix, o.teleportClusterName)
+		appFiles, err := ioutil.ReadDir(appDir)
+		if err != nil && !os.IsNotExist(err) {
+			return trace.Wrap(err)
+		}
+		if key.AppTLSCerts == nil {
+			key.AppTLSCerts = make(map[string][]byte)
+		}
+		for _, fi := range appFiles {
+			data, err := ioutil.ReadFile(filepath.Join(appDir, fi.Name()))
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			appName := strings.TrimSuffix(filepath.Base(fi.Name()), fileExtTLSCert)
+			key.AppTLSCerts[appName] = data
+		}
+	case *MemLocalKeyStore:
+		idx.clusterName = o.teleportClusterName
+		stored, ok := s.inMem[idx]
+		if !ok {
+			return trace.NotFound("key for %v not found", idx)
+		}
+		key.AppTLSCerts = stored.AppTLSCerts
+	default:
+		return trace.BadParameter("unexpected key store type %T", store)
+	}
+	if key.ClusterName == "" {
+		key.ClusterName = o.teleportClusterName
+	}
+	return nil
+}
+
+func (o withAppCerts) deleteKey(store LocalKeyStore, idx keyIndex) error {
+	// If app name is specified, remove only that cert, otherwise remove
+	// certs for all apps a user is logged into.
+	switch s := store.(type) {
+	case *FSLocalKeyStore:
+		dirPath := s.dirFor(idx.proxyHost)
+		if o.appName != "" {
+			return os.Remove(filepath.Join(dirPath, idx.username+appDirSuffix, o.teleportClusterName, o.appName+fileExtTLSCert))
+		}
+		return os.RemoveAll(filepath.Join(dirPath, idx.username+appDirSuffix, o.teleportClusterName))
+	case *MemLocalKeyStore:
+		idx.clusterName = o.teleportClusterName
+		stored, ok := s.inMem[idx]
+		if !ok {
+			return trace.NotFound("key for %v not found", idx)
+		}
+		if o.appName != "" {
+			stored.AppTLSCerts[o.appName] = nil
+		} else {
+			stored.AppTLSCerts = nil
 		}
 	default:
 		return trace.BadParameter("unexpected key store type %T", store)

@@ -20,6 +20,7 @@ import (
 	"context"
 	"regexp"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gravitational/trace"
 
@@ -38,7 +39,7 @@ var blacklistPattern = regexp.MustCompile(`//`)
 
 // isKeySafe checks if the passed in key conforms to whitelist
 func isKeySafe(s []byte) bool {
-	return whitelistPattern.Match(s) && !blacklistPattern.Match(s)
+	return whitelistPattern.Match(s) && !blacklistPattern.Match(s) && utf8.Valid(s)
 }
 
 // Sanitizer wraps a Backend implementation to make sure all values requested

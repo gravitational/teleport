@@ -143,6 +143,7 @@ type ReissueParams struct {
 	KubernetesCluster string
 	AccessRequests    []string
 	RouteToDatabase   proto.RouteToDatabase
+	RouteToApp        proto.RouteToApp
 }
 
 func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
@@ -229,6 +230,7 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, params ReissuePa
 		RouteToDatabase:   params.RouteToDatabase,
 		NodeName:          params.NodeName,
 		Usage:             proto.UserCertsRequest_All,
+		RouteToApp:        params.RouteToApp,
 	}
 	if _, ok := cert.Permissions.Extensions[teleport.CertExtensionTeleportRoles]; !ok {
 		req.Format = teleport.CertificateFormatOldSSH
@@ -245,6 +247,9 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, params ReissuePa
 	}
 	if params.RouteToDatabase.ServiceName != "" {
 		key.DBTLSCerts[params.RouteToDatabase.ServiceName] = certs.TLS
+	}
+	if params.RouteToApp.Name != "" {
+		key.AppTLSCerts[params.RouteToApp.Name] = certs.TLS
 	}
 	return key, nil
 }
@@ -281,6 +286,15 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	defer clt.Close()
 	requiredCheck, err := clt.IsMFARequired(ctx, params.isMFARequiredRequest(proxy.hostLogin))
 	if err != nil {
+		if status.Code(err) == codes.Unimplemented {
+			// Probably talking to an older server, use the old non-MFA endpoint.
+			log.WithError(err).Debug("Auth server does not implement IsMFARequired.")
+			// SSH certs can be used without reissuing.
+			if params.usage() == proto.UserCertsRequest_SSH {
+				return key, nil
+			}
+			return proxy.reissueUserCerts(ctx, params)
+		}
 		return nil, trace.Wrap(err)
 	}
 	if !requiredCheck.Required {
@@ -507,6 +521,45 @@ func (proxy *ProxyClient) GetAppServers(ctx context.Context, namespace string) (
 	}
 
 	return servers, nil
+}
+
+// CreateAppSession creates a new application access session.
+func (proxy *ProxyClient) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
+	clusterName, err := proxy.RootClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authClient, err := proxy.ConnectToCluster(ctx, clusterName, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ws, err := authClient.CreateAppSession(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Make sure to wait for the created app session to propagate through the cache.
+	accessPoint, err := proxy.ClusterAccessPoint(ctx, clusterName, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = auth.WaitForAppSession(ctx, ws.GetName(), ws.GetUser(), accessPoint)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ws, nil
+}
+
+// DeleteAppSession removes the specified application access session.
+func (proxy *ProxyClient) DeleteAppSession(ctx context.Context, sessionID string) error {
+	authClient, err := proxy.ConnectToRootCluster(ctx, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = authClient.DeleteAppSession(ctx, types.DeleteAppSessionRequest{SessionID: sessionID})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // GetDatabaseServers returns all registered database proxy servers.

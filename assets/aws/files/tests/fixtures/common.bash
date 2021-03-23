@@ -7,7 +7,7 @@ export TELEPORT_TESTVAR_PUBLIC_IP=1.2.3.4
 TEST_SUITE="$(basename ${BATS_TEST_FILENAME%%.bats})"
 
 setup_file() {
-    load fixtures/test-setup.bash
+    load fixtures/test-setup
 
     # write_confd_file is a function defined to set up fixtures inside each test
     write_confd_file
@@ -24,5 +24,5 @@ setup_file() {
 }
 
 teardown_file() {
-    load fixtures/test-teardown.bash
+    load fixtures/test-teardown
 }

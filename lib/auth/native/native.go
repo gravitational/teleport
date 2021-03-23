@@ -283,6 +283,9 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 	if c.ClientIP != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionClientIP] = c.ClientIP
 	}
+	if c.Impersonator != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionImpersonator] = c.Impersonator
+	}
 
 	// Add roles, traits, and route to cluster in the certificate extensions if
 	// the standard format was requested. Certificate extensions are not included

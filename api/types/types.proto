@@ -172,12 +172,22 @@ message DatabaseServerSpecV3 {
     // Rotation contains the server CA rotation information.
     Rotation Rotation = 10
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "rotation,omitempty" ];
+    // GCP contains parameters specific to GCP Cloud SQL databases.
+    GCPCloudSQL GCP = 11 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "gcp,omitempty" ];
 }
 
 // AWS contains AWS specific settings such as region.
 message AWS {
     // Region is a AWS cloud region.
     string Region = 1 [ (gogoproto.jsontag) = "region,omitempty" ];
+}
+
+// GCPCloudSQL contains parameters specific to GCP Cloud SQL databases.
+message GCPCloudSQL {
+    // ProjectID is the GCP project ID the Cloud SQL instance resides in.
+    string ProjectID = 1 [ (gogoproto.jsontag) = "project_id,omitempty" ];
+    // InstanceID is the Cloud SQL instance ID.
+    string InstanceID = 2 [ (gogoproto.jsontag) = "instance_id,omitempty" ];
 }
 
 // ServerV2 represents a Node, App, Database, Proxy or Auth server in a Teleport cluster.
@@ -245,9 +255,12 @@ message App {
     // Used for RBAC.
     map<string, CommandLabelV2> DynamicLabels = 5
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "commands,omitempty" ];
+    // InsecureSkipVerify disables app's TLS certificate verification.
     bool InsecureSkipVerify = 6 [ (gogoproto.jsontag) = "insecure_skip_verify" ];
     // Rewrite is a list of rewriting rules to apply to requests and responses.
     Rewrite Rewrite = 7 [ (gogoproto.jsontag) = "rewrite,omitempty" ];
+    // Description is an optional free-form app description.
+    string Description = 8 [ (gogoproto.jsontag) = "description,omitempty" ];
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.
@@ -965,6 +978,10 @@ message RoleConditions {
     repeated string DatabaseNames = 12 [ (gogoproto.jsontag) = "db_names,omitempty" ];
     // DatabaseUsers is a list of databaes users this role is allowed to connect as.
     repeated string DatabaseUsers = 13 [ (gogoproto.jsontag) = "db_users,omitempty" ];
+
+    // Impersonate specifies what users and roles this role is allowed to impersonate
+    // by issuing certificates or other possible means.
+    ImpersonateConditions Impersonate = 14 [ (gogoproto.jsontag) = "impersonate,omitempty" ];
 }
 
 // AccessRequestConditions is a matcher for allow/deny restrictions on
@@ -1016,6 +1033,18 @@ message Rule {
     string Where = 3 [ (gogoproto.jsontag) = "where,omitempty" ];
     // Actions specifies optional actions taken when this rule matches
     repeated string Actions = 4 [ (gogoproto.jsontag) = "actions,omitempty" ];
+}
+
+// ImpersonateConditions specifies whether users are allowed
+// to issue certificates for other users or groups.
+message ImpersonateConditions {
+    // Users is a list of resources this role is allowed to impersonate,
+    // could be an empty list or a Wildcard pattern
+    repeated string Users = 1 [ (gogoproto.jsontag) = "users,omitempty" ];
+    // Roles is a list of resources this role is allowed to impersonate
+    repeated string Roles = 2 [ (gogoproto.jsontag) = "roles,omitempty" ];
+    // Where specifies optional advanced matcher
+    string Where = 3 [ (gogoproto.jsontag) = "where,omitempty" ];
 }
 
 // BoolValue is a wrapper around bool, used in cases
@@ -1401,6 +1430,12 @@ message WebSessionSpecV2 {
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "expires"
     ];
+}
+
+// WebSessionFilter encodes cache watch parameters for filtering web sessions.
+message WebSessionFilter {
+    // User is the username to filter web sessions for.
+    string User = 1 [ (gogoproto.jsontag) = "user" ];
 }
 
 // RemoteClusterV3 represents remote cluster resource specification

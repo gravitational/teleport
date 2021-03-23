@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
@@ -57,7 +58,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/dynamoevents"
@@ -1117,16 +1117,18 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 
 	checkingEmitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
-		Inner: events.NewMultiEmitter(events.NewLoggingEmitter(), emitter),
-		Clock: process.Clock,
+		Inner:       events.NewMultiEmitter(events.NewLoggingEmitter(), emitter),
+		Clock:       process.Clock,
+		ClusterName: cfg.Auth.ClusterName.GetClusterName(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	checkingStreamer, err := events.NewCheckingStreamer(events.CheckingStreamerConfig{
-		Inner: streamer,
-		Clock: process.Clock,
+		Inner:       streamer,
+		Clock:       process.Clock,
+		ClusterName: cfg.Auth.ClusterName.GetClusterName(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1707,9 +1709,15 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
+		clusterName, err := authClient.GetClusterName()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		streamer, err := events.NewCheckingStreamer(events.CheckingStreamerConfig{
-			Inner: conn.Client,
-			Clock: process.Clock,
+			Inner:       conn.Client,
+			Clock:       process.Clock,
+			ClusterName: clusterName.GetClusterName(),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2402,6 +2410,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		trace.Component: teleport.Component(teleport.ComponentReverseTunnelServer, process.id),
 	})
 
+	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
+
 	// asyncEmitter makes sure that sessions do not block
 	// in case if connections are slow
 	asyncEmitter, err := process.newAsyncEmitter(conn.Client)
@@ -2409,8 +2419,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 	streamer, err := events.NewCheckingStreamer(events.CheckingStreamerConfig{
-		Inner: conn.Client,
-		Clock: process.Clock,
+		Inner:       conn.Client,
+		Clock:       process.Clock,
+		ClusterName: clusterName,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -2419,7 +2430,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		Emitter:  asyncEmitter,
 		Streamer: streamer,
 	}
-	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
 
 	// register SSH reverse tunnel server that accepts connections
 	// from remote teleport nodes
@@ -2574,6 +2584,31 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 					return trace.Wrap(err)
 				}
 				tlsConfig.Certificates = append(tlsConfig.Certificates, certificate)
+			}
+
+			tlsConfig.GetConfigForClient = func(*tls.ClientHelloInfo) (*tls.Config, error) {
+				tlsClone := tlsConfig.Clone()
+
+				// Set client auth to "verify client cert if given" to support
+				// app access CLI flow.
+				//
+				// Clients (like curl) connecting to the web proxy endpoint will
+				// present a client certificate signed by the cluster's user CA.
+				//
+				// Browser connections to web UI and other clients (like database
+				// access) connecting to web proxy won't be affected since they
+				// don't present a certificate.
+				tlsClone.ClientAuth = tls.VerifyClientCertIfGiven
+
+				// Build the client CA pool containing the cluster's user CA in
+				// order to be able to validate certificates provided by app
+				// access CLI clients.
+				tlsClone.ClientCAs, err = auth.ClientCertPool(accessPoint, clusterName)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				return tlsClone, nil
 			}
 
 			listeners.web = tls.NewListener(listeners.web, tlsConfig)
@@ -2961,6 +2996,7 @@ func (process *TeleportProcess) initApps() {
 
 			a := &services.App{
 				Name:               app.Name,
+				Description:        app.Description,
 				URI:                app.URI,
 				PublicAddr:         publicAddr,
 				StaticLabels:       app.StaticLabels,

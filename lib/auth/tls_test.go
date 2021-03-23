@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto"
 	"crypto/tls"
 	"encoding/base32"
 	"encoding/json"
@@ -41,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -49,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -1860,22 +1861,24 @@ func TestGenerateCerts(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, hostCert.ValidPrincipals, "example.com")
 
-	// attempt to elevate privileges by getting admin role in the certificate
-	_, err = hostClient.GenerateServerKeys(
-		GenerateServerKeysRequest{
-			HostID:   hostID,
-			NodeName: srv.AuthServer.ClusterName,
-			Roles:    teleport.Roles{teleport.RoleAdmin},
-		})
-	require.True(t, trace.IsAccessDenied(err))
+	t.Run("HostClients", func(t *testing.T) {
+		// attempt to elevate privileges by getting admin role in the certificate
+		_, err = hostClient.GenerateServerKeys(
+			GenerateServerKeysRequest{
+				HostID:   hostID,
+				NodeName: srv.AuthServer.ClusterName,
+				Roles:    teleport.Roles{teleport.RoleAdmin},
+			})
+		require.True(t, trace.IsAccessDenied(err))
 
-	// attempt to get certificate for different host id
-	_, err = hostClient.GenerateServerKeys(GenerateServerKeysRequest{
-		HostID:   "some-other-host-id",
-		NodeName: srv.AuthServer.ClusterName,
-		Roles:    teleport.Roles{teleport.RoleNode},
+		// attempt to get certificate for different host id
+		_, err = hostClient.GenerateServerKeys(GenerateServerKeysRequest{
+			HostID:   "some-other-host-id",
+			NodeName: srv.AuthServer.ClusterName,
+			Roles:    teleport.Roles{teleport.RoleNode},
+		})
+		require.True(t, trace.IsAccessDenied(err))
 	})
-	require.True(t, trace.IsAccessDenied(err))
 
 	user1, userRole, err := CreateUserAndRole(srv.Auth(), "user1", []string{"user1"})
 	require.NoError(t, err)
@@ -1883,52 +1886,37 @@ func TestGenerateCerts(t *testing.T) {
 	user2, userRole2, err := CreateUserAndRole(srv.Auth(), "user2", []string{"user2"})
 	require.NoError(t, err)
 
-	// unauthenticated client should NOT be able to generate a user cert without auth
-	nopClient, err := srv.NewClient(TestNop())
-	require.NoError(t, err)
+	t.Run("Nop", func(t *testing.T) {
+		// unauthenticated client should NOT be able to generate a user cert without auth
+		nopClient, err := srv.NewClient(TestNop())
+		require.NoError(t, err)
 
-	_, err = nopClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey: pub,
-		Username:  user1.GetName(),
-		Expires:   time.Now().Add(time.Hour).UTC(),
-		Format:    teleport.CertificateFormatStandard,
+		_, err = nopClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+			PublicKey: pub,
+			Username:  user1.GetName(),
+			Expires:   time.Now().Add(time.Hour).UTC(),
+			Format:    teleport.CertificateFormatStandard,
+		})
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), err.Error())
 	})
-	require.Error(t, err)
-	require.True(t, trace.IsAccessDenied(err))
-	require.Contains(t, err.Error(), "this request can be only executed by an admin")
 
-	// User can't generate certificates for another user
 	testUser2 := TestUser(user2.GetName())
 	testUser2.TTL = time.Hour
 	userClient2, err := srv.NewClient(testUser2)
 	require.NoError(t, err)
 
-	_, err = userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey: pub,
-		Username:  user1.GetName(),
-		Expires:   time.Now().Add(time.Hour).UTC(),
-		Format:    teleport.CertificateFormatStandard,
+	t.Run("ImpersonateDeny", func(t *testing.T) {
+		// User can't generate certificates for another user by default
+		_, err = userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
+			PublicKey: pub,
+			Username:  user1.GetName(),
+			Expires:   time.Now().Add(time.Hour).UTC(),
+			Format:    teleport.CertificateFormatStandard,
+		})
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err))
 	})
-	require.Error(t, err)
-	require.True(t, trace.IsAccessDenied(err))
-	require.Contains(t, err.Error(), "this request can be only executed by an admin")
-
-	rc1, err := types.NewRemoteCluster("cluster1")
-	require.NoError(t, err)
-	err = srv.Auth().CreateRemoteCluster(rc1)
-	require.NoError(t, err)
-
-	// User can renew their certificates, however the TTL will be limited
-	// to the TTL of their session for both SSH and x509 certs and
-	// that route to cluster will be encoded in the cert metadata
-	userCerts, err := userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey:      pub,
-		Username:       user2.GetName(),
-		Expires:        time.Now().Add(100 * time.Hour).UTC(),
-		Format:         teleport.CertificateFormatStandard,
-		RouteToCluster: rc1.GetName(),
-	})
-	require.NoError(t, err)
 
 	parseCert := func(sshCert []byte) (*ssh.Certificate, time.Duration) {
 		parsedCert, err := sshutils.ParseCertificate(sshCert)
@@ -1936,120 +1924,266 @@ func TestGenerateCerts(t *testing.T) {
 		validBefore := time.Unix(int64(parsedCert.ValidBefore), 0)
 		return parsedCert, time.Until(validBefore)
 	}
-	_, diff := parseCert(userCerts.SSH)
-	require.Less(t, int64(diff), int64(testUser2.TTL))
 
-	tlsCert, err := tlsca.ParseCertificatePEM(userCerts.TLS)
-	require.NoError(t, err)
-	identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
-	require.NoError(t, err)
-	require.True(t, identity.Expires.Before(time.Now().Add(testUser2.TTL)))
-	require.Equal(t, identity.RouteToCluster, rc1.GetName())
+	clock := srv.Auth().GetClock()
+	t.Run("ImpersonateAllow", func(t *testing.T) {
+		// Super impersonator impersonate anyone and login as root
+		maxSessionTTL := 300 * time.Hour
+		superImpersonatorRole, err := services.NewRole("superimpersonator", types.RoleSpecV3{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.Duration(maxSessionTTL),
+			},
+			Allow: types.RoleConditions{
+				Logins: []string{"root"},
+				Impersonate: &types.ImpersonateConditions{
+					Users: []string{types.Wildcard},
+					Roles: []string{types.Wildcard},
+				},
+				Rules: []types.Rule{},
+			},
+		})
+		require.NoError(t, err)
+		superImpersonator, err := CreateUser(srv.Auth(), "superimpersonator", superImpersonatorRole)
+		require.NoError(t, err)
 
-	// Admin should be allowed to generate certs with TTL longer than max.
-	adminClient, err := srv.NewClient(TestAdmin())
-	require.NoError(t, err)
+		// Impersonator can generate certificates for super impersonator
+		role, err := services.NewRole("impersonate", types.RoleSpecV3{
+			Allow: types.RoleConditions{
+				Logins: []string{superImpersonator.GetName()},
+				Impersonate: &types.ImpersonateConditions{
+					Users: []string{superImpersonator.GetName()},
+					Roles: []string{superImpersonatorRole.GetName()},
+				},
+			},
+		})
+		require.NoError(t, err)
+		impersonator, err := CreateUser(srv.Auth(), "impersonator", role)
+		require.NoError(t, err)
 
-	userCerts, err = adminClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey: pub,
-		Username:  user1.GetName(),
-		Expires:   time.Now().Add(40 * time.Hour).UTC(),
-		Format:    teleport.CertificateFormatStandard,
+		iUser := TestUser(impersonator.GetName())
+		iUser.TTL = time.Hour
+		iClient, err := srv.NewClient(iUser)
+		require.NoError(t, err)
+
+		// can impersonate super impersonator and request certs
+		// longer than their own TTL, but not exceeding super impersonator's max session ttl
+		userCerts, err := iClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+			PublicKey: pub,
+			Username:  superImpersonator.GetName(),
+			Expires:   clock.Now().Add(1000 * time.Hour).UTC(),
+			Format:    teleport.CertificateFormatStandard,
+		})
+		require.NoError(t, err)
+
+		_, diff := parseCert(userCerts.SSH)
+		require.Less(t, int64(diff), int64(iUser.TTL))
+
+		tlsCert, err := tlsca.ParseCertificatePEM(userCerts.TLS)
+		require.NoError(t, err)
+		identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+		require.NoError(t, err)
+
+		// Because the original request has maxed out the possible max
+		// session TTL, it will be adjusted to exactly the value
+		require.Equal(t, identity.Expires.Sub(clock.Now()), maxSessionTTL)
+		require.Equal(t, impersonator.GetName(), identity.Impersonator)
+		require.Equal(t, superImpersonator.GetName(), identity.Username)
+
+		// impersonator can't impersonate user1
+		_, err = iClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+			PublicKey: pub,
+			Username:  user1.GetName(),
+			Expires:   clock.Now().Add(time.Hour).UTC(),
+			Format:    teleport.CertificateFormatStandard,
+		})
+		require.Error(t, err)
+		require.IsType(t, &trace.AccessDeniedError{}, err)
+
+		_, privateKeyPEM, err := utils.MarshalPrivateKey(privateKey.(crypto.Signer))
+		require.NoError(t, err)
+
+		clientCert, err := tls.X509KeyPair(userCerts.TLS, privateKeyPEM)
+		require.NoError(t, err)
+
+		// client that uses impersonated certificate can't impersonate other users
+		// although super impersonator's roles allow it
+		impersonatedClient := srv.NewClientWithCert(clientCert)
+		_, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+			PublicKey: pub,
+			Username:  user1.GetName(),
+			Expires:   time.Now().Add(time.Hour).UTC(),
+			Format:    teleport.CertificateFormatStandard,
+		})
+		require.Error(t, err)
+		require.IsType(t, &trace.AccessDeniedError{}, err)
+		require.Contains(t, err.Error(), "impersonated user can not impersonate anyone else")
+
+		// but can renew their own cert, for example set route to cluster
+		rc, err := types.NewRemoteCluster("cluster-remote")
+		require.NoError(t, err)
+		err = srv.Auth().CreateRemoteCluster(rc)
+		require.NoError(t, err)
+
+		userCerts, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+			PublicKey:      pub,
+			Username:       superImpersonator.GetName(),
+			Expires:        clock.Now().Add(time.Hour).UTC(),
+			Format:         teleport.CertificateFormatStandard,
+			RouteToCluster: rc.GetName(),
+		})
+		require.NoError(t, err)
+		// Make sure impersonator was not lost in the renewed cert
+		tlsCert, err = tlsca.ParseCertificatePEM(userCerts.TLS)
+		require.NoError(t, err)
+		identity, err = tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+		require.NoError(t, err)
+		require.Equal(t, identity.Expires.Sub(clock.Now()), time.Hour)
+		require.Equal(t, impersonator.GetName(), identity.Impersonator)
+		require.Equal(t, superImpersonator.GetName(), identity.Username)
 	})
-	require.NoError(t, err)
 
-	parsedCert, diff := parseCert(userCerts.SSH)
-	require.Less(t, int64(defaults.MaxCertDuration), int64(diff))
+	t.Run("Renew", func(t *testing.T) {
+		testUser2 := TestUser(user2.GetName())
+		testUser2.TTL = time.Hour
+		userClient2, err := srv.NewClient(testUser2)
+		require.NoError(t, err)
 
-	// user should have agent forwarding (default setting)
-	require.Contains(t, parsedCert.Extensions, teleport.CertExtensionPermitAgentForwarding)
+		rc1, err := types.NewRemoteCluster("cluster1")
+		require.NoError(t, err)
+		err = srv.Auth().CreateRemoteCluster(rc1)
+		require.NoError(t, err)
 
-	// user should not have X11 forwarding (default setting)
-	require.NotContains(t, parsedCert.Extensions, teleport.CertExtensionPermitX11Forwarding)
+		// User can renew their certificates, however the TTL will be limited
+		// to the TTL of their session for both SSH and x509 certs and
+		// that route to cluster will be encoded in the cert metadata
+		userCerts, err := userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
+			PublicKey:      pub,
+			Username:       user2.GetName(),
+			Expires:        time.Now().Add(100 * time.Hour).UTC(),
+			Format:         teleport.CertificateFormatStandard,
+			RouteToCluster: rc1.GetName(),
+		})
+		require.NoError(t, err)
 
-	// now update role to permit agent and X11 forwarding
-	roleOptions := userRole.GetOptions()
-	roleOptions.ForwardAgent = services.NewBool(true)
-	roleOptions.PermitX11Forwarding = services.NewBool(true)
-	userRole.SetOptions(roleOptions)
-	err = srv.Auth().UpsertRole(ctx, userRole)
-	require.NoError(t, err)
+		_, diff := parseCert(userCerts.SSH)
+		require.Less(t, int64(diff), int64(testUser2.TTL))
 
-	userCerts, err = adminClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey: pub,
-		Username:  user1.GetName(),
-		Expires:   time.Now().Add(1 * time.Hour).UTC(),
-		Format:    teleport.CertificateFormatStandard,
+		tlsCert, err := tlsca.ParseCertificatePEM(userCerts.TLS)
+		require.NoError(t, err)
+		identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+		require.NoError(t, err)
+		require.True(t, identity.Expires.Before(time.Now().Add(testUser2.TTL)))
+		require.Equal(t, identity.RouteToCluster, rc1.GetName())
 	})
-	require.NoError(t, err)
-	parsedCert, _ = parseCert(userCerts.SSH)
 
-	// user should get agent forwarding
-	require.Contains(t, parsedCert.Extensions, teleport.CertExtensionPermitAgentForwarding)
+	t.Run("Admin", func(t *testing.T) {
+		// Admin should be allowed to generate certs with TTL longer than max.
+		adminClient, err := srv.NewClient(TestAdmin())
+		require.NoError(t, err)
 
-	// user should get X11 forwarding
-	require.Contains(t, parsedCert.Extensions, teleport.CertExtensionPermitX11Forwarding)
+		userCerts, err := adminClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+			PublicKey: pub,
+			Username:  user1.GetName(),
+			Expires:   time.Now().Add(40 * time.Hour).UTC(),
+			Format:    teleport.CertificateFormatStandard,
+		})
+		require.NoError(t, err)
 
-	// apply HTTP Auth to generate user cert:
-	userCerts, err = adminClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey: pub,
-		Username:  user1.GetName(),
-		Expires:   time.Now().Add(time.Hour).UTC(),
-		Format:    teleport.CertificateFormatStandard,
+		parsedCert, diff := parseCert(userCerts.SSH)
+		require.Less(t, int64(defaults.MaxCertDuration), int64(diff))
+
+		// user should have agent forwarding (default setting)
+		require.Contains(t, parsedCert.Extensions, teleport.CertExtensionPermitAgentForwarding)
+
+		// user should not have X11 forwarding (default setting)
+		require.NotContains(t, parsedCert.Extensions, teleport.CertExtensionPermitX11Forwarding)
+
+		// now update role to permit agent and X11 forwarding
+		roleOptions := userRole.GetOptions()
+		roleOptions.ForwardAgent = services.NewBool(true)
+		roleOptions.PermitX11Forwarding = services.NewBool(true)
+		userRole.SetOptions(roleOptions)
+		err = srv.Auth().UpsertRole(ctx, userRole)
+		require.NoError(t, err)
+
+		userCerts, err = adminClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+			PublicKey: pub,
+			Username:  user1.GetName(),
+			Expires:   time.Now().Add(1 * time.Hour).UTC(),
+			Format:    teleport.CertificateFormatStandard,
+		})
+		require.NoError(t, err)
+		parsedCert, _ = parseCert(userCerts.SSH)
+
+		// user should get agent forwarding
+		require.Contains(t, parsedCert.Extensions, teleport.CertExtensionPermitAgentForwarding)
+
+		// user should get X11 forwarding
+		require.Contains(t, parsedCert.Extensions, teleport.CertExtensionPermitX11Forwarding)
+
+		// apply HTTP Auth to generate user cert:
+		userCerts, err = adminClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+			PublicKey: pub,
+			Username:  user1.GetName(),
+			Expires:   time.Now().Add(time.Hour).UTC(),
+			Format:    teleport.CertificateFormatStandard,
+		})
+		require.NoError(t, err)
+
+		_, _, _, _, err = ssh.ParseAuthorizedKey(userCerts.SSH)
+		require.NoError(t, err)
 	})
-	require.NoError(t, err)
 
-	_, _, _, _, err = ssh.ParseAuthorizedKey(userCerts.SSH)
-	require.NoError(t, err)
+	t.Run("DenyLeaf", func(t *testing.T) {
+		// User can't generate certificates for an unknown leaf cluster.
+		_, err = userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
+			PublicKey:      pub,
+			Username:       user2.GetName(),
+			Expires:        time.Now().Add(100 * time.Hour).UTC(),
+			Format:         teleport.CertificateFormatStandard,
+			RouteToCluster: "unknown_cluster",
+		})
+		require.Error(t, err)
 
-	// User can't generate certificates for an unknown leaf cluster.
-	_, err = userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey:      pub,
-		Username:       user2.GetName(),
-		Expires:        time.Now().Add(100 * time.Hour).UTC(),
-		Format:         teleport.CertificateFormatStandard,
-		RouteToCluster: "unknown_cluster",
+		rc2, err := types.NewRemoteCluster("cluster2")
+		require.NoError(t, err)
+		meta := rc2.GetMetadata()
+		meta.Labels = map[string]string{"env": "prod"}
+		rc2.SetMetadata(meta)
+		err = srv.Auth().CreateRemoteCluster(rc2)
+		require.NoError(t, err)
+
+		// User can't generate certificates for leaf cluster they don't have access
+		// to due to labels.
+		_, err = userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
+			PublicKey:      pub,
+			Username:       user2.GetName(),
+			Expires:        time.Now().Add(100 * time.Hour).UTC(),
+			Format:         teleport.CertificateFormatStandard,
+			RouteToCluster: rc2.GetName(),
+		})
+		require.Error(t, err)
+
+		userRole2.SetClusterLabels(types.Allow, types.Labels{"env": utils.Strings{"prod"}})
+		err = srv.Auth().UpsertRole(ctx, userRole2)
+		require.NoError(t, err)
+
+		// User can generate certificates for leaf cluster they do have access to.
+		userCerts, err := userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
+			PublicKey:      pub,
+			Username:       user2.GetName(),
+			Expires:        time.Now().Add(100 * time.Hour).UTC(),
+			Format:         teleport.CertificateFormatStandard,
+			RouteToCluster: rc2.GetName(),
+		})
+		require.NoError(t, err)
+
+		tlsCert, err := tlsca.ParseCertificatePEM(userCerts.TLS)
+		require.NoError(t, err)
+		identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+		require.NoError(t, err)
+		require.Equal(t, identity.RouteToCluster, rc2.GetName())
 	})
-	require.Error(t, err)
-
-	rc2, err := types.NewRemoteCluster("cluster2")
-	require.NoError(t, err)
-	meta := rc2.GetMetadata()
-	meta.Labels = map[string]string{"env": "prod"}
-	rc2.SetMetadata(meta)
-	err = srv.Auth().CreateRemoteCluster(rc2)
-	require.NoError(t, err)
-
-	// User can't generate certificates for leaf cluster they don't have access
-	// to due to labels.
-	_, err = userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey:      pub,
-		Username:       user2.GetName(),
-		Expires:        time.Now().Add(100 * time.Hour).UTC(),
-		Format:         teleport.CertificateFormatStandard,
-		RouteToCluster: rc2.GetName(),
-	})
-	require.Error(t, err)
-
-	userRole2.SetClusterLabels(types.Allow, types.Labels{"env": utils.Strings{"prod"}})
-	err = srv.Auth().UpsertRole(ctx, userRole2)
-	require.NoError(t, err)
-
-	// User can generate certificates for leaf cluster they do have access to.
-	userCerts, err = userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey:      pub,
-		Username:       user2.GetName(),
-		Expires:        time.Now().Add(100 * time.Hour).UTC(),
-		Format:         teleport.CertificateFormatStandard,
-		RouteToCluster: rc2.GetName(),
-	})
-	require.NoError(t, err)
-
-	tlsCert, err = tlsca.ParseCertificatePEM(userCerts.TLS)
-	require.NoError(t, err)
-	identity, err = tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
-	require.NoError(t, err)
-	require.Equal(t, identity.RouteToCluster, rc2.GetName())
 }
 
 // TestGenerateAppToken checks the identity of the caller and makes sure only

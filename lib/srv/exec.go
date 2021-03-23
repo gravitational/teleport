@@ -372,8 +372,9 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 	}
 
 	userMeta := events.UserMetadata{
-		User:  ctx.Identity.TeleportUser,
-		Login: ctx.Identity.Login,
+		User:         ctx.Identity.TeleportUser,
+		Login:        ctx.Identity.Login,
+		Impersonator: ctx.Identity.Impersonator,
 	}
 
 	connectionMeta := events.ConnectionMetadata{

@@ -23,10 +23,10 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
-	"github.com/gravitational/teleport/lib/sshutils"
 
 	"golang.org/x/crypto/ssh"
 
@@ -156,11 +156,13 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	inRoles := []string{"role-1", "role-2"}
+	impersonator := "alice"
 	cert, err = s.A.GenerateUserCert(services.UserCertParams{
 		PrivateCASigningKey:   priv,
 		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
 		Username:              "user",
+		Impersonator:          impersonator,
 		AllowedLogins:         []string{"root"},
 		TTL:                   time.Hour,
 		PermitAgentForwarding: true,
@@ -174,6 +176,9 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 	outRoles, err := services.UnmarshalCertRoles(parsedCert.Extensions[teleport.CertExtensionTeleportRoles])
 	c.Assert(err, check.IsNil)
 	c.Assert(outRoles, check.DeepEquals, inRoles)
+
+	outImpersonator := parsedCert.Extensions[teleport.CertExtensionImpersonator]
+	c.Assert(outImpersonator, check.DeepEquals, impersonator)
 }
 
 func checkCertExpiry(cert []byte, after, before time.Time) error {
