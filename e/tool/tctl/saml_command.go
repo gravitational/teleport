@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/gravitational/kingpin"
@@ -40,7 +41,8 @@ func (cmd *SAMLCommand) TryRun(selectedCommand string, c auth.ClientI) (match bo
 
 // export executes 'tctl saml export <connector_name'
 func (cmd *SAMLCommand) export(c auth.ClientI) error {
-	sc, err := c.GetSAMLConnector(cmd.connectorName, false)
+	ctx := context.TODO()
+	sc, err := c.GetSAMLConnector(ctx, cmd.connectorName, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}

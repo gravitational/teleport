@@ -26,7 +26,8 @@ func (p *Plugin) getAuthConnectorsHandle(w http.ResponseWriter, r *http.Request,
 }
 
 func getAuthConnectors(clt resourcesAPIGetter) ([]ui.ResourceItem, error) {
-	githubConns, err := clt.GetGithubConnectors(true)
+	ctx := context.TODO()
+	githubConns, err := clt.GetGithubConnectors(ctx, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -35,7 +36,7 @@ func getAuthConnectors(clt resourcesAPIGetter) ([]ui.ResourceItem, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	samlConns, err := clt.GetSAMLConnectors(true)
+	samlConns, err := clt.GetSAMLConnectors(ctx, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -44,7 +45,7 @@ func getAuthConnectors(clt resourcesAPIGetter) ([]ui.ResourceItem, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	oidcConns, err := clt.GetOIDCConnectors(true)
+	oidcConns, err := clt.GetOIDCConnectors(ctx, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -101,7 +102,7 @@ func upsertSAMLConnector(ctx context.Context, clt resourcesAPIGetter, content, h
 		return nil, trace.BadParameter("resource kind %q is invalid", extractedRes.Kind)
 	}
 
-	_, err = clt.GetSAMLConnector(extractedRes.Metadata.Name, false)
+	_, err = clt.GetSAMLConnector(ctx, extractedRes.Metadata.Name, false)
 	if err := web.CheckResourceUpsertableByError(err, httpMethod, extractedRes.Metadata.Name); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -156,7 +157,7 @@ func upsertOIDCConnector(ctx context.Context, clt resourcesAPIGetter, content, h
 		return nil, trace.BadParameter("resource kind %q is invalid", extractedRes.Kind)
 	}
 
-	_, err = clt.GetOIDCConnector(extractedRes.Metadata.Name, false)
+	_, err = clt.GetOIDCConnector(ctx, extractedRes.Metadata.Name, false)
 	if err := web.CheckResourceUpsertableByError(err, httpMethod, extractedRes.Metadata.Name); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -175,17 +176,17 @@ func upsertOIDCConnector(ctx context.Context, clt resourcesAPIGetter, content, h
 
 type resourcesAPIGetter interface {
 	// GetGithubConnectors returns all configured Github connectors
-	GetGithubConnectors(withSecrets bool) ([]types.GithubConnector, error)
+	GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
 	// UpsertSAMLConnector updates or creates SAML connector
 	UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error
 	// GetSAMLConnector returns SAML connector information by id
-	GetSAMLConnector(id string, withSecrets bool) (types.SAMLConnector, error)
+	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
 	// GetSAMLConnectors gets SAML connectors list
-	GetSAMLConnectors(withSecrets bool) ([]types.SAMLConnector, error)
+	GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error)
 	// UpsertOIDCConnector updates or creates OIDC connector
 	UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error
 	// GetOIDCConnector returns OIDC connector information by id
-	GetOIDCConnector(id string, withSecrets bool) (types.OIDCConnector, error)
+	GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error)
 	// GetOIDCConnectors gets OIDC connectors list
-	GetOIDCConnectors(withSecrets bool) ([]types.OIDCConnector, error)
+	GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error)
 }

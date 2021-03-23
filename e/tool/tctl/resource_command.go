@@ -61,7 +61,7 @@ func (cmd *ResourceCommandE) createConnector(client auth.ClientI, raw services.U
 
 		// Check if this connector is already in the backend. If it is, and the force
 		// flag was not supplied, return an "connector already exists" error.
-		foundConn, err := client.GetSAMLConnector(connectorName, true)
+		foundConn, err := client.GetSAMLConnector(ctx, connectorName, true)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
@@ -95,7 +95,7 @@ func (cmd *ResourceCommandE) createConnector(client auth.ClientI, raw services.U
 			return trace.Wrap(err)
 		}
 		connectorName = conn.GetName()
-		_, err = client.GetOIDCConnector(connectorName, false)
+		_, err = client.GetOIDCConnector(ctx, connectorName, false)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}

@@ -64,15 +64,15 @@ version: v2
 
 func TestGetAuthConnectors(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
-	m.mockGetGithubConnectors = func(withSecrets bool) ([]types.GithubConnector, error) {
+	m.mockGetGithubConnectors = func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
 		connector := types.NewGithubConnector("githubName", types.GithubConnectorSpecV3{})
 		return []types.GithubConnector{connector}, nil
 	}
-	m.mockGetSAMLConnectors = func(withSecrets bool) ([]types.SAMLConnector, error) {
+	m.mockGetSAMLConnectors = func(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error) {
 		connector := types.NewSAMLConnector("samlName", types.SAMLConnectorSpecV2{})
 		return []types.SAMLConnector{connector}, nil
 	}
-	m.mockGetOIDCConnectors = func(withSecrets bool) ([]types.OIDCConnector, error) {
+	m.mockGetOIDCConnectors = func(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error) {
 		connector := types.NewOIDCConnector("oidcName", types.OIDCConnectorSpecV2{})
 		return []types.OIDCConnector{connector}, nil
 	}
@@ -91,7 +91,7 @@ func TestUpsertSAMLConnector(t *testing.T) {
 	m.mockUpsertSAMLConnector = func(ctx context.Context, connector types.SAMLConnector) error {
 		return nil
 	}
-	m.mockGetSAMLConnector = func(id string, withSecrets bool) (types.SAMLConnector, error) {
+	m.mockGetSAMLConnector = func(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error) {
 		return nil, trace.NotFound("")
 	}
 
@@ -139,7 +139,7 @@ func TestUpsertOIDCConnector(t *testing.T) {
 	m.mockUpsertOIDCConnector = func(ctx context.Context, connector types.OIDCConnector) error {
 		return nil
 	}
-	m.mockGetOIDCConnector = func(id string, withSecrets bool) (types.OIDCConnector, error) {
+	m.mockGetOIDCConnector = func(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error) {
 		return nil, trace.NotFound("")
 	}
 
@@ -173,18 +173,18 @@ spec:
 }
 
 type mockedResourceAPIGetter struct {
-	mockGetGithubConnectors func(withSecrets bool) ([]types.GithubConnector, error)
+	mockGetGithubConnectors func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
 	mockUpsertSAMLConnector func(ctx context.Context, connector types.SAMLConnector) error
-	mockGetSAMLConnector    func(id string, withSecrets bool) (types.SAMLConnector, error)
-	mockGetSAMLConnectors   func(withSecrets bool) ([]types.SAMLConnector, error)
+	mockGetSAMLConnector    func(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
+	mockGetSAMLConnectors   func(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error)
 	mockUpsertOIDCConnector func(ctx context.Context, connector types.OIDCConnector) error
-	mockGetOIDCConnector    func(id string, withSecrets bool) (types.OIDCConnector, error)
-	mockGetOIDCConnectors   func(withSecrets bool) ([]types.OIDCConnector, error)
+	mockGetOIDCConnector    func(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error)
+	mockGetOIDCConnectors   func(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error)
 }
 
-func (m *mockedResourceAPIGetter) GetGithubConnectors(withSecrets bool) ([]types.GithubConnector, error) {
+func (m *mockedResourceAPIGetter) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
 	if m.mockGetGithubConnectors != nil {
-		return m.mockGetGithubConnectors(false)
+		return m.mockGetGithubConnectors(ctx, false)
 	}
 
 	return nil, trace.NotImplemented("mockGetGithubConnectors not implemented")
@@ -198,17 +198,17 @@ func (m *mockedResourceAPIGetter) UpsertSAMLConnector(ctx context.Context, conne
 	return trace.NotImplemented("mockUpsertSAMLConnector not implemented")
 }
 
-func (m *mockedResourceAPIGetter) GetSAMLConnector(id string, withSecrets bool) (types.SAMLConnector, error) {
+func (m *mockedResourceAPIGetter) GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error) {
 	if m.mockGetSAMLConnector != nil {
-		return m.mockGetSAMLConnector(id, withSecrets)
+		return m.mockGetSAMLConnector(ctx, id, withSecrets)
 	}
 
 	return nil, trace.NotImplemented("mockGetSAMLConnector not implemented")
 }
 
-func (m *mockedResourceAPIGetter) GetSAMLConnectors(withSecrets bool) ([]types.SAMLConnector, error) {
+func (m *mockedResourceAPIGetter) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error) {
 	if m.mockGetSAMLConnectors != nil {
-		return m.mockGetSAMLConnectors(withSecrets)
+		return m.mockGetSAMLConnectors(ctx, withSecrets)
 	}
 
 	return nil, trace.NotImplemented("mockGetSAMLConnectors not implemented")
@@ -222,17 +222,17 @@ func (m *mockedResourceAPIGetter) UpsertOIDCConnector(ctx context.Context, conne
 	return trace.NotImplemented("mockUpsertOIDCConnector not implemented")
 }
 
-func (m *mockedResourceAPIGetter) GetOIDCConnector(id string, withSecrets bool) (types.OIDCConnector, error) {
+func (m *mockedResourceAPIGetter) GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error) {
 	if m.mockGetOIDCConnector != nil {
-		return m.mockGetOIDCConnector(id, withSecrets)
+		return m.mockGetOIDCConnector(ctx, id, withSecrets)
 	}
 
 	return nil, trace.NotImplemented("mockGetOIDCConnector not implemented")
 }
 
-func (m *mockedResourceAPIGetter) GetOIDCConnectors(withSecrets bool) ([]types.OIDCConnector, error) {
+func (m *mockedResourceAPIGetter) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error) {
 	if m.mockGetOIDCConnectors != nil {
-		return m.mockGetOIDCConnectors(withSecrets)
+		return m.mockGetOIDCConnectors(ctx, withSecrets)
 	}
 
 	return nil, trace.NotImplemented("mockGetOIDCConnectors not implemented")
