@@ -1153,6 +1153,22 @@ spec:
       kubernetes_groups: ["system:masters"]
 ```
 
+Assigning multiple teams within a single organization is as follows:
+
+```yaml
+   teams_to_logins:
+      - organization: octocats
+        team: team-1
+        logins:
+          - admin
+          - developer
+      - organization: octocats
+        team: team-2
+        logins:
+          - admin
+          - developer
+```
+
 <Admonition type="note">
   For open-source Teleport the `logins` field contains a list of allowed
   OS logins. For the commercial Teleport Enterprise offering, which supports
