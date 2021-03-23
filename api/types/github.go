@@ -258,11 +258,13 @@ func (c *GithubConnectorV3) MapClaims(claims GithubClaims) ([]string, []string, 
 			continue
 		}
 		for _, team := range teams {
-			// see if the user belongs to this team
-			if team == mapping.Team {
+			// see if the user belongs to this team or if there is a catch-all
+			// config for the organization
+			if team == mapping.Team || mapping.Team == "*" {
 				roles = append(roles, mapping.Logins...)
 				kubeGroups = append(kubeGroups, mapping.KubeGroups...)
 				kubeUsers = append(kubeUsers, mapping.KubeUsers...)
+				break
 			}
 		}
 	}
@@ -273,9 +275,11 @@ func (c *GithubConnectorV3) MapClaims(claims GithubClaims) ([]string, []string, 
 			continue
 		}
 		for _, team := range teams {
-			// see if the user belongs to this team
-			if team == mapping.Team {
+			// see if the user belongs to this team or if there is a catch-all
+			// config for the organization
+			if team == mapping.Team || mapping.Team == "*" {
 				roles = append(roles, mapping.Roles...)
+				break
 			}
 		}
 	}
