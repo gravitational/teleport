@@ -143,10 +143,7 @@ func tagPipelines() []pipeline {
 			}
 			ps = append(ps, tagPipeline(buildType{os: "linux", arch: arch, fips: fips}))
 
-			if arch == "arm" || arch == "arm64" {
-				// TODO(gus): support needs to be added upstream for building ARM/ARM64 packages first
-				continue
-			}
+			// RPM/DEB package builds
 			for _, packageType := range []string{rpmPackage, debPackage} {
 				ps = append(ps, tagPackagePipeline(packageType, buildType{os: "linux", arch: arch, fips: fips}))
 			}
