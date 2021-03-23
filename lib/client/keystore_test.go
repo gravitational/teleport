@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path"
 	"testing"
 	"time"
 
@@ -80,7 +79,7 @@ func TestListKeys(t *testing.T) {
 	require.Equal(t, samKey.Pub, skey.Pub)
 }
 
-func TestEmbeddedDirsInKeystoreIsNotAnError(t *testing.T) {
+func TestEmptyTeleportClusterNameIsNotAnError(t *testing.T) {
 	s, cleanup := newTest(t)
 	defer cleanup()
 
@@ -90,13 +89,9 @@ func TestEmbeddedDirsInKeystoreIsNotAnError(t *testing.T) {
 	key := s.makeSignedKey(t, false)
 	require.NoError(t, s.addKey(host, user, key))
 
-	// ... *and* an invalid folder injected into it
-	p := s.store.dirFor(host)
-	spuriousDirPath := path.Join(p, user+"-db", "root", "aaa-should-not-be-here")
-	require.NoError(t, os.MkdirAll(spuriousDirPath, 0700))
-
-	// When I attempt to enumerate the DB keys
-	_, err := s.store.GetKey(host, user, WithDBCerts(key.ClusterName, ""))
+	// When I attempt to enumerate the DB keys with an empty teleport
+	// cluster name
+	_, err := s.store.GetKey(host, user, WithDBCerts("", ""))
 
 	// Expect the key enumeration to succeed
 	require.NoError(t, err)

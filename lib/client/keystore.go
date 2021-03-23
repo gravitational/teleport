@@ -383,6 +383,16 @@ type withKubeCerts struct {
 func (o withKubeCerts) getKey(store LocalKeyStore, idx keyIndex, key *Key) error {
 	switch s := store.(type) {
 	case *FSLocalKeyStore:
+		// If we are reading from a `~/.tsh` directrory made by a pre-6.0 version
+		// of `tsh`, the teleportClusterName can sometimes be empty, and we will
+		// end up enumerating the parent directory instead, and failing badly.
+		// For more info, see:
+		//    https://github.com/gravitational/teleport/issues/5774
+		if o.teleportClusterName == "" {
+			s.log.Warning("Empty teleport cluster name, abandoning key search.")
+			return nil
+		}
+
 		dirPath := s.dirFor(idx.proxyHost)
 		kubeDir := filepath.Join(dirPath, idx.username+kubeDirSuffix, o.teleportClusterName)
 		kubeFiles, err := ioutil.ReadDir(kubeDir)
@@ -393,9 +403,6 @@ func (o withKubeCerts) getKey(store LocalKeyStore, idx keyIndex, key *Key) error
 			key.KubeTLSCerts = make(map[string][]byte)
 		}
 		for _, fi := range kubeFiles {
-			if fi.IsDir() {
-				continue
-			}
 			data, err := ioutil.ReadFile(filepath.Join(kubeDir, fi.Name()))
 			if err != nil {
 				return trace.Wrap(err)
@@ -452,6 +459,16 @@ type withDBCerts struct {
 func (o withDBCerts) getKey(store LocalKeyStore, idx keyIndex, key *Key) error {
 	switch s := store.(type) {
 	case *FSLocalKeyStore:
+		// If we are reading from a `~/.tsh` directrory made by a pre-6.0 version
+		// of `tsh`, the teleportClusterName can sometimes be empty, and we will
+		// end up enumerating the parent directory instead, and failing badly.
+		// For more info, see:
+		//    https://github.com/gravitational/teleport/issues/5774
+		if o.teleportClusterName == "" {
+			s.log.Warning("Empty teleport cluster name, abandoning key search.")
+			return nil
+		}
+
 		dirPath := s.dirFor(idx.proxyHost)
 		dbDir := filepath.Join(dirPath, idx.username+dbDirSuffix, o.teleportClusterName)
 		dbFiles, err := ioutil.ReadDir(dbDir)
@@ -462,9 +479,6 @@ func (o withDBCerts) getKey(store LocalKeyStore, idx keyIndex, key *Key) error {
 			key.DBTLSCerts = make(map[string][]byte)
 		}
 		for _, fi := range dbFiles {
-			if fi.IsDir() {
-				continue
-			}
 			data, err := ioutil.ReadFile(filepath.Join(dbDir, fi.Name()))
 			if err != nil {
 				return trace.Wrap(err)
