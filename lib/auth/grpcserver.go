@@ -46,7 +46,6 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/emptypb"
 
 	// Register gzip compressor for gRPC.
 	_ "google.golang.org/grpc/encoding/gzip"
@@ -1867,7 +1866,7 @@ func (g *GRPCServer) IsMFARequired(ctx context.Context, req *proto.IsMFARequired
 	return resp, nil
 }
 
-func (g *GRPCServer) GetPAMConfig(ctx context.Context, _ *emptypb.Empty) (*types.PAMConfigV3, error) {
+func (g *GRPCServer) GetPAMConfig(ctx context.Context, _ *empty.Empty) (*types.PAMConfigV3, error) {
 	actx, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
@@ -1884,7 +1883,7 @@ func (g *GRPCServer) GetPAMConfig(ctx context.Context, _ *emptypb.Empty) (*types
 	return concrete, nil
 }
 
-func (g *GRPCServer) SetPAMConfig(ctx context.Context, config *types.PAMConfigV3) (*emptypb.Empty, error) {
+func (g *GRPCServer) SetPAMConfig(ctx context.Context, config *types.PAMConfigV3) (*empty.Empty, error) {
 	actx, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
@@ -1893,7 +1892,7 @@ func (g *GRPCServer) SetPAMConfig(ctx context.Context, config *types.PAMConfigV3
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	return &emptypb.Empty{}, nil
+	return &empty.Empty{}, nil
 }
 
 type grpcContext struct {
