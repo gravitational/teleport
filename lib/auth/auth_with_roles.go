@@ -2625,8 +2625,14 @@ func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s services.Serv
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	_, isService := a.context.Checker.(BuiltinRoleSet)
+	isMFAVerified := a.context.Identity.GetIdentity().MFAVerified != ""
 	mfaParams := services.AccessMFAParams{
-		Verified:       a.context.Identity.GetIdentity().MFAVerified != "",
+		// MFA requirement only applies to users.
+		//
+		// Builtin services (like proxy_service and kube_service) are not gated
+		// on MFA and only need to pass the RBAC action check above.
+		Verified:       isService || isMFAVerified,
 		AlwaysRequired: ap.GetRequireSessionMFA(),
 	}
 	for _, kube := range s.GetKubernetesClusters() {
