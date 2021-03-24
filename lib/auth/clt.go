@@ -561,7 +561,7 @@ func (c *Client) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 }
 
 // UpsertToken adds provisioning tokens for the auth server
-func (c *Client) UpsertToken(tok services.ProvisionToken) error {
+func (c *Client) UpsertToken(ctx context.Context, tok services.ProvisionToken) error {
 	_, err := c.PostJSON(c.Endpoint("tokens"), GenerateTokenRequest{
 		Token: tok.GetName(),
 		Roles: tok.GetRoles(),
@@ -574,7 +574,7 @@ func (c *Client) UpsertToken(tok services.ProvisionToken) error {
 }
 
 // GetTokens returns a list of active invitation tokens for nodes and users
-func (c *Client) GetTokens(opts ...services.MarshalOption) ([]services.ProvisionToken, error) {
+func (c *Client) GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]services.ProvisionToken, error) {
 	out, err := c.Get(c.Endpoint("tokens"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -587,7 +587,7 @@ func (c *Client) GetTokens(opts ...services.MarshalOption) ([]services.Provision
 }
 
 // GetToken returns provisioning token
-func (c *Client) GetToken(token string) (services.ProvisionToken, error) {
+func (c *Client) GetToken(ctx context.Context, token string) (services.ProvisionToken, error) {
 	out, err := c.Get(c.Endpoint("tokens", token), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -597,13 +597,13 @@ func (c *Client) GetToken(token string) (services.ProvisionToken, error) {
 
 // DeleteToken deletes a given provisioning token on the auth server (CA). It
 // could be a reset password token or a machine token
-func (c *Client) DeleteToken(token string) error {
+func (c *Client) DeleteToken(ctx context.Context, token string) error {
 	_, err := c.Delete(c.Endpoint("tokens", token))
 	return trace.Wrap(err)
 }
 
 // RegisterNewAuthServer is used to register new auth server with token
-func (c *Client) RegisterNewAuthServer(token string) error {
+func (c *Client) RegisterNewAuthServer(ctx context.Context, token string) error {
 	_, err := c.PostJSON(c.Endpoint("tokens", "register", "auth"), registerNewAuthServerReq{
 		Token: token,
 	})
@@ -1244,7 +1244,7 @@ func (c *Client) UpsertOIDCConnector(ctx context.Context, connector services.OID
 }
 
 // GetOIDCConnector returns OIDC connector information by id
-func (c *Client) GetOIDCConnector(id string, withSecrets bool) (services.OIDCConnector, error) {
+func (c *Client) GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (services.OIDCConnector, error) {
 	if id == "" {
 		return nil, trace.BadParameter("missing connector id")
 	}
@@ -1257,7 +1257,7 @@ func (c *Client) GetOIDCConnector(id string, withSecrets bool) (services.OIDCCon
 }
 
 // GetOIDCConnectors gets OIDC connectors list
-func (c *Client) GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, error) {
+func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]services.OIDCConnector, error) {
 	out, err := c.Get(c.Endpoint("oidc", "connectors"),
 		url.Values{"with_secrets": []string{fmt.Sprintf("%t", withSecrets)}})
 	if err != nil {
@@ -1370,7 +1370,7 @@ func (c *Client) UpsertSAMLConnector(ctx context.Context, connector services.SAM
 }
 
 // GetSAMLConnector returns SAML connector information by id
-func (c *Client) GetSAMLConnector(id string, withSecrets bool) (services.SAMLConnector, error) {
+func (c *Client) GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (services.SAMLConnector, error) {
 	if id == "" {
 		return nil, trace.BadParameter("missing connector id")
 	}
@@ -1383,7 +1383,7 @@ func (c *Client) GetSAMLConnector(id string, withSecrets bool) (services.SAMLCon
 }
 
 // GetSAMLConnectors gets SAML connectors list
-func (c *Client) GetSAMLConnectors(withSecrets bool) ([]services.SAMLConnector, error) {
+func (c *Client) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]services.SAMLConnector, error) {
 	out, err := c.Get(c.Endpoint("saml", "connectors"),
 		url.Values{"with_secrets": []string{fmt.Sprintf("%t", withSecrets)}})
 	if err != nil {
@@ -1496,7 +1496,7 @@ func (c *Client) UpsertGithubConnector(ctx context.Context, connector services.G
 }
 
 // GetGithubConnectors returns all configured Github connectors
-func (c *Client) GetGithubConnectors(withSecrets bool) ([]services.GithubConnector, error) {
+func (c *Client) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]services.GithubConnector, error) {
 	out, err := c.Get(c.Endpoint("github", "connectors"), url.Values{
 		"with_secrets": []string{strconv.FormatBool(withSecrets)},
 	})
@@ -1519,7 +1519,7 @@ func (c *Client) GetGithubConnectors(withSecrets bool) ([]services.GithubConnect
 }
 
 // GetGithubConnector returns the specified Github connector
-func (c *Client) GetGithubConnector(id string, withSecrets bool) (services.GithubConnector, error) {
+func (c *Client) GetGithubConnector(ctx context.Context, id string, withSecrets bool) (services.GithubConnector, error) {
 	out, err := c.Get(c.Endpoint("github", "connectors", id), url.Values{
 		"with_secrets": []string{strconv.FormatBool(withSecrets)},
 	})
@@ -2050,7 +2050,7 @@ func (c *Client) DeleteAllUsers() error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-func (c *Client) GetTrustedCluster(name string) (services.TrustedCluster, error) {
+func (c *Client) GetTrustedCluster(ctx context.Context, name string) (services.TrustedCluster, error) {
 	out, err := c.Get(c.Endpoint("trustedclusters", name), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2064,7 +2064,7 @@ func (c *Client) GetTrustedCluster(name string) (services.TrustedCluster, error)
 	return trustedCluster, nil
 }
 
-func (c *Client) GetTrustedClusters() ([]services.TrustedCluster, error) {
+func (c *Client) GetTrustedClusters(ctx context.Context) ([]services.TrustedCluster, error) {
 	out, err := c.Get(c.Endpoint("trustedclusters"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2214,10 +2214,10 @@ type IdentityService interface {
 	UpsertOIDCConnector(ctx context.Context, connector services.OIDCConnector) error
 
 	// GetOIDCConnector returns OIDC connector information by id
-	GetOIDCConnector(id string, withSecrets bool) (services.OIDCConnector, error)
+	GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (services.OIDCConnector, error)
 
 	// GetOIDCConnector gets OIDC connectors list
-	GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, error)
+	GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]services.OIDCConnector, error)
 
 	// DeleteOIDCConnector deletes OIDC connector by ID
 	DeleteOIDCConnector(ctx context.Context, connectorID string) error
@@ -2235,10 +2235,10 @@ type IdentityService interface {
 	UpsertSAMLConnector(ctx context.Context, connector services.SAMLConnector) error
 
 	// GetSAMLConnector returns SAML connector information by id
-	GetSAMLConnector(id string, withSecrets bool) (services.SAMLConnector, error)
+	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (services.SAMLConnector, error)
 
 	// GetSAMLConnector gets SAML connectors list
-	GetSAMLConnectors(withSecrets bool) ([]services.SAMLConnector, error)
+	GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]services.SAMLConnector, error)
 
 	// DeleteSAMLConnector deletes SAML connector by ID
 	DeleteSAMLConnector(ctx context.Context, connectorID string) error
@@ -2254,9 +2254,9 @@ type IdentityService interface {
 	// UpsertGithubConnector creates or updates a Github connector
 	UpsertGithubConnector(ctx context.Context, connector services.GithubConnector) error
 	// GetGithubConnectors returns all configured Github connectors
-	GetGithubConnectors(withSecrets bool) ([]services.GithubConnector, error)
+	GetGithubConnectors(ctx context.Context, withSecrets bool) ([]services.GithubConnector, error)
 	// GetGithubConnector returns the specified Github connector
-	GetGithubConnector(id string, withSecrets bool) (services.GithubConnector, error)
+	GetGithubConnector(ctx context.Context, id string, withSecrets bool) (services.GithubConnector, error)
 	// DeleteGithubConnector deletes the specified Github connector
 	DeleteGithubConnector(ctx context.Context, id string) error
 	// CreateGithubAuthRequest creates a new request for Github OAuth2 flow
@@ -2351,27 +2351,27 @@ type IdentityService interface {
 // of adding new nodes, auth servers and proxies to the cluster
 type ProvisioningService interface {
 	// GetTokens returns a list of active invitation tokens for nodes and users
-	GetTokens(opts ...services.MarshalOption) (tokens []services.ProvisionToken, err error)
+	GetTokens(ctx context.Context, opts ...services.MarshalOption) (tokens []services.ProvisionToken, err error)
 
 	// GetToken returns provisioning token
-	GetToken(token string) (services.ProvisionToken, error)
+	GetToken(ctx context.Context, token string) (services.ProvisionToken, error)
 
 	// DeleteToken deletes a given provisioning token on the auth server (CA). It
 	// could be a reset password token or a machine token
-	DeleteToken(token string) error
+	DeleteToken(ctx context.Context, token string) error
 
 	// DeleteAllTokens deletes all provisioning tokens
 	DeleteAllTokens() error
 
 	// UpsertToken adds provisioning tokens for the auth server
-	UpsertToken(services.ProvisionToken) error
+	UpsertToken(ctx context.Context, token services.ProvisionToken) error
 
 	// RegisterUsingToken calls the auth service API to register a new node via registration token
 	// which has been previously issued via GenerateToken
 	RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys, error)
 
 	// RegisterNewAuthServer is used to register new auth server with token
-	RegisterNewAuthServer(token string) error
+	RegisterNewAuthServer(ctx context.Context, token string) error
 }
 
 // ClientI is a client to Auth service

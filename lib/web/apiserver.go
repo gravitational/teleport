@@ -566,7 +566,7 @@ func githubSettings(connector services.GithubConnector, cap services.AuthPrefere
 	}
 }
 
-func defaultAuthenticationSettings(authClient auth.ClientI) (client.AuthenticationSettings, error) {
+func defaultAuthenticationSettings(ctx context.Context, authClient auth.ClientI) (client.AuthenticationSettings, error) {
 	cap, err := authClient.GetAuthPreference()
 	if err != nil {
 		return client.AuthenticationSettings{}, trace.Wrap(err)
@@ -582,14 +582,14 @@ func defaultAuthenticationSettings(authClient auth.ClientI) (client.Authenticati
 		}
 	case teleport.OIDC:
 		if cap.GetConnectorName() != "" {
-			oidcConnector, err := authClient.GetOIDCConnector(cap.GetConnectorName(), false)
+			oidcConnector, err := authClient.GetOIDCConnector(ctx, cap.GetConnectorName(), false)
 			if err != nil {
 				return client.AuthenticationSettings{}, trace.Wrap(err)
 			}
 
 			as = oidcSettings(oidcConnector, cap)
 		} else {
-			oidcConnectors, err := authClient.GetOIDCConnectors(false)
+			oidcConnectors, err := authClient.GetOIDCConnectors(ctx, false)
 			if err != nil {
 				return client.AuthenticationSettings{}, trace.Wrap(err)
 			}
@@ -601,14 +601,14 @@ func defaultAuthenticationSettings(authClient auth.ClientI) (client.Authenticati
 		}
 	case teleport.SAML:
 		if cap.GetConnectorName() != "" {
-			samlConnector, err := authClient.GetSAMLConnector(cap.GetConnectorName(), false)
+			samlConnector, err := authClient.GetSAMLConnector(ctx, cap.GetConnectorName(), false)
 			if err != nil {
 				return client.AuthenticationSettings{}, trace.Wrap(err)
 			}
 
 			as = samlSettings(samlConnector, cap)
 		} else {
-			samlConnectors, err := authClient.GetSAMLConnectors(false)
+			samlConnectors, err := authClient.GetSAMLConnectors(ctx, false)
 			if err != nil {
 				return client.AuthenticationSettings{}, trace.Wrap(err)
 			}
@@ -620,13 +620,13 @@ func defaultAuthenticationSettings(authClient auth.ClientI) (client.Authenticati
 		}
 	case teleport.Github:
 		if cap.GetConnectorName() != "" {
-			githubConnector, err := authClient.GetGithubConnector(cap.GetConnectorName(), false)
+			githubConnector, err := authClient.GetGithubConnector(ctx, cap.GetConnectorName(), false)
 			if err != nil {
 				return client.AuthenticationSettings{}, trace.Wrap(err)
 			}
 			as = githubSettings(githubConnector, cap)
 		} else {
-			githubConnectors, err := authClient.GetGithubConnectors(false)
+			githubConnectors, err := authClient.GetGithubConnectors(ctx, false)
 			if err != nil {
 				return client.AuthenticationSettings{}, trace.Wrap(err)
 			}
@@ -645,7 +645,7 @@ func defaultAuthenticationSettings(authClient auth.ClientI) (client.Authenticati
 func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var err error
 
-	defaultSettings, err := defaultAuthenticationSettings(h.cfg.ProxyClient)
+	defaultSettings, err := defaultAuthenticationSettings(r.Context(), h.cfg.ProxyClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -690,21 +690,21 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	}
 
 	// first look for a oidc connector with that name
-	oidcConnector, err := authClient.GetOIDCConnector(connectorName, false)
+	oidcConnector, err := authClient.GetOIDCConnector(r.Context(), connectorName, false)
 	if err == nil {
 		response.Auth = oidcSettings(oidcConnector, cap)
 		return response, nil
 	}
 
 	// if no oidc connector was found, look for a saml connector
-	samlConnector, err := authClient.GetSAMLConnector(connectorName, false)
+	samlConnector, err := authClient.GetSAMLConnector(r.Context(), connectorName, false)
 	if err == nil {
 		response.Auth = samlSettings(samlConnector, cap)
 		return response, nil
 	}
 
 	// look for github connector
-	githubConnector, err := authClient.GetGithubConnector(connectorName, false)
+	githubConnector, err := authClient.GetGithubConnector(r.Context(), connectorName, false)
 	if err == nil {
 		response.Auth = githubSettings(githubConnector, cap)
 		return response, nil
@@ -721,7 +721,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	secondFactor := constants.SecondFactorOff
 
 	// get all OIDC connectors
-	oidcConnectors, err := h.cfg.ProxyClient.GetOIDCConnectors(false)
+	oidcConnectors, err := h.cfg.ProxyClient.GetOIDCConnectors(r.Context(), false)
 	if err != nil {
 		h.log.WithError(err).Error("Cannot retrieve OIDC connectors.")
 	}
@@ -735,7 +735,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	// get all SAML connectors
-	samlConnectors, err := h.cfg.ProxyClient.GetSAMLConnectors(false)
+	samlConnectors, err := h.cfg.ProxyClient.GetSAMLConnectors(r.Context(), false)
 	if err != nil {
 		h.log.WithError(err).Error("Cannot retrieve SAML connectors.")
 	}
@@ -749,7 +749,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	// get all Github connectors
-	githubConnectors, err := h.cfg.ProxyClient.GetGithubConnectors(false)
+	githubConnectors, err := h.cfg.ProxyClient.GetGithubConnectors(r.Context(), false)
 	if err != nil {
 		h.log.WithError(err).Error("Cannot retrieve Github connectors.")
 	}

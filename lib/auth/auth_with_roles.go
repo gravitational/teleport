@@ -330,9 +330,9 @@ func (a *ServerWithRoles) RegisterUsingToken(req RegisterUsingTokenRequest) (*Pa
 	return a.authServer.RegisterUsingToken(req)
 }
 
-func (a *ServerWithRoles) RegisterNewAuthServer(token string) error {
+func (a *ServerWithRoles) RegisterNewAuthServer(ctx context.Context, token string) error {
 	// tokens have authz mechanism  on their own, no need to check
-	return a.authServer.RegisterNewAuthServer(token)
+	return a.authServer.RegisterNewAuthServer(ctx, token)
 }
 
 // GenerateServerKeys generates new host private keys and certificates (signed
@@ -725,38 +725,38 @@ func (a *ServerWithRoles) DeleteReverseTunnel(domainName string) error {
 	return a.authServer.DeleteReverseTunnel(domainName)
 }
 
-func (a *ServerWithRoles) DeleteToken(token string) error {
+func (a *ServerWithRoles) DeleteToken(ctx context.Context, token string) error {
 	if err := a.action(defaults.Namespace, services.KindToken, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteToken(token)
+	return a.authServer.DeleteToken(ctx, token)
 }
 
-func (a *ServerWithRoles) GetTokens(opts ...services.MarshalOption) ([]services.ProvisionToken, error) {
+func (a *ServerWithRoles) GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]services.ProvisionToken, error) {
 	if err := a.action(defaults.Namespace, services.KindToken, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := a.action(defaults.Namespace, services.KindToken, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetTokens(opts...)
+	return a.authServer.GetTokens(ctx, opts...)
 }
 
-func (a *ServerWithRoles) GetToken(token string) (services.ProvisionToken, error) {
+func (a *ServerWithRoles) GetToken(ctx context.Context, token string) (services.ProvisionToken, error) {
 	if err := a.action(defaults.Namespace, services.KindToken, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetToken(token)
+	return a.authServer.GetToken(ctx, token)
 }
 
-func (a *ServerWithRoles) UpsertToken(token services.ProvisionToken) error {
+func (a *ServerWithRoles) UpsertToken(ctx context.Context, token services.ProvisionToken) error {
 	if err := a.action(defaults.Namespace, services.KindToken, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.action(defaults.Namespace, services.KindToken, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertToken(token)
+	return a.authServer.UpsertToken(ctx, token)
 }
 
 func (a *ServerWithRoles) UpsertPassword(user string, password []byte) error {
@@ -1462,7 +1462,7 @@ func (a *ServerWithRoles) UpsertOIDCConnector(ctx context.Context, connector ser
 	return a.authServer.UpsertOIDCConnector(ctx, connector)
 }
 
-func (a *ServerWithRoles) GetOIDCConnector(id string, withSecrets bool) (services.OIDCConnector, error) {
+func (a *ServerWithRoles) GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (services.OIDCConnector, error) {
 	if err := a.authConnectorAction(defaults.Namespace, services.KindOIDC, services.VerbReadNoSecrets); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1471,10 +1471,10 @@ func (a *ServerWithRoles) GetOIDCConnector(id string, withSecrets bool) (service
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.Identity.GetOIDCConnector(id, withSecrets)
+	return a.authServer.Identity.GetOIDCConnector(ctx, id, withSecrets)
 }
 
-func (a *ServerWithRoles) GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, error) {
+func (a *ServerWithRoles) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]services.OIDCConnector, error) {
 	if err := a.authConnectorAction(defaults.Namespace, services.KindOIDC, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1486,7 +1486,7 @@ func (a *ServerWithRoles) GetOIDCConnectors(withSecrets bool) ([]services.OIDCCo
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.Identity.GetOIDCConnectors(withSecrets)
+	return a.authServer.Identity.GetOIDCConnectors(ctx, withSecrets)
 }
 
 func (a *ServerWithRoles) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {
@@ -1532,7 +1532,7 @@ func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector ser
 	return a.authServer.UpsertSAMLConnector(ctx, connector)
 }
 
-func (a *ServerWithRoles) GetSAMLConnector(id string, withSecrets bool) (services.SAMLConnector, error) {
+func (a *ServerWithRoles) GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (services.SAMLConnector, error) {
 	if err := a.authConnectorAction(defaults.Namespace, services.KindSAML, services.VerbReadNoSecrets); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1541,10 +1541,10 @@ func (a *ServerWithRoles) GetSAMLConnector(id string, withSecrets bool) (service
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.Identity.GetSAMLConnector(id, withSecrets)
+	return a.authServer.Identity.GetSAMLConnector(ctx, id, withSecrets)
 }
 
-func (a *ServerWithRoles) GetSAMLConnectors(withSecrets bool) ([]services.SAMLConnector, error) {
+func (a *ServerWithRoles) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]services.SAMLConnector, error) {
 	if err := a.authConnectorAction(defaults.Namespace, services.KindSAML, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1556,7 +1556,7 @@ func (a *ServerWithRoles) GetSAMLConnectors(withSecrets bool) ([]services.SAMLCo
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.Identity.GetSAMLConnectors(withSecrets)
+	return a.authServer.Identity.GetSAMLConnectors(ctx, withSecrets)
 }
 
 func (a *ServerWithRoles) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error) {
@@ -1622,7 +1622,7 @@ func (a *ServerWithRoles) UpsertGithubConnector(ctx context.Context, connector s
 	return a.authServer.upsertGithubConnector(ctx, connector)
 }
 
-func (a *ServerWithRoles) GetGithubConnector(id string, withSecrets bool) (services.GithubConnector, error) {
+func (a *ServerWithRoles) GetGithubConnector(ctx context.Context, id string, withSecrets bool) (services.GithubConnector, error) {
 	if err := a.authConnectorAction(defaults.Namespace, services.KindGithub, services.VerbReadNoSecrets); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1631,10 +1631,10 @@ func (a *ServerWithRoles) GetGithubConnector(id string, withSecrets bool) (servi
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.Identity.GetGithubConnector(id, withSecrets)
+	return a.authServer.Identity.GetGithubConnector(ctx, id, withSecrets)
 }
 
-func (a *ServerWithRoles) GetGithubConnectors(withSecrets bool) ([]services.GithubConnector, error) {
+func (a *ServerWithRoles) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]services.GithubConnector, error) {
 	if err := a.authConnectorAction(defaults.Namespace, services.KindGithub, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1646,7 +1646,7 @@ func (a *ServerWithRoles) GetGithubConnectors(withSecrets bool) ([]services.Gith
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.Identity.GetGithubConnectors(withSecrets)
+	return a.authServer.Identity.GetGithubConnectors(ctx, withSecrets)
 }
 
 // DeleteGithubConnector deletes a Github connector by name.
@@ -2094,7 +2094,7 @@ func (a *ServerWithRoles) DeleteAllUsers() error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-func (a *ServerWithRoles) GetTrustedClusters() ([]services.TrustedCluster, error) {
+func (a *ServerWithRoles) GetTrustedClusters(ctx context.Context) ([]services.TrustedCluster, error) {
 	if err := a.action(defaults.Namespace, services.KindTrustedCluster, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2102,15 +2102,15 @@ func (a *ServerWithRoles) GetTrustedClusters() ([]services.TrustedCluster, error
 		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.GetTrustedClusters()
+	return a.authServer.GetTrustedClusters(ctx)
 }
 
-func (a *ServerWithRoles) GetTrustedCluster(name string) (services.TrustedCluster, error) {
+func (a *ServerWithRoles) GetTrustedCluster(ctx context.Context, name string) (services.TrustedCluster, error) {
 	if err := a.action(defaults.Namespace, services.KindTrustedCluster, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.GetTrustedCluster(name)
+	return a.authServer.GetTrustedCluster(ctx, name)
 }
 
 // UpsertTrustedCluster creates or updates a trusted cluster.

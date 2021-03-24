@@ -623,7 +623,7 @@ func TestMigrateOSS(t *testing.T) {
 		err = migrateOSS(ctx, as)
 		require.NoError(t, err)
 
-		out, err := as.GetTrustedCluster(foo.GetName())
+		out, err := as.GetTrustedCluster(ctx, foo.GetName())
 		require.NoError(t, err)
 		mapping := types.RoleMap{{Remote: teleport.AdminRoleName, Local: []string{teleport.AdminRoleName}}}
 		require.Equal(t, mapping, out.GetRoleMap())
@@ -684,7 +684,7 @@ func TestMigrateOSS(t *testing.T) {
 		err = migrateOSS(ctx, as)
 		require.NoError(t, err)
 
-		out, err := as.GetGithubConnector(connector.GetName(), false)
+		out, err := as.GetGithubConnector(ctx, connector.GetName(), false)
 		require.NoError(t, err)
 		require.Equal(t, types.True, out.GetMetadata().Labels[teleport.OSSMigratedV6])
 
@@ -713,7 +713,7 @@ func TestMigrateOSS(t *testing.T) {
 		err = migrateOSS(ctx, as)
 		require.NoError(t, err)
 
-		out, err = as.GetGithubConnector(connector.GetName(), false)
+		out, err = as.GetGithubConnector(ctx, connector.GetName(), false)
 		require.NoError(t, err)
 		require.Equal(t, mappings, out.GetTeamsToLogins())
 	})
