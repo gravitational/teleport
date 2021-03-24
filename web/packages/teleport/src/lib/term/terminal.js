@@ -180,6 +180,11 @@ class TtyTerminal {
   }
 
   _processU2FChallenge(payload) {
+    if (!window.u2f) {
+      const termMsg = 'This browser does not support U2F required for hardware tokens, please try Chrome or Firefox instead.';
+      this.term.write(`\x1b[31m${termMsg}\x1b[m\r\n`);
+      return;
+    }
     const data = JSON.parse(payload);
     window.u2f.sign(data.appId, data.challenge, data.u2f_challenges, this._processU2FResponse.bind(this));
   }
