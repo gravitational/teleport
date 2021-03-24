@@ -45,7 +45,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster servic
 	var existingCluster services.TrustedCluster
 	if trustedCluster.GetName() != "" {
 		var err error
-		if existingCluster, err = a.Presence.GetTrustedCluster(trustedCluster.GetName()); err == nil {
+		if existingCluster, err = a.Presence.GetTrustedCluster(ctx, trustedCluster.GetName()); err == nil {
 			exists = true
 		}
 	}
@@ -147,8 +147,8 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster servic
 			Code: events.TrustedClusterCreateCode,
 		},
 		UserMetadata: events.UserMetadata{
-			User:         clientUsername(ctx),
-			Impersonator: clientImpersonator(ctx),
+			User:         ClientUsername(ctx),
+			Impersonator: ClientImpersonator(ctx),
 		},
 		ResourceMetadata: events.ResourceMetadata{
 			Name: trustedCluster.GetName(),
@@ -221,8 +221,8 @@ func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
 			Code: events.TrustedClusterDeleteCode,
 		},
 		UserMetadata: events.UserMetadata{
-			User:         clientUsername(ctx),
-			Impersonator: clientImpersonator(ctx),
+			User:         ClientUsername(ctx),
+			Impersonator: ClientImpersonator(ctx),
 		},
 		ResourceMetadata: events.ResourceMetadata{
 			Name: name,

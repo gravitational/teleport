@@ -220,16 +220,17 @@ version: v3`
 }
 
 func TestGetGithubConnectors(t *testing.T) {
+	ctx := context.Background()
 	m := &mockedResourceAPIGetter{}
 
-	m.mockGetGithubConnectors = func(withSecrets bool) ([]types.GithubConnector, error) {
+	m.mockGetGithubConnectors = func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
 		connector := types.NewGithubConnector("test", types.GithubConnectorSpecV3{})
 
 		return []types.GithubConnector{connector}, nil
 	}
 
 	// Test response is converted to ui objects.
-	connectors, err := getGithubConnectors(m)
+	connectors, err := getGithubConnectors(ctx, m)
 	require.Nil(t, err)
 	require.Len(t, connectors, 1)
 	require.Contains(t, connectors[0].Content, "name: test")
@@ -240,7 +241,7 @@ func TestUpsertGithubConnector(t *testing.T) {
 	m.mockUpsertGithubConnector = func(ctx context.Context, connector types.GithubConnector) error {
 		return nil
 	}
-	m.mockGetGithubConnector = func(id string, withSecrets bool) (types.GithubConnector, error) {
+	m.mockGetGithubConnector = func(ctx context.Context, id string, withSecrets bool) (types.GithubConnector, error) {
 		return nil, trace.NotFound("")
 	}
 
@@ -275,9 +276,10 @@ version: v3`
 }
 
 func TestGetTrustedClusters(t *testing.T) {
+	ctx := context.Background()
 	m := &mockedResourceAPIGetter{}
 
-	m.mockGetTrustedClusters = func() ([]types.TrustedCluster, error) {
+	m.mockGetTrustedClusters = func(ctx context.Context) ([]types.TrustedCluster, error) {
 		cluster, err := types.NewTrustedCluster("test", types.TrustedClusterSpecV2{})
 		require.Nil(t, err)
 
@@ -285,7 +287,7 @@ func TestGetTrustedClusters(t *testing.T) {
 	}
 
 	// Test response is converted to ui objects.
-	tcs, err := getTrustedClusters(m)
+	tcs, err := getTrustedClusters(ctx, m)
 	require.Nil(t, err)
 	require.Len(t, tcs, 1)
 	require.Contains(t, tcs[0].Content, "name: test")
@@ -296,7 +298,7 @@ func TestUpsertTrustedCluster(t *testing.T) {
 	m.mockUpsertTrustedCluster = func(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
 		return nil, nil
 	}
-	m.mockGetTrustedCluster = func(name string) (types.TrustedCluster, error) {
+	m.mockGetTrustedCluster = func(ctx context.Context, name string) (types.TrustedCluster, error) {
 		return nil, trace.NotFound("")
 	}
 
@@ -329,12 +331,12 @@ type mockedResourceAPIGetter struct {
 	mockGetRoles              func(ctx context.Context) ([]types.Role, error)
 	mockUpsertRole            func(ctx context.Context, role types.Role) error
 	mockUpsertGithubConnector func(ctx context.Context, connector types.GithubConnector) error
-	mockGetGithubConnectors   func(withSecrets bool) ([]types.GithubConnector, error)
-	mockGetGithubConnector    func(id string, withSecrets bool) (types.GithubConnector, error)
+	mockGetGithubConnectors   func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
+	mockGetGithubConnector    func(ctx context.Context, id string, withSecrets bool) (types.GithubConnector, error)
 	mockDeleteGithubConnector func(ctx context.Context, id string) error
 	mockUpsertTrustedCluster  func(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error)
-	mockGetTrustedCluster     func(string) (types.TrustedCluster, error)
-	mockGetTrustedClusters    func() ([]types.TrustedCluster, error)
+	mockGetTrustedCluster     func(ctx context.Context, name string) (types.TrustedCluster, error)
+	mockGetTrustedClusters    func(ctx context.Context) ([]types.TrustedCluster, error)
 	mockDeleteTrustedCluster  func(ctx context.Context, name string) error
 }
 
@@ -368,17 +370,17 @@ func (m *mockedResourceAPIGetter) UpsertGithubConnector(ctx context.Context, con
 	return trace.NotImplemented("mockUpsertGithubConnector not implemented")
 }
 
-func (m *mockedResourceAPIGetter) GetGithubConnectors(withSecrets bool) ([]types.GithubConnector, error) {
+func (m *mockedResourceAPIGetter) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
 	if m.mockGetGithubConnectors != nil {
-		return m.mockGetGithubConnectors(false)
+		return m.mockGetGithubConnectors(ctx, false)
 	}
 
 	return nil, trace.NotImplemented("mockGetGithubConnectors not implemented")
 }
 
-func (m *mockedResourceAPIGetter) GetGithubConnector(id string, withSecrets bool) (types.GithubConnector, error) {
+func (m *mockedResourceAPIGetter) GetGithubConnector(ctx context.Context, id string, withSecrets bool) (types.GithubConnector, error) {
 	if m.mockGetGithubConnector != nil {
-		return m.mockGetGithubConnector(id, false)
+		return m.mockGetGithubConnector(ctx, id, false)
 	}
 
 	return nil, trace.NotImplemented("mockGetGithubConnector not implemented")
@@ -400,17 +402,17 @@ func (m *mockedResourceAPIGetter) UpsertTrustedCluster(ctx context.Context, tc t
 	return nil, trace.NotImplemented("mockUpsertTrustedCluster not implemented")
 }
 
-func (m *mockedResourceAPIGetter) GetTrustedCluster(name string) (types.TrustedCluster, error) {
+func (m *mockedResourceAPIGetter) GetTrustedCluster(ctx context.Context, name string) (types.TrustedCluster, error) {
 	if m.mockGetTrustedCluster != nil {
-		return m.mockGetTrustedCluster(name)
+		return m.mockGetTrustedCluster(ctx, name)
 	}
 
 	return nil, trace.NotImplemented("mockGetTrustedCluster not implemented")
 }
 
-func (m *mockedResourceAPIGetter) GetTrustedClusters() ([]types.TrustedCluster, error) {
+func (m *mockedResourceAPIGetter) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error) {
 	if m.mockGetTrustedClusters != nil {
-		return m.mockGetTrustedClusters()
+		return m.mockGetTrustedClusters(ctx)
 	}
 
 	return nil, trace.NotImplemented("mockGetTrustedClusters not implemented")

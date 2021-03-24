@@ -26,10 +26,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-
 	"github.com/gravitational/teleport"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -38,12 +36,13 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/trace"
 )
 
 func TestListKeys(t *testing.T) {
@@ -78,6 +77,25 @@ func TestListKeys(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, samKey.Cert, skey.Cert)
 	require.Equal(t, samKey.Pub, skey.Pub)
+}
+
+func TestEmptyTeleportClusterNameIsNotAnError(t *testing.T) {
+	s, cleanup := newTest(t)
+	defer cleanup()
+
+	// Given a key store with a valid directory structure
+	host := "some-host"
+	user := "zaphod"
+	key := s.makeSignedKey(t, false)
+	require.NoError(t, s.addKey(host, user, key))
+
+	// When I attempt to enumerate the user's keys with an empty teleport
+	// cluster name
+	k, err := s.store.GetKey(host, user, WithDBCerts("", ""), WithKubeCerts(""))
+
+	// Expect the key enumeration to succeed
+	require.NoError(t, err)
+	require.NotNil(t, k)
 }
 
 func TestKeyCRUD(t *testing.T) {
@@ -184,7 +202,7 @@ func TestKnownHosts(t *testing.T) {
 	require.Equal(t, len(keys), 0)
 	keys, _ = s.store.GetKnownHostKeys("example.org")
 	require.Equal(t, len(keys), 1)
-	require.True(t, sshutils.KeysEqual(keys[0], pub2))
+	require.True(t, apisshutils.KeysEqual(keys[0], pub2))
 }
 
 // TestCheckKey makes sure Teleport clients can load non-RSA algorithms in
@@ -258,7 +276,7 @@ func TestProxySSHConfig(t *testing.T) {
 					CertChecker: ssh.CertChecker{
 						IsUserAuthority: func(cert ssh.PublicKey) bool {
 							// Makes sure that user presented key signed by or with trusted authority.
-							return sshutils.KeysEqual(caPub, cert)
+							return apisshutils.KeysEqual(caPub, cert)
 						},
 					},
 				}

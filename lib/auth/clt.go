@@ -24,11 +24,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -64,52 +64,92 @@ type ContextDialer = client.ContextDialer
 // ContextDialerFunc type alias for backwards compatibility
 type ContextDialerFunc = client.ContextDialerFunc
 
-// APIClient is aliased here so that it can be embedded in Client
-type APIClient = client.Client
-
 // Client is the Auth API client. It works by connecting to auth servers
 // via gRPC and HTTP.
 //
 // When Teleport servers connect to auth API, they usually establish an SSH
 // tunnel first, and then do HTTP-over-SSH. This client is wrapped by auth.TunClient
 // in lib/auth/tun.go
+//
+// NOTE: This client is being deprecated in favor of the gRPC Client in
+// teleport/api/client. This Client should only be used internally, or for
+// functionality that hasn't been ported to the new client yet.
 type Client struct {
-	// APIClient is embedded so that Client can inherit its grpc endpoint
-	// methods to satisfy the ClientI interface. Client uses APIClient.Config
-	// for its own config, except TLS config is kept separate.
-	APIClient
-	// http client is deprecated and will be gradually phased out in favor of APIClient (gRPC).
-	sync.Mutex
-	roundtrip.Client
-	transport *http.Transport
-	// TLS holds the TLS config for the http client.
-	TLS *tls.Config
+	// APIClient is used to make gRPC requests to the server
+	*APIClient
+	// HTTPClient is used to make http requests to the server
+	*HTTPClient
 }
 
 // Make sure Client implements all the necessary methods.
 var _ ClientI = &Client{}
 
-// NewClient returns a new client that uses mutual TLS authentication
-// and dials the remote server using dialer.
+// NewClient creates a new API client with a connection to a Teleport server.
+//
+// The client will use the first credentials and the given dialer. If
+// no dialer is given, the first address will be used. This address must
+// be an auth server address.
+//
+// NOTE: This client is being deprecated in favor of the gRPC Client in
+// teleport/api/client. This Client should only be used internally, or for
+// functionality that hasn't been ported to the new client yet.
 func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Many uses of the lib/client do not expect an open valid connection immediately after
-	// initialization, so WithoutDialBlock is used for backwards compatibility with this client.
-	cfg.WithoutDialBlock = true
+	cfg.DialInBackground = true
 	apiClient, err := client.New(context.TODO(), cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Clone the tls.Config and set the next protocol. This is needed due to the
-	// Auth Server using a multiplexer for protocol detection. Unless next
-	// protocol is specified it will attempt to upgrade to HTTP2 and at that point
-	// there is no way to distinguish between HTTP2/JSON or GPRC.
-	tlsConfig := apiClient.Config()
-	tlsConfig.NextProtos = []string{teleport.HTTPNextProtoTLS}
+	// apiClient configures the tls.Config, so we clone it and reuse it for http.
+	tlsConfig := apiClient.Config().Clone()
+	httpClient, err := NewHTTPClient(cfg, tlsConfig, params...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &Client{
+		APIClient:  apiClient,
+		HTTPClient: httpClient,
+	}, nil
+}
+
+// APIClient is aliased here so that it can be embedded in Client.
+type APIClient = client.Client
+
+// HTTPClient is a teleport HTTP API client.
+type HTTPClient struct {
+	roundtrip.Client
+	// transport defines the methods by which the client can reach the server.
+	transport *http.Transport
+	// TLS holds the TLS config for the http client.
+	tls *tls.Config
+}
+
+// NewHTTPClient creates a new HTTP client with TLS authentication and the given dialer.
+func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.ClientParam) (*HTTPClient, error) {
+	dialer := cfg.Dialer
+	if dialer == nil {
+		if len(cfg.Addrs) == 0 {
+			return nil, trace.BadParameter("no addresses to dial")
+		}
+		contextDialer := client.NewDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
+		dialer = ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
+			for _, addr := range cfg.Addrs {
+				conn, err = contextDialer.DialContext(ctx, network, addr)
+				if err == nil {
+					return conn, nil
+				}
+			}
+			// not wrapping on purpose to preserve the original error
+			return nil, err
+		})
+	}
+
+	// Set the next protocol. This is needed due to the Auth Server using a
+	// multiplexer for protocol detection. Unless next protocol is specified
+	// it will attempt to upgrade to HTTP2 and at that point there is no way
+	// to distinguish between HTTP2/JSON or GPRC.
+	tls.NextProtos = []string{teleport.HTTPNextProtoTLS}
 
 	transport := &http.Transport{
 		// notice that below roundtrip.Client is passed
@@ -117,9 +157,9 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 		// to make sure client verifies the DNS name of the API server
 		// custom DialContext overrides this DNS name to the real address
 		// in addition this dialer tries multiple adresses if provided
-		DialContext:           apiClient.Dialer().DialContext,
+		DialContext:           dialer.DialContext,
 		ResponseHeaderTimeout: defaults.DefaultDialTimeout,
-		TLSClientConfig:       tlsConfig,
+		TLSClientConfig:       tls,
 
 		// Increase the size of the connection pool. This substantially improves the
 		// performance of Teleport under load as it reduces the number of TLS
@@ -149,17 +189,66 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 		},
 		params...,
 	)
-	roundtripClient, err := roundtrip.NewClient("https://"+teleport.APIDomain, CurrentVersion, clientParams...)
+	httpClient, err := roundtrip.NewClient("https://"+teleport.APIDomain, CurrentVersion, clientParams...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &Client{
-		APIClient: *apiClient,
-		Client:    *roundtripClient,
+	return &HTTPClient{
+		Client:    *httpClient,
 		transport: transport,
-		TLS:       tlsConfig,
+		tls:       tls,
 	}, nil
+}
+
+// Close closes the HTTP client connection to the auth server.
+func (c *HTTPClient) Close() {
+	c.transport.CloseIdleConnections()
+}
+
+// TLSConfig returns the HTTP client's TLS config.
+func (c *HTTPClient) TLSConfig() *tls.Config {
+	return c.tls
+}
+
+// GetTransport returns the HTTP client's transport.
+func (c *HTTPClient) GetTransport() *http.Transport {
+	return c.transport
+}
+
+// ClientConfig contains configuration of the client
+// DELETE IN: 7.0.0.
+type ClientConfig struct {
+	// Addrs is a list of addresses to dial
+	Addrs []utils.NetAddr
+	// Dialer is a custom dialer that is used instead of Addrs when provided
+	Dialer ContextDialer
+	// DialTimeout defines how long to attempt dialing before timing out
+	DialTimeout time.Duration
+	// KeepAlivePeriod defines period between keep alives
+	KeepAlivePeriod time.Duration
+	// KeepAliveCount specifies the amount of missed keep alives
+	// to wait for before declaring the connection as broken
+	KeepAliveCount int
+	// TLS is the client's TLS config
+	TLS *tls.Config
+}
+
+// NewTLSClient returns a new TLS client that uses mutual TLS authentication
+// and dials the remote server using dialer.
+// DELETE IN: 7.0.0.
+func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, error) {
+	c := client.Config{
+		Addrs:           utils.NetAddrsToStrings(cfg.Addrs),
+		Dialer:          cfg.Dialer,
+		DialTimeout:     cfg.DialTimeout,
+		KeepAlivePeriod: cfg.KeepAlivePeriod,
+		KeepAliveCount:  cfg.KeepAliveCount,
+		Credentials: []client.Credentials{
+			client.LoadTLS(cfg.TLS),
+		},
+	}
+	return NewClient(c, params...)
 }
 
 // EncodeClusterName encodes cluster name in the SNI hostname
@@ -201,51 +290,6 @@ func ClientTimeout(timeout time.Duration) roundtrip.ClientParam {
 		transport.ResponseHeaderTimeout = timeout
 		return nil
 	}
-}
-
-// ClientConfig contains configuration of the client
-// DELETE IN: 7.0.0.
-type ClientConfig struct {
-	// Addrs is a list of addresses to dial
-	Addrs []utils.NetAddr
-	// Dialer is a custom dialer that is used instead of Addrs when provided
-	Dialer ContextDialer
-	// DialTimeout defines how long to attempt dialing before timing out
-	DialTimeout time.Duration
-	// KeepAlivePeriod defines period between keep alives
-	KeepAlivePeriod time.Duration
-	// KeepAliveCount specifies the amount of missed keep alives
-	// to wait for before declaring the connection as broken
-	KeepAliveCount int
-	// TLS is the client's TLS config
-	TLS *tls.Config
-}
-
-// NewTLSClient returns a new TLS client that uses mutual TLS authentication
-// and dials the remote server using dialer.
-// DELETE IN: 7.0.0.
-func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, error) {
-	c := client.Config{
-		Addrs:           utils.NetAddrsToStrings(cfg.Addrs),
-		Dialer:          cfg.Dialer,
-		DialTimeout:     cfg.DialTimeout,
-		KeepAlivePeriod: cfg.KeepAlivePeriod,
-		KeepAliveCount:  cfg.KeepAliveCount,
-		Credentials: []client.Credentials{
-			client.LoadTLS(cfg.TLS),
-		},
-	}
-
-	return NewClient(c, params...)
-}
-
-// TLSConfig returns the client's http TLS config
-func (c *Client) TLSConfig() *tls.Config {
-	return c.TLS
-}
-
-func (c *Client) GetTransport() *http.Transport {
-	return c.transport
 }
 
 // PostJSON is a generic method that issues http POST request to the server
@@ -381,11 +425,7 @@ func (c *Client) GetClusterCACert() (*LocalCAResponse, error) {
 }
 
 func (c *Client) Close() error {
-	c.Lock()
-	defer c.Unlock()
-	if c.transport != nil {
-		c.transport.CloseIdleConnections()
-	}
+	c.HTTPClient.Close()
 	return c.APIClient.Close()
 }
 
@@ -561,7 +601,7 @@ func (c *Client) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 }
 
 // UpsertToken adds provisioning tokens for the auth server
-func (c *Client) UpsertToken(tok services.ProvisionToken) error {
+func (c *Client) UpsertToken(ctx context.Context, tok services.ProvisionToken) error {
 	_, err := c.PostJSON(c.Endpoint("tokens"), GenerateTokenRequest{
 		Token: tok.GetName(),
 		Roles: tok.GetRoles(),
@@ -574,7 +614,7 @@ func (c *Client) UpsertToken(tok services.ProvisionToken) error {
 }
 
 // GetTokens returns a list of active invitation tokens for nodes and users
-func (c *Client) GetTokens(opts ...services.MarshalOption) ([]services.ProvisionToken, error) {
+func (c *Client) GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]services.ProvisionToken, error) {
 	out, err := c.Get(c.Endpoint("tokens"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -587,7 +627,7 @@ func (c *Client) GetTokens(opts ...services.MarshalOption) ([]services.Provision
 }
 
 // GetToken returns provisioning token
-func (c *Client) GetToken(token string) (services.ProvisionToken, error) {
+func (c *Client) GetToken(ctx context.Context, token string) (services.ProvisionToken, error) {
 	out, err := c.Get(c.Endpoint("tokens", token), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -597,13 +637,13 @@ func (c *Client) GetToken(token string) (services.ProvisionToken, error) {
 
 // DeleteToken deletes a given provisioning token on the auth server (CA). It
 // could be a reset password token or a machine token
-func (c *Client) DeleteToken(token string) error {
+func (c *Client) DeleteToken(ctx context.Context, token string) error {
 	_, err := c.Delete(c.Endpoint("tokens", token))
 	return trace.Wrap(err)
 }
 
 // RegisterNewAuthServer is used to register new auth server with token
-func (c *Client) RegisterNewAuthServer(token string) error {
+func (c *Client) RegisterNewAuthServer(ctx context.Context, token string) error {
 	_, err := c.PostJSON(c.Endpoint("tokens", "register", "auth"), registerNewAuthServerReq{
 		Token: token,
 	})
@@ -1244,7 +1284,7 @@ func (c *Client) UpsertOIDCConnector(ctx context.Context, connector services.OID
 }
 
 // GetOIDCConnector returns OIDC connector information by id
-func (c *Client) GetOIDCConnector(id string, withSecrets bool) (services.OIDCConnector, error) {
+func (c *Client) GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (services.OIDCConnector, error) {
 	if id == "" {
 		return nil, trace.BadParameter("missing connector id")
 	}
@@ -1257,7 +1297,7 @@ func (c *Client) GetOIDCConnector(id string, withSecrets bool) (services.OIDCCon
 }
 
 // GetOIDCConnectors gets OIDC connectors list
-func (c *Client) GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, error) {
+func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]services.OIDCConnector, error) {
 	out, err := c.Get(c.Endpoint("oidc", "connectors"),
 		url.Values{"with_secrets": []string{fmt.Sprintf("%t", withSecrets)}})
 	if err != nil {
@@ -1370,7 +1410,7 @@ func (c *Client) UpsertSAMLConnector(ctx context.Context, connector services.SAM
 }
 
 // GetSAMLConnector returns SAML connector information by id
-func (c *Client) GetSAMLConnector(id string, withSecrets bool) (services.SAMLConnector, error) {
+func (c *Client) GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (services.SAMLConnector, error) {
 	if id == "" {
 		return nil, trace.BadParameter("missing connector id")
 	}
@@ -1383,7 +1423,7 @@ func (c *Client) GetSAMLConnector(id string, withSecrets bool) (services.SAMLCon
 }
 
 // GetSAMLConnectors gets SAML connectors list
-func (c *Client) GetSAMLConnectors(withSecrets bool) ([]services.SAMLConnector, error) {
+func (c *Client) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]services.SAMLConnector, error) {
 	out, err := c.Get(c.Endpoint("saml", "connectors"),
 		url.Values{"with_secrets": []string{fmt.Sprintf("%t", withSecrets)}})
 	if err != nil {
@@ -1496,7 +1536,7 @@ func (c *Client) UpsertGithubConnector(ctx context.Context, connector services.G
 }
 
 // GetGithubConnectors returns all configured Github connectors
-func (c *Client) GetGithubConnectors(withSecrets bool) ([]services.GithubConnector, error) {
+func (c *Client) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]services.GithubConnector, error) {
 	out, err := c.Get(c.Endpoint("github", "connectors"), url.Values{
 		"with_secrets": []string{strconv.FormatBool(withSecrets)},
 	})
@@ -1519,7 +1559,7 @@ func (c *Client) GetGithubConnectors(withSecrets bool) ([]services.GithubConnect
 }
 
 // GetGithubConnector returns the specified Github connector
-func (c *Client) GetGithubConnector(id string, withSecrets bool) (services.GithubConnector, error) {
+func (c *Client) GetGithubConnector(ctx context.Context, id string, withSecrets bool) (services.GithubConnector, error) {
 	out, err := c.Get(c.Endpoint("github", "connectors", id), url.Values{
 		"with_secrets": []string{strconv.FormatBool(withSecrets)},
 	})
@@ -2047,7 +2087,7 @@ func (c *Client) DeleteAllUsers() error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-func (c *Client) GetTrustedCluster(name string) (services.TrustedCluster, error) {
+func (c *Client) GetTrustedCluster(ctx context.Context, name string) (services.TrustedCluster, error) {
 	out, err := c.Get(c.Endpoint("trustedclusters", name), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2061,7 +2101,7 @@ func (c *Client) GetTrustedCluster(name string) (services.TrustedCluster, error)
 	return trustedCluster, nil
 }
 
-func (c *Client) GetTrustedClusters() ([]services.TrustedCluster, error) {
+func (c *Client) GetTrustedClusters(ctx context.Context) ([]services.TrustedCluster, error) {
 	out, err := c.Get(c.Endpoint("trustedclusters"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2211,10 +2251,10 @@ type IdentityService interface {
 	UpsertOIDCConnector(ctx context.Context, connector services.OIDCConnector) error
 
 	// GetOIDCConnector returns OIDC connector information by id
-	GetOIDCConnector(id string, withSecrets bool) (services.OIDCConnector, error)
+	GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (services.OIDCConnector, error)
 
 	// GetOIDCConnector gets OIDC connectors list
-	GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, error)
+	GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]services.OIDCConnector, error)
 
 	// DeleteOIDCConnector deletes OIDC connector by ID
 	DeleteOIDCConnector(ctx context.Context, connectorID string) error
@@ -2232,10 +2272,10 @@ type IdentityService interface {
 	UpsertSAMLConnector(ctx context.Context, connector services.SAMLConnector) error
 
 	// GetSAMLConnector returns SAML connector information by id
-	GetSAMLConnector(id string, withSecrets bool) (services.SAMLConnector, error)
+	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (services.SAMLConnector, error)
 
 	// GetSAMLConnector gets SAML connectors list
-	GetSAMLConnectors(withSecrets bool) ([]services.SAMLConnector, error)
+	GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]services.SAMLConnector, error)
 
 	// DeleteSAMLConnector deletes SAML connector by ID
 	DeleteSAMLConnector(ctx context.Context, connectorID string) error
@@ -2251,9 +2291,9 @@ type IdentityService interface {
 	// UpsertGithubConnector creates or updates a Github connector
 	UpsertGithubConnector(ctx context.Context, connector services.GithubConnector) error
 	// GetGithubConnectors returns all configured Github connectors
-	GetGithubConnectors(withSecrets bool) ([]services.GithubConnector, error)
+	GetGithubConnectors(ctx context.Context, withSecrets bool) ([]services.GithubConnector, error)
 	// GetGithubConnector returns the specified Github connector
-	GetGithubConnector(id string, withSecrets bool) (services.GithubConnector, error)
+	GetGithubConnector(ctx context.Context, id string, withSecrets bool) (services.GithubConnector, error)
 	// DeleteGithubConnector deletes the specified Github connector
 	DeleteGithubConnector(ctx context.Context, id string) error
 	// CreateGithubAuthRequest creates a new request for Github OAuth2 flow
@@ -2352,27 +2392,27 @@ type IdentityService interface {
 // of adding new nodes, auth servers and proxies to the cluster
 type ProvisioningService interface {
 	// GetTokens returns a list of active invitation tokens for nodes and users
-	GetTokens(opts ...services.MarshalOption) (tokens []services.ProvisionToken, err error)
+	GetTokens(ctx context.Context, opts ...services.MarshalOption) (tokens []services.ProvisionToken, err error)
 
 	// GetToken returns provisioning token
-	GetToken(token string) (services.ProvisionToken, error)
+	GetToken(ctx context.Context, token string) (services.ProvisionToken, error)
 
 	// DeleteToken deletes a given provisioning token on the auth server (CA). It
 	// could be a reset password token or a machine token
-	DeleteToken(token string) error
+	DeleteToken(ctx context.Context, token string) error
 
 	// DeleteAllTokens deletes all provisioning tokens
 	DeleteAllTokens() error
 
 	// UpsertToken adds provisioning tokens for the auth server
-	UpsertToken(services.ProvisionToken) error
+	UpsertToken(ctx context.Context, token services.ProvisionToken) error
 
 	// RegisterUsingToken calls the auth service API to register a new node via registration token
 	// which has been previously issued via GenerateToken
 	RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys, error)
 
 	// RegisterNewAuthServer is used to register new auth server with token
-	RegisterNewAuthServer(token string) error
+	RegisterNewAuthServer(ctx context.Context, token string) error
 }
 
 // ClientI is a client to Auth service

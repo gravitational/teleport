@@ -45,9 +45,11 @@ import (
 	"golang.org/x/term"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -55,7 +57,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/shell"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -68,8 +69,6 @@ import (
 )
 
 const (
-	// ProfileDir is a directory location where tsh profiles (and session keys) are stored
-	ProfileDir         = ".tsh"
 	AddKeysToAgentAuto = "auto"
 	AddKeysToAgentNo   = "no"
 	AddKeysToAgentYes  = "yes"
@@ -389,14 +388,14 @@ func (p *ProfileStatus) IsExpired(clock clockwork.Clock) bool {
 //
 // It's stored in ~/.tsh/keys/<proxy>/certs.pem by default.
 func (p *ProfileStatus) CACertPath() string {
-	return filepath.Join(p.Dir, sessionKeyDir, p.Name, fileNameTLSCerts)
+	return filepath.Join(p.Dir, constants.SessionKeyDir, p.Name, constants.FileNameTLSCerts)
 }
 
 // KeyPath returns path to the private key for this profile.
 //
 // It's kept in ~/.tsh/keys/<proxy>/<user>.
 func (p *ProfileStatus) KeyPath() string {
-	return filepath.Join(p.Dir, sessionKeyDir, p.Name, p.Username)
+	return filepath.Join(p.Dir, constants.SessionKeyDir, p.Name, p.Username)
 }
 
 // DatabaseCertPath returns path to the specified database access certificate
@@ -404,10 +403,10 @@ func (p *ProfileStatus) KeyPath() string {
 //
 // It's kept in ~/.tsh/keys/<proxy>/<user>-db/<cluster>/<name>-x509.pem
 func (p *ProfileStatus) DatabaseCertPath(name string) string {
-	return filepath.Join(p.Dir, sessionKeyDir, p.Name,
+	return filepath.Join(p.Dir, constants.SessionKeyDir, p.Name,
 		fmt.Sprintf("%v%v", p.Username, dbDirSuffix),
 		p.Cluster,
-		fmt.Sprintf("%v%v", name, fileExtTLSCert))
+		fmt.Sprintf("%v%v", name, constants.FileExtTLSCert))
 }
 
 // AppCertPath returns path to the specified app access certificate
@@ -415,10 +414,10 @@ func (p *ProfileStatus) DatabaseCertPath(name string) string {
 //
 // It's kept in ~/.tsh/keys/<proxy>/<user>-app/<cluster>/<name>-x509.pem
 func (p *ProfileStatus) AppCertPath(name string) string {
-	return filepath.Join(p.Dir, sessionKeyDir, p.Name,
+	return filepath.Join(p.Dir, constants.SessionKeyDir, p.Name,
 		fmt.Sprintf("%v%v", p.Username, appDirSuffix),
 		p.Cluster,
-		fmt.Sprintf("%v%v", name, fileExtTLSCert))
+		fmt.Sprintf("%v%v", name, constants.FileExtTLSCert))
 }
 
 // DatabaseServices returns a list of database service names for this profile.
@@ -487,8 +486,12 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 func readProfile(profileDir string, profileName string) (*ProfileStatus, error) {
 	var err error
 
+	if profileDir == "" {
+		return nil, trace.BadParameter("profileDir cannot be empty")
+	}
+
 	// Read in the profile for this proxy.
-	profile, err := ProfileFromDir(profileDir, profileName)
+	profile, err := client.ProfileFromDir(profileDir, profileName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -676,7 +679,7 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 	}
 
 	// Construct the full path to the profile requested and make sure it exists.
-	profileDir = FullProfilePath(profileDir)
+	profileDir = client.FullProfilePath(profileDir)
 	stat, err := os.Stat(profileDir)
 	if err != nil {
 		log.Debugf("Failed to stat file: %v.", err)
@@ -696,7 +699,7 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 	// no proxyHost was supplied.
 	profileName := proxyHost
 	if profileName == "" {
-		profileName, err = GetCurrentProfileName(profileDir)
+		profileName, err = client.GetCurrentProfileName(profileDir)
 		if err != nil {
 			if trace.IsNotFound(err) {
 				return nil, nil, trace.NotFound("not logged in")
@@ -719,7 +722,7 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 	}
 
 	// load the rest of the profiles
-	profiles, err := ListProfileNames(profileDir)
+	profiles, err := client.ListProfileNames(profileDir)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -747,9 +750,8 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 // profiles directory. If profileDir is an empty string, the default profile
 // directory ~/.tsh is used.
 func (c *Config) LoadProfile(profileDir string, proxyName string) error {
-	profileDir = FullProfilePath(profileDir)
 	// read the profile:
-	cp, err := ProfileFromDir(profileDir, ProxyHost(proxyName))
+	cp, err := client.ProfileFromDir(profileDir, ProxyHost(proxyName))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil
@@ -784,9 +786,9 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 		return nil
 	}
 
-	dir = FullProfilePath(dir)
+	dir = client.FullProfilePath(dir)
 
-	var cp Profile
+	var cp client.Profile
 	cp.Username = c.Username
 	cp.WebProxyAddr = c.WebProxyAddr
 	cp.SSHProxyAddr = c.SSHProxyAddr
@@ -942,7 +944,7 @@ type TeleportClient struct {
 
 	// Note: there's no mutex guarding this or localAgent, making
 	// TeleportClient NOT safe for concurrent use.
-	lastPing *PingResponse
+	lastPing *client.PingResponse
 }
 
 // ShellCreatedCallback can be supplied for every teleport client. It will
@@ -2148,14 +2150,14 @@ func (tc *TeleportClient) ActivateKey(ctx context.Context, key *Key) error {
 //
 // Ping can be called for its side-effect of applying the proxy-provided
 // settings (such as various listening addresses).
-func (tc *TeleportClient) Ping(ctx context.Context) (*PingResponse, error) {
+func (tc *TeleportClient) Ping(ctx context.Context) (*client.PingResponse, error) {
 	// If, at some point, there's a need to bypass this caching, consider
 	// adding a bool argument. At the time of writing this we always want to
 	// cache.
 	if tc.lastPing != nil {
 		return tc.lastPing, nil
 	}
-	pr, err := Ping(
+	pr, err := client.Ping(
 		ctx,
 		tc.WebProxyAddr,
 		tc.InsecureSkipVerify,
@@ -2272,7 +2274,7 @@ func (tc *TeleportClient) UpdateTrustedCA(ctx context.Context, clusterName strin
 
 // applyProxySettings updates configuration changes based on the advertised
 // proxy settings, overriding existing fields in tc.
-func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error {
+func (tc *TeleportClient) applyProxySettings(proxySettings client.ProxySettings) error {
 	// Kubernetes proxy settings.
 	if proxySettings.Kube.Enabled {
 		switch {
