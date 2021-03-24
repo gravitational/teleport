@@ -75,11 +75,6 @@ func NewPAMConfig(spec PAMConfigSpecV3) (PAMConfig, error) {
 	return &conf, nil
 }
 
-// DefaultPAMConfig creates a default PAM config.
-func DefaultPAMConfig() (PAMConfig, error) {
-	return NewPAMConfig(PAMConfigSpecV3{})
-}
-
 // GetEnabled checks if PAM integration should be enabled.
 func (c *PAMConfigV3) GetEnabled() bool {
 	return c.Spec.Enabled
