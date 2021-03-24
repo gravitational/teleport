@@ -140,6 +140,7 @@ func (r *ResourceSuite) TestCertAuthorityResource(c *check.C) {
 }
 
 func (r *ResourceSuite) TestTrustedClusterResource(c *check.C) {
+	ctx := context.Background()
 	foo, err := services.NewTrustedCluster("foo", services.TrustedClusterSpecV2{
 		Enabled:              true,
 		Roles:                []string{"bar", "baz"},
@@ -161,13 +162,14 @@ func (r *ResourceSuite) TestTrustedClusterResource(c *check.C) {
 	r.runCreationChecks(c, foo, bar)
 
 	s := NewPresenceService(r.bk)
-	_, err = s.GetTrustedCluster("foo")
+	_, err = s.GetTrustedCluster(ctx, "foo")
 	c.Assert(err, check.IsNil)
-	_, err = s.GetTrustedCluster("bar")
+	_, err = s.GetTrustedCluster(ctx, "bar")
 	c.Assert(err, check.IsNil)
 }
 
 func (r *ResourceSuite) TestGithubConnectorResource(c *check.C) {
+	ctx := context.Background()
 	connector := &services.GithubConnectorV3{
 		Kind:    services.KindGithubConnector,
 		Version: services.V3,
@@ -194,7 +196,7 @@ func (r *ResourceSuite) TestGithubConnectorResource(c *check.C) {
 	r.runCreationChecks(c, connector)
 
 	s := NewIdentityService(r.bk)
-	_, err := s.GetGithubConnector("github", true)
+	_, err := s.GetGithubConnector(ctx, "github", true)
 	c.Assert(err, check.IsNil)
 }
 

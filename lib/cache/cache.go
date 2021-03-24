@@ -974,30 +974,30 @@ func (c *Cache) GetStaticTokens() (services.StaticTokens, error) {
 }
 
 // GetTokens returns all active (non-expired) provisioning tokens
-func (c *Cache) GetTokens(opts ...services.MarshalOption) ([]services.ProvisionToken, error) {
+func (c *Cache) GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]services.ProvisionToken, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.provisioner.GetTokens(services.AddOptions(opts, services.SkipValidation())...)
+	return rg.provisioner.GetTokens(ctx, services.AddOptions(opts, services.SkipValidation())...)
 }
 
 // GetToken finds and returns token by ID
-func (c *Cache) GetToken(name string) (services.ProvisionToken, error) {
+func (c *Cache) GetToken(ctx context.Context, name string) (services.ProvisionToken, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
-	token, err := rg.provisioner.GetToken(name)
+	token, err := rg.provisioner.GetToken(ctx, name)
 	if trace.IsNotFound(err) && rg.IsCacheRead() {
 		// release read lock early
 		rg.Release()
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
-		if token, err := c.Config.Provisioner.GetToken(name); err == nil {
+		if token, err := c.Config.Provisioner.GetToken(ctx, name); err == nil {
 			return token, nil
 		}
 	}

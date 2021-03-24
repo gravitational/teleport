@@ -26,7 +26,7 @@ func tokenCRUD(ctx context.Context, client *auth.Client) {
 	// defer deletion in case of an error below
 	defer func() {
 		// delete token
-		if err = client.DeleteToken(tokenString); err != nil {
+		if err = client.DeleteToken(ctx, tokenString); err != nil {
 			log.Printf("Failed to delete token: %v", err)
 		}
 
@@ -34,7 +34,7 @@ func tokenCRUD(ctx context.Context, client *auth.Client) {
 	}()
 
 	// retrieve token
-	token, err := client.GetToken(tokenString)
+	token, err := client.GetToken(ctx, tokenString)
 	if err != nil {
 		log.Printf("Failed to retrieve token for update: %v", err)
 		return
@@ -44,7 +44,7 @@ func tokenCRUD(ctx context.Context, client *auth.Client) {
 
 	// update the token to be expired
 	token.SetExpiry(time.Now())
-	if err = client.UpsertToken(token); err != nil {
+	if err = client.UpsertToken(ctx, token); err != nil {
 		log.Printf("Failed to update token: %v", err)
 		return
 	}

@@ -1120,7 +1120,7 @@ func (a *Server) GenerateToken(ctx context.Context, req GenerateTokenRequest) (s
 		token.SetMetadata(meta)
 	}
 
-	if err := a.Provisioner.UpsertToken(token); err != nil {
+	if err := a.Provisioner.UpsertToken(ctx, token); err != nil {
 		return "", trace.Wrap(err)
 	}
 
@@ -1372,6 +1372,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 // a list of roles this token allows its owner to assume and token labels, or an error if the token
 // cannot be found.
 func (a *Server) ValidateToken(token string) (teleport.Roles, map[string]string, error) {
+	ctx := context.TODO()
 	tkns, err := a.GetCache().GetStaticTokens()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -1387,7 +1388,7 @@ func (a *Server) ValidateToken(token string) (teleport.Roles, map[string]string,
 
 	// If it's not a static token, check if it's a ephemeral token in the backend.
 	// If a ephemeral token is found, make sure it's still valid.
-	tok, err := a.GetCache().GetToken(token)
+	tok, err := a.GetCache().GetToken(ctx, token)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1401,9 +1402,10 @@ func (a *Server) ValidateToken(token string) (teleport.Roles, map[string]string,
 // checkTokenTTL checks if the token is still valid. If it is not, the token
 // is removed from the backend and returns false. Otherwise returns true.
 func (a *Server) checkTokenTTL(tok services.ProvisionToken) bool {
+	ctx := context.TODO()
 	now := a.clock.Now().UTC()
 	if tok.Expiry().Before(now) {
-		err := a.DeleteToken(tok.GetName())
+		err := a.DeleteToken(ctx, tok.GetName())
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				log.Warnf("Unable to delete token from backend: %v.", err)
@@ -1501,21 +1503,21 @@ func (a *Server) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys,
 	return keys, nil
 }
 
-func (a *Server) RegisterNewAuthServer(token string) error {
-	tok, err := a.Provisioner.GetToken(token)
+func (a *Server) RegisterNewAuthServer(ctx context.Context, token string) error {
+	tok, err := a.Provisioner.GetToken(ctx, token)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if !tok.GetRoles().Include(teleport.RoleAuth) {
 		return trace.AccessDenied("role does not match")
 	}
-	if err := a.DeleteToken(token); err != nil {
+	if err := a.DeleteToken(ctx, token); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-func (a *Server) DeleteToken(token string) (err error) {
+func (a *Server) DeleteToken(ctx context.Context, token string) (err error) {
 	tkns, err := a.GetStaticTokens()
 	if err != nil {
 		return trace.Wrap(err)
@@ -1528,11 +1530,11 @@ func (a *Server) DeleteToken(token string) (err error) {
 		}
 	}
 	// delete reset password token:
-	if err = a.Identity.DeleteResetPasswordToken(context.TODO(), token); err == nil {
+	if err = a.Identity.DeleteResetPasswordToken(ctx, token); err == nil {
 		return nil
 	}
 	// delete node token:
-	if err = a.Provisioner.DeleteToken(token); err == nil {
+	if err = a.Provisioner.DeleteToken(ctx, token); err == nil {
 		return nil
 	}
 	return trace.Wrap(err)
@@ -1540,9 +1542,9 @@ func (a *Server) DeleteToken(token string) (err error) {
 
 // GetTokens returns all tokens (machine provisioning ones and user invitation tokens). Machine
 // tokens usually have "node roles", like auth,proxy,node and user invitation tokens have 'signup' role
-func (a *Server) GetTokens(opts ...services.MarshalOption) (tokens []services.ProvisionToken, err error) {
+func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) (tokens []services.ProvisionToken, err error) {
 	// get node tokens:
-	tokens, err = a.Provisioner.GetTokens()
+	tokens, err = a.Provisioner.GetTokens(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1555,7 +1557,7 @@ func (a *Server) GetTokens(opts ...services.MarshalOption) (tokens []services.Pr
 		tokens = append(tokens, tkns.GetStaticTokens()...)
 	}
 	// get reset password tokens:
-	resetPasswordTokens, err := a.Identity.GetResetPasswordTokens(context.TODO())
+	resetPasswordTokens, err := a.Identity.GetResetPasswordTokens(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1835,7 +1837,7 @@ func (a *Server) GetAccessCapabilities(ctx context.Context, req services.AccessC
 func (a *Server) calculateMaxAccessTTL(ctx context.Context, req services.AccessRequest) (time.Duration, error) {
 	minTTL := defaults.MaxAccessDuration
 	for _, roleName := range req.GetRoles() {
-		role, err := a.GetRole(context.TODO(), roleName)
+		role, err := a.GetRole(ctx, roleName)
 		if err != nil {
 			return 0, trace.Wrap(err)
 		}
@@ -1878,8 +1880,8 @@ func (a *Server) GetStaticTokens() (services.StaticTokens, error) {
 }
 
 // GetToken finds and returns token by ID
-func (a *Server) GetToken(token string) (services.ProvisionToken, error) {
-	return a.GetCache().GetToken(token)
+func (a *Server) GetToken(ctx context.Context, token string) (services.ProvisionToken, error) {
+	return a.GetCache().GetToken(ctx, token)
 }
 
 // GetRoles is a part of auth.AccessPoint implementation

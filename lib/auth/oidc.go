@@ -146,7 +146,7 @@ func oidcConfig(conn services.OIDCConnector) oidc.ClientConfig {
 
 // UpsertOIDCConnector creates or updates an OIDC connector.
 func (a *Server) UpsertOIDCConnector(ctx context.Context, connector services.OIDCConnector) error {
-	if err := a.Identity.UpsertOIDCConnector(connector); err != nil {
+	if err := a.Identity.UpsertOIDCConnector(ctx, connector); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &events.OIDCConnectorCreate{
@@ -170,7 +170,7 @@ func (a *Server) UpsertOIDCConnector(ctx context.Context, connector services.OID
 
 // DeleteOIDCConnector deletes an OIDC connector by name.
 func (a *Server) DeleteOIDCConnector(ctx context.Context, connectorName string) error {
-	if err := a.Identity.DeleteOIDCConnector(connectorName); err != nil {
+	if err := a.Identity.DeleteOIDCConnector(ctx, connectorName); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &events.OIDCConnectorDelete{
@@ -192,7 +192,8 @@ func (a *Server) DeleteOIDCConnector(ctx context.Context, connectorName string) 
 }
 
 func (a *Server) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {
-	connector, err := a.Identity.GetOIDCConnector(req.ConnectorID, true)
+	ctx := context.TODO()
+	connector, err := a.Identity.GetOIDCConnector(ctx, req.ConnectorID, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -288,6 +289,7 @@ type oidcAuthResponse struct {
 }
 
 func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, error) {
+	ctx := context.TODO()
 	if error := q.Get("error"); error != "" {
 		return nil, trace.OAuth2(oauth2.ErrorInvalidRequest, error, q)
 	}
@@ -314,7 +316,7 @@ func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, erro
 		return nil, trace.Wrap(err)
 	}
 
-	connector, err := a.Identity.GetOIDCConnector(req.ConnectorID, true)
+	connector, err := a.Identity.GetOIDCConnector(ctx, req.ConnectorID, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
