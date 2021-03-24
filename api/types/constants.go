@@ -194,10 +194,10 @@ const (
 	KindBilling = "billing"
 
 	// KindPAMConfig represents a node PAM configuration.
-	KindPAMConfig = "pam"
+	KindPAMConfig = "pam_config"
 
 	// Metadata name for the pam_config resource.
-	MetaNamePAMConfig = "config"
+	MetaNamePAMConfig = "pam-config"
 
 	// V3 is the third version of resources.
 	V3 = "v3"
