@@ -112,21 +112,12 @@ func (c *PAMConfigV3) SetUsePAMAuth(enabled bool) {
 
 // GetEnvironment fetches environment mappings to set for PAM modules.
 func (c *PAMConfigV3) GetEnvironment() map[string]string {
-	environ := make(map[string]string)
-	for _, env := range c.Spec.Environment {
-		environ[env.Key] = env.Value
-	}
-	return environ
+	return c.Spec.Environment
 }
 
 // SetEnvironment sets environment mappings to set for PAM modules.
 func (c *PAMConfigV3) SetEnvironment(environment map[string]string) {
-	arr := make([]*EnvironmentVariable, len(environment))
-	for key, value := range environment {
-		env := &EnvironmentVariable{Key: key, Value: value}
-		arr = append(arr, env)
-	}
-	c.Spec.Environment = arr
+	c.Spec.Environment = environment
 }
 
 // CheckAndSetDefaults configures the resource with default values if empty and validates invariants.

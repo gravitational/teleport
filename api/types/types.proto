@@ -1543,15 +1543,6 @@ message DeleteWebTokenRequest {
     string Token = 2 [ (gogoproto.jsontag) = "token" ];
 }
 
-// EnvironmentVariable describes an environment variable with a key and value.
-message EnvironmentVariable {
-    // The name of the variable.
-    string Key = 1 [ (gogoproto.jsontag) = "key" ];
-
-    // The value of the variable.
-    string Value = 2 [ (gogoproto.jsontag) = "value" ];
-}
-
 // PAMConfigV3 represents a cluster-wide PAM configuration.
 message PAMConfigV3 {
     // Kind is a resource kind.
@@ -1577,5 +1568,5 @@ message PAMConfigSpecV3 {
     // Whether PAM authentication is enabled. Defaults to false.
     bool UsePAMAuth = 3 [ (gogoproto.jsontag) = "use_pam_auth" ];
     // Environment mappings set for PAM modules.
-    repeated EnvironmentVariable Environment = 4 [ (gogoproto.jsontag) = "environment,omitempty" ];
+    map<string, string> Environment = 4 [ (gogoproto.jsontag) = "environment,omitempty" ];
 }
