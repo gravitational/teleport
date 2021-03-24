@@ -210,7 +210,7 @@ func (c *ProfileCreds) Dialer(keepAliveInterval, dialTimeout time.Duration) (Con
 	dialer := NewTunnelDialer(*sshConfig, keepAliveInterval, dialTimeout)
 	return ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 		// Ping web proxy to retrieve tunnel proxy address.
-		pr, err := Find(ctx, c.profile.WebProxyAddr, false, nil)
+		pr, err := Find(ctx, c.profile.WebProxyAddr, true, nil)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
