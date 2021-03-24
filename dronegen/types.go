@@ -122,10 +122,15 @@ type volume struct {
 	Name  string       `yaml:"name"`
 	Temp  *volumeTemp  `yaml:"temp,omitempty"`
 	Claim *volumeClaim `yaml:"claim,omitempty"`
+	Host  *volumeHost  `yaml:"host,omitempty"`
 }
 
 type volumeTemp struct {
 	Medium string `yaml:"medium,omitempty"`
+}
+
+type volumeHost struct {
+	Path string `yaml:"path,omitempty"`
 }
 
 type volumeClaim struct {

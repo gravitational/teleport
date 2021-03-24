@@ -22,6 +22,10 @@ var (
 		Name: "dockersock",
 		Temp: &volumeTemp{},
 	}
+	volumeDockerHost = volume{
+		Name: "dockersock",
+		Host: &volumeHost{Path: "/var/run/docker.sock"},
+	}
 	volumeTmpfs = volume{
 		Name: "tmpfs",
 		Temp: &volumeTemp{Medium: "memory"},
@@ -42,6 +46,10 @@ var (
 	volumeRefDocker = volumeRef{
 		Name: "dockersock",
 		Path: "/var/run",
+	}
+	volumeRefDockerHost = volumeRef{
+		Name: "dockersock",
+		Path: "/var/run/docker.sock",
 	}
 	volumeRefTmpDind = volumeRef{
 		Name: "tmp-dind",
@@ -81,10 +89,22 @@ func dockerVolumes(v ...volume) []volume {
 	return append(v, volumeDocker)
 }
 
+// dockerHostVolumes returns a slice of volumes
+// It includes the Docker socket volume from the host by default, plus any extra volumes passed in
+func dockerHostVolumes(v ...volume) []volume {
+	return append(v, volumeDockerHost)
+}
+
 // dockerVolumeRefs returns a slice of volumeRefs
 // It includes the Docker socket volumeRef as a default, plus any extra volumeRefs passed in
 func dockerVolumeRefs(v ...volumeRef) []volumeRef {
 	return append(v, volumeRefDocker)
+}
+
+// dockerHostVolumeRefs returns a slice of volumeRefs
+// It includes the Docker socket volumeRef from the host as a default, plus any extra volumeRefs passed in
+func dockerHostVolumeRefs(v ...volumeRef) []volumeRef {
+	return append(v, volumeRefDockerHost)
 }
 
 // releaseMakefileTarget gets the correct Makefile target for a given arch/fips/centos6 combo

@@ -75,10 +75,7 @@ func testCodePipeline() pipeline {
 	}
 	p.Trigger = triggerPullRequest
 	p.Workspace = workspace{Path: "/go"}
-	p.Volumes = dockerVolumes(volumeTmpfs, volumeTmpDind, volumeTmpIntegration)
-	p.Services = []service{
-		dockerService(volumeRefTmpfs, volumeRefTmpDind),
-	}
+	p.Volumes = dockerHostVolumes(volumeTmpfs, volumeTmpIntegration)
 	goEnvironment := map[string]value{
 		"GOCACHE": value{raw: "/tmpfs/go/cache"},
 		"GOPATH":  value{raw: "/tmpfs/go"},
@@ -98,7 +95,7 @@ func testCodePipeline() pipeline {
 		{
 			Name:    "Build buildbox",
 			Image:   "docker",
-			Volumes: dockerVolumeRefs(volumeRefTmpfs),
+			Volumes: dockerHostVolumeRefs(volumeRefTmpfs),
 			Commands: []string{
 				`apk add --no-cache make`,
 				`chown -R $UID:$GID /tmpfs/go`,
@@ -111,7 +108,7 @@ func testCodePipeline() pipeline {
 			Name:        "Run linter",
 			Image:       "docker",
 			Environment: goEnvironment,
-			Volumes:     dockerVolumeRefs(volumeRefTmpfs),
+			Volumes:     dockerHostVolumeRefs(volumeRefTmpfs),
 			Commands: []string{
 				`apk add --no-cache make`,
 				`chown -R $UID:$GID /tmpfs/go`,
@@ -153,7 +150,7 @@ echo ""
 			Name:        "Run unit and chaos tests",
 			Image:       "docker",
 			Environment: goEnvironment,
-			Volumes:     dockerVolumeRefs(volumeRefTmpfs),
+			Volumes:     dockerHostVolumeRefs(volumeRefTmpfs),
 			Commands: []string{
 				`apk add --no-cache make`,
 				`chown -R $UID:$GID /tmpfs/go`,
@@ -167,7 +164,7 @@ echo ""
 			Name:        "Run root-only integration tests",
 			Image:       "docker",
 			Environment: goEnvironment,
-			Volumes:     dockerVolumeRefs(volumeRefTmpfs, volumeRefTmpIntegration),
+			Volumes:     dockerHostVolumeRefs(volumeRefTmpfs, volumeRefTmpIntegration),
 			Commands: []string{
 				`apk add --no-cache make`,
 				`cd /tmpfs/go/src/github.com/gravitational/teleport`,
@@ -184,7 +181,7 @@ echo ""
 				"KUBECONFIG":                value{raw: "/tmpfs/go/kubeconfig.ci"},
 				"TEST_KUBE":                 value{raw: "true"},
 			},
-			Volumes: dockerVolumeRefs(volumeRefTmpfs, volumeRefTmpIntegration),
+			Volumes: dockerHostVolumeRefs(volumeRefTmpfs, volumeRefTmpIntegration),
 			Commands: []string{
 				`apk add --no-cache make`,
 				// write kubeconfig to disk for use in kube integration tests
