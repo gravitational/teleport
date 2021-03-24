@@ -41,7 +41,7 @@ const Support = () => {
             )}
             <SupportLink
               title="Ask the Community Questions"
-              url="https://community.gravitational.com/"
+              url="https://github.com/gravitational/teleport/discussions"
             />
             <SupportLink
               title="Request a New Feature"
@@ -49,7 +49,7 @@ const Support = () => {
             />
             <SupportLink
               title="Send Product Feedback"
-              url="mailto:teleport-feedback@gravitational.com"
+              url="mailto:support@goteleport.com"
             />
           </Box>
           <Box>

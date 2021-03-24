@@ -177,7 +177,7 @@ exports[`support Enterprise 1`] = `
         </a>
         <a
           class="c8"
-          href="https://community.gravitational.com/"
+          href="https://github.com/gravitational/teleport/discussions"
           rel="noreferrer"
         >
           Ask the Community Questions
@@ -191,7 +191,7 @@ exports[`support Enterprise 1`] = `
         </a>
         <a
           class="c8"
-          href="mailto:teleport-feedback@gravitational.com"
+          href="mailto:support@goteleport.com"
           rel="noreferrer"
         >
           Send Product Feedback
@@ -585,7 +585,7 @@ exports[`support OSS 1`] = `
         </div>
         <a
           class="c8"
-          href="https://community.gravitational.com/"
+          href="https://github.com/gravitational/teleport/discussions"
           rel="noreferrer"
         >
           Ask the Community Questions
@@ -599,7 +599,7 @@ exports[`support OSS 1`] = `
         </a>
         <a
           class="c8"
-          href="mailto:teleport-feedback@gravitational.com"
+          href="mailto:support@goteleport.com"
           rel="noreferrer"
         >
           Send Product Feedback
