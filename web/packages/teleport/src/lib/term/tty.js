@@ -126,6 +126,9 @@ class Tty extends EventEmitter {
       const uintArray = new Uint8Array(ev.data);
       const msg = this._proto.decode(uintArray);
       switch (msg.type) {
+        case MessageTypeEnum.U2F_CHALLENGE:
+          this.emit(TermEventEnum.U2F_CHALLENGE, msg.payload);
+          break;
         case MessageTypeEnum.AUDIT:
           this._processAuditPayload(msg.payload);
           break;

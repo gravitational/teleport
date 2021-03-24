@@ -25,7 +25,8 @@ export const MessageTypeEnum = {
   RAW: 'r',
   AUDIT: 'a',
   SESSION_END: 'c',
-  RESIZE: 'w'
+  RESIZE: 'w',
+  U2F_CHALLENGE: 'u'
 }
 
 export const messageFields = {
