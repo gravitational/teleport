@@ -39,7 +39,14 @@ const PAMConfigSchema = `{
 			"type": "boolean"
 		},
 		"environment": {
-			"type": "object"
+			"type": "array",
+			"items": {
+		  		"type": "object",
+				"properties": {
+					"key": {"type": "string"},
+					"value": {"type": "string"}
+				}
+			}
 		},
 	}
 }`

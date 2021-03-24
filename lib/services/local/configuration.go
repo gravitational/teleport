@@ -204,7 +204,7 @@ func (s *ClusterConfigurationService) GetPAMConfig(ctx context.Context) (types.P
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalPAMConfig(item.Value,
+	return services.UnmarshalPAMConfig(item.Value, services.SkipValidation(),
 		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 }
 
