@@ -1124,7 +1124,7 @@ func (a *Server) GenerateToken(ctx context.Context, req GenerateTokenRequest) (s
 		return "", trace.Wrap(err)
 	}
 
-	user := clientUsername(ctx)
+	user := ClientUsername(ctx)
 	for _, role := range req.Roles {
 		if role == teleport.RoleTrustedCluster {
 			if err := a.emitter.EmitAuditEvent(ctx, &events.TrustedClusterTokenCreate{
@@ -1134,7 +1134,7 @@ func (a *Server) GenerateToken(ctx context.Context, req GenerateTokenRequest) (s
 				},
 				UserMetadata: events.UserMetadata{
 					User:         user,
-					Impersonator: clientImpersonator(ctx),
+					Impersonator: ClientImpersonator(ctx),
 				},
 			}); err != nil {
 				log.WithError(err).Warn("Failed to emit trusted cluster token create event.")
@@ -1695,8 +1695,8 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 			Code: events.RoleDeletedCode,
 		},
 		UserMetadata: events.UserMetadata{
-			User:         clientUsername(ctx),
-			Impersonator: clientImpersonator(ctx),
+			User:         ClientUsername(ctx),
+			Impersonator: ClientImpersonator(ctx),
 		},
 		ResourceMetadata: events.ResourceMetadata{
 			Name: name,
@@ -1721,7 +1721,7 @@ func (a *Server) upsertRole(ctx context.Context, role services.Role) error {
 			Code: events.RoleCreatedCode,
 		},
 		UserMetadata: events.UserMetadata{
-			User: clientUsername(ctx),
+			User: ClientUsername(ctx),
 		},
 		ResourceMetadata: events.ResourceMetadata{
 			Name: role.GetName(),
@@ -1774,7 +1774,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req services.AccessReq
 		},
 		UserMetadata: events.UserMetadata{
 			User:         req.GetUser(),
-			Impersonator: clientImpersonator(ctx),
+			Impersonator: ClientImpersonator(ctx),
 		},
 		Roles:        req.GetRoles(),
 		RequestID:    req.GetName(),
@@ -1794,7 +1794,7 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params services.Acce
 			Code: events.AccessRequestUpdateCode,
 		},
 		ResourceMetadata: events.ResourceMetadata{
-			UpdatedBy: clientUsername(ctx),
+			UpdatedBy: ClientUsername(ctx),
 		},
 		RequestID:    params.RequestID,
 		RequestState: params.State.String(),
