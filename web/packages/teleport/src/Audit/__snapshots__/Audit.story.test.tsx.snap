@@ -446,12 +446,12 @@ exports[`loaded 1`] = `
         </strong>
          - 
         <strong>
-          38
+          42
         </strong>
          
         of 
         <strong>
-          38
+          42
         </strong>
       </div>
       <div
@@ -509,6 +509,146 @@ exports[`loaded 1`] = `
         </tr>
       </thead>
       <tbody>
+        <tr>
+          <td>
+            <div
+              class="c14"
+            >
+              <span
+                class="c4 c15 icon icon-credit-card c4 c15"
+                color="light"
+                font-size="3"
+              />
+              Billing Information Updated
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [root] has updated the billing information
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2021-03-18 16:29:15
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c16"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c14"
+            >
+              <span
+                class="c4 c15 icon icon-credit-card c4 c15"
+                color="light"
+                font-size="3"
+              />
+              Credit Card Added
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [root] has added a credit card
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2021-03-18 16:29:05
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c16"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c14"
+            >
+              <span
+                class="c4 c15 icon icon-credit-card c4 c15"
+                color="light"
+                font-size="3"
+              />
+              Credit Card Deleted
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [root] has deleted a credit card
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2021-03-18 16:28:51
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c16"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c14"
+            >
+              <span
+                class="c4 c15 icon icon-credit-card c4 c15"
+                color="light"
+                font-size="3"
+              />
+              Credit Card Updated
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [root] has updated a credit card
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2021-03-18 16:28:49
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c16"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
         <tr>
           <td>
             <div

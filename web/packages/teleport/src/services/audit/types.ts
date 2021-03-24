@@ -70,6 +70,10 @@ export const CodeEnum = {
   DATABASE_SESSION_QUERY: 'TDB02I',
   MFA_DEVICE_ADD: 'T1006I',
   MFA_DEVICE_DELETE: 'T1007I',
+  BILLING_CARD_CREATE: 'TBL00I',
+  BILLING_CARD_DELETE: 'TBL01I',
+  BILLING_CARD_UPDATE: 'TBL02I',
+  BILLING_ACCOUNT_UPDATE: 'TBL03I',
 } as const;
 
 /**
@@ -99,6 +103,12 @@ export type RawEvents = {
   [CodeEnum.EXEC_FAILURE]: RawEvent<
     typeof CodeEnum.EXEC_FAILURE,
     { exitError: string }
+  >;
+  [CodeEnum.BILLING_CARD_CREATE]: RawEvent<typeof CodeEnum.BILLING_CARD_CREATE>;
+  [CodeEnum.BILLING_CARD_DELETE]: RawEvent<typeof CodeEnum.BILLING_CARD_DELETE>;
+  [CodeEnum.BILLING_CARD_UPDATE]: RawEvent<typeof CodeEnum.BILLING_CARD_UPDATE>;
+  [CodeEnum.BILLING_ACCOUNT_UPDATE]: RawEvent<
+    typeof CodeEnum.BILLING_ACCOUNT_UPDATE
   >;
   [CodeEnum.GITHUB_CONNECTOR_CREATED]: RawEventConnector<
     typeof CodeEnum.GITHUB_CONNECTOR_CREATED
