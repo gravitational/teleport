@@ -79,6 +79,25 @@ func TestListKeys(t *testing.T) {
 	require.Equal(t, samKey.Pub, skey.Pub)
 }
 
+func TestEmptyTeleportClusterNameIsNotAnError(t *testing.T) {
+	s, cleanup := newTest(t)
+	defer cleanup()
+
+	// Given a key store with a valid directory structure
+	host := "some-host"
+	user := "zaphod"
+	key := s.makeSignedKey(t, false)
+	require.NoError(t, s.addKey(host, user, key))
+
+	// When I attempt to enumerate the user's keys with an empty teleport
+	// cluster name
+	k, err := s.store.GetKey(host, user, WithDBCerts("", ""), WithKubeCerts(""))
+
+	// Expect the key enumeration to succeed
+	require.NoError(t, err)
+	require.NotNil(t, k)
+}
+
 func TestKeyCRUD(t *testing.T) {
 	s, cleanup := newTest(t)
 	defer cleanup()
