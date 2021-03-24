@@ -364,7 +364,7 @@ type readGuard struct {
 	provisioner   services.Provisioner
 	users         services.UsersService
 	access        services.Access
-	dynamicAccess services.DynamicAccess
+	dynamicAccess services.DynamicAccessCore
 	presence      services.Presence
 	appSession    services.AppSession
 	webSession    types.WebSessionInterface
@@ -411,7 +411,7 @@ type Config struct {
 	// Access is an access service
 	Access services.Access
 	// DynamicAccess is a dynamic access service
-	DynamicAccess services.DynamicAccess
+	DynamicAccess services.DynamicAccessCore
 	// Presence is a presence service
 	Presence services.Presence
 	// AppSession holds application sessions.
