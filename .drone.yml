@@ -85,8 +85,8 @@ steps:
   volumes:
   - name: tmpfs
     path: /tmpfs
-  - name: dockersock
-    path: /var/run/docker.sock
+  - name: dockersockhost
+    path: /var/run
 - name: Run linter
   image: docker
   commands:
@@ -100,8 +100,8 @@ steps:
   volumes:
   - name: tmpfs
     path: /tmpfs
-  - name: dockersock
-    path: /var/run/docker.sock
+  - name: dockersockhost
+    path: /var/run
 - name: Optionally skip tests
   image: docker:git
   commands:
@@ -135,8 +135,8 @@ steps:
   volumes:
   - name: tmpfs
     path: /tmpfs
-  - name: dockersock
-    path: /var/run/docker.sock
+  - name: dockersockhost
+    path: /var/run
 - name: Run root-only integration tests
   image: docker
   commands:
@@ -151,8 +151,8 @@ steps:
     path: /tmpfs
   - name: tmp-integration
     path: /tmp
-  - name: dockersock
-    path: /var/run/docker.sock
+  - name: dockersockhost
+    path: /var/run
 - name: Run integration tests
   image: docker
   commands:
@@ -174,17 +174,17 @@ steps:
     path: /tmpfs
   - name: tmp-integration
     path: /tmp
-  - name: dockersock
-    path: /var/run/docker.sock
+  - name: dockersockhost
+    path: /var/run
 volumes:
 - name: tmpfs
   temp:
     medium: memory
 - name: tmp-integration
   temp: {}
-- name: dockersock
+- name: dockersockhost
   host:
-    path: /var/run/docker.sock
+    path: /var/run
 
 ---
 ################################################
@@ -4731,6 +4731,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: e180d54b6083ba2cd27da7d1409513c44a2b7522e5819c3b985887fbda0cdcc8
+hmac: 425dabfd20d9458b90801ebe98b242d4b85606f05fa3c632d83cd5e7828ce4ec
 
 ...

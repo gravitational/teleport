@@ -23,8 +23,8 @@ var (
 		Temp: &volumeTemp{},
 	}
 	volumeDockerHost = volume{
-		Name: "dockersock",
-		Host: &volumeHost{Path: "/var/run/docker.sock"},
+		Name: "dockersockhost",
+		Host: &volumeHost{Path: "/var/run"},
 	}
 	volumeTmpfs = volume{
 		Name: "tmpfs",
@@ -48,8 +48,8 @@ var (
 		Path: "/var/run",
 	}
 	volumeRefDockerHost = volumeRef{
-		Name: "dockersock",
-		Path: "/var/run/docker.sock",
+		Name: "dockersockhost",
+		Path: "/var/run",
 	}
 	volumeRefTmpDind = volumeRef{
 		Name: "tmp-dind",
