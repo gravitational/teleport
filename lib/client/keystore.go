@@ -378,6 +378,16 @@ type withKubeCerts struct {
 
 // TODO(awly): unit test this.
 func (o withKubeCerts) getKey(dirPath, username string, key *Key) error {
+	// If we are reading from a `~/.tsh` directrory made by a pre-6.0 version
+	// of `tsh`, the teleportClusterName can sometimes be empty, and we will
+	// end up enumerating the parent directory instead, and failing badly.
+	// For more info, see:
+	//    https://github.com/gravitational/teleport/issues/5774
+	if o.teleportClusterName == "" {
+		log.Warning("Empty teleport cluster name, abandoning key search.")
+		return nil
+	}
+
 	kubeDir := filepath.Join(dirPath, username+kubeDirSuffix, o.teleportClusterName)
 	kubeFiles, err := ioutil.ReadDir(kubeDir)
 	if err != nil && !os.IsNotExist(err) {
@@ -419,6 +429,15 @@ type withDBCerts struct {
 }
 
 func (o withDBCerts) getKey(dirPath, username string, key *Key) error {
+	// If we are reading from a `~/.tsh` directrory made by a pre-6.0 version
+	// of `tsh`, the teleportClusterName can sometimes be empty, and we will
+	// end up enumerating the parent directory instead, and failing badly.
+	// For more info, see:
+	//    https://github.com/gravitational/teleport/issues/5774
+	if o.teleportClusterName == "" {
+		log.Warning("Empty teleport cluster name, abandoning key search.")
+		return nil
+	}
 	dbDir := filepath.Join(dirPath, username+dbDirSuffix, o.teleportClusterName)
 	dbFiles, err := ioutil.ReadDir(dbDir)
 	if err != nil && !os.IsNotExist(err) {
