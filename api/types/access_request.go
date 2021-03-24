@@ -26,8 +26,6 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
-
-	"github.com/vulcand/predicate"
 )
 
 // AccessRequest is a request for temporarily granted roles
@@ -404,23 +402,6 @@ func (r *AccessRequestV3) Equals(other AccessRequest) bool {
 		return false
 	}
 	return r.Spec.Equals(&o.Spec)
-}
-
-// MatchesFilter returns true if Filter rule matches
-// Empty Filter block always matches
-func (t AccessReviewThreshold) MatchesFilter(parser predicate.Parser) (bool, error) {
-	if t.Filter == "" {
-		return true, nil
-	}
-	ifn, err := parser.Parse(t.Filter)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	fn, ok := ifn.(predicate.BoolPredicate)
-	if !ok {
-		return false, trace.BadParameter("unsupported type: %T", ifn)
-	}
-	return fn(), nil
 }
 
 func (t AccessReviewThreshold) Equals(other AccessReviewThreshold) bool {
