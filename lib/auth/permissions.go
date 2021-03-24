@@ -313,6 +313,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 						services.NewRule(services.KindClusterConfig, services.RO()),
 						services.NewRule(services.KindClusterAuthPreference, services.RO()),
 						services.NewRule(services.KindSemaphore, services.RW()),
+						services.NewRule(types.KindPAMConfig, services.RO()),
 					},
 				},
 			})

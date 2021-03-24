@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2020 Gravitational, Inc.
+Copyright 2015-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -72,6 +72,9 @@ type ReadAccessPoint interface {
 
 	// GetClusterConfig returns cluster level configuration.
 	GetClusterConfig(opts ...services.MarshalOption) (services.ClusterConfig, error)
+
+	// GetPAMConfig returns the cluster level PAM configuration.
+	GetPAMConfig(ctx context.Context) (types.PAMConfig, error)
 
 	// GetAuthPreference returns the cluster authentication configuration.
 	GetAuthPreference() (services.AuthPreference, error)

@@ -1,5 +1,5 @@
 /*
-Copyright 2018-2019 Gravitational, Inc.
+Copyright 2018-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -58,6 +58,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch services.Watch) (s
 		}
 		var parser resourceParser
 		switch kind.Kind {
+		case types.KindPAMConfig:
+			parser = newPAMConfigParser()
 		case services.KindCertAuthority:
 			parser = newCertAuthorityParser(kind.LoadSecrets)
 		case services.KindToken:
@@ -404,6 +406,41 @@ func (p *authPreferenceParser) parse(event backend.Event) (services.Resource, er
 		return h, nil
 	case backend.OpPut:
 		ap, err := services.UnmarshalAuthPreference(
+			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+			services.SkipValidation(),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ap, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newPAMConfigParser() *pamConfigParser {
+	return &pamConfigParser{
+		baseParser: baseParser{matchPrefix: backend.Key(clusterConfigPrefix, pamPrefix)},
+	}
+}
+
+type pamConfigParser struct {
+	baseParser
+}
+
+func (p *pamConfigParser) parse(event backend.Event) (services.Resource, error) {
+	switch event.Type {
+	case backend.OpDelete:
+		h, err := resourceHeader(event, types.KindPAMConfig, services.V3, 0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		h.SetName(types.MetaNamePAMConfig)
+		return h, nil
+	case backend.OpPut:
+		ap, err := services.UnmarshalPAMConfig(
 			event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),

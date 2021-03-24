@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -39,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/parse"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -676,22 +678,87 @@ func (c *ServerContext) String() string {
 	return fmt.Sprintf("ServerContext(%v->%v, user=%v, id=%v)", c.ServerConn.RemoteAddr(), c.ServerConn.LocalAddr(), c.ServerConn.User(), c.id)
 }
 
-// ExecCommand takes a *ServerContext and extracts the parts needed to create
-// an *execCommand which can be re-sent to Teleport.
-func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
-	var pamEnabled bool
-	var pamServiceName string
-	var pamUseAuth bool
+func (c *ServerContext) getPAMConfig() (*PAMConfig, error) {
+	if c.srv.Component() != teleport.ComponentNode {
+		return nil, nil
+	}
 
-	// If this code is running on a node, check if PAM is enabled or not.
-	if c.srv.Component() == teleport.ComponentNode {
-		conf, err := c.srv.GetPAM()
+	accessPoint := c.srv.GetAccessPoint()
+	clusterPAMConfig, err := accessPoint.GetPAMConfig(c.cancelContext)
+
+	// If it doesn't exist, don't return an hard error and fall back to local instead.
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	// Get the local PAM configuration.
+	localPAMConfig, err := c.srv.GetPAM()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if localPAMConfig.Override || clusterPAMConfig == nil {
+		if !localPAMConfig.Enabled {
+			return nil, nil
+		}
+
+		return &PAMConfig{
+			ServiceName: localPAMConfig.ServiceName,
+			UseAuth:     localPAMConfig.UsePAMAuth,
+		}, nil
+	}
+
+	if !clusterPAMConfig.GetEnabled() {
+		return nil, nil
+	}
+
+	// If cluster PAM configuration exists and the local configuration doesn't have override enabled, use it.
+	environ := clusterPAMConfig.GetEnvironment()
+	config := &PAMConfig{
+		ServiceName: clusterPAMConfig.GetServiceName(),
+		UseAuth:     clusterPAMConfig.GetUsePAMAuth(),
+		Environment: make(map[string]string),
+	}
+
+	// Fetch the Teleport user from the auth server.
+	user, err := accessPoint.GetUser(c.Identity.TeleportUser, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Fetch the SSO traits for that user.
+	traits := user.GetTraits()
+
+	// Interpolate any expressions in the cluster PAM environment configuration
+	// with values from received traits.
+	for key, value := range environ {
+		expr, err := parse.NewExpression(value)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		pamEnabled = conf.Enabled
-		pamServiceName = conf.ServiceName
-		pamUseAuth = conf.UsePAMAuth
+
+		if expr.Namespace() != teleport.TraitExternalPrefix {
+			return nil, trace.BadParameter("only variables in external namespace allowed in PAM configuration")
+		}
+
+		result, err := expr.Interpolate(traits)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		config.Environment[key] = strings.Join(result, " ")
+	}
+
+	return config, nil
+}
+
+// ExecCommand takes a *ServerContext and extracts the parts needed to create
+// an *execCommand which can be re-sent to Teleport.
+func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
+	// Get the final PAM configuration.
+	pamConfig, err := c.getPAMConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// If the identity has roles, extract the role names.
@@ -731,9 +798,7 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		RequestType:           requestType,
 		PermitUserEnvironment: c.srv.PermitUserEnvironment(),
 		Environment:           buildEnvironment(c),
-		PAM:                   pamEnabled,
-		ServiceName:           pamServiceName,
-		UsePAMAuth:            pamUseAuth,
+		PAMConfig:             pamConfig,
 		IsTestStub:            c.IsTestStub,
 		UaccMetadata:          *uaccMetadata,
 	}, nil

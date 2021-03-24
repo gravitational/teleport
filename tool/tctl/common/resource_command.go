@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -86,6 +87,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		services.KindTrustedCluster:  rc.createTrustedCluster,
 		services.KindGithubConnector: rc.createGithubConnector,
 		services.KindCertAuthority:   rc.createCertAuthority,
+		types.KindPAMConfig:          rc.createPAMConfig,
 	}
 	rc.config = config
 
@@ -313,6 +315,19 @@ func (rc *ResourceCommand) createCertAuthority(client auth.ClientI, raw services
 		return trace.Wrap(err)
 	}
 	fmt.Printf("certificate authority '%s' has been updated\n", certAuthority.GetName())
+	return nil
+}
+
+// createPAMConfig creates a new PAM config
+func (rc *ResourceCommand) createPAMConfig(client auth.ClientI, raw services.UnknownResource) error {
+	pamConfig, err := services.UnmarshalPAMConfig(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := client.SetPAMConfig(context.TODO(), pamConfig); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("pam config '%s' has been updated\n", pamConfig.GetName())
 	return nil
 }
 

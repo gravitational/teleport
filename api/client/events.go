@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2020-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -113,6 +113,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_DatabaseServer{
 			DatabaseServer: r,
 		}
+	case *types.PAMConfigV3:
+		out.Resource = &proto.Event_PAMConfig{
+			PAMConfig: r,
+		}
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
 	}
@@ -196,6 +200,9 @@ func EventFromGRPC(in proto.Event) (*types.Event, error) {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetDatabaseServer(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetPAMConfig(); r != nil {
 		out.Resource = r
 		return &out, nil
 	} else {

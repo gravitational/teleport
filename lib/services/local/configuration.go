@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2017-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package local
 import (
 	"context"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 
@@ -194,6 +195,52 @@ func (s *ClusterConfigurationService) DeleteAuthPreference(ctx context.Context) 
 	return nil
 }
 
+// GetPAMConfig gets types.PAMConfig from the backend.
+func (s *ClusterConfigurationService) GetPAMConfig(ctx context.Context) (types.PAMConfig, error) {
+	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, pamPrefix))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("pam configuration not found")
+		}
+		return nil, trace.Wrap(err)
+	}
+	return services.UnmarshalPAMConfig(item.Value,
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+}
+
+// SetPAMConfig sets types.PAMConfig in the backend.
+func (s *ClusterConfigurationService) SetPAMConfig(ctx context.Context, config types.PAMConfig) error {
+	value, err := services.MarshalPAMConfig(config)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:   backend.Key(clusterConfigPrefix, pamPrefix),
+		Value: value,
+		ID:    config.GetResourceID(),
+	}
+
+	_, err = s.Put(ctx, item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// DeletePAMConfig deletes types.PAMConfig from the backend.
+func (s *ClusterConfigurationService) DeletePAMConfig(ctx context.Context) error {
+	err := s.Delete(ctx, backend.Key(clusterConfigPrefix, pamPrefix))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("pam configuration not found")
+		}
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // GetClusterConfig gets services.ClusterConfig from the backend.
 func (s *ClusterConfigurationService) GetClusterConfig(opts ...services.MarshalOption) (services.ClusterConfig, error) {
 	item, err := s.Get(context.TODO(), backend.Key(clusterConfigPrefix, generalPrefix))
@@ -248,4 +295,5 @@ const (
 	authPrefix          = "authentication"
 	preferencePrefix    = "preference"
 	generalPrefix       = "general"
+	pamPrefix           = "pam"
 )

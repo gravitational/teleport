@@ -2096,6 +2096,30 @@ func (a *ServerWithRoles) DeleteAuthPreference(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// GetPAMConfig returns the PAM config for the server.
+func (a *ServerWithRoles) GetPAMConfig(ctx context.Context) (types.PAMConfig, error) {
+	if err := a.action(defaults.Namespace, types.KindPAMConfig, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetPAMConfig(ctx)
+}
+
+// SetPAMConfig sets the cluster PAM config.
+func (a *ServerWithRoles) SetPAMConfig(ctx context.Context, config types.PAMConfig) error {
+	if err := a.action(defaults.Namespace, types.KindPAMConfig, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, types.KindPAMConfig, services.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.SetPAMConfig(ctx, config)
+}
+
+// DeletePAMConfig not implemented: can only be called locally.
+func (a *ServerWithRoles) DeletePAMConfig(ctx context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 // DeleteAllTokens not implemented: can only be called locally.
 func (a *ServerWithRoles) DeleteAllTokens() error {
 	return trace.NotImplemented(notImplementedMessage)

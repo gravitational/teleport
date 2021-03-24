@@ -1,5 +1,5 @@
 /*
-Copyright 2018 Gravitational, Inc.
+Copyright 2018-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -54,6 +54,9 @@ type Config struct {
 	// UsePAMAuth specifies whether to trigger the "auth" PAM modules from the
 	// policy.
 	UsePAMAuth bool
+
+	// Override specifies if this config will override cluster PAM configuration.
+	Override bool
 }
 
 // CheckDefaults makes sure the Config structure has minimum required values.

@@ -1019,7 +1019,6 @@ message AccessRequestClaimMapping {
 
     // Roles are the roles being mapped to.
     repeated string Roles = 3 [ (gogoproto.jsontag) = "roles,omitempty" ];
-    ;
 }
 
 // Rule represents allow or deny rule that is executed to check
@@ -1542,4 +1541,41 @@ message DeleteWebTokenRequest {
     string User = 1 [ (gogoproto.jsontag) = "user" ];
     // Token specifies the token to delete.
     string Token = 2 [ (gogoproto.jsontag) = "token" ];
+}
+
+// EnvironmentVariable describes an environment variable with a key and value.
+message EnvironmentVariable {
+    // The name of the variable.
+    string Key = 1 [ (gogoproto.jsontag) = "key" ];
+
+    // The value of the variable.
+    string Value = 2 [ (gogoproto.jsontag) = "value" ];
+}
+
+// PAMConfigV3 represents a cluster-wide PAM configuration.
+message PAMConfigV3 {
+    // Kind is a resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is a resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is a PAM config specification.
+    PAMConfigSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// PAMConfigSpecV3 specifies the PAM configuration.
+// Fields in this configuration are optional and will default to local configuration if not
+// specified.
+message PAMConfigSpecV3 {
+    // Whether PAM integration is enabled. Defaults to false.
+    bool Enabled = 1 [ (gogoproto.jsontag) = "enabled" ];
+    // The PAM service name, defaults to defaults.PAMServiceName.
+    string ServiceName = 2 [ (gogoproto.jsontag) = "service_name" ];
+    // Whether PAM authentication is enabled. Defaults to false.
+    bool UsePAMAuth = 3 [ (gogoproto.jsontag) = "use_pam_auth" ];
+    // Environment mappings set for PAM modules.
+    repeated EnvironmentVariable Environment = 4 [ (gogoproto.jsontag) = "environment,omitempty" ];
 }

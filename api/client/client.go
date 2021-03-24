@@ -40,6 +40,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	ggzip "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 func init() {
@@ -991,4 +992,21 @@ func (c *Client) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequ
 		return nil, trail.FromGRPC(err)
 	}
 	return resp, nil
+}
+
+func (c *Client) GetPAMConfig(ctx context.Context) (types.PAMConfig, error) {
+	config, err := c.grpc.GetPAMConfig(ctx, &emptypb.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return config, nil
+}
+
+func (c *Client) SetPAMConfig(ctx context.Context, config types.PAMConfig) error {
+	configV3, ok := config.(*types.PAMConfigV3)
+	if !ok {
+		return trace.BadParameter("invalid type %T", config)
+	}
+	_, err := c.grpc.SetPAMConfig(ctx, configV3)
+	return trail.FromGRPC(err)
 }

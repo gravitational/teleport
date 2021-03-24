@@ -30,6 +30,12 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] Allow/deny role option: SSH agent forwarding
   - [ ] Allow/deny role option: Port forwarding
 
+- [ ] PAM
+  - [ ] Cluster-wide configuration using the `pam` resource
+  - [ ] Local PAM configuration override
+  - [ ] Passing custom environment variables to PAM with cluster-wide configuration
+  - [ ] Interpolating custom PAM environment variables with SSO claims
+
 - [ ] Users
 With every user combination, try to login and signup with invalid second factor, invalid password to see how the system reacts.
 

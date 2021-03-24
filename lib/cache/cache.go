@@ -1,5 +1,5 @@
 /*
-Copyright 2018-2019 Gravitational, Inc.
+Copyright 2018-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -65,6 +65,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: services.KindRemoteCluster},
 		{Kind: services.KindKubeService},
 		{Kind: types.KindDatabaseServer},
+		{Kind: types.KindPAMConfig},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -157,6 +158,7 @@ func ForNode(cfg Config) Config {
 		{Kind: services.KindClusterAuthPreference},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
+		{Kind: types.KindPAMConfig},
 		// Node only needs to "know" about default
 		// namespace events to avoid matching too much
 		// data about other namespaces or node events
@@ -1263,4 +1265,14 @@ func (c *Cache) GetAuthPreference() (services.AuthPreference, error) {
 	}
 	defer rg.Release()
 	return rg.clusterConfig.GetAuthPreference()
+}
+
+// GetPAMConfig gets the cluster PAM config.
+func (c *Cache) GetPAMConfig(ctx context.Context) (types.PAMConfig, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.clusterConfig.GetPAMConfig(ctx)
 }

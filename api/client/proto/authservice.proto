@@ -75,6 +75,8 @@ message Event {
         types.WebSessionV2 WebSession = 18 [ (gogoproto.jsontag) = "web_session,omitempty" ];
         // WebToken is a web token.
         types.WebTokenV3 WebToken = 19 [ (gogoproto.jsontag) = "web_token,omitempty" ];
+        // PAMConfig is a PAM configuration.
+        types.PAMConfigV3 PAMConfig = 20 [ (gogoproto.jsontag) = "pam_config,omitempty" ];
     }
 }
 
@@ -977,4 +979,10 @@ service AuthService {
     // GetMFADevices returns all MFA devices registered for the user calling
     // this RPC.
     rpc GetMFADevices(GetMFADevicesRequest) returns (GetMFADevicesResponse);
+
+    // GetPAMConfig returns the PAM configuration resource.
+    rpc GetPAMConfig(google.protobuf.Empty) returns (types.PAMConfigV3);
+
+    // SetPAMConfig sets the PAM configuration.
+    rpc SetPAMConfig(types.PAMConfigV3) returns (google.protobuf.Empty);
 }

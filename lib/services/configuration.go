@@ -1,5 +1,5 @@
 /*
-Copyright 2017-2019 Gravitational, Inc.
+Copyright 2017-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,7 +16,11 @@ limitations under the License.
 
 package services
 
-import "context"
+import (
+	"context"
+
+	"github.com/gravitational/teleport/api/types"
+)
 
 // ClusterConfiguration stores the cluster configuration in the backend. All
 // the resources modified by this interface can only have a single instance
@@ -45,6 +49,13 @@ type ClusterConfiguration interface {
 	SetAuthPreference(AuthPreference) error
 	// DeleteAuthPreference deletes services.AuthPreference from the backend.
 	DeleteAuthPreference(ctx context.Context) error
+
+	// GetPAMConfig gets services.PAMConfig from the backend.
+	GetPAMConfig(context.Context) (types.PAMConfig, error)
+	// SetPAMConfig sets services.PAMConfig in the backend.
+	SetPAMConfig(context.Context, types.PAMConfig) error
+	// DeletePAMConfig deletes services.PAMConfig from the backend.
+	DeletePAMConfig(ctx context.Context) error
 
 	// GetClusterConfig gets services.ClusterConfig from the backend.
 	GetClusterConfig(opts ...MarshalOption) (ClusterConfig, error)
