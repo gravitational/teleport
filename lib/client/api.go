@@ -1448,18 +1448,19 @@ func (tc *TeleportClient) PlayFile(ctx context.Context, tarFile io.Reader, sid s
 	var sessionEvents []events.EventFields
 	var stream []byte
 	protoReader := events.NewProtoReader(tarFile)
-	w, err := events.WriteForPlayback(ctx, session.ID(sid), protoReader, os.TempDir())
+	playbackDir, err := ioutil.TempDir("", "playback")
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// remove events file from temp directory when done playing
-	defer os.Remove(w.EventsPath)
+	defer os.RemoveAll(playbackDir)
+	w, err := events.WriteForPlayback(ctx, session.ID(sid), protoReader, playbackDir)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	sessionEvents, err = w.SessionEvents()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// remove chunk file from temp directory when done playing
-	defer os.Remove(w.ChunksPath)
 	stream, err = w.SessionChunks()
 	if err != nil {
 		return trace.Wrap(err)
