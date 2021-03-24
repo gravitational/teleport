@@ -41,7 +41,7 @@ const PAMConfigSchema = `{
 		"environment": {
 			"type": "array",
 			"items": {
-		  		"type": "object",
+				"type": "object",
 				"properties": {
 					"key": {"type": "string"},
 					"value": {"type": "string"}
