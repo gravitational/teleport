@@ -86,7 +86,7 @@ steps:
   - name: tmpfs
     path: /tmpfs
   - name: dockersock
-    path: /var/run
+    path: /var/run/docker.sock
 - name: Run linter
   image: docker
   commands:
@@ -101,7 +101,7 @@ steps:
   - name: tmpfs
     path: /tmpfs
   - name: dockersock
-    path: /var/run
+    path: /var/run/docker.sock
 - name: Optionally skip tests
   image: docker:git
   commands:
@@ -136,7 +136,7 @@ steps:
   - name: tmpfs
     path: /tmpfs
   - name: dockersock
-    path: /var/run
+    path: /var/run/docker.sock
 - name: Run root-only integration tests
   image: docker
   commands:
@@ -152,7 +152,7 @@ steps:
   - name: tmp-integration
     path: /tmp
   - name: dockersock
-    path: /var/run
+    path: /var/run/docker.sock
 - name: Run integration tests
   image: docker
   commands:
@@ -175,33 +175,22 @@ steps:
   - name: tmp-integration
     path: /tmp
   - name: dockersock
-    path: /var/run
-services:
-- name: Start Docker
-  image: docker:dind
-  volumes:
-  - name: tmpfs
-    path: /tmpfs
-  - name: tmp-dind
-    path: /tmp
-  - name: dockersock
-    path: /var/run
+    path: /var/run/docker.sock
 volumes:
 - name: tmpfs
   temp:
     medium: memory
-- name: tmp-dind
-  temp: {}
 - name: tmp-integration
   temp: {}
 - name: dockersock
-  temp: {}
+  host:
+    path: /var/run/docker.sock
 
 ---
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tests.go:203
+# Generated at dronegen/tests.go:200
 ################################################
 
 kind: pipeline
@@ -4742,6 +4731,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: cffe37fc9bdcc947e927875a202940b47559076b0f67333295813e7bdb8ff422
+hmac: e180d54b6083ba2cd27da7d1409513c44a2b7522e5819c3b985887fbda0cdcc8
 
 ...
