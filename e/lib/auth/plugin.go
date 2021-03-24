@@ -8,6 +8,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/pro/enforcer"
 	"github.com/gravitational/teleport/lib/auth"
 	libauth "github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 
 	"github.com/gravitational/reporting/types"
@@ -57,6 +58,8 @@ type Plugin struct {
 	cloudClient cloudapi.TenantsServiceClient
 	// authorizer authorizes identity and returns auth context
 	authorizer libauth.Authorizer
+	// emitter is events emitter, used to submit discrete events.
+	emitter events.Emitter
 }
 
 // GetName returns plugin name
@@ -97,6 +100,7 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 	})
 
 	p.authorizer = authServer.Authorizer
+	p.emitter = authServer.Emitter
 
 	return nil
 }

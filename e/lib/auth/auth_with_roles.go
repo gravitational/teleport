@@ -4,11 +4,14 @@ import (
 	"context"
 
 	v1 "github.com/gravitational/teleport/e/api/cloud/v1"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
+	"github.com/sirupsen/logrus"
 )
 
 // cloudWithRoles extends OSS auth server API with enterprise-specific features
@@ -33,7 +36,29 @@ func (ac *cloudWithRoles) RemoveCard(ctx context.Context, req *v1.RemoveCardRequ
 		return nil, trail.ToGRPC(err)
 	}
 
-	return ac.plugin.cloudClient.RemoveCard(ctx, req)
+	res, err := ac.plugin.cloudClient.RemoveCard(ctx, req)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	event := &events.BillingCardDelete{
+		Metadata: events.Metadata{
+			Type: events.BillingCardDeleteEvent,
+			Code: events.BillingCardDeleteCode,
+		},
+		UserMetadata: events.UserMetadata{
+			User:         auth.ClientUsername(ctx),
+			Impersonator: auth.ClientImpersonator(ctx),
+		},
+	}
+	if err := ac.plugin.emitter.EmitAuditEvent(ctx, event); err != nil {
+		ac.plugin.Log.WithError(err).WithFields(logrus.Fields{
+			"user":         event.UserMetadata.User,
+			"impersonator": event.UserMetadata.Impersonator,
+		}).Warn("Failed to emit billing card delete event.")
+	}
+
+	return res, nil
 }
 
 // UpdateCard updates a tenant credit card
@@ -43,7 +68,29 @@ func (ac *cloudWithRoles) UpdateCard(ctx context.Context, req *v1.UpdateCardRequ
 		return nil, trail.ToGRPC(err)
 	}
 
-	return ac.plugin.cloudClient.UpdateCard(ctx, req)
+	res, err := ac.plugin.cloudClient.UpdateCard(ctx, req)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	event := &events.BillingCardCreate{
+		Metadata: events.Metadata{
+			Type: events.BillingCardUpdateEvent,
+			Code: events.BillingCardUpdateCode,
+		},
+		UserMetadata: events.UserMetadata{
+			User:         auth.ClientUsername(ctx),
+			Impersonator: auth.ClientImpersonator(ctx),
+		},
+	}
+	if err := ac.plugin.emitter.EmitAuditEvent(ctx, event); err != nil {
+		ac.plugin.Log.WithError(err).WithFields(logrus.Fields{
+			"user":         event.UserMetadata.User,
+			"impersonator": event.UserMetadata.Impersonator,
+		}).Warn("Failed to emit billing card update event.")
+	}
+
+	return res, nil
 }
 
 // UpdateAccount updates account information
@@ -53,7 +100,29 @@ func (ac *cloudWithRoles) UpdateAccount(ctx context.Context, req *v1.UpdateAccou
 		return nil, trail.ToGRPC(err)
 	}
 
-	return ac.plugin.cloudClient.UpdateAccount(ctx, req)
+	res, err := ac.plugin.cloudClient.UpdateAccount(ctx, req)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	event := &events.BillingInformationUpdate{
+		Metadata: events.Metadata{
+			Type: events.BillingInformationUpdateEvent,
+			Code: events.BillingInformationUpdateCode,
+		},
+		UserMetadata: events.UserMetadata{
+			User:         auth.ClientUsername(ctx),
+			Impersonator: auth.ClientImpersonator(ctx),
+		},
+	}
+	if err := ac.plugin.emitter.EmitAuditEvent(ctx, event); err != nil {
+		ac.plugin.Log.WithError(err).WithFields(logrus.Fields{
+			"user":         event.UserMetadata.User,
+			"impersonator": event.UserMetadata.Impersonator,
+		}).Warn("Failed to emit billing account update event.")
+	}
+
+	return res, nil
 }
 
 // AddCreditCard adds a new credit card
@@ -63,7 +132,29 @@ func (ac *cloudWithRoles) AddCard(ctx context.Context, req *v1.AddCardRequest) (
 		return nil, trail.ToGRPC(err)
 	}
 
-	return ac.plugin.cloudClient.AddCard(ctx, req)
+	res, err := ac.plugin.cloudClient.AddCard(ctx, req)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	event := &events.BillingCardCreate{
+		Metadata: events.Metadata{
+			Type: events.BillingCardCreateEvent,
+			Code: events.BillingCardCreateCode,
+		},
+		UserMetadata: events.UserMetadata{
+			User:         auth.ClientUsername(ctx),
+			Impersonator: auth.ClientImpersonator(ctx),
+		},
+	}
+	if err := ac.plugin.emitter.EmitAuditEvent(ctx, event); err != nil {
+		ac.plugin.Log.WithError(err).WithFields(logrus.Fields{
+			"user":         event.UserMetadata.User,
+			"impersonator": event.UserMetadata.Impersonator,
+		}).Warn("Failed to emit billing card create event.")
+	}
+
+	return res, nil
 }
 
 // GetBillingInformation returns billing information
