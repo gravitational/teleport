@@ -13,10 +13,12 @@ TEST_KUBE ?=
 
 OS ?= linux
 ARCH ?= amd64
-RUNTIME ?= go1.15.5
+RUNTIME ?= go1.16.2
 
 UID := $$(id -u)
 GID := $$(id -g)
+
+BORINGCRYPTO_RUNTIME=$(RUNTIME)b7
 
 PROTOC_VER ?= 3.6.1
 PROTOC_PLATFORM := linux-x86_64
@@ -113,7 +115,7 @@ buildbox-fips:
 		docker build \
 			--build-arg UID=$(UID) \
 			--build-arg GID=$(GID) \
-			--build-arg RUNTIME=$(RUNTIME) \
+			--build-arg BORINGCRYPTO_RUNTIME=$(BORINGCRYPTO_RUNTIME) \
 			--cache-from $(BUILDBOX_FIPS) \
 			--tag $(BUILDBOX_FIPS) -f Dockerfile-fips . ; \
 	fi
@@ -140,7 +142,7 @@ buildbox-centos6-fips:
 	docker build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
-		--build-arg RUNTIME=$(RUNTIME) \
+		--build-arg BORINGCRYPTO_RUNTIME=$(BORINGCRYPTO_RUNTIME) \
 		--cache-from $(BUILDBOX_CENTOS6_FIPS) \
 		--tag $(BUILDBOX_CENTOS6_FIPS) -f Dockerfile-centos6-fips .
 
