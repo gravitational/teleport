@@ -1375,6 +1375,8 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 
 // Play replays the recorded session
 func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string) (err error) {
+	var sessionEvents []events.EventFields
+	var stream []byte
 	if namespace == "" {
 		return trace.BadParameter(auth.MissingNamespaceError)
 	}
@@ -1394,13 +1396,12 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 		return trace.Wrap(err)
 	}
 	// request events for that session (to get timing data)
-	sessionEvents, err := site.GetSessionEvents(namespace, *sid, 0, true)
+	sessionEvents, err = site.GetSessionEvents(namespace, *sid, 0, true)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// read the stream into a buffer:
-	var stream []byte
 	for {
 		tmp, err := site.GetSessionChunk(namespace, *sid, len(stream), events.MaxChunkBytes)
 		if err != nil {
@@ -1420,50 +1421,32 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 		}
 		defer term.Restore(0, state)
 	}
-	player := newSessionPlayer(sessionEvents, stream)
-	// keys:
-	const (
-		keyCtrlC = 3
-		keyCtrlD = 4
-		keySpace = 32
-		keyLeft  = 68
-		keyRight = 67
-		keyUp    = 65
-		keyDown  = 66
-	)
-	// playback control goroutine
-	go func() {
-		defer player.Stop()
-		key := make([]byte, 1)
-		for {
-			_, err = os.Stdin.Read(key)
-			if err != nil {
-				return
-			}
-			switch key[0] {
-			// Ctrl+C or Ctrl+D
-			case keyCtrlC, keyCtrlD:
-				return
-			// Space key
-			case keySpace:
-				player.TogglePause()
-			// <- arrow
-			case keyLeft, keyDown:
-				player.Rewind()
-			// -> arrow
-			case keyRight, keyUp:
-				player.Forward()
-			}
-		}
-	}()
+	return playSession(sessionEvents, stream)
+}
 
-	// player starts playing in its own goroutine
-	player.Play()
-
-	// wait for keypresses loop to end
-	<-player.stopC
-	fmt.Println("\n\nend of session playback")
-	return trace.Wrap(err)
+// PlayFile plays the recorded session from a tar file
+func (tc *TeleportClient) PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
+	var sessionEvents []events.EventFields
+	var stream []byte
+	protoReader := events.NewProtoReader(tarFile)
+	playbackDir, err := ioutil.TempDir("", "playback")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer os.RemoveAll(playbackDir)
+	w, err := events.WriteForPlayback(ctx, session.ID(sid), protoReader, playbackDir)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	sessionEvents, err = w.SessionEvents()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	stream, err = w.SessionChunks()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return playSession(sessionEvents, stream)
 }
 
 // ExecuteSCP executes SCP command. It executes scp.Command using
@@ -2839,4 +2822,56 @@ func InsecureSkipHostKeyChecking(host string, remote net.Addr, key ssh.PublicKey
 // FedRAMP/FIPS 140-2 mode for tsh.
 func isFIPS() bool {
 	return modules.GetModules().IsBoringBinary()
+}
+
+// playSession plays session in the terminal
+func playSession(sessionEvents []events.EventFields, stream []byte) error {
+	var errorCh = make(chan error)
+	player := newSessionPlayer(sessionEvents, stream)
+	// keys:
+	const (
+		keyCtrlC = 3
+		keyCtrlD = 4
+		keySpace = 32
+		keyLeft  = 68
+		keyRight = 67
+		keyUp    = 65
+		keyDown  = 66
+	)
+	// playback control goroutine
+	go func() {
+		defer player.Stop()
+		var key [1]byte
+		for {
+			_, err := os.Stdin.Read(key[:])
+			if err != nil {
+				errorCh <- err
+				return
+			}
+			switch key[0] {
+			// Ctrl+C or Ctrl+D
+			case keyCtrlC, keyCtrlD:
+				return
+			// Space key
+			case keySpace:
+				player.TogglePause()
+			// <- arrow
+			case keyLeft, keyDown:
+				player.Rewind()
+			// -> arrow
+			case keyRight, keyUp:
+				player.Forward()
+			}
+		}
+	}()
+	// player starts playing in its own goroutine
+	player.Play()
+	// wait for keypresses loop to end
+	select {
+	case <-player.stopC:
+		fmt.Println("\n\nend of session playback")
+		return nil
+	case err := <-errorCh:
+		return trace.Wrap(err)
+	}
 }
