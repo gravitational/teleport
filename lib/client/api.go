@@ -46,6 +46,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -1117,7 +1118,9 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	}
 	defer proxyClient.Close()
 
-	return proxyClient.IssueUserCertsWithMFA(ctx, params)
+	return proxyClient.IssueUserCertsWithMFA(ctx, params, func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+		return PromptMFAChallenge(ctx, proxyAddr, c, "")
+	})
 }
 
 // CreateAccessRequest registers a new access request with the auth server.
