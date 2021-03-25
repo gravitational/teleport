@@ -806,9 +806,7 @@ kind: pipeline
 type: exec
 name: push-build-darwin-amd64-fips
 environment:
-  GID: "1000"
   RUNTIME: go1.16.2
-  UID: "1000"
 trigger:
   event:
     include:
@@ -910,25 +908,6 @@ steps:
   - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
   environment:
     WORKSPACE_DIR: /tmp/push-build-darwin-amd64-fips
-- name: Send Slack notification (exec)
-  image: plugins/slack
-  settings:
-    webhook:
-      from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  template:
-  - "*{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status
-    }}: Build #{{ build.number }}* (type: `{{ build.event }}`)\n\t\t\t`${DRONE_STAGE_NAME}`
-    artifact build failed.\n\t\t\t*Warning:* This is a genuine failure to build the
-    Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit)
-    and should be investigated immediately.\n\t\t\tCommit: <https://github.com/{{
-    repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit
-    8 }}>\n\t\t\tBranch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{
-    build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>\n\t\t\tAuthor:
-    <https://github.com/{{ build.author }}|{{ build.author }}>\n\t\t\t<{{ build.link
-    }}|Visit Drone build page ↗>\n\t\t\t"
-  when:
-    status:
-    - failure
 
 ---
 ################################################
@@ -2734,16 +2713,14 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/darwin_pipelines.go:67
+# Generated at dronegen/darwin_pipelines.go:65
 ################################################
 
 kind: pipeline
 type: exec
 name: build-darwin-amd64-fips
 environment:
-  GID: "1000"
   RUNTIME: go1.16.2
-  UID: "1000"
 trigger:
   event:
     include:
@@ -2868,16 +2845,14 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/darwin_pipelines.go:94
+# Generated at dronegen/darwin_pipelines.go:90
 ################################################
 
 kind: pipeline
 type: exec
 name: build-darwin-amd64-fips-pkg
 environment:
-  GID: "1000"
   RUNTIME: go1.16.2
-  UID: "1000"
 trigger:
   event:
     include:
@@ -4251,16 +4226,14 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/darwin_pipelines.go:121
+# Generated at dronegen/darwin_pipelines.go:115
 ################################################
 
 kind: pipeline
 type: exec
 name: build-darwin-amd64-fips-pkg-tsh
 environment:
-  GID: "1000"
   RUNTIME: go1.16.2
-  UID: "1000"
 trigger:
   event:
     include:
@@ -5237,6 +5210,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: ec33082c9821a6df75413d5cc21e3af92b916aefb1f80402266b289cab2d4aaf
+hmac: 0477fd731967c59ae2309142c53b59030e2fd747ab6a22d9029025c45aa6c1c6
 
 ...
