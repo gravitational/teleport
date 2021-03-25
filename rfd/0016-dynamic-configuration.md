@@ -198,7 +198,7 @@ desired/target `origin` value:
 |    *from \ to*    |        **`defaults`**       |           **`config-file`**          |          **`dynamic`**          |
 |       :---:       |            :---:            |                 :---:                |              :---:              |
 |   **`defaults`**  |             n/a             | specify in `teleport.yaml` & restart |          `tctl create`          |
-| **`config-file`** | remove from `teleport.yalm` |  change in `teleport.yaml` & restart | `tctl create --force --confirm` |
+| **`config-file`** | remove from `teleport.yaml` |  change in `teleport.yaml` & restart | `tctl create --force --confirm` |
 |   **`dynamic`**   |        `tctl rm` [?]        | specify in `teleport.yaml` & restart |      `tctl create --force`      |
 
 The `teleport.io/origin` label is reserved for system use.  Resources derived
