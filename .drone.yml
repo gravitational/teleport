@@ -822,6 +822,9 @@ trigger:
     - branch/*
 workspace:
   path: /tmp/push-build-darwin-amd64-fips
+platform:
+  os: darwin
+  arch: amd64
 clone:
   disable: true
 steps:
@@ -2713,7 +2716,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/darwin_pipelines.go:65
+# Generated at dronegen/darwin_pipelines.go:66
 ################################################
 
 kind: pipeline
@@ -2733,6 +2736,9 @@ trigger:
     - gravitational/*
 workspace:
   path: /tmp/build-darwin-amd64-fips
+platform:
+  os: darwin
+  arch: amd64
 clone:
   disable: true
 steps:
@@ -2821,7 +2827,7 @@ steps:
     $FILE > $FILE.sha256; done && ls -l
   environment:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-fips
-- name: Copy Mac artifacts
+- name: Upload to S3
   commands:
   - cd $WORKSPACE_DIR/go/artifacts
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -2845,7 +2851,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/darwin_pipelines.go:90
+# Generated at dronegen/darwin_pipelines.go:92
 ################################################
 
 kind: pipeline
@@ -2865,6 +2871,9 @@ trigger:
     - gravitational/*
 workspace:
   path: /tmp/build-darwin-amd64-fips-pkg
+platform:
+  os: darwin
+  arch: amd64
 clone:
   disable: true
 steps:
@@ -2931,9 +2940,11 @@ steps:
       from_secret: APPLE_PASSWORD
     APPLE_USERNAME:
       from_secret: APPLE_USERNAME
+    ARCH: amd64
     BUILDBOX_PASSWORD:
       from_secret: BUILDBOX_PASSWORD
     ENT_TARBALL_PATH: /tmp/build-darwin-amd64-fips-pkg/go/artifacts
+    OS: darwin
     RUNTIME: fips
     WORKSPACE_DIR: /tmp/build-darwin-amd64-fips-pkg
 - name: Copy Mac pkg artifacts
@@ -2945,7 +2956,7 @@ steps:
     $FILE > $FILE.sha256; done && ls -l
   environment:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-fips-pkg
-- name: Copy Mac artifacts
+- name: Upload to S3
   commands:
   - cd $WORKSPACE_DIR/go/artifacts
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -4226,7 +4237,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/darwin_pipelines.go:115
+# Generated at dronegen/darwin_pipelines.go:118
 ################################################
 
 kind: pipeline
@@ -4246,6 +4257,9 @@ trigger:
     - gravitational/*
 workspace:
   path: /tmp/build-darwin-amd64-fips-pkg-tsh
+platform:
+  os: darwin
+  arch: amd64
 clone:
   disable: true
 steps:
@@ -4306,12 +4320,13 @@ steps:
   - export HOME=/Users/build
   - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
   - security find-identity -v
-  - make pkg-tsh VERSION=$VERSION OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
+  - make -C e pkg-tsh VERSION=$VERSION OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
   environment:
     APPLE_PASSWORD:
       from_secret: APPLE_PASSWORD
     APPLE_USERNAME:
       from_secret: APPLE_USERNAME
+    ARCH: amd64
     BUILDBOX_PASSWORD:
       from_secret: BUILDBOX_PASSWORD
     ENT_TARBALL_PATH: /tmp/build-darwin-amd64-fips-pkg-tsh/go/artifacts
@@ -4327,7 +4342,7 @@ steps:
     > $FILE.sha256; done && ls -l
   environment:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-fips-pkg-tsh
-- name: Copy Mac artifacts
+- name: Upload to S3
   commands:
   - cd $WORKSPACE_DIR/go/artifacts
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -5210,6 +5225,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 0477fd731967c59ae2309142c53b59030e2fd747ab6a22d9029025c45aa6c1c6
+hmac: a0fd480769862e840980a9e548e7409ab674a0e87fbb8cb5968ec8c72983fa7d
 
 ...
