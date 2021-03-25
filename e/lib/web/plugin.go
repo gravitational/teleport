@@ -86,6 +86,8 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	h.POST("/enterprise/nodes/token", h.WithAuth(p.createScriptJoinTokenHandle))
 
 	h.POST("/enterprise/accessrequest", h.WithAuth(p.createAccessRequestHandle))
+	h.PUT("/enterprise/accessrequest", h.WithAuth(p.reviewAccessRequestHandle))
+	h.DELETE("/enterprise/accessrequest/:requestId", h.WithAuth(p.deleteAccessRequestHandle))
 	h.GET("/enterprise/accessrequest/:requestId", h.WithAuth(p.getAccessRequestHandle))
 	h.GET("/enterprise/accessrequest", h.WithAuth(p.getAccessRequestsHandle))
 

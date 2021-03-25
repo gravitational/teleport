@@ -3,7 +3,7 @@ package ui
 import (
 	"time"
 
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 )
 
@@ -26,10 +26,30 @@ type AccessRequest struct {
 	Created time.Time `json:"created"`
 	// Expires is when the request will expire.
 	Expires time.Time `json:"expires"`
+	// Reviews are reviews applied to this access request.
+	Reviews []AccessRequestReview `json:"reviews"`
+	// SuggestedReviewers is a list of reviewers suggested.
+	SuggestedReviewers []string `json:"suggestedReviewers"`
+	// ThresholdNames is a list of threshold names.
+	ThresholdNames []string `json:"thresholdNames"`
+}
+
+// AccessRequestReview defines fields of a review applied to a request.
+type AccessRequestReview struct {
+	// Author is the user who reviewed request.
+	Author string `json:"author"`
+	// Roles are the list of roles approved.
+	Roles []string `json:"roles"`
+	// State is either DENIED or APPROVED.
+	State string `json:"state"`
+	// Reason is the why request was approved or denied.
+	Reason string `json:"reason"`
+	// Created is the time review was submitted.
+	Created time.Time `json:"created"`
 }
 
 // NewAccessRequest creates a UI access request object.
-func NewAccessRequest(request services.AccessRequest) (*AccessRequest, error) {
+func NewAccessRequest(request types.AccessRequest) (*AccessRequest, error) {
 	if request == nil {
 		return nil, trace.BadParameter("nil request")
 	}
@@ -40,14 +60,39 @@ func NewAccessRequest(request services.AccessRequest) (*AccessRequest, error) {
 		return nil, trace.BadParameter("request %q, state is set to none", request.GetMetadata().Name)
 	}
 
+	reviews := make([]AccessRequestReview, 0, len(request.GetReviews()))
+	for _, review := range request.GetReviews() {
+		reviews = append(reviews, newAccessReview(review))
+	}
+
+	thresholdNames := make([]string, 0, len(request.GetThresholds()))
+	for _, threshold := range request.GetThresholds() {
+		if threshold.Name != "" {
+			thresholdNames = append(thresholdNames, threshold.Name)
+		}
+	}
+
 	return &AccessRequest{
-		ID:            request.GetMetadata().Name,
-		State:         request.GetState().String(),
-		ResolveReason: request.GetResolveReason(),
-		RequestReason: request.GetRequestReason(),
-		User:          request.GetUser(),
-		Roles:         request.GetRoles(),
-		Created:       request.GetCreationTime(),
-		Expires:       request.GetAccessExpiry(),
+		ID:                 request.GetMetadata().Name,
+		State:              request.GetState().String(),
+		ResolveReason:      request.GetResolveReason(),
+		RequestReason:      request.GetRequestReason(),
+		User:               request.GetUser(),
+		Roles:              request.GetRoles(),
+		Created:            request.GetCreationTime(),
+		Expires:            request.GetAccessExpiry(),
+		Reviews:            reviews,
+		SuggestedReviewers: request.GetSuggestedReviewers(),
+		ThresholdNames:     thresholdNames,
 	}, nil
+}
+
+func newAccessReview(review types.AccessReview) AccessRequestReview {
+	return AccessRequestReview{
+		Author:  review.Author,
+		Roles:   review.Roles,
+		State:   review.ProposedState.String(),
+		Reason:  review.Reason,
+		Created: review.Created,
+	}
 }
