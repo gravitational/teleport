@@ -22,6 +22,10 @@ var (
 		Name: "dockersock",
 		Temp: &volumeTemp{},
 	}
+	volumeDockerTmpfs = volume{
+		Name: "dockertmpfs",
+		Temp: &volumeTemp{Medium: "memory"},
+	}
 	volumeTmpfs = volume{
 		Name: "tmpfs",
 		Temp: &volumeTemp{Medium: "memory"},
@@ -42,6 +46,10 @@ var (
 	volumeRefDocker = volumeRef{
 		Name: "dockersock",
 		Path: "/var/run",
+	}
+	volumeRefDockerTmpfs = volumeRef{
+		Name: "dockertmpfs",
+		Path: "/var/lib/docker",
 	}
 	volumeRefTmpDind = volumeRef{
 		Name: "tmp-dind",
