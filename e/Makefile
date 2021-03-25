@@ -1,6 +1,8 @@
 # This makefile usually runs as a sub-make by ../Makefile
 # But running regular 'make' and 'make clean' works.
 BUILDDIR ?= build
+LOCALDIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
+WEBASSETS_BUILDDIR ?= $(LOCALDIR)../lib/web/build
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s $(LDFLAGS)'
 CGOFLAG ?= CGO_ENABLED=1
 RELEASE_ENT = teleport-ent-$(GITTAG)-$(OS)-$(ARCH)-bin
@@ -75,7 +77,7 @@ $(BUILDDIR)/tctl:
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport: ensure-webassets-e
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
@@ -140,19 +142,18 @@ release-unix: clean full
 
 # make full - produces a teleport binary with the web assets built-in
 .PHONY:full
-full: check-build-vars all $(BUILDDIR)/webassets.zip
+full: check-build-vars $(WEBASSETS_BUILDDIR)/webassets.zip
 	@echo "---> Attaching Enterprise web assets."
-	cat $(BUILDDIR)/webassets.zip >> $(BUILDDIR)/teleport
-	rm -fr $(BUILDDIR)/webassets.zip
-	zip -q -A $(BUILDDIR)/teleport
+	$(MAKE) all WEBASSETS_TAG="webassets_embed"
 
 # build/webassets.zip archive contains the web assets (UI) which gets
-# appended to teleport binary
-$(BUILDDIR)/webassets.zip:
+# embedded into teleport binary
+$(WEBASSETS_BUILDDIR)/webassets.zip: | $(WEBASSETS_BUILDDIR)
 	@echo "---> Building Enterprise web assets."
-	cd ../webassets/e/teleport/ ; zip -qr ../../../e/$(BUILDDIR)/webassets.zip .
+	cd ../webassets/e/teleport/ ; zip -qr $@ .
 
-
+$(WEBASSETS_BUILDDIR):
+	mkdir -p $@
 
 .PHONY: check-build-vars
 check-build-vars:
