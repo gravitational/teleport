@@ -566,7 +566,7 @@ message AuditConfig {
 }
 
 // ClusterConfigOverrideV3 represents a subset of ClusterConfig that can be
-// dynamically overriden.
+// dynamically overridden.
 message ClusterConfigOverrideV3 {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;

@@ -1615,7 +1615,7 @@ func (m *AuditConfig) XXX_DiscardUnknown() {
 var xxx_messageInfo_AuditConfig proto.InternalMessageInfo
 
 // ClusterConfigOverrideV3 represents a subset of ClusterConfig that can be
-// dynamically overriden.
+// dynamically overridden.
 type ClusterConfigOverrideV3 struct {
 	// Kind is a resource kind
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind"`

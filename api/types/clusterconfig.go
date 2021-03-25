@@ -355,10 +355,9 @@ func (c *ClusterConfigV3) keepOnlyValidOverrides() error {
 		var err error
 		allowedOverrides := []string{RecordAtNode, RecordAtNodeSync, RecordOff}
 		if !utils.SliceContainsStr(allowedOverrides, c.Override.SessionRecording) {
-			err = trace.BadParameter("session_recording can be overriden only with one of: %v", strings.Join(allowedOverrides, ","))
-		}
-		if !utils.SliceContainsStr(allowedOverrides, c.Spec.SessionRecording) {
-			err = trace.BadParameter("session_recording=%q cannot be overriden", c.Spec.SessionRecording)
+			err = trace.BadParameter("session_recording can be overridden only with one of: %v", strings.Join(allowedOverrides, ","))
+		} else if !utils.SliceContainsStr(allowedOverrides, c.Spec.SessionRecording) {
+			err = trace.BadParameter("session_recording=%q cannot be overridden", c.Spec.SessionRecording)
 		}
 		if err != nil {
 			// SessionRecording override could not be applied: reset it to the
