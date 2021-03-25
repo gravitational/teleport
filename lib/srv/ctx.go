@@ -678,22 +678,12 @@ func (c *ServerContext) String() string {
 	return fmt.Sprintf("ServerContext(%v->%v, user=%v, id=%v)", c.ServerConn.RemoteAddr(), c.ServerConn.LocalAddr(), c.ServerConn.User(), c.id)
 }
 
-func (c *ServerContext) getPAMConfig() (*PAMConfig, error) {
-	if c.srv.Component() != teleport.ComponentNode {
-		return nil, nil
-	}
-
-	accessPoint := c.srv.GetAccessPoint()
-	clusterPAMConfig, err := accessPoint.GetPAMConfig(c.cancelContext)
-
+// GetPAMConfig fetches available PAM configuration sources and
+// selects and fills the appropriate configuration in accordance with RFD 16.
+func GetPAMConfig(ctx context.Context, identity string, accessPoint auth.AccessPoint, localPAMConfig pam.Config) (*PAMConfig, error) {
+	clusterPAMConfig, err := accessPoint.GetPAMConfig(ctx)
 	// If it doesn't exist, don't return an hard error and fall back to local instead.
 	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-
-	// Get the local PAM configuration.
-	localPAMConfig, err := c.srv.GetPAM()
-	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -724,7 +714,7 @@ func (c *ServerContext) getPAMConfig() (*PAMConfig, error) {
 	}
 
 	// Fetch the Teleport user from the auth server.
-	user, err := accessPoint.GetUser(c.Identity.TeleportUser, false)
+	user, err := accessPoint.GetUser(identity, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -758,10 +748,24 @@ func (c *ServerContext) getPAMConfig() (*PAMConfig, error) {
 // ExecCommand takes a *ServerContext and extracts the parts needed to create
 // an *execCommand which can be re-sent to Teleport.
 func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
-	// Get the final PAM configuration.
-	pamConfig, err := c.getPAMConfig()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var pamConfig *PAMConfig
+	var err error
+
+	if c.srv.Component() == teleport.ComponentNode {
+		// Get the access point used for fetching dynamic configuration.
+		accessPoint := c.srv.GetAccessPoint()
+
+		// Get the local PAM configuration.
+		localPAMConfig, err := c.srv.GetPAM()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Get the final PAM config.
+		pamConfig, err = GetPAMConfig(c.cancelContext, c.Identity.TeleportUser, accessPoint, *localPAMConfig)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// If the identity has roles, extract the role names.
