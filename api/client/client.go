@@ -329,12 +329,8 @@ func (c *Client) GetUsers(withSecrets bool) ([]types.User, error) {
 		return nil, trail.FromGRPC(err)
 	}
 	var users []types.User
-	for {
-		user, err := stream.Recv()
+	for user, err := stream.Recv(); err != io.EOF; user, err = stream.Recv() {
 		if err != nil {
-			if err == io.EOF {
-				break
-			}
 			return nil, trail.FromGRPC(err)
 		}
 		users = append(users, user)

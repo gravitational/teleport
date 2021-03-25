@@ -1543,3 +1543,23 @@ message DeleteWebTokenRequest {
     // Token specifies the token to delete.
     string Token = 2 [ (gogoproto.jsontag) = "token" ];
 }
+
+// ResourceRequest is a request relating to a named resource.
+message ResourceRequest {
+    // Name is the name of the resource.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+}
+
+// ResourceWithSecretsRequest is a request relating to a named resource with secrets.
+message ResourceWithSecretsRequest {
+    // Name is the name of the resource.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+    // WithSecrets specifies whether to load associated secrets.
+    bool WithSecrets = 2 [ (gogoproto.jsontag) = "with_secrets,omitempty" ];
+}
+
+// ResourcesWithSecretsRequest is a request relating to resources with secrets.
+message ResourcesWithSecretsRequest {
+    // WithSecrets specifies whether to load associated secrets.
+    bool WithSecrets = 1 [ (gogoproto.jsontag) = "with_secrets,omitempty" ];
+}

@@ -1776,11 +1776,12 @@ func (c *Client) DeleteNamespace(name string) error {
 
 // GetRoles returns a list of roles
 func (c *Client) GetRoles(ctx context.Context) ([]services.Role, error) {
-	roles, err := c.APIClient.GetRoles(ctx)
-	if err == nil {
-		return roles, nil
-	} else if !trace.IsNotImplemented(err) {
-		return nil, trace.Wrap(err)
+	if resp, err := c.APIClient.GetRoles(ctx); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return resp, nil
 	}
 
 	// fallback to http if grpc is not implemented
@@ -1793,7 +1794,7 @@ func (c *Client) GetRoles(ctx context.Context) ([]services.Role, error) {
 	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roles = make([]services.Role, len(items))
+	roles := make([]services.Role, len(items))
 	for i, roleBytes := range items {
 		role, err := services.UnmarshalRole(roleBytes, services.SkipValidation())
 		if err != nil {
@@ -1811,10 +1812,12 @@ func (c *Client) CreateRole(role services.Role) error {
 
 // UpsertRole creates or updates role
 func (c *Client) UpsertRole(ctx context.Context, role services.Role) error {
-	if err := c.APIClient.UpsertRole(ctx, role); err == nil {
+	if err := c.APIClient.UpsertRole(ctx, role); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return trace.Wrap(err)
+		}
+	} else {
 		return nil
-	} else if !trace.IsNotImplemented(err) {
-		return trace.Wrap(err)
 	}
 
 	// fallback to http if grpc is not implemented
@@ -1829,24 +1832,24 @@ func (c *Client) UpsertRole(ctx context.Context, role services.Role) error {
 
 // GetRole returns role by name
 func (c *Client) GetRole(ctx context.Context, name string) (services.Role, error) {
-	if name == "" {
-		return nil, trace.BadParameter("missing name")
-	}
-
-	role, err := c.APIClient.GetRole(ctx, name)
-	if err == nil {
-		return role, nil
-	} else if !trace.IsNotImplemented(err) {
-		return nil, trace.Wrap(err)
+	if resp, err := c.APIClient.GetRole(ctx, name); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return resp, nil
 	}
 
 	// fallback to http if grpc is not implemented
 	// DELETE IN 7.0
+	if name == "" {
+		return nil, trace.BadParameter("missing name")
+	}
 	out, err := c.Get(c.Endpoint("roles", name), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	role, err = services.UnmarshalRole(out.Bytes(), services.SkipValidation())
+	role, err := services.UnmarshalRole(out.Bytes(), services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1855,14 +1858,19 @@ func (c *Client) GetRole(ctx context.Context, name string) (services.Role, error
 
 // DeleteRole deletes role by name
 func (c *Client) DeleteRole(ctx context.Context, name string) error {
-	if err := c.APIClient.DeleteRole(ctx, name); err == nil {
+	if err := c.APIClient.DeleteRole(ctx, name); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return trace.Wrap(err)
+		}
+	} else {
 		return nil
-	} else if !trace.IsNotImplemented(err) {
-		return trace.Wrap(err)
 	}
 
 	// fallback to http if grpc is not implemented
 	// DELETE IN 7.0
+	if name == "" {
+		return trace.BadParameter("missing name")
+	}
 	_, err := c.Delete(c.Endpoint("roles", name))
 	return trace.Wrap(err)
 }

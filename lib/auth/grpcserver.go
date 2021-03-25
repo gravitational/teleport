@@ -591,7 +591,7 @@ func (g *GRPCServer) CreateUser(ctx context.Context, req *services.UserV2) (*emp
 		return nil, trail.ToGRPC(err)
 	}
 
-	if err := auth.CreateUser(ctx, req); err != nil {
+	if err := auth.ServerWithRoles.CreateUser(ctx, req); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 
@@ -611,7 +611,7 @@ func (g *GRPCServer) UpdateUser(ctx context.Context, req *services.UserV2) (*emp
 		return nil, trail.ToGRPC(err)
 	}
 
-	if err := auth.UpdateUser(ctx, req); err != nil {
+	if err := auth.ServerWithRoles.UpdateUser(ctx, req); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 
@@ -627,11 +627,11 @@ func (g *GRPCServer) DeleteUser(ctx context.Context, req *proto.DeleteUserReques
 		return nil, trail.ToGRPC(err)
 	}
 
-	if err := auth.DeleteUser(ctx, req.GetName()); err != nil {
+	if err := auth.ServerWithRoles.DeleteUser(ctx, req.Name); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 
-	log.Infof("%q user deleted", req.GetName())
+	log.Infof("%q user deleted", req.Name)
 
 	return &empty.Empty{}, nil
 }
@@ -1253,7 +1253,7 @@ func (g *GRPCServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*t
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	role, err := auth.GetRole(ctx, req.Name)
+	role, err := auth.ServerWithRoles.GetRole(ctx, req.Name)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
@@ -1270,7 +1270,7 @@ func (g *GRPCServer) GetRoles(ctx context.Context, _ *empty.Empty) (*proto.GetRo
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	roles, err := auth.GetRoles(ctx)
+	roles, err := auth.ServerWithRoles.GetRoles(ctx)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
@@ -1297,7 +1297,7 @@ func (g *GRPCServer) UpsertRole(ctx context.Context, role *types.RoleV3) (*empty
 	if err = services.ValidateRole(role); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	err = auth.UpsertRole(ctx, role)
+	err = auth.ServerWithRoles.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
@@ -1313,7 +1313,7 @@ func (g *GRPCServer) DeleteRole(ctx context.Context, req *proto.DeleteRoleReques
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	if err := auth.DeleteRole(ctx, req.Name); err != nil {
+	if err := auth.ServerWithRoles.DeleteRole(ctx, req.Name); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 
