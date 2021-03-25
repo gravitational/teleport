@@ -1,9 +1,9 @@
-import { CreateAccessRequest } from 'e-teleport/services/workflow';
 import StoreAccessRequests from 'e-teleport/stores/storeAccessRequests';
+import { AccessRequest } from 'e-teleport/services/workflow';
 
-export const requestPending = {
+export const requestPending: AccessRequest = {
   id: '461ff4bb-62f1-53b5-84ae-731022261a12',
-  state: 'PENDING' as any,
+  state: 'PENDING',
   user: 'Sam',
   expires: new Date(0),
   expiresDuration: '35 minutes',
@@ -15,24 +15,44 @@ export const requestPending = {
     commit fixes for our production application. I will need access for the \
     rest of the day to complete my changes.',
   resolveReason: '',
+  reviews: [],
+  reviewers: [
+    { name: 'alice', state: 'PENDING' },
+    { name: 'bob', state: 'PENDING' },
+  ],
+  thresholdNames: ['Default', 'Poplar', 'Admin'],
 };
 
-export const requestDenied = {
+export const requestDenied: AccessRequest = {
   id: '3ce23da9-6b85-5fce-9bf3-5fb826120cb2',
-  state: 'DENIED' as any,
+  state: 'DENIED',
   user: 'Sam',
   expires: new Date(0),
   expiresDuration: '20 hours',
   created: new Date('12-2-2020'),
   createdDuration: '35 minutes ago',
   roles: ['ruhh', 'admin'],
-  requestReason: '',
+  requestReason: 'Some short request reason',
   resolveReason: '',
+  reviews: [
+    {
+      author: 'alice',
+      createdDuration: '26 hours ago',
+      state: 'DENIED',
+      reason: 'Not today',
+      roles: ['admin', 'developer'],
+    },
+  ],
+  reviewers: [
+    { name: 'alice', state: 'DENIED' },
+    { name: 'bob', state: 'PENDING' },
+  ],
+  thresholdNames: ['Default'],
 };
 
-export const requestApproved = {
+export const requestApproved: AccessRequest = {
   id: '72de9b90-04fd-5621-a55d-432d9fe56ef2',
-  state: 'APPROVED' as any,
+  state: 'APPROVED',
   user: 'Sam',
   expires: new Date(0),
   expiresDuration: '24 hours',
@@ -41,57 +61,72 @@ export const requestApproved = {
   roles: ['kaco', 'ziuzzow', 'admin'],
   requestReason: '',
   resolveReason: '',
+  reviews: [
+    {
+      author: 'alice',
+      createdDuration: '26 hours ago',
+      reason:
+        'Approving for developer role not admin. Admins access is not needed for this request.',
+      state: 'APPROVED',
+      roles: ['kaco', 'admin'],
+    },
+    {
+      author: 'test-long-user-name@testing.com',
+      createdDuration: '1 minute ago',
+      reason: '',
+      state: 'APPROVED',
+      roles: ['admin'],
+    },
+  ],
+  reviewers: [
+    { name: 'alice', state: 'APPROVED' },
+    { name: 'bob', state: 'PENDING' },
+    { name: 'test-long-user-name@testing.com', state: 'APPROVED' },
+  ],
+  thresholdNames: ['Default'],
 };
 
-const assumedRequest = {
+export const requestEmpty: AccessRequest = {
   ...requestApproved,
-  id: 'assumed@button',
-  requestReason: 'show assumed button state',
+  reviews: [],
+  reviewers: [],
+  roles: ['empty-values'],
+  id: 'ffc11a95-e8af-581c-ba82-47c429c841e8',
 };
 
-export const requests = [
-  requestPending,
-  requestDenied,
-  requestApproved,
-  assumedRequest,
-];
+export const requests = [requestPending, requestDenied, requestApproved];
 
 export class MockedWorkflowService {
   requests = [];
   user = '';
 
-  constructor(ctxUser) {
+  constructor() {
     this.requests = JSON.parse(JSON.stringify(requests));
-    this.user = ctxUser;
   }
 
-  fetchAccessRequests = () => Promise.resolve(this.requests);
-
-  fetchAccessRequest = (requestId: string) => {
-    return Promise.resolve(this.requests.find(r => r.id === requestId));
+  fetchAccessRequests = () => {
+    return Promise.resolve(this.requests);
   };
 
-  createAccessRequest = (req: CreateAccessRequest) => {
-    const request = {
-      ...requestPending,
-      user: this.user,
-      createdDuration: 'a few seconds ago',
-      roles: req.roles,
-      requestReason: req.reason,
-    };
-    this.requests.push(request);
-    return Promise.resolve(request);
+  fetchAccessRequest = () => {
+    return Promise.resolve(requestPending);
+  };
+
+  createAccessRequest = () => {
+    return Promise.reject(new Error('not implemented'));
   };
 
   applyPermission = () => Promise.resolve();
+  submitAccessRequestReview = () => Promise.resolve(requestApproved);
+  deleteAccessRequest = () => Promise.resolve();
 }
 
 export class MockedStoreAccessRequests extends StoreAccessRequests {
   getAssumedRequests = () => ({
-    [assumedRequest.id]: assumedRequest,
+    [requestApproved.id]: requestApproved,
   });
 
-  isAssumed = (requestId: string) => requestId === assumedRequest.id;
+  isAssumed = () => false;
 
   // Disable local storage settings.
   setState = () => {};

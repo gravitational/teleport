@@ -2,7 +2,11 @@ import api from 'teleport/services/api';
 import sessionService from 'teleport/services/session';
 import cfg from 'e-teleport/config';
 import makeAccessRequest from './makeAccessRequest';
-import { AccessRequestFilter, CreateAccessRequest } from './types';
+import {
+  AccessRequestFilter,
+  CreateAccessRequest,
+  UpdateAccessRequest,
+} from './types';
 
 class WorkflowService {
   fetchAccessRequest(requestId: string) {
@@ -20,6 +24,14 @@ class WorkflowService {
 
   createAccessRequest(request: CreateAccessRequest) {
     return api.post(cfg.getAccessRequestUrl(), request).then(makeAccessRequest);
+  }
+
+  submitAccessRequestReview(request: UpdateAccessRequest) {
+    return api.put(cfg.getAccessRequestUrl(), request).then(makeAccessRequest);
+  }
+
+  deleteAccessRequest(requestId: string) {
+    return api.delete(cfg.getAccessRequestUrl(requestId));
   }
 
   applyPermission(requestId: string) {

@@ -1,27 +1,21 @@
 import React from 'react';
 import { useHistory } from 'react-router';
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { Option } from 'shared/components/Select';
 import TeleportContextE from 'e-teleport/teleportContextE';
 import cfg from 'e-teleport/config';
 
 export default function useRequestCreate(ctx: TeleportContextE) {
   const history = useHistory();
   const roles = ctx.storeUser.getRequestableRoles();
+  const reviewers = ctx.storeUser.getSuggestedReviewers();
   const requireReason = ctx.storeUser.getAccessStrategy().type === 'reason';
   const { attempt, setAttempt } = useAttempt();
   const [reason, setReason] = React.useState('');
-  const [selectedRoles, setSelectedRoles] = React.useState<Option[]>([]);
 
-  function createRequest() {
-    const request = {
-      reason,
-      roles: selectedRoles.map(r => r.value),
-    };
-
+  function createRequest(roles: string[], suggestedReviewers: string[]) {
     setAttempt({ status: 'processing' });
     ctx.workflowService
-      .createAccessRequest(request)
+      .createAccessRequest({ reason, roles, suggestedReviewers })
       .then(close)
       .catch((err: Error) =>
         setAttempt({ status: 'failed', statusText: err.message })
@@ -29,7 +23,7 @@ export default function useRequestCreate(ctx: TeleportContextE) {
   }
 
   function close() {
-    history.push(cfg.routes.requests);
+    history.push(cfg.getAccessRequestRoute());
   }
 
   return {
@@ -38,8 +32,7 @@ export default function useRequestCreate(ctx: TeleportContextE) {
     reason,
     setReason,
     roles,
-    selectedRoles,
-    setSelectedRoles,
+    reviewers,
     createRequest,
     close,
   };

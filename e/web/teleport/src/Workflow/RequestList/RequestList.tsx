@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { sortBy } from 'lodash';
 import {
@@ -6,6 +7,7 @@ import {
   Text,
   Label,
   LabelState,
+  ButtonBorder,
   ButtonPrimary,
   Box,
   Alert,
@@ -23,6 +25,7 @@ import isMatch from 'design/utils/match';
 import InputSearch from 'teleport/components/InputSearch';
 import useTeleportE from 'e-teleport/useTeleportE';
 import useRequestList, { State, Row } from './useRequestList';
+import cfg from 'e-teleport/config';
 
 export default function Container() {
   const ctx = useTeleportE();
@@ -147,7 +150,7 @@ export function RequestList({ attempt, requests, assumeRole }: State) {
                 <SortHeaderCell
                   sortDir={sort.key === 'created' ? sort.dir : null}
                   onSortChange={onSortChange}
-                  title="Requested"
+                  title="Created"
                 />
               }
             />
@@ -167,18 +170,16 @@ const ReasonCell = props => {
   const { requestReason } = data[rowIndex] as Row;
 
   return (
-    <Cell>
-      <Box
-        style={{
-          maxWidth: '350px',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-        }}
-        title={requestReason}
-      >
-        {requestReason}
-      </Box>
+    <Cell
+      style={{
+        maxWidth: '350px',
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+      }}
+      title={requestReason}
+    >
+      {requestReason}
     </Cell>
   );
 };
@@ -201,17 +202,15 @@ const StatusCell = props => {
   }
 
   return (
-    <Cell>
-      <Flex alignItems="center">
-        <LabelState
-          kind={kind}
-          mr={2}
-          width="10px"
-          p={0}
-          style={{ minHeight: '10px' }}
-        />
-        <Text typography="body2">{state}</Text>
-      </Flex>
+    <Cell style={{ display: 'flex', alignItems: 'center' }}>
+      <LabelState
+        kind={kind}
+        mr={2}
+        width="10px"
+        p={0}
+        style={{ minHeight: '10px' }}
+      />
+      <Text typography="body2">{state}</Text>
     </Cell>
   );
 };
@@ -221,7 +220,7 @@ const ActionCell = props => {
   const request = data[rowIndex] as Row;
 
   return (
-    <Cell align="right">
+    <Cell align="right" style={{ minWidth: '160px' }}>
       {request.canAssume && (
         <ButtonPrimary
           size="small"
@@ -233,6 +232,13 @@ const ActionCell = props => {
           {request.isAssumed ? 'assumed' : 'assume'}
         </ButtonPrimary>
       )}
+      <ButtonBorder
+        as={Link}
+        size="small"
+        to={cfg.getAccessRequestRoute(request.id)}
+      >
+        View
+      </ButtonBorder>
     </Cell>
   );
 };

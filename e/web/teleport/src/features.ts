@@ -45,7 +45,7 @@ class FeatureWorkflow {
   route = {
     group: 'activity',
     title: 'Access Requests',
-    path: cfg.routes.requests,
+    path: cfg.getAccessRequestRoute(),
     component: Workflow,
   };
 
@@ -55,7 +55,7 @@ class FeatureWorkflow {
       title: 'Access Requests',
       Icon: Icons.EqualizerVertical,
       getLink() {
-        return cfg.routes.requests;
+        return cfg.getAccessRequestRoute();
       },
     });
 

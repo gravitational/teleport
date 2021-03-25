@@ -2,7 +2,7 @@ import React from 'react';
 import { RequestReason } from './RequestReason';
 
 export default {
-  title: 'Teleport/WaitingRoom/Reason',
+  title: 'TeleportE/WaitingRoom/Reason',
 };
 
 export const Loaded = () => {

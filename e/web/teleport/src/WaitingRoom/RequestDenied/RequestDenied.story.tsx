@@ -2,7 +2,7 @@ import React from 'react';
 import RequestDenied from './RequestDenied';
 
 export default {
-  title: 'Teleport/WaitingRoom/Denied',
+  title: 'TeleportE/WaitingRoom/Denied',
 };
 
 export const WithReason = () => {

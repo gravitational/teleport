@@ -1,18 +1,16 @@
 import { useState, useEffect } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import historyService from 'teleport/services/history';
-
 import TeleportContextE from 'e-teleport/teleportContextE';
 import { AccessRequest } from 'e-teleport/services/workflow';
 
 export default function useRequestList(ctx: TeleportContextE) {
-  const currUser = ctx.storeUser.getUsername();
   const { attempt, run, setAttempt } = useAttempt('processing');
-  const [requests, setRequests] = useState<AccessRequest[]>(null);
+  const [requests, setRequests] = useState<AccessRequest[]>([]);
 
   useEffect(() => {
     run(() =>
-      ctx.workflowService.fetchAccessRequests({ user: currUser }).then(reqs => {
+      ctx.workflowService.fetchAccessRequests({}).then(reqs => {
         const rows = reqs.map(req => makeRow(req, ctx));
         setRequests(rows);
       })
@@ -40,8 +38,9 @@ export default function useRequestList(ctx: TeleportContextE) {
 }
 
 function makeRow(request: AccessRequest, ctx: TeleportContextE) {
-  const canAssume = request.state === 'APPROVED';
-  const isAssumed = ctx.storeAccessRequests.isAssumed(request.id);
+  const ownRequest = request.user === ctx.storeUser.getUsername();
+  const canAssume = ownRequest && request.state === 'APPROVED';
+  const isAssumed = ownRequest && ctx.storeAccessRequests.isAssumed(request.id);
 
   return {
     ...request,

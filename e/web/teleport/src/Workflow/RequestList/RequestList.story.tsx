@@ -1,9 +1,10 @@
 import React from 'react';
-import { requests } from '../fixtures';
+import { MemoryRouter } from 'react-router-dom';
+import { requestPending, requestDenied, requestApproved } from '../fixtures';
 import { RequestList } from './RequestList';
 
 export default {
-  title: 'Teleport/Workflow/RequestList',
+  title: 'TeleportE/Workflow/RequestList',
 };
 
 export const Processing = () => {
@@ -11,7 +12,11 @@ export const Processing = () => {
 };
 
 export const Loaded = () => {
-  return <RequestList {...sample} />;
+  return (
+    <MemoryRouter>
+      <RequestList {...sample} />
+    </MemoryRouter>
+  );
 };
 
 export const Failed = () => {
@@ -23,10 +28,33 @@ export const Failed = () => {
   );
 };
 
+const requestRows = [
+  {
+    ...requestPending,
+    canAssume: false,
+    isAssumed: false,
+  },
+  {
+    ...requestDenied,
+    canAssume: false,
+    isAssumed: false,
+  },
+  {
+    ...requestApproved,
+    canAssume: true,
+    isAssumed: false,
+  },
+  {
+    ...requestApproved,
+    canAssume: true,
+    isAssumed: true,
+  },
+];
+
 const sample = {
   attempt: {
     status: 'success' as any,
   },
-  requests: requests,
+  requests: requestRows,
   assumeRole: () => null,
 };

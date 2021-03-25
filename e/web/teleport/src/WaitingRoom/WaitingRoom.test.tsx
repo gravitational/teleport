@@ -218,18 +218,7 @@ describe('access strategy behavioral testing', () => {
   });
 });
 
-const sampleRequest = {
-  id: '',
-  state: '',
-  user: '',
-  expires: undefined,
-  expiresDuration: '',
-  created: undefined,
-  createdDuration: '',
-  roles: [],
-  resolveReason: '',
-  requestReason: '',
-};
+const sampleRequest = makeAccessRequest();
 
 const sampleContext = (type = '') => ({
   accessStrategy: {

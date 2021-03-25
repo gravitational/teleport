@@ -55,9 +55,7 @@ function useMainStory() {
     ctx.appService.fetchApps = () => Promise.resolve(apps);
     ctx.storeUser.setState(userContext);
     ctx.storeAccessRequests = new MockedStoreAccessRequests();
-    ctx.workflowService = new MockedWorkflowService(
-      ctx.storeUser.getUsername()
-    );
+    ctx.workflowService = new MockedWorkflowService();
 
     getFeatures().forEach(f => f.register(ctx));
 

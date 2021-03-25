@@ -6,7 +6,7 @@ const cfg = {
   oss: ossCfg,
 
   routes: {
-    requests: '/web/requests',
+    requests: '/web/requests/:requestId?',
     requestNew: '/web/requests/new',
 
     billing: '/web/billing',
@@ -26,6 +26,10 @@ const cfg = {
     invoicesPath: '/v1/enterprise/cloud/invoices',
     cardPath: '/v1/enterprise/cloud/card',
     accountPath: '/v1/enterprise/cloud/account',
+  },
+
+  getAccessRequestRoute(requestId?: string) {
+    return generatePath(cfg.routes.requests, { requestId });
   },
 
   getAccessRequestUrl(requestId?: string) {

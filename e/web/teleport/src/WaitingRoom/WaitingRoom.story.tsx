@@ -3,7 +3,7 @@ import { WaitingRoom } from './WaitingRoom';
 import RequestPending from './RequestPending';
 
 export default {
-  title: 'Teleport/WaitingRoom',
+  title: 'TeleportE/WaitingRoom',
 };
 
 export const Processing = () => {

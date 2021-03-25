@@ -16,10 +16,10 @@ export default function useWaitingRoom(ctx: TeleportContextE) {
     attemptActions.do(() =>
       userService.fetchUserContext().then(res => {
         setStrategy(res.accessStrategy);
-        if (
-          accessRequest.state === '' &&
-          res.accessStrategy.type === 'always'
-        ) {
+        // This statement says: on login, if the strategy is always, auto create a request for user.
+        // An access request state is retrieved from local storage and is unitialized on logins.
+        // (logging out and session expiry clears the storage).
+        if (!accessRequest.state && res.accessStrategy.type === 'always') {
           return createRequest();
         }
       })

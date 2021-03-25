@@ -1,7 +1,7 @@
 import Workflow from './workflow';
 import api from 'teleport/services/api';
 
-test('fetch access requests', async () => {
+test('handling of empty access request list', async () => {
   // Test null response.
   jest.spyOn(api, 'get').mockResolvedValue(null);
 
@@ -11,3 +11,88 @@ test('fetch access requests', async () => {
   expect(response).not.toBeNull();
   expect(response).toHaveLength(0);
 });
+
+test('handling of empty lists in an access request', async () => {
+  jest.spyOn(api, 'get').mockResolvedValue(null);
+
+  const workflow = new Workflow();
+  const response = await workflow.fetchAccessRequest('123');
+
+  expect(response.roles).toHaveLength(0);
+  expect(response.thresholdNames).toHaveLength(0);
+  expect(response.reviews).toHaveLength(0);
+  expect(response.reviewers).toHaveLength(0);
+});
+
+test('correct formatting of access request json response', async () => {
+  jest.spyOn(api, 'get').mockResolvedValue(requestApproved);
+
+  const workflow = new Workflow();
+  const response = await workflow.fetchAccessRequest('123');
+
+  expect(response).toEqual({
+    id: '72de9b90-04fd-5621-a55d-432d9fe56ef2',
+    state: 'APPROVED',
+    user: 'Sam',
+    expires: new Date(0),
+    expiresDuration: '51 years',
+    created: new Date('12-1-2020'),
+    createdDuration: '4 months ago',
+    roles: ['dev', 'admin'],
+    resolveReason: 'resolve reason',
+    requestReason: 'request reason',
+    reviews: [
+      {
+        author: 'may',
+        state: 'APPROVED',
+        reason: 'some reason',
+        roles: ['admin'],
+        createdDuration: '3 months ago',
+      },
+      {
+        author: 'alice',
+        state: 'DENIED',
+        reason: '',
+        roles: ['admin'],
+        createdDuration: '3 months ago',
+      },
+    ],
+    // Reviewers should contain both review authors and suggested reviewers.
+    // Suggested reviewers who did not review should remain pending.
+    reviewers: [
+      { name: 'alice', state: 'DENIED' },
+      { name: 'bob', state: 'PENDING' },
+      { name: 'may', state: 'APPROVED' },
+    ],
+    thresholdNames: ['Default'],
+  });
+});
+
+const requestApproved = {
+  id: '72de9b90-04fd-5621-a55d-432d9fe56ef2',
+  state: 'APPROVED' as any,
+  user: 'Sam',
+  expires: new Date(0),
+  created: new Date('12-1-2020'),
+  roles: ['dev', 'admin'],
+  requestReason: 'request reason',
+  resolveReason: 'resolve reason',
+  reviews: [
+    {
+      author: 'may',
+      reason: 'some reason',
+      state: 'APPROVED' as any,
+      roles: ['admin'],
+      created: new Date('12-12-2020'),
+    },
+    {
+      author: 'alice',
+      reason: '',
+      state: 'DENIED' as any,
+      roles: ['admin'],
+      created: new Date('12-12-2020'),
+    },
+  ],
+  suggestedReviewers: ['alice', 'bob'],
+  thresholdNames: ['Default'],
+};
