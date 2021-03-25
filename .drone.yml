@@ -197,8 +197,7 @@ volumes:
 - name: tmp-integration
   temp: {}
 - name: dockertmpfs
-  temp:
-    medium: memory
+  temp: {}
 - name: dockersock
   temp: {}
 
@@ -297,8 +296,7 @@ volumes:
   temp:
     medium: memory
 - name: dockertmpfs
-  temp:
-    medium: memory
+  temp: {}
 - name: dockersock
   temp: {}
 
@@ -4820,6 +4818,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 273dd935191f15a3702b79a2ee55d5557e51b27a2ae3fe567c94d251f6925a66
+hmac: ae3ff2a037f49f8d0e65528ea54f3b36cce40fb8adc510399696b33d77e0858a
 
 ...
