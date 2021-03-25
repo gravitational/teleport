@@ -55,8 +55,8 @@ type Config struct {
 	// policy.
 	UsePAMAuth bool
 
-	// Override specifies if this config will override cluster PAM configuration.
-	Override bool
+	// Origin specifices the origin of this configuration. Must be an RFD 16 origin constant.
+	Origin string
 }
 
 // CheckDefaults makes sure the Config structure has minimum required values.

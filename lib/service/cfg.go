@@ -29,6 +29,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"k8s.io/apimachinery/pkg/util/validation"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -775,7 +776,7 @@ func ApplyDefaults(cfg *Config) {
 	cfg.SSH.Enabled = true
 	cfg.SSH.Shell = defaults.DefaultShell
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
-	cfg.SSH.PAM = &pam.Config{Enabled: false}
+	cfg.SSH.PAM = &pam.Config{Enabled: false, Origin: teleport.ResourceOriginDefaults}
 	cfg.SSH.BPF = &bpf.Config{Enabled: false}
 
 	// Kubernetes service defaults.

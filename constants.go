@@ -729,3 +729,15 @@ const UserSingleUseCertTTL = time.Minute
 // StandardHTTPSPort is the default port used for the https URI scheme,
 // cf. RFC 7230 § 2.7.2.
 const StandardHTTPSPort = 443
+
+// Resource origin constants from RFD 16.
+const (
+	// Config settings originating from defaults.
+	ResourceOriginDefaults = "default"
+
+	// Config settings originating from a configuration file.
+	ResourceOriginConfigFile = "config-file"
+
+	// Config settings originating from none of the above. Usually a dynamic resource.
+	ResourceOriginOther = "other"
+)

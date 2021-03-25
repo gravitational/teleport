@@ -697,7 +697,9 @@ func (c *ServerContext) getPAMConfig() (*PAMConfig, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if localPAMConfig.Override || clusterPAMConfig == nil {
+	// If the cluster PAM configuration doesn't exist or the configuration file
+	// has a PAM configuration specified, use the local configuration.
+	if localPAMConfig.Origin == teleport.ResourceOriginConfigFile || clusterPAMConfig == nil {
 		if !localPAMConfig.Enabled {
 			return nil, nil
 		}
@@ -708,6 +710,7 @@ func (c *ServerContext) getPAMConfig() (*PAMConfig, error) {
 		}, nil
 	}
 
+	// PAM is disabled by the cluster PAM configuration.
 	if !clusterPAMConfig.GetEnabled() {
 		return nil, nil
 	}

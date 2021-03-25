@@ -855,9 +855,6 @@ type PAM struct {
 	// UsePAMAuth specifies whether to trigger the "auth" PAM modules from the
 	// policy.
 	UsePAMAuth bool `yaml:"use_pam_auth"`
-
-	// Override specifies if local configuration will override cluster PAM configuration.
-	Override bool `yaml:"override"`
 }
 
 // Parse returns a parsed pam.Config.
@@ -871,7 +868,7 @@ func (p *PAM) Parse() *pam.Config {
 		Enabled:     enabled,
 		ServiceName: serviceName,
 		UsePAMAuth:  p.UsePAMAuth,
-		Override:    p.Override,
+		Origin:      teleport.ResourceOriginConfigFile,
 	}
 }
 
