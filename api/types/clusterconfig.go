@@ -361,8 +361,11 @@ func (c *ClusterConfigV3) keepOnlyValidOverrides() error {
 			err = trace.BadParameter("session_recording=%q cannot be overriden", c.Spec.SessionRecording)
 		}
 		if err != nil {
-			errs = append(errs, err)
+			// SessionRecording override could not be applied: reset it to the
+			// zero value and add the reason to the list of errors. Still, proceed
+			// with applying as many of the other overrides as possible.
 			c.Override.SessionRecording = ""
+			errs = append(errs, err)
 		}
 	}
 
