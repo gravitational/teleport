@@ -1611,7 +1611,14 @@ func (a *ServerWithRoles) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*
 	if err := a.action(defaults.Namespace, services.KindOIDCRequest, services.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.CreateOIDCAuthRequest(req)
+
+	oidcReq, err := a.authServer.CreateOIDCAuthRequest(req)
+	if err != nil {
+		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodOIDC, err)
+		return nil, trace.Wrap(err)
+	}
+
+	return oidcReq, nil
 }
 
 func (a *ServerWithRoles) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error) {
@@ -1681,7 +1688,14 @@ func (a *ServerWithRoles) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*
 	if err := a.action(defaults.Namespace, services.KindSAMLRequest, services.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.CreateSAMLAuthRequest(req)
+
+	samlReq, err := a.authServer.CreateSAMLAuthRequest(req)
+	if err != nil {
+		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodSAML, err)
+		return nil, trace.Wrap(err)
+	}
+
+	return samlReq, nil
 }
 
 func (a *ServerWithRoles) ValidateSAMLResponse(re string) (*SAMLAuthResponse, error) {
@@ -1779,7 +1793,14 @@ func (a *ServerWithRoles) CreateGithubAuthRequest(req services.GithubAuthRequest
 	if err := a.action(defaults.Namespace, services.KindGithubRequest, services.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.CreateGithubAuthRequest(req)
+
+	githubReq, err := a.authServer.CreateGithubAuthRequest(req)
+	if err != nil {
+		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodGithub, err)
+		return nil, trace.Wrap(err)
+	}
+
+	return githubReq, nil
 }
 
 func (a *ServerWithRoles) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error) {
@@ -2850,4 +2871,24 @@ func NewAdminAuthServer(authServer *Server, sessions session.Service, alog event
 		alog:       alog,
 		sessions:   sessions,
 	}, nil
+}
+
+func emitSSOLoginFailureEvent(ctx context.Context, emitter events.Emitter, method string, err error) {
+	emitErr := emitter.EmitAuditEvent(ctx, &events.UserLogin{
+		Metadata: events.Metadata{
+			Type: events.UserLoginEvent,
+			Code: events.UserSSOLoginFailureCode,
+		},
+		Method: method,
+		Status: events.Status{
+			Success:     false,
+			Error:       trace.Unwrap(err).Error(),
+			UserMessage: err.Error(),
+		},
+	})
+
+	if emitErr != nil {
+		log.WithError(err).Warnf("Failed to emit %v login failure event.", method)
+	}
+
 }
