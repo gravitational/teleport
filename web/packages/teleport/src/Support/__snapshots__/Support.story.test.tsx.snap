@@ -221,21 +221,21 @@ exports[`support Enterprise 1`] = `
         </div>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/docs/quickstart?product=teleport&version=e_5.0.0"
+          href="https://goteleport.com/teleport/docs/quickstart?product=teleport&version=e_4.4.0-dev"
           rel="noreferrer"
         >
           Quickstart Guide
         </a>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/docs/user-manual?product=teleport&version=e_5.0.0"
+          href="https://goteleport.com/teleport/docs/user-manual?product=teleport&version=e_4.4.0-dev"
           rel="noreferrer"
         >
           tsh User Guide
         </a>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=e_5.0.0"
+          href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=e_4.4.0-dev"
           rel="noreferrer"
         >
           Admin Guide
@@ -249,7 +249,7 @@ exports[`support Enterprise 1`] = `
         </a>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/docs/faq?product=teleport&version=e_5.0.0"
+          href="https://goteleport.com/teleport/docs/faq?product=teleport&version=e_4.4.0-dev"
           rel="noreferrer"
         >
           FAQ
@@ -279,21 +279,21 @@ exports[`support Enterprise 1`] = `
         </div>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=e_5.0.0#troubleshooting"
+          href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=e_4.4.0-dev#troubleshooting"
           rel="noreferrer"
         >
           Monitoring Teleport
         </a>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=e_5.0.0#troubleshooting"
+          href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=e_4.4.0-dev#troubleshooting"
           rel="noreferrer"
         >
           Collecting Debug Data
         </a>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=e_5.0.0#troubleshooting"
+          href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=e_4.4.0-dev#troubleshooting"
           rel="noreferrer"
         >
           Troubleshooting FAQ
@@ -360,7 +360,7 @@ exports[`support Enterprise 1`] = `
       <div
         class="c13"
       >
-        test cluster name
+        test
       </div>
     </div>
     <div
@@ -376,7 +376,7 @@ exports[`support Enterprise 1`] = `
       <div
         class="c13"
       >
-        5.0.0
+        4.4.0-dev
       </div>
     </div>
     <div
@@ -392,23 +392,7 @@ exports[`support Enterprise 1`] = `
       <div
         class="c13"
       >
-        test/public/url
-      </div>
-    </div>
-    <div
-      class="c11"
-    >
-      <div
-        class="c12"
-        style="width: 130px;"
-      >
-        Connected Nodes
-        :
-      </div>
-      <div
-        class="c13"
-      >
-        50
+        localhost:3080
       </div>
     </div>
   </div>
@@ -629,21 +613,21 @@ exports[`support OSS 1`] = `
         </div>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/docs/quickstart?product=teleport&version=oss_5.0.0"
+          href="https://goteleport.com/teleport/docs/quickstart?product=teleport&version=oss_4.4.0-dev"
           rel="noreferrer"
         >
           Quickstart Guide
         </a>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/docs/user-manual?product=teleport&version=oss_5.0.0"
+          href="https://goteleport.com/teleport/docs/user-manual?product=teleport&version=oss_4.4.0-dev"
           rel="noreferrer"
         >
           tsh User Guide
         </a>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=oss_5.0.0"
+          href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=oss_4.4.0-dev"
           rel="noreferrer"
         >
           Admin Guide
@@ -657,7 +641,7 @@ exports[`support OSS 1`] = `
         </a>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/docs/faq?product=teleport&version=oss_5.0.0"
+          href="https://goteleport.com/teleport/docs/faq?product=teleport&version=oss_4.4.0-dev"
           rel="noreferrer"
         >
           FAQ
@@ -687,21 +671,21 @@ exports[`support OSS 1`] = `
         </div>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=oss_5.0.0#troubleshooting"
+          href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=oss_4.4.0-dev#troubleshooting"
           rel="noreferrer"
         >
           Monitoring Teleport
         </a>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=oss_5.0.0#troubleshooting"
+          href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=oss_4.4.0-dev#troubleshooting"
           rel="noreferrer"
         >
           Collecting Debug Data
         </a>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=oss_5.0.0#troubleshooting"
+          href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=oss_4.4.0-dev#troubleshooting"
           rel="noreferrer"
         >
           Troubleshooting FAQ
@@ -768,7 +752,7 @@ exports[`support OSS 1`] = `
       <div
         class="c13"
       >
-        test cluster name
+        test
       </div>
     </div>
     <div
@@ -784,7 +768,7 @@ exports[`support OSS 1`] = `
       <div
         class="c13"
       >
-        5.0.0
+        4.4.0-dev
       </div>
     </div>
     <div
@@ -800,23 +784,7 @@ exports[`support OSS 1`] = `
       <div
         class="c13"
       >
-        test/public/url
-      </div>
-    </div>
-    <div
-      class="c11"
-    >
-      <div
-        class="c12"
-        style="width: 130px;"
-      >
-        Connected Nodes
-        :
-      </div>
-      <div
-        class="c13"
-      >
-        50
+        localhost:3080
       </div>
     </div>
   </div>

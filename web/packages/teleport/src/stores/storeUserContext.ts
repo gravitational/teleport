@@ -25,10 +25,6 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.username;
   }
 
-  getRequestableRoles() {
-    return this.state.requestableRoles;
-  }
-
   getEventAccess() {
     return this.state.acl.events;
   }
@@ -65,11 +61,19 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.acl.accessRequests;
   }
 
-  getBillingAccess() {
-    return this.state.acl.billing;
-  }
-
   getAccessStrategy() {
     return this.state.accessStrategy;
+  }
+
+  getRequestableRoles() {
+    return this.state.accessCapabilities.requestableRoles;
+  }
+
+  getSuggestedReviewers() {
+    return this.state.accessCapabilities.suggestedReviewers;
+  }
+
+  getBillingAccess() {
+    return this.state.acl.billing;
   }
 }

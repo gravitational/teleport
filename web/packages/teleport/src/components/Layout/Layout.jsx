@@ -40,7 +40,7 @@ FeatureHeader.defaultProps = {
  * Header Title
  */
 const FeatureHeaderTitle = styled(Text)`
-  flex-shrink: 0;
+  white-space: nowrap;
 `;
 
 FeatureHeaderTitle.defaultProps = {
@@ -56,7 +56,6 @@ const FeatureBox = styled(Flex)`
   width: 100%;
   height: 100%;
   flex-direction: column;
-
   /*
     This hack adds space to the bottom.
     Directly assigning padding-bottom does not work as flex container ignores this child padding.

@@ -184,7 +184,7 @@ exports[`loaded 1`] = `
   line-height: 32px;
   margin: 0px;
   margin-right: 56px;
-  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .c0 {
@@ -2156,7 +2156,7 @@ exports[`overflow 1`] = `
   line-height: 32px;
   margin: 0px;
   margin-right: 56px;
-  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .c0 {

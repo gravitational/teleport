@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import makeAcl from './makeAcl';
-import { UserContext } from './types';
+import { UserContext, AccessCapabilities } from './types';
 import { makeCluster } from '../clusters';
 
 export default function makeUserContext(json: any): UserContext {
@@ -26,7 +26,7 @@ export default function makeUserContext(json: any): UserContext {
   const cluster = makeCluster(json.cluster);
   const acl = makeAcl(json.userAcl);
   const accessStrategy = json.accessStrategy || defaultStrategy;
-  const requestableRoles = json.requestableRoles || [];
+  const accessCapabilities = makeAccessCapabilities(json.accessCapabilities);
 
   return {
     username,
@@ -34,7 +34,16 @@ export default function makeUserContext(json: any): UserContext {
     acl,
     cluster,
     accessStrategy,
-    requestableRoles,
+    accessCapabilities,
+  };
+}
+
+function makeAccessCapabilities(json): AccessCapabilities {
+  json = json || {};
+
+  return {
+    requestableRoles: json.requestableRoles || [],
+    suggestedReviewers: json.suggestedReviewers || [],
   };
 }
 

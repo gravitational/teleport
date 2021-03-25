@@ -31,7 +31,7 @@ const GlobalStyle = createGlobalStyle`
     padding: 0;
   }
 
-  input {
+  input, textarea {
     font-family: ${props => props.theme.font};
   }
 

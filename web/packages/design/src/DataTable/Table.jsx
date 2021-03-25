@@ -149,12 +149,13 @@ class Column extends React.Component {
 }
 
 const Cell = props => {
-  const { isHeader, children, align, style, className } = props;
+  const { isHeader, children, align, style, className, title } = props;
   const childProps = {
     children,
     align,
     style,
     className,
+    title,
   };
 
   if (isHeader) {

@@ -23,13 +23,18 @@ export interface AccessStrategy {
   prompt: string;
 }
 
+export interface AccessCapabilities {
+  requestableRoles: string[];
+  suggestedReviewers: string[];
+}
+
 export interface UserContext {
   authType: AuthType;
   acl: Acl;
   username: string;
   cluster: Cluster;
   accessStrategy: AccessStrategy;
-  requestableRoles: string[];
+  accessCapabilities: AccessCapabilities;
 }
 
 export interface Access {

@@ -22,10 +22,20 @@ import useTeleport from 'teleport/useTeleport';
 import cfg from 'teleport/config';
 import styled from 'styled-components';
 
-const Support = () => {
-  const teleportCtx = useTeleport();
-  const cluster = teleportCtx.storeUser.state.cluster;
-  const docs = getDocUrls(cluster.authVersion);
+export default function Container() {
+  const ctx = useTeleport();
+  const cluster = ctx.storeUser.state.cluster;
+
+  return <Support {...cluster} isEnterprise={cfg.isEnterprise} />;
+}
+
+export const Support = ({
+  clusterId,
+  authVersion,
+  publicURL,
+  isEnterprise,
+}: Props) => {
+  const docs = getDocUrls(authVersion, isEnterprise);
 
   return (
     <FeatureBox pt="4">
@@ -33,7 +43,7 @@ const Support = () => {
         <Flex justifyContent="space-between" flexWrap="wrap">
           <Box>
             <Header title="Support" icon={<Icons.LocalPlay />} />
-            {cfg.isEnterprise && (
+            {isEnterprise && (
               <SupportLink
                 title="Create a Support Ticket"
                 url="https://gravitational.zendesk.com/hc/en-us/requests/new"
@@ -60,7 +70,7 @@ const Support = () => {
             <SupportLink
               title="Download Page"
               url={
-                cfg.isEnterprise
+                isEnterprise
                   ? 'https://dashboard.gravitational.com/web/downloads '
                   : 'https://goteleport.com/teleport/download'
               }
@@ -107,10 +117,9 @@ const Support = () => {
         <Text as="h5" mb={4} fontWeight="bold" caps>
           Cluster Information
         </Text>
-        <ClusterData title="Cluster Name" data={cluster.clusterId} />
-        <ClusterData title="Teleport Version" data={cluster.authVersion} />
-        <ClusterData title="Public Address" data={cluster.publicURL} />
-        <ClusterData title="Connected Nodes" data={cluster.nodeCount} />
+        <ClusterData title="Cluster Name" data={clusterId} />
+        <ClusterData title="Teleport Version" data={authVersion} />
+        <ClusterData title="Public Address" data={publicURL} />
       </Box>
     </FeatureBox>
   );
@@ -122,8 +131,8 @@ const Support = () => {
  *
  * @param version teleport version retrieved from cluster info.
  */
-const getDocUrls = (version = '') => {
-  const verPrefix = cfg.isEnterprise ? 'e' : 'oss';
+const getDocUrls = (version = '', isEnterprise: boolean) => {
+  const verPrefix = isEnterprise ? 'e' : 'oss';
 
   /**
    * withUTM appends URL with UTM parameters.
@@ -195,4 +204,9 @@ const Header = ({ title = '', icon = null }) => (
   </Flex>
 );
 
-export default Support;
+type Props = {
+  clusterId: string;
+  authVersion: string;
+  publicURL: string;
+  isEnterprise: boolean;
+};

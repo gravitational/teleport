@@ -173,7 +173,7 @@ exports[`success state 1`] = `
   font-size: 22px;
   line-height: 32px;
   margin: 0px;
-  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .c0 {

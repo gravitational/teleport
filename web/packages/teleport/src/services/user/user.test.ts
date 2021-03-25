@@ -16,16 +16,14 @@
 
 import user from './user';
 import api from 'teleport/services/api';
-import { defaultAccess } from 'teleport/services/user/makeAcl';
-import { defaultStrategy } from 'teleport/services/user/makeUserContext';
 
-test('fetch user context, null response gives proper default values', async () => {
+test('undefined values in context response gives proper default values', async () => {
   const mockContext = {
     authType: 'local',
     userName: 'foo',
     cluster: {
       name: 'aws',
-      lastConnected: '2020-09-26T17:30:23.512876876Z',
+      lastConnected: new Date('2020-09-26T17:30:23.512876876Z'),
       status: 'online',
       nodeCount: 1,
       publicURL: 'localhost',
@@ -45,35 +43,105 @@ test('fetch user context, null response gives proper default values', async () =
 
   jest.spyOn(api, 'get').mockResolvedValue(mockContext);
 
-  let response = await user.fetchUserContext(false);
-
-  expect(response.authType).toEqual('local');
-  expect(response.username).toEqual('foo');
-  expect(response.cluster).toMatchObject({
-    clusterId: mockContext.cluster.name,
+  const response = await user.fetchUserContext(false);
+  expect(response).toEqual({
+    username: 'foo',
+    authType: 'local',
+    acl: {
+      logins: [],
+      authConnectors: {
+        list: true,
+        read: true,
+        edit: true,
+        create: true,
+        remove: true,
+      },
+      // Test that undefined acl booleans are set to default false.
+      trustedClusters: {
+        list: false,
+        read: false,
+        edit: false,
+        create: false,
+        remove: false,
+      },
+      roles: {
+        list: false,
+        read: false,
+        edit: false,
+        create: false,
+        remove: false,
+      },
+      sessions: {
+        list: false,
+        read: false,
+        edit: false,
+        create: false,
+        remove: false,
+      },
+      events: {
+        list: false,
+        read: false,
+        edit: false,
+        create: false,
+        remove: false,
+      },
+      users: {
+        list: false,
+        read: false,
+        edit: false,
+        create: false,
+        remove: false,
+      },
+      appServers: {
+        list: false,
+        read: false,
+        edit: false,
+        create: false,
+        remove: false,
+      },
+      tokens: {
+        list: false,
+        read: false,
+        edit: false,
+        create: false,
+        remove: false,
+      },
+      accessRequests: {
+        list: false,
+        read: false,
+        edit: false,
+        create: false,
+        remove: false,
+      },
+      billing: {
+        list: false,
+        read: false,
+        edit: false,
+        create: false,
+        remove: false,
+      },
+    },
+    cluster: {
+      clusterId: 'aws',
+      lastConnected: new Date('2020-09-26T17:30:23.512Z'),
+      connectedText: '2020-09-26 17:30:23',
+      status: 'online',
+      url: '/web/cluster/aws/',
+      authVersion: '4.4.0-dev',
+      nodeCount: 1,
+      publicURL: 'localhost',
+      proxyVersion: '4.4.0-dev',
+    },
+    // Test undefined access strategy is set to default optional.
+    accessStrategy: { type: 'optional', prompt: '' },
+    // Test undefined roles and reviewers are set to empty arrays.
+    accessCapabilities: { requestableRoles: [], suggestedReviewers: [] },
   });
-  expect(response.acl).toStrictEqual({
-    logins: [],
-    authConnectors: mockContext.userAcl.authConnectors,
-    trustedClusters: defaultAccess,
-    roles: defaultAccess,
-    sessions: defaultAccess,
-    events: defaultAccess,
-    users: defaultAccess,
-    appServers: defaultAccess,
-    tokens: defaultAccess,
-    accessRequests: defaultAccess,
-    billing: defaultAccess,
-  });
-
-  expect(response.accessStrategy).toStrictEqual(defaultStrategy);
-  expect(response.requestableRoles).toStrictEqual([]);
 });
 
 test('fetch users, null response gives empty array', async () => {
   jest.spyOn(api, 'get').mockResolvedValue(null);
 
-  let response = await user.fetchUsers();
-
+  const response = await user.fetchUsers();
   expect(response).toStrictEqual([]);
 });

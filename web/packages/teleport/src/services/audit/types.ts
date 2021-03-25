@@ -61,6 +61,7 @@ export const CodeEnum = {
   SAML_CONNECTOR_DELETED: 'T8201I',
   ACCESS_REQUEST_CREATED: 'T5000I',
   ACCESS_REQUEST_UPDATED: 'T5001I',
+  ACCESS_REQUEST_REVIEWED: 'T5002I',
   TRUSTED_CLUSTER_TOKEN_CREATED: 'T7002I',
   TRUSTED_CLUSTER_CREATED: 'T7000I',
   TRUSTED_CLUSTER_DELETED: 'T7001I',
@@ -85,6 +86,9 @@ export type RawEvents = {
   >;
   [CodeEnum.ACCESS_REQUEST_UPDATED]: RawEventAccess<
     typeof CodeEnum.ACCESS_REQUEST_UPDATED
+  >;
+  [CodeEnum.ACCESS_REQUEST_REVIEWED]: RawEventAccess<
+    typeof CodeEnum.ACCESS_REQUEST_REVIEWED
   >;
   [CodeEnum.AUTH_ATTEMPT_FAILURE]: RawEventAuthFailure<
     typeof CodeEnum.AUTH_ATTEMPT_FAILURE
@@ -443,6 +447,7 @@ type RawEventAccess<T extends Code> = RawEvent<
     user: string;
     roles: string[];
     state: string;
+    reviewer: string;
   }
 >;
 
