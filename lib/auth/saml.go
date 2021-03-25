@@ -21,6 +21,7 @@ import (
 	"compress/flate"
 	"context"
 	"encoding/base64"
+	"fmt"
 	"io/ioutil"
 
 	"github.com/gravitational/teleport"
@@ -304,27 +305,31 @@ func (a *Server) ValidateSAMLResponse(samlResponse string) (*SAMLAuthResponse, e
 	if re != nil && re.attributeStatements != nil {
 		attributes, err := events.EncodeMapStrings(re.attributeStatements)
 		if err != nil {
-			log.WithError(err).Warn("Failed to encode identity attributes.")
+			event.Status.UserMessage = fmt.Sprintf("Failed to encode identity attributes: %v", err.Error())
+			log.WithError(err).Debug("Failed to encode identity attributes.")
 		} else {
 			event.IdentityAttributes = attributes
 		}
 	}
+
 	if err != nil {
 		event.Code = events.UserSSOLoginFailureCode
 		event.Status.Success = false
 		event.Status.Error = trace.Unwrap(err).Error()
 		event.Status.UserMessage = err.Error()
 		if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
-			log.WithError(err).Warn("Failed to emit SAML login success event.")
+			log.WithError(err).Warn("Failed to emit SAML login failed event.")
 		}
 		return nil, trace.Wrap(err)
 	}
 	event.Status.Success = true
 	event.User = re.auth.Username
 	event.Code = events.UserSSOLoginCode
+
 	if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
-		log.WithError(err).Warn("Failed to emit SAML login failure event.")
+		log.WithError(err).Warn("Failed to emit SAML login event.")
 	}
+
 	return &re.auth, nil
 }
 
