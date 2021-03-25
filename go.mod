@@ -36,7 +36,6 @@ require (
 	github.com/google/uuid v1.2.0 // indirect
 	github.com/gorilla/handlers v1.5.1 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
-	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/gravitational/configure v0.0.0-20180808141939-c3428bd84c23
 	github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70
 	github.com/gravitational/kingpin v2.1.11-0.20190130013101-742f2714c145+incompatible
@@ -84,13 +83,13 @@ require (
 	github.com/siddontang/go-mysql v1.1.0
 	github.com/sirupsen/logrus v1.8.1-0.20210219125412-f104497f2b21
 	github.com/stretchr/testify v1.7.0
-	github.com/tmc/grpc-websocket-proxy v0.0.0-20190109142713-0ad062ec5ee5 // indirect
 	github.com/tstranex/u2f v0.0.0-20160508205855-eb799ce68da4
 	github.com/vulcand/predicate v1.1.0
 	github.com/xeipuuv/gojsonpointer v0.0.0-20151027082146-e0fe6f683076 // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20150808065054-e02fc20de94c // indirect
 	github.com/xeipuuv/gojsonschema v0.0.0-20151204154511-3988ac14d6f6 // indirect
-	go.etcd.io/etcd v0.5.0-alpha.5.0.20201125193152-8a03d2e9614b
+	go.etcd.io/etcd/api/v3 v3.5.0-alpha.0
+	go.etcd.io/etcd/client/v3 v3.5.0-alpha.0
 	go.opencensus.io v0.22.5 // indirect
 	go.uber.org/atomic v1.7.0
 	golang.org/x/crypto v0.0.0-20210220033148-5ea612d1eb83
@@ -101,11 +100,12 @@ require (
 	golang.org/x/sys v0.0.0-20210223095934-7937bea0104d
 	golang.org/x/term v0.0.0-20210220032956-6a3ed077a48d
 	golang.org/x/text v0.3.5
+	golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e // indirect
 	golang.org/x/tools v0.1.0 // indirect
 	google.golang.org/api v0.29.0
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20210223151946-22b48be4551b
-	google.golang.org/grpc v1.29.1
+	google.golang.org/grpc v1.36.0
 	google.golang.org/protobuf v1.25.0
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gopkg.in/ini.v1 v1.62.0
