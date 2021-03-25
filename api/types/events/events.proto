@@ -28,7 +28,7 @@ message Metadata {
         [ (gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "time" ];
 
     // ClusterName identifies the originating teleport cluster
-    string ClusterName = 6 [ (gogoproto.jsontag) = "cluster_name" ];
+    string ClusterName = 6 [ (gogoproto.jsontag) = "cluster_name,omitempty" ];
 }
 
 // SesssionMetadata is a common session event metadata
@@ -42,7 +42,7 @@ message SessionMetadata {
 // UserMetadata is a common user event metadata
 message UserMetadata {
     // User is teleport user name
-    string User = 1 [ (gogoproto.jsontag) = "user" ];
+    string User = 1 [ (gogoproto.jsontag) = "user,omitempty" ];
 
     // Login is OS login
     string Login = 2 [ (gogoproto.jsontag) = "login,omitempty" ];
@@ -538,7 +538,7 @@ message ResourceMetadata {
     google.protobuf.Timestamp Expires = 2 [
         (gogoproto.stdtime) = true,
         (gogoproto.nullable) = false,
-        (gogoproto.jsontag) = "expires"
+        (gogoproto.jsontag) = "expires,omitempty"
     ];
 
     // UpdatedBy if set indicates the user who modified the resource
@@ -617,7 +617,8 @@ message AccessRequestCreate {
     // RequestID is access request ID
     string RequestID = 5 [ (gogoproto.jsontag) = "id" ];
 
-    // RequestState is access request state
+    // RequestState is access request state (in the access_request.review variant of
+    // the event this represents the post-review state of the request).
     string RequestState = 6 [ (gogoproto.jsontag) = "state" ];
 
     // Delegator is used by teleport plugins to indicate the identity
@@ -632,6 +633,13 @@ message AccessRequestCreate {
     // approval/denail of the request.
     google.protobuf.Struct Annotations = 9
         [ (gogoproto.jsontag) = "annotations,omitempty", (gogoproto.casttype) = "Struct" ];
+
+    // Reviewer is the author of the review (only used in the access_request.review event variant).
+    string Reviewer = 10 [ (gogoproto.jsontag) = "reviewer,omitempty" ];
+
+    // ProposedState is the state proposed by a review (only used in the access_request.review event
+    // variant).
+    string ProposedState = 11 [ (gogoproto.jsontag) = "proposed_state,omitempty" ];
 }
 
 // PortForward is emitted when a user requests port forwarding.
@@ -1217,6 +1225,36 @@ message MFADeviceDelete {
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
+// BillingInformationUpdate is emitted when a user updates the billing information.
+message BillingInformationUpdate {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
+// BillingCardCreate is emitted when a user creates or updates a credit card.
+message BillingCardCreate {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
+// BillingCardDelete is emitted when a user deletes a credit card.
+message BillingCardDelete {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
 // OneOf is a union of one of audit events submitted to the auth service
 message OneOf {
     // Event is one of the audit events
@@ -1266,6 +1304,9 @@ message OneOf {
         events.SessionUpload SessionUpload = 43;
         events.MFADeviceAdd MFADeviceAdd = 44;
         events.MFADeviceDelete MFADeviceDelete = 45;
+        events.BillingInformationUpdate BillingInformationUpdate = 46;
+        events.BillingCardCreate BillingCardCreate = 47;
+        events.BillingCardDelete BillingCardDelete = 48;
     }
 }
 

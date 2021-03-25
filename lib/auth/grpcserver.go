@@ -439,6 +439,26 @@ func (g *GRPCServer) SetAccessRequestState(ctx context.Context, req *proto.Reque
 	return &empty.Empty{}, nil
 }
 
+func (g *GRPCServer) SubmitAccessReview(ctx context.Context, review *types.AccessReviewSubmission) (*types.AccessRequestV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	req, err := auth.ServerWithRoles.SubmitAccessReview(ctx, *review)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	r, ok := req.(*services.AccessRequestV3)
+	if !ok {
+		err = trace.BadParameter("unexpected access request type %T", req)
+		return nil, trail.ToGRPC(err)
+	}
+
+	return r, nil
+}
+
 func (g *GRPCServer) GetAccessCapabilities(ctx context.Context, req *services.AccessCapabilitiesRequest) (*services.AccessCapabilities, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -1530,6 +1550,14 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 			return nil, trace.Wrap(err)
 		}
 	case *proto.MFARegisterResponse_U2F:
+		cap, err := auth.GetAuthPreference()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		u2fConfig, err := cap.GetU2F()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		// u2f.RegisterVerify will upsert the new device internally.
 		dev, err = u2f.RegisterVerify(ctx, u2f.RegisterVerifyParams{
 			DevName: initReq.DeviceName,
@@ -1541,6 +1569,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 			RegistrationStorageKey: user,
 			Storage:                u2fStorage,
 			Clock:                  auth.clock,
+			AttestationCAs:         u2fConfig.DeviceAttestationCAs,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

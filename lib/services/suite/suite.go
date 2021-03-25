@@ -592,15 +592,16 @@ func (s *ServicesTestSuite) WebSessionCRUD(c *check.C) {
 }
 
 func (s *ServicesTestSuite) TokenCRUD(c *check.C) {
-	_, err := s.ProvisioningS.GetToken("token")
+	ctx := context.Background()
+	_, err := s.ProvisioningS.GetToken(ctx, "token")
 	fixtures.ExpectNotFound(c, err)
 
 	t, err := services.NewProvisionToken("token", teleport.Roles{teleport.RoleAuth, teleport.RoleNode}, time.Time{})
 	c.Assert(err, check.IsNil)
 
-	c.Assert(s.ProvisioningS.UpsertToken(t), check.IsNil)
+	c.Assert(s.ProvisioningS.UpsertToken(ctx, t), check.IsNil)
 
-	token, err := s.ProvisioningS.GetToken("token")
+	token, err := s.ProvisioningS.GetToken(ctx, "token")
 	c.Assert(err, check.IsNil)
 	c.Assert(token.GetRoles().Include(teleport.RoleAuth), check.Equals, true)
 	c.Assert(token.GetRoles().Include(teleport.RoleNode), check.Equals, true)
@@ -610,9 +611,9 @@ func (s *ServicesTestSuite) TokenCRUD(c *check.C) {
 		c.Fatalf("expected diff to be within one second, got %v instead", diff)
 	}
 
-	c.Assert(s.ProvisioningS.DeleteToken("token"), check.IsNil)
+	c.Assert(s.ProvisioningS.DeleteToken(ctx, "token"), check.IsNil)
 
-	_, err = s.ProvisioningS.GetToken("token")
+	_, err = s.ProvisioningS.GetToken(ctx, "token")
 	fixtures.ExpectNotFound(c, err)
 
 	// check tokens backwards compatibility and marshal/unmarshal
@@ -641,20 +642,20 @@ func (s *ServicesTestSuite) TokenCRUD(c *check.C) {
 	// Test delete all tokens
 	t, err = services.NewProvisionToken("token1", teleport.Roles{teleport.RoleAuth, teleport.RoleNode}, time.Time{})
 	c.Assert(err, check.IsNil)
-	c.Assert(s.ProvisioningS.UpsertToken(t), check.IsNil)
+	c.Assert(s.ProvisioningS.UpsertToken(ctx, t), check.IsNil)
 
 	t, err = services.NewProvisionToken("token2", teleport.Roles{teleport.RoleAuth, teleport.RoleNode}, time.Time{})
 	c.Assert(err, check.IsNil)
-	c.Assert(s.ProvisioningS.UpsertToken(t), check.IsNil)
+	c.Assert(s.ProvisioningS.UpsertToken(ctx, t), check.IsNil)
 
-	tokens, err := s.ProvisioningS.GetTokens()
+	tokens, err := s.ProvisioningS.GetTokens(ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(tokens, check.HasLen, 2)
 
 	err = s.ProvisioningS.DeleteAllTokens()
 	c.Assert(err, check.IsNil)
 
-	tokens, err = s.ProvisioningS.GetTokens()
+	tokens, err = s.ProvisioningS.GetTokens(ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(tokens, check.HasLen, 0)
 }
@@ -817,6 +818,7 @@ func (s *ServicesTestSuite) U2FCRUD(c *check.C) {
 }
 
 func (s *ServicesTestSuite) SAMLCRUD(c *check.C) {
+	ctx := context.Background()
 	connector := &services.SAMLConnectorV2{
 		Kind:    services.KindSAML,
 		Version: services.V2,
@@ -842,33 +844,33 @@ func (s *ServicesTestSuite) SAMLCRUD(c *check.C) {
 	}
 	err := services.ValidateSAMLConnector(connector)
 	c.Assert(err, check.IsNil)
-	err = s.WebS.UpsertSAMLConnector(connector)
+	err = s.WebS.UpsertSAMLConnector(ctx, connector)
 	c.Assert(err, check.IsNil)
-	out, err := s.WebS.GetSAMLConnector(connector.GetName(), true)
+	out, err := s.WebS.GetSAMLConnector(ctx, connector.GetName(), true)
 	c.Assert(err, check.IsNil)
 	fixtures.DeepCompare(c, out, connector)
 
-	connectors, err := s.WebS.GetSAMLConnectors(true)
+	connectors, err := s.WebS.GetSAMLConnectors(ctx, true)
 	c.Assert(err, check.IsNil)
 	fixtures.DeepCompare(c, []services.SAMLConnector{connector}, connectors)
 
-	out2, err := s.WebS.GetSAMLConnector(connector.GetName(), false)
+	out2, err := s.WebS.GetSAMLConnector(ctx, connector.GetName(), false)
 	c.Assert(err, check.IsNil)
 	connectorNoSecrets := *connector
 	connectorNoSecrets.Spec.SigningKeyPair.PrivateKey = ""
 	fixtures.DeepCompare(c, out2, &connectorNoSecrets)
 
-	connectorsNoSecrets, err := s.WebS.GetSAMLConnectors(false)
+	connectorsNoSecrets, err := s.WebS.GetSAMLConnectors(ctx, false)
 	c.Assert(err, check.IsNil)
 	fixtures.DeepCompare(c, []services.SAMLConnector{&connectorNoSecrets}, connectorsNoSecrets)
 
-	err = s.WebS.DeleteSAMLConnector(connector.GetName())
+	err = s.WebS.DeleteSAMLConnector(ctx, connector.GetName())
 	c.Assert(err, check.IsNil)
 
-	err = s.WebS.DeleteSAMLConnector(connector.GetName())
+	err = s.WebS.DeleteSAMLConnector(ctx, connector.GetName())
 	c.Assert(trace.IsNotFound(err), check.Equals, true, check.Commentf("expected not found, got %T", err))
 
-	_, err = s.WebS.GetSAMLConnector(connector.GetName(), true)
+	_, err = s.WebS.GetSAMLConnector(ctx, connector.GetName(), true)
 	c.Assert(trace.IsNotFound(err), check.Equals, true, check.Commentf("expected not found, got %T", err))
 }
 
@@ -941,6 +943,7 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(c *check.C) {
 }
 
 func (s *ServicesTestSuite) GithubConnectorCRUD(c *check.C) {
+	ctx := context.Background()
 	connector := &services.GithubConnectorV3{
 		Kind:    services.KindGithubConnector,
 		Version: services.V3,
@@ -965,33 +968,33 @@ func (s *ServicesTestSuite) GithubConnectorCRUD(c *check.C) {
 	}
 	err := connector.CheckAndSetDefaults()
 	c.Assert(err, check.IsNil)
-	err = s.WebS.UpsertGithubConnector(connector)
+	err = s.WebS.UpsertGithubConnector(ctx, connector)
 	c.Assert(err, check.IsNil)
-	out, err := s.WebS.GetGithubConnector(connector.GetName(), true)
+	out, err := s.WebS.GetGithubConnector(ctx, connector.GetName(), true)
 	c.Assert(err, check.IsNil)
 	fixtures.DeepCompare(c, out, connector)
 
-	connectors, err := s.WebS.GetGithubConnectors(true)
+	connectors, err := s.WebS.GetGithubConnectors(ctx, true)
 	c.Assert(err, check.IsNil)
 	fixtures.DeepCompare(c, []services.GithubConnector{connector}, connectors)
 
-	out2, err := s.WebS.GetGithubConnector(connector.GetName(), false)
+	out2, err := s.WebS.GetGithubConnector(ctx, connector.GetName(), false)
 	c.Assert(err, check.IsNil)
 	connectorNoSecrets := *connector
 	connectorNoSecrets.Spec.ClientSecret = ""
 	fixtures.DeepCompare(c, out2, &connectorNoSecrets)
 
-	connectorsNoSecrets, err := s.WebS.GetGithubConnectors(false)
+	connectorsNoSecrets, err := s.WebS.GetGithubConnectors(ctx, false)
 	c.Assert(err, check.IsNil)
 	fixtures.DeepCompare(c, []services.GithubConnector{&connectorNoSecrets}, connectorsNoSecrets)
 
-	err = s.WebS.DeleteGithubConnector(connector.GetName())
+	err = s.WebS.DeleteGithubConnector(ctx, connector.GetName())
 	c.Assert(err, check.IsNil)
 
-	err = s.WebS.DeleteGithubConnector(connector.GetName())
+	err = s.WebS.DeleteGithubConnector(ctx, connector.GetName())
 	c.Assert(trace.IsNotFound(err), check.Equals, true, check.Commentf("expected not found, got %T", err))
 
-	_, err = s.WebS.GetGithubConnector(connector.GetName(), true)
+	_, err = s.WebS.GetGithubConnector(ctx, connector.GetName(), true)
 	c.Assert(trace.IsNotFound(err), check.Equals, true, check.Commentf("expected not found, got %T", err))
 }
 
@@ -1436,12 +1439,12 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 					teleport.Roles{teleport.RoleAuth, teleport.RoleNode}, expires)
 				c.Assert(err, check.IsNil)
 
-				c.Assert(s.ProvisioningS.UpsertToken(t), check.IsNil)
+				c.Assert(s.ProvisioningS.UpsertToken(ctx, t), check.IsNil)
 
-				token, err := s.ProvisioningS.GetToken("token")
+				token, err := s.ProvisioningS.GetToken(ctx, "token")
 				c.Assert(err, check.IsNil)
 
-				c.Assert(s.ProvisioningS.DeleteToken("token"), check.IsNil)
+				c.Assert(s.ProvisioningS.DeleteToken(ctx, "token"), check.IsNil)
 				return token
 			},
 		},

@@ -57,12 +57,12 @@ func SSHClientConfig(sshCert, privKey []byte, caCerts [][]byte) (*ssh.ClientConf
 
 	authMethod, err := AsAuthMethod(cert, privKey)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to convert identity file to auth method")
+		return nil, trace.Wrap(err, "failed to convert key pair to auth method")
 	}
 
 	hostKeyCallback, err := HostKeyCallback(caCerts)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to convert identity file to HostKeyCallback")
+		return nil, trace.Wrap(err, "failed to convert certificate authorities to HostKeyCallback")
 	}
 
 	return &ssh.ClientConfig{

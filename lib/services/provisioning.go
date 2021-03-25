@@ -17,6 +17,7 @@ limitations under the License.
 package services
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -28,19 +29,19 @@ import (
 // Provisioner governs adding new nodes to the cluster
 type Provisioner interface {
 	// UpsertToken adds provisioning tokens for the auth server
-	UpsertToken(ProvisionToken) error
+	UpsertToken(ctx context.Context, token ProvisionToken) error
 
 	// GetToken finds and returns token by id
-	GetToken(token string) (ProvisionToken, error)
+	GetToken(ctx context.Context, token string) (ProvisionToken, error)
 
 	// DeleteToken deletes provisioning token
-	DeleteToken(token string) error
+	DeleteToken(ctx context.Context, token string) error
 
 	// DeleteAllTokens deletes all provisioning tokens
 	DeleteAllTokens() error
 
 	// GetTokens returns all non-expired tokens
-	GetTokens(opts ...MarshalOption) ([]ProvisionToken, error)
+	GetTokens(ctx context.Context, opts ...MarshalOption) ([]ProvisionToken, error)
 }
 
 // MustCreateProvisionToken returns a new valid provision token

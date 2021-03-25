@@ -29,6 +29,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"unicode"
 
 	"github.com/gravitational/teleport"
 
@@ -188,6 +189,7 @@ func UserMessageFromError(err error) string {
 	if err != nil {
 		var buf bytes.Buffer
 		fmt.Fprint(&buf, Color(Red, "ERROR: "))
+
 		// If the error is a trace error, check if it has a user message embedded in
 		// it, if it does, print it, otherwise escape and print the original error.
 		if er, ok := err.(*trace.TraceErr); ok {
@@ -196,8 +198,15 @@ func UserMessageFromError(err error) string {
 			}
 			fmt.Fprintln(&buf, AllowNewlines(trace.Unwrap(er).Error()))
 		} else {
-			fmt.Fprintln(&buf, AllowNewlines(err.Error()))
+			strErr := err.Error()
+			// Error can be of type trace.proxyError where error message didn't get captured.
+			if strErr == "" {
+				fmt.Fprintln(&buf, "please check Teleport's log for more details")
+			} else {
+				fmt.Fprintln(&buf, AllowNewlines(err.Error()))
+			}
 		}
+
 		return buf.String()
 	}
 	return ""
@@ -245,6 +254,14 @@ func InitCLIParser(appName, appHelp string) (app *kingpin.Application) {
 
 	// set our own help template
 	return app.UsageTemplate(defaultUsageTemplate)
+}
+
+// SplitIdentifiers splits list of identifiers by commas/spaces/newlines.  Helpful when
+// accepting lists of identifiers in CLI (role names, request IDs, etc).
+func SplitIdentifiers(s string) []string {
+	return strings.FieldsFunc(s, func(r rune) bool {
+		return r == ',' || unicode.IsSpace(r)
+	})
 }
 
 // EscapeControl escapes all ANSI escape sequences from string and returns a

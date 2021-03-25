@@ -44,6 +44,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -140,7 +141,7 @@ func (s *IntSuite) TearDownSuite(c *check.C) {
 }
 
 func (s *IntSuite) SetUpTest(c *check.C) {
-	os.RemoveAll(client.FullProfilePath(""))
+	os.RemoveAll(apiclient.FullProfilePath(""))
 }
 
 // setUpTest configures the specific test identified with the given c.
@@ -1663,7 +1664,7 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 	err = aux.Process.GetAuthServer().UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 	trustedClusterToken := "trusted-cluster-token"
-	err = main.Process.GetAuthServer().UpsertToken(
+	err = main.Process.GetAuthServer().UpsertToken(ctx,
 		services.MustCreateProvisionToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, time.Time{}))
 	c.Assert(err, check.IsNil)
 	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, services.RoleMap{
@@ -1996,7 +1997,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 		meta.Labels = map[string]string{"access": "prod"}
 		tokenResource.SetMetadata(meta)
 	}
-	err = main.Process.GetAuthServer().UpsertToken(tokenResource)
+	err = main.Process.GetAuthServer().UpsertToken(ctx, tokenResource)
 	c.Assert(err, check.IsNil)
 	// Note that the mapping omits admins role, this is to cover the scenario
 	// when root cluster and leaf clusters have different role sets
@@ -2202,7 +2203,7 @@ func (s *IntSuite) TestTrustedTunnelNode(c *check.C) {
 	err = aux.Process.GetAuthServer().UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 	trustedClusterToken := "trusted-cluster-token"
-	err = main.Process.GetAuthServer().UpsertToken(
+	err = main.Process.GetAuthServer().UpsertToken(ctx,
 		services.MustCreateProvisionToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, time.Time{}))
 	c.Assert(err, check.IsNil)
 	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, services.RoleMap{
@@ -3682,7 +3683,7 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	err = aux.Process.GetAuthServer().UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 	trustedClusterToken := "trusted-clsuter-token"
-	err = svc.GetAuthServer().UpsertToken(
+	err = svc.GetAuthServer().UpsertToken(ctx,
 		services.MustCreateProvisionToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, time.Time{}))
 	c.Assert(err, check.IsNil)
 	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, services.RoleMap{

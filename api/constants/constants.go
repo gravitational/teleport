@@ -124,7 +124,22 @@ const (
 	// RemoteAuthServer is a special non-resolvable address that indicates client
 	// requests a connection to the remote auth server.
 	RemoteAuthServer = "@remote-auth-server"
+)
 
-	// FileExtSSHCert is a file extension used for Certificate files
+const (
+	// SessionKeyDir is the sub-directory where session keys are stored (.tsh/keys).
+	SessionKeyDir = "keys"
+	// FileNameKnownHosts is a file that stores known hosts.
+	FileNameKnownHosts = "known_hosts"
+	// FileExtTLSCert is the filename extension/suffix of TLS certs
+	// stored in a profile (./tsh/keys/profilename/username-x509.pem).
+	FileExtTLSCert = "-x509.pem"
+	// FileNameTLSCerts is the filename of Cert Authorities stored in a
+	// profile (./tsh/keys/profilename/certs.pem).
+	FileNameTLSCerts = "certs.pem"
+	// FileExtCert is a file extension used for SSH Certificate files.
 	FileExtSSHCert = "-cert.pub"
+	// FileExtPub is a file extension used for SSH Certificate Authorities
+	// stored in a profile (./tsh/keys/profilename/username.pub).
+	FileExtPub = ".pub"
 )

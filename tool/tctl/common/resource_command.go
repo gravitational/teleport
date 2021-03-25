@@ -266,6 +266,7 @@ func (rc *ResourceCommand) Create(client auth.ClientI) (err error) {
 
 // createTrustedCluster implements `tctl create cluster.yaml` command
 func (rc *ResourceCommand) createTrustedCluster(client auth.ClientI, raw services.UnknownResource) error {
+	ctx := context.TODO()
 	tc, err := services.UnmarshalTrustedCluster(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -273,7 +274,7 @@ func (rc *ResourceCommand) createTrustedCluster(client auth.ClientI, raw service
 
 	// check if such cluster already exists:
 	name := tc.GetName()
-	_, err = client.GetTrustedCluster(name)
+	_, err = client.GetTrustedCluster(ctx, name)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -283,7 +284,7 @@ func (rc *ResourceCommand) createTrustedCluster(client auth.ClientI, raw service
 		return trace.AlreadyExists("trusted cluster %q already exists", name)
 	}
 
-	out, err := client.UpsertTrustedCluster(context.TODO(), tc)
+	out, err := client.UpsertTrustedCluster(ctx, tc)
 	if err != nil {
 		// If force is used and UpsertTrustedCluster returns trace.AlreadyExists,
 		// this means the user tried to upsert a cluster whose exact match already
@@ -317,11 +318,12 @@ func (rc *ResourceCommand) createCertAuthority(client auth.ClientI, raw services
 
 // createGithubConnector creates a Github connector
 func (rc *ResourceCommand) createGithubConnector(client auth.ClientI, raw services.UnknownResource) error {
+	ctx := context.TODO()
 	connector, err := services.UnmarshalGithubConnector(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = client.GetGithubConnector(connector.GetName(), false)
+	_, err = client.GetGithubConnector(ctx, connector.GetName(), false)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -330,7 +332,7 @@ func (rc *ResourceCommand) createGithubConnector(client auth.ClientI, raw servic
 		return trace.AlreadyExists("authentication connector %q already exists",
 			connector.GetName())
 	}
-	err = client.UpsertGithubConnector(context.TODO(), connector)
+	err = client.UpsertGithubConnector(ctx, connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -350,6 +352,12 @@ func (rc *ResourceCommand) createRole(client auth.ClientI, raw services.UnknownR
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if err := services.ValidateAccessPredicates(role); err != nil {
+		// check for syntax errors in predicates
+		return trace.Wrap(err)
+	}
+
 	roleName := role.GetName()
 	_, err = client.GetRole(ctx, roleName)
 	if err != nil && !trace.IsNotFound(err) {
@@ -544,6 +552,7 @@ func (rc *ResourceCommand) IsForced() bool {
 
 // getCollection lists all resources of a given type
 func (rc *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollection, err error) {
+	ctx := context.TODO()
 	if rc.ref.Kind == "" {
 		return nil, trace.BadParameter("specify resource to list, e.g. 'tctl get roles'")
 	}
@@ -567,15 +576,15 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollect
 		}
 		return &userCollection{users: users}, nil
 	case services.KindConnectors:
-		sc, err := client.GetSAMLConnectors(rc.withSecrets)
+		sc, err := client.GetSAMLConnectors(ctx, rc.withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		oc, err := client.GetOIDCConnectors(rc.withSecrets)
+		oc, err := client.GetOIDCConnectors(ctx, rc.withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		gc, err := client.GetGithubConnectors(rc.withSecrets)
+		gc, err := client.GetGithubConnectors(ctx, rc.withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -585,19 +594,19 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollect
 			github: gc,
 		}, nil
 	case services.KindSAMLConnector:
-		connectors, err := client.GetSAMLConnectors(rc.withSecrets)
+		connectors, err := client.GetSAMLConnectors(ctx, rc.withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return &samlCollection{connectors: connectors}, nil
 	case services.KindOIDCConnector:
-		connectors, err := client.GetOIDCConnectors(rc.withSecrets)
+		connectors, err := client.GetOIDCConnectors(ctx, rc.withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return &oidcCollection{connectors: connectors}, nil
 	case services.KindGithubConnector:
-		connectors, err := client.GetGithubConnectors(rc.withSecrets)
+		connectors, err := client.GetGithubConnectors(ctx, rc.withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -676,13 +685,13 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollect
 		return &namespaceCollection{namespaces: []services.Namespace{*ns}}, nil
 	case services.KindTrustedCluster:
 		if rc.ref.Name == "" {
-			trustedClusters, err := client.GetTrustedClusters()
+			trustedClusters, err := client.GetTrustedClusters(ctx)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return &trustedClusterCollection{trustedClusters: trustedClusters}, nil
 		}
-		trustedCluster, err := client.GetTrustedCluster(rc.ref.Name)
+		trustedCluster, err := client.GetTrustedCluster(ctx, rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

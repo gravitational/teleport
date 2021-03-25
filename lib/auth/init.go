@@ -110,8 +110,8 @@ type InitConfig struct {
 	// Access is service controlling access to resources
 	Access services.Access
 
-	// DynamicAccess is a service that manages dynamic RBAC.
-	DynamicAccess services.DynamicAccess
+	// DynamicAccessExt is a service that manages dynamic RBAC.
+	DynamicAccessExt services.DynamicAccessExt
 
 	// Events is an event service
 	Events services.Events
@@ -490,7 +490,7 @@ func migrateLegacyResources(ctx context.Context, cfg InitConfig, asrv *Server) e
 		return trace.Wrap(err)
 	}
 
-	err = migrateRemoteClusters(asrv)
+	err = migrateRemoteClusters(ctx, asrv)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -584,7 +584,7 @@ func migrateOSS(ctx context.Context, asrv *Server) error {
 // Maps admin roles to local OSS admin role.
 func migrateOSSTrustedClusters(ctx context.Context, role types.Role, asrv *Server) (int, error) {
 	migratedTcs := 0
-	tcs, err := asrv.GetTrustedClusters()
+	tcs, err := asrv.GetTrustedClusters(ctx)
 	if err != nil {
 		return migratedTcs, trace.Wrap(err, migrationAbortedMessage)
 	}
@@ -667,7 +667,7 @@ func migrateOSSGithubConns(ctx context.Context, role types.Role, asrv *Server) (
 	migratedConns := 0
 	// Migrate Github's OSS teams_to_logins to teams_to_roles.
 	// To do that, create a new role per connector's teams_to_logins entry
-	conns, err := asrv.GetGithubConnectors(true)
+	conns, err := asrv.GetGithubConnectors(ctx, true)
 	if err != nil {
 		return migratedConns, trace.Wrap(err)
 	}
@@ -695,7 +695,7 @@ func migrateOSSGithubConns(ctx context.Context, role types.Role, asrv *Server) (
 			}
 		}
 		conn.SetTeamsToLogins(newTeams)
-		if err := asrv.UpsertGithubConnector(conn); err != nil {
+		if err := asrv.UpsertGithubConnector(ctx, conn); err != nil {
 			return migratedConns, trace.Wrap(err)
 		}
 		migratedConns++
@@ -1118,7 +1118,7 @@ func ReadLocalIdentity(dataDir string, id IdentityID) (*Identity, error) {
 // This migration adds remote cluster resource migrating from 2.5.0
 // where the presence of remote cluster was identified only by presence
 // of host certificate authority with cluster name not equal local cluster name
-func migrateRemoteClusters(asrv *Server) error {
+func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 	clusterName, err := asrv.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
@@ -1144,7 +1144,7 @@ func migrateRemoteClusters(asrv *Server) error {
 			return trace.Wrap(err)
 		}
 		// the cert authority is associated with trusted cluster
-		_, err = asrv.GetTrustedCluster(certAuthority.GetName())
+		_, err = asrv.GetTrustedCluster(ctx, certAuthority.GetName())
 		if err == nil {
 			log.Debugf("Migrations: trusted cluster resource exists for cert authority %q.", certAuthority.GetName())
 			continue

@@ -506,7 +506,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 		suite.NewTestCA(services.HostCA, "me.localhost")), IsNil)
 
 	// before we do anything, we should have 0 tokens
-	btokens, err := s.a.GetTokens()
+	btokens, err := s.a.GetTokens(ctx)
 	c.Assert(err, IsNil)
 	c.Assert(len(btokens), Equals, 0)
 
@@ -514,8 +514,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	tok, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleNode}})
 	c.Assert(err, IsNil)
 	c.Assert(len(tok), Equals, 2*TokenLenBytes)
-
-	tokens, err := s.a.GetTokens()
+	tokens, err := s.a.GetTokens(ctx)
 	c.Assert(err, IsNil)
 	c.Assert(len(tokens), Equals, 1)
 	c.Assert(tokens[0].GetName(), Equals, tok)
@@ -547,7 +546,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(roles.Include(teleport.RoleNode), Equals, true)
 	c.Assert(roles.Include(teleport.RoleProxy), Equals, false)
 
-	err = s.a.DeleteToken(customToken)
+	err = s.a.DeleteToken(ctx, customToken)
 	c.Assert(err, IsNil)
 
 	// generate multi-use token with long TTL:
@@ -591,7 +590,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(err, ErrorMatches, `"node-name" \[late.bird\] can not join the cluster with role Proxy, the token is not valid`)
 
 	// expired token should be gone now
-	err = s.a.DeleteToken(multiUseToken)
+	err = s.a.DeleteToken(ctx, multiUseToken)
 	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 
 	// lets use static tokens now
@@ -625,7 +624,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(r, DeepEquals, roles)
 
 	// List tokens (should see 2: one static, one regular)
-	tokens, err = s.a.GetTokens()
+	tokens, err = s.a.GetTokens(ctx)
 	c.Assert(err, IsNil)
 	c.Assert(len(tokens), Equals, 2)
 }
@@ -1085,6 +1084,26 @@ func TestU2FSignChallengeCompat(t *testing.T) {
 	})
 }
 
+func TestEmitSSOLoginFailureEvent(t *testing.T) {
+	mockE := &events.MockEmitter{}
+
+	emitSSOLoginFailureEvent(context.Background(), mockE, "test", trace.BadParameter("some error"))
+
+	require.Equal(t, mockE.LastEvent(), &events.UserLogin{
+		Metadata: events.Metadata{
+			Type: events.UserLoginEvent,
+			Code: events.UserSSOLoginFailureCode,
+		},
+		Method: "test",
+		Status: events.Status{
+			Success:     false,
+			Error:       "some error",
+			UserMessage: "some error",
+		},
+	})
+
+}
+
 func newTestServices(t *testing.T) Services {
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -1094,7 +1113,7 @@ func newTestServices(t *testing.T) Services {
 		Provisioner:          local.NewProvisioningService(bk),
 		Identity:             local.NewIdentityService(bk),
 		Access:               local.NewAccessService(bk),
-		DynamicAccess:        local.NewDynamicAccessService(bk),
+		DynamicAccessExt:     local.NewDynamicAccessService(bk),
 		ClusterConfiguration: local.NewClusterConfigurationService(bk),
 		Events:               local.NewEventsService(bk),
 		IAuditLog:            events.NewDiscardAuditLog(),

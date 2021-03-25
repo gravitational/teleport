@@ -130,16 +130,16 @@ type Identity interface {
 	DeleteMFADevice(ctx context.Context, user, id string) error
 
 	// UpsertOIDCConnector upserts OIDC Connector
-	UpsertOIDCConnector(connector OIDCConnector) error
+	UpsertOIDCConnector(ctx context.Context, connector OIDCConnector) error
 
 	// DeleteOIDCConnector deletes OIDC Connector
-	DeleteOIDCConnector(connectorID string) error
+	DeleteOIDCConnector(ctx context.Context, connectorID string) error
 
 	// GetOIDCConnector returns OIDC connector data, withSecrets adds or removes client secret from return results
-	GetOIDCConnector(id string, withSecrets bool) (OIDCConnector, error)
+	GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (OIDCConnector, error)
 
 	// GetOIDCConnectors returns registered connectors, withSecrets adds or removes client secret from return results
-	GetOIDCConnectors(withSecrets bool) ([]OIDCConnector, error)
+	GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]OIDCConnector, error)
 
 	// CreateOIDCAuthRequest creates new auth request
 	CreateOIDCAuthRequest(req OIDCAuthRequest, ttl time.Duration) error
@@ -151,16 +151,16 @@ type Identity interface {
 	CreateSAMLConnector(connector SAMLConnector) error
 
 	// UpsertSAMLConnector upserts SAML Connector
-	UpsertSAMLConnector(connector SAMLConnector) error
+	UpsertSAMLConnector(ctx context.Context, connector SAMLConnector) error
 
 	// DeleteSAMLConnector deletes OIDC Connector
-	DeleteSAMLConnector(connectorID string) error
+	DeleteSAMLConnector(ctx context.Context, connectorID string) error
 
 	// GetSAMLConnector returns OIDC connector data, withSecrets adds or removes secrets from return results
-	GetSAMLConnector(id string, withSecrets bool) (SAMLConnector, error)
+	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (SAMLConnector, error)
 
 	// GetSAMLConnectors returns registered connectors, withSecrets adds or removes secret from return results
-	GetSAMLConnectors(withSecrets bool) ([]SAMLConnector, error)
+	GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]SAMLConnector, error)
 
 	// CreateSAMLAuthRequest creates new auth request
 	CreateSAMLAuthRequest(req SAMLAuthRequest, ttl time.Duration) error
@@ -172,16 +172,16 @@ type Identity interface {
 	CreateGithubConnector(connector GithubConnector) error
 
 	// UpsertGithubConnector creates or updates a new Github connector
-	UpsertGithubConnector(connector GithubConnector) error
+	UpsertGithubConnector(ctx context.Context, connector GithubConnector) error
 
 	// GetGithubConnectors returns all configured Github connectors
-	GetGithubConnectors(withSecrets bool) ([]GithubConnector, error)
+	GetGithubConnectors(ctx context.Context, withSecrets bool) ([]GithubConnector, error)
 
 	// GetGithubConnector returns a Github connector by its name
-	GetGithubConnector(name string, withSecrets bool) (GithubConnector, error)
+	GetGithubConnector(ctx context.Context, name string, withSecrets bool) (GithubConnector, error)
 
 	// DeleteGithubConnector deletes a Github connector by its name
-	DeleteGithubConnector(name string) error
+	DeleteGithubConnector(ctx context.Context, name string) error
 
 	// CreateGithubAuthRequest creates a new auth request for Github OAuth2 flow
 	CreateGithubAuthRequest(req GithubAuthRequest) error
