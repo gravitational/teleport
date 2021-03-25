@@ -63,6 +63,10 @@ func SetAutoScaling(ctx context.Context, svc *applicationautoscaling.Application
 	readDimension := applicationautoscaling.ScalableDimensionDynamodbTableReadCapacityUnits
 	writeDimension := applicationautoscaling.ScalableDimensionDynamodbTableWriteCapacityUnits
 
+	// Check if the resource ID refers to an index - those IDs have the following form:
+	// 'table/<tableName>/index/<indexName>'
+	//
+	// Indices use a slightly different scaling dimension than tables
 	if strings.Contains(resourceID, "/index/") {
 		readDimension = applicationautoscaling.ScalableDimensionDynamodbIndexReadCapacityUnits
 		writeDimension = applicationautoscaling.ScalableDimensionDynamodbIndexWriteCapacityUnits
