@@ -490,7 +490,7 @@ func initSetAuthPreference(asrv *Server, newAuthPref services.AuthPreference) er
 			return trace.Wrap(err)
 		}
 	}
-	shouldReplace, err := shouldInitReplaceResource(storedAuthPref, newAuthPref)
+	shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedAuthPref, newAuthPref)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -504,9 +504,11 @@ func initSetAuthPreference(asrv *Server, newAuthPref services.AuthPreference) er
 	return nil
 }
 
-// shouldInitReplaceResource determines whether the candidate resource should
-// be used to replace the stored resource during auth server initialization.
-func shouldInitReplaceResource(stored, candidate types.ResourceWithOrigin) (bool, error) {
+// shouldInitReplaceResourceWithOrigin determines whether the candidate
+// resource should be used to replace the stored resource during auth server
+// initialization.  Dynamically configured resources must not be overwritten
+// when the corresponding file config is left unspecified (i.e., by defaults).
+func shouldInitReplaceResourceWithOrigin(stored, candidate types.ResourceWithOrigin) (bool, error) {
 	if candidate == nil || (candidate.Origin() != types.OriginDefaults && candidate.Origin() != types.OriginConfigFile) {
 		return false, trace.BadParameter("candidate origin must be either defaults or config-file (this is a bug)")
 	}
