@@ -2301,6 +2301,7 @@ func (s *APIServer) setClusterAuthPreference(auth ClientI, w http.ResponseWriter
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	cap.SetOrigin(types.OriginDynamic)
 
 	err = auth.SetAuthPreference(cap)
 	if err != nil {
