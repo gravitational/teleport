@@ -141,7 +141,6 @@ func WriteForPlayback(ctx context.Context, sid session.ID, reader AuditReader, d
 }
 
 // SessionEvents returns slice of event fields from gzipped events file.
-// The file at eventsPath will be removed.
 func (w *PlaybackWriter) SessionEvents() ([]EventFields, error) {
 	var sessionEvents []EventFields
 	//events
@@ -151,7 +150,6 @@ func (w *PlaybackWriter) SessionEvents() ([]EventFields, error) {
 	}
 	defer eventFile.Close()
 
-	// remove event file from temp dir when done playing
 	grEvents, err := gzip.NewReader(eventFile)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -179,7 +177,6 @@ func (w *PlaybackWriter) SessionEvents() ([]EventFields, error) {
 
 // SessionChunks interprets the file at the given path as gzip-compressed list of session events and returns
 // the uncompressed contents as a result.
-// The file at chunksPath will be removed.
 func (w *PlaybackWriter) SessionChunks() ([]byte, error) {
 	var stream []byte
 	chunkFile, err := os.Open(w.ChunksPath)
