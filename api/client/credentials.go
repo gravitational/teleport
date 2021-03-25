@@ -22,7 +22,6 @@ import (
 	"crypto/x509"
 	"io/ioutil"
 	"net"
-	"time"
 
 	"github.com/gravitational/teleport/api/constants"
 
@@ -34,7 +33,7 @@ import (
 // Credentials are used to authenticate to Auth.
 type Credentials interface {
 	// Dialer is used to create a dialer used to connect to Auth.
-	Dialer(keepAliveInterval, dialTimeout time.Duration) (ContextDialer, error)
+	Dialer(cfg Config) (ContextDialer, error)
 	// TLSConfig returns TLS configuration used to connect to Auth.
 	TLSConfig() (*tls.Config, error)
 	// SSHClientConfig returns SSH configuration used to connect to Proxy through tunnel.
@@ -55,7 +54,7 @@ type TLSConfigCreds struct {
 }
 
 // Dialer is used to dial a connection to Auth.
-func (c *TLSConfigCreds) Dialer(keepAliveInterval, dialTimeout time.Duration) (ContextDialer, error) {
+func (c *TLSConfigCreds) Dialer(cfg Config) (ContextDialer, error) {
 	return nil, trace.NotImplemented("no dialer")
 }
 
@@ -90,7 +89,7 @@ type KeyPairCreds struct {
 }
 
 // Dialer is used to dial a connection to Auth.
-func (c *KeyPairCreds) Dialer(keepAliveInterval, dialTimeout time.Duration) (ContextDialer, error) {
+func (c *KeyPairCreds) Dialer(cfg Config) (ContextDialer, error) {
 	return nil, trace.NotImplemented("no dialer")
 }
 
@@ -137,7 +136,7 @@ type IdentityCreds struct {
 }
 
 // Dialer is used to dial a connection to Auth.
-func (c *IdentityCreds) Dialer(keepAliveInterval, dialTimeout time.Duration) (ContextDialer, error) {
+func (c *IdentityCreds) Dialer(cfg Config) (ContextDialer, error) {
 	return nil, trace.NotImplemented("no dialer")
 }
 
@@ -201,13 +200,17 @@ type ProfileCreds struct {
 }
 
 // Dialer is used to dial a connection to Auth.
-func (c *ProfileCreds) Dialer(keepAliveInterval, dialTimeout time.Duration) (ContextDialer, error) {
+func (c *ProfileCreds) Dialer(cfg Config) (ContextDialer, error) {
+	if !cfg.InsecureAddressDiscovery {
+		return nil, trace.NotImplemented("cannot retrieve tunnel proxy address without an insecure connection")
+	}
+
 	sshConfig, err := c.SSHClientConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	dialer := NewTunnelDialer(*sshConfig, keepAliveInterval, dialTimeout)
+	dialer := NewTunnelDialer(*sshConfig, cfg.KeepAlivePeriod, cfg.DialTimeout)
 	return ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 		// Ping web proxy to retrieve tunnel proxy address.
 		pr, err := Find(ctx, c.profile.WebProxyAddr, true, nil)

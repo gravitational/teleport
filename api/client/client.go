@@ -200,7 +200,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 			}
 
 			// Connect with dialer provided in creds.
-			if dialer, err := creds.Dialer(cfg.KeepAlivePeriod, cfg.DialTimeout); err != nil {
+			if dialer, err := creds.Dialer(cfg); err != nil {
 				if !trace.IsNotImplemented(err) {
 					sendError(trace.Wrap(err))
 				}
@@ -337,6 +337,10 @@ type Config struct {
 	// rather than blocking until the connection is up. A predefined Dialer
 	// or an auth server address must be provided.
 	DialInBackground bool
+	// InsecureAddressDiscovery specifies that the client can try to retrieve
+	// a tunnel proxy address from the web proxy using an insecure connection.
+	// Currently, the web proxy can not be used without an insecure connection.
+	InsecureAddressDiscovery bool
 }
 
 // CheckAndSetDefaults checks and sets default config values.
