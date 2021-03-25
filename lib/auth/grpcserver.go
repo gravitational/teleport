@@ -1805,7 +1805,6 @@ func (g *GRPCServer) SetClusterConfigOverride(ctx context.Context, override *typ
 	if err := auth.SetClusterConfigOverride(ctx, override); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	g.Debugf("cluster config override set")
 	return &empty.Empty{}, nil
 }
 

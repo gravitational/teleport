@@ -143,7 +143,7 @@ const ClusterConfigOverrideSchemaTemplate = `{
 	"properties": {
 	  "session_recording": {
 		"type": "string"
-		}%v
+	  }%v
 	}
   }`
 
@@ -240,8 +240,7 @@ func unmarshalResource(schema string, res Resource, bytes []byte, opts ...Marsha
 			return trace.BadParameter(err.Error())
 		}
 	} else {
-		err = utils.UnmarshalWithSchema(schema, res, bytes)
-		if err != nil {
+		if err := utils.UnmarshalWithSchema(schema, res, bytes); err != nil {
 			return trace.BadParameter(err.Error())
 		}
 	}
