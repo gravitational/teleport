@@ -24,7 +24,7 @@ var (
 	}
 	volumeDockerTmpfs = volume{
 		Name: "dockertmpfs",
-		Temp: &volumeTemp{Medium: "memory"},
+		Temp: &volumeTemp{},
 	}
 	volumeTmpfs = volume{
 		Name: "tmpfs",
