@@ -284,6 +284,7 @@ func (c *Client) dialGRPC(ctx context.Context, addr string, withBlock bool) erro
 			Timeout:             c.c.KeepAlivePeriod * time.Duration(c.c.KeepAliveCount),
 			PermitWithoutStream: true,
 		}),
+		grpc.WithReturnConnectionError(),
 	}
 
 	if withBlock {
