@@ -201,10 +201,6 @@ type ProfileCreds struct {
 
 // Dialer is used to dial a connection to Auth.
 func (c *ProfileCreds) Dialer(cfg Config) (ContextDialer, error) {
-	if !cfg.InsecureAddressDiscovery {
-		return nil, trace.NotImplemented("cannot retrieve tunnel proxy address without an insecure connection")
-	}
-
 	sshConfig, err := c.SSHClientConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -213,7 +209,7 @@ func (c *ProfileCreds) Dialer(cfg Config) (ContextDialer, error) {
 	dialer := NewTunnelDialer(*sshConfig, cfg.KeepAlivePeriod, cfg.DialTimeout)
 	return ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 		// Ping web proxy to retrieve tunnel proxy address.
-		pr, err := Find(ctx, c.profile.WebProxyAddr, true, nil)
+		pr, err := Find(ctx, c.profile.WebProxyAddr, cfg.InsecureAddressDiscovery, nil)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

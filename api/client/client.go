@@ -226,7 +226,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 					go func(addr string) {
 						defer wg.Done()
 						// Try connecting to web proxy to retrieve tunnel address.
-						if pr, err := Find(ctx, addr, true, nil); err == nil {
+						if pr, err := Find(ctx, addr, cfg.InsecureAddressDiscovery, nil); err == nil {
 							addr = pr.Proxy.SSH.TunnelPublicAddr
 						}
 						syncConnect(addr, &Client{
@@ -337,9 +337,9 @@ type Config struct {
 	// rather than blocking until the connection is up. A predefined Dialer
 	// or an auth server address must be provided.
 	DialInBackground bool
-	// InsecureAddressDiscovery specifies that the client can try to retrieve
-	// a tunnel proxy address from the web proxy using an insecure connection.
-	// Currently, the web proxy can not be used without an insecure connection.
+	// The web proxy uses a self-signed TLS certificate by default, which
+	// requires this field to be set. If the web proxy was provided with
+	// signed TLS certificates, this field should not be set.
 	InsecureAddressDiscovery bool
 }
 
