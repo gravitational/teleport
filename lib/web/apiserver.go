@@ -914,17 +914,15 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 	logger := h.log.WithField("auth", "github")
 	logger.Debug("Console login start.")
 
-	generalErr := trace.AccessDenied(ssoLoginConsoleErr)
-
 	req := new(client.SSOLoginConsoleReq)
 	if err := httplib.ReadJSON(r, req); err != nil {
 		logger.WithError(err).Error("Error reading json.")
-		return nil, generalErr
+		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
 
 	if err := req.CheckAndSetDefaults(); err != nil {
 		logger.WithError(err).Error("Missing request parameters.")
-		return nil, generalErr
+		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
 
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(
@@ -939,7 +937,7 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 		})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create Github auth request.")
-		return nil, generalErr
+		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
 
 	return &client.SSOLoginConsoleResponse{
@@ -1004,17 +1002,15 @@ func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 	logger := h.log.WithField("auth", "oidc")
 	logger.Debug("Console login start.")
 
-	generalErr := trace.AccessDenied(ssoLoginConsoleErr)
-
 	req := new(client.SSOLoginConsoleReq)
 	if err := httplib.ReadJSON(r, req); err != nil {
 		logger.WithError(err).Error("Error reading json.")
-		return nil, generalErr
+		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
 
 	if err := req.CheckAndSetDefaults(); err != nil {
 		logger.WithError(err).Error("Missing request parameters.")
-		return nil, generalErr
+		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
 
 	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(
@@ -1030,7 +1026,7 @@ func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 		})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create OIDC auth request.")
-		return nil, generalErr
+		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
 
 	return &client.SSOLoginConsoleResponse{

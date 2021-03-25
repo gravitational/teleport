@@ -57,17 +57,15 @@ func (h *Handler) samlSSOConsole(w http.ResponseWriter, r *http.Request, p httpr
 	logger := h.log.WithField("auth", "saml")
 	logger.Debug("Console login start.")
 
-	generalErr := trace.AccessDenied(ssoLoginConsoleErr)
-
 	req := new(client.SSOLoginConsoleReq)
 	if err := httplib.ReadJSON(r, req); err != nil {
 		logger.WithError(err).Error("Error reading json.")
-		return nil, generalErr
+		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
 
 	if err := req.CheckAndSetDefaults(); err != nil {
 		logger.WithError(err).Error("Missing request parameters.")
-		return nil, generalErr
+		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
 
 	response, err := h.cfg.ProxyClient.CreateSAMLAuthRequest(
@@ -82,7 +80,7 @@ func (h *Handler) samlSSOConsole(w http.ResponseWriter, r *http.Request, p httpr
 		})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create SAML auth request.")
-		return nil, generalErr
+		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
 
 	return &client.SSOLoginConsoleResponse{RedirectURL: response.RedirectURL}, nil
