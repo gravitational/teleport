@@ -160,7 +160,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 			Name:      "auth",
 		},
 		Spec: services.ServerSpecV2{
-			Addr:     s.server.Listener.Addr().String(),
+			Addr:     s.server.TLS.Listener.Addr().String(),
 			Hostname: "localhost",
 			Version:  teleport.Version,
 		},
@@ -309,6 +309,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 
 func (s *WebSuite) TearDownTest(c *C) {
 	var errors []error
+	s.proxyTunnel.Close()
 	if err := s.node.Close(); err != nil {
 		errors = append(errors, err)
 	}
@@ -317,7 +318,6 @@ func (s *WebSuite) TearDownTest(c *C) {
 	}
 	s.webServer.Close()
 	s.proxy.Close()
-	s.proxyTunnel.Close()
 	if err := s.server.Close(); err != nil {
 		errors = append(errors, err)
 	}
@@ -2382,7 +2382,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 
 	// Register the auth server, since test auth server doesn't start its own
 	// heartbeat.
-	err = authServer.AuthServer.UpsertAuthServer(&services.ServerV2{
+	err = server.Auth().UpsertAuthServer(&services.ServerV2{
 		Kind:    services.KindAuthServer,
 		Version: services.V2,
 		Metadata: services.Metadata{
@@ -2390,7 +2390,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 			Name:      "auth",
 		},
 		Spec: services.ServerSpecV2{
-			Addr:     server.Listener.Addr().String(),
+			Addr:     server.TLS.Listener.Addr().String(),
 			Hostname: "localhost",
 			Version:  teleport.Version,
 		},

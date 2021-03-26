@@ -140,12 +140,12 @@ func (a *TestServer) Auth() *Server {
 	return a.AuthServer.AuthServer
 }
 
-func (t *TestServer) NewClient(identity TestIdentity) (*Client, error) {
-	return t.TLS.NewClient(identity)
+func (a *TestServer) NewClient(identity TestIdentity) (*Client, error) {
+	return a.TLS.NewClient(identity)
 }
 
-func (t *TestServer) ClusterName() string {
-	return t.TLS.ClusterName()
+func (a *TestServer) ClusterName() string {
+	return a.TLS.ClusterName()
 }
 
 // Close stop this server instance
