@@ -163,7 +163,7 @@ perform operations with the User's keys on the local machine.
 The local keys are vulnerable for the duration of any ssh connection (with a forwarded Key Agent) 
 to a remote machine.
 
-This change will also potentially expose _more_ keys toi danger than the existing behaviour. The 
+This change will also potentially expose _more_ keys to danger than the existing behaviour. The 
 existing `tsh ssh` Key Agent forwarding system exposes only the keys in the `~/.tsh` directory.
 Allowing the user to forward their own Key Agent changes that risk to _all_ keys managed by that 
 agent by that. Depending on how the user invoked `tsh login`, this may also include the teleport
