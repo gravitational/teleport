@@ -554,7 +554,7 @@ func GetAccessRequest(ctx context.Context, acc DynamicAccess, reqID string) (Acc
 }
 
 // GetTraitMappings gets the AccessRequestConditions' claims as a TraitMappingsSet
-func GetTraitMappings(cms []types.AccessRequestClaimMapping) TraitMappingSet {
+func GetTraitMappings(cms []types.ClaimMapping) TraitMappingSet {
 	tm := make([]TraitMapping, 0, len(cms))
 	for _, mapping := range cms {
 		tm = append(tm, TraitMapping{
@@ -575,7 +575,7 @@ type UserAndRoleGetter interface {
 // appendRoleMatchers constructs all role matchers for a given
 // AccessRequestConditions instance and appends them to the
 // supplied matcher slice.
-func appendRoleMatchers(matchers []parse.Matcher, roles []string, cms []types.AccessRequestClaimMapping, traits map[string][]string) ([]parse.Matcher, error) {
+func appendRoleMatchers(matchers []parse.Matcher, roles []string, cms []types.ClaimMapping, traits map[string][]string) ([]parse.Matcher, error) {
 	// build matchers for the role list
 	for _, r := range roles {
 		m, err := parse.NewMatcher(r)
