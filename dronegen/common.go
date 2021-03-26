@@ -30,10 +30,6 @@ var (
 		Name: "tmpfs",
 		Temp: &volumeTemp{Medium: "memory"},
 	}
-	volumeTmpDind = volume{
-		Name: "tmp-dind",
-		Temp: &volumeTemp{},
-	}
 	volumeTmpIntegration = volume{
 		Name: "tmp-integration",
 		Temp: &volumeTemp{},
