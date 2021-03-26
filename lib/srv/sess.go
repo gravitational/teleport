@@ -636,9 +636,6 @@ func (s *session) Close() error {
 				s.term.Close()
 			}
 			close(s.closeC)
-
-			// close all writers in our multi-writer
-			s.writer.Close()
 		}()
 	})
 	return nil
@@ -1325,18 +1322,6 @@ func (m *multiWriter) Write(p []byte) (n int, err error) {
 		}
 	}
 	return len(p), nil
-}
-
-func (m *multiWriter) Close() error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	for writerName, writer := range m.writers {
-		logrus.Debugf("Closing session writer: %v.", writerName)
-		if closer, ok := writer.WriteCloser.(io.Closer); ok {
-			closer.Close()
-		}
-	}
-	return nil
 }
 
 func (m *multiWriter) getRecentWrites() []byte {
