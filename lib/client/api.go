@@ -1933,7 +1933,9 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 		sshProxyAddr = tc.JumpHosts[0].Addr.Addr
 
 		// Perform a "dummy" connection to the jumphost to examine its certificate
-		// and load a different user certificate if appropriate.
+		// and load a corresponding user certificate to be used by tc.authMethods.
+		// TODO(andrej): Get rid of the individually packaged authMethods,
+		// and embed this reissue logic with ssh.PublicKeysCallback.
 		tmpConfig := &ssh.ClientConfig{
 			User:            proxyPrincipal,
 			HostKeyCallback: tc.loadKeyForClusterFromCert(ctx),
