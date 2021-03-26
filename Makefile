@@ -322,7 +322,7 @@ lint-go: GO_LINT_FLAGS ?=
 lint-go:
 	golangci-lint run -c .golangci.yml $(GO_LINT_FLAGS)
 
-# api is no longer part of the teleport package, so golang-ci skips it by default
+# api is no longer part of the teleport package, so golangci-lint skips it by default
 .PHONY: lint-api
 lint-api: GO_LINT_FLAGS ?=
 lint-api:
