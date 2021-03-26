@@ -315,12 +315,18 @@ integration-root:
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-sh lint-helm lint-go
+lint: lint-sh lint-helm lint-api lint-go
 
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
 lint-go:
 	golangci-lint run -c .golangci.yml $(GO_LINT_FLAGS)
+
+# api is no longer part of the teleport package, so golang-ci skips it by default
+.PHONY: lint-api
+lint-api: GO_LINT_FLAGS ?=
+lint-api:
+	cd api && golangci-lint run -c ../.golangci.yml $(GO_LINT_FLAGS)
 
 # TODO(awly): remove the `--exclude` flag after cleaning up existing scripts
 .PHONY: lint-sh

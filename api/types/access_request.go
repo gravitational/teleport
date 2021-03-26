@@ -228,7 +228,7 @@ func (r *AccessRequestV3) GetOriginalRoles() []string {
 }
 
 // getThreshold is a helper for getting a threshold by its stored index.
-func (r *AccessRequestV3) getThreshold(tid uint32) (AccessReviewThreshold, error) {
+func (r *AccessRequestV3) getThreshold(tid uint32) (AccessReviewThreshold, error) { //nolint:unused
 	idx := int(tid)
 	if len(r.Spec.Thresholds) <= idx {
 		return AccessReviewThreshold{}, trace.Errorf("threshold index '%d' out of range (this is a bug)", tid)

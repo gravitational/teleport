@@ -86,7 +86,7 @@ type Client struct {
 // A predefined dialer must be provided in cfg, or the first addr must be to an auth server.
 // The connection will be dialed in the background, so the connection is not guaranteed
 // to be open. This option is primarily meant for internal use where the client has
-// direct access to server values that guarentee a successful connection.
+// direct access to server values that guarantee a successful connection.
 func New(ctx context.Context, cfg Config) (clt *Client, err error) {
 	if err = cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -260,7 +260,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 			// errChan is closed, return errors.
 			if len(errs) == 0 {
 				if len(cfg.Addrs) == 0 && cfg.Dialer == nil {
-					// Some credentials don't require these fields. If no errors propogate, then they need to provide these fields.
+					// Some credentials don't require these fields. If no errors propagate, then they need to provide these fields.
 					return nil, trace.Errorf("all auth methods failed: try providing Addrs or Dialer in config")
 				}
 				return nil, trace.Errorf("all auth methods failed")
