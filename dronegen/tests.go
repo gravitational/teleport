@@ -77,7 +77,6 @@ func testCodePipeline() pipeline {
 	p.Workspace = workspace{Path: "/go"}
 	p.Volumes = dockerVolumes(
 		volumeTmpfs,
-		volumeTmpDind,
 		volumeTmpIntegration,
 		volumeDockerTmpfs,
 	)
@@ -85,7 +84,7 @@ func testCodePipeline() pipeline {
 		dockerService(
 			volumeRefTmpfs,
 			volumeRefDockerTmpfs,
-			volumeRefTmpDind,
+			volumeRefTmpIntegration,
 		),
 	}
 	goEnvironment := map[string]value{

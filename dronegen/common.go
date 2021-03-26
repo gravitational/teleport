@@ -51,10 +51,6 @@ var (
 		Name: "dockertmpfs",
 		Path: "/var/lib/docker",
 	}
-	volumeRefTmpDind = volumeRef{
-		Name: "tmp-dind",
-		Path: "/tmp",
-	}
 	volumeRefTmpIntegration = volumeRef{
 		Name: "tmp-integration",
 		Path: "/tmp",
