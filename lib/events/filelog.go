@@ -104,9 +104,11 @@ func NewFileLog(cfg FileLogConfig) (*FileLog, error) {
 type FileLog struct {
 	*log.Entry
 	FileLogConfig
-	sync.Mutex
+	// rw protects the file from rotation during concurrent
+	// event emission.
+	rw sync.RWMutex
 	// file is the current global event log file. As the time goes
-	// on, it will be replaced by a new file every day
+	// on, it will be replaced by a new file every day.
 	file *os.File
 	// fileTime is a rounded (to a day, by default) timestamp of the
 	// currently opened file
@@ -115,11 +117,29 @@ type FileLog struct {
 
 // EmitAuditEvent adds a new event to the log.
 func (l *FileLog) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+	l.rw.RLock()
+	defer l.rw.RUnlock()
+
 	// see if the log needs to be rotated
-	err := l.rotateLog()
-	if err != nil {
-		log.Error(err)
+	if l.mightNeedRotation() {
+		// log might need rotation; switch to write-lock
+		// to avoid rotating during concurrent event emission.
+		l.rw.RUnlock()
+		l.rw.Lock()
+
+		// perform rotation if still necessary (rotateLog rechecks the
+		// requirements internally, since rotation may have been performed
+		// during our switch from read to write locks)
+		err := l.rotateLog()
+
+		// switch back to read lock
+		l.rw.Unlock()
+		l.rw.RLock()
+		if err != nil {
+			log.Error(err)
+		}
 	}
+
 	// line is the text to be logged
 	line, err := utils.FastMarshal(event)
 	if err != nil {
@@ -136,12 +156,30 @@ func (l *FileLog) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
 
 // EmitAuditEventLegacy adds a new event to the log. Part of auth.IFileLog interface.
 func (l *FileLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
+	l.rw.RLock()
+	defer l.rw.RUnlock()
+
 	// see if the log needs to be rotated
-	err := l.rotateLog()
-	if err != nil {
-		log.Error(err)
+	if l.mightNeedRotation() {
+		// log might need rotation; switch to write-lock
+		// to avoid rotating during concurrent event emission.
+		l.rw.RUnlock()
+		l.rw.Lock()
+
+		// perform rotation if still necessary (rotateLog rechecks the
+		// requirements internally, since rotation may have been performed
+		// during our switch from read to write locks)
+		err := l.rotateLog()
+
+		// switch back to read lock
+		l.rw.Unlock()
+		l.rw.RLock()
+		if err != nil {
+			log.Error(err)
+		}
 	}
-	err = UpdateEventFields(event, fields, l.Clock, l.UIDGenerator)
+
+	err := UpdateEventFields(event, fields, l.Clock, l.UIDGenerator)
 	if err != nil {
 		log.Error(err)
 	}
@@ -249,8 +287,8 @@ func (l *FileLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int) ([]Ev
 // Close closes the audit log, which inluces closing all file handles and releasing
 // all session loggers
 func (l *FileLog) Close() error {
-	l.Lock()
-	defer l.Unlock()
+	l.rw.Lock()
+	defer l.rw.Unlock()
 
 	var err error
 	if l.file != nil {
@@ -308,17 +346,27 @@ func (l *FileLog) GetSessionEvents(namespace string, sid session.ID, after int, 
 	return nil, trace.NotImplemented("not implemented")
 }
 
+// mightNeedRotation checks if the current log file looks older than a given duration,
+// used by rotateLog to decide if it should acquire a write lock.  Must be called under
+// read lock.
+func (l *FileLog) mightNeedRotation() bool {
+
+	if l.file == nil {
+		return true
+	}
+
+	// determine the timestamp for the current log file rounded to the day.
+	fileTime := l.Clock.Now().UTC().Truncate(24 * time.Hour)
+
+	return l.fileTime.Before(fileTime)
+}
+
 // rotateLog checks if the current log file is older than a given duration,
-// and if it is, closes it and opens a new one.
+// and if it is, closes it and opens a new one.  Must be called under write lock.
 func (l *FileLog) rotateLog() (err error) {
-	l.Lock()
-	defer l.Unlock()
 
-	// determine the timestamp for the current log file
-	fileTime := l.Clock.Now().In(time.UTC)
-
-	// truncate time to the resolution of one day, cutting at the day end boundary
-	fileTime = time.Date(fileTime.Year(), fileTime.Month(), fileTime.Day(), 0, 0, 0, 0, time.UTC)
+	// determine the timestamp for the current log file rounded to the day.
+	fileTime := l.Clock.Now().UTC().Truncate(24 * time.Hour)
 
 	logFilename := filepath.Join(l.Dir,
 		fileTime.Format(defaults.AuditLogTimeFormat)+LogfileExt)
