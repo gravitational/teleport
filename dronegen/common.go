@@ -58,6 +58,13 @@ var (
 	goRuntime = value{raw: "go1.16.2"}
 )
 
+func (r buildType) platform() platform {
+	return platform{
+		OS:   r.os,
+		Arch: r.arch,
+	}
+}
+
 type buildType struct {
 	os      string
 	arch    string
