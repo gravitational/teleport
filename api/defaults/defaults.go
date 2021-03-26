@@ -51,6 +51,12 @@ const (
 	// set to help keep connections alive when using AWS NLBs (which have a default
 	// timeout of 350 seconds)
 	KeepAliveInterval = 5 * time.Minute
+
+	// ServerAnnounceTTL is a period between heartbeats
+	// Median sleep time between node pings is this value / 2 + random
+	// deviation added to this time to avoid lots of simultaneous
+	// heartbeats coming to auth server
+	ServerAnnounceTTL = 600 * time.Second
 )
 
 // EnhancedEvents returns the default list of enhanced events.

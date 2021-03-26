@@ -1148,11 +1148,11 @@ func (s *CacheSuite) TestTunnelConnections(c *check.C) {
 	defer p.Close()
 
 	clusterName := "example.com"
-	dt := time.Date(2015, 6, 5, 4, 3, 2, 1, time.UTC).UTC()
+	hb := time.Now().UTC()
 	conn, err := services.NewTunnelConnection("conn1", services.TunnelConnectionSpecV2{
 		ClusterName:   clusterName,
 		ProxyName:     "p1",
-		LastHeartbeat: dt,
+		LastHeartbeat: hb,
 	})
 	c.Assert(err, check.IsNil)
 	c.Assert(p.presenceS.UpsertTunnelConnection(conn), check.IsNil)
@@ -1177,8 +1177,8 @@ func (s *CacheSuite) TestTunnelConnections(c *check.C) {
 	fixtures.DeepCompare(c, conn, out[0])
 
 	// update conn's parameters
-	dt = time.Date(2015, 6, 5, 5, 3, 2, 1, time.UTC).UTC()
-	conn.SetLastHeartbeat(dt)
+	hb = hb.Add(time.Second)
+	conn.SetLastHeartbeat(hb)
 
 	err = p.presenceS.UpsertTunnelConnection(conn)
 	c.Assert(err, check.IsNil)
