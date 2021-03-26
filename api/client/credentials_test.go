@@ -179,7 +179,7 @@ func TestLoadProfile(t *testing.T) {
 	require.NoError(t, err)
 	requireEqualSSHConfig(t, expectedSSHConfig, sshConfig)
 	// Build Dialer
-	_, err = creds.Dialer(0, 0)
+	_, err = creds.Dialer(Config{})
 	require.NoError(t, err)
 
 	// Load invalid profile.
@@ -188,7 +188,7 @@ func TestLoadProfile(t *testing.T) {
 	require.Error(t, err)
 	_, err = creds.SSHClientConfig()
 	require.Error(t, err)
-	_, err = creds.Dialer(0, 0)
+	_, err = creds.Dialer(Config{})
 	require.Error(t, err)
 }
 
