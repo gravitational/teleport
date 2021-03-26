@@ -27,20 +27,13 @@ case "${unameOut}" in
     *)          machine="UNKNOWN:${unameOut}"
 esac
 
-#
-# What Teleport Version?
-# Sets version edition + version number e.g. Enterprisev5.1.0
-#
-teleportVersion="$(teleport version)"
-set -- $teleportVersion; version=$2$3
-
 echo "Teleport binaries have been copied to $BINDIR"
 echo ""
 echo "Thanks for installing Teleport."
 echo ""
-echo "Is it OK if we collect some metrics about your install?"
-echo "Please run this command to send us a survey."
+echo "Is it OK if we collect some info about your install?"
+echo "Please run this command to send in a survey."
 echo "optional: Replace email to join our newsletter and get a swag package."
-echo "$ curl -X POST https://usage.teleport.dev -F OS=${machine} -F version=${version} -F email=alice@example.com"
+echo "$ curl -X POST https://usage.teleport.dev -F OS=${machine} -F use-case="access my ..." -F email="alice@example.com"
 echo ""
 echo "Otherwise, ignore!"
