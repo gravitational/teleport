@@ -40,9 +40,8 @@ func newDarwinPushPipeline(b buildType) pipeline {
 	p := newExecPipeline(pipelineName)
 	p.Environment = map[string]value{
 		"RUNTIME": goRuntime,
-		"UID":     {raw: "1000"},
-		"GID":     {raw: "1000"},
 	}
+	p.Platform = b.platform()
 	p.Trigger = triggerPush
 	p.Workspace = workspace{Path: filepath.Join("/tmp", pipelineName)}
 
@@ -65,10 +64,9 @@ func newDarwinTagPipeline(b buildType) pipeline {
 	}
 
 	p := newExecPipeline(pipelineName)
+	p.Platform = b.platform()
 	p.Environment = map[string]value{
 		"RUNTIME": goRuntime,
-		"UID":     {raw: "1000"},
-		"GID":     {raw: "1000"},
 	}
 	p.Trigger = triggerTag
 	p.Workspace = workspace{Path: filepath.Join("/tmp", pipelineName)}
@@ -92,10 +90,9 @@ func newDarwinTagPackagePipeline(b buildType) pipeline {
 	}
 
 	p := newExecPipeline(pipelineName)
+	p.Platform = b.platform()
 	p.Environment = map[string]value{
 		"RUNTIME": goRuntime,
-		"UID":     {raw: "1000"},
-		"GID":     {raw: "1000"},
 	}
 	p.Trigger = triggerTag
 	p.Workspace = workspace{Path: filepath.Join("/tmp", pipelineName)}
@@ -119,10 +116,9 @@ func newDarwinTagTshPackagePipeline(b buildType) pipeline {
 	}
 
 	p := newExecPipeline(pipelineName)
+	p.Platform = b.platform()
 	p.Environment = map[string]value{
 		"RUNTIME": goRuntime,
-		"UID":     {raw: "1000"},
-		"GID":     {raw: "1000"},
 	}
 	p.Trigger = triggerTag
 	p.Workspace = workspace{Path: filepath.Join("/tmp", pipelineName)}
@@ -230,6 +226,8 @@ type darwinTagPipelineStepBuilder struct {
 
 func (r darwinTagPackagePipelineStepBuilder) buildArtifacts() step {
 	environ := map[string]value{
+		"OS":                {raw: r.buildType.os},
+		"ARCH":              {raw: r.buildType.arch},
 		"APPLE_USERNAME":    {fromSecret: "APPLE_USERNAME"},
 		"APPLE_PASSWORD":    {fromSecret: "APPLE_PASSWORD"},
 		"BUILDBOX_PASSWORD": {fromSecret: "BUILDBOX_PASSWORD"},
@@ -295,6 +293,7 @@ type darwinTagPackagePipelineStepBuilder struct {
 func (r darwinTagTshPackagePipelineStepBuilder) buildArtifacts() step {
 	environ := map[string]value{
 		"OS":                {raw: r.buildType.os},
+		"ARCH":              {raw: r.buildType.arch},
 		"APPLE_USERNAME":    {fromSecret: "APPLE_USERNAME"},
 		"APPLE_PASSWORD":    {fromSecret: "APPLE_PASSWORD"},
 		"BUILDBOX_PASSWORD": {fromSecret: "BUILDBOX_PASSWORD"},
@@ -317,7 +316,7 @@ func (r darwinTagTshPackagePipelineStepBuilder) buildArtifacts() step {
 			// show available certificates
 			`security find-identity -v`,
 			// build pkg
-			`make pkg-tsh VERSION=$VERSION OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME`,
+			`make -C e pkg-tsh VERSION=$VERSION OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME`,
 		},
 	}
 }
@@ -487,7 +486,7 @@ func darwinDownloadTarballFromS3(workspaceDir string, b buildType) step {
 
 func darwinUploadArtifactsToS3(workspaceDir string) step {
 	return step{
-		Name: "Copy Mac artifacts",
+		Name: "Upload to S3",
 		Environment: fromEnviron(s3Environ, map[string]value{
 			"WORKSPACE_DIR": {raw: workspaceDir},
 		}),
