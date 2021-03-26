@@ -1097,7 +1097,7 @@ message AccessRequestConditions {
     repeated string Roles = 1 [ (gogoproto.jsontag) = "roles,omitempty" ];
 
     // ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.
-    repeated AccessRequestClaimMapping ClaimsToRoles = 2
+    repeated ClaimMapping ClaimsToRoles = 2
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "claims_to_roles,omitempty" ];
 
     // Annotations is a collection of annotations to be programmatically
@@ -1132,7 +1132,7 @@ message AccessReviewConditions {
     repeated string Roles = 1 [ (gogoproto.jsontag) = "roles,omitempty" ];
 
     // ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.
-    repeated AccessRequestClaimMapping ClaimsToRoles = 2
+    repeated ClaimMapping ClaimsToRoles = 2
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "claims_to_roles,omitempty" ];
 
     // Where is an optional predicate which further limits which requests are
@@ -1140,18 +1140,14 @@ message AccessReviewConditions {
     string Where = 3 [ (gogoproto.jsontag) = "where,omitempty" ];
 }
 
-// AccessRequestClaimMapping is a variant of the trait mapping pattern,
-// used to propagate requestable roles from external identity providers.
-message AccessRequestClaimMapping {
-    // Claim is the name of the trait to be matched against.
-    string Claim = 1 [ (gogoproto.jsontag) = "claim,omitempty" ];
-
-    // Value is matches a trait value.
-    string Value = 2 [ (gogoproto.jsontag) = "value,omitempty" ];
-
-    // Roles are the roles being mapped to.
+// ClaimMapping maps a claim to teleport roles.
+message ClaimMapping {
+    // Claim is a claim name.
+    string Claim = 1 [ (gogoproto.jsontag) = "claim" ];
+    // Value is a claim value to match.
+    string Value = 2 [ (gogoproto.jsontag) = "value" ];
+    // Roles is a list of static teleport roles to match.
     repeated string Roles = 3 [ (gogoproto.jsontag) = "roles,omitempty" ];
-    ;
 }
 
 // Rule represents allow or deny rule that is executed to check
@@ -1694,4 +1690,63 @@ message ResourceWithSecretsRequest {
 message ResourcesWithSecretsRequest {
     // WithSecrets specifies whether to load associated secrets.
     bool WithSecrets = 1 [ (gogoproto.jsontag) = "with_secrets,omitempty" ];
+}
+
+// OIDCConnectorV2 represents an OIDC connector.
+message OIDCConnectorV2 {
+    // Kind is a resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is a resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata holds resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is an OIDC connector specification.
+    OIDCConnectorSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// OIDCConnectorV2List is a list of OIDC connectors.
+message OIDCConnectorV2List {
+    // OIDCConnectors is a list of OIDC connectors.
+    repeated types.OIDCConnectorV2 OIDCConnectors = 1;
+}
+
+// OIDCConnectorSpecV2 is an OIDC connector specification.
+//
+// It specifies configuration for Open ID Connect compatible external
+// identity provider: https://openid.net/specs/openid-connect-core-1_0.html
+message OIDCConnectorSpecV2 {
+    // IssuerURL is the endpoint of the provider, e.g. https://accounts.google.com.
+    string IssuerURL = 1 [ (gogoproto.jsontag) = "issuer_url" ];
+    // ClientID is the id of the authentication client (Teleport Auth server).
+    string ClientID = 2 [ (gogoproto.jsontag) = "client_id" ];
+    // ClientSecret is used to authenticate the client.
+    string ClientSecret = 3 [ (gogoproto.jsontag) = "client_secret" ];
+    // RedirectURL is a URL that will redirect the client's browser
+    // back to the identity provider after successful authentication.
+    // This should match the URL on the Provider's side.
+    string RedirectURL = 4 [ (gogoproto.jsontag) = "redirect_url" ];
+    // ACR is an Authentication Context Class Reference value. The meaning of the ACR
+    // value is context-specific and varies for identity providers.
+    string ACR = 5 [ (gogoproto.jsontag) = "acr_values,omitempty" ];
+    // Provider is the external identity provider.
+    string Provider = 6 [ (gogoproto.jsontag) = "provider,omitempty" ];
+    // Display is the friendly name for this provider.
+    string Display = 7 [ (gogoproto.jsontag) = "display,omitempty" ];
+    // Scope specifies additional scopes set by provider.
+    repeated string Scope = 8 [ (gogoproto.jsontag) = "scope,omitempty" ];
+    // Prompt is an optional OIDC prompt. An empty string omits prompt.
+    // If not specified, it defaults to select_account for backwards compatibility.
+    string Prompt = 9 [ (gogoproto.jsontag) = "prompt,omitempty" ];
+    // ClaimsToRoles specifies a dynamic mapping from claims to roles.
+    repeated ClaimMapping ClaimsToRoles = 10
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "claims_to_roles,omitempty" ];
+    // GoogleServiceAccountURI is a path to a google service account uri.
+    string GoogleServiceAccountURI = 11
+        [ (gogoproto.jsontag) = "google_service_account_uri,omitempty" ];
+    // GoogleServiceAccount is a string containing google service account credentials.
+    string GoogleServiceAccount = 12 [ (gogoproto.jsontag) = "google_service_account,omitempty" ];
+    // GoogleAdminEmail is the email of a google admin to impersonate.
+    string GoogleAdminEmail = 13 [ (gogoproto.jsontag) = "google_admin_email,omitempty" ];
 }

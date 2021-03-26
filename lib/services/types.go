@@ -70,7 +70,7 @@ type (
 	RoleOptions                        = types.RoleOptions
 	RoleConditions                     = types.RoleConditions
 	AccessRequestConditions            = types.AccessRequestConditions
-	AccessRequestClaimMapping          = types.AccessRequestClaimMapping
+	AccessRequestClaimMapping          = types.ClaimMapping
 	Rule                               = types.Rule
 	BoolValue                          = types.BoolValue
 	UserV2                             = types.UserV2
