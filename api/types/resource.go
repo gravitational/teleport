@@ -229,7 +229,7 @@ func (m *Metadata) CheckAndSetDefaults() error {
 
 	// Check the origin value.
 	if !utils.SliceContainsStr(append(OriginValues, ""), m.Origin()) {
-		return trace.BadParameter("invalid origin value: %q", m.Origin())
+		return trace.BadParameter("invalid origin value %q, should be one of %v (this is a bug)", m.Origin(), OriginValues)
 	}
 
 	return nil
