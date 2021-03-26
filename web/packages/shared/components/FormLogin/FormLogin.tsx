@@ -150,11 +150,11 @@ export default function LoginForm(props: Props) {
               {mfaEnabled && (
                 <Flex alignItems="flex-end" mb={4}>
                   <Box width="50%" data-testid="mfa-select">
-                    <MfaSelect
+                    <FieldSelect
                       label="Second factor"
                       value={mfaType}
                       options={mfaOptions}
-                      onChange={opt => onSetMfaOption(opt, validator)}
+                      onChange={opt => onSetMfaOption(opt as Option, validator)}
                       mr={3}
                       mb={0}
                       isDisabled={isProcessing}
@@ -264,27 +264,6 @@ const StyledOr = styled.div`
   border-radius: 50%;
   position: absolute;
   z-index: 1;
-`;
-
-const MfaSelect = styled(FieldSelect)`
-  .react-select__control {
-    border-radius: 4px;
-    border-color: rgba(255, 255, 255, 0.24);
-    background-color: #28325e;
-
-    &:hover {
-      border-color: rgba(255, 255, 255, 0.24);
-      background-color: #39436d;
-      .react-select__dropdown-indicator {
-        color: #fff;
-      }
-    }
-  }
-
-  .react-select__single-value,
-  .react-select__dropdown-indicator {
-    color: #fff;
-  }
 `;
 
 type Props = {

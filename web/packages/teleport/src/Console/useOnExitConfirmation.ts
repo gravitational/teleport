@@ -64,20 +64,6 @@ function useOnExitConfirmation(ctx: ConsoleContext) {
   }, []);
 
   /**
-   * confirmCloseSession prompts user to confirm to close.
-   */
-  function confirmCloseSession(doc) {
-    if (!doc || !doc.sid) return false;
-
-    const numUsers = ctx.storeParties.state[doc.sid];
-    if (numUsers.length > 1) {
-      return window.confirm('Are you sure you want to leave this session?');
-    }
-
-    return window.confirm('Are you sure you want to terminate this session?');
-  }
-
-  /**
    * hasLastingSshConnection calculates the milliseconds between given date
    * from when fn was called.
    *
@@ -98,11 +84,24 @@ function useOnExitConfirmation(ctx: ConsoleContext) {
    * verifyAndConfirm verifies the document is of type terminal,
    * and based on how long it was active for, prompts users to confirm closing.
    *
+   * A return value of true either means, user has confirmed or confirmation
+   * is not required.
+   *
    * @param doc the document in context
    */
   function verifyAndConfirm(doc: stores.Document) {
     if (hasLastingSshConnection(doc)) {
-      return confirmCloseSession(doc);
+      const sid = (doc as stores.DocumentSsh).sid;
+      const participants = ctx.storeParties.state[sid];
+      if (!participants) {
+        return true;
+      }
+
+      if (participants.length > 1) {
+        return window.confirm('Are you sure you want to leave this session?');
+      }
+
+      return window.confirm('Are you sure you want to terminate this session?');
     }
 
     return true;

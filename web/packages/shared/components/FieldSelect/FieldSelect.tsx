@@ -67,4 +67,6 @@ type Props = SelectProps & {
   autoFocus?: boolean;
   label?: string;
   rule?: Function;
+  // styles
+  [key: string]: any;
 };

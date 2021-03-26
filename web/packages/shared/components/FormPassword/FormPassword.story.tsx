@@ -15,36 +15,27 @@ limitations under the License.
 */
 
 import React from 'react';
-import { storiesOf } from '@storybook/react';
 import FormPassword from './FormPassword';
 
-const onChangePass = () => Promise.resolve();
-const onChangePassWithU2f = () => Promise.reject(new Error('server error'));
+export default {
+  title: 'Shared/FormPassword',
+};
 
-storiesOf('Shared/FormPassword', module)
-  .add('FormPassword', () => {
-    return (
-      <FormPassword
-        onChangePass={onChangePass}
-        onChangePassWithU2f={onChangePassWithU2f}
-      />
-    );
-  })
-  .add('With OTP', () => {
-    return (
-      <FormPassword
-        auth2faType="otp"
-        onChangePass={onChangePass}
-        onChangePassWithU2f={onChangePassWithU2f}
-      />
-    );
-  })
-  .add('With U2F', () => {
-    return (
-      <FormPassword
-        auth2faType="u2f"
-        onChangePass={onChangePass}
-        onChangePassWithU2f={onChangePassWithU2f}
-      />
-    );
-  });
+export const Local = () => <FormPassword {...props} />;
+
+export const OTP = () => <FormPassword auth2faType="otp" {...props} />;
+
+export const Universal2ndFactor = () => (
+  <FormPassword auth2faType="u2f" {...props} />
+);
+
+export const On = () => <FormPassword auth2faType="on" {...props} />;
+
+export const Optional = () => (
+  <FormPassword auth2faType="optional" {...props} />
+);
+
+const props = {
+  onChangePass: () => Promise.resolve(),
+  onChangePassWithU2f: () => Promise.reject(new Error('server error')),
+};

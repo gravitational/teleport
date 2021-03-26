@@ -16,7 +16,8 @@
 
 import React from 'react';
 import FormPassword from './FormPassword';
-import { render, fireEvent, wait } from 'design/utils/testing';
+import { On, Optional } from './FormPassword.story';
+import { render, fireEvent, wait, screen } from 'design/utils/testing';
 
 jest.mock('../../libs/logger', () => {
   const mockLogger = {
@@ -175,4 +176,48 @@ test('prop auth2faType: U2f form with mocked error', async () => {
     'value',
     ''
   );
+});
+
+test('auth2faType "optional", has correct select options', async () => {
+  render(<Optional />);
+
+  // default mfa dropdown is set to none
+  expect(screen.getByTestId('mfa-select').textContent).toMatch(/none/i);
+
+  // select u2f from mfa dropdown
+  let selectEl = screen.getByTestId('mfa-select').querySelector('input');
+  fireEvent.focus(selectEl);
+  fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
+  fireEvent.click(screen.getByText(/u2f/i));
+  screen.getByText(/u2f/i);
+
+  // select totp from mfa dropdown
+  selectEl = screen.getByTestId('mfa-select').querySelector('input');
+  fireEvent.focus(selectEl);
+  fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
+  fireEvent.click(screen.getByText(/totp/i));
+  screen.getByText(/totp/i);
+
+  // test totp requirement
+  fireEvent.click(screen.getByText(/update password/i));
+  screen.getByText(/token is require/i);
+});
+
+test('auth2faType "on", has correct select options', async () => {
+  render(<On />);
+
+  // default mfa dropdown is set to u2f
+  expect(screen.getByTestId('mfa-select').textContent).toMatch(/u2f/i);
+
+  // select totp from mfa dropdown
+  const selectEl = screen.getByTestId('mfa-select').querySelector('input');
+  fireEvent.focus(selectEl);
+  fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
+  fireEvent.click(screen.getByText(/totp/i));
+  screen.getByText(/totp/i);
+
+  // none type is not part of mfa dropdown
+  fireEvent.focus(selectEl);
+  fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
+  expect(screen.queryAllByText(/none/i)).toHaveLength(0);
 });

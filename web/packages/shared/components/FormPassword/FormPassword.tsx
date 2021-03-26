@@ -15,10 +15,12 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Card, ButtonPrimary } from 'design';
+import { Card, ButtonPrimary, Flex, Box } from 'design';
 import * as Alerts from 'design/Alert';
 import useAttempt from 'shared/hooks/useAttempt';
+import { Option } from 'shared/components/Select';
 import FieldInput from '../FieldInput';
+import FieldSelect from '../FieldSelect';
 import Validation, { Validator } from '../Validation';
 import {
   requiredToken,
@@ -30,18 +32,32 @@ import { Auth2faType } from 'shared/services';
 
 function FormPassword(props: Props) {
   const { onChangePassWithU2f, onChangePass, auth2faType = 'off' } = props;
+  const mfaEnabled = auth2faType === 'on' || auth2faType === 'optional';
+  const otpEnabled = auth2faType === 'otp';
+  const u2fEnabled = auth2faType === 'u2f';
+
   const [attempt, attemptActions] = useAttempt({});
   const [token, setToken] = React.useState('');
   const [oldPass, setOldPass] = React.useState('');
   const [newPass, setNewPass] = React.useState('');
   const [newPassConfirmed, setNewPassConfirmed] = React.useState('');
+  const [mfaOptions] = React.useState(() => {
+    let mfaOptions = [
+      { value: 'u2f', label: 'U2F' },
+      { value: 'otp', label: 'TOTP' },
+    ];
+    if (auth2faType === 'optional') {
+      mfaOptions = [{ value: 'none', label: 'NONE' }, ...mfaOptions];
+    }
+    return mfaOptions;
+  });
+  const [mfaType, setMfaType] = React.useState(mfaOptions[0]);
 
-  const otpEnabled = auth2faType === 'otp';
-  const u2fEnabled = auth2faType === 'u2f';
   const { isProcessing } = attempt;
+  const isU2fSelected = u2fEnabled || (mfaEnabled && mfaType.value === 'u2f');
 
   function submit() {
-    if (u2fEnabled) {
+    if (isU2fSelected) {
       return onChangePassWithU2f(oldPass, newPass);
     }
 
@@ -77,11 +93,18 @@ function FormPassword(props: Props) {
       });
   }
 
+  function onSetMfaOption(option: Option, validator: Validator) {
+    setToken('');
+    attemptActions.clear();
+    validator.reset();
+    setMfaType(option);
+  }
+
   return (
     <Validation>
       {({ validator }) => (
         <Card as="form" bg="primary.light" width="456px" p="6">
-          <Status isU2F={u2fEnabled} attempt={attempt} />
+          <Status isU2F={isU2fSelected} attempt={attempt} />
           <FieldInput
             rule={requiredField('Current Password is required')}
             label="Current Password"
@@ -90,6 +113,34 @@ function FormPassword(props: Props) {
             type="password"
             placeholder="Password"
           />
+          {mfaEnabled && (
+            <Flex alignItems="flex-end" mb={4}>
+              <Box width="50%" data-testid="mfa-select">
+                <FieldSelect
+                  label="Second factor"
+                  value={mfaType}
+                  options={mfaOptions}
+                  onChange={opt => onSetMfaOption(opt as Option, validator)}
+                  mr={3}
+                  mb={0}
+                  isDisabled={isProcessing}
+                />
+              </Box>
+              <Box width="50%">
+                {mfaType.value === 'otp' && (
+                  <FieldInput
+                    label="Two factor token"
+                    rule={requiredToken}
+                    autoComplete="off"
+                    value={token}
+                    onChange={e => setToken(e.target.value)}
+                    placeholder="123 456"
+                    mb={0}
+                  />
+                )}
+              </Box>
+            </Flex>
+          )}
           {otpEnabled && (
             <FieldInput
               label="2nd factor token"

@@ -118,8 +118,12 @@ const auth = {
   },
 
   changePasswordWithU2f(oldPass, newPass) {
+    const err = this.u2fBrowserSupported();
+    if (err) {
+      return Promise.reject(err);
+    }
+
     const data = {
-      user: name,
       pass: oldPass,
     };
 

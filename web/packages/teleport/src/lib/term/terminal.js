@@ -68,7 +68,10 @@ class TtyTerminal {
     this.tty.on(TermEventEnum.RESET, this.reset.bind(this));
     this.tty.on(TermEventEnum.CONN_CLOSE, this._processClose.bind(this));
     this.tty.on(TermEventEnum.DATA, this._processData.bind(this));
-    this.tty.on(TermEventEnum.U2F_CHALLENGE, this._processU2FChallenge.bind(this));
+    this.tty.on(
+      TermEventEnum.U2F_CHALLENGE,
+      this._processU2FChallenge.bind(this)
+    );
 
     // subscribe tty resize event (used by session player)
     this.tty.on(TermEventEnum.RESIZE, ({ h, w }) => this.resize(w, h));
@@ -181,12 +184,23 @@ class TtyTerminal {
 
   _processU2FChallenge(payload) {
     if (!window.u2f) {
-      const termMsg = 'This browser does not support U2F required for hardware tokens, please try Chrome or Firefox instead.';
+      const termMsg =
+        'This browser does not support U2F required for hardware tokens, please try Chrome or Firefox instead.';
       this.term.write(`\x1b[31m${termMsg}\x1b[m\r\n`);
       return;
     }
+
     const data = JSON.parse(payload);
-    window.u2f.sign(data.appId, data.challenge, data.u2f_challenges, this._processU2FResponse.bind(this));
+    window.u2f.sign(
+      data.appId,
+      data.challenge,
+      data.u2f_challenges,
+      this._processU2FResponse.bind(this)
+    );
+
+    const actionMsg =
+      'Authentication is required. Tap any *registered* security key.';
+    this.term.write(`\x1b[37m${actionMsg}\x1b[m\r\n`);
   }
 
   _processU2FResponse(res) {
