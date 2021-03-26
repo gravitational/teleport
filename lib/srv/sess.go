@@ -17,6 +17,7 @@ limitations under the License.
 package srv
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -526,6 +527,9 @@ type session struct {
 	// hasEnhancedRecording returns true if this session has enhanced session
 	// recording events associated.
 	hasEnhancedRecording bool
+
+	// serverCtx is used to control clean up of internal resources
+	serverCtx context.Context
 }
 
 // newSession creates a new session with a given ID within a given context.
@@ -597,6 +601,7 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		closeC:       make(chan bool),
 		lingerTTL:    defaults.SessionIdlePeriod,
 		startTime:    startTime,
+		serverCtx:    ctx.srv.Context(),
 	}
 	return sess, nil
 }
@@ -634,6 +639,9 @@ func (s *session) Close() error {
 			s.log.Infof("Closing session %v.", s.id)
 			if s.term != nil {
 				s.term.Close()
+			}
+			if s.recorder != nil {
+				s.recorder.Close(s.serverCtx)
 			}
 			close(s.closeC)
 		}()
