@@ -148,10 +148,18 @@ func (a *TestServer) ClusterName() string {
 	return a.TLS.ClusterName()
 }
 
-// Close stop this server instance
+// Close stops this server instance
 func (a *TestServer) Close() error {
 	return trace.NewAggregate(
 		a.TLS.Close(),
+		a.AuthServer.Close(),
+	)
+}
+
+// Shutdown stops this server instance gracefully
+func (a *TestServer) Shutdown(ctx context.Context) error {
+	return trace.NewAggregate(
+		a.TLS.Shutdown(ctx),
 		a.AuthServer.Close(),
 	)
 }
@@ -747,7 +755,19 @@ func (t *TestTLSServer) Start() error {
 
 // Close closes the listener and HTTP server
 func (t *TestTLSServer) Close() error {
-	err := t.TLSServer.Shutdown(context.Background())
+	err := t.TLSServer.Close()
+	if t.Listener != nil {
+		t.Listener.Close()
+	}
+	if t.AuthServer.Backend != nil {
+		t.AuthServer.Backend.Close()
+	}
+	return err
+}
+
+// Shutdown closes the listener and HTTP server gracefully
+func (t *TestTLSServer) Shutdown(ctx context.Context) error {
+	err := t.TLSServer.Shutdown(ctx)
 	if t.Listener != nil {
 		t.Listener.Close()
 	}

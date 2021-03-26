@@ -313,14 +313,11 @@ func (s *WebSuite) TearDownTest(c *C) {
 	if err := s.node.Close(); err != nil {
 		errors = append(errors, err)
 	}
-	if err := s.server.Close(); err != nil {
+	if err := s.server.Shutdown(context.Background()); err != nil {
 		errors = append(errors, err)
 	}
 	s.webServer.Close()
 	s.proxy.Close()
-	if err := s.server.Close(); err != nil {
-		errors = append(errors, err)
-	}
 	c.Assert(errors, HasLen, 0)
 }
 
@@ -2378,7 +2375,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, server.Close()) })
+	t.Cleanup(func() { require.NoError(t, server.Shutdown(context.Background())) })
 
 	// Register the auth server, since test auth server doesn't start its own
 	// heartbeat.

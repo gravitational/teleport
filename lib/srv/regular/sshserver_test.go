@@ -226,7 +226,7 @@ func (s *SrvSuite) TearDownTest(c *C) {
 		c.Assert(s.srv.Close(), IsNil)
 	}
 	if s.server != nil {
-		c.Assert(s.server.Close(), IsNil)
+		c.Assert(s.server.Shutdown(context.Background()), IsNil)
 	}
 }
 
