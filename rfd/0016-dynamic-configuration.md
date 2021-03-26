@@ -196,11 +196,11 @@ transition between a pair of `origin` values.  The leftmost column is the
 current/source `origin` value of a resource while the top row is the
 desired/target `origin` value:
 
-|    *from \ to*    |                   **`defaults`**                  |           **`config-file`**          |           **(other)**           |
-|       :---:       |                       :---:                       |                 :---:                |              :---:              |
-|   **`defaults`**  |                        n/a                        | specify in `teleport.yaml` & restart |          `tctl create`          |
-| **`config-file`** | remove from `teleport.yaml` / `tctl rm --confirm` |  change in `teleport.yaml` & restart | `tctl create --force --confirm` |
-|    **(other)**    |                     `tctl rm`                     | specify in `teleport.yaml` & restart |      `tctl create --force`      |
+|    *from \ to*    |        **`defaults`**       |           **`config-file`**          |           **(other)**           |
+|       :---:       |            :---:            |                 :---:                |              :---:              |
+|   **`defaults`**  |             n/a             | specify in `teleport.yaml` & restart |          `tctl create`          |
+| **`config-file`** | remove from `teleport.yaml` |  change in `teleport.yaml` & restart | `tctl create --force --confirm` |
+|    **(other)**    |          `tctl rm`          | specify in `teleport.yaml` & restart |      `tctl create --force`      |
 
 Note that the `origin` label is not reserved or protected in any special way
 by the system and so it can be modified by the same means as other labels.
@@ -266,19 +266,9 @@ The `tctl rm` subcommand can be used to reset dynamic resources back to their de
 2. If the fetched resource does not have `origin: config-file`, replace the
    stored resource with the default one.
 
-3. If called without `--confirm` and the fetched resource has `origin: config-file`
-   then print an error:
+3. If the fetched resource has `origin: config-file` then print an error:
    ```
    This resource is managed by static configuration. We recommend removing
    configuration from teleport.yaml and restarting the servers in order to
-   reset the resource to defaults.
-
-   If you would still like to proceed, re-run the command with --confirm flag.
+   reset the resource to its default.
    ```
-
-   Invocation with `--confirm` will replace the stored resource with
-   the default one until the auth server restart.
-
-Note the use of `--confirm` on its own as opposed to in conjunction with
-`--force`.  This decision is meant to retain compatibility with [the unrelated
-semantics proposed for `tctl rm --force`](https://github.com/gravitational/teleport/issues/1872).
