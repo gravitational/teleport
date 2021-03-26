@@ -31,10 +31,11 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 
-	"github.com/docker/docker/pkg/term"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/moby/term"
 	"github.com/pborman/uuid"
+
+	"github.com/gravitational/trace"
 )
 
 // ID is a unique session ID.

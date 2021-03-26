@@ -142,6 +142,12 @@ func (r *ForwardRecorder) GetAuditLog() IAuditLog {
 	return r.AuditLog
 }
 
+// EmitAuditEvent is not implemented
+// Events are forwarded to the auth server and is then emitted from there
+func (r *Forwarder) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+	return trace.NotImplemented("not implemented")
+}
+
 // Write takes a chunk and writes it into the audit log
 func (r *ForwardRecorder) Write(data []byte) (int, error) {
 	// we are copying buffer to prevent data corruption:

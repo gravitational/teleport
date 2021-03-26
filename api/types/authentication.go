@@ -23,10 +23,10 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 )
 
 // AuthPreference defines the authentication preferences for a specific
@@ -43,9 +43,9 @@ type AuthPreference interface {
 	SetType(string)
 
 	// GetSecondFactor gets the type of second factor: off, otp or u2f.
-	GetSecondFactor() string
+	GetSecondFactor() constants.SecondFactorType
 	// SetSecondFactor sets the type of second factor: off, otp, or u2f.
-	SetSecondFactor(string)
+	SetSecondFactor(constants.SecondFactorType)
 
 	// GetConnectorName gets the name of the OIDC or SAML connector to use. If
 	// this value is empty, we fall back to the first connector in the backend.
@@ -58,6 +58,10 @@ type AuthPreference interface {
 	GetU2F() (*U2F, error)
 	// SetU2F sets the U2F configuration settings.
 	SetU2F(*U2F)
+
+	// GetRequireSessionMFA returns true when all sessions in this cluster
+	// require an MFA check.
+	GetRequireSessionMFA() bool
 
 	// CheckAndSetDefaults sets and default values and then
 	// verifies the constraints for AuthPreference.
@@ -96,7 +100,7 @@ func DefaultAuthPreference() AuthPreference {
 		},
 		Spec: AuthPreferenceSpecV2{
 			Type:         constants.Local,
-			SecondFactor: constants.OTP,
+			SecondFactor: constants.SecondFactorOTP,
 		},
 	}
 }
@@ -192,12 +196,12 @@ func (c *AuthPreferenceV2) SetType(s string) {
 }
 
 // GetSecondFactor returns the type of second factor.
-func (c *AuthPreferenceV2) GetSecondFactor() string {
+func (c *AuthPreferenceV2) GetSecondFactor() constants.SecondFactorType {
 	return c.Spec.SecondFactor
 }
 
 // SetSecondFactor sets the type of second factor.
-func (c *AuthPreferenceV2) SetSecondFactor(s string) {
+func (c *AuthPreferenceV2) SetSecondFactor(s constants.SecondFactorType) {
 	c.Spec.SecondFactor = s
 }
 
@@ -226,6 +230,12 @@ func (c *AuthPreferenceV2) SetU2F(u2f *U2F) {
 	c.Spec.U2F = u2f
 }
 
+// GetRequireSessionMFA returns true when all sessions in this cluster require
+// an MFA check.
+func (c *AuthPreferenceV2) GetRequireSessionMFA() bool {
+	return c.Spec.RequireSessionMFA
+}
+
 // CheckAndSetDefaults verifies the constraints for AuthPreference.
 func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	// make sure we have defaults for all metadata fields
@@ -239,7 +249,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		c.Spec.Type = constants.Local
 	}
 	if c.Spec.SecondFactor == "" {
-		c.Spec.SecondFactor = constants.OTP
+		c.Spec.SecondFactor = constants.SecondFactorOTP
 	}
 
 	// make sure type makes sense
@@ -251,7 +261,14 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 
 	// make sure second factor makes sense
 	switch c.Spec.SecondFactor {
-	case constants.OFF, constants.OTP, constants.U2F:
+	case constants.SecondFactorOff, constants.SecondFactorOTP:
+	case constants.SecondFactorU2F, constants.SecondFactorOn, constants.SecondFactorOptional:
+		if c.Spec.U2F == nil {
+			return trace.BadParameter("missing required U2F configuration for second factor type %q", c.Spec.SecondFactor)
+		}
+		if err := c.Spec.U2F.Check(); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return trace.BadParameter("second factor type %q not supported", c.Spec.SecondFactor)
 	}
@@ -270,7 +287,7 @@ type AuthPreferenceSpecV2 struct {
 	Type string `json:"type"`
 
 	// SecondFactor is the type of second factor.
-	SecondFactor string `json:"second_factor,omitempty"`
+	SecondFactor constants.SecondFactorType `json:"second_factor,omitempty"`
 
 	// ConnectorName is the name of the OIDC or SAML connector. If this value is
 	// not set the first connector in the backend will be used.
@@ -278,6 +295,10 @@ type AuthPreferenceSpecV2 struct {
 
 	// U2F are the settings for the U2F device.
 	U2F *U2F `json:"u2f,omitempty"`
+
+	// RequireSessionMFA causes all sessions in this cluster to require MFA
+	// checks.
+	RequireSessionMFA bool `json:"require_session_mfa,omitempty"`
 }
 
 // U2F defines settings for U2F device.
@@ -287,17 +308,36 @@ type U2F struct {
 
 	// Facets returns the facets for universal second factor.
 	Facets []string `json:"facets,omitempty"`
+
+	// DeviceAttestationCAs contains the trusted attestation CAs for U2F
+	// devices.
+	DeviceAttestationCAs []string `json:"device_attestation_cas,omitempty"`
+}
+
+func (u *U2F) Check() error {
+	if u.AppID == "" {
+		return trace.BadParameter("u2f configuration missing app_id")
+	}
+	if len(u.Facets) == 0 {
+		return trace.BadParameter("u2f configuration missing facets")
+	}
+	for _, ca := range u.DeviceAttestationCAs {
+		if _, err := tlsutils.ParseCertificatePEM([]byte(ca)); err != nil {
+			return trace.BadParameter("u2f configuration has an invalid attestation CA: %v", err)
+		}
+	}
+	return nil
 }
 
 // NewMFADevice creates a new MFADevice with the given name. Caller must set
 // the Device field in the returned MFADevice.
-func NewMFADevice(name string, addedAt time.Time) *MFADevice {
+func NewMFADevice(name, id string, addedAt time.Time) *MFADevice {
 	return &MFADevice{
 		Kind: KindMFADevice,
 		Metadata: Metadata{
 			Name: name,
 		},
-		Id:       uuid.New(),
+		Id:       id,
 		AddedAt:  addedAt,
 		LastUsed: addedAt,
 	}

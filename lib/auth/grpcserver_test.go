@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/base32"
 	"encoding/base64"
+	"fmt"
 	"net"
 	"sort"
 	"testing"
@@ -31,11 +32,12 @@ import (
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/services"
@@ -44,28 +46,24 @@ import (
 
 func TestMFADeviceManagement(t *testing.T) {
 	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
-	as, err := NewTestAuthServer(TestAuthServerConfig{
-		Dir:   t.TempDir(),
-		Clock: clock,
-	})
-	require.NoError(t, err)
-	srv, err := as.NewTestTLSServer()
-	require.NoError(t, err)
+	srv := newTestTLSServer(t)
+	clock := srv.Clock().(clockwork.FakeClock)
+
 	// Enable U2F support.
 	authPref, err := services.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type: teleport.Local,
+		Type:         teleport.Local,
+		SecondFactor: constants.SecondFactorOn,
 		U2F: &types.U2F{
 			AppID:  "teleport",
 			Facets: []string{"teleport"},
 		},
 	})
 	require.NoError(t, err)
-	err = as.AuthServer.SetAuthPreference(authPref)
+	err = srv.Auth().SetAuthPreference(authPref)
 	require.NoError(t, err)
 
 	// Create a fake user.
-	user, _, err := CreateUserAndRole(as.AuthServer, "mfa-user", []string{"role"})
+	user, _, err := CreateUserAndRole(srv.Auth(), "mfa-user", []string{"role"})
 	require.NoError(t, err)
 	cl, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
@@ -543,27 +541,34 @@ func testDeleteMFADevice(ctx context.Context, t *testing.T, cl *Client, opts mfa
 
 func TestGenerateUserSingleUseCert(t *testing.T) {
 	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
-	as, err := NewTestAuthServer(TestAuthServerConfig{
-		Dir:   t.TempDir(),
-		Clock: clock,
-	})
-	require.NoError(t, err)
-	srv, err := as.NewTestTLSServer()
-	require.NoError(t, err)
+	srv := newTestTLSServer(t)
+	clock := srv.Clock()
 
 	// Enable U2F support.
 	authPref, err := services.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type: teleport.Local,
+		Type:         teleport.Local,
+		SecondFactor: constants.SecondFactorOn,
 		U2F: &types.U2F{
 			AppID:  "teleport",
 			Facets: []string{"teleport"},
-		},
-	})
+		}})
 	require.NoError(t, err)
-	err = as.AuthServer.SetAuthPreference(authPref)
+	err = srv.Auth().SetAuthPreference(authPref)
 	require.NoError(t, err)
 
+	// Register an SSH node.
+	node := &types.ServerV2{
+		Kind:    types.KindKubeService,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name: "node-a",
+		},
+		Spec: types.ServerSpecV2{
+			Hostname: "node-a",
+		},
+	}
+	_, err = srv.Auth().UpsertNode(node)
+	require.NoError(t, err)
 	// Register a k8s cluster.
 	k8sSrv := &types.ServerV2{
 		Kind:    types.KindKubeService,
@@ -575,11 +580,26 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 			KubernetesClusters: []*types.KubernetesCluster{{Name: "kube-a"}},
 		},
 	}
-	err = as.AuthServer.UpsertKubeService(ctx, k8sSrv)
+	err = srv.Auth().UpsertKubeService(ctx, k8sSrv)
+	require.NoError(t, err)
+	// Register a database.
+	db := types.NewDatabaseServerV3("db-a", nil, types.DatabaseServerSpecV3{
+		Protocol: "postgres",
+		URI:      "localhost",
+		Hostname: "localhost",
+		HostID:   "localhost",
+	})
+	_, err = srv.Auth().UpsertDatabaseServer(ctx, db)
 	require.NoError(t, err)
 
 	// Create a fake user.
-	user, _, err := CreateUserAndRole(as.AuthServer, "mfa-user", []string{"role"})
+	user, role, err := CreateUserAndRole(srv.Auth(), "mfa-user", []string{"role"})
+	require.NoError(t, err)
+	// Make sure MFA is required for this user.
+	roleOpt := role.GetOptions()
+	roleOpt.RequireSessionMFA = true
+	role.SetOptions(roleOpt)
+	err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 	cl, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
@@ -627,6 +647,12 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 			return wantDev
 		},
 	})
+	// Fetch MFA device ID.
+	devs, err := srv.Auth().GetMFADevices(ctx, user.GetName())
+	require.NoError(t, err)
+	require.Len(t, devs, 1)
+	u2fDevID := devs[0].Id
+
 	u2fChallengeHandler := func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 		require.Len(t, req.U2F, 1)
 		chal := req.U2F[0]
@@ -644,7 +670,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 			Signature:  mresp.SignatureData,
 		}}}
 	}
-	_, pub, err := as.AuthServer.GenerateKeyPair("")
+	_, pub, err := srv.Auth().GenerateKeyPair("")
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -668,12 +694,10 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					crt := c.GetSSH()
 					require.NotEmpty(t, crt)
 
-					key, _, _, _, err := ssh.ParseAuthorizedKey(crt)
+					cert, err := sshutils.ParseCertificate(crt)
 					require.NoError(t, err)
-					cert, ok := key.(*ssh.Certificate)
-					require.True(t, ok)
 
-					require.Contains(t, cert.Extensions, teleport.CertExtensionMFAVerified)
+					require.Equal(t, cert.Extensions[teleport.CertExtensionMFAVerified], u2fDevID)
 					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionClientIP]).IsLoopback())
 					require.Equal(t, cert.ValidBefore, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()))
 				},
@@ -702,7 +726,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 
 					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 					require.NoError(t, err)
-					require.True(t, identity.MFAVerified)
+					require.Equal(t, identity.MFAVerified, u2fDevID)
 					require.True(t, net.ParseIP(identity.ClientIP).IsLoopback())
 					require.Equal(t, identity.Usage, []string{teleport.UsageKubeOnly})
 					require.Equal(t, identity.KubernetesCluster, "kube-a")
@@ -734,7 +758,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 
 					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 					require.NoError(t, err)
-					require.True(t, identity.MFAVerified)
+					require.Equal(t, identity.MFAVerified, u2fDevID)
 					require.True(t, net.ParseIP(identity.ClientIP).IsLoopback())
 					require.Equal(t, identity.Usage, []string{teleport.UsageDatabaseOnly})
 					require.Equal(t, identity.RouteToDatabase.ServiceName, "db-a")
@@ -773,12 +797,10 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					crt := c.GetSSH()
 					require.NotEmpty(t, crt)
 
-					key, _, _, _, err := ssh.ParseAuthorizedKey(crt)
+					cert, err := sshutils.ParseCertificate(crt)
 					require.NoError(t, err)
-					cert, ok := key.(*ssh.Certificate)
-					require.True(t, ok)
 
-					require.Contains(t, cert.Extensions, teleport.CertExtensionMFAVerified)
+					require.Equal(t, cert.Extensions[teleport.CertExtensionMFAVerified], u2fDevID)
 					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionClientIP]).IsLoopback())
 					require.Equal(t, cert.ValidBefore, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()))
 				},
@@ -841,4 +863,62 @@ func testGenerateUserSingleUseCert(ctx context.Context, t *testing.T, cl *Client
 	opts.validateCert(t, certs.GetCert())
 
 	require.NoError(t, stream.CloseSend())
+}
+
+func TestIsMFARequired(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Enable MFA support.
+	authPref, err := services.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         teleport.Local,
+		SecondFactor: constants.SecondFactorOptional,
+		U2F: &types.U2F{
+			AppID:  "teleport",
+			Facets: []string{"teleport"},
+		},
+	})
+	require.NoError(t, err)
+	err = srv.Auth().SetAuthPreference(authPref)
+	require.NoError(t, err)
+
+	// Register an SSH node.
+	node := &types.ServerV2{
+		Kind:    types.KindKubeService,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name: "node-a",
+		},
+		Spec: types.ServerSpecV2{
+			Hostname: "node-a",
+		},
+	}
+	_, err = srv.Auth().UpsertNode(node)
+	require.NoError(t, err)
+
+	// Create a fake user.
+	user, role, err := CreateUserAndRole(srv.Auth(), "no-mfa-user", []string{"role"})
+	require.NoError(t, err)
+
+	for _, required := range []bool{true, false} {
+		t.Run(fmt.Sprintf("required=%v", required), func(t *testing.T) {
+			roleOpt := role.GetOptions()
+			roleOpt.RequireSessionMFA = required
+			role.SetOptions(roleOpt)
+			err = srv.Auth().UpsertRole(ctx, role)
+			require.NoError(t, err)
+
+			cl, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			resp, err := cl.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
+				Target: &proto.IsMFARequiredRequest_Node{Node: &proto.NodeLogin{
+					Login: user.GetName(),
+					Node:  "node-a",
+				}},
+			})
+			require.NoError(t, err)
+			require.Equal(t, resp.Required, required)
+		})
+	}
 }

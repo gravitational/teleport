@@ -26,9 +26,6 @@ import (
 // The following constants have been moved to /api/constants/constants.go, and are now
 // imported here for backwards compatibility. DELETE IN 7.0.0
 const (
-	OTP                        = constants.OTP
-	U2F                        = constants.U2F
-	OFF                        = constants.OFF
 	Local                      = constants.Local
 	OIDC                       = constants.OIDC
 	SAML                       = constants.SAML
@@ -45,6 +42,9 @@ const (
 	KeepAliveNode              = constants.KeepAliveNode
 	KeepAliveApp               = constants.KeepAliveApp
 	KeepAliveDatabase          = constants.KeepAliveDatabase
+	WindowsOS                  = constants.WindowsOS
+	LinuxOS                    = constants.LinuxOS
+	DarwinOS                   = constants.DarwinOS
 )
 
 // WebAPIVersion is a current webapi version
@@ -263,6 +263,9 @@ const (
 	// ComponentKube is an Kubernetes API gateway.
 	ComponentKube = "kubernetes"
 
+	// ComponentSAML is a SAML service provider.
+	ComponentSAML = "saml"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 
@@ -296,12 +299,6 @@ const (
 	// the proxy is recording sessions or not.
 	RecordingProxyReqType = "recording-proxy@teleport.com"
 
-	// TOTP means Time-based One-time Password Algorithm. for Two-Factor Authentication.
-	TOTP = "totp"
-
-	// HOTP means HMAC-based One-time Password Algorithm.for Two-Factor Authentication.
-	HOTP = "hotp"
-
 	// JSON means JSON serialization format
 	JSON = "json"
 
@@ -319,15 +316,6 @@ const (
 
 	// LinuxAdminGID is the ID of the standard adm group on linux
 	LinuxAdminGID = 4
-
-	// LinuxOS is the GOOS constant used for Linux.
-	LinuxOS = "linux"
-
-	// WindowsOS is the GOOS constant used for Microsoft Windows.
-	WindowsOS = "windows"
-
-	// DarwinOS is the GOOS constant for Apple macOS/darwin.
-	DarwinOS = "darwin"
 
 	// DirMaskSharedGroup is the mask for a directory accessible
 	// by the owner and group
@@ -394,6 +382,16 @@ const (
 	MinimumEtcdVersion = "3.3.0"
 )
 
+// OTPType is the type of the One-time Password Algorithm.
+type OTPType string
+
+const (
+	// TOTP means Time-based One-time Password Algorithm (for Two-Factor Authentication)
+	TOTP = OTPType("totp")
+	// HOTP means HMAC-based One-time Password Algorithm (for Two-Factor Authentication)
+	HOTP = OTPType("hotp")
+)
+
 const (
 	// These values are from https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
 
@@ -444,6 +442,9 @@ const (
 	// CertExtensionClientIP is used to embed the IP of the client that created
 	// the certificate.
 	CertExtensionClientIP = "client-ip"
+	// CertExtensionImpersonator is set when one user has requested certificates
+	// for another user
+	CertExtensionImpersonator = "impersonator"
 )
 
 const (
@@ -467,6 +468,16 @@ const MaxEnvironmentFileLines = 1000
 // MaxResourceSize is the maximum size (in bytes) of a serialized resource.  This limit is
 // typically only enforced against resources that are likely to arbitrarily grow (e.g. PluginData).
 const MaxResourceSize = 1000000
+
+// MaxHTTPRequestSize is the maximum accepted size (in bytes) of the body of
+// a received HTTP request.  This limit is meant to be used with utils.ReadAtMost
+// to prevent resource exhaustion attacks.
+const MaxHTTPRequestSize = 10 * 1024 * 1024
+
+// MaxHTTPResponseSize is the maximum accepted size (in bytes) of the body of
+// a received HTTP response.  This limit is meant to be used with utils.ReadAtMost
+// to prevent resource exhaustion attacks.
+const MaxHTTPResponseSize = 10 * 1024 * 1024
 
 const (
 	// CertificateFormatOldSSH is used to make Teleport interoperate with older
@@ -542,8 +553,25 @@ const SCP = "scp"
 const Root = "root"
 
 // AdminRoleName is the name of the default admin role for all local users if
-// another role is not explicitly assigned (Enterprise only).
+// another role is not explicitly assigned
 const AdminRoleName = "admin"
+
+const (
+	// PresetEditorRoleName is a name of a preset role that allows
+	// editing cluster configuration.
+	PresetEditorRoleName = "editor"
+
+	// PresetAccessRoleName is a name of a preset role that allows
+	// accessing cluster resources.
+	PresetAccessRoleName = "access"
+
+	// PresetAuditorRoleName is a name of a preset role that allows
+	// reading cluster events and playing back session records.
+	PresetAuditorRoleName = "auditor"
+)
+
+// OSSMigratedV6 is a label to mark migrated OSS users and resources
+const OSSMigratedV6 = "migrate-v6.0"
 
 // MinClientVersion is the minimum client version required by the server.
 const MinClientVersion = "3.0.0"
@@ -694,3 +722,7 @@ const (
 
 // UserSingleUseCertTTL is a TTL for per-connection user certificates.
 const UserSingleUseCertTTL = time.Minute
+
+// StandardHTTPSPort is the default port used for the https URI scheme,
+// cf. RFC 7230 § 2.7.2.
+const StandardHTTPSPort = 443

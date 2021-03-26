@@ -30,6 +30,9 @@ const (
 	// Wildcard is a special wildcard character matching everything
 	Wildcard = "*"
 
+	// True holds "true" string value
+	True = "true"
+
 	// KindNamespace is a namespace
 	KindNamespace = "namespace"
 
@@ -186,6 +189,9 @@ const (
 
 	// KindMFADevice is an MFA device for a user.
 	KindMFADevice = "mfa_device"
+
+	// KindBilling represents access to cloud billing features
+	KindBilling = "billing"
 
 	// V3 is the third version of resources.
 	V3 = "v3"

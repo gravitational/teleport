@@ -61,3 +61,6 @@ func (d *DiscardAuditLog) SearchSessionEvents(fromUTC time.Time, toUTC time.Time
 func (d *DiscardAuditLog) UploadSessionRecording(SessionRecording) error {
 	return nil
 }
+func (d *DiscardAuditLog) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+	return nil
+}

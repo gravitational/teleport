@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/shell"
+	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -93,6 +94,24 @@ type ExecCommand struct {
 
 	// IsTestStub is used by tests to mock the shell.
 	IsTestStub bool `json:"is_test_stub"`
+
+	// UaccMetadata contains metadata needed for user accounting.
+	UaccMetadata
+}
+
+// UaccMetadata contains information the child needs from the parent for user accounting.
+type UaccMetadata struct {
+	// The hostname of the node.
+	Hostname string `json:"hostname"`
+
+	// RemoteAddr is the address of the remote host.
+	RemoteAddr [4]int32 `json:"remote_addr"`
+
+	// UtmpPath is the path of the system utmp database.
+	UtmpPath string `json:"utmp_path,omitempty"`
+
+	// WtmpPath is the path of the system wtmp log.
+	WtmpPath string `json:"wtmp_path,omitempty"`
 }
 
 // RunCommand reads in the command to run from the parent process (over a
@@ -138,6 +157,10 @@ func RunCommand() (io.Writer, int, error) {
 			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("pty and tty not found")
 		}
 		errorWriter = tty
+		err = uacc.Open(c.UtmpPath, c.WtmpPath, c.Login, c.Hostname, c.RemoteAddr, tty)
+		if err != nil && !trace.IsAccessDenied(err) {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		}
 	}
 
 	// If PAM is enabled, open a PAM context. This has to be done before anything
@@ -212,6 +235,14 @@ func RunCommand() (io.Writer, int, error) {
 	// running exit 2), the shell will print an error if appropriate and return
 	// an exit code.
 	err = cmd.Wait()
+
+	if c.Terminal {
+		uaccErr := uacc.Close(c.UtmpPath, c.WtmpPath, tty)
+		if uaccErr != nil && !trace.IsAccessDenied(uaccErr) {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(uaccErr)
+		}
+	}
+
 	return ioutil.Discard, exitCode(err), trace.Wrap(err)
 }
 

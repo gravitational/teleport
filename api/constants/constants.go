@@ -40,15 +40,6 @@ const (
 	// are captured.
 	EnhancedRecordingNetwork = "network"
 
-	// OTP means One-time Password Algorithm for Two-Factor Authentication.
-	OTP = "otp"
-
-	// U2F means Universal 2nd Factor.for Two-Factor Authentication.
-	U2F = "u2f"
-
-	// OFF means no second factor.for Two-Factor Authentication.
-	OFF = "off"
-
 	// Local means authentication will happen locally within the Teleport cluster.
 	Local = "local"
 
@@ -88,4 +79,67 @@ const (
 
 	// KeepAliveDatabase is the keep alive type for database server.
 	KeepAliveDatabase = "db"
+
+	// WindowsOS is the GOOS constant used for Microsoft Windows.
+	WindowsOS = "windows"
+
+	// LinuxOS is the GOOS constant used for Linux.
+	LinuxOS = "linux"
+
+	// DarwinOS is the GOOS constant for Apple macOS/darwin.
+	DarwinOS = "darwin"
+)
+
+// SecondFactorType is the type of 2FA authentication.
+type SecondFactorType string
+
+const (
+	// SecondFactorOff means no second factor.
+	SecondFactorOff = SecondFactorType("off")
+	// SecondFactorOTP means that only OTP is supported for 2FA and 2FA is
+	// required for all users.
+	SecondFactorOTP = SecondFactorType("otp")
+	// SecondFactorU2F means that only U2F is supported for 2FA and 2FA is
+	// required for all users.
+	SecondFactorU2F = SecondFactorType("u2f")
+	// SecondFactorOn means that all 2FA protocols are supported and 2FA is
+	// required for all users.
+	SecondFactorOn = SecondFactorType("on")
+	// SecondFactorOptional means that all 2FA protocols are supported and 2FA
+	// is required only for users that have MFA devices registered.
+	SecondFactorOptional = SecondFactorType("optional")
+)
+
+const (
+	// ChanTransport is a channel type that can be used to open a net.Conn
+	// through the reverse tunnel server. Used for trusted clusters and dial back
+	// nodes.
+	ChanTransport = "teleport-transport"
+
+	// ChanTransportDialReq is the first (and only) request sent on a
+	// chanTransport channel. It's payload is the address of the host a
+	// connection should be established to.
+	ChanTransportDialReq = "teleport-transport-dial"
+
+	// RemoteAuthServer is a special non-resolvable address that indicates client
+	// requests a connection to the remote auth server.
+	RemoteAuthServer = "@remote-auth-server"
+)
+
+const (
+	// SessionKeyDir is the sub-directory where session keys are stored (.tsh/keys).
+	SessionKeyDir = "keys"
+	// FileNameKnownHosts is a file that stores known hosts.
+	FileNameKnownHosts = "known_hosts"
+	// FileExtTLSCert is the filename extension/suffix of TLS certs
+	// stored in a profile (./tsh/keys/profilename/username-x509.pem).
+	FileExtTLSCert = "-x509.pem"
+	// FileNameTLSCerts is the filename of Cert Authorities stored in a
+	// profile (./tsh/keys/profilename/certs.pem).
+	FileNameTLSCerts = "certs.pem"
+	// FileExtCert is a file extension used for SSH Certificate files.
+	FileExtSSHCert = "-cert.pub"
+	// FileExtPub is a file extension used for SSH Certificate Authorities
+	// stored in a profile (./tsh/keys/profilename/username.pub).
+	FileExtPub = ".pub"
 )

@@ -24,6 +24,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -68,7 +69,6 @@ type AuthHandlers struct {
 func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityContext, error) {
 	identity := IdentityContext{
 		TeleportUser: sconn.Permissions.Extensions[utils.CertTeleportUser],
-		Certificate:  []byte(sconn.Permissions.Extensions[utils.CertTeleportUserCertificate]),
 		Login:        sconn.User(),
 	}
 
@@ -77,10 +77,12 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		return IdentityContext{}, trace.Wrap(err)
 	}
 
-	certificate, err := identity.GetCertificate()
+	certRaw := []byte(sconn.Permissions.Extensions[utils.CertTeleportUserCertificate])
+	certificate, err := apisshutils.ParseCertificate(certRaw)
 	if err != nil {
 		return IdentityContext{}, trace.Wrap(err)
 	}
+	identity.Certificate = certificate
 	identity.RouteToCluster = certificate.Extensions[teleport.CertExtensionTeleportRouteToCluster]
 	if certificate.ValidBefore != 0 {
 		identity.CertValidBefore = time.Unix(int64(certificate.ValidBefore), 0)
@@ -96,6 +98,7 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		return IdentityContext{}, trace.Wrap(err)
 	}
 	identity.RoleSet = roleSet
+	identity.Impersonator = certificate.Extensions[teleport.CertExtensionImpersonator]
 
 	return identity, nil
 }
@@ -122,8 +125,9 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext) error {
 				Code: events.PortForwardFailureCode,
 			},
 			UserMetadata: events.UserMetadata{
-				Login: ctx.Identity.Login,
-				User:  ctx.Identity.TeleportUser,
+				Login:        ctx.Identity.Login,
+				User:         ctx.Identity.TeleportUser,
+				Impersonator: ctx.Identity.Impersonator,
 			},
 			ConnectionMetadata: events.ConnectionMetadata{
 				LocalAddr:  ctx.ServerConn.LocalAddr().String(),
@@ -349,8 +353,18 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 		return trace.Wrap(err)
 	}
 
+	ap, err := h.AccessPoint.GetAuthPreference()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, mfaVerified := cert.Extensions[teleport.CertExtensionMFAVerified]
+	mfaParams := services.AccessMFAParams{
+		Verified:       mfaVerified,
+		AlwaysRequired: ap.GetRequireSessionMFA(),
+	}
+
 	// check if roles allow access to server
-	if err := roles.CheckAccessToServer(osUser, h.Server.GetInfo()); err != nil {
+	if err := roles.CheckAccessToServer(osUser, h.Server.GetInfo(), mfaParams); err != nil {
 		return trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
 			teleportUser, ca.GetClusterName(), osUser, clusterName, err)
 	}
@@ -421,12 +435,12 @@ func (h *AuthHandlers) authorityForCert(caType services.CertAuthType, key ssh.Pu
 			// host checkers.
 			switch v := key.(type) {
 			case *ssh.Certificate:
-				if sshutils.KeysEqual(v.SignatureKey, checker) {
+				if apisshutils.KeysEqual(v.SignatureKey, checker) {
 					ca = cas[i]
 					break
 				}
 			default:
-				if sshutils.KeysEqual(key, checker) {
+				if apisshutils.KeysEqual(key, checker) {
 					ca = cas[i]
 					break
 				}

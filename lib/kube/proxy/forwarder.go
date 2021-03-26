@@ -439,10 +439,28 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	// ttl requested in tsh or the session ttl for the role.
 	sessionTTL := roles.AdjustSessionTTL(time.Hour)
 
-	// check signing TTL and return a list of allowed logins
-	kubeGroups, kubeUsers, err := roles.CheckKubeGroupsAndUsers(sessionTTL, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	identity := ctx.Identity.GetIdentity()
+	teleportClusterName := identity.RouteToCluster
+	if teleportClusterName == "" {
+		teleportClusterName = f.cfg.ClusterName
+	}
+	isRemoteCluster := f.cfg.ClusterName != teleportClusterName
+
+	if isRemoteCluster && isRemoteUser {
+		return nil, trace.AccessDenied("access denied: remote user can not access remote cluster")
+	}
+
+	var kubeUsers, kubeGroups []string
+	// Only check k8s principals for local clusters.
+	//
+	// For remote clusters, everything will be remapped to new roles on the
+	// leaf and checked there.
+	if !isRemoteCluster {
+		// check signing TTL and return a list of allowed logins
+		kubeGroups, kubeUsers, err = roles.CheckKubeGroupsAndUsers(sessionTTL, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// By default, if no kubernetes_users is set (which will be a majority),
@@ -457,17 +475,6 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	// kubectl clients will not work
 	if !utils.SliceContainsStr(kubeGroups, teleport.KubeSystemAuthenticated) {
 		kubeGroups = append(kubeGroups, teleport.KubeSystemAuthenticated)
-	}
-
-	identity := ctx.Identity.GetIdentity()
-	teleportClusterName := identity.RouteToCluster
-	if teleportClusterName == "" {
-		teleportClusterName = f.cfg.ClusterName
-	}
-	isRemoteCluster := f.cfg.ClusterName != teleportClusterName
-
-	if isRemoteCluster && isRemoteUser {
-		return nil, trace.AccessDenied("access denied: remote user can not access remote cluster")
 	}
 
 	// Get a dialer for either a k8s endpoint in current cluster or a tunneled
@@ -577,17 +584,26 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	ap, err := f.cfg.CachingAuthClient.GetAuthPreference()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	mfaParams := services.AccessMFAParams{
+		Verified:       actx.Identity.GetIdentity().MFAVerified != "",
+		AlwaysRequired: ap.GetRequireSessionMFA(),
+	}
 	// Check authz against the first match.
 	//
 	// We assume that users won't register two identically-named clusters with
 	// mis-matched labels. If they do, expect weirdness.
+	clusterNotFound := trace.AccessDenied("kubernetes cluster %q not found", actx.kubeCluster)
 	for _, s := range servers {
 		for _, ks := range s.GetKubernetesClusters() {
 			if ks.Name != actx.kubeCluster {
 				continue
 			}
-			if err := actx.Checker.CheckAccessToKubernetes(s.GetNamespace(), ks); err != nil {
-				return trace.Wrap(err)
+			if err := actx.Checker.CheckAccessToKubernetes(s.GetNamespace(), ks, mfaParams); err != nil {
+				return clusterNotFound
 			}
 			return nil
 		}
@@ -596,7 +612,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		f.log.WithField("auth_context", actx.String()).Debug("Skipping authorization for proxy-based kubernetes cluster,")
 		return nil
 	}
-	return trace.AccessDenied("kubernetes cluster %q not found", actx.kubeCluster)
+	return clusterNotFound
 }
 
 // newStreamer returns sync or async streamer based on the configuration
@@ -687,6 +703,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			Namespace:    f.cfg.Namespace,
 			RecordOutput: ctx.clusterConfig.GetSessionRecording() != services.RecordOff,
 			Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
+			ClusterName:  f.cfg.ClusterName,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -714,10 +731,12 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 				},
 				SessionMetadata: events.SessionMetadata{
 					SessionID: string(sessionID),
+					WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 				},
 				UserMetadata: events.UserMetadata{
-					User:  ctx.User.GetName(),
-					Login: ctx.User.GetName(),
+					User:         ctx.User.GetName(),
+					Login:        ctx.User.GetName(),
+					Impersonator: ctx.Identity.GetIdentity().Impersonator,
 				},
 				TerminalSize:              params.Serialize(),
 				KubernetesClusterMetadata: ctx.eventClusterMeta(),
@@ -755,10 +774,12 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			},
 			SessionMetadata: events.SessionMetadata{
 				SessionID: string(sessionID),
+				WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 			},
 			UserMetadata: events.UserMetadata{
-				User:  ctx.User.GetName(),
-				Login: ctx.User.GetName(),
+				User:         ctx.User.GetName(),
+				Login:        ctx.User.GetName(),
+				Impersonator: ctx.Identity.GetIdentity().Impersonator,
 			},
 			ConnectionMetadata: events.ConnectionMetadata{
 				RemoteAddr: req.RemoteAddr,
@@ -784,8 +805,6 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		return nil, trace.Wrap(err)
 	}
 	defer proxy.Close()
-
-	f.log.Debugf("Created streams, getting executor.")
 
 	executor, err := f.getExecutor(*ctx, sess, req)
 	if err != nil {
@@ -815,124 +834,134 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		streamOptions.Stderr = utils.NewBroadcastWriter(streamOptions.Stderr, recorder)
 	}
 
+	// Defer a cleanup handler that will mark the stream as complete on exit, regardless of
+	// whether it exits successfully, or with an error.
+	// NOTE that this cleanup handler MAY MODIFY the returned error value.
+	defer func() {
+		if err := proxy.sendStatus(err); err != nil {
+			f.log.WithError(err).Warning("Failed to send status. Exec command was aborted by client.")
+		}
+
+		if request.tty {
+			sessionDataEvent := &events.SessionData{
+				Metadata: events.Metadata{
+					Type:        events.SessionDataEvent,
+					Code:        events.SessionDataCode,
+					ClusterName: f.cfg.ClusterName,
+				},
+				ServerMetadata: events.ServerMetadata{
+					ServerID:        f.cfg.ServerID,
+					ServerNamespace: f.cfg.Namespace,
+				},
+				SessionMetadata: events.SessionMetadata{
+					SessionID: string(sessionID),
+					WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
+				},
+				UserMetadata: events.UserMetadata{
+					User:         ctx.User.GetName(),
+					Login:        ctx.User.GetName(),
+					Impersonator: ctx.Identity.GetIdentity().Impersonator,
+				},
+				ConnectionMetadata: events.ConnectionMetadata{
+					RemoteAddr: req.RemoteAddr,
+					LocalAddr:  sess.teleportCluster.targetAddr,
+					Protocol:   events.EventProtocolKube,
+				},
+				// Bytes transmitted from user to pod.
+				BytesTransmitted: trackIn.Count(),
+				// Bytes received from pod by user.
+				BytesReceived: trackOut.Count() + trackErr.Count(),
+			}
+			if err := emitter.EmitAuditEvent(f.ctx, sessionDataEvent); err != nil {
+				f.log.WithError(err).Warn("Failed to emit session data event.")
+			}
+			sessionEndEvent := &events.SessionEnd{
+				Metadata: events.Metadata{
+					Type:        events.SessionEndEvent,
+					Code:        events.SessionEndCode,
+					ClusterName: f.cfg.ClusterName,
+				},
+				ServerMetadata: events.ServerMetadata{
+					ServerID:        f.cfg.ServerID,
+					ServerNamespace: f.cfg.Namespace,
+				},
+				SessionMetadata: events.SessionMetadata{
+					SessionID: string(sessionID),
+					WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
+				},
+				UserMetadata: events.UserMetadata{
+					User:         ctx.User.GetName(),
+					Login:        ctx.User.GetName(),
+					Impersonator: ctx.Identity.GetIdentity().Impersonator,
+				},
+				ConnectionMetadata: events.ConnectionMetadata{
+					RemoteAddr: req.RemoteAddr,
+					LocalAddr:  sess.teleportCluster.targetAddr,
+					Protocol:   events.EventProtocolKube,
+				},
+				Interactive: true,
+				// There can only be 1 participant, k8s sessions are not join-able.
+				Participants:              []string{ctx.User.GetName()},
+				StartTime:                 sessionStart,
+				EndTime:                   f.cfg.Clock.Now().UTC(),
+				KubernetesClusterMetadata: ctx.eventClusterMeta(),
+				KubernetesPodMetadata:     eventPodMeta,
+				InitialCommand:            request.cmd,
+			}
+			if err := emitter.EmitAuditEvent(f.ctx, sessionEndEvent); err != nil {
+				f.log.WithError(err).Warn("Failed to emit session end event.")
+			}
+		} else {
+			// send an exec event
+			execEvent := &events.Exec{
+				Metadata: events.Metadata{
+					Type:        events.ExecEvent,
+					ClusterName: f.cfg.ClusterName,
+				},
+				ServerMetadata: events.ServerMetadata{
+					ServerID:        f.cfg.ServerID,
+					ServerNamespace: f.cfg.Namespace,
+				},
+				SessionMetadata: events.SessionMetadata{
+					SessionID: string(sessionID),
+					WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
+				},
+				UserMetadata: events.UserMetadata{
+					User:         ctx.User.GetName(),
+					Login:        ctx.User.GetName(),
+					Impersonator: ctx.Identity.GetIdentity().Impersonator,
+				},
+				ConnectionMetadata: events.ConnectionMetadata{
+					RemoteAddr: req.RemoteAddr,
+					LocalAddr:  sess.teleportCluster.targetAddr,
+					Protocol:   events.EventProtocolKube,
+				},
+				CommandMetadata: events.CommandMetadata{
+					Command: strings.Join(request.cmd, " "),
+				},
+				KubernetesClusterMetadata: ctx.eventClusterMeta(),
+				KubernetesPodMetadata:     eventPodMeta,
+			}
+			if err != nil {
+				execEvent.Code = events.ExecFailureCode
+				execEvent.Error = err.Error()
+				if exitErr, ok := err.(utilexec.ExitError); ok && exitErr.Exited() {
+					execEvent.ExitCode = fmt.Sprintf("%d", exitErr.ExitStatus())
+				}
+			} else {
+				execEvent.Code = events.ExecCode
+			}
+			if err := emitter.EmitAuditEvent(f.ctx, execEvent); err != nil {
+				f.log.WithError(err).Warn("Failed to emit event.")
+			}
+		}
+	}()
+
 	if err = executor.Stream(streamOptions); err != nil {
 		f.log.WithError(err).Warning("Executor failed while streaming.")
 		return nil, trace.Wrap(err)
 	}
-	if err := proxy.sendStatus(err); err != nil {
-		f.log.WithError(err).Warning("Failed to send status. Exec command was aborted by client.")
-		return nil, trace.Wrap(err)
-	}
 
-	if request.tty {
-		sessionDataEvent := &events.SessionData{
-			Metadata: events.Metadata{
-				Type:        events.SessionDataEvent,
-				Code:        events.SessionDataCode,
-				ClusterName: f.cfg.ClusterName,
-			},
-			ServerMetadata: events.ServerMetadata{
-				ServerID:        f.cfg.ServerID,
-				ServerNamespace: f.cfg.Namespace,
-			},
-			SessionMetadata: events.SessionMetadata{
-				SessionID: string(sessionID),
-			},
-			UserMetadata: events.UserMetadata{
-				User:  ctx.User.GetName(),
-				Login: ctx.User.GetName(),
-			},
-			ConnectionMetadata: events.ConnectionMetadata{
-				RemoteAddr: req.RemoteAddr,
-				LocalAddr:  sess.teleportCluster.targetAddr,
-				Protocol:   events.EventProtocolKube,
-			},
-			// Bytes transmitted from user to pod.
-			BytesTransmitted: trackIn.Count(),
-			// Bytes received from pod by user.
-			BytesReceived: trackOut.Count() + trackErr.Count(),
-		}
-		if err := emitter.EmitAuditEvent(f.ctx, sessionDataEvent); err != nil {
-			f.log.WithError(err).Warn("Failed to emit session data event.")
-		}
-		sessionEndEvent := &events.SessionEnd{
-			Metadata: events.Metadata{
-				Type:        events.SessionEndEvent,
-				Code:        events.SessionEndCode,
-				ClusterName: f.cfg.ClusterName,
-			},
-			ServerMetadata: events.ServerMetadata{
-				ServerID:        f.cfg.ServerID,
-				ServerNamespace: f.cfg.Namespace,
-			},
-			SessionMetadata: events.SessionMetadata{
-				SessionID: string(sessionID),
-			},
-			UserMetadata: events.UserMetadata{
-				User:  ctx.User.GetName(),
-				Login: ctx.User.GetName(),
-			},
-			ConnectionMetadata: events.ConnectionMetadata{
-				RemoteAddr: req.RemoteAddr,
-				LocalAddr:  sess.teleportCluster.targetAddr,
-				Protocol:   events.EventProtocolKube,
-			},
-			Interactive: true,
-			// There can only be 1 participant, k8s sessions are not join-able.
-			Participants:              []string{ctx.User.GetName()},
-			StartTime:                 sessionStart,
-			EndTime:                   f.cfg.Clock.Now().UTC(),
-			KubernetesClusterMetadata: ctx.eventClusterMeta(),
-			KubernetesPodMetadata:     eventPodMeta,
-			InitialCommand:            request.cmd,
-		}
-		if err := emitter.EmitAuditEvent(f.ctx, sessionEndEvent); err != nil {
-			f.log.WithError(err).Warn("Failed to emit session end event.")
-		}
-	} else {
-		// send an exec event
-		execEvent := &events.Exec{
-			Metadata: events.Metadata{
-				Type:        events.ExecEvent,
-				ClusterName: f.cfg.ClusterName,
-			},
-			ServerMetadata: events.ServerMetadata{
-				ServerID:        f.cfg.ServerID,
-				ServerNamespace: f.cfg.Namespace,
-			},
-			SessionMetadata: events.SessionMetadata{
-				SessionID: string(sessionID),
-			},
-			UserMetadata: events.UserMetadata{
-				User:  ctx.User.GetName(),
-				Login: ctx.User.GetName(),
-			},
-			ConnectionMetadata: events.ConnectionMetadata{
-				RemoteAddr: req.RemoteAddr,
-				LocalAddr:  sess.teleportCluster.targetAddr,
-				Protocol:   events.EventProtocolKube,
-			},
-			CommandMetadata: events.CommandMetadata{
-				Command: strings.Join(request.cmd, " "),
-			},
-			KubernetesClusterMetadata: ctx.eventClusterMeta(),
-			KubernetesPodMetadata:     eventPodMeta,
-		}
-		if err != nil {
-			execEvent.Code = events.ExecFailureCode
-			execEvent.Error = err.Error()
-			if exitErr, ok := err.(utilexec.ExitError); ok && exitErr.Exited() {
-				execEvent.ExitCode = fmt.Sprintf("%d", exitErr.ExitStatus())
-			}
-		} else {
-			execEvent.Code = events.ExecCode
-		}
-		if err := emitter.EmitAuditEvent(f.ctx, execEvent); err != nil {
-			f.log.WithError(err).Warn("Failed to emit event.")
-		}
-	}
-
-	f.log.Debugf("Exited successfully.")
 	return nil, nil
 }
 
@@ -967,8 +996,9 @@ func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *ht
 				Code: events.PortForwardCode,
 			},
 			UserMetadata: events.UserMetadata{
-				Login: ctx.User.GetName(),
-				User:  ctx.User.GetName(),
+				Login:        ctx.User.GetName(),
+				User:         ctx.User.GetName(),
+				Impersonator: ctx.Identity.GetIdentity().Impersonator,
 			},
 			ConnectionMetadata: events.ConnectionMetadata{
 				LocalAddr:  sess.teleportCluster.targetAddr,
@@ -1157,8 +1187,9 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 			Code: events.KubeRequestCode,
 		},
 		UserMetadata: events.UserMetadata{
-			User:  ctx.User.GetName(),
-			Login: ctx.User.GetName(),
+			User:         ctx.User.GetName(),
+			Login:        ctx.User.GetName(),
+			Impersonator: ctx.Identity.GetIdentity().Impersonator,
 		},
 		ConnectionMetadata: events.ConnectionMetadata{
 			RemoteAddr: req.RemoteAddr,
@@ -1597,11 +1628,16 @@ func (f *Forwarder) requestCertificate(ctx authContext) (*tls.Config, error) {
 		return nil, trace.Wrap(err, "failed to parse private key")
 	}
 
-	// Note: ctx.Identity can potentially have temporary roles granted via
+	// Note: ctx.UnmappedIdentity can potentially have temporary roles granted via
 	// workflow API. Always use the Subject() method to preserve the roles from
 	// caller's certificate.
-	identity := ctx.Identity.GetIdentity()
-	subject, err := identity.Subject()
+	//
+	// Also note: we need to send the UnmappedIdentity which could be a remote
+	// user identity. If we used the local mapped identity instead, the
+	// receiver of this certificate will think this is a local user and fail to
+	// find it in the backend.
+	callerIdentity := ctx.UnmappedIdentity.GetIdentity()
+	subject, err := callerIdentity.Subject()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

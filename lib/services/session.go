@@ -96,14 +96,17 @@ func UnmarshalWebSession(bytes []byte, opts ...MarshalOption) (types.WebSession,
 }
 
 // MarshalWebSession marshals the WebSession resource to JSON.
-func MarshalWebSession(ws types.WebSession, opts ...MarshalOption) ([]byte, error) {
+func MarshalWebSession(webSession types.WebSession, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	switch webSession := ws.(type) {
+	switch webSession := webSession.(type) {
 	case *WebSessionV2:
+		if version := webSession.GetVersion(); version != V2 {
+			return nil, trace.BadParameter("mismatched web session version %v and type %T", version, webSession)
+		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
@@ -113,33 +116,32 @@ func MarshalWebSession(ws types.WebSession, opts ...MarshalOption) ([]byte, erro
 		}
 		return utils.FastMarshal(webSession)
 	default:
-		return nil, trace.BadParameter("unrecognized web session version %T", ws)
+		return nil, trace.BadParameter("unrecognized web session version %T", webSession)
 	}
 }
 
 // MarshalWebToken serializes the web token as JSON-encoded payload
-func MarshalWebToken(token types.WebToken, opts ...MarshalOption) ([]byte, error) {
+func MarshalWebToken(webToken types.WebToken, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	version := cfg.GetVersion()
-	switch version {
-	case V3:
-		value, ok := token.(*types.WebTokenV3)
-		if !ok {
-			return nil, trace.BadParameter("don't know how to marshal web token %v", token)
+
+	switch webToken := webToken.(type) {
+	case *types.WebTokenV3:
+		if version := webToken.GetVersion(); version != V3 {
+			return nil, trace.BadParameter("mismatched web token version %v and type %T", version, webToken)
 		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
-			copy := *value
+			copy := *webToken
 			copy.SetResourceID(0)
-			value = &copy
+			webToken = &copy
 		}
-		return utils.FastMarshal(value)
+		return utils.FastMarshal(webToken)
 	default:
-		return nil, trace.BadParameter("version %v is not supported", version)
+		return nil, trace.BadParameter("unrecognized web token version %T", webToken)
 	}
 }
 

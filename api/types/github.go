@@ -29,6 +29,8 @@ import (
 type GithubConnector interface {
 	// ResourceWithSecrets is a common interface for all resources
 	ResourceWithSecrets
+	// SetMetadata sets object metadata
+	SetMetadata(meta Metadata)
 	// CheckAndSetDefaults validates the connector and sets some defaults
 	CheckAndSetDefaults() error
 	// GetClientID returns the connector client ID
@@ -175,6 +177,11 @@ func (c *GithubConnectorV3) SetExpiry(expires time.Time) {
 // DELETE IN 7.0.0
 func (c *GithubConnectorV3) SetTTL(clock Clock, ttl time.Duration) {
 	c.Metadata.SetTTL(clock, ttl)
+}
+
+// SetMetadata sets connector metadata
+func (c *GithubConnectorV3) SetMetadata(meta Metadata) {
+	c.Metadata = meta
 }
 
 // GetMetadata returns the connector metadata

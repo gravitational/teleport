@@ -659,7 +659,7 @@ func (l *Log) createTable(tableName string) error {
 		KeySchema:             elems,
 		ProvisionedThroughput: &provisionedThroughput,
 		GlobalSecondaryIndexes: []*dynamodb.GlobalSecondaryIndex{
-			&dynamodb.GlobalSecondaryIndex{
+			{
 				IndexName: aws.String(indexTimeSearch),
 				KeySchema: []*dynamodb.KeySchemaElement{
 					{

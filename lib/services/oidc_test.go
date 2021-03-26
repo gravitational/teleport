@@ -20,8 +20,8 @@ import (
 	"testing"
 
 	"github.com/coreos/go-oidc/jose"
+
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/stretchr/testify/require"
 )
@@ -88,7 +88,6 @@ func TestOIDCRoleMapping(t *testing.T) {
 
 // TestOIDCUnmarshal tests unmarshal of OIDC connector
 func TestOIDCUnmarshal(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
 	input := `
       {
         "kind": "oidc",

@@ -19,7 +19,6 @@ package auth
 import (
 	"context"
 	"net/url"
-	"testing"
 	"time"
 
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -27,7 +26,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
@@ -44,8 +42,6 @@ type GithubSuite struct {
 var _ = check.Suite(&GithubSuite{})
 
 func (s *GithubSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	s.c = clockwork.NewFakeClockAt(time.Now())
 
 	var err error

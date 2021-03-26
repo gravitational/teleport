@@ -26,9 +26,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/teleport"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -37,6 +36,8 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -76,6 +77,25 @@ func TestListKeys(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, samKey.Cert, skey.Cert)
 	require.Equal(t, samKey.Pub, skey.Pub)
+}
+
+func TestEmptyTeleportClusterNameIsNotAnError(t *testing.T) {
+	s, cleanup := newTest(t)
+	defer cleanup()
+
+	// Given a key store with a valid directory structure
+	host := "some-host"
+	user := "zaphod"
+	key := s.makeSignedKey(t, false)
+	require.NoError(t, s.addKey(host, user, key))
+
+	// When I attempt to enumerate the user's keys with an empty teleport
+	// cluster name
+	k, err := s.store.GetKey(host, user, WithDBCerts("", ""), WithKubeCerts(""))
+
+	// Expect the key enumeration to succeed
+	require.NoError(t, err)
+	require.NotNil(t, k)
 }
 
 func TestKeyCRUD(t *testing.T) {
@@ -182,7 +202,7 @@ func TestKnownHosts(t *testing.T) {
 	require.Equal(t, len(keys), 0)
 	keys, _ = s.store.GetKnownHostKeys("example.org")
 	require.Equal(t, len(keys), 1)
-	require.True(t, sshutils.KeysEqual(keys[0], pub2))
+	require.True(t, apisshutils.KeysEqual(keys[0], pub2))
 }
 
 // TestCheckKey makes sure Teleport clients can load non-RSA algorithms in
@@ -256,7 +276,7 @@ func TestProxySSHConfig(t *testing.T) {
 					CertChecker: ssh.CertChecker{
 						IsUserAuthority: func(cert ssh.PublicKey) bool {
 							// Makes sure that user presented key signed by or with trusted authority.
-							return sshutils.KeysEqual(caPub, cert)
+							return apisshutils.KeysEqual(caPub, cert)
 						},
 					},
 				}
@@ -394,8 +414,6 @@ func newSelfSignedCA(privateKey []byte) (*tlsca.CertAuthority, auth.TrustedCerts
 }
 
 func newTest(t *testing.T) (keyStoreTest, func()) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	dir, err := ioutil.TempDir("", "teleport-keystore")
 	require.NoError(t, err)
 
@@ -448,3 +466,54 @@ Fa6bvW5jo543NztjlKts7XYVqroMCu0sIMS7R4JGsmw3VJcnnMP2
 
 	CAPub = []byte(`ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDAGDCf6+SMJwoSvZ9tfWYs3nnkH1qZVh8P99RkE1tcqkdqpieUzZaXJFH7EKtT0f9frFP7AomzW2zEVvF0FzVFYm1qrP9WlAKOiY66UHPC6bMHmFOkl8ZuUaOQ++m3XPB+Yp2kGDSPFdQcdHi7g3o5fR3F3QiZFDhb1BS0SrOCpOhLm7iLCl6DqLVKgB0cFpJ6piEr36causkECX8dVKC8v20af/5xCqU6JDPS3rVXbT6gwEA/6s5MiLBFef3yIwoWPNVbUdMvkvCK3eglBfQut38jq03YN7pMnFts46QXjlX8/+ScHNvFXR+meFy9kydCqDWp1SY1WLpULU7mog+L ekontsevoy@turing`)
 )
+
+func TestMemLocalKeyStore(t *testing.T) {
+	s, cleanup := newTest(t)
+	defer cleanup()
+
+	// define some helpers
+	const proxy = "test.com"
+	const username = "test"
+
+	// create keystore
+	dir := t.TempDir()
+	keystore, err := NewMemLocalKeyStore(dir)
+	require.NoError(t, err)
+
+	// add test key
+	key := s.makeSignedKey(t, false)
+	err = keystore.AddKey(proxy, username, key)
+	require.NoError(t, err)
+
+	// check that the key exists in the store
+	retrievedKey, err := keystore.GetKey(proxy, username)
+	require.NoError(t, err)
+	require.Equal(t, key, retrievedKey)
+
+	// delete the key
+	err = keystore.DeleteKey(proxy, username)
+	require.NoError(t, err)
+
+	// check that the key doesn't exist in the store
+	retrievedKey, err = keystore.GetKey(proxy, username)
+	require.Error(t, err)
+	require.Nil(t, retrievedKey)
+
+	// add it again
+	err = keystore.AddKey(proxy, username, key)
+	require.NoError(t, err)
+
+	// check for the key
+	retrievedKey, err = keystore.GetKey(proxy, username)
+	require.NoError(t, err)
+	require.Equal(t, key, retrievedKey)
+
+	// delete all keys
+	err = keystore.DeleteKeys()
+	require.NoError(t, err)
+
+	// verify it's deleted
+	retrievedKey, err = keystore.GetKey(proxy, username)
+	require.Error(t, err)
+	require.Nil(t, retrievedKey)
+}

@@ -18,12 +18,10 @@ package lite
 
 import (
 	"context"
-	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"gopkg.in/check.v1"
 )
@@ -36,7 +34,6 @@ type LiteMemSuite struct {
 var _ = check.Suite(&LiteMemSuite{})
 
 func (s *LiteMemSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
 	newBackend := func() (backend.Backend, error) {
 		return New(context.Background(), map[string]interface{}{
 			"memory":             true,

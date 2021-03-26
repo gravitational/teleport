@@ -20,12 +20,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"path"
 
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
 	"github.com/julienschmidt/httprouter"
-	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 // withRouterAuth authenticates requests then hands the request to a
@@ -50,31 +50,7 @@ func (h *Handler) withAuth(handler handlerAuthFunc) http.HandlerFunc {
 		// If the caller fails to authenticate, redirect the caller to Teleport.
 		session, err := h.authenticate(r.Context(), r)
 		if err != nil {
-			// If this cluster has the public address of the proxy set, redirect to the
-			// login page to redirect to the requested application. If not, the best
-			// that can be done is to show "403 Forbidden" because Teleport does not know
-			// the public address of the Web UI which is needed to launch the application.
-			if h.c.WebPublicAddr != "" {
-				addr, err := utils.ParseAddr(r.Host)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				// While the FQDN will be validated when creating an application session,
-				// make sure we don't send something that doesn't at least look like a
-				// FQDN to the frontend application.
-				if errs := validation.IsDNS1123Subdomain(addr.Host()); len(errs) > 0 {
-					var aerrs []error
-					for _, err := range errs {
-						aerrs = append(aerrs, trace.BadParameter(err))
-					}
-					return trace.NewAggregate(aerrs...)
-				}
-				u := url.URL{
-					Scheme: "https",
-					Host:   h.c.WebPublicAddr,
-					Path:   fmt.Sprintf("/web/launch/%v", addr.Host()),
-				}
-				http.Redirect(w, r, u.String(), http.StatusFound)
+			if redirectErr := h.redirectToLauncher(w, r, launcherURLParams{}); redirectErr == nil {
 				return nil
 			}
 			return trace.Wrap(err)
@@ -84,6 +60,42 @@ func (h *Handler) withAuth(handler handlerAuthFunc) http.HandlerFunc {
 		}
 		return nil
 	})
+}
+
+// redirectToLauncher redirects to the proxy web's app launcher if the public
+// address of the proxy is set.
+func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p launcherURLParams) error {
+	if h.c.WebPublicAddr == "" {
+		return trace.BadParameter("public address of the proxy is not set")
+	}
+	addr, err := utils.ParseAddr(r.Host)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	urlPath := []string{"web", "launch", addr.Host()}
+	if p.clusterName != "" && p.publicAddr != "" {
+		urlPath = append(urlPath, p.clusterName, p.publicAddr)
+	}
+	urlQuery := ""
+	if p.stateToken != "" {
+		urlQuery = fmt.Sprintf("state=%v", p.stateToken)
+	}
+
+	u := url.URL{
+		Scheme:   "https",
+		Host:     h.c.WebPublicAddr,
+		Path:     path.Join(urlPath...),
+		RawQuery: urlQuery,
+	}
+	http.Redirect(w, r, u.String(), http.StatusFound)
+	return nil
+}
+
+type launcherURLParams struct {
+	clusterName string
+	publicAddr  string
+	stateToken  string
 }
 
 // makeRouterHandler creates a httprouter.Handle.

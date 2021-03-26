@@ -119,7 +119,7 @@ func (s *ProxyServer) Serve(listener net.Listener) error {
 		// The connection is expected to come through via multiplexer.
 		clientConn, err := listener.Accept()
 		if err != nil {
-			if strings.Contains(err.Error(), teleport.UseOfClosedNetworkConnection) {
+			if strings.Contains(err.Error(), teleport.UseOfClosedNetworkConnection) || trace.IsConnectionProblem(err) {
 				return nil
 			}
 			return trace.Wrap(err)

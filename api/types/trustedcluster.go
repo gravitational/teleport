@@ -31,6 +31,8 @@ import (
 type TrustedCluster interface {
 	// Resource provides common resource properties
 	Resource
+	// SetMetadata sets object metadata
+	SetMetadata(meta Metadata)
 	// GetEnabled returns the state of the TrustedCluster.
 	GetEnabled() bool
 	// SetEnabled enables (handshake and add ca+reverse tunnel) or disables TrustedCluster.
@@ -191,6 +193,11 @@ func (c *TrustedClusterV2) SetRoleMap(m RoleMap) {
 // GetMetadata returns object metadata
 func (c *TrustedClusterV2) GetMetadata() Metadata {
 	return c.Metadata
+}
+
+// SetMetadata sets object metadata
+func (c *TrustedClusterV2) SetMetadata(meta Metadata) {
+	c.Metadata = meta
 }
 
 // SetExpiry sets expiry time for the object

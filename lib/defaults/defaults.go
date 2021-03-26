@@ -508,6 +508,10 @@ var (
 	// ConfigEnvar is a name of teleport's configuration environment variable
 	ConfigEnvar = "TELEPORT_CONFIG"
 
+	// ConfigFileEnvar is the name of the environment variable used to specify a path to
+	// the Teleport configuration file that tctl reads on use
+	ConfigFileEnvar = "TELEPORT_CONFIG_FILE"
+
 	// LicenseFile is the default name of the license file
 	LicenseFile = "license.pem"
 
@@ -617,6 +621,9 @@ const (
 
 	// WebsocketResize is receiving a resize request.
 	WebsocketResize = "w"
+
+	// WebsocketU2FChallenge is sending a U2F challenge.
+	WebsocketU2FChallenge = "u"
 )
 
 // The following are cryptographic primitives Teleport does not support in

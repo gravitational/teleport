@@ -30,6 +30,8 @@ import (
 type User interface {
 	// ResourceWithSecrets provides common resource properties
 	ResourceWithSecrets
+	// SetMetadata sets object metadata
+	SetMetadata(meta Metadata)
 	// GetOIDCIdentities returns a list of connected OIDC identities
 	GetOIDCIdentities() []ExternalIdentity
 	// GetSAMLIdentities returns a list of connected SAML identities
@@ -121,6 +123,11 @@ func (u *UserV2) SetResourceID(id int64) {
 // GetMetadata returns object metadata
 func (u *UserV2) GetMetadata() Metadata {
 	return u.Metadata
+}
+
+// SetMetadata sets object metadata
+func (u *UserV2) SetMetadata(meta Metadata) {
+	u.Metadata = meta
 }
 
 // SetExpiry sets expiry time for the object

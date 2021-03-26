@@ -485,7 +485,8 @@ func (pgConn *PgConn) receiveMessage() (pgproto3.BackendMessage, error) {
 		pgConn.parameterStatuses[msg.Name] = msg.Value
 	case *pgproto3.ErrorResponse:
 		if msg.Severity == "FATAL" {
-			pgConn.asyncClose()
+			pgConn.status = connStatusClosed
+			pgConn.conn.Close() // Ignore error as the connection is already broken and there is already an error to return.
 			return nil, ErrorResponseToPgError(msg)
 		}
 	case *pgproto3.NoticeResponse:

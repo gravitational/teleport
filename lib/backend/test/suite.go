@@ -20,6 +20,7 @@ package test
 
 import (
 	"context"
+	"encoding/hex"
 	"math/rand"
 	"sync/atomic"
 	"time"
@@ -100,12 +101,20 @@ func (s *BackendSuite) CRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(string(out.Value), check.Equals, string(item.Value))
 
-	// put with binary key and value succeeds
-	key := make([]byte, 1024)
-	rand.Read(key)
+	// put with large key and binary value succeeds.
+	// NB: DynamoDB has a maximum overall key length of 1024 bytes, so
+	//     we need to pick a random key size that will still fit in 1KiB
+	//     when combined with the (currently) 33-byte prefix prepended
+	//     by `prefix()`, so:
+	//         (485 bytes * 2 (for hex encoding)) + 33 = 1003
+	//     which gives us a little bit of room to spare
+	keyBytes := make([]byte, 485)
+	rand.Read(keyBytes)
+	key := hex.EncodeToString(keyBytes)
+
 	data := make([]byte, 1024)
 	rand.Read(data)
-	item = backend.Item{Key: prefix(string(key)), Value: data}
+	item = backend.Item{Key: prefix(key), Value: data}
 	_, err = s.B.Put(ctx, item)
 	c.Assert(err, check.IsNil)
 

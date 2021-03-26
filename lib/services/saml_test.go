@@ -18,11 +18,9 @@ package services
 
 import (
 	"strings"
-	"testing"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"gopkg.in/check.v1"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
@@ -31,10 +29,6 @@ import (
 type SAMLSuite struct{}
 
 var _ = check.Suite(&SAMLSuite{})
-
-func (s *SAMLSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (s *SAMLSuite) TestParseFromMetadata(c *check.C) {
 	input := fixtures.SAMLOktaConnectorV2

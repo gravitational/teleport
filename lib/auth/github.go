@@ -1,5 +1,5 @@
 /*
-Copyright 2017-2020 Gravitational, Inc.
+Copyright 2017-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"time"
@@ -29,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -40,7 +38,8 @@ import (
 
 // CreateGithubAuthRequest creates a new request for Github OAuth2 flow
 func (a *Server) CreateGithubAuthRequest(req services.GithubAuthRequest) (*services.GithubAuthRequest, error) {
-	connector, err := a.Identity.GetGithubConnector(req.ConnectorID, true)
+	ctx := context.TODO()
+	connector, err := a.Identity.GetGithubConnector(ctx, req.ConnectorID, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -65,7 +64,7 @@ func (a *Server) CreateGithubAuthRequest(req services.GithubAuthRequest) (*servi
 
 // upsertGithubConnector creates or updates a Github connector.
 func (a *Server) upsertGithubConnector(ctx context.Context, connector services.GithubConnector) error {
-	if err := a.Identity.UpsertGithubConnector(connector); err != nil {
+	if err := a.Identity.UpsertGithubConnector(ctx, connector); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(a.closeCtx, &events.GithubConnectorCreate{
@@ -74,7 +73,8 @@ func (a *Server) upsertGithubConnector(ctx context.Context, connector services.G
 			Code: events.GithubConnectorCreatedCode,
 		},
 		UserMetadata: events.UserMetadata{
-			User: clientUsername(ctx),
+			User:         ClientUsername(ctx),
+			Impersonator: ClientImpersonator(ctx),
 		},
 		ResourceMetadata: events.ResourceMetadata{
 			Name: connector.GetName(),
@@ -88,7 +88,7 @@ func (a *Server) upsertGithubConnector(ctx context.Context, connector services.G
 
 // deleteGithubConnector deletes a Github connector by name.
 func (a *Server) deleteGithubConnector(ctx context.Context, connectorName string) error {
-	if err := a.Identity.DeleteGithubConnector(connectorName); err != nil {
+	if err := a.Identity.DeleteGithubConnector(ctx, connectorName); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -98,7 +98,8 @@ func (a *Server) deleteGithubConnector(ctx context.Context, connectorName string
 			Code: events.GithubConnectorDeletedCode,
 		},
 		UserMetadata: events.UserMetadata{
-			User: clientUsername(ctx),
+			User:         ClientUsername(ctx),
+			Impersonator: ClientImpersonator(ctx),
 		},
 		ResourceMetadata: events.ResourceMetadata{
 			Name: connectorName,
@@ -139,8 +140,6 @@ func (a *Server) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, 
 }
 
 func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, q url.Values, emitter events.Emitter) (*GithubAuthResponse, error) {
-	re, err := m.validateGithubAuthCallback(q)
-
 	event := &events.UserLogin{
 		Metadata: events.Metadata{
 			Type: events.UserLoginEvent,
@@ -148,10 +147,12 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, q ur
 		Method: events.LoginMethodGithub,
 	}
 
+	re, err := m.validateGithubAuthCallback(q)
 	if re != nil && re.claims != nil {
 		attributes, err := events.EncodeMapStrings(re.claims)
 		if err != nil {
-			log.WithError(err).Debugf("Failed to encode identity attributes.")
+			event.Status.UserMessage = fmt.Sprintf("Failed to encode identity attributes: %v", err.Error())
+			log.WithError(err).Debug("Failed to encode identity attributes.")
 		} else {
 			event.IdentityAttributes = attributes
 		}
@@ -160,8 +161,12 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, q ur
 	if err != nil {
 		event.Code = events.UserSSOLoginFailureCode
 		event.Status.Success = false
-		event.Status.Error = err.Error()
-		emitter.EmitAuditEvent(ctx, event)
+		event.Status.Error = trace.Unwrap(err).Error()
+		event.Status.UserMessage = err.Error()
+
+		if err := emitter.EmitAuditEvent(ctx, event); err != nil {
+			log.WithError(err).Warn("Failed to emit Github login failed event.")
+		}
 		return nil, trace.Wrap(err)
 	}
 	event.Code = events.UserSSOLoginCode
@@ -182,6 +187,7 @@ type githubAuthResponse struct {
 
 // ValidateGithubAuthCallback validates Github auth callback redirect
 func (a *Server) validateGithubAuthCallback(q url.Values) (*githubAuthResponse, error) {
+	ctx := context.TODO()
 	logger := log.WithFields(logrus.Fields{trace.Component: "github"})
 	error := q.Get("error")
 	if error != "" {
@@ -201,7 +207,7 @@ func (a *Server) validateGithubAuthCallback(q url.Values) (*githubAuthResponse, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connector, err := a.Identity.GetGithubConnector(req.ConnectorID, true)
+	connector, err := a.Identity.GetGithubConnector(ctx, req.ConnectorID, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -386,8 +392,12 @@ func (a *Server) calculateGithubUser(connector services.GithubConnector, claims 
 			"user %q does not belong to any teams configured in %q connector",
 			claims.Username, connector.GetName())
 	}
-	p.roles = modules.GetModules().RolesFromLogins(p.logins)
-	p.traits = modules.GetModules().TraitsFromLogins(p.username, p.logins, p.kubeGroups, p.kubeUsers)
+	p.roles = p.logins
+	p.traits = map[string][]string{
+		teleport.TraitLogins:     []string{p.username},
+		teleport.TraitKubeGroups: p.kubeGroups,
+		teleport.TraitKubeUsers:  p.kubeUsers,
+	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.
 	roles, err := services.FetchRoles(p.roles, a.Access, p.traits)
@@ -659,7 +669,7 @@ func (c *githubAPIClient) get(url string) ([]byte, string, error) {
 		return nil, "", trace.Wrap(err)
 	}
 	defer response.Body.Close()
-	bytes, err := ioutil.ReadAll(response.Body)
+	bytes, err := utils.ReadAtMost(response.Body, teleport.MaxHTTPResponseSize)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}

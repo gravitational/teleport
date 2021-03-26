@@ -19,6 +19,7 @@ package reversetunnel
 import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 )
@@ -83,7 +84,7 @@ func (t *TunnelWithRoles) GetSite(clusterName string) (RemoteSite, error) {
 		return nil, trace.Wrap(err)
 	}
 	if err := t.roles.CheckAccessToRemoteCluster(rc); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, utils.OpaqueAccessDenied(err)
 	}
 	return cluster, nil
 }

@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 )
 
@@ -33,6 +32,8 @@ import (
 type CertAuthority interface {
 	// ResourceWithSecrets sets common resource properties
 	ResourceWithSecrets
+	// SetMetadata sets CA metadata
+	SetMetadata(meta Metadata)
 	// GetID returns certificate authority ID -
 	// combined type and name
 	GetID() CertAuthID
@@ -175,6 +176,11 @@ func (ca *CertAuthorityV2) GetJWTKeyPairs() []JWTKeyPair {
 // SetJWTKeyPairs sets all JWT keypairs used to sign a JWT.
 func (ca *CertAuthorityV2) SetJWTKeyPairs(keyPairs []JWTKeyPair) {
 	ca.Spec.JWTKeyPairs = keyPairs
+}
+
+// SetMetadata sets object metadata
+func (ca *CertAuthorityV2) SetMetadata(meta Metadata) {
+	ca.Metadata = meta
 }
 
 // GetMetadata returns object metadata
@@ -496,23 +502,6 @@ func (r *Rotation) CheckAndSetDefaults() error {
 			r.State, RotationStateStandby, RotationStateInProgress)
 	}
 	return nil
-}
-
-// Merge overwrites r from src and
-// is part of support for cloning Server values
-// using proto.Clone.
-//
-// Note: this does not implement the full Merger interface,
-// specifically, it assumes that r is zero value.
-// See https://github.com/gogo/protobuf/blob/v1.3.1/proto/clone.go#L58-L60
-//
-// Implements proto.Merger
-func (r *Rotation) Merge(src proto.Message) {
-	s, ok := src.(*Rotation)
-	if !ok {
-		return
-	}
-	*r = *s
 }
 
 // GenerateSchedule generates schedule based on the time period, using

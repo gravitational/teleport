@@ -33,14 +33,14 @@ import (
 func (s *Server) initRDSRootCert(ctx context.Context, server types.DatabaseServer) error {
 	// If this is not an AWS database, or CA was set explicitly, or it was
 	// already loaded, then nothing to do.
-	if server.GetType() != types.DatabaseTypeRDS || len(server.GetCA()) != 0 || len(s.rdsCACerts[server.GetRegion()]) != 0 {
+	if server.GetType() != types.DatabaseTypeRDS || len(server.GetCA()) != 0 || len(s.rdsCACerts[server.GetAWS().Region]) != 0 {
 		return nil
 	}
 	// This is a RDS/Aurora instance and CA certificate wasn't explicitly
 	// provided, so try to download it from AWS (or see if it's already
 	// been downloaded).
 	downloadURL := rdsDefaultCAURL
-	if u, ok := rdsCAURLs[server.GetRegion()]; ok {
+	if u, ok := rdsCAURLs[server.GetAWS().Region]; ok {
 		downloadURL = u
 	}
 	bytes, err := s.ensureRDSRootCert(downloadURL)
@@ -53,7 +53,7 @@ func (s *Server) initRDSRootCert(ctx context.Context, server types.DatabaseServe
 		return trace.Wrap(err, "RDS root certificate for %v doesn't appear to be a valid x509 certificate: %s",
 			server, bytes)
 	}
-	s.rdsCACerts[server.GetRegion()] = bytes
+	s.rdsCACerts[server.GetAWS().Region] = bytes
 	return nil
 }
 

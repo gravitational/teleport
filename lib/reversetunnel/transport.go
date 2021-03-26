@@ -17,18 +17,17 @@ limitations under the License.
 package reversetunnel
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"time"
 
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -59,7 +58,7 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, network string, addr
 
 	// Build a net.Conn over the tunnel. Make this an exclusive connection:
 	// close the net.Conn as well as the channel upon close.
-	conn, _, err := connectProxyTransport(sconn.Conn, &dialReq{
+	conn, _, err := sshutils.ConnectProxyTransport(sconn.Conn, &sshutils.DialReq{
 		Address: RemoteAuthServer,
 	}, true)
 	if err != nil {
@@ -69,94 +68,19 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, network string, addr
 	return conn, nil
 }
 
-// dialReq is a request for the address to connect to. Supports special
-// non-resolvable addresses and search names if connection over a tunnel.
-type dialReq struct {
-	// Address is the target host to make a connection to.
-	Address string `json:"address,omitempty"`
-
-	// ServerID is the hostUUID.clusterName of the node. ServerID is used when
-	// dialing through a tunnel to SSH and application nodes.
-	ServerID string `json:"server_id,omitempty"`
-
-	// ConnType is the type of connection requested, either node or application.
-	ConnType services.TunnelType `json:"conn_type"`
-}
-
-// CheckAndSetDefaults verifies all the values are valid.
-func (d *dialReq) CheckAndSetDefaults() error {
-	if d.ConnType == "" {
-		d.ConnType = services.NodeTunnel
-	}
-
-	if d.Address == "" && d.ServerID == "" {
-		return trace.BadParameter("serverID or address required")
-	}
-	return nil
-}
-
 // parseDialReq parses the dial request. Is backward compatible with legacy
 // payload.
-func parseDialReq(payload []byte) *dialReq {
-	var req dialReq
+func parseDialReq(payload []byte) *sshutils.DialReq {
+	var req sshutils.DialReq
 	err := json.Unmarshal(payload, &req)
 	if err != nil {
-		// For backward compatibility, if the request is not a *dialReq, it is just
+		// For backward compatibility, if the request is not a *DialReq, it is just
 		// a raw string with the target host as the payload.
-		return &dialReq{
+		return &sshutils.DialReq{
 			Address: string(payload),
 		}
 	}
 	return &req
-}
-
-// marshalDialReq marshals the dial request to send over the wire.
-func marshalDialReq(req *dialReq) ([]byte, error) {
-	bytes, err := json.Marshal(req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return bytes, nil
-}
-
-// connectProxyTransport opens a channel over the remote tunnel and connects
-// to the requested host.
-func connectProxyTransport(sconn ssh.Conn, req *dialReq, exclusive bool) (*utils.ChConn, bool, error) {
-	channel, _, err := sconn.OpenChannel(chanTransport, nil)
-	if err != nil {
-		return nil, false, trace.Wrap(err)
-	}
-
-	payload, err := marshalDialReq(req)
-	if err != nil {
-		return nil, false, trace.Wrap(err)
-	}
-
-	// Send a special SSH out-of-band request called "teleport-transport"
-	// the agent on the other side will create a new TCP/IP connection to
-	// 'addr' on its network and will start proxying that connection over
-	// this SSH channel.
-	ok, err := channel.SendRequest(chanTransportDialReq, true, payload)
-	if err != nil {
-		return nil, true, trace.Wrap(err)
-	}
-	if !ok {
-		defer channel.Close()
-
-		// Pull the error message from the tunnel client (remote cluster)
-		// passed to us via stderr.
-		errMessage, _ := ioutil.ReadAll(channel.Stderr())
-		errMessage = bytes.TrimSpace(errMessage)
-		if len(errMessage) == 0 {
-			errMessage = []byte(fmt.Sprintf("failed connecting to %v [%v]", req.Address, req.ServerID))
-		}
-		return nil, false, trace.Errorf(string(errMessage))
-	}
-
-	if exclusive {
-		return utils.NewExclusiveChConn(sconn, channel), false, nil
-	}
-	return utils.NewChConn(sconn, channel), false, nil
 }
 
 // transport is used to build a connection to the target host.
@@ -264,7 +188,7 @@ func (p *transport) start() {
 			}
 
 			p.log.Debug("Handing off connection to a local kubernetes service")
-			p.server.HandleConnection(utils.NewChConn(p.sconn, p.channel))
+			p.server.HandleConnection(sshutils.NewChConn(p.sconn, p.channel))
 			return
 		default:
 			// This must be a proxy.
@@ -297,8 +221,8 @@ func (p *transport) start() {
 				return
 			}
 
-			p.log.Debug("Handing off connection to a local SSH service")
-			p.server.HandleConnection(utils.NewChConn(p.sconn, p.channel))
+			p.log.Debugf("Handing off connection to a local %q service.", dreq.ConnType)
+			p.server.HandleConnection(sshutils.NewChConn(p.sconn, p.channel))
 			return
 		}
 		// If this is a proxy and not an SSH node, try finding an inbound
@@ -372,7 +296,7 @@ func (p *transport) handleChannelRequests(closeContext context.Context, useTunne
 				return
 			}
 			switch req.Type {
-			case utils.ConnectionTypeRequest:
+			case sshutils.ConnectionTypeRequest:
 				p.reply(req, useTunnel, nil)
 			default:
 				p.reply(req, false, nil)
@@ -386,7 +310,7 @@ func (p *transport) handleChannelRequests(closeContext context.Context, useTunne
 // getConn checks if the local site holds a connection to the target host,
 // and if it does, attempts to dial through the tunnel. Otherwise directly
 // dials to host.
-func (p *transport) getConn(servers []string, r *dialReq) (net.Conn, bool, error) {
+func (p *transport) getConn(servers []string, r *sshutils.DialReq) (net.Conn, bool, error) {
 	// This function doesn't attempt to dial if a host with one of the
 	// search names is not registered. It's a fast check.
 	p.log.Debugf("Attempting to dial through tunnel with server ID %v.", r.ServerID)
@@ -418,7 +342,7 @@ func (p *transport) getConn(servers []string, r *dialReq) (net.Conn, bool, error
 
 // tunnelDial looks up the search names in the local site for a matching tunnel
 // connection. If a connection exists, it's used to dial through the tunnel.
-func (p *transport) tunnelDial(r *dialReq) (net.Conn, error) {
+func (p *transport) tunnelDial(r *sshutils.DialReq) (net.Conn, error) {
 	// Extract the local site from the tunnel server. If no tunnel server
 	// exists, then exit right away this code may be running outside of a
 	// remote site.

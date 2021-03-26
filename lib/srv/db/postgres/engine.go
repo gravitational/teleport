@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 
@@ -178,7 +179,15 @@ func (e *Engine) handleStartup(client *pgproto3.Backend, sessionCtx *common.Sess
 }
 
 func (e *Engine) checkAccess(sessionCtx *common.Session) error {
-	err := sessionCtx.Checker.CheckAccessToDatabase(sessionCtx.Server,
+	ap, err := e.Auth.GetAuthPreference()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	mfaParams := services.AccessMFAParams{
+		Verified:       sessionCtx.Identity.MFAVerified != "",
+		AlwaysRequired: ap.GetRequireSessionMFA(),
+	}
+	err = sessionCtx.Checker.CheckAccessToDatabase(sessionCtx.Server, mfaParams,
 		&services.DatabaseLabelsMatcher{Labels: sessionCtx.Server.GetAllLabels()},
 		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser},
 		&services.DatabaseNameMatcher{Name: sessionCtx.DatabaseName})
@@ -331,10 +340,16 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 	config.Fallbacks = nil
 	// Set startup parameters that the client sent us.
 	config.RuntimeParams = sessionCtx.StartupParameters
-	// RDS/Aurora use IAM authentication so request an auth token and
-	// use it as a password.
-	if sessionCtx.Server.IsRDS() {
+	// AWS RDS/Aurora and GCP Cloud SQL use IAM authentication so request an
+	// auth token and use it as a password.
+	switch sessionCtx.Server.GetType() {
+	case types.DatabaseTypeRDS:
 		config.Password, err = e.Auth.GetRDSAuthToken(sessionCtx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case types.DatabaseTypeCloudSQL:
+		config.Password, err = e.Auth.GetCloudSQLAuthToken(ctx, sessionCtx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

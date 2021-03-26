@@ -7,23 +7,24 @@ import (
 )
 
 type ErrorResponse struct {
-	Severity         string
-	Code             string
-	Message          string
-	Detail           string
-	Hint             string
-	Position         int32
-	InternalPosition int32
-	InternalQuery    string
-	Where            string
-	SchemaName       string
-	TableName        string
-	ColumnName       string
-	DataTypeName     string
-	ConstraintName   string
-	File             string
-	Line             int32
-	Routine          string
+	Severity            string
+	SeverityUnlocalized string // only in 9.6 and greater
+	Code                string
+	Message             string
+	Detail              string
+	Hint                string
+	Position            int32
+	InternalPosition    int32
+	InternalQuery       string
+	Where               string
+	SchemaName          string
+	TableName           string
+	ColumnName          string
+	DataTypeName        string
+	ConstraintName      string
+	File                string
+	Line                int32
+	Routine             string
 
 	UnknownFields map[byte]string
 }
@@ -56,6 +57,8 @@ func (dst *ErrorResponse) Decode(src []byte) error {
 		switch k {
 		case 'S':
 			dst.Severity = v
+		case 'V':
+			dst.SeverityUnlocalized = v
 		case 'C':
 			dst.Code = v
 		case 'M':
@@ -121,6 +124,11 @@ func (src *ErrorResponse) marshalBinary(typeByte byte) []byte {
 	if src.Severity != "" {
 		buf.WriteByte('S')
 		buf.WriteString(src.Severity)
+		buf.WriteByte(0)
+	}
+	if src.SeverityUnlocalized != "" {
+		buf.WriteByte('V')
+		buf.WriteString(src.SeverityUnlocalized)
 		buf.WriteByte(0)
 	}
 	if src.Code != "" {
@@ -210,6 +218,7 @@ func (src *ErrorResponse) marshalBinary(typeByte byte) []byte {
 		buf.WriteString(v)
 		buf.WriteByte(0)
 	}
+
 	buf.WriteByte(0)
 
 	binary.BigEndian.PutUint32(buf.Bytes()[1:5], uint32(buf.Len()-1))

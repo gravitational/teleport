@@ -444,11 +444,11 @@ func (s *PresenceService) UpsertTrustedCluster(ctx context.Context, trustedClust
 }
 
 // GetTrustedCluster returns a single TrustedCluster by name.
-func (s *PresenceService) GetTrustedCluster(name string) (services.TrustedCluster, error) {
+func (s *PresenceService) GetTrustedCluster(ctx context.Context, name string) (services.TrustedCluster, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing trusted cluster name")
 	}
-	item, err := s.Get(context.TODO(), backend.Key(trustedClustersPrefix, name))
+	item, err := s.Get(ctx, backend.Key(trustedClustersPrefix, name))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -456,9 +456,9 @@ func (s *PresenceService) GetTrustedCluster(name string) (services.TrustedCluste
 }
 
 // GetTrustedClusters returns all TrustedClusters in the backend.
-func (s *PresenceService) GetTrustedClusters() ([]services.TrustedCluster, error) {
+func (s *PresenceService) GetTrustedClusters(ctx context.Context) ([]services.TrustedCluster, error) {
 	startKey := backend.Key(trustedClustersPrefix)
-	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
