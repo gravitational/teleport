@@ -1934,12 +1934,18 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 
 		// Perform a "dummy" connection to the jumphost to examine its certificate
 		// and load a corresponding user certificate to be used by tc.authMethods.
+		//
+		// All the loading logic happens in HostKeyCallback and it will always
+		// force the connection to fail.
+		//
 		// TODO(andrej): Get rid of the individually packaged authMethods,
 		// and embed this reissue logic with ssh.PublicKeysCallback.
 		tmpConfig := &ssh.ClientConfig{
 			User:            proxyPrincipal,
 			HostKeyCallback: tc.loadKeyForClusterFromCert(ctx),
 		}
+		// This connection will always fail so no need to capture return
+		// values.
 		ssh.Dial("tcp", sshProxyAddr, tmpConfig)
 	}
 
@@ -1990,11 +1996,13 @@ func (tc *TeleportClient) loadKeyForClusterFromCert(ctx context.Context) ssh.Hos
 		}
 		cert, ok := key.(*ssh.Certificate)
 		if !ok {
-			return nil
+			return trace.BadParameter("remote proxy did not present a host certificate")
 		}
 		proxyClusterName := cert.Permissions.Extensions[utils.CertExtensionAuthority]
 		if proxyClusterName == "" {
-			return nil
+			// No cluster name in the certificate, let's assume we're
+			// connecting to the same cluster.
+			return trace.BadParameter("(do not proceed with the SSH connection)")
 		}
 		err := tc.WithoutJumpHosts(func(tcNoJump *TeleportClient) error {
 			return tc.LoadKeyForClusterWithReissue(ctx, proxyClusterName)
