@@ -1750,3 +1750,78 @@ message OIDCConnectorSpecV2 {
     // GoogleAdminEmail is the email of a google admin to impersonate.
     string GoogleAdminEmail = 13 [ (gogoproto.jsontag) = "google_admin_email,omitempty" ];
 }
+
+// SAMLConnectorV2 represents a SAML connector.
+message SAMLConnectorV2 {
+    // Kind is a resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is a resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata holds resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is an SAML connector specification.
+    SAMLConnectorSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// SAMLConnectorV2List is a list of SAML connectors.
+message SAMLConnectorV2List {
+    // SAMLConnectors is a list of SAML connectors.
+    repeated types.SAMLConnectorV2 SAMLConnectors = 1;
+}
+
+// SAMLConnectorSpecV2 is a SAML connector specification.
+message SAMLConnectorSpecV2 {
+    // Issuer is the identity provider issuer.
+    string Issuer = 1 [ (gogoproto.jsontag) = "issuer" ];
+    // SSO is the URL of the identity provider's SSO service.
+    string SSO = 2 [ (gogoproto.jsontag) = "sso" ];
+    // Cert is the identity provider certificate PEM.
+    // IDP signs <Response> responses using this certificate.
+    string Cert = 3 [ (gogoproto.jsontag) = "cert" ];
+    // Display controls how this connector is displayed.
+    string Display = 4 [ (gogoproto.jsontag) = "display" ];
+    // AssertionConsumerService is a URL for assertion consumer service
+    // on the service provider (Teleport's side).
+    string AssertionConsumerService = 5 [ (gogoproto.jsontag) = "acs" ];
+    // Audience uniquely identifies our service provider.
+    string Audience = 6 [ (gogoproto.jsontag) = "audience" ];
+    // ServiceProviderIssuer is the issuer of the service provider (Teleport).
+    string ServiceProviderIssuer = 7 [ (gogoproto.jsontag) = "service_provider_issuer" ];
+    // EntityDescriptor is XML with descriptor. It can be used to supply configuration
+    // parameters in one XML file rather than supplying them in the individual elements.
+    string EntityDescriptor = 8 [ (gogoproto.jsontag) = "entity_descriptor" ];
+    // EntityDescriptorURL is a URL that supplies a configuration XML.
+    string EntityDescriptorURL = 9 [ (gogoproto.jsontag) = "entity_descriptor_url" ];
+    // AttributesToRoles is a list of mappings of attribute statements to roles.
+    repeated AttributeMapping AttributesToRoles = 10
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "attributes_to_roles" ];
+    // SigningKeyPair is an x509 key pair used to sign AuthnRequest.
+    AsymmetricKeyPair SigningKeyPair = 11
+        [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "signing_key_pair,omitempty" ];
+    // Provider is the external identity provider.
+    string Provider = 12 [ (gogoproto.jsontag) = "provider,omitempty" ];
+    // EncryptionKeyPair is a key pair used for decrypting SAML assertions.
+    AsymmetricKeyPair EncryptionKeyPair = 13
+        [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "assertion_key_pair,omitempty" ];
+}
+
+// AttributeMapping maps a SAML attribute statement to teleport roles.
+message AttributeMapping {
+    // Name is an attribute statement name.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+    // Value is an attribute statement value to match.
+    string Value = 2 [ (gogoproto.jsontag) = "value" ];
+    // Roles is a list of static teleport roles to map to.
+    repeated string Roles = 3 [ (gogoproto.jsontag) = "roles,omitempty" ];
+}
+
+// AsymmetricKeyPair is a combination of a public certificate and
+// private key that can be used for encryption and signing.
+message AsymmetricKeyPair {
+    // PrivateKey is a PEM encoded x509 private key.
+    string PrivateKey = 1 [ (gogoproto.jsontag) = "private_key" ];
+    // Cert is a PEM-encoded x509 certificate.
+    string Cert = 2 [ (gogoproto.jsontag) = "cert" ];
+}

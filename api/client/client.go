@@ -1047,3 +1047,49 @@ func (c *Client) DeleteOIDCConnector(ctx context.Context, name string) error {
 	_, err := c.grpc.DeleteOIDCConnector(ctx, &types.ResourceRequest{Name: name})
 	return trail.FromGRPC(err)
 }
+
+// GetSAMLConnector returns a SAML connector by name.
+func (c *Client) GetSAMLConnector(ctx context.Context, name string, withSecrets bool) (types.SAMLConnector, error) {
+	if name == "" {
+		return nil, trace.BadParameter("cannot get SAML Connector, missing name")
+	}
+	req := &types.ResourceWithSecretsRequest{Name: name, WithSecrets: withSecrets}
+	resp, err := c.grpc.GetSAMLConnector(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// GetSAMLConnectors returns a list of SAML connectors.
+func (c *Client) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error) {
+	req := &types.ResourcesWithSecretsRequest{WithSecrets: withSecrets}
+	resp, err := c.grpc.GetSAMLConnectors(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	samlConnectors := make([]types.SAMLConnector, len(resp.SAMLConnectors))
+	for i, samlConnector := range resp.SAMLConnectors {
+		samlConnectors[i] = samlConnector
+	}
+	return samlConnectors, nil
+}
+
+// UpsertSAMLConnector creates or updates a SAML connector.
+func (c *Client) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
+	samlConnectorV2, ok := connector.(*types.SAMLConnectorV2)
+	if !ok {
+		return trace.BadParameter("invalid type %T", connector)
+	}
+	_, err := c.grpc.UpsertSAMLConnector(ctx, samlConnectorV2)
+	return trail.FromGRPC(err)
+}
+
+// DeleteSAMLConnector deletes a SAML connector by name.
+func (c *Client) DeleteSAMLConnector(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("cannot delete SAML Connector, missing name")
+	}
+	_, err := c.grpc.DeleteSAMLConnector(ctx, &types.ResourceRequest{Name: name})
+	return trail.FromGRPC(err)
+}
