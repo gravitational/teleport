@@ -445,6 +445,9 @@ func (o WithDBCerts) relativeCertPath(idx KeyIndex) string {
 	components := []string{idx.ProxyHost, idx.Username + dbDirSuffix}
 	if idx.ClusterName != "" {
 		components = append(components, idx.ClusterName)
+		if o.dbName != "" {
+			components = append(components, o.dbName+constants.FileExtTLSCert)
+		}
 	}
 	return filepath.Join(components...)
 }
@@ -471,6 +474,9 @@ func (o WithAppCerts) relativeCertPath(idx KeyIndex) string {
 	components := []string{idx.ProxyHost, idx.Username + appDirSuffix}
 	if idx.ClusterName != "" {
 		components = append(components, idx.ClusterName)
+		if o.appName != "" {
+			components = append(components, o.appName+constants.FileExtTLSCert)
+		}
 	}
 	return filepath.Join(components...)
 }
