@@ -31,8 +31,16 @@ func PrepareAddr(addr net.Addr) ([4]int32, error) {
 	}
 	ip := net.ParseIP(stringIP)
 	rawV6 := ip.To16()
+
+	// this case can occur if the net.Addr isn't in an expected IP format, in that case, ignore it
+	// we have to guard against this because the net.Addr internal format is implementation specific
+	if rawV6 == nil {
+		return [4]int32{}, nil
+	}
+
 	groupedV6 := [4]int32{}
 	for i := range groupedV6 {
+		// some bit magic to convert the byte array into 4 32 bit integers
 		groupedV6[i] = int32(binary.LittleEndian.Uint32(rawV6[i*4 : (i+1)*4]))
 	}
 	return groupedV6, nil
