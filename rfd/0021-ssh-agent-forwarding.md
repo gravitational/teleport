@@ -156,7 +156,7 @@ OpenSSH.
 
 ### Security Concerns
 
-Forwarding a user Key Agent is inherently a security risk, as it allows anyone with sufficient 
+Forwarding a Key Agent is inherently a security risk, as it allows anyone with sufficient 
 privileges on the remote machine (i.e. `rw` on the unix domain socket used by the Key Agent) to
 perform operations with the User's keys on the local machine. 
 
