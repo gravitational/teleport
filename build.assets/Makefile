@@ -14,6 +14,7 @@ TEST_KUBE ?=
 OS ?= linux
 ARCH ?= amd64
 RUNTIME ?= go1.16.2
+BORINGCRYPTO_RUNTIME=$(RUNTIME)b7
 
 UID := $$(id -u)
 GID := $$(id -g)
@@ -91,7 +92,7 @@ build-binaries-fips: buildbox-fips
 .PHONY:buildbox
 buildbox:
 	if [[ "$(BUILDBOX_NAME)" == "$(BUILDBOX)" ]]; then \
-		if [[ $${DRONE} == "true" ]]; then docker pull $(BUILDBOX); fi; \
+		if [[ $${DRONE} == "true" ]]; then docker pull $(BUILDBOX) || true; fi; \
 		docker build \
 			--build-arg UID=$(UID) \
 			--build-arg GID=$(GID) \
@@ -109,11 +110,11 @@ buildbox:
 .PHONY:buildbox-fips
 buildbox-fips:
 	if [[ "$(BUILDBOX_FIPS_NAME)" == "$(BUILDBOX_FIPS)" ]]; then \
-		if [[ $${DRONE} == "true" ]]; then docker pull $(BUILDBOX_FIPS); fi; \
+		if [[ $${DRONE} == "true" ]]; then docker pull $(BUILDBOX_FIPS) || true; fi; \
 		docker build \
 			--build-arg UID=$(UID) \
 			--build-arg GID=$(GID) \
-			--build-arg RUNTIME=$(RUNTIME) \
+			--build-arg BORINGCRYPTO_RUNTIME=$(BORINGCRYPTO_RUNTIME) \
 			--cache-from $(BUILDBOX_FIPS) \
 			--tag $(BUILDBOX_FIPS) -f Dockerfile-fips . ; \
 	fi
@@ -123,7 +124,7 @@ buildbox-fips:
 #
 .PHONY:buildbox-centos6
 buildbox-centos6:
-	@if [[ $${DRONE} == "true" ]]; then docker pull $(BUILDBOX_CENTOS6); fi;
+	@if [[ $${DRONE} == "true" ]]; then docker pull $(BUILDBOX_CENTOS6) || true; fi;
 	docker build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
@@ -136,11 +137,11 @@ buildbox-centos6:
 #
 .PHONY:buildbox-centos6-fips
 buildbox-centos6-fips:
-	@if [[ $${DRONE} == "true" ]]; then docker pull $(BUILDBOX_CENTOS6_FIPS); fi;
+	@if [[ $${DRONE} == "true" ]]; then docker pull $(BUILDBOX_CENTOS6_FIPS) || true; fi;
 	docker build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
-		--build-arg RUNTIME=$(RUNTIME) \
+		--build-arg BORINGCRYPTO_RUNTIME=$(BORINGCRYPTO_RUNTIME) \
 		--cache-from $(BUILDBOX_CENTOS6_FIPS) \
 		--tag $(BUILDBOX_CENTOS6_FIPS) -f Dockerfile-centos6-fips .
 
@@ -151,7 +152,7 @@ buildbox-centos6-fips:
 #
 .PHONY:buildbox-arm
 buildbox-arm: buildbox
-	@if [[ $${DRONE} == "true" ]]; then docker pull $(BUILDBOX_ARM); fi;
+	@if [[ $${DRONE} == "true" ]]; then docker pull $(BUILDBOX_ARM) || true; fi;
 	docker build \
 		--build-arg RUNTIME=$(RUNTIME) \
 		--cache-from $(BUILDBOX) \
@@ -165,7 +166,7 @@ buildbox-arm: buildbox
 #
 .PHONY:buildbox-arm-fips
 buildbox-arm-fips: buildbox-fips
-	@if [[ $${DRONE} == "true" ]]; then docker pull $(BUILDBOX_ARM_FIPS); fi;
+	@if [[ $${DRONE} == "true" ]]; then docker pull $(BUILDBOX_ARM_FIPS) || true; fi;
 	docker build \
 		--build-arg RUNTIME=$(RUNTIME) \
 		--cache-from $(BUILDBOX_FIPS) \
