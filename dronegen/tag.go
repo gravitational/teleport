@@ -154,8 +154,9 @@ func tagPipelines() []pipeline {
 	ps = append(ps, tagPipeline(buildType{os: "windows", arch: "amd64"}))
 
 	// Also add the two CentOS 6 artifacts.
-	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos6: true}))
-	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos6: true, fips: true}))
+	// These builds are temporarily disabled due to linker errors with go1.16.2.
+	// ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos6: true}))
+	// ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos6: true, fips: true}))
 	return ps
 }
 
