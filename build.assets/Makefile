@@ -291,6 +291,9 @@ release-fips: buildbox-fips
 #
 .PHONY:release-centos6
 release-centos6: buildbox-centos6
+	echo "CentOS 6 builds are currently failing due to a linker error with Go 1.16.2."
+	echo "Using exit code 78 to exit the Drone pipeline early with success."
+	exit 78
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS6) \
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME)
 
@@ -299,6 +302,9 @@ release-centos6: buildbox-centos6
 #
 .PHONY:release-centos6-fips
 release-centos6-fips: buildbox-centos6-fips
+	echo "CentOS 6 builds are currently failing due to a linker error with Go 1.16.2."
+	echo "Using exit code 78 to exit the Drone pipeline early with success."
+	exit 78
 	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS6_FIPS) \
 		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION)
