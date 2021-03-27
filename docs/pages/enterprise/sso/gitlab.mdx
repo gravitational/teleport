@@ -38,15 +38,15 @@ auth_service:
 
 ## Configure GitLab
 
-You should have at least one group configured in GitLab to map to Teleport roles.
+You should have at least one group configured in GitLab to map to Teleport roles. In this example we use the names `gitlab-dev` and `gitlab-admin`.  Assign users to each of these groups.
 
 
 
-1. Create a Application in one of your Groups that will allow using GitLab as a OAuh provider to Teleport. 
+1. Create a Application in one of your Groups that will allow using GitLab as a OAuh provider to Teleport.
 
 Settings
 
-- Redirect URL `https://<proxy url>/v1/webapi/saml/acs` such as `https://teleport.example.com:3080/v1
+- Redirect URL `https://<proxy url>/v1/webapi/oidc/callback` such as `https://teleport.example.com:3080/v1/webapi/oidc/callback`
 - Check `Confidential`, `openid`, `profile`, and `email`.
 
 ![image](https://user-images.githubusercontent.com/60704961/112176449-7ce77700-8bce-11eb-8e00-069952bb9b78.png)
@@ -64,84 +64,48 @@ For GitLab cloud that is `https://gitlab.com`. That allows accessing the Open-ID
 
 ## Configure Teleport
 
-### 1. Switch to Classic UI
 
-![Switch to classic UI](../../../img/sso/okta/switch-to-classic.gif)
+### Create a OIDC Connector
 
-### 2. Select Create New App
-
-Select Web Platform and SAML 2.0 Sign On Method.
-![Create APP](../../../img/sso/okta/okta-saml-1.png)
-
-## Configure the App
-
-We are going to map the Okta groups we've created above to the SAML Attribute
-statements (special signed metadata exposed via a SAML XML response).
-
-GENERAL
-
-- Single sign on URL `https://teleport-proxy.example.com:3080/v1/webapi/saml/acs`
-- Audience URI (SP Entity ID)`https://teleport-proxy.example.com:3080/v1/webapi/saml/acs`
-- Name ID format `EmailAddress`
-- Application username `Okta username`
-
-SINGLE ATTRIBUTE STATEMENTS
-
-- Name: `username`  | Name format: `Unspecified` | Value: `user.login`
-
-GROUP ATTRIBUTE STATEMENTS
-
-- Name: `groups` | Name format: `Unspecified`
-- Filter: `Matches regex` \|  `.*`
-
-![Configure APP](../../../img/sso/okta/setup-redirection.png)
-
-### Note: RegEx requires `.*`
-
-![Configure APP](../../../img/sso/okta/regex.png)
-
-<Admonition
-  type="tip"
-  title="tip"
->
-  Notice that we have set "NameID" to the email format and mapped the groups with
-  a wildcard regex in the Group Attribute statements. We have also set the "Audience"
-  and SSO URL to the same value.
-</Admonition>
-
-## Create & Assign Groups
-
-**Create Groups**
-
-We are going to create two groups: "okta-dev" and "okta-admin":
-
-![Create Group Devs](../../../img/sso/okta/okta-saml-2.1.png)
-
-...and the admin:
-
-![Create Group Devs](../../../img/sso/okta/okta-saml-2.2.png)
-
-Assign groups and people to your SAML app:
-
-![Configure APP](../../../img/sso/okta/okta-saml-3.1.png)
-
-Make sure to download the metadata in the form of an XML document. It will be used it to
-configure a Teleport connector:
-
-![Download metadata](../../../img/sso/okta/okta-saml-4.png)
-
-## Create a SAML Connector
-
-Now, create a SAML connector [resource](../../admin-guide.mdx#resources):
+Now, create a OIDC connector [resource](../../admin-guide.mdx#resources):
+Replace the Application ID and the Secret with the values from GitLab.
 
 ```yaml
-{!examples/resources/saml-connector.yaml!}
+kind: oidc
+metadata:
+  name: gitlab
+spec:
+  claims_to_roles:
+  - claim: groups
+    roles:
+    - admin
+    value: gitlab-admin
+  - claim: groups
+    roles:
+    - admin
+    value: gitlab-dev
+  client_id: <Application ID>
+  client_secret: <Secret>
+  display: GitLab
+  issuer_url: https://gitlab.com
+  prompt: ""
+  redirect_url: https://teleport.example.com:3080/v1/webapi/oidc/callback
+  scope:
+  - email
+version: v2
 ```
+
+<Admonition
+  type="note"
+  title="IMPORTANT"
+>
+  The `prompt` value must be blank.  Setting to blank means Teleport will not send this as a parameter which will result in an error from GitLab.
+</Admonition>
 
 Create the connector using `tctl` tool:
 
 ```bsh
-$ tctl create okta-connector.yaml
+$ tctl create oidc-connector.yaml
 ```
 
 ## Create Teleport Roles
@@ -177,15 +141,15 @@ spec:
   options:
     max_session_ttl: 24h
   allow:
-    logins: [ "{% raw %}{{email.local(external.username)}}{% endraw %}", ubuntu ]
+    logins: [ "{{email.local(external.email)}}", ubuntu ]
     node_labels:
       access: relaxed
 ```
 
 - Devs are only allowed to login to nodes labelled with `access: relaxed` label.
 - Developers can log in as `ubuntu` user
-- Notice `{% raw %}{{external.username}}{% endraw %}` login. It configures Teleport to look at
-  *"username"* Okta claim and use that field as an allowed login for each user.  This example uses email as the username format.  The `email.local(external.trait)` function will remove the `@domain` and just have the username prefix.
+- Notice `{{external.email}}` login. It configures Teleport to look at
+  *"email"* GitLab claim and use that field as an allowed login for each user.  The `email.local(external.trait)` function will remove the `@domain` and just have the username prefix.
 - Developers also do not have any "allow rules" i.e. they will not be able to
   see/replay past sessions or re-configure the Teleport cluster.
 
@@ -198,11 +162,11 @@ $ tctl create dev.yaml
 
 ## Testing
 
-The Web UI will now contain a new button: "Login with Okta". The CLI is
+The Web UI will now contain a new button: "Login with GitLab". The CLI is
 the same as before:
 
 ```bsh
-$ tsh --proxy=proxy.example.com login
+$ tsh --proxy=teleport.example.com login
 ```
 
 This command will print the SSO login URL (and will try to open it
@@ -212,7 +176,7 @@ automatically in a browser).
   type="tip"
   title="Tip"
 >
-  Teleport can use multiple SAML connectors. In this case a connector name
+  Teleport can use multiple OIDC/SAML connectors. In this case a connector name
   can be passed via `tsh login --auth=connector_name`
 </Admonition>
 
@@ -220,7 +184,7 @@ automatically in a browser).
   type="note"
   title="IMPORTANT"
 >
-  Teleport only supports sending party initiated flows for SAML 2.0. This
+  Teleport only supports sending party initiated flows for OIDC Connect. This
   means you can not initiate login from your identity provider, you have to
   initiate login from either the Teleport Web UI or CLI.
 </Admonition>
@@ -240,3 +204,4 @@ $ sudo journalctl -fu teleport
 
 If you wish to increase the verbosity of Teleport's syslog, you can pass
 `--debug` flag to `teleport start` command.
+
