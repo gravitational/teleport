@@ -320,7 +320,7 @@ lint: lint-sh lint-helm lint-api lint-go
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
 lint-go:
-	golangci-lint run .golangci.yml $(GO_LINT_FLAGS)
+	golangci-lint run -c .golangci.yml $(GO_LINT_FLAGS)
 
 # api is no longer part of the teleport package, so golangci-lint skips it by default
 # GOMODCACHE needs to be set here as api downloads dependencies and cannot write to /go/pkg/mod/cache
