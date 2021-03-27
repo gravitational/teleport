@@ -979,4 +979,32 @@ service AuthService {
     // GetMFADevices returns all MFA devices registered for the user calling
     // this RPC.
     rpc GetMFADevices(GetMFADevicesRequest) returns (GetMFADevicesResponse);
+
+    // GetOIDCConnector gets an OIDC connector resource by name.
+    rpc GetOIDCConnector(types.ResourceWithSecretsRequest) returns (types.OIDCConnectorV2);
+    // GetOIDCConnectors gets all current OIDC connector resources.
+    rpc GetOIDCConnectors(types.ResourcesWithSecretsRequest) returns (types.OIDCConnectorV2List);
+    // UpsertOIDCConnector upserts an OIDC connector in a backend.
+    rpc UpsertOIDCConnector(types.OIDCConnectorV2) returns (google.protobuf.Empty);
+    // DeleteOIDCConnector deletes an existing OIDC connector in a backend by name.
+    rpc DeleteOIDCConnector(types.ResourceRequest) returns (google.protobuf.Empty);
+
+    // GetSAMLConnector gets a SAML connector resource by name.
+    rpc GetSAMLConnector(types.ResourceWithSecretsRequest) returns (types.SAMLConnectorV2);
+    // GetSAMLConnectors gets all current SAML connector resources.
+    rpc GetSAMLConnectors(types.ResourcesWithSecretsRequest) returns (types.SAMLConnectorV2List);
+    // UpsertSAMLConnector upserts a SAML connector in a backend.
+    rpc UpsertSAMLConnector(types.SAMLConnectorV2) returns (google.protobuf.Empty);
+    // DeleteSAMLConnector deletes an existing SAML connector in a backend by name.
+    rpc DeleteSAMLConnector(types.ResourceRequest) returns (google.protobuf.Empty);
+
+    // GetGithubConnector gets a Github connector resource by name.
+    rpc GetGithubConnector(types.ResourceWithSecretsRequest) returns (types.GithubConnectorV3);
+    // GetGithubConnectors gets all current Github connector resources.
+    rpc GetGithubConnectors(types.ResourcesWithSecretsRequest)
+        returns (types.GithubConnectorV3List);
+    // UpsertGithubConnector upserts a Github connector in a backend.
+    rpc UpsertGithubConnector(types.GithubConnectorV3) returns (google.protobuf.Empty);
+    // DeleteGithubConnector deletes an existing Github connector in a backend by name.
+    rpc DeleteGithubConnector(types.ResourceRequest) returns (google.protobuf.Empty);
 }

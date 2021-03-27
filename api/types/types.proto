@@ -1097,7 +1097,7 @@ message AccessRequestConditions {
     repeated string Roles = 1 [ (gogoproto.jsontag) = "roles,omitempty" ];
 
     // ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.
-    repeated AccessRequestClaimMapping ClaimsToRoles = 2
+    repeated ClaimMapping ClaimsToRoles = 2
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "claims_to_roles,omitempty" ];
 
     // Annotations is a collection of annotations to be programmatically
@@ -1132,7 +1132,7 @@ message AccessReviewConditions {
     repeated string Roles = 1 [ (gogoproto.jsontag) = "roles,omitempty" ];
 
     // ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.
-    repeated AccessRequestClaimMapping ClaimsToRoles = 2
+    repeated ClaimMapping ClaimsToRoles = 2
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "claims_to_roles,omitempty" ];
 
     // Where is an optional predicate which further limits which requests are
@@ -1140,18 +1140,14 @@ message AccessReviewConditions {
     string Where = 3 [ (gogoproto.jsontag) = "where,omitempty" ];
 }
 
-// AccessRequestClaimMapping is a variant of the trait mapping pattern,
-// used to propagate requestable roles from external identity providers.
-message AccessRequestClaimMapping {
-    // Claim is the name of the trait to be matched against.
-    string Claim = 1 [ (gogoproto.jsontag) = "claim,omitempty" ];
-
-    // Value is matches a trait value.
-    string Value = 2 [ (gogoproto.jsontag) = "value,omitempty" ];
-
-    // Roles are the roles being mapped to.
+// ClaimMapping maps a claim to teleport roles.
+message ClaimMapping {
+    // Claim is a claim name.
+    string Claim = 1 [ (gogoproto.jsontag) = "claim" ];
+    // Value is a claim value to match.
+    string Value = 2 [ (gogoproto.jsontag) = "value" ];
+    // Roles is a list of static teleport roles to match.
     repeated string Roles = 3 [ (gogoproto.jsontag) = "roles,omitempty" ];
-    ;
 }
 
 // Rule represents allow or deny rule that is executed to check
@@ -1674,4 +1670,207 @@ message DeleteWebTokenRequest {
     string User = 1 [ (gogoproto.jsontag) = "user" ];
     // Token specifies the token to delete.
     string Token = 2 [ (gogoproto.jsontag) = "token" ];
+}
+
+// ResourceRequest is a request relating to a named resource.
+message ResourceRequest {
+    // Name is the name of the resource.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+}
+
+// ResourceWithSecretsRequest is a request relating to a named resource with secrets.
+message ResourceWithSecretsRequest {
+    // Name is the name of the resource.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+    // WithSecrets specifies whether to load associated secrets.
+    bool WithSecrets = 2 [ (gogoproto.jsontag) = "with_secrets,omitempty" ];
+}
+
+// ResourcesWithSecretsRequest is a request relating to resources with secrets.
+message ResourcesWithSecretsRequest {
+    // WithSecrets specifies whether to load associated secrets.
+    bool WithSecrets = 1 [ (gogoproto.jsontag) = "with_secrets,omitempty" ];
+}
+
+// OIDCConnectorV2 represents an OIDC connector.
+message OIDCConnectorV2 {
+    // Kind is a resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is a resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata holds resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is an OIDC connector specification.
+    OIDCConnectorSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// OIDCConnectorV2List is a list of OIDC connectors.
+message OIDCConnectorV2List {
+    // OIDCConnectors is a list of OIDC connectors.
+    repeated types.OIDCConnectorV2 OIDCConnectors = 1;
+}
+
+// OIDCConnectorSpecV2 is an OIDC connector specification.
+//
+// It specifies configuration for Open ID Connect compatible external
+// identity provider: https://openid.net/specs/openid-connect-core-1_0.html
+message OIDCConnectorSpecV2 {
+    // IssuerURL is the endpoint of the provider, e.g. https://accounts.google.com.
+    string IssuerURL = 1 [ (gogoproto.jsontag) = "issuer_url" ];
+    // ClientID is the id of the authentication client (Teleport Auth server).
+    string ClientID = 2 [ (gogoproto.jsontag) = "client_id" ];
+    // ClientSecret is used to authenticate the client.
+    string ClientSecret = 3 [ (gogoproto.jsontag) = "client_secret" ];
+    // RedirectURL is a URL that will redirect the client's browser
+    // back to the identity provider after successful authentication.
+    // This should match the URL on the Provider's side.
+    string RedirectURL = 4 [ (gogoproto.jsontag) = "redirect_url" ];
+    // ACR is an Authentication Context Class Reference value. The meaning of the ACR
+    // value is context-specific and varies for identity providers.
+    string ACR = 5 [ (gogoproto.jsontag) = "acr_values,omitempty" ];
+    // Provider is the external identity provider.
+    string Provider = 6 [ (gogoproto.jsontag) = "provider,omitempty" ];
+    // Display is the friendly name for this provider.
+    string Display = 7 [ (gogoproto.jsontag) = "display,omitempty" ];
+    // Scope specifies additional scopes set by provider.
+    repeated string Scope = 8 [ (gogoproto.jsontag) = "scope,omitempty" ];
+    // Prompt is an optional OIDC prompt. An empty string omits prompt.
+    // If not specified, it defaults to select_account for backwards compatibility.
+    string Prompt = 9 [ (gogoproto.jsontag) = "prompt,omitempty" ];
+    // ClaimsToRoles specifies a dynamic mapping from claims to roles.
+    repeated ClaimMapping ClaimsToRoles = 10
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "claims_to_roles,omitempty" ];
+    // GoogleServiceAccountURI is a path to a google service account uri.
+    string GoogleServiceAccountURI = 11
+        [ (gogoproto.jsontag) = "google_service_account_uri,omitempty" ];
+    // GoogleServiceAccount is a string containing google service account credentials.
+    string GoogleServiceAccount = 12 [ (gogoproto.jsontag) = "google_service_account,omitempty" ];
+    // GoogleAdminEmail is the email of a google admin to impersonate.
+    string GoogleAdminEmail = 13 [ (gogoproto.jsontag) = "google_admin_email,omitempty" ];
+}
+
+// SAMLConnectorV2 represents a SAML connector.
+message SAMLConnectorV2 {
+    // Kind is a resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is a resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata holds resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is an SAML connector specification.
+    SAMLConnectorSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// SAMLConnectorV2List is a list of SAML connectors.
+message SAMLConnectorV2List {
+    // SAMLConnectors is a list of SAML connectors.
+    repeated types.SAMLConnectorV2 SAMLConnectors = 1;
+}
+
+// SAMLConnectorSpecV2 is a SAML connector specification.
+message SAMLConnectorSpecV2 {
+    // Issuer is the identity provider issuer.
+    string Issuer = 1 [ (gogoproto.jsontag) = "issuer" ];
+    // SSO is the URL of the identity provider's SSO service.
+    string SSO = 2 [ (gogoproto.jsontag) = "sso" ];
+    // Cert is the identity provider certificate PEM.
+    // IDP signs <Response> responses using this certificate.
+    string Cert = 3 [ (gogoproto.jsontag) = "cert" ];
+    // Display controls how this connector is displayed.
+    string Display = 4 [ (gogoproto.jsontag) = "display" ];
+    // AssertionConsumerService is a URL for assertion consumer service
+    // on the service provider (Teleport's side).
+    string AssertionConsumerService = 5 [ (gogoproto.jsontag) = "acs" ];
+    // Audience uniquely identifies our service provider.
+    string Audience = 6 [ (gogoproto.jsontag) = "audience" ];
+    // ServiceProviderIssuer is the issuer of the service provider (Teleport).
+    string ServiceProviderIssuer = 7 [ (gogoproto.jsontag) = "service_provider_issuer" ];
+    // EntityDescriptor is XML with descriptor. It can be used to supply configuration
+    // parameters in one XML file rather than supplying them in the individual elements.
+    string EntityDescriptor = 8 [ (gogoproto.jsontag) = "entity_descriptor" ];
+    // EntityDescriptorURL is a URL that supplies a configuration XML.
+    string EntityDescriptorURL = 9 [ (gogoproto.jsontag) = "entity_descriptor_url" ];
+    // AttributesToRoles is a list of mappings of attribute statements to roles.
+    repeated AttributeMapping AttributesToRoles = 10
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "attributes_to_roles" ];
+    // SigningKeyPair is an x509 key pair used to sign AuthnRequest.
+    AsymmetricKeyPair SigningKeyPair = 11
+        [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "signing_key_pair,omitempty" ];
+    // Provider is the external identity provider.
+    string Provider = 12 [ (gogoproto.jsontag) = "provider,omitempty" ];
+    // EncryptionKeyPair is a key pair used for decrypting SAML assertions.
+    AsymmetricKeyPair EncryptionKeyPair = 13
+        [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "assertion_key_pair,omitempty" ];
+}
+
+// AttributeMapping maps a SAML attribute statement to teleport roles.
+message AttributeMapping {
+    // Name is an attribute statement name.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+    // Value is an attribute statement value to match.
+    string Value = 2 [ (gogoproto.jsontag) = "value" ];
+    // Roles is a list of static teleport roles to map to.
+    repeated string Roles = 3 [ (gogoproto.jsontag) = "roles,omitempty" ];
+}
+
+// AsymmetricKeyPair is a combination of a public certificate and
+// private key that can be used for encryption and signing.
+message AsymmetricKeyPair {
+    // PrivateKey is a PEM encoded x509 private key.
+    string PrivateKey = 1 [ (gogoproto.jsontag) = "private_key" ];
+    // Cert is a PEM-encoded x509 certificate.
+    string Cert = 2 [ (gogoproto.jsontag) = "cert" ];
+}
+
+// GithubConnectorV3 represents a Github connector.
+message GithubConnectorV3 {
+    // Kind is a resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is a resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata holds resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is an Github connector specification.
+    GithubConnectorSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// GithubConnectorV3List is a list of Github connectors.
+message GithubConnectorV3List {
+    // GithubConnectors is a list of Github connectors.
+    repeated types.GithubConnectorV3 GithubConnectors = 1;
+}
+
+// GithubConnectorSpecV3 is a Github connector specification.
+message GithubConnectorSpecV3 {
+    // ClientID is the Github OAuth app client ID.
+    string ClientID = 1 [ (gogoproto.jsontag) = "client_id" ];
+    // ClientSecret is the Github OAuth app client secret.
+    string ClientSecret = 2 [ (gogoproto.jsontag) = "client_secret" ];
+    // RedirectURL is the authorization callback URL.
+    string RedirectURL = 3 [ (gogoproto.jsontag) = "redirect_url" ];
+    // TeamsToLogins maps Github team memberships onto allowed logins/roles.
+    repeated TeamMapping TeamsToLogins = 4
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "teams_to_logins" ];
+    // Display is the connector display name.
+    string Display = 5 [ (gogoproto.jsontag) = "display" ];
+}
+
+// TeamMapping represents a single team membership mapping.
+message TeamMapping {
+    // Organization is a Github organization a user belongs to.
+    string Organization = 1 [ (gogoproto.jsontag) = "organization" ];
+    // Team is a team within the organization a user belongs to.
+    string Team = 2 [ (gogoproto.jsontag) = "team" ];
+    // Logins is a list of allowed logins for this org/team.
+    repeated string Logins = 3 [ (gogoproto.jsontag) = "logins,omitempty" ];
+    // KubeGroups is a list of allowed kubernetes groups for this org/team.
+    repeated string KubeGroups = 4 [ (gogoproto.jsontag) = "kubernetes_groups,omitempty" ];
+    // KubeUsers is a list of allowed kubernetes users to impersonate for this org/team.
+    repeated string KubeUsers = 5 [ (gogoproto.jsontag) = "kubernetes_users,omitempty" ];
 }
