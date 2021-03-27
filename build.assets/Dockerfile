@@ -108,8 +108,5 @@ ENV PROTO_INCLUDE "/usr/local/include":"${GOPATH}/src":"${GOPATH}/src/github.com
 COPY pam/ /opt/pam_teleport/
 RUN make -C /opt/pam_teleport install
 
-# Ensure that the ci user inside the container has permission to write to the Go directory.
-RUN chown -R ci:ci /go
-
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380
