@@ -25,7 +25,7 @@ RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9
      cp etcd-v3.3.9-linux-amd64/etcd* /bin/)
 
 # BoringCrypto (unlike regular Go) requires glibc 2.14, so we have to build from source.
-# 1) Install binary go runtime for bootstrapping
+# 1) Install older binary Go runtime for bootstrapping
 # 2) Get source for the correct Go boringcrypto runtime and compile it with Go bootstrap runtime
 # 3) Erase Go bootstrap runtime and create build directories
 # 4) Print compiled Go version
