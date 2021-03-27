@@ -88,6 +88,9 @@ build-binaries-fips: buildbox-fips
 
 #
 # Builds a Docker container which is used for building official Teleport binaries
+# If running in CI and there is no image with the buildbox name:tag combination present locally,
+# the image is pulled from the Docker repository. If this pull fails (i.e. when a new Go runtime is
+# first used), the error is ignored and the buildbox is built using the Dockerfile.
 #
 .PHONY:buildbox
 buildbox:
