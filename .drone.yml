@@ -3979,7 +3979,7 @@ type: kubernetes
 name: build-docker-images
 
 environment:
-  RUNTIME: go1.15.5
+  RUNTIME: go1.16.2
 
 trigger:
   event:
@@ -4292,7 +4292,7 @@ type: kubernetes
 name: build-buildboxes
 
 environment:
-  RUNTIME: go1.15.5
+  RUNTIME: go1.16.2
   UID: 1000
   GID: 1000
 
@@ -4742,6 +4742,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 1ca2684a9adf84751a36a3c891b01e82011050bc1b6d284ef92f33acddbef71d
+hmac: ec33082c9821a6df75413d5cc21e3af92b916aefb1f80402266b289cab2d4aaf
 
 ...
