@@ -1270,6 +1270,16 @@ func (c *Client) ChangePasswordWithToken(ctx context.Context, req ChangePassword
 
 // UpsertOIDCConnector updates or creates OIDC connector
 func (c *Client) UpsertOIDCConnector(ctx context.Context, connector services.OIDCConnector) error {
+	if err := c.APIClient.UpsertOIDCConnector(ctx, connector); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return trace.Wrap(err)
+		}
+	} else {
+		return nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	data, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1285,6 +1295,16 @@ func (c *Client) UpsertOIDCConnector(ctx context.Context, connector services.OID
 
 // GetOIDCConnector returns OIDC connector information by id
 func (c *Client) GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (services.OIDCConnector, error) {
+	if resp, err := c.APIClient.GetOIDCConnector(ctx, id, withSecrets); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return resp, nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	if id == "" {
 		return nil, trace.BadParameter("missing connector id")
 	}
@@ -1298,6 +1318,16 @@ func (c *Client) GetOIDCConnector(ctx context.Context, id string, withSecrets bo
 
 // GetOIDCConnectors gets OIDC connectors list
 func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]services.OIDCConnector, error) {
+	if resp, err := c.APIClient.GetOIDCConnectors(ctx, withSecrets); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return resp, nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	out, err := c.Get(c.Endpoint("oidc", "connectors"),
 		url.Values{"with_secrets": []string{fmt.Sprintf("%t", withSecrets)}})
 	if err != nil {
@@ -1320,6 +1350,16 @@ func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]ser
 
 // DeleteOIDCConnector deletes OIDC connector by ID
 func (c *Client) DeleteOIDCConnector(ctx context.Context, connectorID string) error {
+	if err := c.APIClient.DeleteOIDCConnector(ctx, connectorID); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return trace.Wrap(err)
+		}
+	} else {
+		return nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	if connectorID == "" {
 		return trace.BadParameter("missing connector id")
 	}
@@ -1394,8 +1434,18 @@ func (c *Client) CreateSAMLConnector(ctx context.Context, connector services.SAM
 	return nil
 }
 
-// UpsertSAMLConnector updates or creates OIDC connector
+// UpsertSAMLConnector updates or creates SAML connector
 func (c *Client) UpsertSAMLConnector(ctx context.Context, connector services.SAMLConnector) error {
+	if err := c.APIClient.UpsertSAMLConnector(ctx, connector); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return trace.Wrap(err)
+		}
+	} else {
+		return nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	data, err := services.MarshalSAMLConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1411,6 +1461,16 @@ func (c *Client) UpsertSAMLConnector(ctx context.Context, connector services.SAM
 
 // GetSAMLConnector returns SAML connector information by id
 func (c *Client) GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (services.SAMLConnector, error) {
+	if resp, err := c.APIClient.GetSAMLConnector(ctx, id, withSecrets); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return resp, nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	if id == "" {
 		return nil, trace.BadParameter("missing connector id")
 	}
@@ -1424,6 +1484,16 @@ func (c *Client) GetSAMLConnector(ctx context.Context, id string, withSecrets bo
 
 // GetSAMLConnectors gets SAML connectors list
 func (c *Client) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]services.SAMLConnector, error) {
+	if resp, err := c.APIClient.GetSAMLConnectors(ctx, withSecrets); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return resp, nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	out, err := c.Get(c.Endpoint("saml", "connectors"),
 		url.Values{"with_secrets": []string{fmt.Sprintf("%t", withSecrets)}})
 	if err != nil {
@@ -1446,6 +1516,16 @@ func (c *Client) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]ser
 
 // DeleteSAMLConnector deletes SAML connector by ID
 func (c *Client) DeleteSAMLConnector(ctx context.Context, connectorID string) error {
+	if err := c.APIClient.DeleteSAMLConnector(ctx, connectorID); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return trace.Wrap(err)
+		}
+	} else {
+		return nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	if connectorID == "" {
 		return trace.BadParameter("missing connector id")
 	}
@@ -1522,6 +1602,16 @@ func (c *Client) CreateGithubConnector(connector services.GithubConnector) error
 
 // UpsertGithubConnector creates or updates a Github connector
 func (c *Client) UpsertGithubConnector(ctx context.Context, connector services.GithubConnector) error {
+	if err := c.APIClient.UpsertGithubConnector(ctx, connector); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return trace.Wrap(err)
+		}
+	} else {
+		return nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	bytes, err := services.MarshalGithubConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1537,6 +1627,16 @@ func (c *Client) UpsertGithubConnector(ctx context.Context, connector services.G
 
 // GetGithubConnectors returns all configured Github connectors
 func (c *Client) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]services.GithubConnector, error) {
+	if resp, err := c.APIClient.GetGithubConnectors(ctx, withSecrets); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return resp, nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	out, err := c.Get(c.Endpoint("github", "connectors"), url.Values{
 		"with_secrets": []string{strconv.FormatBool(withSecrets)},
 	})
@@ -1560,6 +1660,16 @@ func (c *Client) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]s
 
 // GetGithubConnector returns the specified Github connector
 func (c *Client) GetGithubConnector(ctx context.Context, id string, withSecrets bool) (services.GithubConnector, error) {
+	if resp, err := c.APIClient.GetGithubConnector(ctx, id, withSecrets); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return resp, nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	out, err := c.Get(c.Endpoint("github", "connectors", id), url.Values{
 		"with_secrets": []string{strconv.FormatBool(withSecrets)},
 	})
@@ -1571,6 +1681,16 @@ func (c *Client) GetGithubConnector(ctx context.Context, id string, withSecrets 
 
 // DeleteGithubConnector deletes the specified Github connector
 func (c *Client) DeleteGithubConnector(ctx context.Context, id string) error {
+	if err := c.APIClient.DeleteGithubConnector(ctx, id); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return trace.Wrap(err)
+		}
+	} else {
+		return nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	_, err := c.Delete(c.Endpoint("github", "connectors", id))
 	if err != nil {
 		return trace.Wrap(err)
