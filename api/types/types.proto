@@ -402,6 +402,12 @@ message ProvisionTokenV2 {
     ProvisionTokenSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
+// ProvisionTokenV2List is a list of provisioning tokens.
+message ProvisionTokenV2List {
+    // ProvisionTokens is a list of provisioning tokens.
+    repeated types.ProvisionTokenV2 ProvisionTokens = 1;
+}
+
 // ProvisionTokenSpecV2 is a specification for V2 token
 message ProvisionTokenSpecV2 {
     // Roles is a list of roles associated with the token,
