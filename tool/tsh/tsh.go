@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
@@ -560,8 +561,21 @@ func onPlay(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := tc.Play(context.TODO(), cf.Namespace, cf.SessionID); err != nil {
-			return trace.Wrap(err)
+		switch {
+		case path.Ext(cf.SessionID) == ".tar":
+			sid := sessionIDFromPath(cf.SessionID)
+			tarFile, err := os.Open(cf.SessionID)
+			defer tarFile.Close()
+			if err != nil {
+				return trace.ConvertSystemError(err)
+			}
+			if err := tc.PlayFile(context.TODO(), tarFile, sid); err != nil {
+				return trace.Wrap(err)
+			}
+		default:
+			if err := tc.Play(context.TODO(), cf.Namespace, cf.SessionID); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	default:
 		err := exportFile(cf.SessionID, cf.Format)
@@ -570,6 +584,11 @@ func onPlay(cf *CLIConf) error {
 		}
 	}
 	return nil
+}
+
+func sessionIDFromPath(path string) string {
+	fileName := filepath.Base(path)
+	return strings.TrimSuffix(fileName, ".tar")
 }
 
 func exportFile(path string, format string) error {

@@ -18,10 +18,13 @@ package events
 
 import (
 	"archive/tar"
+	"bufio"
+	"compress/gzip"
 	"context"
 	"encoding/binary"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -120,9 +123,9 @@ func Export(ctx context.Context, rs io.ReadSeeker, w io.Writer, exportFormat str
 	}
 }
 
-// WriteForPlayback reads events from audit reader
-// and writes them to the format optimized for playback
-func WriteForPlayback(ctx context.Context, sid session.ID, reader AuditReader, dir string) error {
+// WriteForPlayback reads events from audit reader and writes them to the format optimized for playback
+// this function returns *PlaybackWriter and error
+func WriteForPlayback(ctx context.Context, sid session.ID, reader AuditReader, dir string) (*PlaybackWriter, error) {
 	w := &PlaybackWriter{
 		sid:        sid,
 		reader:     reader,
@@ -134,7 +137,63 @@ func WriteForPlayback(ctx context.Context, sid session.ID, reader AuditReader, d
 			log.WithError(err).Warningf("Failed to close writer.")
 		}
 	}()
-	return w.Write(ctx)
+	return w, w.Write(ctx)
+}
+
+// SessionEvents returns slice of event fields from gzipped events file.
+func (w *PlaybackWriter) SessionEvents() ([]EventFields, error) {
+	var sessionEvents []EventFields
+	//events
+	eventFile, err := os.Open(w.EventsPath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer eventFile.Close()
+
+	grEvents, err := gzip.NewReader(eventFile)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer grEvents.Close()
+	scanner := bufio.NewScanner(grEvents)
+	for scanner.Scan() {
+		var f EventFields
+		err := utils.FastUnmarshal(scanner.Bytes(), &f)
+		if err != nil {
+			if err == io.EOF {
+				return sessionEvents, nil
+			}
+			return nil, trace.Wrap(err)
+		}
+		sessionEvents = append(sessionEvents, f)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return sessionEvents, nil
+}
+
+// SessionChunks interprets the file at the given path as gzip-compressed list of session events and returns
+// the uncompressed contents as a result.
+func (w *PlaybackWriter) SessionChunks() ([]byte, error) {
+	var stream []byte
+	chunkFile, err := os.Open(w.ChunksPath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer chunkFile.Close()
+	grChunk, err := gzip.NewReader(chunkFile)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer grChunk.Close()
+	stream, err = ioutil.ReadAll(grChunk)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return stream, nil
 }
 
 // PlaybackWriter reads messages until end of file
@@ -147,6 +206,8 @@ type PlaybackWriter struct {
 	eventsFile *gzipWriter
 	chunksFile *gzipWriter
 	eventIndex int64
+	EventsPath string
+	ChunksPath string
 }
 
 // Close closes all files
@@ -278,11 +339,11 @@ func (w *PlaybackWriter) openEventsFile(eventIndex int64) error {
 	if w.eventsFile != nil {
 		return nil
 	}
-	eventsFileName := eventsFileName(w.dir, w.sid, "", eventIndex)
+	w.EventsPath = eventsFileName(w.dir, w.sid, "", eventIndex)
 
 	// update the index file to write down that new events file has been created
 	data, err := utils.FastMarshal(indexEntry{
-		FileName: filepath.Base(eventsFileName),
+		FileName: filepath.Base(w.EventsPath),
 		Type:     fileTypeEvents,
 		Index:    eventIndex,
 	})
@@ -296,7 +357,7 @@ func (w *PlaybackWriter) openEventsFile(eventIndex int64) error {
 	}
 
 	// open new events file for writing
-	file, err := os.OpenFile(eventsFileName, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
+	file, err := os.OpenFile(w.EventsPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -308,11 +369,11 @@ func (w *PlaybackWriter) openChunksFile(offset int64) error {
 	if w.chunksFile != nil {
 		return nil
 	}
-	chunksFileName := chunksFileName(w.dir, w.sid, offset)
+	w.ChunksPath = chunksFileName(w.dir, w.sid, offset)
 
 	// Update the index file to write down that new chunks file has been created.
 	data, err := utils.FastMarshal(indexEntry{
-		FileName: filepath.Base(chunksFileName),
+		FileName: filepath.Base(w.ChunksPath),
 		Type:     fileTypeChunks,
 		Offset:   offset,
 	})
@@ -328,7 +389,7 @@ func (w *PlaybackWriter) openChunksFile(offset int64) error {
 
 	// open the chunks file for writing, but because the file is written without
 	// compression, remove the .gz
-	file, err := os.OpenFile(chunksFileName, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
+	file, err := os.OpenFile(w.ChunksPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
 	if err != nil {
 		return trace.Wrap(err)
 	}
