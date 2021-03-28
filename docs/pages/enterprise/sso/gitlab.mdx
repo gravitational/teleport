@@ -37,25 +37,19 @@ auth_service:
 ```
 
 ## Configure GitLab
-
 You should have at least one group configured in GitLab to map to Teleport roles. In this example we use the names `gitlab-dev` and `gitlab-admin`.  Assign users to each of these groups.
-
-
-
 1. Create a Application in one of your Groups that will allow using GitLab as a OAuh provider to Teleport.
 
 Settings
 
 - Redirect URL `https://<proxy url>/v1/webapi/oidc/callback` such as `https://teleport.example.com:3080/v1/webapi/oidc/callback`
 - Check `Confidential`, `openid`, `profile`, and `email`.
-
-![image](https://user-images.githubusercontent.com/60704961/112176449-7ce77700-8bce-11eb-8e00-069952bb9b78.png)
+![Create App](../../../img/sso/gitlab/gitlab-oidc-0.png)
 
 2. Collect the `Application ID` and `Secret` in the Application
 
 These will be used in the Teleport OIDC Auth Connector.
-
-![image](https://user-images.githubusercontent.com/60704961/112177135-0e56e900-8bcf-11eb-861f-3b179d36be07.png)
+![Collection Information](../../../img/sso/gitlab/gitlab-oidc-1.png)
 
 3. Confirm the GitLab Issuer Address
 
@@ -67,7 +61,7 @@ For GitLab cloud that is `https://gitlab.com`. That allows accessing the Open-ID
 
 ### Create a OIDC Connector
 
-Now, create a OIDC connector [resource](../../admin-guide.mdx#resources):
+Create a OIDC connector [resource](../../admin-guide.mdx#resources):
 Replace the Application ID and the Secret with the values from GitLab.
 
 ```yaml
@@ -84,8 +78,8 @@ spec:
     roles:
     - admin
     value: gitlab-dev
-  client_id: <Application ID>
-  client_secret: <Secret>
+  client_id: Application_ID
+  client_secret: Secret
   display: GitLab
   issuer_url: https://gitlab.com
   prompt: ""
@@ -99,7 +93,7 @@ version: v2
   type="note"
   title="IMPORTANT"
 >
-  The `prompt` value must be blank.  Setting to blank means Teleport will not send this as a parameter which will result in an error from GitLab.
+  The `prompt` value must be blank.  Setting to blank means Teleport will not send this as a parameter sending the `select_account` parameter will result in an error from GitLab.
 </Admonition>
 
 Create the connector using `tctl` tool:
@@ -153,7 +147,7 @@ spec:
 - Developers also do not have any "allow rules" i.e. they will not be able to
   see/replay past sessions or re-configure the Teleport cluster.
 
-Now, create both roles on the auth server:
+Create both roles on the auth server:
 
 ```bsh
 $ tctl create admin.yaml
@@ -191,8 +185,8 @@ automatically in a browser).
 
 ## Troubleshooting
 
-If you get "access denied errors" the number one place to check is the audit
-log on the Teleport auth server. It is located in `/var/lib/teleport/log` by
+If you get "access denied errors" the number one place to check is the events in the audit
+log on the Teleport auth server. It is located in `/var/lib/teleport/log/events.log` by
 default and it will contain the detailed reason why a user's login was denied.
 
 Some errors (like filesystem permissions or misconfigured network) can be
