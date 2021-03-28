@@ -5,6 +5,9 @@ debug
 default.etcd
 darwin
 
+# web asset directory
+/lib/web/build
+
 # usually release tarballs get in the way
 *.gz
 *.zip

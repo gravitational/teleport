@@ -26,8 +26,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils/parse"
 
 	"github.com/gravitational/trace"
-
 	"github.com/pborman/uuid"
+	"github.com/vulcand/predicate"
 )
 
 // ValidateAccessRequest validates the AccessRequest and sets default values
@@ -350,7 +350,7 @@ func collectReviewThresholdIndexes(req AccessRequest, rev types.AccessReview, au
 	var tids []uint32
 
 	for i, t := range req.GetThresholds() {
-		match, err := t.MatchesFilter(parser)
+		match, err := accessReviewThresholdMatchesFilter(t, parser)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -369,6 +369,23 @@ func collectReviewThresholdIndexes(req AccessRequest, rev types.AccessReview, au
 	}
 
 	return tids, nil
+}
+
+// accessReviewThresholdMatchesFilter returns true if Filter rule matches
+// Empty Filter block always matches
+func accessReviewThresholdMatchesFilter(t types.AccessReviewThreshold, parser predicate.Parser) (bool, error) {
+	if t.Filter == "" {
+		return true, nil
+	}
+	ifn, err := parser.Parse(t.Filter)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	fn, ok := ifn.(predicate.BoolPredicate)
+	if !ok {
+		return false, trace.BadParameter("unsupported type: %T", ifn)
+	}
+	return fn(), nil
 }
 
 // newThresholdFilterParser creates a custom parser context which exposes a simplified view of the review author
@@ -537,7 +554,7 @@ func GetAccessRequest(ctx context.Context, acc DynamicAccess, reqID string) (Acc
 }
 
 // GetTraitMappings gets the AccessRequestConditions' claims as a TraitMappingsSet
-func GetTraitMappings(cms []types.AccessRequestClaimMapping) TraitMappingSet {
+func GetTraitMappings(cms []types.ClaimMapping) TraitMappingSet {
 	tm := make([]TraitMapping, 0, len(cms))
 	for _, mapping := range cms {
 		tm = append(tm, TraitMapping{
@@ -558,7 +575,7 @@ type UserAndRoleGetter interface {
 // appendRoleMatchers constructs all role matchers for a given
 // AccessRequestConditions instance and appends them to the
 // supplied matcher slice.
-func appendRoleMatchers(matchers []parse.Matcher, roles []string, cms []types.AccessRequestClaimMapping, traits map[string][]string) ([]parse.Matcher, error) {
+func appendRoleMatchers(matchers []parse.Matcher, roles []string, cms []types.ClaimMapping, traits map[string][]string) ([]parse.Matcher, error) {
 	// build matchers for the role list
 	for _, r := range roles {
 		m, err := parse.NewMatcher(r)
