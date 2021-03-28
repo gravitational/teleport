@@ -186,7 +186,7 @@ automatically in a browser).
 ## Troubleshooting
 
 If you get "access denied errors" the number one place to check is the events in the audit
-log on the Teleport auth server. It is located in `/var/lib/teleport/log/events.log` by
+log on the Teleport auth server. The audit events log is located in `/var/lib/teleport/log/events.log` by
 default and it will contain the detailed reason why a user's login was denied.
 
 Some errors (like filesystem permissions or misconfigured network) can be
