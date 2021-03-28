@@ -19,11 +19,11 @@ necessary.
 
 ### Background: What is Key Agent Forwarding?
 
-Am SSH Key Agent is a service that brokers access to keys, used by an SSH client
+An SSH Key Agent is a service that brokers access to keys, used by an SSH client
 when authenticating against a remote machine.
 
 The OpenSSH remote login client allows a user to _forward_ their key agent to 
-the remote server, via a secondary channel in the ssh protocol. This makes the Key 
+the remote server via a secondary channel in the ssh protocol. This makes the Key 
 Agent on the user's local machine available on the remote server, and allowing the 
 user to connect to a _third_ machine from the remote server and authenticate 
 with keys stored on the user's local machine.
@@ -176,14 +176,49 @@ we should intentionally decide on, rather than have it happen as a side effect.
 My (admittedly naive) opinion is that given forwarding the User Key Agent
 
  1. exposes nothing worse than OpenSSH already allows,
- 2. allows the user some extra utility they would miss from OpenSSH, and
- 3. is opt-in behaviour
+ 2. allows the user some extra utility they would miss from OpenSSH,
+ 3. is a time-limited vulnerability, in that the vulnerability only lasts as long as the SSH
+    connection, and
+ 4. is opt-in behaviour
 
 ...it's _probably_ OK, but I welcome points to the contrary.
 
 ## Out of scope
 
 Adding support for indicating an arbitrary Key Agent to forward (by passing the path to a unix 
-domain socket, or an environment variable containing the same) is not being considered here. 
-My only concern in that direction has been to avoid making it harder to implement later,
-if it's ever required.
+domain socket, or an environment variable containing the same) as per `man ssh_config(5)` is
+not being considered here. My only concern in that direction has been to avoid making it harder
+to implement later, if it's ever required.
+
+## Appendices
+
+### PlantUML source
+
+```PlantUML
+@startuml
+
+title "Overly Simplified Authentication Flow"
+
+participant "Key Agent"
+participant "Local Machine"
+participant "Remote Machine"
+participant "Third Machine"
+
+"Local Machine" -> "Remote Machine" : SSH Connect
+"Remote Machine" -> "Local Machine" : Auth challenge
+"Local Machine" -> "Key Agent" : Sign Challenge
+"Key Agent" -> "Local Machine": Signed Response
+"Local Machine" -> "Remote Machine" : Signed Response
+
+note over "Local Machine", "Remote Machine": Authentication established
+
+note over "Remote Machine": User connects to\n"Third Machine"
+"Remote Machine" -> "Third Machine" : SSH Connect
+"Third Machine" -> "Remote Machine" : Auth challenge
+"Remote Machine" -> "Key Agent" : Sign Challenge (via forwarded connection)
+"Key Agent" -> "Remote Machine": Signed Response (via forwarded connection)
+"Remote Machine" -> "Third Machine" : Signed Response
+
+note over "Remote Machine", "Third Machine": Authentication established
+@enduml
+```
