@@ -97,7 +97,7 @@ ENV GOGOPROTO_ROOT ${GOPATH}/src/github.com/gogo/protobuf
 RUN (curl -L -o /tmp/${PROTOC_TARBALL} https://github.com/google/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
      cd /tmp && unzip /tmp/${PROTOC_TARBALL} -d /usr/local && \
      rm /tmp/${PROTOC_TARBALL})
-RUN (go get -u github.com/gogo/protobuf/proto github.com/gogo/protobuf/protoc-gen-gogo github.com/gogo/protobuf/gogoproto golang.org/x/tools/cmd/goimports && \
+RUN (git clone https://github.com/gogo/protobuf.git ${GOPATH}/src/github.com/gogo/protobuf && go install golang.org/x/tools/cmd/goimports@latest && \
      cd ${GOPATH}/src/github.com/gogo/protobuf && \
      git reset --hard ${GOGO_PROTO_TAG} && \
      make install)
