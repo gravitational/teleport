@@ -29,6 +29,7 @@ func tagCheckoutCommands(fips bool) []string {
 		`mkdir -p /go/cache /go/artifacts`,
 		// set version
 		`if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt`,
+		waitForDockerCommand(),
 	}
 	return commands
 }

@@ -62,6 +62,7 @@ fi
 `,
 		)
 	}
+	commands = append(commands, waitForDockerCommand())
 	return commands
 }
 
