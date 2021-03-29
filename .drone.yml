@@ -2730,7 +2730,7 @@ trigger:
     - tag
   ref:
     include:
-    - refs/tags/v*
+    - refs/tags/fips*
   repo:
     include:
     - gravitational/*
@@ -2851,7 +2851,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/darwin_pipelines.go:92
+# Generated at dronegen/darwin_pipelines.go:98
 ################################################
 
 kind: pipeline
@@ -2865,7 +2865,7 @@ trigger:
     - tag
   ref:
     include:
-    - refs/tags/v*
+    - refs/tags/fips*
   repo:
     include:
     - gravitational/*
@@ -4237,7 +4237,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/darwin_pipelines.go:118
+# Generated at dronegen/darwin_pipelines.go:130
 ################################################
 
 kind: pipeline
@@ -4251,7 +4251,7 @@ trigger:
     - tag
   ref:
     include:
-    - refs/tags/v*
+    - refs/tags/fips*
   repo:
     include:
     - gravitational/*
@@ -5225,6 +5225,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: a0fd480769862e840980a9e548e7409ab674a0e87fbb8cb5968ec8c72983fa7d
+hmac: 11361a4e45b382d6ddaea7fc224c25eff58055697bc4aad7cf63684dfcf0bd7c
 
 ...
