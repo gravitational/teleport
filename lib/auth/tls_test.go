@@ -1751,14 +1751,21 @@ func (s *TLSSuite) TestPluginData(c *check.C) {
 	userClient, err := s.server.NewClient(testUser)
 	c.Assert(err, check.IsNil)
 
+	plugin := "my-plugin"
+	_, err = CreateAccessPluginUser(context.TODO(), s.server.Auth(), plugin)
+	c.Assert(err, check.IsNil)
+
+	pluginUser := TestUser(plugin)
+	pluginUser.TTL = time.Hour
+	pluginClient, err := s.server.NewClient(pluginUser)
+	c.Assert(err, check.IsNil)
+
 	req, err := services.NewAccessRequest(user, role)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(userClient.CreateAccessRequest(context.TODO(), req), check.IsNil)
 
-	plugin := "my-plugin"
-
-	err = s.server.Auth().UpdatePluginData(context.TODO(), services.PluginDataUpdateParams{
+	err = pluginClient.UpdatePluginData(context.TODO(), services.PluginDataUpdateParams{
 		Kind:     services.KindAccessRequest,
 		Resource: req.GetName(),
 		Plugin:   plugin,
@@ -1768,7 +1775,7 @@ func (s *TLSSuite) TestPluginData(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	data, err := s.server.Auth().GetPluginData(context.TODO(), services.PluginDataFilter{
+	data, err := pluginClient.GetPluginData(context.TODO(), services.PluginDataFilter{
 		Kind:     services.KindAccessRequest,
 		Resource: req.GetName(),
 	})
@@ -1779,7 +1786,7 @@ func (s *TLSSuite) TestPluginData(c *check.C) {
 	c.Assert(ok, check.Equals, true)
 	c.Assert(entry.Data, check.DeepEquals, map[string]string{"foo": "bar"})
 
-	err = s.server.Auth().UpdatePluginData(context.TODO(), services.PluginDataUpdateParams{
+	err = pluginClient.UpdatePluginData(context.TODO(), services.PluginDataUpdateParams{
 		Kind:     services.KindAccessRequest,
 		Resource: req.GetName(),
 		Plugin:   plugin,
@@ -1793,7 +1800,7 @@ func (s *TLSSuite) TestPluginData(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	data, err = s.server.Auth().GetPluginData(context.TODO(), services.PluginDataFilter{
+	data, err = pluginClient.GetPluginData(context.TODO(), services.PluginDataFilter{
 		Kind:     services.KindAccessRequest,
 		Resource: req.GetName(),
 	})
