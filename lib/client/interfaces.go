@@ -423,7 +423,7 @@ func (k *Key) RootClusterName() (string, error) {
 	}
 	clusterName := cert.Issuer.CommonName
 	if clusterName == "" {
-		return "", trace.BadParameter("failed to extract root cluster name from Teleport TLS cert")
+		return "", trace.NotFound("failed to extract root cluster name from Teleport TLS cert")
 	}
 	return clusterName, nil
 }
