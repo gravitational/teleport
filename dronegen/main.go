@@ -22,6 +22,7 @@ func main() {
 	pipelines = append(pipelines, cronPipelines()...)
 	pipelines = append(pipelines, promoteBuildPipeline())
 	pipelines = append(pipelines, updateDocsPipeline())
+	pipelines = append(pipelines, buildboxPipelines()...)
 
 	if err := writePipelines(".drone.yml", pipelines); err != nil {
 		fmt.Println("failed writing drone pipelines:", err)

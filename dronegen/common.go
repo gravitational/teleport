@@ -17,6 +17,11 @@ var (
 		Ref:   triggerRef{Include: []string{"refs/tags/v*"}},
 		Repo:  triggerRef{Include: []string{"gravitational/*"}},
 	}
+	triggerBuildbox = trigger{
+		Event:  triggerRef{Include: []string{"push"}},
+		Branch: triggerRef{Include: []string{"master", "gus/dronegen-buildboxes"}},
+		Repo:   triggerRef{Include: []string{"gravitational/teleport"}},
+	}
 
 	volumeDocker = volume{
 		Name: "dockersock",
