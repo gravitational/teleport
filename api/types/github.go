@@ -71,49 +71,6 @@ func NewGithubConnector(name string, spec GithubConnectorSpecV3) GithubConnector
 	}
 }
 
-// GithubConnectorV3 represents a Github connector
-type GithubConnectorV3 struct {
-	// Kind is a resource kind, for Github connector it is "github"
-	Kind string `json:"kind"`
-	// SubKind is a resource sub kind
-	SubKind string `json:"sub_kind,omitempty"`
-	// Version is resource version
-	Version string `json:"version"`
-	// Metadata is resource metadata
-	Metadata Metadata `json:"metadata"`
-	// Spec contains connector specification
-	Spec GithubConnectorSpecV3 `json:"spec"`
-}
-
-// GithubConnectorSpecV3 is the current Github connector spec
-type GithubConnectorSpecV3 struct {
-	// ClientID is the Github OAuth app client ID
-	ClientID string `json:"client_id"`
-	// ClientSecret is the Github OAuth app client secret
-	ClientSecret string `json:"client_secret"`
-	// RedirectURL is the authorization callback URL
-	RedirectURL string `json:"redirect_url"`
-	// TeamsToLogins maps Github team memberships onto allowed logins/roles
-	TeamsToLogins []TeamMapping `json:"teams_to_logins"`
-	// Display is the connector display name
-	Display string `json:"display"`
-}
-
-// TeamMapping represents a single team membership mapping
-type TeamMapping struct {
-	// Organization is a Github organization a user belongs to
-	Organization string `json:"organization"`
-	// Team is a team within the organization a user belongs to
-	Team string `json:"team"`
-	// Logins is a list of allowed logins for this org/team
-	Logins []string `json:"logins,omitempty"`
-	// KubeGroups is a list of allowed kubernetes groups for this org/team
-	KubeGroups []string `json:"kubernetes_groups,omitempty"`
-	// KubeUsers is a list of allowed kubernetes users to impersonate for
-	// this org/team
-	KubeUsers []string `json:"kubernetes_users,omitempty"`
-}
-
 // GithubClaims represents Github user information obtained during OAuth2 flow
 type GithubClaims struct {
 	// Username is the user's username

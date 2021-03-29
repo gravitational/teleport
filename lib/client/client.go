@@ -260,7 +260,7 @@ func (proxy *ProxyClient) GetRole(ctx context.Context, name string) (services.Ro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	role, err := site.GetRole(name)
+	role, err := site.GetRole(ctx, name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

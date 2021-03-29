@@ -503,7 +503,7 @@ func TestPresets(t *testing.T) {
 
 		// Presets were created
 		for _, role := range roles {
-			_, err := as.GetRole(role.GetName())
+			_, err := as.GetRole(ctx, role.GetName())
 			require.NoError(t, err)
 		}
 	})
@@ -524,11 +524,11 @@ func TestPresets(t *testing.T) {
 
 		// Presets were created
 		for _, role := range roles {
-			_, err := as.GetRole(role.GetName())
+			_, err := as.GetRole(ctx, role.GetName())
 			require.NoError(t, err)
 		}
 
-		out, err := as.GetRole(access.GetName())
+		out, err := as.GetRole(ctx, access.GetName())
 		require.NoError(t, err)
 		require.Equal(t, access.GetLogins(types.Allow), out.GetLogins(types.Allow))
 	})
@@ -556,7 +556,7 @@ func TestMigrateOSS(t *testing.T) {
 		require.NoError(t, err)
 
 		// OSS user role was updated
-		role, err := as.GetRole(teleport.AdminRoleName)
+		role, err := as.GetRole(ctx, teleport.AdminRoleName)
 		require.NoError(t, err)
 		require.Equal(t, types.True, role.GetMetadata().Labels[teleport.OSSMigratedV6])
 	})
@@ -623,7 +623,7 @@ func TestMigrateOSS(t *testing.T) {
 		err = migrateOSS(ctx, as)
 		require.NoError(t, err)
 
-		out, err := as.GetTrustedCluster(foo.GetName())
+		out, err := as.GetTrustedCluster(ctx, foo.GetName())
 		require.NoError(t, err)
 		mapping := types.RoleMap{{Remote: teleport.AdminRoleName, Local: []string{teleport.AdminRoleName}}}
 		require.Equal(t, mapping, out.GetRoleMap())
@@ -684,7 +684,7 @@ func TestMigrateOSS(t *testing.T) {
 		err = migrateOSS(ctx, as)
 		require.NoError(t, err)
 
-		out, err := as.GetGithubConnector(connector.GetName(), false)
+		out, err := as.GetGithubConnector(ctx, connector.GetName(), false)
 		require.NoError(t, err)
 		require.Equal(t, types.True, out.GetMetadata().Labels[teleport.OSSMigratedV6])
 
@@ -693,7 +693,7 @@ func TestMigrateOSS(t *testing.T) {
 		require.Len(t, mappings, 2)
 		require.Len(t, mappings[0].Logins, 1)
 
-		r, err := as.GetRole(mappings[0].Logins[0])
+		r, err := as.GetRole(ctx, mappings[0].Logins[0])
 		require.NoError(t, err)
 		require.Equal(t, connector.GetTeamsToLogins()[0].Logins, r.GetLogins(types.Allow))
 		require.Equal(t, connector.GetTeamsToLogins()[0].KubeGroups, r.GetKubeGroups(types.Allow))
@@ -702,7 +702,7 @@ func TestMigrateOSS(t *testing.T) {
 		require.Len(t, mappings[0].KubeUsers, 0)
 
 		require.Len(t, mappings[1].Logins, 1)
-		r2, err := as.GetRole(mappings[1].Logins[0])
+		r2, err := as.GetRole(ctx, mappings[1].Logins[0])
 		require.NoError(t, err)
 		require.Equal(t, connector.GetTeamsToLogins()[1].Logins, r2.GetLogins(types.Allow))
 		require.Equal(t, connector.GetTeamsToLogins()[1].KubeGroups, r2.GetKubeGroups(types.Allow))
@@ -713,7 +713,7 @@ func TestMigrateOSS(t *testing.T) {
 		err = migrateOSS(ctx, as)
 		require.NoError(t, err)
 
-		out, err = as.GetGithubConnector(connector.GetName(), false)
+		out, err = as.GetGithubConnector(ctx, connector.GetName(), false)
 		require.NoError(t, err)
 		require.Equal(t, mappings, out.GetTeamsToLogins())
 	})

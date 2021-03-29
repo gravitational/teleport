@@ -300,7 +300,7 @@ func (s *SrvSuite) TestAgentForwardPermission(c *C) {
 	ctx := context.Background()
 	// make sure the role does not allow agent forwarding
 	roleName := services.RoleNameForUser(s.user)
-	role, err := s.server.Auth().GetRole(roleName)
+	role, err := s.server.Auth().GetRole(ctx, roleName)
 	c.Assert(err, IsNil)
 	roleOptions := role.GetOptions()
 	roleOptions.ForwardAgent = services.NewBool(false)
@@ -330,7 +330,7 @@ func (s *SrvSuite) TestMaxSessions(c *C) {
 	ctx := context.Background()
 	// make sure the role does not allow agent forwarding
 	roleName := services.RoleNameForUser(s.user)
-	role, err := s.server.Auth().GetRole(roleName)
+	role, err := s.server.Auth().GetRole(ctx, roleName)
 	c.Assert(err, IsNil)
 	roleOptions := role.GetOptions()
 	roleOptions.MaxSessions = maxSessions
@@ -374,7 +374,7 @@ func (s *SrvSuite) TestOpenExecSessionSetsSession(c *C) {
 func (s *SrvSuite) TestAgentForward(c *C) {
 	ctx := context.Background()
 	roleName := services.RoleNameForUser(s.user)
-	role, err := s.server.Auth().GetRole(roleName)
+	role, err := s.server.Auth().GetRole(ctx, roleName)
 	c.Assert(err, IsNil)
 	roleOptions := role.GetOptions()
 	roleOptions.ForwardAgent = services.NewBool(true)

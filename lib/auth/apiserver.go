@@ -190,7 +190,8 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.GET("/:version/namespaces/:namespace", srv.withAuth(srv.getNamespace))
 	srv.DELETE("/:version/namespaces/:namespace", srv.withAuth(srv.deleteNamespace))
 
-	// Roles
+	// Roles - Moved to grpc
+	// DELETE IN 7.0
 	srv.POST("/:version/roles", srv.withAuth(srv.upsertRole))
 	srv.GET("/:version/roles", srv.withAuth(srv.getRoles))
 	srv.GET("/:version/roles/:role", srv.withAuth(srv.getRole))
@@ -238,7 +239,8 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/u2f/users/:user/sign", srv.withAuth(srv.u2fSignRequest))
 	srv.GET("/:version/u2f/appid", srv.withAuth(srv.getU2FAppID))
 
-	// Provisioning tokens
+	// Provisioning tokens- Moved to grpc
+	// DELETE IN 8.0
 	srv.GET("/:version/tokens", srv.withAuth(srv.getTokens))
 	srv.GET("/:version/tokens/:token", srv.withAuth(srv.getToken))
 	srv.DELETE("/:version/tokens/:token", srv.withAuth(srv.deleteToken))
@@ -645,11 +647,11 @@ func (s *APIServer) validateTrustedCluster(auth ClientI, w http.ResponseWriter, 
 }
 
 func (s *APIServer) getTrustedCluster(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	return auth.GetTrustedCluster(p.ByName("name"))
+	return auth.GetTrustedCluster(r.Context(), p.ByName("name"))
 }
 
 func (s *APIServer) getTrustedClusters(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	return auth.GetTrustedClusters()
+	return auth.GetTrustedClusters(r.Context())
 }
 
 // deleteTrustedCluster deletes a trusted cluster by name.
@@ -664,7 +666,7 @@ func (s *APIServer) deleteTrustedCluster(auth ClientI, w http.ResponseWriter, r 
 
 // getTokens returns a list of active provisioning tokens. expired (inactive) tokens are not returned
 func (s *APIServer) getTokens(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	tokens, err := auth.GetTokens()
+	tokens, err := auth.GetTokens(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -673,7 +675,7 @@ func (s *APIServer) getTokens(auth ClientI, w http.ResponseWriter, r *http.Reque
 
 // getTokens returns provisioning token by name
 func (s *APIServer) getToken(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	token, err := auth.GetToken(p.ByName("token"))
+	token, err := auth.GetToken(r.Context(), p.ByName("token"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -683,7 +685,7 @@ func (s *APIServer) getToken(auth ClientI, w http.ResponseWriter, r *http.Reques
 // deleteToken deletes (revokes) a token by its value
 func (s *APIServer) deleteToken(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	token := p.ByName("token")
-	if err := auth.DeleteToken(token); err != nil {
+	if err := auth.DeleteToken(r.Context(), token); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message(fmt.Sprintf("Token %v deleted", token)), nil
@@ -1002,7 +1004,7 @@ func (s *APIServer) registerNewAuthServer(auth ClientI, w http.ResponseWriter, r
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err := auth.RegisterNewAuthServer(req.Token)
+	err := auth.RegisterNewAuthServer(r.Context(), req.Token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1296,7 +1298,7 @@ func (s *APIServer) getOIDCConnector(auth ClientI, w http.ResponseWriter, r *htt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connector, err := auth.GetOIDCConnector(p.ByName("id"), withSecrets)
+	connector, err := auth.GetOIDCConnector(r.Context(), p.ByName("id"), withSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1316,7 +1318,7 @@ func (s *APIServer) getOIDCConnectors(auth ClientI, w http.ResponseWriter, r *ht
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connectors, err := auth.GetOIDCConnectors(withSecrets)
+	connectors, err := auth.GetOIDCConnectors(r.Context(), withSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1456,7 +1458,7 @@ func (s *APIServer) getSAMLConnector(auth ClientI, w http.ResponseWriter, r *htt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connector, err := auth.GetSAMLConnector(p.ByName("id"), withSecrets)
+	connector, err := auth.GetSAMLConnector(r.Context(), p.ByName("id"), withSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1476,7 +1478,7 @@ func (s *APIServer) getSAMLConnectors(auth ClientI, w http.ResponseWriter, r *ht
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connectors, err := auth.GetSAMLConnectors(withSecrets)
+	connectors, err := auth.GetSAMLConnectors(r.Context(), withSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1630,7 +1632,7 @@ func (s *APIServer) getGithubConnectors(auth ClientI, w http.ResponseWriter, r *
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connectors, err := auth.GetGithubConnectors(withSecrets)
+	connectors, err := auth.GetGithubConnectors(r.Context(), withSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1656,7 +1658,7 @@ func (s *APIServer) getGithubConnector(auth ClientI, w http.ResponseWriter, r *h
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connector, err := auth.GetGithubConnector(p.ByName("id"), withSecrets)
+	connector, err := auth.GetGithubConnector(r.Context(), p.ByName("id"), withSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2134,7 +2136,7 @@ func (s *APIServer) upsertRole(auth ClientI, w http.ResponseWriter, r *http.Requ
 }
 
 func (s *APIServer) getRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	role, err := auth.GetRole(p.ByName("role"))
+	role, err := auth.GetRole(r.Context(), p.ByName("role"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2142,7 +2144,7 @@ func (s *APIServer) getRole(auth ClientI, w http.ResponseWriter, r *http.Request
 }
 
 func (s *APIServer) getRoles(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	roles, err := auth.GetRoles()
+	roles, err := auth.GetRoles(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

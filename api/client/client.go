@@ -329,12 +329,8 @@ func (c *Client) GetUsers(withSecrets bool) ([]types.User, error) {
 		return nil, trail.FromGRPC(err)
 	}
 	var users []types.User
-	for {
-		user, err := stream.Recv()
+	for user, err := stream.Recv(); err != io.EOF; user, err = stream.Recv() {
 		if err != nil {
-			if err == io.EOF {
-				break
-			}
 			return nil, trail.FromGRPC(err)
 		}
 		users = append(users, user)
@@ -373,29 +369,6 @@ func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) er
 	return nil
 }
 
-// GetAccessRequests retrieves a list of all access requests matching the provided filter.
-func (c *Client) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
-	rsp, err := c.grpc.GetAccessRequests(ctx, &filter)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-	reqs := make([]types.AccessRequest, 0, len(rsp.AccessRequests))
-	for _, req := range rsp.AccessRequests {
-		reqs = append(reqs, req)
-	}
-	return reqs, nil
-}
-
-// CreateAccessRequest registers a new access request with the auth server.
-func (c *Client) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
-	r, ok := req.(*types.AccessRequestV3)
-	if !ok {
-		return trace.BadParameter("unexpected access request type %T", req)
-	}
-	_, err := c.grpc.CreateAccessRequest(ctx, r)
-	return trail.FromGRPC(err)
-}
-
 // RotateResetPasswordTokenSecrets rotates secrets for a given tokenID.
 // It gets called every time a user fetches 2nd-factor secrets during registration attempt.
 // This ensures that an attacker that gains the ResetPasswordToken link can not view it,
@@ -431,6 +404,29 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req *proto.Create
 	}
 
 	return token, nil
+}
+
+// GetAccessRequests retrieves a list of all access requests matching the provided filter.
+func (c *Client) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
+	rsp, err := c.grpc.GetAccessRequests(ctx, &filter)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	reqs := make([]types.AccessRequest, 0, len(rsp.AccessRequests))
+	for _, req := range rsp.AccessRequests {
+		reqs = append(reqs, req)
+	}
+	return reqs, nil
+}
+
+// CreateAccessRequest registers a new access request with the auth server.
+func (c *Client) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
+	r, ok := req.(*types.AccessRequestV3)
+	if !ok {
+		return trace.BadParameter("unexpected access request type %T", req)
+	}
+	_, err := c.grpc.CreateAccessRequest(ctx, r)
+	return trail.FromGRPC(err)
 }
 
 // DeleteAccessRequest deletes an access request.
@@ -761,6 +757,50 @@ func (c *Client) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 	return resp, nil
 }
 
+// GetRole returns role by name
+func (c *Client) GetRole(ctx context.Context, name string) (types.Role, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing name")
+	}
+	resp, err := c.grpc.GetRole(ctx, &proto.GetRoleRequest{Name: name})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// GetRoles returns a list of roles
+func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
+	resp, err := c.grpc.GetRoles(ctx, &empty.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	roles := make([]types.Role, 0, len(resp.GetRoles()))
+	for _, role := range resp.GetRoles() {
+		roles = append(roles, role)
+	}
+	return roles, nil
+}
+
+// UpsertRole creates or updates role
+func (c *Client) UpsertRole(ctx context.Context, role types.Role) error {
+	roleV3, ok := role.(*types.RoleV3)
+	if !ok {
+		return trace.BadParameter("invalid type %T", role)
+	}
+	_, err := c.grpc.UpsertRole(ctx, roleV3)
+	return trail.FromGRPC(err)
+}
+
+// DeleteRole deletes role by name
+func (c *Client) DeleteRole(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("missing name")
+	}
+	_, err := c.grpc.DeleteRole(ctx, &proto.DeleteRoleRequest{Name: name})
+	return trail.FromGRPC(err)
+}
+
 func (c *Client) AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error) {
 	stream, err := c.grpc.AddMFADevice(ctx)
 	if err != nil {
@@ -791,4 +831,235 @@ func (c *Client) GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthServ
 		return nil, trail.FromGRPC(err)
 	}
 	return stream, nil
+}
+
+// GetOIDCConnector returns an OIDC connector by name.
+func (c *Client) GetOIDCConnector(ctx context.Context, name string, withSecrets bool) (types.OIDCConnector, error) {
+	if name == "" {
+		return nil, trace.BadParameter("cannot get OIDC Connector, missing name")
+	}
+	req := &types.ResourceWithSecretsRequest{Name: name, WithSecrets: withSecrets}
+	resp, err := c.grpc.GetOIDCConnector(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// GetOIDCConnectors returns a list of OIDC connectors.
+func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error) {
+	req := &types.ResourcesWithSecretsRequest{WithSecrets: withSecrets}
+	resp, err := c.grpc.GetOIDCConnectors(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	oidcConnectors := make([]types.OIDCConnector, len(resp.OIDCConnectors))
+	for i, oidcConnector := range resp.OIDCConnectors {
+		oidcConnectors[i] = oidcConnector
+	}
+	return oidcConnectors, nil
+}
+
+// UpsertOIDCConnector creates or updates an OIDC connector.
+func (c *Client) UpsertOIDCConnector(ctx context.Context, oidcConnector types.OIDCConnector) error {
+	oidcConnectorV2, ok := oidcConnector.(*types.OIDCConnectorV2)
+	if !ok {
+		return trace.BadParameter("invalid type %T", oidcConnector)
+	}
+	_, err := c.grpc.UpsertOIDCConnector(ctx, oidcConnectorV2)
+	return trail.FromGRPC(err)
+}
+
+// DeleteOIDCConnector deletes an OIDC connector by name.
+func (c *Client) DeleteOIDCConnector(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("cannot delete OIDC Connector, missing name")
+	}
+	_, err := c.grpc.DeleteOIDCConnector(ctx, &types.ResourceRequest{Name: name})
+	return trail.FromGRPC(err)
+}
+
+// GetSAMLConnector returns a SAML connector by name.
+func (c *Client) GetSAMLConnector(ctx context.Context, name string, withSecrets bool) (types.SAMLConnector, error) {
+	if name == "" {
+		return nil, trace.BadParameter("cannot get SAML Connector, missing name")
+	}
+	req := &types.ResourceWithSecretsRequest{Name: name, WithSecrets: withSecrets}
+	resp, err := c.grpc.GetSAMLConnector(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// GetSAMLConnectors returns a list of SAML connectors.
+func (c *Client) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error) {
+	req := &types.ResourcesWithSecretsRequest{WithSecrets: withSecrets}
+	resp, err := c.grpc.GetSAMLConnectors(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	samlConnectors := make([]types.SAMLConnector, len(resp.SAMLConnectors))
+	for i, samlConnector := range resp.SAMLConnectors {
+		samlConnectors[i] = samlConnector
+	}
+	return samlConnectors, nil
+}
+
+// UpsertSAMLConnector creates or updates a SAML connector.
+func (c *Client) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
+	samlConnectorV2, ok := connector.(*types.SAMLConnectorV2)
+	if !ok {
+		return trace.BadParameter("invalid type %T", connector)
+	}
+	_, err := c.grpc.UpsertSAMLConnector(ctx, samlConnectorV2)
+	return trail.FromGRPC(err)
+}
+
+// DeleteSAMLConnector deletes a SAML connector by name.
+func (c *Client) DeleteSAMLConnector(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("cannot delete SAML Connector, missing name")
+	}
+	_, err := c.grpc.DeleteSAMLConnector(ctx, &types.ResourceRequest{Name: name})
+	return trail.FromGRPC(err)
+}
+
+// GetGithubConnector returns a Github connector by name.
+func (c *Client) GetGithubConnector(ctx context.Context, name string, withSecrets bool) (types.GithubConnector, error) {
+	if name == "" {
+		return nil, trace.BadParameter("cannot get Github Connector, missing name")
+	}
+	req := &types.ResourceWithSecretsRequest{Name: name, WithSecrets: withSecrets}
+	resp, err := c.grpc.GetGithubConnector(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// GetGithubConnectors returns a list of Github connectors.
+func (c *Client) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
+	req := &types.ResourcesWithSecretsRequest{WithSecrets: withSecrets}
+	resp, err := c.grpc.GetGithubConnectors(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	githubConnectors := make([]types.GithubConnector, len(resp.GithubConnectors))
+	for i, githubConnector := range resp.GithubConnectors {
+		githubConnectors[i] = githubConnector
+	}
+	return githubConnectors, nil
+}
+
+// UpsertGithubConnector creates or updates a Github connector.
+func (c *Client) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
+	githubConnector, ok := connector.(*types.GithubConnectorV3)
+	if !ok {
+		return trace.BadParameter("invalid type %T", connector)
+	}
+	_, err := c.grpc.UpsertGithubConnector(ctx, githubConnector)
+	return trail.FromGRPC(err)
+}
+
+// DeleteGithubConnector deletes a Github connector by name.
+func (c *Client) DeleteGithubConnector(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("cannot delete Github Connector, missing name")
+	}
+	_, err := c.grpc.DeleteGithubConnector(ctx, &types.ResourceRequest{Name: name})
+	return trail.FromGRPC(err)
+}
+
+// GetTrustedCluster returns a Trusted Cluster by name.
+func (c *Client) GetTrustedCluster(ctx context.Context, name string) (types.TrustedCluster, error) {
+	if name == "" {
+		return nil, trace.BadParameter("cannot get trusted cluster, missing name")
+	}
+	req := &types.ResourceRequest{Name: name}
+	resp, err := c.grpc.GetTrustedCluster(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// GetTrustedClusters returns a list of Trusted Clusters.
+func (c *Client) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error) {
+	resp, err := c.grpc.GetTrustedClusters(ctx, &empty.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	trustedClusters := make([]types.TrustedCluster, len(resp.TrustedClusters))
+	for i, trustedCluster := range resp.TrustedClusters {
+		trustedClusters[i] = trustedCluster
+	}
+	return trustedClusters, nil
+}
+
+// UpsertTrustedCluster creates or updates a Trusted Cluster.
+func (c *Client) UpsertTrustedCluster(ctx context.Context, trusedCluster types.TrustedCluster) (types.TrustedCluster, error) {
+	trustedCluster, ok := trusedCluster.(*types.TrustedClusterV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", trusedCluster)
+	}
+	resp, err := c.grpc.UpsertTrustedCluster(ctx, trustedCluster)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// DeleteTrustedCluster deletes a Trusted Cluster by name.
+func (c *Client) DeleteTrustedCluster(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("cannot delete trusted cluster, missing name")
+	}
+	_, err := c.grpc.DeleteTrustedCluster(ctx, &types.ResourceRequest{Name: name})
+	return trail.FromGRPC(err)
+}
+
+// GetToken returns a provision token by name.
+func (c *Client) GetToken(ctx context.Context, name string) (types.ProvisionToken, error) {
+	if name == "" {
+		return nil, trace.BadParameter("cannot get token, missing name")
+	}
+	resp, err := c.grpc.GetToken(ctx, &types.ResourceRequest{Name: name})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// GetTokens returns a list of active provision tokens for nodes and users.
+func (c *Client) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
+	resp, err := c.grpc.GetTokens(ctx, &empty.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	tokens := make([]types.ProvisionToken, len(resp.ProvisionTokens))
+	for i, token := range resp.ProvisionTokens {
+		tokens[i] = token
+	}
+	return tokens, nil
+}
+
+// UpsertToken creates or updates a provision token.
+func (c *Client) UpsertToken(ctx context.Context, token types.ProvisionToken) error {
+	tokenV2, ok := token.(*types.ProvisionTokenV2)
+	if !ok {
+		return trace.BadParameter("invalid type %T", token)
+	}
+	_, err := c.grpc.UpsertToken(ctx, tokenV2)
+	return trail.FromGRPC(err)
+}
+
+// DeleteToken deletes a provision token by name.
+func (c *Client) DeleteToken(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("cannot delete token, missing name")
+	}
+	_, err := c.grpc.DeleteToken(ctx, &types.ResourceRequest{Name: name})
+	return trail.FromGRPC(err)
 }

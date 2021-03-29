@@ -873,6 +873,8 @@ func (s *TLSSuite) TestNopUser(c *check.C) {
 
 // TestOwnRole tests that user can read roles assigned to them (used by web UI)
 func (s *TLSSuite) TestReadOwnRole(c *check.C) {
+	ctx := context.Background()
+
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
 
@@ -886,14 +888,14 @@ func (s *TLSSuite) TestReadOwnRole(c *check.C) {
 	userClient, err := s.server.NewClient(TestUser(user1.GetName()))
 	c.Assert(err, check.IsNil)
 
-	_, err = userClient.GetRole(userRole.GetName())
+	_, err = userClient.GetRole(ctx, userRole.GetName())
 	c.Assert(err, check.IsNil)
 
 	// user2 can't read user1 role
 	userClient2, err := s.server.NewClient(TestIdentity{I: LocalUser{Username: user2.GetName()}})
 	c.Assert(err, check.IsNil)
 
-	_, err = userClient2.GetRole(userRole.GetName())
+	_, err = userClient2.GetRole(ctx, userRole.GetName())
 	fixtures.ExpectNotFound(c, err)
 }
 
@@ -3050,16 +3052,16 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 		"tok2", teleport.Roles{teleport.RoleProxy}, time.Now().UTC().Add(3*time.Hour))
 	c.Assert(err, check.IsNil)
 
-	err = s.server.Auth().UpsertToken(token)
+	err = s.server.Auth().UpsertToken(ctx, token)
 	c.Assert(err, check.IsNil)
 
-	token, err = s.server.Auth().GetToken(token.GetName())
+	token, err = s.server.Auth().GetToken(ctx, token.GetName())
 	c.Assert(err, check.IsNil)
 
 	suite.ExpectResource(c, w, 3*time.Second, token)
 
 	// delete token and expect delete event
-	err = s.server.Auth().DeleteToken(token.GetName())
+	err = s.server.Auth().DeleteToken(ctx, token.GetName())
 	c.Assert(err, check.IsNil)
 	suite.ExpectDeleteResource(c, w, 3*time.Second, &services.ResourceHeader{
 		Kind:    services.KindToken,
