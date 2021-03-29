@@ -19,7 +19,7 @@ var (
 	}
 	triggerBuildbox = trigger{
 		Event:  triggerRef{Include: []string{"push"}},
-		Branch: triggerRef{Include: []string{"master", "gus/dronegen-buildboxes"}},
+		Branch: triggerRef{Include: []string{"master"}},
 		Repo:   triggerRef{Include: []string{"gravitational/teleport"}},
 	}
 

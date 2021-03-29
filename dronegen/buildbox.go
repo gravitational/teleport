@@ -44,7 +44,7 @@ func buildboxPipelineStep(buildboxName string, fips bool) step {
 			`chown -R $UID:$GID /go`,
 			`docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io`,
 			fmt.Sprintf(`make -C build.assets %s`, buildboxName),
-			//fmt.Sprintf(`docker push quay.io/gravitational/teleport-%s:$RUNTIME`, buildboxName),
+			fmt.Sprintf(`docker push quay.io/gravitational/teleport-%s:$RUNTIME`, buildboxName),
 		},
 	}
 }
