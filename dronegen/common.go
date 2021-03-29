@@ -145,5 +145,6 @@ func waitForDockerStep() step {
 		Commands: []string{
 			`timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'`,
 		},
+		Volumes: dockerVolumeRefs(),
 	}
 }
