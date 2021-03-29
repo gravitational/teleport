@@ -85,8 +85,10 @@ func newDarwinTagPipeline(b buildType) pipeline {
 // newDarwinTagPackagePipeline generates a tag package pipeline for a given combination of os/arch/FIPS on darwin
 func newDarwinTagPackagePipeline(b buildType) pipeline {
 	pipelineName := fmt.Sprintf("build-%s-%s-pkg", b.os, b.arch)
+	dependentPipeline := fmt.Sprintf("build-%s-%s", b.os, b.arch)
 	if b.fips {
 		pipelineName = fmt.Sprintf("build-%s-%s-fips-pkg", b.os, b.arch)
+		dependentPipeline = fmt.Sprintf("build-%s-%s-fips", b.os, b.arch)
 	}
 
 	p := newExecPipeline(pipelineName)
@@ -95,6 +97,7 @@ func newDarwinTagPackagePipeline(b buildType) pipeline {
 		"RUNTIME": goRuntime,
 	}
 	p.Trigger = triggerTag
+	p.DependsOn = []string{dependentPipeline}
 	p.Workspace = workspace{Path: filepath.Join("/tmp", pipelineName)}
 
 	builder := darwinTagPackagePipelineStepBuilder{
@@ -111,8 +114,10 @@ func newDarwinTagPackagePipeline(b buildType) pipeline {
 // newDarwinTagTshPackagePipeline generates a tag tsh package pipeline for a given combination of os/arch/FIPS on darwin
 func newDarwinTagTshPackagePipeline(b buildType) pipeline {
 	pipelineName := fmt.Sprintf("build-%s-%s-pkg-tsh", b.os, b.arch)
+	dependentPipeline := fmt.Sprintf("build-%s-%s", b.os, b.arch)
 	if b.fips {
 		pipelineName = fmt.Sprintf("build-%s-%s-fips-pkg-tsh", b.os, b.arch)
+		dependentPipeline = fmt.Sprintf("build-%s-%s-fips", b.os, b.arch)
 	}
 
 	p := newExecPipeline(pipelineName)
@@ -121,6 +126,7 @@ func newDarwinTagTshPackagePipeline(b buildType) pipeline {
 		"RUNTIME": goRuntime,
 	}
 	p.Trigger = triggerTag
+	p.DependsOn = []string{dependentPipeline}
 	p.Workspace = workspace{Path: filepath.Join("/tmp", pipelineName)}
 
 	builder := darwinTagTshPackagePipelineStepBuilder{
@@ -333,7 +339,7 @@ func (r darwinTagTshPackagePipelineStepBuilder) copyArtifacts() step {
 			// delete temporary tarball artifacts so we don't re-upload them in the next stage
 			`rm -rf $WORKSPACE_DIR/go/artifacts/*.tar.gz`,
 			// copy release archives to artifact directory
-			`cp build/tsh*.pkg $WORKSPACE_DIR/go/artifacts`,
+			`cp e/build/tsh*.pkg $WORKSPACE_DIR/go/artifacts`,
 			// generate checksums (for mac)
 			`cd $WORKSPACE_DIR/go/artifacts && for FILE in tsh*.pkg; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l`,
 		},

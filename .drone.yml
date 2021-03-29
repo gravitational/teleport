@@ -911,6 +911,25 @@ steps:
   - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
   environment:
     WORKSPACE_DIR: /tmp/push-build-darwin-amd64-fips
+- name: Send Slack notification (exec)
+  image: plugins/slack
+  settings:
+    webhook:
+      from_secret: SLACK_WEBHOOK_DEV_TELEPORT
+  template:
+  - "*{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status
+    }}: Build #{{ build.number }}* (type: `{{ build.event }}`)\n\t\t\t`${DRONE_STAGE_NAME}`
+    artifact build failed.\n\t\t\t*Warning:* This is a genuine failure to build the
+    Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit)
+    and should be investigated immediately.\n\t\t\tCommit: <https://github.com/{{
+    repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit
+    8 }}>\n\t\t\tBranch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{
+    build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>\n\t\t\tAuthor:
+    <https://github.com/{{ build.author }}|{{ build.author }}>\n\t\t\t<{{ build.link
+    }}|Visit Drone build page ↗>\n\t\t\t"
+  when:
+    status:
+    - failure
 
 ---
 ################################################
@@ -2730,7 +2749,7 @@ trigger:
     - tag
   ref:
     include:
-    - refs/tags/fips*
+    - refs/tags/v*
   repo:
     include:
     - gravitational/*
@@ -2851,7 +2870,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/darwin_pipelines.go:100
+# Generated at dronegen/darwin_pipelines.go:94
 ################################################
 
 kind: pipeline
@@ -2865,7 +2884,7 @@ trigger:
     - tag
   ref:
     include:
-    - refs/tags/fips*
+    - refs/tags/v*
   repo:
     include:
     - gravitational/*
@@ -4239,7 +4258,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/darwin_pipelines.go:135
+# Generated at dronegen/darwin_pipelines.go:123
 ################################################
 
 kind: pipeline
@@ -4253,7 +4272,7 @@ trigger:
     - tag
   ref:
     include:
-    - refs/tags/fips*
+    - refs/tags/v*
   repo:
     include:
     - gravitational/*
@@ -5229,6 +5248,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: f29527479f0208be15a43232351639a72edb8c6b233b36b861903e3ebb1e670b
+hmac: 4b014bee91754ec9c0e407bb60663daadcac1a9c0f26efd4dda5397350dbc436
 
 ...
