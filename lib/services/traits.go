@@ -80,22 +80,27 @@ func traitsToRoles(ms TraitMappingSet, traits map[string][]string, collect func(
 		TraitLoop:
 			for _, traitValue := range traitValues {
 				for _, role := range mapping.Roles {
-					outRole, err := utils.ReplaceRegexp(mapping.Value, role, traitValue)
+					// Run the initial replacement case-insensitively. Doing so will filter out all literal non-matches
+					// but will match on case discrepancies. We do another case-sensitive match below to see if the
+					// case is different
+					outRole, err := utils.ReplaceRegexpWithConfig(mapping.Value, role, traitValue, utils.RegexpConfig{IgnoreCase: true})
 					switch {
 					case err != nil:
 						if trace.IsNotFound(err) {
-							log.WithError(err).Debugf("Failed to match expression %v, replace with: %v input: %v", mapping.Value, role, traitValue)
-							// Run the replacement in case-insensitive mode to see if it matches.
-							// If there's a match, the trait specifies a mapping which case-sensitive
-							// and we should display a warning about it
-							if _, err := utils.ReplaceRegexp(mapping.Value, role, fmt.Sprintf("(?i)^%v$", traitValue)); err == nil {
-								warnings = append(warnings, fmt.Sprintf("trait %q specifies a case-sensitive mapping which did not match due to case", traitValue))
-							}
+							log.WithError(err).Debugf("Failed to match expression %q, replace with: %q input: %q.", mapping.Value, role, traitValue)
 						}
 						// this trait value clearly did not match, move on to another
 						continue TraitLoop
 					case outRole == "":
 					case outRole != "":
+						// Run the replacement case-sensitively to see if it matches.
+						// If there's no match, the trait specifies a mapping which is case-sensitive;
+						// we should log a warning but return an error.
+						// See https://github.com/gravitational/teleport/issues/6016 for details.
+						if _, err := utils.ReplaceRegexp(mapping.Value, role, traitValue); err != nil {
+							warnings = append(warnings, fmt.Sprintf("trait %q matches value %q case-insensitively and would have yielded %q role", traitValue, mapping.Value, outRole))
+							continue
+						}
 						// skip empty replacement or empty role
 						collect(outRole, outRole != role)
 					}
@@ -103,6 +108,7 @@ func traitsToRoles(ms TraitMappingSet, traits map[string][]string, collect func(
 			}
 		}
 	}
+	return warnings
 }
 
 // literalMatcher is used to "escape" values which are not allowed to
