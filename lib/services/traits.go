@@ -17,6 +17,8 @@ limitations under the License.
 package services
 
 import (
+	"fmt"
+
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
 
@@ -25,12 +27,13 @@ import (
 )
 
 // TraitsToRoles maps the supplied traits to a list of teleport role names.
-func TraitsToRoles(ms TraitMappingSet, traits map[string][]string) []string {
-	var roles []string
-	traitsToRoles(ms, traits, func(role string, expanded bool) {
+// Returns the list of roles mapped from traits.
+// `warnings` optionally contains the list of warnings potentially interesting to the user.
+func TraitsToRoles(ms TraitMappingSet, traits map[string][]string) (warnings []string, roles []string) {
+	warnings = traitsToRoles(ms, traits, func(role string, expanded bool) {
 		roles = append(roles, role)
 	})
-	return utils.Deduplicate(roles)
+	return warnings, utils.Deduplicate(roles)
 }
 
 // TraitsToRoleMatchers maps the supplied traits to a list of role matchers. Prefer calling
@@ -68,7 +71,7 @@ func TraitsToRoleMatchers(ms TraitMappingSet, traits map[string][]string) ([]par
 }
 
 // traitsToRoles maps the supplied traits to teleport role names and passes them to a collector.
-func traitsToRoles(ms TraitMappingSet, traits map[string][]string, collect func(role string, expanded bool)) {
+func traitsToRoles(ms TraitMappingSet, traits map[string][]string, collect func(role string, expanded bool)) (warnings []string) {
 	for _, mapping := range ms {
 		for traitName, traitValues := range traits {
 			if traitName != mapping.Trait {
@@ -82,6 +85,12 @@ func traitsToRoles(ms TraitMappingSet, traits map[string][]string, collect func(
 					case err != nil:
 						if trace.IsNotFound(err) {
 							log.WithError(err).Debugf("Failed to match expression %v, replace with: %v input: %v", mapping.Value, role, traitValue)
+							// Run the replacement in case-insensitive mode to see if it matches.
+							// If there's a match, the trait specifies a mapping which case-sensitive
+							// and we should display a warning about it
+							if _, err := utils.ReplaceRegexp(mapping.Value, role, fmt.Sprintf("(?i)^%v$", traitValue)); err == nil {
+								warnings = append(warnings, fmt.Sprintf("trait %q specifies a case-sensitive mapping which did not match due to case", traitValue))
+							}
 						}
 						// this trait value clearly did not match, move on to another
 						continue TraitLoop
