@@ -215,7 +215,7 @@ func FullProfilePath(dir string) string {
 // defaultProfilePath retrieves the default path of the TSH profile.
 func defaultProfilePath() string {
 	home := os.TempDir()
-	if u, err := user.Current(); err == nil {
+	if u, err := user.Current(); err == nil && u.HomeDir != "" {
 		home = u.HomeDir
 	}
 	return filepath.Join(home, profileDir)
