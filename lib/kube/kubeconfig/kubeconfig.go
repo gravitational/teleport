@@ -75,7 +75,7 @@ func UpdateWithClient(ctx context.Context, path string, tc *client.TeleportClien
 		v.TeleportClusterName = tc.SiteName
 	}
 	var err error
-	v.Credentials, err = tc.LocalAgent().GetKey()
+	v.Credentials, err = tc.LocalAgent().GetCoreKey()
 	if err != nil {
 		return trace.Wrap(err)
 	}
