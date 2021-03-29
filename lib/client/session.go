@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -218,11 +219,11 @@ func (ns *NodeSession) interactiveSession(callback interactiveCallback) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer remoteTerm.Close()
 
 	// call the passed callback and give them the established
 	// ssh session:
 	if err := callback(sess, remoteTerm); err != nil {
+		remoteTerm.Close()
 		return trace.Wrap(err)
 	}
 
@@ -233,7 +234,10 @@ func (ns *NodeSession) interactiveSession(callback interactiveCallback) error {
 
 	// start piping input into the remote shell and pipe the output from
 	// the remote shell into stdout:
-	ns.pipeInOut(remoteTerm)
+	// Note, pipeInOut takes ownership of remoteTerm and will close it
+	// upon completion
+	var wg sync.WaitGroup
+	ns.pipeInOut(remoteTerm, &wg)
 
 	// switch the terminal to raw mode (and switch back on exit!)
 	if ns.isTerminalAttached() {
@@ -246,6 +250,7 @@ func (ns *NodeSession) interactiveSession(callback interactiveCallback) error {
 	}
 	// wait for the session to end
 	<-ns.closer.C
+	wg.Wait()
 	return nil
 }
 
@@ -539,18 +544,23 @@ func (ns *NodeSession) watchSignals(shell io.Writer) {
 
 // pipeInOut launches two goroutines: one to pipe the local input into the remote shell,
 // and another to pipe the output of the remote shell into the local output
-func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser) {
+// func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser, wg *sync.WaitGroup) {
+func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser, wg *sync.WaitGroup) {
 	// copy from the remote shell to the local output
+	wg.Add(2)
 	go func() {
 		defer ns.closer.Close()
+		defer wg.Done()
 		_, err := io.Copy(ns.stdout, shell)
 		if err != nil {
-			log.Errorf(err.Error())
+			log.Error("Error copying from shell:", err.Error())
 		}
 	}()
 	// copy from the local input to the remote shell:
 	go func() {
 		defer ns.closer.Close()
+		defer shell.Close()
+		defer wg.Done()
 		buf := make([]byte, 128)
 
 		stdin := ns.stdin
@@ -568,17 +578,22 @@ func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser) {
 			})
 		}
 		for {
-			n, err := stdin.Read(buf)
-			if err != nil {
-				fmt.Fprintf(ns.stderr, "\r\n%v\r\n", trace.Wrap(err))
+			select {
+			case <-ns.closer.C:
 				return
-			}
-
-			if n > 0 {
-				_, err = shell.Write(buf[:n])
+			default:
+				n, err := stdin.Read(buf)
 				if err != nil {
-					ns.ExitMsg = err.Error()
+					fmt.Fprintf(ns.stderr, "\r\n%v\r\n", trace.Wrap(err))
 					return
+				}
+
+				if n > 0 {
+					_, err = shell.Write(buf[:n])
+					if err != nil {
+						ns.ExitMsg = err.Error()
+						return
+					}
 				}
 			}
 		}
@@ -586,8 +601,5 @@ func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser) {
 }
 
 func (ns *NodeSession) Close() error {
-	if ns.closer != nil {
-		ns.closer.Close()
-	}
-	return nil
+	return ns.closer.Close()
 }
