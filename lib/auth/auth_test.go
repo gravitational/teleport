@@ -1093,7 +1093,7 @@ func newTestServices(t *testing.T) Services {
 		Provisioner:          local.NewProvisioningService(bk),
 		Identity:             local.NewIdentityService(bk),
 		Access:               local.NewAccessService(bk),
-		DynamicAccess:        local.NewDynamicAccessService(bk),
+		DynamicAccessExt:     local.NewDynamicAccessService(bk),
 		ClusterConfiguration: local.NewClusterConfigurationService(bk),
 		Events:               local.NewEventsService(bk),
 		IAuditLog:            events.NewDiscardAuditLog(),

@@ -414,6 +414,12 @@ func (s *server) fetchClusterPeers() error {
 		if newConn.GetProxyName() == s.ID {
 			continue
 		}
+
+		// Filter out tunnels which are not online.
+		if services.TunnelConnectionStatus(s.Clock, newConn, s.offlineThreshold) != teleport.RemoteClusterStatusOnline {
+			continue
+		}
+
 		newConns[newConn.GetName()] = newConn
 	}
 	existingConns := s.existingConns()
@@ -983,6 +989,7 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	connInfo.SetExpiry(srv.Clock.Now().Add(srv.offlineThreshold))
 
 	closeContext, cancel := context.WithCancel(srv.ctx)
 	remoteSite := &remoteSite{
