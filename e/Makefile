@@ -9,6 +9,8 @@ RELEASE_ENT = teleport-ent-$(GITTAG)-$(OS)-$(ARCH)-bin
 BINARIES ?= $(BUILDDIR)/tctl $(BUILDDIR)/teleport $(BUILDDIR)/tsh
 HOUSTON_DIR := "vendor/github.com/gravitational/houston/"
 
+GO_BINARY ?= go
+
 ifeq ("$(OS)","linux")
 # ARM builds need to specify the correct C compiler
 ifeq ("$(ARCH)","arm")
@@ -73,15 +75,15 @@ all:
 # If you are considering changing this behavior, please consult with dev team first
 .PHONY: $(BUILDDIR)/tctl
 $(BUILDDIR)/tctl:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) $(GO_BINARY) build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport: ensure-webassets-e
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) $(GO_BINARY) build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ../tool/tsh
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) $(GO_BINARY) build -tags "$(PAM_TAG) $(FIPS_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ../tool/tsh
 
 # make clean: cleans the build
 .PHONY: clean
@@ -320,6 +322,16 @@ pkg:
 	# arch and runtime are currently ignored on OS X
 	# we pass them through for consistency - they will be dropped by the build script
 	cd $(BUILDDIR) && ./build-package.sh -t ent -v $(VERSION) -p pkg -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
+
+# build tsh client-only .pkg
+.PHONY: pkg-tsh
+pkg-tsh:
+	mkdir -p $(BUILDDIR)/
+	cp ../build.assets/build-package.sh $(BUILDDIR)/
+	chmod +x $(BUILDDIR)/build-package.sh
+	# arch and runtime are currently ignored on OS X
+	# we pass them through for consistency - they will be dropped by the build script
+	cd $(BUILDDIR) && ./build-package.sh -t ent -v $(VERSION) -p pkg -a $(ARCH) -m tsh $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
 
 # build .rpm
 .PHONY: rpm
