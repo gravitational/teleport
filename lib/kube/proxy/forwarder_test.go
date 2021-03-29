@@ -59,6 +59,14 @@ func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
 		Context: auth.Context{
 			User: user,
 			Identity: auth.WrapIdentity(tlsca.Identity{
+				Username:         "remote-bob",
+				Groups:           []string{"remote group a", "remote group b"},
+				Usage:            []string{"usage a", "usage b"},
+				Principals:       []string{"principal a", "principal b"},
+				KubernetesGroups: []string{"remote k8s group a", "remote k8s group b"},
+				Traits:           map[string][]string{"trait a": []string{"b", "c"}},
+			}),
+			UnmappedIdentity: auth.WrapIdentity(tlsca.Identity{
 				Username:         "bob",
 				Groups:           []string{"group a", "group b"},
 				Usage:            []string{"usage a", "usage b"},
@@ -86,7 +94,7 @@ func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
 	c.Assert(err, check.IsNil)
 	idFromCSR, err := tlsca.FromSubject(csr.Subject, time.Time{})
 	c.Assert(err, check.IsNil)
-	c.Assert(*idFromCSR, check.DeepEquals, ctx.Identity.GetIdentity())
+	c.Assert(*idFromCSR, check.DeepEquals, ctx.UnmappedIdentity.GetIdentity())
 }
 
 func TestAuthenticate(t *testing.T) {
@@ -199,7 +207,7 @@ func TestAuthenticate(t *testing.T) {
 
 			wantCtx: &authContext{
 				kubeUsers:  utils.StringsSet([]string{"user-a"}),
-				kubeGroups: utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeGroups: utils.StringsSet([]string{teleport.KubeSystemAuthenticated}),
 				teleportCluster: teleportClusterClient{
 					name:       "remote",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -217,7 +225,25 @@ func TestAuthenticate(t *testing.T) {
 
 			wantCtx: &authContext{
 				kubeUsers:  utils.StringsSet([]string{"user-a"}),
-				kubeGroups: utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeGroups: utils.StringsSet([]string{teleport.KubeSystemAuthenticated}),
+				teleportCluster: teleportClusterClient{
+					name:       "remote",
+					remoteAddr: *utils.MustParseAddr(remoteAddr),
+					isRemote:   true,
+				},
+			},
+		},
+		{
+			desc:           "local user and remote cluster, no local kube users or groups",
+			user:           auth.LocalUser{},
+			roleKubeGroups: nil,
+			routeToCluster: "remote",
+			haveKubeCreds:  true,
+			tunnel:         tun,
+
+			wantCtx: &authContext{
+				kubeUsers:  utils.StringsSet([]string{"user-a"}),
+				kubeGroups: utils.StringsSet([]string{teleport.KubeSystemAuthenticated}),
 				teleportCluster: teleportClusterClient{
 					name:       "remote",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -346,7 +372,7 @@ func TestAuthenticate(t *testing.T) {
 
 			wantCtx: &authContext{
 				kubeUsers:   utils.StringsSet([]string{"user-a"}),
-				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeGroups:  utils.StringsSet([]string{teleport.KubeSystemAuthenticated}),
 				kubeCluster: "foo",
 				teleportCluster: teleportClusterClient{
 					name:       "remote",
@@ -559,6 +585,14 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 		Context: auth.Context{
 			User: user,
 			Identity: auth.WrapIdentity(tlsca.Identity{
+				Username:         "remote-bob",
+				Groups:           []string{"remote group a", "remote group b"},
+				Usage:            []string{"usage a", "usage b"},
+				Principals:       []string{"principal a", "principal b"},
+				KubernetesGroups: []string{"remote k8s group a", "remote k8s group b"},
+				Traits:           map[string][]string{"trait a": []string{"b", "c"}},
+			}),
+			UnmappedIdentity: auth.WrapIdentity(tlsca.Identity{
 				Username:         "bob",
 				Groups:           []string{"group a", "group b"},
 				Usage:            []string{"usage a", "usage b"},
@@ -590,6 +624,14 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 		Context: auth.Context{
 			User: user,
 			Identity: auth.WrapIdentity(tlsca.Identity{
+				Username:         "remote-bob",
+				Groups:           []string{"remote group a", "remote group b"},
+				Usage:            []string{"usage a", "usage b"},
+				Principals:       []string{"principal a", "principal b"},
+				KubernetesGroups: []string{"remote k8s group a", "remote k8s group b"},
+				Traits:           map[string][]string{"trait a": []string{"b", "c"}},
+			}),
+			UnmappedIdentity: auth.WrapIdentity(tlsca.Identity{
 				Username:         "bob",
 				Groups:           []string{"group a", "group b"},
 				Usage:            []string{"usage a", "usage b"},
@@ -619,6 +661,14 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 		Context: auth.Context{
 			User: user,
 			Identity: auth.WrapIdentity(tlsca.Identity{
+				Username:         "remote-bob",
+				Groups:           []string{"remote group a", "remote group b"},
+				Usage:            []string{"usage a", "usage b"},
+				Principals:       []string{"principal a", "principal b"},
+				KubernetesGroups: []string{"remote k8s group a", "remote k8s group b"},
+				Traits:           map[string][]string{"trait a": []string{"b", "c"}},
+			}),
+			UnmappedIdentity: auth.WrapIdentity(tlsca.Identity{
 				Username:         "bob",
 				Groups:           []string{"group a", "group b"},
 				Usage:            []string{"usage a", "usage b"},

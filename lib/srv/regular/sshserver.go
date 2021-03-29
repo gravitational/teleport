@@ -886,8 +886,9 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 					Code: events.SessionRejectedCode,
 				},
 				UserMetadata: events.UserMetadata{
-					Login: identityContext.Login,
-					User:  identityContext.TeleportUser,
+					Login:        identityContext.Login,
+					User:         identityContext.TeleportUser,
+					Impersonator: identityContext.Impersonator,
 				},
 				ConnectionMetadata: events.ConnectionMetadata{
 					Protocol:   events.EventProtocolSSH,
@@ -985,8 +986,9 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 						Code: events.SessionRejectedCode,
 					},
 					UserMetadata: events.UserMetadata{
-						Login: identityContext.Login,
-						User:  identityContext.TeleportUser,
+						Login:        identityContext.Login,
+						User:         identityContext.TeleportUser,
+						Impersonator: identityContext.Impersonator,
 					},
 					ConnectionMetadata: events.ConnectionMetadata{
 						Protocol:   events.EventProtocolSSH,
@@ -1152,8 +1154,9 @@ Loop:
 			Code: events.PortForwardCode,
 		},
 		UserMetadata: events.UserMetadata{
-			Login: scx.Identity.Login,
-			User:  scx.Identity.TeleportUser,
+			Login:        scx.Identity.Login,
+			User:         scx.Identity.TeleportUser,
+			Impersonator: scx.Identity.Impersonator,
 		},
 		ConnectionMetadata: events.ConnectionMetadata{
 			LocalAddr:  scx.ServerConn.LocalAddr().String(),
@@ -1282,7 +1285,7 @@ func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerConte
 			// recording proxy mode.
 			err := s.handleAgentForwardProxy(req, ctx)
 			if err != nil {
-				log.Debug(err)
+				log.Warn(err)
 			}
 			return nil
 		default:
@@ -1319,7 +1322,7 @@ func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerConte
 		// processing requests.
 		err := s.handleAgentForwardNode(req, ctx)
 		if err != nil {
-			log.Debug(err)
+			log.Warn(err)
 		}
 		return nil
 	default:

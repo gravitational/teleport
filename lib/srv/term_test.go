@@ -19,9 +19,6 @@ package srv
 import (
 	"os"
 	"os/user"
-	"testing"
-
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 
@@ -32,10 +29,6 @@ type TermSuite struct {
 }
 
 var _ = check.Suite(&TermSuite{})
-
-func (s *TermSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (s *TermSuite) TestGetOwner(c *check.C) {
 	tests := []struct {

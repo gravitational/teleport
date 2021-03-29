@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -237,11 +238,19 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	srv.Authorizer, err = NewAuthorizer(srv.AuthServer.Access, srv.AuthServer.Identity, srv.AuthServer.Trust)
+	srv.Authorizer, err = NewAuthorizer(srv.ClusterName, srv.AuthServer.Access, srv.AuthServer.Identity, srv.AuthServer.Trust)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return srv, nil
+}
+
+func (a *TestAuthServer) Close() error {
+	return trace.NewAggregate(
+		a.Backend.Close(),
+		a.AuditLog.Close(),
+		a.AuthServer.Close(),
+	)
 }
 
 // GenerateUserCert takes the public key in the OpenSSH `authorized_keys`
@@ -371,6 +380,7 @@ func (a *TestAuthServer) NewTestTLSServer() (*TestTLSServer, error) {
 		Authorizer:     a.Authorizer,
 		SessionService: a.SessionServer,
 		AuditLog:       a.AuditLog,
+		Emitter:        a.AuthServer.emitter,
 	}
 	srv, err := NewTestTLSServer(TestTLSServerConfig{
 		APIConfig:     apiConfig,
@@ -624,6 +634,26 @@ func (t *TestTLSServer) CloneClient(clt *Client) *Client {
 	return newClient
 }
 
+// NewClientWithCert creates a new client using given cert and private key
+func (t *TestTLSServer) NewClientWithCert(clientCert tls.Certificate) *Client {
+	tlsConfig, err := t.Identity.TLSConfig(t.AuthServer.CipherSuites)
+	if err != nil {
+		panic(err)
+	}
+	tlsConfig.Time = t.AuthServer.AuthServer.clock.Now
+	tlsConfig.Certificates = []tls.Certificate{clientCert}
+	newClient, err := NewClient(client.Config{
+		Addrs: []string{t.Addr().String()},
+		Credentials: []client.Credentials{
+			client.LoadTLS(tlsConfig),
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
+	return newClient
+}
+
 // NewClient returns new client to test server authenticated with identity
 func (t *TestTLSServer) NewClient(identity TestIdentity) (*Client, error) {
 	tlsConfig, err := t.ClientTLSConfig(identity)
@@ -632,7 +662,8 @@ func (t *TestTLSServer) NewClient(identity TestIdentity) (*Client, error) {
 	}
 
 	newClient, err := NewClient(client.Config{
-		Addrs: []string{t.Addr().String()},
+		DialInBackground: true,
+		Addrs:            []string{t.Addr().String()},
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
@@ -721,6 +752,29 @@ func CreateUserRoleAndRequestable(clt clt, username string, rolename string) (se
 	requestableRole.SetName(rolename)
 	requestableRole.SetLogins(services.Allow, []string{rolename})
 	err = clt.UpsertRole(ctx, requestableRole)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return user, nil
+}
+
+// CreateUser creates user and role and assignes role to a user, used in tests
+func CreateUser(clt clt, username string, roles ...types.Role) (types.User, error) {
+	ctx := context.TODO()
+	user, err := services.NewUser(username)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, role := range roles {
+		err = clt.UpsertRole(ctx, role)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		user.AddRole(role.GetName())
+	}
+
+	err = clt.UpsertUser(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

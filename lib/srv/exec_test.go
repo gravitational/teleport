@@ -36,21 +36,24 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/docker/docker/pkg/term"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/moby/term"
 	"gopkg.in/check.v1"
+
+	"github.com/gravitational/trace"
 )
 
 // ExecSuite also implements ssh.ConnMetadata
@@ -67,6 +70,7 @@ var _ = check.Suite(&ExecSuite{})
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise it will run tests as normal.
 func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
 	if len(os.Args) == 2 && os.Args[1] == teleport.ExecSubCommand {
@@ -80,9 +84,8 @@ func TestMain(m *testing.M) {
 }
 
 func (s *ExecSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-
-	bk, err := lite.NewWithConfig(context.TODO(), lite.Config{Path: c.MkDir()})
+	ctx := context.TODO()
+	bk, err := lite.NewWithConfig(ctx, lite.Config{Path: c.MkDir()})
 	c.Assert(err, check.IsNil)
 
 	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
@@ -113,23 +116,29 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	s.usr, _ = user.Current()
+	cert, err := apisshutils.ParseCertificate([]byte(fixtures.UserCertificateStandard))
+	c.Assert(err, check.IsNil)
 	s.ctx = &ServerContext{
-		ConnectionContext: &sshutils.ConnectionContext{},
-		IsTestStub:        true,
-		ClusterName:       "localhost",
+		ConnectionContext: &sshutils.ConnectionContext{
+			ServerConn: &ssh.ServerConn{Conn: s},
+		},
+		IsTestStub:  true,
+		ClusterName: "localhost",
 		srv: &fakeServer{
 			accessPoint: s.a,
 			auditLog:    &fakeLog{},
 			id:          "00000000-0000-0000-0000-000000000000",
 		},
-	}
-	s.ctx.Identity.Login = s.usr.Username
-	s.ctx.session = &session{id: "xxx", term: &fakeTerminal{f: f}}
-	s.ctx.Identity.TeleportUser = "galt"
-	s.ctx.ServerConn = &ssh.ServerConn{Conn: s}
-	s.ctx.ExecRequest = &localExec{Ctx: s.ctx}
-	s.ctx.request = &ssh.Request{
-		Type: sshutils.ExecRequest,
+		Identity: IdentityContext{
+			Login:        s.usr.Username,
+			TeleportUser: "galt",
+			Certificate:  cert,
+		},
+		session:     &session{id: "xxx", term: &fakeTerminal{f: f}},
+		ExecRequest: &localExec{Ctx: s.ctx},
+		request: &ssh.Request{
+			Type: sshutils.ExecRequest,
+		},
 	}
 
 	term, err := newLocalTerminal(s.ctx)

@@ -300,6 +300,9 @@ func (f *websocketForwarder) copyRequest(req *http.Request) (outReq *http.Reques
 	outReq.URL = utils.CopyURL(req.URL)
 	outReq.URL.Scheme = req.URL.Scheme
 	outReq.URL.Host = req.URL.Host
+	if f.rewriter != nil {
+		f.rewriter.Rewrite(outReq)
+	}
 	return outReq
 }
 

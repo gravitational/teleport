@@ -19,24 +19,19 @@ package services
 import (
 	"encoding/json"
 	"fmt"
-	"testing"
 
 	"github.com/coreos/go-oidc/jose"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 	saml2 "github.com/russellhaering/gosaml2"
 	"github.com/russellhaering/gosaml2/types"
 	"gopkg.in/check.v1"
+
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 type UserSuite struct {
 }
 
 var _ = check.Suite(&UserSuite{})
-
-func (s *UserSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (s *UserSuite) TestTraits(c *check.C) {
 	var tests = []struct {

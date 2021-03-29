@@ -97,6 +97,11 @@ type Role interface {
 	// SetAccessRequestConditions sets allow/deny conditions for access requests.
 	SetAccessRequestConditions(RoleConditionType, AccessRequestConditions)
 
+	// GetAccessReviewConditions gets allow/deny conditions for access review.
+	GetAccessReviewConditions(RoleConditionType) AccessReviewConditions
+	// SetAccessReviewConditions sets allow/deny conditions for access review.
+	SetAccessReviewConditions(RoleConditionType, AccessReviewConditions)
+
 	// GetDatabaseLabels gets the map of db labels this role is allowed or denied access to.
 	GetDatabaseLabels(RoleConditionType) Labels
 	// SetDatabaseLabels sets the map of db labels this role is allowed or denied access to.
@@ -111,6 +116,11 @@ type Role interface {
 	GetDatabaseUsers(RoleConditionType) []string
 	// SetDatabaseUsers sets a list of database users this role is allowed or denied access to.
 	SetDatabaseUsers(RoleConditionType, []string)
+
+	// GetImpersonateConditions returns conditions this role is allowed or denied to impersonate.
+	GetImpersonateConditions(rct RoleConditionType) ImpersonateConditions
+	// SetImpersonateConditions returns conditions this role is allowed or denied to impersonate.
+	SetImpersonateConditions(rct RoleConditionType, cond ImpersonateConditions)
 }
 
 // NewRole constructs new standard role
@@ -177,6 +187,9 @@ func (r *RoleV3) Equals(other Role) bool {
 			return false
 		}
 		if !r.GetKubernetesLabels(condition).Equals(other.GetKubernetesLabels(condition)) {
+			return false
+		}
+		if !r.GetImpersonateConditions(condition).Equals(other.GetImpersonateConditions(condition)) {
 			return false
 		}
 	}
@@ -334,6 +347,27 @@ func (r *RoleV3) SetAccessRequestConditions(rct RoleConditionType, cond AccessRe
 	}
 }
 
+// GetAccessReviewConditions gets conditions for access reviews.
+func (r *RoleV3) GetAccessReviewConditions(rct RoleConditionType) AccessReviewConditions {
+	cond := r.Spec.Deny.ReviewRequests
+	if rct == Allow {
+		cond = r.Spec.Allow.ReviewRequests
+	}
+	if cond == nil {
+		return AccessReviewConditions{}
+	}
+	return *cond
+}
+
+// SetAccessReviewConditions sets allow/deny conditions for access reviews.
+func (r *RoleV3) SetAccessReviewConditions(rct RoleConditionType, cond AccessReviewConditions) {
+	if rct == Allow {
+		r.Spec.Allow.ReviewRequests = &cond
+	} else {
+		r.Spec.Deny.ReviewRequests = &cond
+	}
+}
+
 // GetNamespaces gets a list of namespaces this role is allowed or denied access to.
 func (r *RoleV3) GetNamespaces(rct RoleConditionType) []string {
 	if rct == Allow {
@@ -472,6 +506,27 @@ func (r *RoleV3) SetDatabaseUsers(rct RoleConditionType, values []string) {
 	}
 }
 
+// GetImpersonateConditions returns conditions this role is allowed or denied to impersonate.
+func (r *RoleV3) GetImpersonateConditions(rct RoleConditionType) ImpersonateConditions {
+	cond := r.Spec.Deny.Impersonate
+	if rct == Allow {
+		cond = r.Spec.Allow.Impersonate
+	}
+	if cond == nil {
+		return ImpersonateConditions{}
+	}
+	return *cond
+}
+
+// SetImpersonateConditions returns conditions this role is allowed or denied to impersonate.
+func (r *RoleV3) SetImpersonateConditions(rct RoleConditionType, cond ImpersonateConditions) {
+	if rct == Allow {
+		r.Spec.Allow.Impersonate = &cond
+	} else {
+		r.Spec.Deny.Impersonate = &cond
+	}
+}
+
 // GetRules gets all allow or deny rules.
 func (r *RoleV3) GetRules(rct RoleConditionType) []Rule {
 	if rct == Allow {
@@ -592,7 +647,19 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 			return trace.BadParameter("failed to process 'deny' rule %v: %v", i, err)
 		}
 	}
-
+	if r.Spec.Allow.Impersonate != nil {
+		if err := r.Spec.Allow.Impersonate.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if r.Spec.Deny.Impersonate != nil {
+		if r.Spec.Deny.Impersonate.Where != "" {
+			return trace.BadParameter("'where' is not supported in deny.impersonate conditions")
+		}
+		if err := r.Spec.Deny.Impersonate.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	return nil
 }
 
@@ -649,6 +716,37 @@ func (r *RoleConditions) Equals(o RoleConditions) bool {
 		}
 	}
 	return true
+}
+
+// IsEmpty returns true if conditions are unspecified
+func (i ImpersonateConditions) IsEmpty() bool {
+	return len(i.Users) == 0 || len(i.Roles) == 0
+}
+
+// Equals returns true if the impersonate conditions (logins, roles
+// and rules) are equal and false if they are not.
+func (i ImpersonateConditions) Equals(o ImpersonateConditions) bool {
+	if !utils.StringSlicesEqual(i.Users, o.Users) {
+		return false
+	}
+	if !utils.StringSlicesEqual(i.Roles, o.Roles) {
+		return false
+	}
+	if i.Where != o.Where {
+		return false
+	}
+	return true
+}
+
+// CheckAndSetDefaults checks and sets default values
+func (i ImpersonateConditions) CheckAndSetDefaults() error {
+	if len(i.Users) != 0 && len(i.Roles) == 0 {
+		return trace.BadParameter("please set both impersonate.users and impersonate.roles")
+	}
+	if len(i.Users) == 0 && len(i.Roles) != 0 {
+		return trace.BadParameter("please set both impersonate.users and impersonate.roles")
+	}
+	return nil
 }
 
 // NewRule creates a rule based on a resource name and a list of verbs

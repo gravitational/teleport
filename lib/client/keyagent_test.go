@@ -24,20 +24,19 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"testing"
 	"time"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 
@@ -56,8 +55,6 @@ type KeyAgentTestSuite struct {
 var _ = check.Suite(&KeyAgentTestSuite{})
 
 func (s *KeyAgentTestSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	var err error
 	// path to temporary  ~/.tsh directory to use during tests
 	s.keyDir, err = ioutil.TempDir("", "keyagent-test-")
@@ -100,7 +97,9 @@ func (s *KeyAgentTestSuite) SetUpTest(c *check.C) {
 //     a teleport key with the teleport username.
 func (s *KeyAgentTestSuite) TestAddKey(c *check.C) {
 	// make a new local agent
-	lka, err := NewLocalAgent(s.keyDir, s.hostname, s.username, true)
+	keystore, err := NewFSLocalKeyStore(s.keyDir)
+	c.Assert(err, check.IsNil)
+	lka, err := NewLocalAgent(keystore, s.hostname, s.username, AddKeysToAgentAuto)
 	c.Assert(err, check.IsNil)
 
 	// add the key to the local agent, this should write the key
@@ -109,7 +108,7 @@ func (s *KeyAgentTestSuite) TestAddKey(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// check that the key has been written to disk
-	for _, ext := range []string{fileExtCert, "", fileExtPub} {
+	for _, ext := range []string{constants.FileExtSSHCert, "", constants.FileExtPub} {
 		_, err := os.Stat(fmt.Sprintf("%v/keys/%v/%v%v", s.keyDir, s.hostname, s.username, ext))
 		c.Assert(err, check.IsNil)
 	}
@@ -159,7 +158,9 @@ func (s *KeyAgentTestSuite) TestLoadKey(c *check.C) {
 	userdata := []byte("hello, world")
 
 	// make a new local agent
-	lka, err := NewLocalAgent(s.keyDir, s.hostname, s.username, true)
+	keystore, err := NewFSLocalKeyStore(s.keyDir)
+	c.Assert(err, check.IsNil)
+	lka, err := NewLocalAgent(keystore, s.hostname, s.username, AddKeysToAgentAuto)
 	c.Assert(err, check.IsNil)
 
 	// unload any keys that might be in the agent for this user
@@ -217,7 +218,9 @@ func (s *KeyAgentTestSuite) TestLoadKey(c *check.C) {
 
 func (s *KeyAgentTestSuite) TestHostCertVerification(c *check.C) {
 	// Make a new local agent.
-	lka, err := NewLocalAgent(s.keyDir, s.hostname, s.username, true)
+	keystore, err := NewFSLocalKeyStore(s.keyDir)
+	c.Assert(err, check.IsNil)
+	lka, err := NewLocalAgent(keystore, s.hostname, s.username, AddKeysToAgentAuto)
 	c.Assert(err, check.IsNil)
 
 	// By default user has not refused any hosts.
@@ -298,7 +301,9 @@ func (s *KeyAgentTestSuite) TestHostCertVerification(c *check.C) {
 
 func (s *KeyAgentTestSuite) TestHostKeyVerification(c *check.C) {
 	// make a new local agent
-	lka, err := NewLocalAgent(s.keyDir, s.hostname, s.username, true)
+	keystore, err := NewFSLocalKeyStore(s.keyDir)
+	c.Assert(err, check.IsNil)
+	lka, err := NewLocalAgent(keystore, s.hostname, s.username, AddKeysToAgentAuto)
 	c.Assert(err, check.IsNil)
 
 	// by default user has not refused any hosts:
@@ -352,7 +357,9 @@ func (s *KeyAgentTestSuite) TestHostKeyVerification(c *check.C) {
 func (s *KeyAgentTestSuite) TestDefaultHostPromptFunc(c *check.C) {
 	keygen := testauthority.New()
 
-	a, err := NewLocalAgent(s.keyDir, s.hostname, s.username, true)
+	keystore, err := NewFSLocalKeyStore(s.keyDir)
+	c.Assert(err, check.IsNil)
+	a, err := NewLocalAgent(keystore, s.hostname, s.username, AddKeysToAgentAuto)
 	c.Assert(err, check.IsNil)
 
 	_, keyBytes, err := keygen.GenerateKeyPair("")

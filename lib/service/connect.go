@@ -367,6 +367,7 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 			CAPin:                process.Config.CAPin,
 			CAPath:               filepath.Join(defaults.DataDir, defaults.CACertFile),
 			GetHostCredentials:   client.HostCredentials,
+			Clock:                process.Clock,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -820,7 +821,7 @@ func (process *TeleportProcess) findReverseTunnel(addrs []utils.NetAddr) (string
 	for _, addr := range addrs {
 		// In insecure mode, any certificate is accepted. In secure mode the hosts
 		// CAs are used to validate the certificate on the proxy.
-		resp, err := client.Find(process.ExitContext(),
+		resp, err := apiclient.Find(process.ExitContext(),
 			addr.String(),
 			lib.IsInsecureDevMode(),
 			nil)
@@ -837,7 +838,7 @@ func (process *TeleportProcess) findReverseTunnel(addrs []utils.NetAddr) (string
 //  2. SSH Proxy Public Address.
 //  3. HTTP Proxy Public Address.
 //  4. Tunnel Listen Address.
-func tunnelAddr(settings client.ProxySettings) (string, error) {
+func tunnelAddr(settings apiclient.ProxySettings) (string, error) {
 	// Extract the port the tunnel server is listening on.
 	netAddr, err := utils.ParseHostPortAddr(settings.SSH.TunnelListenAddr, defaults.SSHProxyTunnelListenPort)
 	if err != nil {

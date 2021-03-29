@@ -18,6 +18,7 @@ limitations under the License.
 package memsessions
 
 import (
+	"os"
 	"testing"
 
 	"github.com/gravitational/teleport/lib/events"
@@ -25,10 +26,13 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
+
 // TestStreams tests various streaming upload scenarios
 func TestStreams(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	// Stream with handler and many parts
 	t.Run("StreamManyParts", func(t *testing.T) {
 		test.StreamManyParts(t, events.NewMemoryUploader())

@@ -18,6 +18,7 @@ package client
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"github.com/gravitational/teleport/api/types"
@@ -28,6 +29,11 @@ import (
 	"gopkg.in/check.v1"
 )
 
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
+
 // register test suite
 type APITestSuite struct {
 }
@@ -36,10 +42,6 @@ type APITestSuite struct {
 func TestClientAPI(t *testing.T) { check.TestingT(t) }
 
 var _ = check.Suite(&APITestSuite{})
-
-func (s *APITestSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (s *APITestSuite) TestConfig(c *check.C) {
 	var conf Config

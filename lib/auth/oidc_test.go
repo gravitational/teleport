@@ -18,14 +18,12 @@ package auth
 
 import (
 	"context"
-	"testing"
 	"time"
 
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
@@ -40,8 +38,6 @@ type OIDCSuite struct {
 var _ = check.Suite(&OIDCSuite{})
 
 func (s *OIDCSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	s.c = clockwork.NewFakeClockAt(time.Now())
 
 	var err error

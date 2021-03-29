@@ -19,6 +19,7 @@ package db
 import (
 	"context"
 	"net"
+	"os"
 	"testing"
 	"time"
 
@@ -40,6 +41,11 @@ import (
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 // TestPostgresAccess verifies access scenarios to a Postgres database based
 // on the configured RBAC rules.
@@ -386,8 +392,6 @@ func (c *testContext) Close() error {
 }
 
 func setupTestContext(ctx context.Context, t *testing.T) *testContext {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	clusterName := "root.example.com"
 	postgresServerName := "postgres-test"
 	mysqlServerName := "mysql-test"
@@ -423,13 +427,13 @@ func setupTestContext(ctx context.Context, t *testing.T) *testContext {
 	// Auth client/authorizer for database service.
 	dbAuthClient, err := tlsServer.NewClient(auth.TestServerID(teleport.RoleDatabase, hostID))
 	require.NoError(t, err)
-	dbAuthorizer, err := auth.NewAuthorizer(dbAuthClient, dbAuthClient, dbAuthClient)
+	dbAuthorizer, err := auth.NewAuthorizer(clusterName, dbAuthClient, dbAuthClient, dbAuthClient)
 	require.NoError(t, err)
 
 	// Auth client/authorizer for database proxy.
 	proxyAuthClient, err := tlsServer.NewClient(auth.TestBuiltin(teleport.RoleProxy))
 	require.NoError(t, err)
-	proxyAuthorizer, err := auth.NewAuthorizer(proxyAuthClient, proxyAuthClient, proxyAuthClient)
+	proxyAuthorizer, err := auth.NewAuthorizer(clusterName, proxyAuthClient, proxyAuthClient, proxyAuthClient)
 	require.NoError(t, err)
 
 	// TLS config for database proxy and database service.

@@ -33,17 +33,23 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 
 	"gopkg.in/check.v1"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 type Suite struct {
 	clock        clockwork.FakeClock
@@ -72,8 +78,6 @@ var _ = check.Suite(&Suite{})
 func TestApp(t *testing.T) { check.TestingT(t) }
 
 func (s *Suite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	s.clock = clockwork.NewFakeClock()
 	s.dataDir = c.MkDir()
 
@@ -175,7 +179,13 @@ func (s *Suite) SetUpTest(c *check.C) {
 	// Generate certificate for user.
 	privateKey, publicKey, err := s.tlsServer.Auth().GenerateKeyPair("")
 	c.Assert(err, check.IsNil)
-	certificate, err := s.tlsServer.Auth().GenerateUserAppTestCert(publicKey, s.user.GetName(), 1*time.Hour, "foo.example.com", "root.example.com")
+	certificate, err := s.tlsServer.Auth().GenerateUserAppTestCert(auth.AppTestCertRequest{
+		PublicKey:   publicKey,
+		Username:    s.user.GetName(),
+		TTL:         1 * time.Hour,
+		PublicAddr:  "foo.example.com",
+		ClusterName: "root.example.com",
+	})
 	c.Assert(err, check.IsNil)
 	s.clientCertificate, err = tls.X509KeyPair(certificate, privateKey)
 	c.Assert(err, check.IsNil)
@@ -187,7 +197,7 @@ func (s *Suite) SetUpTest(c *check.C) {
 	), 0755)
 	c.Assert(err, check.IsNil)
 
-	authorizer, err := auth.NewAuthorizer(s.authClient, s.authClient, s.authClient)
+	authorizer, err := auth.NewAuthorizer("cluster-name", s.authClient, s.authClient, s.authClient)
 	c.Assert(err, check.IsNil)
 
 	s.appServer, err = New(context.Background(), &Config{

@@ -23,9 +23,8 @@ limitations under the License.
 #include <utmp.h>
 #include <errno.h>
 #include <stdbool.h>
-
-#define SELECT_UTMP_PATH(x) x != NULL ? x : _PATH_UTMP
-#define SELECT_WTMP_PATH(x) x != NULL ? x : _PATH_WTMP
+#include <stdlib.h>
+#include <limits.h>
 
 int UACC_UTMP_MISSING_PERMISSIONS = 1;
 int UACC_UTMP_WRITE_ERROR = 2;
@@ -45,6 +44,26 @@ int UACC_UTMP_FAILED_TO_SELECT_FILE = 6;
 // This decision is one of the origins of `strncpy` which has the special property that it will not write a NUL terminator if the
 // source string excluding the NUL terminator is of equal or greater length in comparison to the limit parameter.
 
+// get_absolute_path_with_fallback attempts to resolve the `supplied_path` path. If `supplied` is null it will
+// resolve the `fallback_path` path. The resolved path is stored in `buffer` and will at most be
+// `PATH_MAX` long including the null terminator.
+static char* get_absolute_path_with_fallback(char* buffer, const char* supplied_path, const char* fallback_path) {
+    const char* path;
+
+    if (supplied_path != NULL) {
+        path = supplied_path;
+    } else {
+        path = fallback_path;
+    }
+
+    return realpath(path, buffer);
+}
+
+// Allow the Go side to read errno.
+static int get_errno() {
+    return errno;
+}
+
 // The max byte length of the C string representing the TTY name.
 static int max_len_tty_name() {
     return UT_LINESIZE;
@@ -53,7 +72,9 @@ static int max_len_tty_name() {
 // Low level C function to add a new USER_PROCESS entry to the database.
 // This function does not perform any argument validation.
 static int uacc_add_utmp_entry(const char *utmp_path, const char *wtmp_path, const char *username, const char *hostname, const int32_t remote_addr_v6[4], const char *tty_name, const char *id, int32_t tv_sec, int32_t tv_usec) {
-    if (utmpname(SELECT_UTMP_PATH(utmp_path)) != 0) {
+    char resolved_utmp_buffer[PATH_MAX];
+    const char* file = get_absolute_path_with_fallback(&resolved_utmp_buffer[0], utmp_path, _PATH_UTMP);
+    if (utmpname(file) < 0) {
         return UACC_UTMP_FAILED_TO_SELECT_FILE;
     }
     struct utmp entry;
@@ -63,13 +84,13 @@ static int uacc_add_utmp_entry(const char *utmp_path, const char *wtmp_path, con
     entry.ut_pid = getpid();
     strncpy((char*) &entry.ut_host, hostname, sizeof(entry.ut_host));
     strncpy((char*) &entry.ut_user, username, sizeof(entry.ut_user));
-    entry.ut_session = 1;
+    entry.ut_session = getsid(0);
     entry.ut_tv.tv_sec = tv_sec;
     entry.ut_tv.tv_usec = tv_usec;
     memcpy(&entry.ut_addr_v6, &remote_addr_v6, sizeof(int32_t) * 4);
     errno = 0;
     setutent();
-    if (errno != 0) {
+    if (errno > 0) {
         return UACC_UTMP_FAILED_OPEN;
     }
     if (pututline(&entry) == NULL) {
@@ -77,19 +98,23 @@ static int uacc_add_utmp_entry(const char *utmp_path, const char *wtmp_path, con
         return errno == EPERM || errno == EACCES ? UACC_UTMP_MISSING_PERMISSIONS : UACC_UTMP_WRITE_ERROR;
     }
     endutent();
-    updwtmp(SELECT_WTMP_PATH(wtmp_path), &entry);
+    char resolved_wtmp_buffer[PATH_MAX];
+    const char* wtmp_file = get_absolute_path_with_fallback(&resolved_wtmp_buffer[0], wtmp_path, _PATH_WTMP);
+    updwtmp(wtmp_file, &entry);
     return 0;
 }
 
 // Low level C function to mark a database entry as DEAD_PROCESS.
 // This function does not perform string argument validation.
-static int uacc_mark_utmp_entry_dead(const char *utmp_path, const char *wtmp_path, const char *tty_name) {
-    if (utmpname(SELECT_UTMP_PATH(utmp_path)) != 0) {
+static int uacc_mark_utmp_entry_dead(const char *utmp_path, const char *wtmp_path, const char *tty_name, int32_t tv_sec, int32_t tv_usec) {
+    char resolved_utmp_buffer[PATH_MAX];
+    const char* file = get_absolute_path_with_fallback(&resolved_utmp_buffer[0], utmp_path, _PATH_UTMP);
+    if (utmpname(file) < 0) {
         return UACC_UTMP_FAILED_TO_SELECT_FILE;
     }
     errno = 0;
     setutent();
-    if (errno != 0) {
+    if (errno > 0) {
         return UACC_UTMP_FAILED_OPEN;
     }
     struct utmp line;
@@ -101,6 +126,13 @@ static int uacc_mark_utmp_entry_dead(const char *utmp_path, const char *wtmp_pat
     struct utmp entry;
     memcpy(&entry, entry_t, sizeof(struct utmp));
     entry.ut_type = DEAD_PROCESS;
+    memset(&entry.ut_user, 0, UT_NAMESIZE);
+    struct utmp log_entry = entry;
+    log_entry.ut_tv.tv_sec = tv_sec;
+    log_entry.ut_tv.tv_usec = tv_usec;
+    memset(&entry.ut_host, 0, UT_HOSTSIZE);
+    memset(&entry.ut_line, 0, UT_LINESIZE);
+    memset(&entry.ut_time, 0, 8);
     errno = 0;
     setutent();
     if (errno != 0) {
@@ -111,14 +143,18 @@ static int uacc_mark_utmp_entry_dead(const char *utmp_path, const char *wtmp_pat
         return errno == EPERM || errno == EACCES ? UACC_UTMP_MISSING_PERMISSIONS : UACC_UTMP_WRITE_ERROR;
     }
     endutent();
-    updwtmp(SELECT_WTMP_PATH(wtmp_path), &entry);
+    char resolved_wtmp_buffer[PATH_MAX];
+    const char* wtmp_file = get_absolute_path_with_fallback(&resolved_wtmp_buffer[0], wtmp_path, _PATH_WTMP);
+    updwtmp(wtmp_file, &log_entry);
     return 0;
 }
 
 // Low level C function to check the database for an entry for a given user.
 // This function does not perform string argument validation.
 static int uacc_has_entry_with_user(const char *utmp_path, const char *user) {
-    if (utmpname(SELECT_UTMP_PATH(utmp_path)) != 0) {
+    char resolved_utmp_buffer[PATH_MAX];
+    const char* file = get_absolute_path_with_fallback(&resolved_utmp_buffer[0], utmp_path, _PATH_UTMP);
+    if (utmpname(file) < 0) {
         return UACC_UTMP_FAILED_TO_SELECT_FILE;
     }
     errno = 0;

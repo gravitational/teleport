@@ -28,14 +28,20 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 type AuditTestSuite struct {
 	dataDir string
@@ -78,10 +84,6 @@ func (a *AuditTestSuite) makeLogWithClock(c *check.C, dataDir string, recordSess
 		return nil, trace.Wrap(err)
 	}
 	return alog, nil
-}
-
-func (a *AuditTestSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
 }
 
 func (a *AuditTestSuite) SetUpTest(c *check.C) {
@@ -395,7 +397,6 @@ func (a *AuditTestSuite) TestForwardAndUpload(c *check.C) {
 // TestLegacyHandler tests playback for legacy sessions
 // that are stored on disk in unpacked format
 func (a *AuditTestSuite) TestLegacyHandler(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
 	memory := NewMemoryUploader()
 	wrapper, err := NewLegacyHandler(LegacyHandlerConfig{
 		Handler: memory,

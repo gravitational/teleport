@@ -132,12 +132,15 @@ type IdentityContext struct {
 	// TeleportUser is the Teleport user associated with the connection.
 	TeleportUser string
 
+	// Impersonator is a user acting on behalf of other user
+	Impersonator string
+
 	// Login is the operating system user associated with the connection.
 	Login string
 
 	// Certificate is the SSH user certificate bytes marshalled in the OpenSSH
 	// authorized_keys format.
-	Certificate []byte
+	Certificate *ssh.Certificate
 
 	// CertAuthority is the Certificate Authority that signed the Certificate.
 	CertAuthority services.CertAuthority
@@ -152,21 +155,6 @@ type IdentityContext struct {
 
 	// RouteToCluster is derived from the certificate
 	RouteToCluster string
-}
-
-// GetCertificate parses the SSH certificate bytes and returns a *ssh.Certificate.
-func (c IdentityContext) GetCertificate() (*ssh.Certificate, error) {
-	k, _, _, _, err := ssh.ParseAuthorizedKey(c.Certificate)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cert, ok := k.(*ssh.Certificate)
-	if !ok {
-		return nil, trace.BadParameter("not a certificate")
-	}
-
-	return cert, nil
 }
 
 // ServerContext holds session specific context, such as SSH auth agents, PTYs,
@@ -579,9 +567,14 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 			ServerID:        c.GetServer().HostUUID(),
 			ServerNamespace: c.GetServer().GetNamespace(),
 		},
+		SessionMetadata: events.SessionMetadata{
+			SessionID: string(c.SessionID()),
+			WithMFA:   c.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
+		},
 		UserMetadata: events.UserMetadata{
-			User:  c.Identity.TeleportUser,
-			Login: c.Identity.Login,
+			User:         c.Identity.TeleportUser,
+			Login:        c.Identity.Login,
+			Impersonator: c.Identity.Impersonator,
 		},
 		ConnectionMetadata: events.ConnectionMetadata{
 			RemoteAddr: c.ServerConn.RemoteAddr().String(),
@@ -591,10 +584,6 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 	}
 	if !c.srv.UseTunnel() {
 		sessionDataEvent.ConnectionMetadata.LocalAddr = c.ServerConn.LocalAddr().String()
-	}
-	sessionID := string(c.SessionID())
-	if sessionID != "" {
-		sessionDataEvent.SessionMetadata.SessionID = sessionID
 	}
 	if err := c.GetServer().EmitAuditEvent(c.GetServer().Context(), sessionDataEvent); err != nil {
 		c.WithError(err).Warn("Failed to emit session data event.")
@@ -819,9 +808,12 @@ func closeAll(closers ...io.Closer) error {
 }
 
 func newUaccMetadata(c *ServerContext) (*UaccMetadata, error) {
-	hostname := c.srv.GetInfo().GetHostname()
-	remoteAddr := c.ConnectionContext.ServerConn.Conn.RemoteAddr()
-	preparedAddr, err := uacc.PrepareAddr(remoteAddr)
+	addr := c.ConnectionContext.ServerConn.Conn.RemoteAddr()
+	hostname, _, err := net.SplitHostPort(addr.String())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	preparedAddr, err := uacc.PrepareAddr(addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -82,11 +82,11 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
-	defer file.Close()
 
-	if _, err := io.Copy(file, partBody); err != nil {
-		if err := os.Remove(partPath); err != nil {
-			h.WithError(err).Warningf("Failed to remove file %v.", partPath)
+	_, err = io.Copy(file, partBody)
+	if err = trace.NewAggregate(err, file.Close()); err != nil {
+		if rmErr := os.Remove(partPath); rmErr != nil {
+			h.WithError(rmErr).Warningf("Failed to remove file %q.", partPath)
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -118,8 +118,14 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	if err := utils.FSTryWriteLock(f); err != nil {
 		return trace.Wrap(err)
 	}
-	defer f.Close()
-	defer utils.FSUnlock(f)
+	defer func() {
+		if err := f.Close(); err != nil {
+			h.WithError(err).Errorf("Failed to close file %q.", uploadPath)
+		}
+		if err := utils.FSUnlock(f); err != nil {
+			h.WithError(err).Errorf("Failed to unlock filesystem lock.")
+		}
+	}()
 
 	files := make([]*os.File, 0, len(parts))
 	readers := make([]io.Reader, 0, len(parts))
@@ -127,7 +133,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	defer func() {
 		for i := 0; i < len(files); i++ {
 			if err := files[i].Close(); err != nil {
-				h.WithError(err).Errorf("Failed to close file %v", files[i].Name())
+				h.WithError(err).Errorf("Failed to close file %q.", files[i].Name())
 			}
 		}
 	}()
@@ -154,7 +160,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 
 	err = os.RemoveAll(h.uploadRootPath(upload))
 	if err != nil {
-		h.WithError(err).Errorf("Failed to remove upload %v.", upload.ID)
+		h.WithError(err).Errorf("Failed to remove upload %q.", upload.ID)
 	}
 	return nil
 }

@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
 )
 
@@ -81,7 +82,11 @@ func (c transportConfig) Check() error {
 type transport struct {
 	c *transportConfig
 
+	// tr is used for forwarding http connections.
 	tr http.RoundTripper
+
+	// dialer is used for forwarding websocket connections.
+	dialer forward.Dialer
 }
 
 // newTransport creates a new transport.
@@ -102,8 +107,9 @@ func newTransport(c *transportConfig) (*transport, error) {
 	}
 
 	return &transport{
-		c:  c,
-		tr: tr,
+		c:      c,
+		tr:     tr,
+		dialer: websocketsDialer(tr),
 	}, nil
 }
 
@@ -132,6 +138,13 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 	r.URL.Scheme = "https"
 	r.URL.Host = teleport.APIDomain
 
+	// Don't trust any "X-Forward-*" headers the client sends, instead set own and then
+	// forward request.
+	headers := &forward.HeaderRewriter{
+		TrustForwardHeader: false,
+	}
+	headers.Rewrite(r)
+
 	// Remove the application session cookie from the header. This is done by
 	// first wiping out the "Cookie" header then adding back all cookies
 	// except the application session cookie. This appears to be the safest way
@@ -139,13 +152,26 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 	cookies := r.Cookies()
 	r.Header.Del("Cookie")
 	for _, cookie := range cookies {
-		if cookie.Name == CookieName {
+		if cookie.Name == CookieName || cookie.Name == AuthStateCookieName {
 			continue
 		}
 		r.AddCookie(cookie)
 	}
 
 	return nil
+}
+
+// websocketsDialer returns a function that dials a websocket connection
+// over the transport's reverse tunnel.
+func websocketsDialer(tr *http.Transport) forward.Dialer {
+	return func(network, address string) (net.Conn, error) {
+		conn, err := tr.DialContext(context.Background(), network, address)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// App access connections over reverse tunnel use mutual TLS.
+		return tls.Client(conn, tr.TLSClientConfig), nil
+	}
 }
 
 // dialFunc returns a function that can Dial and connect to the application

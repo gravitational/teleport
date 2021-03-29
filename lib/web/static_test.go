@@ -19,8 +19,10 @@ package web
 import (
 	"io"
 	"io/ioutil"
+	"os"
 	"strings"
 
+	"github.com/gravitational/trace"
 	"gopkg.in/check.v1"
 )
 
@@ -46,7 +48,7 @@ func (s *StaticSuite) TestLocalFS(c *check.C) {
 }
 
 func (s *StaticSuite) TestZipFS(c *check.C) {
-	fs, err := readZipArchive("../../fixtures/assets.zip")
+	fs, err := readZipArchiveAt("../../fixtures/assets.zip")
 	c.Assert(err, check.IsNil)
 	c.Assert(fs, check.NotNil)
 
@@ -86,4 +88,20 @@ func (s *StaticSuite) TestZipFS(c *check.C) {
 	bytes, err = ioutil.ReadAll(f)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(bytes), check.Equals, 100)
+}
+
+func readZipArchiveAt(path string) (ResourceMap, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// file needs to stay open for http.FileSystem reads to work
+	//
+	// feed the binary into the zip reader and enumerate all files
+	// found in the attached zip file:
+	info, err := file.Stat()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return readZipArchive(file, info.Size())
 }

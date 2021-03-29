@@ -26,21 +26,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
+
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/session"
+
+	"github.com/gravitational/trace"
 )
 
 // TestUploadOK tests async file uploads scenarios
 func TestUploadOK(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	p := newUploaderPack(t, nil)
 	defer p.Close(t)
 
@@ -76,8 +74,6 @@ func TestUploadOK(t *testing.T) {
 // TestUploadParallel verifies several parallel uploads that have to wait
 // for semaphore
 func TestUploadParallel(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	p := newUploaderPack(t, nil)
 	defer p.Close(t)
 
@@ -141,7 +137,6 @@ type resumeTestTuple struct {
 
 // TestUploadResume verifies successful upload run after the stream has been interrupted
 func TestUploadResume(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
 	testCases := []resumeTestCase{
 		{
 			name:    "stream terminates in the middle of submission",
@@ -311,8 +306,6 @@ func TestUploadResume(t *testing.T) {
 // TestUploadBackoff introduces upload failure
 // and makes sure that the uploader starts backing off.
 func TestUploadBackoff(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	terminateConnectionAt := atomic.NewInt64(700)
 
 	p := newUploaderPack(t, func(streamer events.Streamer) (events.Streamer, error) {
@@ -402,8 +395,6 @@ func TestUploadBackoff(t *testing.T) {
 // TestUploadBadSession creates a corrupted session file
 // and makes sure the uploader marks it as faulty
 func TestUploadBadSession(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	p := newUploaderPack(t, nil)
 	defer p.Close(t)
 

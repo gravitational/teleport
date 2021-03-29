@@ -102,12 +102,14 @@ func TestRootUTMPEntryExists(t *testing.T) {
 		time.Sleep(time.Second)
 		entryExists := uacc.UserWithPtyInDatabase(s.utmpPath, teleportTestUser)
 		if entryExists == nil {
-			break
+			return
 		}
 		if !trace.IsNotFound(entryExists) {
 			require.NoError(t, err)
 		}
 	}
+
+	t.Errorf("did not detect utmp entry within 5 minutes")
 }
 
 // upack holds all ssh signing artefacts needed for signing and checking user keys

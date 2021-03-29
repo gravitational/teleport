@@ -32,8 +32,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/dustin/go-humanize"
-	ui "github.com/gizak/termui"
-	"github.com/gizak/termui/widgets"
+	ui "github.com/gizak/termui/v3"
+	"github.com/gizak/termui/v3/widgets"
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"

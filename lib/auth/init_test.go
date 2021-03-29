@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
@@ -40,13 +41,13 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/trace"
 )
 
 // TestReadIdentity makes parses identity from private key and certificate
@@ -90,10 +91,8 @@ func TestReadIdentity(t *testing.T) {
 		TTL:                 ttl,
 	})
 	require.NoError(t, err)
-	pk, _, _, _, err := ssh.ParseAuthorizedKey(bytes)
+	copy, err := apisshutils.ParseCertificate(bytes)
 	require.NoError(t, err)
-	copy, ok := pk.(*ssh.Certificate)
-	require.True(t, ok)
 	require.Equal(t, uint64(expiryDate.Unix()), copy.ValidBefore)
 }
 
@@ -481,11 +480,62 @@ func TestMigrateMFADevices(t *testing.T) {
 	require.Empty(t, cmp.Diff(users, wantUsers, cmpOpts...))
 }
 
+// TestPresets tests behavior of presets
+func TestPresets(t *testing.T) {
+	ctx := context.Background()
+	roles := []services.Role{
+		services.NewPresetEditorRole(),
+		services.NewPresetAccessRole(),
+		services.NewPresetAuditorRole()}
+
+	t.Run("EmptyCluster", func(t *testing.T) {
+		as := newTestAuthServer(t)
+		clock := clockwork.NewFakeClock()
+		as.SetClock(clock)
+
+		err := createPresets(ctx, as)
+		require.NoError(t, err)
+
+		// Second call should not fail
+		err = createPresets(ctx, as)
+		require.NoError(t, err)
+
+		// Presets were created
+		for _, role := range roles {
+			_, err := as.GetRole(ctx, role.GetName())
+			require.NoError(t, err)
+		}
+	})
+
+	// Makes sure that existing role with the same name is not modified
+	t.Run("ExistingRole", func(t *testing.T) {
+		as := newTestAuthServer(t)
+		clock := clockwork.NewFakeClock()
+		as.SetClock(clock)
+
+		access := services.NewPresetEditorRole()
+		access.SetLogins(types.Allow, []string{"root"})
+		err := as.CreateRole(access)
+		require.NoError(t, err)
+
+		err = createPresets(ctx, as)
+		require.NoError(t, err)
+
+		// Presets were created
+		for _, role := range roles {
+			_, err := as.GetRole(ctx, role.GetName())
+			require.NoError(t, err)
+		}
+
+		out, err := as.GetRole(ctx, access.GetName())
+		require.NoError(t, err)
+		require.Equal(t, access.GetLogins(types.Allow), out.GetLogins(types.Allow))
+	})
+}
+
 // TestMigrateOSS tests migration of OSS users, github connectors
 // and trusted clusters
 func TestMigrateOSS(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	ctx := context.Background()
 
 	t.Run("EmptyCluster", func(t *testing.T) {
@@ -493,22 +543,31 @@ func TestMigrateOSS(t *testing.T) {
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
-		err := migrateOSS(ctx, as)
+		// create non-migrated admin role
+		err := as.CreateRole(services.NewAdminRole())
+		require.NoError(t, err)
+
+		err = migrateOSS(ctx, as)
 		require.NoError(t, err)
 
 		// Second call should not fail
 		err = migrateOSS(ctx, as)
 		require.NoError(t, err)
 
-		// OSS user role was created
-		_, err = as.GetRole(teleport.OSSUserRoleName)
+		// OSS user role was updated
+		role, err := as.GetRole(ctx, teleport.AdminRoleName)
 		require.NoError(t, err)
+		require.Equal(t, types.True, role.GetMetadata().Labels[teleport.OSSMigratedV6])
 	})
 
 	t.Run("User", func(t *testing.T) {
 		as := newTestAuthServer(t)
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
+
+		// create non-migrated admin role to kick off migration
+		err := as.CreateRole(services.NewAdminRole())
+		require.NoError(t, err)
 
 		user, _, err := CreateUserAndRole(as, "alice", []string{"alice"})
 		require.NoError(t, err)
@@ -518,7 +577,7 @@ func TestMigrateOSS(t *testing.T) {
 
 		out, err := as.GetUser(user.GetName(), false)
 		require.NoError(t, err)
-		require.Equal(t, []string{teleport.OSSUserRoleName}, out.GetRoles())
+		require.Equal(t, []string{teleport.AdminRoleName}, out.GetRoles())
 		require.Equal(t, types.True, out.GetMetadata().Labels[teleport.OSSMigratedV6])
 
 		err = migrateOSS(ctx, as)
@@ -530,6 +589,10 @@ func TestMigrateOSS(t *testing.T) {
 		as := newTestAuthServer(t, clusterName)
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
+
+		// create non-migrated admin role to kick off migration
+		err := as.CreateRole(services.NewAdminRole())
+		require.NoError(t, err)
 
 		foo, err := services.NewTrustedCluster("foo", services.TrustedClusterSpecV2{
 			Enabled:              false,
@@ -559,9 +622,9 @@ func TestMigrateOSS(t *testing.T) {
 		err = migrateOSS(ctx, as)
 		require.NoError(t, err)
 
-		out, err := as.GetTrustedCluster(foo.GetName())
+		out, err := as.GetTrustedCluster(ctx, foo.GetName())
 		require.NoError(t, err)
-		mapping := types.RoleMap{{Remote: remoteWildcardPattern, Local: []string{teleport.OSSUserRoleName}}}
+		mapping := types.RoleMap{{Remote: teleport.AdminRoleName, Local: []string{teleport.AdminRoleName}}}
 		require.Equal(t, mapping, out.GetRoleMap())
 
 		for _, catype := range []services.CertAuthType{services.UserCA, services.HostCA} {
@@ -588,6 +651,10 @@ func TestMigrateOSS(t *testing.T) {
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
+		// create non-migrated admin role to kick off migration
+		err := as.CreateRole(services.NewAdminRole())
+		require.NoError(t, err)
+
 		connector := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
 			ClientID:     "aaa",
 			ClientSecret: "bbb",
@@ -610,13 +677,13 @@ func TestMigrateOSS(t *testing.T) {
 			},
 		})
 
-		err := as.CreateGithubConnector(connector)
+		err = as.CreateGithubConnector(connector)
 		require.NoError(t, err)
 
 		err = migrateOSS(ctx, as)
 		require.NoError(t, err)
 
-		out, err := as.GetGithubConnector(connector.GetName(), false)
+		out, err := as.GetGithubConnector(ctx, connector.GetName(), false)
 		require.NoError(t, err)
 		require.Equal(t, types.True, out.GetMetadata().Labels[teleport.OSSMigratedV6])
 
@@ -625,7 +692,7 @@ func TestMigrateOSS(t *testing.T) {
 		require.Len(t, mappings, 2)
 		require.Len(t, mappings[0].Logins, 1)
 
-		r, err := as.GetRole(mappings[0].Logins[0])
+		r, err := as.GetRole(ctx, mappings[0].Logins[0])
 		require.NoError(t, err)
 		require.Equal(t, connector.GetTeamsToLogins()[0].Logins, r.GetLogins(types.Allow))
 		require.Equal(t, connector.GetTeamsToLogins()[0].KubeGroups, r.GetKubeGroups(types.Allow))
@@ -634,7 +701,7 @@ func TestMigrateOSS(t *testing.T) {
 		require.Len(t, mappings[0].KubeUsers, 0)
 
 		require.Len(t, mappings[1].Logins, 1)
-		r2, err := as.GetRole(mappings[1].Logins[0])
+		r2, err := as.GetRole(ctx, mappings[1].Logins[0])
 		require.NoError(t, err)
 		require.Equal(t, connector.GetTeamsToLogins()[1].Logins, r2.GetLogins(types.Allow))
 		require.Equal(t, connector.GetTeamsToLogins()[1].KubeGroups, r2.GetKubeGroups(types.Allow))
@@ -645,7 +712,7 @@ func TestMigrateOSS(t *testing.T) {
 		err = migrateOSS(ctx, as)
 		require.NoError(t, err)
 
-		out, err = as.GetGithubConnector(connector.GetName(), false)
+		out, err = as.GetGithubConnector(ctx, connector.GetName(), false)
 		require.NoError(t, err)
 		require.Equal(t, mappings, out.GetTeamsToLogins())
 	})

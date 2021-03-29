@@ -70,7 +70,7 @@ type (
 	RoleOptions                        = types.RoleOptions
 	RoleConditions                     = types.RoleConditions
 	AccessRequestConditions            = types.AccessRequestConditions
-	AccessRequestClaimMapping          = types.AccessRequestClaimMapping
+	AccessRequestClaimMapping          = types.ClaimMapping
 	Rule                               = types.Rule
 	BoolValue                          = types.BoolValue
 	UserV2                             = types.UserV2
@@ -331,7 +331,7 @@ type (
 	SAMLConnectorV2     = types.SAMLConnectorV2
 	SAMLConnectorSpecV2 = types.SAMLConnectorSpecV2
 	AttributeMapping    = types.AttributeMapping
-	SigningKeyPair      = types.SigningKeyPair
+	AsymmetricKeyPair   = types.AsymmetricKeyPair
 )
 
 var (
@@ -484,6 +484,7 @@ const (
 	KindClusterAuthPreference     = types.KindClusterAuthPreference
 	MetaNameClusterAuthPreference = types.MetaNameClusterAuthPreference
 	KindClusterConfig             = types.KindClusterConfig
+	KindBilling                   = types.KindBilling
 	KindSemaphore                 = types.KindSemaphore
 	MetaNameClusterConfig         = types.MetaNameClusterConfig
 	KindClusterName               = types.KindClusterName

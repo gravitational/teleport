@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2017 Gravitational, Inc.
+Copyright 2015-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -213,7 +213,7 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 			// A caller has attempted to mix legacy and new format.
 			if len(u.allowedLogins) != 0 || len(u.createRoles) != 0 {
 				return trace.BadParameter(
-					"please use --roles flag without use of logins positional argument, --k8s-users and k8s-groups flags")
+					`please use --roles and --logins flags instead of deprecated positional arguments, --k8s-users and k8s-groups flags`)
 			}
 			return u.legacyAdd(client)
 			// This is a legacy OSS scenario: `tctl users add bob`
@@ -224,12 +224,20 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 		}
 	}
 
+	// --roles is required argument, we are not using Required() modifier
+	// to merge multiple CLI flag combinations, make it required again
+	// and make it required on a server too
+	// DELETE IN (7.0)
+	if len(u.createRoles) == 0 {
+		return trace.BadParameter("please use --roles to assign a user to roles")
+	}
+
 	u.createRoles = flattenSlice(u.createRoles)
 	u.allowedLogins = flattenSlice(u.allowedLogins)
 
 	// Validate roles (server does not do this yet).
 	for _, roleName := range u.createRoles {
-		if _, err := client.GetRole(roleName); err != nil {
+		if _, err := client.GetRole(context.TODO(), roleName); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -278,7 +286,7 @@ $ tctl users add "%v" --roles=[add your role here]
 We will deprecate the old format in the next release of Teleport.
 Meanwhile we are going to assign user %q to role %q created during migration.
 
-`, u.login, u.login, teleport.OSSUserRoleName)
+`, u.login, u.login, teleport.AdminRoleName)
 
 	// If no local logins were specified, default to 'login' for SSH and k8s
 	// logins.
@@ -301,7 +309,7 @@ Meanwhile we are going to assign user %q to role %q created during migration.
 	}
 
 	user.SetTraits(traits)
-	user.AddRole(teleport.OSSUserRoleName)
+	user.AddRole(teleport.AdminRoleName)
 	err = client.CreateUser(context.TODO(), user)
 	if err != nil {
 		return trace.Wrap(err)
@@ -364,7 +372,7 @@ func (u *UserCommand) Update(client auth.ClientI) error {
 	}
 	roles := flattenSlice([]string{u.updateRoles})
 	for _, role := range roles {
-		if _, err := client.GetRole(role); err != nil {
+		if _, err := client.GetRole(context.TODO(), role); err != nil {
 			return trace.Wrap(err)
 		}
 	}
