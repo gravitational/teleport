@@ -107,7 +107,7 @@ func init() {
 // AuditLog is a new combined facility to record Teleport events and
 // sessions. It implements IAuditLog
 type AuditLog struct {
-	sync.Mutex
+	sync.RWMutex
 	AuditLogConfig
 
 	// log specifies the logger
@@ -969,7 +969,7 @@ func (l *AuditLog) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
 	if l.ExternalLog != nil {
 		emitAuditEvent = l.ExternalLog.EmitAuditEvent
 	} else {
-		emitAuditEvent = l.localLog.EmitAuditEvent
+		emitAuditEvent = l.getLocalLog().EmitAuditEvent
 	}
 	err := emitAuditEvent(ctx, event)
 	if err != nil {
@@ -988,7 +988,7 @@ func (l *AuditLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
 	if l.ExternalLog != nil {
 		emitAuditEvent = l.ExternalLog.EmitAuditEventLegacy
 	} else {
-		emitAuditEvent = l.localLog.EmitAuditEventLegacy
+		emitAuditEvent = l.getLocalLog().EmitAuditEventLegacy
 	}
 
 	// Emit the event. If it fails for any reason a Prometheus counter is
@@ -1029,7 +1029,7 @@ func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string, limit in
 	if l.ExternalLog != nil {
 		return l.ExternalLog.SearchEvents(fromUTC, toUTC, query, limit)
 	}
-	return l.localLog.SearchEvents(fromUTC, toUTC, query, limit)
+	return l.getLocalLog().SearchEvents(fromUTC, toUTC, query, limit)
 }
 
 // SearchSessionEvents searches for session related events. Used to find completed sessions.
@@ -1039,7 +1039,20 @@ func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int) ([]E
 	if l.ExternalLog != nil {
 		return l.ExternalLog.SearchSessionEvents(fromUTC, toUTC, limit)
 	}
-	return l.localLog.SearchSessionEvents(fromUTC, toUTC, limit)
+	return l.getLocalLog().SearchSessionEvents(fromUTC, toUTC, limit)
+}
+
+// getLocalLog returns the local (file based) audit log.
+func (l *AuditLog) getLocalLog() IAuditLog {
+	l.RLock()
+	defer l.RUnlock()
+
+	// If no local log exists, which can occur during shutdown when the local log
+	// has been set to "nil" by Close, return a nop audit log.
+	if l.localLog == nil {
+		return &closedLogger{}
+	}
+	return l.localLog
 }
 
 // Closes the audit log, which inluces closing all file handles and releasing
@@ -1178,4 +1191,47 @@ func (l *LegacyHandler) IsUnpacked(ctx context.Context, sessionID session.ID) (b
 // Download downloads session tarball and writes it to writer
 func (l *LegacyHandler) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
 	return l.cfg.Handler.Download(ctx, sessionID, writer)
+}
+
+type closedLogger struct {
+}
+
+func (a *closedLogger) EmitAuditEventLegacy(e Event, f EventFields) error {
+	return trace.NotImplemented("the logger has been closed")
+}
+
+func (a *closedLogger) EmitAuditEvent(ctx context.Context, e AuditEvent) error {
+	return trace.NotImplemented("the logger has been closed")
+}
+
+func (a *closedLogger) PostSessionSlice(s SessionSlice) error {
+	return trace.NotImplemented("the logger has been closed")
+}
+
+func (a *closedLogger) UploadSessionRecording(r SessionRecording) error {
+	return trace.NotImplemented("the logger has been closed")
+}
+
+func (a *closedLogger) GetSessionChunk(namespace string, sid session.ID, offsetBytes int, maxBytes int) ([]byte, error) {
+	return nil, trace.NotImplemented("the logger has been closed")
+}
+
+func (a *closedLogger) GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]EventFields, error) {
+	return nil, trace.NotImplemented("the logger has been closed")
+}
+
+func (a *closedLogger) SearchEvents(fromUTC, toUTC time.Time, query string, limit int) ([]EventFields, error) {
+	return nil, trace.NotImplemented("the logger has been closed")
+}
+
+func (a *closedLogger) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int) ([]EventFields, error) {
+	return nil, trace.NotImplemented("the logger has been closed")
+}
+
+func (a *closedLogger) WaitForDelivery(context.Context) error {
+	return trace.NotImplemented("the logger has been closed")
+}
+
+func (a *closedLogger) Close() error {
+	return trace.NotImplemented("the logger has been closed")
 }

@@ -163,6 +163,18 @@ func (r *TunnelConnectionV2) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
+	if r.Expiry().IsZero() {
+		// calculate an appropriate expiry if one was not provided.
+		// tunnel connection resources are ephemeral and trigger
+		// allocations in proxies, so it is important that they expire
+		// in a timely manner.
+		from := r.GetLastHeartbeat()
+		if from.IsZero() {
+			from = time.Now()
+		}
+		r.SetExpiry(from.UTC().Add(defaults.ServerAnnounceTTL))
+	}
+
 	return nil
 }
 
