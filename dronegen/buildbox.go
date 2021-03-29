@@ -38,7 +38,7 @@ func buildboxPipeline(buildboxName string, fips bool) pipeline {
 				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
 			Commands: []string{
-				`git clone --shallow-since=$$(date) https://github.com/gravitational/${DRONE_REPO_NAME}.git .`,
+				`git clone --depth 1 --single-branch --branch ${DRONE_SOURCE_BRANCH} https://github.com/gravitational/${DRONE_REPO_NAME}.git .`,
 				`git checkout ${DRONE_COMMIT}`,
 			},
 		},
