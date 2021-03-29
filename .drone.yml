@@ -4381,7 +4381,7 @@ volumes:
 ---
 kind: pipeline
 type: kubernetes
-name: build-buildboxes
+name: build-buildbox
 
 environment:
   RUNTIME: go1.16.2
@@ -4391,6 +4391,135 @@ environment:
 trigger:
   branch:
     - master
+    - gus/dronegen-buildboxes
+  event:
+    - push
+  repo:
+    include:
+      - gravitational/teleport
+
+workspace:
+  path: /go/src/github.com/gravitational/teleport
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - git clone --shallow-since=$$(date) https://github.com/gravitational/${DRONE_REPO_NAME}.git .
+      - git checkout ${DRONE_COMMIT}
+
+  - name: Build and push buildbox container
+    image: docker
+    environment:
+      QUAYIO_DOCKER_USERNAME:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      QUAYIO_DOCKER_PASSWORD:
+        from_secret: QUAYIO_DOCKER_PASSWORD
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
+      - make -C build.assets buildbox
+      #- docker push quay.io/gravitational/teleport-buildbox:$RUNTIME
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+---
+kind: pipeline
+type: kubernetes
+name: build-buildbox-fips
+
+environment:
+  RUNTIME: go1.16.2
+  UID: 1000
+  GID: 1000
+
+trigger:
+  branch:
+    - master
+    - gus/dronegen-buildboxes
+  event:
+    - push
+  repo:
+    include:
+      - gravitational/teleport
+
+workspace:
+  path: /go/src/github.com/gravitational/teleport
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - git clone --shallow-since=$$(date) https://github.com/gravitational/${DRONE_REPO_NAME}.git .
+      - git checkout ${DRONE_COMMIT}
+
+  - name: Build and push buildbox-fips container
+    image: docker
+    environment:
+      QUAYIO_DOCKER_USERNAME:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      QUAYIO_DOCKER_PASSWORD:
+        from_secret: QUAYIO_DOCKER_PASSWORD
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
+      - make -C build.assets buildbox-fips
+      #- docker push quay.io/gravitational/teleport-buildbox-fips:$RUNTIME
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+---
+kind: pipeline
+type: kubernetes
+name: build-buildbox-centos6
+
+environment:
+  RUNTIME: go1.16.2
+  UID: 1000
+  GID: 1000
+
+trigger:
+  branch:
+    - master
+    - gus/dronegen-buildboxes
   event:
     - push
   repo:
@@ -4413,42 +4542,6 @@ steps:
       - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_COMMIT}
 
-  - name: Build and push buildbox container
-    image: docker
-    environment:
-      QUAYIO_DOCKER_USERNAME:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      QUAYIO_DOCKER_PASSWORD:
-        from_secret: QUAYIO_DOCKER_PASSWORD
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - apk add --no-cache make
-      - chown -R $UID:$GID /go
-      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
-      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
-      - make -C build.assets buildbox
-      - docker push quay.io/gravitational/teleport-buildbox:$RUNTIME
-
-  - name: Build and push buildbox-fips container
-    image: docker
-    environment:
-      QUAYIO_DOCKER_USERNAME:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      QUAYIO_DOCKER_PASSWORD:
-        from_secret: QUAYIO_DOCKER_PASSWORD
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - apk add --no-cache make
-      - chown -R $UID:$GID /go
-      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
-      - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
-      - make -C build.assets buildbox-fips
-      - docker push quay.io/gravitational/teleport-buildbox-fips:$RUNTIME
-
   - name: Build and push buildbox-centos6 container
     image: docker
     environment:
@@ -4463,9 +4556,55 @@ steps:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
       - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
-      - docker pull quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME || true
       - make -C build.assets buildbox-centos6
-      - docker push quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME
+      #- docker push quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+---
+kind: pipeline
+type: kubernetes
+name: build-buildbox-centos6-fips
+
+environment:
+  RUNTIME: go1.16.2
+  UID: 1000
+  GID: 1000
+
+trigger:
+  branch:
+    - master
+    - gus/dronegen-buildboxes
+  event:
+    - push
+  repo:
+    include:
+      - gravitational/teleport
+
+workspace:
+  path: /go/src/github.com/gravitational/teleport
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
+      - git checkout ${DRONE_COMMIT}
 
   - name: Build and push buildbox-centos6-fips container
     image: docker
@@ -4481,9 +4620,55 @@ steps:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
       - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
-      - docker pull quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME || true
       - make -C build.assets buildbox-centos6-fips
-      - docker push quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME
+      #- docker push quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+---
+kind: pipeline
+type: kubernetes
+name: build-buildbox-arm
+
+environment:
+  RUNTIME: go1.16.2
+  UID: 1000
+  GID: 1000
+
+trigger:
+  branch:
+    - master
+    - gus/dronegen-buildboxes
+  event:
+    - push
+  repo:
+    include:
+      - gravitational/teleport
+
+workspace:
+  path: /go/src/github.com/gravitational/teleport
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
+      - git checkout ${DRONE_COMMIT}
 
   - name: Build and push buildbox-arm container
     image: docker
@@ -4499,9 +4684,55 @@ steps:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
       - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
-      - docker pull quay.io/gravitational/teleport-buildbox-arm:$RUNTIME || true
       - make -C build.assets buildbox-arm
-      - docker push quay.io/gravitational/teleport-buildbox-arm:$RUNTIME
+      #- docker push quay.io/gravitational/teleport-buildbox-arm:$RUNTIME
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+---
+kind: pipeline
+type: kubernetes
+name: build-buildbox-arm-fips
+
+environment:
+  RUNTIME: go1.16.2
+  UID: 1000
+  GID: 1000
+
+trigger:
+  branch:
+    - master
+    - gus/dronegen-buildboxes
+  event:
+    - push
+  repo:
+    include:
+      - gravitational/teleport
+
+workspace:
+  path: /go/src/github.com/gravitational/teleport
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
+      - git checkout ${DRONE_COMMIT}
 
 services:
   - name: Start Docker
@@ -4816,6 +5047,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: ea48c40817f928bb53c17bfaae579a2475ee714cf210fea2822686b29b3d9128
+hmac: 222a6ee3fb70f7ffbcf2a5a7d2be2899a919cae4851fc44c0ed98c9201033c2f
 
 ...
