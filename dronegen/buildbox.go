@@ -16,15 +16,18 @@ func buildboxPipelineSteps() []step {
 			},
 		},
 	}
-	for _, arch := range []string{"buildbox", "buildbox-centos6", "buildbox-arm"} {
+	for _, name := range []string{"buildbox", "buildbox-centos6", "buildbox-arm"} {
 		for _, fips := range []bool{false, true} {
-			steps = append(steps, buildboxPipelineStep(arch, fips))
+			steps = append(steps, buildboxPipelineStep(name, fips))
 		}
 	}
 	return steps
 }
 
 func buildboxPipelineStep(buildboxName string, fips bool) step {
+	if fips {
+		buildboxName += "-fips"
+	}
 	return step{
 		Name:  buildboxName,
 		Image: "docker",
@@ -32,6 +35,7 @@ func buildboxPipelineStep(buildboxName string, fips bool) step {
 			"QUAYIO_DOCKER_USERNAME": {fromSecret: "QUAYIO_DOCKER_USERNAME"},
 			"QUAYIO_DOCKER_PASSWORD": {fromSecret: "QUAYIO_DOCKER_PASSWORD"},
 		},
+		Failure: "ignore",
 		Volumes: dockerVolumeRefs(),
 		Commands: []string{
 			`apk add --no-cache make`,
