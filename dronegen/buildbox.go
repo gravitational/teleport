@@ -7,11 +7,8 @@ func buildboxPipelineSteps() []step {
 		{
 			Name:  "Check out code",
 			Image: "docker:git",
-			Environment: map[string]value{
-				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
-			},
 			Commands: []string{
-				`git clone --depth 1 --single-branch --branch ${DRONE_SOURCE_BRANCH} https://github.com/gravitational/${DRONE_REPO_NAME}.git .`,
+				`git clone --depth 1 --single-branch --branch ${DRONE_SOURCE_BRANCH:-master} https://github.com/gravitational/${DRONE_REPO_NAME}.git .`,
 				`git checkout ${DRONE_COMMIT}`,
 			},
 		},
