@@ -5,8 +5,6 @@ import (
 	"path/filepath"
 )
 
-const boringCryptoBranch = "dev.boringcrypto.go1.16"
-
 // darwinTagPipelines builds all applicable tag pipeline combinations on darwin
 func darwinTagPipelines() []pipeline {
 	b := buildType{
@@ -48,7 +46,7 @@ func newDarwinPushPipeline(b buildType) pipeline {
 	builder := darwinPushPipelineStepBuilder{
 		buildType:          b,
 		workspace:          p.Workspace,
-		boringCryptoBranch: boringCryptoBranch,
+		boringCryptoBranch: boringCryptoRuntime,
 	}
 
 	p.Steps = builder.build()
@@ -74,7 +72,7 @@ func newDarwinTagPipeline(b buildType) pipeline {
 	builder := darwinTagPipelineStepBuilder{
 		buildType:          b,
 		workspace:          p.Workspace,
-		boringCryptoBranch: boringCryptoBranch,
+		boringCryptoBranch: boringCryptoRuntime,
 	}
 
 	p.Steps = builder.build()
@@ -103,7 +101,7 @@ func newDarwinTagPackagePipeline(b buildType) pipeline {
 	builder := darwinTagPackagePipelineStepBuilder{
 		buildType:          b,
 		workspace:          p.Workspace,
-		boringCryptoBranch: boringCryptoBranch,
+		boringCryptoBranch: boringCryptoRuntime,
 	}
 
 	p.Steps = builder.build()
@@ -132,7 +130,7 @@ func newDarwinTagTshPackagePipeline(b buildType) pipeline {
 	builder := darwinTagTshPackagePipelineStepBuilder{
 		buildType:          b,
 		workspace:          p.Workspace,
-		boringCryptoBranch: boringCryptoBranch,
+		boringCryptoBranch: boringCryptoRuntime,
 	}
 
 	p.Steps = builder.build()

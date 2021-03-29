@@ -58,6 +58,10 @@ var (
 	goRuntime = value{raw: "go1.16.2"}
 )
 
+// boringCryptoRuntime specifies the version of Go (as the branch name)
+// used for FIPS builds
+const boringCryptoRuntime = "dev.boringcrypto.go1.16"
+
 func (r buildType) platform() platform {
 	return platform{
 		OS:   r.os,

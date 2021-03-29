@@ -799,7 +799,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/darwin_pipelines.go:40
+# Generated at dronegen/darwin_pipelines.go:38
 ################################################
 
 kind: pipeline
@@ -2735,7 +2735,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/darwin_pipelines.go:66
+# Generated at dronegen/darwin_pipelines.go:64
 ################################################
 
 kind: pipeline
@@ -2870,7 +2870,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/darwin_pipelines.go:94
+# Generated at dronegen/darwin_pipelines.go:92
 ################################################
 
 kind: pipeline
@@ -4258,7 +4258,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/darwin_pipelines.go:123
+# Generated at dronegen/darwin_pipelines.go:121
 ################################################
 
 kind: pipeline
@@ -5248,6 +5248,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 4b014bee91754ec9c0e407bb60663daadcac1a9c0f26efd4dda5397350dbc436
+hmac: e5dbf0f091a93367d434dd67bb92d7dd4df0a96b576855e5c496a473b52197ee
 
 ...
