@@ -23,7 +23,6 @@ func pushCheckoutCommands(fips bool) []string {
 	if fips {
 		commands = append(commands, `if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt`)
 	}
-	commands = append(commands, waitForDockerCommand())
 	return commands
 }
 
@@ -107,6 +106,7 @@ func pushPipeline(b buildType) pipeline {
 			},
 			Commands: pushCheckoutCommands(b.fips),
 		},
+		waitForDockerStep(),
 		{
 			Name:        "Build artifacts",
 			Image:       "docker",

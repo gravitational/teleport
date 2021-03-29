@@ -13,9 +13,9 @@ func buildboxPipelineSteps() []step {
 			Commands: []string{
 				`git clone --depth 1 --single-branch --branch ${DRONE_SOURCE_BRANCH} https://github.com/gravitational/${DRONE_REPO_NAME}.git .`,
 				`git checkout ${DRONE_COMMIT}`,
-				waitForDockerCommand(),
 			},
 		},
+		waitForDockerStep(),
 	}
 
 	for _, name := range []string{"buildbox", "buildbox-centos6", "buildbox-arm"} {

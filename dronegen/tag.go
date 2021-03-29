@@ -29,7 +29,6 @@ func tagCheckoutCommands(fips bool) []string {
 		`mkdir -p /go/cache /go/artifacts`,
 		// set version
 		`if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt`,
-		waitForDockerCommand(),
 	}
 	return commands
 }
@@ -207,6 +206,7 @@ func tagPipeline(b buildType) pipeline {
 			},
 			Commands: tagCheckoutCommands(b.fips),
 		},
+		waitForDockerStep(),
 		{
 			Name:        "Build artifacts",
 			Image:       "docker",
@@ -346,6 +346,7 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			},
 			Commands: tagCheckoutCommands(b.fips),
 		},
+		waitForDockerStep(),
 		{
 			Name:  "Download artifacts from S3",
 			Image: "amazon/aws-cli",
