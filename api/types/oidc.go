@@ -108,34 +108,23 @@ func NewOIDCConnector(name string, spec OIDCConnectorSpecV2) OIDCConnector {
 	}
 }
 
-// OIDCConnectorV2 is version 1 resource spec for OIDC connector
-type OIDCConnectorV2 struct {
-	// Kind is a resource kind
-	Kind string `json:"kind"`
-	// SubKind is a resource sub kind
-	SubKind string `json:"sub_kind,omitempty"`
-	// Version is version
-	Version string `json:"version"`
-	// Metadata is connector metadata
-	Metadata Metadata `json:"metadata"`
-	// Spec contains connector specification
-	Spec OIDCConnectorSpecV2 `json:"spec"`
-}
-
 // SetPrompt sets OIDC prompt value
 func (o *OIDCConnectorV2) SetPrompt(p string) {
-	o.Spec.Prompt = &p
+	o.Spec.Prompt = p
 }
 
 // GetPrompt returns OIDC prompt value,
-// * if not set, in this case defaults to select_account for backwards compatibility
-// * set to empty string, in this case it will be omitted
-// * and any non empty value, passed as is
+// * if not set, default to select_account for backwards compatibility
+// * if set to OIDCPromptNone, it will be omitted
+// * and any other non empty value, pass it as is
 func (o *OIDCConnectorV2) GetPrompt() string {
-	if o.Spec.Prompt == nil {
+	if o.Spec.Prompt == "" {
 		return constants.OIDCPromptSelectAccount
 	}
-	return *o.Spec.Prompt
+	if o.Spec.Prompt == constants.OIDCPromptNone {
+		return ""
+	}
+	return o.Spec.Prompt
 }
 
 // GetGoogleServiceAccountURI returns an optional path to google service account file
@@ -391,56 +380,4 @@ func (o *OIDCConnectorV2) CheckAndSetDefaults() error {
 	}
 
 	return nil
-}
-
-// OIDCConnectorSpecV2 specifies configuration for Open ID Connect compatible external
-// identity provider:
-//
-// https://openid.net/specs/openid-connect-core-1_0.html
-//
-type OIDCConnectorSpecV2 struct {
-	// Issuer URL is the endpoint of the provider, e.g. https://accounts.google.com
-	IssuerURL string `json:"issuer_url"`
-	// ClientID is id for authentication client (in our case it's our Auth server)
-	ClientID string `json:"client_id"`
-	// ClientSecret is used to authenticate our client and should not
-	// be visible to end user
-	ClientSecret string `json:"client_secret"`
-	// RedirectURL - Identity provider will use this URL to redirect
-	// client's browser back to it after successful authentication
-	// Should match the URL on Provider's side
-	RedirectURL string `json:"redirect_url"`
-	// ACR is an Authentication Context Class Reference value. The meaning of the ACR
-	// value is context-specific and varies for identity providers.
-	ACR string `json:"acr_values,omitempty"`
-	// Provider is the external identity provider.
-	Provider string `json:"provider,omitempty"`
-	// Display - Friendly name for this provider.
-	Display string `json:"display,omitempty"`
-	// Scope is additional scopes set by provider
-	Scope []string `json:"scope,omitempty"`
-	// Prompt is optional OIDC prompt, empty string omits prompt
-	// if not specified, defaults to select_account for backwards compatibility
-	// otherwise, is set to a value specified in this field
-	Prompt *string `json:"prompt,omitempty"`
-	// ClaimsToRoles specifies dynamic mapping from claims to roles
-	ClaimsToRoles []ClaimMapping `json:"claims_to_roles,omitempty"`
-	// GoogleServiceAccountURI is a path to google service account uri
-	GoogleServiceAccountURI string `json:"google_service_account_uri,omitempty"`
-	// GoogleServiceAccount is a string containing the google service account credentials
-	GoogleServiceAccount string `json:"google_service_account,omitempty"`
-
-	// GoogleAdminEmail is email of google admin to impersonate
-	GoogleAdminEmail string `json:"google_admin_email,omitempty"`
-}
-
-// ClaimMapping is OIDC claim mapping that maps
-// claim name to teleport roles
-type ClaimMapping struct {
-	// Claim is OIDC claim name
-	Claim string `json:"claim"`
-	// Value is claim value to match
-	Value string `json:"value"`
-	// Roles is a list of static teleport roles to match.
-	Roles []string `json:"roles,omitempty"`
 }

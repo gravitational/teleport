@@ -25,14 +25,14 @@ RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9
      cp etcd-v3.3.9-linux-amd64/etcd* /bin/)
 
 # BoringCrypto (unlike regular Go) requires glibc 2.14, so we have to build from source.
-# 1) Install binary go runtime for bootstrapping
+# 1) Install older binary Go runtime for bootstrapping
 # 2) Get source for the correct Go boringcrypto runtime and compile it with Go bootstrap runtime
 # 3) Erase Go bootstrap runtime and create build directories
 # 4) Print compiled Go version
-ARG RUNTIME
+ARG BORINGCRYPTO_RUNTIME
 ARG GO_BOOTSTRAP_RUNTIME=go1.9.7
 RUN mkdir -p /go-bootstrap && cd /go-bootstrap && curl https://dl.google.com/go/${GO_BOOTSTRAP_RUNTIME}.linux-amd64.tar.gz | tar xz && \
-    mkdir -p /opt && cd /opt && curl https://go-boringcrypto.storage.googleapis.com/${RUNTIME}b5.src.tar.gz | tar xz && \
+    mkdir -p /opt && cd /opt && curl https://go-boringcrypto.storage.googleapis.com/${BORINGCRYPTO_RUNTIME}.src.tar.gz | tar xz && \
     cd /opt/go/src && GOROOT_BOOTSTRAP=/go-bootstrap/go ./make.bash && \
     rm -rf /go-bootstrap && \
     mkdir -p /go/src/github.com/gravitational/teleport && \

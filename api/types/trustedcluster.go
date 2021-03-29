@@ -79,50 +79,6 @@ func NewTrustedCluster(name string, spec TrustedClusterSpecV2) (TrustedCluster, 
 	}, nil
 }
 
-// TrustedClusterV2 implements TrustedCluster.
-type TrustedClusterV2 struct {
-	// Kind is a resource kind - always resource.
-	Kind string `json:"kind"`
-
-	// SubKind is a resource sub kind
-	SubKind string `json:"sub_kind,omitempty"`
-
-	// Version is a resource version.
-	Version string `json:"version"`
-
-	// Metadata is metadata about the resource.
-	Metadata Metadata `json:"metadata"`
-
-	// Spec is the specification of the resource.
-	Spec TrustedClusterSpecV2 `json:"spec"`
-}
-
-// TrustedClusterSpecV2 is the actual data we care about for TrustedClusterSpecV2.
-type TrustedClusterSpecV2 struct {
-	// Enabled is a bool that indicates if the TrustedCluster is enabled or disabled.
-	// Setting Enabled to false has a side effect of deleting the user and host
-	// certificate authority (CA).
-	Enabled bool `json:"enabled"`
-
-	// Roles is a list of roles that users will be assuming when connecting to this cluster.
-	Roles []string `json:"roles,omitempty"`
-
-	// Token is the authorization token provided by another cluster needed by
-	// this cluster to join.
-	Token string `json:"token"`
-
-	// ProxyAddress is the address of the web proxy server of the cluster to join. If not set,
-	// it is derived from <metadata.name>:<default web proxy server port>.
-	ProxyAddress string `json:"web_proxy_addr"`
-
-	// ReverseTunnelAddress is the address of the SSH proxy server of the cluster to join. If
-	// not set, it is derived from <metadata.name>:<default reverse tunnel port>.
-	ReverseTunnelAddress string `json:"tunnel_addr"`
-
-	// RoleMap specifies role mappings to remote roles
-	RoleMap RoleMap `json:"role_map,omitempty"`
-}
-
 // CheckAndSetDefaults checks validity of all parameters and sets defaults
 func (c *TrustedClusterV2) CheckAndSetDefaults() error {
 	// make sure we have defaults for all fields

@@ -18,6 +18,7 @@ DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
 
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
+ASSETS_BUILDDIR ?= lib/web/build
 BINDIR ?= /usr/local/bin
 DATADIR ?= /usr/local/share/teleport
 ADDFLAGS ?=
@@ -120,7 +121,7 @@ $(BUILDDIR)/tctl:
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport: ensure-webassets
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
@@ -132,12 +133,9 @@ $(BUILDDIR)/tsh:
 # only tsh is built.
 #
 .PHONY:full
-full: all $(BUILDDIR)/webassets.zip
+full: $(ASSETS_BUILDDIR)/webassets.zip
 ifneq ("$(OS)", "windows")
-	@echo "---> Attaching OSS web assets."
-	cat $(BUILDDIR)/webassets.zip >> $(BUILDDIR)/teleport
-	rm -fr $(BUILDDIR)/webassets.zip
-	zip -q -A $(BUILDDIR)/teleport
+	$(MAKE) all WEBASSETS_TAG="webassets_embed"
 endif
 
 #
@@ -211,7 +209,10 @@ release-unix: clean full
 	tar -czf $(RELEASE).tar.gz teleport
 	rm -rf teleport
 	@echo "---> Created $(RELEASE).tar.gz."
-	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
+	@if [ -f e/Makefile ]; then \
+		rm -fr $(WEBASSETS_BUILDDIR)/webassets.zip; \
+		$(MAKE) -C e release; \
+	fi
 
 #
 # make release-windows - Produces a binary release tarball containing teleport,
@@ -372,11 +373,14 @@ tag:
 
 # build/webassets.zip archive contains the web assets (UI) which gets
 # appended to teleport binary
-$(BUILDDIR)/webassets.zip:
+$(ASSETS_BUILDDIR)/webassets.zip: | $(ASSETS_BUILDDIR)
 ifneq ("$(OS)", "windows")
 	@echo "---> Building OSS web assets."
-	cd webassets/teleport/ ; zip -qr ../../$(BUILDDIR)/webassets.zip .
+	cd webassets/teleport/ ; zip -qr ../../$@ .
 endif
+
+$(ASSETS_BUILDDIR):
+	mkdir -p $@
 
 .PHONY: test-package
 test-package: remove-temp-files
