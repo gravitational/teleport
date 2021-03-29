@@ -106,7 +106,8 @@ func TestOIDCUnmarshal(t *testing.T) {
             "claim": "roles",
             "value": "teleport-user",
             "roles": ["dictator"]
-          }]
+          }],
+          "prompt": "consent login"
         }
       }
 	`
@@ -119,12 +120,12 @@ func TestOIDCUnmarshal(t *testing.T) {
 	require.Equal(t, "id-from-google.apps.googleusercontent.com", oc.GetClientID())
 	require.Equal(t, "https://localhost:3080/v1/webapi/oidc/callback", oc.GetRedirectURL())
 	require.Equal(t, "whatever", oc.GetDisplay())
-	require.Equal(t, teleport.OIDCPromptSelectAccount, oc.GetPrompt())
+	require.Equal(t, "consent login", oc.GetPrompt())
 }
 
-// TestOIDCUnmarshalEmptyPrompt makes sure that empty prompt value
-// that is set does not default to select_account
-func TestOIDCUnmarshalEmptyPrompt(t *testing.T) {
+// TestOIDCUnmarshalOmitPrompt makes sure that that setting
+// prompt value to none will omit the prompt value.
+func TestOIDCUnmarshalOmitPrompt(t *testing.T) {
 	input := `
       {
         "kind": "oidc",
@@ -139,7 +140,7 @@ func TestOIDCUnmarshalEmptyPrompt(t *testing.T) {
           "redirect_url": "https://localhost:3080/v1/webapi/oidc/callback",
           "display": "whatever",
           "scope": ["roles"],
-          "prompt": ""
+          "prompt": "none"
         }
       }
 	`
@@ -155,8 +156,9 @@ func TestOIDCUnmarshalEmptyPrompt(t *testing.T) {
 	require.Equal(t, "", oc.GetPrompt())
 }
 
-// TestUnmarshalOIDCPromptValue makes sure that prompt value is set properly
-func TestOIDCUnmarshalPromptValue(t *testing.T) {
+// TestOIDCUnmarshalOmitPrompt makes sure that an
+// empty prompt value will default to select account.
+func TestOIDCUnmarshalPromptDefault(t *testing.T) {
 	input := `
       {
         "kind": "oidc",
@@ -170,8 +172,7 @@ func TestOIDCUnmarshalPromptValue(t *testing.T) {
           "client_secret": "secret-key-from-google",
           "redirect_url": "https://localhost:3080/v1/webapi/oidc/callback",
           "display": "whatever",
-          "scope": ["roles"],
-          "prompt": "consent login"
+          "scope": ["roles"]
         }
       }
 	`
@@ -184,7 +185,7 @@ func TestOIDCUnmarshalPromptValue(t *testing.T) {
 	require.Equal(t, "id-from-google.apps.googleusercontent.com", oc.GetClientID())
 	require.Equal(t, "https://localhost:3080/v1/webapi/oidc/callback", oc.GetRedirectURL())
 	require.Equal(t, "whatever", oc.GetDisplay())
-	require.Equal(t, "consent login", oc.GetPrompt())
+	require.Equal(t, teleport.OIDCPromptSelectAccount, oc.GetPrompt())
 }
 
 // TestOIDCUnmarshalInvalid unmarshals and fails validation of the connector

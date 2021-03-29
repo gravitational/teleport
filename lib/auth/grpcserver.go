@@ -1299,7 +1299,6 @@ func (g *GRPCServer) GetRoles(ctx context.Context, _ *empty.Empty) (*proto.GetRo
 	for _, r := range roles {
 		role, ok := r.(*types.RoleV3)
 		if !ok {
-
 			return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", r))
 		}
 		rolesV3 = append(rolesV3, role)
@@ -1884,6 +1883,336 @@ func (g *GRPCServer) IsMFARequired(ctx context.Context, req *proto.IsMFARequired
 		return nil, trail.ToGRPC(err)
 	}
 	return resp, nil
+}
+
+// GetOIDCConnector retrieves an OIDC connector by name.
+func (g *GRPCServer) GetOIDCConnector(ctx context.Context, req *types.ResourceWithSecretsRequest) (*types.OIDCConnectorV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	oidcConnector, err := auth.ServerWithRoles.GetOIDCConnector(ctx, req.Name, req.WithSecrets)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	oidcConnectorV2, ok := oidcConnector.(*types.OIDCConnectorV2)
+	if !ok {
+		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected OIDC connector type %T", oidcConnector))
+	}
+	return oidcConnectorV2, nil
+}
+
+// GetOIDCConnectors retrieves all OIDC connectors.
+func (g *GRPCServer) GetOIDCConnectors(ctx context.Context, req *types.ResourcesWithSecretsRequest) (*types.OIDCConnectorV2List, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	oidcConnectors, err := auth.ServerWithRoles.GetOIDCConnectors(ctx, req.WithSecrets)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	oidcConnectorsV2 := make([]*types.OIDCConnectorV2, len(oidcConnectors))
+	for i, oc := range oidcConnectors {
+		var ok bool
+		if oidcConnectorsV2[i], ok = oc.(*types.OIDCConnectorV2); !ok {
+			return nil, trail.ToGRPC(trace.Errorf("encountered unexpected OIDC connector type %T", oc))
+		}
+	}
+	return &types.OIDCConnectorV2List{
+		OIDCConnectors: oidcConnectorsV2,
+	}, nil
+}
+
+// UpsertOIDCConnector upserts an OIDC connector.
+func (g *GRPCServer) UpsertOIDCConnector(ctx context.Context, oidcConnector *types.OIDCConnectorV2) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err = services.ValidateOIDCConnector(oidcConnector); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err = auth.ServerWithRoles.UpsertOIDCConnector(ctx, oidcConnector); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// DeleteOIDCConnector deletes an OIDC connector by name.
+func (g *GRPCServer) DeleteOIDCConnector(ctx context.Context, req *types.ResourceRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err := auth.ServerWithRoles.DeleteOIDCConnector(ctx, req.Name); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// GetSAMLConnector retrieves a SAML connector by name.
+func (g *GRPCServer) GetSAMLConnector(ctx context.Context, req *types.ResourceWithSecretsRequest) (*types.SAMLConnectorV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	samlConnector, err := auth.ServerWithRoles.GetSAMLConnector(ctx, req.Name, req.WithSecrets)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	samlConnectorV2, ok := samlConnector.(*types.SAMLConnectorV2)
+	if !ok {
+		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected SAML connector type: %T", samlConnector))
+	}
+	return samlConnectorV2, nil
+}
+
+// GetSAMLConnectors retrieves all SAML connectors.
+func (g *GRPCServer) GetSAMLConnectors(ctx context.Context, req *types.ResourcesWithSecretsRequest) (*types.SAMLConnectorV2List, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	samlConnectors, err := auth.ServerWithRoles.GetSAMLConnectors(ctx, req.WithSecrets)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	samlConnectorsV2 := make([]*types.SAMLConnectorV2, len(samlConnectors))
+	for i, sc := range samlConnectors {
+		var ok bool
+		if samlConnectorsV2[i], ok = sc.(*types.SAMLConnectorV2); !ok {
+			return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", sc))
+		}
+	}
+	return &types.SAMLConnectorV2List{
+		SAMLConnectors: samlConnectorsV2,
+	}, nil
+}
+
+// UpsertSAMLConnector upserts a SAML connector.
+func (g *GRPCServer) UpsertSAMLConnector(ctx context.Context, samlConnector *types.SAMLConnectorV2) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err = services.ValidateSAMLConnector(samlConnector); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err = auth.ServerWithRoles.UpsertSAMLConnector(ctx, samlConnector); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// DeleteSAMLConnector deletes a SAML connector by name.
+func (g *GRPCServer) DeleteSAMLConnector(ctx context.Context, req *types.ResourceRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err := auth.ServerWithRoles.DeleteSAMLConnector(ctx, req.Name); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// GetGithubConnector retrieves a Github connector by name.
+func (g *GRPCServer) GetGithubConnector(ctx context.Context, req *types.ResourceWithSecretsRequest) (*types.GithubConnectorV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	githubConnector, err := auth.ServerWithRoles.GetGithubConnector(ctx, req.Name, req.WithSecrets)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	githubConnectorV3, ok := githubConnector.(*types.GithubConnectorV3)
+	if !ok {
+		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected Github connector type: %T", githubConnector))
+	}
+	return githubConnectorV3, nil
+}
+
+// GetGithubConnectors retrieves all Github connectors.
+func (g *GRPCServer) GetGithubConnectors(ctx context.Context, req *types.ResourcesWithSecretsRequest) (*types.GithubConnectorV3List, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	githubConnectors, err := auth.ServerWithRoles.GetGithubConnectors(ctx, req.WithSecrets)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	githubConnectorsV3 := make([]*types.GithubConnectorV3, len(githubConnectors))
+	for i, gc := range githubConnectors {
+		var ok bool
+		if githubConnectorsV3[i], ok = gc.(*types.GithubConnectorV3); !ok {
+			return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", gc))
+		}
+	}
+	return &types.GithubConnectorV3List{
+		GithubConnectors: githubConnectorsV3,
+	}, nil
+}
+
+// UpsertGithubConnector upserts a Github connector.
+func (g *GRPCServer) UpsertGithubConnector(ctx context.Context, GithubConnector *types.GithubConnectorV3) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err = auth.ServerWithRoles.UpsertGithubConnector(ctx, GithubConnector); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// DeleteGithubConnector deletes a Github connector by name.
+func (g *GRPCServer) DeleteGithubConnector(ctx context.Context, req *types.ResourceRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err := auth.ServerWithRoles.DeleteGithubConnector(ctx, req.Name); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// GetTrustedCluster retrieves a Trusted Cluster by name.
+func (g *GRPCServer) GetTrustedCluster(ctx context.Context, req *types.ResourceRequest) (*types.TrustedClusterV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	tc, err := auth.ServerWithRoles.GetTrustedCluster(ctx, req.Name)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	trustedClusterV2, ok := tc.(*types.TrustedClusterV2)
+	if !ok {
+		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected Trusted Cluster type %T", tc))
+	}
+	return trustedClusterV2, nil
+}
+
+// GetTrustedClusters retrieves all Trusted Clusters.
+func (g *GRPCServer) GetTrustedClusters(ctx context.Context, _ *empty.Empty) (*types.TrustedClusterV2List, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	trustedClusters, err := auth.ServerWithRoles.GetTrustedClusters(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	trustedClustersV2 := make([]*types.TrustedClusterV2, len(trustedClusters))
+	for i, tc := range trustedClusters {
+		var ok bool
+		if trustedClustersV2[i], ok = tc.(*types.TrustedClusterV2); !ok {
+			return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", tc))
+		}
+	}
+	return &types.TrustedClusterV2List{
+		TrustedClusters: trustedClustersV2,
+	}, nil
+}
+
+// UpsertTrustedCluster upserts a Trusted Cluster.
+func (g *GRPCServer) UpsertTrustedCluster(ctx context.Context, cluster *types.TrustedClusterV2) (*types.TrustedClusterV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err = services.ValidateTrustedCluster(cluster); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	trustedCluster, err := auth.ServerWithRoles.UpsertTrustedCluster(ctx, cluster)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	trustedClusterV2, ok := trustedCluster.(*types.TrustedClusterV2)
+	if !ok {
+		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected Trusted Cluster type"))
+	}
+	return trustedClusterV2, nil
+}
+
+// DeleteTrustedCluster deletes a Trusted Cluster by name.
+func (g *GRPCServer) DeleteTrustedCluster(ctx context.Context, req *types.ResourceRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err := auth.ServerWithRoles.DeleteTrustedCluster(ctx, req.Name); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// GetToken retrieves a token by name.
+func (g *GRPCServer) GetToken(ctx context.Context, req *types.ResourceRequest) (*types.ProvisionTokenV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	token, err := auth.ServerWithRoles.GetToken(ctx, req.Name)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	provisionTokenV2, ok := token.(*types.ProvisionTokenV2)
+	if !ok {
+		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected token type: %T", token))
+	}
+	return provisionTokenV2, nil
+}
+
+// GetTokens retrieves all tokens.
+func (g *GRPCServer) GetTokens(ctx context.Context, _ *empty.Empty) (*types.ProvisionTokenV2List, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	tokens, err := auth.ServerWithRoles.GetTokens(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	provisionTokensV2 := make([]*types.ProvisionTokenV2, len(tokens))
+	for i, t := range tokens {
+		var ok bool
+		if provisionTokensV2[i], ok = t.(*types.ProvisionTokenV2); !ok {
+			return nil, trail.ToGRPC(trace.Errorf("encountered unexpected token type: %T", t))
+		}
+	}
+	return &types.ProvisionTokenV2List{
+		ProvisionTokens: provisionTokensV2,
+	}, nil
+}
+
+// UpsertToken upserts a token.
+func (g *GRPCServer) UpsertToken(ctx context.Context, token *types.ProvisionTokenV2) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err = auth.ServerWithRoles.UpsertToken(ctx, token); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// DeleteToken deletes a token by name.
+func (g *GRPCServer) DeleteToken(ctx context.Context, req *types.ResourceRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err := auth.ServerWithRoles.DeleteToken(ctx, req.Name); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
 }
 
 type grpcContext struct {
