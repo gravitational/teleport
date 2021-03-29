@@ -716,6 +716,7 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 	// deleted but profile exists), treat this as the user not being logged in.
 	profile, err = readProfile(profileDir, profileName)
 	if err != nil {
+		log.Debug(err)
 		if !trace.IsNotFound(err) {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -736,6 +737,7 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 		}
 		ps, err := readProfile(profileDir, name)
 		if err != nil {
+			log.Debug(err)
 			// parts of profile are missing?
 			// status skips these files
 			if trace.IsNotFound(err) {

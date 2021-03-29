@@ -1761,8 +1761,11 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	// Load SSH key for the cluster indicated in the profile.
 	// Handle gracefully if the profile is empty or if the key cannot be found.
 	if profileSiteName != "" {
-		if err := tc.LoadKeyForCluster(profileSiteName); err != nil && !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
+		if err := tc.LoadKeyForCluster(profileSiteName); err != nil {
+			log.Debug(err)
+			if !trace.IsNotFound(err) {
+				return nil, trace.Wrap(err)
+			}
 		}
 	}
 
