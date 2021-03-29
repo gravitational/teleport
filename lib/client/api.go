@@ -1888,14 +1888,21 @@ func (tc *TeleportClient) getProxySSHPrincipal() string {
 	return proxyPrincipal
 }
 
-// authMethods returns a list (slice) of all SSH auth methods this client
-// can use to try to authenticate
-func (tc *TeleportClient) authMethods() []ssh.AuthMethod {
-	m := append([]ssh.AuthMethod(nil), tc.Config.AuthMethods...)
+// authMethods returns a slice of all SSH auth methods this client
+// can use to try to authenticate.
+func (tc *TeleportClient) authMethods() ([]ssh.AuthMethod, error) {
+	m := append([]ssh.AuthMethod{}, tc.Config.AuthMethods...)
 	if tc.localAgent != nil {
-		m = append(m, tc.localAgent.AuthMethods()...)
+		agentMethods, err := tc.localAgent.AuthMethods()
+		if len(m) == 0 && err != nil {
+			return nil, trace.Wrap(err)
+		}
+		m = append(m, agentMethods...)
 	}
-	return m
+	if len(m) == 0 {
+		return nil, trace.BadParameter("no auth method available")
+	}
+	return m, nil
 }
 
 // ConnectToProxy will dial to the proxy server and return a ProxyClient when
@@ -1955,9 +1962,15 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 		User:            proxyPrincipal,
 		HostKeyCallback: tc.HostKeyCallback,
 	}
+
+	authMethods, err := tc.authMethods()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// try to authenticate using every non interactive auth method we have:
 	var errs []error
-	for i, m := range tc.authMethods() {
+	for i, m := range authMethods {
 		log.Infof("Connecting proxy=%v login=%q method=%d", sshProxyAddr, sshConfig.User, i)
 
 		sshConfig.Auth = []ssh.AuthMethod{m}

@@ -471,11 +471,11 @@ func (a *LocalKeyAgent) DeleteKeys() error {
 	return nil
 }
 
-// AuthMethods returns the list of different authentication methods this agent supports
-// It returns two:
+// AuthMethods returns the list of different authentication methods this agent supports:
 //	  1. First to try is the external SSH agent
 //    2. Itself (disk-based local agent)
-func (a *LocalKeyAgent) AuthMethods() (m []ssh.AuthMethod) {
+// It returns an error in case there is no auth method method available.
+func (a *LocalKeyAgent) AuthMethods() ([]ssh.AuthMethod, error) {
 	// combine our certificates with external SSH agent's:
 	var signers []ssh.Signer
 	if a.sshAgent != nil {
@@ -487,7 +487,7 @@ func (a *LocalKeyAgent) AuthMethods() (m []ssh.AuthMethod) {
 		signers = append(signers, ourCerts...)
 	}
 	// for every certificate create a new "auth method" and return them
-	m = make([]ssh.AuthMethod, 0)
+	m := []ssh.AuthMethod{}
 	for i := range signers {
 		// filter out non-certificates (like regular public SSH keys stored in the SSH agent):
 		_, ok := signers[i].PublicKey().(*ssh.Certificate)
@@ -495,5 +495,8 @@ func (a *LocalKeyAgent) AuthMethods() (m []ssh.AuthMethod) {
 			m = append(m, sshutils.NewAuthMethodForCert(signers[i]))
 		}
 	}
-	return m
+	if len(m) == 0 {
+		return nil, trace.BadParameter("no auth method available")
+	}
+	return m, nil
 }
