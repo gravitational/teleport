@@ -266,6 +266,7 @@ func (s *KubeSuite) TestKubeExec(c *check.C) {
 	term := NewTerminal(250)
 	// lets type "echo hi" followed by "enter" and then "exit" + "enter":
 	term.Type("\aecho hi\n\r\aexit\n\r\a")
+	term.Close()
 
 	out = &bytes.Buffer{}
 	err = kubeExec(proxyClientConfig, kubeExecArgs{
@@ -309,6 +310,7 @@ loop:
 	// interactive command, allocate pty
 	term = NewTerminal(250)
 	term.Type("\aecho hi\n\r\aexit\n\r\a")
+	term.Close()
 	out = &bytes.Buffer{}
 	err = kubeExec(impersonatingProxyClientConfig, kubeExecArgs{
 		podName:      pod.Name,
@@ -326,6 +328,7 @@ loop:
 	// are allowed by the role
 	term = NewTerminal(250)
 	term.Type("\aecho hi\n\r\aexit\n\r\a")
+	term.Close()
 	out = &bytes.Buffer{}
 	err = kubeExec(scopedProxyClientConfig, kubeExecArgs{
 		podName:      pod.Name,
