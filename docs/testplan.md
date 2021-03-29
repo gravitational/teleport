@@ -290,13 +290,51 @@ For main, test with admin role that has access to all resources.
 - [ ] Verify event detail dialogue renders when clicking on events `details` button
 - [ ] Verify searching by type, description, created works
 
-#### Access Requests
+
+#### Users
+- [ ] Verify that users are shown
+- [ ] Verify that creating a new user works
+- [ ] Verify that editing user roles works
+- [ ] Verify that removing a user works
+- [ ] Verify resetting a user's password works
+- [ ] Verify search by username, roles, and type works
+
+#### Auth Connectors
+- [ ] Verify that creating OIDC/SAML/GITHUB connectors works
+- [ ] Verify that editing  OIDC/SAML/GITHUB connectors works
+- [ ] Verify that error is shown when saving an invalid YAML
+- [ ] Verify that correct hint text is shown on the right side
+- [ ] Verify that encrypted SAML assertions work with an identity provider that supports it (Azure).
+
+#### Auth Connectors Card Icons
+- [ ] Verify that GITHUB card has github icon
+- [ ] Verify that SAML card has SAML icon
+- [ ] Verify that OIDC card has OIDC icon
+- [ ] Verify when there are no connectors, empty state renders
+
+
+#### Roles
+- [ ] Verify that roles are shown
+- [ ] Verify that "Create New Role" dialog works
+- [ ] Verify that deleting and editing works
+- [ ] Verify that error is shown when saving an invalid YAML
+- [ ] Verify that correct hint text is shown on the right side
+
+#### Managed Clusters
+- [ ] Verify that it displays a list of clusters (root + leaf)
+- [ ] Verify that every menu item works: nodes, apps, audit events, session recordings.
+
+#### Help & Support
+- [ ] Verify that all URLs work and correct (no 404)
+
+## Access Requests
+
+### Creating Access Rquests
 1. Create a role with limited permissions (defined below as `allow-roles`). This role allows you to see the Role screen and ssh into all nodes.
 1. Create another role with limited permissions (defined below as `allow-users`). This role session expires in 4 minutes, allows you to see Users screen, and denies access to all nodes.
 1. Create another role with no permissions other than being able to create requests (defined below as `default`)
 1. Create a user with role `default` assigned
-1. Create a few requests under this user:
-  - Update requests to at least: one pending, two approved (for each requestable role), and one denied
+1. Create a few requests under this user to test pending/approved/denied state.
 ```
 kind: role
 metadata:
@@ -346,64 +384,35 @@ spec:
       roles:
       - allow-roles
       - allow-users
-    rules:
-    - resources:
-      - access_request
-      verbs:
-      - list
-      - read
-      - create
+      suggested_reviewers:
+      - random-user-1
+      - random-user-2
   options:
     max_session_ttl: 8h0m0s
 version: v3
 ```
-- [ ] Verify that requests are shown and that correct states are applied to each request (pending, approved, denied)
 - [ ] Verify that creating a new request works
   - [ ] Verify that under requestable roles, only `allow-roles` and `allow-users` are listed
   - [ ] Verify input validation requires at least one role to be selected
+  - [ ] Verify you can select/input/modify reviewers
+- [ ] Verify after creating, requests are listed in pending states
+
+### Viewing & Approving/Denying Requests
+Create a user with all admin priveldeges so you can approve/deny request (use different browser or incognito mode so you don't have to keep logging out/in)
+- [ ] Verify you can view access request from request list and when viewing:
+  - [ ] Verify there is list of reviewers you selected (empty list if none selected AND none wasn't defined in roles)
+  - [ ] Verify threshold name is there (it should be `default` if not defined in role)
+  - [ ] Verify you can approve a request with message, and immediately see updated state with your review stamp (green checkmark) and message box
+  - [ ] Verify you can deny a request, and immediately see updated state with your review stamp (red cross)
+  - [ ] Verify deleting the denied request is removed from list
+
+### Assuming Approved Requests
 - [ ] Verify assume buttons are only present for approved request and for logged in user
   - [ ] Verify that assuming `allow-roles` allows you to see roles screen and ssh into nodes
-  - [ ] Verify that after clicking on the assume button, it is disabled
+  - [ ] Verify that after clicking on the assume button, it is disabled in both the list and in viewing
   - [ ] After assuming `allow-roles`, verify that assuming `allow-users` allows you to see users screen, and denies access to nodes.
     - [ ] Verify that after 4 minutes, the user is automatically logged out
 - [ ] Verify that after logging out (or getting logged out automatically) and relogging in, permissions are reset to `default`, and requests that are not expired and are approved are assumable again.
-
-#### Users
-- [ ] Verify that users are shown
-- [ ] Verify that creating a new user works
-- [ ] Verify that editing user roles works
-- [ ] Verify that removing a user works
-- [ ] Verify resetting a user's password works
-- [ ] Verify search by username, roles, and type works
-
-#### Auth Connectors
-- [ ] Verify that creating OIDC/SAML/GITHUB connectors works
-- [ ] Verify that editing  OIDC/SAML/GITHUB connectors works
-- [ ] Verify that error is shown when saving an invalid YAML
-- [ ] Verify that correct hint text is shown on the right side
-- [ ] Verify that encrypted SAML assertions work with an identity provider that supports it (Azure).
-
-#### Auth Connectors Card Icons
-- [ ] Verify that GITHUB card has github icon
-- [ ] Verify that SAML card has SAML icon
-- [ ] Verify that OIDC card has OIDC icon
-- [ ] Verify when there are no connectors, empty state renders
-
-
-#### Roles
-- [ ] Verify that roles are shown
-- [ ] Verify that "Create New Role" dialog works
-- [ ] Verify that deleting and editing works
-- [ ] Verify that error is shown when saving an invalid YAML
-- [ ] Verify that correct hint text is shown on the right side
-
-#### Managed Clusters
-- [ ] Verify that it displays a list of clusters (root + leaf)
-- [ ] Verify that every menu item works: nodes, apps, audit events, session recordings.
-
-#### Help&Support
-- [ ] Verify that all URLs work and correct (no 404)
-
 ## Access Request Waiting Room
 
 #### Strategy Reason
@@ -489,6 +498,26 @@ With the previous role you created from `Strategy Reason`, change `request_acces
 - [ ] Verify that login works for Github/SAML/OIDC
 - [ ] Verify that account is locked after several unsuccessful attempts
 - [ ] Verify that redirect to original URL works after successful login
+
+
+## Multi-factor Authentication (mfa)
+Create/modify `teleport.yaml` and set the following authentication settings under `auth_service`
+```
+authentication:
+  type: local
+  second_factor: optional
+  require_session_mfa: yes
+```
+#### MFA create, login, password reset
+- [ ] Verify when creating a user, and setting password, required 2nd factor is `totp` (TODO: temporary hack, ideally want to allow user to select)
+- [ ] Verify at login page, there is a mfa dropdown menu (none, u2f, otp), and can login with `otp`
+- [ ] Verify at reset password page, there is the same dropdown to select your mfa, and can reset with `otp`
+
+#### MFA require auth
+Through the CLI, `tsh login` and register a u2f key with `tsh mfa add` (not supported in UI yet)
+
+- [ ] Verify logging in with registered u2f key works
+- [ ] Verify connecting to a ssh node prompts you to tap your registered u2f key
 
 ## RBAC
 Create a role, with no `allow.rules` defined:
@@ -578,17 +607,8 @@ Add the following to enable read access to trusted clusters
 - [ ] Verify that a user can access the "Trust" screen
 - [ ] Verify that a user cannot create/delete/update a trusted cluster.
 
-Add the following to enable read access to the access_request resource
+- [ ] Enterprise users has read/create access_request access, despite resource setting
 
-```
-- resources:
-      - access_request
-      verbs:
-      - list
-      - read
-```
-- [ ] Verify that a user can see the "Access Request" screen
-* Note: users are always allowed to create their own requests, if they have any requestable roles
 
 ## Performance/Soak Test
 
