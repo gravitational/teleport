@@ -87,7 +87,7 @@ func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32,
 	defer C.free(unsafe.Pointer(cIDName))
 
 	// Convert IPv6 array into C integer format.
-	cIP := [4]C.int{}
+	cIP := [4]C.int{0, 0, 0, 0}
 	for i := 0; i < 4; i++ {
 		cIP[i] = (C.int)(remote[i])
 	}

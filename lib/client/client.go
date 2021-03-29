@@ -206,7 +206,7 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, params ReissuePa
 		}
 	}
 
-	req, err := proxy.prepareUserCertsRequest(params, key, false, false)
+	req, err := proxy.prepareUserCertsRequest(params, key, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -320,7 +320,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	}
 	defer stream.CloseSend()
 
-	initReq, err := proxy.prepareUserCertsRequest(params, key, true, true)
+	initReq, err := proxy.prepareUserCertsRequest(params, key, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -376,16 +376,10 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	return key, nil
 }
 
-func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key, withHostLogin bool, withUsage bool) (*proto.UserCertsRequest, error) {
+func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key, withUsage bool) (*proto.UserCertsRequest, error) {
 	tlsCert, err := key.TeleportTLSCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// withHostLogin is used by MFA cert issue requests.
-	username := tlsCert.Subject.CommonName
-	if withHostLogin {
-		username = proxy.hostLogin
 	}
 
 	// withUsage is used by MFA cert issue requests.
@@ -406,8 +400,8 @@ func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key
 	}
 
 	return &proto.UserCertsRequest{
-		Username:          username,
 		PublicKey:         key.Pub,
+		Username:          tlsCert.Subject.CommonName,
 		Expires:           tlsCert.NotAfter,
 		RouteToCluster:    params.RouteToCluster,
 		KubernetesCluster: params.KubernetesCluster,
