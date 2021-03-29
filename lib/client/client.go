@@ -375,7 +375,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	defer stream.CloseSend()
 
 	initReq := &proto.UserCertsRequest{
-		Username:          proxy.hostLogin,
+		Username:          cert.KeyId,
 		PublicKey:         key.Pub,
 		Expires:           time.Unix(int64(cert.ValidBefore), 0),
 		RouteToCluster:    params.RouteToCluster,
