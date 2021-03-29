@@ -450,7 +450,8 @@ func loadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServi
 		return nil, trace.Wrap(err)
 	}
 	webProxyHost, _ := c.WebProxyHostPort()
-	key, err := keyStore.GetKey(webProxyHost, c.Username)
+	idx := client.KeyIndex{ProxyHost: webProxyHost, Username: c.Username, ClusterName: profile.Cluster}
+	key, err := keyStore.GetKey(idx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
