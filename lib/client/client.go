@@ -31,8 +31,6 @@ import (
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -312,7 +310,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	defer clt.Close()
 	requiredCheck, err := clt.IsMFARequired(ctx, params.isMFARequiredRequest(proxy.hostLogin))
 	if err != nil {
-		if status.Code(err) == codes.Unimplemented {
+		if trace.IsNotImplemented(err) {
 			// Probably talking to an older server, use the old non-MFA endpoint.
 			log.WithError(err).Debug("Auth server does not implement IsMFARequired.")
 			// SSH certs can be used without reissuing.
@@ -361,7 +359,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	log.Debug("Attempting to issue a single-use user certificate with an MFA check.")
 	stream, err := clt.GenerateUserSingleUseCerts(ctx)
 	if err != nil {
-		if status.Code(err) == codes.Unimplemented {
+		if trace.IsNotImplemented(err) {
 			// Probably talking to an older server, use the old non-MFA endpoint.
 			log.WithError(err).Debug("Auth server does not implement GenerateUserSingleUseCerts.")
 			// SSH certs can be used without reissuing.
