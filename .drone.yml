@@ -2851,7 +2851,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/darwin_pipelines.go:98
+# Generated at dronegen/darwin_pipelines.go:100
 ################################################
 
 kind: pipeline
@@ -2876,6 +2876,8 @@ platform:
   arch: amd64
 clone:
   disable: true
+depends_on:
+- build-darwin-amd64-fips
 steps:
 - name: Set up exec runner storage
   commands:
@@ -4237,7 +4239,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/darwin_pipelines.go:130
+# Generated at dronegen/darwin_pipelines.go:135
 ################################################
 
 kind: pipeline
@@ -4262,6 +4264,8 @@ platform:
   arch: amd64
 clone:
   disable: true
+depends_on:
+- build-darwin-amd64-fips
 steps:
 - name: Set up exec runner storage
   commands:
@@ -5225,6 +5229,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 11361a4e45b382d6ddaea7fc224c25eff58055697bc4aad7cf63684dfcf0bd7c
+hmac: 3fc0c4b84c25191526730c07904d344f15768adae96727d6db30b97396a163c6
 
 ...
