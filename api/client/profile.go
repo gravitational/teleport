@@ -131,7 +131,7 @@ func (p *Profile) SSHClientConfig() (*ssh.ClientConfig, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	ssh, err := sshutils.SSHClientConfig(cert, key, [][]byte{caCerts})
+	ssh, err := sshutils.ProxyClientSSHConfig(cert, key, [][]byte{caCerts})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
