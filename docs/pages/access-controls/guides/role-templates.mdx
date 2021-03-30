@@ -1,0 +1,324 @@
+---
+title: Teleport Role Templates
+description: Mapping SSO and Local Users Traits to Roles with Template
+---
+
+# Role Templates
+
+As organizations grow, infrastructure teams have to figure out
+how to define access control policies that don't require manual configuration
+every time people join, leave and form new teams.
+
+Here are some common examples of such policies:
+
+- Grant every single sign-on user an SSH login generated from their email.
+- Assign each team member to their team's Kubernetes group.
+- Limit dev team to read-only replica of a database.
+
+Let's explore how Teleport's role templates provide a way to describe these and other policies.
+
+## Prerequisites
+
+- Installed [Teleport](../getting-started.mdx) or [Teleport Cloud](../../cloud.mdx) >= {{teleport_version}}
+- [Tctl admin tool](https://goteleport.com/teleport/download) >= {{teleport_version}}
+
+Verify that your Teleport client is connected:
+
+```bash
+$ tctl status
+Cluster  acme.example.com
+Version  6.0.2
+Host CA  never updated
+User CA  never updated
+Jwt CA   never updated
+CA pin   sha256:e63c7c44be468d37a5b0276b70e9d10b17f24f4be19d6b579810fc94eaa31783
+```
+
+## Local Users
+
+Imagine you have two users, Alice and Bob. We would like to set the following
+access policies:
+
+- Alice to login as SSH user `admin` and Kubernetes group `edit`
+- Bob to login as `ubuntu` and Kubernetes group `view`
+
+We can create two roles, one for each user in file `roles.yaml`:
+
+```yaml
+kind: role
+version: v3
+metadata:
+  name: alice
+spec:
+  allow:
+    logins: ['admin']
+    kubernetes_groups: ['edit']
+    node_labels:
+      '*': '*'
+    kubernetes_labels:
+      '*': '*'
+---
+kind: role
+version: v3
+metadata:
+  name: bob
+spec:
+  allow:
+    logins: ['ubuntu']
+    kubernetes_groups: ['view']
+    node_labels:
+      '*': '*'
+    kubernetes_labels:
+      '*': '*'
+```
+
+You can create roles and invite Alice and Bob as local users:
+
+```bash
+$ tctl create -f roles.yaml
+$ tctl users add alice --roles=alice
+$ tctl users add bob --roles=bob
+```
+
+Having one role per user is not going to scale well. Because the roles
+are so similar, we can assign variables to each user, and use just one role template
+for both Alice and Bob.
+
+Let's create a role template `devs.yaml`:
+
+```yaml
+kind: role
+version: v3
+metadata:
+  name: devs
+spec:
+  allow:
+    logins: ['{{internal.logins}}']
+    kubernetes_groups: ['{{internal.kubernetes_groups}}']
+    node_labels:
+      '*': '*'
+    kubernetes_labels:
+      '*': '*'
+```
+
+Any role becomes a template once it starts using template variables.
+Just like roles, role templates are a valid YAML and validate both the structure and types.
+
+Role template `devs` is using `internal.` notation referring to local user's
+traits `logins` and `kubernetes_groups`.
+
+Use `tctl` to create a role template:
+
+```bash
+$ tctl create -f ~/scripts/access-controls/devs.yaml
+```
+
+The last step is to update Alice's and Bob's users with traits. Here is an example
+of user resources in a file `traits.yaml`:
+
+```yaml
+kind: user
+version: v2
+metadata:
+  name: alice
+spec:
+  roles: ['devs']
+  traits:
+    logins: ['admin']
+    kubernetes_groups: ['edit']
+---
+kind: user
+version: v2
+metadata:
+  name: bob
+spec:
+  roles: ['devs']
+  traits:
+    logins: ['ubuntu']
+    kubernetes_groups: ['view']
+```
+
+Update both user's entries with `tctl create -f` command:
+
+```bash
+$ tctl create -f traits.yaml 
+user "alice" has been updated
+```
+
+Once Alice logs in, she will receive SSH and X.509 certificates with
+a new role and SSH logins and Kubernetes groups set:
+
+```bash
+$ tsh login --proxy=teleport.example.com:443 --user=alice
+
+> Profile URL:        https://teleport.example.com:443
+  Logged in as:       alice
+  Cluster:            teleport.example.com
+  Roles:              devs*
+  Logins:             admin
+  Kubernetes:         enabled
+  Kubernetes groups:  edit
+  Valid until:        2021-03-26 07:13:57 -0700 PDT [valid for 12h0m0s]
+  Extensions:         permit-port-forwarding, permit-pty
+```
+
+## SSO Users
+
+Identity provider admins can assign metadata to a user, such as
+group membership or access permissions. Administrators configure what metadata
+is shared with Teleport. Teleport receives user metadata keys and values as OIDC claims or SAML
+attributes during [single sign-on redirect flow](https://goteleport.com/blog/how-oidc-authentication-works/):
+
+```yaml
+# Alice has an email alice@example.com. Email is a standard OIDC claim.
+email: "alice@example.com"
+# Alice is a member of groups admins and devs
+groups: ["admins", "devs"]
+# She can access prod and staging environments
+access: {"env": ["prod", "staging"]}
+```
+
+Let's create role template `sso-users` that expects external attribute `logins`
+to be set by identity provider. Save this role as `sso-users.yaml`:
+
+```yaml
+kind: role
+version: v3
+metadata:
+  name: sso-users
+spec:
+  allow:
+    logins: ['{{external.logins}}']
+    node_labels:
+      '*': '*'
+    kubernetes_labels:
+      '*': '*'
+```
+
+A GitHub connector `github.yaml` maps every `cyber` team's member of organization `octocats` to
+the role `sso-logins`:
+
+```yaml
+kind: github
+version: v3
+metadata:
+  name: github
+spec:
+  # Client ID of Github OAuth app
+  client_id: client-id
+  # client secret of Github OAuth app
+  client_secret: secret-data-here
+  # connector display name that will be shown on web UI login screen
+  display: Github
+  # callback URL that will be called after successful authentication
+  redirect_url: https://teleport.example.com/v1/webapi/github/callback
+  # mapping of org/team memberships onto allowed logins and roles
+  teams_to_logins:
+    - organization: octocats # Github organization name
+      team: cyber # Github team name within that organization
+      # Role names to map to
+      logins:
+        - sso-users
+```
+
+Create this connector using `tctl`:
+
+```bash
+$ tctl create -f github.yaml
+```
+
+Once Bob logs in using SSO, he will receive SSH and X.509 certificates with
+a new role and SSH logins generated using `sso-users` role template:
+
+```bash
+$ tsh login --proxy=teleport.example.com:443 --auth=github
+
+> Profile URL:        https://teleport.example.com:443
+  Logged in as:       bob
+  Cluster:            teleport.example.com
+  Roles:              sso-users*
+  Logins:             bob
+  Kubernetes:         enabled
+  Kubernetes groups:  edit
+  Valid until:        2021-03-26 07:13:57 -0700 PDT [valid for 12h0m0s]
+  Extensions:         permit-port-forwarding, permit-pty
+```
+
+## Interpolation rules
+
+Administrators can configure what attributes identity providers return
+during single-sign on and present to Teleport. Let's review a couple of scenarios
+and see how Teleport interpolates the variables.
+
+Let's go back to the the list of attributes for Alice's user entry:
+
+```yaml
+# Alice has an email alice@example.com. Email is a standard OIDC claim.
+email: "alice@example.com"
+# Alice is a member of groups admins and devs
+groups: ["admins", "devs"]
+# She can access prod and staging environments
+access: {"env": ["prod", "staging"]}
+```
+
+Let's see how these variables a role template `interpolation`:
+
+```yaml
+kind: role
+version: v3
+metadata:
+  name: interpolation
+spec:
+  allow:
+    # Role template fields can mix hard-coded values and variables.
+    logins: ['{{external.logins}}', 'admin']
+
+    # Roles support interpolation in string values.
+    kubernetes_users: ['IAM#{{external.foo}};']
+
+    # Lists get expanded into lists.
+    kubernetes_groups: ['{{external.groups}}']
+
+    # Functions transform variables.
+    database_users: ['{{email.local(external.email)}}']
+    
+    # Labels can mix template and hard-coded values
+    node_labels:
+      'env': '{{external.access["env"]}}'
+      'region': 'us-west-2'
+
+    kubernetes_labels:
+      '*': '*'
+```
+
+After interpolation with Alice's SSO user attributes, the role template will
+behave as the following role:
+
+```yaml
+kind: role
+version: v3
+metadata:
+  name: interpolation
+spec:
+  allow:
+    # The variable external.logins is not sent by provider and it renders empty,
+    # leaving only hard-coded admin value
+    logins: ['admin']
+
+    # The variable external.email is expanded in a string.
+    kubernetes_users: ['IAM#alice@example.com;']
+
+    # The variable external.groups gets replaced with a list.
+    kubernetes_groups: ['devs', 'admins']
+
+    # The variable email.local will take a local part of the external.email attribute.
+    database_users: ['alice']
+
+    # Node labels have 'env' replaced from a variable
+    node_labels:
+      'env': ['prod', 'staging']
+      'region': 'us-west-2'
+
+    kubernetes_labels:
+      '*': '*'
+```
