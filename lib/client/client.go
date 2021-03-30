@@ -42,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/socks"
 
@@ -117,14 +116,11 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 
 // GetLeafClusters returns the leaf/remote clusters.
 func (proxy *ProxyClient) GetLeafClusters(ctx context.Context) ([]services.RemoteCluster, error) {
-	rootClusterName, err := proxy.RootClusterName()
+	clt, err := proxy.ConnectToRootCluster(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clt, err := proxy.ConnectToCluster(ctx, rootClusterName, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	defer clt.Close()
 
 	remoteClusters, err := clt.GetRemoteClusters(services.SkipValidation())
 	if err != nil {
@@ -162,6 +158,8 @@ func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
 		return proto.UserCertsRequest_Kubernetes
 	case p.RouteToDatabase.ServiceName != "":
 		return proto.UserCertsRequest_Database
+	case p.RouteToApp.Name != "":
+		return proto.UserCertsRequest_App
 	default:
 		return proto.UserCertsRequest_All
 	}
@@ -189,7 +187,7 @@ func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, params ReissuePa
 	}
 
 	// save the cert to the local storage (~/.tsh usually):
-	_, err = proxy.teleportClient.LocalAgent().AddKey(key)
+	_, err = proxy.localAgent().AddKey(key)
 	return trace.Wrap(err)
 }
 
@@ -199,60 +197,28 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, params ReissuePa
 	}
 	key := params.ExistingCreds
 	if key == nil {
-		localAgent := proxy.teleportClient.LocalAgent()
 		var err error
-		key, err = localAgent.GetKey(WithKubeCerts(params.RouteToCluster))
+		key, err = proxy.localAgent().GetKey(params.RouteToCluster, WithAllCerts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-	cert, err := key.SSHCert()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tlsCert, err := key.TeleportTLSCertificate()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	rootClusterName, err := tlsca.ClusterName(tlsCert.Issuer)
+
+	req, err := proxy.prepareUserCertsRequest(params, key, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := proxy.ConnectToCluster(ctx, rootClusterName, true)
+	clt, err := proxy.ConnectToRootCluster(ctx, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer clt.Close()
-
-	// Before requesting a certificate, check if the requested cluster is valid.
-	_, err = clt.GetCertAuthority(services.CertAuthID{
-		Type:       services.HostCA,
-		DomainName: params.RouteToCluster,
-	}, false)
-	if err != nil {
-		return nil, trace.NotFound("cluster %v not found", params.RouteToCluster)
-	}
-	req := proto.UserCertsRequest{
-		Username:          cert.KeyId,
-		PublicKey:         key.Pub,
-		Expires:           time.Unix(int64(cert.ValidBefore), 0),
-		RouteToCluster:    params.RouteToCluster,
-		KubernetesCluster: params.KubernetesCluster,
-		AccessRequests:    params.AccessRequests,
-		RouteToDatabase:   params.RouteToDatabase,
-		RouteToApp:        params.RouteToApp,
-		NodeName:          params.NodeName,
-		Usage:             proto.UserCertsRequest_All,
-	}
-	if _, ok := cert.Permissions.Extensions[teleport.CertExtensionTeleportRoles]; !ok {
-		req.Format = teleport.CertificateFormatOldSSH
-	}
-
-	certs, err := clt.GenerateUserCerts(ctx, req)
+	certs, err := clt.GenerateUserCerts(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	key.Cert = certs.SSH
 	key.TLSCert = certs.TLS
 	if params.KubernetesCluster != "" {
@@ -264,6 +230,7 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, params ReissuePa
 	if params.RouteToApp.Name != "" {
 		key.AppTLSCerts[params.RouteToApp.Name] = certs.TLS
 	}
+	key.ClusterName = params.RouteToCluster
 	return key, nil
 }
 
@@ -281,24 +248,11 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	}
 	key := params.ExistingCreds
 	if key == nil {
-		localAgent := proxy.teleportClient.LocalAgent()
 		var err error
-		key, err = localAgent.GetKey(WithKubeCerts(params.RouteToCluster))
+		key, err = proxy.localAgent().GetKey(params.RouteToCluster, WithAllCerts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	}
-	cert, err := key.SSHCert()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tlsCert, err := key.TeleportTLSCertificate()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	rootClusterName, err := tlsca.ClusterName(tlsCert.Issuer)
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	// Connect to the target cluster (root or leaf) to check whether MFA is
@@ -314,7 +268,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 			// Probably talking to an older server, use the old non-MFA endpoint.
 			log.WithError(err).Debug("Auth server does not implement IsMFARequired.")
 			// SSH certs can be used without reissuing.
-			if params.usage() == proto.UserCertsRequest_SSH {
+			if params.usage() == proto.UserCertsRequest_SSH && key.Cert != nil {
 				return key, nil
 			}
 			return proxy.reissueUserCerts(ctx, params)
@@ -325,7 +279,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		log.Debug("MFA not required for access.")
 		// MFA is not required.
 		// SSH certs can be used without embedding the node name.
-		if params.usage() == proto.UserCertsRequest_SSH {
+		if params.usage() == proto.UserCertsRequest_SSH && key.Cert != nil {
 			return key, nil
 		}
 		// All other targets need their name embedded in the cert for routing,
@@ -333,20 +287,12 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		return proxy.reissueUserCerts(ctx, params)
 	}
 
-	if len(params.AccessRequests) == 0 {
-		// Get the active access requests to include in the cert.
-		var activeRequests services.RequestIDs
-		rawRequests, ok := cert.Extensions[teleport.CertExtensionTeleportActiveRequests]
-		if ok {
-			if err := activeRequests.Unmarshal([]byte(rawRequests)); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-		params.AccessRequests = activeRequests.AccessRequests
-	}
-
 	// Always connect to root for getting new credentials, but attempt to reuse
 	// the existing client if possible.
+	rootClusterName, err := key.RootClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if params.RouteToCluster != rootClusterName {
 		clt.Close()
 		clt, err = proxy.ConnectToCluster(ctx, rootClusterName, true)
@@ -363,7 +309,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 			// Probably talking to an older server, use the old non-MFA endpoint.
 			log.WithError(err).Debug("Auth server does not implement GenerateUserSingleUseCerts.")
 			// SSH certs can be used without reissuing.
-			if params.usage() == proto.UserCertsRequest_SSH {
+			if params.usage() == proto.UserCertsRequest_SSH && key.Cert != nil {
 				return key, nil
 			}
 			return proxy.reissueUserCerts(ctx, params)
@@ -372,19 +318,9 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	}
 	defer stream.CloseSend()
 
-	initReq := &proto.UserCertsRequest{
-		Username:          proxy.hostLogin,
-		PublicKey:         key.Pub,
-		Expires:           time.Unix(int64(cert.ValidBefore), 0),
-		RouteToCluster:    params.RouteToCluster,
-		NodeName:          params.NodeName,
-		KubernetesCluster: params.KubernetesCluster,
-		AccessRequests:    params.AccessRequests,
-		RouteToDatabase:   params.RouteToDatabase,
-		Usage:             params.usage(),
-	}
-	if _, ok := cert.Permissions.Extensions[teleport.CertExtensionTeleportRoles]; !ok {
-		initReq.Format = teleport.CertificateFormatOldSSH
+	initReq, err := proxy.prepareUserCertsRequest(params, key, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	err = stream.Send(&proto.UserSingleUseCertsRequest{Request: &proto.UserSingleUseCertsRequest_Init{
 		Init: initReq,
@@ -433,26 +369,56 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	default:
 		return nil, trace.BadParameter("server sent a %T SingleUseUserCert in response", certResp.Cert)
 	}
+	key.ClusterName = params.RouteToCluster
 	log.Debug("Issued single-use user certificate after an MFA check.")
 	return key, nil
 }
 
-// RootClusterName returns name of the current cluster
-func (proxy *ProxyClient) RootClusterName() (string, error) {
-	localAgent := proxy.teleportClient.LocalAgent()
-	key, err := localAgent.GetKey()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
+func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key, withUsage bool) (*proto.UserCertsRequest, error) {
 	tlsCert, err := key.TeleportTLSCertificate()
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	clusterName, err := tlsca.ClusterName(tlsCert.Issuer)
+
+	// withUsage is used by MFA cert issue requests.
+	// TODO: After the primary TLS certificate isn't rewritten with every
+	// reissue, all cert requests should include proper usage information.
+	// See https://github.com/gravitational/teleport/issues/6161
+	usage := proto.UserCertsRequest_All
+	if withUsage {
+		usage = params.usage()
+	}
+
+	if len(params.AccessRequests) == 0 {
+		profile, err := StatusCurrent("", proxy.proxyAddress)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		params.AccessRequests = profile.ActiveRequests.AccessRequests
+	}
+
+	return &proto.UserCertsRequest{
+		PublicKey:         key.Pub,
+		Username:          tlsCert.Subject.CommonName,
+		Expires:           tlsCert.NotAfter,
+		RouteToCluster:    params.RouteToCluster,
+		KubernetesCluster: params.KubernetesCluster,
+		AccessRequests:    params.AccessRequests,
+		RouteToDatabase:   params.RouteToDatabase,
+		RouteToApp:        params.RouteToApp,
+		NodeName:          params.NodeName,
+		Usage:             usage,
+		Format:            proxy.teleportClient.CertificateFormat,
+	}, nil
+}
+
+// RootClusterName returns name of the current cluster
+func (proxy *ProxyClient) RootClusterName() (string, error) {
+	tlsKey, err := proxy.localAgent().GetCoreKey()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	return clusterName, nil
+	return tlsKey.RootClusterName()
 }
 
 // CreateAccessRequest registers a new access request with the auth server.
@@ -669,12 +635,11 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 		})
 	}
 
-	localAgent := proxy.teleportClient.LocalAgent()
-	key, err := localAgent.GetKey()
+	tlsKey, err := proxy.localAgent().GetCoreKey()
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to fetch TLS key for %v", proxy.teleportClient.Username)
 	}
-	tlsConfig, err := key.TeleportClientTLSConfig(nil)
+	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to generate client TLS config")
 	}
@@ -1401,10 +1366,13 @@ func (proxy *ProxyClient) currentCluster() (*services.Site, error) {
 }
 
 func (proxy *ProxyClient) sessionSSHCertificate(ctx context.Context, nodeAddr NodeAddr) (ssh.AuthMethod, error) {
-	if _, err := proxy.teleportClient.localAgent.GetKey(); trace.IsNotFound(err) {
-		// Either running inside the web UI in a proxy or using an identity
-		// file. Fall back to whatever AuthMethod we currently have.
-		return proxy.authMethod, nil
+	if _, err := proxy.teleportClient.localAgent.GetKey(nodeAddr.Cluster); err != nil {
+		if trace.IsNotFound(err) {
+			// Either running inside the web UI in a proxy or using an identity
+			// file. Fall back to whatever AuthMethod we currently have.
+			return proxy.authMethod, nil
+		}
+		return nil, trace.Wrap(err)
 	}
 
 	key, err := proxy.IssueUserCertsWithMFA(
@@ -1421,4 +1389,9 @@ func (proxy *ProxyClient) sessionSSHCertificate(ctx context.Context, nodeAddr No
 		return nil, trace.Wrap(err)
 	}
 	return key.AsAuthMethod()
+}
+
+// localAgent returns for the Teleport client's local agent.
+func (proxy *ProxyClient) localAgent() *LocalKeyAgent {
+	return proxy.teleportClient.LocalAgent()
 }
