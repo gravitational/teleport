@@ -28,6 +28,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
@@ -239,7 +241,7 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 			return trace.BadParameter("error parsing key: %v", err)
 		}
 		for _, checker := range checkers {
-			if sshutils.KeysEqual(checker, cert.SignatureKey) {
+			if apisshutils.KeysEqual(checker, cert.SignatureKey) {
 				a.setPrincipals(cert.ValidPrincipals)
 				return nil
 			}
@@ -402,7 +404,7 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	newTransportC := conn.HandleChannelOpen(chanTransport)
+	newTransportC := conn.HandleChannelOpen(constants.ChanTransport)
 	newDiscoveryC := conn.HandleChannelOpen(chanDiscovery)
 
 	// send first ping right away, then start a ping timer:
@@ -508,16 +510,6 @@ func (a *Agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 }
 
 const (
-	// chanTransport is a channel type that can be used to open a net.Conn
-	// through the reverse tunnel server. Used for trusted clusters and dial back
-	// nodes.
-	chanTransport = "teleport-transport"
-
-	// chanTransportDialReq is the first (and only) request sent on a
-	// chanTransport channel. It's payload is the address of the host a
-	// connection should be established to.
-	chanTransportDialReq = "teleport-transport-dial"
-
 	chanHeartbeat    = "teleport-heartbeat"
 	chanDiscovery    = "teleport-discovery"
 	chanDiscoveryReq = "discovery"
