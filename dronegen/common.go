@@ -17,7 +17,7 @@ var (
 		Ref:   triggerRef{Include: []string{"refs/tags/v*"}},
 		Repo:  triggerRef{Include: []string{"gravitational/*"}},
 	}
-	triggerBuildbox = trigger{
+	triggerPushMasterOnly = trigger{
 		Event:  triggerRef{Include: []string{"push"}},
 		Branch: triggerRef{Include: []string{"master"}},
 		Repo:   triggerRef{Include: []string{"gravitational/teleport"}},
