@@ -274,13 +274,26 @@ type ServerContext struct {
 	DstAddr string
 }
 
+// ContextConfig describes configuration for a server context
+type ContextConfig struct {
+	// ConnectionContext specifies the parent connection context
+	ConnectionContext *sshutils.ConnectionContext
+	// Server identifies the server
+	Server Server
+	// IdentityContext provides user identity details
+	IdentityContext IdentityContext
+	// SessionRefreshPeriod optionally specifies the time between session sync attempts.
+	// Defaults to defaults.SessionRefreshPeriod
+	SessionRefreshPeriod time.Duration
+}
+
 // NewServerContext creates a new *ServerContext which is used to pass and
 // manage resources, and an associated context.Context which is canceled when
 // the ServerContext is closed.  The ctx parameter should be a child of the ctx
 // associated with the scope of the parent ConnectionContext to ensure that
 // cancellation of the ConnectionContext propagates to the ServerContext.
-func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, srv Server, identityContext IdentityContext) (context.Context, *ServerContext, error) {
-	clusterConfig, err := srv.GetAccessPoint().GetClusterConfig()
+func NewServerContext(ctx context.Context, config ContextConfig) (context.Context, *ServerContext, error) {
+	clusterConfig, err := config.Server.GetAccessPoint().GetClusterConfig()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -288,23 +301,23 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	cancelContext, cancel := context.WithCancel(ctx)
 
 	child := &ServerContext{
-		ConnectionContext: parent,
+		ConnectionContext: config.ConnectionContext,
 		id:                int(atomic.AddInt32(&ctxID, int32(1))),
 		env:               make(map[string]string),
-		srv:               srv,
+		srv:               config.Server,
 		ExecResultCh:      make(chan ExecResult, 10),
 		SubsystemResultCh: make(chan SubsystemResult, 10),
-		ClusterName:       parent.ServerConn.Permissions.Extensions[utils.CertTeleportClusterName],
+		ClusterName:       config.ConnectionContext.ServerConn.Permissions.Extensions[utils.CertTeleportClusterName],
 		ClusterConfig:     clusterConfig,
-		Identity:          identityContext,
-		clientIdleTimeout: identityContext.RoleSet.AdjustClientIdleTimeout(clusterConfig.GetClientIdleTimeout()),
+		Identity:          config.IdentityContext,
+		clientIdleTimeout: config.IdentityContext.RoleSet.AdjustClientIdleTimeout(clusterConfig.GetClientIdleTimeout()),
 		cancelContext:     cancelContext,
 		cancel:            cancel,
 	}
 
-	disconnectExpiredCert := identityContext.RoleSet.AdjustDisconnectExpiredCert(clusterConfig.GetDisconnectExpiredCert())
-	if !identityContext.CertValidBefore.IsZero() && disconnectExpiredCert {
-		child.disconnectExpiredCert = identityContext.CertValidBefore
+	disconnectExpiredCert := config.IdentityContext.RoleSet.AdjustDisconnectExpiredCert(clusterConfig.GetDisconnectExpiredCert())
+	if !config.IdentityContext.CertValidBefore.IsZero() && disconnectExpiredCert {
+		child.disconnectExpiredCert = config.IdentityContext.CertValidBefore
 	}
 
 	fields := log.Fields{
@@ -321,7 +334,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		fields["idle"] = child.clientIdleTimeout
 	}
 	child.Entry = log.WithFields(log.Fields{
-		trace.Component:       srv.Component(),
+		trace.Component:       config.Server.Component(),
 		trace.ComponentFields: fields,
 	})
 

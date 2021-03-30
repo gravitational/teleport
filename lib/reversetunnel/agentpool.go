@@ -90,6 +90,9 @@ type AgentPoolConfig struct {
 	ProxyAddr string
 	// Cluster is a cluster name of the proxy.
 	Cluster string
+	// ResyncInterval specifies the interval between agent sync attempts.
+	// Defaults to defaults.ResyncInterval if unspecified
+	ResyncInterval time.Duration
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -111,6 +114,9 @@ func (cfg *AgentPoolConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Cluster == "" {
 		return trace.BadParameter("missing 'Cluster' parameter")
+	}
+	if cfg.ResyncInterval == 0 {
+		cfg.ResyncInterval = defaults.ResyncInterval
 	}
 	return nil
 }
@@ -241,7 +247,7 @@ func filterAndClose(agents []*Agent, matchAgent matchAgentFn) []*Agent {
 }
 
 func (m *AgentPool) pollAndSyncAgents() {
-	ticker := time.NewTicker(defaults.ResyncInterval)
+	ticker := time.NewTicker(m.cfg.ResyncInterval)
 	defer ticker.Stop()
 	for {
 		select {

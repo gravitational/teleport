@@ -21,6 +21,7 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
@@ -45,6 +46,12 @@ type TLSServerConfig struct {
 	LimiterConfig limiter.Config
 	// AccessPoint is caching access point
 	AccessPoint auth.AccessPoint
+	// HeartbeatCheckPeriod optionally specifies the time between server update checks.
+	// Defaults to defaults.HeartbeatCheckPeriod
+	HeartbeatCheckPeriod time.Duration
+	// KeepAlivePeriod optionally specifies the time between server keep alive updates.
+	// Defaults to defaults.ServerKeepAliveTTL
+	KeepAlivePeriod time.Duration
 	// OnHeartbeat is a callback for kubernetes_service heartbeats.
 	OnHeartbeat func(error)
 }
@@ -69,6 +76,12 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	}
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing parameter AccessPoint")
+	}
+	if c.HeartbeatCheckPeriod == 0 {
+		c.HeartbeatCheckPeriod = defaults.HeartbeatCheckPeriod
+	}
+	if c.KeepAlivePeriod == 0 {
+		c.KeepAlivePeriod = defaults.ServerKeepAliveTTL
 	}
 	return nil
 }
@@ -135,10 +148,10 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 			Component:       cfg.Component,
 			Announcer:       cfg.AuthClient,
 			GetServerInfo:   server.GetServerInfo,
-			KeepAlivePeriod: defaults.ServerKeepAliveTTL,
+			KeepAlivePeriod: cfg.KeepAlivePeriod,
 			AnnouncePeriod:  defaults.ServerAnnounceTTL/2 + utils.RandomDuration(defaults.ServerAnnounceTTL/10),
 			ServerTTL:       defaults.ServerAnnounceTTL,
-			CheckPeriod:     defaults.HeartbeatCheckPeriod,
+			CheckPeriod:     cfg.HeartbeatCheckPeriod,
 			Clock:           cfg.Clock,
 			OnHeartbeat:     cfg.OnHeartbeat,
 		})

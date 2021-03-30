@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -112,7 +111,7 @@ func (f *processState) update(event Event) {
 			s.recoveryTime = f.process.Clock.Now()
 			f.process.log.Infof("Teleport component %q is recovering from a degraded state.", component)
 		case stateRecovering:
-			if f.process.Clock.Now().Sub(s.recoveryTime) > defaults.HeartbeatCheckPeriod*2 {
+			if f.process.Clock.Now().Sub(s.recoveryTime) > f.process.Config.Timeouts.HeartbeatCheckPeriod*2 {
 				s.state = stateOK
 				f.process.log.Infof("Teleport component %q has recovered from a degraded state.", component)
 			}

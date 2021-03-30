@@ -227,21 +227,22 @@ func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
 	// server does not need to close, it will close and release all resources
 	// once conn is closed.
 	serverConfig := forward.ServerConfig{
-		AuthClient:      s.client,
-		UserAgent:       userAgent,
-		TargetConn:      targetConn,
-		SrcAddr:         params.From,
-		DstAddr:         params.To,
-		HostCertificate: hostCertificate,
-		Ciphers:         s.srv.Config.Ciphers,
-		KEXAlgorithms:   s.srv.Config.KEXAlgorithms,
-		MACAlgorithms:   s.srv.Config.MACAlgorithms,
-		DataDir:         s.srv.Config.DataDir,
-		Address:         params.Address,
-		UseTunnel:       useTunnel,
-		HostUUID:        s.srv.ID,
-		Emitter:         s.srv.Config.Emitter,
-		ParentContext:   s.srv.Context,
+		AuthClient:           s.client,
+		UserAgent:            userAgent,
+		TargetConn:           targetConn,
+		SrcAddr:              params.From,
+		DstAddr:              params.To,
+		HostCertificate:      hostCertificate,
+		Ciphers:              s.srv.Config.Ciphers,
+		KEXAlgorithms:        s.srv.Config.KEXAlgorithms,
+		MACAlgorithms:        s.srv.Config.MACAlgorithms,
+		DataDir:              s.srv.Config.DataDir,
+		Address:              params.Address,
+		UseTunnel:            useTunnel,
+		HostUUID:             s.srv.ID,
+		Emitter:              s.srv.Config.Emitter,
+		ParentContext:        s.srv.Context,
+		SessionRefreshPeriod: s.srv.Config.SessionRefreshPeriod,
 	}
 	remoteServer, err := forward.New(serverConfig)
 	if err != nil {

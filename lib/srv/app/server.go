@@ -77,15 +77,19 @@ type Config struct {
 
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)
+
+	// HeartbeatCheckPeriod optionally specifies the time between server update checks.
+	// Defaults to defaults.HeartbeatCheckPeriod
+	HeartbeatCheckPeriod time.Duration
+
+	// KeepAlivePeriod optionally specifies the time between server keep alive updates.
+	// Defaults to defaults.ServerKeepAliveTTL
+	KeepAlivePeriod time.Duration
 }
 
 // CheckAndSetDefaults makes sure the configuration has the minimum required
 // to function.
 func (c *Config) CheckAndSetDefaults() error {
-	if c.Clock == nil {
-		c.Clock = clockwork.NewRealClock()
-	}
-
 	if c.DataDir == "" {
 		return trace.BadParameter("data dir missing")
 	}
@@ -113,7 +117,15 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.OnHeartbeat == nil {
 		return trace.BadParameter("heartbeat missing")
 	}
-
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
+	}
+	if c.HeartbeatCheckPeriod == 0 {
+		c.HeartbeatCheckPeriod = defaults.HeartbeatCheckPeriod
+	}
+	if c.KeepAlivePeriod == 0 {
+		c.KeepAlivePeriod = defaults.ServerKeepAliveTTL
+	}
 	return nil
 }
 
@@ -203,9 +215,9 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		Component:       teleport.ComponentApp,
 		Announcer:       c.AccessPoint,
 		GetServerInfo:   s.GetServerInfo,
-		KeepAlivePeriod: defaults.ServerKeepAliveTTL,
+		KeepAlivePeriod: c.KeepAlivePeriod,
 		AnnouncePeriod:  defaults.ServerAnnounceTTL/2 + utils.RandomDuration(defaults.ServerAnnounceTTL/2),
-		CheckPeriod:     defaults.HeartbeatCheckPeriod,
+		CheckPeriod:     c.HeartbeatCheckPeriod,
 		ServerTTL:       defaults.ServerAnnounceTTL,
 		OnHeartbeat:     c.OnHeartbeat,
 	})

@@ -67,17 +67,6 @@ const (
 	Host     = "localhost"
 )
 
-// SetTestTimeouts affects global timeouts inside Teleport, making connections
-// work faster but consuming more CPU (useful for integration testing)
-func SetTestTimeouts(t time.Duration) {
-	defaults.KeepAliveInterval = t
-	defaults.ResyncInterval = t
-	defaults.ServerKeepAliveTTL = t
-	defaults.SessionRefreshPeriod = t
-	defaults.HeartbeatCheckPeriod = t
-	defaults.CachePollPeriod = t
-}
-
 // TeleInstance represents an in-memory instance of a teleport
 // process for testing
 type TeleInstance struct {
@@ -109,6 +98,8 @@ type TeleInstance struct {
 
 	// log specifies the instance logger
 	log utils.Logger
+
+	timeouts timeouts
 }
 
 type User struct {
@@ -168,6 +159,8 @@ type InstanceConfig struct {
 
 	// log specifies the logger
 	log utils.Logger
+
+	timeouts timeouts
 }
 
 // NewInstance creates a new Teleport process instance.
@@ -232,6 +225,7 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 		Hostname:      cfg.NodeName,
 		UploadEventsC: make(chan events.UploadEvent, 100),
 		log:           cfg.log,
+		timeouts:      cfg.timeouts,
 	}
 	secrets := InstanceSecrets{
 		SiteName:       cfg.ClusterName,
@@ -333,6 +327,14 @@ func (s *InstanceSecrets) GetIdentity() *auth.Identity {
 	return i
 }
 
+func (i *TeleInstance) newDefaultConfig() *service.Config {
+	config := service.MakeDefaultConfig()
+	config.Console = nil
+	config.Log = i.log
+	i.timeouts.applyTestDefaults(config)
+	return config
+}
+
 func (i *TeleInstance) GetPortSSHInt() int {
 	return i.Ports[0]
 }
@@ -381,7 +383,7 @@ func (i *TeleInstance) GetSiteAPI(siteName string) auth.ClientI {
 // Create creates a new instance of Teleport which trusts a lsit of other clusters (other
 // instances)
 func (i *TeleInstance) Create(trustedSecrets []*InstanceSecrets, enableSSH bool, console io.Writer) error {
-	tconf := service.MakeDefaultConfig()
+	tconf := i.newDefaultConfig()
 	tconf.SSH.Enabled = enableSSH
 	tconf.Console = console
 	tconf.Log = i.log
@@ -503,7 +505,7 @@ func (i *TeleInstance) GenerateConfig(trustedSecrets []*InstanceSecrets, tconf *
 	i.tempDirs = append(i.tempDirs, dataDir)
 
 	if tconf == nil {
-		tconf = service.MakeDefaultConfig()
+		tconf = i.newDefaultConfig()
 	}
 	tconf.Log = i.log
 	tconf.DataDir = dataDir
@@ -857,7 +859,7 @@ func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, pro
 	}
 	i.tempDirs = append(i.tempDirs, dataDir)
 
-	tconf := service.MakeDefaultConfig()
+	tconf := i.newDefaultConfig()
 
 	tconf.Log = i.log
 	authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, i.GetPortAuth()))
@@ -940,9 +942,8 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error)
 	}
 	i.tempDirs = append(i.tempDirs, dataDir)
 
-	tconf := service.MakeDefaultConfig()
-	tconf.Console = nil
-	tconf.Log = i.log
+	tconf := i.newDefaultConfig()
+
 	authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, i.GetPortAuth()))
 	tconf.AuthServers = append(tconf.AuthServers, *authServer)
 	tconf.CachePolicy = service.CachePolicy{Enabled: true}
@@ -1629,4 +1630,35 @@ func fatalIf(err error) {
 	if err != nil {
 		log.Fatalf("%v at %v", string(debug.Stack()), err)
 	}
+}
+
+// newTestTimeouts creates a new set of timeouts for Teleport: making connections
+// work faster but consuming more CPU
+func newTestTimeouts(t time.Duration) timeouts {
+	return timeouts{
+		keepAliveInterval:    t,
+		resyncInterval:       t,
+		serverKeepAliveTTL:   t,
+		sessionRefreshPeriod: t,
+		heartbeatCheckPeriod: t,
+		cachePollPeriod:      t,
+	}
+}
+
+func (t timeouts) applyTestDefaults(cfg *service.Config) {
+	cfg.Auth.ClusterConfig.SetKeepAliveInterval(t.keepAliveInterval)
+	cfg.Timeouts.KeepAlivePeriod = t.serverKeepAliveTTL
+	cfg.Timeouts.ResyncInterval = t.resyncInterval
+	cfg.Timeouts.SessionRefreshPeriod = t.sessionRefreshPeriod
+	cfg.Timeouts.HeartbeatCheckPeriod = t.heartbeatCheckPeriod
+	cfg.Timeouts.CachePollPeriod = t.cachePollPeriod
+}
+
+type timeouts struct {
+	keepAliveInterval    time.Duration
+	resyncInterval       time.Duration
+	serverKeepAliveTTL   time.Duration
+	sessionRefreshPeriod time.Duration
+	heartbeatCheckPeriod time.Duration
+	cachePollPeriod      time.Duration
 }

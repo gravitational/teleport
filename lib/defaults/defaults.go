@@ -285,7 +285,7 @@ var (
 	ServerAnnounceTTL = defaults.ServerAnnounceTTL
 
 	// ServerKeepAliveTTL is a period between server keep alives,
-	// when servers announce only presence withough sending full data
+	// when servers announce only presence without sending full data
 	ServerKeepAliveTTL = defaults.ServerKeepAliveTTL
 
 	// AuthServersRefreshPeriod is a period for clients to refresh their

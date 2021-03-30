@@ -73,6 +73,9 @@ type RemoteClusterTunnelManagerConfig struct {
 	Clock clockwork.Clock
 	// KubeDialAddr is an optional address of a local kubernetes proxy.
 	KubeDialAddr utils.NetAddr
+	// ResyncInterval optionally specifies the interval between tunnel sync attempts.
+	// Defaults to defaults.ResyncInterval if unspecified
+	ResyncInterval time.Duration
 }
 
 func (c *RemoteClusterTunnelManagerConfig) CheckAndSetDefaults() error {
@@ -93,6 +96,9 @@ func (c *RemoteClusterTunnelManagerConfig) CheckAndSetDefaults() error {
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
+	}
+	if c.ResyncInterval == 0 {
+		c.ResyncInterval = defaults.ResyncInterval
 	}
 
 	return nil
@@ -138,7 +144,7 @@ func (w *RemoteClusterTunnelManager) Run(ctx context.Context) {
 		logrus.Warningf("Failed to sync reverse tunnels: %v.", err)
 	}
 
-	ticker := time.NewTicker(defaults.ResyncInterval)
+	ticker := time.NewTicker(w.cfg.ResyncInterval)
 	defer ticker.Stop()
 
 	for {
@@ -211,6 +217,7 @@ func (w *RemoteClusterTunnelManager) realNewAgentPool(ctx context.Context, clust
 		Clock:               w.cfg.Clock,
 		KubeDialAddr:        w.cfg.KubeDialAddr,
 		ReverseTunnelServer: w.cfg.ReverseTunnelServer,
+		ResyncInterval:      w.cfg.ResyncInterval,
 		// RemoteClusterManager only runs on proxies.
 		Component: teleport.ComponentProxy,
 

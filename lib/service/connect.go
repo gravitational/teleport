@@ -428,7 +428,7 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 	process.WaitForEvent(process.ExitContext(), TeleportReadyEvent, eventC)
 	select {
 	case <-eventC:
-		process.log.Infof("The new service has started successfully. Starting syncing rotation status with period %v.", process.Config.PollingPeriod)
+		process.log.Infof("The new service has started successfully. Starting syncing rotation status with period %v.", process.Config.Timeouts.PollingPeriod)
 	case <-process.ExitContext().Done():
 		return nil
 	}
@@ -481,7 +481,7 @@ func (process *TeleportProcess) syncRotationStateCycle() error {
 	}
 	defer watcher.Close()
 
-	t := time.NewTicker(process.Config.PollingPeriod)
+	t := time.NewTicker(process.Config.Timeouts.PollingPeriod)
 	defer t.Stop()
 	for {
 		select {
@@ -914,13 +914,13 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, ide
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if process.Config.ClientTimeout != 0 {
+	if process.Config.Timeouts.ClientTimeout != 0 {
 		return auth.NewClient(apiclient.Config{
 			Addrs: utils.NetAddrsToStrings(authServers),
 			Credentials: []apiclient.Credentials{
 				apiclient.LoadTLS(tlsConfig),
 			},
-		}, auth.ClientTimeout(process.Config.ClientTimeout))
+		}, auth.ClientTimeout(process.Config.Timeouts.ClientTimeout))
 	}
 	return auth.NewClient(apiclient.Config{
 		Addrs: utils.NetAddrsToStrings(authServers),

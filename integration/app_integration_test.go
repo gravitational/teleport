@@ -336,6 +336,14 @@ func TestAppAccessNoHeaderOverrides(t *testing.T) {
 	}
 }
 
+func (p pack) newDefaultConfig() *service.Config {
+	config := service.MakeDefaultConfig()
+	config.Console = nil
+	config.Log = p.log
+	p.timeouts.applyTestDefaults(config)
+	return config
+}
+
 // pack contains identity as well as initialized Teleport clusters and instances.
 type pack struct {
 	username string
@@ -389,6 +397,9 @@ type pack struct {
 	headerAppName        string
 	headerAppPublicAddr  string
 	headerAppClusterName string
+
+	timeouts timeouts
+	log      utils.Logger
 }
 
 // setup configures all clusters and servers needed for a test.
@@ -402,9 +413,10 @@ func setup(t *testing.T) *pack {
 	// self-signed certificate during tests.
 	lib.SetInsecureDevMode(true)
 
-	SetTestTimeouts(time.Millisecond * time.Duration(500))
-
 	p := &pack{
+		timeouts: newTestTimeouts(500 * time.Millisecond),
+		log:      log,
+
 		rootAppName:        "app-01",
 		rootAppPublicAddr:  "app-01.example.com",
 		rootAppClusterName: "example.com",
@@ -503,6 +515,7 @@ func setup(t *testing.T) *pack {
 		Priv:        privateKey,
 		Pub:         publicKey,
 		log:         log,
+		timeouts:    p.timeouts,
 	})
 
 	// Create a new Teleport instance with passed in configuration.
@@ -514,11 +527,10 @@ func setup(t *testing.T) *pack {
 		Priv:        privateKey,
 		Pub:         publicKey,
 		log:         log,
+		timeouts:    p.timeouts,
 	})
 
-	rcConf := service.MakeDefaultConfig()
-	rcConf.Console = nil
-	rcConf.Log = log
+	rcConf := p.newDefaultConfig()
 	rcConf.DataDir, err = ioutil.TempDir("", "cluster-"+p.rootCluster.Secrets.SiteName)
 	require.NoError(t, err)
 	t.Cleanup(func() { os.RemoveAll(rcConf.DataDir) })
@@ -530,9 +542,7 @@ func setup(t *testing.T) *pack {
 	rcConf.SSH.Enabled = false
 	rcConf.Apps.Enabled = false
 
-	lcConf := service.MakeDefaultConfig()
-	lcConf.Console = nil
-	lcConf.Log = log
+	lcConf := p.newDefaultConfig()
 	lcConf.DataDir, err = ioutil.TempDir("", "cluster-"+p.leafCluster.Secrets.SiteName)
 	require.NoError(t, err)
 	t.Cleanup(func() { os.RemoveAll(lcConf.DataDir) })
@@ -560,9 +570,7 @@ func setup(t *testing.T) *pack {
 		p.rootCluster.StopAll()
 	})
 
-	raConf := service.MakeDefaultConfig()
-	raConf.Console = nil
-	raConf.Log = log
+	raConf := p.newDefaultConfig()
 	raConf.DataDir, err = ioutil.TempDir("", "app-server-"+p.rootCluster.Secrets.SiteName)
 	require.NoError(t, err)
 	t.Cleanup(func() { os.RemoveAll(raConf.DataDir) })
@@ -608,9 +616,7 @@ func setup(t *testing.T) *pack {
 	require.NoError(t, err)
 	t.Cleanup(func() { p.rootAppServer.Close() })
 
-	laConf := service.MakeDefaultConfig()
-	laConf.Console = nil
-	laConf.Log = log
+	laConf := p.newDefaultConfig()
 	laConf.DataDir, err = ioutil.TempDir("", "app-server-"+p.leafCluster.Secrets.SiteName)
 	require.NoError(t, err)
 	t.Cleanup(func() { os.RemoveAll(laConf.DataDir) })

@@ -77,19 +77,56 @@ type SessionRegistry struct {
 
 	// srv refers to the upon which this session registry is created.
 	srv Server
+
+	// sessionLingerTTL specifies the time to keep the session in memory
+	// after the last client disconnects
+	sessionLingerTTL time.Duration
+
+	// sessionRefreshPeriod specifies the time between session sync attempts
+	sessionRefreshPeriod time.Duration
 }
 
-func NewSessionRegistry(srv Server) (*SessionRegistry, error) {
-	if srv.GetSessionServer() == nil {
-		return nil, trace.BadParameter("session server is required")
+func (r *SessionRegistryConfig) checkAndSetDefaults() error {
+	if r.Server == nil {
+		return trace.BadParameter("session registry: server is required")
+	}
+	if r.Server.GetSessionServer() == nil {
+		return trace.BadParameter("session registry: session server is required")
+	}
+	if r.SessionLingerTTL == 0 {
+		r.SessionLingerTTL = defaults.SessionIdlePeriod
+	}
+	if r.SessionRefreshPeriod == 0 {
+		r.SessionRefreshPeriod = defaults.SessionRefreshPeriod
+	}
+	return nil
+}
+
+// SessionRegistryConfig defines session registry configuration
+type SessionRegistryConfig struct {
+	// Server identifies the server
+	Server Server
+	// SessionLingerTTL optionally specifies the time the session lingers
+	// before it is removed. Defaults to defaults.SessionIdlePeriod
+	SessionLingerTTL time.Duration
+	// SessionRefreshPeriod optionally specifies the time the session attempts to sync.
+	// Defaults to defaults.SessionRefreshPeriod
+	SessionRefreshPeriod time.Duration
+}
+
+func NewSessionRegistry(config SessionRegistryConfig) (*SessionRegistry, error) {
+	if err := config.checkAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return &SessionRegistry{
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: teleport.Component(teleport.ComponentSession, srv.Component()),
+			trace.Component: teleport.Component(teleport.ComponentSession, config.Server.Component()),
 		}),
-		srv:      srv,
-		sessions: make(map[rsession.ID]*session),
+		srv:                  config.Server,
+		sessions:             make(map[rsession.ID]*session),
+		sessionLingerTTL:     config.SessionLingerTTL,
+		sessionRefreshPeriod: config.SessionRefreshPeriod,
 	}, nil
 }
 
@@ -203,7 +240,13 @@ func (s *SessionRegistry) OpenSession(ch ssh.Channel, req *ssh.Request, ctx *Ser
 	}
 	// This logic allows concurrent request to create a new session
 	// to fail, what is ok because we should never have this condition
-	sess, err := newSession(rsession.ID(sid), s, ctx)
+	sess, err := newSession(sessionConfig{
+		id:            rsession.ID(sid),
+		registry:      s,
+		ctx:           ctx,
+		lingerTTL:     s.sessionLingerTTL,
+		refreshPeriod: s.sessionRefreshPeriod,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -228,7 +271,13 @@ func (s *SessionRegistry) OpenExecSession(channel ssh.Channel, req *ssh.Request,
 
 	// This logic allows concurrent request to create a new session
 	// to fail, what is ok because we should never have this condition.
-	sess, err := newSession(sessionID, s, ctx)
+	sess, err := newSession(sessionConfig{
+		id:            sessionID,
+		registry:      s,
+		ctx:           ctx,
+		lingerTTL:     s.sessionLingerTTL,
+		refreshPeriod: s.sessionRefreshPeriod,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -526,29 +575,40 @@ type session struct {
 	// hasEnhancedRecording returns true if this session has enhanced session
 	// recording events associated.
 	hasEnhancedRecording bool
+
+	// refreshPeriod specifies the time between session refresh attempts
+	refreshPeriod time.Duration
+}
+
+type sessionConfig struct {
+	id            rsession.ID
+	registry      *SessionRegistry
+	ctx           *ServerContext
+	lingerTTL     time.Duration
+	refreshPeriod time.Duration
 }
 
 // newSession creates a new session with a given ID within a given context.
-func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*session, error) {
+func newSession(config sessionConfig) (*session, error) {
 	serverSessions.Inc()
 	startTime := time.Now().UTC()
 	rsess := rsession.Session{
-		ID: id,
+		ID: config.id,
 		TerminalParams: rsession.TerminalParams{
 			W: teleport.DefaultTerminalWidth,
 			H: teleport.DefaultTerminalHeight,
 		},
-		Login:          ctx.Identity.Login,
+		Login:          config.ctx.Identity.Login,
 		Created:        startTime,
 		LastActive:     startTime,
-		ServerID:       ctx.srv.ID(),
-		Namespace:      r.srv.GetNamespace(),
-		ServerHostname: ctx.srv.GetInfo().GetHostname(),
-		ServerAddr:     ctx.ServerConn.LocalAddr().String(),
-		ClusterName:    ctx.ClusterName,
+		ServerID:       config.ctx.srv.ID(),
+		Namespace:      config.registry.srv.GetNamespace(),
+		ServerHostname: config.ctx.srv.GetInfo().GetHostname(),
+		ServerAddr:     config.ctx.ServerConn.LocalAddr().String(),
+		ClusterName:    config.ctx.ClusterName,
 	}
 
-	term := ctx.GetTerm()
+	term := config.ctx.GetTerm()
 	if term != nil {
 		winsize, err := term.GetWinSize()
 		if err != nil {
@@ -561,42 +621,43 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 	// get the session server where session information lives. if the recording
 	// proxy is being used and this is a node, then a discard session server will
 	// be returned here.
-	sessionServer := r.srv.GetSessionServer()
+	sessionServer := config.registry.srv.GetSessionServer()
 
 	err := sessionServer.CreateSession(rsess)
 	if err != nil {
 		if trace.IsAlreadyExists(err) {
 			// if session already exists, make sure they are compatible
 			// Login matches existing login
-			existing, err := sessionServer.GetSession(r.srv.GetNamespace(), id)
+			existing, err := sessionServer.GetSession(config.registry.srv.GetNamespace(), config.id)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			if existing.Login != rsess.Login {
 				return nil, trace.AccessDenied(
 					"can't switch users from %v to %v for session %v",
-					rsess.Login, existing.Login, id)
+					rsess.Login, existing.Login, config.id)
 			}
 		}
 		// return nil, trace.Wrap(err)
 		// No need to abort. Perhaps the auth server is down?
 		// Log the error and continue:
-		r.log.Errorf("Failed to create new session: %v.", err)
+		config.registry.log.Errorf("Failed to create new session: %v.", err)
 	}
 
 	sess := &session{
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: teleport.Component(teleport.ComponentSession, r.srv.Component()),
+			trace.Component: teleport.Component(teleport.ComponentSession, config.registry.srv.Component()),
 		}),
-		id:           id,
-		registry:     r,
-		parties:      make(map[rsession.ID]*party),
-		participants: make(map[rsession.ID]*party),
-		writer:       newMultiWriter(),
-		login:        ctx.Identity.Login,
-		closeC:       make(chan bool),
-		lingerTTL:    defaults.SessionIdlePeriod,
-		startTime:    startTime,
+		id:            config.id,
+		registry:      config.registry,
+		parties:       make(map[rsession.ID]*party),
+		participants:  make(map[rsession.ID]*party),
+		writer:        newMultiWriter(),
+		login:         config.ctx.Identity.Login,
+		closeC:        make(chan bool),
+		lingerTTL:     config.lingerTTL,
+		refreshPeriod: config.refreshPeriod,
+		startTime:     startTime,
 	}
 	return sess, nil
 }
@@ -1168,7 +1229,7 @@ func (s *session) heartbeat(ctx *ServerContext) {
 	s.log.Debugf("Starting poll and sync of terminal size to all parties.")
 	defer s.log.Debugf("Stopping poll and sync of terminal size to all parties.")
 
-	tickerCh := time.NewTicker(defaults.SessionRefreshPeriod)
+	tickerCh := time.NewTicker(s.refreshPeriod)
 	defer tickerCh.Stop()
 
 	// Loop as long as the session is active, updating the session in the backend.

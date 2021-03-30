@@ -175,9 +175,16 @@ func TestDatabaseAccessMySQLLeafCluster(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func (p databasePack) newDefaultConfig() *service.Config {
+	config := service.MakeDefaultConfig()
+	p.timeouts.applyTestDefaults(config)
+	return config
+}
+
 type databasePack struct {
-	root databaseClusterPack
-	leaf databaseClusterPack
+	root     databaseClusterPack
+	leaf     databaseClusterPack
+	timeouts timeouts
 }
 
 type databaseClusterPack struct {
@@ -199,7 +206,6 @@ func setupDatabaseTest(t *testing.T) *databasePack {
 	tracer := utils.NewTracer(utils.ThisFunction()).Start()
 	t.Cleanup(func() { tracer.Stop() })
 	lib.SetInsecureDevMode(true)
-	SetTestTimeouts(100 * time.Millisecond)
 	log := testlog.FailureOnly(t)
 
 	// Create ports allocator.
@@ -220,6 +226,7 @@ func setupDatabaseTest(t *testing.T) *databasePack {
 			postgresAddr: net.JoinHostPort("localhost", ports.Pop()),
 			mysqlAddr:    net.JoinHostPort("localhost", ports.Pop()),
 		},
+		timeouts: newTestTimeouts(100 * time.Millisecond),
 	}
 
 	// Create root cluster.
@@ -231,6 +238,7 @@ func setupDatabaseTest(t *testing.T) *databasePack {
 		Priv:        privateKey,
 		Pub:         publicKey,
 		log:         log,
+		timeouts:    p.timeouts,
 	})
 
 	// Create leaf cluster.
@@ -242,10 +250,11 @@ func setupDatabaseTest(t *testing.T) *databasePack {
 		Priv:        privateKey,
 		Pub:         publicKey,
 		log:         log,
+		timeouts:    p.timeouts,
 	})
 
 	// Make root cluster config.
-	rcConf := service.MakeDefaultConfig()
+	rcConf := p.newDefaultConfig()
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
 	rcConf.Auth.Preference.SetSecondFactor("off")
@@ -253,7 +262,7 @@ func setupDatabaseTest(t *testing.T) *databasePack {
 	rcConf.Proxy.DisableWebInterface = true
 
 	// Make leaf cluster config.
-	lcConf := service.MakeDefaultConfig()
+	lcConf := p.newDefaultConfig()
 	lcConf.DataDir = t.TempDir()
 	lcConf.Auth.Enabled = true
 	lcConf.Auth.Preference.SetSecondFactor("off")
@@ -305,7 +314,7 @@ func setupDatabaseTest(t *testing.T) *databasePack {
 		Protocol: defaults.ProtocolMySQL,
 		URI:      p.root.mysqlAddr,
 	}
-	rdConf := service.MakeDefaultConfig()
+	rdConf := p.newDefaultConfig()
 	rdConf.DataDir = t.TempDir()
 	rdConf.Token = "static-token-value"
 	rdConf.AuthServers = []utils.NetAddr{
@@ -333,7 +342,7 @@ func setupDatabaseTest(t *testing.T) *databasePack {
 		Protocol: defaults.ProtocolMySQL,
 		URI:      p.leaf.mysqlAddr,
 	}
-	ldConf := service.MakeDefaultConfig()
+	ldConf := p.newDefaultConfig()
 	ldConf.DataDir = t.TempDir()
 	ldConf.Token = "static-token-value"
 	ldConf.AuthServers = []utils.NetAddr{

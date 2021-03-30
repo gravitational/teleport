@@ -83,6 +83,8 @@ type KubeSuite struct {
 	// log defines the test-specific logger
 	log utils.Logger
 	w   *testlog.TestWrapper
+
+	timeouts timeouts
 }
 
 func (s *KubeSuite) SetUpSuite(c *check.C) {
@@ -98,9 +100,8 @@ func (s *KubeSuite) SetUpSuite(c *check.C) {
 
 	kubeproxy.TestOnlySkipSelfPermissionCheck(true)
 
+	s.timeouts = newTestTimeouts(100 * time.Millisecond)
 	var err error
-	SetTestTimeouts(time.Millisecond * time.Duration(100))
-
 	s.priv, s.pub, err = testauthority.New().GenerateKeyPair("")
 	c.Assert(err, check.IsNil)
 
@@ -181,6 +182,7 @@ func (s *KubeSuite) TestKubeExec(c *check.C) {
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
+		timeouts:    s.timeouts,
 	})
 
 	username := s.me.Username
@@ -355,6 +357,7 @@ func (s *KubeSuite) TestKubeDeny(c *check.C) {
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
+		timeouts:    s.timeouts,
 	})
 
 	username := s.me.Username
@@ -411,6 +414,7 @@ func (s *KubeSuite) TestKubePortForward(c *check.C) {
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
+		timeouts:    s.timeouts,
 	})
 
 	username := s.me.Username
@@ -510,6 +514,7 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
+		timeouts:    s.timeouts,
 	})
 
 	// main cluster has a role and user called main-kube
@@ -534,6 +539,7 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
+		timeouts:    s.timeouts,
 	})
 
 	lib.SetInsecureDevMode(true)
@@ -771,6 +777,7 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
+		timeouts:    s.timeouts,
 	})
 
 	// main cluster has a role and user called main-kube
@@ -795,6 +802,7 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
+		timeouts:    s.timeouts,
 	})
 
 	lib.SetInsecureDevMode(true)
@@ -1054,6 +1062,7 @@ func (s *KubeSuite) runKubeDisconnectTest(c *check.C, tc disconnectTestCase) {
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
+		timeouts:    s.timeouts,
 	})
 
 	username := s.me.Username
@@ -1132,13 +1141,14 @@ func (s *KubeSuite) runKubeDisconnectTest(c *check.C, tc disconnectTestCase) {
 // teleKubeConfig sets up teleport with kubernetes turned on
 func (s *KubeSuite) teleKubeConfig(hostname string) *service.Config {
 	tconf := service.MakeDefaultConfig()
+	s.timeouts.applyTestDefaults(tconf)
 	tconf.Console = nil
 	tconf.Log = s.log
 	tconf.SSH.Enabled = true
 	tconf.Proxy.DisableWebInterface = true
-	tconf.PollingPeriod = 500 * time.Millisecond
-	tconf.ClientTimeout = time.Second
-	tconf.ShutdownTimeout = 2 * tconf.ClientTimeout
+	tconf.Timeouts.PollingPeriod = 500 * time.Millisecond
+	tconf.Timeouts.ClientTimeout = 1 * time.Second
+	tconf.Timeouts.ShutdownTimeout = 2 * tconf.Timeouts.ClientTimeout
 
 	// set kubernetes specific parameters
 	tconf.Proxy.Kube.Enabled = true

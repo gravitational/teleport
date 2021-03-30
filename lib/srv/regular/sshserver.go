@@ -30,6 +30,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 
@@ -159,6 +160,28 @@ type Server struct {
 
 	// wtmpPath is the path to the user accounting log.
 	wtmpPath string
+
+	// timeouts defines the set of timeouts for the server
+	timeouts timeouts
+}
+
+// timeouts defines the set of timeouts for the server
+type timeouts struct {
+	// sessionRefreshPeriod optionally specifies the time between session refresh
+	// attempts. Defaults to defaults.SessionRefreshPeriod
+	sessionRefreshPeriod time.Duration
+
+	// sessionLingerTTL optionally specifies how long the session lingers after the
+	// last client has disconnected. Defaults to defaults.SessionIdlePeriod
+	sessionLingerTTL time.Duration
+
+	// heartbeatCheckPeriod optionally specifies the time the server checks for updates.
+	// Defaults to defaults.HeartbeatCheckPeriod
+	heartbeatCheckPeriod time.Duration
+
+	// keepAlivePeriod optionally specifies the time between keep-alives.
+	// Defaults to defaults.ServerKeepAliveTTL
+	keepAlivePeriod time.Duration
 }
 
 // GetClock returns server clock implementation
@@ -489,6 +512,42 @@ func SetOnHeartbeat(fn func(error)) ServerOption {
 	}
 }
 
+// SetSessionRefreshPeriod is a functional server option to override the time between
+// session updates
+func SetSessionRefreshPeriod(t time.Duration) ServerOption {
+	return func(s *Server) error {
+		s.timeouts.sessionRefreshPeriod = t
+		return nil
+	}
+}
+
+// SetSessionLingerTTL is a functional server option to override the time for
+// session linger TTL
+func SetSessionLingerTTL(t time.Duration) ServerOption {
+	return func(s *Server) error {
+		s.timeouts.sessionLingerTTL = t
+		return nil
+	}
+}
+
+// SetHeartbeatCheckPeriod is a functional server option to override the time between
+// server updates
+func SetHeartbeatCheckPeriod(t time.Duration) ServerOption {
+	return func(s *Server) error {
+		s.timeouts.heartbeatCheckPeriod = t
+		return nil
+	}
+}
+
+// SetKeepAlivePeriod is a functional server option to override the time between
+// server keep alive updates
+func SetKeepAlivePeriod(t time.Duration) ServerOption {
+	return func(s *Server) error {
+		s.timeouts.keepAlivePeriod = t
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func New(addr utils.NetAddr,
 	hostname string,
@@ -516,6 +575,12 @@ func New(addr utils.NetAddr,
 		ctx:             ctx,
 		clock:           clockwork.NewRealClock(),
 		dataDir:         dataDir,
+		timeouts: timeouts{
+			sessionRefreshPeriod: defaults.SessionRefreshPeriod,
+			sessionLingerTTL:     defaults.SessionIdlePeriod,
+			heartbeatCheckPeriod: defaults.HeartbeatCheckPeriod,
+			keepAlivePeriod:      defaults.ServerKeepAliveTTL,
+		},
 	}
 	s.limiter, err = limiter.NewLimiter(limiter.Config{})
 	if err != nil {
@@ -555,7 +620,11 @@ func New(addr utils.NetAddr,
 		trace.ComponentFields: logrus.Fields{},
 	})
 
-	s.reg, err = srv.NewSessionRegistry(s)
+	s.reg, err = srv.NewSessionRegistry(srv.SessionRegistryConfig{
+		Server:               s,
+		SessionLingerTTL:     s.timeouts.sessionLingerTTL,
+		SessionRefreshPeriod: s.timeouts.sessionRefreshPeriod,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -608,10 +677,10 @@ func New(addr utils.NetAddr,
 		Component:       component,
 		Announcer:       s.authService,
 		GetServerInfo:   s.getServerInfo,
-		KeepAlivePeriod: defaults.ServerKeepAliveTTL,
+		KeepAlivePeriod: s.timeouts.keepAlivePeriod,
 		AnnouncePeriod:  defaults.ServerAnnounceTTL/2 + utils.RandomDuration(defaults.ServerAnnounceTTL/10),
 		ServerTTL:       defaults.ServerAnnounceTTL,
-		CheckPeriod:     defaults.HeartbeatCheckPeriod,
+		CheckPeriod:     s.timeouts.heartbeatCheckPeriod,
 		Clock:           s.clock,
 		OnHeartbeat:     s.onHeartbeat,
 	})
@@ -1048,7 +1117,12 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.ConnectionContext, identityContext srv.IdentityContext, channel ssh.Channel, req *sshutils.DirectTCPIPReq) {
 	// Create context for this channel. This context will be closed when
 	// forwarding is complete.
-	ctx, scx, err := srv.NewServerContext(ctx, ccx, s, identityContext)
+	ctx, scx, err := srv.NewServerContext(ctx, srv.ContextConfig{
+		ConnectionContext:    ccx,
+		Server:               s,
+		IdentityContext:      identityContext,
+		SessionRefreshPeriod: s.timeouts.sessionRefreshPeriod,
+	})
 	if err != nil {
 		log.Errorf("Unable to create connection context: %v.", err)
 		writeStderr(channel, "Unable to create connection context.")
@@ -1177,7 +1251,12 @@ Loop:
 func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.ConnectionContext, identityContext srv.IdentityContext, ch ssh.Channel, in <-chan *ssh.Request) {
 	// Create context for this channel. This context will be closed when the
 	// session request is complete.
-	ctx, scx, err := srv.NewServerContext(ctx, ccx, s, identityContext)
+	ctx, scx, err := srv.NewServerContext(ctx, srv.ContextConfig{
+		ConnectionContext:    ccx,
+		Server:               s,
+		IdentityContext:      identityContext,
+		SessionRefreshPeriod: s.timeouts.sessionRefreshPeriod,
+	})
 	if err != nil {
 		log.Errorf("Unable to create connection context: %v.", err)
 		writeStderr(ch, "Unable to create connection context.")
@@ -1471,7 +1550,12 @@ func (s *Server) handleVersionRequest(req *ssh.Request) {
 func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionContext, identityContext srv.IdentityContext, ch ssh.Channel, req sshutils.DirectTCPIPReq) {
 	// Create context for this channel. This context will be closed when the
 	// session request is complete.
-	ctx, scx, err := srv.NewServerContext(ctx, ccx, s, identityContext)
+	ctx, scx, err := srv.NewServerContext(ctx, srv.ContextConfig{
+		ConnectionContext:    ccx,
+		Server:               s,
+		IdentityContext:      identityContext,
+		SessionRefreshPeriod: s.timeouts.sessionRefreshPeriod,
+	})
 	if err != nil {
 		log.Errorf("Unable to create connection context: %v.", err)
 		writeStderr(ch, "Unable to create connection context.")

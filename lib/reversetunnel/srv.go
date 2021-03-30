@@ -201,6 +201,14 @@ type Config struct {
 	// Pass in a access point that can be configured with the old access point
 	// policy until all clusters are migrated to 5.0 and above.
 	NewCachingAccessPointOldProxy auth.NewCachingAccessPoint
+
+	// ResyncInterval optionall specifies the time between attempts to run periodic functions.
+	// Defaults to defaults.ResyncInterval
+	ResyncInterval time.Duration
+
+	// SessionRefreshPeriod optionall specifies the time between session sync attempts.
+	// Defaults to defaults.SessionRefreshPeriod
+	SessionRefreshPeriod time.Duration
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -249,6 +257,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	cfg.Log = logger.WithFields(log.Fields{
 		trace.Component: cfg.Component,
 	})
+	if cfg.ResyncInterval == 0 {
+		cfg.ResyncInterval = defaults.ResyncInterval
+	}
 	return nil
 }
 
@@ -364,7 +375,7 @@ func (s *server) disconnectClusters() error {
 }
 
 func (s *server) periodicFunctions() {
-	ticker := time.NewTicker(defaults.ResyncInterval)
+	ticker := time.NewTicker(s.Config.ResyncInterval)
 	defer ticker.Stop()
 
 	if err := s.fetchClusterPeers(); err != nil {

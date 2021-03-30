@@ -507,7 +507,7 @@ func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport New
 		warnOnErr(srv.Close(), cfg.Log)
 		return nil, trace.BadParameter("the new service has failed to start")
 	}
-	shutdownTimeout := cfg.ShutdownTimeout
+	shutdownTimeout := cfg.Timeouts.ShutdownTimeout
 	if shutdownTimeout == 0 {
 		// The default shutdown timeout is very generous to avoid disrupting
 		// longer running connections.
@@ -1187,23 +1187,25 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	apiConf := &auth.APIConfig{
-		AuthServer:     authServer,
-		SessionService: sessionService,
-		Authorizer:     authorizer,
-		AuditLog:       process.auditLog,
-		PluginRegistry: process.PluginRegistry,
-		Emitter:        checkingEmitter,
-		MetadataGetter: uploadHandler,
+		AuthServer:      authServer,
+		SessionService:  sessionService,
+		Authorizer:      authorizer,
+		AuditLog:        process.auditLog,
+		PluginRegistry:  process.PluginRegistry,
+		Emitter:         checkingEmitter,
+		MetadataGetter:  uploadHandler,
+		KeepAlivePeriod: cfg.Timeouts.KeepAlivePeriod,
 	}
 
 	var authCache auth.Cache
 	if process.Config.CachePolicy.Enabled {
 		cache, err := process.newAccessCache(accessCacheConfig{
-			services:  authServer.Services,
-			setup:     cache.ForAuth,
-			cacheName: []string{teleport.ComponentAuth},
-			inMemory:  true,
-			events:    true,
+			services:   authServer.Services,
+			setup:      cache.ForAuth,
+			cacheName:  []string{teleport.ComponentAuth},
+			inMemory:   true,
+			events:     true,
+			pollPeriod: cfg.Timeouts.CachePollPeriod,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -1349,9 +1351,9 @@ func (process *TeleportProcess) initAuthService() error {
 			srv.SetExpiry(process.Clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
 			return &srv, nil
 		},
-		KeepAlivePeriod: defaults.ServerKeepAliveTTL,
+		KeepAlivePeriod: cfg.Timeouts.KeepAlivePeriod,
 		AnnouncePeriod:  defaults.ServerAnnounceTTL/2 + utils.RandomDuration(defaults.ServerAnnounceTTL/10),
-		CheckPeriod:     defaults.HeartbeatCheckPeriod,
+		CheckPeriod:     cfg.Timeouts.HeartbeatCheckPeriod,
 		ServerTTL:       defaults.ServerAnnounceTTL,
 		OnHeartbeat: func(err error) {
 			if err != nil {
@@ -1555,10 +1557,11 @@ func (process *TeleportProcess) newLocalCache(clt auth.ClientI, setupConfig cach
 		return clt, nil
 	}
 	cache, err := process.newAccessCache(accessCacheConfig{
-		inMemory:  process.Config.CachePolicy.Type == memory.GetName(),
-		services:  clt,
-		setup:     process.setupCachePolicy(setupConfig),
-		cacheName: cacheName,
+		inMemory:   process.Config.CachePolicy.Type == memory.GetName(),
+		services:   clt,
+		setup:      process.setupCachePolicy(setupConfig),
+		cacheName:  cacheName,
+		pollPeriod: process.Config.Timeouts.CachePollPeriod,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1752,6 +1755,10 @@ func (process *TeleportProcess) initSSH() error {
 					process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentNode})
 				}
 			}),
+			regular.SetSessionRefreshPeriod(cfg.Timeouts.SessionRefreshPeriod),
+			regular.SetSessionLingerTTL(cfg.Timeouts.SessionLingerTTL),
+			regular.SetHeartbeatCheckPeriod(cfg.Timeouts.HeartbeatCheckPeriod),
+			regular.SetKeepAlivePeriod(cfg.Timeouts.KeepAlivePeriod),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1794,14 +1801,15 @@ func (process *TeleportProcess) initSSH() error {
 			agentPool, err = reversetunnel.NewAgentPool(
 				process.ExitContext(),
 				reversetunnel.AgentPoolConfig{
-					Component:   teleport.ComponentNode,
-					HostUUID:    conn.ServerIdentity.ID.HostUUID,
-					ProxyAddr:   conn.TunnelProxy(),
-					Client:      conn.Client,
-					AccessPoint: conn.Client,
-					HostSigner:  conn.ServerIdentity.KeySigner,
-					Cluster:     conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
-					Server:      s,
+					Component:      teleport.ComponentNode,
+					HostUUID:       conn.ServerIdentity.ID.HostUUID,
+					ProxyAddr:      conn.TunnelProxy(),
+					Client:         conn.Client,
+					AccessPoint:    conn.Client,
+					HostSigner:     conn.ServerIdentity.KeySigner,
+					Cluster:        conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+					Server:         s,
+					ResyncInterval: cfg.Timeouts.ResyncInterval,
 				})
 			if err != nil {
 				return trace.Wrap(err)
@@ -2454,14 +2462,16 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 						Client: conn.Client,
 					},
 				},
-				KeyGen:        cfg.Keygen,
-				Ciphers:       cfg.Ciphers,
-				KEXAlgorithms: cfg.KEXAlgorithms,
-				MACAlgorithms: cfg.MACAlgorithms,
-				DataDir:       process.Config.DataDir,
-				PollingPeriod: process.Config.PollingPeriod,
-				FIPS:          cfg.FIPS,
-				Emitter:       streamEmitter,
+				KeyGen:               cfg.Keygen,
+				Ciphers:              cfg.Ciphers,
+				KEXAlgorithms:        cfg.KEXAlgorithms,
+				MACAlgorithms:        cfg.MACAlgorithms,
+				DataDir:              process.Config.DataDir,
+				PollingPeriod:        process.Config.Timeouts.PollingPeriod,
+				FIPS:                 cfg.FIPS,
+				Emitter:              streamEmitter,
+				ResyncInterval:       cfg.Timeouts.ResyncInterval,
+				SessionRefreshPeriod: cfg.Timeouts.SessionRefreshPeriod,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2658,6 +2668,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 		}),
 		regular.SetEmitter(streamEmitter),
+		regular.SetSessionRefreshPeriod(cfg.Timeouts.SessionRefreshPeriod),
+		regular.SetSessionLingerTTL(cfg.Timeouts.SessionLingerTTL),
+		regular.SetHeartbeatCheckPeriod(cfg.Timeouts.HeartbeatCheckPeriod),
+		regular.SetKeepAlivePeriod(cfg.Timeouts.KeepAlivePeriod),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2682,6 +2696,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		LocalCluster:        conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
 		KubeDialAddr:        utils.DialAddrFromListenAddr(cfg.Proxy.Kube.ListenAddr),
 		ReverseTunnelServer: tsrv,
+		ResyncInterval:      cfg.Timeouts.ResyncInterval,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -2740,6 +2755,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 					process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: component})
 				}
 			},
+			HeartbeatCheckPeriod: cfg.Timeouts.HeartbeatCheckPeriod,
+			KeepAlivePeriod:      cfg.Timeouts.KeepAlivePeriod,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3051,6 +3068,8 @@ func (process *TeleportProcess) initApps() {
 					process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentApp})
 				}
 			},
+			HeartbeatCheckPeriod: process.Config.Timeouts.HeartbeatCheckPeriod,
+			KeepAlivePeriod:      process.Config.Timeouts.KeepAlivePeriod,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3063,14 +3082,15 @@ func (process *TeleportProcess) initApps() {
 		// Create and start an agent pool.
 		agentPool, err = reversetunnel.NewAgentPool(process.ExitContext(),
 			reversetunnel.AgentPoolConfig{
-				Component:   teleport.ComponentApp,
-				HostUUID:    conn.ServerIdentity.ID.HostUUID,
-				ProxyAddr:   tunnelAddr,
-				Client:      conn.Client,
-				Server:      appServer,
-				AccessPoint: accessPoint,
-				HostSigner:  conn.ServerIdentity.KeySigner,
-				Cluster:     clusterName,
+				Component:      teleport.ComponentApp,
+				HostUUID:       conn.ServerIdentity.ID.HostUUID,
+				ProxyAddr:      tunnelAddr,
+				Client:         conn.Client,
+				Server:         appServer,
+				AccessPoint:    accessPoint,
+				HostSigner:     conn.ServerIdentity.KeySigner,
+				Cluster:        clusterName,
+				ResyncInterval: process.Config.Timeouts.ResyncInterval,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3251,10 +3271,6 @@ func validateConfig(cfg *Config) error {
 		if err := services.ValidateReverseTunnel(tun); err != nil {
 			return trace.Wrap(err)
 		}
-	}
-
-	if cfg.PollingPeriod == 0 {
-		cfg.PollingPeriod = defaults.LowResPollingPeriod
 	}
 
 	cfg.SSH.Namespace = services.ProcessNamespace(cfg.SSH.Namespace)

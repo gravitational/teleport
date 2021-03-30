@@ -173,17 +173,6 @@ type Config struct {
 	// to inherit and use for listeners, used for in-process updates.
 	FileDescriptors []FileDescriptor
 
-	// PollingPeriod is set to override default internal polling periods
-	// of sync agents, used to speed up integration tests.
-	PollingPeriod time.Duration
-
-	// ClientTimeout is set to override default client timeouts
-	// used by internal clients, used to speed up integration tests.
-	ClientTimeout time.Duration
-
-	// ShutdownTimeout is set to override default shutdown timeout.
-	ShutdownTimeout time.Duration
-
 	// CAPin is the SKPI hash of the CA used to verify the Auth Server.
 	CAPin string
 
@@ -204,6 +193,40 @@ type Config struct {
 
 	// PluginRegistry allows adding enterprise logic to Teleport services
 	PluginRegistry plugin.Registry
+
+	// Timeouts defines timeouts for various Teleport components
+	Timeouts Timeouts
+}
+
+// Timeouts groups component timeouts
+type Timeouts struct {
+	// ResyncInterval optionally specifies the time between reverse tunnel agent
+	// sync attempts. Defaults to defaults.ResyncInterval if unspecified
+	ResyncInterval time.Duration
+	// HeartbeatCheckPeriod optionally specifies the time between server update checks.
+	// Defaults to defaults.HeartbeatCheckPeriod
+	HeartbeatCheckPeriod time.Duration
+	// KeepAlivePeriod optionally specifies the keep alive period for the auth server.
+	// Defaults to defaults.ServerKeepAliveTTL
+	KeepAlivePeriod time.Duration
+	// SessionRefreshPeriod optionally specifies the time between session updates.
+	// Defaults to defaults.SessionRefreshPeriod
+	SessionRefreshPeriod time.Duration
+	// SessionLingerTTL optionally specifies how long the session lingers after the
+	// last client has disconnected. Defaults to defaults.SessionIdlePeriod
+	SessionLingerTTL time.Duration
+	// CachePollPeriod optionally specifies the internal event polling frequency.
+	// Defaults to defaults.CachePollPeriod
+	CachePollPeriod time.Duration
+	// PollingPeriod is set to override default internal polling periods
+	// of sync agents, used to speed up integration tests.
+	PollingPeriod time.Duration
+	// ShutdownTimeout is set to override default shutdown timeout.
+	// Defaults to defaults.DefaultGracefulShutdownTimeout
+	ShutdownTimeout time.Duration
+	// ClientTimeout is set to override default client timeouts
+	// used by internal clients, used to speed up integration tests.
+	ClientTimeout time.Duration
 }
 
 // ApplyToken assigns a given token to all internal services but only if token
@@ -630,7 +653,7 @@ type AppsConfig struct {
 	// Enabled enables application proxying service.
 	Enabled bool
 
-	// DebugApp enabled a header dumping debugging application.
+	// DebugApp enables a header dumping debugging application.
 	DebugApp bool
 
 	// Apps is the list of applications that are being proxied.
@@ -777,6 +800,15 @@ func ApplyDefaults(cfg *Config) {
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
 	cfg.SSH.PAM = &pam.Config{Enabled: false}
 	cfg.SSH.BPF = &bpf.Config{Enabled: false}
+
+	// Timeout defaults
+	cfg.Timeouts.ResyncInterval = defaults.ResyncInterval
+	cfg.Timeouts.SessionRefreshPeriod = defaults.SessionRefreshPeriod
+	cfg.Timeouts.SessionLingerTTL = defaults.SessionIdlePeriod
+	cfg.Timeouts.HeartbeatCheckPeriod = defaults.HeartbeatCheckPeriod
+	cfg.Timeouts.KeepAlivePeriod = defaults.ServerKeepAliveTTL
+	cfg.Timeouts.PollingPeriod = defaults.LowResPollingPeriod
+	cfg.Timeouts.ShutdownTimeout = defaults.DefaultGracefulShutdownTimeout
 
 	// Kubernetes service defaults.
 	cfg.Kube.Enabled = false

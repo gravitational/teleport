@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -71,6 +72,12 @@ type Config struct {
 	GCPIAM *gcpcredentials.IamCredentialsClient
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)
+	// HeartbeatCheckPeriod optionally specifies the time between server update checks.
+	// Defaults to defaults.HeartbeatCheckPeriod
+	HeartbeatCheckPeriod time.Duration
+	// KeepAlivePeriod optionally specifies the time between server keep alive updates.
+	// Defaults to defaults.ServerKeepAliveTTL
+	KeepAlivePeriod time.Duration
 }
 
 // CheckAndSetDefaults makes sure the configuration has the minimum required
@@ -120,6 +127,12 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 		c.GCPIAM = iamClient
+	}
+	if c.HeartbeatCheckPeriod == 0 {
+		c.HeartbeatCheckPeriod = defaults.HeartbeatCheckPeriod
+	}
+	if c.KeepAlivePeriod == 0 {
+		c.KeepAlivePeriod = defaults.ServerKeepAliveTTL
 	}
 	return nil
 }
@@ -221,9 +234,9 @@ func (s *Server) initHeartbeat(ctx context.Context, server types.DatabaseServer)
 		Mode:            srv.HeartbeatModeDB,
 		Announcer:       s.cfg.AccessPoint,
 		GetServerInfo:   s.getServerInfoFunc(server),
-		KeepAlivePeriod: defaults.ServerKeepAliveTTL,
+		KeepAlivePeriod: s.cfg.KeepAlivePeriod,
 		AnnouncePeriod:  defaults.ServerAnnounceTTL/2 + utils.RandomDuration(defaults.ServerAnnounceTTL/10),
-		CheckPeriod:     defaults.HeartbeatCheckPeriod,
+		CheckPeriod:     s.cfg.HeartbeatCheckPeriod,
 		ServerTTL:       defaults.ServerAnnounceTTL,
 		OnHeartbeat:     s.cfg.OnHeartbeat,
 	})

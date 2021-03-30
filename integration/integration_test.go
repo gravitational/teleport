@@ -84,8 +84,9 @@ type IntSuite struct {
 	priv []byte
 	pub  []byte
 	// log defines the test-specific logger
-	log utils.Logger
-	w   *testlog.TestWrapper
+	log      utils.Logger
+	w        *testlog.TestWrapper
+	timeouts timeouts
 }
 
 // bootstrap check
@@ -111,7 +112,7 @@ func TestMain(m *testing.M) {
 }
 
 func (s *IntSuite) SetUpSuite(c *check.C) {
-	SetTestTimeouts(time.Millisecond * time.Duration(100))
+	s.timeouts = newTestTimeouts(100 * time.Millisecond)
 
 	var err error
 	s.priv, s.pub, err = testauthority.New().GenerateKeyPair("")
@@ -1863,6 +1864,9 @@ func (s *IntSuite) TestTrustedClusters(c *check.C) {
 // TestTrustedClustersWithLabels tests remote clusters scenarios
 // using trusted clusters feature and access labels
 func (s *IntSuite) TestTrustedClustersWithLabels(c *check.C) {
+	s.setUpTest(c)
+	defer s.tearDownTest(c)
+
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -3765,7 +3769,7 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 				return nil
 			}
 			lastPhase = ca.GetRotation().Phase
-			time.Sleep(tconf.PollingPeriod / 2)
+			time.Sleep(tconf.Timeouts.PollingPeriod / 2)
 		}
 		return trace.CompareFailed("failed to converge to phase %q, last phase %q", phase, lastPhase)
 	}
@@ -4012,9 +4016,9 @@ func (s *IntSuite) rotationConfig(disableWebService bool) *service.Config {
 	tconf.SSH.Enabled = true
 	tconf.Proxy.DisableWebService = disableWebService
 	tconf.Proxy.DisableWebInterface = true
-	tconf.PollingPeriod = 500 * time.Millisecond
-	tconf.ClientTimeout = time.Second
-	tconf.ShutdownTimeout = 2 * tconf.ClientTimeout
+	tconf.Timeouts.PollingPeriod = 500 * time.Millisecond
+	tconf.Timeouts.ClientTimeout = time.Second
+	tconf.Timeouts.ShutdownTimeout = 2 * tconf.Timeouts.ClientTimeout
 	return tconf
 }
 
@@ -5056,6 +5060,7 @@ func (s *IntSuite) newTeleportInstance(c *check.C) *TeleInstance {
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
+		timeouts:    s.timeouts,
 	})
 }
 
@@ -5068,6 +5073,7 @@ func (s *IntSuite) newNamedTeleportInstance(c *check.C, clusterName string) *Tel
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
+		timeouts:    s.timeouts,
 	})
 }
 
@@ -5075,6 +5081,7 @@ func (s *IntSuite) defaultServiceConfig() *service.Config {
 	cfg := service.MakeDefaultConfig()
 	cfg.Console = nil
 	cfg.Log = s.log
+	s.timeouts.applyTestDefaults(cfg)
 	return cfg
 }
 

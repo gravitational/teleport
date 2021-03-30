@@ -22,6 +22,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -149,6 +150,14 @@ type Server struct {
 
 	// parentContext is used to signal server closure
 	parentContext context.Context
+
+	// sessionRefreshPeriod optionally specifies the time between session refresh
+	// attempts. Defaults to defaults.SessionRefreshPeriod
+	sessionRefreshPeriod time.Duration
+
+	// sessionLingerTTL optionally specifies how long the session lingers after the
+	// last client has disconnected. Defaults to defaults.SessionIdlePeriod
+	sessionLingerTTL time.Duration
 }
 
 // ServerConfig is the configuration needed to create an instance of a Server.
@@ -198,6 +207,14 @@ type ServerConfig struct {
 	// ParentContext is a parent context, used to signal global
 	// closure
 	ParentContext context.Context
+
+	// SessionRefreshPeriod optionally specifies the time between session refresh
+	// attempts. Defaults to defaults.SessionRefreshPeriod
+	SessionRefreshPeriod time.Duration
+
+	// SessionLingerTTL optionally specifies how long the session lingers after the
+	// last client has disconnected. Defaults to defaults.SessionIdlePeriod
+	SessionLingerTTL time.Duration
 }
 
 // CheckDefaults makes sure all required parameters are passed in.
@@ -259,22 +276,24 @@ func New(c ServerConfig) (*Server, error) {
 				"dst-addr": c.DstAddr.String(),
 			},
 		}),
-		id:              uuid.New(),
-		targetConn:      c.TargetConn,
-		serverConn:      utils.NewTrackingConn(serverConn),
-		clientConn:      clientConn,
-		userAgent:       c.UserAgent,
-		hostCertificate: c.HostCertificate,
-		useTunnel:       c.UseTunnel,
-		address:         c.Address,
-		authClient:      c.AuthClient,
-		authService:     c.AuthClient,
-		sessionServer:   c.AuthClient,
-		dataDir:         c.DataDir,
-		clock:           c.Clock,
-		hostUUID:        c.HostUUID,
-		StreamEmitter:   c.Emitter,
-		parentContext:   c.ParentContext,
+		id:                   uuid.New(),
+		targetConn:           c.TargetConn,
+		serverConn:           utils.NewTrackingConn(serverConn),
+		clientConn:           clientConn,
+		userAgent:            c.UserAgent,
+		hostCertificate:      c.HostCertificate,
+		useTunnel:            c.UseTunnel,
+		address:              c.Address,
+		authClient:           c.AuthClient,
+		authService:          c.AuthClient,
+		sessionServer:        c.AuthClient,
+		dataDir:              c.DataDir,
+		clock:                c.Clock,
+		hostUUID:             c.HostUUID,
+		StreamEmitter:        c.Emitter,
+		parentContext:        c.ParentContext,
+		sessionRefreshPeriod: c.SessionRefreshPeriod,
+		sessionLingerTTL:     c.SessionLingerTTL,
 	}
 
 	// Set the ciphers, KEX, and MACs that the in-memory server will send to the
@@ -283,7 +302,11 @@ func New(c ServerConfig) (*Server, error) {
 	s.kexAlgorithms = c.KEXAlgorithms
 	s.macAlgorithms = c.MACAlgorithms
 
-	s.sessionRegistry, err = srv.NewSessionRegistry(s)
+	s.sessionRegistry, err = srv.NewSessionRegistry(srv.SessionRegistryConfig{
+		Server:               s,
+		SessionLingerTTL:     s.sessionLingerTTL,
+		SessionRefreshPeriod: s.sessionRefreshPeriod,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -674,7 +697,12 @@ func (s *Server) handleChannel(ctx context.Context, nch ssh.NewChannel) {
 func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, req *sshutils.DirectTCPIPReq) {
 	// Create context for this channel. This context will be closed when
 	// forwarding is complete.
-	ctx, scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext)
+	ctx, scx, err := srv.NewServerContext(ctx, srv.ContextConfig{
+		ConnectionContext:    s.connectionContext,
+		Server:               s,
+		IdentityContext:      s.identityContext,
+		SessionRefreshPeriod: s.sessionRefreshPeriod,
+	})
 	if err != nil {
 		s.log.Errorf("Unable to create connection context: %v.", err)
 		s.stderrWrite(ch, "Unable to create connection context.")
@@ -767,7 +795,12 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	// There is no need for the forwarding server to initiate disconnects,
 	// based on teleport business logic, because this logic is already
 	// done on the server's terminating side.
-	ctx, scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext)
+	ctx, scx, err := srv.NewServerContext(ctx, srv.ContextConfig{
+		ConnectionContext:    s.connectionContext,
+		Server:               s,
+		IdentityContext:      s.identityContext,
+		SessionRefreshPeriod: s.sessionRefreshPeriod,
+	})
 	if err != nil {
 		s.log.Warnf("Server context setup failed: %v", err)
 		if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("server context setup failed: %v", err)); err != nil {
