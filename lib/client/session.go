@@ -549,8 +549,8 @@ func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser, wg *sync.WaitGroup) {
 	// copy from the remote shell to the local output
 	wg.Add(2)
 	go func() {
-		defer ns.closer.Close()
 		defer wg.Done()
+		defer ns.closer.Close()
 		_, err := io.Copy(ns.stdout, shell)
 		if err != nil {
 			log.Error("Error copying from shell:", err.Error())
@@ -558,9 +558,9 @@ func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser, wg *sync.WaitGroup) {
 	}()
 	// copy from the local input to the remote shell:
 	go func() {
+		defer wg.Done()
 		defer ns.closer.Close()
 		defer shell.Close()
-		defer wg.Done()
 		buf := make([]byte, 128)
 
 		stdin := ns.stdin
@@ -583,18 +583,17 @@ func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser, wg *sync.WaitGroup) {
 				return
 			default:
 				n, err := stdin.Read(buf)
+				if n > 0 {
+					if _, err := shell.Write(buf[:n]); err != nil {
+						ns.ExitMsg = err.Error()
+						return
+					}
+				}
 				if err != nil {
 					fmt.Fprintf(ns.stderr, "\r\n%v\r\n", trace.Wrap(err))
 					return
 				}
 
-				if n > 0 {
-					_, err = shell.Write(buf[:n])
-					if err != nil {
-						ns.ExitMsg = err.Error()
-						return
-					}
-				}
 			}
 		}
 	}()

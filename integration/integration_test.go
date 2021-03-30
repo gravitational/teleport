@@ -423,7 +423,7 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 
 		// lets type "echo hi" followed by "enter" and then "exit" + "enter":
 		myTerm.Type("\aecho hi\n\r\aexit\n\r\a")
-		myTerm.Close()
+		myTerm.CloseSend()
 
 		// wait for session to end:
 		select {
@@ -868,7 +868,7 @@ func (s *IntSuite) verifySessionJoin(c *check.C, t *TeleInstance) {
 
 	personA := NewTerminal(250)
 	personB := NewTerminal(250)
-	personB.Close()
+	personB.CloseSend()
 
 	// PersonA: SSH into the server, wait one second, then type some commands on stdin:
 	openSession := func() {
@@ -906,7 +906,7 @@ func (s *IntSuite) verifySessionJoin(c *check.C, t *TeleInstance) {
 			}
 		}
 		c.Assert(err, check.IsNil)
-		personA.Close()
+		personA.CloseSend()
 	}
 
 	go openSession()
@@ -985,7 +985,7 @@ func (s *IntSuite) TestShutdown(c *check.C) {
 
 	// now type exit and wait for shutdown to complete
 	person.Type("exit\n\r")
-	person.Close()
+	person.CloseSend()
 
 	select {
 	case <-shutdownContext.Done():
@@ -1227,7 +1227,7 @@ func timeNow() string {
 
 func enterInput(ctx context.Context, c *check.C, person *Terminal, command, pattern string) {
 	person.Type(command)
-	defer person.Close()
+	defer person.CloseSend()
 	abortTime := time.Now().Add(10 * time.Second)
 	var matched bool
 	var output string
@@ -3239,7 +3239,7 @@ func (s *IntSuite) TestAuditOff(c *check.C) {
 
 	// lets type "echo hi" followed by "enter" and then "exit" + "enter":
 	myTerm.Type("\aecho hi\n\r\aexit\n\r\a")
-	myTerm.Close()
+	myTerm.CloseSend()
 
 	// wait for session to end
 	select {
@@ -3389,7 +3389,7 @@ func (s *IntSuite) TestPAM(c *check.C) {
 			cl.Stdin = termSession
 
 			termSession.Type("\aecho hi\n\r\aexit\n\r\a")
-			termSession.Close()
+			termSession.CloseSend()
 			err = cl.SSH(context.TODO(), []string{}, false)
 			c.Assert(err, check.IsNil)
 
@@ -4188,7 +4188,7 @@ func (s *IntSuite) TestWindowChange(c *check.C) {
 
 	personA := NewTerminal(250)
 	personB := NewTerminal(250)
-	personB.Close()
+	personB.CloseSend()
 
 	// openSession will open a new session on a server.
 	openSession := func() {
@@ -4294,7 +4294,7 @@ func (s *IntSuite) TestWindowChange(c *check.C) {
 
 	// Close the session.
 	personA.Type("\aexit\r\n\a")
-	personA.Close()
+	personA.CloseSend()
 }
 
 // TestList checks that the list of servers returned is identity aware.
@@ -4674,7 +4674,7 @@ func (s *IntSuite) TestBPFInteractive(c *check.C) {
 
 			// "Type" a command into the terminal.
 			term.Type(fmt.Sprintf("\a%v\n\r\aexit\n\r\a", lsPath))
-			term.Close()
+			term.CloseSend()
 			err = client.SSH(context.TODO(), []string{}, false)
 			c.Assert(err, check.IsNil)
 
@@ -4893,8 +4893,8 @@ func (s *IntSuite) TestBPFSessionDifferentiation(c *check.C) {
 	}
 	writeTerm(termA)
 	writeTerm(termB)
-	termA.Close()
-	termB.Close()
+	termA.CloseSend()
+	termB.CloseSend()
 
 	// Wait 10 seconds for both events to arrive, otherwise timeout.
 	timeout := time.After(10 * time.Second)
@@ -5191,7 +5191,8 @@ func (t *Terminal) Write(data []byte) (n int, err error) {
 	return t.written.Write(data)
 }
 
-func (t *Terminal) Close() {
+// CloseSend closes the input channel thus signalling the reads to exit
+func (t *Terminal) CloseSend() {
 	close(t.typed)
 }
 
@@ -5218,7 +5219,6 @@ func waitFor(c chan interface{}, timeout time.Duration) error {
 	case <-c:
 		return nil
 	case <-tick:
-		dumpGoroutineProfile()
 		return fmt.Errorf("timeout waiting for event")
 	}
 }
