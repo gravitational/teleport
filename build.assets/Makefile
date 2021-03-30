@@ -247,6 +247,10 @@ release: buildbox
 release-amd64:
 	$(MAKE) release ARCH=amd64
 
+.PHONY: release-amd64-fips
+release-amd64-fips:
+	$(MAKE) release-fips ARCH=amd64 FIPS=yes BUILDBOX_FIPS_NAME=$(BUILDBOX_FIPS)
+
 .PHONY: release-386
 release-386:
 	$(MAKE) release ARCH=386
@@ -258,14 +262,6 @@ release-arm: buildbox-arm
 .PHONY: release-arm64
 release-arm64: buildbox-arm
 	$(MAKE) release ARCH=arm64 BUILDBOX_NAME=$(BUILDBOX_ARM)
-
-.PHONY: release-amd64-fips
-release-amd64-fips:
-	$(MAKE) release-fips ARCH=amd64 FIPS=yes BUILDBOX_FIPS_NAME=$(BUILDBOX_FIPS)
-
-.PHONY: release-arm64-fips
-release-arm64-fips: buildbox-arm-fips
-	$(MAKE) release-fips ARCH=arm64 FIPS=yes BUILDBOX_FIPS_NAME=$(BUILDBOX_ARM_FIPS)
 
 .PHONY: release-amd64-centos6
 release-amd64-centos6: buildbox-centos6
