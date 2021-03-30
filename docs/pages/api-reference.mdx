@@ -100,7 +100,7 @@ This should result in three PEM encoded files being generated in the `/certs` di
 Move the `/certs` folder into your `/api-examples` folder.
 
 <Admonition type="note">
-  By default, `tctl auth sign` produces certificates with a relatively short lifetime. See our [Kubernetes Section](kubernetes-access.mdx#using-teleport-kubernetes-with-automation) for more information on automating the signing process for short lived certificates.
+  By default, `tctl auth sign` produces certificates with a relatively short lifetime. See our [Kubernetes Section](./kubernetes-access/guides/cicd.mdx) for more information on automating the signing process for short lived certificates.
 
   While we encourage you to use short lived certificates, we understand you may not have all the infrastructure to issues and obtain them at the onset. You can use the --ttl flag to extend the lifetime of a certificate in these cases but understand this reduces your security posture
 </Admonition>
@@ -345,7 +345,7 @@ type Resource struct {
 
 ## Roles
 
-Every user in Teleport is assigned a set of [roles](enterprise/ssh-rbac.mdx#roles). A user's roles defines what actions or resources the user is allowed or denied to access. We offer a wide array of permissions, allowing you to safely and precisely give developers access to the resources they need.
+Every user in Teleport is assigned a set of [roles](./access-controls/reference.mdx#roles). A user's roles defines what actions or resources the user is allowed or denied to access. We offer a wide array of permissions, allowing you to safely and precisely give developers access to the resources they need.
 
 Some of the permissions a role could define include:
 
@@ -370,7 +370,7 @@ You may want to use the API to manage roles if:
 
 A Teleport `role` is defined by its `Allow` rules, `Deny` rules, and OpenSSH `Options`. We'll break these down piece by piece below.
 
-To see a role example in `yaml` form, look at the the admin role in the [RBAC documentation](enterprise/ssh-rbac.mdx). You'll notice that the role object below has the same exact nested structure as its `yaml` counterpart.
+To see a role example in `yaml` form, look at the the admin role in the [RBAC documentation](./access-controls/reference.mdx#roles). You'll notice that the role object below has the same exact nested structure as its `yaml` counterpart.
 
 ```go
 // RoleV3 represents role resource specification
@@ -736,7 +736,7 @@ if err := client.DeleteToken(tokenString); err != nil {
 
 ## Cluster Labels
 
-Cluster Labels can be used to differentiate between leaf clusters in a [Trusted Cluster](trustedclusters.mdx). These can be useful when defining [roles](enterprise/ssh-rbac.mdx) within a trusted cluster, where each cluster has its own requirements for access.
+Cluster Labels can be used to differentiate between leaf clusters in a [Trusted Cluster](trustedclusters.mdx). These can be useful when defining [roles](./access-controls/reference.mdx#roles) within a trusted cluster, where each cluster has its own requirements for access.
 
 For example, if each cluster corresponds to a different product that should only be accessed by its product team, you can give each cluster a label like `product: A`. Then create a role for each product which allows access to clusters with its respective product label.
 

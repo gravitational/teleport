@@ -73,6 +73,31 @@ but before the shell is run. It is generally used for important system-wide anno
 This feature can help you inform users that activity on the node is being audited
 and recorded.
 
+## Custom environment variables
+
+Teleport supports setting arbitrary environment variables for PAM modules as of version 6.1.
+These variables can also be role-style SSO claims in the form `{{ external.email }}`
+where `email` is a claim made by the configured SSO IdP.
+
+To set custom environment variables, update `/etc/teleport.yaml` with:
+
+```yaml
+ssh_service:
+  pam:
+    # disabled by default
+    enabled: true
+    # use /etc/pam.d/sshd configuration (the default)
+    service_name: "sshd"
+    # use the "auth" modules in the PAM config
+    # "false" by default
+    use_pam_auth: true
+    # sets custom environment variables for PAM modules
+    # no environment variables except the standard `TELEPORT_USERNAME`, `TELEPORT_LOGIN`, and `TELEPORT_ROLES`
+    environment:
+      FOO: "bar"
+      EMAIL: "{{ external.email }}"
+```
+
 ### Example node with PAM turned off
 
 ```yaml
