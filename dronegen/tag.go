@@ -137,8 +137,8 @@ func tagPipelines() []pipeline {
 	// regular tarball builds
 	for _, arch := range []string{"amd64", "386", "arm", "arm64"} {
 		for _, fips := range []bool{false, true} {
-			if (arch == "386" || arch == "arm") && fips {
-				// FIPS mode not supported on i386 or ARM
+			if arch != "amd64" && fips {
+				// FIPS mode only supported on linux/amd64
 				continue
 			}
 			ps = append(ps, tagPipeline(buildType{os: "linux", arch: arch, fips: fips}))

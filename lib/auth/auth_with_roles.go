@@ -1113,11 +1113,17 @@ func (a *ServerWithRoles) GetAccessCapabilities(ctx context.Context, req service
 func (a *ServerWithRoles) GetPluginData(ctx context.Context, filter services.PluginDataFilter) ([]services.PluginData, error) {
 	switch filter.Kind {
 	case services.KindAccessRequest:
-		if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbList); err != nil {
-			return nil, trace.Wrap(err)
+		// for backwards compatibility, we allow list/read against access requests to also grant list/read for
+		// access request related plugin data.
+		if a.action(defaults.Namespace, services.KindAccessRequest, services.VerbList, quietAction(true)) != nil {
+			if err := a.action(defaults.Namespace, types.KindAccessPluginData, services.VerbList); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
-		if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbRead); err != nil {
-			return nil, trace.Wrap(err)
+		if a.action(defaults.Namespace, services.KindAccessRequest, services.VerbRead, quietAction(true)) != nil {
+			if err := a.action(defaults.Namespace, types.KindAccessPluginData, services.VerbRead); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 		return a.authServer.GetPluginData(ctx, filter)
 	default:
@@ -1129,8 +1135,12 @@ func (a *ServerWithRoles) GetPluginData(ctx context.Context, filter services.Plu
 func (a *ServerWithRoles) UpdatePluginData(ctx context.Context, params services.PluginDataUpdateParams) error {
 	switch params.Kind {
 	case services.KindAccessRequest:
-		if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbUpdate); err != nil {
-			return trace.Wrap(err)
+		// for backwards compatibility, we allow update against access requests to also grant update for
+		// access request related plugin data.
+		if a.action(defaults.Namespace, services.KindAccessRequest, services.VerbUpdate, quietAction(true)) != nil {
+			if err := a.action(defaults.Namespace, types.KindAccessPluginData, services.VerbUpdate); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 		return a.authServer.UpdatePluginData(ctx, params)
 	default:
@@ -1154,7 +1164,7 @@ func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) 
 }
 
 func (a *ServerWithRoles) DeleteAccessRequest(ctx context.Context, name string) error {
-	if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbUpdate); err != nil {
+	if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteAccessRequest(ctx, name)
@@ -1590,7 +1600,14 @@ func (a *ServerWithRoles) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*
 	if err := a.action(defaults.Namespace, services.KindOIDCRequest, services.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.CreateOIDCAuthRequest(req)
+
+	oidcReq, err := a.authServer.CreateOIDCAuthRequest(req)
+	if err != nil {
+		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodOIDC, err)
+		return nil, trace.Wrap(err)
+	}
+
+	return oidcReq, nil
 }
 
 func (a *ServerWithRoles) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error) {
@@ -1660,7 +1677,14 @@ func (a *ServerWithRoles) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*
 	if err := a.action(defaults.Namespace, services.KindSAMLRequest, services.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.CreateSAMLAuthRequest(req)
+
+	samlReq, err := a.authServer.CreateSAMLAuthRequest(req)
+	if err != nil {
+		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodSAML, err)
+		return nil, trace.Wrap(err)
+	}
+
+	return samlReq, nil
 }
 
 func (a *ServerWithRoles) ValidateSAMLResponse(re string) (*SAMLAuthResponse, error) {
@@ -1758,7 +1782,14 @@ func (a *ServerWithRoles) CreateGithubAuthRequest(req services.GithubAuthRequest
 	if err := a.action(defaults.Namespace, services.KindGithubRequest, services.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.CreateGithubAuthRequest(req)
+
+	githubReq, err := a.authServer.CreateGithubAuthRequest(req)
+	if err != nil {
+		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodGithub, err)
+		return nil, trace.Wrap(err)
+	}
+
+	return githubReq, nil
 }
 
 func (a *ServerWithRoles) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error) {
@@ -2829,4 +2860,24 @@ func NewAdminAuthServer(authServer *Server, sessions session.Service, alog event
 		alog:       alog,
 		sessions:   sessions,
 	}, nil
+}
+
+func emitSSOLoginFailureEvent(ctx context.Context, emitter events.Emitter, method string, err error) {
+	emitErr := emitter.EmitAuditEvent(ctx, &events.UserLogin{
+		Metadata: events.Metadata{
+			Type: events.UserLoginEvent,
+			Code: events.UserSSOLoginFailureCode,
+		},
+		Method: method,
+		Status: events.Status{
+			Success:     false,
+			Error:       trace.Unwrap(err).Error(),
+			UserMessage: err.Error(),
+		},
+	})
+
+	if emitErr != nil {
+		log.WithError(err).Warnf("Failed to emit %v login failure event.", method)
+	}
+
 }

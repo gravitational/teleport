@@ -7,11 +7,11 @@ description: Getting started with Teleport Application Access
 
 Let's connect to Grafana using Teleport Application Access in 3 steps:
 
-1. Launch Grafana in a Docker container.
-2. Install Teleport and configure it it to proxy Grafana.
-3. Access Grafana through Teleport.
+- Launch Grafana in a Docker container.
+- Install Teleport and configure it it to proxy Grafana.
+- Access Grafana through Teleport.
 
-### Follow along with our video guide
+## Follow along with our video guide
 
 <iframe
   width="712"
@@ -24,10 +24,10 @@ Let's connect to Grafana using Teleport Application Access in 3 steps:
 
 ## Prerequisites
 
-* We will use Docker to launch Grafana in a container. Alternatively, if you
+- We will use Docker to launch Grafana in a container. Alternatively, if you
   have another web application you'd like to protect with App Access, you can
   use that instead.
-* We will assume your Teleport cluster is accessible at `teleport.example.com`
+- We will assume your Teleport cluster is accessible at `teleport.example.com`
   and `*.teleport.example.com`. Configured DNS records are required to
   automatically fetch a Let's Encrypt certificate.
 
@@ -100,11 +100,11 @@ There are a couple of ways to access the proxied application.
 
 Every application is assigned a public address which you use to navigate to
 the application directly. In our sample Grafana application we have provided a public address with
-the `--app-public-addr` flag, so go to https://grafana.teleport.example.com
+the `--app-public-addr` flag, so go to `https://grafana.teleport.example.com`
 (replace with your app public address) to access the app. If you're not logged into Teleport,
 you will need to authenticate before the application will show.
 
-Alternatively, log into the Teleport web UI at https://teleport.example.com
+Alternatively, log into the Teleport web UI at `https://teleport.example.com`
 (replace with your proxy public address). All available applications are
 displayed on the Applications tab. Click on the Grafana application tile
 to access it.
@@ -113,7 +113,7 @@ to access it.
 
 Dive deeper into the topics relevant to your Application Access use-case:
 
-* Learn in more detail about [connecting applications](./guides/connecting-apps.mdx) with Application Access.
-* Learn about integrating with [JWT tokens](./guides/jwt.mdx) for auth.
-* Learn how to use Application Access with [RESTful APIs](./guides/api-access.mdx).
-* See full configuration and CLI [reference](./reference.mdx).
+- Learn in more detail about [connecting applications](./guides/connecting-apps.mdx) with Application Access.
+- Learn about integrating with [JWT tokens](./guides/jwt.mdx) for auth.
+- Learn how to use Application Access with [RESTful APIs](./guides/api-access.mdx).
+- See full configuration and CLI [reference](./reference.mdx).

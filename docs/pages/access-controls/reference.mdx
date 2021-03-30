@@ -1,49 +1,10 @@
 ---
-title: Role Based Access Control for SSH and Kubernetes
-description: How to configure Teleport to provide unified Role Based Access Control for SSH and Kubernetes
-h1: Role Based Access Control for SSH & K8s
+title: Access Controls Reference
+description: Access Controls - Role options and properties
+h1: Teleport Access Controls Reference
 ---
 
-## Introduction
-
-Role Based Access Control (RBAC) gives Teleport administrators more
-granular access controls. An example of an RBAC policy could be:  *"admins can do
-anything, developers must never touch production servers and interns can only
-SSH into staging servers as guests"*
-
-RBAC is almost always used in conjunction with
-Single Sign-On ([SSO](https://en.wikipedia.org/wiki/Single_sign-on)) but it also works with
-users stored in Teleport's internal database.
-
-### How does it work?
-
-Let's assume a company is using [Okta](https://www.okta.com/) to authenticate users and place
-them into groups. A typical deployment of Teleport in this scenario
-would look like this:
-
-1. Configure Teleport to use existing user identities stored in Okta.
-2. Okta would have users placed in certain groups, perhaps "developers", "admins", "contractors", etc.
-3. Teleport would have certain *Teleport roles* defined. For example: "developers" and "admins".
-4. Mappings would connect the Okta groups (SAML assertions) to the Teleport roles.
-   Every Teleport user will be assigned a *Teleport role* based on their Okta
-   group membership.
-
 ## Roles
-
-Every user in Teleport is **always** assigned a set of roles. One can think of
-them as "SSH Roles". The open source edition of Teleport automatically assigns
-every user to the built-in `admin` role but the Teleport Enterprise allows
-administrators to define their own roles with far greater control over the
-user permissions.
-
-Some of the permissions a role could define include:
-
-- Which SSH nodes a user can or cannot access. Teleport uses [node
-  labels](../admin-guide.mdx#labeling-nodes-and-applications) to do this, i.e. some nodes can be
-  labeled "production" while others can be labeled "staging".
-- Ability to replay recorded sessions.
-- Ability to update cluster configuration.
-- Which UNIX logins a user is allowed to use when logging into servers.
 
 A Teleport `role` works by having two lists of rules: `allow` rules and `deny` rules.
 When declaring access rules, keep in mind the following:
@@ -323,16 +284,3 @@ List of all rule options defined below.
     - resources: [token]
       verbs: [list,create,read,update,delete]
 ```
-
-## FAQ
-
-**Q:** What if a node has multiple labels?
-
-**A:** In this case, the access will be granted only if **all of the labels**
-defined in the role are present. This effectively means Teleport uses an "AND"
-operator when evaluating node-level access using labels.
-
-**Q:** Can I use node-level RBAC with OpenSSH servers?
-
-**A:** No. OpenSSH servers running `sshd` do not have the ability to label
-themselves. This is one of the reasons to run Teleport `node` service instead.

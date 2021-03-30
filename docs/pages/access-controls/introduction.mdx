@@ -1,0 +1,39 @@
+---
+title: Access Controls Introduction
+description: Provide Role Based Access Controls for SSH, Kubernetes, Databases and Web Apps
+h1: Access Controls for SSH, Kubernetes, Databases and Web Apps
+---
+
+## Introduction
+
+Here are examples of access policies you can define with Teleport:
+
+- Analytics team members can SSH into the MongoDB read replica, but not main database.
+- Interns can't access production databases.
+- Devops can access production server only when using a registered U2F hardware token.
+- Members of my team can access prod Kubernetes cluster if approved by someone else from the team.
+
+RBAC is almost always used in conjunction with Single Sign-On, Github in OSS and OIDC or SAML in Enterprise
+editions. It also works with users stored in Teleport's internal database.
+
+### How does it work?
+
+Let's assume a company is using [Okta](https://www.okta.com/) to authenticate users and place
+them into groups. A typical deployment of Teleport in this scenario
+would look like this:
+
+1. Configure Teleport to use existing user identities stored in Okta.
+2. Okta would have users placed in certain groups, perhaps "developers", "admins", "contractors", etc.
+3. Teleport would have certain *Teleport roles* defined. For example: "developers" and "admins".
+4. Mappings would connect the Okta groups (SAML assertions) to the Teleport roles.
+   Every Teleport user will be assigned a *Teleport role* based on their Okta
+   group membership.
+
+## Getting Started
+
+Configure Access Controls in a 5 minute [Getting Started](./getting-started.mdx)
+guide.
+
+## Guides
+
+- [Dynamic Access Policies with Role Templates](./guides/role-templates.mdx)
