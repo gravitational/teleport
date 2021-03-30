@@ -1113,11 +1113,17 @@ func (a *ServerWithRoles) GetAccessCapabilities(ctx context.Context, req service
 func (a *ServerWithRoles) GetPluginData(ctx context.Context, filter services.PluginDataFilter) ([]services.PluginData, error) {
 	switch filter.Kind {
 	case services.KindAccessRequest:
-		if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbList); err != nil {
-			return nil, trace.Wrap(err)
+		// for backwards compatibility, we allow list/read against access requests to also grant list/read for
+		// access request related plugin data.
+		if a.action(defaults.Namespace, services.KindAccessRequest, services.VerbList, quietAction(true)) != nil {
+			if err := a.action(defaults.Namespace, types.KindAccessPluginData, services.VerbList); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
-		if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbRead); err != nil {
-			return nil, trace.Wrap(err)
+		if a.action(defaults.Namespace, services.KindAccessRequest, services.VerbRead, quietAction(true)) != nil {
+			if err := a.action(defaults.Namespace, types.KindAccessPluginData, services.VerbRead); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 		return a.authServer.GetPluginData(ctx, filter)
 	default:
@@ -1129,8 +1135,12 @@ func (a *ServerWithRoles) GetPluginData(ctx context.Context, filter services.Plu
 func (a *ServerWithRoles) UpdatePluginData(ctx context.Context, params services.PluginDataUpdateParams) error {
 	switch params.Kind {
 	case services.KindAccessRequest:
-		if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbUpdate); err != nil {
-			return trace.Wrap(err)
+		// for backwards compatibility, we allow update against access requests to also grant update for
+		// access request related plugin data.
+		if a.action(defaults.Namespace, services.KindAccessRequest, services.VerbUpdate, quietAction(true)) != nil {
+			if err := a.action(defaults.Namespace, types.KindAccessPluginData, services.VerbUpdate); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 		return a.authServer.UpdatePluginData(ctx, params)
 	default:

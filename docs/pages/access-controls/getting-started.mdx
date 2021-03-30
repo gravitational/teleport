@@ -1,0 +1,174 @@
+---
+title: Getting Started With Access Controls
+description: Teleport Access Controls
+---
+
+# Getting Started
+
+In Teleport, any local, SSO or robot user can be a member of one or several
+roles. Roles govern access to databases, SSH servers, kubernetes clusters and web apps.
+
+We will start with local users and preset roles, map SSO users to roles and wrap up
+with creating your own role.
+
+## Prerequisites
+
+- Installed [Teleport](../getting-started.mdx) or [Teleport Cloud](../cloud.mdx) >= {{teleport_version}}
+- [Tctl admin tool](https://goteleport.com/teleport/download) >= {{teleport_version}}
+
+Verify that your Teleport client is connected:
+
+```bash
+$ tctl status
+Cluster  acme.example.com
+Version  6.0.2
+Host CA  never updated
+User CA  never updated
+Jwt CA   never updated
+CA pin   sha256:e63c7c44be468d37a5b0276b70e9d10b17f24f4be19d6b579810fc94eaa31783
+```
+
+## Step 1/3 Add local users with preset roles
+
+Teleport provides a couple of preset roles: `admin`, `editor`, `auditor` and `access`.
+Members of `editor` role can modify cluster configuration, members of `auditor`
+role can view audit logs, and `access` members can access cluster resources.
+Members of `admin`, are full cluster administrators.
+
+Invite a local user Alice as cluster `editor`:
+
+```bash
+$ tctl users add alice --roles=editor
+```
+
+Once Alice signs up, she will be able to edit cluster configuration. You can list
+users and their roles using `tctl users ls`.
+
+```bash
+$ tctl users ls
+User                 Roles
+-------------------- -------------- 
+alice                editor
+admin@example.com    admin
+```
+
+You can update user's roles using `tctl users update` command:
+
+```bash
+# Once Alice relogins, she will be able to view audit logs
+$ tctl users update alice --set-roles=editor,auditor
+```
+
+Because Alice has two roles, permissions from those role create a union -
+she will be able to act as a system administrator and auditor at the same time.
+
+## Step 2/3 Map SSO users to roles
+
+We are going to setup Github connector for OSS and Okta for Enterprises version.
+
+<Tabs>
+<TabItem label="Open Source">
+
+Save the file below as `github.yaml` and update the fields. You will need to set up
+[Github OAuth 2.0 Connector](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/) app.
+Any member belonging to the Github organization `octocats` and on team `admin` will be able to assume a built-in role `access`.
+
+```yaml
+kind: github
+version: v3
+metadata:
+  # connector name that will be used with `tsh --auth=github login`
+  name: github
+spec:
+  # client ID of Github OAuth app
+  client_id: client-id
+  # client secret of Github OAuth app
+  client_secret: client-secret
+  # This name will be shown on UI login screen
+  display: Github
+  # Change tele.example.com to your domain name
+  redirect_url: https://tele.example.com:443/v1/webapi/github/callback
+  # Map github teams to teleport roles
+  teams_to_logins:
+    - organization: octocats # Github organization name
+      team: admin            # Github team name within that organization
+      # map github admin team to Teleport's "access" role
+      logins: ["access"]
+```
+</TabItem>
+<TabItem label="Enterprise">
+
+Follow [SAML Okta Guide](../enterprise/sso/ssh-okta.mdx#configure-okta) to create a SAML app.
+Check out [OIDC guides](../enterprise/sso/oidc.mdx#identity-providers) for OpenID Connect apps.
+Save the file below as `okta.yaml` and update the `acs` field.
+Any member in Okta group `okta-admin` will assume a builtin role `admin`.
+
+```yaml
+kind: saml
+version: v2
+metadata:
+  name: okta
+spec:
+  acs: https://tele.example.com/v1/webapi/saml/acs
+  attributes_to_roles:
+  - {name: "groups", value: "okta-admin", roles: ["access"]}
+  entity_descriptor: |
+    <?xml !!! Make sure to shift all lines in XML descriptor
+    with 4 spaces, otherwise things will not work
+```
+</TabItem>
+</Tabs>
+
+
+## Step 3/3 Create a custom role
+
+Let's create a custom role for interns. Interns will have access
+to test or staging SSH servers as `readonly` users. We will let them
+view some monitoring web applications and dev kubernetes cluster.
+
+Save this role as `interns.yaml`:
+
+```yaml
+kind: role
+version: v3
+metadata:
+  name: interns
+spec:
+  allow:
+    # Logins configures SSH login principals
+    logins: ['readonly']
+    # Assigns members of this role to built-in kubernetes group view
+    kubernetes_groups: ["view"]
+    # Allow access to SSH nodes, kubernetes clusters, apps or databases labeled with staging or test
+    node_labels:
+      'env': ['staging', 'test']
+    kubernetes_labels:
+      'env': 'dev'
+    app_labels:
+      'type': ['monitoring']
+  # The deny rules always override allow rules.
+  deny:
+    # deny access to any node, database, app or kubernetes cluster labeled
+    # as prod as any user.
+    node_labels:
+      'env': 'prod'
+    kubernetes_labels:
+      'env': 'prod'
+    db_labels:
+      'env': 'prod'
+    app_labels:
+      'env': 'prod'
+```
+
+Create a role using `tctl create -f` command:
+
+```bash
+$ tctl create -f /tmp/interns.yaml
+# Get list of all roles in the system
+$ tctl get roles --format text
+```
+
+## Next Steps
+
+- [Mapping SSO and Local Users Traits with Role Templates](./guides/role-templates.mdx)
+

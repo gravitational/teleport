@@ -494,6 +494,9 @@ const (
 	// local accounts.
 	TraitInternalPrefix = "internal"
 
+	// TraitExternalPrefix is the role variable prefix that indicates the data comes from an external identity provider.
+	TraitExternalPrefix = "external"
+
 	// TraitLogins is the name the role variable used to store
 	// allowed logins.
 	TraitLogins = "logins"
