@@ -370,6 +370,16 @@ func (k *Key) CheckCert() error {
 		return trace.Wrap(err)
 	}
 
+	// Check that the certificate was for the current public key. If not, the
+	// public/private key pair may have been rotated.
+	pub, _, _, _, err := ssh.ParseAuthorizedKey(k.Pub)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !sshutils.KeysEqual(cert.Key, pub) {
+		return trace.CompareFailed("public key in profile does not match the public key in SSH certificate")
+	}
+
 	// A valid principal is always passed in because the principals are not being
 	// checked here, but rather the validity period, signature, and algorithms.
 	certChecker := utils.CertChecker{
