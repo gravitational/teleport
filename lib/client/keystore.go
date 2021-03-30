@@ -41,7 +41,6 @@ import (
 )
 
 const (
-	sshDirSuffix  = "-ssh"
 	kubeDirSuffix = "-kube"
 	dbDirSuffix   = "-db"
 	appDirSuffix  = "-app"
@@ -177,7 +176,7 @@ func (fs *FSLocalKeyStore) AddKey(key *Key) error {
 	}
 
 	// Store per-cluster key data.
-	if err := fs.writeBytes(key.Cert, inProxyHostDir(key.Username+sshDirSuffix, key.ClusterName+constants.FileExtSSHCert)); err != nil {
+	if err := fs.writeBytes(key.Cert, inProxyHostDir(key.Username+constants.SSHDirSuffix, key.ClusterName+constants.FileExtSSHCert)); err != nil {
 		return trace.Wrap(err)
 	}
 	// TODO(awly): unit test this.
@@ -385,7 +384,7 @@ var WithAllCerts = []CertOption{WithSSHCerts{}, WithKubeCerts{}, WithDBCerts{}, 
 type WithSSHCerts struct{}
 
 func (o WithSSHCerts) relativeCertPath(idx KeyIndex) string {
-	components := []string{idx.ProxyHost, idx.Username + sshDirSuffix}
+	components := []string{idx.ProxyHost, idx.Username + constants.SSHDirSuffix}
 	if idx.ClusterName != "" {
 		components = append(components, idx.ClusterName+constants.FileExtSSHCert)
 	}
