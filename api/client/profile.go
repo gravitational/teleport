@@ -122,7 +122,7 @@ func (p *Profile) TLSConfig() (*tls.Config, error) {
 // SSHClientConfig returns the profile's associated SSHClientConfig.
 func (p *Profile) SSHClientConfig() (*ssh.ClientConfig, error) {
 	credsPath := filepath.Join(p.Dir, constants.SessionKeyDir, p.Name())
-	cert, err := ioutil.ReadFile(filepath.Join(credsPath, p.Username+constants.FileExtSSHCert))
+	cert, err := ioutil.ReadFile(filepath.Join(credsPath, p.Username+constants.SSHDirSuffix, p.SiteName+constants.FileExtSSHCert))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

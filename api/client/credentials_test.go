@@ -161,7 +161,7 @@ func TestLoadProfile(t *testing.T) {
 	tlsCasPath := filepath.Join(userKeyDir, constants.FileNameTLSCerts)
 	err = ioutil.WriteFile(tlsCasPath, []byte(tlsCACert), 0600)
 	require.NoError(t, err)
-	sshCertPath := filepath.Join(userKeyDir, p.Username+constants.FileExtSSHCert)
+	sshCertPath := filepath.Join(userKeyDir, p.Username+constants.SSHDirSuffix, p.SiteName+constants.FileExtSSHCert)
 	err = ioutil.WriteFile(sshCertPath, []byte(sshCert), 0600)
 	require.NoError(t, err)
 	sshCasPath := filepath.Join(dir, constants.FileNameKnownHosts)
