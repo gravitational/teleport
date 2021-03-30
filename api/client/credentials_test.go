@@ -26,7 +26,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 
 	"github.com/stretchr/testify/require"
@@ -134,39 +133,24 @@ func TestLoadProfile(t *testing.T) {
 
 	// Write identity file to disk.
 	dir := t.TempDir()
-	name := "proxy"
+	name := "proxy.example.com"
 	p := &Profile{
-		WebProxyAddr: "proxy:3080",
+		WebProxyAddr: "proxy.example.com:3080",
+		SiteName:     "example.com",
 		Username:     "testUser",
 		Dir:          dir,
 	}
 
-	// Save profile to a file.
-	err := p.SaveToDir(dir, true)
-	require.NoError(t, err)
-
-	// Write keys to disk.
-	keyDir := filepath.Join(dir, constants.SessionKeyDir)
-	err = os.MkdirAll(keyDir, 0700)
-	require.NoError(t, err)
-	userKeyDir := filepath.Join(keyDir, p.Name())
-	os.MkdirAll(userKeyDir, 0700)
-	require.NoError(t, err)
-	keyPath := filepath.Join(userKeyDir, p.Username)
-	err = ioutil.WriteFile(keyPath, []byte(keyPEM), 0600)
-	require.NoError(t, err)
-	tlsCertPath := filepath.Join(userKeyDir, p.Username+constants.FileExtTLSCert)
-	err = ioutil.WriteFile(tlsCertPath, []byte(tlsCert), 0600)
-	require.NoError(t, err)
-	tlsCasPath := filepath.Join(userKeyDir, constants.FileNameTLSCerts)
-	err = ioutil.WriteFile(tlsCasPath, []byte(tlsCACert), 0600)
-	require.NoError(t, err)
-	sshCertPath := filepath.Join(userKeyDir, p.Username+constants.FileExtSSHCert)
-	err = ioutil.WriteFile(sshCertPath, []byte(sshCert), 0600)
-	require.NoError(t, err)
-	sshCasPath := filepath.Join(dir, constants.FileNameKnownHosts)
-	err = ioutil.WriteFile(sshCasPath, []byte(sshCACert), 0600)
-	require.NoError(t, err)
+	// Save profile and keys to disk.
+	require.NoError(t, p.SaveToDir(dir, true))
+	require.NoError(t, os.MkdirAll(p.keyDir(), 0700))
+	require.NoError(t, os.MkdirAll(p.userKeyDir(), 0700))
+	require.NoError(t, os.MkdirAll(p.sshDir(), 0700))
+	require.NoError(t, ioutil.WriteFile(p.keyPath(), []byte(keyPEM), 0600))
+	require.NoError(t, ioutil.WriteFile(p.tlsCertPath(), []byte(tlsCert), 0600))
+	require.NoError(t, ioutil.WriteFile(p.tlsCasPath(), []byte(tlsCACert), 0600))
+	require.NoError(t, ioutil.WriteFile(p.sshCertPath(), []byte(sshCert), 0600))
+	require.NoError(t, ioutil.WriteFile(p.sshCasPath(), []byte(sshCACert), 0600))
 
 	// Load profile from disk.
 	creds := LoadProfile(dir, name)
