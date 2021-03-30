@@ -462,7 +462,19 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 		return trace.Wrap(err)
 	}
 	if err := tc.ActivateKey(ctx, key); err != nil {
-		return trace.Wrap(err)
+		if len(tc.JumpHosts) == 0 {
+			return trace.Wrap(err)
+		}
+		errViaJumphost := err
+		// ActivateKey re-fetches the list of CAs from auth server. If
+		// JumpHosts was pointing at the leaf cluster, this could've caused the
+		// above error. Try to ActivateKey without JumpHosts to force it to use
+		// the root cluster.
+		if err := tc.WithoutJumpHosts(func(tc *TeleportClient) error {
+			return tc.ActivateKey(ctx, key)
+		}); err != nil {
+			return trace.NewAggregate(errViaJumphost, err)
+		}
 	}
 	// Save profile to record proxy credentials
 	if err := tc.SaveProfile("", true); err != nil {
@@ -1060,13 +1072,24 @@ func (tc *TeleportClient) LoadKeyForCluster(clusterName string) error {
 func (tc *TeleportClient) LoadKeyForClusterWithReissue(ctx context.Context, clusterName string) error {
 	err := tc.LoadKeyForCluster(clusterName)
 	if err == nil {
+		// TODO(awly): is this always correct?
+		//
+		// Reset client AuthMethods, in case they were populated via relogin
+		// and would force us to use the root cert.
+		if len(tc.AuthMethods) > 0 {
+			tc.AuthMethods = nil
+		}
 		return nil
 	}
 	if !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 	// Reissuing also loads the new key.
-	return tc.ReissueUserCerts(ctx, ReissueParams{RouteToCluster: clusterName})
+	err = tc.ReissueUserCerts(ctx, ReissueParams{RouteToCluster: clusterName})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // accessPoint returns access point based on the cache policy

@@ -305,6 +305,7 @@ func (fs *FSLocalKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error
 		Priv:     priv,
 		TLSCert:  tlsCert,
 		TrustedCA: []auth.TrustedCerts{{
+			ClusterName:     idx.ClusterName,
 			TLSCertificates: tlsCA,
 		}},
 		KubeTLSCerts: make(map[string][]byte),
