@@ -42,6 +42,9 @@ const (
 	KeepAliveNode              = constants.KeepAliveNode
 	KeepAliveApp               = constants.KeepAliveApp
 	KeepAliveDatabase          = constants.KeepAliveDatabase
+	WindowsOS                  = constants.WindowsOS
+	LinuxOS                    = constants.LinuxOS
+	DarwinOS                   = constants.DarwinOS
 )
 
 // WebAPIVersion is a current webapi version
@@ -313,15 +316,6 @@ const (
 
 	// LinuxAdminGID is the ID of the standard adm group on linux
 	LinuxAdminGID = 4
-
-	// LinuxOS is the GOOS constant used for Linux.
-	LinuxOS = "linux"
-
-	// WindowsOS is the GOOS constant used for Microsoft Windows.
-	WindowsOS = "windows"
-
-	// DarwinOS is the GOOS constant for Apple macOS/darwin.
-	DarwinOS = "darwin"
 
 	// DirMaskSharedGroup is the mask for a directory accessible
 	// by the owner and group
