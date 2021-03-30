@@ -5,6 +5,7 @@
       "title": "Documentation",
       "entries": [
         { "title": "Introduction", "slug": "/" },
+        { "title": "Adopters", "slug": "/adopters/" },
         { "title": "Getting Started", "slug": "/getting-started/" },
         { "title": "Installation", "slug": "/installation/" },
         { "title": "Application Access", "slug": "/application-access/" },
@@ -73,6 +74,23 @@
         { "title": "Architecture", "slug": "/database-access/architecture/" },
         { "title": "Reference", "slug": "/database-access/reference/" },
         { "title": "FAQ", "slug": "/database-access/faq/" }
+      ]
+    },
+    {
+      "icon": "lock",
+      "title": "Access Controls",
+      "entries": [
+        { "title": "Introduction", "slug": "/access-controls/introduction/" },
+        { "title": "Getting Started", "slug": "/access-controls/getting-started/" },
+        {
+          "title": "Guides",
+          "slug": "/access-controls/guides/",
+          "entries": [
+            { "title": "Role Templates", "slug": "/access-controls/guides/role-templates/" }
+          ]
+        },
+        { "title": "Reference", "slug": "/access-controls/reference/" },
+        { "title": "FAQ", "slug": "/access-controls/faq/" }
       ]
     },
     {
@@ -166,6 +184,11 @@
     }
   },
   "redirects": [
+    {
+      "source": "/enterprise/ssh-rbac/",
+      "destination": "/access-controls/introduction/",
+      "permanent": true
+    },
     {
       "source": "/quickstart/",
       "destination": "/getting-started/",
