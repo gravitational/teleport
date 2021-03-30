@@ -3287,6 +3287,7 @@ func (s *IntSuite) TestPAM(c *check.C) {
 		inServiceName string
 		inUsePAMAuth  bool
 		outContains   []string
+		environment   map[string]string
 	}{
 		// 0 - No PAM support, session should work but no PAM related output.
 		{
@@ -3332,6 +3333,23 @@ func (s *IntSuite) TestPAM(c *check.C) {
 			inUsePAMAuth:  true,
 			outContains:   []string{},
 		},
+		// 5 - PAM enabled, custom environment variables are passed.
+		{
+			inEnabled:     true,
+			inServiceName: "teleport-custom-env",
+			inUsePAMAuth:  false,
+			outContains: []string{
+				"pam_sm_acct_mgmt OK",
+				"pam_sm_open_session OK",
+				"pam_sm_close_session OK",
+				"pam_custom_envs OK",
+			},
+			environment: map[string]string{
+				"FIRST_NAME": "JOHN",
+				"LAST_NAME":  "DOE",
+				"OTHER":      "{{ external.testing }}",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -3348,6 +3366,7 @@ func (s *IntSuite) TestPAM(c *check.C) {
 			tconf.SSH.PAM.Enabled = tt.inEnabled
 			tconf.SSH.PAM.ServiceName = tt.inServiceName
 			tconf.SSH.PAM.UsePAMAuth = tt.inUsePAMAuth
+			tconf.SSH.PAM.Environment = tt.environment
 
 			return c, nil, nil, tconf
 		}
@@ -3474,9 +3493,10 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 	defer svc.Shutdown(context.TODO())
 
 	cfg := ClientConfig{
-		Login: s.me.Username,
-		Host:  Loopback,
-		Port:  t.GetPortSSHInt(),
+		Login:   s.me.Username,
+		Cluster: Site,
+		Host:    Loopback,
+		Port:    t.GetPortSSHInt(),
 	}
 	clt, err := t.NewClientWithCreds(cfg, *initialCreds)
 	c.Assert(err, check.IsNil)
@@ -3621,9 +3641,10 @@ func (s *IntSuite) TestRotateRollback(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	cfg := ClientConfig{
-		Login: s.me.Username,
-		Host:  Loopback,
-		Port:  t.GetPortSSHInt(),
+		Login:   s.me.Username,
+		Cluster: Site,
+		Host:    Loopback,
+		Port:    t.GetPortSSHInt(),
 	}
 	clt, err := t.NewClientWithCreds(cfg, *initialCreds)
 	c.Assert(err, check.IsNil)
@@ -4397,8 +4418,9 @@ func (s *IntSuite) TestList(c *check.C) {
 
 		// Create a Teleport client.
 		cfg := ClientConfig{
-			Login: tt.inLogin,
-			Port:  t.GetPortSSHInt(),
+			Login:   tt.inLogin,
+			Cluster: Site,
+			Port:    t.GetPortSSHInt(),
 		}
 		userClt, err := t.NewClientWithCreds(cfg, *initialCreds)
 		c.Assert(err, check.IsNil)
@@ -4496,8 +4518,9 @@ func (s *IntSuite) TestCmdLabels(c *check.C) {
 
 	for _, tt := range tts {
 		cfg := ClientConfig{
-			Login:  s.me.Username,
-			Labels: tt.labels,
+			Login:   s.me.Username,
+			Cluster: Site,
+			Labels:  tt.labels,
 		}
 
 		output, err := runCommand(t, tt.command, cfg, 1)
@@ -5194,6 +5217,7 @@ func hasPAMPolicy() bool {
 		"/etc/pam.d/teleport-acct-failure",
 		"/etc/pam.d/teleport-session-failure",
 		"/etc/pam.d/teleport-success",
+		"/etc/pam.d/teleport-custom-env",
 	}
 
 	for _, fileName := range pamPolicyFiles {
