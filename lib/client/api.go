@@ -462,19 +462,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 		return trace.Wrap(err)
 	}
 	if err := tc.ActivateKey(ctx, key); err != nil {
-		if len(tc.JumpHosts) == 0 {
-			return trace.Wrap(err)
-		}
-		errViaJumphost := err
-		// ActivateKey re-fetches the list of CAs from auth server. If
-		// JumpHosts was pointing at the leaf cluster, this could've caused the
-		// above error. Try to ActivateKey without JumpHosts to force it to use
-		// the root cluster.
-		if err := tc.WithoutJumpHosts(func(tc *TeleportClient) error {
-			return tc.ActivateKey(ctx, key)
-		}); err != nil {
-			return trace.NewAggregate(errViaJumphost, err)
-		}
+		return trace.Wrap(err)
 	}
 	// Save profile to record proxy credentials
 	if err := tc.SaveProfile("", true); err != nil {
@@ -2231,7 +2219,18 @@ func (tc *TeleportClient) ActivateKey(ctx context.Context, key *Key) error {
 	// Connect to the Auth Server of the root cluster and fetch the known hosts.
 	rootClusterName := key.TrustedCA[0].ClusterName
 	if err := tc.UpdateTrustedCA(ctx, rootClusterName); err != nil {
-		return trace.Wrap(err)
+		if len(tc.JumpHosts) == 0 {
+			return trace.Wrap(err)
+		}
+		errViaJumphost := err
+		// If JumpHosts was pointing at the leaf cluster (e.g. during 'tsh ssh
+		// -J leaf.example.com'), this could've caused the above error. Try to
+		// fetch CAs without JumpHosts to force it to use the root cluster.
+		if err := tc.WithoutJumpHosts(func(tc *TeleportClient) error {
+			return tc.UpdateTrustedCA(ctx, rootClusterName)
+		}); err != nil {
+			return trace.NewAggregate(errViaJumphost, err)
+		}
 	}
 
 	return nil

@@ -293,7 +293,7 @@ func (fs *FSLocalKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error
 		fs.log.Error(err)
 		return nil, trace.ConvertSystemError(err)
 	}
-	tlsCA, err := fs.GetTrustedCertsPEM(idx.ProxyHost)
+	tlsCAs, err := fs.GetTrustedCertsPEM(idx.ProxyHost)
 	if err != nil {
 		fs.log.Error(err)
 		return nil, trace.ConvertSystemError(err)
@@ -305,8 +305,7 @@ func (fs *FSLocalKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error
 		Priv:     priv,
 		TLSCert:  tlsCert,
 		TrustedCA: []auth.TrustedCerts{{
-			ClusterName:     idx.ClusterName,
-			TLSCertificates: tlsCA,
+			TLSCertificates: tlsCAs,
 		}},
 		KubeTLSCerts: make(map[string][]byte),
 		DBTLSCerts:   make(map[string][]byte),
