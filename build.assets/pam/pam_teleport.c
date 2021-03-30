@@ -25,6 +25,13 @@ int pam_sm_acct_mgmt(pam_handle_t *pamh, int flags, int argc, const char **argv)
         pam_info(pamh, "%s", getenv("TELEPORT_ROLES"));
     } else if (argc > 0 && argv[0][0] == '0') {
         return PAM_ACCT_EXPIRED;
+    } else if (argc > 0 && strcmp(argv[0], "test_custom_env") == 0) {
+        // If the "test_custom_env" command is requested it will verify custom env inputs.
+        if (strcmp(getenv("FIRST_NAME"), "JOHN") == 0
+            && strcmp(getenv("LAST_NAME"), "DOE") == 0
+            && strcmp(getenv("OTHER"), "integration") == 0) {
+            pam_info(pamh, "pam_custom_envs OK");
+        }
     }
 
     pam_info(pamh, "pam_sm_acct_mgmt OK");
