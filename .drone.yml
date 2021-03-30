@@ -182,7 +182,9 @@ services:
   volumes:
   - name: tmpfs
     path: /tmpfs
-  - name: tmp-dind
+  - name: dockertmpfs
+    path: /var/lib/docker
+  - name: tmp-integration
     path: /tmp
   - name: dockersock
     path: /var/run
@@ -190,9 +192,9 @@ volumes:
 - name: tmpfs
   temp:
     medium: memory
-- name: tmp-dind
-  temp: {}
 - name: tmp-integration
+  temp: {}
+- name: dockertmpfs
   temp: {}
 - name: dockersock
   temp: {}
@@ -201,7 +203,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tests.go:203
+# Generated at dronegen/tests.go:211
 ################################################
 
 kind: pipeline
@@ -283,12 +285,16 @@ services:
   volumes:
   - name: tmpfs
     path: /tmpfs
+  - name: dockertmpfs
+    path: /var/lib/docker
   - name: dockersock
     path: /var/run
 volumes:
 - name: tmpfs
   temp:
     medium: memory
+- name: dockertmpfs
+  temp: {}
 - name: dockersock
   temp: {}
 
@@ -4810,6 +4816,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: fa1617bb641bac2a46794d59f6d56cbc1b56d6d329819bd11902ca9c8d35f466
+hmac: ea48c40817f928bb53c17bfaae579a2475ee714cf210fea2822686b29b3d9128
 
 ...
