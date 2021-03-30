@@ -75,9 +75,17 @@ func testCodePipeline() pipeline {
 	}
 	p.Trigger = triggerPullRequest
 	p.Workspace = workspace{Path: "/go"}
-	p.Volumes = dockerVolumes(volumeTmpfs, volumeTmpDind, volumeTmpIntegration)
+	p.Volumes = dockerVolumes(
+		volumeTmpfs,
+		volumeTmpIntegration,
+		volumeDockerTmpfs,
+	)
 	p.Services = []service{
-		dockerService(volumeRefTmpfs, volumeRefTmpDind),
+		dockerService(
+			volumeRefTmpfs,
+			volumeRefDockerTmpfs,
+			volumeRefTmpIntegration,
+		),
 	}
 	goEnvironment := map[string]value{
 		"GOCACHE": value{raw: "/tmpfs/go/cache"},
@@ -203,9 +211,15 @@ func testDocsPipeline() pipeline {
 	p := newKubePipeline("test-docs")
 	p.Trigger = triggerPullRequest
 	p.Workspace = workspace{Path: "/go"}
-	p.Volumes = dockerVolumes(volumeTmpfs)
+	p.Volumes = dockerVolumes(
+		volumeTmpfs,
+		volumeDockerTmpfs,
+	)
 	p.Services = []service{
-		dockerService(volumeRefTmpfs),
+		dockerService(
+			volumeRefTmpfs,
+			volumeRefDockerTmpfs,
+		),
 	}
 	p.Steps = []step{
 		{

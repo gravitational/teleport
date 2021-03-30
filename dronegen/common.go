@@ -22,13 +22,13 @@ var (
 		Name: "dockersock",
 		Temp: &volumeTemp{},
 	}
+	volumeDockerTmpfs = volume{
+		Name: "dockertmpfs",
+		Temp: &volumeTemp{},
+	}
 	volumeTmpfs = volume{
 		Name: "tmpfs",
 		Temp: &volumeTemp{Medium: "memory"},
-	}
-	volumeTmpDind = volume{
-		Name: "tmp-dind",
-		Temp: &volumeTemp{},
 	}
 	volumeTmpIntegration = volume{
 		Name: "tmp-integration",
@@ -43,9 +43,9 @@ var (
 		Name: "dockersock",
 		Path: "/var/run",
 	}
-	volumeRefTmpDind = volumeRef{
-		Name: "tmp-dind",
-		Path: "/tmp",
+	volumeRefDockerTmpfs = volumeRef{
+		Name: "dockertmpfs",
+		Path: "/var/lib/docker",
 	}
 	volumeRefTmpIntegration = volumeRef{
 		Name: "tmp-integration",
