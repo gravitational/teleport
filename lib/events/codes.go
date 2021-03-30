@@ -295,6 +295,15 @@ const (
 	// MFADeviceDeleteEventCode is an event code for users deleting MFA devices.
 	MFADeviceDeleteEventCode = "T1007I"
 
+	// BillingCardCreateCode is an event code for when a user creates a new credit card.
+	BillingCardCreateCode = "TBL00I"
+	// BillingCardDeleteCode is an event code for when a user deletes a credit card.
+	BillingCardDeleteCode = "TBL01I"
+	// BillingCardUpdateCode is an event code for when a user updates an existing credit card.
+	BillingCardUpdateCode = "TBL02I"
+	// BillingInformationUpdateCode is an event code for when a user updates their billing info.
+	BillingInformationUpdateCode = "TBL03I"
+
 	// SessionRejectedCode is an event code for when a user's attempt to create an
 	// session/connection has been rejected.
 	SessionRejectedCode = "T1006W"

@@ -65,6 +65,11 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+const (
+	// ssoLoginConsoleErr is a generic error message to hide revealing sso login failure msgs.
+	ssoLoginConsoleErr = "Failed to login. Please check Teleport's log for more details."
+)
+
 // Handler is HTTP web proxy handler
 type Handler struct {
 	log logrus.FieldLogger
@@ -487,13 +492,8 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	user, err := clt.GetUser(c.GetUser(), false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	res, err := clt.GetAccessCapabilities(r.Context(), services.AccessCapabilitiesRequest{
-		RequestableRoles: true,
-	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -502,7 +502,20 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	userContext.RequestableRoles = res.RequestableRoles
+
+	res, err := clt.GetAccessCapabilities(r.Context(), services.AccessCapabilitiesRequest{
+		RequestableRoles:   true,
+		SuggestedReviewers: true,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	userContext.AccessCapabilities = ui.AccessCapabilities{
+		RequestableRoles:   res.RequestableRoles,
+		SuggestedReviewers: res.SuggestedReviewers,
+	}
+
 	userContext.Cluster, err = ui.GetClusterDetails(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -897,14 +910,20 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 }
 
 func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	h.log.WithField("auth", "github").Debug("Console login start.")
+	logger := h.log.WithField("auth", "github")
+	logger.Debug("Console login start.")
+
 	req := new(client.SSOLoginConsoleReq)
 	if err := httplib.ReadJSON(r, req); err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Error reading json.")
+		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
+
 	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Missing request parameters.")
+		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
+
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(
 		services.GithubAuthRequest{
 			ConnectorID:       req.ConnectorID,
@@ -916,8 +935,10 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 			KubernetesCluster: req.KubernetesCluster,
 		})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Failed to create Github auth request.")
+		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
+
 	return &client.SSOLoginConsoleResponse{
 		RedirectURL: response.RedirectURL,
 	}, nil
@@ -977,14 +998,20 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 }
 
 func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	h.log.WithField("auth", "oidc").Debug("Console login start.")
+	logger := h.log.WithField("auth", "oidc")
+	logger.Debug("Console login start.")
+
 	req := new(client.SSOLoginConsoleReq)
 	if err := httplib.ReadJSON(r, req); err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Error reading json.")
+		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
+
 	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Missing request parameters.")
+		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
+
 	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(
 		services.OIDCAuthRequest{
 			ConnectorID:       req.ConnectorID,
@@ -997,8 +1024,10 @@ func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 			KubernetesCluster: req.KubernetesCluster,
 		})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Failed to create OIDC auth request.")
+		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
+
 	return &client.SSOLoginConsoleResponse{
 		RedirectURL: response.RedirectURL,
 	}, nil
@@ -1241,8 +1270,14 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	switch cap.GetSecondFactor() {
 	case constants.SecondFactorOff:
 		webSession, err = h.auth.AuthWithoutOTP(req.User, req.Pass)
-	case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
+	case constants.SecondFactorOTP, constants.SecondFactorOn:
 		webSession, err = h.auth.AuthWithOTP(req.User, req.Pass, req.SecondFactorToken)
+	case constants.SecondFactorOptional:
+		if req.SecondFactorToken == "" {
+			webSession, err = h.auth.AuthWithoutOTP(req.User, req.Pass)
+		} else {
+			webSession, err = h.auth.AuthWithOTP(req.User, req.Pass, req.SecondFactorToken)
+		}
 	default:
 		return nil, trace.AccessDenied("unknown second factor type: %q", cap.GetSecondFactor())
 	}
