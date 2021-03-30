@@ -469,15 +469,6 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 		log.Warningf("Failed to save profile: %v", err)
 		return trace.Wrap(err)
 	}
-	// Override client's auth methods, current cluster and user name
-	authMethod, err := key.AsAuthMethod()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// After successful login we have local agent updated with latest
-	// and greatest auth information, setup client to try only this new
-	// method fetched from key, to isolate the retry
-	tc.Config.AuthMethods = []ssh.AuthMethod{authMethod}
 	return fn()
 }
 
@@ -1060,13 +1051,6 @@ func (tc *TeleportClient) LoadKeyForCluster(clusterName string) error {
 func (tc *TeleportClient) LoadKeyForClusterWithReissue(ctx context.Context, clusterName string) error {
 	err := tc.LoadKeyForCluster(clusterName)
 	if err == nil {
-		// TODO(awly): is this always correct?
-		//
-		// Reset client AuthMethods, in case they were populated via relogin
-		// and would force us to use the root cert.
-		if len(tc.AuthMethods) > 0 {
-			tc.AuthMethods = nil
-		}
 		return nil
 	}
 	if !trace.IsNotFound(err) {
