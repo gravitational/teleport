@@ -190,7 +190,7 @@ func getExpectedTLSConfig(t *testing.T) *tls.Config {
 }
 
 func getExpectedSSHConfig(t *testing.T) *ssh.ClientConfig {
-	config, err := sshutils.SSHClientConfig(sshCert, keyPEM, [][]byte{sshCACert})
+	config, err := sshutils.ProxyClientSSHConfig(sshCert, keyPEM, [][]byte{sshCACert})
 	require.NoError(t, err)
 
 	return config
