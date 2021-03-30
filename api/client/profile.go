@@ -93,23 +93,18 @@ func (p *Profile) Name() string {
 
 // TLSConfig returns the profile's associated TLSConfig.
 func (p *Profile) TLSConfig() (*tls.Config, error) {
-	credsPath := filepath.Join(p.Dir, constants.SessionKeyDir, p.Name())
-
-	certPath := filepath.Join(credsPath, p.Username+constants.FileExtTLSCert)
-	keyPath := filepath.Join(credsPath, p.Username)
-	cert, err := tls.LoadX509KeyPair(certPath, keyPath)
+	cert, err := tls.LoadX509KeyPair(p.tlsCertPath(), p.keyPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	certsPath := filepath.Join(credsPath, constants.FileNameTLSCerts)
-	certs, err := ioutil.ReadFile(certsPath)
+	caCerts, err := ioutil.ReadFile(p.tlsCasPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	pool := x509.NewCertPool()
-	if !pool.AppendCertsFromPEM(certs) {
+	if !pool.AppendCertsFromPEM(caCerts) {
 		return nil, trace.BadParameter("invalid CA cert PEM")
 	}
 
@@ -121,22 +116,22 @@ func (p *Profile) TLSConfig() (*tls.Config, error) {
 
 // SSHClientConfig returns the profile's associated SSHClientConfig.
 func (p *Profile) SSHClientConfig() (*ssh.ClientConfig, error) {
-	credsPath := filepath.Join(p.Dir, constants.SessionKeyDir, p.Name())
-	cert, err := ioutil.ReadFile(filepath.Join(credsPath, p.Username+constants.FileExtSSHCert))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	key, err := ioutil.ReadFile(filepath.Join(credsPath, p.Username))
+	cert, err := ioutil.ReadFile(p.sshCertPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	knownHosts, err := ioutil.ReadFile(filepath.Join(p.Dir, constants.FileNameKnownHosts))
+	key, err := ioutil.ReadFile(p.keyPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	ssh, err := sshutils.SSHClientConfig(cert, key, [][]byte{knownHosts})
+	caCerts, err := ioutil.ReadFile(p.sshCasPath())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ssh, err := sshutils.SSHClientConfig(cert, key, [][]byte{caCerts})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -280,4 +275,36 @@ func (p *Profile) saveToFile(filepath string) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func (p *Profile) keyDir() string {
+	return filepath.Join(p.Dir, constants.SessionKeyDir)
+}
+
+func (p *Profile) userKeyDir() string {
+	return filepath.Join(p.keyDir(), p.Name())
+}
+
+func (p *Profile) keyPath() string {
+	return filepath.Join(p.userKeyDir(), p.Username)
+}
+
+func (p *Profile) tlsCertPath() string {
+	return filepath.Join(p.userKeyDir(), p.Username+constants.FileExtTLSCert)
+}
+
+func (p *Profile) tlsCasPath() string {
+	return filepath.Join(p.userKeyDir(), constants.FileNameTLSCerts)
+}
+
+func (p *Profile) sshDir() string {
+	return filepath.Join(p.userKeyDir(), p.Username+constants.SSHDirSuffix)
+}
+
+func (p *Profile) sshCertPath() string {
+	return filepath.Join(p.sshDir(), p.SiteName+constants.FileExtSSHCert)
+}
+
+func (p *Profile) sshCasPath() string {
+	return filepath.Join(p.Dir, constants.FileNameKnownHosts)
 }
