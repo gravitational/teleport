@@ -123,10 +123,6 @@ release-arm:
 release-arm64:
 	$(MAKE) release ARCH=arm64
 
-.PHONY: release-arm64-fips
-release-arm64-fips:
-	$(MAKE) release ARCH=arm64 FIPS=yes
-
 # make release-unix - Produces a binary release tarball containing teleport,
 # tctl, and tsh.
 .PHONY:
