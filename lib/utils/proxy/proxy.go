@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/trace"
 
 	"golang.org/x/crypto/ssh"
@@ -37,30 +38,15 @@ var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentConnectProxy,
 })
 
-// NewClientConnWithDeadline establishes new client connection with specified deadline
-func NewClientConnWithDeadline(conn net.Conn, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
-	if config.Timeout > 0 {
-		conn.SetReadDeadline(time.Now().Add(config.Timeout))
-	}
-	c, chans, reqs, err := ssh.NewClientConn(conn, addr, config)
-	if err != nil {
-		return nil, err
-	}
-	if config.Timeout > 0 {
-		conn.SetReadDeadline(time.Time{})
-	}
-	return ssh.NewClient(c, chans, reqs), nil
-}
-
-// DialWithDeadline works around the case when net.DialWithTimeout
+// dialWithDeadline works around the case when net.DialWithTimeout
 // succeeds, but key exchange hangs. Setting deadline on connection
 // prevents this case from happening
-func DialWithDeadline(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
+func dialWithDeadline(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
 	conn, err := net.DialTimeout(network, addr, config.Timeout)
 	if err != nil {
 		return nil, err
 	}
-	return NewClientConnWithDeadline(conn, addr, config)
+	return sshutils.NewClientConnWithDeadline(conn, addr, config)
 }
 
 // A Dialer is a means for a client to establish a SSH connection.
@@ -76,7 +62,7 @@ type directDial struct{}
 
 // Dial calls ssh.Dial directly.
 func (d directDial) Dial(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
-	return DialWithDeadline(network, addr, config)
+	return dialWithDeadline(network, addr, config)
 }
 
 // DialTimeout acts like Dial but takes a timeout.

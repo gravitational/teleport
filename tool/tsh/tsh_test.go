@@ -30,6 +30,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
@@ -40,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/tsh/common"
 
 	"github.com/stretchr/testify/require"
 )
@@ -83,10 +83,10 @@ func (p *cliModules) IsBoringBinary() bool {
 }
 
 func TestOIDCLogin(t *testing.T) {
-	os.RemoveAll(client.FullProfilePath(""))
+	os.RemoveAll(apiclient.FullProfilePath(""))
 
 	modules.SetModules(&cliModules{})
-	defer os.RemoveAll(client.FullProfilePath(""))
+	defer os.RemoveAll(apiclient.FullProfilePath(""))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -210,7 +210,7 @@ func TestOIDCLogin(t *testing.T) {
 }
 
 func TestMakeClient(t *testing.T) {
-	os.RemoveAll(client.FullProfilePath(""))
+	os.RemoveAll(apiclient.FullProfilePath(""))
 	var conf CLIConf
 
 	// empty config won't work:
@@ -324,7 +324,7 @@ func TestIdentityRead(t *testing.T) {
 	}
 	for _, id := range ids {
 		// test reading:
-		k, err := common.LoadIdentity(fmt.Sprintf("../../fixtures/certs/identities/%s", id))
+		k, err := client.KeyFromIdentityFile(fmt.Sprintf("../../fixtures/certs/identities/%s", id))
 		require.NoError(t, err)
 		require.NotNil(t, k)
 
@@ -337,12 +337,12 @@ func TestIdentityRead(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, am)
 	}
-	k, err := common.LoadIdentity("../../fixtures/certs/identities/lonekey")
+	k, err := client.KeyFromIdentityFile("../../fixtures/certs/identities/lonekey")
 	require.Nil(t, k)
 	require.Error(t, err)
 
 	// lets read an indentity which includes a CA cert
-	k, err = common.LoadIdentity("../../fixtures/certs/identities/key-cert-ca.pem")
+	k, err = client.KeyFromIdentityFile("../../fixtures/certs/identities/key-cert-ca.pem")
 	require.NoError(t, err)
 	require.NotNil(t, k)
 
@@ -362,7 +362,7 @@ func TestIdentityRead(t *testing.T) {
 	require.NoError(t, cb(hosts[0], a, cert))
 
 	// load an identity which include TLS certificates
-	k, err = common.LoadIdentity("../../fixtures/certs/identities/tls.pem")
+	k, err = client.KeyFromIdentityFile("../../fixtures/certs/identities/tls.pem")
 	require.NoError(t, err)
 	require.NotNil(t, k)
 	require.NotNil(t, k.TLSCert)
