@@ -144,7 +144,7 @@ const (
 	// profile (./tsh/keys/profilename/certs.pem).
 	FileNameTLSCerts = "certs.pem"
 	// FileExtCert is a file extension used for SSH Certificate files
-	// (.tsh/keys/profilename/username-ssh/clustername).
+	// (.tsh/keys/profilename/username-ssh/clustername-cert.pub).
 	FileExtSSHCert = "-cert.pub"
 	// FileExtPub is a file extension used for SSH Certificate Authorities
 	// stored in a profile (./tsh/keys/profilename/username.pub).
