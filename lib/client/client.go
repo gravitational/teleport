@@ -390,11 +390,15 @@ func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key
 	}
 
 	if len(params.AccessRequests) == 0 {
-		profile, err := StatusCurrent("", proxy.proxyAddress)
-		if err != nil {
+		// Get the active access requests to include in the cert.
+		activeRequests, err := key.ActiveRequests()
+		// key.ActiveRequests can return a NotFound error if it doesn't have an
+		// SSH cert. That's OK, we just assume that there are no AccessRequests
+		// in that case.
+		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
-		params.AccessRequests = profile.ActiveRequests.AccessRequests
+		params.AccessRequests = activeRequests.AccessRequests
 	}
 
 	return &proto.UserCertsRequest{
