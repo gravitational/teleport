@@ -1084,6 +1084,26 @@ func TestU2FSignChallengeCompat(t *testing.T) {
 	})
 }
 
+func TestEmitSSOLoginFailureEvent(t *testing.T) {
+	mockE := &events.MockEmitter{}
+
+	emitSSOLoginFailureEvent(context.Background(), mockE, "test", trace.BadParameter("some error"))
+
+	require.Equal(t, mockE.LastEvent(), &events.UserLogin{
+		Metadata: events.Metadata{
+			Type: events.UserLoginEvent,
+			Code: events.UserSSOLoginFailureCode,
+		},
+		Method: "test",
+		Status: events.Status{
+			Success:     false,
+			Error:       "some error",
+			UserMessage: "some error",
+		},
+	})
+
+}
+
 func newTestServices(t *testing.T) Services {
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -1093,7 +1113,7 @@ func newTestServices(t *testing.T) Services {
 		Provisioner:          local.NewProvisioningService(bk),
 		Identity:             local.NewIdentityService(bk),
 		Access:               local.NewAccessService(bk),
-		DynamicAccess:        local.NewDynamicAccessService(bk),
+		DynamicAccessExt:     local.NewDynamicAccessService(bk),
 		ClusterConfiguration: local.NewClusterConfigurationService(bk),
 		Events:               local.NewEventsService(bk),
 		IAuditLog:            events.NewDiscardAuditLog(),

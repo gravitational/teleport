@@ -7,9 +7,20 @@ description: Getting started with Teleport Kubernetes Access
 
 Let's deploy Teleport in a Kubernetes with SSO and Audit logs:
 
-1. Install Teleport in a Kubernetes cluster.
-2. Set up Single Sign On
-3. Capture and play back Kubernetes commands.
+- Install Teleport in a Kubernetes cluster.
+- Set up Single Sign On
+- Capture and play back Kubernetes commands.
+
+## Follow along with our video guide
+
+<iframe
+  width="712"
+  height="400"
+  src="https://www.youtube-nocookie.com/embed/VPGYLEMTdJ8?rel=0&modestbranding=1"
+  frameBorder="0"
+  allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+/>
 
 ## Prerequisites
 
@@ -151,7 +162,7 @@ Teleport will respond back with a discovery info:
 ```bash
 $ curl https://tele.example.com/webapi/ping
 
-{"auth":{"type":"local","second_factor":"otp"},"proxy":{"kube":{"enabled":true,"listen_addr":"0.0.0.0:3026"},"ssh":{"listen_addr":"[::]:3023","tunnel_listen_addr":"0.0.0.0:3024","public_addr":"tele.example.com:443"},"db":{}},"server_version":"6.0.1","min_client_version":"3.0.0"}
+{"server_version":"6.0.0","min_client_version":"3.0.0"}
 ```
 
 ## Step 2/3 Create a local admin
@@ -226,11 +237,13 @@ $ KUBECONFIG=${HOME?}/teleport.yaml tsh login --proxy=tele.example.com:443 --use
 Teleport updated `KUBECONFIG` with a short-lived 12 hour certificate.
 
 ```bash
+# List connected Kubernetes clusters
 $ tsh kube ls
-
 Kube Cluster Name Selected
 ----------------- --------
-tele.example.com  *
+tele.example.com
+# Login to Kubernetes by name
+$ tsh kube login tele.example.com
 
 # Once working, remove the KUBECONFIG= override to switch to teleport
 $ KUBECONFIG=${HOME?}/teleport.yaml kubectl get -n teleport-cluster pods
@@ -269,7 +282,7 @@ spec:
     - organization: octocats # Github organization name
       team: admin            # Github team name within that organization
       # map github admin team to Teleport's "admin" role
-      logins: ["admins"]
+      logins: ["access"]
 ```
 </TabItem>
 <TabItem label="Enterprise">
@@ -287,7 +300,7 @@ metadata:
 spec:
   acs: https://tele.example.com/v1/webapi/saml/acs
   attributes_to_roles:
-  - {name: "groups", value: "okta-admin", roles: ["admin"]}
+  - {name: "groups", value: "okta-admin", roles: ["access"]}
   entity_descriptor: |
     <?xml !!! Make sure to shift all lines in XML descriptor
     with 4 spaces, otherwise things will not work
@@ -303,7 +316,7 @@ To create a connector, we are going to run Teleport's admin tool `tctl` from the
 # To create a Github connector, we are going to run Teleport's admin tool tctl from the pod.
 $ POD=$(kubectl get po -l app=teleport-cluster -o jsonpath='{.items[0].metadata.name}')
 
-$ kubectl exec -i ${POD?} tctl -- create -f < github.yaml
+$ kubectl exec -i ${POD?} -- tctl create -f < github.yaml
 authentication connector "github" has been created
 ```
 </TabItem>
@@ -312,7 +325,7 @@ authentication connector "github" has been created
 # To create an Okta connector, we are going to run Teleport's admin tool tctl from the pod.
 $ POD=$(kubectl get po -l app=teleport-cluster-ent -o jsonpath='{.items[0].metadata.name}')
 
-$ kubectl exec -i ${POD?} tctl -- create -f < okta.yaml
+$ kubectl exec -i ${POD?} -- tctl create -f < okta.yaml
 authentication connector 'okta' has been created
 ```
 </TabItem>

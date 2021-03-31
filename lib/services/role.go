@@ -819,6 +819,11 @@ type AccessChecker interface {
 	// CanPortForward returns true if this RoleSet can forward ports.
 	CanPortForward() bool
 
+	// MaybeCanReviewRequests attempts to guess if this RoleSet belongs
+	// to a user who should be submitting access reviews. Because not all rolesets
+	// are derived from statically assigned roles, this may return false positives.
+	MaybeCanReviewRequests() bool
+
 	// PermitX11Forwarding returns true if this RoleSet allows X11 Forwarding.
 	PermitX11Forwarding() bool
 
@@ -1939,6 +1944,20 @@ func (set RoleSet) CanPortForward() bool {
 	return false
 }
 
+// MaybeCanReviewRequests attempts to guess if this RoleSet belongs
+// to a user who should be submitting access reviews.  Because not all rolesets
+// are derived from statically assigned roles, this may return false positives.
+func (set RoleSet) MaybeCanReviewRequests() bool {
+	for _, role := range set {
+		if !role.GetAccessReviewConditions(Allow).IsZero() {
+			// at least one nonzero allow directive exists for
+			// review submission.
+			return true
+		}
+	}
+	return false
+}
+
 // PermitX11Forwarding returns true if this RoleSet allows X11 Forwarding.
 func (set RoleSet) PermitX11Forwarding() bool {
 	for _, role := range set {
@@ -2185,6 +2204,13 @@ const RoleSpecV3SchemaDefinitions = `
 			  "^[a-zA-Z/.0-9_*-]+$": {"anyOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}}]}
 			}
 		  },
+		  "kubernetes_labels": {
+			"type": "object",
+			"additionalProperties": false,
+			"patternProperties": {
+			  "^[a-zA-Z/.0-9_*-]+$": {"anyOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}}]}
+			}
+		  },
 		  "db_names": {
 			"type": "array",
 			"items": {"type": "string"}
@@ -2214,6 +2240,10 @@ const RoleSpecV3SchemaDefinitions = `
 					}
 				  }
 				}
+			  },
+			  "thresholds": {
+			    "type": "array",
+				"items": { "type": "object" }
 			  }
 			}
 		  },
@@ -2233,6 +2263,9 @@ const RoleSpecV3SchemaDefinitions = `
 			    "type": "string"
 			  }
 			}
+		  },
+		  "review_requests": {
+		    "type": "object"
 		  },
 		  "rules": {
 			"type": "array",

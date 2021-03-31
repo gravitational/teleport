@@ -400,7 +400,7 @@ type UserCreds struct {
 
 // SetupUserCreds sets up user credentials for client
 func SetupUserCreds(tc *client.TeleportClient, proxyHost string, creds UserCreds) error {
-	_, err := tc.AddKey(proxyHost, &creds.Key)
+	_, err := tc.AddKey(&creds.Key)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1209,7 +1209,7 @@ func (i *TeleInstance) NewClient(cfg ClientConfig) (*client.TeleportClient, erro
 	if user.Key == nil {
 		return nil, trace.BadParameter("user %q has no key", cfg.Login)
 	}
-	_, err = tc.AddKey(cfg.Host, user.Key)
+	_, err = tc.AddKey(user.Key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

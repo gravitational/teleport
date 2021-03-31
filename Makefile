@@ -16,13 +16,16 @@ VERSION=7.0.0-dev
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
 
+GO_BINARY ?= go
+
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
+ASSETS_BUILDDIR ?= lib/web/build
 BINDIR ?= /usr/local/bin
 DATADIR ?= /usr/local/share/teleport
 ADDFLAGS ?=
 PWD ?= `pwd`
-GOPKGDIR ?= `go env GOPATH`/pkg/`go env GOHOSTOS`_`go env GOARCH`/github.com/gravitational/teleport*
+GOPKGDIR ?= `$(GO_BINARY) env GOPATH`/pkg/`$(GO_BINARY) env GOHOSTOS`_`$(GO_BINARY) env GOARCH`/github.com/gravitational/teleport*
 TELEPORT_DEBUG ?= no
 GITTAG=v$(VERSION)
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
@@ -44,8 +47,8 @@ CGOFLAG = CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc
 endif
 endif
 
-OS ?= $(shell go env GOOS)
-ARCH ?= $(shell go env GOARCH)
+OS ?= $(shell $(GO_BINARY) env GOOS)
+ARCH ?= $(shell $(GO_BINARY) env GOARCH)
 FIPS ?=
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
 
@@ -116,15 +119,15 @@ all: $(VERSRC)
 # If you are considering changing this behavior, please consult with dev team first
 .PHONY: $(BUILDDIR)/tctl
 $(BUILDDIR)/tctl:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) $(GO_BINARY) build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport: ensure-webassets
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) $(GO_BINARY) build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) $(GO_BINARY) build -tags "$(PAM_TAG) $(FIPS_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
 
 #
 # make full - Builds Teleport binaries with the built-in web assets and
@@ -132,12 +135,9 @@ $(BUILDDIR)/tsh:
 # only tsh is built.
 #
 .PHONY:full
-full: all $(BUILDDIR)/webassets.zip
+full: $(ASSETS_BUILDDIR)/webassets.zip
 ifneq ("$(OS)", "windows")
-	@echo "---> Attaching OSS web assets."
-	cat $(BUILDDIR)/webassets.zip >> $(BUILDDIR)/teleport
-	rm -fr $(BUILDDIR)/webassets.zip
-	zip -q -A $(BUILDDIR)/teleport
+	$(MAKE) all WEBASSETS_TAG="webassets_embed"
 endif
 
 #
@@ -156,7 +156,7 @@ endif
 clean:
 	@echo "---> Cleaning up OSS build artifacts."
 	rm -rf $(BUILDDIR)
-	-go clean -cache
+	-$(GO_BINARY) clean -cache
 	rm -rf $(GOPKGDIR)
 	rm -rf teleport
 	rm -rf *.gz
@@ -211,7 +211,10 @@ release-unix: clean full
 	tar -czf $(RELEASE).tar.gz teleport
 	rm -rf teleport
 	@echo "---> Created $(RELEASE).tar.gz."
-	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
+	@if [ -f e/Makefile ]; then \
+		rm -fr $(WEBASSETS_BUILDDIR)/webassets.zip; \
+		$(MAKE) -C e release; \
+	fi
 
 #
 # make release-windows - Produces a binary release tarball containing teleport,
@@ -264,7 +267,7 @@ docs-test-whitespace:
 # Runs all Go/shell tests, called by CI/CD.
 #
 .PHONY: test
-test: test-sh test-go
+test: test-sh test-api test-go
 
 #
 # Runs all Go tests except integration, called by CI/CD.
@@ -273,11 +276,20 @@ test: test-sh test-go
 .PHONY: test-go
 test-go: ensure-webassets
 test-go: FLAGS ?= '-race'
-test-go: PACKAGES := $(shell go list ./... | grep -v integration)
+test-go: PACKAGES := $(shell $(GO_BINARY) list ./... | grep -v integration)
 test-go: CHAOS_FOLDERS := $(shell find . -type f -name '*chaos*.go' -not -path '*/vendor/*' | xargs dirname | uniq)
 test-go: $(VERSRC)
-	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
-	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) -cover
+	$(GO_BINARY) test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+	$(GO_BINARY) test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) -cover
+
+# Runs API Go tests. These have to be run separately as the package name is different.
+#
+.PHONY: test-api
+test-api:
+test-api: FLAGS ?= '-race'
+test-api: PACKAGES := $(shell cd api && $(GO_BINARY) list ./...)
+test-api: $(VERSRC)
+	GOMODCACHE=/tmp $(GO_BINARY) test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 
 # Find and run all shell script unit tests (using https://github.com/bats-core/bats-core)
 .PHONY: test-sh
@@ -290,10 +302,10 @@ test-sh:
 #
 .PHONY: integration
 integration: FLAGS ?= -v -race
-integration: PACKAGES := $(shell go list ./... | grep integration)
+integration: PACKAGES := $(shell $(GO_BINARY) list ./... | grep integration)
 integration:
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
-	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS)
+	$(GO_BINARY) test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS)
 
 #
 # Integration tests which need to be run as root in order to complete successfully
@@ -302,9 +314,9 @@ integration:
 INTEGRATION_ROOT_REGEX := ^TestRoot
 .PHONY: integration-root
 integration-root: FLAGS ?= -v -race
-integration-root: PACKAGES := $(shell go list ./... | grep integration)
+integration-root: PACKAGES := $(shell $(GO_BINARY) list ./... | grep integration)
 integration-root:
-	go test -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS)
+	$(GO_BINARY) test -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS)
 
 #
 # Lint the Go code.
@@ -312,12 +324,19 @@ integration-root:
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-sh lint-helm lint-go
+lint: lint-sh lint-helm lint-api lint-go
 
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
 lint-go:
 	golangci-lint run -c .golangci.yml $(GO_LINT_FLAGS)
+
+# api is no longer part of the teleport package, so golangci-lint skips it by default
+# GOMODCACHE needs to be set here as api downloads dependencies and cannot write to /go/pkg/mod/cache
+.PHONY: lint-api
+lint-api: GO_LINT_API_FLAGS ?=
+lint-api:
+	cd api && GOMODCACHE=/tmp golangci-lint run -c ../.golangci.yml $(GO_LINT_API_FLAGS)
 
 # TODO(awly): remove the `--exclude` flag after cleaning up existing scripts
 .PHONY: lint-sh
@@ -372,28 +391,31 @@ tag:
 
 # build/webassets.zip archive contains the web assets (UI) which gets
 # appended to teleport binary
-$(BUILDDIR)/webassets.zip:
+$(ASSETS_BUILDDIR)/webassets.zip: | $(ASSETS_BUILDDIR)
 ifneq ("$(OS)", "windows")
 	@echo "---> Building OSS web assets."
-	cd webassets/teleport/ ; zip -qr ../../$(BUILDDIR)/webassets.zip .
+	cd webassets/teleport/ ; zip -qr ../../$@ .
 endif
+
+$(ASSETS_BUILDDIR):
+	mkdir -p $@
 
 .PHONY: test-package
 test-package: remove-temp-files
-	go test -v ./$(p)
+	$(GO_BINARY) test -v ./$(p)
 
 .PHONY: test-grep-package
 test-grep-package: remove-temp-files
-	go test -v ./$(p) -check.f=$(e)
+	$(GO_BINARY) test -v ./$(p) -check.f=$(e)
 
 .PHONY: cover-package
 cover-package: remove-temp-files
-	go test -v ./$(p)  -coverprofile=/tmp/coverage.out
-	go tool cover -html=/tmp/coverage.out
+	$(GO_BINARY) test -v ./$(p)  -coverprofile=/tmp/coverage.out
+	$(GO_BINARY) tool cover -html=/tmp/coverage.out
 
 .PHONY: profile
 profile:
-	go tool pprof http://localhost:6060/debug/pprof/profile
+	$(GO_BINARY) tool pprof http://localhost:6060/debug/pprof/profile
 
 .PHONY: sloccount
 sloccount:
@@ -461,7 +483,7 @@ buildbox-grpc:
 
 .PHONY: goinstall
 goinstall:
-	go install $(BUILDFLAGS) \
+	$(GO_BINARY) install $(BUILDFLAGS) \
 		github.com/gravitational/teleport/tool/tsh \
 		github.com/gravitational/teleport/tool/teleport \
 		github.com/gravitational/teleport/tool/tctl
@@ -607,8 +629,8 @@ init-submodules-e: init-webapps-submodules-e
 
 .PHONY: update-vendor
 update-vendor:
-	go mod tidy
-	go mod vendor
+	$(GO_BINARY) mod tidy
+	$(GO_BINARY) mod vendor
 	# delete the vendored api package. In its place
 	# create a symlink to the the original api package
 	rm -r vendor/github.com/gravitational/teleport/api

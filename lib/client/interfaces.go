@@ -36,8 +36,35 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 )
 
+// KeyIndex helps to identify a key in the store.
+type KeyIndex struct {
+	// ProxyHost is the root proxy hostname that a key is associated with.
+	ProxyHost string
+	// Username is the username that a key is associated with.
+	Username string
+	// ClusterName is the cluster name that a key is associated with.
+	ClusterName string
+}
+
+// Check verifies the KeyIndex is fully specified.
+func (idx KeyIndex) Check() error {
+	missingField := "key index field %s is not set"
+	if idx.ProxyHost == "" {
+		return trace.BadParameter(missingField, "ProxyHost")
+	}
+	if idx.Username == "" {
+		return trace.BadParameter(missingField, "Username")
+	}
+	if idx.ClusterName == "" {
+		return trace.BadParameter(missingField, "ClusterName")
+	}
+	return nil
+}
+
 // Key describes a complete (signed) client key
 type Key struct {
+	KeyIndex
+
 	// Priv is a PEM encoded private key
 	Priv []byte `json:"Priv,omitempty"`
 	// Pub is a public key
@@ -57,15 +84,8 @@ type Key struct {
 	// Map key is the application name.
 	AppTLSCerts map[string][]byte `json:"AppCerts,omitempty"`
 
-	// ProxyHost (optionally) contains the hostname of the proxy server
-	// which issued this key
-	ProxyHost string
-
 	// TrustedCA is a list of trusted certificate authorities
 	TrustedCA []auth.TrustedCerts
-
-	// ClusterName is a cluster name this key is associated with
-	ClusterName string
 }
 
 // NewKey generates a new unsigned key. Such key must be signed by a
@@ -173,21 +193,20 @@ func (k *Key) TeleportClientTLSConfig(cipherSuites []uint16) (*tls.Config, error
 }
 
 func (k *Key) clientTLSConfig(cipherSuites []uint16, tlsCertRaw []byte) (*tls.Config, error) {
-	tlsConfig := utils.TLSConfig(cipherSuites)
-
-	pool := x509.NewCertPool()
-	for _, ca := range k.TrustedCA {
-		for _, certPEM := range ca.TLSCertificates {
-			if !pool.AppendCertsFromPEM(certPEM) {
-				return nil, trace.BadParameter("failed to parse certificate received from the proxy")
-			}
-		}
-	}
-	tlsConfig.RootCAs = pool
 	tlsCert, err := tls.X509KeyPair(tlsCertRaw, k.Priv)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse TLS cert and key")
+		return nil, trace.Wrap(err)
 	}
+
+	pool := x509.NewCertPool()
+	for _, caPEM := range k.TLSCAs() {
+		if !pool.AppendCertsFromPEM(caPEM) {
+			return nil, trace.BadParameter("failed to parse TLS CA certificate")
+		}
+	}
+
+	tlsConfig := utils.TLSConfig(cipherSuites)
+	tlsConfig.RootCAs = pool
 	tlsConfig.Certificates = append(tlsConfig.Certificates, tlsCert)
 	// Use Issuer CN from the certificate to populate the correct SNI in
 	// requests.
@@ -199,10 +218,23 @@ func (k *Key) clientTLSConfig(cipherSuites []uint16, tlsCertRaw []byte) (*tls.Co
 	return tlsConfig, nil
 }
 
-// ClientSSHConfig returns an ssh.ClientConfig with SSH credentials from this
+// ProxyClientSSHConfig returns an ssh.ClientConfig with SSH credentials from this
 // Key and HostKeyCallback matching SSH CAs in the Key.
-func (k *Key) ClientSSHConfig() (*ssh.ClientConfig, error) {
-	return sshutils.SSHClientConfig(k.Cert, k.Priv, k.SSHCAs())
+//
+// The config is set up to authenticate to proxy with the first available principal
+// and ( if keyStore != nil ) trust local SSH CAs without asking for public keys.
+//
+func (k *Key) ProxyClientSSHConfig(keyStore LocalKeyStore) (*ssh.ClientConfig, error) {
+	sshConfig, err := sshutils.ProxyClientSSHConfig(k.Cert, k.Priv, k.SSHCAs())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if keyStore != nil {
+		sshConfig.HostKeyCallback = NewKeyStoreCertChecker(keyStore)
+	}
+
+	return sshConfig, nil
 }
 
 // CertUsername returns the name of the Teleport user encoded in the SSH certificate.
@@ -293,7 +325,7 @@ func (k *Key) AppTLSCertificates() (certs []x509.Certificate, err error) {
 
 // TeleportTLSCertValidBefore returns the time of the TLS cert expiration
 func (k *Key) TeleportTLSCertValidBefore() (t time.Time, err error) {
-	cert, err := tlsca.ParseCertificatePEM(k.TLSCert)
+	cert, err := k.TeleportTLSCertificate()
 	if err != nil {
 		return t, trace.Wrap(err)
 	}
@@ -322,7 +354,26 @@ func (k *Key) AsAuthMethod() (ssh.AuthMethod, error) {
 
 // SSHCert returns parsed SSH certificate
 func (k *Key) SSHCert() (*ssh.Certificate, error) {
+	if k.Cert == nil {
+		return nil, trace.NotFound("SSH cert not available")
+	}
 	return sshutils.ParseCertificate(k.Cert)
+}
+
+// ActiveRequests gets the active requests associated with this key.
+func (k *Key) ActiveRequests() (services.RequestIDs, error) {
+	var activeRequests services.RequestIDs
+	sshCert, err := k.SSHCert()
+	if err != nil {
+		return activeRequests, trace.Wrap(err)
+	}
+	rawRequests, ok := sshCert.Extensions[teleport.CertExtensionTeleportActiveRequests]
+	if ok {
+		if err := activeRequests.Unmarshal([]byte(rawRequests)); err != nil {
+			return activeRequests, trace.Wrap(err)
+		}
+	}
+	return activeRequests, nil
 }
 
 // CheckCert makes sure the SSH certificate is valid.
@@ -330,6 +381,16 @@ func (k *Key) CheckCert() error {
 	cert, err := k.SSHCert()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// Check that the certificate was for the current public key. If not, the
+	// public/private key pair may have been rotated.
+	pub, _, _, _, err := ssh.ParseAuthorizedKey(k.Pub)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !sshutils.KeysEqual(cert.Key, pub) {
+		return trace.CompareFailed("public key in profile does not match the public key in SSH certificate")
 	}
 
 	// A valid principal is always passed in because the principals are not being
@@ -355,23 +416,16 @@ func (k *Key) HostKeyCallback() (ssh.HostKeyCallback, error) {
 	return sshutils.HostKeyCallback(k.SSHCAs())
 }
 
-// ProxyClientSSHConfig returns an ssh.ClientConfig with SSH credentials from this
-// Key and HostKeyCallback matching SSH CAs in the Key.
-//
-// The config is set up to authenticate to proxy with the first
-// available principal and trust local SSH CAs without asking
-// for public keys.
-//
-func ProxyClientSSHConfig(k *Key, keyStore LocalKeyStore) (*ssh.ClientConfig, error) {
-	sshConfig, err := k.ClientSSHConfig()
+// RootClusterName extracts the root cluster name from the issuer
+// of the Teleport TLS certificate.
+func (k *Key) RootClusterName() (string, error) {
+	cert, err := k.TeleportTLSCertificate()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
-	principals, err := k.CertPrincipals()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	clusterName := cert.Issuer.CommonName
+	if clusterName == "" {
+		return "", trace.NotFound("failed to extract root cluster name from Teleport TLS cert")
 	}
-	sshConfig.User = principals[0]
-	sshConfig.HostKeyCallback = NewKeyStoreCertChecker(keyStore)
-	return sshConfig, nil
+	return clusterName, nil
 }

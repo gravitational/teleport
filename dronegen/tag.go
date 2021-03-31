@@ -137,8 +137,8 @@ func tagPipelines() []pipeline {
 	// regular tarball builds
 	for _, arch := range []string{"amd64", "386", "arm", "arm64"} {
 		for _, fips := range []bool{false, true} {
-			if (arch == "386" || arch == "arm") && fips {
-				// FIPS mode not supported on i386 or ARM
+			if arch != "amd64" && fips {
+				// FIPS mode only supported on linux/amd64
 				continue
 			}
 			ps = append(ps, tagPipeline(buildType{os: "linux", arch: arch, fips: fips}))
@@ -156,6 +156,9 @@ func tagPipelines() []pipeline {
 	// Also add the two CentOS 6 artifacts.
 	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos6: true}))
 	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos6: true, fips: true}))
+
+	// Darwin-specific tag pipelines
+	ps = append(ps, darwinTagPipelines()...)
 	return ps
 }
 

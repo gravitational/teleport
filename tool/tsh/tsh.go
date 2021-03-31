@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
@@ -76,6 +77,23 @@ type CLIConf struct {
 	DesiredRoles string
 	// RequestReason indicates the reason for an access request.
 	RequestReason string
+	// SuggestedReviewers is a list of suggested request reviewers.
+	SuggestedReviewers string
+	// RequestID is an access request ID
+	RequestID string
+	// ReviewReason indicates the reason for an access review.
+	ReviewReason string
+	// ReviewableRequests indicates that only requests which can be reviewed should
+	// be listed.
+	ReviewableRequests bool
+	// SuggestedRequests indicates that only requests which suggest the current user
+	// as a reviewer should be listed.
+	SuggestedRequests bool
+	// MyRequests indicates that only requests created by the current user
+	// should be listed.
+	MyRequests bool
+	// Approve/Deny indicates the desired review kind.
+	Approve, Deny bool
 	// Username is the Teleport user's username (to login into proxies)
 	Username string
 	// Proxy keeps the hostname:port of the SSH proxy to use
@@ -253,7 +271,7 @@ const (
 	addKeysToAgentEnvVar   = "TELEPORT_ADD_KEYS_TO_AGENT"
 	useLocalSSHAgentEnvVar = "TELEPORT_USE_LOCAL_SSH_AGENT"
 
-	clusterHelp = "Specify the cluster to connect"
+	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
 )
 
@@ -384,6 +402,7 @@ func Run(args []string, opts ...cliOption) error {
 	login.Flag("overwrite", "Whether to overwrite the existing identity file.").BoolVar(&cf.IdentityOverwrite)
 	login.Flag("request-roles", "Request one or more extra roles").StringVar(&cf.DesiredRoles)
 	login.Flag("request-reason", "Reason for requesting additional roles").StringVar(&cf.RequestReason)
+	login.Flag("request-reviewers", "Suggested reviewers for role request").StringVar(&cf.SuggestedReviewers)
 	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
 	login.Flag("browser", browserHelp).StringVar(&cf.Browser)
 	login.Flag("kube-cluster", "Name of the Kubernetes cluster to login to").StringVar(&cf.KubernetesCluster)
@@ -419,6 +438,28 @@ func Run(args []string, opts ...cliOption) error {
 	// even if the user runs "tsh login" again in another window.
 	environment := app.Command("env", "Print commands to set Teleport session environment variables")
 	environment.Flag("unset", "Print commands to clear Teleport session environment variables").BoolVar(&cf.unsetEnvironment)
+
+	req := app.Command("request", "Manage access requests").Alias("requests")
+
+	reqList := req.Command("ls", "List access requests").Alias("list")
+	reqList.Flag("format", "Format output (text, json)").Short('f').Default(teleport.Text).StringVar(&cf.Format)
+	reqList.Flag("reviewable", "Only show requests reviewable by current user").BoolVar(&cf.ReviewableRequests)
+	reqList.Flag("suggested", "Only show requests that suggest current user as reviewer").BoolVar(&cf.SuggestedRequests)
+	reqList.Flag("my-requests", "Only show requests created by current user").BoolVar(&cf.MyRequests)
+
+	reqShow := req.Command("show", "Show request details").Alias("details")
+	reqShow.Arg("request-id", "ID of the target request").Required().StringVar(&cf.RequestID)
+
+	reqCreate := req.Command("new", "Create a new access request").Alias("create")
+	reqCreate.Flag("roles", "Roles to be requested").Required().StringVar(&cf.DesiredRoles)
+	reqCreate.Flag("reason", "Reason for requesting").StringVar(&cf.RequestReason)
+	reqCreate.Flag("reviewers", "Suggested reviewers").StringVar(&cf.SuggestedReviewers)
+
+	reqReview := req.Command("review", "Review an access request")
+	reqReview.Arg("request-id", "ID of target request").Required().StringVar(&cf.RequestID)
+	reqReview.Flag("approve", "Review proposes approval").BoolVar(&cf.Approve)
+	reqReview.Flag("deny", "Review proposes denial").BoolVar(&cf.Deny)
+	reqReview.Flag("reason", "Review reason message").StringVar(&cf.ReviewReason)
 
 	// Kubernetes subcommands.
 	kube := newKubeCommand(app)
@@ -545,6 +586,14 @@ func Run(args []string, opts ...cliOption) error {
 		err = mfa.add.run(&cf)
 	case mfa.rm.FullCommand():
 		err = mfa.rm.run(&cf)
+	case reqList.FullCommand():
+		err = onRequestList(&cf)
+	case reqShow.FullCommand():
+		err = onRequestShow(&cf)
+	case reqCreate.FullCommand():
+		err = onRequestCreate(&cf)
+	case reqReview.FullCommand():
+		err = onRequestReview(&cf)
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.BadParameter("command %q not configured", command)
@@ -560,8 +609,21 @@ func onPlay(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := tc.Play(context.TODO(), cf.Namespace, cf.SessionID); err != nil {
-			return trace.Wrap(err)
+		switch {
+		case path.Ext(cf.SessionID) == ".tar":
+			sid := sessionIDFromPath(cf.SessionID)
+			tarFile, err := os.Open(cf.SessionID)
+			defer tarFile.Close()
+			if err != nil {
+				return trace.ConvertSystemError(err)
+			}
+			if err := tc.PlayFile(context.TODO(), tarFile, sid); err != nil {
+				return trace.Wrap(err)
+			}
+		default:
+			if err := tc.Play(context.TODO(), cf.Namespace, cf.SessionID); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	default:
 		err := exportFile(cf.SessionID, cf.Format)
@@ -570,6 +632,11 @@ func onPlay(cf *CLIConf) error {
 		}
 	}
 	return nil
+}
+
+func sessionIDFromPath(path string) string {
+	fileName := filepath.Base(path)
+	return strings.TrimSuffix(fileName, ".tar")
 }
 
 func exportFile(path string, format string) error {
@@ -587,11 +654,12 @@ func exportFile(path string, format string) error {
 
 // onLogin logs in with remote proxy and gets signed certificates
 func onLogin(cf *CLIConf) error {
-	var (
-		err error
-		tc  *client.TeleportClient
-		key *client.Key
-	)
+	autoRequest := true
+	// special case: --request-roles=no disables auto-request behavior.
+	if cf.DesiredRoles == "no" {
+		autoRequest = false
+		cf.DesiredRoles = ""
+	}
 
 	if cf.IdentityFileIn != "" {
 		return trace.BadParameter("-i flag cannot be used here")
@@ -613,7 +681,7 @@ func onLogin(cf *CLIConf) error {
 	}
 
 	// make the teleport client and retrieve the certificate from the proxy:
-	tc, err = makeClient(cf, true)
+	tc, err := makeClient(cf, true)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -660,7 +728,7 @@ func onLogin(cf *CLIConf) error {
 		// but desired roles are specified, treat this as a privilege escalation
 		// request for the same login session.
 		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && cf.DesiredRoles != "" && cf.IdentityFileOut == "":
-			if err := executeAccessRequest(cf); err != nil {
+			if err := executeAccessRequest(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
 			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
@@ -679,7 +747,7 @@ func onLogin(cf *CLIConf) error {
 	// -i flag specified? save the retreived cert into an identity file
 	makeIdentityFile := (cf.IdentityFileOut != "")
 
-	key, err = tc.Login(cf.Context)
+	key, err := tc.Login(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -698,7 +766,8 @@ func onLogin(cf *CLIConf) error {
 		// key.TrustedCA at this point only has the CA of the root cluster we
 		// logged into. We need to fetch all the CAs for leaf clusters too, to
 		// make them available in the identity file.
-		authorities, err := tc.GetTrustedCA(cf.Context, key.ClusterName)
+		rootClusterName := key.TrustedCA[0].ClusterName
+		authorities, err := tc.GetTrustedCA(cf.Context, rootClusterName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -718,7 +787,9 @@ func onLogin(cf *CLIConf) error {
 		return nil
 	}
 
-	tc.ActivateKey(cf.Context, key)
+	if err := tc.ActivateKey(cf.Context, key); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// If the proxy is advertising that it supports Kubernetes, update kubeconfig.
 	if tc.KubeProxyAddr != "" {
@@ -732,13 +803,13 @@ func onLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if cf.DesiredRoles == "" {
+	if autoRequest && cf.DesiredRoles == "" {
 		var reason, auto bool
 		var prompt string
 		roleNames, err := key.CertRoles()
 		if err != nil {
-			tc.Logout()
-			return trace.Wrap(err)
+			logoutErr := tc.Logout()
+			return trace.NewAggregate(err, logoutErr)
 		}
 		// load all roles from root cluster and collect relevant options.
 		// the normal one-off TeleportClient methods don't re-use the auth server
@@ -758,16 +829,17 @@ func onLogin(cf *CLIConf) error {
 			return nil
 		})
 		if err != nil {
-			tc.Logout()
-			return trace.Wrap(err)
+			logoutErr := tc.Logout()
+			return trace.NewAggregate(err, logoutErr)
 		}
 		if reason && cf.RequestReason == "" {
-			tc.Logout()
-			msg := "--requst-reason must be specified"
+			msg := "--request-reason must be specified"
 			if prompt != "" {
 				msg = msg + ", prompt=" + prompt
 			}
-			return trace.BadParameter(msg)
+			err := trace.BadParameter(msg)
+			logoutErr := tc.Logout()
+			return trace.NewAggregate(err, logoutErr)
 		}
 		if auto {
 			cf.DesiredRoles = "*"
@@ -776,9 +848,9 @@ func onLogin(cf *CLIConf) error {
 
 	if cf.DesiredRoles != "" {
 		fmt.Println("") // visually separate access request output
-		if err := executeAccessRequest(cf); err != nil {
-			tc.Logout()
-			return trace.Wrap(err)
+		if err := executeAccessRequest(cf, tc); err != nil {
+			logoutErr := tc.Logout()
+			return trace.NewAggregate(err, logoutErr)
 		}
 	}
 
@@ -1020,15 +1092,12 @@ func onListNodes(cf *CLIConf) error {
 	return nil
 }
 
-func executeAccessRequest(cf *CLIConf) error {
+func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 	if cf.DesiredRoles == "" {
 		return trace.BadParameter("one or more roles must be specified")
 	}
-	roles := strings.Split(cf.DesiredRoles, ",")
-	tc, err := makeClient(cf, true)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	roles := utils.SplitIdentifiers(cf.DesiredRoles)
+	reviewers := utils.SplitIdentifiers(cf.SuggestedReviewers)
 	if cf.Username == "" {
 		cf.Username = tc.Username
 	}
@@ -1037,6 +1106,7 @@ func executeAccessRequest(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	req.SetRequestReason(cf.RequestReason)
+	req.SetSuggestedReviewers(reviewers)
 	fmt.Fprintf(os.Stderr, "Seeking request approval... (id: %s)\n", req.GetName())
 
 	var res services.AccessRequest
@@ -1607,6 +1677,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	if len(dPorts) > 0 {
 		c.DynamicForwardedPorts = dPorts
 	}
+	profileSiteName := c.SiteName
 	if cf.SiteName != "" {
 		c.SiteName = cf.SiteName
 	}
@@ -1687,6 +1758,17 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// Load SSH key for the cluster indicated in the profile.
+	// Handle gracefully if the profile is empty or if the key cannot be found.
+	if profileSiteName != "" {
+		if err := tc.LoadKeyForCluster(profileSiteName); err != nil {
+			log.Debug(err)
+			if !trace.IsNotFound(err) {
+				return nil, trace.Wrap(err)
+			}
+		}
+	}
+
 	// If identity file was provided, we skip loading the local profile info
 	// (above). This profile info provides the proxy-advertised listening
 	// addresses.
@@ -1698,6 +1780,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 			return nil, trace.Wrap(err)
 		}
 	}
+
 	return tc, nil
 }
 
@@ -1926,7 +2009,7 @@ Loop:
 // reissueWithRequests handles a certificate reissue, applying new requests by ID,
 // and saving the updated profile.
 func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...string) error {
-	profile, _, err := client.Status("", cf.Proxy)
+	profile, err := client.StatusCurrent("", cf.Proxy)
 	if err != nil {
 		return trace.Wrap(err)
 	}
