@@ -114,7 +114,7 @@ func (s *KeyAgentTestSuite) TestAddKey(c *check.C) {
 		s.username,                            // private key
 		s.username + constants.FileExtPub,     // public key
 		s.username + constants.FileExtTLSCert, // Teleport TLS certificate
-		filepath.Join(s.username+sshDirSuffix, s.key.ClusterName+constants.FileExtSSHCert), // SSH certificate
+		filepath.Join(s.username+constants.SSHDirSuffix, s.key.ClusterName+constants.FileExtSSHCert), // SSH certificate
 	}
 	for _, file := range expectedFiles {
 		_, err := os.Stat(filepath.Join(s.keyDir, "keys", s.hostname, file))
