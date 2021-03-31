@@ -1,6 +1,6 @@
 ---
-title: SSH Authentication With Google Apps (G Suite)
-description: How to configure SSH access with Google Apps (also known as G Suite) using Teleport
+title: SSH Authentication With Google Workspace (G Suite)
+description: How to configure SSH access with Google Workspace (also known as G Suite) using Teleport
 h1: SSH Authentication with G Suite (Google Apps)
 ---
 
@@ -124,64 +124,13 @@ Now, create a OIDC connector [resource](../../admin-guide.mdx#resources).
 Write down this template as `gsuite-connector.yaml`:
 
 ```yaml
-{!examples/resources/gsuite-connector.yaml!}
+{!examples/resources/gworkspace-connector.yaml!}
 ```
 
 Create the connector using `tctl` tool:
 
 ```bsh
 $ tctl create gsuite-connector.yaml
-```
-
-## Create Teleport Roles
-
-We are going to create 2 roles:
-
-- Privileged role admin who is able to login as root and is capable of administrating
-  the cluster
-- Non-privileged dev
-
-```yaml
-kind: role
-version: v3
-metadata:
-  name: admin
-spec:
-  options:
-    max_session_ttl: 24h
-  allow:
-    logins: [root]
-    node_labels:
-      "*": "*"
-    rules:
-      - resources: ["*"]
-        verbs: ["*"]
-```
-
-Devs are only allowed to login to nodes labelled with `access: relaxed`
-Teleport label. Developers can log in as either `ubuntu` or a username that
-arrives in their assertions. Developers also do not have any rules needed to
-obtain admin access to Teleport.
-
-```yaml
-kind: role
-version: v3
-metadata:
-  name: dev
-spec:
-  options:
-    max_session_ttl: 24h
-  allow:
-    logins: [ "{% raw %}{{external.username}}{% endraw %}", ubuntu ]
-    node_labels:
-      access: relaxed
-```
-
-**Notice:** Replace `ubuntu` with linux login available on your servers!
-
-```bsh
-$ tctl create admin.yaml
-$ tctl create dev.yaml
 ```
 
 ## Testing
@@ -201,7 +150,7 @@ automatically in a browser).
   title="Tip"
 >
   Teleport can use multiple OIDC connectors. In this case a connector name
-  can be passed via `tsh login --auth=gsuite`
+  can be passed via `tsh login --auth=google`
 </Admonition>
 
 ## Troubleshooting
