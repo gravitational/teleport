@@ -2203,6 +2203,13 @@ const RoleSpecV3SchemaDefinitions = `
 			  "^[a-zA-Z/.0-9_*-]+$": {"anyOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}}]}
 			}
 		  },
+		  "kubernetes_labels": {
+			"type": "object",
+			"additionalProperties": false,
+			"patternProperties": {
+			  "^[a-zA-Z/.0-9_*-]+$": {"anyOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}}]}
+			}
+		  },
 		  "db_names": {
 			"type": "array",
 			"items": {"type": "string"}
