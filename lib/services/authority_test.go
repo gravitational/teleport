@@ -76,3 +76,52 @@ func TestCertPoolFromCertAuthorities(t *testing.T) {
 		require.Len(t, pool.Subjects(), 3)
 	})
 }
+
+func TestCertAuthorityEquivalence(t *testing.T) {
+	// CA for cluster1 with 1 key pair.
+	key, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "cluster1"}, nil, time.Minute)
+	require.NoError(t, err)
+	ca1 := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.HostCA,
+		ClusterName: "cluster1",
+		TLSKeyPairs: []types.TLSKeyPair{{
+			Cert: cert,
+			Key:  key,
+		}},
+	})
+	// CA for cluster2 with 2 key pairs.
+	key, cert, err = tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "cluster2"}, nil, time.Minute)
+	require.NoError(t, err)
+	key2, cert2, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "cluster2"}, nil, time.Minute)
+	require.NoError(t, err)
+	ca2 := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.HostCA,
+		ClusterName: "cluster2",
+		TLSKeyPairs: []types.TLSKeyPair{
+			{
+				Cert: cert,
+				Key:  key,
+			},
+			{
+				Cert: cert2,
+				Key:  key2,
+			},
+		},
+	})
+
+	// different CAs are different
+	require.False(t, CertAuthoritiesEquivalent(ca1, ca2))
+
+	// two copies of same CA are equivalent
+	require.True(t, CertAuthoritiesEquivalent(ca1, ca1.Clone()))
+
+	// CAs with same name but different details are different
+	ca1mod := ca1.Clone()
+	ca1mod.AddRole("some-new-role")
+	require.False(t, CertAuthoritiesEquivalent(ca1, ca1mod))
+
+	// CAs that differ *only* by resource ID are equivalent
+	ca1modID := ca1.Clone()
+	ca1modID.SetResourceID(ca1.GetResourceID() + 1)
+	require.True(t, CertAuthoritiesEquivalent(ca1, ca1modID))
+}
