@@ -247,6 +247,13 @@ func profileFromFile(filePath string) (*Profile, error) {
 		return nil, trace.Wrap(err)
 	}
 	p.Dir = filepath.Dir(filePath)
+
+	// Older versions of tsh did not always store the cluster name in the
+	// profile. If no cluster name is found, fallback to the name of the profile
+	// for backward compatibility.
+	if p.SiteName == "" {
+		p.SiteName = p.Name()
+	}
 	return p, nil
 }
 
