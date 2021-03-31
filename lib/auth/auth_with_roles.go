@@ -55,11 +55,11 @@ func (a *ServerWithRoles) CloseContext() context.Context {
 }
 
 func (a *ServerWithRoles) actionWithContext(ctx *services.Context, namespace string, resource string, action string) error {
-	return utils.OpaqueAccessDenied(a.context.Checker.CheckAccessToRule(ctx, namespace, resource, action, false))
+	return a.context.Checker.CheckAccessToRule(ctx, namespace, resource, action, false)
 }
 
 func (a *ServerWithRoles) action(namespace string, resource string, action string) error {
-	return utils.OpaqueAccessDenied(a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, action, false))
+	return a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, action, false)
 }
 
 // currentUserAction is a special checker that allows certain actions for users
@@ -69,10 +69,8 @@ func (a *ServerWithRoles) currentUserAction(username string) error {
 	if a.hasLocalUserRole(a.context.Checker) && username == a.context.User.GetName() {
 		return nil
 	}
-	return utils.OpaqueAccessDenied(
-		a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User},
-			defaults.Namespace, services.KindUser, services.VerbCreate, true),
-	)
+	return a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User},
+		defaults.Namespace, services.KindUser, services.VerbCreate, true)
 }
 
 // authConnectorAction is a special checker that grants access to auth
@@ -82,7 +80,7 @@ func (a *ServerWithRoles) currentUserAction(username string) error {
 func (a *ServerWithRoles) authConnectorAction(namespace string, resource string, verb string) error {
 	if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, verb, true); err != nil {
 		if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, services.KindAuthConnector, verb, false); err != nil {
-			return utils.OpaqueAccessDenied(err)
+			return trace.Wrap(err)
 		}
 	}
 	return nil
