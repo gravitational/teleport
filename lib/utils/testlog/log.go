@@ -20,6 +20,7 @@ package testlog
 import (
 	"fmt"
 	"os"
+	"testing"
 
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -36,10 +37,9 @@ func FailureOnly(t TestingInterface) utils.Logger {
 
 	// Register a cleanup callback which prints buf iff t has failed.
 	t.Cleanup(func() {
-		if !t.Failed() {
-			return
+		if t.Failed() || testing.Verbose() {
+			fmt.Fprintln(os.Stderr, buf.String())
 		}
-		fmt.Fprintln(os.Stderr, buf.String())
 	})
 
 	return utils.WrapLogger(logger.WithField("test", t.Name()))
