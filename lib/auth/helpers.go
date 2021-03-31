@@ -654,7 +654,8 @@ func (t *TestTLSServer) NewClient(identity TestIdentity) (*Client, error) {
 	}
 
 	newClient, err := NewClient(client.Config{
-		Addrs: []string{t.Addr().String()},
+		DialInBackground: true,
+		Addrs:            []string{t.Addr().String()},
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},

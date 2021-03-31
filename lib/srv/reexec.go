@@ -28,7 +28,6 @@ import (
 	"os/user"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"syscall"
 
 	"github.com/gravitational/trace"
@@ -75,15 +74,8 @@ type ExecCommand struct {
 	// type: "exec" or "shell".
 	RequestType string `json:"request_type"`
 
-	// PAM indicates if PAM support was requested by the node.
-	PAM bool `json:"pam"`
-
-	// ServiceName is the name of the PAM service requested if PAM is enabled.
-	ServiceName string `json:"service_name"`
-
-	// UsePAMAuth specifies whether to trigger the "auth" PAM modules from the
-	// policy.
-	UsePAMAuth bool `json:"use_pam_auth"`
+	// PAMConfig is the configuration data that needs to be passed to the child and then to PAM modules.
+	PAMConfig *PAMConfig `json:"pam_config,omitempty"`
 
 	// Environment is a list of environment variables to add to the defaults.
 	Environment []string `json:"environment"`
@@ -96,7 +88,20 @@ type ExecCommand struct {
 	IsTestStub bool `json:"is_test_stub"`
 
 	// UaccMetadata contains metadata needed for user accounting.
-	UaccMetadata
+	UaccMetadata UaccMetadata `json:"uacc_meta"`
+}
+
+// PAMConfig represents all the configuration data that needs to be passed to the child.
+type PAMConfig struct {
+	// UsePAMAuth specifies whether to trigger the "auth" PAM modules from the
+	// policy.
+	UsePAMAuth bool `json:"use_pam_auth"`
+
+	// ServiceName is the name of the PAM service requested if PAM is enabled.
+	ServiceName string `json:"service_name"`
+
+	// Environment represents env variables to pass to PAM.
+	Environment map[string]string `json:"environment"`
 }
 
 // UaccMetadata contains information the child needs from the parent for user accounting.
@@ -157,7 +162,7 @@ func RunCommand() (io.Writer, int, error) {
 			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("pty and tty not found")
 		}
 		errorWriter = tty
-		err = uacc.Open(c.UtmpPath, c.WtmpPath, c.Login, c.Hostname, c.RemoteAddr, tty)
+		err = uacc.Open(c.UaccMetadata.UtmpPath, c.UaccMetadata.WtmpPath, c.Login, c.UaccMetadata.Hostname, c.UaccMetadata.RemoteAddr, tty)
 		if err != nil && !trace.IsAccessDenied(err) {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
@@ -167,7 +172,7 @@ func RunCommand() (io.Writer, int, error) {
 	// else because PAM is sometimes used to create the local user used to
 	// launch the shell under.
 	var pamEnvironment []string
-	if c.PAM {
+	if c.PAMConfig != nil {
 		// Connect std{in,out,err} to the TTY if it's a shell request, otherwise
 		// discard std{out,err}. If this was not done, things like MOTD would be
 		// printed for "exec" requests.
@@ -186,17 +191,13 @@ func RunCommand() (io.Writer, int, error) {
 
 		// Open the PAM context.
 		pamContext, err := pam.Open(&pam.Config{
-			ServiceName: c.ServiceName,
-			UsePAMAuth:  c.UsePAMAuth,
+			ServiceName: c.PAMConfig.ServiceName,
+			UsePAMAuth:  c.PAMConfig.UsePAMAuth,
 			Login:       c.Login,
 			// Set Teleport specific environment variables that PAM modules
 			// like pam_script.so can pick up to potentially customize the
 			// account/session.
-			Env: map[string]string{
-				"TELEPORT_USERNAME": c.Username,
-				"TELEPORT_LOGIN":    c.Login,
-				"TELEPORT_ROLES":    strings.Join(c.Roles, " "),
-			},
+			Env:    c.PAMConfig.Environment,
 			Stdin:  stdin,
 			Stdout: stdout,
 			Stderr: stderr,
@@ -237,7 +238,7 @@ func RunCommand() (io.Writer, int, error) {
 	err = cmd.Wait()
 
 	if c.Terminal {
-		uaccErr := uacc.Close(c.UtmpPath, c.WtmpPath, tty)
+		uaccErr := uacc.Close(c.UaccMetadata.UtmpPath, c.UaccMetadata.WtmpPath, tty)
 		if uaccErr != nil && !trace.IsAccessDenied(uaccErr) {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(uaccErr)
 		}
@@ -274,10 +275,10 @@ func RunForward() (io.Writer, int, error) {
 	// If PAM is enabled, open a PAM context. This has to be done before anything
 	// else because PAM is sometimes used to create the local user used to
 	// launch the shell under.
-	if c.PAM {
+	if c.PAMConfig != nil {
 		// Open the PAM context.
 		pamContext, err := pam.Open(&pam.Config{
-			ServiceName: c.ServiceName,
+			ServiceName: c.PAMConfig.ServiceName,
 			Login:       c.Login,
 			Stdin:       os.Stdin,
 			Stdout:      ioutil.Discard,
@@ -285,11 +286,7 @@ func RunForward() (io.Writer, int, error) {
 			// Set Teleport specific environment variables that PAM modules
 			// like pam_script.so can pick up to potentially customize the
 			// account/session.
-			Env: map[string]string{
-				"TELEPORT_USERNAME": c.Username,
-				"TELEPORT_LOGIN":    c.Login,
-				"TELEPORT_ROLES":    strings.Join(c.Roles, " "),
-			},
+			Env: c.PAMConfig.Environment,
 		})
 		if err != nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
@@ -14,11 +15,10 @@ import (
 func TestWrite(t *testing.T) {
 	outputDir := t.TempDir()
 	key := &client.Key{
-		Cert:        []byte("cert"),
-		TLSCert:     []byte("tls-cert"),
-		Priv:        []byte("priv"),
-		Pub:         []byte("pub"),
-		ClusterName: "foo",
+		Cert:    []byte("cert"),
+		TLSCert: []byte("tls-cert"),
+		Priv:    []byte("priv"),
+		Pub:     []byte("pub"),
 		TrustedCA: []auth.TrustedCerts{{
 			TLSCertificates: [][]byte{[]byte("ca-cert")},
 		}},
@@ -37,7 +37,7 @@ func TestWrite(t *testing.T) {
 	require.Equal(t, string(out), "priv")
 
 	// cert is OK:
-	out, err = ioutil.ReadFile(cfg.OutputPath + "-cert.pub")
+	out, err = ioutil.ReadFile(cfg.OutputPath + constants.FileExtSSHCert)
 	require.NoError(t, err)
 	require.Equal(t, string(out), "cert")
 
@@ -63,11 +63,10 @@ func TestWrite(t *testing.T) {
 
 func TestKubeconfigOverwrite(t *testing.T) {
 	key := &client.Key{
-		Cert:        []byte("cert"),
-		TLSCert:     []byte("tls-cert"),
-		Priv:        []byte("priv"),
-		Pub:         []byte("pub"),
-		ClusterName: "foo",
+		Cert:    []byte("cert"),
+		TLSCert: []byte("tls-cert"),
+		Priv:    []byte("priv"),
+		Pub:     []byte("pub"),
 		TrustedCA: []auth.TrustedCerts{{
 			TLSCertificates: [][]byte{[]byte("ca-cert")},
 		}},
