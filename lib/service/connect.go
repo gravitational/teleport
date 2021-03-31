@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+
 	"github.com/sirupsen/logrus"
 )
 
@@ -784,6 +785,8 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 
 // newClient attempts to connect directly to the Auth Server. If it fails, it
 // falls back to trying to connect to the Auth Server through the proxy.
+// The proxy address might be configured in process environment as defaults.TunnelPublicAddrEnvar
+// in which case, no attempt at discovering the reverse tunnel address is made.
 func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity *auth.Identity) (*auth.Client, error) {
 	directClient, err := process.newClientDirect(authServers, identity)
 	if err != nil {
@@ -795,22 +798,35 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 	process.log.Debugf("Attempting to connect to Auth Server directly.")
 	_, err = directClient.GetLocalClusterName()
 	if err != nil {
+		process.log.WithError(err).Warn("Failed to connect to Auth Server directly.")
 		// Don't attempt to connect through a tunnel as a proxy or auth server.
 		if identity.ID.Role == teleport.RoleAuth || identity.ID.Role == teleport.RoleProxy {
 			return nil, trace.Wrap(err)
 		}
 
-		process.log.Debugf("Attempting to connect to Auth Server through tunnel.")
-		tunnelClient, err := process.newClientThroughTunnel(authServers, identity)
+		var proxyAddr string
+		if process.Config.SSH.ProxyReverseTunnelFallbackAddr != nil {
+			proxyAddr = process.Config.SSH.ProxyReverseTunnelFallbackAddr.String()
+		} else {
+			// Discover address of SSH reverse tunnel server.
+			proxyAddr, err = process.findReverseTunnel(authServers)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
+		logger := process.log.WithField("proxy-addr", proxyAddr)
+		logger.Debug("Attempting to connect to Auth Server through tunnel.")
+		tunnelClient, err := process.newClientThroughTunnel(proxyAddr, identity)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		process.log.Debugf("Connected to Auth Server through tunnel.")
+		logger.Debug("Connected to Auth Server through tunnel.")
 		return tunnelClient, nil
 	}
 
-	process.log.Debugf("Connected to Auth Server with direct connection.")
+	process.log.Debug("Connected to Auth Server with direct connection.")
 	return directClient, nil
 }
 
@@ -873,14 +889,7 @@ func tunnelAddr(settings apiclient.ProxySettings) (string, error) {
 	return settings.SSH.TunnelListenAddr, nil
 }
 
-func (process *TeleportProcess) newClientThroughTunnel(servers []utils.NetAddr, identity *auth.Identity) (*auth.Client, error) {
-	// Discover address of SSH reverse tunnel server.
-	proxyAddr, err := process.findReverseTunnel(servers)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	process.log.Debugf("Discovered address for reverse tunnel server: %v.", proxyAddr)
-
+func (process *TeleportProcess) newClientThroughTunnel(proxyAddr string, identity *auth.Identity) (*auth.Client, error) {
 	tlsConfig, err := identity.TLSConfig(process.Config.CipherSuites)
 	if err != nil {
 		return nil, trace.Wrap(err)
