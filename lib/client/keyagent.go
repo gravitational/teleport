@@ -424,13 +424,16 @@ func (a *LocalKeyAgent) AddKey(key *Key) (*agent.AddedKey, error) {
 	// key is added, delete any already stored key with the same index if their
 	// RSA private keys do not match.
 	storedKey, err := a.keyStore.GetKey(key.KeyIndex)
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-	if subtle.ConstantTimeCompare(storedKey.Priv, key.Priv) == 0 {
-		a.log.Debugf("Deleting obsolete stored key with index %+v.", storedKey.KeyIndex)
-		if err := a.keyStore.DeleteKey(storedKey.KeyIndex); err != nil {
+	if err != nil {
+		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
+		}
+	} else {
+		if subtle.ConstantTimeCompare(storedKey.Priv, key.Priv) == 0 {
+			a.log.Debugf("Deleting obsolete stored key with index %+v.", storedKey.KeyIndex)
+			if err := a.keyStore.DeleteKey(storedKey.KeyIndex); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	}
 
