@@ -6,7 +6,7 @@ WEBASSETS_BUILDDIR ?= $(LOCALDIR)../lib/web/build
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s $(LDFLAGS)'
 CGOFLAG ?= CGO_ENABLED=1
 RELEASE_ENT = teleport-ent-$(GITTAG)-$(OS)-$(ARCH)-bin
-BINARIES ?= $(BUILDDIR)/tctl $(BUILDDIR)/teleport $(BUILDDIR)/tsh
+BINARIES ?= $(BUILDDIR)/teleport $(BUILDDIR)/tctl $(BUILDDIR)/tsh
 HOUSTON_DIR := "vendor/github.com/gravitational/houston/"
 
 GO_BINARY ?= go
@@ -78,12 +78,26 @@ $(BUILDDIR)/tctl:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) $(GO_BINARY) build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
-$(BUILDDIR)/teleport: ensure-webassets-e
+$(BUILDDIR)/teleport: ensure-webassets-e teleport-fips-check
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) $(GO_BINARY) build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) $(GO_BINARY) build -tags "$(PAM_TAG) $(FIPS_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ../tool/tsh
+
+# If FIPS mode was requested, first compile an extra Teleport binary with symbols included and check that it contains BoringCrypto references.
+.PHONY: teleport-fips-check
+teleport-fips-check:
+	@if [ "$(FIPS)" != "" ]; then \
+		echo "FIPS mode requested, pre-compiling and checking binary for BoringCrypto symbols."; \
+		GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) $(GO_BINARY) build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG)" -o $(BUILDDIR)/teleport-unstripped -ldflags "" ./tool/teleport; \
+		if ! go tool nm $(BUILDDIR)/teleport-unstripped 2>&1 | grep -q boringcrypto; then \
+			echo "-- FIPS mode was requested, but the compiled teleport binary does not contain any BoringCrypto symbols. This is an error!"; \
+			echo "-- BoringCrypto is currently only supported for linux/amd64 as per https://go.googlesource.com/go/+/dev.boringcrypto/misc/boring#caveat"; \
+			exit 1; \
+		fi; \
+		rm -f $(BUILDDIR)/teleport-unstripped; \
+	fi
 
 # make clean: cleans the build
 .PHONY: clean
