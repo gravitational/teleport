@@ -218,10 +218,23 @@ func (k *Key) clientTLSConfig(cipherSuites []uint16, tlsCertRaw []byte) (*tls.Co
 	return tlsConfig, nil
 }
 
-// ClientSSHConfig returns an ssh.ClientConfig with SSH credentials from this
+// ProxyClientSSHConfig returns an ssh.ClientConfig with SSH credentials from this
 // Key and HostKeyCallback matching SSH CAs in the Key.
-func (k *Key) ClientSSHConfig() (*ssh.ClientConfig, error) {
-	return sshutils.SSHClientConfig(k.Cert, k.Priv, k.SSHCAs())
+//
+// The config is set up to authenticate to proxy with the first available principal
+// and ( if keyStore != nil ) trust local SSH CAs without asking for public keys.
+//
+func (k *Key) ProxyClientSSHConfig(keyStore LocalKeyStore) (*ssh.ClientConfig, error) {
+	sshConfig, err := sshutils.ProxyClientSSHConfig(k.Cert, k.Priv, k.SSHCAs())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if keyStore != nil {
+		sshConfig.HostKeyCallback = NewKeyStoreCertChecker(keyStore)
+	}
+
+	return sshConfig, nil
 }
 
 // CertUsername returns the name of the Teleport user encoded in the SSH certificate.
@@ -370,6 +383,16 @@ func (k *Key) CheckCert() error {
 		return trace.Wrap(err)
 	}
 
+	// Check that the certificate was for the current public key. If not, the
+	// public/private key pair may have been rotated.
+	pub, _, _, _, err := ssh.ParseAuthorizedKey(k.Pub)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !sshutils.KeysEqual(cert.Key, pub) {
+		return trace.CompareFailed("public key in profile does not match the public key in SSH certificate")
+	}
+
 	// A valid principal is always passed in because the principals are not being
 	// checked here, but rather the validity period, signature, and algorithms.
 	certChecker := utils.CertChecker{
@@ -391,27 +414,6 @@ func (k *Key) CheckCert() error {
 // fingerprint (same as OpenSSH does for an unknown host).
 func (k *Key) HostKeyCallback() (ssh.HostKeyCallback, error) {
 	return sshutils.HostKeyCallback(k.SSHCAs())
-}
-
-// ProxyClientSSHConfig returns an ssh.ClientConfig with SSH credentials from this
-// Key and HostKeyCallback matching SSH CAs in the Key.
-//
-// The config is set up to authenticate to proxy with the first
-// available principal and trust local SSH CAs without asking
-// for public keys.
-//
-func ProxyClientSSHConfig(k *Key, keyStore LocalKeyStore) (*ssh.ClientConfig, error) {
-	sshConfig, err := k.ClientSSHConfig()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	principals, err := k.CertPrincipals()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sshConfig.User = principals[0]
-	sshConfig.HostKeyCallback = NewKeyStoreCertChecker(keyStore)
-	return sshConfig, nil
 }
 
 // RootClusterName extracts the root cluster name from the issuer

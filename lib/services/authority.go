@@ -305,7 +305,6 @@ func CertPoolFromCertAuthorities(cas []CertAuthority) (*x509.CertPool, error) {
 			}
 			certPool.AddCert(cert)
 		}
-		return certPool, nil
 	}
 	return certPool, nil
 }
