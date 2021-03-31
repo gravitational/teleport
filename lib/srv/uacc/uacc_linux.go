@@ -28,7 +28,6 @@ import "C"
 
 import (
 	"os"
-	"os/exec"
 	"strings"
 	"sync"
 	"time"
@@ -51,12 +50,7 @@ const nameMaxLen = 255
 // `remoteAddrV6`: IPv6 address of the remote host.
 // `ttyName`: Name of the TTY including the `/dev/` prefix.
 func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32, tty *os.File) error {
-	// though musl supports utmp/wtmp its use is not recommended - though musl supports utmp/wtmp its use is not recommended: https://wiki.musl-libc.org/faq.html
-	// on alpine linux UACC_UTMP_FAILED_TO_SELECT_FILE error is triggered unless this check is present
-	if isLibCMusl() {
-		return nil
-	}
-
+	// TODO: how to handle/read --disable-wtmp-utmp flag?
 	ttyName, err := os.Readlink(tty.Name())
 	if err != nil {
 		return trace.Errorf("failed to resolve soft proc tty link: %v", err)
@@ -131,12 +125,7 @@ func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32,
 //
 // The `ttyName` parameter must be the name of the TTY including the `/dev/` prefix.
 func Close(utmpPath, wtmpPath string, tty *os.File) error {
-	// though musl supports utmp/wtmp its use is not recommended - though musl supports utmp/wtmp its use is not recommended: https://wiki.musl-libc.org/faq.html
-	// on alpine linux UACC_UTMP_FAILED_TO_SELECT_FILE error is triggered unless this check is present
-	if isLibCMusl() {
-		return nil
-	}
-
+	// TODO: how to handle/read --disable-wtmp-utmp flag?
 	ttyName, err := os.Readlink(tty.Name())
 	if err != nil {
 		return trace.Errorf("failed to resolve soft proc tty link: %v", err)
@@ -192,12 +181,7 @@ func Close(utmpPath, wtmpPath string, tty *os.File) error {
 
 // UserWithPtyInDatabase checks the user accounting database for the existence of an USER_PROCESS entry with the given username.
 func UserWithPtyInDatabase(utmpPath string, username string) error {
-	// though musl supports utmp/wtmp its use is not recommended - though musl supports utmp/wtmp its use is not recommended: https://wiki.musl-libc.org/faq.html
-	// on alpine linux UACC_UTMP_FAILED_TO_SELECT_FILE error is triggered unless this check is present
-	if isLibCMusl() {
-		return nil
-	}
-
+	// TODO: how to handle/read --disable-wtmp-utmp flag?
 	if len(username) > nameMaxLen {
 		return trace.BadParameter("username length exceeds OS limits")
 	}
@@ -230,15 +214,4 @@ func UserWithPtyInDatabase(utmpPath string, username string) error {
 
 		return nil
 	}
-}
-
-// check if running libcmusl
-func isLibCMusl() bool {
-	output, err := exec.Command("/bin/sh", "-c", "ldd /bin/ls | grep musl | tail -n 1 | wc -l").Output();
-
-	if err != nil {
-		return false
-	}
-
-	return string(output[:]) == "1"
 }

@@ -89,6 +89,9 @@ type CommandLineFlags struct {
 	// --pid-file flag
 	PIDFile string
 	// DiagnosticAddr is listen address for diagnostic endpoint
+	// --disable-wtmp-utmp flag
+	DisableWtmpUtmp bool
+	// DiagnosticAddr is listen address for diagnostic endpoint
 	DiagnosticAddr string
 	// PermitUserEnvironment enables reading of ~/.tsh/environment
 	// when creating a new session.
@@ -1301,6 +1304,11 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	// apply --pid-file flag
 	if clf.PIDFile != "" {
 		cfg.PIDFile = clf.PIDFile
+	}
+
+	// apply --disable-wtmp-utmp flag
+	if clf.DisableWtmpUtmp {
+		cfg.DisableWtmpUtmp = clf.DisableWtmpUtmp
 	}
 
 	// apply --token flag:

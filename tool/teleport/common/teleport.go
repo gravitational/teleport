@@ -90,6 +90,9 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 		StringVar(&ccf.Roles)
 	start.Flag("pid-file",
 		"Full path to the PID file. By default no PID file will be created").StringVar(&ccf.PIDFile)
+	start.Flag("disable-wtmp-utmp",
+		"Disable wtmp/utmp for systems supporting it but not recommending it (e.g. libcmusl)").
+		BoolVar(&ccf.DisableWtmpUtmp)
 	start.Flag("advertise-ip",
 		"IP to advertise to clients if running behind NAT").
 		StringVar(&ccf.AdvertiseIP)

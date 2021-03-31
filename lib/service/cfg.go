@@ -116,6 +116,9 @@ type Config struct {
 	// PidFile is a full path of the PID file for teleport daemon
 	PIDFile string
 
+	// DisableWtmpUtmp disables the use of wtmp/utmp
+	DisableWtmpUtmp bool
+
 	// Trust is a service that manages users and credentials
 	Trust services.Trust
 
