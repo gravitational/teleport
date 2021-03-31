@@ -106,6 +106,7 @@ func pushPipeline(b buildType) pipeline {
 			},
 			Commands: pushCheckoutCommands(b.fips),
 		},
+		waitForDockerStep(),
 		{
 			Name:        "Build artifacts",
 			Image:       "docker",

@@ -392,6 +392,7 @@ tag:
 # build/webassets.zip archive contains the web assets (UI) which gets
 # appended to teleport binary
 $(ASSETS_BUILDDIR)/webassets.zip: | $(ASSETS_BUILDDIR)
+$(ASSETS_BUILDDIR)/webassets.zip: ensure-webassets
 ifneq ("$(OS)", "windows")
 	@echo "---> Building OSS web assets."
 	cd webassets/teleport/ ; zip -qr ../../$@ .
