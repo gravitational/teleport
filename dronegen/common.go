@@ -17,6 +17,11 @@ var (
 		Ref:   triggerRef{Include: []string{"refs/tags/v*"}},
 		Repo:  triggerRef{Include: []string{"gravitational/*"}},
 	}
+	triggerPushMasterOnly = trigger{
+		Event:  triggerRef{Include: []string{"push"}},
+		Branch: triggerRef{Include: []string{"master"}},
+		Repo:   triggerRef{Include: []string{"gravitational/teleport"}},
+	}
 
 	volumeDocker = volume{
 		Name: "dockersock",
@@ -128,5 +133,18 @@ func sendSlackNotification() step {
 			`,
 		},
 		When: &condition{Status: []string{"failure"}},
+	}
+}
+
+// waitForDockerStep returns a step which checks that the Docker socket is active before trying
+// to run container operations
+func waitForDockerStep() step {
+	return step{
+		Name:  "Wait for docker",
+		Image: "docker",
+		Commands: []string{
+			`timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'`,
+		},
+		Volumes: dockerVolumeRefs(),
 	}
 }
