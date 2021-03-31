@@ -74,6 +74,13 @@ steps:
   volumes:
   - name: tmpfs
     path: /tmpfs
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Build buildbox
   image: docker
   commands:
@@ -203,7 +210,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tests.go:211
+# Generated at dronegen/tests.go:212
 ################################################
 
 kind: pipeline
@@ -251,6 +258,13 @@ steps:
   volumes:
   - name: tmpfs
     path: /tmpfs
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Run docs tests
   image: docker:git
   commands:
@@ -377,6 +391,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Build artifacts
   image: docker
   commands:
@@ -470,6 +491,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Build artifacts
   image: docker
   commands:
@@ -565,6 +593,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Build artifacts
   image: docker
   commands:
@@ -660,6 +695,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Build artifacts
   image: docker
   commands:
@@ -987,6 +1029,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Build artifacts
   image: docker
   commands:
@@ -1080,6 +1129,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Build artifacts
   image: docker
   commands:
@@ -1400,6 +1456,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Build artifacts
   image: docker
   commands:
@@ -1495,6 +1558,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Build artifacts
   image: docker
   commands:
@@ -1590,6 +1660,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Build artifacts
   image: docker
   commands:
@@ -1688,6 +1765,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Build artifacts
   image: docker
   commands:
@@ -1743,7 +1827,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:331
+# Generated at dronegen/tag.go:332
 ################################################
 
 kind: pipeline
@@ -1785,6 +1869,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -1867,7 +1958,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:331
+# Generated at dronegen/tag.go:332
 ################################################
 
 kind: pipeline
@@ -1909,6 +2000,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -1988,7 +2086,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:331
+# Generated at dronegen/tag.go:332
 ################################################
 
 kind: pipeline
@@ -2030,6 +2128,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -2098,7 +2203,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:331
+# Generated at dronegen/tag.go:332
 ################################################
 
 kind: pipeline
@@ -2140,6 +2245,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -2247,6 +2359,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Build artifacts
   image: docker
   commands:
@@ -2300,7 +2419,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:331
+# Generated at dronegen/tag.go:332
 ################################################
 
 kind: pipeline
@@ -2342,6 +2461,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -2424,7 +2550,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:331
+# Generated at dronegen/tag.go:332
 ################################################
 
 kind: pipeline
@@ -2466,6 +2592,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -3228,6 +3361,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Build artifacts
   image: docker
   commands:
@@ -3323,6 +3463,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Build artifacts
   image: docker
   commands:
@@ -3376,7 +3523,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:331
+# Generated at dronegen/tag.go:332
 ################################################
 
 kind: pipeline
@@ -3418,6 +3565,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -3486,7 +3640,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:331
+# Generated at dronegen/tag.go:332
 ################################################
 
 kind: pipeline
@@ -3528,6 +3682,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -3596,7 +3757,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:331
+# Generated at dronegen/tag.go:332
 ################################################
 
 kind: pipeline
@@ -3638,6 +3799,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -3720,7 +3888,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:331
+# Generated at dronegen/tag.go:332
 ################################################
 
 kind: pipeline
@@ -3762,6 +3930,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -4017,6 +4192,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Build artifacts
   image: docker
   commands:
@@ -4379,140 +4561,141 @@ volumes:
     temp: {}
 
 ---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/buildbox.go:57
+################################################
+
 kind: pipeline
 type: kubernetes
 name: build-buildboxes
-
 environment:
+  GID: "1000"
   RUNTIME: go1.16.2
-  UID: 1000
-  GID: 1000
-
+  UID: "1000"
 trigger:
-  branch:
-    - master
   event:
+    include:
     - push
   repo:
     include:
-      - gravitational/teleport
-
+    - gravitational/teleport
+  branch:
+    include:
+    - master
 workspace:
   path: /go/src/github.com/gravitational/teleport
-
 clone:
   disable: true
-
 steps:
-  - name: Check out code
-    image: docker:git
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
-      - git checkout ${DRONE_COMMIT}
-
-  - name: Build and push buildbox container
-    image: docker
-    environment:
-      QUAYIO_DOCKER_USERNAME:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      QUAYIO_DOCKER_PASSWORD:
-        from_secret: QUAYIO_DOCKER_PASSWORD
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - apk add --no-cache make
-      - chown -R $UID:$GID /go
-      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
-      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
-      - make -C build.assets buildbox
-      - docker push quay.io/gravitational/teleport-buildbox:$RUNTIME
-
-  - name: Build and push buildbox-fips container
-    image: docker
-    environment:
-      QUAYIO_DOCKER_USERNAME:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      QUAYIO_DOCKER_PASSWORD:
-        from_secret: QUAYIO_DOCKER_PASSWORD
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - apk add --no-cache make
-      - chown -R $UID:$GID /go
-      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
-      - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
-      - make -C build.assets buildbox-fips
-      - docker push quay.io/gravitational/teleport-buildbox-fips:$RUNTIME
-
-  - name: Build and push buildbox-centos6 container
-    image: docker
-    environment:
-      QUAYIO_DOCKER_USERNAME:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      QUAYIO_DOCKER_PASSWORD:
-        from_secret: QUAYIO_DOCKER_PASSWORD
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - apk add --no-cache make
-      - chown -R $UID:$GID /go
-      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
-      - docker pull quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME || true
-      - make -C build.assets buildbox-centos6
-      - docker push quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME
-
-  - name: Build and push buildbox-centos6-fips container
-    image: docker
-    environment:
-      QUAYIO_DOCKER_USERNAME:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      QUAYIO_DOCKER_PASSWORD:
-        from_secret: QUAYIO_DOCKER_PASSWORD
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - apk add --no-cache make
-      - chown -R $UID:$GID /go
-      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
-      - docker pull quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME || true
-      - make -C build.assets buildbox-centos6-fips
-      - docker push quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME
-
-  - name: Build and push buildbox-arm container
-    image: docker
-    environment:
-      QUAYIO_DOCKER_USERNAME:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      QUAYIO_DOCKER_PASSWORD:
-        from_secret: QUAYIO_DOCKER_PASSWORD
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - apk add --no-cache make
-      - chown -R $UID:$GID /go
-      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
-      - docker pull quay.io/gravitational/teleport-buildbox-arm:$RUNTIME || true
-      - make -C build.assets buildbox-arm
-      - docker push quay.io/gravitational/teleport-buildbox-arm:$RUNTIME
-
-services:
-  - name: Start Docker
-    image: docker:dind
-    volumes:
-      - name: dockersock
-        path: /var/run
-
-volumes:
+- name: Check out code
+  image: docker:git
+  commands:
+  - git clone --depth 1 --single-branch --branch ${DRONE_SOURCE_BRANCH:-master} https://github.com/gravitational/${DRONE_REPO_NAME}.git
+    .
+  - git checkout ${DRONE_COMMIT}
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
   - name: dockersock
-    temp: {}
+    path: /var/run
+- name: buildbox
+  image: docker
+  commands:
+  - apk add --no-cache make
+  - chown -R $UID:$GID /go
+  - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
+  - make -C build.assets buildbox
+  - docker push quay.io/gravitational/teleport-buildbox:$RUNTIME
+  environment:
+    QUAYIO_DOCKER_PASSWORD:
+      from_secret: QUAYIO_DOCKER_PASSWORD
+    QUAYIO_DOCKER_USERNAME:
+      from_secret: QUAYIO_DOCKER_USERNAME
+  volumes:
+  - name: dockersock
+    path: /var/run
+  failure: ignore
+- name: buildbox-fips
+  image: docker
+  commands:
+  - apk add --no-cache make
+  - chown -R $UID:$GID /go
+  - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
+  - make -C build.assets buildbox-fips
+  - docker push quay.io/gravitational/teleport-buildbox-fips:$RUNTIME
+  environment:
+    QUAYIO_DOCKER_PASSWORD:
+      from_secret: QUAYIO_DOCKER_PASSWORD
+    QUAYIO_DOCKER_USERNAME:
+      from_secret: QUAYIO_DOCKER_USERNAME
+  volumes:
+  - name: dockersock
+    path: /var/run
+  failure: ignore
+- name: buildbox-centos6
+  image: docker
+  commands:
+  - apk add --no-cache make
+  - chown -R $UID:$GID /go
+  - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
+  - make -C build.assets buildbox-centos6
+  - docker push quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME
+  environment:
+    QUAYIO_DOCKER_PASSWORD:
+      from_secret: QUAYIO_DOCKER_PASSWORD
+    QUAYIO_DOCKER_USERNAME:
+      from_secret: QUAYIO_DOCKER_USERNAME
+  volumes:
+  - name: dockersock
+    path: /var/run
+  failure: ignore
+- name: buildbox-centos6-fips
+  image: docker
+  commands:
+  - apk add --no-cache make
+  - chown -R $UID:$GID /go
+  - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
+  - make -C build.assets buildbox-centos6-fips
+  - docker push quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME
+  environment:
+    QUAYIO_DOCKER_PASSWORD:
+      from_secret: QUAYIO_DOCKER_PASSWORD
+    QUAYIO_DOCKER_USERNAME:
+      from_secret: QUAYIO_DOCKER_USERNAME
+  volumes:
+  - name: dockersock
+    path: /var/run
+  failure: ignore
+- name: buildbox-arm
+  image: docker
+  commands:
+  - apk add --no-cache make
+  - chown -R $UID:$GID /go
+  - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
+  - make -C build.assets buildbox-arm
+  - docker push quay.io/gravitational/teleport-buildbox-arm:$RUNTIME
+  environment:
+    QUAYIO_DOCKER_PASSWORD:
+      from_secret: QUAYIO_DOCKER_PASSWORD
+    QUAYIO_DOCKER_USERNAME:
+      from_secret: QUAYIO_DOCKER_USERNAME
+  volumes:
+  - name: dockersock
+    path: /var/run
+  failure: ignore
+services:
+- name: Start Docker
+  image: docker:dind
+  volumes:
+  - name: dockersock
+    path: /var/run
+volumes:
+- name: dockersock
+  temp: {}
 
 ---
 kind: pipeline
@@ -4816,6 +4999,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: ea48c40817f928bb53c17bfaae579a2475ee714cf210fea2822686b29b3d9128
+hmac: 72bddb203e58fb8c7fcb895425d7ff011668b2697cff0d87b1445504855a5665
 
 ...
