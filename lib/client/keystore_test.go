@@ -227,7 +227,7 @@ func TestProxySSHConfig(t *testing.T) {
 	err = s.store.AddKnownHostKeys("127.0.0.1", []ssh.PublicKey{caPub})
 	require.NoError(t, err)
 
-	clientConfig, err := ProxyClientSSHConfig(key, s.store)
+	clientConfig, err := key.ProxyClientSSHConfig(s.store)
 	require.NoError(t, err)
 
 	called := atomic.NewInt32(0)
