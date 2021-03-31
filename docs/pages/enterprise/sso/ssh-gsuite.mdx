@@ -4,9 +4,9 @@ description: How to configure SSH access with Google Workspace (also known as G 
 h1: SSH Authentication with G Suite (Google Apps)
 ---
 
-## Google Apps as SSO for SSH
+## Google Workspace as SSO for SSH
 
-This guide will cover how to configure [G Suite](https://gsuite.google.com) to be a
+This guide will cover how to configure [Google Workspace](https://workspace.google.com/) to be a
 single sign-on (SSO) provider to issue SSH credentials to specific groups of users.
 When used in combination with role based access control (RBAC) it allows SSH administrators
 to define policies like:
@@ -19,7 +19,7 @@ to define policies like:
   type="warning"
   title="Version Warning"
 >
-  This guide requires an enterprise version of Teleport 4.1.4 or greater. The open source
+  This guide requires an enterprise version of Teleport. The open source
   edition of Teleport only supports [Github](../../admin-guide.mdx#github-oauth-20) as
   an SSO provider.
 </Admonition>
@@ -37,13 +37,13 @@ to define policies like:
 
 Before you get started you’ll need:
 
-- An Enterprise version of Teleport v4.1.4 or greater, downloaded from [https://dashboard.gravitational.com/](https://dashboard.gravitational.com/web/login).
-- Be a G Suite Super Admin. As Google Best Practices, we would recommend setting up a seperate super admin with 2FA vs using your user.
+- An Enterprise version of Teleport downloaded from [https://dashboard.gravitational.com/](https://dashboard.gravitational.com/web/login).
+- Be a Google Workspace Super Admin. As Google Best Practices, we would recommend setting up a separate super admin with 2FA vs using your user.
   - e.g. A dedicated account [ben-ops@practice.io](mailto:ben-ops@practice.io) vs my daily [ben@practice.io](mailto:ben@practice.io)
 - Ability to create GCP Project.
   - This might require signing up to GCP, but for this project it won’t require using any paid services. It’s just a side effect of G Suite and GCP being closely related.
 - Have a [verified Domain](https://support.google.com/a/answer/60216?hl=en).
-- Ability to Setup G Suite Groups
+- Ability to Setup Google Workspace Groups
 
 ## Configure G Suite
 
@@ -130,12 +130,12 @@ Write down this template as `gsuite-connector.yaml`:
 Create the connector using `tctl` tool:
 
 ```bsh
-$ tctl create gsuite-connector.yaml
+$ tctl create gworkspace-connector.yaml
 ```
 
 ## Testing
 
-The Web UI will now contain a new button: "Login with GSuite". The CLI is
+The Web UI will now contain a new button: "Login with Google". The CLI is
 the same as before:
 
 ```bsh
