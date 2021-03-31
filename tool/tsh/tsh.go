@@ -1,5 +1,5 @@
 /*
-Copyright 2016-2019 Gravitational, Inc.
+Copyright 2016-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -1875,7 +1875,7 @@ func printStatus(debug bool, p *client.ProfileStatus, isActive bool) {
 	if p.Cluster != "" {
 		fmt.Printf("  Cluster:            %v\n", p.Cluster)
 	}
-	fmt.Printf("  Roles:              %v*\n", strings.Join(p.Roles, ", "))
+	fmt.Printf("  Roles:              %v\n", strings.Join(p.Roles, ", "))
 	if debug {
 		for k, v := range p.Traits {
 			if count == 0 {
