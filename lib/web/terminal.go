@@ -258,7 +258,7 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn) (*client.TeleportClient
 	// communicate over the websocket.
 	stream := t.asTerminalStream(ws)
 
-	clientConfig.ForwardAgent = true
+	clientConfig.ForwardAgent = client.ForwardAgentYes
 	clientConfig.HostLogin = t.params.Login
 	clientConfig.Namespace = t.params.Namespace
 	clientConfig.Stdout = stream

@@ -90,6 +90,16 @@ func ValidateAgentKeyOption(supplied string) error {
 	return trace.BadParameter("invalid value %q, must be one of %v", supplied, AllAddKeysOptions)
 }
 
+// AgentForwardingMode  describes how the user key agent will be forwarded
+// to a remote machine, if at all.
+type AgentForwardingMode int
+
+const (
+	ForwardAgentNo    AgentForwardingMode = iota
+	ForwardAgentYes   AgentForwardingMode = iota
+	ForwardAgentLocal AgentForwardingMode = iota
+)
+
 var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentClient,
 })
@@ -202,7 +212,7 @@ type Config struct {
 	Agent agent.Agent
 
 	// ForwardAgent is used by the client to request agent forwarding from the server.
-	ForwardAgent bool
+	ForwardAgent AgentForwardingMode
 
 	// AuthMethods are used to login into the cluster. If specified, the client will
 	// use them in addition to certs stored in its local agent (from disk)
