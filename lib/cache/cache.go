@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -912,6 +913,8 @@ func (c *Cache) fetch(ctx context.Context) (apply func(ctx context.Context) erro
 
 func (c *Cache) processEvent(ctx context.Context, event services.Event) error {
 	resourceKind := resourceKindFromResource(event.Resource)
+	fmt.Printf("--> Cache [%v]: Kind: %q, SubKind: %q, Name: %q.\n",
+		c.Config.Component, resourceKind, event.Resource.GetSubKind(), event.Resource.GetName())
 	collection, ok := c.collections[resourceKind]
 	if !ok {
 		c.Warningf("Skipping unsupported event %v/%v",

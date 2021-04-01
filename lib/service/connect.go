@@ -17,6 +17,7 @@ limitations under the License.
 package service
 
 import (
+	"fmt"
 	"net"
 	"path/filepath"
 	"strconv"
@@ -489,6 +490,8 @@ func (process *TeleportProcess) syncRotationStateCycle() error {
 			if event.Type == backend.OpInit || event.Type == backend.OpDelete {
 				continue
 			}
+			fmt.Printf("--> Rotation Watcher: Kind: %q, SubKind: %q, Name: %q.\n",
+				event.Resource.GetKind(), event.Resource.GetSubKind(), event.Resource.GetName())
 			ca, ok := event.Resource.(services.CertAuthority)
 			if !ok {
 				process.log.Debugf("Skipping event %v for %v", event.Type, event.Resource.GetName())
