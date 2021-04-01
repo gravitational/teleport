@@ -206,6 +206,7 @@ func tagPipeline(b buildType) pipeline {
 			},
 			Commands: tagCheckoutCommands(b.fips),
 		},
+		waitForDockerStep(),
 		{
 			Name:        "Build artifacts",
 			Image:       "docker",
@@ -345,6 +346,7 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			},
 			Commands: tagCheckoutCommands(b.fips),
 		},
+		waitForDockerStep(),
 		{
 			Name:  "Download artifacts from S3",
 			Image: "amazon/aws-cli",

@@ -103,6 +103,7 @@ func testCodePipeline() pipeline {
 			},
 			Commands: testCheckoutCommands(true),
 		},
+		waitForDockerStep(),
 		{
 			Name:    "Build buildbox",
 			Image:   "docker",
@@ -230,6 +231,7 @@ func testDocsPipeline() pipeline {
 			},
 			Commands: testCheckoutCommands(false),
 		},
+		waitForDockerStep(),
 		{
 			Name:  "Run docs tests",
 			Image: "docker:git",
