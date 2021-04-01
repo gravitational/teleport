@@ -1,7 +1,7 @@
 # Teleport
 
 Teleport is an identity-aware, multi-protocol access proxy which understands
-SSH, HTTPS, Kubernetes API, MySQL, and PostgreSQL wire protocols.
+SSH, HTTPS, Kubernetes API, MySQL and PostgreSQL wire protocols.
 
 On the server-side, Teleport is a single binary which enables convenient secure
 access to behind-NAT resources such as:
