@@ -17,6 +17,6 @@ spec:
   teams_to_logins:
   - logins:
     - access
-    - admin
+    - editor
     organization: <github-org>
     team: <github-team>
