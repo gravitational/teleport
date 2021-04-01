@@ -105,6 +105,10 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
         echo "arch parameter is ignored when building for OS X"
         unset ARCH
     fi
+    if [[ "${RUNTIME}" != "" ]]; then
+        echo "runtime parameter is ignored when building for OS X"
+        unset RUNTIME
+    fi
     PLATFORM="darwin"
     ARCH="amd64"
     if [[ ! $(type pkgbuild) ]]; then
@@ -220,18 +224,16 @@ fi
 
 # set file list
 if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
+    SIGN_PKG="true"
+    NOTARIZE_PKG="true"
     # handle mac client-only builds
     if [[ "${BUILD_MODE}" == "tsh" ]]; then
         FILE_LIST="${TAR_PATH}/tsh"
         BUNDLE_ID="com.gravitational.teleport.tsh"
-        SIGN_PKG="true"
-        NOTARIZE_PKG="true"
         PKG_FILENAME="tsh-${TELEPORT_VERSION}.${PACKAGE_TYPE}"
     else
         FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport"
         BUNDLE_ID="com.gravitational.teleport"
-        SIGN_PKG="true"
-        NOTARIZE_PKG="true"
         if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
             PKG_FILENAME="teleport-ent-${TELEPORT_VERSION}.${PACKAGE_TYPE}"
         else
