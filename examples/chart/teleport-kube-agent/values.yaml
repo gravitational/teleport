@@ -3,6 +3,8 @@
 ################################################################
 
 # Join token for the cluster.
+# Leave empty if the secret "teleport-kube-agent-join-token"
+# has been created before and contains a valid join token
 authToken:
 # Address of the teleport proxy with port (usually :3080).
 proxyAddr:
