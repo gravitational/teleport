@@ -152,8 +152,8 @@ and Teleport Auth access.  We currently only provide linux-amd64 binaries, you c
 compile these plugins from [source](https://github.com/gravitational/teleport-plugins/tree/master/access/slack).
 
 ```bash
-$ wget https://get.gravitational.com/teleport-access-slack-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
-$ tar -xzf teleport-access-slack-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
+$ wget https://get.gravitational.com/teleport-access-slack-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
+$ tar -xzf teleport-access-slack-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
 $ cd teleport-access-slack/
 $ ./install
 $ which teleport-slack
@@ -175,7 +175,7 @@ $ sudo mv teleport-slack.toml /etc
 Then, edit the config as needed.
 
 ```yaml
-{!examples/resources/plugins/teleport-slack.toml!}
+(!examples/resources/plugins/teleport-slack.toml!)
 ```
 
 #### Editing the config file
@@ -189,7 +189,7 @@ Then set the plugin callback (where Slack sends its requests) to an address you 
 By default, Teleport Slack plugin will run with TLS on.
 
 ```conf
-{!examples/resources/plugins/teleport-slack.toml!}
+(!examples/resources/plugins/teleport-slack.toml!)
 ```
 
 ## Test Run
@@ -205,7 +205,7 @@ If everything works fine, the log output should look like this:
 
 ```bash
 $ teleport-slack start
-INFO   Starting Teleport Access Slack {{ teleport.plugin.version }}.1-0-slack/main.go:145
+INFO   Starting Teleport Access Slack (=teleport.plugin.version=).1-0-slack/main.go:145
 INFO   Starting a request watcher... slack/main.go:330
 INFO   Starting insecure HTTP server on 0.0.0.0:8081 utils/http.go:64
 INFO   Watcher connected slack/main.go:298
@@ -255,7 +255,7 @@ In production, we recommend starting teleport plugin daemon via an init system l
 Here's the recommended Teleport Plugin service unit file for systemd:
 
 ```bash
-{!examples/systemd/plugins/teleport-slack.service!}
+(!examples/systemd/plugins/teleport-slack.service!)
 ```
 
 Save this as `teleport-slack.service`.
