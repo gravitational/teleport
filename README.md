@@ -101,7 +101,7 @@ If the build succeeds, the installer places the binaries in the following direct
 
 **Important:**
 * The Go compiler is somewhat sensitive to the amount of memory: you will need **at least** 1GB of virtual memory to compile Teleport. A 512MB instance without swap will **not** work.
-* This will build the latest **version** of Teleport, **regardless** of whether it is stable. If you want to build the latest stable release, run `git checkout` to the corresponding tag (for example, run `git checkout v6.0.0`) **before** running `make full`.
+* This will build the latest version of Teleport, **regardless** of whether it is stable. If you want to build the latest stable release, run `git checkout` to the corresponding tag (for example, run `git checkout v6.0.0`) **before** running `make full`.
 
 ### Web UI
 
