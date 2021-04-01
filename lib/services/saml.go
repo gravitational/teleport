@@ -246,9 +246,10 @@ var SAMLConnectorSpecV2Schema = fmt.Sprintf(`{
 		"type": "array",
 		"items": %v
 	  },
-	  "signing_key_pair": %v
+	  "signing_key_pair": %v,
+	  "assertion_key_pair": %v
 	}
-  }`, AttributeMappingSchema, SigningKeyPairSchema)
+  }`, AttributeMappingSchema, SigningKeyPairSchema, SigningKeyPairSchema)
 
 // AttributeMappingSchema is JSON schema for claim mapping
 var AttributeMappingSchema = `{
