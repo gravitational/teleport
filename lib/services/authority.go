@@ -34,8 +34,19 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+
+	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
 )
+
+// CertAuthoritiesEquivalent checks if a pair of certificate authority resources are equivalent.
+// This differs from normal equality only in that resource IDs are ignored.
+func CertAuthoritiesEquivalent(lhs, rhs CertAuthority) bool {
+	l, r := lhs.Clone(), rhs.Clone()
+	l.SetResourceID(0)
+	r.SetResourceID(0)
+	return cmp.Equal(l, r)
+}
 
 // NewJWTAuthority creates and returns a services.CertAuthority with a new
 // key pair.

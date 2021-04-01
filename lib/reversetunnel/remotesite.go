@@ -456,11 +456,24 @@ func (s *remoteSite) updateCertAuthorities() error {
 			"remote cluster sent different cluster name %v instead of expected one %v",
 			remoteCA.GetClusterName(), s.domainName)
 	}
-	err = s.localClient.UpsertCertAuthority(remoteCA)
-	if err != nil {
+
+	oldRemoteCA, err := s.localClient.GetCertAuthority(services.CertAuthID{
+		Type:       services.HostCA,
+		DomainName: remoteCA.GetClusterName(),
+	}, false)
+
+	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 
+	// if CA is changed or does not exist, update backend
+	if err != nil || !services.CertAuthoritiesEquivalent(oldRemoteCA, remoteCA) {
+		if err := s.localClient.UpsertCertAuthority(remoteCA); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	// always update our local reference to the cert authority
 	return s.compareAndSwapCertAuthority(remoteCA)
 }
 
