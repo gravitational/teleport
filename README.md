@@ -167,6 +167,7 @@ Latest version:
 ```bash
 go get github.com/new/dependency
 ```
+
 Update the source to use this dependency, then run:
 
 ```bash
