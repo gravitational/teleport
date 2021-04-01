@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 	"runtime"
 	"strings"
 )
@@ -100,10 +99,6 @@ func (v *triggerRef) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return nil
 	}
 	return errors.New("can't unmarshal the value as either string or from_secret reference")
-}
-
-func (r workspace) join(elems ...string) (path string) {
-	return filepath.Join(append([]string{r.Path}, elems...)...)
 }
 
 type workspace struct {

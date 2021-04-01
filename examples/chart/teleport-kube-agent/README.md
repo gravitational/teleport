@@ -53,6 +53,34 @@ Set the values in the above command as appropriate for your setup.
 You can also optionally set labels for your Kubernetes cluster using the
 format `--set "labels.key=value"` - for example: `--set "labels.env=development,labels.region=us-west-1"`
 
+To avoid specifying the auth token in plain text, it's possible to create a secret containing the token beforehand. To do so, run:
+
+```sh
+export TELEPORT_KUBE_TOKEN=`<auth token> | base64 -w0`
+export TELEPORT_NAMESPACE=teleport
+
+cat <<EOF > secrets.yaml
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: teleport-kube-agent-join-token
+  namespace: ${TELEPORT_NAMESPACE?}
+type: Opaque
+data:
+  auth-token: ${TELEPORT_KUBE_TOKEN?}
+EOF
+
+$ kubectl apply -f secret.yaml
+
+$ helm install teleport-kube-agent . \
+  --create-namespace \
+  --namespace ${TELEPORT_NAMESPACE?} \
+  --set roles=kube \
+  --set proxyAddr=${PROXY_ENDPOINT?} \
+  --set kubeClusterName=${KUBERNETES_CLUSTER_NAME?}
+```
+
 Note that due to backwards compatbility, the `labels` value **only** applies to the Teleport
 Kubernetes service. To set labels for applications or databases, use the different formats
 detailed below.
