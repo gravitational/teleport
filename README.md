@@ -158,7 +158,7 @@ For more details, read the [docs/README](docs/README.md) file.
 
 ### Managing dependencies
 
-The [Go modules](https://blog.golang.org/using-go-modules) manage all dependencies. Here are the instructions for some common tasks:
+All dependencies are managed using [Go modules](https://blog.golang.org/using-go-modules). Here are the instructions for some common tasks:
 
 #### Add a new dependency
 
