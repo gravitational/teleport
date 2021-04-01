@@ -17,6 +17,7 @@ limitations under the License.
 package client
 
 import (
+	"crypto/subtle"
 	"fmt"
 	"io"
 	"net"
@@ -418,12 +419,29 @@ func (a *LocalKeyAgent) AddKey(key *Key) (*agent.AddedKey, error) {
 	if key.Username == "" {
 		key.Username = a.username
 	}
-	// save it to the keystore (usually into ~/.tsh)
-	err := a.keyStore.AddKey(key)
+
+	// In order to prevent unrelated key data to be left over after the new
+	// key is added, delete any already stored key with the same index if their
+	// RSA private keys do not match.
+	storedKey, err := a.keyStore.GetKey(key.KeyIndex)
 	if err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		if subtle.ConstantTimeCompare(storedKey.Priv, key.Priv) == 0 {
+			a.log.Debugf("Deleting obsolete stored key with index %+v.", storedKey.KeyIndex)
+			if err := a.keyStore.DeleteKey(storedKey.KeyIndex); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+	}
+
+	// Save the new key to the keystore (usually into ~/.tsh).
+	if err := a.keyStore.AddKey(key); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// load key into the teleport agent and system agent
+	// Load key into the teleport agent and system agent.
 	return a.LoadKey(*key)
 }
 
