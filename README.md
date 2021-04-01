@@ -143,7 +143,7 @@ Run `make update-webassets` to update the `webassets` repo and create a PR for
 `teleport` to update its git submodule.
 
 You will need to have the `gh` utility installed on your system for the script
-to work. You can download it for free. For installation instructions, read the [GitHub CLI installation](https://github.com/cli/cli/releases/latest) documentation.
+to work. For installation instructions, read the [GitHub CLI installation](https://github.com/cli/cli/releases/latest) documentation.
 
 ### Updating Documentation
 
