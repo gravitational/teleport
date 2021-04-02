@@ -3409,8 +3409,8 @@ func findPublicAddr(authClient auth.AccessPoint, a App) (string, error) {
 // It uses external configuration to make the decision
 func newHTTPFileSystem() (http.FileSystem, error) {
 	if !isDebugMode() {
-		fs, err := web.NewStaticFileSystem()
-		if err != nil {
+		fs, err := web.NewStaticFileSystem() //nolint:staticcheck
+		if err != nil {                      //nolint:staticcheck
 			return nil, trace.Wrap(err)
 		}
 		return fs, nil

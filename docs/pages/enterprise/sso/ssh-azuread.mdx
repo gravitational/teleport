@@ -11,7 +11,6 @@ like:
 
 - Only members of "DBA" Azure AD group can SSH into machines running PostgreSQL.
 - Developers must never SSH into production servers.
-- ... and many others.
 
 The following steps configure an example SAML authentication connector matching AzureAD groups with security roles.  You can choose to configure other options.
 
@@ -28,50 +27,61 @@ The following steps configure an example SAML authentication connector matching 
 
 Before you get started you’ll need:
 
-- An Enterprise version of Teleport v4.2 or greater, downloaded from [https://dashboard.gravitational.com/](https://dashboard.gravitational.com/web/login).
+- An Enterprise version of Teleport {{teleport_version}} or greater, downloaded from [https://dashboard.gravitational.com/](https://dashboard.gravitational.com/web/login).
 - An Azure AD admin account with access to creating non-gallery applications (P2 License)
 - To register one or more users in the directory
 - To create at least two security groups in AzureAD and assign one or more users to each group
 
 ## Configure Azure AD
 
-1. Select Enterprise Applications from the AzureAD Directory Home
+1. Select AzureAD -> Enterprise Applications
+
    ![Select Enterprise Applications From Manage](../../../img/azuread/azuread-1-home.png)
 
 2. Select New application
+
    ![Select New Applications From Manage](../../../img/azuread/azuread-2-newapp.png)
 
-3. Select a Non-gallery application
+3. Select a "Create your own application"
+
    ![Select Non-gallery application](../../../img/azuread/azuread-3-selectnongalleryapp.png)
 
 4. Enter the display name (Ex: Teleport)
+
    ![Enter application name](../../../img/azuread/azuread-4-enterappname.png)
 
 5.Select properties under Manage and turn off User assignment required
-![Turn off user assignment](../../../img/azuread/azuread-5-turnoffuserassign.png)
+
+  ![Turn off user assignment](../../../img/azuread/azuread-5-turnoffuserassign.png)
 
 6. Select Single Sign-on under Manage and choose SAML
+
    ![Select SAML](../../../img/azuread/azuread-6-selectsaml.png)
 
 7. Select to edit Basic SAML Configuration
+
    ![Edit Basic SAML Configuration](../../../img/azuread/azuread-7-editbasicsaml.png)
 
-8. Put in the Entity ID and Reply URL the same proxy url [https://teleport.example.com:3080/v1/webapi/saml/acs](https://teleport.example.com:3080/v1/webapi/saml/acs)
+8. Put in the Entity ID and Reply URL the same proxy URL [https://teleport.example.com:3080/v1/webapi/saml/acs](https://teleport.example.com:3080/v1/webapi/saml/acs)
+
    ![Put in Entity ID and Reply URL](../../../img/azuread/azuread-8-entityandreplyurl.png)
 
 9. Edit User Attributes & Claims
 
-   i. Edit the Claim Name.  Change the name identifier format to Default. Make sure the source attribute is user.userprincipalname.
+   - Edit the Claim Name.  Change the name identifier format to Default. Make sure the source attribute is user.userprincipalname.
+
    ![Confirm Name Identifier](../../../img/azuread/azuread-9a-nameidentifier.png)
 
-   ii. Add a group Claim to have user security groups available to the connector
+   - Add a group Claim to have user security groups available to the connector
    ![Put in Security group claim](../../../img/azuread/azuread-9b-groupclaim.png)
 
-   iii. Add a Claim to pass the username from transforming the AzureAD User name.
+   - Add a Claim to pass the username from transforming the AzureAD User name.
+
    ![Add a transformed username](../../../img/azuread/azuread-9c-usernameclaim.png)
 
 
 10. On the SAML Signing Certificate select to download SAML Download the Federation Metadata XML.
+
     ![Download Federation Metadata XML](../../../img/azuread/azuread-10-fedmeatadataxml.png)
 
 <Admonition
@@ -98,7 +108,7 @@ spec:
   # the Teleport proxy that your identity provider will communicate with.
   acs: https://teleport.example.com:3080/v1/webapi/saml/acs
   attributes_to_roles:
-    - {name: "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups", value: "<group id 930210...>", roles: ["admin"]}
+    - {name: "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups", value: "<group id 930210...>", roles: ["editor"]}
     - {name: "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups", value: "<group id 93b110...>", roles: ["dev"]}
   entity_descriptor: |
     <federationmedata.xml contents>
@@ -106,18 +116,25 @@ spec:
 
 Create the connector using `tctl` tool:
 
-```bsh
+```bash
 $ tctl create azure-connector.yaml
 ```
 
 <Admonition
   type="tip"
-  title="FYI"
+  title="Automatic signing keypair"
 >
-  Teleport will automatically transform the contents of the connector when viewed from the web UI.
-</Admonition>
+Teleport will generate a signing key pair and update SAML connector with `signing_key_pair`
+property.
 
 ![Sample Connector Transform](../../../img/azuread/azuread-12-sampleconnector.png)
+
+Alternatively, you can generate your own keypair when creating a connector using `openssl`:
+
+```bash
+$ openssl req  -nodes -new -x509  -keyout server.key -out server.cer
+```
+</Admonition>
 
 ## Create Teleport Roles
 
@@ -165,7 +182,7 @@ spec:
 
 **Notice:** Replace `ubuntu` with linux login available on your servers!
 
-```bsh
+```bash
 $ tctl create admin.yaml
 $ tctl create dev.yaml
 ```
@@ -185,7 +202,7 @@ auth_service:
 The Web UI will now contain a new button: "Login with Microsoft". The CLI is
 the same as before:
 
-```bsh
+```bash
 $ tsh --proxy=proxy.example.com login
 ```
 
@@ -200,7 +217,184 @@ automatically in a browser).
   can be passed via `tsh login --auth=connector_name`
 </Admonition>
 
+## Token Encryption
+
+AzureAD's SAML token encryption encrypts the SAML assertions sent to Teleport during SSO redirect.
+
+<Admonition
+  type="tip"
+  title="Tip"
+>
+  This is Azure Active Directory Premium feature and requires a separate license.
+  You can read more about it [here](https://docs.microsoft.com/en-us/azure/active-directory/manage-apps/howto-saml-token-encryption)
+</Admonition>
+
+### Setup Teleport Token Encryption
+
+Start with generating a public/private key and a certificate. You will setup the public
+certificate with AzureAD and the private key with Teleport.
+
+```bash
+$ openssl req  -nodes -new -x509  -keyout server.key -out server.cer
+```
+
+If you are modifying the existing connector, first, save it to YAML:
+
+```bash
+$ tctl get saml --with-secrets > azure-out.yaml
+```
+
+You will spot that Teleport has generated a `signing_key_pair`. This key pair
+is used to sign responses.
+
+```yaml
+kind: saml
+metadata:
+  name: azure-saml
+spec:
+  acs: https://teleport.example.com/v1/webapi/saml/acs
+  attributes_to_roles:
+  - name: http://schemas.microsoft.com/ws/2008/06/identity/claims/groups
+    roles:
+    - editor
+    - access
+    - auditor
+    value: '*'
+  audience: https://teleport.example.com/v1/webapi/saml/acs
+  cert: ""
+  display: Microsoft
+  entity_descriptor: |
+    <?xml ...
+  entity_descriptor_url: ""
+  issuer: https://sts.windows.net/your-id-here/
+  service_provider_issuer: https://teleport.example.com/v1/webapi/saml/acs
+  signing_key_pair:
+    cert: |
+      -----BEGIN CERTIFICATE-----
+      ...
+      -----END CERTIFICATE-----
+    private_key: |
+      -----BEGIN RSA PRIVATE KEY-----
+      ...
+      -----END RSA PRIVATE KEY-----
+  sso: https://login.microsoftonline.com/your-id-here/saml2
+version: v2
+```
+
+Add `assertion_key_pair` using the data from `server.key` and `server.cer`.
+
+```yaml
+kind: saml
+metadata:
+  name: azure-saml
+spec:
+  acs: https://teleport.example.com/v1/webapi/saml/acs
+  attributes_to_roles:
+  - name: http://schemas.microsoft.com/ws/2008/06/identity/claims/groups
+    roles:
+    - editor
+    - access
+    - auditor
+    value: '*'
+  audience: https://teleport.example.com/v1/webapi/saml/acs
+  cert: ""
+  display: Microsoft
+  entity_descriptor: |
+    <?xml ...
+  entity_descriptor_url: ""
+  issuer: https://sts.windows.net/your-id-here/
+  service_provider_issuer: https://teleport.example.com/v1/webapi/saml/acs
+  signing_key_pair:
+    cert: |
+      -----BEGIN CERTIFICATE-----
+      ...
+      -----END CERTIFICATE-----
+    private_key: |
+      -----BEGIN RSA PRIVATE KEY-----
+      ...
+      -----END RSA PRIVATE KEY-----
+  sso: https://login.microsoftonline.com/your-id-here/saml2
+version: v2
+```
+
+<Admonition
+  type="warning"
+  title="Warning"
+>
+  Make sure to have the same indentation for all lines of the certificate and key, otherwise
+  Teleport will not parse the YAML file.
+</Admonition>
+
+After your edits, the file will look like this:
+
+```yaml
+kind: saml
+metadata:
+  name: azure-saml
+spec:
+  acs: https://teleport.example.com/v1/webapi/saml/acs
+  attributes_to_roles:
+  - name: http://schemas.microsoft.com/ws/2008/06/identity/claims/groups
+    roles:
+    - editor
+    - access
+    - auditor
+    value: '*'
+  audience: https://teleport.example.com/v1/webapi/saml/acs
+  cert: ""
+  display: Microsoft
+  entity_descriptor: |
+    <?xml ...
+  entity_descriptor_url: ""
+  issuer: https://sts.windows.net/your-id-here/
+  service_provider_issuer: https://teleport.example.com/v1/webapi/saml/acs
+  assertion_key_pair:
+    cert: |
+      -----BEGIN CERTIFICATE-----
+      New CERT
+      -----END CERTIFICATE-----
+    private_key: |
+      -----BEGIN RSA PRIVATE KEY-----
+      New private key
+      -----END RSA PRIVATE KEY-----  
+  signing_key_pair:
+    cert: |
+      -----BEGIN CERTIFICATE-----
+      ...
+      -----END CERTIFICATE-----
+    private_key: |
+      -----BEGIN RSA PRIVATE KEY-----
+      ...
+      -----END RSA PRIVATE KEY-----
+  sso: https://login.microsoftonline.com/your-id-here/saml2
+version: v2
+```
+
+Update the connector:
+
+```bash
+$ tctl create -f azure-out.yaml 
+```
+
+### Activate token encryption
+
+- Navigate to Token Encryption section
+
+![Navigate to token encryption](../../../img/azuread/azuread-token-encryption-0.png)
+
+- Import certificate
+
+![Import certificate](../../../img/azuread/azuread-token-encryption-1-import.png)
+
+- Activate it
+
+![Activate certificate](../../../img/azuread/azuread-token-encryption-2-activate.png)
+
+If the SSO login with this connector is successful, the encryption works.
+
 ## Troubleshooting
+
+**Access denied**
 
 If you get "access denied" errors the number one place to check is the audit
 log on the Teleport auth server. It is located in `/var/lib/teleport/log` by
@@ -212,12 +406,28 @@ Example of a user being denied due as the role `clusteradmin` wasn't setup.
 {"code":"T1001W","error":"role clusteradmin is not found","event":"user.login","method":"saml","success":false,"time":"2019-06-15T19:38:07Z","uid":"cd9e45d0-b68c-43c3-87cf-73c4e0ec37e9"}
 ```
 
-Some errors (like filesystem permissions or misconfigured network) can be
+Some errors (like file-system permissions or misconfigured network) can be
 diagnosed using Teleport's `stderr` log, which is usually available via:
 
-```bsh
+```bash
 $ sudo journalctl -fu teleport
 ```
 
 If you wish to increase the verbosity of Teleport's syslog, you can pass the
 [`--debug`](../../cli-docs.mdx#teleport-start) flag to `teleport start` command.
+
+**Failed to process SAML callback**
+
+If you encounter "Failed to process SAML callback", take a look at the logs.
+
+```
+Special characters are not allowed in resource names, please use name composed only from characters,
+hyphens and dots: /web/users/ops_example.com#EXT#@opsexample.onmicrosoft.com/params
+```
+
+The error above is caused by nameid format that is not compatible with Teleport's naming
+conventions.
+
+Change nameid format to use email instead:
+
+![Change NameID format to use email](../../../img/azuread/azuread-1-home.png)

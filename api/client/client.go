@@ -86,7 +86,7 @@ type Client struct {
 // A predefined dialer must be provided in cfg, or the first addr must be to an auth server.
 // The connection will be dialed in the background, so the connection is not guaranteed
 // to be open. This option is primarily meant for internal use where the client has
-// direct access to server values that guarentee a successful connection.
+// direct access to server values that guarantee a successful connection.
 func New(ctx context.Context, cfg Config) (clt *Client, err error) {
 	if err = cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -200,7 +200,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 			}
 
 			// Connect with dialer provided in creds.
-			if dialer, err := creds.Dialer(cfg.KeepAlivePeriod, cfg.DialTimeout); err != nil {
+			if dialer, err := creds.Dialer(cfg); err != nil {
 				if !trace.IsNotImplemented(err) {
 					sendError(trace.Wrap(err))
 				}
@@ -226,7 +226,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 					go func(addr string) {
 						defer wg.Done()
 						// Try connecting to web proxy to retrieve tunnel address.
-						if pr, err := Find(ctx, addr, true, nil); err == nil {
+						if pr, err := Find(ctx, addr, cfg.InsecureAddressDiscovery, nil); err == nil {
 							addr = pr.Proxy.SSH.TunnelPublicAddr
 						}
 						syncConnect(addr, &Client{
@@ -260,7 +260,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 			// errChan is closed, return errors.
 			if len(errs) == 0 {
 				if len(cfg.Addrs) == 0 && cfg.Dialer == nil {
-					// Some credentials don't require these fields. If no errors propogate, then they need to provide these fields.
+					// Some credentials don't require these fields. If no errors propagate, then they need to provide these fields.
 					return nil, trace.Errorf("all auth methods failed: try providing Addrs or Dialer in config")
 				}
 				return nil, trace.Errorf("all auth methods failed")
@@ -337,6 +337,10 @@ type Config struct {
 	// rather than blocking until the connection is up. A predefined Dialer
 	// or an auth server address must be provided.
 	DialInBackground bool
+	// The web proxy uses a self-signed TLS certificate by default, which
+	// requires this field to be set. If the web proxy was provided with
+	// signed TLS certificates, this field should not be set.
+	InsecureAddressDiscovery bool
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -477,12 +481,8 @@ func (c *Client) GetUsers(withSecrets bool) ([]types.User, error) {
 		return nil, trail.FromGRPC(err)
 	}
 	var users []types.User
-	for {
-		user, err := stream.Recv()
+	for user, err := stream.Recv(); err != io.EOF; user, err = stream.Recv() {
 		if err != nil {
-			if err == io.EOF {
-				break
-			}
 			return nil, trail.FromGRPC(err)
 		}
 		users = append(users, user)
@@ -1000,4 +1000,235 @@ func (c *Client) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequ
 		return nil, trail.FromGRPC(err)
 	}
 	return resp, nil
+}
+
+// GetOIDCConnector returns an OIDC connector by name.
+func (c *Client) GetOIDCConnector(ctx context.Context, name string, withSecrets bool) (types.OIDCConnector, error) {
+	if name == "" {
+		return nil, trace.BadParameter("cannot get OIDC Connector, missing name")
+	}
+	req := &types.ResourceWithSecretsRequest{Name: name, WithSecrets: withSecrets}
+	resp, err := c.grpc.GetOIDCConnector(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// GetOIDCConnectors returns a list of OIDC connectors.
+func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error) {
+	req := &types.ResourcesWithSecretsRequest{WithSecrets: withSecrets}
+	resp, err := c.grpc.GetOIDCConnectors(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	oidcConnectors := make([]types.OIDCConnector, len(resp.OIDCConnectors))
+	for i, oidcConnector := range resp.OIDCConnectors {
+		oidcConnectors[i] = oidcConnector
+	}
+	return oidcConnectors, nil
+}
+
+// UpsertOIDCConnector creates or updates an OIDC connector.
+func (c *Client) UpsertOIDCConnector(ctx context.Context, oidcConnector types.OIDCConnector) error {
+	oidcConnectorV2, ok := oidcConnector.(*types.OIDCConnectorV2)
+	if !ok {
+		return trace.BadParameter("invalid type %T", oidcConnector)
+	}
+	_, err := c.grpc.UpsertOIDCConnector(ctx, oidcConnectorV2)
+	return trail.FromGRPC(err)
+}
+
+// DeleteOIDCConnector deletes an OIDC connector by name.
+func (c *Client) DeleteOIDCConnector(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("cannot delete OIDC Connector, missing name")
+	}
+	_, err := c.grpc.DeleteOIDCConnector(ctx, &types.ResourceRequest{Name: name})
+	return trail.FromGRPC(err)
+}
+
+// GetSAMLConnector returns a SAML connector by name.
+func (c *Client) GetSAMLConnector(ctx context.Context, name string, withSecrets bool) (types.SAMLConnector, error) {
+	if name == "" {
+		return nil, trace.BadParameter("cannot get SAML Connector, missing name")
+	}
+	req := &types.ResourceWithSecretsRequest{Name: name, WithSecrets: withSecrets}
+	resp, err := c.grpc.GetSAMLConnector(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// GetSAMLConnectors returns a list of SAML connectors.
+func (c *Client) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error) {
+	req := &types.ResourcesWithSecretsRequest{WithSecrets: withSecrets}
+	resp, err := c.grpc.GetSAMLConnectors(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	samlConnectors := make([]types.SAMLConnector, len(resp.SAMLConnectors))
+	for i, samlConnector := range resp.SAMLConnectors {
+		samlConnectors[i] = samlConnector
+	}
+	return samlConnectors, nil
+}
+
+// UpsertSAMLConnector creates or updates a SAML connector.
+func (c *Client) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
+	samlConnectorV2, ok := connector.(*types.SAMLConnectorV2)
+	if !ok {
+		return trace.BadParameter("invalid type %T", connector)
+	}
+	_, err := c.grpc.UpsertSAMLConnector(ctx, samlConnectorV2)
+	return trail.FromGRPC(err)
+}
+
+// DeleteSAMLConnector deletes a SAML connector by name.
+func (c *Client) DeleteSAMLConnector(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("cannot delete SAML Connector, missing name")
+	}
+	_, err := c.grpc.DeleteSAMLConnector(ctx, &types.ResourceRequest{Name: name})
+	return trail.FromGRPC(err)
+}
+
+// GetGithubConnector returns a Github connector by name.
+func (c *Client) GetGithubConnector(ctx context.Context, name string, withSecrets bool) (types.GithubConnector, error) {
+	if name == "" {
+		return nil, trace.BadParameter("cannot get Github Connector, missing name")
+	}
+	req := &types.ResourceWithSecretsRequest{Name: name, WithSecrets: withSecrets}
+	resp, err := c.grpc.GetGithubConnector(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// GetGithubConnectors returns a list of Github connectors.
+func (c *Client) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
+	req := &types.ResourcesWithSecretsRequest{WithSecrets: withSecrets}
+	resp, err := c.grpc.GetGithubConnectors(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	githubConnectors := make([]types.GithubConnector, len(resp.GithubConnectors))
+	for i, githubConnector := range resp.GithubConnectors {
+		githubConnectors[i] = githubConnector
+	}
+	return githubConnectors, nil
+}
+
+// UpsertGithubConnector creates or updates a Github connector.
+func (c *Client) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
+	githubConnector, ok := connector.(*types.GithubConnectorV3)
+	if !ok {
+		return trace.BadParameter("invalid type %T", connector)
+	}
+	_, err := c.grpc.UpsertGithubConnector(ctx, githubConnector)
+	return trail.FromGRPC(err)
+}
+
+// DeleteGithubConnector deletes a Github connector by name.
+func (c *Client) DeleteGithubConnector(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("cannot delete Github Connector, missing name")
+	}
+	_, err := c.grpc.DeleteGithubConnector(ctx, &types.ResourceRequest{Name: name})
+	return trail.FromGRPC(err)
+}
+
+// GetTrustedCluster returns a Trusted Cluster by name.
+func (c *Client) GetTrustedCluster(ctx context.Context, name string) (types.TrustedCluster, error) {
+	if name == "" {
+		return nil, trace.BadParameter("cannot get trusted cluster, missing name")
+	}
+	req := &types.ResourceRequest{Name: name}
+	resp, err := c.grpc.GetTrustedCluster(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// GetTrustedClusters returns a list of Trusted Clusters.
+func (c *Client) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error) {
+	resp, err := c.grpc.GetTrustedClusters(ctx, &empty.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	trustedClusters := make([]types.TrustedCluster, len(resp.TrustedClusters))
+	for i, trustedCluster := range resp.TrustedClusters {
+		trustedClusters[i] = trustedCluster
+	}
+	return trustedClusters, nil
+}
+
+// UpsertTrustedCluster creates or updates a Trusted Cluster.
+func (c *Client) UpsertTrustedCluster(ctx context.Context, trusedCluster types.TrustedCluster) (types.TrustedCluster, error) {
+	trustedCluster, ok := trusedCluster.(*types.TrustedClusterV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", trusedCluster)
+	}
+	resp, err := c.grpc.UpsertTrustedCluster(ctx, trustedCluster)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// DeleteTrustedCluster deletes a Trusted Cluster by name.
+func (c *Client) DeleteTrustedCluster(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("cannot delete trusted cluster, missing name")
+	}
+	_, err := c.grpc.DeleteTrustedCluster(ctx, &types.ResourceRequest{Name: name})
+	return trail.FromGRPC(err)
+}
+
+// GetToken returns a provision token by name.
+func (c *Client) GetToken(ctx context.Context, name string) (types.ProvisionToken, error) {
+	if name == "" {
+		return nil, trace.BadParameter("cannot get token, missing name")
+	}
+	resp, err := c.grpc.GetToken(ctx, &types.ResourceRequest{Name: name})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// GetTokens returns a list of active provision tokens for nodes and users.
+func (c *Client) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
+	resp, err := c.grpc.GetTokens(ctx, &empty.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	tokens := make([]types.ProvisionToken, len(resp.ProvisionTokens))
+	for i, token := range resp.ProvisionTokens {
+		tokens[i] = token
+	}
+	return tokens, nil
+}
+
+// UpsertToken creates or updates a provision token.
+func (c *Client) UpsertToken(ctx context.Context, token types.ProvisionToken) error {
+	tokenV2, ok := token.(*types.ProvisionTokenV2)
+	if !ok {
+		return trace.BadParameter("invalid type %T", token)
+	}
+	_, err := c.grpc.UpsertToken(ctx, tokenV2)
+	return trail.FromGRPC(err)
+}
+
+// DeleteToken deletes a provision token by name.
+func (c *Client) DeleteToken(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("cannot delete token, missing name")
+	}
+	_, err := c.grpc.DeleteToken(ctx, &types.ResourceRequest{Name: name})
+	return trail.FromGRPC(err)
 }

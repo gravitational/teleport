@@ -47,9 +47,12 @@ func ParseCertificate(buf []byte) (*ssh.Certificate, error) {
 	return cert, nil
 }
 
-// SSHClientConfig returns an ssh.ClientConfig with SSH credentials from this
+// ProxyClientSSHConfig returns an ssh.ClientConfig with SSH credentials from this
 // Key and HostKeyCallback matching SSH CAs in the Key.
-func SSHClientConfig(sshCert, privKey []byte, caCerts [][]byte) (*ssh.ClientConfig, error) {
+//
+// The config is set up to authenticate to proxy with the first available principal.
+//
+func ProxyClientSSHConfig(sshCert, privKey []byte, caCerts [][]byte) (*ssh.ClientConfig, error) {
 	cert, err := ParseCertificate(sshCert)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to extract username from SSH certificate")
@@ -57,16 +60,22 @@ func SSHClientConfig(sshCert, privKey []byte, caCerts [][]byte) (*ssh.ClientConf
 
 	authMethod, err := AsAuthMethod(cert, privKey)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to convert identity file to auth method")
+		return nil, trace.Wrap(err, "failed to convert key pair to auth method")
 	}
 
 	hostKeyCallback, err := HostKeyCallback(caCerts)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to convert identity file to HostKeyCallback")
+		return nil, trace.Wrap(err, "failed to convert certificate authorities to HostKeyCallback")
+	}
+
+	// The KeyId is not always a valid principal, so we use the first valid principal instead.
+	user := cert.KeyId
+	if len(cert.ValidPrincipals) > 0 {
+		user = cert.ValidPrincipals[0]
 	}
 
 	return &ssh.ClientConfig{
-		User:            cert.KeyId,
+		User:            user,
 		Auth:            []ssh.AuthMethod{authMethod},
 		HostKeyCallback: hostKeyCallback,
 		Timeout:         defaults.DefaultDialTimeout,
