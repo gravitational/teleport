@@ -812,11 +812,11 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector services.OIDCConne
 		return nil, trace.Wrap(err, "unable to merge OIDC claims")
 	}
 
-	// For GSuite users, fetch extra data from the proprietary google API.
+	// For Google Workspace users, fetch extra data from the proprietary Google groups API.
 	//
 	// If google_service_account_uri and google_service_account are not set, we
-	// assume that this is a non-GSuite Google OIDC provider using the same
-	// issuer URL as GSuite (e.g.
+	// assume that this is a non-GWorkspace OIDC provider using the same
+	// issuer URL as Google Workspace (e.g.
 	// https://developers.google.com/identity/protocols/oauth2/openid-connect).
 	if connector.GetIssuerURL() == teleport.GSuiteIssuerURL && (connector.GetGoogleServiceAccountURI() != "" || connector.GetGoogleServiceAccount() != "") {
 		email, _, err := claims.StringClaim("email")
