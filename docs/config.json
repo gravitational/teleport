@@ -86,7 +86,8 @@
           "title": "Guides",
           "slug": "/access-controls/guides/",
           "entries": [
-            { "title": "Role Templates", "slug": "/access-controls/guides/role-templates/" }
+            { "title": "Role Templates", "slug": "/access-controls/guides/role-templates/" },
+            { "title": "Impersonation", "slug": "/access-controls/guides/impersonation/" }
           ]
         },
         { "title": "Reference", "slug": "/access-controls/reference/" },
