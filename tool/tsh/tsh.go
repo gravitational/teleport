@@ -1928,6 +1928,11 @@ func onStatus(cf *CLIConf) error {
 }
 
 func printProfiles(debug bool, profile *client.ProfileStatus, profiles []*client.ProfileStatus) {
+	if profile == nil && len(profiles) == 0 {
+		fmt.Printf("Not logged in.\n")
+		return
+	}
+
 	// Print the active profile.
 	if profile != nil {
 		printStatus(debug, profile, true)
