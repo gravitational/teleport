@@ -250,7 +250,7 @@ For main, test with admin role that has access to all resources.
 #### Top Nav
 - [ ] Verify that cluster selector displays all (root + leaf) clusters
 - [ ] Verify that user name is displayed
-- [ ] Verify that user menu shows logout, help&support, and account settings
+- [ ] Verify that user menu shows logout, help&support, and account settings (for local users)
 
 #### Side Nav
 - [ ] Verify that each item has an icon
@@ -392,29 +392,46 @@ spec:
 version: v3
 ```
 - [ ] Verify that creating a new request works
-  - [ ] Verify that under requestable roles, only `allow-roles` and `allow-users` are listed
-  - [ ] Verify input validation requires at least one role to be selected
-  - [ ] Verify you can select/input/modify reviewers
+- [ ] Verify that under requestable roles, only `allow-roles` and `allow-users` are listed
+- [ ] Verify input validation requires at least one role to be selected
+- [ ] Verify you can select/input/modify reviewers
 - [ ] Verify after creating, requests are listed in pending states
 
 ### Viewing & Approving/Denying Requests
+Edit `admin` role to be allowed to see list of requests (requires list/read), review (requires update), and delete requests:
+```
+spec:
+  allow:
+    # allows reviewing all roles
+    review_requests:
+      roles:
+      - '*'
+    rules:
+    - resources:
+      - access_request
+      verbs:
+      - delete
+      - update
+      - read
+      - list
+```
 Create a user with all admin priveldeges so you can approve/deny request (use different browser or incognito mode so you don't have to keep logging out/in)
-- [ ] Verify you can view access request from request list and when viewing:
-  - [ ] Verify there is list of reviewers you selected (empty list if none selected AND none wasn't defined in roles)
-  - [ ] Verify threshold name is there (it should be `default` if not defined in role)
-  - [ ] Verify you can approve a request with message, and immediately see updated state with your review stamp (green checkmark) and message box
-  - [ ] Verify you can deny a request, and immediately see updated state with your review stamp (red cross)
-  - [ ] Verify deleting the denied request is removed from list
+- [ ] Verify you can view access request from request list
+- [ ] Verify there is list of reviewers you selected (empty list if none selected AND none wasn't defined in roles)
+- [ ] Verify threshold name is there (it should be `default` if not defined in role)
+- [ ] Verify you can approve a request with message, and immediately see updated state with your review stamp (green checkmark) and message box
+- [ ] Verify you can deny a request, and immediately see updated state with your review stamp (red cross)
+- [ ] Verify deleting the denied request is removed from list
 
 ### Assuming Approved Requests
 - [ ] Verify assume buttons are only present for approved request and for logged in user
-  - [ ] Verify that assuming `allow-roles` allows you to see roles screen and ssh into nodes
-  - [ ] Verify that after clicking on the assume button, it is disabled in both the list and in viewing
-  - [ ] After assuming `allow-roles`, verify that assuming `allow-users` allows you to see users screen, and denies access to nodes.
-    - [ ] Verify that after 4 minutes, the user is automatically logged out
+- [ ] Verify that assuming `allow-roles` allows you to see roles screen and ssh into nodes
+- [ ] Verify that after clicking on the assume button, it is disabled in both the list and in viewing
+- [ ] After assuming `allow-roles`, verify that assuming `allow-users` allows you to see users screen, and denies access to nodes.
+  - [ ] Verify that after 4 minutes, the user is automatically logged out
 - [ ] Verify that after logging out (or getting logged out automatically) and relogging in, permissions are reset to `default`, and requests that are not expired and are approved are assumable again.
-## Access Request Waiting Room
 
+## Access Request Waiting Room
 #### Strategy Reason
 Create the following role:
 ```
@@ -434,14 +451,14 @@ version: v3
 ```
 - [ ] Verify after login, reason dialogue is rendered with prompt set to `request_prompt` setting
 - [ ] Verify after clicking `send request`, pending dialogue renders
-- [ ] Verify after `tctl requests approve <request-id>`, dashboard is rendered
+- [ ] Verify after approving a request, dashboard is rendered
 - [ ] Verify the correct role was assigned
 
 #### Strategy Always
 With the previous role you created from `Strategy Reason`, change `request_access` to `always`:
 - [ ] Verify after login, pending dialogue is rendered
-- [ ] Verify after `tctl requests approve <request-id>`, dashboard is rendered
-- [ ] Verify after login, `tctl requests deny <request-id>`, access denied dialogue is rendered
+- [ ] Verify after approving a request, dashboard is rendered
+- [ ] Verify after denying a request, access denied dialogue is rendered
 
 #### Strategy Optional
 With the previous role you created from `Strategy Reason`, change `request_access` to `optional`:
@@ -537,10 +554,12 @@ spec:
     max_session_ttl: 8h0m0s
 version: v3
 ```
-- [ ] Verify that a user has access only to: "Servers", "Applications", "Active Sessions" and "Manage Clusters"
+- [ ] Verify that a user has access only to: "Servers", "Applications", "Active Sessions", "Access Requests" and "Manage Clusters"
 - [ ] Verify there is no `Add Server` button in Server view
 - [ ] Verify there is no `Add Application` button in Applications view
 - [ ] Verify only `Nodes` and `Apps` are listed under `options` button in `Manage Clusters`
+
+Note: User has read/create access_request access to their own requests, despite resource settings
 
 Add the following under `spec.allow.rules` to enable read access to the audit log:
 ```
@@ -571,7 +590,7 @@ Add the following to enable read access to the roles
       - read
 ```
 - [ ] Verify that a user can see the roles
-- [ ] Verify that a user cannot create/delete/update a role
+- [ ] Verify that a user cannot reset password and create/delete/update a role
 
 Add the following to enable read access to the auth connectors
 
@@ -606,8 +625,6 @@ Add the following to enable read access to trusted clusters
 ```
 - [ ] Verify that a user can access the "Trust" screen
 - [ ] Verify that a user cannot create/delete/update a trusted cluster.
-
-- [ ] Enterprise users has read/create access_request access, despite resource setting
 
 
 ## Performance/Soak Test
