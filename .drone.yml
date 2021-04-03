@@ -74,6 +74,13 @@ steps:
   volumes:
   - name: tmpfs
     path: /tmpfs
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Build buildbox
   image: docker
   commands:
@@ -203,7 +210,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tests.go:211
+# Generated at dronegen/tests.go:212
 ################################################
 
 kind: pipeline
@@ -251,6 +258,13 @@ steps:
   volumes:
   - name: tmpfs
     path: /tmpfs
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Run docs tests
   image: docker:git
   commands:
@@ -331,7 +345,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:88
+# Generated at dronegen/push.go:86
 ################################################
 
 kind: pipeline
@@ -377,6 +391,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Build artifacts
   image: docker
   commands:
@@ -424,7 +445,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:88
+# Generated at dronegen/push.go:86
 ################################################
 
 kind: pipeline
@@ -470,6 +491,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Build artifacts
   image: docker
   commands:
@@ -517,7 +545,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:88
+# Generated at dronegen/push.go:86
 ################################################
 
 kind: pipeline
@@ -565,6 +593,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Build artifacts
   image: docker
   commands:
@@ -614,7 +649,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:88
+# Generated at dronegen/push.go:86
 ################################################
 
 kind: pipeline
@@ -660,6 +695,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Build artifacts
   image: docker
   commands:
@@ -800,148 +842,11 @@ steps:
         curl -sL -X POST -H 'Content-type: application/json' --data "{\"text\":\"Warning: \`$GOOS-$GOARCH\` artifact build failed for [\`${DRONE_REPO_NAME}\`] - please investigate immediately!\nBranch: \`${DRONE_BRANCH}\`\nCommit: \`${DRONE_COMMIT_SHA}\`\nLink: $DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK
     when:
       status: [failure]
-
 ---
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/darwin_pipelines.go:38
-################################################
-
-kind: pipeline
-type: exec
-name: push-build-darwin-amd64-fips
-environment:
-  RUNTIME: go1.16.2
-trigger:
-  event:
-    include:
-    - push
-    exclude:
-    - pull_request
-  repo:
-    include:
-    - gravitational/*
-  branch:
-    include:
-    - master
-    - branch/*
-workspace:
-  path: /tmp/push-build-darwin-amd64-fips
-platform:
-  os: darwin
-  arch: amd64
-clone:
-  disable: true
-steps:
-- name: Set up exec runner storage
-  commands:
-  - mkdir -p $WORKSPACE_DIR
-  - chmod -R u+rw $WORKSPACE_DIR
-  - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
-  environment:
-    WORKSPACE_DIR: /tmp/push-build-darwin-amd64-fips
-- name: Check out code
-  commands:
-  - mkdir -p $TELEPORT_DIR $GODL_DIR
-  - cd $GODL_DIR
-  - git clone https://github.com/gravitational/godl.git .
-  - git checkout $BORINGCRYPTO_BRANCH
-  - cd $TELEPORT_DIR
-  - git clone https://github.com/gravitational/teleport.git .
-  - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-  - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
-    && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
-  - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
-  - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
-  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
-    -F /dev/null' git submodule update --init e
-  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
-    -F /dev/null' git submodule update --init --recursive webassets || true
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > $WORKSPACE_DIR/go/.version.txt;
-    else make print-version > $WORKSPACE_DIR/go/.version.txt; fi; cat $WORKSPACE_DIR/go/.version.txt
-  - rm -rf $WORKSPACE_DIR/.ssh
-  - mkdir -p $WORKSPACE_DIR/go/cache
-  environment:
-    BORINGCRYPTO_BRANCH: dev.boringcrypto.go1.16
-    GITHUB_PRIVATE_KEY:
-      from_secret: GITHUB_PRIVATE_KEY
-    GODL_DIR: /tmp/push-build-darwin-amd64-fips/go/src/github.com/gravitational/godl
-    TELEPORT_DIR: /tmp/push-build-darwin-amd64-fips/go/src/github.com/gravitational/teleport
-    WORKSPACE_DIR: /tmp/push-build-darwin-amd64-fips
-- name: Build the boringcrypto Go builder
-  commands:
-  - cd $GODL_DIR
-  - mkdir build
-  - go build -o $GODL_DIR/build/$BORINGCRYPTO_BRANCH $BORINGCRYPTO_BRANCH/main.go
-  environment:
-    BORINGCRYPTO_BRANCH: dev.boringcrypto.go1.16
-    GODL_DIR: /tmp/push-build-darwin-amd64-fips/go/src/github.com/gravitational/godl
-    WORKSPACE_DIR: /tmp/push-build-darwin-amd64-fips
-- name: Pull boringcrypto build tarball from S3
-  commands:
-  - mkdir -p $HOME/sdk/$BORINGCRYPTO_BRANCH
-  - cd $HOME/sdk/$BORINGCRYPTO_BRANCH
-  - aws s3 cp s3://$AWS_S3_BUCKET/ci/go/$BORINGCRYPTO_BRANCH-darwin-amd64.tar.gz .
-  - aws s3 cp s3://$AWS_S3_BUCKET/ci/go/$BORINGCRYPTO_BRANCH-darwin-amd64.tar.gz.sha256
-    .
-  - $GODL_DIR/build/$BORINGCRYPTO_BRANCH download
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_REGION: us-west-2
-    AWS_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    BORINGCRYPTO_BRANCH: dev.boringcrypto.go1.16
-    GODL_DIR: /tmp/push-build-darwin-amd64-fips/go/src/github.com/gravitational/godl
-- name: Build Mac release artifacts
-  commands:
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-  - export VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
-  - make -C e clean release GITTAG=v$VERSION VERSION=$VERSION OS=$OS ARCH=$ARCH FIPS=$FIPS
-    GO_BINARY="$GODL_DIR/build/$BORINGCRYPTO_BRANCH"
-  environment:
-    ARCH: amd64
-    BORINGCRYPTO_BRANCH: dev.boringcrypto.go1.16
-    FIPS: "yes"
-    GOCACHE: /tmp/push-build-darwin-amd64-fips/go/cache
-    GODL_DIR: /tmp/push-build-darwin-amd64-fips/go/src/github.com/gravitational/godl
-    GOPATH: /tmp/push-build-darwin-amd64-fips/go
-    OS: darwin
-    WORKSPACE_DIR: /tmp/push-build-darwin-amd64-fips
-- name: Clean up exec runner storage (post)
-  commands:
-  - chmod -R u+rw $WORKSPACE_DIR
-  - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
-  environment:
-    WORKSPACE_DIR: /tmp/push-build-darwin-amd64-fips
-- name: Send Slack notification (exec)
-  image: plugins/slack
-  settings:
-    webhook:
-      from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  template:
-  - "*{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status
-    }}: Build #{{ build.number }}* (type: `{{ build.event }}`)\n\t\t\t`${DRONE_STAGE_NAME}`
-    artifact build failed.\n\t\t\t*Warning:* This is a genuine failure to build the
-    Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit)
-    and should be investigated immediately.\n\t\t\tCommit: <https://github.com/{{
-    repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit
-    8 }}>\n\t\t\tBranch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{
-    build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>\n\t\t\tAuthor:
-    <https://github.com/{{ build.author }}|{{ build.author }}>\n\t\t\t<{{ build.link
-    }}|Visit Drone build page ↗>\n\t\t\t"
-  when:
-    status:
-    - failure
-
----
-################################################
-# Generated using dronegen, do not edit by hand!
-# Use 'make dronegen' to update.
-# Generated at dronegen/push.go:88
+# Generated at dronegen/push.go:86
 ################################################
 
 kind: pipeline
@@ -987,6 +892,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Build artifacts
   image: docker
   commands:
@@ -1034,7 +946,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:88
+# Generated at dronegen/push.go:86
 ################################################
 
 kind: pipeline
@@ -1080,6 +992,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Build artifacts
   image: docker
   commands:
@@ -1358,7 +1277,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:190
+# Generated at dronegen/tag.go:187
 ################################################
 
 kind: pipeline
@@ -1400,6 +1319,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Build artifacts
   image: docker
   commands:
@@ -1453,7 +1379,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:190
+# Generated at dronegen/tag.go:187
 ################################################
 
 kind: pipeline
@@ -1495,6 +1421,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Build artifacts
   image: docker
   commands:
@@ -1548,7 +1481,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:190
+# Generated at dronegen/tag.go:187
 ################################################
 
 kind: pipeline
@@ -1590,6 +1523,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Build artifacts
   image: docker
   commands:
@@ -1646,7 +1586,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:190
+# Generated at dronegen/tag.go:187
 ################################################
 
 kind: pipeline
@@ -1688,6 +1628,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Build artifacts
   image: docker
   commands:
@@ -1743,7 +1690,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:331
+# Generated at dronegen/tag.go:329
 ################################################
 
 kind: pipeline
@@ -1785,6 +1732,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -1867,7 +1821,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:331
+# Generated at dronegen/tag.go:329
 ################################################
 
 kind: pipeline
@@ -1909,6 +1863,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -1988,7 +1949,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:331
+# Generated at dronegen/tag.go:329
 ################################################
 
 kind: pipeline
@@ -2030,6 +1991,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -2098,7 +2066,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:331
+# Generated at dronegen/tag.go:329
 ################################################
 
 kind: pipeline
@@ -2140,6 +2108,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -2205,7 +2180,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:190
+# Generated at dronegen/tag.go:187
 ################################################
 
 kind: pipeline
@@ -2247,6 +2222,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Build artifacts
   image: docker
   commands:
@@ -2300,7 +2282,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:331
+# Generated at dronegen/tag.go:329
 ################################################
 
 kind: pipeline
@@ -2342,6 +2324,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -2424,7 +2413,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:331
+# Generated at dronegen/tag.go:329
 ################################################
 
 kind: pipeline
@@ -2466,6 +2455,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -2639,272 +2635,6 @@ steps:
       - set -u
       - chmod -R u+rw $WORKSPACE_DIR
       - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
-
----
-################################################
-# Generated using dronegen, do not edit by hand!
-# Use 'make dronegen' to update.
-# Generated at dronegen/darwin_pipelines.go:64
-################################################
-
-kind: pipeline
-type: exec
-name: build-darwin-amd64-fips
-environment:
-  RUNTIME: go1.16.2
-trigger:
-  event:
-    include:
-    - tag
-  ref:
-    include:
-    - refs/tags/v*
-  repo:
-    include:
-    - gravitational/*
-workspace:
-  path: /tmp/build-darwin-amd64-fips
-platform:
-  os: darwin
-  arch: amd64
-clone:
-  disable: true
-steps:
-- name: Set up exec runner storage
-  commands:
-  - mkdir -p $WORKSPACE_DIR
-  - chmod -R u+rw $WORKSPACE_DIR
-  - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
-  environment:
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips
-- name: Check out code
-  commands:
-  - mkdir -p $TELEPORT_DIR $GODL_DIR
-  - cd $GODL_DIR
-  - git clone https://github.com/gravitational/godl.git .
-  - git checkout $BORINGCRYPTO_BRANCH
-  - cd $TELEPORT_DIR
-  - git clone https://github.com/gravitational/teleport.git .
-  - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-  - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
-    && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
-  - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
-  - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
-  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
-    -F /dev/null' git submodule update --init e
-  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
-    -F /dev/null' git submodule update --init --recursive webassets || true
-  - rm -rf $WORKSPACE_DIR/.ssh
-  - mkdir -p $WORKSPACE_DIR/go/artifacts $WORKSPACE_DIR/go/cache
-  - echo "${DRONE_TAG##v}" > $WORKSPACE_DIR/go/.version.txt
-  - cat $WORKSPACE_DIR/go/.version.txt
-  environment:
-    BORINGCRYPTO_BRANCH: dev.boringcrypto.go1.16
-    GITHUB_PRIVATE_KEY:
-      from_secret: GITHUB_PRIVATE_KEY
-    GODL_DIR: /tmp/build-darwin-amd64-fips/go/src/github.com/gravitational/godl
-    TELEPORT_DIR: /tmp/build-darwin-amd64-fips/go/src/github.com/gravitational/teleport
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips
-- name: Build the boringcrypto Go builder
-  commands:
-  - cd $GODL_DIR
-  - mkdir build
-  - go build -o $GODL_DIR/build/$BORINGCRYPTO_BRANCH $BORINGCRYPTO_BRANCH/main.go
-  environment:
-    BORINGCRYPTO_BRANCH: dev.boringcrypto.go1.16
-    GODL_DIR: /tmp/build-darwin-amd64-fips/go/src/github.com/gravitational/godl
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips
-- name: Pull boringcrypto build tarball from S3
-  commands:
-  - mkdir -p $HOME/sdk/$BORINGCRYPTO_BRANCH
-  - cd $HOME/sdk/$BORINGCRYPTO_BRANCH
-  - aws s3 cp s3://$AWS_S3_BUCKET/ci/go/$BORINGCRYPTO_BRANCH-darwin-amd64.tar.gz .
-  - aws s3 cp s3://$AWS_S3_BUCKET/ci/go/$BORINGCRYPTO_BRANCH-darwin-amd64.tar.gz.sha256
-    .
-  - $GODL_DIR/build/$BORINGCRYPTO_BRANCH download
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_REGION: us-west-2
-    AWS_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    BORINGCRYPTO_BRANCH: dev.boringcrypto.go1.16
-    GODL_DIR: /tmp/build-darwin-amd64-fips/go/src/github.com/gravitational/godl
-- name: Build Mac release artifacts
-  commands:
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-  - export VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
-  - make -C e clean release GITTAG=v$VERSION VERSION=$VERSION OS=$OS ARCH=$ARCH FIPS=$FIPS
-    GO_BINARY="$GODL_DIR/build/$BORINGCRYPTO_BRANCH"
-  environment:
-    ARCH: amd64
-    BORINGCRYPTO_BRANCH: dev.boringcrypto.go1.16
-    FIPS: "yes"
-    GOCACHE: /tmp/build-darwin-amd64-fips/go/cache
-    GODL_DIR: /tmp/build-darwin-amd64-fips/go/src/github.com/gravitational/godl
-    GOPATH: /tmp/build-darwin-amd64-fips/go
-    OS: darwin
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips
-- name: Copy Mac artifacts
-  commands:
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-  - cp e/teleport-ent*.tar.gz $WORKSPACE_DIR/go/artifacts
-  - cd $WORKSPACE_DIR/go/artifacts && for FILE in teleport*.tar.gz; do shasum -a 256
-    $FILE > $FILE.sha256; done && ls -l
-  environment:
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips
-- name: Upload to S3
-  commands:
-  - cd $WORKSPACE_DIR/go/artifacts
-  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_REGION: us-west-2
-    AWS_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips
-- name: Clean up exec runner storage (post)
-  commands:
-  - chmod -R u+rw $WORKSPACE_DIR
-  - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
-  environment:
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips
-
----
-################################################
-# Generated using dronegen, do not edit by hand!
-# Use 'make dronegen' to update.
-# Generated at dronegen/darwin_pipelines.go:92
-################################################
-
-kind: pipeline
-type: exec
-name: build-darwin-amd64-fips-pkg
-environment:
-  RUNTIME: go1.16.2
-trigger:
-  event:
-    include:
-    - tag
-  ref:
-    include:
-    - refs/tags/v*
-  repo:
-    include:
-    - gravitational/*
-workspace:
-  path: /tmp/build-darwin-amd64-fips-pkg
-platform:
-  os: darwin
-  arch: amd64
-clone:
-  disable: true
-depends_on:
-- build-darwin-amd64-fips
-steps:
-- name: Set up exec runner storage
-  commands:
-  - mkdir -p $WORKSPACE_DIR
-  - chmod -R u+rw $WORKSPACE_DIR
-  - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
-  environment:
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips-pkg
-- name: Check out code
-  commands:
-  - mkdir -p $TELEPORT_DIR $GODL_DIR
-  - cd $GODL_DIR
-  - git clone https://github.com/gravitational/godl.git .
-  - git checkout $BORINGCRYPTO_BRANCH
-  - cd $TELEPORT_DIR
-  - git clone https://github.com/gravitational/teleport.git .
-  - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-  - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
-    && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
-  - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
-  - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
-  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
-    -F /dev/null' git submodule update --init e
-  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
-    -F /dev/null' git submodule update --init --recursive webassets || true
-  - rm -rf $WORKSPACE_DIR/.ssh
-  - mkdir -p $WORKSPACE_DIR/go/artifacts $WORKSPACE_DIR/go/cache
-  - echo "${DRONE_TAG##v}" > $WORKSPACE_DIR/go/.version.txt
-  - cat $WORKSPACE_DIR/go/.version.txt
-  environment:
-    BORINGCRYPTO_BRANCH: dev.boringcrypto.go1.16
-    GITHUB_PRIVATE_KEY:
-      from_secret: GITHUB_PRIVATE_KEY
-    GODL_DIR: /tmp/build-darwin-amd64-fips-pkg/go/src/github.com/gravitational/godl
-    TELEPORT_DIR: /tmp/build-darwin-amd64-fips-pkg/go/src/github.com/gravitational/teleport
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips-pkg
-- name: Download built tarball artifact from S3
-  commands:
-  - export VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
-  - export S3_PATH="tag/$${DRONE_TAG##v}/"
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-darwin-amd64-fips-bin.tar.gz
-    $WORKSPACE_DIR/go/artifacts/
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_REGION: us-west-2
-    AWS_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips-pkg
-- name: Build Mac pkg release artifacts
-  commands:
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-  - export VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
-  - export HOME=/Users/build
-  - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
-  - security find-identity -v
-  - make -C e pkg VERSION=$VERSION OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
-  environment:
-    APPLE_PASSWORD:
-      from_secret: APPLE_PASSWORD
-    APPLE_USERNAME:
-      from_secret: APPLE_USERNAME
-    ARCH: amd64
-    BUILDBOX_PASSWORD:
-      from_secret: BUILDBOX_PASSWORD
-    ENT_TARBALL_PATH: /tmp/build-darwin-amd64-fips-pkg/go/artifacts
-    OS: darwin
-    RUNTIME: fips
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips-pkg
-- name: Copy Mac pkg artifacts
-  commands:
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-  - rm -rf $WORKSPACE_DIR/go/artifacts/*.tar.gz
-  - cp e/build/teleport-ent*.pkg $WORKSPACE_DIR/go/artifacts
-  - cd $WORKSPACE_DIR/go/artifacts && for FILE in teleport*.pkg; do shasum -a 256
-    $FILE > $FILE.sha256; done && ls -l
-  environment:
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips-pkg
-- name: Upload to S3
-  commands:
-  - cd $WORKSPACE_DIR/go/artifacts
-  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_REGION: us-west-2
-    AWS_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips-pkg
-- name: Clean up exec runner storage (post)
-  commands:
-  - chmod -R u+rw $WORKSPACE_DIR
-  - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
-  environment:
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips-pkg
 
 ---
 kind: pipeline
@@ -3186,7 +2916,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:190
+# Generated at dronegen/tag.go:187
 ################################################
 
 kind: pipeline
@@ -3228,6 +2958,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Build artifacts
   image: docker
   commands:
@@ -3281,7 +3018,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:190
+# Generated at dronegen/tag.go:187
 ################################################
 
 kind: pipeline
@@ -3323,6 +3060,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Build artifacts
   image: docker
   commands:
@@ -3376,7 +3120,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:331
+# Generated at dronegen/tag.go:329
 ################################################
 
 kind: pipeline
@@ -3418,6 +3162,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -3486,7 +3237,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:331
+# Generated at dronegen/tag.go:329
 ################################################
 
 kind: pipeline
@@ -3528,6 +3279,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -3596,7 +3354,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:331
+# Generated at dronegen/tag.go:329
 ################################################
 
 kind: pipeline
@@ -3638,6 +3396,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -3720,7 +3485,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:331
+# Generated at dronegen/tag.go:329
 ################################################
 
 kind: pipeline
@@ -3762,6 +3527,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -3844,138 +3616,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/darwin_pipelines.go:121
-################################################
-
-kind: pipeline
-type: exec
-name: build-darwin-amd64-fips-pkg-tsh
-environment:
-  RUNTIME: go1.16.2
-trigger:
-  event:
-    include:
-    - tag
-  ref:
-    include:
-    - refs/tags/v*
-  repo:
-    include:
-    - gravitational/*
-workspace:
-  path: /tmp/build-darwin-amd64-fips-pkg-tsh
-platform:
-  os: darwin
-  arch: amd64
-clone:
-  disable: true
-depends_on:
-- build-darwin-amd64-fips
-steps:
-- name: Set up exec runner storage
-  commands:
-  - mkdir -p $WORKSPACE_DIR
-  - chmod -R u+rw $WORKSPACE_DIR
-  - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
-  environment:
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips-pkg-tsh
-- name: Check out code
-  commands:
-  - mkdir -p $TELEPORT_DIR $GODL_DIR
-  - cd $GODL_DIR
-  - git clone https://github.com/gravitational/godl.git .
-  - git checkout $BORINGCRYPTO_BRANCH
-  - cd $TELEPORT_DIR
-  - git clone https://github.com/gravitational/teleport.git .
-  - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-  - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
-    && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
-  - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
-  - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
-  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
-    -F /dev/null' git submodule update --init e
-  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
-    -F /dev/null' git submodule update --init --recursive webassets || true
-  - rm -rf $WORKSPACE_DIR/.ssh
-  - mkdir -p $WORKSPACE_DIR/go/artifacts $WORKSPACE_DIR/go/cache
-  - echo "${DRONE_TAG##v}" > $WORKSPACE_DIR/go/.version.txt
-  - cat $WORKSPACE_DIR/go/.version.txt
-  environment:
-    BORINGCRYPTO_BRANCH: dev.boringcrypto.go1.16
-    GITHUB_PRIVATE_KEY:
-      from_secret: GITHUB_PRIVATE_KEY
-    GODL_DIR: /tmp/build-darwin-amd64-fips-pkg-tsh/go/src/github.com/gravitational/godl
-    TELEPORT_DIR: /tmp/build-darwin-amd64-fips-pkg-tsh/go/src/github.com/gravitational/teleport
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips-pkg-tsh
-- name: Download built tarball artifact from S3
-  commands:
-  - export VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
-  - export S3_PATH="tag/$${DRONE_TAG##v}/"
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-darwin-amd64-fips-bin.tar.gz
-    $WORKSPACE_DIR/go/artifacts/
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_REGION: us-west-2
-    AWS_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips-pkg-tsh
-- name: Build Mac tsh pkg release artifacts
-  commands:
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-  - export VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
-  - export HOME=/Users/build
-  - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
-  - security find-identity -v
-  - make -C e pkg-tsh VERSION=$VERSION OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
-  environment:
-    APPLE_PASSWORD:
-      from_secret: APPLE_PASSWORD
-    APPLE_USERNAME:
-      from_secret: APPLE_USERNAME
-    ARCH: amd64
-    BUILDBOX_PASSWORD:
-      from_secret: BUILDBOX_PASSWORD
-    ENT_TARBALL_PATH: /tmp/build-darwin-amd64-fips-pkg-tsh/go/artifacts
-    OS: darwin
-    RUNTIME: fips
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips-pkg-tsh
-- name: Copy Mac tsh pkg artifacts
-  commands:
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-  - rm -rf $WORKSPACE_DIR/go/artifacts/*.tar.gz
-  - cp e/build/tsh*.pkg $WORKSPACE_DIR/go/artifacts
-  - cd $WORKSPACE_DIR/go/artifacts && for FILE in tsh*.pkg; do shasum -a 256 $FILE
-    > $FILE.sha256; done && ls -l
-  environment:
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips-pkg-tsh
-- name: Upload to S3
-  commands:
-  - cd $WORKSPACE_DIR/go/artifacts
-  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_REGION: us-west-2
-    AWS_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips-pkg-tsh
-- name: Clean up exec runner storage (post)
-  commands:
-  - chmod -R u+rw $WORKSPACE_DIR
-  - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
-  environment:
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-fips-pkg-tsh
-
----
-################################################
-# Generated using dronegen, do not edit by hand!
-# Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:190
+# Generated at dronegen/tag.go:187
 ################################################
 
 kind: pipeline
@@ -4017,6 +3658,13 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Build artifacts
   image: docker
   commands:
@@ -4379,140 +4027,141 @@ volumes:
     temp: {}
 
 ---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/buildbox.go:57
+################################################
+
 kind: pipeline
 type: kubernetes
 name: build-buildboxes
-
 environment:
+  GID: "1000"
   RUNTIME: go1.16.2
-  UID: 1000
-  GID: 1000
-
+  UID: "1000"
 trigger:
-  branch:
-    - master
   event:
+    include:
     - push
   repo:
     include:
-      - gravitational/teleport
-
+    - gravitational/teleport
+  branch:
+    include:
+    - master
 workspace:
   path: /go/src/github.com/gravitational/teleport
-
 clone:
   disable: true
-
 steps:
-  - name: Check out code
-    image: docker:git
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
-      - git checkout ${DRONE_COMMIT}
-
-  - name: Build and push buildbox container
-    image: docker
-    environment:
-      QUAYIO_DOCKER_USERNAME:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      QUAYIO_DOCKER_PASSWORD:
-        from_secret: QUAYIO_DOCKER_PASSWORD
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - apk add --no-cache make
-      - chown -R $UID:$GID /go
-      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
-      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
-      - make -C build.assets buildbox
-      - docker push quay.io/gravitational/teleport-buildbox:$RUNTIME
-
-  - name: Build and push buildbox-fips container
-    image: docker
-    environment:
-      QUAYIO_DOCKER_USERNAME:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      QUAYIO_DOCKER_PASSWORD:
-        from_secret: QUAYIO_DOCKER_PASSWORD
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - apk add --no-cache make
-      - chown -R $UID:$GID /go
-      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
-      - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
-      - make -C build.assets buildbox-fips
-      - docker push quay.io/gravitational/teleport-buildbox-fips:$RUNTIME
-
-  - name: Build and push buildbox-centos6 container
-    image: docker
-    environment:
-      QUAYIO_DOCKER_USERNAME:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      QUAYIO_DOCKER_PASSWORD:
-        from_secret: QUAYIO_DOCKER_PASSWORD
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - apk add --no-cache make
-      - chown -R $UID:$GID /go
-      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
-      - docker pull quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME || true
-      - make -C build.assets buildbox-centos6
-      - docker push quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME
-
-  - name: Build and push buildbox-centos6-fips container
-    image: docker
-    environment:
-      QUAYIO_DOCKER_USERNAME:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      QUAYIO_DOCKER_PASSWORD:
-        from_secret: QUAYIO_DOCKER_PASSWORD
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - apk add --no-cache make
-      - chown -R $UID:$GID /go
-      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
-      - docker pull quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME || true
-      - make -C build.assets buildbox-centos6-fips
-      - docker push quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME
-
-  - name: Build and push buildbox-arm container
-    image: docker
-    environment:
-      QUAYIO_DOCKER_USERNAME:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      QUAYIO_DOCKER_PASSWORD:
-        from_secret: QUAYIO_DOCKER_PASSWORD
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - apk add --no-cache make
-      - chown -R $UID:$GID /go
-      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
-      - docker pull quay.io/gravitational/teleport-buildbox-arm:$RUNTIME || true
-      - make -C build.assets buildbox-arm
-      - docker push quay.io/gravitational/teleport-buildbox-arm:$RUNTIME
-
-services:
-  - name: Start Docker
-    image: docker:dind
-    volumes:
-      - name: dockersock
-        path: /var/run
-
-volumes:
+- name: Check out code
+  image: docker:git
+  commands:
+  - git clone --depth 1 --single-branch --branch ${DRONE_SOURCE_BRANCH:-master} https://github.com/gravitational/${DRONE_REPO_NAME}.git
+    .
+  - git checkout ${DRONE_COMMIT}
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
   - name: dockersock
-    temp: {}
+    path: /var/run
+- name: buildbox
+  image: docker
+  commands:
+  - apk add --no-cache make
+  - chown -R $UID:$GID /go
+  - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
+  - make -C build.assets buildbox
+  - docker push quay.io/gravitational/teleport-buildbox:$RUNTIME
+  environment:
+    QUAYIO_DOCKER_PASSWORD:
+      from_secret: QUAYIO_DOCKER_PASSWORD
+    QUAYIO_DOCKER_USERNAME:
+      from_secret: QUAYIO_DOCKER_USERNAME
+  volumes:
+  - name: dockersock
+    path: /var/run
+  failure: ignore
+- name: buildbox-fips
+  image: docker
+  commands:
+  - apk add --no-cache make
+  - chown -R $UID:$GID /go
+  - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
+  - make -C build.assets buildbox-fips
+  - docker push quay.io/gravitational/teleport-buildbox-fips:$RUNTIME
+  environment:
+    QUAYIO_DOCKER_PASSWORD:
+      from_secret: QUAYIO_DOCKER_PASSWORD
+    QUAYIO_DOCKER_USERNAME:
+      from_secret: QUAYIO_DOCKER_USERNAME
+  volumes:
+  - name: dockersock
+    path: /var/run
+  failure: ignore
+- name: buildbox-centos6
+  image: docker
+  commands:
+  - apk add --no-cache make
+  - chown -R $UID:$GID /go
+  - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
+  - make -C build.assets buildbox-centos6
+  - docker push quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME
+  environment:
+    QUAYIO_DOCKER_PASSWORD:
+      from_secret: QUAYIO_DOCKER_PASSWORD
+    QUAYIO_DOCKER_USERNAME:
+      from_secret: QUAYIO_DOCKER_USERNAME
+  volumes:
+  - name: dockersock
+    path: /var/run
+  failure: ignore
+- name: buildbox-centos6-fips
+  image: docker
+  commands:
+  - apk add --no-cache make
+  - chown -R $UID:$GID /go
+  - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
+  - make -C build.assets buildbox-centos6-fips
+  - docker push quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME
+  environment:
+    QUAYIO_DOCKER_PASSWORD:
+      from_secret: QUAYIO_DOCKER_PASSWORD
+    QUAYIO_DOCKER_USERNAME:
+      from_secret: QUAYIO_DOCKER_USERNAME
+  volumes:
+  - name: dockersock
+    path: /var/run
+  failure: ignore
+- name: buildbox-arm
+  image: docker
+  commands:
+  - apk add --no-cache make
+  - chown -R $UID:$GID /go
+  - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
+  - make -C build.assets buildbox-arm
+  - docker push quay.io/gravitational/teleport-buildbox-arm:$RUNTIME
+  environment:
+    QUAYIO_DOCKER_PASSWORD:
+      from_secret: QUAYIO_DOCKER_PASSWORD
+    QUAYIO_DOCKER_USERNAME:
+      from_secret: QUAYIO_DOCKER_USERNAME
+  volumes:
+  - name: dockersock
+    path: /var/run
+  failure: ignore
+services:
+- name: Start Docker
+  image: docker:dind
+  volumes:
+  - name: dockersock
+    path: /var/run
+volumes:
+- name: dockersock
+  temp: {}
 
 ---
 kind: pipeline
@@ -4816,6 +4465,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: ea48c40817f928bb53c17bfaae579a2475ee714cf210fea2822686b29b3d9128
+hmac: eddaaeffac5342f7e576a9512396c1c9e3c9952907693dcc33be0bb9755241c5
 
 ...
