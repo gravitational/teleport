@@ -555,17 +555,6 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 	}
 	sort.Strings(extensions)
 
-	// Extract cluster name from the profile.
-	clusterName := profile.SiteName
-	// DELETE IN: 4.2.0.
-	//
-	// Older versions of tsh did not always store the cluster name in the
-	// profile. If no cluster name is found, fallback to the name of the profile
-	// for backward compatibility.
-	if clusterName == "" {
-		clusterName = profile.Name()
-	}
-
 	tlsCert, err := key.TeleportTLSCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -617,7 +606,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 		ValidUntil:     validUntil,
 		Extensions:     extensions,
 		Roles:          roles,
-		Cluster:        clusterName,
+		Cluster:        profile.SiteName,
 		Traits:         traits,
 		ActiveRequests: activeRequests,
 		KubeEnabled:    profile.KubeProxyAddr != "",
