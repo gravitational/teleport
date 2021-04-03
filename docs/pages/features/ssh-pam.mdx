@@ -65,7 +65,6 @@ removed if you uninstall the `openssh-server` package. We recommend creating you
 own PAM service file like `/etc/pam.d/teleport` and specifying it as
 `service_name` above.
 
-
 ## Setting Message of the Day (motd) with Teleport
 
 The file `/etc/motd` is normally displayed by login(1) after a user has logged in
@@ -73,6 +72,31 @@ but before the shell is run. It is generally used for important system-wide anno
 
 This feature can help you inform users that activity on the node is being audited
 and recorded.
+
+## Custom environment variables
+
+Teleport supports setting arbitrary environment variables for PAM modules as of version 6.1.
+These variables can also be role-style SSO claims in the form `{{ external.email }}`
+where `email` is a claim made by the configured SSO IdP.
+
+To set custom environment variables, update `/etc/teleport.yaml` with:
+
+```yaml
+ssh_service:
+  pam:
+    # disabled by default
+    enabled: true
+    # use /etc/pam.d/sshd configuration (the default)
+    service_name: "sshd"
+    # use the "auth" modules in the PAM config
+    # "false" by default
+    use_pam_auth: true
+    # sets custom environment variables for PAM modules
+    # no environment variables except the standard `TELEPORT_USERNAME`, `TELEPORT_LOGIN`, and `TELEPORT_ROLES`
+    environment:
+      FOO: "bar"
+      EMAIL: "{{ external.email }}"
+```
 
 ### Example node with PAM turned off
 
@@ -97,6 +121,7 @@ ssh_service:
 ![Teleport SSH without MOTD](../../img/motd/teleport-no-MOTD.png)
 
 ### Example node with PAM enabled
+
 ```yaml
 teleport:
   nodename: graviton-node-1
@@ -231,6 +256,7 @@ This PAM module creates the user and home directory before attempting to launch
 a shell for said user.
 
 ### Examples
+
 **Using pam_exec.so**
 
 Using `pam_exec.so` is the easiest way to use the PAM stack to create a user if
@@ -250,9 +276,9 @@ session   required   pam_permit.so
 ```
 
 <Admonition type="note">
-Pay attention to the inclusion of `pam_motd.so` under the `session` facility. While `pam_motd.so` is
-not required for user creation, Teleport requires at least one module to be set under both
-the `account` and `session` facilities for it to work.
+  Pay attention to the inclusion of `pam_motd.so` under the `session` facility. While `pam_motd.so` is
+  not required for user creation, Teleport requires at least one module to be set under both
+  the `account` and `session` facilities for it to work.
 </Admonition>
 
 Next, create the script that will be run by `pam_exec.so` like below. This
@@ -264,7 +290,7 @@ to write richer scripts that may change the system in other ways based on
 identity information.
 
 <Admonition type="note">
-The `useradd` location can have a different path then the example below depending on your linux flavor.  Adjust to your particular system as needed from `which useradd` (Ex: `/usr/sbin/useradd` instead of the below example).
+  The `useradd` location can have a different path then the example below depending on your linux flavor.  Adjust to your particular system as needed from `which useradd` (Ex: `/usr/sbin/useradd` instead of the below example).
 </Admonition>
 
 ```bash

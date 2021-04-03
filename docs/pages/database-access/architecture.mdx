@@ -15,13 +15,13 @@ Let's take a look at a sample Database Access deployment:
 
 In it, we have the following Teleport components:
 
-* [Teleport Proxy](../architecture/proxy.mdx). A stateless service
+- [Teleport Proxy](../architecture/proxy.mdx). A stateless service
   that performs a function of an authentication gateway, serves web UI and
   accepts database (and other) client connections.
-* [Teleport Auth](../architecture/authentication.mdx). Serves as
+- [Teleport Auth](../architecture/authentication.mdx). Serves as
   cluster's certificate authority, handles user authentication/authorization
   and issues short-lived client certificates.
-* Teleport Database Service. The Database Access' "brain" that connects
+- Teleport Database Service. The Database Access' "brain" that connects
   to the databases, performs database authentication and protocol parsing.
 
 Database Service establishes an SSH reverse tunnel to the Proxy. As such, users
@@ -29,9 +29,12 @@ do not need to have direct connectivity to the Database Service, or the database
 it's connected to. As long as it can dial back to the cluster's Proxy server, it
 can be located behind a firewall.
 
-<Admonition type="tip" title="Tip">
-You can have multiple Database Services connected to the cluster. Each
-Database Service can be also connected to multiple databases.
+<Admonition
+  type="tip"
+  title="Tip"
+>
+  You can have multiple Database Services connected to the cluster. Each
+  Database Service can be also connected to multiple databases.
 </Admonition>
 
 Let's take a look at the typical flow Database Access users go through to
@@ -62,9 +65,9 @@ well as authentication between internal components.
 
 Authentication happens in 3 places:
 
-* Database client connecting to Proxy
-* Proxy connecting to Database Service
-* Database Service connecting database.
+- Database client connecting to Proxy
+- Proxy connecting to Database Service
+- Database Service connecting database.
 
 Let's take a detailed look at each authentication point.
 
@@ -73,10 +76,13 @@ Let's take a detailed look at each authentication point.
 Database clients authenticate with the Proxy using X.509 client certificates
 obtained from the `tsh db login` command.
 
-<Admonition type="note" title="SSL">
-Many database clients/servers refer to these certificates as SSL which is
-legacy terminology. In Teleport documentation we most often refer to them as
-TLS or x509 certificates.
+<Admonition
+  type="note"
+  title="SSL"
+>
+  Many database clients/servers refer to these certificates as SSL which is
+  legacy terminology. In Teleport documentation we most often refer to them as
+  TLS or x509 certificates.
 </Admonition>
 
 The login command updates database-specific local configuration files (e.g.
@@ -87,7 +93,7 @@ can refer to.
 
 For configuring graphical clients, there is a `tsh db config` command that
 prints detailed information about the connection such as host/port and location
-of the secrets. See [GUI Clients](./gui-clients.mdx) for details.
+of the secrets. See [GUI Clients](./guides/gui-clients.mdx) for details.
 
 ### Proxy to Database Service
 
