@@ -57,7 +57,7 @@ type ProxyClient struct {
 	proxyAddress    string
 	proxyPrincipal  string
 	hostKeyCallback ssh.HostKeyCallback
-	authMethod      ssh.AuthMethod
+	authMethods     []ssh.AuthMethod
 	siteName        string
 	clientAddr      string
 }
@@ -830,7 +830,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 		return proxy.PortForwardToNode(ctx, nodeAddress, user, quiet)
 	}
 
-	authMethod, err := proxy.sessionSSHCertificate(ctx, nodeAddress)
+	authMethods, err := proxy.sessionSSHCertificate(ctx, nodeAddress)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -919,7 +919,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 	)
 	sshConfig := &ssh.ClientConfig{
 		User:            user,
-		Auth:            []ssh.AuthMethod{authMethod},
+		Auth:            authMethods,
 		HostKeyCallback: proxy.hostKeyCallback,
 	}
 	conn, chans, reqs, err := newClientConn(ctx, pipeNetConn, nodeAddress.ProxyFormat(), sshConfig)
@@ -958,7 +958,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress NodeAddr, user string, quiet bool) (*NodeClient, error) {
 	log.Infof("Client=%v jumping to node=%s", proxy.clientAddr, nodeAddress)
 
-	authMethod, err := proxy.sessionSSHCertificate(ctx, nodeAddress)
+	authMethods, err := proxy.sessionSSHCertificate(ctx, nodeAddress)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -991,7 +991,7 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 
 	sshConfig := &ssh.ClientConfig{
 		User:            user,
-		Auth:            []ssh.AuthMethod{authMethod},
+		Auth:            authMethods,
 		HostKeyCallback: proxy.hostKeyCallback,
 	}
 	conn, chans, reqs, err := newClientConn(ctx, proxyConn, nodeAddress.Addr, sshConfig)
@@ -1369,12 +1369,12 @@ func (proxy *ProxyClient) currentCluster() (*services.Site, error) {
 	return nil, trace.NotFound("cluster %v not found", proxy.siteName)
 }
 
-func (proxy *ProxyClient) sessionSSHCertificate(ctx context.Context, nodeAddr NodeAddr) (ssh.AuthMethod, error) {
+func (proxy *ProxyClient) sessionSSHCertificate(ctx context.Context, nodeAddr NodeAddr) ([]ssh.AuthMethod, error) {
 	if _, err := proxy.teleportClient.localAgent.GetKey(nodeAddr.Cluster); err != nil {
 		if trace.IsNotFound(err) {
 			// Either running inside the web UI in a proxy or using an identity
 			// file. Fall back to whatever AuthMethod we currently have.
-			return proxy.authMethod, nil
+			return proxy.authMethods, nil
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -1392,7 +1392,11 @@ func (proxy *ProxyClient) sessionSSHCertificate(ctx context.Context, nodeAddr No
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return key.AsAuthMethod()
+	am, err := key.AsAuthMethod()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return []ssh.AuthMethod{am}, nil
 }
 
 // localAgent returns for the Teleport client's local agent.

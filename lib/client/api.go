@@ -1951,38 +1951,27 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	sshConfig.Auth = authMethods
+	log.Infof("Connecting proxy=%v login=%q", sshProxyAddr, sshConfig.User)
 
-	// try to authenticate using every non interactive auth method we have:
-	var errs []error
-	for i, m := range authMethods {
-		log.Infof("Connecting proxy=%v login=%q method=%d", sshProxyAddr, sshConfig.User, i)
-
-		sshConfig.Auth = []ssh.AuthMethod{m}
-		sshClient, err := ssh.Dial("tcp", sshProxyAddr, sshConfig)
-		if err != nil {
-			log.WithError(err).Warnf("Failed to authenticate with proxy %v.", sshProxyAddr)
-			errs = append(errs, err)
-			continue
-		}
-
-		log.Infof("Successful auth with proxy %v.", sshProxyAddr)
-		proxyClient := ProxyClient{
-			teleportClient:  tc,
-			Client:          sshClient,
-			proxyAddress:    sshProxyAddr,
-			proxyPrincipal:  proxyPrincipal,
-			hostKeyCallback: sshConfig.HostKeyCallback,
-			authMethod:      m,
-			hostLogin:       tc.HostLogin,
-			siteName:        tc.SiteName,
-			clientAddr:      tc.ClientAddr,
-		}
-		return &proxyClient, nil
+	sshClient, err := ssh.Dial("tcp", sshProxyAddr, sshConfig)
+	if err != nil {
+		log.WithError(err).Warnf("Failed to authenticate with proxy %v.", sshProxyAddr)
+		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", sshProxyAddr)
 	}
 
-	// we have exhausted all auth existing auth methods and local login
-	// is disabled in configuration, or the user refused connecting to untrusted hosts
-	return nil, trace.Wrap(trace.NewAggregate(errs...), "failed to authenticate with proxy %v", sshProxyAddr)
+	log.Infof("Successful auth with proxy %v.", sshProxyAddr)
+	return &ProxyClient{
+		teleportClient:  tc,
+		Client:          sshClient,
+		proxyAddress:    sshProxyAddr,
+		proxyPrincipal:  proxyPrincipal,
+		hostKeyCallback: sshConfig.HostKeyCallback,
+		authMethods:     authMethods,
+		hostLogin:       tc.HostLogin,
+		siteName:        tc.SiteName,
+		clientAddr:      tc.ClientAddr,
+	}, nil
 }
 
 // loadKeyForClusterFromCert is a HostKeyCallback that attempts to detect the
