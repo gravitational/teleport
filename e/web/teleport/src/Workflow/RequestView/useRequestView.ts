@@ -76,11 +76,12 @@ function getRequestFlags(request: AccessRequest, ctx: TeleportContextE) {
   const ownRequest = request.user === ctx.storeUser.getUsername();
   const canAssume = ownRequest && request.state === 'APPROVED';
   const isAssumed = ownRequest && ctx.storeAccessRequests.isAssumed(request.id);
+  const canDelete = ctx.storeUser.getWorkflowAccess().remove;
 
-  const access = ctx.storeUser.getWorkflowAccess();
   const reviewed = request.reviewers.find(
     r => r.name === ctx.storeUser.getUsername()
   );
+
   const isPendingState = reviewed
     ? reviewed.state === 'PENDING'
     : request.state === 'PENDING';
@@ -91,8 +92,8 @@ function getRequestFlags(request: AccessRequest, ctx: TeleportContextE) {
     // isAssumed is a flag if the assume btn should be disabled or not,
     // and determines the text that implies if user already has assumed or not.
     isAssumed,
-    canDelete: access.remove,
-    canReview: !ownRequest && access.edit && isPendingState,
+    canDelete,
+    canReview: !ownRequest && isPendingState,
   };
 }
 

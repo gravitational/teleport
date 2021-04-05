@@ -1,5 +1,6 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+// eslint-disable-next-line import/named
+import { Link, RouteComponentProps } from 'react-router-dom';
 import styled from 'styled-components';
 import { ButtonPrimary, Text, Flex } from 'design';
 import * as Icons from 'design/Icon';
@@ -18,30 +19,10 @@ export default function Workflow() {
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center">
-        <FeatureHeaderTitle>
-          <Switch>
-            <Route exact path={cfg.getAccessRequestRoute()}>
-              <Breadcrumb isList={true} />
-            </Route>
-            <Route exact path={cfg.routes.requestNew}>
-              <Breadcrumb />
-            </Route>
-            <Route
-              path={cfg.routes.requests}
-              render={({ match }) => (
-                <Breadcrumb trail={match.params.requestId} />
-              )}
-            />
-          </Switch>
-        </FeatureHeaderTitle>
-        <ButtonPrimary
-          as={Link}
-          to={cfg.routes.requestNew}
-          ml="auto"
-          width="240px"
-        >
-          Request Access
-        </ButtonPrimary>
+        <Switch>
+          <Route exact path={cfg.routes.requestNew} component={Header} />
+          <Route path={cfg.routes.requests} component={Header} />
+        </Switch>
       </FeatureHeader>
       <Switch>
         <Route
@@ -56,28 +37,57 @@ export default function Workflow() {
   );
 }
 
-function Breadcrumb({ isList, trail }: { isList?: boolean; trail?: string }) {
-  if (isList) {
-    return <>Access Requests</>;
+function Header({ match }: RouteComponentProps<{ requestId?: string }>) {
+  if (match.url === cfg.getAccessRequestRoute()) {
+    return (
+      <>
+        <FeatureHeaderTitle>Access Requests</FeatureHeaderTitle>
+        <ButtonPrimary
+          as={Link}
+          to={cfg.routes.requestNew}
+          ml="auto"
+          width="240px"
+        >
+          Request Access
+        </ButtonPrimary>
+      </>
+    );
   }
 
+  const requestId = match.params?.requestId;
   return (
-    <Flex alignItems="center">
-      <StyledLink to={cfg.getAccessRequestRoute()}>Access Requests</StyledLink>
-      <Icons.ArrowRight mx={3} fontSize={2} />
-      {trail ? (
-        <Flex mr={4} alignItems="baseline">
-          <Text mr={3} title={'New Request'}>
-            Request
-          </Text>
-          <Text typography="body1">{trail}</Text>
+    <>
+      <FeatureHeaderTitle>
+        <Flex alignItems="center">
+          <StyledLink to={cfg.getAccessRequestRoute()}>
+            Access Requests
+          </StyledLink>
+          <Icons.ArrowRight mx={3} fontSize={2} />
+          {requestId ? (
+            <Flex mr={4} alignItems="baseline">
+              <Text mr={3} title={'New Request'}>
+                Request
+              </Text>
+              <Text typography="body1">{requestId}</Text>
+            </Flex>
+          ) : (
+            <Text mr={4} title={'New Request'}>
+              New Request
+            </Text>
+          )}
         </Flex>
-      ) : (
-        <Text mr={4} title={'New Request'}>
-          New Request
-        </Text>
+      </FeatureHeaderTitle>
+      {requestId && (
+        <ButtonPrimary
+          as={Link}
+          to={cfg.routes.requestNew}
+          ml="auto"
+          width="240px"
+        >
+          Request Access
+        </ButtonPrimary>
       )}
-    </Flex>
+    </>
   );
 }
 

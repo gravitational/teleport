@@ -2,13 +2,13 @@ import React from 'react';
 import { MemoryRouter, Route } from 'react-router';
 import useRequestView from './useRequestView';
 import renderHook, { act } from 'design/utils/renderHook';
-import { userContext } from 'teleport/Main/fixtures';
+import makeUserContext from 'teleport/services/user/makeUserContext';
 import TeleportContextE from 'e-teleport/teleportContextE';
 import { requestPending } from 'e-teleport/Workflow/fixtures';
 
 test('flags for own request', async () => {
   const ctx = new TeleportContextE();
-  ctx.storeUser.setState({ ...userContext, username: 'Sam' });
+  ctx.storeUser.setState({ ...userContext });
   ctx.storeAccessRequests.isAssumed = () => false;
   ctx.workflowService.fetchAccessRequest = () =>
     Promise.resolve(requestPending);
@@ -113,3 +113,25 @@ function Wrapper(props: any) {
     </MemoryRouter>
   );
 }
+
+const userContext = makeUserContext({
+  userName: 'Sam',
+  userAcl: {
+    accessRequests: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: true,
+    },
+  },
+  cluster: {
+    name: 'aws',
+    lastConnected: '2020-09-26T17:30:23.512876876Z',
+    status: 'online',
+    nodeCount: 1,
+    publicURL: 'localhost',
+    authVersion: '4.4.0-dev',
+    proxyVersion: '4.4.0-dev',
+  },
+});
