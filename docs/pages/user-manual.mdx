@@ -53,8 +53,11 @@ to call [`tsh login`](cli-docs.mdx#tsh-login) in the beginning.
 ## Installing tsh
 
 - Windows Users: [Download tsh Binary](https://gravitational.com/teleport/download?os=windows)
+
 - Mac Users: [Download Mac Teleport Binary. Includes tsh](https://gravitational.com/teleport/download?os=macos)
+
 - Mac Users with [Homebrew](https://brew.sh/): `brew install teleport`
+
 - Linux Users: [Download Linux Teleport Binary. Includes tsh](https://gravitational.com/teleport/download?os=linux)
 
   <Admonition type="note">
@@ -513,7 +516,6 @@ most of them can be mitigated.
    cluster you are connecting to. But if you execute `tsh --proxy=xxx login`,
    the current proxy will be saved in your `~/.tsh` profile and won't be needed
    for other `tsh` commands.
-
 2. `tsh ssh` operates *two* usernames: one for the cluster and another for the
    node you are trying to log into. See [User Identities](#user-identities)
    section below. For convenience, `tsh` assumes `$USER` for both by default.
