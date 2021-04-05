@@ -12,7 +12,8 @@ session recordings typically do not contain passwords that were entered into a t
 
 The disadvantage is that session recordings can by bypassed using several techniques:
 
-- **Obfuscation**. For example, even though the command ` echo Y3VybCBodHRwOi8vd3d3LmV4YW1wbGUuY29tCg== | base64 --decode | sh` does not contain
+- **Obfuscation**. For example, even though the command
+  `echo Y3VybCBodHRwOi8vd3d3LmV4YW1wbGUuY29tCg== | base64 --decode | sh` does not contain
   `curl http://www.example.com`, when decoded, that is what is run.
 - **Shell scripts**. For example, if a user uploads and executes a script, the commands
   run within the script are not captured, simply the output.
