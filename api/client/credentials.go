@@ -30,35 +30,38 @@ import (
 	"golang.org/x/net/http2"
 )
 
-// Credentials are used to authenticate to Auth.
+// Credentials are used to authenticate the API auth client. Some Credentials
+// also provide other functionality, such as automatic address discovery and ssh
+// connectivity.
+// see the examples below (godoc)
 type Credentials interface {
-	// Dialer is used to create a dialer used to connect to Auth.
+	// Dialer is used to create a dialer used to connect to the Auth server.
 	Dialer(cfg Config) (ContextDialer, error)
-	// TLSConfig returns TLS configuration used to connect to Auth.
+	// TLSConfig returns TLS configuration used to authenticate the client.
 	TLSConfig() (*tls.Config, error)
-	// SSHClientConfig returns SSH configuration used to connect to Proxy through tunnel.
+	// SSHClientConfig returns SSH configuration used to connect to Auth through a reverse tunnel.
 	SSHClientConfig() (*ssh.ClientConfig, error)
 }
 
-// LoadTLS is used to load credentials directly from another *tls.Config.
+// LoadTLS is used to load Credentials directly from a *tls.Config.
 func LoadTLS(tlsConfig *tls.Config) *TLSConfigCreds {
 	return &TLSConfigCreds{
 		tlsConfig: tlsConfig,
 	}
 }
 
-// TLSConfigCreds are used to authenticate the client
-// with a predefined *tls.Config.
+// TLSConfigCreds use a defined *tls.Config to provide TLS authentication.
+// TLSConfigCreds can only be used to connect directly to a local Teleport Auth server.
 type TLSConfigCreds struct {
 	tlsConfig *tls.Config
 }
 
-// Dialer is used to dial a connection to Auth.
+// Dialer is used to dial a connection to an Auth server.
 func (c *TLSConfigCreds) Dialer(cfg Config) (ContextDialer, error) {
 	return nil, trace.NotImplemented("no dialer")
 }
 
-// TLSConfig returns TLS configuration used to connect to Auth.
+// TLSConfig returns TLS configuration.
 func (c *TLSConfigCreds) TLSConfig() (*tls.Config, error) {
 	if c.tlsConfig == nil {
 		return nil, trace.BadParameter("tls config is nil")
@@ -66,12 +69,14 @@ func (c *TLSConfigCreds) TLSConfig() (*tls.Config, error) {
 	return configure(c.tlsConfig), nil
 }
 
-// SSHClientConfig returns SSH configuration used to connect to Proxy.
+// SSHClientConfig returns SSH configuration.
 func (c *TLSConfigCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 	return nil, trace.NotImplemented("no ssh config")
 }
 
-// LoadKeyPair is used to load credentials from files on disk.
+// LoadKeyPair is used to load Credentials from a certicate keypair on disk.
+// A new keypair can be generated with tctl.
+// See the example below (godoc).
 func LoadKeyPair(certFile string, keyFile string, caFile string) *KeyPairCreds {
 	return &KeyPairCreds{
 		certFile: certFile,
@@ -80,20 +85,20 @@ func LoadKeyPair(certFile string, keyFile string, caFile string) *KeyPairCreds {
 	}
 }
 
-// KeyPairCreds are used to authenticate the client
-// with certificates generated in the given file paths.
+// KeyPairCreds use a certificate keypair to provide TLS authentication.
+// KeyPairCreds can only be used to connect directly to a local Teleport Auth server.
 type KeyPairCreds struct {
 	certFile string
 	keyFile  string
 	caFile   string
 }
 
-// Dialer is used to dial a connection to Auth.
+// Dialer is used to dial a connection to an Auth server.
 func (c *KeyPairCreds) Dialer(cfg Config) (ContextDialer, error) {
 	return nil, trace.NotImplemented("no dialer")
 }
 
-// TLSConfig returns TLS configuration used to connect to Auth.
+// TLSConfig returns TLS configuration.
 func (c *KeyPairCreds) TLSConfig() (*tls.Config, error) {
 	cert, err := tls.LoadX509KeyPair(c.certFile, c.keyFile)
 	if err != nil {
@@ -116,31 +121,34 @@ func (c *KeyPairCreds) TLSConfig() (*tls.Config, error) {
 	}), nil
 }
 
-// SSHClientConfig returns SSH configuration used to connect to Proxy.
+// SSHClientConfig returns SSH configuration.
 func (c *KeyPairCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 	return nil, trace.NotImplemented("no ssh config")
 }
 
-// LoadIdentityFile is used to load credentials from an identity file on disk.
+// LoadIdentityFile is used to load Credentials from an identity file on disk.
+// A new identity file can be generated with tsh or tctl.
+// See the example below (godoc).
 func LoadIdentityFile(path string) *IdentityCreds {
 	return &IdentityCreds{
 		path: path,
 	}
 }
 
-// IdentityCreds are used to authenticate the client
-// with an identity file generated in the given file path.
+// IdentityCreds use an identity file to provide TLS authentication
+// and ssh connectivity. They can be used to connect to an Auth server
+// directly (local), or through the cluster's reverse proxy or web proxy.
 type IdentityCreds struct {
 	path         string
 	identityFile *IdentityFile
 }
 
-// Dialer is used to dial a connection to Auth.
+// Dialer is used to dial a connection to an Auth server.
 func (c *IdentityCreds) Dialer(cfg Config) (ContextDialer, error) {
 	return nil, trace.NotImplemented("no dialer")
 }
 
-// TLSConfig returns TLS configuration used to connect to Auth.
+// TLSConfig returns TLS configuration.
 func (c *IdentityCreds) TLSConfig() (*tls.Config, error) {
 	if err := c.load(); err != nil {
 		return nil, trace.Wrap(err)
@@ -154,7 +162,7 @@ func (c *IdentityCreds) TLSConfig() (*tls.Config, error) {
 	return configure(tlsConfig), nil
 }
 
-// SSHClientConfig returns SSH configuration used to connect to Proxy.
+// SSHClientConfig returns SSH configuration.
 func (c *IdentityCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 	if err := c.load(); err != nil {
 		return nil, trace.Wrap(err)
@@ -181,9 +189,13 @@ func (c *IdentityCreds) load() error {
 	return nil
 }
 
-// LoadProfile is used to load credentials from a tsh Profile.
+// LoadProfile is used to load Credentials from a tsh Profile.
 // If dir is not specified, the default profile path will be used.
 // If name is not specified, the current profile name will be used.
+
+// LoadProfile is used to load Credentials from a tsh profile on disk.
+// A new profile can be generated with tsh.
+// See the example below (godoc).
 func LoadProfile(dir, name string) *ProfileCreds {
 	return &ProfileCreds{
 		dir:  dir,
@@ -193,13 +205,19 @@ func LoadProfile(dir, name string) *ProfileCreds {
 
 // ProfileCreds are used to authenticate the client
 // with a tsh profile with the given directory and name.
+
+// ProfileCreds use a tsh profile to provide TLS authentication, ssh
+// connectivity, and automatic address discovery. They can be used to
+// connect to an Auth server directly (local), or through the cluster's
+// reverse proxy or web proxy. The cluster's web proxy address will
+// be retrieved from the profile and used to connect over ssh.
 type ProfileCreds struct {
 	dir     string
 	name    string
 	profile *Profile
 }
 
-// Dialer is used to dial a connection to Auth.
+// Dialer is used to dial a connection to an Auth server.
 func (c *ProfileCreds) Dialer(cfg Config) (ContextDialer, error) {
 	sshConfig, err := c.SSHClientConfig()
 	if err != nil {
@@ -223,7 +241,7 @@ func (c *ProfileCreds) Dialer(cfg Config) (ContextDialer, error) {
 	}), nil
 }
 
-// TLSConfig returns TLS configuration used to connect to Auth.
+// TLSConfig returns TLS configuration.
 func (c *ProfileCreds) TLSConfig() (*tls.Config, error) {
 	if err := c.load(); err != nil {
 		return nil, trace.Wrap(err)
@@ -237,7 +255,7 @@ func (c *ProfileCreds) TLSConfig() (*tls.Config, error) {
 	return configure(tlsConfig), nil
 }
 
-// SSHClientConfig returns SSH configuration used to connect to Proxy.
+// SSHClientConfig returns SSH configuration.
 func (c *ProfileCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 	if err := c.load(); err != nil {
 		return nil, trace.Wrap(err)
