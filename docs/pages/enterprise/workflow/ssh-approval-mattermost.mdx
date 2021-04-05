@@ -125,8 +125,8 @@ and Teleport Auth access.  We currently only provide linux-amd64 binaries, you c
 compile these plugins from [source](https://github.com/gravitational/teleport-plugins/tree/master/access/mattermost).
 
 ```bash
-$ wget https://get.gravitational.com/teleport-access-mattermost-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
-$ tar -xzf teleport-access-mattermost-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
+$ wget https://get.gravitational.com/teleport-access-mattermost-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
+$ tar -xzf teleport-access-mattermost-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
 $ cd teleport-access-mattermost
 $ ./install
 $ which teleport-mattermost
@@ -148,7 +148,7 @@ $ sudo mv teleport-mattermost.toml /etc
 Then, edit the config as needed.
 
 ```yaml
-{!examples/resources/plugins/teleport-mattermost.toml!}
+(!examples/resources/plugins/teleport-mattermost.toml!)
 ```
 
 ### Testing the Plugin
@@ -160,7 +160,7 @@ the bot can connect to Mattermost.
 ```bash
 $ teleport-mattermost start -d
 DEBU   DEBUG logging enabled logrus/exported.go:117
-INFO   Starting Teleport Access Mattermost Bot {{ teleport.plugin.version }}-dev.1: mattermost/main.go:140
+INFO   Starting Teleport Access Mattermost Bot (=teleport.plugin.version=)-dev.1: mattermost/main.go:140
 DEBU   Checking Teleport server version mattermost/main.go:234
 DEBU   Starting a request watcher... mattermost/main.go:296
 DEBU   Starting Mattermost API health check... mattermost/main.go:186
@@ -174,7 +174,7 @@ DEBU   Mattermost API health check finished ok mattermost/main.go:19
 In production, we recommend starting teleport plugin daemon via an init system like systemd . Here's the recommended Teleport Plugin service unit file for systemd:
 
 ```bash
-{!examples/systemd/plugins/teleport-mattermost.service!}
+(!examples/systemd/plugins/teleport-mattermost.service!)
 ```
 
 Save this as `teleport-mattermost.service`.
