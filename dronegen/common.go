@@ -63,17 +63,6 @@ var (
 	goRuntime = value{raw: "go1.16.2"}
 )
 
-// boringCryptoRuntime specifies the version of Go (as the branch name)
-// used for FIPS builds
-const boringCryptoRuntime = "dev.boringcrypto.go1.16"
-
-func (r buildType) platform() platform {
-	return platform{
-		OS:   r.os,
-		Arch: r.arch,
-	}
-}
-
 type buildType struct {
 	os      string
 	arch    string
@@ -113,27 +102,6 @@ func releaseMakefileTarget(b buildType) string {
 		makefileTarget += "-fips"
 	}
 	return makefileTarget
-}
-
-func sendSlackNotification() step {
-	return step{
-		Name:  "Send Slack notification (exec)",
-		Image: "plugins/slack",
-		Settings: map[string]value{
-			"webhook": {fromSecret: "SLACK_WEBHOOK_DEV_TELEPORT"},
-		},
-		Template: []string{
-			`*{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: ` + "`{{ build.event }}`" + `)
-			` + "`${DRONE_STAGE_NAME}`" + ` artifact build failed.
-			*Warning:* This is a genuine failure to build the Teleport binary from ` + "`{{ build.branch }}`" + ` (likely due to a bad merge or commit) and should be investigated immediately.
-			Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-			Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-			Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-			<{{ build.link }}|Visit Drone build page ↗>
-			`,
-		},
-		When: &condition{Status: []string{"failure"}},
-	}
 }
 
 // waitForDockerStep returns a step which checks that the Docker socket is active before trying
