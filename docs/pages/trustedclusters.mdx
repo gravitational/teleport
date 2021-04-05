@@ -88,11 +88,9 @@ This setup works as follows:
 
 1. The "leaf" creates an outbound reverse SSH tunnel to "root" and keeps the
    tunnel open.
-
 2. **Accessibility only works in one direction.** The "leaf" cluster allows
    users from "root" to access its nodes but users in the "leaf" cluster can not
    access the "root" cluster.
-
 3. When a user tries to connect to a node inside "leaf" using root's proxy, the
    reverse tunnel from step 1 is used to establish this connection shown as the
    green line above.
@@ -265,7 +263,6 @@ Lets make a few assumptions for this example:
 
 - The cluster "root" has two roles: *user* for regular users and *admin* for
   local administrators.
-
 - We want administrators from "root" (but not regular users!) to have
   restricted access to "leaf". We want to deny them access to machines
   with "environment=production" and any Government cluster labeled "customer=gov"

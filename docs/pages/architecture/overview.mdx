@@ -15,16 +15,13 @@ Teleport was designed in accordance with the following principles:
 - **Off the Shelf Security**: Teleport does not re-implement any security
   primitives and uses well-established, popular implementations of the
   encryption and network protocols.
-
 - **Open Standards**: There is no security through obscurity. Teleport is fully
   compatible with existing and open standards and other software, including
   [OpenSSH](../admin-guide.mdx#using-teleport-with-openssh).
-
 - **Cluster-Oriented Design**: Teleport is built for managing clusters, not
   individual servers. In practice this means that hosts and [Users](../user-manual.mdx)
   have cluster memberships. Identity management and authorization happen on a
   cluster level.
-
 - **Built for Teams**: Teleport was created under the assumption of multiple
   teams operating on several disconnected clusters. Example use cases might be
   production-vs-staging environment, or a cluster-per-customer or
@@ -129,6 +126,7 @@ interface or a web browser. When establishing a connection, the client offers
 its certificate. Clients must always connect through a proxy for two reasons:
 
 1. Individual nodes may not always be reachable from outside a secure network.
+
 2. Proxies always record SSH sessions and keep track of active user sessions.
 
    This makes it possible for an SSH user to see if someone else is connected to
