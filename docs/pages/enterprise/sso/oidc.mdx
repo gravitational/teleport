@@ -71,7 +71,7 @@ from the identity provider then mapping the value to either to `admin` role or
 the `user` role depending on the value returned for `group` within the claims.
 
 ```yaml
-{!examples/resources/oidc-connector.yaml!}
+(!examples/resources/oidc-connector.yaml!)
 ```
 
 Create the connector:
@@ -123,7 +123,7 @@ spec:
   options:
     max_session_ttl: "90h0m0s"
   allow:
-    logins: [ "{% raw %}{{external.username}}{% endraw %}", ubuntu ]
+    logins: [ "{{external.username}}", ubuntu ]
     node_labels:
       access: relaxed
 ```
