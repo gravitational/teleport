@@ -148,11 +148,11 @@ cluster from scratch, so choose carefully.
 
 ### ami_name
 
-Setting `export TF_VAR_ami_name="gravitational-teleport-ami-ent-{{ teleport.version }}"`
+Setting `export TF_VAR_ami_name="gravitational-teleport-ami-ent-(=teleport.version=)"`
 
 Gravitational automatically builds and publishes OSS, Enterprise and Enterprise FIPS 140-2 AMIs when we
 release a new version of Teleport. The AMI names follow the format: `gravitational-teleport-ami-<type>-<version>`
-where `<type>` is either `oss` or `ent` (Enterprise) and `version` is the version of Teleport e.g. `{{ teleport.version }}`.
+where `<type>` is either `oss` or `ent` (Enterprise) and `version` is the version of Teleport e.g. `(=teleport.version=)`.
 
 FIPS 140-2 compatible AMIs (which deploy Teleport in FIPS 140-2 mode by default) have the `-fips` suffix.
 

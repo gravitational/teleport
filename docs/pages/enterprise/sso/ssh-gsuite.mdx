@@ -118,7 +118,7 @@ Now, create a OIDC connector [resource](../../admin-guide.mdx#resources).
 Write down this template as `gsuite-connector.yaml`:
 
 ```yaml
-{!examples/resources/gsuite-connector.yaml!}
+(!examples/resources/gsuite-connector.yaml!)
 ```
 
 Create the connector using `tctl` tool:
@@ -166,7 +166,7 @@ spec:
   options:
     max_session_ttl: 24h
   allow:
-    logins: [ "{% raw %}{{external.username}}{% endraw %}", ubuntu ]
+    logins: [ "{{external.username}}", ubuntu ]
     node_labels:
       access: relaxed
 ```
