@@ -46,3 +46,7 @@ image: quay.io/gravitational/teleport
 enterpriseImage: quay.io/gravitational/teleport-ent
 # Number of replicas for the agent deployment.
 replicaCount: 1
+# Log level for the Teleport process.
+# The default is INFO, which should always be used when running in production.
+# It can be useful to override this to DEBUG during first-time setup to see more detailed logs.
+logLevel: INFO

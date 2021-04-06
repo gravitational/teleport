@@ -6,6 +6,9 @@ metadata:
 data:
   teleport.yaml: |
     teleport:
+      log:
+        severity: {{ .Values.logLevel }}
+        output: stderr
     auth_service:
       enabled: true
       cluster_name: {{ required "clusterName is required in chart values" .Values.clusterName }}

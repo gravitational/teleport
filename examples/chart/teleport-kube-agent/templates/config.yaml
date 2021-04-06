@@ -7,6 +7,9 @@ data:
     teleport:
       auth_token: "/etc/teleport-secrets/auth-token"
       auth_servers: ["{{ required "proxyAddr is required in chart values" .Values.proxyAddr }}"]
+      log:
+        severity: {{ .Values.logLevel }}
+        output: stderr
 
     kubernetes_service:
       {{- if or (contains "kube" (.Values.roles | toString)) (empty .Values.roles) }}
