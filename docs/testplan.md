@@ -396,29 +396,23 @@ version: v3
 - [ ] Verify input validation requires at least one role to be selected
 - [ ] Verify you can select/input/modify reviewers
 - [ ] Verify after creating, requests are listed in pending states
+- [ ] Verify you can't review own requests
 
 ### Viewing & Approving/Denying Requests
-Edit `admin` role to be allowed to see list of requests (requires list/read), review (requires update), and delete requests:
+Create a user with the role `reviewer` that allows you to review all requests, and delete them. 
 ```
+kind: role
+version: v3
+metadata:
+  name: reviewer
 spec:
   allow:
-    # allows reviewing all roles
     review_requests:
-      roles:
-      - '*'
-    rules:
-    - resources:
-      - access_request
-      verbs:
-      - delete
-      - update
-      - read
-      - list
+      roles: ['*']
 ```
-Create a user with all admin priveldeges so you can approve/deny request (use different browser or incognito mode so you don't have to keep logging out/in)
 - [ ] Verify you can view access request from request list
 - [ ] Verify there is list of reviewers you selected (empty list if none selected AND none wasn't defined in roles)
-- [ ] Verify threshold name is there (it should be `default` if not defined in role)
+- [ ] Verify threshold name is there (it will be `default` if thresholds weren't defined in role, or blank if not named)
 - [ ] Verify you can approve a request with message, and immediately see updated state with your review stamp (green checkmark) and message box
 - [ ] Verify you can deny a request, and immediately see updated state with your review stamp (red cross)
 - [ ] Verify deleting the denied request is removed from list
