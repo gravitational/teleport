@@ -58,7 +58,7 @@ To start using Teleport Enterprise, you will need to Download the binaries and t
 After downloading the binary tarball, run:
 
 ```bsh
-$ tar -xzf teleport-ent-v{{ teleport.version }}-linux-amd64-bin.tar.gz
+$ tar -xzf teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
 $ cd teleport-ent
 ```
 
@@ -129,7 +129,7 @@ $ sudo systemctl status teleport
 # after successful start retrieve the CA pin for using in the node
 $ sudo tctl status
 Cluster  teleport
-Version  {{ version }}
+Version  (=version=)
 Host CA  never updated
 User CA  never updated
 Jwt CA   never updated
@@ -388,12 +388,12 @@ SailPoint and others.
 
 We provide pre-built Docker images for every version of Teleport Enterprise. These images are hosted on quay.io.
 
-- [All tags under `quay.io/gravitational/teleport-ent` are Teleport Enterprise images](https://quay.io/repository/gravitational/teleport-ent?tag=latest&tab=tags)
+- [All tags under `quay.io/gravitational/teleport-ent` are Teleport Enterprise images](https://quay.io/repository/gravitational/teleport-ent?tag=latest\&tab=tags)
 
 We currently only offer Docker images for `x86_64` architectures.
 
 <Admonition type="note">
-  You will need a recent version of [Docker](https://hub.docker.com/search?q=&type=edition&offering=community) installed to follow this section of the quick start guide.
+  You will need a recent version of [Docker](https://hub.docker.com/search?q=\&type=edition\&offering=community) installed to follow this section of the quick start guide.
 </Admonition>
 
 <Admonition type="warning">
@@ -408,12 +408,12 @@ They are stable, and we recommend their use to easily keep your Teleport Enterpr
 
 | Image name | Community or Enterprise? | Teleport version | Image automatically updated? | Image base |
 | - | - | - | - | - |
-| `quay.io/gravitational/teleport-ent:{{ version }}` | Enterprise | The latest version of Teleport Enterprise {{ version }} | Yes | [Ubuntu 20.04](https://hub.docker.com/_/ubuntu) |
-| `quay.io/gravitational/teleport-ent:{{ version }}-fips` | Enterprise FIPS | The latest version of Teleport Enterprise {{version }} FIPS | Yes | [Ubuntu 20.04](https://hub.docker.com/_/ubuntu) |
-| `quay.io/gravitational/teleport-ent:{{ teleport.version }}` | Enterprise | The version specified in the image's tag (i.e. {{ teleport.version }}) | No | [Ubuntu 20.04](https://hub.docker.com/_/ubuntu) |
-| `quay.io/gravitational/teleport-ent:{{ teleport.version }}-fips` | Enterprise FIPS | The version specified in the image's tag (i.e. {{ teleport.version }}) | No | [Ubuntu 20.04](https://hub.docker.com/_/ubuntu) |
+| `quay.io/gravitational/teleport-ent:(=version=)` | Enterprise | The latest version of Teleport Enterprise (=version=) | Yes | [Ubuntu 20.04](https://hub.docker.com/\_/ubuntu) |
+| `quay.io/gravitational/teleport-ent:(=version=)-fips` | Enterprise FIPS | The latest version of Teleport Enterprise (=version=) FIPS | Yes | [Ubuntu 20.04](https://hub.docker.com/\_/ubuntu) |
+| `quay.io/gravitational/teleport-ent:(=teleport.version=)` | Enterprise | The version specified in the image's tag (i.e. (=teleport.version=)) | No | [Ubuntu 20.04](https://hub.docker.com/\_/ubuntu) |
+| `quay.io/gravitational/teleport-ent:(=teleport.version=)-fips` | Enterprise FIPS | The version specified in the image's tag (i.e. (=teleport.version=)) | No | [Ubuntu 20.04](https://hub.docker.com/\_/ubuntu) |
 
-For testing, we always recommend that you use the latest release version of Teleport Enterprise, which is currently `{{teleport.latest_ent_docker_image}}`.
+For testing, we always recommend that you use the latest release version of Teleport Enterprise, which is currently `(=teleport.latest_ent_docker_image=)`.
 
 ### Quickstart using docker-compose
 
@@ -456,7 +456,7 @@ cp ~/downloads/downloaded-license.pem ~/teleport/data/license.pem
 docker run --hostname localhost --rm \
   --entrypoint=/bin/sh \
   -v ~/teleport/config:/etc/teleport \
-  {{teleport.latest_ent_docker_image}} -c "teleport configure > /etc/teleport/teleport.yaml"
+  (=teleport.latest_ent_docker_image=) -c "teleport configure > /etc/teleport/teleport.yaml"
 
 # change the path to the license file in the sample config
 sed -i 's_/path/to/license-if-using-teleport-enterprise.pem_/var/lib/teleport/license.pem_g' ~/teleport/config/teleport.yaml
@@ -466,7 +466,7 @@ docker run --hostname localhost --name teleport \
   -v ~/teleport/config:/etc/teleport \
   -v ~/teleport/data:/var/lib/teleport \
   -p 3023:3023 -p 3025:3025 -p 3080:3080 \
-  {{teleport.latest_ent_docker_image}}
+  (=teleport.latest_ent_docker_image=)
 ```
 
 ### Creating a Teleport user when using Docker quickstart

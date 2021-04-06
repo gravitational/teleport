@@ -12,7 +12,8 @@ session recordings typically do not contain passwords that were entered into a t
 
 The disadvantage is that session recordings can by bypassed using several techniques:
 
-- **Obfuscation**. For example, even though the command ` echo Y3VybCBodHRwOi8vd3d3LmV4YW1wbGUuY29tCg== | base64 --decode | sh` does not contain
+- **Obfuscation**. For example, even though the command
+  `echo Y3VybCBodHRwOi8vd3d3LmV4YW1wbGUuY29tCg== | base64 --decode | sh` does not contain
   `curl http://www.example.com`, when decoded, that is what is run.
 - **Shell scripts**. For example, if a user uploads and executes a script, the commands
   run within the script are not captured, simply the output.
@@ -94,27 +95,24 @@ We recommend installing BCC tools using your distribution's package manager wher
 
 <Tabs>
   <TabItem label="Ubuntu/Debian 18.04+">
-    ````sh
+    ```sh
     apt -y install bpfcc-tools
     ```
-
-    ````
   </TabItem>
 
   <TabItem label="CentOS/RHEL 8+">
-    ````sh
+    \`\`sh
     yum -y install bcc-tools
-    ```
 
     ````
-  </TabItem>
+    </TabItem>
 
-  <TabItem label="Amazon Linux 2+">
+    <TabItem label="Amazon Linux 2+">
     **Example Script to install relevant bcc packages for Amazon 2 Linux**
 
     Make sure the the machine is at Kernel 4.19+/5+ (`uname -r`). Run the following script, sourced from [BCC github](https://github.com/iovisor/bcc/blob/master/INSTALL.md#amazon-linux-2---binary), to enable BCC in Amazon Linux Extras, install required `kernel-devel` package for the Kernel version and install the BCC tools.
 
-    ````sh
+    ```sh
     #!/bin/bash
     # Enable BCC within the Amazon Linux Extras
     sudo amazon-linux-extras enable BCC
@@ -123,7 +121,7 @@ We recommend installing BCC tools using your distribution's package manager wher
     # Install BCC
     sudo yum install -y bcc
 
-    ```
+    ````
 
     You should see output similar to below:
 
@@ -134,8 +132,6 @@ We recommend installing BCC tools using your distribution's package manager wher
     Dependency Installed:
       bcc-tools.x86_64 0:0.10.0-1.amzn2.0.1  python2-bcc.x86_64 0:0.10.0-1.amzn2.0.1
     ```
-
-    ````
   </TabItem>
 
   <TabItem label="Ubuntu and Debian (compile from source)">
@@ -146,7 +142,7 @@ We recommend installing BCC tools using your distribution's package manager wher
       Compiling from source can take a long time and may break if your kernel version changes.
     </Admonition>
 
-    ````sh
+    ```sh
     #!/bin/bash
 
     # Download LLVM and Clang from the Trusty Repos.
@@ -178,8 +174,6 @@ We recommend installing BCC tools using your distribution's package manager wher
     # Install is done.
     echo "Install is complete, try running /usr/share/bcc/tools/execsnoop to verify install."
     ```
-
-    ````
   </TabItem>
 
   <TabItem label="CentOS (compile from source)">
@@ -190,7 +184,7 @@ We recommend installing BCC tools using your distribution's package manager wher
       Compiling from source can take a long time and may break if your kernel version changes.
     </Admonition>
 
-    ````sh
+    ```sh
     #!/bin/bash
 
     set -e
@@ -251,8 +245,6 @@ We recommend installing BCC tools using your distribution's package manager wher
     rm -fr $BUILD_DIR
     echo "Install is complete, try running /usr/share/bcc/tools/execsnoop to verify install."
     ```
-
-    ````
   </TabItem>
 </Tabs>
 
@@ -350,15 +342,13 @@ be a JSON log for each command and network request.
 
 <Tabs>
   <TabItem label="json">
-    ````json
+    ```json
     {"argv":["google.com"],"cgroup_id":4294968064,"code":"T4000I","ei":5,"event":"session.command","login":"root","namespace":"default","path":"/bin/ping","pid":2653,"ppid":2660,"program":"ping","return_code":0,"server_id":"96f2bed2-ebd1-494a-945c-2fd57de41644","sid":"44c6cea8-362f-11ea-83aa-125400432324","time":"2020-01-13T18:05:53.919Z","uid":"734930bb-00e6-4ee6-8798-37f1e9473fac","user":"benarent"}
     ```
-
-    ````
   </TabItem>
 
   <TabItem label="json formatted">
-    ````json
+    ```json
     {
       "argv":[
         "google.com"
@@ -381,7 +371,5 @@ be a JSON log for each command and network request.
       "user":"benarent"
     }
     ```
-
-    ````
   </TabItem>
 </Tabs>
