@@ -2,20 +2,20 @@
 * @klizhentas @russjones
 
 # Release Engineering.
-/assets/ @webvictim @russjones @awly
-/build.assets/ @webvictim @russjones @awly
-/docker/ @webvictim @russjones @awly
-/examples/ @webvictim @russjones @awly
-/vagrant/ @webvictim @russjones @awly
-.drone.yml @webvictim @russjones @awly
-.gitattributes @webvictim @russjones @awly
-.gitignore @webvictim @russjones @awly
-.gitmodules @webvictim @russjones @awly
-Makefile @webvictim @russjones @awly
+/assets/ @klizhentas @webvictim @russjones @awly
+/build.assets/ @klizhentas @webvictim @russjones @awly
+/docker/ @klizhentas @webvictim @russjones @awly
+/examples/ @klizhentas @webvictim @russjones @awly
+/vagrant/ @klizhentas @webvictim @russjones @awly
+.drone.yml @klizhentas @webvictim @russjones @awly
+.gitattributes @klizhentas @webvictim @russjones @awly
+.gitignore @klizhentas @webvictim @russjones @awly
+.gitmodules @klizhentas @webvictim @russjones @awly
+Makefile @klizhentas @webvictim @russjones @awly
 
 # Product.
-*.md @benarent @webvictim
-/docs/ @benarent @webvictim
+*.md @klizhentas @benarent @webvictim
+/docs/ @klizhentas @benarent @webvictim
 
 # Backend Engineering.
 /*.go @klizhentas @russjones @fspmarshall @webvictim @awly
