@@ -52,10 +52,10 @@ func demoClient(ctx context.Context, clt *client.Client) (err error) {
 	// Create a new access request for the `access-admin` user to use the `admin` role.
 	accessReq, err := types.NewAccessRequest(uuid.New(), "access-admin", "admin")
 	if err != nil {
-		return fmt.Errorf("failed to make new access request: %v", err)
+		return fmt.Errorf("failed to make new access request: %w", err)
 	}
 	if err = clt.CreateAccessRequest(ctx, accessReq); err != nil {
-		return fmt.Errorf("failed to create access request: %v", err)
+		return fmt.Errorf("failed to create access request: %w", err)
 	}
 	log.Printf("Created access request: %v", accessReq)
 
@@ -64,12 +64,12 @@ func demoClient(ctx context.Context, clt *client.Client) (err error) {
 		RequestID: accessReq.GetName(),
 		State:     types.RequestState_APPROVED,
 	}); err != nil {
-		return fmt.Errorf("failed to accept request: %v", err)
+		return fmt.Errorf("failed to accept request: %w", err)
 	}
 	log.Printf("Approved access request")
 
 	if err := clt.DeleteAccessRequest(ctx, accessReq.GetName()); err != nil {
-		return fmt.Errorf("failed to delete access request: %v", err)
+		return fmt.Errorf("failed to delete access request: %w", err)
 	}
 	log.Println("Deleted access request")
 
