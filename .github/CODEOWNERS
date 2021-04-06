@@ -2,20 +2,20 @@
 * @klizhentas @russjones @r0mant
 
 # Release Engineering.
-/assets/ @webvictim @russjones @awly @r0mant
-/build.assets/ @webvictim @russjones @awly @r0mant
-/docker/ @webvictim @russjones @awly @r0mant
-/examples/ @webvictim @russjones @awly @r0mant
-/vagrant/ @webvictim @russjones @awly @r0mant
-.drone.yml @webvictim @russjones @awly @r0mant
-.gitattributes @webvictim @russjones @awly @r0mant
-.gitignore @webvictim @russjones @awly @r0mant
-.gitmodules @webvictim @russjones @awly @r0mant
-Makefile @webvictim @russjones @awly @r0mant
+/assets/ @klizhentas @webvictim @russjones @awly @r0mant
+/build.assets/ @klizhentas @webvictim @russjones @awly @r0mant
+/docker/ @klizhentas @webvictim @russjones @awly @r0mant
+/examples/ @klizhentas @webvictim @russjones @awly @r0mant
+/vagrant/ @klizhentas @webvictim @russjones @awly @r0mant
+.drone.yml @klizhentas @webvictim @russjones @awly @r0mant
+.gitattributes @klizhentas @webvictim @russjones @awly @r0mant
+.gitignore @klizhentas @webvictim @russjones @awly @r0mant
+.gitmodules @klizhentas @webvictim @russjones @awly @r0mant
+Makefile @klizhentas @webvictim @russjones @awly @r0mant
 
 # Product.
-*.md @benarent @webvictim
-/docs/ @benarent @webvictim
+*.md @klizhentas @benarent @webvictim
+/docs/ @klizhentas @benarent @webvictim
 /rfd/ @klizhentas @russjones @benarent
 
 # Backend Engineering.
