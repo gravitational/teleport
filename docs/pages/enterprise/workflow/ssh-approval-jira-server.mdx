@@ -147,8 +147,8 @@ and Teleport Auth access.  We currently only provide linux-amd64 binaries, you c
 compile these plugins from [source](https://github.com/gravitational/teleport-plugins/tree/master/access/jira).
 
 ```bash
-$ wget https://get.gravitational.com/teleport-access-jira-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
-$ tar -xzf teleport-access-jira-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
+$ wget https://get.gravitational.com/teleport-access-jira-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
+$ tar -xzf teleport-access-jira-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
 $ cd teleport-access-jira/
 $ sudo ./install
 # Teleport Jira Plugin binaries have been copied to /usr/local/bin
@@ -172,7 +172,7 @@ $ sudo mv teleport-jira.toml /etc
 By default, Jira Teleport Plugin will use a config in `/etc/teleport-jira.toml`, and you can override it with `-c config/file/path.toml` flag.
 
 ```toml
-{!examples/resources/plugins/teleport-jira.toml!}
+(!examples/resources/plugins/teleport-jira.toml!)
 ```
 
 The `[teleport]` section describes where is the teleport service running, and what keys should the plugin use to authenticate itself. Use the keys that you've generated [above in exporting your Certificate section](#export-access-plugin-certificate).
@@ -221,7 +221,7 @@ In production, we recommend starting teleport plugin daemon via an init system l
 Here's the recommended Teleport Plugin service unit file for systemd:
 
 ```bash
-{!examples/systemd/plugins/teleport-jira.service!}
+(!examples/systemd/plugins/teleport-jira.service!)
 ```
 
 Save this as `teleport-jira.service`.
