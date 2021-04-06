@@ -33,7 +33,6 @@ Let's take a closer look at the available Kubernetes settings:
   a client's machine when a client executes tsh login command to retrieve its certificate.
   If you intend to run multiple Teleport proxies behind a load balancer, this must
   be the load balancer's public address.
-
 - `listen_addr` defines which network interface and port the Teleport proxy server
   should bind to. It defaults to port 3026 on all NICs.
 
@@ -208,7 +207,6 @@ configured. In this guide we'll look at two common configurations:
 
 - **Open source, Teleport Community edition** configured to authenticate users via [Github](admin-guide.mdx#github-oauth-20).
   In this case, we'll need to map Github teams to Kubernetes groups.
-
 - **Commercial, Teleport Enterprise edition** configured to authenticate users via [Okta SSO](enterprise/sso/ssh-okta.mdx).
   In this case, we'll need to map users' groups that come from Okta to Kubernetes
   groups.
@@ -335,7 +333,7 @@ spec:
     # kubernetes groups the users of this role will be assigned to.
     # note that you can refer to a SAML/OIDC trait via the "external" property bag,
     # this allows you to specify Kubernetes group membership in an identity manager:
-    kubernetes_groups: ["system:masters", "{% raw %}{{external.trait_name}}{% endraw %}"]
+    kubernetes_groups: ["system:masters", "{{external.trait_name}}"]
 ```
 
 To add `kubernetes_groups` setting to an existing Teleport role, you can either
@@ -353,13 +351,13 @@ $ tctl create -f admin.yaml
   type="tip"
   title="Advanced Usage"
 >
-  `{% raw %}{{ external.trait_name }}{% endraw %}` example is shown to demonstrate how to fetch
+  `{{ external.trait_name }}` example is shown to demonstrate how to fetch
   the Kubernetes groups dynamically from Okta during login. In this case, you
   need to define Kubernetes group membership in Okta (as a trait) and use
   that trait name in the Teleport role.
 
   Teleport 4.3 has an option to extract the local part from an email claim. This can be helpful
-  since some operating systems don't support the @ symbol. This means by using `logins: ['{% raw %}{{email.local(external.email)}}{% endraw %}']` the resulting output will be `dave.smith` if the email was [dave.smith@acme.com](mailto:dave.smith@acme.com).
+  since some operating systems don't support the @ symbol. This means by using `logins: ['{{email.local(external.email)}}']` the resulting output will be `dave.smith` if the email was [dave.smith@acme.com](mailto:dave.smith@acme.com).
 </Admonition>
 
 Once setup is complete, when users execute `tsh login` and go through the usual Okta login

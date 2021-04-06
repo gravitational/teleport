@@ -20,14 +20,11 @@ Now you can see the monitoring information by visiting several endpoints:
 - `http://127.0.0.1:3000/metrics` is the list of internal metrics Teleport is
   tracking. It is compatible with [Prometheus](https://prometheus.io/)
   collectors.
-
 - `http://127.0.0.1:3000/healthz` returns "OK" if the process is healthy or
   `503` otherwise.
-
 - `http://127.0.0.1:3000/readyz` is similar to `/healthz` , but it returns "OK"
   *only after* the node successfully joined the cluster, i.e.it draws the
   difference between "healthy" and "ready".
-
 - `http://127.0.0.1:3000/debug/pprof/` is Golang's standard profiler. It's only
   available when `-d` flag is given in addition to `--diag-addr`
 

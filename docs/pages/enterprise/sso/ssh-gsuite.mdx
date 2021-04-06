@@ -48,16 +48,12 @@ Before you get started you’ll need:
 ## Configure G Suite
 
 1. Obtain OAuth 2.0 credentials  [https://developers.google.com/identity/protocols/OpenIDConnect](https://developers.google.com/identity/protocols/OpenIDConnect)
-
 2. Create a new Project.
    ![Create New Project](../../../img/gsuite/gsuite-1-new-project.png)
-
 3. Select OAuth client ID.
    ![Create OAuth Creds](../../../img/gsuite/gsuite-2-created-creds.png)
-
 4. Make Application Type Public & Setup Domain Verification
    ![Setup Application Type](../../../img/gsuite/gsuite-3-oauth.png)
-
 5. Copy OAuth Client ID and Client Secret for YAML Below.
    Note: The redirect_url: `https://teleport.example.com:3080/v1/webapi/oidc/callback`
 
@@ -124,7 +120,7 @@ Now, create a OIDC connector [resource](../../admin-guide.mdx#resources).
 Write down this template as `gsuite-connector.yaml`:
 
 ```yaml
-{!examples/resources/gsuite-connector.yaml!}
+(!examples/resources/gsuite-connector.yaml!)
 ```
 
 Create the connector using `tctl` tool:
@@ -172,7 +168,7 @@ spec:
   options:
     max_session_ttl: 24h
   allow:
-    logins: [ "{% raw %}{{external.username}}{% endraw %}", ubuntu ]
+    logins: [ "{{external.username}}", ubuntu ]
     node_labels:
       access: relaxed
 ```

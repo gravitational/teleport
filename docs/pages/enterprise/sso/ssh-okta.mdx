@@ -67,7 +67,7 @@ SINGLE ATTRIBUTE STATEMENTS
 GROUP ATTRIBUTE STATEMENTS
 
 - Name: `groups` | Name format: `Unspecified`
-- Filter: `Matches regex` \|  `.*`
+- Filter: `Matches regex` |  `.*`
 
 ![Configure APP](../../../img/sso/okta/setup-redirection.png)
 
@@ -110,7 +110,7 @@ configure a Teleport connector:
 Now, create a SAML connector [resource](../../admin-guide.mdx#resources):
 
 ```yaml
-{!examples/resources/saml-connector.yaml!}
+(!examples/resources/saml-connector.yaml!)
 ```
 
 Create the connector using `tctl` tool:
@@ -152,14 +152,14 @@ spec:
   options:
     max_session_ttl: 24h
   allow:
-    logins: [ "{% raw %}{{email.local(external.username)}}{% endraw %}", ubuntu ]
+    logins: [ "{{email.local(external.username)}}", ubuntu ]
     node_labels:
       access: relaxed
 ```
 
 - Devs are only allowed to login to nodes labelled with `access: relaxed` label.
 - Developers can log in as `ubuntu` user
-- Notice `{% raw %}{{external.username}}{% endraw %}` login. It configures Teleport to look at
+- Notice `{{external.username}}` login. It configures Teleport to look at
   *"username"* Okta claim and use that field as an allowed login for each user.  This example uses email as the username format.  The `email.local(external.trait)` function will remove the `@domain` and just have the username prefix.
 - Developers also do not have any "allow rules" i.e. they will not be able to
   see/replay past sessions or re-configure the Teleport cluster.

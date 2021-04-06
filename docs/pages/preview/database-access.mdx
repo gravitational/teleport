@@ -624,8 +624,8 @@ propagating information from identity providers:
 ```yaml
 spec:
   allow:
-    db_names: ["{% raw %}{{internal.db_names}}{% endraw %}", "{% raw %}{{external.xxx}}{% endraw %}"]
-    db_users: ["{% raw %}{{internal.db_users}}{% endraw %}", "{% raw %}{{external.yyy}}{% endraw %}"]
+    db_names: ["{{internal.db_names}}", "{{external.xxx}}"]
+    db_users: ["{{internal.db_users}}", "{{external.yyy}}"]
 ```
 
 See general [RBAC](../enterprise/ssh-rbac.mdx) documentation for more details.

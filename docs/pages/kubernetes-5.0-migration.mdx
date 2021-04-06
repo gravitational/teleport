@@ -196,8 +196,7 @@ kubernetes_service:
 ```
 
 After all the Teleport agents are running, you can view the list of Kubernetes
-clusters using `tsh kube ls` and switch between them using `tsh kube login
-<kube_cluster_name>`:
+clusters using `tsh kube ls` and switch between them using `tsh kube login <kube_cluster_name>`:
 
 ```sh
 $ tsh kube ls
@@ -351,10 +350,10 @@ metadata:
   name: admin
 spec:
   allow:
-    logins: ['{% raw %}{{internal.logins}}{% endraw %}']
+    logins: ['{{internal.logins}}']
     # Define the Kubernetes users and groups mapped to users with this role.
-    kubernetes_users: ["{% raw %}{{internal.kubernetes_users}}{% endraw %}"]
-    kubernetes_groups: ["some-group", "{% raw %}{{internal.kubernetes_groups}}{% endraw %}"]
+    kubernetes_users: ["{{internal.kubernetes_users}}"]
+    kubernetes_groups: ["some-group", "{{internal.kubernetes_groups}}"]
 
     # List of kubernetes labels a user will be allowed to connect to:
     kubernetes_labels:
