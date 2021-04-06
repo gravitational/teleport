@@ -148,11 +148,11 @@ cluster from scratch, so choose carefully.
 
 ### ami_name
 
-Setting `export TF_VAR_ami_name="gravitational-teleport-ami-ent-{{ teleport.version }}"`
+Setting `export TF_VAR_ami_name="gravitational-teleport-ami-ent-(=teleport.version=)"`
 
 Gravitational automatically builds and publishes OSS, Enterprise and Enterprise FIPS 140-2 AMIs when we
 release a new version of Teleport. The AMI names follow the format: `gravitational-teleport-ami-<type>-<version>`
-where `<type>` is either `oss` or `ent` (Enterprise) and `version` is the version of Teleport e.g. `{{ teleport.version }}`.
+where `<type>` is either `oss` or `ent` (Enterprise) and `version` is the version of Teleport e.g. `(=teleport.version=)`.
 
 FIPS 140-2 compatible AMIs (which deploy Teleport in FIPS 140-2 mode by default) have the `-fips` suffix.
 
@@ -193,12 +193,12 @@ Teleport Enterprise/Pro functionality.
 
 (OSS users can provide any valid local file path here - it isn't used by the auth server in a Teleport OSS install)
 
-### route53_zone
+### route53\_zone
 
 Setting `export TF_VAR_route53_zone="example.com"`
 
 Our Terraform setup requires you to have your domain provisioned in AWS Route 53 - it will automatically add
-DNS records for [`route53_domain`](#route53_domain) as set up below. You can list these with this command:
+DNS records for [`route53_domain`](#route53\_domain) as set up below. You can list these with this command:
 
 ```bash
 $ aws route53 list-hosted-zones --query "HostedZones[*].Name" --output text
@@ -211,16 +211,16 @@ $ aws route53 list-hosted-zones --query "HostedZones[*].Name" --output text
 
 You should use the appropriate domain without the trailing dot.
 
-### route53_domain
+### route53\_domain
 
 Setting `export TF_VAR_route53_domain="teleport.example.com"`
 
 A subdomain to set up as a CNAME to the Teleport load balancer for web access. This will be the public-facing domain
 that people use to connect to your Teleport cluster, so choose wisely.
 
-This must be a subdomain of the domain you chose for [`route53_zone`](#route53_zone) above.
+This must be a subdomain of the domain you chose for [`route53_zone`](#route53\_zone) above.
 
-### s3_bucket_name
+### s3\_bucket_name
 
 Setting `export TF_VAR_s3_bucket_name="example-cluster"`
 
@@ -242,7 +242,7 @@ Setting `export TF_VAR_grafana_pass="CHANGE_THIS_VALUE"`
 
 We deploy Grafana along with every Terraform deployment and automatically make stats on cluster usage available in
 a custom dashboard. This variable sets up the password for the Grafana `admin` user. The Grafana web UI is served
-on the same subdomain as specified above in [`route53_domain`](#route53_domain) on port 8443.
+on the same subdomain as specified above in [`route53_domain`](#route53\_domain) on port 8443.
 
 With the variables set in this example, it would be available on [https://teleport.example.com:8443](https://teleport.example.com:8443)
 
@@ -255,7 +255,7 @@ to a known value at the outset.
 Setting `export TF_VAR_use_acm="false"`
 
 If set to the string `"false"`, Terraform will use [LetsEncrypt](https://letsencrypt.org/) to provision the public-facing
-web UI certificate for the Teleport cluster ([`route53_domain`](#route53_domain) - so [https://teleport.example.com](https://teleport.example.com) in this example).
+web UI certificate for the Teleport cluster ([`route53_domain`](#route53\_domain) - so [https://teleport.example.com](https://teleport.example.com) in this example).
 This uses an [AWS network load balancer](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/introduction.html)
 to load-balance connections to the Teleport cluster's web UI, and its SSL termination is handled by Teleport itself.
 
@@ -310,7 +310,7 @@ More information about how Teleport works with DynamoDB can be found in our [Dyn
 ### Recorded session storage
 
 The reference Terraform deployment sets Teleport up to store recorded session logs in the same S3 bucket configured in
-the [`s3_bucket_name`](#s3_bucket_name) variable, under the `records` directory.
+the [`s3_bucket_name`](#s3\_bucket_name) variable, under the `records` directory.
 
 In our example this would be `s3://example-cluster/records`
 
@@ -326,7 +326,7 @@ In our example this would be `s3://example-cluster/records`
 ### Cluster domain
 
 The reference Terraform deployment sets the Teleport cluster up to be available on a domain defined in Route53, referenced
-by the [`route53_domain`](#route53_domain) variable. In our example this would be `teleport.example.com`
+by the [`route53_domain`](#route53\_domain) variable. In our example this would be `teleport.example.com`
 
 Teleport's web interface will be available on port 443 - [https://teleport.example.com](https://teleport.example.com) - this is via a configured CNAME
 to the AWS load balancer.
@@ -415,7 +415,7 @@ If you need to tear down a running deployment for any reason, you can run `terra
 ## Accessing the cluster after Terraform setup
 
 Once the Terraform setup is finished, your Teleport cluster's web UI should be available on
-https&#x3A;//[route53_domain](#route53_domain) - this is [https://teleport.example.com](https://teleport.example.com) in our example.
+https://[route53\_domain](#route53\_domain) - this is [https://teleport.example.com](https://teleport.example.com) in our example.
 
 ### Adding an admin user to the Teleport cluster
 

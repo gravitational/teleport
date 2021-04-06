@@ -288,11 +288,9 @@ connector. There are three possible values (types) of 2FA:
 - `otp` is the default. It implements [TOTP](https://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm)
   standard. You can use [Google Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator)
   or [Authy](https://www.authy.com/) or any other TOTP client.
-
-- `u2f` implements [U2F](https://en.wikipedia.org/wiki/Universal_2nd_Factor)
+- `u2f` implements [U2F](https://en.wikipedia.org/wiki/Universal\_2nd_Factor)
   standard for utilizing hardware (USB) keys for second factor. You can use [YubiKeys](https://www.yubico.com/),
   [SoloKeys](https://solokeys.com/) or any other hardware token which implements the FIDO U2F standard.
-
 - `off` turns off second factor authentication.
 
 Here is an example of this setting in the `teleport.yaml` :
@@ -354,9 +352,7 @@ hardware keys as a second authentication factor. By default U2F is disabled. To
 start using U2F:
 
 - Enable U2F in Teleport configuration `/etc/teleport.yaml` .
-
 - For CLI-based logins you have to install [u2f-host](https://developers.yubico.com/libu2f-host/) utility.
-
 - For web-based logins you have to use Google Chrome and Firefox 67 or greater, are the only
   supported U2F browsers at this time.
 
@@ -764,7 +760,6 @@ two kinds of labels:
 1. `static labels` do not change over time, while [`teleport`](cli-docs.mdx#teleport)
    process is running.  Examples of static labels are physical location of nodes,
    name of the environment (staging vs production), etc.
-
 2. `dynamic labels` also known as "label commands" allow to generate labels at
    runtime. Teleport will execute an external command on a node at a configurable
    frequency and the output of a command becomes the label value. Examples include
@@ -812,7 +807,7 @@ ssh_service:
 
 `/path/to/executable` must be a valid executable command (i.e. executable bit
 must be set) which also includes shell scripts with a proper [shebang
-line](https://en.wikipedia.org/wiki/Shebang_(Unix)).
+line](https://en.wikipedia.org/wiki/Shebang_\(Unix\)).
 
 **Important:** notice that `command` setting is an array where the first element
 is a valid executable and each subsequent element is an argument, i.e:
@@ -836,11 +831,9 @@ the audit log:
 
 1. **SSH Events:** Teleport logs events like successful user logins along with
    the metadata like remote IP address, time and the session ID.
-
 2. **Recorded Sessions:** Every SSH shell session is recorded and can be
    replayed later. The recording is done by the nodes themselves, by default,
    but can be configured to be done by the proxy.
-
 3. **Optional: [Enhanced Session Recording](features/enhanced-session-recording.mdx)**
 
 Refer to the ["Audit Log" chapter in the Teleport
@@ -940,7 +933,6 @@ The recorded sessions are stored as raw bytes in the `sessions` directory under
 1. `.bytes` file or `.chunks.gz` compressed format represents the raw session bytes and is somewhat
    human-readable, although you are better off using [`tsh
    play`](cli-docs.mdx#tsh-play) or the Web UI to replay it.
-
 2. `.log` file or `.events.gz` compressed file contains the copies of the event log entries that are            related to this session.
 
 ```bash
@@ -961,7 +953,6 @@ A Teleport administrator has two tools to configure a Teleport cluster:
 
 - The [configuration file](#configuration) is used for static configuration like
   the cluster name.
-
 - The [`tctl`](cli-docs.mdx#tctl) admin tool is used for manipulating dynamic
   records like Teleport
   users.
@@ -1363,8 +1354,6 @@ do this:
 - Use a load balancer to create a single auth API access point (AP) and
   specify this AP in `auth_servers` section of Teleport configuration for all
   nodes in a cluster. This load balancer should do TCP level forwarding.
-
-
 - If a load balancer is not an option, you must specify each instance of an
   auth server in `auth_servers` section of Teleport configuration.
 
@@ -1746,15 +1735,12 @@ teleport:
 
 - Replace `Example_GCP_Project_Name` and `Example_TELEPORT_FIRESTORE_TABLE_NAME`
   with your own settings. Teleport will create the table automatically.
-
 - `Example_TELEPORT_FIRESTORE_TABLE_NAME` and `Example_TELEPORT_FIRESTORE_EVENTS_TABLE_NAME`
   **must** be different Firestore tables. The schema is different for each. Using the same
   table name for both will result in errors.
-
 - The GCP authentication setting above can be omitted if the machine itself is
   running on a GCE instance with a Service Account that has access to the
   Firestore table.
-
 - Audit log settings above are optional. If specified, Teleport will store the
   audit log in Firestore and the session recordings **must** be stored in a GCP
   bucket, i.e.both `audit_xxx` settings must be present. If they are not set,
@@ -1785,11 +1771,9 @@ clients, etc), the following rules apply:
 
 - Patch versions are always compatible, for example any 4.0.1 component will
   work with any 4.0.3 component.
-
 - Other versions are always compatible with their **previous** release. This
   means you must not attempt to upgrade from 4.1 straight to 4.3. You must
   upgrade to 4.2 first.
-
 - Teleport clients [`tsh`](cli-docs.mdx#tsh) for users and [`tctl`](cli-docs.mdx#tctl) for admins
   may not be compatible with different versions of the `teleport` service.
 
@@ -1830,10 +1814,8 @@ When upgrading a single Teleport cluster:
 1. **Upgrade the auth server first**. The auth server keeps the cluster state
    and if there are data format changes introduced in the new version this will
    perform necessary migrations.
-
 2. Then, upgrade the proxy servers. The proxy servers are stateless and can be
    upgraded in any sequence or at the same time.
-
 3. Finally, upgrade the SSH nodes in any sequence or at the same time.
 
 <Admonition
@@ -1917,9 +1899,9 @@ Using `tctl get all --with-secrets` will retrieve the below items:
 - Trusted Clusters
 - Connectors:
   - Github
-  - SAML [Teleport Enterprise]
-  - OIDC [Teleport Enterprise]
-  - Roles [Teleport Enterprise]
+  - SAML \[Teleport Enterprise]
+  - OIDC \[Teleport Enterprise]
+  - Roles \[Teleport Enterprise]
 
 When migrating backends, you should back up your auth server's `data_dir/storage` directly.
 
@@ -1963,7 +1945,6 @@ administrator must:
 
 1. Replace the Teleport binaries, usually [`teleport`](cli-docs.mdx#teleport)
    and [`tctl`](cli-docs.mdx#tctl)
-
 2. Execute `systemctl restart teleport`
 
 This will perform a graceful restart, i.e.the Teleport daemon will fork a new
@@ -2033,14 +2014,11 @@ Now you can see the monitoring information by visiting several endpoints:
 - `http://127.0.0.1:3000/metrics` is the list of internal metrics Teleport is
   tracking. It is compatible with [Prometheus](https://prometheus.io/)
   collectors. For a full list of metrics review our [metrics reference](metrics-logs-reference.mdx).
-
 - `http://127.0.0.1:3000/healthz` returns "OK" if the process is healthy or
   `503` otherwise.
-
 - `http://127.0.0.1:3000/readyz` is similar to `/healthz` , but it returns "OK"
   *only after* the node successfully joined the cluster, i.e.it draws the
   difference between "healthy" and "ready".
-
 - `http://127.0.0.1:3000/debug/pprof/` is Golang's standard profiler. It's only
   available when `-d` flag is given in addition to `--diag-addr`
 
