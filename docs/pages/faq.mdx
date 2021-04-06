@@ -91,6 +91,18 @@ Please refer to the [Ports](admin-guide.mdx#ports) section of the Admin Manual.
 
 Gravitational offers this feature for the [Enterprise versions of Teleport](enterprise/introduction.mdx).
 
+### Can I set a default username for my SSH connections?
+
+Yes, just set the `TELEPORT_LOGIN` environment variable in your terminal or user profile settings (~/.bashrc). 
+```bash
+# example of setting jeff as the default username instead of using the logged in username
+whoami
+jeffery
+export TELEPORT_LOGIN=jeff
+tsh ssh myserver
+jeff@myserver:~#
+```
+
 ## Commercial Teleport Editions
 
 ### What is included in the commercial version, Teleport Enterprise?
