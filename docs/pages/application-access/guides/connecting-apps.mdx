@@ -127,7 +127,7 @@ a reverse tunnel.
 
 ### Application Name
 
-An application name should make a valid sub-domain (&lt;=63 characters, no spaces, only `a-z 0-9 _ -` allowed).
+An application name should make a valid sub-domain (\<=63 characters, no spaces, only `a-z 0-9 _ -` allowed).
 
 After Teleport is running, users can access the app at `app-name.proxy_public_addr.com`
 e.g. `grafana.teleport.example.com`. You can also override `public_addr` e.g
@@ -216,8 +216,11 @@ address. To override the public address, specify the `public_addr` field:
 
 ### Skip TLS Certificate Verification
 
-<Admonition type="warning" title="Danger Zone">
-This is insecure and not recommended for use in production.
+<Admonition
+  type="warning"
+  title="Danger Zone"
+>
+  This is insecure and not recommended for use in production.
 </Admonition>
 
 Teleport checks if the certificates presented by the applications are signed
