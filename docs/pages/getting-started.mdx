@@ -46,24 +46,24 @@ sudo apt-get install teleport
 </TabItem>
 <TabItem label="Linux">
 ```bash
-curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
-tar -xzf teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
+curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
+tar -xzf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
 cd teleport
 sudo ./install
 ```
 </TabItem>
 <TabItem label="ARMv7 (32-bit)">
 ```bash
-curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-arm-bin.tar.gz
-tar -xzf teleport-v{{ teleport.version }}-linux-arm-bin.tar.gz
+curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm-bin.tar.gz
+tar -xzf teleport-v(=teleport.version=)-linux-arm-bin.tar.gz
 cd teleport
 sudo ./install
 ```
 </TabItem>
 <TabItem label="ARMv8 (64-bit)">
 ```bash
-curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz
-tar -xzf teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz
+curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
+tar -xzf teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
 cd teleport
 sudo ./install
 ```
@@ -165,7 +165,7 @@ versions.  See our [compatibility policy](admin-guide.mdx#component-compatibilit
 </TabItem>
 <TabItem label="Windows - Powershell">
 ```bash
-curl -O teleport-v{{ teleport.version }}-windows-amd64-bin.zip https://get.gravitational.com/teleport-v{{ teleport.version }}-windows-amd64-bin.zip
+curl -O teleport-v(=teleport.version=)-windows-amd64-bin.zip https://get.gravitational.com/teleport-v(=teleport.version=)-windows-amd64-bin.zip
 # Unzip the archive and move `tsh.exe` to your %PATH%
 ```
 </TabItem>
@@ -173,8 +173,8 @@ curl -O teleport-v{{ teleport.version }}-windows-amd64-bin.zip https://get.gravi
 For more options (including RPM/DEB packages and downloads for i386/ARM/ARM64) please see our [installation page](installation.mdx).
 
 ```bash
-curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
-tar -xzf teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
+curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
+tar -xzf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
 cd teleport
 sudo ./install
 Teleport binaries have been copied to /usr/local/bin
@@ -263,8 +263,8 @@ write_files:
 
 runcmd:
 - 'mkdir -p /tmp/teleport'
-- 'cd /tmp/teleport && curl -O https://get.gravitational.com/teleport_{{ teleport.version }}_amd64.deb'
-- 'dpkg -i /tmp/teleport/teleport_{{ teleport.version }}_amd64.deb'
+- 'cd /tmp/teleport && curl -O https://get.gravitational.com/teleport_(=teleport.version=)_amd64.deb'
+- 'dpkg -i /tmp/teleport/teleport_(=teleport.version=)_amd64.deb'
 - 'systemctl enable teleport.service'
 - 'systemctl start teleport.service'
 ```

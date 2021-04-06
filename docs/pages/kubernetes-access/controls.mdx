@@ -97,7 +97,7 @@ access: {"env": ["prod", "staging"]}
 ```
 
 Teleport's roles map OIDC claims or SAML attributes using template variables.
-Template variable `{% raw %}{{external.groups}}{% endraw %}` will
+Template variable `{{external.groups}}` will
 be substituted to the users's group list in the role definition.
 
 ```yaml
@@ -111,9 +111,9 @@ spec:
     # for Kubernetes to work until we fix it.
     logins: ['keep-this-value-here']
     # For Alice, will be substituted with the list ["admins", "devs"]
-    kubernetes_groups: ["{% raw %}{{external.groups}}{% endraw %}"]
+    kubernetes_groups: ["{{external.groups}}"]
     # For Alice, will be substituted with ["alice@example.com"]
-    kubernetes_users: ["{% raw %}{{external.email}}{% endraw %}"]
+    kubernetes_users: ["{{external.email}}"]
 ```
 
 Create or update this role using `tctl`:
@@ -284,7 +284,7 @@ subjects:
   namespace: default
 ```
 
-Take a look at the example usage in a [Teleport Helm chart](https://github.com/gravitational/teleport/blob/v{{teleport_version}}/examples/chart/teleport-cluster/templates/clusterrole.yaml)
+Take a look at the example usage in a [Teleport Helm chart](https://github.com/gravitational/teleport/blob/v(=teleport.version=)/examples/chart/teleport-cluster/templates/clusterrole.yaml)
 
 ## Next Steps
 
