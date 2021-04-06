@@ -1,7 +1,7 @@
 {{- if .Values.teleportVersionOverride }}
   {{- $_ := set . "teleportVersion" .Values.teleportVersionOverride }}
 {{- else }}
-  {{- $_ := set . "teleportVersion" .Chart.AppVersion }}
+  {{- $_ := set . "teleportVersion" .Chart.Version }}
 {{- end }}
 apiVersion: apps/v1
 kind: Deployment

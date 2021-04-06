@@ -17,6 +17,16 @@ func init() { Gitref = \"$(GITREF)\"}  "
 # setver updates version.go and gitref.go with VERSION and GITREF vars
 #
 .PHONY:setver
-setver:
+setver: helm-version
 	@printf $(VERSION_GO) | gofmt > version.go
 	@printf $(GITREF_GO) | gofmt > gitref.go
+
+# helm-version automatically updates the versions of Helm charts to match the version in the Makefile
+# so that the chart versions are kept in sync with the published Teleport version number.
+# '-dev' is automatically removed from the version if it is present (as it is on the master branch)
+# as we don't currently publish nightly Docker images.
+.PHONY:helm-version
+helm-version:
+	@export TRIMMED_VERSION=$$(echo $(VERSION) | cut -d. -f1) && \
+	sed -i "s_^version:\ .*_version: \"$${TRIMMED_VERSION}\"_g" examples/chart/teleport-kube-agent/Chart.yaml && \
+	sed -i "s_^version:\ .*_version: \"$${TRIMMED_VERSION}\"_g" examples/chart/teleport-cluster/Chart.yaml

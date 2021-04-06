@@ -12,7 +12,7 @@ clusterName:
 # Values that you may need to change.
 ##################################################
 
-# Version of teleport image, if different from appVersion in Chart.yaml.
+# Version of teleport image, if different from version in Chart.yaml.
 teleportVersionOverride: ""
 
 # ACME is a protocol for getting Web X.509 certificates
