@@ -26,10 +26,14 @@ data:
       public_addr: '{{ required "clusterName is required in chart values" .Values.clusterName }}:443'
       kube_listen_addr: 0.0.0.0:3026
       enabled: true
+      {{- if .Values.acme }}
       acme:
         enabled: {{ .Values.acme }}
         email: {{ .Values.acmeEmail }}
+        {{- if .Values.acmeURI }}
         uri: {{ .Values.acmeURI }}
+        {{- end }}
+      {{- end }}
     ssh_service:
       enabled: false
 {{- end -}}

@@ -16,7 +16,7 @@ data:
       enabled: true
       kube_cluster_name: {{ required "kubeClusterName is required in chart values when kube role is enabled, see README" .Values.kubeClusterName }}
         {{- if .Values.labels }}
-      labels: {{ toYaml .Values.labels | nindent 8 }}
+      labels: {{- toYaml .Values.labels | nindent 8 }}
         {{- end }}
       {{- else }}
       enabled: false
