@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=6.0.0
+VERSION=6.1.0-beta.1
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
@@ -178,6 +178,23 @@ else
 	$(MAKE) --no-print-directory release-unix
 endif
 
+# These are aliases used to make build commands uniform.
+.PHONY: release-amd64
+release-amd64:
+	$(MAKE) release ARCH=amd64
+
+.PHONY: release-386
+release-386:
+	$(MAKE) release ARCH=386
+
+.PHONY: release-arm
+release-arm:
+	$(MAKE) release ARCH=arm
+
+.PHONY: release-arm64
+release-arm64:
+	$(MAKE) release ARCH=arm64
+
 #
 # make release-unix - Produces a binary release tarball containing teleport,
 # tctl, and tsh.
@@ -217,21 +234,6 @@ release-windows: clean all
 	@echo "---> Created $(RELEASE).zip."
 
 #
-# Builds docs using containerized mkdocs
-#
-.PHONY:docs
-docs: docs-test
-	$(MAKE) -C build.assets docs
-
-#
-# Runs the documentation site inside a container on localhost with live updates
-# Convenient for editing documentation.
-#
-.PHONY:run-docs
-run-docs:
-	$(MAKE) -C build.assets run-docs
-
-#
 # Remove trailing whitespace in all markdown files under docs/.
 #
 # Note: this runs in a busybox container to avoid incompatibilities between
@@ -246,7 +248,7 @@ docs-fix-whitespace:
 # Test docs for trailing whitespace and broken links
 #
 .PHONY:docs-test
-docs-test: docs-test-whitespace docs-test-links
+docs-test: docs-test-whitespace
 
 #
 # Check for trailing whitespace in all markdown files under docs/
@@ -259,17 +261,6 @@ docs-test-whitespace:
 		exit 1; \
 	fi
 
-#
-# Run milv in docs to detect broken internal links.
-# milv is installed if missing.
-#
-.PHONY:docs-test-links
-docs-test-links: DOCS_FOLDERS := $(shell find . -name milv.config.yaml -exec dirname {} \;)
-docs-test-links:
-	for docs_dir in $(DOCS_FOLDERS); do \
-		echo "running milv -ignore-external in $${docs_dir}"; \
-		cd $${docs_dir} && milv -ignore-external; cd $(PWD); \
-	done
 
 #
 # Runs all tests except integration, called by CI/CD.
@@ -641,3 +632,16 @@ update-vendor:
 	# create a symlink to the the original api package
 	rm -r vendor/github.com/gravitational/teleport/api
 	ln -s -r $(shell readlink -f api) vendor/github.com/gravitational/teleport
+
+# update-webassets updates the minified code in the webassets repo using the latest webapps
+# repo and creates a PR in the teleport repo to update webassets submodule.
+.PHONY: update-webassets
+update-webassets: WEBAPPS_BRANCH ?= 'master'
+update-webassets: TELEPORT_BRANCH ?= 'master'
+update-webassets:
+	build.assets/webapps/update-teleport-webassets.sh -w $(WEBAPPS_BRANCH) -t $(TELEPORT_BRANCH)
+
+# dronegen generates .drone.yml config
+.PHONY: dronegen
+dronegen:
+	go run ./dronegen

@@ -5,17 +5,35 @@
       "title": "Documentation",
       "entries": [
         { "title": "Introduction", "slug": "/" },
-        { "title": "Getting Started", "slug": "/getting-started/" },        
+        { "title": "Adopters", "slug": "/adopters/" },
+        { "title": "Getting Started", "slug": "/getting-started/" },
         { "title": "Installation", "slug": "/installation/" },
         { "title": "Application Access", "slug": "/application-access/" },
         { "title": "Kubernetes Access", "slug": "/kubernetes-access/" },
         { "title": "Database Access", "slug": "/database-access/" },
-        { "title": "Cloud", "slug": "/cloud/" },        
+        { "title": "Cloud", "slug": "/cloud/" },
         { "title": "User Manual", "slug": "/user-manual/" },
         { "title": "Admin Manual", "slug": "/admin-guide/" },
         { "title": "Production Guide", "slug": "/production/" },
         { "title": "FAQ", "slug": "/faq/" },
         { "title": "Changelog", "slug": "/changelog/" }
+      ]
+    },
+    {
+      "icon": "window",
+      "title": "Application Access",
+      "entries": [
+        { "title": "Getting Started", "slug": "/application-access/getting-started/" },
+        {
+          "title": "Guides",
+          "slug": "/application-access/guides/",
+          "entries": [
+            { "title": "Connecting Apps", "slug": "/application-access/guides/connecting-apps/" },
+            { "title": "Integrating with JWT", "slug": "/application-access/guides/jwt/" },
+            { "title": "API Access", "slug": "/application-access/guides/api-access/" }
+          ]
+        },
+        { "title": "Reference", "slug": "/application-access/reference/" }
       ]
     },
     {
@@ -56,6 +74,23 @@
         { "title": "Architecture", "slug": "/database-access/architecture/" },
         { "title": "Reference", "slug": "/database-access/reference/" },
         { "title": "FAQ", "slug": "/database-access/faq/" }
+      ]
+    },
+    {
+      "icon": "lock",
+      "title": "Access Controls",
+      "entries": [
+        { "title": "Introduction", "slug": "/access-controls/introduction/" },
+        { "title": "Getting Started", "slug": "/access-controls/getting-started/" },
+        {
+          "title": "Guides",
+          "slug": "/access-controls/guides/",
+          "entries": [
+            { "title": "Role Templates", "slug": "/access-controls/guides/role-templates/" }
+          ]
+        },
+        { "title": "Reference", "slug": "/access-controls/reference/" },
+        { "title": "FAQ", "slug": "/access-controls/faq/" }
       ]
     },
     {
@@ -149,6 +184,11 @@
     }
   },
   "redirects": [
+    {
+      "source": "/enterprise/ssh-rbac/",
+      "destination": "/access-controls/introduction/",
+      "permanent": true
+    },
     {
       "source": "/quickstart/",
       "destination": "/getting-started/",

@@ -282,6 +282,7 @@ github.com/gravitational/teleport/api/types
 github.com/gravitational/teleport/api/types/events
 github.com/gravitational/teleport/api/types/wrappers
 github.com/gravitational/teleport/api/utils
+github.com/gravitational/teleport/api/utils/sshutils
 # github.com/gravitational/trace v1.1.14
 ## explicit
 github.com/gravitational/trace

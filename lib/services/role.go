@@ -90,6 +90,10 @@ var DefaultCertAuthorityRules = []Rule{
 	NewRule(KindCertAuthority, ReadNoSecrets()),
 }
 
+// ErrSessionMFARequired is returned by AccessChecker when access to a resource
+// requires an MFA check.
+var ErrSessionMFARequired = trace.AccessDenied("access to resource requires MFA")
+
 // RoleNameForUser returns role name associated with a user.
 func RoleNameForUser(name string) string {
 	return "user:" + name
@@ -305,7 +309,7 @@ func RoleForCertAuthority(ca CertAuthority) Role {
 // Access service manages roles and permissions
 type Access interface {
 	// GetRoles returns a list of roles
-	GetRoles() ([]Role, error)
+	GetRoles(ctx context.Context) ([]Role, error)
 
 	// CreateRole creates a role
 	CreateRole(role Role) error
@@ -317,7 +321,7 @@ type Access interface {
 	DeleteAllRoles() error
 
 	// GetRole returns role by name
-	GetRole(name string) (Role, error)
+	GetRole(ctx context.Context, name string) (Role, error)
 
 	// DeleteRole deletes role by name
 	DeleteRole(ctx context.Context, name string) error
@@ -775,7 +779,7 @@ type AccessChecker interface {
 	RoleNames() []string
 
 	// CheckAccessToServer checks access to server.
-	CheckAccessToServer(login string, server Server, mfaVerified bool) error
+	CheckAccessToServer(login string, server Server, mfa AccessMFAParams) error
 
 	// CheckAccessToRemoteCluster checks access to remote cluster
 	CheckAccessToRemoteCluster(cluster RemoteCluster) error
@@ -815,6 +819,11 @@ type AccessChecker interface {
 	// CanPortForward returns true if this RoleSet can forward ports.
 	CanPortForward() bool
 
+	// MaybeCanReviewRequests attempts to guess if this RoleSet belongs
+	// to a user who should be submitting access reviews. Because not all rolesets
+	// are derived from statically assigned roles, this may return false positives.
+	MaybeCanReviewRequests() bool
+
 	// PermitX11Forwarding returns true if this RoleSet allows X11 Forwarding.
 	PermitX11Forwarding() bool
 
@@ -827,17 +836,17 @@ type AccessChecker interface {
 	EnhancedRecordingSet() map[string]bool
 
 	// CheckAccessToApp checks access to an application.
-	CheckAccessToApp(login string, app *App, mfaVerified bool) error
+	CheckAccessToApp(login string, app *App, mfa AccessMFAParams) error
 
 	// CheckAccessToKubernetes checks access to a kubernetes cluster.
-	CheckAccessToKubernetes(login string, app *KubernetesCluster, mfaVerified bool) error
+	CheckAccessToKubernetes(login string, app *KubernetesCluster, mfa AccessMFAParams) error
 
 	// CheckDatabaseNamesAndUsers returns database names and users this role
 	// is allowed to use.
 	CheckDatabaseNamesAndUsers(ttl time.Duration, overrideTTL bool) (names []string, users []string, err error)
 	// CheckAccessToDatabase checks whether a user has access to the provided
 	// database server.
-	CheckAccessToDatabase(server types.DatabaseServer, mfaVerified bool, matchers ...RoleMatcher) error
+	CheckAccessToDatabase(server types.DatabaseServer, mfa AccessMFAParams, matchers ...RoleMatcher) error
 
 	// CheckImpersonate checks whether current user is allowed to impersonate
 	// users and roles
@@ -876,7 +885,7 @@ func ReadNoSecrets() []string {
 // RoleGetter is an interface that defines GetRole method
 type RoleGetter interface {
 	// GetRole returns role by name
-	GetRole(name string) (Role, error)
+	GetRole(ctx context.Context, name string) (Role, error)
 }
 
 // ExtractFromCertificate will extract roles and traits from a *ssh.Certificate
@@ -937,7 +946,7 @@ func FetchRoleList(roleNames []string, access RoleGetter, traits map[string][]st
 	var roles []Role
 
 	for _, roleName := range roleNames {
-		role, err := access.GetRole(roleName)
+		role, err := access.GetRole(context.TODO(), roleName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1399,7 +1408,13 @@ func (set RoleSet) hasPossibleLogins() bool {
 // Note, logging in this function only happens in debug mode, this is because
 // adding logging to this function (which is called on every server returned
 // by GetNodes) can slow down this function by 50x for large clusters!
-func (set RoleSet) CheckAccessToServer(login string, s Server, mfaVerified bool) error {
+func (set RoleSet) CheckAccessToServer(login string, s Server, mfa AccessMFAParams) error {
+	if mfa.AlwaysRequired && !mfa.Verified {
+		log.WithFields(log.Fields{
+			trace.Component: teleport.ComponentRBAC,
+		}).Debugf("Access to node %q denied, cluster requires per-session MFA", s.GetHostname())
+		return ErrSessionMFARequired
+	}
 	var errs []error
 
 	// Check deny rules first: a single matching namespace, label, or login from
@@ -1433,7 +1448,7 @@ func (set RoleSet) CheckAccessToServer(login string, s Server, mfaVerified bool)
 		}
 		matchLogin, loginMessage := MatchLogin(role.GetLogins(Allow), login)
 		if matchNamespace && matchLabels && matchLogin {
-			if mfaVerified {
+			if mfa.Verified {
 				return nil
 			}
 			if role.GetOptions().RequireSessionMFA {
@@ -1441,7 +1456,7 @@ func (set RoleSet) CheckAccessToServer(login string, s Server, mfaVerified bool)
 					trace.Component: teleport.ComponentRBAC,
 				}).Debugf("Access to node %q denied, role %q requires per-session MFA; match(namespace=%v, label=%v, login=%v)",
 					s.GetHostname(), role.GetName(), namespaceMessage, labelsMessage, loginMessage)
-				return trace.AccessDenied("access to server requires MFA")
+				return ErrSessionMFARequired
 			}
 			// Check all remaining roles, even if we found a match.
 			// RequireSessionMFA should be enforced when at least one role has
@@ -1470,7 +1485,13 @@ func (set RoleSet) CheckAccessToServer(login string, s Server, mfaVerified bool)
 // CheckAccessToApp checks if a role has access to an application. Deny rules
 // are checked first, then allow rules. Access to an application is determined by
 // namespaces and labels.
-func (set RoleSet) CheckAccessToApp(namespace string, app *App, mfaVerified bool) error {
+func (set RoleSet) CheckAccessToApp(namespace string, app *App, mfa AccessMFAParams) error {
+	if mfa.AlwaysRequired && !mfa.Verified {
+		log.WithFields(log.Fields{
+			trace.Component: teleport.ComponentRBAC,
+		}).Debugf("Access to app %q denied, cluster requires per-session MFA", app.Name)
+		return ErrSessionMFARequired
+	}
 	var errs []error
 
 	// Check deny rules: a matching namespace and label in the deny section
@@ -1501,7 +1522,7 @@ func (set RoleSet) CheckAccessToApp(namespace string, app *App, mfaVerified bool
 			return trace.Wrap(err)
 		}
 		if matchNamespace && matchLabels {
-			if mfaVerified {
+			if mfa.Verified {
 				return nil
 			}
 			if role.GetOptions().RequireSessionMFA {
@@ -1509,7 +1530,7 @@ func (set RoleSet) CheckAccessToApp(namespace string, app *App, mfaVerified bool
 					trace.Component: teleport.ComponentRBAC,
 				}).Debugf("Access to app %q denied, role %q requires per-session MFA; match(namespace=%v, label=%v)",
 					app.Name, role.GetName(), namespaceMessage, labelsMessage)
-				return trace.AccessDenied("access to app requires MFA")
+				return ErrSessionMFARequired
 			}
 			// Check all remaining roles, even if we found a match.
 			// RequireSessionMFA should be enforced when at least one role has
@@ -1538,7 +1559,13 @@ func (set RoleSet) CheckAccessToApp(namespace string, app *App, mfaVerified bool
 // CheckAccessToKubernetes checks if a role has access to a kubernetes cluster.
 // Deny rules are checked first, then allow rules. Access to a kubernetes
 // cluster is determined by namespaces and labels.
-func (set RoleSet) CheckAccessToKubernetes(namespace string, kube *KubernetesCluster, mfaVerified bool) error {
+func (set RoleSet) CheckAccessToKubernetes(namespace string, kube *KubernetesCluster, mfa AccessMFAParams) error {
+	if mfa.AlwaysRequired && !mfa.Verified {
+		log.WithFields(log.Fields{
+			trace.Component: teleport.ComponentRBAC,
+		}).Debugf("Access to kubernetes cluster %q denied, cluster requires per-session MFA", kube.Name)
+		return ErrSessionMFARequired
+	}
 	var errs []error
 
 	// Check deny rules: a matching namespace and label in the deny section
@@ -1569,7 +1596,7 @@ func (set RoleSet) CheckAccessToKubernetes(namespace string, kube *KubernetesClu
 			return trace.Wrap(err)
 		}
 		if matchNamespace && matchLabels {
-			if mfaVerified {
+			if mfa.Verified {
 				return nil
 			}
 			if role.GetOptions().RequireSessionMFA {
@@ -1577,7 +1604,7 @@ func (set RoleSet) CheckAccessToKubernetes(namespace string, kube *KubernetesClu
 					trace.Component: teleport.ComponentRBAC,
 				}).Debugf("Access to kubernetes cluster %q denied, role %q requires per-session MFA; match(namespace=%v, label=%v)",
 					kube.Name, role.GetName(), namespaceMessage, labelsMessage)
-				return trace.AccessDenied("access to kubernetes cluster requires MFA")
+				return ErrSessionMFARequired
 			}
 			// Check all remaining roles, even if we found a match.
 			// RequireSessionMFA should be enforced when at least one role has
@@ -1835,8 +1862,12 @@ func (m *DatabaseNameMatcher) String() string {
 //
 // The checker always checks the server namespace, other matchers are supplied
 // by the caller.
-func (set RoleSet) CheckAccessToDatabase(server types.DatabaseServer, mfaVerified bool, matchers ...RoleMatcher) error {
+func (set RoleSet) CheckAccessToDatabase(server types.DatabaseServer, mfa AccessMFAParams, matchers ...RoleMatcher) error {
 	log := log.WithField(trace.Component, teleport.ComponentRBAC)
+	if mfa.AlwaysRequired && !mfa.Verified {
+		log.Debugf("Access to database %q denied, cluster requires per-session MFA", server.GetName())
+		return ErrSessionMFARequired
+	}
 	// Check deny rules.
 	for _, role := range set {
 		matchNamespace, _ := MatchNamespace(role.GetNamespaces(Deny), server.GetNamespace())
@@ -1866,12 +1897,12 @@ func (set RoleSet) CheckAccessToDatabase(server types.DatabaseServer, mfaVerifie
 				return trace.Wrap(err)
 			}
 			if match {
-				if mfaVerified {
+				if mfa.Verified {
 					return nil
 				}
 				if role.GetOptions().RequireSessionMFA {
 					log.Debugf("Access to database %q denied, role %q requires per-session MFA", server.GetName(), role.GetName())
-					return trace.AccessDenied("access to database requires MFA")
+					return ErrSessionMFARequired
 				}
 				// Check all remaining roles, even if we found a match.
 				// RequireSessionMFA should be enforced when at least one role has
@@ -1906,6 +1937,20 @@ func (set RoleSet) CanForwardAgents() bool {
 func (set RoleSet) CanPortForward() bool {
 	for _, role := range set {
 		if BoolDefaultTrue(role.GetOptions().PortForwarding) {
+			return true
+		}
+	}
+	return false
+}
+
+// MaybeCanReviewRequests attempts to guess if this RoleSet belongs
+// to a user who should be submitting access reviews.  Because not all rolesets
+// are derived from statically assigned roles, this may return false positives.
+func (set RoleSet) MaybeCanReviewRequests() bool {
+	for _, role := range set {
+		if !role.GetAccessReviewConditions(Allow).IsZero() {
+			// at least one nonzero allow directive exists for
+			// review submission.
 			return true
 		}
 	}
@@ -2061,6 +2106,15 @@ func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource
 	return trace.AccessDenied("access denied to perform action %q on %q", verb, resource)
 }
 
+// AccessMFAParams contains MFA-related parameters for CheckAccessTo* methods.
+type AccessMFAParams struct {
+	// AlwaysRequired is set when MFA is required for all sessions, regardless
+	// of per-role options.
+	AlwaysRequired bool
+	// Verified is set when MFA has been verified by the caller.
+	Verified bool
+}
+
 // SortedRoles sorts roles by name
 type SortedRoles []Role
 
@@ -2103,7 +2157,8 @@ const RoleSpecV3SchemaTemplate = `{
 		  "max_connections": { "type": "number" },
 		  "max_sessions": {"type": "number"},
 		  "request_access": { "type": "string" },
-		  "request_prompt": { "type": "string" }
+		  "request_prompt": { "type": "string" },
+		  "require_session_mfa": { "type": ["boolean", "string"] }
 		}
 	  },
 	  "allow": { "$ref": "#/definitions/role_condition" },
@@ -2148,6 +2203,13 @@ const RoleSpecV3SchemaDefinitions = `
 			  "^[a-zA-Z/.0-9_*-]+$": {"anyOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}}]}
 			}
 		  },
+		  "kubernetes_labels": {
+			"type": "object",
+			"additionalProperties": false,
+			"patternProperties": {
+			  "^[a-zA-Z/.0-9_*-]+$": {"anyOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}}]}
+			}
+		  },
 		  "db_names": {
 			"type": "array",
 			"items": {"type": "string"}
@@ -2177,6 +2239,10 @@ const RoleSpecV3SchemaDefinitions = `
 					}
 				  }
 				}
+			  },
+			  "thresholds": {
+			    "type": "array",
+				"items": { "type": "object" }
 			  }
 			}
 		  },
@@ -2196,6 +2262,9 @@ const RoleSpecV3SchemaDefinitions = `
 			    "type": "string"
 			  }
 			}
+		  },
+		  "review_requests": {
+		    "type": "object"
 		  },
 		  "rules": {
 			"type": "array",

@@ -28,8 +28,10 @@ import (
 	"crypto"
 	"crypto/subtle"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"math/rand"
+	"net"
 	"net/url"
 	"strings"
 	"sync"
@@ -85,8 +87,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.Access == nil {
 		cfg.Access = local.NewAccessService(cfg.Backend)
 	}
-	if cfg.DynamicAccess == nil {
-		cfg.DynamicAccess = local.NewDynamicAccessService(cfg.Backend)
+	if cfg.DynamicAccessExt == nil {
+		cfg.DynamicAccessExt = local.NewDynamicAccessService(cfg.Backend)
 	}
 	if cfg.ClusterConfiguration == nil {
 		cfg.ClusterConfiguration = local.NewClusterConfigurationService(cfg.Backend)
@@ -131,7 +133,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			Provisioner:          cfg.Provisioner,
 			Identity:             cfg.Identity,
 			Access:               cfg.Access,
-			DynamicAccess:        cfg.DynamicAccess,
+			DynamicAccessExt:     cfg.DynamicAccessExt,
 			ClusterConfiguration: cfg.ClusterConfiguration,
 			IAuditLog:            cfg.AuditLog,
 			Events:               cfg.Events,
@@ -153,7 +155,7 @@ type Services struct {
 	services.Provisioner
 	services.Identity
 	services.Access
-	services.DynamicAccess
+	services.DynamicAccessExt
 	services.ClusterConfiguration
 	services.Events
 	events.IAuditLog
@@ -483,16 +485,18 @@ type certRequest struct {
 	// dbName is the optional database name which, if provided, will be used
 	// as a default database.
 	dbName string
-	// mfaVerified is set when this certRequest was created immediately after
-	// an MFA check.
-	mfaVerified bool
+	// mfaVerified is the UUID of an MFA device when this certRequest was
+	// created immediately after an MFA check.
+	mfaVerified string
 	// clientIP is an IP of the client requesting the certificate.
 	clientIP string
 }
 
 type certRequestOption func(*certRequest)
 
-func certRequestMFAVerified(r *certRequest) { r.mfaVerified = true }
+func certRequestMFAVerified(mfaID string) certRequestOption {
+	return func(r *certRequest) { r.mfaVerified = mfaID }
+}
 func certRequestClientIP(ip string) certRequestOption {
 	return func(r *certRequest) { r.clientIP = ip }
 }
@@ -903,7 +907,7 @@ func (a *Server) GetMFAAuthenticateChallenge(user string, password []byte) (*MFA
 	ctx := context.TODO()
 
 	err := a.WithUserLock(user, func() error {
-		return a.CheckPasswordWOToken(user, password)
+		return a.checkPasswordWOToken(user, password)
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -920,6 +924,7 @@ func (a *Server) GetMFAAuthenticateChallenge(user string, password []byte) (*MFA
 	}
 	for _, u2fChal := range protoChal.U2F {
 		ch := u2f.AuthenticateChallenge{
+			Version:   u2fChal.Version,
 			Challenge: u2fChal.Challenge,
 			KeyHandle: u2fChal.KeyHandle,
 			AppID:     u2fChal.AppID,
@@ -933,15 +938,15 @@ func (a *Server) GetMFAAuthenticateChallenge(user string, password []byte) (*MFA
 	return chal, nil
 }
 
-func (a *Server) CheckU2FSignResponse(ctx context.Context, user string, response *u2f.AuthenticateChallengeResponse) error {
+func (a *Server) CheckU2FSignResponse(ctx context.Context, user string, response *u2f.AuthenticateChallengeResponse) (*types.MFADevice, error) {
 	// before trying to register a user, see U2F is actually setup on the backend
 	cap, err := a.GetAuthPreference()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	_, err = cap.GetU2F()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	return a.checkU2F(ctx, user, *response, a.Identity)
@@ -1115,11 +1120,11 @@ func (a *Server) GenerateToken(ctx context.Context, req GenerateTokenRequest) (s
 		token.SetMetadata(meta)
 	}
 
-	if err := a.Provisioner.UpsertToken(token); err != nil {
+	if err := a.Provisioner.UpsertToken(ctx, token); err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	user := clientUsername(ctx)
+	user := ClientUsername(ctx)
 	for _, role := range req.Roles {
 		if role == teleport.RoleTrustedCluster {
 			if err := a.emitter.EmitAuditEvent(ctx, &events.TrustedClusterTokenCreate{
@@ -1129,7 +1134,7 @@ func (a *Server) GenerateToken(ctx context.Context, req GenerateTokenRequest) (s
 				},
 				UserMetadata: events.UserMetadata{
 					User:         user,
-					Impersonator: clientImpersonator(ctx),
+					Impersonator: ClientImpersonator(ctx),
 				},
 			}); err != nil {
 				log.WithError(err).Warn("Failed to emit trusted cluster token create event.")
@@ -1367,6 +1372,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 // a list of roles this token allows its owner to assume and token labels, or an error if the token
 // cannot be found.
 func (a *Server) ValidateToken(token string) (teleport.Roles, map[string]string, error) {
+	ctx := context.TODO()
 	tkns, err := a.GetCache().GetStaticTokens()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -1382,7 +1388,7 @@ func (a *Server) ValidateToken(token string) (teleport.Roles, map[string]string,
 
 	// If it's not a static token, check if it's a ephemeral token in the backend.
 	// If a ephemeral token is found, make sure it's still valid.
-	tok, err := a.GetCache().GetToken(token)
+	tok, err := a.GetCache().GetToken(ctx, token)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1396,9 +1402,10 @@ func (a *Server) ValidateToken(token string) (teleport.Roles, map[string]string,
 // checkTokenTTL checks if the token is still valid. If it is not, the token
 // is removed from the backend and returns false. Otherwise returns true.
 func (a *Server) checkTokenTTL(tok services.ProvisionToken) bool {
+	ctx := context.TODO()
 	now := a.clock.Now().UTC()
 	if tok.Expiry().Before(now) {
-		err := a.DeleteToken(tok.GetName())
+		err := a.DeleteToken(ctx, tok.GetName())
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				log.Warnf("Unable to delete token from backend: %v.", err)
@@ -1496,21 +1503,21 @@ func (a *Server) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys,
 	return keys, nil
 }
 
-func (a *Server) RegisterNewAuthServer(token string) error {
-	tok, err := a.Provisioner.GetToken(token)
+func (a *Server) RegisterNewAuthServer(ctx context.Context, token string) error {
+	tok, err := a.Provisioner.GetToken(ctx, token)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if !tok.GetRoles().Include(teleport.RoleAuth) {
 		return trace.AccessDenied("role does not match")
 	}
-	if err := a.DeleteToken(token); err != nil {
+	if err := a.DeleteToken(ctx, token); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-func (a *Server) DeleteToken(token string) (err error) {
+func (a *Server) DeleteToken(ctx context.Context, token string) (err error) {
 	tkns, err := a.GetStaticTokens()
 	if err != nil {
 		return trace.Wrap(err)
@@ -1523,11 +1530,11 @@ func (a *Server) DeleteToken(token string) (err error) {
 		}
 	}
 	// delete reset password token:
-	if err = a.Identity.DeleteResetPasswordToken(context.TODO(), token); err == nil {
+	if err = a.Identity.DeleteResetPasswordToken(ctx, token); err == nil {
 		return nil
 	}
 	// delete node token:
-	if err = a.Provisioner.DeleteToken(token); err == nil {
+	if err = a.Provisioner.DeleteToken(ctx, token); err == nil {
 		return nil
 	}
 	return trace.Wrap(err)
@@ -1535,9 +1542,9 @@ func (a *Server) DeleteToken(token string) (err error) {
 
 // GetTokens returns all tokens (machine provisioning ones and user invitation tokens). Machine
 // tokens usually have "node roles", like auth,proxy,node and user invitation tokens have 'signup' role
-func (a *Server) GetTokens(opts ...services.MarshalOption) (tokens []services.ProvisionToken, err error) {
+func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) (tokens []services.ProvisionToken, err error) {
 	// get node tokens:
-	tokens, err = a.Provisioner.GetTokens()
+	tokens, err = a.Provisioner.GetTokens(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1550,7 +1557,7 @@ func (a *Server) GetTokens(opts ...services.MarshalOption) (tokens []services.Pr
 		tokens = append(tokens, tkns.GetStaticTokens()...)
 	}
 	// get reset password tokens:
-	resetPasswordTokens, err := a.Identity.GetResetPasswordTokens(context.TODO())
+	resetPasswordTokens, err := a.Identity.GetResetPasswordTokens(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1690,8 +1697,8 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 			Code: events.RoleDeletedCode,
 		},
 		UserMetadata: events.UserMetadata{
-			User:         clientUsername(ctx),
-			Impersonator: clientImpersonator(ctx),
+			User:         ClientUsername(ctx),
+			Impersonator: ClientImpersonator(ctx),
 		},
 		ResourceMetadata: events.ResourceMetadata{
 			Name: name,
@@ -1716,7 +1723,7 @@ func (a *Server) upsertRole(ctx context.Context, role services.Role) error {
 			Code: events.RoleCreatedCode,
 		},
 		UserMetadata: events.UserMetadata{
-			User: clientUsername(ctx),
+			User: ClientUsername(ctx),
 		},
 		ResourceMetadata: events.ResourceMetadata{
 			Name: role.GetName(),
@@ -1730,15 +1737,13 @@ func (a *Server) upsertRole(ctx context.Context, role services.Role) error {
 
 func (a *Server) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
 	err := services.ValidateAccessRequestForUser(a, req,
-		// if request is in state pending, role expansion must be applied
-		services.ExpandRoles(req.GetState().IsPending()),
-		// always apply system annotations before storing new requests
-		services.ApplySystemAnnotations(true),
+		// if request is in state pending, variable expansion must be applied
+		services.ExpandVars(req.GetState().IsPending()),
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ttl, err := a.calculateMaxAccessTTL(req)
+	ttl, err := a.calculateMaxAccessTTL(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1759,7 +1764,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req services.AccessReq
 			req.SetExpiry(pexp)
 		}
 	}
-	if err := a.DynamicAccess.CreateAccessRequest(ctx, req); err != nil {
+	if err := a.DynamicAccessExt.CreateAccessRequest(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}
 	err = a.emitter.EmitAuditEvent(a.closeCtx, &events.AccessRequestCreate{
@@ -1769,18 +1774,24 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req services.AccessReq
 		},
 		UserMetadata: events.UserMetadata{
 			User:         req.GetUser(),
-			Impersonator: clientImpersonator(ctx),
+			Impersonator: ClientImpersonator(ctx),
+		},
+		ResourceMetadata: events.ResourceMetadata{
+			Expires: req.GetAccessExpiry(),
 		},
 		Roles:        req.GetRoles(),
 		RequestID:    req.GetName(),
 		RequestState: req.GetState().String(),
 		Reason:       req.GetRequestReason(),
 	})
-	return trace.Wrap(err)
+	if err != nil {
+		log.WithError(err).Warn("Failed to emit access request create event.")
+	}
+	return nil
 }
 
 func (a *Server) SetAccessRequestState(ctx context.Context, params services.AccessRequestUpdate) error {
-	if err := a.DynamicAccess.SetAccessRequestState(ctx, params); err != nil {
+	if err := a.DynamicAccessExt.SetAccessRequestState(ctx, params); err != nil {
 		return trace.Wrap(err)
 	}
 	event := &events.AccessRequestCreate{
@@ -1789,7 +1800,7 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params services.Acce
 			Code: events.AccessRequestUpdateCode,
 		},
 		ResourceMetadata: events.ResourceMetadata{
-			UpdatedBy: clientUsername(ctx),
+			UpdatedBy: ClientUsername(ctx),
 		},
 		RequestID:    params.RequestID,
 		RequestState: params.State.String(),
@@ -1816,6 +1827,61 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params services.Acce
 	return trace.Wrap(err)
 }
 
+func (a *Server) SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (services.AccessRequest, error) {
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// set up a checker for the review author
+	checker, err := services.NewReviewPermissionChecker(ctx, a, params.Review.Author)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// don't bother continuing if the author has no allow directives
+	if !checker.HasAllowDirectives() {
+		return nil, trace.AccessDenied("user %q cannot submit reviews", params.Review.Author)
+	}
+
+	// final permission checks and review application must be done by the local backend
+	// service, as their validity depends upon optimistic locking.
+	req, err := a.DynamicAccessExt.ApplyAccessReview(ctx, params, checker)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	event := &events.AccessRequestCreate{
+		Metadata: events.Metadata{
+			Type:        events.AccessRequestReviewEvent,
+			Code:        events.AccessRequestReviewCode,
+			ClusterName: clusterName.GetClusterName(),
+		},
+		ResourceMetadata: events.ResourceMetadata{
+			Expires: req.GetAccessExpiry(),
+		},
+		RequestID:     params.RequestID,
+		RequestState:  req.GetState().String(),
+		ProposedState: params.Review.ProposedState.String(),
+		Reason:        params.Review.Reason,
+		Reviewer:      params.Review.Author,
+	}
+
+	if len(params.Review.Annotations) > 0 {
+		annotations, err := events.EncodeMapStrings(params.Review.Annotations)
+		if err != nil {
+			log.WithError(err).Debugf("Failed to encode access request annotations.")
+		} else {
+			event.Annotations = annotations
+		}
+	}
+	if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
+		log.WithError(err).Warn("Failed to emit access request update event.")
+	}
+
+	return req, nil
+}
+
 func (a *Server) GetAccessCapabilities(ctx context.Context, req services.AccessCapabilitiesRequest) (*services.AccessCapabilities, error) {
 	caps, err := services.CalculateAccessCapabilities(ctx, a, req)
 	if err != nil {
@@ -1827,10 +1893,10 @@ func (a *Server) GetAccessCapabilities(ctx context.Context, req services.AccessC
 // calculateMaxAccessTTL determines the maximum allowable TTL for a given access request
 // based on the MaxSessionTTLs of the roles being requested (a access request's life cannot
 // exceed the smallest allowable MaxSessionTTL value of the roles that it requests).
-func (a *Server) calculateMaxAccessTTL(req services.AccessRequest) (time.Duration, error) {
+func (a *Server) calculateMaxAccessTTL(ctx context.Context, req services.AccessRequest) (time.Duration, error) {
 	minTTL := defaults.MaxAccessDuration
 	for _, roleName := range req.GetRoles() {
-		role, err := a.GetRole(roleName)
+		role, err := a.GetRole(ctx, roleName)
 		if err != nil {
 			return 0, trace.Wrap(err)
 		}
@@ -1873,18 +1939,18 @@ func (a *Server) GetStaticTokens() (services.StaticTokens, error) {
 }
 
 // GetToken finds and returns token by ID
-func (a *Server) GetToken(token string) (services.ProvisionToken, error) {
-	return a.GetCache().GetToken(token)
+func (a *Server) GetToken(ctx context.Context, token string) (services.ProvisionToken, error) {
+	return a.GetCache().GetToken(ctx, token)
 }
 
 // GetRoles is a part of auth.AccessPoint implementation
-func (a *Server) GetRoles() ([]services.Role, error) {
-	return a.GetCache().GetRoles()
+func (a *Server) GetRoles(ctx context.Context) ([]services.Role, error) {
+	return a.GetCache().GetRoles(ctx)
 }
 
 // GetRole is a part of auth.AccessPoint implementation
-func (a *Server) GetRole(name string) (services.Role, error) {
-	return a.GetCache().GetRole(name)
+func (a *Server) GetRole(ctx context.Context, name string) (services.Role, error) {
+	return a.GetCache().GetRole(ctx, name)
 }
 
 // GetNamespace returns namespace
@@ -1988,6 +2054,139 @@ func (a *Server) GetDatabaseServers(ctx context.Context, namespace string, opts 
 	return a.GetCache().GetDatabaseServers(ctx, namespace, opts...)
 }
 
+func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+	pref, err := a.GetAuthPreference()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if pref.GetRequireSessionMFA() {
+		// Cluster always requires MFA, regardless of roles.
+		return &proto.IsMFARequiredResponse{Required: true}, nil
+	}
+	var noMFAAccessErr, notFoundErr error
+	switch t := req.Target.(type) {
+	case *proto.IsMFARequiredRequest_Node:
+		notFoundErr = trace.NotFound("node %q not found", t.Node)
+		if t.Node.Node == "" {
+			return nil, trace.BadParameter("empty Node field")
+		}
+		if t.Node.Login == "" {
+			return nil, trace.BadParameter("empty Login field")
+		}
+		// Find the target node and check whether MFA is required.
+		nodes, err := a.GetNodes(defaults.Namespace, services.SkipValidation())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		var matches []types.Server
+		for _, n := range nodes {
+			// Get the server address without port number.
+			addr, _, err := net.SplitHostPort(n.GetAddr())
+			if err != nil {
+				addr = n.GetAddr()
+			}
+			// Match NodeName to UUID, hostname or self-reported server address.
+			if n.GetName() == t.Node.Node || n.GetHostname() == t.Node.Node || addr == t.Node.Node {
+				matches = append(matches, n)
+			}
+		}
+		if len(matches) == 0 {
+			// If t.Node.Node is not a known registered node, it may be an
+			// unregistered host running OpenSSH with a certificate created via
+			// `tctl auth sign`. In these cases, let the user through without
+			// extra checks.
+			//
+			// If t.Node.Node turns out to be an alias for a real node (e.g.
+			// private network IP), and MFA check was actually required, the
+			// Node itself will check the cert extensions and reject the
+			// connection.
+			return &proto.IsMFARequiredResponse{Required: false}, nil
+		}
+		// Check RBAC against all matching nodes and return the first error.
+		// If at least one node requires MFA, we'll catch it.
+		for _, n := range matches {
+			err := checker.CheckAccessToServer(t.Node.Login, n, services.AccessMFAParams{AlwaysRequired: false, Verified: false})
+			if err != nil {
+				noMFAAccessErr = err
+				break
+			}
+		}
+
+	case *proto.IsMFARequiredRequest_KubernetesCluster:
+		notFoundErr = trace.NotFound("kubernetes cluster %q not found", t.KubernetesCluster)
+		if t.KubernetesCluster == "" {
+			return nil, trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
+		}
+		// Find the target cluster and check whether MFA is required.
+		svcs, err := a.GetKubeServices(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		var cluster *types.KubernetesCluster
+	outer:
+		for _, svc := range svcs {
+			for _, c := range svc.GetKubernetesClusters() {
+				if c.Name == t.KubernetesCluster {
+					cluster = c
+					break outer
+				}
+			}
+		}
+		if cluster == nil {
+			return nil, trace.Wrap(notFoundErr)
+		}
+		noMFAAccessErr = checker.CheckAccessToKubernetes(defaults.Namespace, cluster, services.AccessMFAParams{AlwaysRequired: false, Verified: false})
+
+	case *proto.IsMFARequiredRequest_Database:
+		notFoundErr = trace.NotFound("database service %q not found", t.Database.ServiceName)
+		if t.Database.ServiceName == "" {
+			return nil, trace.BadParameter("missing ServiceName field in a database-only UserCertsRequest")
+		}
+		dbs, err := a.GetDatabaseServers(ctx, defaults.Namespace, services.SkipValidation())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		var db types.DatabaseServer
+		for _, d := range dbs {
+			if d.GetName() == t.Database.ServiceName {
+				db = d
+				break
+			}
+		}
+		if db == nil {
+			return nil, trace.Wrap(notFoundErr)
+		}
+		noMFAAccessErr = checker.CheckAccessToDatabase(db, services.AccessMFAParams{AlwaysRequired: false, Verified: false})
+
+	default:
+		return nil, trace.BadParameter("unknown Target %T", req.Target)
+	}
+	// No error means that MFA is not required for this resource by
+	// AccessChecker.
+	if noMFAAccessErr == nil {
+		return &proto.IsMFARequiredResponse{Required: false}, nil
+	}
+	// Errors other than ErrSessionMFARequired mean something else is wrong,
+	// most likely access denied.
+	if !errors.Is(noMFAAccessErr, services.ErrSessionMFARequired) {
+		if trace.IsAccessDenied(noMFAAccessErr) {
+			log.Infof("Access to resource denied: %v", noMFAAccessErr)
+			// notFoundErr should always be set by this point, but check it
+			// just in case.
+			if notFoundErr == nil {
+				notFoundErr = trace.NotFound("target resource not found")
+			}
+			// Mask access denied errors to prevent resource name oracles.
+			return nil, trace.Wrap(notFoundErr)
+		}
+		return nil, trace.Wrap(noMFAAccessErr)
+	}
+	// If we reach here, the error from AccessChecker was
+	// ErrSessionMFARequired.
+
+	return &proto.IsMFARequiredResponse{Required: true}, nil
+}
+
 // mfaAuthChallenge constructs an MFAAuthenticateChallenge for all MFA devices
 // registered by the user.
 func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u2f.AuthenticationStorage) (*proto.MFAAuthenticateChallenge, error) {
@@ -2025,6 +2224,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u
 	}
 
 	challenge := new(proto.MFAAuthenticateChallenge)
+	var u2fDevs []*types.MFADevice
 	for _, dev := range devs {
 		switch dev.Device.(type) {
 		case *types.MFADevice_Totp:
@@ -2036,28 +2236,34 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u
 			if !enableU2F {
 				continue
 			}
-			ch, err := u2f.AuthenticateInit(ctx, u2f.AuthenticateInitParams{
-				AppConfig:  *u2fPref,
-				Dev:        dev,
-				Storage:    u2fStorage,
-				StorageKey: user,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
+			u2fDevs = append(u2fDevs, dev)
+		default:
+			log.Warningf("Skipping MFA device of unknown type %T.", dev.Device)
+		}
+	}
+	if len(u2fDevs) > 0 {
+		chals, err := u2f.AuthenticateInit(ctx, u2f.AuthenticateInitParams{
+			AppConfig:  *u2fPref,
+			Devs:       u2fDevs,
+			Storage:    u2fStorage,
+			StorageKey: user,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, ch := range chals {
 			challenge.U2F = append(challenge.U2F, &proto.U2FChallenge{
+				Version:   ch.Version,
 				KeyHandle: ch.KeyHandle,
 				Challenge: ch.Challenge,
 				AppID:     ch.AppID,
 			})
-		default:
-			log.Warningf("skipping MFA device of unknown type %T", dev.Device)
 		}
 	}
 	return challenge, nil
 }
 
-func (a *Server) validateMFAAuthResponse(ctx context.Context, user string, resp *proto.MFAAuthenticateResponse, u2fStorage u2f.AuthenticationStorage) error {
+func (a *Server) validateMFAAuthResponse(ctx context.Context, user string, resp *proto.MFAAuthenticateResponse, u2fStorage u2f.AuthenticationStorage) (*types.MFADevice, error) {
 	switch res := resp.Response.(type) {
 	case *proto.MFAAuthenticateResponse_TOTP:
 		return a.checkOTP(user, res.TOTP.Code)
@@ -2068,14 +2274,14 @@ func (a *Server) validateMFAAuthResponse(ctx context.Context, user string, resp 
 			SignatureData: res.U2F.Signature,
 		}, u2fStorage)
 	default:
-		return trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
+		return nil, trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
 	}
 }
 
-func (a *Server) checkU2F(ctx context.Context, user string, res u2f.AuthenticateChallengeResponse, u2fStorage u2f.AuthenticationStorage) error {
+func (a *Server) checkU2F(ctx context.Context, user string, res u2f.AuthenticateChallengeResponse, u2fStorage u2f.AuthenticationStorage) (*types.MFADevice, error) {
 	devs, err := a.GetMFADevices(ctx, user)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	for _, dev := range devs {
 		u2fDev := dev.GetU2F()
@@ -2096,11 +2302,11 @@ func (a *Server) checkU2F(ctx context.Context, user string, res u2f.Authenticate
 			Clock:      a.clock,
 		}); err != nil {
 			// Since key handles are unique, no need to check other devices.
-			return trace.AccessDenied("U2F response validation failed for device %q: %v", dev.GetName(), err)
+			return nil, trace.AccessDenied("U2F response validation failed for device %q: %v", dev.GetName(), err)
 		}
-		return nil
+		return dev, nil
 	}
-	return trace.AccessDenied("U2F response validation failed: no device matches the response")
+	return nil, trace.AccessDenied("U2F response validation failed: no device matches the response")
 }
 
 // WithClock is a functional server option that sets the server's clock

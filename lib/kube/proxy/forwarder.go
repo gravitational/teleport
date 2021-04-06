@@ -584,6 +584,14 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	ap, err := f.cfg.CachingAuthClient.GetAuthPreference()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	mfaParams := services.AccessMFAParams{
+		Verified:       actx.Identity.GetIdentity().MFAVerified != "",
+		AlwaysRequired: ap.GetRequireSessionMFA(),
+	}
 	// Check authz against the first match.
 	//
 	// We assume that users won't register two identically-named clusters with
@@ -594,7 +602,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 			if ks.Name != actx.kubeCluster {
 				continue
 			}
-			if err := actx.Checker.CheckAccessToKubernetes(s.GetNamespace(), ks, actx.Identity.GetIdentity().MFAVerified); err != nil {
+			if err := actx.Checker.CheckAccessToKubernetes(s.GetNamespace(), ks, mfaParams); err != nil {
 				return clusterNotFound
 			}
 			return nil
@@ -695,6 +703,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			Namespace:    f.cfg.Namespace,
 			RecordOutput: ctx.clusterConfig.GetSessionRecording() != services.RecordOff,
 			Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
+			ClusterName:  f.cfg.ClusterName,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -722,6 +731,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 				},
 				SessionMetadata: events.SessionMetadata{
 					SessionID: string(sessionID),
+					WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 				},
 				UserMetadata: events.UserMetadata{
 					User:         ctx.User.GetName(),
@@ -764,6 +774,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			},
 			SessionMetadata: events.SessionMetadata{
 				SessionID: string(sessionID),
+				WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 			},
 			UserMetadata: events.UserMetadata{
 				User:         ctx.User.GetName(),
@@ -846,6 +857,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 				},
 				SessionMetadata: events.SessionMetadata{
 					SessionID: string(sessionID),
+					WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 				},
 				UserMetadata: events.UserMetadata{
 					User:         ctx.User.GetName(),
@@ -877,6 +889,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 				},
 				SessionMetadata: events.SessionMetadata{
 					SessionID: string(sessionID),
+					WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 				},
 				UserMetadata: events.UserMetadata{
 					User:         ctx.User.GetName(),
@@ -913,6 +926,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 				},
 				SessionMetadata: events.SessionMetadata{
 					SessionID: string(sessionID),
+					WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 				},
 				UserMetadata: events.UserMetadata{
 					User:         ctx.User.GetName(),

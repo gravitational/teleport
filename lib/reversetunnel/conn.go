@@ -26,17 +26,16 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 )
 
-// connKey is a key used to identity tunnel connections. It contains the UUID
+// connKey is a key used to identify tunnel connections. It contains the UUID
 // of the process as well as the type of tunnel. For example, this allows a
 // single process to connect multiple reverse tunnels to a proxy, like SSH IoT
 // and applications.
@@ -166,7 +165,7 @@ func (c *remoteConn) OpenChannel(name string, data []byte) (ssh.Channel, error) 
 
 // ChannelConn creates a net.Conn over a SSH channel.
 func (c *remoteConn) ChannelConn(channel ssh.Channel) net.Conn {
-	return utils.NewChConn(c.sconn, channel)
+	return sshutils.NewChConn(c.sconn, channel)
 }
 
 func (c *remoteConn) markInvalid(err error) {

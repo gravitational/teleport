@@ -87,7 +87,7 @@ func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32,
 	defer C.free(unsafe.Pointer(cIDName))
 
 	// Convert IPv6 array into C integer format.
-	cIP := [4]C.int{}
+	cIP := [4]C.int{0, 0, 0, 0}
 	for i := 0; i < 4; i++ {
 		cIP[i] = (C.int)(remote[i])
 	}
@@ -110,6 +110,8 @@ func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32,
 		return trace.AccessDenied("failed to open user account database, code: %d", code)
 	case C.UACC_UTMP_FAILED_TO_SELECT_FILE:
 		return trace.BadParameter("failed to select file")
+	case C.UACC_UTMP_PATH_DOES_NOT_EXIST:
+		return trace.NotFound("user accounting files are missing from the system, running in a container?")
 	default:
 		if status != 0 {
 			return trace.Errorf("unknown error with code %d", status)
@@ -168,6 +170,8 @@ func Close(utmpPath, wtmpPath string, tty *os.File) error {
 		return trace.AccessDenied("failed to open user account database, code: %d", code)
 	case C.UACC_UTMP_FAILED_TO_SELECT_FILE:
 		return trace.BadParameter("failed to select file")
+	case C.UACC_UTMP_PATH_DOES_NOT_EXIST:
+		return trace.NotFound("user accounting files are missing from the system, running in a container?")
 	default:
 		if status != 0 {
 			return trace.Errorf("unknown error with code %d", status)
@@ -204,6 +208,8 @@ func UserWithPtyInDatabase(utmpPath string, username string) error {
 		return trace.NotFound("user not found")
 	case C.UACC_UTMP_FAILED_TO_SELECT_FILE:
 		return trace.BadParameter("failed to select file")
+	case C.UACC_UTMP_PATH_DOES_NOT_EXIST:
+		return trace.NotFound("user accounting files are missing from the system, running in a container?")
 	default:
 		if status != 0 {
 			return trace.Errorf("unknown error with code %d", status)

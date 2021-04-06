@@ -33,8 +33,9 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+
+	"github.com/gravitational/trace"
 )
 
 // NewJWTAuthority creates and returns a services.CertAuthority with a new
@@ -267,20 +268,20 @@ type UserCertParams struct {
 	// ActiveRequests tracks privilege escalation requests applied during
 	// certificate construction.
 	ActiveRequests RequestIDs
-	// MFAVerified is set when these cert parameters were provided by the auth
-	// server immediately after an MFA check.
-	MFAVerified bool
+	// MFAVerified is the UUID of an MFA device when this Identity was
+	// confirmed immediately after an MFA check.
+	MFAVerified string
 	// ClientIP is an IP of the client to embed in the certificate.
 	ClientIP string
 }
 
 // Check checks the user certificate parameters
-func (c UserCertParams) Check() error {
+func (c *UserCertParams) CheckAndSetDefaults() error {
 	if len(c.PrivateCASigningKey) == 0 || c.CASigningAlg == "" {
 		return trace.BadParameter("PrivateCASigningKey and CASigningAlg are required")
 	}
 	if c.TTL < defaults.MinCertDuration {
-		return trace.BadParameter("TTL can't be less than %v", defaults.MinCertDuration)
+		c.TTL = defaults.MinCertDuration
 	}
 	if len(c.AllowedLogins) == 0 {
 		return trace.BadParameter("AllowedLogins are required")
@@ -304,7 +305,6 @@ func CertPoolFromCertAuthorities(cas []CertAuthority) (*x509.CertPool, error) {
 			}
 			certPool.AddCert(cert)
 		}
-		return certPool, nil
 	}
 	return certPool, nil
 }

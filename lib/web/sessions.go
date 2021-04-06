@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -288,15 +289,7 @@ func (c *SessionContext) GetAgent() (agent.Agent, *ssh.Certificate, error) {
 
 // GetSSHCertificate returns the *ssh.Certificate associated with this session.
 func (c *SessionContext) GetSSHCertificate() (*ssh.Certificate, error) {
-	pub, _, _, _, err := ssh.ParseAuthorizedKey(c.session.GetPub())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sshCert, ok := pub.(*ssh.Certificate)
-	if !ok {
-		return nil, trace.BadParameter("expected certificate, got %T", pub)
-	}
-	return sshCert, nil
+	return sshutils.ParseCertificate(c.session.GetPub())
 }
 
 // GetX509Certificate returns the *x509.Certificate associated with this session.
@@ -736,9 +729,9 @@ func (s *sessionCache) newSessionContextFromSession(session services.WebSession)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	userClient, err := auth.NewTLSClient(auth.ClientConfig{
-		Addrs: s.authServers,
-		TLS:   tlsConfig,
+	userClient, err := auth.NewClient(apiclient.Config{
+		Addrs:       utils.NetAddrsToStrings(s.authServers),
+		Credentials: []apiclient.Credentials{apiclient.LoadTLS(tlsConfig)},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
