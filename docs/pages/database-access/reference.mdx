@@ -135,3 +135,20 @@ $ tsh db config --db=example
 | Flag | Description |
 | - | - |
 | `--db` | Database server name to print configuration for. Required, if logged into multiple databases simultaneously. |
+
+### tctl db ls
+
+List all databases registered with the cluster.  You will only see databases allowed for your user roles.
+
+```shell
+$ tctl db ls
+Name                      Protocol Address                                                               Labels
+------------------------- -------- --------------------------------------------------------------------- ------------------------
+dev1                       postgres db1.us-east-1.rds.amazonaws.com:5432                                  env=dev
+dev2                       postgres db2.us-west-1.rds.amazonaws.com:5432                                  env=dev
+```
+
+| Flag | Description |
+| - | - |
+| `--format` | Output format, 'text', 'json', or 'yaml' |
+
