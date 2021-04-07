@@ -29,12 +29,84 @@ enterprise: false
 podSecurityPolicy:
   enabled: true
 
-# Set customConfig to true to use a custom config. Create
-# a config resource, name it as release name and place it in the chart namespace.
-customConfig: false
-
 # Labels is a map of key-value pairs about this cluster
 labels: {}
+
+# Mode to deploy the chart in. The default is "standalone". Options:
+# - "standalone": will deploy a Teleport container running auth and proxy services with a PersistentVolumeClaim for storage.
+# - "aws": will deploy a Teleport container running auth and proxy services using DynamoDB for backend/audit log storage and S3 for session recordings. (1)
+# - "gcp": will deploy a Teleport container running auth and proxy services using Firestore for backend/audit log storage and Google storage for session recordings. (2)
+# - "ownconfig": will deploy a Teleport container using a teleport.yaml config file that you provide. (3)
+# (1) To use "aws" mode, you must also configure the "aws" section below.
+# (2) To use "gcp" mode, you must also configure the "gcp" section below.
+# (3) When set to "ownconfig", you must create a ConfigMap containing a Teleport YAML config, give it the same name as the Helm release and place it in the chart namespace.
+chartMode: standalone
+
+################################################################
+# Standalone-specific settings (only used in "standalone" mode)
+################################################################
+standalone:
+  # Leave blank to automatically create a PersistentVolumeClaim for Teleport storage.
+  # If you would like to use a pre-existing PersistentVolumeClaim, put its name here.
+  existingClaimName:
+  # Size of persistent volume to request when created by Teleport.
+  # Ignored if existingClaimName is provided.
+  volumeSize: 10Gi
+
+##################################################
+# AWS-specific settings (only used in "aws" mode)
+##################################################
+aws:
+  # The AWS region where the DynamoDB tables are located.
+  region:
+  # The DynamoDB table name to use for backend storage. Teleport will attempt to create this table automatically if it does not exist.
+  # The container will need an appropriately-provisioned IAM role with permissions to create DynamoDB tables.
+  backendTable:
+  # The DynamoDB table name to use for audit log storage. Teleport will attempt to create this table automatically if it does not exist.
+  # The container will need an appropriately-provisioned IAM role with permissions to create DynamoDB tables.
+  # This MUST NOT be the same table name as used for 'backendTable' as the schemas are different.
+  auditLogTable:
+  # The S3 bucket name to use for recorded session storage. Teleport will attempt to create this bucket automatically if it does not exist.
+  # The container will need an appropriately-provisioned IAM role with permissions to create S3 buckets.
+  sessionRecordingBucket:
+
+##################################################
+# GCP-specific settings (only used in "gcp" mode)
+##################################################
+gcp:
+  # The project name being used for the GCP account where Teleport is running.
+  # See https://support.google.com/googleapi/answer/7014113?hl=en
+  projectId:
+  # The Firestore collection to use for backend storage. Teleport will attempt to create this collection automatically if it does not exist.
+  # Either of the following must be true:
+  # - The container will need an appropriately-provisioned IAM role/service account with permissions to create Firestore collections
+  # - The service account credentials provided via 'credentialSecretName' will need permissions to create Firestore collections.
+  backendTable:
+  # The Firestore collection to use for audit log storage. Teleport will attempt to create this collection automatically if it does not exist.
+  # Either of the following must be true:
+  # - The container will need an appropriately-provisioned IAM role/service account with permissions to create Firestore collections
+  # - The service account credentials provided via 'credentialSecretName' will need permissions to create Firestore collections.
+  # This MUST NOT be the same collection name as used for 'backendTable' as the schemas are different.
+  auditLogTable:
+  # The Google storage bucket name to use for recorded session storage. This bucket must already exist in the Google account being used.
+  sessionRecordingBucket:
+  # The name of the Kubernetes secret used to store the Google credentials.
+  # You will need to create this secret manually. It must contain a JSON file from Google with the credentials that Teleport will use.
+  # You can override this to a blank value if the worker node running Teleport already has a service account which grants access.
+  credentialSecretName: teleport-gcp-credentials
+
+# Settings for high availability. These are not used in "standalone" mode.
+# When using "ownconfig" mode, you must use highly-available storage (etcd, DynamoDB or Firestore) for multiple replicas to be supported.
+# Manually configuring NFS-based storage or ReadWriteMany volume claims is NOT supported and will result in errors.
+highAvailability:
+  # Set to >1 for a high availability mode where multiple Teleport pods will be deployed and connections will be load balanced between them.
+  replicaCount: 1
+  # Setting 'requireAntiAffinity' to true will use 'requiredDuringSchedulingIgnoredDuringExecution' to require that multiple Teleport pods must not be scheduled on the
+  # same physical host. This will result in Teleport pods failing to be scheduled in very small clusters or during node downtime, so should be used with caution.
+  # Setting 'requireAntiAffinity' to false (the default) uses 'preferredDuringSchedulingIgnoredDuringExecution' to make this a soft requirement.
+  # This setting only has any effect when replicaCount is greater than 1.
+  requireAntiAffinity: false
+
 
 ##################################################
 # Values that you shouldn't need to change.
@@ -44,8 +116,6 @@ labels: {}
 image: quay.io/gravitational/teleport
 # Enterprise version of the image
 enterpriseImage: quay.io/gravitational/teleport-ent
-# Number of replicas for the cluster deployment.
-replicaCount: 1
 # Log level for the Teleport process.
 # Available log levels are: DEBUG, INFO, WARNING, ERROR.
 # The default is INFO, which is recommended in production.

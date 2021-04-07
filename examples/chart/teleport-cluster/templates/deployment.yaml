@@ -6,7 +6,11 @@ metadata:
   labels:
     app: {{ .Release.Name }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  {{- if not (eq .Values.chartMode "standalone") }}
+  replicas: {{ .Values.highAvailability.replicaCount }}
+  {{- else }}
+  replicas: 1
+  {{- end }}
   selector:
     matchLabels:
       app: {{ .Release.Name }}
@@ -18,6 +22,22 @@ spec:
       labels:
         app: {{ .Release.Name }}
     spec:
+      {{- if and (gt (int .Values.highAvailability.replicaCount) 1) (not (eq .Values.chartMode "standalone")) }}
+      affinity:
+        podAntiAffinity:
+          {{- if .Values.highAvailability.requireAntiAffinity }}
+          requiredDuringSchedulingIgnoredDuringExecution:
+          {{- else }}
+          preferredDuringSchedulingIgnoredDuringExecution:
+          {{- end }}
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - {{ .Release.Name }}
+            topologyKey: "kubernetes.io/hostname"
+      {{- end }}
       containers:
       - name: "teleport"
         image: "{{ if .Values.enterprise }}{{ .Values.enterpriseImage }}{{ else }}{{ .Values.image }}{{ end }}:{{ if .Values.teleportVersionOverride }}{{ .Values.teleportVersionOverride }}{{ else }}{{ .Chart.Version }}{{ end }}"
@@ -50,6 +70,11 @@ spec:
           name: "license"
           readOnly: true
 {{- end }}
+{{- if eq .Values.chartMode "gcp" }}
+        - mountPath: /etc/teleport-secrets
+          name: "gcp-credentials"
+          readOnly: true
+{{- end }}
         - mountPath: /etc/teleport
           name: "config"
           readOnly: true
@@ -61,10 +86,15 @@ spec:
         secret:
           secretName: "license"
 {{- end }}
+{{- if .Values.gcp.credentialSecretName }}
+      - name: gcp-credentials
+        secret:
+          secretName: {{ required "gcp.credentialSecretName is required in chart values" .Values.gcp.credentialSecretName }}
+{{- end }}
       - name: "config"
         configMap:
           name: {{ .Release.Name }}
       - name: "data"
         persistentVolumeClaim:
-          claimName: {{ .Release.Name }}
+          claimName: {{- if .Values.standalone.existingClaimName }}{{ .Values.standalone.existingClaimName }}{{ else }}{{ .Release.Name }}{{ end}}
       serviceAccountName: {{ .Release.Name }}

@@ -1,3 +1,4 @@
+{{- if not .Values.standalone.existingClaimName }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -10,4 +11,5 @@ spec:
   - ReadWriteOnce
   resources:
     requests:
-      storage: 10Gi
+      storage: {{ required "standalone.volumeSize is required in chart values" .Values.standalone.volumeSize }}
+{{- end }}
