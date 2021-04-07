@@ -30,13 +30,15 @@ spec:
           {{- else }}
           preferredDuringSchedulingIgnoredDuringExecution:
           {{- end }}
-          - labelSelector:
-              matchExpressions:
-              - key: app
-                operator: In
-                values:
-                - {{ .Release.Name }}
-            topologyKey: "kubernetes.io/hostname"
+          - weight: 50
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - {{ .Release.Name }}
+              topologyKey: "kubernetes.io/hostname"
       {{- end }}
       containers:
       - name: "teleport"
@@ -95,6 +97,10 @@ spec:
         configMap:
           name: {{ .Release.Name }}
       - name: "data"
+        {{- if eq .Values.chartMode "standalone" }}
         persistentVolumeClaim:
-          claimName: {{- if .Values.standalone.existingClaimName }}{{ .Values.standalone.existingClaimName }}{{ else }}{{ .Release.Name }}{{ end}}
+          claimName: {{ if .Values.standalone.existingClaimName }}{{ .Values.standalone.existingClaimName }}{{ else }}{{ .Release.Name }}{{ end }}
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
       serviceAccountName: {{ .Release.Name }}
