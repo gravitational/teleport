@@ -37,18 +37,22 @@ auth_service:
 ```
 
 ## Configure GitLab
+
 You should have at least one group configured in GitLab to map to Teleport roles. In this example we use the names `gitlab-dev` and `gitlab-admin`.  Assign users to each of these groups.
+
 1. Create a Application in one of your Groups that will allow using GitLab as a OAuh provider to Teleport.
 
 Settings
 
 - Redirect URL `https://<proxy url>/v1/webapi/oidc/callback` such as `https://teleport.example.com:3080/v1/webapi/oidc/callback`
 - Check `Confidential`, `openid`, `profile`, and `email`.
+
 ![Create App](../../../img/sso/gitlab/gitlab-oidc-0.png)
 
 2. Collect the `Application ID` and `Secret` in the Application
 
 These will be used in the Teleport OIDC Auth Connector.
+
 ![Collection Information](../../../img/sso/gitlab/gitlab-oidc-1.png)
 
 3. Confirm the GitLab Issuer Address
@@ -56,9 +60,7 @@ These will be used in the Teleport OIDC Auth Connector.
 For GitLab cloud that is `https://gitlab.com`. That allows accessing the Open-ID configuration at `https://gitlab.com/.well-known/openid-configuration`.
 If you are self hosting that is likely another local address.
 
-
 ## Configure Teleport
-
 
 ### Create a OIDC Connector
 
@@ -199,4 +201,3 @@ $ sudo journalctl -fu teleport
 
 If you wish to increase the verbosity of Teleport's syslog, you can pass
 `--debug` flag to `teleport start` command.
-
