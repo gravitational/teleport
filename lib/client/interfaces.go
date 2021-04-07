@@ -352,6 +352,15 @@ func (k *Key) AsAuthMethod() (ssh.AuthMethod, error) {
 	return sshutils.AsAuthMethod(cert, k.Priv)
 }
 
+// AsSigner returns an ssh.Signer using the SSH certificate in this key.
+func (k *Key) AsSigner() (ssh.Signer, error) {
+	cert, err := k.SSHCert()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sshutils.AsSigner(cert, k.Priv)
+}
+
 // SSHCert returns parsed SSH certificate
 func (k *Key) SSHCert() (*ssh.Certificate, error) {
 	if k.Cert == nil {
