@@ -3,8 +3,8 @@
 ##################################################
 
 # clusterName is a unique cluster name.
-# This value cannot be changed after your cluster starts.
-# Use fully qualified domain name to access your cluster,
+# This value cannot be changed after your cluster starts without rebuilding it from scratch.
+# We recommend using the fully qualified domain name that you use to access your cluster,
 # for example: teleport.example.com
 clusterName:
 
@@ -12,14 +12,18 @@ clusterName:
 # Values that you may need to change.
 ##################################################
 
-# Version of teleport image, if different from version in Chart.yaml.
+# Version of teleport image, if different from chart version in Chart.yaml.
 teleportVersionOverride: ""
 
 # ACME is a protocol for getting Web X.509 certificates
-# acme enables acme protocol
+# Note: ACME can only be used for single-instance clusters. It is not suitable for use in HA configurations.
+# Setting acme to 'true' enables the ACME protocol and will attempt to get a free TLS certificate from Let's Encrypt.
+# Setting acme to 'false' (the default) will cause Teleport to generate and use self-signed certificates for its web UI.
 acme: false
-acmeEmail: ""
-acmeURI: ""
+# acmeEmail is the email address to provide during certificate registration (this is a Let's Encrypt requirement)
+acmeEmail:
+# acmeURI is the ACME server to use for getting certificates. The default is to use Let's Encrypt's production server.
+acmeURI:
 
 # Set enterprise to true to use enterprise image
 enterprise: false
@@ -100,6 +104,7 @@ gcp:
 # Manually configuring NFS-based storage or ReadWriteMany volume claims is NOT supported and will result in errors.
 highAvailability:
   # Set to >1 for a high availability mode where multiple Teleport pods will be deployed and connections will be load balanced between them.
+  # Note: this will disable the use of ACME certs.
   replicaCount: 1
   # Setting 'requireAntiAffinity' to true will use 'requiredDuringSchedulingIgnoredDuringExecution' to require that multiple Teleport pods must not be scheduled on the
   # same physical host. This will result in Teleport pods failing to be scheduled in very small clusters or during node downtime, so should be used with caution.

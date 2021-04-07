@@ -7,7 +7,5 @@ gcp:
   sessionRecordingBucket: test-gcp-session-storage-bucket
 highAvailability:
   replicaCount: 3
-acme: true
-acmeEmail: test@email.com
 labels:
   env: gcp

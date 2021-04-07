@@ -8,7 +8,5 @@ gcp:
 highAvailability:
   replicaCount: 3
   requireAntiAffinity: true
-acme: true
-acmeEmail: test@email.com
 labels:
   env: gcp
