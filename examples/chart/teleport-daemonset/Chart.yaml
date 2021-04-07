@@ -1,6 +1,6 @@
 name: teleport-daemonset
 apiVersion: v2
-version: 0.0.8
+version: 0.0.9
 appVersion: "6"
 description: Teleport daemonset installation which provides some access to underlying Kubernetes nodes.
 icon: https://goteleport.com/images/logos/logo-teleport-square.svg
