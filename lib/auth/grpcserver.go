@@ -2235,6 +2235,9 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 		// between connection failed and access denied
 		if trace.IsConnectionProblem(err) {
 			return nil, trace.ConnectionProblem(err, "[10] failed to connect to the database")
+		} else if trace.IsNotFound(err) {
+			// user not found, wrap error with access denied
+			return nil, trace.Wrap(err, "[10] access denied")
 		} else if trace.IsAccessDenied(err) {
 			// don't print stack trace, just log the warning
 			log.Warn(err)
