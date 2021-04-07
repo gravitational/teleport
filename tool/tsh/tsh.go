@@ -275,6 +275,8 @@ const (
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
+
+	proxyDefaultResolutionTimeout = 2 * time.Second
 )
 
 // cliOption is used in tests to inject/override configuration within Run
@@ -755,7 +757,7 @@ func onLogin(cf *CLIConf) error {
 		cf.Username = tc.Username
 	}
 
-	// -i flag specified? save the retreived cert into an identity file
+	// -i flag specified? save the retrieved cert into an identity file
 	makeIdentityFile := (cf.IdentityFileOut != "")
 
 	key, err := tc.Login(cf.Context)
@@ -1678,12 +1680,10 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	}
 	// if proxy is set, and proxy is not equal to profile's
 	// loaded addresses, override the values
-	if cf.Proxy != "" && c.WebProxyAddr == "" {
-		err = c.ParseProxyHost(cf.Proxy)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	if err := setClientWebProxyAddr(cf, c); err != nil {
+		return nil, trace.Wrap(err)
 	}
+
 	if len(fPorts) > 0 {
 		c.LocalForwardPorts = fPorts
 	}
@@ -1796,6 +1796,52 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	}
 
 	return tc, nil
+}
+
+// The order of default proxy ports to try, in order that they will be tried.
+var defaultWebProxyPorts = []int{
+	defaults.HTTPListenPort, defaults.StandardHTTPSListenPort,
+}
+
+// setClientWebProxyAddr configures the client WebProxyAddr and SSHProxyAddr
+// configuration values. Values that are not fully specified via configuration
+// or command-line options will be deduced if necessary.
+//
+// If successful, setClientWebProxyAddr will modify the client Config in-place.
+func setClientWebProxyAddr(cf *CLIConf, c *client.Config) error {
+	// If the user has specified a proxy on the command line, and one has not
+	// already been specified from configuration...
+
+	// NB: I think this *might* be the origin of the behaviour I described in
+	//     this conversation:
+	// https://gravitational.slack.com/archives/C0DF0TPMY/p1617251076408700
+
+	if cf.Proxy != "" && c.WebProxyAddr == "" {
+		parsedAddrs, err := client.ParseProxyHost(cf.Proxy)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		proxyAddress := parsedAddrs.WebProxyAddr
+		if parsedAddrs.WebProxyAddr == "" {
+			timeout, cancel := context.WithTimeout(context.Background(), proxyDefaultResolutionTimeout)
+			defer cancel()
+
+			caPool := client.LoopbackPool(parsedAddrs.Host)
+			proxyAddress, err = pickDefaultAddr(
+				timeout, cf.InsecureSkipVerify, parsedAddrs.Host, defaultWebProxyPorts, caPool)
+
+			// On error, fall back to the legacy behaviour
+			if err != nil {
+				return c.ParseProxyHost(cf.Proxy)
+			}
+		}
+
+		c.WebProxyAddr = proxyAddress
+		c.SSHProxyAddr = parsedAddrs.SSHProxyAddr
+	}
+
+	return nil
 }
 
 func parseCertificateCompatibilityFlag(compatibility string, certificateFormat string) (string, error) {

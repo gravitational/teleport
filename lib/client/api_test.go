@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/stretchr/testify/require"
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
@@ -42,34 +43,63 @@ func TestClientAPI(t *testing.T) { check.TestingT(t) }
 
 var _ = check.Suite(&APITestSuite{})
 
-func (s *APITestSuite) TestConfig(c *check.C) {
-	var conf Config
-	c.Assert(conf.ProxySpecified(), check.Equals, false)
-	err := conf.ParseProxyHost("example.org")
-	c.Assert(err, check.IsNil)
-	c.Assert(conf.ProxySpecified(), check.Equals, true)
-	c.Assert(conf.SSHProxyAddr, check.Equals, "example.org:3023")
-	c.Assert(conf.WebProxyAddr, check.Equals, "example.org:3080")
+func TestParseProxyHostString(t *testing.T) {
+	testCases := []struct {
+		name      string
+		input     string
+		assertErr require.ErrorAssertionFunc
+		expect    ParsedProxyHost
+	}{
+		{
+			name:      "Empty port string",
+			input:     "example.org",
+			assertErr: require.NoError,
+			expect: ParsedProxyHost{
+				Host:         "example.org",
+				WebProxyAddr: "",
+				SSHProxyAddr: "example.org:3023",
+			},
+		}, {
+			name:      "Proxy port only",
+			input:     "example.org:1234",
+			assertErr: require.NoError,
+			expect: ParsedProxyHost{
+				Host:         "example.org",
+				WebProxyAddr: "example.org:1234",
+				SSHProxyAddr: "example.org:3023",
+			},
+		}, {
+			name:      "SSH port only",
+			input:     "example.org:,200",
+			assertErr: require.NoError,
+			expect: ParsedProxyHost{
+				Host:         "example.org",
+				WebProxyAddr: "",
+				SSHProxyAddr: "example.org:200",
+			},
+		}, {
+			name:      "Both ports specified",
+			input:     "example.org:100,200",
+			assertErr: require.NoError,
+			expect: ParsedProxyHost{
+				Host:         "example.org",
+				WebProxyAddr: "example.org:100",
+				SSHProxyAddr: "example.org:200",
+			},
+		},
+	}
 
-	conf.WebProxyAddr = "example.org:100"
-	conf.SSHProxyAddr = "example.org:200"
-	c.Assert(conf.WebProxyAddr, check.Equals, "example.org:100")
-	c.Assert(conf.SSHProxyAddr, check.Equals, "example.org:200")
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			expected := testCase.expect
+			actual, err := ParseProxyHost(testCase.input)
+			testCase.assertErr(t, err)
 
-	err = conf.ParseProxyHost("example.org:200")
-	c.Assert(err, check.IsNil)
-	c.Assert(conf.WebProxyAddr, check.Equals, "example.org:200")
-	c.Assert(conf.SSHProxyAddr, check.Equals, "example.org:3023")
-
-	err = conf.ParseProxyHost("example.org:,200")
-	c.Assert(err, check.IsNil)
-	c.Assert(conf.SSHProxyAddr, check.Equals, "example.org:200")
-	c.Assert(conf.WebProxyAddr, check.Equals, "example.org:3080")
-
-	conf.WebProxyAddr = "example.org:100"
-	conf.SSHProxyAddr = "example.org:200"
-	c.Assert(conf.WebProxyAddr, check.Equals, "example.org:100")
-	c.Assert(conf.SSHProxyAddr, check.Equals, "example.org:200")
+			require.Equal(t, expected.Host, actual.Host)
+			require.Equal(t, expected.WebProxyAddr, actual.WebProxyAddr)
+			require.Equal(t, expected.SSHProxyAddr, actual.SSHProxyAddr)
+		})
+	}
 }
 
 func (s *APITestSuite) TestNew(c *check.C) {
