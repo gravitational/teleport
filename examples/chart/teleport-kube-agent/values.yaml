@@ -75,6 +75,7 @@ serviceAccountName: teleport-kube-agent
 # Name of the Secret to store the teleport join token.
 secretName: teleport-kube-agent-join-token
 # Log level for the Teleport process.
-# The default is INFO, which should always be used when running in production.
-# It can be useful to override this to DEBUG during first-time setup to see more detailed logs.
+# Available log levels are: DEBUG, INFO, WARNING, ERROR.
+# The default is INFO, which is recommended in production.
+# DEBUG is useful during first-time setup or to see more detailed logs for debugging.
 logLevel: INFO
