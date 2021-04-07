@@ -40,11 +40,11 @@ labels: {}
 # Values that you shouldn't need to change.
 ##################################################
 
-# Container image for the agent.
+# Container image for the cluster.
 image: quay.io/gravitational/teleport
 # Enterprise version of the image
 enterpriseImage: quay.io/gravitational/teleport-ent
-# Number of replicas for the agent deployment.
+# Number of replicas for the cluster deployment.
 replicaCount: 1
 # Log level for the Teleport process.
 # Available log levels are: DEBUG, INFO, WARNING, ERROR.
