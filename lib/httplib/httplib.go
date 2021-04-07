@@ -20,6 +20,7 @@ package httplib
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -35,6 +36,15 @@ import (
 	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
 )
+
+// timeoutMessage is a generic "timeout" error message that is displayed as a more user-friendly alternative to
+// the timeout errors returned by net/http
+const timeoutMessage = "Unable to complete the request due to a timeout, please try again in a few minutes"
+
+// errorTransportTimeout is the error returned by net/http in case of a timeout. As of Go 1.16, it is not
+// exported by the standard library, therefore we replicate it here. See:
+// https://github.com/golang/go/blob/2ebe77a2fda1ee9ff6fd9a3e08933ad1ebaea039/src/net/http/transport.go#L2505
+var errorTransportTimeout = errors.New("net/http: timeout awaiting response headers")
 
 // HandlerFunc specifies HTTP handler function that returns error
 type HandlerFunc func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error)
@@ -125,6 +135,13 @@ func ConvertResponse(re *roundtrip.Response, err error) (*roundtrip.Response, er
 	if err != nil {
 		if uerr, ok := err.(*url.Error); ok && uerr != nil && uerr.Err != nil {
 			return nil, trace.ConnectionProblem(uerr.Err, uerr.Error())
+		}
+		// Since the original timeout error is not exported, using `errors.Is` with our custom error will always
+		// result in this check being false. Unwrapping and comparing the error string works though.
+		if uerr := errors.Unwrap(err); uerr != nil && uerr.Error() == errorTransportTimeout.Error() {
+			// Using `ConnectionProblem` instead of `LimitExceeded` allows us to preserve the original error
+			// while adding a more user-friendly message.
+			return nil, trace.ConnectionProblem(err, timeoutMessage)
 		}
 		return nil, trace.ConvertSystemError(err)
 	}
