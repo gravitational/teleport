@@ -361,6 +361,8 @@ lint-sh:
 
 # Lints all the Helm charts found in directories under examples/chart and exits on failure
 # If there is a .lint directory inside, the chart gets linted once for each .yaml file in that directory
+# We use yamllint's 'relaxed' configuration as it's more compatible with Helm output and will only error on
+# show-stopping issues. Kubernetes' YAML parser is not particularly fussy.
 .PHONY: lint-helm
 lint-helm:
 	@if ! type yamllint 2>&1 >/dev/null; then \
