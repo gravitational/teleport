@@ -63,6 +63,7 @@ type Client struct {
 	// grpc is the gRPC client specification for the auth server.
 	grpc proto.AuthServiceClient
 	// closedFlag is set to indicate that the connnection is closed.
+	// It's a pointer to allow the Client struct to be copied.
 	closedFlag *int32
 	// callOpts configure calls made by this client.
 	callOpts []grpc.CallOption
@@ -100,6 +101,16 @@ func New(ctx context.Context, cfg Config) (clt *Client, err error) {
 	return connect(ctx, cfg)
 }
 
+// newClient constructs a new client.
+func newClient(cfg Config, dialer ContextDialer, tlsConfig *tls.Config) (clt *Client) {
+	return &Client{
+		c:          cfg,
+		dialer:     dialer,
+		tlsConfig:  tlsConfig,
+		closedFlag: new(int32),
+	}
+}
+
 // connectInBackground connects the client to the server in the background.
 // The client will use the first credentials and the given dialer. If
 // no dialer is given, the first address will be used. This address must
@@ -120,7 +131,7 @@ func connectInBackground(ctx context.Context, cfg Config) (*Client, error) {
 		addr = cfg.Addrs[0]
 	}
 
-	clt := &Client{c: cfg, tlsConfig: tlsConfig, dialer: dialer}
+	clt := newClient(cfg, dialer, tlsConfig)
 	if err := clt.dialGRPC(ctx, addr); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -150,7 +161,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 
 	// syncConnect is used to concurrently test several connections, and apply
 	// the first successful connection to the client's connection attributes.
-	syncConnect := func(addr string, clt *Client) {
+	syncConnect := func(clt *Client, addr string) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -188,11 +199,8 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 
 			// Connect with dialer provided in config.
 			if cfg.Dialer != nil {
-				syncConnect(constants.APIDomain, &Client{
-					c:         cfg,
-					tlsConfig: tlsConfig,
-					dialer:    cfg.Dialer,
-				})
+				clt := newClient(cfg, cfg.Dialer, tlsConfig)
+				syncConnect(clt, constants.APIDomain)
 			}
 
 			// Connect with dialer provided in creds.
@@ -201,20 +209,15 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 					sendError(trace.Wrap(err))
 				}
 			} else {
-				syncConnect(constants.APIDomain, &Client{
-					c:         cfg,
-					tlsConfig: tlsConfig,
-					dialer:    dialer,
-				})
+				clt := newClient(cfg, dialer, tlsConfig)
+				syncConnect(clt, constants.APIDomain)
 			}
 
 			for _, addr := range cfg.Addrs {
 				// Connect to auth.
-				syncConnect(addr, &Client{
-					c:         cfg,
-					tlsConfig: tlsConfig,
-					dialer:    NewDialer(cfg.KeepAlivePeriod, cfg.DialTimeout),
-				})
+				dialer := NewDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
+				clt := newClient(cfg, dialer, tlsConfig)
+				syncConnect(clt, addr)
 
 				// Connect to proxy.
 				if sshConfig != nil {
@@ -225,11 +228,9 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 						if pr, err := Find(ctx, addr, cfg.InsecureAddressDiscovery, nil); err == nil {
 							addr = pr.Proxy.SSH.TunnelPublicAddr
 						}
-						syncConnect(addr, &Client{
-							c:         cfg,
-							tlsConfig: tlsConfig,
-							dialer:    NewTunnelDialer(*sshConfig, cfg.KeepAlivePeriod, cfg.DialTimeout),
-						})
+						dialer := NewTunnelDialer(*sshConfig, cfg.KeepAlivePeriod, cfg.DialTimeout)
+						clt := newClient(cfg, dialer, tlsConfig)
+						syncConnect(clt, addr)
 					}(addr)
 				}
 			}
@@ -281,12 +282,8 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 		grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConfig)),
 	)
 
-	// closedFlag should be set to 0 before dialing.
-	c.closedFlag = new(int32)
-
 	var err error
 	if c.conn, err = grpc.DialContext(dialContext, addr, dialOptions...); err != nil {
-		c.setClosed()
 		return trace.Wrap(err)
 	}
 	c.grpc = proto.NewAuthServiceClient(c.conn)
@@ -395,7 +392,7 @@ func (c *Client) isClosed() bool {
 	return atomic.LoadInt32(c.closedFlag) == 1
 }
 
-// setClosed marks the client as closed and returns true if it wasn't already closed.
+// setClosed marks the client as closed and returns true if it was open.
 func (c *Client) setClosed() bool {
 	return atomic.CompareAndSwapInt32(c.closedFlag, 0, 1)
 }
