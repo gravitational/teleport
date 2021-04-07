@@ -1,5 +1,11 @@
 # Changelog
 
+## 6.0.3
+
+This release of Teleport contains a bug fix.
+
+* Fixed a issue that caused high network utilization on deployments with many leaf clusters. [#6263](https://github.com/gravitational/teleport/pull/6263)
+
 ## 6.0.2
 
 This release of Teleport contains bug fixes and adds new default roles.
