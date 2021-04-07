@@ -103,3 +103,18 @@ $ curl $(tsh app config --format=uri) \
 | Flag | Description |
 | - | - |
 | `--format` | Optional print format, one of: `uri` to print app address, `ca` to print CA cert path, `cert` to print cert path, `key` print key path, `curl` to print example curl command.|
+### tctl apps ls
+
+List all applications registered with the cluster.  You will only see applications allowed for your user roles.
+
+```shell
+$ tctl db ls
+Application Host                                 Public Address                URI                          Labels       
+----------- ------------------------------------ ----------------------------- ---------------------------- ------------ 
+grafana     33333333-cde4-4571-a6d2-fee2d4d59b01 gf.teleport.example.com       http://grafana                env=dev
+elastic     33333333-cde4-4571-a6d2-fee2d4d59b01 elastic.teleport.example.com  http://kibana:5601            env=dev,type=logging 
+```
+
+| Flag | Description |
+| - | - |
+| `--format` | Output format, 'text', 'json', or 'yaml' |
