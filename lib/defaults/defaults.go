@@ -272,6 +272,10 @@ const (
 
 	// NodeJoinTokenTTL is when a token for nodes expires.
 	NodeJoinTokenTTL = 4 * time.Hour
+
+	// StandardHTTPSListenPort is the standard port used by HTTPS servers, and
+	// is the implied port in an HTTP url if no port is specified.
+	StandardHTTPSListenPort = 443
 )
 
 var (

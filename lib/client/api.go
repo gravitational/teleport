@@ -795,49 +795,76 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 	return nil
 }
 
-// ParseProxyHost parses the proxyHost string and updates the config.
+type ParsedProxyHost struct {
+	Host         string
+	WebProxyAddr string
+	SSHProxyAddr string
+}
+
+// ParseProxyHost parses a ProxyHost string of the format <hostname>:<proxy_web_port>,<proxy_ssh_port>
+// and returns the parsed components.
 //
-// Format of proxyHost string:
-//   proxy_web_addr:<proxy_web_port>,<proxy_ssh_port>
-func (c *Config) ParseProxyHost(proxyHost string) error {
+// If a definitive answer is not possible (e.g. no proxy port is specified in
+// the supplied string), the empty string is returned
+func ParseProxyHost(proxyHost string) (ParsedProxyHost, error) {
 	host, port, err := net.SplitHostPort(proxyHost)
 	if err != nil {
 		host = proxyHost
 		port = ""
 	}
 
+	result := ParsedProxyHost{Host: host}
+
 	// Split on comma.
 	parts := strings.Split(port, ",")
+
+	webPort := ""
+	sshPort := strconv.Itoa(defaults.SSHProxyListenPort)
 
 	switch {
 	// Default ports for both the SSH and Web proxy.
 	case len(parts) == 0:
-		c.WebProxyAddr = net.JoinHostPort(host, strconv.Itoa(defaults.HTTPListenPort))
-		c.SSHProxyAddr = net.JoinHostPort(host, strconv.Itoa(defaults.SSHProxyListenPort))
+		break
+
 	// User defined HTTP proxy port, default SSH proxy port.
 	case len(parts) == 1:
-		webPort := parts[0]
-		if webPort == "" {
-			webPort = strconv.Itoa(defaults.HTTPListenPort)
-		}
-		c.WebProxyAddr = net.JoinHostPort(host, webPort)
-		c.SSHProxyAddr = net.JoinHostPort(host, strconv.Itoa(defaults.SSHProxyListenPort))
+		webPort = parts[0]
+
 	// User defined HTTP and SSH proxy ports.
 	case len(parts) == 2:
-		webPort := parts[0]
-		if webPort == "" {
-			webPort = strconv.Itoa(defaults.HTTPListenPort)
-		}
-		sshPort := parts[1]
-		if sshPort == "" {
-			sshPort = strconv.Itoa(defaults.SSHProxyListenPort)
-		}
-		c.WebProxyAddr = net.JoinHostPort(host, webPort)
-		c.SSHProxyAddr = net.JoinHostPort(host, sshPort)
+		webPort, sshPort = parts[0], parts[1]
+
 	default:
-		return trace.BadParameter("unable to parse port: %v", port)
+		return result, trace.BadParameter("unable to parse port: %v", port)
 	}
 
+	if webPort != "" {
+		result.WebProxyAddr = net.JoinHostPort(host, webPort)
+	}
+	result.SSHProxyAddr = net.JoinHostPort(host, sshPort)
+
+	return result, nil
+}
+
+// ParseProxyHost parses the proxyHost string and updates the config.
+//
+// Format of proxyHost string:
+//   proxy_web_addr:<proxy_web_port>,<proxy_ssh_port>
+func (c *Config) ParseProxyHost(proxyHost string) error {
+	parsedAddrs, err := ParseProxyHost(proxyHost)
+	if err != nil {
+		return err
+	}
+
+	// if the parser wasn't able to unambiguously provide a WebProxyAddr,
+	// then we just pick the standard teleport one and be done with it.
+	if parsedAddrs.WebProxyAddr == "" {
+		parsedAddrs.WebProxyAddr = net.JoinHostPort(
+			parsedAddrs.Host, strconv.Itoa(defaults.HTTPListenPort))
+	}
+
+	c.WebProxyAddr = parsedAddrs.WebProxyAddr
+	c.SSHProxyAddr = parsedAddrs.SSHProxyAddr
 	return nil
 }
 
@@ -2285,7 +2312,7 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 		ctx,
 		tc.WebProxyAddr,
 		tc.InsecureSkipVerify,
-		loopbackPool(tc.WebProxyAddr),
+		LoopbackPool(tc.WebProxyAddr),
 		tc.AuthConnector)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2561,7 +2588,7 @@ func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType cons
 			PubKey:            pub,
 			TTL:               tc.KeyTTL,
 			Insecure:          tc.InsecureSkipVerify,
-			Pool:              loopbackPool(tc.WebProxyAddr),
+			Pool:              LoopbackPool(tc.WebProxyAddr),
 			Compatibility:     tc.CertificateFormat,
 			RouteToCluster:    tc.SiteName,
 			KubernetesCluster: tc.KubernetesCluster,
@@ -2590,7 +2617,7 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, connectorID string, pub 
 			PubKey:            pub,
 			TTL:               tc.KeyTTL,
 			Insecure:          tc.InsecureSkipVerify,
-			Pool:              loopbackPool(tc.WebProxyAddr),
+			Pool:              LoopbackPool(tc.WebProxyAddr),
 			Compatibility:     tc.CertificateFormat,
 			RouteToCluster:    tc.SiteName,
 			KubernetesCluster: tc.KubernetesCluster,
@@ -2616,7 +2643,7 @@ func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, pub []byte) (*auth.
 			PubKey:            pub,
 			TTL:               tc.KeyTTL,
 			Insecure:          tc.InsecureSkipVerify,
-			Pool:              loopbackPool(tc.WebProxyAddr),
+			Pool:              LoopbackPool(tc.WebProxyAddr),
 			Compatibility:     tc.CertificateFormat,
 			RouteToCluster:    tc.SiteName,
 			KubernetesCluster: tc.KubernetesCluster,
@@ -2646,9 +2673,9 @@ func (tc *TeleportClient) EventsChannel() <-chan events.EventFields {
 	return tc.eventsCh
 }
 
-// loopbackPool reads trusted CAs if it finds it in a predefined location
+// LoopbackPool reads trusted CAs if it finds it in a predefined location
 // and will work only if target proxy address is loopback
-func loopbackPool(proxyAddr string) *x509.CertPool {
+func LoopbackPool(proxyAddr string) *x509.CertPool {
 	if !utils.IsLoopback(proxyAddr) {
 		log.Debugf("not using loopback pool for remote proxy addr: %v", proxyAddr)
 		return nil
