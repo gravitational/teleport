@@ -15,13 +15,13 @@ Create a new background task when DynamoDB is used for audit event storage that 
 
 ## Why
 
-DynamoDB imposes a limit on how large an individual partition can be at approximately 10 GB which some deployments are rapidly approaching. There is also the concern of the primary and secondary indexes growing very deep which can increases lookup time and how difficult the data is to work with if exported. This strategy limits the maximum primary partition size to 25000 events.
+DynamoDB imposes a limit on how large an individual partition can be at approximately 10 GB which some deployments are rapidly approaching. There is also the concern of the primary and secondary indexes growing very deep which can increase lookup time and how difficult the data is to work with if exported. This strategy limits the maximum primary partition size to 25000 events due to `10 GB / 400 KB = 25000`, 400 KB being the DynamoDB maximum item size.
 
 This strategy preserves events in Dynamo without discarding old ones which I believe is what is naturally expected and may be important for compliance reasons.
 
 ## Details
 
-The background service will be implemented as a goroutine started when a DynamoDB event storage backend is created. It will periodically query DynamoDB and estimate how large the primary partition is and if the estimated size exceeds 9 GB it will repeatedly query the oldest events in the partition and attempt to move them to new partitions of the format `yyyy-mm-dd` until the estimated size of the primary partition reaches 9 GB. These per-day partitions are intended as archival partitions and without a local secondary index on them they can scale beyond the 10 GB limit that is imposed on the primary partition.
+The background service will be implemented as a goroutine started when a DynamoDB event storage backend is created. It will periodically query DynamoDB and estimate how large the primary partition is and if the estimated size exceeds 9 GB it will repeatedly query the oldest events in the partition and attempt to move them to new partitions of the format `yyyy-mm-dd` until the estimated size of the primary partition reaches an estimated maximum of 9 GB. These per-day partitions are intended as archival partitions and without a local secondary index on them they can scale beyond the 10 GB limit that is imposed on the primary partition.
 
 Since DynamoDB does not allow you to query the combined size of all entries with a certain partition key, we can utilize on the monotonic sort key to determine how many entries we have in the primary partition and can then calculate the maximum possible size of the partition by multiplying with 400 KB which is the maximum item size. This calculated size is what the background task will use to determine when to move old audit events to per-day partitions.
 
