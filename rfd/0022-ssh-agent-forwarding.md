@@ -164,35 +164,6 @@ If no User Key Agent is running and the user specifies `-A` and/or `-o "ForwardA
 `tsh ssh` will NOT forward an Key Agent to the remote machine, consistent with the behaviour of
 OpenSSH.
 
-### Security Concerns
-
-Forwarding a Key Agent is inherently a security risk, as it allows anyone with sufficient
-privileges on the remote machine (i.e. `rw` on the unix domain socket used by the Key Agent) to
-perform operations with the User's keys on the local machine. Note that an
-
-The local keys are vulnerable for the duration of any ssh connection (with a forwarded Key Agent)
-to a remote machine.
-
-This change will also potentially expose _more_ keys to danger than the existing behaviour. The
-existing `tsh ssh` Key Agent forwarding system exposes only the keys in the `~/.tsh` directory.
-Allowing the user to forward their own Key Agent changes that risk to _all_ keys managed by that
-agent by that. Depending on how the user invoked `tsh login`, this may also include the teleport
-keys as well.
-
-We also have to understand that by making this change we are implicitly encouraging users to work
-in a way that exposes them to a higher risk of compromise, however slight. This is something
-we should intentionally decide on, rather than have it happen as a side effect.
-
-My (admittedly naive) opinion is that given forwarding the User Key Agent
-
- 1. exposes nothing worse than OpenSSH already allows,
- 2. allows the user some extra utility they would miss from OpenSSH,
- 3. is a time-limited vulnerability, in that the attacker can only use the keys as long as the
-    SSH connection lives, and
- 4. is opt-in behaviour
-
-...it's _probably_ OK, but I welcome points to the contrary.
-
 ## Out of scope
 
 Adding support for indicating an arbitrary Key Agent to forward (by passing the path to a unix
