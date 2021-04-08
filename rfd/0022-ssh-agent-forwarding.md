@@ -80,12 +80,12 @@ machine to authenticate against a "Third Machine" from inside their session on t
 Machine.
 
 When running `tsh ssh`, a user may have _two_ independent key agents running: their own
-(which we will call the _User Key Agent_), and an ephemeral one inside the `tsh` process
+(which we will call the _System Key Agent_), and an ephemeral one inside the `tsh` process
 itself (the _Teleport Key Agent_). The Teleport Key Agent is populated with the contents
 of the user's `.tsh` directory.
 
 The `tsh ssh` client _also_ offers a `-A` option to forward a Key Agent to the Remote
-Machine, but it will only ever forward the Teleport Key Agent, not the User Key Agent.
+Machine, but it will only ever forward the Teleport Key Agent, not the System Key Agent.
 This is surprising behaviour to a user accustomed to OpenSSH. The user finds that keys
 they expected to be available to them in the session on the Remote Machine are not
 available.
@@ -120,14 +120,14 @@ to bring `tsh ssh`'s behaviour more in line with the OpenSSH client, I propose t
 values be allowed for the `ForwardAgent`option:
 
 
-| Value          | Interpretation                                          |
-|----------------|---------------------------------------------------------|
-| `no` (default) | `tsh ssh` will not forward _any_ Key Agent              |
-| `yes`          | `tsh ssh` will forward the User Key Agent (if present)  |
-| `local`        | `tsh ssh` will forward the Teleport Key Agent           |
+| Value          | Interpretation                                           |
+|----------------|----------------------------------------------------------|
+| `no` (default) | `tsh ssh` will not forward _any_ Key Agent               |
+| `yes`          | `tsh ssh` will forward the System Key Agent (if present) |
+| `local`        | `tsh ssh` will forward the Teleport Key Agent            |
 
 
-* The value `yes` is redefined to refer to the User Key Agent instead of
+* The value `yes` is redefined to refer to the System Key Agent instead of
   the Teleport Key Agent.
 
 * The value `local` is a `tsh`-specific extension that will activate the
@@ -158,11 +158,11 @@ $ tsh ssh -A -o "ForwardAgent no" root@example.com
 ...would result in the Key Agent being forwarded.
 
 
-### No User Key Agent
+### No System Key Agent
 
-If no User Key Agent is running and the user specifies `-A` and/or `-o "ForwardAgent yes"`, then
-`tsh ssh` will NOT forward an Key Agent to the remote machine, consistent with the behaviour of
-OpenSSH.
+If no System Key Agent is running and the user specifies `-A` and/or `-o "ForwardAgent yes"`, 
+then `tsh ssh` will NOT forward an Key Agent to the remote machine, consistent with the 
+behaviour of OpenSSH.
 
 ## Out of scope
 
