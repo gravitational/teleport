@@ -63,8 +63,9 @@
           "title": "Guides",
           "slug": "/database-access/guides/",
           "entries": [
-            { "title": "PostgreSQL on AWS", "slug": "/database-access/guides/postgres-aws/" },
-            { "title": "MySQL on AWS", "slug": "/database-access/guides/mysql-aws/" },
+            { "title": "AWS RDS/Aurora PostgreSQL", "slug": "/database-access/guides/postgres-aws/" },
+            { "title": "AWS RDS/Aurora MySQL", "slug": "/database-access/guides/mysql-aws/" },
+            { "title": "GCP Cloud SQL PostgreSQL", "slug": "/database-access/guides/postgres-cloudsql/" },
             { "title": "Self-Hosted PostgreSQL", "slug": "/database-access/guides/postgres-self-hosted/" },
             { "title": "Self-Hosted MySQL", "slug": "/database-access/guides/mysql-self-hosted/" },
             { "title": "Database GUI Clients", "slug": "/database-access/guides/gui-clients/" }
