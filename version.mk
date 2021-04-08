@@ -21,12 +21,19 @@ setver: helm-version
 	@printf $(VERSION_GO) | gofmt > version.go
 	@printf $(GITREF_GO) | gofmt > gitref.go
 
-# helm-version automatically updates the versions of Helm charts to match the version in the Makefile
-# so that the chart versions are kept in sync with the published Teleport version number.
-# '-dev' is automatically removed from the version if it is present (as it is on the master branch)
-# as we don't currently publish nightly Docker images.
+# helm-version automatically updates the versions of Helm charts to match the version set in the Makefile,
+# so that chart versions are also kept in sync when the Teleport version is updated for a release.
+# If the version contains '-dev' (as it does on the master branch, or for development builds) then we get the latest
+# published major version number by parsing a sorted list of git tags instead, to make deploying the chart from master
+# work as expected. Version numbers are quoted as a string because Helm otherwise treats dotted decimals as floats.
 .PHONY:helm-version
 helm-version:
-	@export TRIMMED_VERSION=$$(echo $(VERSION) | cut -d. -f1) && \
-	sed -i "s_^version:\ .*_version: \"$${TRIMMED_VERSION}\"_g" examples/chart/teleport-kube-agent/Chart.yaml && \
-	sed -i "s_^version:\ .*_version: \"$${TRIMMED_VERSION}\"_g" examples/chart/teleport-cluster/Chart.yaml
+	@if ! echo "$${VERSION}" | grep -q "\-dev"; then \
+		export CHART_VERSION=$${VERSION}; \
+	else \
+		export CHART_VERSION=$$(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1 | cut -d. -f1 | tr -d '^v'); \
+	fi; \
+	for CHART in teleport-cluster teleport-kube-agent; do \
+		sed -i "s_^version:\ .*_version: \"$${CHART_VERSION}\"_g" examples/chart/$${CHART}/Chart.yaml || exit 1; \
+		sed -i "s_^appVersion:\ .*_appVersion: \"$${CHART_VERSION}\"_g" examples/chart/$${CHART}/Chart.yaml || exit 1; \
+	done
