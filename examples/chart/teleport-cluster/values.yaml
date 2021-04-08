@@ -45,8 +45,10 @@ labels: {}
 # - "ownconfig": will deploy a Teleport container using a teleport.yaml config file that you provide. (3)
 # (1) To use "aws" mode, you must also configure the "aws" section below.
 # (2) To use "gcp" mode, you must also configure the "gcp" section below.
-# (3) When set to "ownconfig", you must create a ConfigMap containing a Teleport YAML config, give it the same name as the Helm release and place it in the chart namespace.
-chartMode: standalone
+# (3) When set to "ownconfig", you must create a ConfigMap containing a 'teleport.yaml' key with an inline Teleport YAML config,
+#     give it the same name as the Helm release and place it in the chart namespace.
+#     kubectl -n ${TELEPORT_NAMESPACE?} create configmap ${HELM_RELEASE_NAME?} --from-file=teleport.yaml
+chartMode: ownconfig
 
 ################################################################
 # Standalone-specific settings (only used in "standalone" mode)
