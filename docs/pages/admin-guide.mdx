@@ -364,56 +364,11 @@ auth_service:
     type: oidc
 ```
 
-### Hardware Keys - YubiKey FIDO U2F
+### Hardware Keys - FIDO U2F
 
 Teleport supports [FIDO U2F](https://www.yubico.com/about/background/fido/)
-hardware keys as a second authentication factor. By default U2F is disabled. To
-start using U2F:
-
-- Enable U2F in Teleport configuration `/etc/teleport.yaml` .
-- For web-based logins, check that your browser [supports
-  U2F](https://caniuse.com/u2f).
-
-```yaml
-# snippet from /etc/teleport.yaml to show an example configuration of U2F:
-auth_service:
-  authentication:
-    type: local
-    # to enabled U2F support, set this field to 'u2f', 'on' or 'optional'
-    second_factor: u2f
-    u2f:
-       # app_id must point to the URL of the Teleport Web UI (proxy) accessible
-       # by the end users
-       app_id: https://localhost:3080
-       # facets must list all proxy servers if there are more than one deployed
-       facets:
-       - https://localhost:3080
-```
-
-For single-proxy setups, the `app_id` setting can be equal to the domain name of
-the proxy, but this will prevent you from adding more proxies without changing
-the `app_id` . For multi-proxy setups, the `app_id` should be an HTTPS URL
-pointing to a JSON file that mirrors `facets` in the auth config.
-
-<Admonition
-  type="warning"
-  title="Warning"
->
-  The `app_id` must never change in the lifetime of the
-  cluster. If the App ID changes, all existing U2F key registrations will
-  become invalid and all users who use U2F as the second factor will need to
-  re-register. When adding a new proxy server, make sure to add it to the list
-  of "facets" in the configuration file, but also to the JSON file referenced
-  by `app_id`
-</Admonition>
-
-**Logging in with U2F**
-
-Invoke `tsh ssh` as usual to authenticate:
-
-```bash
-$ tsh --proxy <proxy-addr> ssh <hostname>
-```
+hardware keys as a second authentication factor. See [the U2F
+guide](access-controls/guides/u2f.mdx) for setup instructions.
 
 ## Adding and Deleting Users
 
