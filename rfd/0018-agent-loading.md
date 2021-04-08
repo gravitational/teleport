@@ -1,6 +1,6 @@
 ---
 authors: Russell Jones (rjones@goteleport.com)
-state: approved
+state: implemented
 ---
 
 # RFD 18 - Agent loading.
