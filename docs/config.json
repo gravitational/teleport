@@ -111,9 +111,20 @@
         { "title": "AWS", "slug": "/aws-oss-guide/" },
         { "title": "GCP", "slug": "/gcp-guide/" },
         { "title": "IBM", "slug": "/ibm-cloud-guide/" },
-        { "title": "OpenSSH Guide", "slug": "/openssh-teleport/" }
+        { "title": "OpenSSH Guide", "slug": "/openssh-teleport/" },
+        {
+          "title": "Helm Guides",
+          "slug": "/helm/guides/",
+          "entries": [
+            { "title": "Getting started", "slug": "/helm/guides/getting-started/" },
+            { "title": "Basic one-pod cluster", "slug": "/helm/guides/standalone/" },
+            { "title": "HA using AWS & EKS", "slug": "/helm/guides/aws/" },
+            { "title": "HA using GCP & GKE", "slug": "/helm/guides/gcp/" },
+            { "title": "Other configurations", "slug": "/helm/guides/ownconfig/" }
+          ]
+        }
       ]
-    },    
+    },
     {
       "icon": "building",
       "title": "Teleport Enterprise",

@@ -1,0 +1,69 @@
+---
+title: Getting started with the Teleport Helm chart repository
+description: How to install and configure the Gravitational Teleport Helm chart repository
+---
+
+This guide will get you started with being able to set up Teleport using our official Helm charts.
+
+# Installing Helm
+
+Teleport's charts require the use of Helm version 3. You can [install Helm 3 by following these instructions](https://helm.sh/docs/intro/install/).
+
+Throughout this guide, we will assume that you have the `helm` binary available in your `PATH`:
+
+```shell
+$ which helm
+/usr/local/bin/helm
+$ helm version
+version.BuildInfo{Version:"v3.4.1", GitCommit:"c4e74854886b2efe3321e185578e6db9be0a6e29", GitTreeState:"clean", GoVersion:"go1.14.11"}
+```
+
+# Adding the Teleport Helm chart repository
+
+To allow Helm to install charts which are hosted in the Teleport Helm repository, you should add the repository using `helm repo add`:
+
+```shell
+$ helm repo add teleport https://charts.releases.teleport.dev
+"teleport" has been added to your repositories
+```
+
+Once installed, you can search repositories for charts using the `helm repo search` command:
+
+```shell
+$ helm repo search teleport
+NAME                            CHART VERSION   APP VERSION     DESCRIPTION
+teleport/teleport-cluster       6.0.3           6.0.3           Teleport is a unified access plane for your inf...
+teleport/teleport-kube-agent    6.0.3           6.0.3           Teleport provides a secure SSH and Kubernetes r...
+```
+
+To update the cache of charts from the remote repository, run `helm repo update`:
+
+```shell
+$ helm repo update
+Hang tight while we grab the latest from your chart repositories...
+...Successfully got an update from the "teleport" chart repository
+Update Complete. ⎈Happy Helming!⎈
+```
+
+## Teleport Charts hosted by the repository
+
+The Teleport Helm repository hosts two Helm charts:
+
+- `teleport-cluster` [(README on Github)](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport-cluster)
+- `teleport-kube-agent` [(README on Github)](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport-kube-agent)
+
+### teleport-cluster
+
+The `teleport-cluster` Helm chart is used to configure a Teleport cluster. It runs two services:
+
+- The [Teleport auth service](./architecture/authentication), which authenticates users and hosts, and issues certificates
+- The [Teleport proxy service](./architecture/proxy), which runs the externally-facing parts of a Teleport cluster, such as the web UI, SSH proxy and reverse tunnel service.
+
+The `teleport-cluster` chart can be deployed in four different modes - `standalone`, `aws`, `gcp` and `ownconfig`.
+
+We have a guide for each mode:
+
+- [`standalone` - Simple one-node Teleport cluster](./helm/guides/standalone)
+- [`aws` - Using DynamoDB for database/audit log and S3 for session logs](./helm/guides/aws)
+- ['gcp'- Using Google Firestore for database/audit log and Google storage for session logs](./helm/guides/gcp)
+- [`ownconfig` - Provide your own custom Teleport config for more esoteric configurations](./helm/guides/ownconfig)

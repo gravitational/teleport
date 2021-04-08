@@ -1,0 +1,95 @@
+---
+title: Running a simple one-pod Teleport cluster in Kubernetes using Helm
+description: How to install and configure a one-pod Gravitational Teleport cluster in Kubernetes using Helm
+---
+
+In this guide, we'll go through how to set up a simple one-pod Teleport cluster in Kubernetes using Teleport Helm charts.
+
+We'll assume that you've finished [the Getting Started guide](./getting-started.mdx) and have Helm configured successfully.
+
+If not, please finish that guide first before starting this one!
+
+### Setting up a standalone Teleport cluster with Helm
+
+In standalone mode, the `teleport-cluster` Helm chart runs a simple Teleport cluster deployment using one pod. You can deploy it into a
+Kubernetes cluster with a command like this:
+
+```shell
+$ helm install teleport teleport/teleport-cluster \
+  --create-namespace \
+  --namespace teleport \
+  --set clusterName=teleport.example.com \
+  --set acme=true \
+  --set acmeEmail=your@email.com
+
+NAME: teleport
+LAST DEPLOYED: Thu Apr  8 11:09:46 2021
+NAMESPACE: teleport
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+```
+
+The only mandatory parameter is `clusterName`, which cannot be changed after your cluster is created. We recommend using the fully-qualified
+domain name that you'll use to access your Teleport cluster externally - something like `teleport.example.com`.
+
+<Admonition type="tip">
+  It will help if you have access to the DNS provider which hosts `example.com` so you can add a `teleport.example.com` record
+  and point it to the external IP or hostname of the Kubernetes load balancer.
+
+  Don't worry if you can't - you'll just have to remember to replace `teleport.example.com` with the external IP or hostname
+  of the Kubernetes load balancer to access Teleport from your local machine.
+</Admonition>
+
+Once the chart is installed, you can use `kubectl` commands to view the deployment:
+
+```shell
+$ kubectl get all
+NAME                            READY   STATUS    RESTARTS   AGE
+pod/teleport-5c56b4d869-znmqk   1/1     Running   0          5h8m
+
+NAME               TYPE           CLUSTER-IP       EXTERNAL-IP                                                               PORT(S)                                                      AGE
+service/teleport   LoadBalancer   10.100.162.158   a5f22a02798f541e58c6641c1b158ea3-1989279894.us-east-1.elb.amazonaws.com   443:30945/TCP,3023:32342/TCP,3026:30851/TCP,3024:31521/TCP   5h29m
+
+NAME                       READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/teleport   1/1     1            1           5h29m
+
+NAME                                  DESIRED   CURRENT   READY   AGE
+replicaset.apps/teleport-5c56b4d869   1         1         1       5h8m
+```
+
+You can get the external hostname for your newly-deployed Teleport cluster with a command like this:
+
+```shell
+$ kubectl get service/teleport -o jsonpath='{.status.loadBalancer.ingress[*].hostname}'
+a5f22a02798f541e58c6641c1b158ea3-1989279894.us-east-1.elb.amazonaws.com
+```
+
+If you point your browser to `https://<hostname>`, you should see the Teleport web UI.
+
+At this point, you'll still need to create a user to be able to log into Teleport. This needs to be done on the Teleport auth server,
+so we can run the command using `kubectl`:
+
+```shell
+$ kubectl exec deploy/teleport -- tctl users add test --roles=access,editor
+User "test" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
+https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
+
+NOTE: Make sure teleport.example.com:443 points at a Teleport proxy which users can access.
+```
+
+<Admonition type="note">
+  If you didn't set up DNS for your hostname earlier, remember to replace `teleport.example.com` with the external IP or hostname of the Kubernetes load balancer.
+
+  ```shell
+  $ kubectl get service/teleport -o jsonpath='{.status.loadBalancer.ingress[*].hostname}'
+  a5f22a02798f541e58c6641c1b158ea3-1989279894.us-east-1.elb.amazonaws.com
+  ```
+
+  In this case, you would load https://a5f22a02798f541e58c6641c1b158ea3-1989279894.us-east-1.elb.amazonaws.com instead.
+</Admonition>
+
+Load the link to create a password and set up 2-factor authentication for the Teleport user via the web UI.
+
+You can follow our [Getting Started with Teleport guide](../../getting-started/#step-2-create-a-teleport-user-and-set-up-2-factor-authentication) to finish setting up your
+Teleport cluster.
