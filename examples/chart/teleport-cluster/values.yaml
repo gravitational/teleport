@@ -26,6 +26,8 @@ acmeEmail:
 acmeURI:
 
 # Set enterprise to true to use enterprise image
+# You will need to download your Enterprise license from the Teleport dashboard and create a secret to use this:
+# kubectl -n ${TELEPORT_NAMESPACE?} create secret generic license --from-file=/path/to/downloaded/license.pem
 enterprise: false
 
 # If true, create & use Pod Security Policy resources

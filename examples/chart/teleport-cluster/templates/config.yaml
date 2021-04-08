@@ -31,7 +31,7 @@ data:
       enabled: true
       cluster_name: {{ required "clusterName is required in chart values" .Values.clusterName }}
 {{- if .Values.enterprise }}
-      license_file: '/var/lib/license/license-enterprise.pem'
+      license_file: '/var/lib/license/license.pem'
 {{- end }}
     kubernetes_service:
       enabled: true
