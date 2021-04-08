@@ -97,6 +97,10 @@ expectations. Any solution will have to accommodate both behaviours.
 
 ### Proposed Solution
 
+**NB:** This proposal is strictly about how a Key Agent is forwarded to a remote 
+machine by `tsh ssh`. It does _not_ change how `tsh` authenticates against a `teleport`
+auth service.
+
 Behind the scenes, both the OpenSSH client & `tsh ssh` treat the `-A` flag as shorthand
 for setting the SSH config value `ForwardAgent` to `yes`.
 
@@ -106,9 +110,9 @@ that `ForwardAgent` can take, and their meaning:
 > **ForwardAgent**
 >
 >   Specifies whether the connection to the authentication agent (if any) will be forwarded
->   to the remote machine.  The argument may be yes, no (the default), an explicit path to
->   an agent socket or the name of an environment variable (beginning with ‘$’) in which to
->   find the path.
+>   to the remote machine.  The argument may be `yes`, `no` (the default), an explicit path 
+>   to an agent socket or the name of an environment variable (beginning with ‘$’) in which 
+>   to find the path.
 
 The `tsh ssh` client already supports the `yes` and `no` options, where `yes` means
 forwarding the Teleport Key Agent. To allow the user to forward their own Key Agent, _and_
@@ -136,6 +140,12 @@ activated with something like:
 ```bash
 $ tsh ssh -o "ForwardAgent local" root@example.com
 ```
+
+### Backwards compatibility breakage
+
+This change introduces a backwards compatibility breakage, albeit a very small one. It _does_
+provide an escape hatch back to legacy behaviour, but using the legacy behaviour requires 
+action from the user.
 
 ### Precedence
 
