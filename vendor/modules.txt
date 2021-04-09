@@ -55,6 +55,10 @@ github.com/alecthomas/template/parse
 # github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15
 ## explicit
 github.com/alecthomas/units
+# github.com/aquasecurity/tracee/libbpfgo v0.0.0-20210407113620-71d4c839fb68
+## explicit
+github.com/aquasecurity/tracee/libbpfgo
+github.com/aquasecurity/tracee/libbpfgo/helpers
 # github.com/armon/go-radix v1.0.0
 ## explicit
 github.com/armon/go-radix
@@ -286,6 +290,7 @@ github.com/gravitational/teleport/api/types
 github.com/gravitational/teleport/api/types/events
 github.com/gravitational/teleport/api/types/wrappers
 github.com/gravitational/teleport/api/utils
+github.com/gravitational/teleport/api/utils/keypaths
 github.com/gravitational/teleport/api/utils/sshutils
 github.com/gravitational/teleport/api/utils/tlsutils
 # github.com/gravitational/trace v1.1.15
@@ -302,10 +307,6 @@ github.com/hashicorp/golang-lru
 github.com/hashicorp/golang-lru/simplelru
 # github.com/imdario/mergo v0.3.5
 github.com/imdario/mergo
-# github.com/iovisor/gobpf v0.0.1 => github.com/gravitational/gobpf v0.0.1
-## explicit
-github.com/iovisor/gobpf/bcc
-github.com/iovisor/gobpf/pkg/cpuonline
 # github.com/jackc/chunkreader/v2 v2.0.1
 github.com/jackc/chunkreader/v2
 # github.com/jackc/pgconn v1.8.0
@@ -420,6 +421,8 @@ github.com/pquerna/otp/totp
 github.com/prometheus/client_golang/prometheus
 github.com/prometheus/client_golang/prometheus/internal
 github.com/prometheus/client_golang/prometheus/promhttp
+github.com/prometheus/client_golang/prometheus/testutil
+github.com/prometheus/client_golang/prometheus/testutil/promlint
 # github.com/prometheus/client_model v0.2.0
 ## explicit
 github.com/prometheus/client_model/go
@@ -596,7 +599,7 @@ golang.org/x/oauth2/google
 golang.org/x/oauth2/internal
 golang.org/x/oauth2/jws
 golang.org/x/oauth2/jwt
-# golang.org/x/sys v0.0.0-20210223095934-7937bea0104d
+# golang.org/x/sys v0.0.0-20210412220455-f1c623a9e750
 ## explicit
 golang.org/x/sys/cpu
 golang.org/x/sys/execabs
@@ -1027,4 +1030,3 @@ sigs.k8s.io/yaml
 # github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.4
 # github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf
 # github.com/gravitational/teleport/api => ./api
-# github.com/iovisor/gobpf => github.com/gravitational/gobpf v0.0.1

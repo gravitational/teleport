@@ -12,6 +12,7 @@ require (
 	github.com/alecthomas/colour v0.1.0 // indirect
 	github.com/alecthomas/repr v0.0.0-20200325044227-4184120f674c // indirect
 	github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15 // indirect
+	github.com/aquasecurity/tracee/libbpfgo v0.0.0-20210407113620-71d4c839fb68
 	github.com/armon/go-radix v1.0.0
 	github.com/aws/aws-sdk-go v1.37.17
 	github.com/beevik/etree v1.1.0
@@ -33,7 +34,7 @@ require (
 	github.com/google/btree v1.0.0
 	github.com/google/go-cmp v0.5.4
 	github.com/google/gops v0.3.14
-	github.com/google/uuid v1.2.0 // indirect
+	github.com/google/uuid v1.2.0
 	github.com/gorilla/handlers v1.5.1 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
@@ -48,7 +49,6 @@ require (
 	github.com/gravitational/trace v1.1.15
 	github.com/gravitational/ttlmap v0.0.0-20171116003245-91fd36b9004c
 	github.com/hashicorp/golang-lru v0.5.4
-	github.com/iovisor/gobpf v0.0.1
 	github.com/jackc/pgconn v1.8.0
 	github.com/jackc/pgproto3/v2 v2.0.7
 	github.com/johannesboyne/gofakes3 v0.0.0-20210217223559-02ffa763be97
@@ -98,7 +98,7 @@ require (
 	golang.org/x/mod v0.4.1 // indirect
 	golang.org/x/net v0.0.0-20210222171744-9060382bd457
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
-	golang.org/x/sys v0.0.0-20210223095934-7937bea0104d
+	golang.org/x/sys v0.0.0-20210412220455-f1c623a9e750
 	golang.org/x/term v0.0.0-20210220032956-6a3ed077a48d
 	golang.org/x/text v0.3.5
 	golang.org/x/tools v0.1.0 // indirect
@@ -124,6 +124,5 @@ replace (
 	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.4
 	github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf
 	github.com/gravitational/teleport/api => ./api
-	github.com/iovisor/gobpf => github.com/gravitational/gobpf v0.0.1
 	github.com/siddontang/go-mysql v1.1.0 => github.com/gravitational/go-mysql v1.1.1-0.20210212011549-886316308a77
 )

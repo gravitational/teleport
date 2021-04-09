@@ -39,8 +39,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
-
-	"github.com/iovisor/gobpf/bcc"
 )
 
 // Service manages BPF and control groups orchestration.
@@ -125,15 +123,15 @@ func New(config *Config) (BPF, error) {
 	log.Debugf("Starting enhanced session recording.")
 
 	// Compile and start BPF programs if they are enabled (buffer size given).
-	s.exec, err = startExec(closeContext, *config.CommandBufferSize)
+	s.exec, err = startExec(*config.CommandBufferSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.open, err = startOpen(closeContext, *config.DiskBufferSize)
+	s.open, err = startOpen(*config.DiskBufferSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.conn, err = startConn(closeContext, *config.NetworkBufferSize)
+	s.conn, err = startConn(*config.NetworkBufferSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -527,7 +525,7 @@ func (s *Service) removeWatch(cgroupID uint64) {
 
 // unmarshalEvent will unmarshal the perf event.
 func unmarshalEvent(data []byte, v interface{}) error {
-	err := binary.Read(bytes.NewBuffer(data), bcc.GetHostByteOrder(), v)
+	err := binary.Read(bytes.NewBuffer(data), binary.LittleEndian, v)
 	if err != nil {
 		return trace.Wrap(err)
 	}
