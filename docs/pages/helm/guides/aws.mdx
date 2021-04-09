@@ -1,6 +1,6 @@
 ---
 title: Setting up a highly-available Teleport cluster using AWS & EKS
-description: How to install and configure an HA Gravitational Teleport cluster using Amazon Web Services and Elastic Kubernetes Service
+description: How to install and configure a highly-available Gravitational Teleport cluster using Amazon Web Services and Elastic Kubernetes Service
 ---
 
 In this guide, we'll go through how to set up a highly-availabie Teleport cluster with multiple replicas in Kubernetes
@@ -20,16 +20,7 @@ The chart also uses DynamoDB to hold Teleport's audit log, keeping track of acti
 
 Teleport's session recordings will be stored in an S3 bucket, providing functional, efficient storage for any number of users.
 
-### Choose how to configure the cluster
-
-There are two different ways to configure the `teleport-cluster` Helm chart to use `aws` mode - using a `values.yaml` file or using `--set`
-on the command line.
-
-We recommend using a dedicated `values.yaml` file as it can be kept in source control.
-
-The `--set` CLI method is more appropriate for quick test deployments.
-
-#### Mandatory settings
+### Mandatory settings
 
 You'll need five pieces of information to configure `aws` mode:
 
@@ -38,17 +29,139 @@ You'll need five pieces of information to configure `aws` mode:
 | `clusterName` | Name of your Teleport cluster. We recommend using the fully-qualified domain name you'll use for external access to your cluster | `teleport.example.com` |
 | `aws.region` | AWS region to use for Teleport's DynamoDB tables | `us-west-2` |
 | `aws.backendTable` | Name of the DynamoDB table to use for Teleport's backend database | `teleport-helm-backend` |
-| `aws.auditLogTable` | Name of the DynamoDB table to use for Teleport's audit event log (this must be different to `backendTable` due to differing schemas) | `teleport-helm-events` |
+| `aws.auditLogTable` | Name of the DynamoDB table to use for Teleport's audit event log (this **must** be different to `backendTable` due to differing schemas) | `teleport-helm-events` |
 | `aws.sessionRecordingBucket` | Name of the S3 bucket to use for Teleport's session recordings | `teleport-helm-sessions` |
 
 <Admonition type="note">
-  You cannot change the `clusterName` after the cluster is configured, so make sure you choose wisely. A good bet is always to use the
+  You cannot change the `clusterName` after the cluster is configured, so make sure you choose wisely. It's usually a good idea to use the
   fully-qualified domain name that you'll use for external access to your Teleport cluster.
 </Admonition>
 
+### IAM configuration
+
+For Teleport to be able to create the DynamoDB tables, indexes and the S3 storage bucket it needs,
+you'll need to configure AWS IAM polciies to allow access.
+
+<Admonition type="note">
+  These IAM policies should be added to your AWS account, then granted to the instance role associated with the
+  EKS nodegroups which are running your Kubernetes nodes.
+</Admonition>
+
+#### DynamoDB IAM policy
+
+You'll need to replace these values in the policy example below:
+
+| Placeholder value | Replace with | Example |
+| - | - | - |
+| `<region>` | AWS region | `us-west-2` |
+| `<account-id>` | AWS account ID | `1234567890` |
+| `<backendTable-name>` | The value from `aws.backendTable` above | `teleport-helm-backend` |
+| `<auditLogTable-name>` | The value from `aws.auditLogTable` above | `teleport-helm-events` |
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "ClusterStateStorage",
+            "Effect": "Allow",
+            "Action": [
+                "dynamodb:BatchWriteItem",
+                "dynamodb:UpdateTimeToLive",
+                "dynamodb:PutItem",
+                "dynamodb:DeleteItem",
+                "dynamodb:Scan",
+                "dynamodb:Query",
+                "dynamodb:DescribeStream",
+                "dynamodb:UpdateItem",
+                "dynamodb:DescribeTimeToLive",
+                "dynamodb:CreateTable",
+                "dynamodb:DescribeTable",
+                "dynamodb:GetShardIterator",
+                "dynamodb:GetItem",
+                "dynamodb:UpdateTable",
+                "dynamodb:GetRecords"
+            ],
+            "Resource": [
+                "arn:aws:dynamodb:<region>:<account-id>:table/<backendTable-name>",
+                "arn:aws:dynamodb:<region>:<account-id>:table/<backendTable-name>/stream/*"
+            ]
+        },
+        {
+            "Sid": "ClusterEventsStorage",
+            "Effect": "Allow",
+            "Action": [
+                "dynamodb:CreateTable",
+                "dynamodb:BatchWriteItem",
+                "dynamodb:UpdateTimeToLive",
+                "dynamodb:PutItem",
+                "dynamodb:DescribeTable",
+                "dynamodb:DeleteItem",
+                "dynamodb:GetItem",
+                "dynamodb:Scan",
+                "dynamodb:Query",
+                "dynamodb:UpdateItem",
+                "dynamodb:DescribeTimeToLive",
+                "dynamodb:UpdateTable"
+            ],
+            "Resource": [
+                "arn:aws:dynamodb:<region>:<account-id>:table/<auditLogTable-name>",
+                "arn:aws:dynamodb:<region>:<account-id>:table/<auditLogTable-name>/index/*"
+            ]
+        }
+    ]
+}
+```
+
+#### S3 IAM policy
+
+You'll need to replace these values in the policy example below:
+
+| Placeholder value | Replace with | Example |
+| - | - | - |
+| `<sessionRecordingBucket-name>` | The value from `aws.sessionRecordingBucket` above | `teleport-helm-sessions` |
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "ClusterSessionsStorage",
+            "Effect": "Allow",
+            "Action": [
+                "s3:PutEncryptionConfiguration",
+                "s3:PutObject",
+                "s3:GetObject",
+                "s3:GetEncryptionConfiguration",
+                "s3:GetObjectRetention",
+                "s3:ListBucketVersions",
+                "s3:CreateBucket",
+                "s3:ListBucket",
+                "s3:GetBucketVersioning",
+                "s3:PutBucketVersioning",
+                "s3:GetObjectVersion"
+            ],
+            "Resource": [
+                "arn:aws:s3:::<sessionRecordingBucket-name>/*",
+                "arn:aws:s3:::<sessionRecordingBucket-name>"
+            ]
+        }
+    ]
+}
+```
+
+### Choose how to configure the cluster
+
+There are two different ways to configure the `teleport-cluster` Helm chart to use `aws` mode - using a `values.yaml` file or using `--set`
+on the command line.
+
+We recommend using a `values.yaml` file as it can be easily kept in source control.
+
+The `--set` CLI method is more appropriate for quick test deployments.
+
 <Tabs>
   <TabItem label="Using values.yaml">
-  Create an `aws-values.yaml` file and write the values you've chosen to it:
+  Create an `aws-values.yaml` file and write the values you've chosen above to it:
 
   ```yaml
   chartMode: aws
@@ -59,7 +172,7 @@ You'll need five pieces of information to configure `aws` mode:
     sessionRecordingBucket: teleport-helm-sessions
   ```
 
-  Install the chart with your custom values file using this command:
+  Install the chart with the values from your `aws-values.yaml` file using this command:
 
   ```shell
   $ helm install teleport teleport/teleport-cluster \
@@ -70,7 +183,7 @@ You'll need five pieces of information to configure `aws` mode:
 
   </TabItem>
   <TabItem label="Using --set via CLI">
-  Install the chart using this command:
+  Install the chart using this command, replacing the placeholders with the values you've chosen above:
 
   ```shell
   $ helm install teleport teleport/teleport-cluster \
@@ -89,8 +202,12 @@ You'll need five pieces of information to configure `aws` mode:
   It will help if you have access to the DNS provider which hosts `example.com` so you can add a `teleport.example.com` record
   and point it to the external IP or hostname of the Kubernetes load balancer.
 
-  Don't worry if you can't - you'll just have to remember to replace `teleport.example.com` with the external IP or hostname
-  of the Kubernetes load balancer to access Teleport from your local machine.
+  If you're using AWS Route53, you can do this by using [`aws route53 change-resource-record-sets`](https://docs.aws.amazon.com/cli/latest/reference/route53/change-resource-record-sets.html)
+  on the command line, or using the Route53 UI.
+
+  You can also consider using other Kubernetes-based services like [external-dns](https://github.com/kubernetes-sigs/external-dns).
+
+  For other DNS providers, consult their documentation.
 </Admonition>
 
 Once the chart is installed, you can use `kubectl` commands to view the deployment:
@@ -145,6 +262,3 @@ Load the link to create a password and set up 2-factor authentication for the Te
 
 You can follow our [Getting Started with Teleport guide](../../getting-started/#step-2-create-a-teleport-user-and-set-up-2-factor-authentication) to finish setting up your
 Teleport cluster.
-
-
-

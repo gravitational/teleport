@@ -1,9 +1,9 @@
 ---
-title: Running a simple one-pod Teleport cluster in Kubernetes using Helm
+title: Running a quick one-pod Teleport cluster in Kubernetes using Helm
 description: How to install and configure a one-pod Gravitational Teleport cluster in Kubernetes using Helm
 ---
 
-In this guide, we'll go through how to set up a simple one-pod Teleport cluster in Kubernetes using Teleport Helm charts.
+In this guide, we'll go through how to set up a quick one-pod Teleport cluster in Kubernetes using Teleport Helm charts.
 
 We'll assume that you've finished [the Getting Started guide](./getting-started.mdx) and have Helm configured successfully.
 
@@ -11,7 +11,7 @@ If not, please finish that guide first before starting this one!
 
 ### Setting up a standalone Teleport cluster with Helm
 
-In standalone mode, the `teleport-cluster` Helm chart runs a simple Teleport cluster deployment using one pod. You can deploy it into a
+In standalone mode, the `teleport-cluster` Helm chart runs a quick Teleport cluster deployment using one pod. You can deploy it into a
 Kubernetes cluster with a command like this:
 
 ```shell
@@ -38,7 +38,7 @@ domain name that you'll use to access your Teleport cluster externally - somethi
   and point it to the external IP or hostname of the Kubernetes load balancer.
 
   Don't worry if you can't - you'll just have to remember to replace `teleport.example.com` with the external IP or hostname
-  of the Kubernetes load balancer to access Teleport from your local machine.
+  of the Kubernetes load balancer to be able to access Teleport from your local machine.
 </Admonition>
 
 Once the chart is installed, you can use `kubectl` commands to view the deployment:
