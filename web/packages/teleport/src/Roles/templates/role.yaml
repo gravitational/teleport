@@ -21,7 +21,8 @@ spec:
     - resources: ['*']
       verbs: ['*']
 
-  # The 'deny' section can have similar settings that override their 'allow' counterparts
+  # The 'deny' section can have settings that override their 'allow' counterparts
+  # It uses the same format as the 'allow' section
   deny:
     logins: ['guest']
 
@@ -29,7 +30,4 @@ spec:
       # Limits user credentials to 8 hours. After the time to live (TTL) expires,
       # users must re-login
       max_session_ttl: 8h0m0s
-  # The deny section uses the identical format as the 'allow' section.
-  # The deny rules always override allow rules.
-  deny: {}
 version: v3
