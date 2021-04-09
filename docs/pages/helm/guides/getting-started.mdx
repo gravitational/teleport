@@ -27,13 +27,13 @@ $ helm repo add teleport https://charts.releases.teleport.dev
 "teleport" has been added to your repositories
 ```
 
-Once installed, you can search repositories for charts using the `helm repo search` command:
+Once installed, you can search repositories for charts using the `helm search repo` command:
 
 ```shell
-$ helm repo search teleport
+$ helm search repo teleport
 NAME                            CHART VERSION   APP VERSION     DESCRIPTION
-teleport/teleport-cluster       6.0.3           6.0.3           Teleport is a unified access plane for your inf...
-teleport/teleport-kube-agent    6.0.3           6.0.3           Teleport provides a secure SSH and Kubernetes r...
+teleport/teleport-cluster       6.2.0           6.2.0           Teleport is a unified access plane for your inf...
+teleport/teleport-kube-agent    6.2.0           6.2.0           Teleport provides a secure SSH and Kubernetes r...
 ```
 
 To update the cache of charts from the remote repository, run `helm repo update`:

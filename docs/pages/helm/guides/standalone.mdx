@@ -44,7 +44,7 @@ domain name that you'll use to access your Teleport cluster externally - somethi
 Once the chart is installed, you can use `kubectl` commands to view the deployment:
 
 ```shell
-$ kubectl get all
+$ kubectl --namespace teleport get all
 NAME                            READY   STATUS    RESTARTS   AGE
 pod/teleport-5c56b4d869-znmqk   1/1     Running   0          5h8m
 
@@ -58,20 +58,11 @@ NAME                                  DESIRED   CURRENT   READY   AGE
 replicaset.apps/teleport-5c56b4d869   1         1         1       5h8m
 ```
 
-You can get the external hostname for your newly-deployed Teleport cluster with a command like this:
-
-```shell
-$ kubectl get service/teleport -o jsonpath='{.status.loadBalancer.ingress[*].hostname}'
-a5f22a02798f541e58c6641c1b158ea3-1989279894.us-east-1.elb.amazonaws.com
-```
-
-If you point your browser to `https://<hostname>`, you should see the Teleport web UI.
-
 At this point, you'll still need to create a user to be able to log into Teleport. This needs to be done on the Teleport auth server,
 so we can run the command using `kubectl`:
 
 ```shell
-$ kubectl exec deploy/teleport -- tctl users add test --roles=access,editor
+$ kubectl --namespace teleport exec deploy/teleport -- tctl users add test --roles=access,editor
 User "test" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
 https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
 
@@ -82,14 +73,48 @@ NOTE: Make sure teleport.example.com:443 points at a Teleport proxy which users 
   If you didn't set up DNS for your hostname earlier, remember to replace `teleport.example.com` with the external IP or hostname of the Kubernetes load balancer.
 
   ```shell
-  $ kubectl get service/teleport -o jsonpath='{.status.loadBalancer.ingress[*].hostname}'
+  $ kubectl --namespace teleport get service/teleport -o jsonpath='{.status.loadBalancer.ingress[*].hostname}'
   a5f22a02798f541e58c6641c1b158ea3-1989279894.us-east-1.elb.amazonaws.com
   ```
 
-  In this case, you would load https://a5f22a02798f541e58c6641c1b158ea3-1989279894.us-east-1.elb.amazonaws.com instead.
+  In this instance, you would load https://a5f22a02798f541e58c6641c1b158ea3-1989279894.us-east-1.elb.amazonaws.com/web/invite/91cfbd08bc89122275006e48b516cc68 instead.
+
+  You may need to accept insecure warnings in your browser to view the page successfully.
 </Admonition>
 
-Load the link to create a password and set up 2-factor authentication for the Teleport user via the web UI.
+<Admonition type="warning">
+  Using a Kubernetes-issued load balancer IP or hostname is OK for testing, but is not viable when running a production Teleport cluster
+  as the Subject Alternative Name on any public-facing certificate will be expected to match the cluster's configured public address (which is
+  the same as the configured `clusterName` when using the `teleport-cluster` chart)
+
+  You must configure DNS properly using methods described above for production workloads.
+</Admonition>
+
+Load the user creation link to create a password and set up 2-factor authentication for the Teleport user via the web UI.
 
 You can follow our [Getting Started with Teleport guide](../../getting-started/#step-2-create-a-teleport-user-and-set-up-2-factor-authentication) to finish setting up your
 Teleport cluster.
+
+### Making changes to the cluster after deployment
+
+To make changes to your Teleport cluster after deployment, you can use `helm upgrade`.
+
+Run this command, editing your command line parameters as appropriate:
+
+```shell
+$ helm upgrade teleport teleport/teleport-cluster \
+  --set acme=true \
+  --set acmeEmail=your@email.com
+```
+
+### Uninstalling the Helm chart
+
+To uninstall the `teleport-cluster` chart, use `helm uninstall <release-name>`. For example:
+
+```shell
+$ helm --namespace teleport uninstall teleport
+```
+
+<Admonition type="note">
+  To change `chartMode` or `clusterName`, you must first uninstall the existing chart and then install a new version with the appropriate values.
+</Admonition>

@@ -170,7 +170,7 @@ Teleport's RBAC policies to define access rules for the cluster.
 
 - [Running a quick one-pod Teleport cluster in Kubernetes using Helm (`standalone` mode)](./standalone)
 - [Setting up a highly-available Teleport cluster using AWS & EKS (`aws` mode)](./aws)
-- [Setting up a highly-available Teleport cluster using GCP & GKE (`gcp` mode)](./gke)
+- [Setting up a highly-available Teleport cluster using GCP & GKE (`gcp` mode)](./gcp)
 - [Bring your own Teleport config (`ownconfig` mode)](./ownconfig)
 
 ## `standalone`
@@ -227,7 +227,7 @@ You can set `volumeSize` to request a different size of persistent volume when i
 
 ## `gcp`
 
-`gcp` settings are described in the GCP guide: [Setting up a highly-available Teleport cluster using GCP & GKE (`gcp` mode)](./gke)
+`gcp` settings are described in the GCP guide: [Setting up a highly-available Teleport cluster using GCP & GKE (`gcp` mode)](./gcp)
 
 ## `ownConfig`
 
@@ -245,6 +245,13 @@ Set to a number higher than `1` for a high availability mode where multiple Tele
 
 <Admonition type="note">
   Setting `highAvailability.replicaCount` to a value higher than `1` will disable the use of ACME certs.
+</Admonition>
+
+<Admonition type="tip" title="Sizing guidelines">
+  As a rough guide, we recommend configuring one replica per distinct availability zone where your cluster has worker nodes.
+
+  2 replicas/availability zones will be fine for smaller workloads. 3-5 replicas/availability zones will be more appropriate for bigger
+  clusters with more traffic.
 </Admonition>
 
 <Admonition type="note">

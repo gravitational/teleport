@@ -37,7 +37,15 @@ You'll need five pieces of information to configure `aws` mode:
   fully-qualified domain name that you'll use for external access to your Teleport cluster.
 </Admonition>
 
-### IAM configuration
+#### High availability
+
+To make your cluster highly available, set the `highAvailability.replicaCount` parameter to the number of replicas you would like.
+
+In this guide, we'll be configuring 2 replicas. This can be changed after installation [using `helm upgrade` as detailed below](#making-changes-to-the-cluster-after-deployment).
+
+See the [high availability section of our `teleport-cluster` chart reference](./teleport-cluster-reference/#highavailability) for more details.
+
+### AWS IAM configuration
 
 For Teleport to be able to create the DynamoDB tables, indexes and the S3 storage bucket it needs,
 you'll need to configure AWS IAM polciies to allow access.
@@ -164,12 +172,15 @@ The `--set` CLI method is more appropriate for quick test deployments.
   Create an `aws-values.yaml` file and write the values you've chosen above to it:
 
   ```yaml
+  clusterName: teleport.example.com
   chartMode: aws
   aws:
     region: us-west-2
     backendTable: teleport-helm-backend
     auditLogTable: teleport-helm-events
     sessionRecordingBucket: teleport-helm-sessions
+  highAvailability:
+    replicaCount: 2
   ```
 
   Install the chart with the values from your `aws-values.yaml` file using this command:
@@ -189,11 +200,13 @@ The `--set` CLI method is more appropriate for quick test deployments.
   $ helm install teleport teleport/teleport-cluster \
     --create-namespace \
     --namespace teleport \
+    --set clusterName=teleport.example.com \
     --set chartMode=aws \
     --set aws.region=us-west-2 \
     --set aws.backendTable=teleport-helm-backend \
     --set aws.auditLogTable=teleport-helm-events \
     --set aws.sessionRecordingBucket=teleport-helm-sessions \
+    --set highAvailability.replicaCount=2
   ```
   </TabItem>
 </Tabs>
@@ -213,34 +226,26 @@ The `--set` CLI method is more appropriate for quick test deployments.
 Once the chart is installed, you can use `kubectl` commands to view the deployment:
 
 ```shell
-$ kubectl get all
+$ kubectl --namespace teleport get all
 NAME                            READY   STATUS    RESTARTS   AGE
-pod/teleport-5c56b4d869-znmqk   1/1     Running   0          5h8m
+pod/teleport-5cf46ddf5f-dzh65   1/1     Running   0          21s
+pod/teleport-5cf46ddf5f-mpghq   1/1     Running   0          21s
 
-NAME               TYPE           CLUSTER-IP       EXTERNAL-IP                                                               PORT(S)                                                      AGE
-service/teleport   LoadBalancer   10.100.162.158   a5f22a02798f541e58c6641c1b158ea3-1989279894.us-east-1.elb.amazonaws.com   443:30945/TCP,3023:32342/TCP,3026:30851/TCP,3024:31521/TCP   5h29m
+NAME               TYPE           CLUSTER-IP      EXTERNAL-IP                                                               PORT(S)                                                      AGE
+service/teleport   LoadBalancer   10.100.37.171   a232d92df01f940339adea0e645d88bb-1576732600.us-east-1.elb.amazonaws.com   443:30821/TCP,3023:30801/TCP,3026:32612/TCP,3024:31253/TCP   21s
 
 NAME                       READY   UP-TO-DATE   AVAILABLE   AGE
-deployment.apps/teleport   1/1     1            1           5h29m
+deployment.apps/teleport   2/2     2            2           21s
 
 NAME                                  DESIRED   CURRENT   READY   AGE
-replicaset.apps/teleport-5c56b4d869   1         1         1       5h8m
+replicaset.apps/teleport-5cf46ddf5f   2         2         2       21s
 ```
-
-You can get the external hostname for your newly-deployed Teleport cluster with a command like this:
-
-```shell
-$ kubectl get service/teleport -o jsonpath='{.status.loadBalancer.ingress[*].hostname}'
-a5f22a02798f541e58c6641c1b158ea3-1989279894.us-east-1.elb.amazonaws.com
-```
-
-If you point your browser to `https://<hostname>`, you should see the Teleport web UI.
 
 At this point, you'll still need to create a user to be able to log into Teleport. This needs to be done on the Teleport auth server,
 so we can run the command using `kubectl`:
 
 ```shell
-$ kubectl exec deploy/teleport -- tctl users add test --roles=access,editor
+$ kubectl --namespace teleport exec deploy/teleport -- tctl users add test --roles=access,editor
 User "test" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
 https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
 
@@ -251,14 +256,67 @@ NOTE: Make sure teleport.example.com:443 points at a Teleport proxy which users 
   If you didn't set up DNS for your hostname earlier, remember to replace `teleport.example.com` with the external IP or hostname of the Kubernetes load balancer.
 
   ```shell
-  $ kubectl get service/teleport -o jsonpath='{.status.loadBalancer.ingress[*].hostname}'
-  a5f22a02798f541e58c6641c1b158ea3-1989279894.us-east-1.elb.amazonaws.com
+  $ kubectl --namespace teleport get service/teleport -o jsonpath='{.status.loadBalancer.ingress[*].hostname}'
+  a232d92df01f940339adea0e645d88bb-1576732600.us-east-1.elb.amazonaws.com
   ```
 
-  In this case, you would load https://a5f22a02798f541e58c6641c1b158ea3-1989279894.us-east-1.elb.amazonaws.com instead.
+  In this instance, you would load https://a232d92df01f940339adea0e645d88bb-1576732600.us-east-1.elb.amazonaws.com/web/invite/91cfbd08bc89122275006e48b516cc68
+  instead to create the Teleport user.
+
+  You may need to accept insecure warnings in your browser to view the page successfully.
 </Admonition>
 
-Load the link to create a password and set up 2-factor authentication for the Teleport user via the web UI.
+<Admonition type="warning">
+  Using a Kubernetes-issued load balancer IP or hostname is OK for testing, but is not viable when running a production Teleport cluster
+  as the Subject Alternative Name on any public-facing certificate will be expected to match the cluster's configured public address (which is
+  the same as the configured `clusterName` when using the `teleport-cluster` chart). For security, all Teleport services will validate this when
+  communicating with the cluster.
+
+  You must configure DNS properly using methods described above for production workloads.
+</Admonition>
+
+Load the user creation link to create a password and set up 2-factor authentication for the Teleport user via the web UI.
 
 You can follow our [Getting Started with Teleport guide](../../getting-started/#step-2-create-a-teleport-user-and-set-up-2-factor-authentication) to finish setting up your
 Teleport cluster.
+
+### Making changes to the cluster after deployment
+
+To make changes to your Teleport cluster after deployment, you can use `helm upgrade`:
+
+<Tabs>
+  <TabItem label="Using values.yaml">
+  Edit your `aws-values.yaml` file from above and make the appropriate changes.
+
+  Upgrade the deployment with the values from your `aws-values.yaml` file using this command:
+
+  ```shell
+  $ helm upgrade teleport teleport/teleport-cluster \
+    --namespace teleport \
+    -f aws-values.yaml
+  ```
+
+  </TabItem>
+  <TabItem label="Using --set via CLI">
+  Run this command, editing your command line parameters as appropriate:
+
+  ```shell
+  $ helm upgrade teleport teleport/teleport-cluster \
+    --namespace teleport \
+    --set highAvailability.replicaCount=3
+  ```
+  </TabItem>
+</Tabs>
+
+<Admonition type="note">
+  To change `chartMode`, `clusterName` or any `aws` settings, you must first uninstall the existing chart and then install
+  a new version with the appropriate values.
+</Admonition>
+
+### Uninstalling the Helm chart
+
+To uninstall the `teleport-cluster` chart, use `helm uninstall <release-name>`. For example:
+
+```shell
+$ helm --namespace teleport uninstall teleport
+```
