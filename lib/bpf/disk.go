@@ -18,18 +18,18 @@ limitations under the License.
 
 package bpf
 
-import "C"
-
 import (
-	"context"
+	"github.com/aquasecurity/tracee/libbpfgo"
+	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
 
-	"github.com/gravitational/trace"
-
-	"github.com/iovisor/gobpf/bcc"
-	"github.com/prometheus/client_golang/prometheus"
+	_ "embed"
 )
+
+//go:embed bytecode/disk.bpf.o
+var diskBPF []byte
 
 var (
 	lostDiskEvents = prometheus.NewCounter(
@@ -38,6 +38,10 @@ var (
 			Help: "Number of lost disk events.",
 		},
 	)
+)
+
+const (
+	diskEventsBuffer = "open_events"
 )
 
 func init() {
@@ -66,147 +70,66 @@ type rawOpenEvent struct {
 	Flags int32
 }
 
-// open runs a BPF program (opensnoop) that hooks openat.
 type open struct {
-	closeContext context.Context
+	module *libbpfgo.Module
 
-	eventCh <-chan []byte
-	lostCh  <-chan uint64
-
-	perfMaps []*bcc.PerfMap
-	module   *bcc.Module
+	eventBuf *RingBuffer
+	lost     *Counter
 }
 
 // startOpen will compile, load, start, and pull events off the perf buffer
 // for the BPF program.
-func startOpen(closeContext context.Context, pageCount int) (*open, error) {
+func startOpen(bufferSize int) (*open, error) {
+	o := &open{}
+
 	var err error
 
-	e := &open{
-		closeContext: closeContext,
-	}
-
-	// If the page count is zero, don't start any BPF module.
-	if pageCount == 0 {
-		return e, nil
-	}
-
-	// Compile the BPF program.
-	e.module = bcc.NewModule(openSource, []string{})
-	if e.module == nil {
-		return nil, trace.BadParameter("failed to load libbcc")
-	}
-
-	// Hook open syscall.
-	err = attachProbe(e.module, "do_sys_open", "trace_entry")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = attachRetProbe(e.module, "do_sys_open", "trace_return")
+	o.module, err = libbpfgo.NewModuleFromBuffer(diskBPF, "disk")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Open perf buffer and start processing open events.
-	e.eventCh, e.lostCh, err = openPerfBuffer(e.module, e.perfMaps, pageCount, "open_events")
-	if err != nil {
+	// Resizing the ring buffer must be done here, after the module
+	// was created but before it's loaded into the kernel.
+	if err = ResizeMap(o.module, diskEventsBuffer, uint32(bufferSize*pageSize)); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Start a loop that will emit lost events to prometheus.
-	go e.lostLoop()
-
-	return e, nil
-}
-
-// close will stop reading events off the perf buffer and unload the BPF
-// program.
-func (e *open) close() {
-	for _, perfMap := range e.perfMaps {
-		perfMap.Stop()
+	// Load into the kernel
+	if err = o.module.BPFLoadObject(); err != nil {
+		return nil, trace.Wrap(err)
 	}
-	e.module.Close()
-}
 
-// lostLoop keeps emitting the number of lost events to prometheus.
-func (e *open) lostLoop() {
-	for {
-		select {
-		case n := <-e.lostCh:
-			log.Debugf("Lost %v disk events.", n)
-			lostDiskEvents.Add(float64(n))
-		case <-e.closeContext.Done():
-			return
+	syscalls := []string{"open", "openat", "openat2"}
+
+	for _, syscall := range syscalls {
+		if err = AttachSyscallTracepoint(o.module, syscall); err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
+
+	o.eventBuf, err = NewRingBuffer(o.module, diskEventsBuffer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	o.lost, err = NewCounter(o.module, "lost", lostDiskEvents)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return o, nil
+}
+
+// close will stop reading events off the ring buffer and unload the BPF
+// program. The ring buffer is closed as part of the module being closed.
+func (o *open) close() {
+	o.lost.Close()
+	o.eventBuf.Close()
+	o.module.Close()
 }
 
 // events contains raw events off the perf buffer.
-func (e *open) events() <-chan []byte {
-	return e.eventCh
+func (o *open) events() <-chan []byte {
+	return o.eventBuf.EventCh
 }
-
-const openSource string = `
-#include <uapi/linux/ptrace.h>
-#include <uapi/linux/limits.h>
-#include <linux/sched.h>
-#include <linux/fs.h>
-#include <linux/audit.h>
-
-struct val_t {
-    u64 pid;
-    char comm[TASK_COMM_LEN];
-    const char *fname;
-    int flags;
-};
-
-struct data_t {
-    u64 cgroup;
-    u64 pid;
-    int ret;
-    char comm[TASK_COMM_LEN];
-    char fname[NAME_MAX];
-    int flags;
-};
-
-BPF_HASH(infotmp, u64, struct val_t);
-BPF_PERF_OUTPUT(open_events);
-
-int trace_entry(struct pt_regs *ctx, int dfd, const char __user *filename, int flags)
-{
-    struct val_t val = {};
-    u64 id = bpf_get_current_pid_tgid();
-
-    if (bpf_get_current_comm(&val.comm, sizeof(val.comm)) == 0) {
-        val.pid = id >> 32;
-        val.fname = filename;
-        val.flags = flags;
-        infotmp.update(&id, &val);
-    }
-
-    return 0;
-};
-
-int trace_return(struct pt_regs *ctx)
-{
-    u64 id = bpf_get_current_pid_tgid();
-    struct val_t *valp;
-    struct data_t data = {};
-
-    valp = infotmp.lookup(&id);
-    if (valp == 0) {
-        // Missed entry.
-        return 0;
-    }
-    bpf_probe_read(&data.comm, sizeof(data.comm), valp->comm);
-    bpf_probe_read(&data.fname, sizeof(data.fname), (void *)valp->fname);
-    data.pid = valp->pid;
-    data.flags = valp->flags;
-    data.ret = PT_REGS_RC(ctx);
-    data.cgroup = bpf_get_current_cgroup_id();
-
-    open_events.perf_submit(ctx, &data, sizeof(data));
-    infotmp.delete(&id);
-
-    return 0;
-}`

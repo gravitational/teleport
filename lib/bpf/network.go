@@ -18,18 +18,18 @@ limitations under the License.
 
 package bpf
 
-import "C"
-
 import (
-	"context"
+	"github.com/aquasecurity/tracee/libbpfgo"
+	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
 
-	"github.com/gravitational/trace"
-
-	"github.com/iovisor/gobpf/bcc"
-	"github.com/prometheus/client_golang/prometheus"
+	_ "embed"
 )
+
+//go:embed bytecode/network.bpf.o
+var networkBPF []byte
 
 var (
 	lostNetworkEvents = prometheus.NewCounter(
@@ -38,6 +38,11 @@ var (
 			Help: "Number of lost network events.",
 		},
 	)
+)
+
+const (
+	network4EventsBuffer = "ipv4_events"
+	network6EventsBuffer = "ipv6_events"
 )
 
 func init() {
@@ -95,223 +100,80 @@ type rawConn6Event struct {
 }
 
 type conn struct {
-	closeContext context.Context
+	module *libbpfgo.Module
 
-	// v{4,6}EventCh are the channels upon which the perf buffer places
-	// events.
-	v4EventCh <-chan []byte
-	v6EventCh <-chan []byte
+	event4Buf *RingBuffer
+	event6Buf *RingBuffer
 
-	// v{4,6}LostCh are the channels upon which the perf buffer places lost
-	// event count.
-	v4LostCh <-chan uint64
-	v6LostCh <-chan uint64
-
-	module   *bcc.Module
-	perfMaps []*bcc.PerfMap
+	lost *Counter
 }
 
-func startConn(closeContext context.Context, pageCount int) (*conn, error) {
+func startConn(bufferSize int) (*conn, error) {
+	c := &conn{}
+
 	var err error
 
-	e := &conn{
-		closeContext: closeContext,
-	}
-
-	// If the page count is zero, don't start any BPF module.
-	if pageCount == 0 {
-		return e, nil
-	}
-
-	e.module = bcc.NewModule(connSource, []string{})
-	if e.module == nil {
-		return nil, trace.BadParameter("failed to load libbcc")
-	}
-
-	// Hook IPv4 connection attempts.
-	err = attachProbe(e.module, "tcp_v4_connect", "trace_connect_entry")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = attachRetProbe(e.module, "tcp_v4_connect", "trace_connect_v4_return")
+	c.module, err = libbpfgo.NewModuleFromBuffer(networkBPF, "network")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Hook IPv6 connection attempts.
-	err = attachProbe(e.module, "tcp_v6_connect", "trace_connect_entry")
-	if err != nil {
+	// Resizing the ring buffer must be done here, after the module
+	// was created but before it's loaded into the kernel.
+	if err = ResizeMap(c.module, network4EventsBuffer, uint32(bufferSize*pageSize)); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = attachRetProbe(e.module, "tcp_v6_connect", "trace_connect_v6_return")
+
+	if err = ResizeMap(c.module, network6EventsBuffer, uint32(bufferSize*pageSize)); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Load into the kernel
+	if err = c.module.BPFLoadObject(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err = AttachKprobe(c.module, "tcp_v4_connect"); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err = AttachKprobe(c.module, "tcp_v6_connect"); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	c.event4Buf, err = NewRingBuffer(c.module, network4EventsBuffer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Open perf buffer and start processing IPv4 events.
-	e.v4EventCh, e.v4LostCh, err = openPerfBuffer(e.module, e.perfMaps, pageCount, "ipv4_events")
+	c.event6Buf, err = NewRingBuffer(c.module, network6EventsBuffer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Open perf buffer and start processing IPv6 events.
-	e.v6EventCh, e.v6LostCh, err = openPerfBuffer(e.module, e.perfMaps, pageCount, "ipv6_events")
+	c.lost, err = NewCounter(c.module, "lost", lostNetworkEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Start a loop that will emit lost events to prometheus.
-	go e.lostLoop()
-
-	return e, nil
+	return c, nil
 }
 
-// close will stop reading events off the perf buffer and unload the BPF
-// program.
-func (e *conn) close() {
-	for _, perfMap := range e.perfMaps {
-		perfMap.Stop()
-	}
-	e.module.Close()
-}
-
-// lostLoop keeps emitting the number of lost events to prometheus.
-func (e *conn) lostLoop() {
-	for {
-		select {
-		case n := <-e.v4LostCh:
-			log.Debugf("Lost %v IPv4 events.", n)
-			lostNetworkEvents.Add(float64(n))
-		case n := <-e.v6LostCh:
-			log.Debugf("Lost %v IPv6 events.", n)
-			lostNetworkEvents.Add(float64(n))
-		case <-e.closeContext.Done():
-			return
-		}
-	}
+// close will stop reading events off the ring buffer and unload the BPF
+// program. The ring buffer is closed as part of the module being closed.
+func (c *conn) close() {
+	c.lost.Close()
+	c.event4Buf.Close()
+	c.event6Buf.Close()
+	c.module.Close()
 }
 
 // v4Events contains raw events off the perf buffer.
-func (e *conn) v4Events() <-chan []byte {
-	return e.v4EventCh
+func (c *conn) v4Events() <-chan []byte {
+	return c.event4Buf.EventCh
 }
 
 // v6Events contains raw events off the perf buffer.
-func (e *conn) v6Events() <-chan []byte {
-	return e.v6EventCh
+func (c *conn) v6Events() <-chan []byte {
+	return c.event6Buf.EventCh
 }
-
-const connSource string = `
-#include <uapi/linux/ptrace.h>
-#include <net/sock.h>
-#include <bcc/proto.h>
-
-BPF_HASH(currsock, u32, struct sock *);
-
-// separate data structs for ipv4 and ipv6
-struct ipv4_data_t {
-    u64 cgroup;
-    u64 ip;
-    u32 pid;
-    u32 saddr;
-    u32 daddr;
-    u16 dport;
-    char task[TASK_COMM_LEN];
-};
-BPF_PERF_OUTPUT(ipv4_events);
-
-struct ipv6_data_t {
-    u64 cgroup;
-    u64 ip;
-    u32 pid;
-    u32 saddr[4];
-    u32 daddr[4];
-    u16 dport;
-    char task[TASK_COMM_LEN];
-};
-BPF_PERF_OUTPUT(ipv6_events);
-
-int trace_connect_entry(struct pt_regs *ctx, struct sock *sk)
-{
-    u32 pid = bpf_get_current_pid_tgid();
-
-    // Stash the sock ptr for lookup on return.
-    currsock.update(&pid, &sk);
-
-    return 0;
-};
-
-static int trace_connect_return(struct pt_regs *ctx, short ipver)
-{
-    int ret = PT_REGS_RC(ctx);
-    u32 pid = bpf_get_current_pid_tgid();
-
-    struct sock **skpp;
-    skpp = currsock.lookup(&pid);
-    if (skpp == 0) {
-        return 0;   // missed entry
-    }
-
-    if (ret != 0) {
-        // failed to send SYNC packet, may not have populated
-        // socket __sk_common.{skc_rcv_saddr, ...}
-        currsock.delete(&pid);
-        return 0;
-    }
-
-    // pull in details
-    struct sock *skp = *skpp;
-    u16 dport = skp->__sk_common.skc_dport;
-
-    if (ipver == 4) {
-        struct ipv4_data_t data4 = {.pid = pid, .ip = ipver};
-        data4.saddr = skp->__sk_common.skc_rcv_saddr;
-        data4.daddr = skp->__sk_common.skc_daddr;
-        data4.dport = ntohs(dport);
-        data4.cgroup = bpf_get_current_cgroup_id();
-        bpf_get_current_comm(&data4.task, sizeof(data4.task));
-        ipv4_events.perf_submit(ctx, &data4, sizeof(data4));
-
-    } else /* 6 */ {
-        struct ipv6_data_t data6 = {.pid = pid, .ip = ipver};
-
-		// Source.
-        bpf_probe_read(&data6.saddr[0], sizeof(data6.saddr[0]),
-            &skp->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32[0]);
-        bpf_probe_read(&data6.saddr[1], sizeof(data6.saddr[1]),
-            &skp->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32[1]);
-        bpf_probe_read(&data6.saddr[2], sizeof(data6.saddr[2]),
-            &skp->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32[2]);
-        bpf_probe_read(&data6.saddr[3], sizeof(data6.saddr[3]),
-            &skp->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32[3]);
-
-		// Destination.
-        bpf_probe_read(&data6.daddr[0], sizeof(data6.daddr[0]),
-            &skp->__sk_common.skc_v6_daddr.in6_u.u6_addr32[0]);
-        bpf_probe_read(&data6.daddr[1], sizeof(data6.daddr[1]),
-            &skp->__sk_common.skc_v6_daddr.in6_u.u6_addr32[1]);
-        bpf_probe_read(&data6.daddr[2], sizeof(data6.daddr[2]),
-            &skp->__sk_common.skc_v6_daddr.in6_u.u6_addr32[2]);
-        bpf_probe_read(&data6.daddr[3], sizeof(data6.daddr[3]),
-            &skp->__sk_common.skc_v6_daddr.in6_u.u6_addr32[3]);
-
-        data6.dport = ntohs(dport);
-        data6.cgroup = bpf_get_current_cgroup_id();
-        bpf_get_current_comm(&data6.task, sizeof(data6.task));
-        ipv6_events.perf_submit(ctx, &data6, sizeof(data6));
-    }
-
-    currsock.delete(&pid);
-
-    return 0;
-}
-
-int trace_connect_v4_return(struct pt_regs *ctx)
-{
-    return trace_connect_return(ctx, 4);
-}
-
-int trace_connect_v6_return(struct pt_regs *ctx)
-{
-    return trace_connect_return(ctx, 6);
-}`

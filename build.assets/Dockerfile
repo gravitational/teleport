@@ -26,21 +26,26 @@ RUN apt-get update -y --fix-missing && \
     curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key --keyring /usr/share/keyrings/cloud.google.gpg add - && \
     apt-get -y update && \
     apt-get install -q -y --no-install-recommends \
-        clang-format \
+        apt-utils \
+        clang-10 \
+        clang-format-10 \
+        curl \
         gcc \
         gcc-multilib \
         git \
         gzip \
-        libbpfcc-dev \
         libc6-dev \
+        libelf-dev \
         libpam-dev \
         libsqlite3-0 \
+        llvm-10 \
         locales \
         make \
         mingw-w64 \
         net-tools \
         openssh-client \
         python-pip \
+        pkg-config \
         shellcheck \
         tar \
         tree \
@@ -68,6 +73,12 @@ RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$RUNT
     chmod a+w /go && \
     chmod a+w /var/lib && \
     chmod a-w /
+
+# Install libbpf
+RUN mkdir -p /opt && cd /opt && curl -L https://github.com/libbpf/libbpf/archive/refs/tags/v0.3.tar.gz | tar xz && \
+    cd /opt/libbpf-0.3/src && \
+    make && \
+    make install
 
 ENV GOPATH="/go" \
     GOROOT="/opt/go" \
@@ -103,6 +114,10 @@ RUN (git clone https://github.com/gogo/protobuf.git ${GOPATH}/src/github.com/gog
      cd ${GOPATH}/src/github.com/gogo/protobuf && \
      git reset --hard ${GOGO_PROTO_TAG} && \
      make install)
+#RUN (go get -u github.com/gogo/protobuf/proto@${GOGO_PROTO_TAG} \
+#               github.com/gogo/protobuf/protoc-gen-gogo@${GOGO_PROTO_TAG} \
+#               github.com/gogo/protobuf/gogoproto@${GOGO_PROTO_TAG} \
+#               golang.org/x/tools/cmd/goimports )
 
 ENV PROTO_INCLUDE "/usr/local/include":"${GOPATH}/src":"${GOPATH}/src/github.com/gogo/protobuf/protobuf":"${GOGOPROTO_ROOT}":"${GOGOPROTO_ROOT}/protobuf":"${GOPATH}/src/github.com/gravitational/teleport/lib/services"
 

@@ -144,6 +144,20 @@ steps:
     path: /tmpfs
   - name: dockersock
     path: /var/run
+- name: Run root-only unit tests
+  image: docker
+  commands:
+  - apk add --no-cache make
+  - cd /tmpfs/go/src/github.com/gravitational/teleport
+  - make -C build.assets test-root
+  environment:
+    GOCACHE: /tmpfs/go/cache
+    GOPATH: /tmpfs/go
+  volumes:
+  - name: tmpfs
+    path: /tmpfs
+  - name: dockersock
+    path: /var/run
 - name: Run root-only integration tests
   image: docker
   commands:

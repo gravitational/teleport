@@ -18,18 +18,18 @@ limitations under the License.
 
 package bpf
 
-import "C"
-
 import (
-	"context"
+	"github.com/aquasecurity/tracee/libbpfgo"
+	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
 
-	"github.com/gravitational/trace"
-
-	"github.com/iovisor/gobpf/bcc"
-	"github.com/prometheus/client_golang/prometheus"
+	_ "embed"
 )
+
+//go:embed bytecode/command.bpf.o
+var commandBPF []byte
 
 var (
 	lostCommandEvents = prometheus.NewCounter(
@@ -38,6 +38,10 @@ var (
 			Help: "Number of lost command events.",
 		},
 	)
+)
+
+const (
+	commandEventsBuffer = "execve_events"
 )
 
 func init() {
@@ -69,186 +73,66 @@ type rawExecEvent struct {
 	CgroupID uint64
 }
 
-// exec runs a BPF program (execsnoop) that hooks execve.
 type exec struct {
-	closeContext context.Context
+	module *libbpfgo.Module
 
-	eventCh <-chan []byte
-	lostCh  <-chan uint64
-
-	perfMaps []*bcc.PerfMap
-	module   *bcc.Module
+	eventBuf *RingBuffer
+	lost     *Counter
 }
 
-// startExec will compile, load, start, and pull events off the perf buffer
+// startExec will load, start, and pull events off the ring buffer
 // for the BPF program.
-func startExec(closeContext context.Context, pageCount int) (*exec, error) {
+func startExec(bufferSize int) (*exec, error) {
+	e := &exec{}
+
 	var err error
 
-	e := &exec{
-		closeContext: closeContext,
-	}
-
-	// If the page count is zero, don't start any BPF module.
-	if pageCount == 0 {
-		return e, nil
-	}
-
-	// Compile the BPF program.
-	e.module = bcc.NewModule(execveSource, []string{})
-	if e.module == nil {
-		return nil, trace.BadParameter("failed to load libbcc")
-	}
-
-	// Hook execve syscall.
-	err = attachProbe(e.module, bcc.GetSyscallFnName("execve"), "syscall__execve")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = attachRetProbe(e.module, bcc.GetSyscallFnName("execve"), "do_ret_sys_execve")
+	e.module, err = libbpfgo.NewModuleFromBuffer(commandBPF, "command")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Open perf buffer and start processing execve events.
-	e.eventCh, e.lostCh, err = openPerfBuffer(e.module, e.perfMaps, pageCount, "execve_events")
+	// Resizing the ring buffer must be done here, after the module
+	// was created but before it's loaded into the kernel.
+	if err = ResizeMap(e.module, commandEventsBuffer, uint32(bufferSize*pageSize)); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Load into the kernel
+	if err = e.module.BPFLoadObject(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	syscalls := []string{"execve", "execveat"}
+
+	for _, syscall := range syscalls {
+		if err = AttachSyscallTracepoint(e.module, syscall); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	e.eventBuf, err = NewRingBuffer(e.module, commandEventsBuffer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Start a loop that will emit lost events to prometheus.
-	go e.lostLoop()
+	e.lost, err = NewCounter(e.module, "lost", lostCommandEvents)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return e, nil
 }
 
-// close will stop reading events off the perf buffer and unload the BPF
-// program.
+// close will stop reading events off the ring buffer and unload the BPF
+// program. The ring buffer is closed as part of the module being closed.
 func (e *exec) close() {
-	for _, perfMap := range e.perfMaps {
-		perfMap.Stop()
-	}
+	e.lost.Close()
+	e.eventBuf.Close()
 	e.module.Close()
 }
 
 // events contains raw events off the perf buffer.
 func (e *exec) events() <-chan []byte {
-	return e.eventCh
+	return e.eventBuf.EventCh
 }
-
-// lostLoop keeps emitting the number of lost events to prometheus.
-func (e *exec) lostLoop() {
-	for {
-		select {
-		case n := <-e.lostCh:
-			log.Debugf("Lost %v command events.", n)
-			lostCommandEvents.Add(float64(n))
-		case <-e.closeContext.Done():
-			return
-		}
-	}
-}
-
-const execveSource string = `
-#include <uapi/linux/ptrace.h>
-#include <linux/sched.h>
-#include <linux/fs.h>
-
-#define ARGSIZE  128
-
-enum event_type {
-    EVENT_ARG,
-    EVENT_RET,
-};
-
-struct data_t {
-    // pid as in the userspace term (i.e. task->tgid in kernel).
-    u64 pid;
-    // ppid is the userspace term (i.e task->real_parent->tgid in kernel).
-    u64 ppid;
-    char comm[TASK_COMM_LEN];
-    enum event_type type;
-    char argv[ARGSIZE];
-    int retval;
-    u64 cgroup;
-};
-
-BPF_PERF_OUTPUT(execve_events);
-
-static int __submit_arg(struct pt_regs *ctx, void *ptr, struct data_t *data)
-{
-    bpf_probe_read(data->argv, sizeof(data->argv), ptr);
-    execve_events.perf_submit(ctx, data, sizeof(struct data_t));
-    return 1;
-}
-
-static int submit_arg(struct pt_regs *ctx, void *ptr, struct data_t *data)
-{
-    const char *argp = NULL;
-    bpf_probe_read(&argp, sizeof(argp), ptr);
-    if (argp) {
-        return __submit_arg(ctx, (void *)(argp), data);
-    }
-    return 0;
-}
-
-int syscall__execve(struct pt_regs *ctx,
-    const char __user *filename,
-    const char __user *const __user *__argv,
-    const char __user *const __user *__envp)
-{
-    // create data here and pass to submit_arg to save stack space (#555)
-    struct data_t data = {};
-    struct task_struct *task;
-
-    data.pid = bpf_get_current_pid_tgid() >> 32;
-    data.cgroup = bpf_get_current_cgroup_id();
-
-    task = (struct task_struct *)bpf_get_current_task();
-    // Some kernels, like Ubuntu 4.13.0-generic, return 0
-    // as the real_parent->tgid.
-    // We use the getPpid function as a fallback in those cases.
-    // See https://github.com/iovisor/bcc/issues/1883.
-    data.ppid = task->real_parent->tgid;
-
-    bpf_get_current_comm(&data.comm, sizeof(data.comm));
-    data.type = EVENT_ARG;
-
-    __submit_arg(ctx, (void *)filename, &data);
-
-    // skip first arg, as we submitted filename
-    #pragma unroll
-    for (int i = 1; i < 20; i++) {
-        if (submit_arg(ctx, (void *)&__argv[i], &data) == 0)
-             goto out;
-    }
-
-    // handle truncated argument list
-    char ellipsis[] = "...";
-    __submit_arg(ctx, (void *)ellipsis, &data);
-out:
-    return 0;
-}
-
-int do_ret_sys_execve(struct pt_regs *ctx)
-{
-    struct data_t data = {};
-    struct task_struct *task;
-
-    data.pid = bpf_get_current_pid_tgid() >> 32;
-    data.cgroup = bpf_get_current_cgroup_id();
-
-    task = (struct task_struct *)bpf_get_current_task();
-    // Some kernels, like Ubuntu 4.13.0-generic, return 0
-    // as the real_parent->tgid.
-    // We use the getPpid function as a fallback in those cases.
-    // See https://github.com/iovisor/bcc/issues/1883.
-    data.ppid = task->real_parent->tgid;
-
-    bpf_get_current_comm(&data.comm, sizeof(data.comm));
-    data.type = EVENT_RET;
-    data.retval = PT_REGS_RC(ctx);
-    execve_events.perf_submit(ctx, &data, sizeof(data));
-
-    return 0;
-}`
