@@ -5,7 +5,7 @@ description: How to install and configure the Gravitational Teleport Helm chart 
 
 This guide will get you started with being able to set up Teleport using our official Helm charts.
 
-# Installing Helm
+## Installing Helm
 
 Teleport's charts require the use of Helm version 3. You can [install Helm 3 by following these instructions](https://helm.sh/docs/intro/install/).
 
@@ -18,12 +18,12 @@ $ helm version
 version.BuildInfo{Version:"v3.4.1", GitCommit:"c4e74854886b2efe3321e185578e6db9be0a6e29", GitTreeState:"clean", GoVersion:"go1.14.11"}
 ```
 
-# Adding the Teleport Helm chart repository
+## Adding the Teleport Helm chart repository
 
 To allow Helm to install charts which are hosted in the Teleport Helm repository, you should add the repository using `helm repo add`:
 
 ```shell
-$ helm repo add teleport https://charts.releases.teleport.dev
+$ helm repo add teleport https://charts.releases.teleport.devFD
 "teleport" has been added to your repositories
 ```
 
@@ -56,14 +56,14 @@ The Teleport Helm repository hosts two Helm charts:
 
 The `teleport-cluster` Helm chart is used to configure a Teleport cluster. It runs two services:
 
-- The [Teleport auth service](./architecture/authentication), which authenticates users and hosts, and issues certificates
-- The [Teleport proxy service](./architecture/proxy), which runs the externally-facing parts of a Teleport cluster, such as the web UI, SSH proxy and reverse tunnel service.
+- The [Teleport auth service](../../architecture/authentication.mdx), which authenticates users and hosts, and issues certificates
+- The [Teleport proxy service](../../architecture/proxy.mdx), which runs the externally-facing parts of a Teleport cluster, such as the web UI, SSH proxy and reverse tunnel service.
 
 The `teleport-cluster` chart can be deployed in four different modes - `standalone`, `aws`, `gcp` and `ownconfig`.
 
 We have a guide for each mode:
 
-- [`standalone` - Simple one-node Teleport cluster](./helm/guides/standalone)
-- [`aws` - Using DynamoDB for database/audit log and S3 for session logs](./helm/guides/aws)
-- ['gcp'- Using Google Firestore for database/audit log and Google storage for session logs](./helm/guides/gcp)
-- [`ownconfig` - Provide your own custom Teleport config for more esoteric configurations](./helm/guides/ownconfig)
+- [`standalone` - Simple one-node Teleport cluster](./standalone.mdx)
+- [`aws` - Using DynamoDB for database/audit log and S3 for session logs](./aws.mdx)
+- ['gcp'- Using Google Firestore for database/audit log and Google storage for session logs](./gcp.mdx)
+- [`ownconfig` - Provide your own custom Teleport config for more esoteric configurations](./ownconfig.mdx)

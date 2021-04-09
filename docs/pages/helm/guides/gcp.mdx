@@ -6,7 +6,7 @@ description: How to install and configure a highly-available Gravitational Telep
 In this guide, we'll go through how to set up a highly-availabie Teleport cluster with multiple replicas in Kubernetes
 using Teleport Helm charts and Google Cloud Platform products (Firestore and Google Cloud Storage).
 
-We'll assume that you've finished [the Getting Started guide](./helm/guides/getting-started.mdx) and have Helm configured successfully.
+This guide assumes that you've finished the [Getting Started with the Teleport Helm chart repository guide](./getting-started.mdx) and have Helm configured successfully.
 
 If not, please finish that guide first before starting this one!
 
@@ -43,7 +43,7 @@ To make your cluster highly available, set the `highAvailability.replicaCount` p
 
 In this guide, we'll be configuring 2 replicas. This can be changed after installation [using `helm upgrade` as detailed below](#making-changes-to-the-cluster-after-deployment).
 
-See the [high availability section of our `teleport-cluster` chart reference](./teleport-cluster-reference/#highavailability) for more details.
+See the [high availability section of our `teleport-cluster` chart reference](./teleport-cluster-reference.mdx#highavailability) for more details.
 
 ### Google Cloud IAM configuration
 
@@ -268,7 +268,7 @@ NOTE: Make sure teleport.example.com:443 points at a Teleport proxy which users 
 
 Load the user creation link to create a password and set up 2-factor authentication for the Teleport user via the web UI.
 
-You can follow our [Getting Started with Teleport guide](../../getting-started/#step-2-create-a-teleport-user-and-set-up-2-factor-authentication) to finish setting up your
+You can follow our [Getting Started with Teleport guide](../../getting-started.mdx#step-2-create-a-teleport-user-and-set-up-2-factor-authentication) to finish setting up your
 Teleport cluster.
 
 ### Making changes to the cluster after deployment
