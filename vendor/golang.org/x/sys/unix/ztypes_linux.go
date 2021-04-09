@@ -84,13 +84,28 @@ type FileCloneRange struct {
 	Dest_offset uint64
 }
 
-type FileDedupeRange struct {
+type RawFileDedupeRange struct {
 	Src_offset uint64
 	Src_length uint64
 	Dest_count uint16
 	Reserved1  uint16
 	Reserved2  uint32
 }
+
+type RawFileDedupeRangeInfo struct {
+	Dest_fd       int64
+	Dest_offset   uint64
+	Bytes_deduped uint64
+	Status        int32
+	Reserved      uint32
+}
+
+const (
+	SizeofRawFileDedupeRange     = 0x18
+	SizeofRawFileDedupeRangeInfo = 0x20
+	FILE_DEDUPE_RANGE_SAME       = 0x0
+	FILE_DEDUPE_RANGE_DIFFERS    = 0x1
+)
 
 type FscryptPolicy struct {
 	Version                   uint8
@@ -3683,6 +3698,21 @@ const (
 	ETHTOOL_A_TUNNEL_INFO_MAX                 = 0x2
 )
 
+type EthtoolDrvinfo struct {
+	Cmd          uint32
+	Driver       [32]byte
+	Version      [32]byte
+	Fw_version   [32]byte
+	Bus_info     [32]byte
+	Erom_version [32]byte
+	Reserved2    [12]byte
+	N_priv_flags uint32
+	N_stats      uint32
+	Testinfo_len uint32
+	Eedump_len   uint32
+	Regdump_len  uint32
+}
+
 type (
 	HIDRawReportDescriptor struct {
 		Size  uint32
@@ -3693,4 +3723,15 @@ type (
 		Vendor  int16
 		Product int16
 	}
+)
+
+const (
+	CLOSE_RANGE_UNSHARE = 0x2
+	CLOSE_RANGE_CLOEXEC = 0x4
+)
+
+const (
+	NLMSGERR_ATTR_MSG    = 0x1
+	NLMSGERR_ATTR_OFFS   = 0x2
+	NLMSGERR_ATTR_COOKIE = 0x3
 )
