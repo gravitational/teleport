@@ -501,6 +501,14 @@ aws ec2 associate-iam-instance-profile --iam-instance-profile Name=teleport-role
 (!examples/aws/eks/teleport.yaml!)
 ```
 
+<Admonition
+  type="warning"
+  title="Warning"
+>
+  EKS users may need to replace illegal characters in their kubernetes cluster names.
+  Supported characters are alphanumeric characters, ".", "_", and "-".
+</Admonition>
+
 #### Download Kubectl on Teleport Server
 
 Kubectl is required to obtain the correct kubeconfig, so Teleport can access the EKS Cluster.
