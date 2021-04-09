@@ -86,7 +86,10 @@
           "title": "Guides",
           "slug": "/access-controls/guides/",
           "entries": [
-            { "title": "Role Templates", "slug": "/access-controls/guides/role-templates/" }
+            { "title": "Role Templates", "slug": "/access-controls/guides/role-templates/" },
+            { "title": "Second Factor - U2F", "slug": "/access-controls/guides/u2f/" },
+            { "title": "Per-session MFA", "slug": "/access-controls/guides/per-session-mfa/" },            
+            { "title": "Impersonation", "slug": "/access-controls/guides/impersonation/" }
           ]
         },
         { "title": "Reference", "slug": "/access-controls/reference/" },
@@ -172,15 +175,15 @@
     }
   ],
   "variables": {
-    "version": "6.0",
+    "version": "7.0",
     "teleport": {
       "version": "6.0.1",
-      "golang": "1.15",
+      "golang": "1.16",
       "plugin": {
-        "version": "0.2.0"
+        "version": "6.0.1"
       },
-      "latest_oss_docker_image": "quay.io/gravitational/teleport:6",
-      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:6"
+      "latest_oss_docker_image": "quay.io/gravitational/teleport:7.0",
+      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:7.0"
     }
   },
   "redirects": [
