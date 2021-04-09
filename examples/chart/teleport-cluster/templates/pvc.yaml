@@ -7,7 +7,7 @@ metadata:
     app: {{ .Release.Name }}
 spec:
   accessModes:
-    - ReadWriteOnce
+  - ReadWriteOnce
   resources:
     requests:
       storage: 10Gi
