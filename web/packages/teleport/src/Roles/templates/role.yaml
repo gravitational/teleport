@@ -6,7 +6,7 @@ spec:
   # This example defines an administrative role. It maps to Kubernetes "admin"
   # group and allows SSH to every node.
   allow:
-    # This role is mapped to Kuberntes 'admin' group.
+    # This role is mapped to Kubernetes 'admin' group.
     kubernetes_groups: [admin]
 
     # List of allowed SSH logins
