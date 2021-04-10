@@ -63,8 +63,9 @@
           "title": "Guides",
           "slug": "/database-access/guides/",
           "entries": [
-            { "title": "PostgreSQL on AWS", "slug": "/database-access/guides/postgres-aws/" },
-            { "title": "MySQL on AWS", "slug": "/database-access/guides/mysql-aws/" },
+            { "title": "AWS RDS/Aurora PostgreSQL", "slug": "/database-access/guides/postgres-aws/" },
+            { "title": "AWS RDS/Aurora MySQL", "slug": "/database-access/guides/mysql-aws/" },
+            { "title": "GCP Cloud SQL PostgreSQL", "slug": "/database-access/guides/postgres-cloudsql/" },
             { "title": "Self-Hosted PostgreSQL", "slug": "/database-access/guides/postgres-self-hosted/" },
             { "title": "Self-Hosted MySQL", "slug": "/database-access/guides/mysql-self-hosted/" },
             { "title": "Database GUI Clients", "slug": "/database-access/guides/gui-clients/" }
@@ -89,6 +90,7 @@
             { "title": "Role Templates", "slug": "/access-controls/guides/role-templates/" },
             { "title": "Second Factor - U2F", "slug": "/access-controls/guides/u2f/" },
             { "title": "Per-session MFA", "slug": "/access-controls/guides/per-session-mfa/" },            
+            { "title": "Dual Authorization", "slug": "/access-controls/guides/dual-authz/" },
             { "title": "Impersonation", "slug": "/access-controls/guides/impersonation/" }
           ]
         },
@@ -177,10 +179,10 @@
   "variables": {
     "version": "6.1",
     "teleport": {
-      "version": "6.0.1",
+      "version": "6.1.0",
       "golang": "1.16",
       "plugin": {
-        "version": "6.0.1"
+        "version": "6.1.0"
       },
       "latest_oss_docker_image": "quay.io/gravitational/teleport:6.1",
       "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:6.1"
