@@ -116,7 +116,7 @@ Alice can login using `tsh` and issue a cert for `jenkins`:
 
 ```bash
 $ tsh login --proxy=teleport.localhost:3080 --user=alice --auth=local
-$ tctl auth sign --user=jenkins --format=openssh --out jenkins --ttl=240h
+$ tctl auth sign --user=jenkins --format=openssh --out=jenkins --ttl=240h
 ```
 
 Here is an example of how Alice can use the keys:
@@ -148,7 +148,7 @@ $ ssh -J jenkins@teleport.localhost:3023 -p 3022 jenkins@127.0.0.1
 To prevent unintended consequences, Teleport defines the following impersonation rules:
 
 - Even though Alice's `max_session_ttl` is 10 hours, she can issue a cert with a longer TTL of 240 hours,
-because `jenkins` role allows it. A certificate's TTL issued using impersonation is limited the `max_session_ttl` of the roles being impersonated.
+because `jenkins` role allows it. A certificate's TTL issued using impersonation is limited to the `max_session_ttl` of the roles being impersonated.
 - Even in case if `jenkins` role could impersonate some other roles, Alice would not be able
 to use this permission. Teleport prevents impersonating users recursively.
 - Alice can get a new `jenkins` certificate with the same TTL, but metadata updated, for example
@@ -225,12 +225,12 @@ spec:
 Alice can issue certificates for a security scanner:
 
 ``` bash
-$ tctl auth sign --user=security-scanner --format=openssh --out security-scanner --ttl=10h
+$ tctl auth sign --user=security-scanner --format=openssh --out=security-scanner --ttl=10h
 ```
 
 **Matching user traits**
 
-We can make security-impersonator role more flexible by matching source user and target role parameters:
+We can make the `security-impersonator` role more flexible by matching source user and target role parameters:
 
 ```yaml
 kind: role
@@ -271,13 +271,13 @@ spec:
 ```
 
 ```bash
-# Once Alice logins again, she will receive a new certificate with updated roles.
+# Once Alice logs in again, she will receive a new certificate with updated roles.
 $ tsh login --proxy=teleport.example.com --user=alice --auth=local
-# Alice can now get a security scanner
-$ tctl --insecure auth sign --user=security-scanner --format=openssh --out security-scanner --ttl=10h
+# Alice can now get a certificate for the security scanner
+$ tctl auth sign --user=security-scanner --format=openssh --out=security-scanner --ttl=10h
 ```
 
-Here is a summary variables and functions we used in this guide:
+Here is a summary of variables and functions we used in this guide:
 
 <table>
 <th>
