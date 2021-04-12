@@ -11,8 +11,18 @@ description: How to install and configure Gravitational Teleport in Kubernetes u
 
 ## Different Helm chart modes
 
-- [Running a quick one-pod Teleport cluster in Kubernetes using Helm (`standalone` mode)](./guides/standalone.mdx)
-- [Setting up a highly-available Teleport cluster using AWS & EKS (`aws` mode)](./guides/aws.mdx)
-- [Setting up a highly-available Teleport cluster using GCP & GKE (`gcp` mode)](./guides/gcp.mdx)
-- [Bring your own Teleport config (`ownconfig` mode)](./guides/ownconfig.mdx)
-- [Migrating from the older `teleport` chart)](./guides/migration.mdx)
+| `chartMode` | Guide |
+| - | - |
+| `standalone` | [Running a quick one-pod Teleport cluster in Kubernetes using Helm](./guides/standalone.mdx) |
+| `aws` | [Running a highly-available Teleport cluster using AWS, EKS and Helm](./guides/aws.mdx) |
+| `gcp` | [Running a highly-available Teleport cluster using GCP, GKE and Helm](./guides/gcp.mdx) |
+| `ownconfig` | [Running a Teleport cluster with a custom Teleport config using Helm](./guides/ownconfig.mdx) |
+
+## Migration Guides
+
+- [Migrating from the older `teleport` chart](./guides/migration.mdx)
+
+## Detailed Helm chart references
+
+- [`teleport-cluster` Helm chart reference](./guides/teleport-cluster-reference.mdx)
+- [`teleport-kube-agent` Helm chart reference](./guides/teleport-kube-agent-reference.mdx)

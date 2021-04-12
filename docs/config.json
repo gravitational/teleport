@@ -120,9 +120,10 @@
             { "title": "Quick one-pod cluster", "slug": "/helm/guides/standalone/" },
             { "title": "HA using AWS & EKS", "slug": "/helm/guides/aws/" },
             { "title": "HA using GCP & GKE", "slug": "/helm/guides/gcp/" },
-            { "title": "Other configurations", "slug": "/helm/guides/ownconfig/" },
+            { "title": "Custom Teleport config", "slug": "/helm/guides/ownconfig/" },
             { "title": "Migrating from older charts", "slug": "/helm/guides/migration/" },
-            { "title": "teleport-cluster reference", "slug": "/helm/guides/teleport-cluster-reference/" }
+            { "title": "teleport-cluster reference", "slug": "/helm/guides/teleport-cluster-reference/" },
+            { "title": "teleport-kube-agent reference", "slug": "/helm/guides/teleport-kube-agent-reference/" }
           ]
         }
       ]

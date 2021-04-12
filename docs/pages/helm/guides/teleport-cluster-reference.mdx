@@ -1,20 +1,57 @@
 ---
-title: Teleport Helm chart values reference
-description: A list of values that can be set using Teleport Helm charts and their purpose
+title: teleport-cluster Helm chart values reference
+description: A list of values that can be set using the teleport-cluster Helm chart and their purpose
 ---
 
 # `teleport-cluster` Helm chart values reference
 
 This reference details available values for the `teleport-cluster` chart.
 
+## `clusterName`
+
+| Default value |  Can be used in `ownconfig` mode? | `teleport.yaml` equivalent |
+| - | - | - |
+| Not set | ❌ | `auth_service.cluster_name`, `proxy_service.public_addr` |
+
+`clusterName` controls the name used to refer to the Teleport cluster, along with the externally-facing public address to use to access it.
+
+<Admonition type="warning" title="Mandatory value">
+  This value **must** be set when running in any mode other than `ownconfig`.
+</Admonition>
+
+<Admonition type="note">
+  If using a fully qualified domain name as your `clusterName`, you will also need to configure the DNS provider for this domain to point
+  to the external load balancer address of your Teleport cluster.
+
+  Whether an IP or hostname is provided as an external address for the load balancer varies according to provider.
+
+  For example, GKE uses an IP address:
+  ```shell
+  $ kubectl --namespace teleport get service/teleport -o jsonpath='{.status.loadBalancer.ingress[*].ip}'
+  35.203.56.38
+  ```
+
+  While EKS uses a hostname:
+  ```shell
+  $ kubectl --namespace teleport get service/teleport -o jsonpath='{.status.loadBalancer.ingress[*].hostname}'
+  a5f22a02798f541e58c6641c1b158ea3-1989279894.us-east-1.elb.amazonaws.com
+  ```
+
+  You will need to manually add DNS records pointing `teleport.example.com` and `*.teleport.example.com` to either the IP or hostname
+  of the Kubernetes load balancer.
+
+  If you are not using ACME certificates, you may also need to accept insecure warnings in your browser to view the page successfully.
+</Admonition>
+
 ## `enterprise`
 
-**Default**: `false`
+| Default value | Can be used in `ownconfig` mode? |
+| - | - |
+| `false`| ✅ |
 
 `enterprise` controls whether to use Teleport Communiy Edition or Teleport Enterprise.
 
-Setting `enterprise` to `true` will use the
-Teleport Enterprise image.
+Setting `enterprise` to `true` will use the Teleport Enterprise image.
 
 You will also need to download your Enterprise license from the Teleport dashboard and add it as a Kubernetes secret to use this:
 
@@ -30,13 +67,15 @@ $ kubectl create secret generic license --from-file=/path/to/downloaded/license.
   The file added to the secret must be called `license.pem`. If you have renamed it, you can specify the filename to use in the secret creation command:
 
   ```shell
-  $ kubectl create secret generic license --from-file=license.pem=/path/to/downloaded/this-is-my-teleport-license.pem
+  kubectl create secret generic license --from-file=license.pem=/path/to/downloaded/this-is-my-teleport-license.pem
   ```
 </Admonition>
 
 ## `teleportVersionOverride`
 
-**Default**: not set
+| Default value | Can be used in `ownconfig` mode? |
+| - | - |
+| Not set | ✅ |
 
 Normally the version of Teleport being used will match the version of the chart being installed. If you install chart version
 7.0.0, you'll be using Teleport 7.0.0.
@@ -50,12 +89,10 @@ See these links for information on Docker image versions:
 
 <Tabs>
   <TabItem label="values.yaml">
-
   ```yaml
   enterprise: true
   teleportVersionOverride: "7"
   ```
-
   </TabItem>
   <TabItem label="--set">
   ```shell
@@ -67,7 +104,9 @@ See these links for information on Docker image versions:
 
 ## `acme`
 
-**Default**: `false`
+| Default value | Can be used in `ownconfig` mode? | `teleport.yaml` equivalent |
+| - | - | - |
+| `false` | ❌ | `proxy_service.acme.enabled` |
 
 ACME is a protocol for getting Web X.509 certificates.
 
@@ -76,17 +115,28 @@ Setting acme to `false` (the default) will cause Teleport to generate and use se
 
 <Admonition type="note">
   ACME can only be used for single-pod clusters. It is not suitable for use in HA configurations.
+</Admonition>
 
-  A good option for use in an HA configuration might be [`cert-manager`](https://cert-manager.io/docs/).
+<Admonition type="warning">
+  Using a self-signed TLS certificate and disabling TLS verification is OK for testing, but is not viable when running a production Teleport
+  cluster as it will drastically reduce security. You must configure valid TLS certificates on your Teleport cluster for production workloads.
+
+  One option might be to use Teleport's built-in [ACME support](./teleport-cluster-reference.mdx#acme), or [cert-manager](https://cert-manager.io/docs/).
 </Admonition>
 
 ## `acmeEmail`
+
+| Default value | Can be used in `ownconfig` mode? | `teleport.yaml` equivalent |
+| - | - | - |
+| Not set  | ❌ | `proxy_service.acme.email` |
 
 `acmeEmail` is the email address to provide during certificate registration (this is a Let's Encrypt requirement).
 
 ## `acmeURI`
 
-**Default**: Let's Encrypt's production server
+| Default value | Can be used in `ownconfig` mode? | `teleport.yaml` equivalent |
+| - | - | - |
+| Let's Encrypt production server | ❌ | `proxy_service.acme.uri` |
 
 `acmeURI` is the ACME server to use for getting certificates.
 
@@ -115,7 +165,9 @@ You can also use any other ACME-compatible server.
 
 ### `podSecurityPolicy.enabled`
 
-**Default**: `true`
+| Default value | Can be used in `ownconfig` mode? |
+| - | - |
+| `true` | ✅ |
 
 By default, Teleport charts also install a [`podSecurityPolicy`](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport-cluster/templates/psp.yaml).
 
@@ -138,6 +190,10 @@ To disable this, you can set `enabled` to `false`.
 </Tabs>
 
 ## `labels`
+
+| Default value | Can be used in `ownconfig` mode? | `teleport.yaml` equivalent |
+| - | - | - |
+| Not set | ❌ | `kubernetes_service.labels` |
 
 `labels` can be used to add a map of key-value pairs relating to the Teleport cluster being deployed. These labels can then be used with
 Teleport's RBAC policies to define access rules for the cluster.
@@ -164,20 +220,26 @@ Teleport's RBAC policies to define access rules for the cluster.
 
 ## `chartMode`
 
-**Default**: `standalone`
+| Default value |
+| - |
+| `standalone` |
 
 `chartMode` is used to configure the chart's operation mode. You can find more information about each mode on its specific guide page:
 
-- [Running a quick one-pod Teleport cluster in Kubernetes using Helm (`standalone` mode)](./standalone.mdx)
-- [Setting up a highly-available Teleport cluster using AWS & EKS (`aws` mode)](./aws.mdx)
-- [Setting up a highly-available Teleport cluster using GCP & GKE (`gcp` mode)](./gcp.mdx)
-- [Bring your own Teleport config (`ownconfig` mode)](./ownconfig.mdx)
+| `chartMode` | Guide |
+| - | - |
+| `standalone` | [Running a quick one-pod Teleport cluster in Kubernetes using Helm](./standalone.mdx) |
+| `aws` | [Running a highly-available Teleport cluster using AWS, EKS and Helm](./aws.mdx) |
+| `gcp` | [Running a highly-available Teleport cluster using GCP, GKE and Helm](./gcp.mdx) |
+| `ownconfig` | [Running a Teleport cluster with a custom Teleport config using Helm](./ownconfig.mdx) |
 
 ## `standalone`
 
 ### `standalone.existingClaimName`
 
-**Default**: not set
+| Default value | Can be used in `ownconfig` mode? |
+| - | - |
+| Not set | ✅ |
 
 The default is left blank, which will automatically create a `PersistentVolumeClaim` to use for Teleport storage in `standalone` mode.
 
@@ -199,7 +261,9 @@ If you would like to use a pre-existing `PersistentVolumeClaim`, you can specify
 
 ### `standalone.volumeSize`
 
-**Default**: 10Gi
+| Default value | Can be used in `ownconfig` mode? |
+| - | - |
+| `10Gi` | ✅ |
 
 You can set `volumeSize` to request a different size of persistent volume when installing the Teleport chart in `standalone` mode.
 
@@ -223,21 +287,27 @@ You can set `volumeSize` to request a different size of persistent volume when i
 
 ## `aws`
 
+| Can be used in `ownconfig` mode? | `teleport.yaml` equivalent |
+| - | - |
+| ❌ | See [Using DynamoDB](../../admin-guide.mdx#using-dynamodb) and [Using Amazon S3](../../admin-guide.mdx#using-amazon-s3) for details |
+
 `aws` settings are described in the AWS guide: [Setting up a highly-available Teleport cluster using AWS & EKS (`aws` mode)](./aws.mdx)
 
 ## `gcp`
 
+| Can be used in `ownconfig` mode? | `teleport.yaml` equivalent |
+| - | - |
+| ❌ | See [Using Firestore](../../admin-guide.mdx#using-firestore) and [Using GCS](../../admin-guide.mdx#using-gcs) for details |
+
 `gcp` settings are described in the GCP guide: [Setting up a highly-available Teleport cluster using GCP & GKE (`gcp` mode)](./gcp.mdx)
-
-## `ownConfig`
-
-`ownconfig` settings are described in their own guide: [Bring your own Teleport config (`ownconfig` mode)](./ownconfig.mdx)
 
 ## `highAvailability`
 
 ### `highAvailability.replicaCount`
 
-**Default**: `1`
+| Default value | Can be used in `ownconfig` mode? |
+| - | - |
+| `1` | ✅ (when using HA storage) |
 
 `highAvailability.replicaCount` can be used to set the number of replicas used in the deployment.
 
@@ -254,8 +324,8 @@ Set to a number higher than `1` for a high availability mode where multiple Tele
   clusters with more traffic.
 </Admonition>
 
-<Admonition type="note">
-  When using `ownconfig` mode, you **must** use highly-available storage (etcd, DynamoDB or Firestore) for multiple replicas to be supported.
+<Admonition type="warning">
+  When using `ownconfig` mode, you **must** use highly-available storage (e.g. etcd, DynamoDB or Firestore) for multiple replicas to be supported.
 
   [Information on supported Teleport storage backends](../../architecture/authentication.mdx#storage-back-ends)
 
@@ -278,7 +348,9 @@ Set to a number higher than `1` for a high availability mode where multiple Tele
 
 ### `highAvailability.requireAntiAffinity`
 
-Default: `false`
+| Default value | Can be used in `ownconfig` mode? |
+| - | - |
+| `false | ✅ (when using HA storage) |
 
 See [Kubernetes concepts: node affinity](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#node-affinity)
 
@@ -312,7 +384,9 @@ Teleport pods must not be scheduled on the same physical host.
 
 ## `image`
 
-Default: `quay.io/gravitational/teleport`
+| Default value | Can be used in `ownconfig` mode? |
+| - | - |
+| `quay.io/gravitational/teleport` | ✅ |
 
 `image` sets the container image used for Teleport Community pods in the cluster.
 
@@ -326,14 +400,16 @@ You can override this to use your own Teleport Community image rather than a Tel
   </TabItem>
   <TabItem label="--set">
   ```shell
-  --set image: my.docker.registry/teleport-community-image-name
+  --set image=my.docker.registry/teleport-community-image-name
   ```
   </TabItem>
 </Tabs>
 
 ## `enterpriseImage`
 
-Default: `quay.io/gravitational/teleport-ent`
+| Default value | Can be used in `ownconfig` mode? |
+| - | - |
+| `quay.io/gravitational/teleport-ent` | ✅ |
 
 `enterpriseImage` sets the container image used for Teleport Enterprise pods in the cluster.
 
@@ -354,7 +430,9 @@ You can override this to use your own Teleport Enterprise image rather than a Te
 
 ## `logLevel`
 
-Default: `INFO`
+| Default value | Can be used in `ownconfig` mode? | `teleport.yaml` equivalent |
+| - | - | - |
+| `INFO` | ❌ | `teleport.log.severity` |
 
 `logLevel` sets the log level used for the Teleport process.
 

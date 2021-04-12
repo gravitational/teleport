@@ -1,5 +1,5 @@
 ---
-title: Setting up a highly-available Teleport cluster using GCP & GKE
+title: Running a highly-available Teleport cluster using GCP, GKE and Helm
 description: How to install and configure a highly-available Gravitational Teleport cluster using Google Cloud Platform and Google Kubernetes Engine
 ---
 
@@ -133,8 +133,8 @@ Find the path where the JSON private key was just saved (likely your browser's d
 Use `kubectl` to create the secret, using the path to the JSON private key:
 
 ```shell
-$ kubectl create namespace teleport
-$ kubectl --namespace teleport create secret generic teleport-gcp-credentials --from-file=gcp-credentials.json=/path/to/downloads/bens-demos-24150b1a0a7f.json
+kubectl create namespace teleport && \
+kubectl --namespace teleport create secret generic teleport-gcp-credentials --from-file=gcp-credentials.json=/path/to/downloads/bens-demos-24150b1a0a7f.json
 ```
 
 <Admonition type="tip">
@@ -177,7 +177,7 @@ The `--set` CLI method is more appropriate for quick test deployments.
   Install the chart with the values from your `gcp-values.yaml` file using this command:
 
   ```shell
-  $ helm install teleport teleport/teleport-cluster \
+  helm install teleport teleport/teleport-cluster \
     --create-namespace \
     --namespace teleport \
     -f gcp-values.yaml
@@ -188,7 +188,7 @@ The `--set` CLI method is more appropriate for quick test deployments.
   Install the chart using this command, replacing the placeholders with the values you've chosen above:
 
   ```shell
-  $ helm install teleport teleport/teleport-cluster \
+  helm install teleport teleport/teleport-cluster \
     --create-namespace \
     --namespace teleport \
     --set clusterName=teleport.example.com \
@@ -282,7 +282,7 @@ To make changes to your Teleport cluster after deployment, you can use `helm upg
   Upgrade the deployment with the values from your `gcp-values.yaml` file using this command:
 
   ```shell
-  $ helm upgrade teleport teleport/teleport-cluster \
+  helm upgrade teleport teleport/teleport-cluster \
     --namespace teleport \
     -f gcp-values.yaml
   ```
@@ -292,7 +292,7 @@ To make changes to your Teleport cluster after deployment, you can use `helm upg
   Run this command, editing your command line parameters as appropriate:
 
   ```shell
-  $ helm upgrade teleport teleport/teleport-cluster \
+  helm upgrade teleport teleport/teleport-cluster \
     --namespace teleport \
     --set highAvailability.replicaCount=3
   ```
@@ -309,5 +309,5 @@ To make changes to your Teleport cluster after deployment, you can use `helm upg
 To uninstall the `teleport-cluster` chart, use `helm uninstall <release-name>`. For example:
 
 ```shell
-$ helm --namespace teleport uninstall teleport
+helm --namespace teleport uninstall teleport
 ```

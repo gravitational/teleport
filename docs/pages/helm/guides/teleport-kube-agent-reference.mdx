@@ -1,0 +1,557 @@
+---
+title: teleport-kube-agent Helm chart values reference
+description: A list of values that can be set using the teleport-kube-agent Helm chart and their purpose
+---
+
+# `teleport-kube-agent` Helm chart values reference
+
+This reference details available values for the `teleport-kube-agent` chart.
+
+## `roles`
+
+This parameter is not mandatory to preserve backwards compatibility with older chart versions, but we recommend it is set.
+
+| Default value |
+| - |
+| `kube` |
+
+`roles` is a comma-separated list of services (Teleport refers to these internally as `Roles`, hence the naming) which should be enabled
+when running for the `teleport-kube-agent` chart.
+
+| Services | Value for `roles` | Mandatory additional settings for this role |
+| - | - | - |
+| Teleport Kubernetes service | `kube` | [`kubeClusterName`](#kubeclustername) |
+| Teleport Application service | `app` | [`apps`](#apps) |
+| Teleport Database service | `db` | [`databases`](#databases) |
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  roles: kube,app,db
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set roles=kube\,app\,db
+  ```
+
+  <Admonition type="note">
+    When specifying multiple roles using `--set` syntax, you must escape the commas using a backslash (`\`).
+
+    This is a quirk of Helm's CLI parser.
+  </Admonition>
+
+  </TabItem>
+</Tabs>
+
+If you specify a role here, you may also need to specify some other settings which are detailed in this reference.
+
+## `authToken`
+
+<Admonition type="warning" title="Mandatory value">
+  This value must be set to run the chart.
+</Admonition>
+
+`authToken` provides a Teleport join token which will be used to join the Teleport agent to a Teleport cluster.
+
+This value **must** be provided for the chart to work. The token that you use must also be valid for every Teleport service that you
+are trying to add with the `teleport-kube-agent` chart. Here are a few examples:
+
+| Services | Service Name | `tctl tokens add` example | `teleport.yaml` Static token example |
+| - | - | - | - |
+| Kubernetes | `kube` | `tctl tokens add --type=kube` | `"kube:jB5dNpoozvHX3pWvDOvxoj2mu0Of99U8"` |
+| Kubernetes, Application | `kube,app` | `tctl tokens add --type=kube,app` | `"kube,app:2wPfsali3mZywt3w2APITYHL09FdYCti"` |
+| Kubernetes, Application, Database | `kube,app,db` | `tctl tokens add --type=kube,app,db` | `"kube,app,db:mTS7sUX7ytAr8jklJ37IGEVIa6etNivq"` |
+
+<Admonition type="note">
+  When you use a token, all of the services that it provides **must** be used.
+
+  For example, you cannot use a token of type `app,db` to only join a Teleport `app` service by itself. It must join both `app` and `db` services at once.
+</Admonition>
+
+<Admonition type="warning">
+  Each static token you configure must be unique, as the token itself is used to define which services will be supported.
+
+  You cannot reuse the same static token and specify a different set of services.
+</Admonition>
+
+If you do not have the correct services (Teleport refers to these internally as `Roles`) assigned to your join token, the Teleport agent will
+fail to join the Teleport cluster.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  authToken: jB5dNpoozvHX3pWvDOvxoj2mu0Of99U8
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set authToken=jB5dNpoozvHX3pWvDOvxoj2mu0Of99U8
+  ```
+  </TabItem>
+</Tabs>
+
+## `proxyAddr`
+
+<Admonition type="warning" title="Mandatory value">
+  This value must be set to run the chart.
+</Admonition>
+
+`proxyAddr` provides the public-facing Teleport proxy endpoint which should be used to join the cluster. This is the same URL that is used
+to access the web UI of your Teleport cluster. It is the same as the value configured for `proxy_service.public_addr` in a traditional
+Teleport cluster. The port used is usually either 3080 or 443.
+
+Here are a few examples:
+
+| Deployment method | Example `proxy_service.public_addr` |
+| - | - |
+| On-prem Teleport cluster | `teleport.example.com:3080` |
+| Teleport Cloud cluster | `example.teleport.sh:443` |
+| `teleport-cluster` Helm chart | `teleport.example.com:443` |
+
+## `kubeClusterName`
+
+<Admonition type="note" title="Potential mandatory value">
+  This value must be set when the `kube` service/role is specified in the chart's `roles`.
+</Admonition>
+
+`kubeClusterName` sets the name used for the Kubernetes cluster proxied by the Teleport agent. This name will be shown to Teleport users
+connecting to the cluster.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  kubeClusterName: my-gke-cluster
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set kubeClusterName=my-gke-cluster
+  ```
+  </TabItem>
+</Tabs>
+
+## `apps`
+
+<Admonition type="note" title="Potential mandatory value">
+  This value must be set when the `app` service/role is specified in the chart's `roles`.
+</Admonition>
+
+`apps` is a YAML list object detailing the applications that should be proxied by Teleport Application access.
+
+You can specify multiple apps by adding additional list elements.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  apps:
+  - name: grafana
+    uri: http://localhost:3000
+    labels:
+      purpose: monitoring
+  - name: jenkins
+    uri: http://jenkins:8080
+    labels:
+      purpose: ci
+  ```
+
+  <Admonition type="note" title="YAML formatting">
+    YAML is a language which is very sensitive to correct spacing being used. When specifying lists in a `values.yaml` file, you might like
+    to [use a linter](https://codebeautify.org/yaml-validator) to validate your YAML list and ensure that it is correctly formatted.
+  </Admonition>
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set apps[0].name=grafana \
+  --set apps[0].uri="http://localhost:3000" \
+  --set apps[0].purpose=monitoring \
+  --set apps[1].name=grafana \
+  --set apps[1].uri="http://jenkins:8080" \
+  --set apps[1].purpose=ci
+  ```
+
+  <Admonition type="note">
+    Note that when using `--set` syntax, YAML list elements must be indexed starting at `0`.
+  </Admonition>
+
+  </TabItem>
+</Tabs>
+
+<Admonition type="tip" title="Supported values">
+  You can see a list of all the supported [values which can be used in a Teleport application access configuration here](../../application-access/reference.mdx#configuration).
+</Admonition>
+
+## `databases`
+
+<Admonition type="note" title="Potential mandatory value">
+  This value must be set when the `db` service/role is specified in the chart's `roles`.
+</Admonition>
+
+`databases` is a YAML list object detailing the databases that should be proxied by Teleport Database access.
+
+You can specify multiple databases by adding additional list elements.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  databases:
+  - name: aurora-postgres
+    uri: postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432
+    protocol: postgres
+    aws:
+      region: us-east-1
+    labels:
+      env: staging
+  - name: mysql
+    uri: mysql-instance-1.xxx.us-east-1.rds.amazonaws.com:3306
+    protocol: mysql
+    aws:
+      region: us-east-1
+    labels:
+      env: staging
+  ```
+
+  <Admonition type="note" title="YAML formatting">
+    YAML is a language which is very sensitive to correct spacing being used. When specifying lists in a `values.yaml` file, you might like
+    to [use a linter](https://codebeautify.org/yaml-validator) to validate your YAML list and ensure that it is correctly formatted.
+  </Admonition>
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set databases[0].name=aurora \
+  --set databases[0].uri="postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432" \
+  --set databases[0].protocol=postgres \
+  --set databases[0].aws.region=us-east-1 \
+  --set databases[0].labels.env=staging \
+  --set databases[1].name=mysql \
+  --set databases[1].uri="mysql-instance-1.xxx.us-east-1.rds.amazonaws.com:3306" \
+  --set databases[1].protocol=mysql \
+  --set databases[1].aws.region=us-east-1 \
+  --set databases[1].labels.env=staging \
+  ```
+
+  <Admonition type="note">
+    Note that when using `--set` syntax, YAML list elements must be indexed starting at `0`.
+  </Admonition>
+
+  </TabItem>
+</Tabs>
+
+<Admonition type="tip" title="Supported values">
+  You can see a list of all the supported [values which can be used in a Teleport database service configuration here](../../database-access/reference.mdx#configuration).
+</Admonition>
+
+## `teleportVersionOverride`
+
+| Default value |
+| - |
+| Not set |
+
+Normally the version of Teleport being used will match the version of the chart being installed. If you install chart version
+7.0.0, you'll be using Teleport 7.0.0.
+
+You can optionally override this to use a different published Teleport Docker image tag like `6.0.2` or `7`.
+
+See [this link for information on Community Docker image versions](../../quickstart-docker.mdx#pick-your-image).
+
+<Admonition type="note">
+  The `teleport-kube-agent` chart always runs using Teleport Community edition as it does not require any Enterprise features, so it does
+  not require a Teleport license file to be provided.
+</Admonition>
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  teleportVersionOverride: "7"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set teleportVersionOverride="7"
+  ```
+  </TabItem>
+</Tabs>
+
+## `insecureSkipProxyTLSVerify`
+
+When `insecureSkipProxyTLSVerify` is set to `true`, the agent will skip the verification of the TLS certificate presented by the Teleport
+proxy server specified using [`proxyAddr`](#proxyaddr).
+
+This can be used for joining a Teleport agent to a Teleport cluster which does not have valid TLS certificates for testing.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  insecureSkipProxyTLSVerify: false
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set insecureSkipProxyTLSVerify=false
+  ```
+  </TabItem>
+</Tabs>
+
+<Admonition type="warning">
+  Using a self-signed TLS certificate and disabling TLS verification is OK for testing, but is not viable when running a production Teleport
+  cluster as it will drastically reduce security. You must configure valid TLS certificates on your Teleport cluster for production workloads.
+
+  One option might be to use Teleport's built-in [ACME support](./teleport-cluster-reference.mdx#acme), or [cert-manager](https://cert-manager.io/docs/).
+</Admonition>
+
+## `podSecurityPolicy`
+
+### `podSecurityPolicy.enabled`
+
+| Default value |
+| - |
+| `true` |
+
+By default, Teleport charts also install a [`podSecurityPolicy`](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport-kube-agent/templates/psp.yaml).
+
+To disable this, you can set `enabled` to `false`.
+
+[Kubernetes concepts: `podSecurityPolicy`](https://kubernetes.io/docs/concepts/policy/pod-security-policy/)
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  podSecurityPolicy:
+    enabled: false
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set podSecurityPolicy.enabled=false
+  ```
+  </TabItem>
+</Tabs>
+
+## `labels`
+
+| Default value |
+| - |
+| Not set |
+
+`labels` can be used to add a map of key-value pairs for the `kubernetes_service` which is deployed using the `teleport-kube-agent` chart.
+These labels can then be used with Teleport's RBAC policies to define access rules for the cluster.
+
+<Admonition type="note">
+  These are Teleport-specific RBAC labels, not Kubernetes labels.
+</Admonition>
+
+<Admonition type="note">
+  For historical/backwards compatibility reasons, these labels will only be applied to the Kubernetes cluster being joined via the
+  Teleport Kubernetes service.
+
+  To set labels for applications or databases, add a `labels` element to either the [`apps`](#apps) or [`databases`](#databases) section
+  respectively.
+</Admonition>
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  labels:
+    environment: production
+    region: us-east
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set labels.environment=production \
+  --set labels.region=us-east
+  ```
+  </TabItem>
+</Tabs>
+
+## `image`
+
+| Default value |
+| - |
+| `quay.io/gravitational/teleport` |
+
+`image` sets the container image used for Teleport pods run by the `teleport-kube-agent` chart.
+
+You can override this to use your own Teleport image rather than a Teleport-published image.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  image: my.docker.registry/teleport-image-name
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set image=my.docker.registry/teleport-image-name
+  ```
+  </TabItem>
+</Tabs>
+
+## `replicaCount`
+
+| Default value |
+| - |
+| `1` |
+
+`replicaCount` can be used to set the number of replicas used in the deployment.
+
+Set to a number higher than `1` for a high availability mode where multiple Teleport agent pods will be deployed to provide some redundancy.
+
+<Admonition type="warning">
+  Simply setting `replicaCount` to a value higher than `1` is not a panacea for getting a highly available Teleport agent deployment.
+
+  Teleport does not yet ensure that requests to Teleport agents are guaranteed to always only be routed to active, healthy agents, so you
+  may still find that you get sporadic request errors during pod outages when requests are routed to offline pods.
+</Admonition>
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  replicaCount: 3
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set replicaCount=3
+  ```
+  </TabItem>
+</Tabs>
+
+## clusterRoleName
+
+<Admonition type="note">
+  Most users will not need to change this.
+</Admonition>
+
+| Default value |
+| - |
+| `teleport-kube-agent` |
+
+
+`clusterRoleName` is the name of the Kubernetes `ClusterRole` used by the `teleport-kube-agent` chart's `ServiceAccount`.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  clusterRoleName: kubernetes-clusterrole
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set clusterRoleName=kubernetes-clusterrole
+  ```
+  </TabItem>
+</Tabs>
+
+## clusterRoleBindingName
+
+<Admonition type="note">
+  Most users will not need to change this.
+</Admonition>
+
+| Default value |
+| - |
+| `teleport-kube-agent` |
+
+
+`clusterRoleBindingName` is the name of the Kubernetes `ClusterRoleBinding` used by the `teleport-kube-agent` chart's `ServiceAccount`.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  clusterRoleBindingName: kubernetes-clusterrolebinding
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set clusterRoleBindingName=kubernetes-clusterrolebinding
+  ```
+  </TabItem>
+</Tabs>
+
+## serviceAccountName
+
+<Admonition type="note">
+  Most users will not need to change this.
+</Admonition>
+
+| Default value |
+| - |
+| `teleport-kube-agent` |
+
+`serviceAccountName` is the name of the Kubernetes `ServiceAccount` used by the `teleport-kube-agent` chart.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  serviceAccountName: kubernetes-serviceaccount
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set serviceAccountName=kubernetes-serviceaccount
+  ```
+  </TabItem>
+</Tabs>
+
+## secretName
+
+| Default value |
+| - |
+| `teleport-kube-agent-join-token` |
+
+`secretName` is the name of the Kubernetes `Secret` used to store the Teleport join token which is used by the `teleport-kube-agent` chart.
+
+If you set this to a blank value, the chart will not attempt to create the secret itself and will instead read the value of the
+existing `teleport-kube-agent-join-token` secret. This allows you to configure this secret externally and avoid having a plaintext
+join token stored in your Teleport chart values.
+
+To create your own join token secret, you can use a command like this (replacing the join token with a valid token for your cluster):
+
+```shell
+kubectl -n teleport create secret generic teleport-kube-agent-join-token --from-literal=auth-token=D4Z280P1mHiY78bKcfTGNKN52Gg5wc8q
+```
+
+<Admonition type="note">
+  The key used for the auth token inside the secret must be `auth-token`, as in the command above.
+</Admonition>
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  serviceAccountName:
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set serviceAccountName=""
+  ```
+  </TabItem>
+</Tabs>
+
+## `logLevel`
+
+| Default value |
+| - |
+| `INFO` |
+
+`logLevel` sets the log level used for the Teleport process.
+
+Available log levels (in order of most to least verbose) are: `DEBUG`, `INFO`, `WARNING`, `ERROR`.
+
+The default is INFO, which is recommended in production.
+
+ DEBUG is useful during first-time setup or to see more detailed logs for debugging.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  logLevel: DEBUG
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set logLevel=DEBUG
+  ```
+  </TabItem>
+</Tabs>

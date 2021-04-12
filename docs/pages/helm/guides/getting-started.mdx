@@ -23,7 +23,7 @@ version.BuildInfo{Version:"v3.4.1", GitCommit:"c4e74854886b2efe3321e185578e6db9b
 To allow Helm to install charts which are hosted in the Teleport Helm repository, you should add the repository using `helm repo add`:
 
 ```shell
-$ helm repo add teleport https://charts.releases.teleport.devFD
+$ helm repo add teleport https://charts.releases.teleport.dev
 "teleport" has been added to your repositories
 ```
 
@@ -54,16 +54,39 @@ The Teleport Helm repository hosts two Helm charts:
 
 ### teleport-cluster
 
-The `teleport-cluster` Helm chart is used to configure a Teleport cluster. It runs two services:
+The `teleport-cluster` Helm chart is used to configure a Teleport cluster. It runs two Teleport services:
 
-- The [Teleport auth service](../../architecture/authentication.mdx), which authenticates users and hosts, and issues certificates
-- The [Teleport proxy service](../../architecture/proxy.mdx), which runs the externally-facing parts of a Teleport cluster, such as the web UI, SSH proxy and reverse tunnel service.
+| Teleport service | Purpose |
+| - | - |
+| [`auth_service`](../../architecture/authentication.mdx) | Authenticates users and hosts, and issues certificates |
+| [`proxy_service`](../../architecture/proxy.mdx) | Runs the externally-facing parts of a Teleport cluster, such as the web UI, SSH proxy and reverse tunnel service |
 
-The `teleport-cluster` chart can be deployed in four different modes - `standalone`, `aws`, `gcp` and `ownconfig`.
+The `teleport-cluster` chart can be deployed in four different modes. We provide a detailed guide for each mode:
 
-We have a guide for each mode:
+| `chartMode` | Guide |
+| - | - |
+| `standalone` | [Running a quick one-pod Teleport cluster in Kubernetes using Helm](./standalone.mdx) |
+| `aws` | [Running a highly-available Teleport cluster using AWS, EKS and Helm](./aws.mdx) |
+| `gcp` | [Running a highly-available Teleport cluster using GCP, GKE and Helm](./gcp.mdx) |
+| `ownconfig` | [Running a Teleport cluster with a custom Teleport config using Helm](./ownconfig.mdx) |
 
-- [`standalone` - Simple one-node Teleport cluster](./standalone.mdx)
-- [`aws` - Using DynamoDB for database/audit log and S3 for session logs](./aws.mdx)
-- ['gcp'- Using Google Firestore for database/audit log and Google storage for session logs](./gcp.mdx)
-- [`ownconfig` - Provide your own custom Teleport config for more esoteric configurations](./ownconfig.mdx)
+Please continue using one of these guides to set up your Teleport cluster using Helm.
+
+For advanced users: [Detailed `teleport-cluster` chart reference](./teleport-cluster-reference.mdx)
+
+### teleport-kube-agent
+
+The `teleport-kube-agent` Helm chart is used to configure a Teleport agent which runs in a remote Kubernetes cluster and joins back to a
+Teleport cluster to provide access to services running there.
+
+The `teleport-kube-agent` chart can run any or all of three Teleport services:
+
+| Teleport service | Name for `roles` and `tctl tokens add` | Purpose |
+| - | - | - |
+| [`kubernetes_service`](../../kubernetes-access/guides.mdx) | `kube` | Uses Teleport to handle authentication with and proxy access to a Kubernetes cluster |
+| [`application_service`](../../application-access/guides.mdx) | `app` | Uses Teleport to handle authentication with and proxy access to web-based applications |
+| [`database_service`](../../database-access/guides.mdx) | `db` | Uses Teleport to handle authentication with and proxy access to databases |
+
+Please click the links above for guides detailing how each mode might be used.
+
+For advanced users: [Detailed `teleport-kube-agent` chart reference](./teleport-kube-agent-reference.mdx)
