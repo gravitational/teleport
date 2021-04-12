@@ -26,7 +26,7 @@ type Services interface {
 	Events
 	ClusterConfiguration
 	Access
-	DynamicAccess
+	DynamicAccessCore
 	Presence
 	AppSession
 	types.WebSessionsGetter

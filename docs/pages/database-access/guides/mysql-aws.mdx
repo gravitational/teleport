@@ -3,7 +3,7 @@ title: Database Access with MySQL on AWS
 description: How to configure Teleport Database Access with AWS RDS/Aurora MySQL
 ---
 
-# MySQL on AWS
+# AWS RDS/Aurora MySQL
 
 ## Enable IAM Authentication
 
@@ -48,11 +48,11 @@ arn:aws:rds-db:<region>:<account-id>:dbuser:<db-cluster-resource-id>/<db-user-na
 
 Parameters:
 
-* `region`: AWS region where the database cluster is deployed.
-* `account-id`: AWS account ID the database cluster is deployed under.
-* `db-cluster-resource-id`: identifier for the database cluster, can be found
+- `region`: AWS region where the database cluster is deployed.
+- `account-id`: AWS account ID the database cluster is deployed under.
+- `db-cluster-resource-id`: identifier for the database cluster, can be found
   under Configuration section in the RDS control panel.
-* `db-user-name`: name of the database account to associate with IAM
+- `db-user-name`: name of the database account to associate with IAM
   authentication. Can be a wildcard.
 
 See [Creating and using an IAM policy for IAM database access](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.IAMPolicy.html)
@@ -67,6 +67,13 @@ access. For MySQL:
 CREATE USER alice IDENTIFIED WITH AWSAuthenticationPlugin AS 'RDS';
 ```
 
+By default the created user may not have access to anything and won't be able
+to connect so let's grant it some permissions:
+
+```sql
+GRANT ALL ON `%`.* TO 'alice'@'%';
+```
+
 See [Creating a database account using IAM authentication](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html)
 for more information.
 
@@ -74,10 +81,8 @@ for more information.
 
 Teleport Database Access is available starting from `6.0` release.
 
-Download the appropriate version of Teleport for your platform from the table
-below, or visit our [downloads page](https://goteleport.com/teleport/download).
-
-{!docs/pages/preview/releases-table.mdx!}
+Download the appropriate version of Teleport for your platform form
+our [downloads page](https://goteleport.com/teleport/download).
 
 Follow the installation [instructions](../../installation.mdx).
 
@@ -211,10 +216,13 @@ proxy_service:
   enabled: "no"
 ```
 
-<Admonition type="tip" title="Tip">
-A single Teleport process can run multiple different services, for example
-multiple database access proxies as well as running other services such an
-SSH service or an application access proxy.
+<Admonition
+  type="tip"
+  title="Tip"
+>
+  A single Teleport process can run multiple different services, for example
+  multiple database access proxies as well as running other services such an
+  SSH service or an application access proxy.
 </Admonition>
 
 Start the database service:
@@ -258,8 +266,11 @@ Teleport using `tsh db login` command:
 $ tsh db login aurora
 ```
 
-<Admonition type="tip" title="Tip">
-You can be logged into multiple databases simultaneously.
+<Admonition
+  type="tip"
+  title="Tip"
+>
+  You can be logged into multiple databases simultaneously.
 </Admonition>
 
 You can optionally specify the database name and the user to use by default

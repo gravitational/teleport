@@ -42,7 +42,7 @@ func (h *Handler) getRolesHandle(w http.ResponseWriter, r *http.Request, params 
 }
 
 func getRoles(clt resourcesAPIGetter) ([]ui.ResourceItem, error) {
-	roles, err := clt.GetRoles()
+	roles, err := clt.GetRoles(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -88,7 +88,7 @@ func upsertRole(ctx context.Context, clt resourcesAPIGetter, content, httpMethod
 		return nil, trace.BadParameter("resource kind %q is invalid", extractedRes.Kind)
 	}
 
-	_, err = clt.GetRole(extractedRes.Metadata.Name)
+	_, err = clt.GetRole(ctx, extractedRes.Metadata.Name)
 	if err := CheckResourceUpsertableByError(err, httpMethod, extractedRes.Metadata.Name); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -111,11 +111,11 @@ func (h *Handler) getGithubConnectorsHandle(w http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
-	return getGithubConnectors(clt)
+	return getGithubConnectors(r.Context(), clt)
 }
 
-func getGithubConnectors(clt resourcesAPIGetter) ([]ui.ResourceItem, error) {
-	connectors, err := clt.GetGithubConnectors(true)
+func getGithubConnectors(ctx context.Context, clt resourcesAPIGetter) ([]ui.ResourceItem, error) {
+	connectors, err := clt.GetGithubConnectors(ctx, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -161,7 +161,7 @@ func upsertGithubConnector(ctx context.Context, clt resourcesAPIGetter, content,
 		return nil, trace.BadParameter("resource kind %q is invalid", extractedRes.Kind)
 	}
 
-	_, err = clt.GetGithubConnector(extractedRes.Metadata.Name, false)
+	_, err = clt.GetGithubConnector(ctx, extractedRes.Metadata.Name, false)
 	if err := CheckResourceUpsertableByError(err, httpMethod, extractedRes.Metadata.Name); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -184,11 +184,11 @@ func (h *Handler) getTrustedClustersHandle(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	return getTrustedClusters(clt)
+	return getTrustedClusters(r.Context(), clt)
 }
 
-func getTrustedClusters(clt resourcesAPIGetter) ([]ui.ResourceItem, error) {
-	trustedClusters, err := clt.GetTrustedClusters()
+func getTrustedClusters(ctx context.Context, clt resourcesAPIGetter) ([]ui.ResourceItem, error) {
+	trustedClusters, err := clt.GetTrustedClusters(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -234,7 +234,7 @@ func upsertTrustedCluster(ctx context.Context, clt resourcesAPIGetter, content, 
 		return nil, trace.BadParameter("resource kind %q is invalid", extractedRes.Kind)
 	}
 
-	_, err = clt.GetTrustedCluster(extractedRes.Metadata.Name)
+	_, err = clt.GetTrustedCluster(ctx, extractedRes.Metadata.Name)
 	if err := CheckResourceUpsertableByError(err, httpMethod, extractedRes.Metadata.Name); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -290,25 +290,25 @@ func ExtractResourceAndValidate(yaml string) (*services.UnknownResource, error) 
 
 type resourcesAPIGetter interface {
 	// GetRole returns role by name
-	GetRole(name string) (types.Role, error)
+	GetRole(ctx context.Context, name string) (types.Role, error)
 	// GetRoles returns a list of roles
-	GetRoles() ([]types.Role, error)
+	GetRoles(ctx context.Context) ([]types.Role, error)
 	// UpsertRole creates or updates role
 	UpsertRole(ctx context.Context, role types.Role) error
 	// UpsertGithubConnector creates or updates a Github connector
 	UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error
 	// GetGithubConnectors returns all configured Github connectors
-	GetGithubConnectors(withSecrets bool) ([]types.GithubConnector, error)
+	GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
 	// GetGithubConnector returns the specified Github connector
-	GetGithubConnector(id string, withSecrets bool) (types.GithubConnector, error)
+	GetGithubConnector(ctx context.Context, id string, withSecrets bool) (types.GithubConnector, error)
 	// DeleteGithubConnector deletes the specified Github connector
 	DeleteGithubConnector(ctx context.Context, id string) error
 	// UpsertTrustedCluster creates or updates a TrustedCluster in the backend.
 	UpsertTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error)
 	// GetTrustedCluster returns a single TrustedCluster by name.
-	GetTrustedCluster(string) (types.TrustedCluster, error)
+	GetTrustedCluster(ctx context.Context, name string) (types.TrustedCluster, error)
 	// GetTrustedClusters returns all TrustedClusters in the backend.
-	GetTrustedClusters() ([]types.TrustedCluster, error)
+	GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error)
 	// DeleteTrustedCluster removes a TrustedCluster from the backend by name.
 	DeleteTrustedCluster(ctx context.Context, name string) error
 }

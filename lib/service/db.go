@@ -93,6 +93,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 				URI:           db.URI,
 				CACert:        db.CACert,
 				AWS:           types.AWS{Region: db.AWS.Region},
+				GCP:           types.GCPCloudSQL{ProjectID: db.GCP.ProjectID, InstanceID: db.GCP.InstanceID},
 				DynamicLabels: types.LabelsToV2(db.DynamicLabels),
 				Version:       teleport.Version,
 				Hostname:      process.Config.Hostname,
@@ -122,8 +123,9 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	}()
 
 	streamer, err := events.NewCheckingStreamer(events.CheckingStreamerConfig{
-		Inner: conn.Client,
-		Clock: process.Clock,
+		Inner:       conn.Client,
+		Clock:       process.Clock,
+		ClusterName: clusterName,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -187,7 +189,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	}()
 
 	// Execute this when the process running database proxy service exits.
-	process.onExit("db.stop", func(payload interface{}) {
+	process.OnExit("db.stop", func(payload interface{}) {
 		log.Info("Shutting down.")
 		if dbService != nil {
 			warnOnErr(dbService.Close(), process.log)

@@ -193,8 +193,9 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		return trace.Wrap(err)
 	}
 	streamer, err := events.NewCheckingStreamer(events.CheckingStreamerConfig{
-		Inner: conn.Client,
-		Clock: process.Clock,
+		Inner:       conn.Client,
+		Clock:       process.Clock,
+		ClusterName: teleportClusterName,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -265,7 +266,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	})
 
 	// Cleanup, when process is exiting.
-	process.onExit("kube.shutdown", func(payload interface{}) {
+	process.OnExit("kube.shutdown", func(payload interface{}) {
 		if asyncEmitter != nil {
 			warnOnErr(asyncEmitter.Close(), log)
 		}

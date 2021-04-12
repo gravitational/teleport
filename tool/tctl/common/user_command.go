@@ -213,7 +213,7 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 			// A caller has attempted to mix legacy and new format.
 			if len(u.allowedLogins) != 0 || len(u.createRoles) != 0 {
 				return trace.BadParameter(
-					"please use --roles flag without use of logins positional argument, --k8s-users and k8s-groups flags")
+					`please use --roles and --logins flags instead of deprecated positional arguments, --k8s-users and k8s-groups flags`)
 			}
 			return u.legacyAdd(client)
 			// This is a legacy OSS scenario: `tctl users add bob`
@@ -237,7 +237,7 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 
 	// Validate roles (server does not do this yet).
 	for _, roleName := range u.createRoles {
-		if _, err := client.GetRole(roleName); err != nil {
+		if _, err := client.GetRole(context.TODO(), roleName); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -372,7 +372,7 @@ func (u *UserCommand) Update(client auth.ClientI) error {
 	}
 	roles := flattenSlice([]string{u.updateRoles})
 	for _, role := range roles {
-		if _, err := client.GetRole(role); err != nil {
+		if _, err := client.GetRole(context.TODO(), role); err != nil {
 			return trace.Wrap(err)
 		}
 	}

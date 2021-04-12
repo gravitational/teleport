@@ -50,24 +50,24 @@ We recommend setting up Teleport with a [High Availability configuration](admin-
 recommended hardware for the Proxy and Auth server. If you plan to connect more than 10,000 nodes, please
 [get in touch](mailto:info@goteleport.com) and we can help architect the best solution for you.
 
-Scenario | Max Recommended Count | Proxy | Auth server
------------- | -------------|---------|-------
-Teleport nodes connected to auth server | 10,000 |2x  2-4 vCPUs/8GB RAM | 2x 4-8 vCPUs/16GB RAM
-Teleport nodes connected to proxy server (IoT) | 2,000* | 2x 2-4 vCPUs/8GB RAM |2x 4-8 vCPUs/16+GB RAM
+| Scenario | Max Recommended Count | Proxy | Auth server |
+| - | - | - | - |
+| Teleport nodes connected to auth server | 10,000 | 2x  2-4 vCPUs/8GB RAM | 2x 4-8 vCPUs/16GB RAM |
+| Teleport nodes connected to proxy server (IoT) | 2,000\* | 2x 2-4 vCPUs/8GB RAM | 2x 4-8 vCPUs/16+GB RAM |
 
 ## Which version of Teleport is supported?
 
 Teleport provides security critical support for the current and two previous releases. With our typical release cadence this means a releases is usually supported for 9 months.
 
-| Release       | Long Term Support | Release Date        | Min tsh version |
-| ------------- | ----------------- | ------------------- | --------------- |
-| 6             | Yes               | March 4th, 2021     | 3.1             |
-| 5.0           | Yes               | November 24th, 2020 | 3.1             |
-| 4.4           | Yes               | October 20th, 2020  | 3.1             |
-| 4.3 (EOL)     | Yes               | July 8th, 2020      | 3.1             |
-| 4.2 (EOL)     | Yes               | December 19th, 2019 | 3.1             |
-| 4.1 (EOL)     | Yes               | October 1st, 2019   | 3.1             |
-| 4.0 (EOL)     | Yes               | June 18th, 2019     | 3.1             |
+| Release | Long Term Support | Release Date | Min tsh version |
+| - | - | - | - |
+| 6 | Yes | March 4th, 2021 | 3.1 |
+| 5.0 | Yes | November 24th, 2020 | 3.1 |
+| 4.4 | Yes | October 20th, 2020 | 3.1 |
+| 4.3 (EOL) | Yes | July 8th, 2020 | 3.1 |
+| 4.2 (EOL) | Yes | December 19th, 2019 | 3.1 |
+| 4.1 (EOL) | Yes | October 1st, 2019 | 3.1 |
+| 4.0 (EOL) | Yes | June 18th, 2019 | 3.1 |
 
 **How should I upgrade my cluster?**
 
@@ -76,7 +76,7 @@ We recommend that the Auth Server should be upgraded first, and proxy is bumped 
 
 ### Does Web UI support copy and paste?
 
-Yes. You can copy&paste using the mouse. For working with a keyboard, Teleport employs
+Yes. You can copy\&paste using the mouse. For working with a keyboard, Teleport employs
 `tmux`-like "prefix" mode. To enter prefix mode, press `Ctrl+A`.
 
 While in prefix mode, you can press `Ctrl+V` to paste, or enter text selection
@@ -97,10 +97,10 @@ Gravitational offers this feature for the [Enterprise versions of Teleport](ente
 
 The Teleport Enterprise offering gives users the following additional features:
 
-* Role-based access control, also known as [RBAC](enterprise/introduction.mdx#rbac).
-* Authentication via SAML and OpenID with providers like Okta, Active
+- Role-based access control, also known as [RBAC](enterprise/introduction.mdx#rbac).
+- Authentication via SAML and OpenID with providers like Okta, Active
   Directory, Auth0, etc. [SSO](enterprise/sso/ssh-sso.mdx).
-* Premium support.
+- Premium support.
 
 We also offer implementation services, to help you integrate
 Teleport with your existing systems and processes.
@@ -115,8 +115,8 @@ commercial versions of Teleport may or may not be configured to send anonymized
 information to Gravitational, depending on the license purchased. This
 information contains the following:
 
-* Anonymized user ID: SHA256 hash of a username with a randomly generated prefix.
-* Anonymized server ID: SHA256 hash of a server IP with a randomly generated prefix.
+- Anonymized user ID: SHA256 hash of a username with a randomly generated prefix.
+- Anonymized server ID: SHA256 hash of a server IP with a randomly generated prefix.
 
 This allows Teleport Pro to print a warning if users are exceeding the usage limits
 of their license. The reporting library code is [on Github](https://github.com/gravitational/reporting).

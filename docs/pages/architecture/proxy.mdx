@@ -10,10 +10,8 @@ Teleport cluster:
 1. It serves as an authentication gateway. It asks for credentials from
    connecting clients and forwards them to the Auth server via [Auth
    API](authentication.mdx#auth-api).
-
 2. It looks up the IP address for a requested Node and then proxies a connection
    from client to Node.
-
 3. It serves a Web UI which is used by cluster users to sign up and configure
    their accounts, explore Nodes in a cluster, log into remote Nodes, join
    existing SSH sessions or replay recorded sessions.
@@ -40,8 +38,11 @@ client SSH connection:
    client connection that is authenticated using an OpenSSH certificate, so no
    special logic is needed.
 
-<Admonition type="note" title="SSL Encryption">
-When using the web UI, the Teleport Proxy terminates SSL traffic and re-encodes data for the SSH client connection.
+<Admonition
+  type="note"
+  title="SSL Encryption"
+>
+  When using the web UI, the Teleport Proxy terminates SSL traffic and re-encodes data for the SSH client connection.
 </Admonition>
 
 ### CLI to SSH Proxy
@@ -78,19 +79,23 @@ client `ssh` or using `tsh`:
    port location. There are three lookup mechanisms a proxy uses to find the
    Node's IP address:
 
-    * Use DNS to resolve the name requested by the client.
-    * Asks the Auth Service if there is a Node registered with this `nodename`.
-    * Asks the Auth Service to find a Node (or Nodes) with a label that matches
-      the requested name.
+   - Use DNS to resolve the name requested by the client.
+   - Asks the Auth Service if there is a Node registered with this `nodename`.
+   - Asks the Auth Service to find a Node (or Nodes) with a label that matches
+     the requested name.
 
 2. If the Node is located, the Proxy establishes an SSH tunnel to the
    requested Node and starts forwarding traffic from Node to client.
+
 3. The client uses the established SSH tunnel from Proxy to Node to open a new
    SSH connection. The client authenticates with the target Node using its
    client certificate.
 
-<Admonition type="tip" title="NOTE">
-Teleport's proxy command makes it compatible with [SSH jump hosts](https://wiki.gentoo.org/wiki/SSH_jump_host) implemented using OpenSSH's `ProxyCommand`. It also supports OpenSSH's ProxyJump/ssh -J implementation as of Teleport 4.1. See [User Manual](../user-manual.mdx#ssh-proxy-configuration)
+<Admonition
+  type="tip"
+  title="NOTE"
+>
+  Teleport's proxy command makes it compatible with [SSH jump hosts](https://wiki.gentoo.org/wiki/SSH_jump_host) implemented using OpenSSH's `ProxyCommand`. It also supports OpenSSH's ProxyJump/ssh -J implementation as of Teleport 4.1. See [User Manual](../user-manual.mdx#ssh-proxy-configuration)
 </Admonition>
 
 ## Recording Proxy Mode
@@ -103,7 +108,7 @@ session data to the auth server to be recorded, as shown below:
 
 ![recording-proxy](../../img/recording-proxy.svg)
 
-The recording proxy mode, although _less secure_, was added to allow Teleport
+The recording proxy mode, although *less secure*, was added to allow Teleport
 users to enable session recording for OpenSSH's servers running `sshd`, which is
 helpful when gradually transitioning large server fleets to Teleport.
 
@@ -131,7 +136,7 @@ Auth Service.
 
 ## More Concepts
 
-* [Architecture Overview](overview.mdx)
-* [Teleport Users](users.mdx)
-* [Teleport Auth](authentication.mdx)
-* [Teleport Proxy](proxy.mdx)
+- [Architecture Overview](overview.mdx)
+- [Teleport Users](users.mdx)
+- [Teleport Auth](authentication.mdx)
+- [Teleport Proxy](proxy.mdx)

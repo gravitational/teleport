@@ -5,17 +5,97 @@
       "title": "Documentation",
       "entries": [
         { "title": "Introduction", "slug": "/" },
+        { "title": "Adopters", "slug": "/adopters/" },
+        { "title": "Getting Started", "slug": "/getting-started/" },
         { "title": "Installation", "slug": "/installation/" },
-        { "title": "Quick Start Guide", "slug": "/quickstart/" },
-        { "title": "User Manual", "slug": "/user-manual/" },
-        { "title": "Application Guide", "slug": "/application-access/" },
-        { "title": "Kubernetes Guide", "slug": "/kubernetes-access/" },
+        { "title": "Application Access", "slug": "/application-access/" },
+        { "title": "Kubernetes Access", "slug": "/kubernetes-access/" },
         { "title": "Database Access", "slug": "/database-access/" },
-        { "title": "Admin Manual", "slug": "/admin-guide/" },
         { "title": "Cloud", "slug": "/cloud/" },
+        { "title": "User Manual", "slug": "/user-manual/" },
+        { "title": "Admin Manual", "slug": "/admin-guide/" },
         { "title": "Production Guide", "slug": "/production/" },
         { "title": "FAQ", "slug": "/faq/" },
         { "title": "Changelog", "slug": "/changelog/" }
+      ]
+    },
+    {
+      "icon": "window",
+      "title": "Application Access",
+      "entries": [
+        { "title": "Getting Started", "slug": "/application-access/getting-started/" },
+        {
+          "title": "Guides",
+          "slug": "/application-access/guides/",
+          "entries": [
+            { "title": "Connecting Apps", "slug": "/application-access/guides/connecting-apps/" },
+            { "title": "Integrating with JWT", "slug": "/application-access/guides/jwt/" },
+            { "title": "API Access", "slug": "/application-access/guides/api-access/" }
+          ]
+        },
+        { "title": "Reference", "slug": "/application-access/reference/" }
+      ]
+    },
+    {
+      "icon": "kubernetes",
+      "title": "Kubernetes Access",
+      "entries": [
+        { "title": "Getting Started", "slug": "/kubernetes-access/getting-started/" },
+        {
+          "title": "Guides",
+          "slug": "/kubernetes-access/guides/",
+          "entries": [
+            { "title": "Multiple Clusters", "slug": "/kubernetes-access/guides/multiple-clusters/" },
+            { "title": "CI/CD", "slug": "/kubernetes-access/guides/cicd/" },
+            { "title": "Federation", "slug": "/kubernetes-access/guides/federation/" },
+            { "title": "Migration", "slug": "/kubernetes-access/guides/migration/" }
+          ]
+        },
+        { "title": "Access Controls", "slug": "/kubernetes-access/controls/" }
+      ]
+    },
+    {
+      "icon": "database",
+      "title": "Database Access",
+      "entries": [
+        { "title": "Getting Started", "slug": "/database-access/getting-started/" },
+        {
+          "title": "Guides",
+          "slug": "/database-access/guides/",
+          "entries": [
+            { "title": "AWS RDS/Aurora PostgreSQL", "slug": "/database-access/guides/postgres-aws/" },
+            { "title": "AWS RDS/Aurora MySQL", "slug": "/database-access/guides/mysql-aws/" },
+            { "title": "GCP Cloud SQL PostgreSQL", "slug": "/database-access/guides/postgres-cloudsql/" },
+            { "title": "Self-Hosted PostgreSQL", "slug": "/database-access/guides/postgres-self-hosted/" },
+            { "title": "Self-Hosted MySQL", "slug": "/database-access/guides/mysql-self-hosted/" },
+            { "title": "Database GUI Clients", "slug": "/database-access/guides/gui-clients/" }
+          ]
+        },
+        { "title": "RBAC", "slug": "/database-access/rbac/" },
+        { "title": "Architecture", "slug": "/database-access/architecture/" },
+        { "title": "Reference", "slug": "/database-access/reference/" },
+        { "title": "FAQ", "slug": "/database-access/faq/" }
+      ]
+    },
+    {
+      "icon": "lock",
+      "title": "Access Controls",
+      "entries": [
+        { "title": "Introduction", "slug": "/access-controls/introduction/" },
+        { "title": "Getting Started", "slug": "/access-controls/getting-started/" },
+        {
+          "title": "Guides",
+          "slug": "/access-controls/guides/",
+          "entries": [
+            { "title": "Role Templates", "slug": "/access-controls/guides/role-templates/" },
+            { "title": "Second Factor - U2F", "slug": "/access-controls/guides/u2f/" },
+            { "title": "Per-session MFA", "slug": "/access-controls/guides/per-session-mfa/" },            
+            { "title": "Dual Authorization", "slug": "/access-controls/guides/dual-authz/" },
+            { "title": "Impersonation", "slug": "/access-controls/guides/impersonation/" }
+          ]
+        },
+        { "title": "Reference", "slug": "/access-controls/reference/" },
+        { "title": "FAQ", "slug": "/access-controls/faq/" }
       ]
     },
     {
@@ -34,29 +114,7 @@
         { "title": "IBM", "slug": "/ibm-cloud-guide/" },
         { "title": "OpenSSH Guide", "slug": "/openssh-teleport/" }
       ]
-    },
-    {
-      "icon": "database",
-      "title": "Database Access",
-      "entries": [
-        { "title": "Getting Started", "slug": "/database-access/getting-started/" },
-        {
-          "title": "Guides",
-          "slug": "/database-access/guides/",
-          "entries": [
-            { "title": "PostgreSQL on AWS", "slug": "/database-access/guides/postgres-aws" },
-            { "title": "MySQL on AWS", "slug": "/database-access/guides/mysql-aws" },
-            { "title": "Self-Hosted PostgreSQL", "slug": "/database-access/guides/postgres-self-hosted/" },
-            { "title": "Self-Hosted MySQL", "slug": "/database-access/guides/mysql-self-hosted/" },
-            { "title": "Database GUI Clients", "slug": "/database-access/guides/gui-clients/" }
-          ]
-        },
-        { "title": "RBAC", "slug": "/database-access/rbac/" },
-        { "title": "Architecture", "slug": "/database-access/architecture/" },
-        { "title": "Reference", "slug": "/database-access/reference/" },
-        { "title": "FAQ", "slug": "/database-access/faq/" }
-      ]
-    },
+    },    
     {
       "icon": "building",
       "title": "Teleport Enterprise",
@@ -119,15 +177,42 @@
     }
   ],
   "variables": {
-    "version": "6.0",
+    "version": "6.1",
     "teleport": {
-      "version": "6.0.0",
-      "golang": "1.15",
+      "version": "6.1.0",
+      "golang": "1.16",
       "plugin": {
-        "version": "0.2.0"
+        "version": "6.1.0"
       },
-      "latest_oss_docker_image": "quay.io/gravitational/teleport:6",
-      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:6"
+      "latest_oss_docker_image": "quay.io/gravitational/teleport:6.1",
+      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:6.1"
     }
-  }
+  },
+  "redirects": [
+    {
+      "source": "/enterprise/ssh-rbac/",
+      "destination": "/access-controls/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/quickstart/",
+      "destination": "/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/preview/database-access/",
+      "destination": "/database-access/",
+      "permanent": true
+    },
+    {
+      "source": "/preview/cloud/",
+      "destination": "/cloud/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-ssh/",
+      "destination": "/kubernetes-access/",
+      "permanent": true
+    }
+  ]
 }

@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2020 Gravitational, Inc.
+Copyright 2015-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
@@ -57,7 +58,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/dynamoevents"
@@ -69,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -240,6 +241,9 @@ type TeleportProcess struct {
 	sync.Mutex
 	Supervisor
 	Config *Config
+
+	// PluginsRegistry handles plugin registrations with Teleport services
+	PluginRegistry plugin.Registry
 
 	// localAuth has local auth server listed in case if this process
 	// has started with auth server role enabled
@@ -627,7 +631,12 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		cfg.Clock = clockwork.NewRealClock()
 	}
 
+	if cfg.PluginRegistry == nil {
+		cfg.PluginRegistry = plugin.NewRegistry()
+	}
+
 	process := &TeleportProcess{
+		PluginRegistry:      cfg.PluginRegistry,
 		Clock:               cfg.Clock,
 		Supervisor:          supervisor,
 		Config:              cfg,
@@ -1106,16 +1115,18 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 
 	checkingEmitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
-		Inner: events.NewMultiEmitter(events.NewLoggingEmitter(), emitter),
-		Clock: process.Clock,
+		Inner:       events.NewMultiEmitter(events.NewLoggingEmitter(), emitter),
+		Clock:       process.Clock,
+		ClusterName: cfg.Auth.ClusterName.GetClusterName(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	checkingStreamer, err := events.NewCheckingStreamer(events.CheckingStreamerConfig{
-		Inner: streamer,
-		Clock: process.Clock,
+		Inner:       streamer,
+		Clock:       process.Clock,
+		ClusterName: cfg.Auth.ClusterName.GetClusterName(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1178,6 +1189,7 @@ func (process *TeleportProcess) initAuthService() error {
 		SessionService: sessionService,
 		Authorizer:     authorizer,
 		AuditLog:       process.auditLog,
+		PluginRegistry: process.PluginRegistry,
 		Emitter:        checkingEmitter,
 		MetadataGetter: uploadHandler,
 	}
@@ -1269,7 +1281,7 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 		// External integrations rely on this event:
 		process.BroadcastEvent(Event{Name: AuthIdentityEvent, Payload: connector})
-		process.onExit("auth.broadcast", func(payload interface{}) {
+		process.OnExit("auth.broadcast", func(payload interface{}) {
 			connector.Close()
 		})
 		return nil
@@ -1352,7 +1364,7 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 	process.RegisterFunc("auth.heartbeat", heartbeat.Run)
 	// execute this when process is asked to exit:
-	process.onExit("auth.shutdown", func(payload interface{}) {
+	process.OnExit("auth.shutdown", func(payload interface{}) {
 		// The listeners have to be closed here, because if shutdown
 		// was called before the start of the http server,
 		// the http server would have not started tracking the listeners
@@ -1388,10 +1400,10 @@ func payloadContext(payload interface{}, log logrus.FieldLogger) context.Context
 	return context.TODO()
 }
 
-// onExit allows individual services to register a callback function which will be
+// OnExit allows individual services to register a callback function which will be
 // called when Teleport Process is asked to exit. Usually services terminate themselves
 // when the callback is called
-func (process *TeleportProcess) onExit(serviceName string, callback func(interface{})) {
+func (process *TeleportProcess) OnExit(serviceName string, callback func(interface{})) {
 	process.RegisterFunc(serviceName, func() error {
 		eventC := make(chan Event)
 		process.WaitForEvent(context.TODO(), TeleportExitEvent, eventC)
@@ -1695,9 +1707,15 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
+		clusterName, err := authClient.GetClusterName()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		streamer, err := events.NewCheckingStreamer(events.CheckingStreamerConfig{
-			Inner: conn.Client,
-			Clock: process.Clock,
+			Inner:       conn.Client,
+			Clock:       process.Clock,
+			ClusterName: clusterName.GetClusterName(),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -1808,7 +1826,7 @@ func (process *TeleportProcess) initSSH() error {
 	})
 
 	// Execute this when process is asked to exit.
-	process.onExit("ssh.shutdown", func(payload interface{}) {
+	process.OnExit("ssh.shutdown", func(payload interface{}) {
 		if payload == nil {
 			log.Infof("Shutting down immediately.")
 			if s != nil {
@@ -1849,7 +1867,7 @@ func (process *TeleportProcess) registerWithAuthServer(role teleport.Role, event
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		process.onExit(fmt.Sprintf("auth.client.%v", serviceName), func(interface{}) {
+		process.OnExit(fmt.Sprintf("auth.client.%v", serviceName), func(interface{}) {
 			process.log.Debugf("Closed client for %v.", role)
 			err := connector.Client.Close()
 			if err != nil {
@@ -1921,7 +1939,7 @@ func (process *TeleportProcess) initUploaderService(accessPoint auth.AccessPoint
 		return nil
 	})
 
-	process.onExit("uploader.shutdown", func(payload interface{}) {
+	process.OnExit("uploader.shutdown", func(payload interface{}) {
 		log.Infof("Shutting down.")
 		warnOnErr(uploader.Stop(), log)
 		log.Infof("Exited.")
@@ -1947,7 +1965,7 @@ func (process *TeleportProcess) initUploaderService(accessPoint auth.AccessPoint
 		return nil
 	})
 
-	process.onExit("fileuploader.shutdown", func(payload interface{}) {
+	process.OnExit("fileuploader.shutdown", func(payload interface{}) {
 		log.Infof("File uploader is shutting down.")
 		warnOnErr(fileUploader.Close(), log)
 		log.Infof("File uploader has shut down.")
@@ -2046,7 +2064,7 @@ func (process *TeleportProcess) initDiagnosticService() error {
 		return nil
 	})
 
-	process.onExit("diagnostic.shutdown", func(payload interface{}) {
+	process.OnExit("diagnostic.shutdown", func(payload interface{}) {
 		if payload == nil {
 			log.Infof("Shutting down immediately.")
 			warnOnErr(server.Close(), log)
@@ -2237,7 +2255,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 	}
 
 	if !cfg.Proxy.MySQLAddr.IsEmpty() {
-		process.log.Debug("Setup Proxy: MySQL proxy address: %v.", cfg.Proxy.MySQLAddr.Addr)
+		process.log.Debugf("Setup Proxy: MySQL proxy address: %v.", cfg.Proxy.MySQLAddr.Addr)
 		listener, err := process.importOrCreateListener(listenerProxyMySQL, cfg.Proxy.MySQLAddr.Addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2318,7 +2336,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			// Unless database proxy is explicitly disabled (which is currently
 			// only done by tests and not exposed via file config), the web
 			// listener is multiplexing both web and db client connections.
-			if !cfg.Proxy.DisableDatabaseProxy {
+			if !cfg.Proxy.DisableDatabaseProxy && !cfg.Proxy.DisableTLS {
 				process.log.Debug("Setup Proxy: Multiplexing web and database proxy on the same port.")
 				listeners.mux, err = multiplexer.New(multiplexer.Config{
 					EnableProxyProtocol: cfg.Proxy.EnableProxyProtocol,
@@ -2337,6 +2355,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 				listeners.db = listeners.mux.DB()
 				go listeners.mux.Serve()
 			} else {
+				process.log.Debug("Setup Proxy: TLS is disabled, multiplexing is off.")
 				listeners.web = listener
 			}
 		}
@@ -2389,6 +2408,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		trace.Component: teleport.Component(teleport.ComponentReverseTunnelServer, process.id),
 	})
 
+	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
+
 	// asyncEmitter makes sure that sessions do not block
 	// in case if connections are slow
 	asyncEmitter, err := process.newAsyncEmitter(conn.Client)
@@ -2396,8 +2417,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 	streamer, err := events.NewCheckingStreamer(events.CheckingStreamerConfig{
-		Inner: conn.Client,
-		Clock: process.Clock,
+		Inner:       conn.Client,
+		Clock:       process.Clock,
+		ClusterName: clusterName,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -2406,7 +2428,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		Emitter:  asyncEmitter,
 		Streamer: streamer,
 	}
-	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
 
 	// register SSH reverse tunnel server that accepts connections
 	// from remote teleport nodes
@@ -2499,20 +2520,21 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 		webHandler, err = web.NewHandler(
 			web.Config{
-				Proxy:         tsrv,
-				AuthServers:   cfg.AuthServers[0],
-				DomainName:    cfg.Hostname,
-				ProxyClient:   conn.Client,
-				ProxySSHAddr:  proxySSHAddr,
-				ProxyWebAddr:  cfg.Proxy.WebAddr,
-				ProxySettings: proxySettings,
-				CipherSuites:  cfg.CipherSuites,
-				FIPS:          cfg.FIPS,
-				AccessPoint:   accessPoint,
-				Emitter:       streamEmitter,
-				HostUUID:      process.Config.HostUUID,
-				Context:       process.ExitContext(),
-				StaticFS:      fs,
+				Proxy:          tsrv,
+				AuthServers:    cfg.AuthServers[0],
+				DomainName:     cfg.Hostname,
+				ProxyClient:    conn.Client,
+				ProxySSHAddr:   proxySSHAddr,
+				ProxyWebAddr:   cfg.Proxy.WebAddr,
+				ProxySettings:  proxySettings,
+				CipherSuites:   cfg.CipherSuites,
+				FIPS:           cfg.FIPS,
+				AccessPoint:    accessPoint,
+				Emitter:        streamEmitter,
+				PluginRegistry: process.PluginRegistry,
+				HostUUID:       process.Config.HostUUID,
+				Context:        process.ExitContext(),
+				StaticFS:       fs,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2560,6 +2582,31 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 					return trace.Wrap(err)
 				}
 				tlsConfig.Certificates = append(tlsConfig.Certificates, certificate)
+			}
+
+			tlsConfig.GetConfigForClient = func(*tls.ClientHelloInfo) (*tls.Config, error) {
+				tlsClone := tlsConfig.Clone()
+
+				// Set client auth to "verify client cert if given" to support
+				// app access CLI flow.
+				//
+				// Clients (like curl) connecting to the web proxy endpoint will
+				// present a client certificate signed by the cluster's user CA.
+				//
+				// Browser connections to web UI and other clients (like database
+				// access) connecting to web proxy won't be affected since they
+				// don't present a certificate.
+				tlsClone.ClientAuth = tls.VerifyClientCertIfGiven
+
+				// Build the client CA pool containing the cluster's user CA in
+				// order to be able to validate certificates provided by app
+				// access CLI clients.
+				tlsClone.ClientCAs, err = auth.ClientCertPool(accessPoint, clusterName)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				return tlsClone, nil
 			}
 
 			listeners.web = tls.NewListener(listeners.web, tlsConfig)
@@ -2754,7 +2801,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	// execute this when process is asked to exit:
-	process.onExit("proxy.shutdown", func(payload interface{}) {
+	process.OnExit("proxy.shutdown", func(payload interface{}) {
 		rcWatcher.Close()
 		defer listeners.Close()
 		// Need to shut down this listener first, because
@@ -2947,6 +2994,7 @@ func (process *TeleportProcess) initApps() {
 
 			a := &services.App{
 				Name:               app.Name,
+				Description:        app.Description,
 				URI:                app.URI,
 				PublicAddr:         publicAddr,
 				StaticLabels:       app.StaticLabels,
@@ -3043,7 +3091,7 @@ func (process *TeleportProcess) initApps() {
 	})
 
 	// Execute this when process is asked to exit.
-	process.onExit("apps.stop", func(payload interface{}) {
+	process.OnExit("apps.stop", func(payload interface{}) {
 		log.Infof("Shutting down.")
 		if appServer != nil {
 			warnOnErr(appServer.Close(), log)
@@ -3258,7 +3306,7 @@ func (process *TeleportProcess) initDebugApp() {
 		process.BroadcastEvent(Event{Name: DebugAppReady, Payload: server})
 		return nil
 	})
-	process.onExit("debug.app.shutdown", func(payload interface{}) {
+	process.OnExit("debug.app.shutdown", func(payload interface{}) {
 		if server != nil {
 			server.Close()
 		}

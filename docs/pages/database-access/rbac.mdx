@@ -8,12 +8,12 @@ description: Role-based access control (RBAC) for Teleport Database Access
 Role-based access control (or RBAC, for short) allows administrators to set up
 granular access policies for databases connected to Teleport.
 
-An example of a policy could be, _"database administrators have access to
+An example of a policy could be, *"database administrators have access to
 everything, QA team and engineers have full access to staging databases, and
 engineers can gain temporary access to the production database in case of
-emergency"_.
+emergency"*.
 
-For a more general description of Teleport roles and examples see [RBAC](../enterprise/ssh-rbac.mdx), as
+For a more general description of Teleport roles and examples see [RBAC](../access-controls/introduction.mdx), as
 this section focuses on configuring RBAC for Database Access.
 
 ## Role Configuration
@@ -69,11 +69,14 @@ spec:
     db_names: ["postgres"]
 ```
 
-<Admonition type="note" title="Deny Rules">
-Deny rules will match greedily. In the example above, a database connection
-attempting to use "postgres" database account (regardless of database instance
-or database name) or "postgres" database name (regardless of database instance
-or database account) will be rejected.
+<Admonition
+  type="note"
+  title="Deny Rules"
+>
+  Deny rules will match greedily. In the example above, a database connection
+  attempting to use "postgres" database account (regardless of database instance
+  or database name) or "postgres" database name (regardless of database instance
+  or database account) will be rejected.
 </Admonition>
 
 ## Database Names
@@ -107,7 +110,7 @@ database names from the user's Okta `databases` assertion:
 ```yaml
 spec:
   allow:
-    db_names: ["{% raw %}{{external.databases}}{% endraw %}"]
+    db_names: ["{{external.databases}}"]
 ```
 
 The `{{internal.db_users}}` and `{{internal.db_names}}` variables permit sharing
@@ -129,6 +132,6 @@ accounts and names:
 ```yaml
 spec:
   allow:
-    db_users: ["{% raw %}{{internal.db_users}}{% endraw %}"]
-    db_names: ["{% raw %}{{internal.db_names}}{% endraw %}"]
+    db_users: ["{{internal.db_users}}"]
+    db_names: ["{{internal.db_names}}"]
 ```

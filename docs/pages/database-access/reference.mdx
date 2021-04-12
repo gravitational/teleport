@@ -31,6 +31,12 @@ db_service:
     aws:
       # Region the database is deployed in.
       region: "us-east-1"
+    # GCP specific configuration for Cloud SQL databases.
+    gcp:
+      # GCP project ID.
+      project_id: "xxx-1234"
+      # Cloud SQL instance ID.
+      instance_id: "example"
     # Static labels to assign to the database. Used in RBAC.
     static_labels:
       env: "prod"
@@ -71,12 +77,12 @@ Access with self-hosted database instances.
 $ tctl auth sign --format=db --host=db.example.com --out=server --ttl=8760h
 ```
 
-| Flag       | Description |
-|------------|-------------|
+| Flag | Description |
+| - | - |
 | `--format` | When given value `db`, produces secrets in database compatible format. |
-| `--host`   | Server name to encode in the certificate. Must match the hostname Teleport will be connecting to the database at. |
-| `--out`    | Name prefix for output files. |
-| `--ttl`    | Certificate validity period. |
+| `--host` | Server name to encode in the certificate. Must match the hostname Teleport will be connecting to the database at. |
+| `--out` | Name prefix for output files. |
+| `--ttl` | Certificate validity period. |
 
 ### tsh db ls
 
@@ -95,8 +101,8 @@ $ tsh db login example
 $ tsh db login --db-user=postgres --db-name=postgres example
 ```
 
-| Flag        | Description |
-|-------------|-------------|
+| Flag | Description |
+| - | - |
 | `--db-user` | Optionally, set default database account name to connect as. |
 | `--db-name` | Optionally, set default database name to connect to. |
 
@@ -119,8 +125,8 @@ $ tsh db env --db=example
 $ eval $(tsh db env)
 ```
 
-| Flag   | Description |
-|--------|-------------|
+| Flag | Description |
+| - | - |
 | `--db` | Database server name to print environment for. Required, if logged into multiple databases simultaneously. |
 
 ### tsh db config
@@ -132,6 +138,6 @@ $ tsh db config
 $ tsh db config --db=example
 ```
 
-| Flag   | Description |
-|--------|-------------|
+| Flag | Description |
+| - | - |
 | `--db` | Database server name to print configuration for. Required, if logged into multiple databases simultaneously. |

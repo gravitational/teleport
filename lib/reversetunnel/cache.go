@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/sshca"
+	"github.com/gravitational/teleport/lib/sshutils"
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
@@ -154,13 +155,9 @@ func (c *certificateCache) generateHostCert(principals []string) (ssh.Signer, er
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	publicKey, _, _, _, err := ssh.ParseAuthorizedKey(certBytes)
+	cert, err := sshutils.ParseCertificate(certBytes)
 	if err != nil {
 		return nil, err
-	}
-	cert, ok := publicKey.(*ssh.Certificate)
-	if !ok {
-		return nil, trace.BadParameter("not a certificate")
 	}
 
 	// return a ssh.Signer

@@ -38,6 +38,10 @@ func ValidateOIDCConnector(oc types.OIDCConnector) error {
 	if _, err := url.Parse(oc.GetRedirectURL()); err != nil {
 		return trace.BadParameter("RedirectURL: bad url: '%v'", oc.GetRedirectURL())
 	}
+	if oc.GetGoogleServiceAccountURI() != "" && oc.GetGoogleServiceAccount() != "" {
+		return trace.BadParameter("one of either google_service_account_uri or google_service_account is supported, not both")
+	}
+
 	if oc.GetGoogleServiceAccountURI() != "" {
 		uri, err := utils.ParseSessionsURI(oc.GetGoogleServiceAccountURI())
 		if err != nil {
@@ -48,6 +52,11 @@ func ValidateOIDCConnector(oc types.OIDCConnector) error {
 		}
 		if oc.GetGoogleAdminEmail() == "" {
 			return trace.BadParameter("whenever google_service_account_uri is specified, google_admin_email should be set as well, read https://developers.google.com/identity/protocols/OAuth2ServiceAccount#delegatingauthority for more details")
+		}
+	}
+	if oc.GetGoogleServiceAccount() != "" {
+		if oc.GetGoogleAdminEmail() == "" {
+			return trace.BadParameter("whenever google_service_account is specified, google_admin_email should be set as well, read https://developers.google.com/identity/protocols/OAuth2ServiceAccount#delegatingauthority for more details")
 		}
 	}
 	return nil
@@ -95,6 +104,7 @@ var OIDCConnectorSpecV2Schema = fmt.Sprintf(`{
 	  "display": {"type": "string"},
 	  "prompt": {"type": "string"},
 	  "google_service_account_uri": {"type": "string"},
+	  "google_service_account": {"type": "string"},		
 	  "google_admin_email": {"type": "string"},
 	  "scope": {
 		"type": "array",

@@ -10,17 +10,20 @@ with the [Quick Start Guide for Teleport Enterprise](quickstart-enterprise.mdx).
 
 The table below gives a quick overview of the benefits of Teleport Enterprise.
 
-|Teleport Enterprise Feature|Description
----------|--------------
-|[Role Based Access Control (RBAC)](#rbac)|Allows Teleport administrators to define User Roles and restrict each role to specific actions. RBAC also allows administrators to partition cluster nodes into groups with different access permissions.
-|[Single Sign-On (SSO)](#sso)| Allows Teleport to integrate with existing enterprise identity systems. Examples include Active Directory, Github, Google Apps and numerous identity middleware solutions like Auth0, Okta, and so on. Teleport supports SAML and OAuth/OpenID Connect protocols to interact with them.
-|[Approval Plugins](workflow/index.mdx) | Plugins to approve or deny escalated RBAC requests.
-|[FedRAMP/FIPS](#fedrampfips) | With Teleport 4.0, we have built out the foundation to help Teleport Enterprise customers build and meet the requirements in a FedRAMP System Security Plan (SSP). This includes a FIPS 140-2 friendly build of Teleport Enterprise as well as a variety of improvements to aid in complying with security controls even in FedRAMP High environments.
-|Commercial Support | In addition to these features, Teleport Enterprise also comes with a premium support SLA with guaranteed response times.
+| Teleport Enterprise Feature | Description |
+| - | - |
+| [Role Based Access Control (RBAC)](#rbac) | Allows Teleport administrators to define User Roles and restrict each role to specific actions. RBAC also allows administrators to partition cluster nodes into groups with different access permissions. |
+| [Single Sign-On (SSO)](#sso) | Allows Teleport to integrate with existing enterprise identity systems. Examples include Active Directory, Github, Google Apps and numerous identity middleware solutions like Auth0, Okta, and so on. Teleport supports SAML and OAuth/OpenID Connect protocols to interact with them. |
+| [Approval Plugins](workflow/index.mdx) | Plugins to approve or deny escalated RBAC requests. |
+| [FedRAMP/FIPS](#fedrampfips) | With Teleport 4.0, we have built out the foundation to help Teleport Enterprise customers build and meet the requirements in a FedRAMP System Security Plan (SSP). This includes a FIPS 140-2 friendly build of Teleport Enterprise as well as a variety of improvements to aid in complying with security controls even in FedRAMP High environments. |
+| Commercial Support | In addition to these features, Teleport Enterprise also comes with a premium support SLA with guaranteed response times. |
 
-<Admonition type="tip" title="Contact Information">
-If you are interested in Teleport Enterprise, please reach out to
-`sales@goteleport.com` for more information.
+<Admonition
+  type="tip"
+  title="Contact Information"
+>
+  If you are interested in Teleport Enterprise, please reach out to
+  `sales@goteleport.com` for more information.
 </Admonition>
 
 ## RBAC
@@ -50,7 +53,7 @@ would look like this:
    to the Teleport Roles so every Teleport user will be assigned a role based
    on the group membership.
 
-See [RBAC for SSH](ssh-rbac.mdx) chapter to learn more about configuring RBAC with
+See [RBAC](../access-controls/introduction.mdx) chapter to learn more about configuring RBAC with
 Teleport.
 
 ## SSO
@@ -67,7 +70,6 @@ Other identity management systems are supported as long as they provide an
 SSO mechanism based on either [SAML](https://en.wikipedia.org/wiki/Security_Assertion_Markup_Language)
 or [OAuth2/OpenID Connect](https://en.wikipedia.org/wiki/OpenID_Connect).
 
-
 ### How does SSO work with SSH?
 
 From the user's perspective they need to execute the following command to retrieve their SSH certificate.
@@ -83,17 +85,20 @@ prompt, along with the 2FA, as enforced by the SSO provider. If a user supplies
 valid credentials, Teleport will issue an SSH certificate.
 
 Moreover, SSO can be used in combination with role-based access control (RBAC)
-to enforce SSH access policies like _"developers must not touch production data"_.
+to enforce SSH access policies like *"developers must not touch production data"*.
 See the [SSO for SSH](sso/ssh-sso.mdx) chapter for more details.
 
-<Admonition type="tip" title="Contact Information">
-For more information about Teleport Enterprise or Gravity please reach out us to `sales@goteleport.com` or fill out the contact form on our [website](https://gravitational.com/demo).
+<Admonition
+  type="tip"
+  title="Contact Information"
+>
+  For more information about Teleport Enterprise or Gravity please reach out us to `sales@goteleport.com` or fill out the contact form on our [website](https://gravitational.com/demo).
 </Admonition>
 
 ## FedRAMP/FIPS
 
 With Teleport 4.0 we have built the foundation to meet FedRAMP requirements for
-the purposes of accessing infrastructure. This includes support for [FIPS 140-2](https://en.wikipedia.org/wiki/FIPS_140-2),
+the purposes of accessing infrastructure. This includes support for [FIPS 140-2](https://en.wikipedia.org/wiki/FIPS\_140-2),
 also known as the Federal Information Processing Standard, which is the US
 government approved standard for cryptographic modules.
 

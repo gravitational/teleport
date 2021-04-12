@@ -60,6 +60,10 @@ const (
 	// KindPluginData is a PluginData resource
 	KindPluginData = "plugin_data"
 
+	// KindAccessPluginData is a resource directive that applies
+	// only to plugin data associated with access requests.
+	KindAccessPluginData = "access_plugin_data"
+
 	// KindOIDC is OIDC connector resource
 	KindOIDC = "oidc"
 
@@ -189,6 +193,9 @@ const (
 
 	// KindMFADevice is an MFA device for a user.
 	KindMFADevice = "mfa_device"
+
+	// KindBilling represents access to cloud billing features
+	KindBilling = "billing"
 
 	// V3 is the third version of resources.
 	V3 = "v3"

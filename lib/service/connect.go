@@ -35,8 +35,10 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/interval"
 
 	"github.com/gravitational/trace"
+
 	"github.com/sirupsen/logrus"
 )
 
@@ -433,16 +435,21 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 		return nil
 	}
 
-	retryTicker := time.NewTicker(defaults.HighResPollingPeriod)
-	defer retryTicker.Stop()
+	periodic := interval.New(interval.Config{
+		Duration:      defaults.HighResPollingPeriod,
+		FirstDuration: utils.HalfJitter(defaults.HighResPollingPeriod),
+		Jitter:        utils.NewSeventhJitter(),
+	})
+	defer periodic.Stop()
+
 	for {
 		err := process.syncRotationStateCycle()
 		if err == nil {
 			return nil
 		}
-		process.log.Warningf("Sync rotation state cycle failed: %v, going to retry after %v.", err, defaults.HighResPollingPeriod)
+		process.log.Warningf("Sync rotation state cycle failed: %v, going to retry after ~%v.", err, defaults.HighResPollingPeriod)
 		select {
-		case <-retryTicker.C:
+		case <-periodic.Next():
 		case <-process.ExitContext().Done():
 			return nil
 		}
@@ -481,8 +488,12 @@ func (process *TeleportProcess) syncRotationStateCycle() error {
 	}
 	defer watcher.Close()
 
-	t := time.NewTicker(process.Config.PollingPeriod)
-	defer t.Stop()
+	periodic := interval.New(interval.Config{
+		Duration:      process.Config.PollingPeriod,
+		FirstDuration: utils.HalfJitter(process.Config.PollingPeriod),
+		Jitter:        utils.NewSeventhJitter(),
+	})
+	defer periodic.Stop()
 	for {
 		select {
 		case event := <-watcher.Events():
@@ -511,7 +522,7 @@ func (process *TeleportProcess) syncRotationStateCycle() error {
 			}
 		case <-watcher.Done():
 			return trace.ConnectionProblem(watcher.Error(), "watcher has disconnected")
-		case <-t.C:
+		case <-periodic.Next():
 			status, err := process.syncRotationStateAndBroadcast(conn)
 			if err != nil {
 				return trace.Wrap(err)
@@ -784,6 +795,8 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 
 // newClient attempts to connect directly to the Auth Server. If it fails, it
 // falls back to trying to connect to the Auth Server through the proxy.
+// The proxy address might be configured in process environment as defaults.TunnelPublicAddrEnvar
+// in which case, no attempt at discovering the reverse tunnel address is made.
 func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity *auth.Identity) (*auth.Client, error) {
 	directClient, err := process.newClientDirect(authServers, identity)
 	if err != nil {
@@ -793,24 +806,40 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 	// Try and connect to the Auth Server. If the request fails, try and
 	// connect through a tunnel.
 	process.log.Debugf("Attempting to connect to Auth Server directly.")
-	_, err = directClient.GetLocalClusterName()
-	if err != nil {
+	if _, err = directClient.GetLocalClusterName(); err != nil {
+		process.log.WithError(err).Warn("Failed to connect to Auth Server directly.")
+		if err := directClient.Close(); err != nil {
+			process.log.WithError(err).Warn("Failed to close direct Auth Server client.")
+		}
+
 		// Don't attempt to connect through a tunnel as a proxy or auth server.
 		if identity.ID.Role == teleport.RoleAuth || identity.ID.Role == teleport.RoleProxy {
 			return nil, trace.Wrap(err)
 		}
 
-		process.log.Debugf("Attempting to connect to Auth Server through tunnel.")
-		tunnelClient, err := process.newClientThroughTunnel(authServers, identity)
+		var proxyAddr string
+		if process.Config.SSH.ProxyReverseTunnelFallbackAddr != nil {
+			proxyAddr = process.Config.SSH.ProxyReverseTunnelFallbackAddr.String()
+		} else {
+			// Discover address of SSH reverse tunnel server.
+			proxyAddr, err = process.findReverseTunnel(authServers)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
+		logger := process.log.WithField("proxy-addr", proxyAddr)
+		logger.Debug("Attempting to connect to Auth Server through tunnel.")
+		tunnelClient, err := process.newClientThroughTunnel(proxyAddr, identity)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		process.log.Debugf("Connected to Auth Server through tunnel.")
+		logger.Debug("Connected to Auth Server through tunnel.")
 		return tunnelClient, nil
 	}
 
-	process.log.Debugf("Connected to Auth Server with direct connection.")
+	process.log.Debug("Connected to Auth Server with direct connection.")
 	return directClient, nil
 }
 
@@ -821,7 +850,7 @@ func (process *TeleportProcess) findReverseTunnel(addrs []utils.NetAddr) (string
 	for _, addr := range addrs {
 		// In insecure mode, any certificate is accepted. In secure mode the hosts
 		// CAs are used to validate the certificate on the proxy.
-		resp, err := client.Find(process.ExitContext(),
+		resp, err := apiclient.Find(process.ExitContext(),
 			addr.String(),
 			lib.IsInsecureDevMode(),
 			nil)
@@ -838,7 +867,7 @@ func (process *TeleportProcess) findReverseTunnel(addrs []utils.NetAddr) (string
 //  2. SSH Proxy Public Address.
 //  3. HTTP Proxy Public Address.
 //  4. Tunnel Listen Address.
-func tunnelAddr(settings client.ProxySettings) (string, error) {
+func tunnelAddr(settings apiclient.ProxySettings) (string, error) {
 	// Extract the port the tunnel server is listening on.
 	netAddr, err := utils.ParseHostPortAddr(settings.SSH.TunnelListenAddr, defaults.SSHProxyTunnelListenPort)
 	if err != nil {
@@ -873,14 +902,7 @@ func tunnelAddr(settings client.ProxySettings) (string, error) {
 	return settings.SSH.TunnelListenAddr, nil
 }
 
-func (process *TeleportProcess) newClientThroughTunnel(servers []utils.NetAddr, identity *auth.Identity) (*auth.Client, error) {
-	// Discover address of SSH reverse tunnel server.
-	proxyAddr, err := process.findReverseTunnel(servers)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	process.log.Debugf("Discovered address for reverse tunnel server: %v.", proxyAddr)
-
+func (process *TeleportProcess) newClientThroughTunnel(proxyAddr string, identity *auth.Identity) (*auth.Client, error) {
 	tlsConfig, err := identity.TLSConfig(process.Config.CipherSuites)
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -13,14 +13,17 @@ SSH credentials to specific groups of users. When used in combination with role
 based access control (RBAC) it allows SSH administrators to define policies
 like:
 
-* Only members of "DBA" group can SSH into machines running PostgreSQL.
-* Developers must never SSH into production servers.
-* ... and many others.
+- Only members of "DBA" group can SSH into machines running PostgreSQL.
+- Developers must never SSH into production servers.
+- ... and many others.
 
-<Admonition type="warning" title="Version Warning">
-This guide requires a commercial edition of Teleport. The open source
-edition of Teleport only supports [Github](../../admin-guide.mdx#github-oauth-20) as
-an SSO provider.
+<Admonition
+  type="warning"
+  title="Version Warning"
+>
+  This guide requires a commercial edition of Teleport. The open source
+  edition of Teleport only supports [Github](../../admin-guide.mdx#github-oauth-20) as
+  an SSO provider.
 </Admonition>
 
 ## Enable ADFS Authentication
@@ -63,23 +66,23 @@ using `https://localhost:3080/v1/webapi/saml/acs` as the Assertion Consumer
 Service (ACS) URL, but for production you'll want to change this to a domain
 that can be accessed by other users as well.
 
-* Create a claims aware trust.
-* Enter data about the relying party manually.
-* Set the display name to something along the lines of "Teleport".
-* Skip the token encryption certificate.
-* Select _"Enable support for SAML 2.0 Web SSO protocol"_ and set the URL to `https://localhost:3080/v1/webapi/saml/acs`.
-* Set the relying party trust identifier to `https://localhost:3080/v1/webapi/saml/acs` as well.
-* For access control policy select _"Permit everyone"_.
+- Create a claims aware trust.
+- Enter data about the relying party manually.
+- Set the display name to something along the lines of "Teleport".
+- Skip the token encryption certificate.
+- Select *"Enable support for SAML 2.0 Web SSO protocol"* and set the URL to `https://localhost:3080/v1/webapi/saml/acs`.
+- Set the relying party trust identifier to `https://localhost:3080/v1/webapi/saml/acs` as well.
+- For access control policy select *"Permit everyone"*.
 
 Once the Relying Party Trust has been created, update the Claim Issuance Policy
 for it. Like before make sure you send at least `Name ID` and `Group` claims to the
 relying party (Teleport). If you are using dynamic roles, it may be useful to
-map the LDAP Attribute `SAM-Account-Name` to _"Windows account name"_ and create
-another mapping of `E-Mail-Addresses` to _"UPN"_.
+map the LDAP Attribute `SAM-Account-Name` to *"Windows account name"* and create
+another mapping of `E-Mail-Addresses` to *"UPN"*.
 
 Lastly, ensure the user you create in Active Directory has an email address
 associated with it. To check this open Server Manager then
-_"Tools -> Active Directory Users and Computers"_ and select the user and right
+*"Tools -> Active Directory Users and Computers"* and select the user and right
 click and open properties. Make sure the email address field is filled out.
 
 ## Create Teleport Roles
@@ -118,36 +121,35 @@ spec:
     max_session_ttl: "1h"
   allow:
     # only allow login as either ubuntu or the 'windowsaccountname' claim
-    logins: [ '{% raw %}{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}{% endraw %}', ubuntu ]
+    logins: [ '{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}', ubuntu ]
     node_labels:
       "access": "relaxed"
 ```
 
 This role declares:
 
-* Devs are only allowed to login to nodes labelled with `access: relaxed` label.
-* Developers can log in as `ubuntu` user
-* Notice `{% raw %}{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}{% endraw %}` login. It configures Teleport to look at
-  _"http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"_ ADFS claim and use that field as an allowed login for each user.
+- Devs are only allowed to login to nodes labelled with `access: relaxed` label.
+- Developers can log in as `ubuntu` user
+- Notice `{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}` login. It configures Teleport to look at
+  *"[http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"](http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname")* ADFS claim and use that field as an allowed login for each user.
   Also note the double quotes (`"`) and square brackets (`[]`) around the claim name - these are important.
-* Developers also do not have any "allow rules" i.e. they will not be able to
+- Developers also do not have any "allow rules" i.e. they will not be able to
   see/replay past sessions or re-configure the Teleport cluster.
 
 Next, create a SAML connector [resource](../../admin-guide.mdx#resources):
 
 ```yaml
-{!examples/resources/adfs-connector.yaml!}
+(!examples/resources/adfs-connector.yaml!)
 ```
 
-
 The `acs` field should match the value you set in ADFS earlier and you can
-obtain the `entity_descriptor_url` from ADFS under _"ADFS -> Service -> Endpoints -> Metadata"_.
+obtain the `entity_descriptor_url` from ADFS under *"ADFS -> Service -> Endpoints -> Metadata"*.
 
 The `attributes_to_roles` is used to map attributes to the Teleport roles you
-just created. In our situation, we are mapping the _"Group"_ attribute whose full
-name is `http://schemas.xmlsoap.org/claims/Group` with a value of _"admins"_
-to the _"admin"_ role. Groups with the value _"users"_ is being mapped to the
-_"users"_ role.
+just created. In our situation, we are mapping the *"Group"* attribute whose full
+name is `http://schemas.xmlsoap.org/claims/Group` with a value of *"admins"*
+to the *"admin"* role. Groups with the value *"users"* is being mapped to the
+*"users"* role.
 
 ## Export the Signing Key
 
@@ -173,15 +175,21 @@ $ tsh --proxy=proxy.example.com login
 This command will print the SSO login URL (and will try to open it
 automatically in a browser).
 
-<Admonition type="tip" title="Tip">
-Teleport can use multiple SAML connectors. In this case a connector name
-can be passed via `tsh login --auth=connector_name`
+<Admonition
+  type="tip"
+  title="Tip"
+>
+  Teleport can use multiple SAML connectors. In this case a connector name
+  can be passed via `tsh login --auth=connector_name`
 </Admonition>
 
-<Admonition type="note" title="IMPORTANT">
-Teleport only supports sending party initiated flows for SAML 2.0. This
-means you can not initiate login from your identity provider, you have to
-initiate login from either the Teleport Web UI or CLI.
+<Admonition
+  type="note"
+  title="IMPORTANT"
+>
+  Teleport only supports sending party initiated flows for SAML 2.0. This
+  means you can not initiate login from your identity provider, you have to
+  initiate login from either the Teleport Web UI or CLI.
 </Admonition>
 
 ## Troubleshooting

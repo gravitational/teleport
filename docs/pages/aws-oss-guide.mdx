@@ -27,10 +27,10 @@ and has a range of [other tips for securing EC2 instances](https://aws.amazon.co
 This approach has a number of limitations:
 
 1. As your organization grows, keeping track of end users' public/private keys becomes
-  an administrative nightmare.
+   an administrative nightmare.
 2. Using SSH public/private keys has a number of limitations. Read why [SSH Certificates are better](https://gravitational.com/blog/ssh-key-management/).
 3. Once a machine has been bootstrapped with SSH Keys, there isn't an easy way to
-  add new keys and delegate access.
+   add new keys and delegate access.
 
 **Which Services can I use Teleport with?**
 
@@ -48,7 +48,7 @@ for the below.
 
 This guide will cover how to setup, configure and run Teleport on [AWS](https://aws.amazon.com/).
 
-#### AWS Services required to run Teleport in HA
+### AWS Services required to run Teleport in HA
 
 - [EC2 / Autoscale](#ec2--autoscale)
 - [DynamoDB](#dynamodb)
@@ -65,20 +65,21 @@ stores the state of the system and S3 will store audit logs.
 ![AWS Intro Image](../img/aws/aws-intro.png)
 
 ### EC2 / Autoscale
+
 To run Teleport in a HA configuration we recommend using m4.large instances. It's best practice to separate the proxy and authentication server, using autoscaling groups for both machines. We have pre-built AMIs for both Teleport OSS and Enterprise editions.
 
 ### DynamoDB
+
 DynamoDB is a key-value and document database that delivers single-digit millisecond
 performance at any scale. For large clusters you can provision usage but for smaller
 deployments you can leverage DynamoDB's autoscaling.
 
-Teleport 4.0 leverages [DynamoDB's streaming feature](
-https://github.com/gravitational/teleport/issues/2430). When turning this on, you'll need
+Teleport 4.0 leverages [DynamoDB's streaming feature](https://github.com/gravitational/teleport/issues/2430). When turning this on, you'll need
 to specify `New Image` from the streaming options. DynamoDB back-end supports two
 types of Teleport data:
 
-* Cluster state
-* Cluster events
+- Cluster state
+- Cluster events
 
 See [DynamoDB Admin Guide for more information](admin-guide.mdx#using-dynamodb)
 
@@ -91,49 +92,55 @@ but below are high level definitions for the tables required to run Teleport.
 
 DynamoDB Table A - Teleport Cluster State:
 
-| Table name            | teleport-cluster-name |
-|-----------------------|-----------------------|
-| Primary partition key | HashKey (String)      |
-| Primary sort key      | FullPath (String)     |
-
+| Table name | teleport-cluster-name |
+| - | - |
+| Primary partition key | HashKey (String) |
+| Primary sort key | FullPath (String) |
 
 DynamoDB Table B - Teleport Cluster Events:
 
-| Table name            | teleport-cluster-name-events |
-|-----------------------|------------------------------|
-| Primary partition key | SessionID (String)           |
-| Primary sort key      | EventIndex (Number)          |
+| Table name | teleport-cluster-name-events |
+| - | - |
+| Primary partition key | SessionID (String) |
+| Primary sort key | EventIndex (Number) |
 
-| Indexes - `timesearch`| teleport-cluster-name-events |
-|-----------------------|------------------------------|
-| Primary partition key | EventNamespace (String)      |
-| Primary sort key      | CreatedAt (Number)           |
-| Attributes            | ALL                          |
+| Indexes - `timesearch` | teleport-cluster-name-events |
+| - | - |
+| Primary partition key | EventNamespace (String) |
+| Primary sort key | CreatedAt (Number) |
+| Attributes | ALL |
 
 ### S3
+
 Amazon Simple Storage Service (Amazon S3) is an object storage service that offers
 industry-leading scalability, data availability, security, and performance. In this
 Teleport setup, S3 will provide storage for recorded sessions.
 
 We recommend using Amazon S3 Standard.
 
-<Admonition type="tip" title="Tip">
-S3 provides [Amazon S3 Object Lock](https://docs.aws.amazon.com/AmazonS3/latest/dev/object-lock.html),
-which is useful for customers deploying Teleport in regulated environments.
+<Admonition
+  type="tip"
+  title="Tip"
+>
+  S3 provides [Amazon S3 Object Lock](https://docs.aws.amazon.com/AmazonS3/latest/dev/object-lock.html),
+  which is useful for customers deploying Teleport in regulated environments.
 </Admonition>
 
 ### Route53
+
 Route53 is a highly available Domain Name System (DNS) provided by AWS. It'll be
 needed to setup a URL for the proxy - we recommend using a subdomain.
 
 e.g. `teleport.acmeinc.com`
 
 ### NLB: Network Load Balancer
+
 AWS provides many different load balancers. To setup Teleport, we recommend
 using a Network Load Balancer.  Network Load Balancers provides TLS for the Teleport
 proxy and provides the TCP connections needed for Teleport proxy SSH connections.
 
 ### IAM
+
 IAM is the recommended tool for creating service access. This guide will follow the
 best practice of principle of least privilege (PoLP).
 
@@ -173,8 +180,11 @@ An example policy is shown below:
 
 ```
 
-<Admonition type="note" title="Note">
-`example.s3.bucket` will need to be replaced with your bucket name.
+<Admonition
+  type="note"
+  title="Note"
+>
+  `example.s3.bucket` will need to be replaced with your bucket name.
 </Admonition>
 
 #### IAM for DynamoDB
@@ -238,8 +248,11 @@ An example policy is shown below:
 }
 ```
 
-<Admonition type="note" title="Note">
-`arn:aws:dynamodb:<region>:<account_id>:table/<events_table_name>` and `<cluster_state_table_name>` will need to be replaced with your two DynamoDB tables.
+<Admonition
+  type="note"
+  title="Note"
+>
+  `arn:aws:dynamodb:<region>:<account_id>:table/<events_table_name>` and `<cluster_state_table_name>` will need to be replaced with your two DynamoDB tables.
 </Admonition>
 
 ### ACM
@@ -251,6 +264,7 @@ With AWS Certificate Manager, you can quickly request SSL/TLS certificates.
   delegate access to Teleport nodes.
 
 ### AWS Systems Manager Parameter Store
+
 To add new nodes to a Teleport Cluster, we recommend using a [strong static token](https://gravitational.com/teleport/docs/admin-guide/#example-configuration). SSM can be also used to store the
 enterprise licence.
 
@@ -267,21 +281,24 @@ We have these options for you.
 - [Deploying with Terraform HA + Monitoring](#deploying-with-terraform)
 
 ## Deploying with CloudFormation
+
 We are currently working on an updated CloudFormation guide but you can start with our
 [AWS AMI example](https://github.com/gravitational/teleport/tree/master/examples/aws/cloudformation#aws-cloudformation-based-provisioning-example). It requires a VPC, but
 we expect customers to deploy within an already existing VPC.
 
 ## Deploying with Terraform
+
 To deploy Teleport in AWS using Terraform look at our [AWS Guide](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform/ha-autoscale-cluster#terraform-based-provisioning-example-amazon-single-ami).
 
-
 ### Installing Teleport to EC2 Server
+
 Customers run many workloads within EC2 and depending on how you work there are many
 ways to integrate Teleport onto your servers. We recommend looking at our [Admin manual](https://gravitational.com/teleport/docs/admin-guide/#installing).
 
 In short, to add new nodes / EC2 servers that you can "SSH into" you'll need to
 
 1. [Install the Teleport Binary on the Server](https://gravitational.com/teleport/docs/admin-guide/#installing)
+
 - [Run Teleport, we recommend using SystemD](https://gravitational.com/teleport/docs/admin-guide/#systemd-unit-file)
 - [Set the correct settings in /etc/teleport.yaml](https://gravitational.com/teleport/docs/admin-guide/#configuration-file)
 - [Add EC2 nodes to the Teleport cluster](https://gravitational.com/teleport/docs/admin-guide/#adding-nodes-to-the-cluster)
@@ -302,6 +319,7 @@ In this section, we will set Kubernetes RBAC permissions needed by Teleport and
 configure the EC2 instance running Teleport to map to those permissions.
 
 ### Prerequisites
+
 You’ll need a functioning EKS cluster, we recommend version 1.16.  If you’re unfamiliar
 with creating an EKS cluster, view [AWS EKS getting started guide](https://aws.amazon.com/eks/getting-started/).
 
@@ -311,6 +329,7 @@ with creating an EKS cluster, view [AWS EKS getting started guide](https://aws.a
 - An AWS Account with Root Access
 
 ### Create cluster role and role binding
+
 The first step is to create a cluster role and role binding that will allow the Teleport
 EC2 instance to relay user requests to the Kubernetes API.
 
@@ -357,13 +376,16 @@ subjects:
   name: teleport-group
 EOF
 ```
+
 If successful the terminal should output:
+
 ```
 # clusterrole.rbac.authorization.k8s.io/teleport-impersonation created
 # clusterrolebinding.rbac.authorization.k8s.io/teleport-crb created
 ```
 
 ### Create IAM trust policy document
+
 This is the trust policy that allows the Teleport EC2 instance to assume a role.
 
 ```bash
@@ -382,6 +404,7 @@ $ cat > teleport_assume_role.json << 'EOF'
 }
 EOF
 ```
+
 This will create a `.json` file locally, the below command should then be run to create the role.
 
 ```bash
@@ -420,11 +443,11 @@ aws iam attach-role-policy --role-name teleport-role --policy-arn $POLICY_ARN
 This maps the IAM role **teleport-role** to the Kubernetes group **teleport-group**.
 
 <Admonition type="note">
-If you used eksctl to create your cluster, you may need to add the mapUsers section to the aws-auth ConfigMap before executing these commands.
+  If you used eksctl to create your cluster, you may need to add the mapUsers section to the aws-auth ConfigMap before executing these commands.
 
-```
-eksctl create iamidentitymapping --cluster [cluster-name] --arn arn:aws:iam::[account-id]:role/teleport-role --group teleport-group --username teleport
-```
+  ```
+  eksctl create iamidentitymapping --cluster [cluster-name] --arn arn:aws:iam::[account-id]:role/teleport-role --group teleport-group --username teleport
+  ```
 </Admonition>
 
 ```bash
@@ -436,7 +459,9 @@ kubectl patch configmap/aws-auth -n kube-system --patch "$(cat /tmp/aws-auth-pat
 To check, run `kubectl describe configmap -n kube-system aws-auth`
 
 ### Installing Teleport
+
 #### Create EC2 instance
+
 Create an EC2 instance using the [Teleport Community AMI](https://aws.amazon.com/marketplace/pp/Gravitational-Teleport-Community-Edition/B07FYTZB9B) on a public subnet in your VPC.
 Modify the security group associated with that instance to allow port 22 inbound, so
 you can SSH to the instance after it’s running. You will need security group rules
@@ -447,12 +472,12 @@ This will allow GitHub to post a response back to the Teleport server. You’ll
 need to open port 80 to allow Let’s Encrypt to complete HTTP validation when using
 SSL certificates/unless you provide pre-provisioned TLS certificates.
 
-| Type   | Protocol | Port Range | Source    |
-|--------|----------|------------|-----------|
-| Custom | TCP      | 3022-3026  | 0.0.0.0/0 |
-| Custom | TCP      | 3080       | 0.0.0.0/0 |
-| HTTP   | TCP      | 80         | 0.0.0.0/0 |
-| SSH    | TCP      | 22         | your IP   |
+| Type | Protocol | Port Range | Source |
+| - | - | - | - |
+| Custom | TCP | 3022-3026 | 0.0.0.0/0 |
+| Custom | TCP | 3080 | 0.0.0.0/0 |
+| HTTP | TCP | 80 | 0.0.0.0/0 |
+| SSH | TCP | 22 | your IP |
 
 You must modify the EKS control plane security group to allow port 443 inbound from
 the Teleport security group, to allow your Teleport instance to communicate with the Kubernetes API.
@@ -466,16 +491,18 @@ aws ec2 associate-iam-instance-profile --iam-instance-profile Name=teleport-role
 # instance_id should be replaced with the instance id of the instance where you intend to install Teleport.
 ```
 
-#### Install Teleport.
+#### Install Teleport
+
 1. [Download and Install Teleport](installation.mdx)
 2. [Setup systemd](production.mdx#running-teleport-in-production)
 3. Setup Teleport config file. `sudo cp teleport.yaml /etc/teleport.yaml`. An example is below.
 
 ```
-{!examples/aws/eks/teleport.yaml!}
+(!examples/aws/eks/teleport.yaml!)
 ```
 
 #### Download Kubectl on Teleport Server
+
 Kubectl is required to obtain the correct kubeconfig, so Teleport can access the EKS Cluster.
 
 Instructions are below, or can be found on [AWS Docs](https://docs.aws.amazon.com/eks/latest/userguide/install-kubectl.html).
@@ -496,6 +523,7 @@ kubectl version --short --client
 ```
 
 Create kubeconfig:
+
 ```bash
 aws eks update-kubeconfig --name [teleport-cluster] --region us-west-2
 # Added new context arn:aws:eks:us-west-2:480176057099:cluster/teleport-eks-cluster to /home/ec2-user/.kube/config
@@ -519,6 +547,7 @@ sudo yum install -y certbot python-certbot-nginx
 ```
 
 Run Certbot
+
 ```bash
 export TELEPORT_PUBLIC_DNS_NAME=[teleport-proxy-url]
 echo $TELEPORT_PUBLIC_DNS_NAME
@@ -571,6 +600,7 @@ spec:
     team: $GH_TEAM
 EOF
 ```
+
 Use `tctl` to create the github auth connector.
 
 ```bash
@@ -610,6 +640,7 @@ kube-system   kube-proxy-c5nv2           1/1     Running   0          5h28m
 ```
 
 ## Running Teleport Enterprise on AWS
+
 Most of this guide has been designed for OSS Teleport. Most of this guide also applies
 to Teleport Enterprise with a few extra notes around adding a license and getting the
 correct binary.
@@ -624,6 +655,7 @@ If you would like help setting up Teleport Enterprise on AWS, please mail us at 
 ## Teleport AWS Tips & Tricks
 
 ### Generating labels from AWS tags
+
 Labels can be a useful addition to the Teleport UI.  Simply add some or all of the
 below to Teleport Nodes in `etc/teleport.yaml` to have helpful labels in the Teleport UI.
 

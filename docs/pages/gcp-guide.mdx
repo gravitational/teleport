@@ -14,14 +14,16 @@ We have split this guide into:
 - [GCP Quickstart](#gcp-quickstart)
 
 ## Teleport on GCP FAQ
-#### Why would you want to use Teleport with GCP?
+
+### Why would you want to use Teleport with GCP?
+
 As leader in [BeyondCorp](https://cloud.google.com/beyondcorp/), GCP already provides
 some great tools out of the box such as [Cloud Identity-Aware Proxy](https://cloud.google.com/iap/).
 This is an excellent tool to quickly get setup securely with GCP but it can become
 complicated to integrate into existing workflows and complicated if you want to share
 tool across clouds.
 
-#### Which Services can I use Teleport with?
+### Which Services can I use Teleport with?
 
 You can use Teleport for all the services that you would SSH into. This guide is
 focused on Google Compute Engine. In the future we'll plan to update on how to use
@@ -33,34 +35,35 @@ This guide will cover how to setup, configure and run Teleport on GCP.
 
 GCP Services required to run Teleport in HA:
 
- - [Compute Engine: VM Instances with Instance Groups](#compute-engine-vm-instances-with-instance-groups)
- - [Computer Engine: Health Checks](#computer-engine-health-checks)
- - [Storage: Cloud Firestore](#storage-google-cloud-storage)
- - [Storage: Google Cloud Storage](#storage-google-cloud-storage)
- - [Network Services: Load Balancing](#network-services-load-balancing)
- - [Network Services: Cloud DNS](#network-services-cloud-dns)
+- [Compute Engine: VM Instances with Instance Groups](#compute-engine-vm-instances-with-instance-groups)
+- [Computer Engine: Health Checks](#computer-engine-health-checks)
+- [Storage: Cloud Firestore](#storage-google-cloud-storage)
+- [Storage: Google Cloud Storage](#storage-google-cloud-storage)
+- [Network Services: Load Balancing](#network-services-load-balancing)
+- [Network Services: Cloud DNS](#network-services-cloud-dns)
 
 Other things needed:
 
- - [SSL Certificate](https://cloud.google.com/load-balancing/docs/ssl-certificates)
+- [SSL Certificate](https://cloud.google.com/load-balancing/docs/ssl-certificates)
 
 Optional:
 
- - Management Tools: Cloud Deployment Manager
- - Stackdriver Logging
+- Management Tools: Cloud Deployment Manager
+- Stackdriver Logging
 
 We recommend setting up Teleport in high availability mode (HA). In HA mode Firestore
 stores the state of the system and Google Cloud Storage stores the audit logs.
 
 ![GCP Intro Image](../img/gcp/gcp-teleport.svg)
 
-
 ### Compute Engine: VM Instances with Instance Groups
+
 To run Teleport in a HA configuration we recommend using `n1-standard-2` instances in
 Production. It's best practice to separate the proxy and authentication server, using
 Instance groups for the proxy and auth server.
 
 ### Computer Engine: Health Checks
+
 GCP relies heavily on [Health Checks](https://cloud.google.com/load-balancing/docs/health-checks),
 this is helpful when adding new instances to an instance group.
 
@@ -86,7 +89,6 @@ teleport:
 ```
 
 ### Storage: Google Cloud Storage
-
 
 When creating the Bucket we would recommend setting it up as `Dual-region` and with
 `Standard` storage class. Provide access using a `Uniform` access control with a Google-managed
@@ -124,9 +126,9 @@ the correct permission via Server Accounts. Learn how to [enable and create serv
 ## GCP Quickstart
 
 ## 1. Create Resources
+
 We recommend starting by creating the resources. We highly recommend creating these
 an infrastructure automation tool such as [Cloud Deployment Manager](https://cloud.google.com/deployment-manager/) or Terraform.
-
 
 ## 2. Install & Configure Teleport
 

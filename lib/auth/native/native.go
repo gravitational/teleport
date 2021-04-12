@@ -237,7 +237,7 @@ func (k *Keygen) GenerateHostCertWithoutValidation(c services.HostCertParams) ([
 // GenerateUserCert generates a user certificate with the passed in parameters.
 // The private key of the CA to sign the certificate must be provided.
 func (k *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
-	if err := c.Check(); err != nil {
+	if err := c.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err, "error validating UserCertParams")
 	}
 	return k.GenerateUserCertWithoutValidation(c)
@@ -277,11 +277,14 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 	if c.PermitPortForwarding {
 		cert.Permissions.Extensions[teleport.CertExtensionPermitPortForwarding] = ""
 	}
-	if c.MFAVerified {
-		cert.Permissions.Extensions[teleport.CertExtensionMFAVerified] = ""
+	if c.MFAVerified != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionMFAVerified] = c.MFAVerified
 	}
 	if c.ClientIP != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionClientIP] = c.ClientIP
+	}
+	if c.Impersonator != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionImpersonator] = c.Impersonator
 	}
 
 	// Add roles, traits, and route to cluster in the certificate extensions if

@@ -14,7 +14,8 @@ We have split this guide into:
 
 ## Teleport on IBM Cloud FAQ
 
-#### Why would you want to use Teleport with IBM Cloud?
+### Why would you want to use Teleport with IBM Cloud?
+
 Teleport provides privileged access management for cloud-native infrastructure that
 doesn’t get in the way. Infosec and systems engineers can secure access to their
 infrastructure, meet compliance requirements, reduce operational overhead, and have
@@ -23,7 +24,7 @@ complete visibility into access and behavior.
 By using Teleport with IBM you can easily unify all access for both IBM Cloud and
 Softlayer infrastructure.
 
-#### Which Services can I use Teleport with?
+### Which Services can I use Teleport with?
 
 You can use Teleport for all the services that you would SSH into. This guide is
 focused on IBM Cloud. In the future we'll plan to update on how to use Teleport
@@ -35,14 +36,14 @@ This guide will cover how to setup, configure and run Teleport on IBM Cloud.
 
 IBM Services required to run Teleport in HA:
 
- - [IBM Cloud: Virtual Servers with Instance Groups](#ibm-cloud-virtual-servers-with-instance-groups)
- - [Storage: Database for etcd](#storage-database-for-etcd)
- - [Storage: IBM Cloud File Storage](#storage-ibm-cloud-file-storage)
- - [Network Services: Cloud DNS](#network-ibm-cloud-dns-services)
+- [IBM Cloud: Virtual Servers with Instance Groups](#ibm-cloud-virtual-servers-with-instance-groups)
+- [Storage: Database for etcd](#storage-database-for-etcd)
+- [Storage: IBM Cloud File Storage](#storage-ibm-cloud-file-storage)
+- [Network Services: Cloud DNS](#network-ibm-cloud-dns-services)
 
 Other things needed:
 
- - [SSL Certificate](https://www.ibm.com/cloud/ssl-certificates)
+- [SSL Certificate](https://www.ibm.com/cloud/ssl-certificates)
 
 We recommend setting up Teleport in high availability mode (HA). In HA mode [etcd](https://etcd.io/)
 stores the state of the system and [IBM Cloud Storage](https://www.ibm.com/cloud/storage)
@@ -54,9 +55,8 @@ stores the audit logs.
 
 We recommend Gen 2 Cloud IBM [Virtual Servers](https://www.ibm.com/cloud/virtual-servers) and [Auto Scaling](https://www.ibm.com/cloud/auto-scaling)
 
-  - For Staging and POCs we recommend using `bx2-2x8` machines with 2 vCPUs, 4GB RAM, 4 Gbps.
-
-  - For Production we would recommend `cx2-4x8` with 4 vCPUs, 8 GB RAM, 8 Gbps.
+- For Staging and POCs we recommend using `bx2-2x8` machines with 2 vCPUs, 4GB RAM, 4 Gbps.
+- For Production we would recommend `cx2-4x8` with 4 vCPUs, 8 GB RAM, 8 Gbps.
 
 ### Storage: Database for etcd
 
@@ -80,7 +80,6 @@ cluster.
 ![Creating IBM Server](../img/IBM/etcd-pass.png)
 ![etcd cert and host](../img/IBM/etcd-cert-and-host.png)
 
-
 ```yaml
 teleport:
   storage:
@@ -102,14 +101,17 @@ teleport:
 ```
 
 ### Storage: IBM Cloud File Storage
+
 We recommend using [IBM Cloud File Storage](https://www.ibm.com/cloud/file-storage) to store Teleport recorded sessions.
 
 1. Create New File Storage Resource. [IBM Catalog - File Storage Quick Link](https://cloud.ibm.com/catalog/infrastructure/file-storage)
 
-    1a. We recommend using `Standard`
+   1a. We recommend using `Standard`
 
 2. Create a new bucket.
+
 3. Setup [HMAC Credentials](https://cloud.ibm.com/docs/cloud-object-storage?topic=cloud-object-storage-uhc-hmac-credentials-main)
+
 4. Update audit sessions URI: `audit_sessions_uri: 's3://BUCKET-NAME/readonly/records?endpoint=s3.us-east.cloud-object-storage.appdomain.cloud&region=ibm'`
 
 When setting up `audit_sessions_uri` use `s3://` session prefix.
@@ -144,6 +146,7 @@ secret_access_key="d8762b57f61d5dd524ccd49c7d44861ceafdsfds37d05836"
 ```
 
 Example `/etc/teleport.yaml`
+
 ```yaml
 ...
 storage:
@@ -160,8 +163,8 @@ storage:
 ```
 
 <Admonition type="tip">
-When starting with `teleport start --config=/etc/teleport.yaml -d` you can confirm that the
-bucket has been created.
+  When starting with `teleport start --config=/etc/teleport.yaml -d` you can confirm that the
+  bucket has been created.
 </Admonition>
 
 ```bash

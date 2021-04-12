@@ -205,8 +205,17 @@ const AuthPreferenceSpecSchemaTemplate = `{
 					"items": {
 						"type": "string"
 					}
+				},
+				"device_attestation_cas": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
 				}
 			}
+		},
+		"require_session_mfa": {
+			"type": "boolean"
 		}%v
 	}
 }`

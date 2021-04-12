@@ -289,6 +289,7 @@ const ServerSpecV2Schema = `{
 		  "additionalProperties": false,
 		  "properties": {
 			  "name": {"type": "string"},
+			  "description": {"type": "string"},
 			  "uri": {"type": "string"},
 			  "public_addr": {"type": "string"},
 			  "insecure_skip_verify": {"type": "boolean"},

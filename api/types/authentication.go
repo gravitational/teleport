@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
@@ -57,6 +58,10 @@ type AuthPreference interface {
 	GetU2F() (*U2F, error)
 	// SetU2F sets the U2F configuration settings.
 	SetU2F(*U2F)
+
+	// GetRequireSessionMFA returns true when all sessions in this cluster
+	// require an MFA check.
+	GetRequireSessionMFA() bool
 
 	// CheckAndSetDefaults sets and default values and then
 	// verifies the constraints for AuthPreference.
@@ -225,6 +230,12 @@ func (c *AuthPreferenceV2) SetU2F(u2f *U2F) {
 	c.Spec.U2F = u2f
 }
 
+// GetRequireSessionMFA returns true when all sessions in this cluster require
+// an MFA check.
+func (c *AuthPreferenceV2) GetRequireSessionMFA() bool {
+	return c.Spec.RequireSessionMFA
+}
+
 // CheckAndSetDefaults verifies the constraints for AuthPreference.
 func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	// make sure we have defaults for all metadata fields
@@ -284,6 +295,10 @@ type AuthPreferenceSpecV2 struct {
 
 	// U2F are the settings for the U2F device.
 	U2F *U2F `json:"u2f,omitempty"`
+
+	// RequireSessionMFA causes all sessions in this cluster to require MFA
+	// checks.
+	RequireSessionMFA bool `json:"require_session_mfa,omitempty"`
 }
 
 // U2F defines settings for U2F device.
@@ -293,6 +308,10 @@ type U2F struct {
 
 	// Facets returns the facets for universal second factor.
 	Facets []string `json:"facets,omitempty"`
+
+	// DeviceAttestationCAs contains the trusted attestation CAs for U2F
+	// devices.
+	DeviceAttestationCAs []string `json:"device_attestation_cas,omitempty"`
 }
 
 func (u *U2F) Check() error {
@@ -301,6 +320,11 @@ func (u *U2F) Check() error {
 	}
 	if len(u.Facets) == 0 {
 		return trace.BadParameter("u2f configuration missing facets")
+	}
+	for _, ca := range u.DeviceAttestationCAs {
+		if _, err := tlsutils.ParseCertificatePEM([]byte(ca)); err != nil {
+			return trace.BadParameter("u2f configuration has an invalid attestation CA: %v", err)
+		}
 	}
 	return nil
 }

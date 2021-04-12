@@ -49,7 +49,7 @@ func (l *localFileSystem) Chtimes(path string, atime, mtime time.Time) error {
 // MkDir creates a directory
 func (l *localFileSystem) MkDir(path string, mode int) error {
 	fileMode := os.FileMode(mode & int(os.ModePerm))
-	err := os.MkdirAll(path, fileMode)
+	err := os.Mkdir(path, fileMode)
 	if err != nil && !os.IsExist(err) {
 		return trace.ConvertSystemError(err)
 	}

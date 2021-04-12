@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -122,6 +123,7 @@ var (
 		"u2f":                     true,
 		"app_id":                  true,
 		"facets":                  true,
+		"device_attestation_cas":  true,
 		"authentication":          true,
 		"second_factor":           false,
 		"oidc":                    true,
@@ -380,10 +382,10 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	if flags.ACMEEnabled {
 		p.ACME.EnabledFlag = "yes"
 		p.ACME.Email = flags.ACMEEmail
-		p.PublicAddr = utils.Strings{
-			net.JoinHostPort(flags.ClusterName,
-				fmt.Sprintf("%d", conf.Proxy.WebAddr.Port(defaults.HTTPListenPort))),
-		}
+		// ACME uses TLS-ALPN-01 challenge that requires port 443
+		// https://letsencrypt.org/docs/challenge-types/#tls-alpn-01
+		p.PublicAddr = utils.Strings{net.JoinHostPort(flags.ClusterName, fmt.Sprintf("%d", teleport.StandardHTTPSPort))}
+		p.WebAddr = fmt.Sprintf(":%d", teleport.StandardHTTPSPort)
 	}
 
 	fc = &FileConfig{
@@ -639,10 +641,6 @@ type Auth struct {
 	// Deprecated: Remove in Teleport 2.4.1.
 	OIDCConnectors []OIDCConnector `yaml:"oidc_connectors,omitempty"`
 
-	// Configuration for "universal 2nd factor"
-	// Deprecated: Remove in Teleport 2.4.1.
-	U2F U2F `yaml:"u2f,omitempty"`
-
 	// DynamicConfig determines when file configuration is pushed to the backend. Setting
 	// it here overrides defaults.
 	// Deprecated: Remove in Teleport 2.4.1.
@@ -747,10 +745,11 @@ func (t StaticToken) Parse() (*services.ProvisionTokenV1, error) {
 
 // AuthenticationConfig describes the auth_service/authentication section of teleport.yaml
 type AuthenticationConfig struct {
-	Type          string                     `yaml:"type"`
-	SecondFactor  constants.SecondFactorType `yaml:"second_factor,omitempty"`
-	ConnectorName string                     `yaml:"connector_name,omitempty"`
-	U2F           *UniversalSecondFactor     `yaml:"u2f,omitempty"`
+	Type              string                     `yaml:"type"`
+	SecondFactor      constants.SecondFactorType `yaml:"second_factor,omitempty"`
+	ConnectorName     string                     `yaml:"connector_name,omitempty"`
+	U2F               *UniversalSecondFactor     `yaml:"u2f,omitempty"`
+	RequireSessionMFA bool                       `yaml:"require_session_mfa,omitempty"`
 
 	// LocalAuth controls if local authentication is allowed.
 	LocalAuth *services.Bool `yaml:"local_auth"`
@@ -762,14 +761,18 @@ func (a *AuthenticationConfig) Parse() (services.AuthPreference, error) {
 
 	var u services.U2F
 	if a.U2F != nil {
-		u = a.U2F.Parse()
+		u, err = a.U2F.Parse()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
-		Type:          a.Type,
-		SecondFactor:  a.SecondFactor,
-		ConnectorName: a.ConnectorName,
-		U2F:           &u,
+		Type:              a.Type,
+		SecondFactor:      a.SecondFactor,
+		ConnectorName:     a.ConnectorName,
+		U2F:               &u,
+		RequireSessionMFA: a.RequireSessionMFA,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -784,15 +787,37 @@ func (a *AuthenticationConfig) Parse() (services.AuthPreference, error) {
 }
 
 type UniversalSecondFactor struct {
-	AppID  string   `yaml:"app_id"`
-	Facets []string `yaml:"facets"`
+	AppID                string   `yaml:"app_id"`
+	Facets               []string `yaml:"facets"`
+	DeviceAttestationCAs []string `yaml:"device_attestation_cas"`
 }
 
-func (u *UniversalSecondFactor) Parse() services.U2F {
-	return services.U2F{
+func (u *UniversalSecondFactor) Parse() (services.U2F, error) {
+	res := services.U2F{
 		AppID:  u.AppID,
 		Facets: u.Facets,
 	}
+	// DeviceAttestationCAs are either file paths or raw PEM blocks.
+	for _, ca := range u.DeviceAttestationCAs {
+		_, parseErr := tlsutils.ParseCertificatePEM([]byte(ca))
+		if parseErr == nil {
+			// Successfully parsed as a PEM block, add it.
+			res.DeviceAttestationCAs = append(res.DeviceAttestationCAs, ca)
+			continue
+		}
+
+		// Try reading as a file and parsing that.
+		data, err := ioutil.ReadFile(ca)
+		if err != nil {
+			return res, trace.BadParameter("device_attestation_cas value %q is not a valid x509 certificate (%v) and can't be read as a file (%v)", ca, parseErr, err)
+		}
+
+		if _, err := tlsutils.ParseCertificatePEM(data); err != nil {
+			return res, trace.BadParameter("device_attestation_cas file %q contains an invalid x509 certificate: %v", ca, err)
+		}
+		res.DeviceAttestationCAs = append(res.DeviceAttestationCAs, string(data))
+	}
+	return res, nil
 }
 
 // SSH is 'ssh_service' section of the config file
@@ -828,6 +853,10 @@ type PAM struct {
 	// UsePAMAuth specifies whether to trigger the "auth" PAM modules from the
 	// policy.
 	UsePAMAuth bool `yaml:"use_pam_auth"`
+
+	// Environment represents environment variables to pass to PAM.
+	// These may contain role-style interpolation syntax.
+	Environment map[string]string `yaml:"environment,omitempty"`
 }
 
 // Parse returns a parsed pam.Config.
@@ -841,6 +870,7 @@ func (p *PAM) Parse() *pam.Config {
 		Enabled:     enabled,
 		ServiceName: serviceName,
 		UsePAMAuth:  p.UsePAMAuth,
+		Environment: p.Environment,
 	}
 }
 
@@ -902,12 +932,22 @@ type Database struct {
 	DynamicLabels []CommandLabel `yaml:"dynamic_labels,omitempty"`
 	// AWS contains AWS specific settings for RDS/Aurora databases.
 	AWS DatabaseAWS `yaml:"aws"`
+	// GCP contains GCP specific settings for Cloud SQL databases.
+	GCP DatabaseGCP `yaml:"gcp"`
 }
 
 // DatabaseAWS contains AWS specific settings for RDS/Aurora databases.
 type DatabaseAWS struct {
 	// Region is a cloud region for RDS/Aurora database endpoint.
 	Region string `yaml:"region,omitempty"`
+}
+
+// DatabaseGCP contains GCP specific settings for Cloud SQL databases.
+type DatabaseGCP struct {
+	// ProjectID is the GCP project ID where the database is deployed.
+	ProjectID string `yaml:"project_id,omitempty"`
+	// InstanceID is the Cloud SQL database instance ID.
+	InstanceID string `yaml:"instance_id,omitempty"`
 }
 
 // Apps represents the configuration for the collection of applications this
@@ -930,6 +970,9 @@ type Apps struct {
 type App struct {
 	// Name of the application.
 	Name string `yaml:"name"`
+
+	// Description is an optional free-form app description.
+	Description string `yaml:"description,omitempty"`
 
 	// URI is the internal address of the application.
 	URI string `yaml:"uri"`
@@ -1247,33 +1290,4 @@ func (o *OIDCConnector) Parse() (services.OIDCConnector, error) {
 		return nil, trace.Wrap(err)
 	}
 	return v2, nil
-}
-
-type U2F struct {
-	AppID  string   `yaml:"app_id,omitempty"`
-	Facets []string `yaml:"facets,omitempty"`
-}
-
-// Parse parses values in the U2F configuration section and validates its content.
-func (u *U2F) Parse() (*services.U2F, error) {
-	// If no appID specified, default to hostname
-	appID := u.AppID
-	if appID == "" {
-		hostname, err := os.Hostname()
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to automatically determine U2F AppID from hostname")
-		}
-		appID = fmt.Sprintf("https://%s:%d", strings.ToLower(hostname), defaults.HTTPListenPort)
-	}
-
-	// If no facets specified, default to AppID
-	facets := u.Facets
-	if len(facets) == 0 {
-		facets = []string{appID}
-	}
-
-	return &services.U2F{
-		AppID:  appID,
-		Facets: facets,
-	}, nil
 }

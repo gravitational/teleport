@@ -1,5 +1,5 @@
 /*
-Copyright 2017-2020 Gravitational, Inc.
+Copyright 2017-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -126,7 +126,13 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		AcceptedUsage: cfg.AcceptedUsage,
 		Limiter:       limiter,
 	}
-	authMiddleware.Wrap(NewAPIServer(&cfg.APIConfig))
+
+	apiServer, err := NewAPIServer(&cfg.APIConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authMiddleware.Wrap(apiServer)
 	// Wrap sets the next middleware in chain to the authMiddleware
 	limiter.WrapHandle(authMiddleware)
 	// force client auth if given
@@ -161,6 +167,12 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if cfg.PluginRegistry != nil {
+		if err := cfg.PluginRegistry.RegisterAuthServices(server.grpcServer); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return server, nil

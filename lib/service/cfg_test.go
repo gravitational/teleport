@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/stretchr/testify/require"
@@ -198,6 +199,73 @@ func TestCheckDatabase(t *testing.T) {
 				Protocol: defaults.ProtocolPostgres,
 				URI:      "localhost:5432",
 				CACert:   []byte("cert"),
+			},
+			outErr: true,
+		},
+		{
+			desc: "GCP valid configuration",
+			inDatabase: Database{
+				Name:     "example",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				GCP: DatabaseGCP{
+					ProjectID:  "project-1",
+					InstanceID: "instance-1",
+				},
+				CACert: fixtures.LocalhostCert,
+			},
+			outErr: false,
+		},
+		{
+			desc: "GCP project ID specified without instance ID",
+			inDatabase: Database{
+				Name:     "example",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				GCP: DatabaseGCP{
+					ProjectID: "project-1",
+				},
+				CACert: fixtures.LocalhostCert,
+			},
+			outErr: true,
+		},
+		{
+			desc: "GCP instance ID specified without project ID",
+			inDatabase: Database{
+				Name:     "example",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				GCP: DatabaseGCP{
+					InstanceID: "instance-1",
+				},
+				CACert: fixtures.LocalhostCert,
+			},
+			outErr: true,
+		},
+		{
+			desc: "GCP root cert missing",
+			inDatabase: Database{
+				Name:     "example",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				GCP: DatabaseGCP{
+					ProjectID:  "project-1",
+					InstanceID: "instance-1",
+				},
+			},
+			outErr: true,
+		},
+		{
+			desc: "GCP unsupported for MySQL",
+			inDatabase: Database{
+				Name:     "example",
+				Protocol: defaults.ProtocolMySQL,
+				URI:      "localhost:3306",
+				GCP: DatabaseGCP{
+					ProjectID:  "project-1",
+					InstanceID: "instance-1",
+				},
+				CACert: fixtures.LocalhostCert,
 			},
 			outErr: true,
 		},

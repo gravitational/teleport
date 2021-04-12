@@ -38,7 +38,7 @@ func NewProvisioningService(backend backend.Backend) *ProvisioningService {
 }
 
 // UpsertToken adds provisioning tokens for the auth server
-func (s *ProvisioningService) UpsertToken(p services.ProvisionToken) error {
+func (s *ProvisioningService) UpsertToken(ctx context.Context, p services.ProvisionToken) error {
 	if err := p.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -55,7 +55,7 @@ func (s *ProvisioningService) UpsertToken(p services.ProvisionToken) error {
 		Expires: p.Expiry(),
 		ID:      p.GetResourceID(),
 	}
-	_, err = s.Put(context.TODO(), item)
+	_, err = s.Put(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -69,11 +69,11 @@ func (s *ProvisioningService) DeleteAllTokens() error {
 }
 
 // GetToken finds and returns token by ID
-func (s *ProvisioningService) GetToken(token string) (services.ProvisionToken, error) {
+func (s *ProvisioningService) GetToken(ctx context.Context, token string) (services.ProvisionToken, error) {
 	if token == "" {
 		return nil, trace.BadParameter("missing parameter token")
 	}
-	item, err := s.Get(context.TODO(), backend.Key(tokensPrefix, token))
+	item, err := s.Get(ctx, backend.Key(tokensPrefix, token))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -81,18 +81,18 @@ func (s *ProvisioningService) GetToken(token string) (services.ProvisionToken, e
 		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 }
 
-func (s *ProvisioningService) DeleteToken(token string) error {
+func (s *ProvisioningService) DeleteToken(ctx context.Context, token string) error {
 	if token == "" {
 		return trace.BadParameter("missing parameter token")
 	}
-	err := s.Delete(context.TODO(), backend.Key(tokensPrefix, token))
+	err := s.Delete(ctx, backend.Key(tokensPrefix, token))
 	return trace.Wrap(err)
 }
 
 // GetTokens returns all active (non-expired) provisioning tokens
-func (s *ProvisioningService) GetTokens(opts ...services.MarshalOption) ([]services.ProvisionToken, error) {
+func (s *ProvisioningService) GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]services.ProvisionToken, error) {
 	startKey := backend.Key(tokensPrefix)
-	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

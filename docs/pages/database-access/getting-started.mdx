@@ -51,11 +51,14 @@ or service account in order to use this policy.
 This policy allows any database account to connect to the Aurora instance specified
 with resource ID using IAM auth.
 
-<Admonition type="note" title="Resource ID">
-Database resource ID is shown on the Configuration tab of a particular
-database instance in RDS control panel, under "Resource id". For regular
-RDS database it starts with `db-` prefix. For Aurora, use the database
-cluster resource ID (`cluster-`), not individual instance ID.
+<Admonition
+  type="note"
+  title="Resource ID"
+>
+  Database resource ID is shown on the Configuration tab of a particular
+  database instance in RDS control panel, under "Resource id". For regular
+  RDS database it starts with `db-` prefix. For Aurora, use the database
+  cluster resource ID (`cluster-`), not individual instance ID.
 </Admonition>
 
 Finally, connect to the database and create a database account with IAM auth
@@ -74,10 +77,8 @@ see Amazon [documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuid
 
 Teleport Database Access is available starting from `6.0.0` release.
 
-Download the appropriate version of Teleport for your platform from the table
-below, or visit our [downloads page](https://goteleport.com/teleport/download).
-
-{!docs/pages/preview/releases-table.mdx!}
+Download the appropriate version of Teleport for your platform from
+our [downloads page](https://goteleport.com/teleport/download).
 
 Teleport requires a valid TLS certificate to operate and can fetch one automatically
 using Let's Encrypt [ACME](https://letsencrypt.org/how-it-works/) protocol.
@@ -91,10 +92,13 @@ Let's generate a Teleport config with ACME enabled:
 $ teleport configure --cluster-name=teleport.example.com --acme --acme-email=alice@example.com > /tmp/teleport.yaml
 ```
 
-<Admonition type="warning" title="Web Proxy Port">
-Teleport's ACME protocol integration currently requires web proxy to run on
-port 443 so open /tmp/teleport.yaml and update `proxy_service.web_listen_addr`
-and `proxy_service.public_addr` to use port 443 instead of the default 3080.
+<Admonition
+  type="warning"
+  title="Web Proxy Port"
+>
+  Teleport's ACME protocol integration currently requires web proxy to run on
+  port 443 so open /tmp/teleport.yaml and update `proxy_service.web_listen_addr`
+  and `proxy_service.public_addr` to use port 443 instead of the default 3080.
 </Admonition>
 
 Now start Teleport and point it to your Aurora database instance. Make sure to
@@ -109,9 +113,12 @@ $ sudo teleport start --config=/tmp/teleport.yaml \
   --db-aws-region=us-west-1
 ```
 
-<Admonition type="note" title="AWS Credentials">
-The node that connects to the database should have AWS credentials configured
-with the policy from [step 1](#step-13-setup-aurora).
+<Admonition
+  type="note"
+  title="AWS Credentials"
+>
+  The node that connects to the database should have AWS credentials configured
+  with the policy from [step 1](#step-13-setup-aurora).
 </Admonition>
 
 Create the role that will allow a user to connect to any database using any
@@ -172,8 +179,8 @@ psql "service=<cluster>-aurora user=alice dbname=postgres"
 For the next steps, dive deeper into the topics relevant to your Database
 Access use-case, for example:
 
-* Learn in more detail about AWS hosted [PostgreSQL](./guides/postgres-aws.mdx) or [MySQL](./guides/mysql-aws.mdx).
-* Learn how to connect to a self-hosted [PostgreSQL](./guides/postgres-self-hosted.mdx) or [MySQL](./guides/mysql-self-hosted.mdx).
-* Learn how to configure [GUI clients](./guides/gui-clients.mdx).
-* Learn about Database Access [role-based access control](./rbac.mdx).
-* See [frequently asked questions](./faq.mdx).
+- Learn in more detail about AWS hosted [PostgreSQL](./guides/postgres-aws.mdx), [MySQL](./guides/mysql-aws.mdx), or GCP hosted [PostgreSQL](./guides/postgres-cloudsql.mdx).
+- Learn how to connect to a self-hosted [PostgreSQL](./guides/postgres-self-hosted.mdx) or [MySQL](./guides/mysql-self-hosted.mdx).
+- Learn how to configure [GUI clients](./guides/gui-clients.mdx).
+- Learn about Database Access [role-based access control](./rbac.mdx).
+- See [frequently asked questions](./faq.mdx).

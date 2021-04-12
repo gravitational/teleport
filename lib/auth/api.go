@@ -73,6 +73,9 @@ type ReadAccessPoint interface {
 	// GetClusterConfig returns cluster level configuration.
 	GetClusterConfig(opts ...services.MarshalOption) (services.ClusterConfig, error)
 
+	// GetAuthPreference returns the cluster authentication configuration.
+	GetAuthPreference() (services.AuthPreference, error)
+
 	// GetNamespaces returns a list of namespaces
 	GetNamespaces() ([]services.Namespace, error)
 
@@ -101,10 +104,10 @@ type ReadAccessPoint interface {
 	GetUsers(withSecrets bool) ([]services.User, error)
 
 	// GetRole returns role by name
-	GetRole(name string) (services.Role, error)
+	GetRole(ctx context.Context, name string) (services.Role, error)
 
 	// GetRoles returns a list of roles
-	GetRoles() ([]services.Role, error)
+	GetRoles(ctx context.Context) ([]services.Role, error)
 
 	// GetAllTunnelConnections returns all tunnel connections
 	GetAllTunnelConnections(opts ...services.MarshalOption) ([]services.TunnelConnection, error)
@@ -180,10 +183,10 @@ type Cache interface {
 	GetStaticTokens() (services.StaticTokens, error)
 
 	// GetTokens returns all active (non-expired) provisioning tokens
-	GetTokens(opts ...services.MarshalOption) ([]services.ProvisionToken, error)
+	GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]services.ProvisionToken, error)
 
 	// GetToken finds and returns token by ID
-	GetToken(token string) (services.ProvisionToken, error)
+	GetToken(ctx context.Context, token string) (services.ProvisionToken, error)
 
 	// NewWatcher returns a new event watcher
 	NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error)
