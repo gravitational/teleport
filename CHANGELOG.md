@@ -1,5 +1,11 @@
 # Changelog
 
+## 6.1.1
+
+This release of Teleport contains a bug fix.
+
+* Fixed an issue where DEB builds were not published to the [Teleport DEB repository](https://deb.releases.teleport.dev/).
+
 ## 6.1.0
 
 Teleport 6.1 contains multiple new features, improvements, and bug fixes.
