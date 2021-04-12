@@ -179,7 +179,7 @@ auth server initialization procedure:
 
 ## Implementation
 
-The resource label `teleport.io/origin` (below shortened to `origin` for
+The resource label `teleport.dev/origin` (below shortened to `origin` for
 brevity) is used as the key indicator when determining the configuration
 sources and their precedence.
 
@@ -200,7 +200,7 @@ desired/target `origin` value:
 | **`config-file`** | remove from `teleport.yaml` |  change in `teleport.yaml` & restart | `tctl create --force --confirm` |
 |   **`dynamic`**   |          `tctl rm`          | specify in `teleport.yaml` & restart |      `tctl create --force`      |
 
-The `teleport.io/origin` label is reserved for system use.  Resources derived
+The `teleport.dev/origin` label is reserved for system use.  Resources derived
 from `teleport.yaml` are necessarily labelled either as `defaults` (when the
 relevant section is left unspecified) or as `config-file` (when the section is
 explicitly specified).  Auth server API handlers automatically disregard the
