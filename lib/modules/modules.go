@@ -116,10 +116,8 @@ func (p *defaultModules) Features() Features {
 	}
 }
 
-// IsBoringBinary checks if the binary was compiled with BoringCrypto.
-func (p *defaultModules) IsBoringBinary() bool {
-	return false
-}
+// (p *defaultModules) IsBoringBinary() implemented in the appropriate
+// is_boring_binary_(fips|non_fips).go file
 
 var (
 	mutex   sync.Mutex
