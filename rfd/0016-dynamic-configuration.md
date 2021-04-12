@@ -179,33 +179,32 @@ auth server initialization procedure:
 
 ## Implementation
 
-The resource label `origin` is to be used as the key indicator when determining
-the configuration sources and their precedence.
+The resource label `teleport.dev/origin` (below shortened to `origin` for
+brevity) is used as the key indicator when determining the configuration
+sources and their precedence.
 
-The label can be associated with three classes of values:
+The label can be associated with three values:
 
-1. `defaults`: for hard-coded resource objects supplied in lieu of
-   configuration not provided by the user;
-2. `config-file`: for resource objects derived from static configuration
-   provided by the user;
-3. any other string (incl. empty): for resource objects created
-   "dynamically" by the user.
+1. `defaults`: for hard-coded resource objects consisting of default settings;
+2. `config-file`: for resource objects derived from static configuration;
+3. `dynamic`: for resource objects created "dynamically" (e.g. via `tctl`).
 
 The following table captures the ordinary means of performing the "fastest"
 transition between a pair of `origin` values.  The leftmost column is the
 current/source `origin` value of a resource while the top row is the
 desired/target `origin` value:
 
-|    *from \ to*    |        **`defaults`**       |           **`config-file`**          |           **(other)**           |
+|    *from \ to*    |        **`defaults`**       |           **`config-file`**          |          **`dynamic`**          |
 |       :---:       |            :---:            |                 :---:                |              :---:              |
 |   **`defaults`**  |             n/a             | specify in `teleport.yaml` & restart |          `tctl create`          |
 | **`config-file`** | remove from `teleport.yaml` |  change in `teleport.yaml` & restart | `tctl create --force --confirm` |
-|    **(other)**    |          `tctl rm`          | specify in `teleport.yaml` & restart |      `tctl create --force`      |
+|   **`dynamic`**   |          `tctl rm`          | specify in `teleport.yaml` & restart |      `tctl create --force`      |
 
-Note that the `origin` label is not reserved or protected in any special way
-by the system and so it can be modified by the same means as other labels.
-User activity can disrupt the intended semantics and cause the label's value to
-cease to be representative of the actual origin or values of a resource.
+The `teleport.dev/origin` label is reserved for system use.  Resources derived
+from `teleport.yaml` are necessarily labelled either as `defaults` (when the
+relevant section is left unspecified) or as `config-file` (when the section is
+explicitly specified).  Auth server API handlers automatically disregard the
+supplied `origin` value and reset it to `dynamic`.
 
 ### Auth server initialization
 
