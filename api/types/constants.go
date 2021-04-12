@@ -234,7 +234,7 @@ const (
 const (
 	// OriginLabel is a resource metadata label name used to identify a source
 	// that the resource originates from.
-	OriginLabel = "teleport.io/origin"
+	OriginLabel = "teleport.dev/origin"
 
 	// OriginConfigFile is an origin value indicating that the resource was
 	// constructed as a default value.
