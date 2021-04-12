@@ -188,12 +188,38 @@ auth_service:
         second_factor: otp
         # this section is used if second_factor is set to 'u2f'
         u2f:
-            # app_id must point to the URL of the Teleport Web UI (proxy) accessible
-            # by the end users
+            # public address of the Teleport proxy, _including_ the `https://`
+            # prefix and port number.
+            #
+            # IMPORTANT: app_id must never change in the lifetime of the
+            # cluster, because it's recorded in the registration data on the
+            # U2F device. If the app_id changes, all existing U2F key
+            # registrations will become invalid and all users who use U2F as
+            # the second factor will need to re-register.
             app_id: https://localhost:3080
-            # facets must list all proxy servers if there are more than one deployed
+
+            # list of allowed addresses of the Teleport proxy, checked during
+            # authentication attempts. This list is used to prevent malicious
+            # websites and proxies from requesting U2F challenges on behalf of
+            # the legitimate proxy.
             facets:
             - https://localhost:3080
+            - https://localhost
+            - localhost:3080
+            - localhost
+
+            # optional list of certificate authorities (as local file paths or
+            # in-line PEM certificate string) for U2F [device
+            # attestation](https://fidoalliance.org/specs/fido-u2f-v1.0-nfc-bt-amendment-20150514/fido-u2f-overview.html#verifying-that-a-u2f-device-is-genuine)
+            # verification. This field allows you to restrict which U2F device
+            # vendors you trust. Devices from other vendors will be rejected
+            # during registration. By default, any vendor is allowed.
+            device_attestation_cas:
+            - /path/to/u2f_ca.pem
+            - |
+              -----BEGIN CERTIFICATE-----
+              ...
+              -----END CERTIFICATE-----
 
     # IP and the port to bind to. Other Teleport nodes will be connecting to
     # this port (AKA "Auth API" or "Cluster API") to validate client

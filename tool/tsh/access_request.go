@@ -206,7 +206,12 @@ func onRequestShow(cf *CLIConf) error {
 }
 
 func onRequestCreate(cf *CLIConf) error {
-	if err := executeAccessRequest(cf); err != nil {
+	tc, err := makeClient(cf, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := executeAccessRequest(cf, tc); err != nil {
 		return trace.Wrap(err)
 	}
 

@@ -1,5 +1,60 @@
 # Changelog
 
+## 6.1.0
+
+Teleport 6.1 contains multiple new features, improvements, and bug fixes.
+
+## New Features
+
+### U2F for Kubernetes and SSH sessions
+
+Added support for U2F authentication on every SSH and Kubernetes "connection" (a single `tsh ssh` or `kubectl` call). This is an advanced security feature that protects users against compromises of their on-disk Teleport certificates. Per-session MFA can be enforced cluster-wide or only for some specific roles.
+
+For more details see [Per-Session MFA](https://goteleport.com/docs/access-controls/guides/per-session-mfa) documentation or [RFD 14](https://github.com/gravitational/teleport/blob/master/rfd/0014-session-2FA.md) and [RFD 15](https://github.com/gravitational/teleport/blob/master/rfd/0015-2fa-management.md) for technical details.
+
+### Dual Authorization Workflows
+
+Added ability to request multiple users to review and approve access requests.
+
+See [#5071](https://github.com/gravitational/teleport/pull/5071) for technical details.
+
+## Improvements 
+
+* Added the ability to propagate SSO claims to PAM modules. [#6158](https://github.com/gravitational/teleport/pull/6158)
+* Added support for cluster routing to reduce latency to leaf clusters. [RFD 21](https://github.com/gravitational/teleport/blob/master/rfd/0021-cluster-routing.md)
+* Added support for Google Cloud SQL to Database Access. [#6090](https://github.com/gravitational/teleport/pull/6090)
+* Added support CLI credential issuance for Application Access. [#5918](https://github.com/gravitational/teleport/pull/5918)
+* Added support for Encrypted SAML Assertions. [#5598](https://github.com/gravitational/teleport/pull/5598)
+* Added support for user impersonation. [#6073](https://github.com/gravitational/teleport/pull/6073)
+
+## Fixes
+
+* Fixed interoperability issues with `gpg-agent`. [RFD 18](http://github.com/gravitational/teleport/blob/master/rfd/0018-agent-loading.md)
+* Fixed websocket support in Application Access. [#6028](https://github.com/gravitational/teleport/pull/6028)
+* Fixed file argument issues with `tsh play`. [#1580](https://github.com/gravitational/teleport/issues/1580)
+* Fixed `utmp` regressions that caused issues in LXC containers. [#6256](https://github.com/gravitational/teleport/pull/6256)
+
+## 6.0.3
+
+This release of Teleport contains a bug fix.
+
+* Fixed a issue that caused high network on deployments with many leaf Trusted Clusters. [#6263](https://github.com/gravitational/teleport/pull/6263)
+
+## 6.0.2
+
+This release of Teleport contains bug fixes and adds new default roles.
+
+* Fixed an issue with proxy web endpoint resetting connection when run with `--insecure-no-tls` flag. [#5923](https://github.com/gravitational/teleport/pull/5923)
+* Introduced role presets: `auditor`, `editor` and `access`. [#5968](https://github.com/gravitational/teleport/pull/5968)
+* Added ability to inline `google_service_account` field into Google Workspace OIDC connector. [#5563](http://github.com/gravitational/teleport/pull/5563)
+
+## 6.0.1
+
+This release of Teleport contains multiple bug fixes.
+
+* Fixed issue that caused ACME default configuration to fail with `TLS-ALPN-01` challenge. [#5839](https://github.com/gravitational/teleport/pull/5839)
+* Fixed regression in ADFS integration. [#5880](https://github.com/gravitational/teleport/pull/5880)
+
 ## 6.0.0
 
 Teleport 6.0 is a major release with new features, functionality, and bug fixes.

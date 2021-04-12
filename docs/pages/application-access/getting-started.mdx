@@ -1,0 +1,119 @@
+---
+title: Application Access Getting Started Guide
+description: Getting started with Teleport Application Access
+---
+
+# Getting Started
+
+Let's connect to Grafana using Teleport Application Access in 3 steps:
+
+- Launch Grafana in a Docker container.
+- Install Teleport and configure it it to proxy Grafana.
+- Access Grafana through Teleport.
+
+## Follow along with our video guide
+
+<iframe
+  width="712"
+  height="400"
+  src="https://www.youtube-nocookie.com/embed/5Uwhp3IQMHY?rel=0&modestbranding=1"
+  frameBorder="0"
+  allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+/>
+
+## Prerequisites
+
+- We will use Docker to launch Grafana in a container. Alternatively, if you
+  have another web application you'd like to protect with App Access, you can
+  use that instead.
+- We will assume your Teleport cluster is accessible at `teleport.example.com`
+  and `*.teleport.example.com`. Configured DNS records are required to
+  automatically fetch a Let's Encrypt certificate.
+
+## Step 1/3. Start Grafana
+
+We've picked Grafana for this tutorial since it's very easy to run with zero
+configuration required. If you have another web application you'd like to
+expose, skip over to Step 2.
+
+Grafana can be launched in a [Docker container](https://grafana.com/docs/grafana/latest/installation/docker/)
+with a single command:
+
+```sh
+$ docker run -d -p 3000:3000 grafana/grafana
+```
+
+## Step 2/3. Install and Configure Teleport
+
+Download the latest version of Teleport for your platform from our
+[downloads page](https://goteleport.com/teleport/download).
+
+Teleport requires a valid TLS certificate to operate and can fetch one automatically
+using Let's Encrypt [ACME](https://letsencrypt.org/how-it-works/) protocol.
+
+We will assume that you have configured DNS records for `teleport.example.com`
+and `*.teleport.example.com` to point to the Teleport node.
+
+Let's generate a Teleport config with ACME enabled:
+
+```shell
+$ teleport configure --cluster-name=teleport.example.com --acme --acme-email=alice@example.com -o file
+```
+
+<Admonition
+  type="note"
+  title="Web Proxy Port"
+>
+  Teleport uses [TLS-ALPN-01](https://letsencrypt.org/docs/challenge-types/#tls-alpn-01)
+  ACME challenge to validate certificate requests which only works on port `443`.
+  As such, in order to use ACME for certificate management, web proxy needs to
+  be accessible on port `443`.
+</Admonition>
+
+Now start Teleport and point it to the application endpoint:
+
+```shell
+$ sudo teleport start \
+  --roles=proxy,auth,app \
+  --app-name=grafana \
+  --app-uri=http://localhost:3000
+```
+
+Make sure to update `--app-name` and `--app-uri` accordingly if you're using
+your own web application.
+
+Next let's create a user that access to the application we've just connected.
+Teleport has a built-in role called `access` that allows users to access cluster
+resources. Create a local user assigned this role:
+
+```sh
+$ tctl users add --roles=access alice
+```
+
+The command will output a signup link. Use it to choose a password and set up
+second factor. After that it will take you to the Teleport web UI.
+
+## Step 3/3. Access the Application
+
+There are a couple of ways to access the proxied application.
+
+Every application is assigned a public address which you use to navigate to
+the application directly. In our sample Grafana application we have provided a public address with
+the `--app-public-addr` flag, so go to `https://grafana.teleport.example.com`
+(replace with your app public address) to access the app. If you're not logged into Teleport,
+you will need to authenticate before the application will show.
+
+Alternatively, log into the Teleport web UI at `https://teleport.example.com`
+(replace with your proxy public address). All available applications are
+displayed on the Applications tab. Click on the Grafana application tile
+to access it.
+
+## Next Steps
+
+Dive deeper into the topics relevant to your Application Access use-case:
+
+- Learn in more detail about [connecting applications](./guides/connecting-apps.mdx) with Application Access.
+- Learn about integrating with [JWT tokens](./guides/jwt.mdx) for auth.
+- Learn how to use Application Access with [RESTful APIs](./guides/api-access.mdx).
+- See full configuration and CLI [reference](./reference.mdx).
