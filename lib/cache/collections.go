@@ -946,7 +946,7 @@ func (c *provisionToken) erase(ctx context.Context) error {
 }
 
 func (c *provisionToken) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	tokens, err := c.Provisioner.GetTokens()
+	tokens, err := c.Provisioner.GetTokens(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -956,7 +956,7 @@ func (c *provisionToken) fetch(ctx context.Context) (apply func(ctx context.Cont
 		}
 		for _, resource := range tokens {
 			c.setTTL(resource)
-			if err := c.provisionerCache.UpsertToken(resource); err != nil {
+			if err := c.provisionerCache.UpsertToken(ctx, resource); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -967,7 +967,7 @@ func (c *provisionToken) fetch(ctx context.Context) (apply func(ctx context.Cont
 func (c *provisionToken) processEvent(ctx context.Context, event services.Event) error {
 	switch event.Type {
 	case backend.OpDelete:
-		err := c.provisionerCache.DeleteToken(event.Resource.GetName())
+		err := c.provisionerCache.DeleteToken(ctx, event.Resource.GetName())
 		if err != nil {
 			// resource could be missing in the cache
 			// expired or not created, if the first consumed
@@ -983,7 +983,7 @@ func (c *provisionToken) processEvent(ctx context.Context, event services.Event)
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
 		c.setTTL(resource)
-		if err := c.provisionerCache.UpsertToken(resource); err != nil {
+		if err := c.provisionerCache.UpsertToken(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
 	default:

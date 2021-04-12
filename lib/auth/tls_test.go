@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -50,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -245,19 +245,19 @@ func (s *TLSSuite) TestRemoteRotation(c *check.C) {
 	clone := remoteCA.Clone()
 	clone.SetName(s.server.ClusterName())
 	err = remoteProxy.RotateExternalCertAuthority(clone)
-	fixtures.ExpectNotFound(c, err)
+	fixtures.ExpectAccessDenied(c, err)
 
 	// remote proxy can't upsert the certificate authority,
 	// only to rotate it (in remote rotation only certain fields are updated)
 	err = remoteProxy.UpsertCertAuthority(remoteCA)
-	fixtures.ExpectNotFound(c, err)
+	fixtures.ExpectAccessDenied(c, err)
 
 	// remote proxy can't read local cert authority with secrets
 	_, err = remoteProxy.GetCertAuthority(services.CertAuthID{
 		DomainName: s.server.ClusterName(),
 		Type:       services.HostCA,
 	}, true)
-	fixtures.ExpectNotFound(c, err)
+	fixtures.ExpectAccessDenied(c, err)
 
 	// no secrets read is allowed
 	_, err = remoteProxy.GetCertAuthority(services.CertAuthID{
@@ -313,7 +313,7 @@ func (s *TLSSuite) TestLocalProxyPermissions(c *check.C) {
 
 	// local proxy can't update local cert authorities
 	err = proxy.UpsertCertAuthority(ca)
-	fixtures.ExpectNotFound(c, err)
+	fixtures.ExpectAccessDenied(c, err)
 
 	// local proxy is allowed to update host CA of remote cert authorities
 	remoteCA, err := s.server.Auth().GetCertAuthority(services.CertAuthID{
@@ -861,15 +861,15 @@ func (s *TLSSuite) TestNopUser(c *check.C) {
 
 	// But can not get users or nodes
 	_, err = client.GetUsers(false)
-	fixtures.ExpectNotFound(c, err)
+	fixtures.ExpectAccessDenied(c, err)
 
 	_, err = client.GetNodes(defaults.Namespace, services.SkipValidation())
-	fixtures.ExpectNotFound(c, err)
+	fixtures.ExpectAccessDenied(c, err)
 
 	// Endpoints that allow current user access should return access denied to
 	// the Nop user.
 	err = client.CheckPassword("foo", nil, "")
-	fixtures.ExpectNotFound(c, err)
+	fixtures.ExpectAccessDenied(c, err)
 }
 
 // TestOwnRole tests that user can read roles assigned to them (used by web UI)
@@ -897,7 +897,7 @@ func (s *TLSSuite) TestReadOwnRole(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	_, err = userClient2.GetRole(ctx, userRole.GetName())
-	fixtures.ExpectNotFound(c, err)
+	fixtures.ExpectAccessDenied(c, err)
 }
 
 func (s *TLSSuite) TestAuthPreference(c *check.C) {
@@ -1448,7 +1448,7 @@ func (s *TLSSuite) TestWebSessionWithoutAccessRequest(c *check.C) {
 
 	// Requesting forbidden action for user fails
 	err = web.DeleteUser(context.TODO(), user)
-	fixtures.ExpectNotFound(c, err)
+	fixtures.ExpectAccessDenied(c, err)
 
 	err = clt.DeleteWebSession(user, ws.GetName())
 	c.Assert(err, check.IsNil)
@@ -1551,7 +1551,7 @@ func (s *TLSSuite) TestGetCertAuthority(c *check.C) {
 		DomainName: s.server.ClusterName(),
 		Type:       services.HostCA,
 	}, true)
-	fixtures.ExpectNotFound(c, err)
+	fixtures.ExpectAccessDenied(c, err)
 
 	// non-admin users are not allowed to get access to private key material
 	user, err := services.NewUser("bob")
@@ -1582,7 +1582,7 @@ func (s *TLSSuite) TestGetCertAuthority(c *check.C) {
 		DomainName: s.server.ClusterName(),
 		Type:       services.HostCA,
 	}, true)
-	fixtures.ExpectNotFound(c, err)
+	fixtures.ExpectAccessDenied(c, err)
 }
 
 func (s *TLSSuite) TestAccessRequest(c *check.C) {
@@ -1751,14 +1751,21 @@ func (s *TLSSuite) TestPluginData(c *check.C) {
 	userClient, err := s.server.NewClient(testUser)
 	c.Assert(err, check.IsNil)
 
+	plugin := "my-plugin"
+	_, err = CreateAccessPluginUser(context.TODO(), s.server.Auth(), plugin)
+	c.Assert(err, check.IsNil)
+
+	pluginUser := TestUser(plugin)
+	pluginUser.TTL = time.Hour
+	pluginClient, err := s.server.NewClient(pluginUser)
+	c.Assert(err, check.IsNil)
+
 	req, err := services.NewAccessRequest(user, role)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(userClient.CreateAccessRequest(context.TODO(), req), check.IsNil)
 
-	plugin := "my-plugin"
-
-	err = s.server.Auth().UpdatePluginData(context.TODO(), services.PluginDataUpdateParams{
+	err = pluginClient.UpdatePluginData(context.TODO(), services.PluginDataUpdateParams{
 		Kind:     services.KindAccessRequest,
 		Resource: req.GetName(),
 		Plugin:   plugin,
@@ -1768,7 +1775,7 @@ func (s *TLSSuite) TestPluginData(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	data, err := s.server.Auth().GetPluginData(context.TODO(), services.PluginDataFilter{
+	data, err := pluginClient.GetPluginData(context.TODO(), services.PluginDataFilter{
 		Kind:     services.KindAccessRequest,
 		Resource: req.GetName(),
 	})
@@ -1779,7 +1786,7 @@ func (s *TLSSuite) TestPluginData(c *check.C) {
 	c.Assert(ok, check.Equals, true)
 	c.Assert(entry.Data, check.DeepEquals, map[string]string{"foo": "bar"})
 
-	err = s.server.Auth().UpdatePluginData(context.TODO(), services.PluginDataUpdateParams{
+	err = pluginClient.UpdatePluginData(context.TODO(), services.PluginDataUpdateParams{
 		Kind:     services.KindAccessRequest,
 		Resource: req.GetName(),
 		Plugin:   plugin,
@@ -1793,7 +1800,7 @@ func (s *TLSSuite) TestPluginData(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	data, err = s.server.Auth().GetPluginData(context.TODO(), services.PluginDataFilter{
+	data, err = pluginClient.GetPluginData(context.TODO(), services.PluginDataFilter{
 		Kind:     services.KindAccessRequest,
 		Resource: req.GetName(),
 	})
@@ -2334,7 +2341,7 @@ func (s *TLSSuite) TestClusterConfigContext(c *check.C) {
 	_, err = proxy.GenerateHostCert(pub,
 		"a", "b", nil,
 		"localhost", teleport.Roles{teleport.RoleProxy}, 0)
-	fixtures.ExpectNotFound(c, err)
+	fixtures.ExpectAccessDenied(c, err)
 
 	// update cluster config to record at the proxy
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
@@ -2826,7 +2833,7 @@ func (s *TLSSuite) TestEventsNodePresence(c *check.C) {
 	defer nopClt.Close()
 
 	_, err = nopClt.UpsertNode(node)
-	fixtures.ExpectNotFound(c, err)
+	fixtures.ExpectAccessDenied(c, err)
 
 	k2, err := nopClt.NewKeepAliver(ctx)
 	c.Assert(err, check.IsNil)
@@ -2951,7 +2958,7 @@ func (s *TLSSuite) TestEventsPermissions(c *check.C) {
 		case <-watcher.Done():
 		}
 
-		fixtures.ExpectNotFound(c, watcher.Error())
+		fixtures.ExpectAccessDenied(c, watcher.Error())
 	}
 
 	for _, tc := range testCases {
@@ -3042,16 +3049,16 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 		"tok2", teleport.Roles{teleport.RoleProxy}, time.Now().UTC().Add(3*time.Hour))
 	c.Assert(err, check.IsNil)
 
-	err = s.server.Auth().UpsertToken(token)
+	err = s.server.Auth().UpsertToken(ctx, token)
 	c.Assert(err, check.IsNil)
 
-	token, err = s.server.Auth().GetToken(token.GetName())
+	token, err = s.server.Auth().GetToken(ctx, token.GetName())
 	c.Assert(err, check.IsNil)
 
 	suite.ExpectResource(c, w, 3*time.Second, token)
 
 	// delete token and expect delete event
-	err = s.server.Auth().DeleteToken(token.GetName())
+	err = s.server.Auth().DeleteToken(ctx, token.GetName())
 	c.Assert(err, check.IsNil)
 	suite.ExpectDeleteResource(c, w, 3*time.Second, &services.ResourceHeader{
 		Kind:    services.KindToken,

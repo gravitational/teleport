@@ -827,6 +827,8 @@ service AuthService {
     rpc DeleteAccessRequest(RequestID) returns (google.protobuf.Empty);
     // SetAccessRequestState sets the state of an access request.
     rpc SetAccessRequestState(RequestStateSetter) returns (google.protobuf.Empty);
+    // SubmitAccessReview applies a review to a request and returns the post-application state.
+    rpc SubmitAccessReview(types.AccessReviewSubmission) returns (types.AccessRequestV3);
     // GetAccessCapabilities requests the access capabilites of a user.
     rpc GetAccessCapabilities(types.AccessCapabilitiesRequest) returns (types.AccessCapabilities);
 
@@ -977,4 +979,50 @@ service AuthService {
     // GetMFADevices returns all MFA devices registered for the user calling
     // this RPC.
     rpc GetMFADevices(GetMFADevicesRequest) returns (GetMFADevicesResponse);
+
+    // GetOIDCConnector gets an OIDC connector resource by name.
+    rpc GetOIDCConnector(types.ResourceWithSecretsRequest) returns (types.OIDCConnectorV2);
+    // GetOIDCConnectors gets all current OIDC connector resources.
+    rpc GetOIDCConnectors(types.ResourcesWithSecretsRequest) returns (types.OIDCConnectorV2List);
+    // UpsertOIDCConnector upserts an OIDC connector in a backend.
+    rpc UpsertOIDCConnector(types.OIDCConnectorV2) returns (google.protobuf.Empty);
+    // DeleteOIDCConnector deletes an existing OIDC connector in a backend by name.
+    rpc DeleteOIDCConnector(types.ResourceRequest) returns (google.protobuf.Empty);
+
+    // GetSAMLConnector gets a SAML connector resource by name.
+    rpc GetSAMLConnector(types.ResourceWithSecretsRequest) returns (types.SAMLConnectorV2);
+    // GetSAMLConnectors gets all current SAML connector resources.
+    rpc GetSAMLConnectors(types.ResourcesWithSecretsRequest) returns (types.SAMLConnectorV2List);
+    // UpsertSAMLConnector upserts a SAML connector in a backend.
+    rpc UpsertSAMLConnector(types.SAMLConnectorV2) returns (google.protobuf.Empty);
+    // DeleteSAMLConnector deletes an existing SAML connector in a backend by name.
+    rpc DeleteSAMLConnector(types.ResourceRequest) returns (google.protobuf.Empty);
+
+    // GetGithubConnector gets a Github connector resource by name.
+    rpc GetGithubConnector(types.ResourceWithSecretsRequest) returns (types.GithubConnectorV3);
+    // GetGithubConnectors gets all current Github connector resources.
+    rpc GetGithubConnectors(types.ResourcesWithSecretsRequest)
+        returns (types.GithubConnectorV3List);
+    // UpsertGithubConnector upserts a Github connector in a backend.
+    rpc UpsertGithubConnector(types.GithubConnectorV3) returns (google.protobuf.Empty);
+    // DeleteGithubConnector deletes an existing Github connector in a backend by name.
+    rpc DeleteGithubConnector(types.ResourceRequest) returns (google.protobuf.Empty);
+
+    // GetTrustedCluster gets a Trusted Cluster resource by name.
+    rpc GetTrustedCluster(types.ResourceRequest) returns (types.TrustedClusterV2);
+    // GetTrustedClusters gets all current Trusted Cluster resources.
+    rpc GetTrustedClusters(google.protobuf.Empty) returns (types.TrustedClusterV2List);
+    // UpsertTrustedCluster upserts a Trusted Cluster in a backend.
+    rpc UpsertTrustedCluster(types.TrustedClusterV2) returns (types.TrustedClusterV2);
+    // DeleteTrustedCluster deletes an existing Trusted Cluster in a backend by name.
+    rpc DeleteTrustedCluster(types.ResourceRequest) returns (google.protobuf.Empty);
+
+    // GetToken retrieves a token described by the given request.
+    rpc GetToken(types.ResourceRequest) returns (types.ProvisionTokenV2);
+    // GetToken retrieves all tokens.
+    rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List);
+    // UpsertToken upserts a token in a backend.
+    rpc UpsertToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
+    // DeleteToken deletes an existing token in a backend described by the given request.
+    rpc DeleteToken(types.ResourceRequest) returns (google.protobuf.Empty);
 }

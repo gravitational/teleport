@@ -240,7 +240,18 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 
 	// Enable auto scaling if requested.
 	if b.Config.EnableAutoScaling {
-		if err := dynamo.SetAutoScaling(ctx, applicationautoscaling.New(b.session), b.Tablename, dynamo.AutoScalingParams{
+		if err := dynamo.SetAutoScaling(ctx, applicationautoscaling.New(b.session), dynamo.GetTableID(b.Tablename), dynamo.AutoScalingParams{
+			ReadMinCapacity:  b.Config.ReadMinCapacity,
+			ReadMaxCapacity:  b.Config.ReadMaxCapacity,
+			ReadTargetValue:  b.Config.ReadTargetValue,
+			WriteMinCapacity: b.Config.WriteMinCapacity,
+			WriteMaxCapacity: b.Config.WriteMaxCapacity,
+			WriteTargetValue: b.Config.WriteTargetValue,
+		}); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := dynamo.SetAutoScaling(ctx, applicationautoscaling.New(b.session), dynamo.GetIndexID(b.Tablename, indexTimeSearch), dynamo.AutoScalingParams{
 			ReadMinCapacity:  b.Config.ReadMinCapacity,
 			ReadMaxCapacity:  b.Config.ReadMaxCapacity,
 			ReadTargetValue:  b.Config.ReadTargetValue,

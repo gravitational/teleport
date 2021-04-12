@@ -30,6 +30,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -44,11 +45,12 @@ import (
 )
 
 type KeyAgentTestSuite struct {
-	keyDir   string
-	key      *Key
-	username string
-	hostname string
-	tlsca    *tlsca.CertAuthority
+	keyDir      string
+	key         *Key
+	username    string
+	hostname    string
+	clusterName string
+	tlsca       *tlsca.CertAuthority
 }
 
 var _ = check.Suite(&KeyAgentTestSuite{})
@@ -59,9 +61,10 @@ func (s *KeyAgentTestSuite) SetUpSuite(c *check.C) {
 	s.keyDir, err = ioutil.TempDir("", "keyagent-test-")
 	c.Assert(err, check.IsNil)
 
-	// temporary username and hostname to use during tests
+	// temporary names to use during tests
 	s.username = "foo"
 	s.hostname = "bar"
+	s.clusterName = "some-cluster"
 
 	pemBytes, ok := fixtures.PEMBytes["rsa"]
 	c.Assert(ok, check.Equals, true)
@@ -107,8 +110,14 @@ func (s *KeyAgentTestSuite) TestAddKey(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// check that the key has been written to disk
-	for _, ext := range []string{fileExtCert, "", fileExtPub} {
-		_, err := os.Stat(fmt.Sprintf("%v/keys/%v/%v%v", s.keyDir, s.hostname, s.username, ext))
+	expectedFiles := []string{
+		s.username,                            // private key
+		s.username + constants.FileExtPub,     // public key
+		s.username + constants.FileExtTLSCert, // Teleport TLS certificate
+		filepath.Join(s.username+constants.SSHDirSuffix, s.key.ClusterName+constants.FileExtSSHCert), // SSH certificate
+	}
+	for _, file := range expectedFiles {
+		_, err := os.Stat(filepath.Join(s.keyDir, "keys", s.hostname, file))
 		c.Assert(err, check.IsNil)
 	}
 
@@ -454,6 +463,11 @@ func (s *KeyAgentTestSuite) makeKey(username string, allowedLogins []string, ttl
 		Pub:     publicKey,
 		Cert:    certificate,
 		TLSCert: tlsCert,
+		KeyIndex: KeyIndex{
+			ProxyHost:   s.hostname,
+			Username:    username,
+			ClusterName: s.clusterName,
+		},
 	}, nil
 }
 

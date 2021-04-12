@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -63,6 +64,11 @@ import (
 	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+)
+
+const (
+	// ssoLoginConsoleErr is a generic error message to hide revealing sso login failure msgs.
+	ssoLoginConsoleErr = "Failed to login. Please check Teleport's log for more details."
 )
 
 // Handler is HTTP web proxy handler
@@ -125,7 +131,7 @@ type Config struct {
 	CipherSuites []uint16
 
 	// ProxySettings is a settings communicated to proxy
-	ProxySettings client.ProxySettings
+	ProxySettings apiclient.ProxySettings
 
 	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
 	// configuration.
@@ -487,13 +493,8 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	user, err := clt.GetUser(c.GetUser(), false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	res, err := clt.GetAccessCapabilities(r.Context(), services.AccessCapabilitiesRequest{
-		RequestableRoles: true,
-	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -502,7 +503,20 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	userContext.RequestableRoles = res.RequestableRoles
+
+	res, err := clt.GetAccessCapabilities(r.Context(), services.AccessCapabilitiesRequest{
+		RequestableRoles:   true,
+		SuggestedReviewers: true,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	userContext.AccessCapabilities = ui.AccessCapabilities{
+		RequestableRoles:   res.RequestableRoles,
+		SuggestedReviewers: res.SuggestedReviewers,
+	}
+
 	userContext.Cluster, err = ui.GetClusterDetails(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -511,8 +525,8 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	return userContext, nil
 }
 
-func localSettings(authClient auth.ClientI, cap services.AuthPreference) (client.AuthenticationSettings, error) {
-	as := client.AuthenticationSettings{
+func localSettings(authClient auth.ClientI, cap services.AuthPreference) (apiclient.AuthenticationSettings, error) {
+	as := apiclient.AuthenticationSettings{
 		Type:         teleport.Local,
 		SecondFactor: cap.GetSecondFactor(),
 	}
@@ -524,17 +538,17 @@ func localSettings(authClient auth.ClientI, cap services.AuthPreference) (client
 		return as, nil
 	}
 	if err != nil {
-		return client.AuthenticationSettings{}, trace.Wrap(err)
+		return apiclient.AuthenticationSettings{}, trace.Wrap(err)
 	}
-	as.U2F = &client.U2FSettings{AppID: u2fs.AppID}
+	as.U2F = &apiclient.U2FSettings{AppID: u2fs.AppID}
 
 	return as, nil
 }
 
-func oidcSettings(connector services.OIDCConnector, cap services.AuthPreference) client.AuthenticationSettings {
-	return client.AuthenticationSettings{
+func oidcSettings(connector services.OIDCConnector, cap services.AuthPreference) apiclient.AuthenticationSettings {
+	return apiclient.AuthenticationSettings{
 		Type: teleport.OIDC,
-		OIDC: &client.OIDCSettings{
+		OIDC: &apiclient.OIDCSettings{
 			Name:    connector.GetName(),
 			Display: connector.GetDisplay(),
 		},
@@ -543,10 +557,10 @@ func oidcSettings(connector services.OIDCConnector, cap services.AuthPreference)
 	}
 }
 
-func samlSettings(connector services.SAMLConnector, cap services.AuthPreference) client.AuthenticationSettings {
-	return client.AuthenticationSettings{
+func samlSettings(connector services.SAMLConnector, cap services.AuthPreference) apiclient.AuthenticationSettings {
+	return apiclient.AuthenticationSettings{
 		Type: teleport.SAML,
-		SAML: &client.SAMLSettings{
+		SAML: &apiclient.SAMLSettings{
 			Name:    connector.GetName(),
 			Display: connector.GetDisplay(),
 		},
@@ -555,10 +569,10 @@ func samlSettings(connector services.SAMLConnector, cap services.AuthPreference)
 	}
 }
 
-func githubSettings(connector services.GithubConnector, cap services.AuthPreference) client.AuthenticationSettings {
-	return client.AuthenticationSettings{
+func githubSettings(connector services.GithubConnector, cap services.AuthPreference) apiclient.AuthenticationSettings {
+	return apiclient.AuthenticationSettings{
 		Type: teleport.Github,
-		Github: &client.GithubSettings{
+		Github: &apiclient.GithubSettings{
 			Name:    connector.GetName(),
 			Display: connector.GetDisplay(),
 		},
@@ -566,77 +580,77 @@ func githubSettings(connector services.GithubConnector, cap services.AuthPrefere
 	}
 }
 
-func defaultAuthenticationSettings(authClient auth.ClientI) (client.AuthenticationSettings, error) {
+func defaultAuthenticationSettings(ctx context.Context, authClient auth.ClientI) (apiclient.AuthenticationSettings, error) {
 	cap, err := authClient.GetAuthPreference()
 	if err != nil {
-		return client.AuthenticationSettings{}, trace.Wrap(err)
+		return apiclient.AuthenticationSettings{}, trace.Wrap(err)
 	}
 
-	var as client.AuthenticationSettings
+	var as apiclient.AuthenticationSettings
 
 	switch cap.GetType() {
 	case teleport.Local:
 		as, err = localSettings(authClient, cap)
 		if err != nil {
-			return client.AuthenticationSettings{}, trace.Wrap(err)
+			return apiclient.AuthenticationSettings{}, trace.Wrap(err)
 		}
 	case teleport.OIDC:
 		if cap.GetConnectorName() != "" {
-			oidcConnector, err := authClient.GetOIDCConnector(cap.GetConnectorName(), false)
+			oidcConnector, err := authClient.GetOIDCConnector(ctx, cap.GetConnectorName(), false)
 			if err != nil {
-				return client.AuthenticationSettings{}, trace.Wrap(err)
+				return apiclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 
 			as = oidcSettings(oidcConnector, cap)
 		} else {
-			oidcConnectors, err := authClient.GetOIDCConnectors(false)
+			oidcConnectors, err := authClient.GetOIDCConnectors(ctx, false)
 			if err != nil {
-				return client.AuthenticationSettings{}, trace.Wrap(err)
+				return apiclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 			if len(oidcConnectors) == 0 {
-				return client.AuthenticationSettings{}, trace.BadParameter("no oidc connectors found")
+				return apiclient.AuthenticationSettings{}, trace.BadParameter("no oidc connectors found")
 			}
 
 			as = oidcSettings(oidcConnectors[0], cap)
 		}
 	case teleport.SAML:
 		if cap.GetConnectorName() != "" {
-			samlConnector, err := authClient.GetSAMLConnector(cap.GetConnectorName(), false)
+			samlConnector, err := authClient.GetSAMLConnector(ctx, cap.GetConnectorName(), false)
 			if err != nil {
-				return client.AuthenticationSettings{}, trace.Wrap(err)
+				return apiclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 
 			as = samlSettings(samlConnector, cap)
 		} else {
-			samlConnectors, err := authClient.GetSAMLConnectors(false)
+			samlConnectors, err := authClient.GetSAMLConnectors(ctx, false)
 			if err != nil {
-				return client.AuthenticationSettings{}, trace.Wrap(err)
+				return apiclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 			if len(samlConnectors) == 0 {
-				return client.AuthenticationSettings{}, trace.BadParameter("no saml connectors found")
+				return apiclient.AuthenticationSettings{}, trace.BadParameter("no saml connectors found")
 			}
 
 			as = samlSettings(samlConnectors[0], cap)
 		}
 	case teleport.Github:
 		if cap.GetConnectorName() != "" {
-			githubConnector, err := authClient.GetGithubConnector(cap.GetConnectorName(), false)
+			githubConnector, err := authClient.GetGithubConnector(ctx, cap.GetConnectorName(), false)
 			if err != nil {
-				return client.AuthenticationSettings{}, trace.Wrap(err)
+				return apiclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 			as = githubSettings(githubConnector, cap)
 		} else {
-			githubConnectors, err := authClient.GetGithubConnectors(false)
+			githubConnectors, err := authClient.GetGithubConnectors(ctx, false)
 			if err != nil {
-				return client.AuthenticationSettings{}, trace.Wrap(err)
+				return apiclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 			if len(githubConnectors) == 0 {
-				return client.AuthenticationSettings{}, trace.BadParameter("no github connectors found")
+				return apiclient.AuthenticationSettings{}, trace.BadParameter("no github connectors found")
 			}
 			as = githubSettings(githubConnectors[0], cap)
 		}
 	default:
-		return client.AuthenticationSettings{}, trace.BadParameter("unknown type %v", cap.GetType())
+		return apiclient.AuthenticationSettings{}, trace.BadParameter("unknown type %v", cap.GetType())
 	}
 
 	return as, nil
@@ -645,12 +659,12 @@ func defaultAuthenticationSettings(authClient auth.ClientI) (client.Authenticati
 func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var err error
 
-	defaultSettings, err := defaultAuthenticationSettings(h.cfg.ProxyClient)
+	defaultSettings, err := defaultAuthenticationSettings(r.Context(), h.cfg.ProxyClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return client.PingResponse{
+	return apiclient.PingResponse{
 		Auth:             defaultSettings,
 		Proxy:            h.cfg.ProxySettings,
 		ServerVersion:    teleport.Version,
@@ -659,7 +673,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 }
 
 func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	return client.PingResponse{
+	return apiclient.PingResponse{
 		Proxy:            h.cfg.ProxySettings,
 		ServerVersion:    teleport.Version,
 		MinClientVersion: teleport.MinClientVersion,
@@ -675,7 +689,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 		return nil, trace.Wrap(err)
 	}
 
-	response := &client.PingResponse{
+	response := &apiclient.PingResponse{
 		Proxy:         h.cfg.ProxySettings,
 		ServerVersion: teleport.Version,
 	}
@@ -690,21 +704,21 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	}
 
 	// first look for a oidc connector with that name
-	oidcConnector, err := authClient.GetOIDCConnector(connectorName, false)
+	oidcConnector, err := authClient.GetOIDCConnector(r.Context(), connectorName, false)
 	if err == nil {
 		response.Auth = oidcSettings(oidcConnector, cap)
 		return response, nil
 	}
 
 	// if no oidc connector was found, look for a saml connector
-	samlConnector, err := authClient.GetSAMLConnector(connectorName, false)
+	samlConnector, err := authClient.GetSAMLConnector(r.Context(), connectorName, false)
 	if err == nil {
 		response.Auth = samlSettings(samlConnector, cap)
 		return response, nil
 	}
 
 	// look for github connector
-	githubConnector, err := authClient.GetGithubConnector(connectorName, false)
+	githubConnector, err := authClient.GetGithubConnector(r.Context(), connectorName, false)
 	if err == nil {
 		response.Auth = githubSettings(githubConnector, cap)
 		return response, nil
@@ -721,7 +735,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	secondFactor := constants.SecondFactorOff
 
 	// get all OIDC connectors
-	oidcConnectors, err := h.cfg.ProxyClient.GetOIDCConnectors(false)
+	oidcConnectors, err := h.cfg.ProxyClient.GetOIDCConnectors(r.Context(), false)
 	if err != nil {
 		h.log.WithError(err).Error("Cannot retrieve OIDC connectors.")
 	}
@@ -735,7 +749,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	// get all SAML connectors
-	samlConnectors, err := h.cfg.ProxyClient.GetSAMLConnectors(false)
+	samlConnectors, err := h.cfg.ProxyClient.GetSAMLConnectors(r.Context(), false)
 	if err != nil {
 		h.log.WithError(err).Error("Cannot retrieve SAML connectors.")
 	}
@@ -749,7 +763,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	// get all Github connectors
-	githubConnectors, err := h.cfg.ProxyClient.GetGithubConnectors(false)
+	githubConnectors, err := h.cfg.ProxyClient.GetGithubConnectors(r.Context(), false)
 	if err != nil {
 		h.log.WithError(err).Error("Cannot retrieve Github connectors.")
 	}
@@ -897,14 +911,20 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 }
 
 func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	h.log.WithField("auth", "github").Debug("Console login start.")
+	logger := h.log.WithField("auth", "github")
+	logger.Debug("Console login start.")
+
 	req := new(client.SSOLoginConsoleReq)
 	if err := httplib.ReadJSON(r, req); err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Error reading json.")
+		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
+
 	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Missing request parameters.")
+		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
+
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(
 		services.GithubAuthRequest{
 			ConnectorID:       req.ConnectorID,
@@ -916,8 +936,10 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 			KubernetesCluster: req.KubernetesCluster,
 		})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Failed to create Github auth request.")
+		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
+
 	return &client.SSOLoginConsoleResponse{
 		RedirectURL: response.RedirectURL,
 	}, nil
@@ -977,14 +999,20 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 }
 
 func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	h.log.WithField("auth", "oidc").Debug("Console login start.")
+	logger := h.log.WithField("auth", "oidc")
+	logger.Debug("Console login start.")
+
 	req := new(client.SSOLoginConsoleReq)
 	if err := httplib.ReadJSON(r, req); err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Error reading json.")
+		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
+
 	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Missing request parameters.")
+		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
+
 	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(
 		services.OIDCAuthRequest{
 			ConnectorID:       req.ConnectorID,
@@ -997,8 +1025,10 @@ func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 			KubernetesCluster: req.KubernetesCluster,
 		})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Failed to create OIDC auth request.")
+		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
+
 	return &client.SSOLoginConsoleResponse{
 		RedirectURL: response.RedirectURL,
 	}, nil

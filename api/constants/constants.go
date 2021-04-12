@@ -71,6 +71,9 @@ const (
 	// prompt the End-User to select a user account.
 	OIDCPromptSelectAccount = "select_account"
 
+	// OIDCPromptNone instructs the Authorization Server to skip the prompt.
+	OIDCPromptNone = "none"
+
 	// KeepAliveNode is the keep alive type for SSH servers.
 	KeepAliveNode = "node"
 
@@ -79,6 +82,15 @@ const (
 
 	// KeepAliveDatabase is the keep alive type for database server.
 	KeepAliveDatabase = "db"
+
+	// WindowsOS is the GOOS constant used for Microsoft Windows.
+	WindowsOS = "windows"
+
+	// LinuxOS is the GOOS constant used for Linux.
+	LinuxOS = "linux"
+
+	// DarwinOS is the GOOS constant for Apple macOS/darwin.
+	DarwinOS = "darwin"
 )
 
 // SecondFactorType is the type of 2FA authentication.
@@ -99,4 +111,42 @@ const (
 	// SecondFactorOptional means that all 2FA protocols are supported and 2FA
 	// is required only for users that have MFA devices registered.
 	SecondFactorOptional = SecondFactorType("optional")
+)
+
+const (
+	// ChanTransport is a channel type that can be used to open a net.Conn
+	// through the reverse tunnel server. Used for trusted clusters and dial back
+	// nodes.
+	ChanTransport = "teleport-transport"
+
+	// ChanTransportDialReq is the first (and only) request sent on a
+	// chanTransport channel. It's payload is the address of the host a
+	// connection should be established to.
+	ChanTransportDialReq = "teleport-transport-dial"
+
+	// RemoteAuthServer is a special non-resolvable address that indicates client
+	// requests a connection to the remote auth server.
+	RemoteAuthServer = "@remote-auth-server"
+)
+
+const (
+	// SessionKeyDir is the sub-directory where session keys are stored (.tsh/keys).
+	SessionKeyDir = "keys"
+	// SSHDirSuffix is the suffix of the sub-directory where
+	// ssh keys are stored (.tsh/keys/profilename/username-ssh).
+	SSHDirSuffix = "-ssh"
+	// FileNameKnownHosts is a file that stores known hosts.
+	FileNameKnownHosts = "known_hosts"
+	// FileExtTLSCert is the filename extension/suffix of TLS certs
+	// stored in a profile (./tsh/keys/profilename/username-x509.pem).
+	FileExtTLSCert = "-x509.pem"
+	// FileNameTLSCerts is the filename of Cert Authorities stored in a
+	// profile (./tsh/keys/profilename/certs.pem).
+	FileNameTLSCerts = "certs.pem"
+	// FileExtCert is a file extension used for SSH Certificate files
+	// (.tsh/keys/profilename/username-ssh/clustername-cert.pub).
+	FileExtSSHCert = "-cert.pub"
+	// FileExtPub is a file extension used for SSH Certificate Authorities
+	// stored in a profile (./tsh/keys/profilename/username.pub).
+	FileExtPub = ".pub"
 )

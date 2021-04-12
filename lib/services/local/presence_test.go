@@ -82,7 +82,7 @@ func (s *PresenceSuite) TestTrustedClusterCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// get trusted cluster make sure it's correct
-	gotTC, err := presenceBackend.GetTrustedCluster("foo")
+	gotTC, err := presenceBackend.GetTrustedCluster(ctx, "foo")
 	c.Assert(err, check.IsNil)
 	c.Assert(gotTC.GetName(), check.Equals, "foo")
 	c.Assert(gotTC.GetEnabled(), check.Equals, true)
@@ -92,7 +92,7 @@ func (s *PresenceSuite) TestTrustedClusterCRUD(c *check.C) {
 	c.Assert(gotTC.GetReverseTunnelAddress(), check.Equals, "quuz")
 
 	// get all clusters
-	allTC, err := presenceBackend.GetTrustedClusters()
+	allTC, err := presenceBackend.GetTrustedClusters(ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(allTC, check.HasLen, 2)
 
@@ -101,7 +101,7 @@ func (s *PresenceSuite) TestTrustedClusterCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// make sure it's really gone
-	_, err = presenceBackend.GetTrustedCluster("foo")
+	_, err = presenceBackend.GetTrustedCluster(ctx, "foo")
 	c.Assert(err, check.NotNil)
 	c.Assert(trace.IsNotFound(err), check.Equals, true)
 }

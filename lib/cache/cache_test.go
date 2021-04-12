@@ -74,7 +74,7 @@ type testPack struct {
 
 	usersS         services.UsersService
 	accessS        services.Access
-	dynamicAccessS services.DynamicAccess
+	dynamicAccessS services.DynamicAccessCore
 	presenceS      services.Presence
 	appSessionS    services.AppSession
 	webSessionS    types.WebSessionInterface
@@ -771,6 +771,7 @@ func (s *CacheSuite) TestRecovery(c *check.C) {
 
 // TestTokens tests static and dynamic tokens
 func (s *CacheSuite) TestTokens(c *check.C) {
+	ctx := context.Background()
 	p := s.newPackForAuth(c)
 	defer p.Close()
 
@@ -804,7 +805,7 @@ func (s *CacheSuite) TestTokens(c *check.C) {
 	token, err := services.NewProvisionToken("token", teleport.Roles{teleport.RoleAuth, teleport.RoleNode}, expires)
 	c.Assert(err, check.IsNil)
 
-	err = p.provisionerS.UpsertToken(token)
+	err = p.provisionerS.UpsertToken(ctx, token)
 	c.Assert(err, check.IsNil)
 
 	select {
@@ -814,12 +815,12 @@ func (s *CacheSuite) TestTokens(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	tout, err := p.cache.GetToken(token.GetName())
+	tout, err := p.cache.GetToken(ctx, token.GetName())
 	c.Assert(err, check.IsNil)
 	token.SetResourceID(tout.GetResourceID())
 	fixtures.DeepCompare(c, token, tout)
 
-	err = p.provisionerS.DeleteToken(token.GetName())
+	err = p.provisionerS.DeleteToken(ctx, token.GetName())
 	c.Assert(err, check.IsNil)
 
 	select {
@@ -829,7 +830,7 @@ func (s *CacheSuite) TestTokens(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	_, err = p.cache.GetToken(token.GetName())
+	_, err = p.cache.GetToken(ctx, token.GetName())
 	fixtures.ExpectNotFound(c, err)
 }
 
@@ -1147,11 +1148,11 @@ func (s *CacheSuite) TestTunnelConnections(c *check.C) {
 	defer p.Close()
 
 	clusterName := "example.com"
-	dt := time.Date(2015, 6, 5, 4, 3, 2, 1, time.UTC).UTC()
+	hb := time.Now().UTC()
 	conn, err := services.NewTunnelConnection("conn1", services.TunnelConnectionSpecV2{
 		ClusterName:   clusterName,
 		ProxyName:     "p1",
-		LastHeartbeat: dt,
+		LastHeartbeat: hb,
 	})
 	c.Assert(err, check.IsNil)
 	c.Assert(p.presenceS.UpsertTunnelConnection(conn), check.IsNil)
@@ -1176,8 +1177,8 @@ func (s *CacheSuite) TestTunnelConnections(c *check.C) {
 	fixtures.DeepCompare(c, conn, out[0])
 
 	// update conn's parameters
-	dt = time.Date(2015, 6, 5, 5, 3, 2, 1, time.UTC).UTC()
-	conn.SetLastHeartbeat(dt)
+	hb = hb.Add(time.Second)
+	conn.SetLastHeartbeat(hb)
 
 	err = p.presenceS.UpsertTunnelConnection(conn)
 	c.Assert(err, check.IsNil)

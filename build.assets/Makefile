@@ -13,7 +13,8 @@ TEST_KUBE ?=
 
 OS ?= linux
 ARCH ?= amd64
-RUNTIME ?= go1.15.5
+RUNTIME ?= go1.16.2
+BORINGCRYPTO_RUNTIME=$(RUNTIME)b7
 
 UID := $$(id -u)
 GID := $$(id -g)
@@ -87,11 +88,14 @@ build-binaries-fips: buildbox-fips
 
 #
 # Builds a Docker container which is used for building official Teleport binaries
+# If running in CI and there is no image with the buildbox name:tag combination present locally,
+# the image is pulled from the Docker repository. If this pull fails (i.e. when a new Go runtime is
+# first used), the error is ignored and the buildbox is built using the Dockerfile.
 #
 .PHONY:buildbox
 buildbox:
 	if [[ "$(BUILDBOX_NAME)" == "$(BUILDBOX)" ]]; then \
-		if [[ $${DRONE} == "true" ]]; then docker pull $(BUILDBOX); fi; \
+		if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX) 2>&1 >/dev/null; then docker pull $(BUILDBOX) || true; fi; \
 		docker build \
 			--build-arg UID=$(UID) \
 			--build-arg GID=$(GID) \
@@ -109,11 +113,11 @@ buildbox:
 .PHONY:buildbox-fips
 buildbox-fips:
 	if [[ "$(BUILDBOX_FIPS_NAME)" == "$(BUILDBOX_FIPS)" ]]; then \
-		if [[ $${DRONE} == "true" ]]; then docker pull $(BUILDBOX_FIPS); fi; \
+		if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_FIPS) 2>&1 >/dev/null; then docker pull $(BUILDBOX_FIPS) || true; fi; \
 		docker build \
 			--build-arg UID=$(UID) \
 			--build-arg GID=$(GID) \
-			--build-arg RUNTIME=$(RUNTIME) \
+			--build-arg BORINGCRYPTO_RUNTIME=$(BORINGCRYPTO_RUNTIME) \
 			--cache-from $(BUILDBOX_FIPS) \
 			--tag $(BUILDBOX_FIPS) -f Dockerfile-fips . ; \
 	fi
@@ -123,7 +127,7 @@ buildbox-fips:
 #
 .PHONY:buildbox-centos6
 buildbox-centos6:
-	@if [[ $${DRONE} == "true" ]]; then docker pull $(BUILDBOX_CENTOS6); fi;
+	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_CENTOS6) 2>&1 >/dev/null; then docker pull $(BUILDBOX_CENTOS6) || true; fi;
 	docker build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
@@ -136,11 +140,11 @@ buildbox-centos6:
 #
 .PHONY:buildbox-centos6-fips
 buildbox-centos6-fips:
-	@if [[ $${DRONE} == "true" ]]; then docker pull $(BUILDBOX_CENTOS6_FIPS); fi;
+	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_CENTOS6_FIPS) 2>&1 >/dev/null; then docker pull $(BUILDBOX_CENTOS6_FIPS) || true; fi;
 	docker build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
-		--build-arg RUNTIME=$(RUNTIME) \
+		--build-arg BORINGCRYPTO_RUNTIME=$(BORINGCRYPTO_RUNTIME) \
 		--cache-from $(BUILDBOX_CENTOS6_FIPS) \
 		--tag $(BUILDBOX_CENTOS6_FIPS) -f Dockerfile-centos6-fips .
 
@@ -151,7 +155,7 @@ buildbox-centos6-fips:
 #
 .PHONY:buildbox-arm
 buildbox-arm: buildbox
-	@if [[ $${DRONE} == "true" ]]; then docker pull $(BUILDBOX_ARM); fi;
+	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_ARM) 2>&1 >/dev/null; then docker pull $(BUILDBOX_ARM) || true; fi;
 	docker build \
 		--build-arg RUNTIME=$(RUNTIME) \
 		--cache-from $(BUILDBOX) \
@@ -165,7 +169,7 @@ buildbox-arm: buildbox
 #
 .PHONY:buildbox-arm-fips
 buildbox-arm-fips: buildbox-fips
-	@if [[ $${DRONE} == "true" ]]; then docker pull $(BUILDBOX_ARM_FIPS); fi;
+	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_ARM_FIPS) 2>&1 >/dev/null; then docker pull $(BUILDBOX_ARM_FIPS) || true; fi;
 	docker build \
 		--build-arg RUNTIME=$(RUNTIME) \
 		--cache-from $(BUILDBOX_FIPS) \
@@ -246,6 +250,10 @@ release: buildbox
 release-amd64:
 	$(MAKE) release ARCH=amd64
 
+.PHONY: release-amd64-fips
+release-amd64-fips:
+	$(MAKE) release-fips ARCH=amd64 FIPS=yes BUILDBOX_FIPS_NAME=$(BUILDBOX_FIPS)
+
 .PHONY: release-386
 release-386:
 	$(MAKE) release ARCH=386
@@ -257,14 +265,6 @@ release-arm: buildbox-arm
 .PHONY: release-arm64
 release-arm64: buildbox-arm
 	$(MAKE) release ARCH=arm64 BUILDBOX_NAME=$(BUILDBOX_ARM)
-
-.PHONY: release-amd64-fips
-release-amd64-fips:
-	$(MAKE) release-fips ARCH=amd64 FIPS=yes BUILDBOX_FIPS_NAME=$(BUILDBOX_FIPS)
-
-.PHONY: release-arm64-fips
-release-arm64-fips: buildbox-arm-fips
-	$(MAKE) release-fips ARCH=arm64 FIPS=yes BUILDBOX_FIPS_NAME=$(BUILDBOX_ARM_FIPS)
 
 .PHONY: release-amd64-centos6
 release-amd64-centos6: buildbox-centos6

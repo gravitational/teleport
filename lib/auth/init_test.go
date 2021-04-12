@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
@@ -90,7 +91,7 @@ func TestReadIdentity(t *testing.T) {
 		TTL:                 ttl,
 	})
 	require.NoError(t, err)
-	copy, err := sshutils.ParseCertificate(bytes)
+	copy, err := apisshutils.ParseCertificate(bytes)
 	require.NoError(t, err)
 	require.Equal(t, uint64(expiryDate.Unix()), copy.ValidBefore)
 }
@@ -621,7 +622,7 @@ func TestMigrateOSS(t *testing.T) {
 		err = migrateOSS(ctx, as)
 		require.NoError(t, err)
 
-		out, err := as.GetTrustedCluster(foo.GetName())
+		out, err := as.GetTrustedCluster(ctx, foo.GetName())
 		require.NoError(t, err)
 		mapping := types.RoleMap{{Remote: teleport.AdminRoleName, Local: []string{teleport.AdminRoleName}}}
 		require.Equal(t, mapping, out.GetRoleMap())
@@ -682,7 +683,7 @@ func TestMigrateOSS(t *testing.T) {
 		err = migrateOSS(ctx, as)
 		require.NoError(t, err)
 
-		out, err := as.GetGithubConnector(connector.GetName(), false)
+		out, err := as.GetGithubConnector(ctx, connector.GetName(), false)
 		require.NoError(t, err)
 		require.Equal(t, types.True, out.GetMetadata().Labels[teleport.OSSMigratedV6])
 
@@ -711,7 +712,7 @@ func TestMigrateOSS(t *testing.T) {
 		err = migrateOSS(ctx, as)
 		require.NoError(t, err)
 
-		out, err = as.GetGithubConnector(connector.GetName(), false)
+		out, err = as.GetGithubConnector(ctx, connector.GetName(), false)
 		require.NoError(t, err)
 		require.Equal(t, mappings, out.GetTeamsToLogins())
 	})

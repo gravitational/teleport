@@ -118,10 +118,10 @@ type Presence interface {
 	UpsertTrustedCluster(ctx context.Context, tc TrustedCluster) (TrustedCluster, error)
 
 	// GetTrustedCluster returns a single TrustedCluster by name.
-	GetTrustedCluster(string) (TrustedCluster, error)
+	GetTrustedCluster(ctx context.Context, name string) (TrustedCluster, error)
 
 	// GetTrustedClusters returns all TrustedClusters in the backend.
-	GetTrustedClusters() ([]TrustedCluster, error)
+	GetTrustedClusters(ctx context.Context) ([]TrustedCluster, error)
 
 	// DeleteTrustedCluster removes a TrustedCluster from the backend by name.
 	DeleteTrustedCluster(ctx context.Context, name string) error

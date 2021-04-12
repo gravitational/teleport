@@ -402,6 +402,12 @@ message ProvisionTokenV2 {
     ProvisionTokenSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
+// ProvisionTokenV2List is a list of provisioning tokens.
+message ProvisionTokenV2List {
+    // ProvisionTokens is a list of provisioning tokens.
+    repeated types.ProvisionTokenV2 ProvisionTokens = 1;
+}
+
 // ProvisionTokenSpecV2 is a specification for V2 token
 message ProvisionTokenSpecV2 {
     // Roles is a list of roles associated with the token,
@@ -656,6 +662,62 @@ message AccessRequestV3 {
     AccessRequestSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
+// AccessReviewThreshold describes a filter used to match access reviews,
+// as well as approval/denial counts which trigger state-transitions.  This type
+// can be used to describe policies such as "can be approved by 2 admins"
+// or "can be denied by any non-contractor".
+message AccessReviewThreshold {
+    // Name is the optional human-readable name of the threshold.
+    string Name = 1 [ (gogoproto.jsontag) = "name,omitempty" ];
+    // Filter is an optional predicate used to determine which reviews
+    // count toward this threshold.
+    string Filter = 2 [ (gogoproto.jsontag) = "filter,omitempty" ];
+    // Approve is the number of matching approvals needed for state-transition.
+    uint32 Approve = 3 [ (gogoproto.jsontag) = "approve,omitempty" ];
+    // Deny is the number of denials needed for state-transition.
+    uint32 Deny = 4 [ (gogoproto.jsontag) = "deny,omitempty" ];
+}
+
+// AccessReview is a review to be applied to an access request.
+message AccessReview {
+    // Author is the teleport username of the review author.
+    string Author = 1 [ (gogoproto.jsontag) = "author" ];
+    // Roles is a list used for role-subselection (not yet fully supported).
+    repeated string Roles = 2 [ (gogoproto.jsontag) = "roles,omitempty" ];
+    // ProposedState is the proposed state (must be APPROVED or DENIED).
+    RequestState ProposedState = 3 [ (gogoproto.jsontag) = "proposed_state,omitempty" ];
+    // Reason is an optional human-readable reason for why the above state
+    // is being proposed.
+    string Reason = 4 [ (gogoproto.jsontag) = "reason,omitempty" ];
+    // Created is the time at which the review was created.
+    google.protobuf.Timestamp Created = 5 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "created,omitempty"
+    ];
+    // Annotations is the proposed value of the request's resolve_annotations field.
+    wrappers.LabelValues Annotations = 6 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "annotations,omitempty",
+        (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+    ];
+
+    // ThresholdIndexes stores the indexes of thresholds which this review matches
+    // (internal use only).
+    repeated uint32 ThresholdIndexes = 7 [ (gogoproto.jsontag) = "i,omitempty" ];
+}
+
+// AccessReviewSubmission encodes the necessary parameters for submitting
+// a new access review.
+message AccessReviewSubmission {
+    // RequestID is the unique ID of the request to be reviewed.
+    string RequestID = 1 [ (gogoproto.jsontag) = "id,omitempty" ];
+
+    // Review is the review to be applied.
+    AccessReview Review = 2
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "review,omitempty" ];
+}
+
 // RequestState represents the state of a request for escalated privilege.
 enum RequestState {
     // NONE variant exists to allow RequestState to be explicitly omitted
@@ -669,6 +731,21 @@ enum RequestState {
     // DENIED variant indicates that a request has been rejected by
     // an administrating party.
     DENIED = 3;
+}
+
+// ThresholdIndexSet encodes a list of threshold indexes. One of the listed thresholds
+// must pass for the set to be considered to have passed (i.e. this is an `or` operator).
+message ThresholdIndexSet {
+    // Indexes are the indexes of thresholds which relate to the role.
+    repeated uint32 Indexes = 1 [ (gogoproto.jsontag) = "i,omitempty" ];
+}
+
+// ThresholdIndexSets is a list of threshold index sets.  Each of the individual
+// sets must pass (i.e. this is an `and` operator).
+message ThresholdIndexSets {
+    // Sets are the sets that make up this group.
+    repeated ThresholdIndexSet Sets = 1
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "s,omitempty" ];
 }
 
 // AccessRequestSpec is the specification for AccessRequest
@@ -721,16 +798,41 @@ message AccessRequestSpecV3 {
         (gogoproto.jsontag) = "system_annotations,omitempty",
         (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
     ];
+
+    // Thresholds is a list of review thresholds relevant to this request.  Order must be
+    // preserved, as thresholds are referenced by index (internal use only).
+    repeated AccessReviewThreshold Thresholds = 10
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "thresholds,omitempty" ];
+
+    // RoleThresholdMapping encodes the relationship between the requested roles and
+    // the review threshold requirements for the given role (internal use only).
+    // By storing a representation of which thresholds must pass for each requested role, we
+    // both eliminate the need to cache the requestor's roles directly, and allow future
+    // versions of teleport to become smarter about calculating more granular requirements
+    // in a backwards-compatible manner (i.e. calculation can become smarter in minor releases).
+    // Storing this relationship on the request is necessary in order to avoid unexpected or
+    // inconsistent behavior due to review submission timing.
+    map<string, ThresholdIndexSets> RoleThresholdMapping = 11
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "rtm,omitempty" ];
+
+    // Reviews is a list of reviews applied to this request (internal use only).
+    repeated AccessReview Reviews = 12
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "reviews,omitempty" ];
+
+    // SuggestedReviewers is a list of reviewer suggestions.  These can be teleport usernames, but
+    // that is not a requirement.
+    repeated string SuggestedReviewers = 13
+        [ (gogoproto.jsontag) = "suggested_reviewers,omitempty" ];
 }
 
 // AccessRequestFilter encodes filter params for access requests.
 message AccessRequestFilter {
     // ID specifies a request ID if set.
-    string ID = 1 [ (gogoproto.jsontag) = "id" ];
+    string ID = 1 [ (gogoproto.jsontag) = "id,omitempty" ];
     // User specifies a username if set.
-    string User = 2 [ (gogoproto.jsontag) = "user" ];
+    string User = 2 [ (gogoproto.jsontag) = "user,omitempty" ];
     // RequestState filters for requests in a specific state.
-    RequestState State = 3 [ (gogoproto.jsontag) = "state" ];
+    RequestState State = 3 [ (gogoproto.jsontag) = "state,omitempty" ];
 }
 
 // AccessCapabilities is a summary of capabilities that a user
@@ -739,6 +841,9 @@ message AccessRequestFilter {
 message AccessCapabilities {
     // RequestableRoles is a list of existent roles which the user is allowed to request.
     repeated string RequestableRoles = 1 [ (gogoproto.jsontag) = "requestable_roles,omitempty" ];
+    // SuggestedReviewers is a list of all reviewers which are suggested by the user's roles.
+    repeated string SuggestedReviewers = 2
+        [ (gogoproto.jsontag) = "suggested_reviewers,omitempty" ];
 }
 
 // AccessCapabilitiesRequest encodes parameters for the GetAccessCapabilities method.
@@ -749,6 +854,9 @@ message AccessCapabilitiesRequest {
     // RequestableRoles is a flag indicating that we would like to view the list of roles
     // that the user is able to request.
     bool RequestableRoles = 2 [ (gogoproto.jsontag) = "requestable_roles,omitempty" ];
+    // SuggestedReviewers is a flag indicating that we would like to view the list of all
+    // reviewers which are suggested by the user's roles.
+    bool SuggestedReviewers = 3 [ (gogoproto.jsontag) = "suggested_reviewers,omitempty" ];
 }
 
 // PluginData stores a collection of values associated with a specific resource.
@@ -982,6 +1090,10 @@ message RoleConditions {
     // Impersonate specifies what users and roles this role is allowed to impersonate
     // by issuing certificates or other possible means.
     ImpersonateConditions Impersonate = 14 [ (gogoproto.jsontag) = "impersonate,omitempty" ];
+
+    // ReviewRequests defines conditions for submitting access reviews.
+    AccessReviewConditions ReviewRequests = 15
+        [ (gogoproto.jsontag) = "review_requests,omitempty" ];
 }
 
 // AccessRequestConditions is a matcher for allow/deny restrictions on
@@ -991,7 +1103,7 @@ message AccessRequestConditions {
     repeated string Roles = 1 [ (gogoproto.jsontag) = "roles,omitempty" ];
 
     // ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.
-    repeated AccessRequestClaimMapping ClaimsToRoles = 2
+    repeated ClaimMapping ClaimsToRoles = 2
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "claims_to_roles,omitempty" ];
 
     // Annotations is a collection of annotations to be programmatically
@@ -1006,20 +1118,42 @@ message AccessRequestConditions {
         (gogoproto.jsontag) = "annotations,omitempty",
         (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
     ];
+
+    // Thresholds is a list of thresholds, one of which must be met in order for reviews
+    // to trigger a state-transition.  If no thresholds are provided, a default threshold
+    // of 1 for approval and denial is used.
+    repeated AccessReviewThreshold Thresholds = 4
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "thresholds,omitempty" ];
+
+    // SuggestedReviewers is a list of reviewer suggestions.  These can be teleport usernames, but
+    // that is not a requirement.
+    repeated string SuggestedReviewers = 5
+        [ (gogoproto.jsontag) = "suggested_reviewers,omitempty" ];
 }
 
-// AccessRequestClaimMapping is a variant of the trait mapping pattern,
-// used to propagate requestable roles from external identity providers.
-message AccessRequestClaimMapping {
-    // Claim is the name of the trait to be matched against.
-    string Claim = 1 [ (gogoproto.jsontag) = "claim,omitempty" ];
+// AccessReviewConditions is a matcher for allow/deny restrictions on
+// access reviews.
+message AccessReviewConditions {
+    // Roles is the name of roles which may be reviewed.
+    repeated string Roles = 1 [ (gogoproto.jsontag) = "roles,omitempty" ];
 
-    // Value is matches a trait value.
-    string Value = 2 [ (gogoproto.jsontag) = "value,omitempty" ];
+    // ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.
+    repeated ClaimMapping ClaimsToRoles = 2
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "claims_to_roles,omitempty" ];
 
-    // Roles are the roles being mapped to.
+    // Where is an optional predicate which further limits which requests are
+    // reviewable.
+    string Where = 3 [ (gogoproto.jsontag) = "where,omitempty" ];
+}
+
+// ClaimMapping maps a claim to teleport roles.
+message ClaimMapping {
+    // Claim is a claim name.
+    string Claim = 1 [ (gogoproto.jsontag) = "claim" ];
+    // Value is a claim value to match.
+    string Value = 2 [ (gogoproto.jsontag) = "value" ];
+    // Roles is a list of static teleport roles to match.
     repeated string Roles = 3 [ (gogoproto.jsontag) = "roles,omitempty" ];
-    ;
 }
 
 // Rule represents allow or deny rule that is executed to check
@@ -1542,4 +1676,249 @@ message DeleteWebTokenRequest {
     string User = 1 [ (gogoproto.jsontag) = "user" ];
     // Token specifies the token to delete.
     string Token = 2 [ (gogoproto.jsontag) = "token" ];
+}
+
+// ResourceRequest is a request relating to a named resource.
+message ResourceRequest {
+    // Name is the name of the resource.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+}
+
+// ResourceWithSecretsRequest is a request relating to a named resource with secrets.
+message ResourceWithSecretsRequest {
+    // Name is the name of the resource.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+    // WithSecrets specifies whether to load associated secrets.
+    bool WithSecrets = 2 [ (gogoproto.jsontag) = "with_secrets,omitempty" ];
+}
+
+// ResourcesWithSecretsRequest is a request relating to resources with secrets.
+message ResourcesWithSecretsRequest {
+    // WithSecrets specifies whether to load associated secrets.
+    bool WithSecrets = 1 [ (gogoproto.jsontag) = "with_secrets,omitempty" ];
+}
+
+// OIDCConnectorV2 represents an OIDC connector.
+message OIDCConnectorV2 {
+    // Kind is a resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is a resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata holds resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is an OIDC connector specification.
+    OIDCConnectorSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// OIDCConnectorV2List is a list of OIDC connectors.
+message OIDCConnectorV2List {
+    // OIDCConnectors is a list of OIDC connectors.
+    repeated types.OIDCConnectorV2 OIDCConnectors = 1;
+}
+
+// OIDCConnectorSpecV2 is an OIDC connector specification.
+//
+// It specifies configuration for Open ID Connect compatible external
+// identity provider: https://openid.net/specs/openid-connect-core-1_0.html
+message OIDCConnectorSpecV2 {
+    // IssuerURL is the endpoint of the provider, e.g. https://accounts.google.com.
+    string IssuerURL = 1 [ (gogoproto.jsontag) = "issuer_url" ];
+    // ClientID is the id of the authentication client (Teleport Auth server).
+    string ClientID = 2 [ (gogoproto.jsontag) = "client_id" ];
+    // ClientSecret is used to authenticate the client.
+    string ClientSecret = 3 [ (gogoproto.jsontag) = "client_secret" ];
+    // RedirectURL is a URL that will redirect the client's browser
+    // back to the identity provider after successful authentication.
+    // This should match the URL on the Provider's side.
+    string RedirectURL = 4 [ (gogoproto.jsontag) = "redirect_url" ];
+    // ACR is an Authentication Context Class Reference value. The meaning of the ACR
+    // value is context-specific and varies for identity providers.
+    string ACR = 5 [ (gogoproto.jsontag) = "acr_values,omitempty" ];
+    // Provider is the external identity provider.
+    string Provider = 6 [ (gogoproto.jsontag) = "provider,omitempty" ];
+    // Display is the friendly name for this provider.
+    string Display = 7 [ (gogoproto.jsontag) = "display,omitempty" ];
+    // Scope specifies additional scopes set by provider.
+    repeated string Scope = 8 [ (gogoproto.jsontag) = "scope,omitempty" ];
+    // Prompt is an optional OIDC prompt. An empty string omits prompt.
+    // If not specified, it defaults to select_account for backwards compatibility.
+    string Prompt = 9 [ (gogoproto.jsontag) = "prompt,omitempty" ];
+    // ClaimsToRoles specifies a dynamic mapping from claims to roles.
+    repeated ClaimMapping ClaimsToRoles = 10
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "claims_to_roles,omitempty" ];
+    // GoogleServiceAccountURI is a path to a google service account uri.
+    string GoogleServiceAccountURI = 11
+        [ (gogoproto.jsontag) = "google_service_account_uri,omitempty" ];
+    // GoogleServiceAccount is a string containing google service account credentials.
+    string GoogleServiceAccount = 12 [ (gogoproto.jsontag) = "google_service_account,omitempty" ];
+    // GoogleAdminEmail is the email of a google admin to impersonate.
+    string GoogleAdminEmail = 13 [ (gogoproto.jsontag) = "google_admin_email,omitempty" ];
+}
+
+// SAMLConnectorV2 represents a SAML connector.
+message SAMLConnectorV2 {
+    // Kind is a resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is a resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata holds resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is an SAML connector specification.
+    SAMLConnectorSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// SAMLConnectorV2List is a list of SAML connectors.
+message SAMLConnectorV2List {
+    // SAMLConnectors is a list of SAML connectors.
+    repeated types.SAMLConnectorV2 SAMLConnectors = 1;
+}
+
+// SAMLConnectorSpecV2 is a SAML connector specification.
+message SAMLConnectorSpecV2 {
+    // Issuer is the identity provider issuer.
+    string Issuer = 1 [ (gogoproto.jsontag) = "issuer" ];
+    // SSO is the URL of the identity provider's SSO service.
+    string SSO = 2 [ (gogoproto.jsontag) = "sso" ];
+    // Cert is the identity provider certificate PEM.
+    // IDP signs <Response> responses using this certificate.
+    string Cert = 3 [ (gogoproto.jsontag) = "cert" ];
+    // Display controls how this connector is displayed.
+    string Display = 4 [ (gogoproto.jsontag) = "display" ];
+    // AssertionConsumerService is a URL for assertion consumer service
+    // on the service provider (Teleport's side).
+    string AssertionConsumerService = 5 [ (gogoproto.jsontag) = "acs" ];
+    // Audience uniquely identifies our service provider.
+    string Audience = 6 [ (gogoproto.jsontag) = "audience" ];
+    // ServiceProviderIssuer is the issuer of the service provider (Teleport).
+    string ServiceProviderIssuer = 7 [ (gogoproto.jsontag) = "service_provider_issuer" ];
+    // EntityDescriptor is XML with descriptor. It can be used to supply configuration
+    // parameters in one XML file rather than supplying them in the individual elements.
+    string EntityDescriptor = 8 [ (gogoproto.jsontag) = "entity_descriptor" ];
+    // EntityDescriptorURL is a URL that supplies a configuration XML.
+    string EntityDescriptorURL = 9 [ (gogoproto.jsontag) = "entity_descriptor_url" ];
+    // AttributesToRoles is a list of mappings of attribute statements to roles.
+    repeated AttributeMapping AttributesToRoles = 10
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "attributes_to_roles" ];
+    // SigningKeyPair is an x509 key pair used to sign AuthnRequest.
+    AsymmetricKeyPair SigningKeyPair = 11
+        [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "signing_key_pair,omitempty" ];
+    // Provider is the external identity provider.
+    string Provider = 12 [ (gogoproto.jsontag) = "provider,omitempty" ];
+    // EncryptionKeyPair is a key pair used for decrypting SAML assertions.
+    AsymmetricKeyPair EncryptionKeyPair = 13
+        [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "assertion_key_pair,omitempty" ];
+}
+
+// AttributeMapping maps a SAML attribute statement to teleport roles.
+message AttributeMapping {
+    // Name is an attribute statement name.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+    // Value is an attribute statement value to match.
+    string Value = 2 [ (gogoproto.jsontag) = "value" ];
+    // Roles is a list of static teleport roles to map to.
+    repeated string Roles = 3 [ (gogoproto.jsontag) = "roles,omitempty" ];
+}
+
+// AsymmetricKeyPair is a combination of a public certificate and
+// private key that can be used for encryption and signing.
+message AsymmetricKeyPair {
+    // PrivateKey is a PEM encoded x509 private key.
+    string PrivateKey = 1 [ (gogoproto.jsontag) = "private_key" ];
+    // Cert is a PEM-encoded x509 certificate.
+    string Cert = 2 [ (gogoproto.jsontag) = "cert" ];
+}
+
+// GithubConnectorV3 represents a Github connector.
+message GithubConnectorV3 {
+    // Kind is a resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is a resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata holds resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is an Github connector specification.
+    GithubConnectorSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// GithubConnectorV3List is a list of Github connectors.
+message GithubConnectorV3List {
+    // GithubConnectors is a list of Github connectors.
+    repeated types.GithubConnectorV3 GithubConnectors = 1;
+}
+
+// GithubConnectorSpecV3 is a Github connector specification.
+message GithubConnectorSpecV3 {
+    // ClientID is the Github OAuth app client ID.
+    string ClientID = 1 [ (gogoproto.jsontag) = "client_id" ];
+    // ClientSecret is the Github OAuth app client secret.
+    string ClientSecret = 2 [ (gogoproto.jsontag) = "client_secret" ];
+    // RedirectURL is the authorization callback URL.
+    string RedirectURL = 3 [ (gogoproto.jsontag) = "redirect_url" ];
+    // TeamsToLogins maps Github team memberships onto allowed logins/roles.
+    repeated TeamMapping TeamsToLogins = 4
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "teams_to_logins" ];
+    // Display is the connector display name.
+    string Display = 5 [ (gogoproto.jsontag) = "display" ];
+}
+
+// TeamMapping represents a single team membership mapping.
+message TeamMapping {
+    // Organization is a Github organization a user belongs to.
+    string Organization = 1 [ (gogoproto.jsontag) = "organization" ];
+    // Team is a team within the organization a user belongs to.
+    string Team = 2 [ (gogoproto.jsontag) = "team" ];
+    // Logins is a list of allowed logins for this org/team.
+    repeated string Logins = 3 [ (gogoproto.jsontag) = "logins,omitempty" ];
+    // KubeGroups is a list of allowed kubernetes groups for this org/team.
+    repeated string KubeGroups = 4 [ (gogoproto.jsontag) = "kubernetes_groups,omitempty" ];
+    // KubeUsers is a list of allowed kubernetes users to impersonate for this org/team.
+    repeated string KubeUsers = 5 [ (gogoproto.jsontag) = "kubernetes_users,omitempty" ];
+}
+
+// TrustedClusterV2 represents a Trusted Cluster.
+message TrustedClusterV2 {
+    option (gogoproto.goproto_stringer) = false;
+    // Kind is a resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is a resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata holds resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is a Trusted Cluster specification.
+    TrustedClusterSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// TrustedClusterV2List is a list of trusted cluster.
+message TrustedClusterV2List {
+    // TrustedClusters is a list of trusted cluster.
+    repeated types.TrustedClusterV2 TrustedClusters = 1;
+}
+
+// TrustedClusterSpecV2 is a Trusted Cluster specification.
+message TrustedClusterSpecV2 {
+    // Enabled is a bool that indicates if the TrustedCluster is enabled or disabled.
+    // Setting Enabled to false has a side effect of deleting the user and host certificate
+    // authority (CA).
+    bool Enabled = 1 [ (gogoproto.jsontag) = "enabled" ];
+    // Roles is a list of roles that users will be assuming when connecting to this cluster.
+    repeated string Roles = 2 [ (gogoproto.jsontag) = "roles,omitempty" ];
+    // Token is the authorization token provided by another cluster needed by this cluster to join.
+    string Token = 3 [ (gogoproto.jsontag) = "token" ];
+    // ProxyAddress is the address of the web proxy server of the cluster to join. If not set,
+    // it is derived from <metadata.name>:<default web proxy server port>.
+    string ProxyAddress = 4 [ (gogoproto.jsontag) = "web_proxy_addr" ];
+    // ReverseTunnelAddress is the address of the SSH proxy server of the cluster to join. If
+    // not set, it is derived from <metadata.name>:<default reverse tunnel port>.
+    string ReverseTunnelAddress = 5 [ (gogoproto.jsontag) = "tunnel_addr" ];
+    // RoleMap specifies role mappings to remote roles.
+    repeated RoleMapping RoleMap = 6
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "role_map,omitempty" ];
 }

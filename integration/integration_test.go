@@ -44,6 +44,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -140,7 +141,7 @@ func (s *IntSuite) TearDownSuite(c *check.C) {
 }
 
 func (s *IntSuite) SetUpTest(c *check.C) {
-	os.RemoveAll(client.FullProfilePath(""))
+	os.RemoveAll(apiclient.FullProfilePath(""))
 }
 
 // setUpTest configures the specific test identified with the given c.
@@ -1663,7 +1664,7 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 	err = aux.Process.GetAuthServer().UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 	trustedClusterToken := "trusted-cluster-token"
-	err = main.Process.GetAuthServer().UpsertToken(
+	err = main.Process.GetAuthServer().UpsertToken(ctx,
 		services.MustCreateProvisionToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, time.Time{}))
 	c.Assert(err, check.IsNil)
 	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, services.RoleMap{
@@ -1996,7 +1997,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 		meta.Labels = map[string]string{"access": "prod"}
 		tokenResource.SetMetadata(meta)
 	}
-	err = main.Process.GetAuthServer().UpsertToken(tokenResource)
+	err = main.Process.GetAuthServer().UpsertToken(ctx, tokenResource)
 	c.Assert(err, check.IsNil)
 	// Note that the mapping omits admins role, this is to cover the scenario
 	// when root cluster and leaf clusters have different role sets
@@ -2202,7 +2203,7 @@ func (s *IntSuite) TestTrustedTunnelNode(c *check.C) {
 	err = aux.Process.GetAuthServer().UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 	trustedClusterToken := "trusted-cluster-token"
-	err = main.Process.GetAuthServer().UpsertToken(
+	err = main.Process.GetAuthServer().UpsertToken(ctx,
 		services.MustCreateProvisionToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, time.Time{}))
 	c.Assert(err, check.IsNil)
 	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, services.RoleMap{
@@ -3223,6 +3224,7 @@ func (s *IntSuite) TestPAM(c *check.C) {
 		inServiceName string
 		inUsePAMAuth  bool
 		outContains   []string
+		environment   map[string]string
 	}{
 		// 0 - No PAM support, session should work but no PAM related output.
 		{
@@ -3268,6 +3270,23 @@ func (s *IntSuite) TestPAM(c *check.C) {
 			inUsePAMAuth:  true,
 			outContains:   []string{},
 		},
+		// 5 - PAM enabled, custom environment variables are passed.
+		{
+			inEnabled:     true,
+			inServiceName: "teleport-custom-env",
+			inUsePAMAuth:  false,
+			outContains: []string{
+				"pam_sm_acct_mgmt OK",
+				"pam_sm_open_session OK",
+				"pam_sm_close_session OK",
+				"pam_custom_envs OK",
+			},
+			environment: map[string]string{
+				"FIRST_NAME": "JOHN",
+				"LAST_NAME":  "DOE",
+				"OTHER":      "{{ external.testing }}",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -3284,6 +3303,7 @@ func (s *IntSuite) TestPAM(c *check.C) {
 			tconf.SSH.PAM.Enabled = tt.inEnabled
 			tconf.SSH.PAM.ServiceName = tt.inServiceName
 			tconf.SSH.PAM.UsePAMAuth = tt.inUsePAMAuth
+			tconf.SSH.PAM.Environment = tt.environment
 
 			return c, nil, nil, tconf
 		}
@@ -3410,9 +3430,10 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 	defer svc.Shutdown(context.TODO())
 
 	cfg := ClientConfig{
-		Login: s.me.Username,
-		Host:  Loopback,
-		Port:  t.GetPortSSHInt(),
+		Login:   s.me.Username,
+		Cluster: Site,
+		Host:    Loopback,
+		Port:    t.GetPortSSHInt(),
 	}
 	clt, err := t.NewClientWithCreds(cfg, *initialCreds)
 	c.Assert(err, check.IsNil)
@@ -3557,9 +3578,10 @@ func (s *IntSuite) TestRotateRollback(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	cfg := ClientConfig{
-		Login: s.me.Username,
-		Host:  Loopback,
-		Port:  t.GetPortSSHInt(),
+		Login:   s.me.Username,
+		Cluster: Site,
+		Host:    Loopback,
+		Port:    t.GetPortSSHInt(),
 	}
 	clt, err := t.NewClientWithCreds(cfg, *initialCreds)
 	c.Assert(err, check.IsNil)
@@ -3682,7 +3704,7 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	err = aux.Process.GetAuthServer().UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 	trustedClusterToken := "trusted-clsuter-token"
-	err = svc.GetAuthServer().UpsertToken(
+	err = svc.GetAuthServer().UpsertToken(ctx,
 		services.MustCreateProvisionToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, time.Time{}))
 	c.Assert(err, check.IsNil)
 	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, services.RoleMap{
@@ -4333,8 +4355,9 @@ func (s *IntSuite) TestList(c *check.C) {
 
 		// Create a Teleport client.
 		cfg := ClientConfig{
-			Login: tt.inLogin,
-			Port:  t.GetPortSSHInt(),
+			Login:   tt.inLogin,
+			Cluster: Site,
+			Port:    t.GetPortSSHInt(),
 		}
 		userClt, err := t.NewClientWithCreds(cfg, *initialCreds)
 		c.Assert(err, check.IsNil)
@@ -4432,8 +4455,9 @@ func (s *IntSuite) TestCmdLabels(c *check.C) {
 
 	for _, tt := range tts {
 		cfg := ClientConfig{
-			Login:  s.me.Username,
-			Labels: tt.labels,
+			Login:   s.me.Username,
+			Cluster: Site,
+			Labels:  tt.labels,
 		}
 
 		output, err := runCommand(t, tt.command, cfg, 1)
@@ -5126,6 +5150,7 @@ func hasPAMPolicy() bool {
 		"/etc/pam.d/teleport-acct-failure",
 		"/etc/pam.d/teleport-session-failure",
 		"/etc/pam.d/teleport-success",
+		"/etc/pam.d/teleport-custom-env",
 	}
 
 	for _, fileName := range pamPolicyFiles {
