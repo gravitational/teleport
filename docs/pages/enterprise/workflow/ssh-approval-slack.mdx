@@ -136,14 +136,29 @@ location as plugins have a low memory footprint, and will require both public in
 and Teleport Auth access.  We currently only provide linux-amd64 binaries, you can also
 compile these plugins from [source](https://github.com/gravitational/teleport-plugins/tree/master/access/slack).
 
-```bash
-$ wget https://get.gravitational.com/teleport-access-slack-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
-$ tar -xzf teleport-access-slack-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
-$ cd teleport-access-slack/
-$ ./install
-$ which teleport-slack
-/usr/local/bin/teleport-slack
-```
+**Install the plugin**
+
+<Tabs>
+<TabItem label="Download">
+  ```bash
+  $ curl -L https://get.gravitational.com/teleport-slack-v(=teleport.version=)-linux-amd64-bin.tar.gz
+  $ tar -xzf teleport-slack-v(=teleport.version=)-linux-amd64-bin.tar.gz
+  $ cd teleport-slack
+  $ ./install
+  ```
+</TabItem>
+<TabItem label="From Source">
+  To install from source you need `git` and `go >= (=teleport.golang=)` installed.
+
+  ```bash
+  # Checkout teleport-plugins
+  $ git clone https://github.com/gravitational/teleport-plugins.git
+  $ cd teleport-plugins/access/mattermost
+  $ make
+  ```
+</TabItem>
+</Tabs>
+
 
 Run `./install` in from 'teleport-slack' or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
 
