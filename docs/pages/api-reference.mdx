@@ -5,47 +5,15 @@ description: The detailed guide to Teleport API
 
 In most cases, you can interact with Teleport using our CLI tools, [tsh](cli-docs.mdx#tsh) and [tctl](cli-docs.mdx#tctl). However, you can also directly access the same gRPC API that `tctl` and `tsh` use.
 
-## Getting started
-
-Before you begin:
-
-- Install [Go](https://golang.org/doc/install) 1.15+ and Setup Go Dev Environment
-- Set up Teleport with ([Getting Started Guide](getting-started.mdx))
-
-The easiest way to get started with the Teleport API is to clone the [Go Client Example](https://github.com/gravitational/teleport/tree/master/examples/go-client) in our github repo. Follow the README there to quickly authenticate the API with your Teleport Auth Server.
-
-If you want to start from scratch, simply set up a go module and run: 
-
-```bash
-$ go get github.com/gravitational/teleport/api
-```
-
-Then, follow the client documentation below to get the client up and running.
-
 ## Documentation
 
-#### GoDoc
+The API is now documented through [go.pkg.dev](https://pkg.go.dev/github.com/gravitational/teleport/api/client). 
 
-The API is documented through [go.pkg.dev](https://pkg.go.dev/github.com/gravitational/teleport/api/client) using inline comments and examples. Below are a few noteworthy sections to check out:
- - [Overview](https://pkg.go.dev/github.com/gravitational/teleport/api/client#pkg-overview)
- - [New Client](https://pkg.go.dev/github.com/gravitational/teleport/api/client#New)
+Here are a few important sections to check out:
+ - [Overview README](https://pkg.go.dev/github.com/gravitational/teleport/api/client#section-readme)
+ - [Client](https://pkg.go.dev/github.com/gravitational/teleport/api/client#Client)
  - [Credentials](https://pkg.go.dev/github.com/gravitational/teleport/api/client#Credentials)
-
-There is also some additional information on this page below.
 
 <Admonition type="note">
   We are currently working on improving our API Documentation. If you have an API suggestion, [please complete our survey](https://docs.google.com/forms/d/1HPQu5Asg3lR0cu5crnLDhlvovGpFVIIbDMRvqclPhQg/viewform).
 </Admonition>
-
-#### Credentials
-
-Since there are several Credential loaders to choose from, here are some details to differentiate them by:
-
-| Type | Profile Credentials | Identity Credentials | Key Pair Credentials | TLS Credentials |
-| - | - | - | - | - | 
-| Ease of use | easy | easy | med | hard | 
-| Supports long lived certificates | not easily (configurable on server side) | yes | yes | yes | 
-| Supports proxy connections | yes | yes (6.1+) | no | no | 
-| Automatic Proxy Address discovery | yes | no | no | no | 
-| CLI used | tsh | tctl/tsh | tctl | - | 
-| Available in | 6.1+ | 6.0+ | 6.0+ | 6.0+ | 

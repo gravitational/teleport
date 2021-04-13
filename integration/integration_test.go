@@ -44,7 +44,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -141,7 +141,7 @@ func (s *IntSuite) TearDownSuite(c *check.C) {
 }
 
 func (s *IntSuite) SetUpTest(c *check.C) {
-	os.RemoveAll(apiclient.FullProfilePath(""))
+	os.RemoveAll(profile.FullProfilePath(""))
 }
 
 // setUpTest configures the specific test identified with the given c.

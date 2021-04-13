@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package client
+package profile
 
 import (
 	"crypto/tls"
@@ -93,12 +93,12 @@ func (p *Profile) Name() string {
 
 // TLSConfig returns the profile's associated TLSConfig.
 func (p *Profile) TLSConfig() (*tls.Config, error) {
-	cert, err := tls.LoadX509KeyPair(p.tlsCertPath(), p.keyPath())
+	cert, err := tls.LoadX509KeyPair(p.TLSCertPath(), p.KeyPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	caCerts, err := ioutil.ReadFile(p.tlsCasPath())
+	caCerts, err := ioutil.ReadFile(p.TLSCasPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -116,17 +116,17 @@ func (p *Profile) TLSConfig() (*tls.Config, error) {
 
 // SSHClientConfig returns the profile's associated SSHClientConfig.
 func (p *Profile) SSHClientConfig() (*ssh.ClientConfig, error) {
-	cert, err := ioutil.ReadFile(p.sshCertPath())
+	cert, err := ioutil.ReadFile(p.SSHCertPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	key, err := ioutil.ReadFile(p.keyPath())
+	key, err := ioutil.ReadFile(p.KeyPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	caCerts, err := ioutil.ReadFile(p.sshCasPath())
+	caCerts, err := ioutil.ReadFile(p.SSHCasPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -284,34 +284,34 @@ func (p *Profile) saveToFile(filepath string) error {
 	return nil
 }
 
-func (p *Profile) keyDir() string {
+func (p *Profile) KeyDir() string {
 	return filepath.Join(p.Dir, constants.SessionKeyDir)
 }
 
-func (p *Profile) userKeyDir() string {
-	return filepath.Join(p.keyDir(), p.Name())
+func (p *Profile) UserKeyDir() string {
+	return filepath.Join(p.KeyDir(), p.Name())
 }
 
-func (p *Profile) keyPath() string {
-	return filepath.Join(p.userKeyDir(), p.Username)
+func (p *Profile) KeyPath() string {
+	return filepath.Join(p.UserKeyDir(), p.Username)
 }
 
-func (p *Profile) tlsCertPath() string {
-	return filepath.Join(p.userKeyDir(), p.Username+constants.FileExtTLSCert)
+func (p *Profile) TLSCertPath() string {
+	return filepath.Join(p.UserKeyDir(), p.Username+constants.FileExtTLSCert)
 }
 
-func (p *Profile) tlsCasPath() string {
-	return filepath.Join(p.userKeyDir(), constants.FileNameTLSCerts)
+func (p *Profile) TLSCasPath() string {
+	return filepath.Join(p.UserKeyDir(), constants.FileNameTLSCerts)
 }
 
-func (p *Profile) sshDir() string {
-	return filepath.Join(p.userKeyDir(), p.Username+constants.SSHDirSuffix)
+func (p *Profile) SSHDir() string {
+	return filepath.Join(p.UserKeyDir(), p.Username+constants.SSHDirSuffix)
 }
 
-func (p *Profile) sshCertPath() string {
-	return filepath.Join(p.sshDir(), p.SiteName+constants.FileExtSSHCert)
+func (p *Profile) SSHCertPath() string {
+	return filepath.Join(p.SSHDir(), p.SiteName+constants.FileExtSSHCert)
 }
 
-func (p *Profile) sshCasPath() string {
+func (p *Profile) SSHCasPath() string {
 	return filepath.Join(p.Dir, constants.FileNameKnownHosts)
 }

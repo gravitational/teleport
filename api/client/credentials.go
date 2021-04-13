@@ -17,13 +17,13 @@ limitations under the License.
 package client
 
 import (
-	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"io/ioutil"
-	"net"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/identity"
+	"github.com/gravitational/teleport/api/profile"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -33,7 +33,28 @@ import (
 // Credentials are used to authenticate the API auth client. Some Credentials
 // also provide other functionality, such as automatic address discovery and ssh
 // connectivity.
-// see the examples below (godoc)
+//
+// Since there are several Credential loaders to choose from, here's a quick breakdown:
+//
+//  - Profile Credentials are the easiest to get started with. All you have to do is login
+//    on your device with `tsh login`. Your Teleport proxy address and credentials will
+//    automatically be located and used. However, the other options don't necessarily require
+//    a login step and have the ability to authenticate long lived clients.
+//
+//  - IdentityFile Credentials are the most well rounded in terms of usability, functionality,
+//    and customizability. Identity files can be generated through `tsh login` or `tctl auth sign`,
+//    making them ideal for both long lived proxy and auth server connections.
+//
+//  - Key Pair Credentials have a much simpler implementation than the first two Credentials listed,
+//    and may feel more familiar. These are good for authenticating client's hosted on the auth server.
+//
+//  - TLS Credentials leave everything up to the client user. This isn't recommended for most
+//    users and is mostly used internally, but some users may find that this fits their use case best.
+//
+// Visit https://goteleport.com/docs/api-reference/#credentials to see a
+// feature matrix comparing each loader directly.
+//
+// See the examples below for an example of each loader.
 type Credentials interface {
 	// Dialer is used to create a dialer used to connect to the Auth server.
 	Dialer(cfg Config) (ContextDialer, error)
@@ -44,62 +65,62 @@ type Credentials interface {
 }
 
 // LoadTLS is used to load Credentials directly from a *tls.Config.
-func LoadTLS(tlsConfig *tls.Config) *TLSConfigCreds {
-	return &TLSConfigCreds{
+func LoadTLS(tlsConfig *tls.Config) Credentials {
+	return &tlsConfigCreds{
 		tlsConfig: tlsConfig,
 	}
 }
 
-// TLSConfigCreds use a defined *tls.Config to provide TLS authentication.
-// TLSConfigCreds can only be used to connect directly to a local Teleport Auth server.
-type TLSConfigCreds struct {
+// tlsConfigCreds use a defined *tls.Config to provide TLS authentication.
+// tlsConfigCreds can only be used to connect directly to a local Teleport Auth server.
+type tlsConfigCreds struct {
 	tlsConfig *tls.Config
 }
 
 // Dialer is used to dial a connection to an Auth server.
-func (c *TLSConfigCreds) Dialer(cfg Config) (ContextDialer, error) {
+func (c *tlsConfigCreds) Dialer(cfg Config) (ContextDialer, error) {
 	return nil, trace.NotImplemented("no dialer")
 }
 
 // TLSConfig returns TLS configuration.
-func (c *TLSConfigCreds) TLSConfig() (*tls.Config, error) {
+func (c *tlsConfigCreds) TLSConfig() (*tls.Config, error) {
 	if c.tlsConfig == nil {
 		return nil, trace.BadParameter("tls config is nil")
 	}
-	return configure(c.tlsConfig), nil
+	return configureTLS(c.tlsConfig), nil
 }
 
 // SSHClientConfig returns SSH configuration.
-func (c *TLSConfigCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
+func (c *tlsConfigCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 	return nil, trace.NotImplemented("no ssh config")
 }
 
 // LoadKeyPair is used to load Credentials from a certicate keypair on disk.
 // A new keypair can be generated with tctl.
-// See the example below (godoc).
-func LoadKeyPair(certFile string, keyFile string, caFile string) *KeyPairCreds {
-	return &KeyPairCreds{
+// See the example below.
+func LoadKeyPair(certFile string, keyFile string, caFile string) Credentials {
+	return &keypairCreds{
 		certFile: certFile,
 		keyFile:  keyFile,
 		caFile:   caFile,
 	}
 }
 
-// KeyPairCreds use a certificate keypair to provide TLS authentication.
-// KeyPairCreds can only be used to connect directly to a local Teleport Auth server.
-type KeyPairCreds struct {
+// keypairCreds use a certificate keypair to provide TLS authentication.
+// keypairCreds can only be used to connect directly to a local Teleport Auth server.
+type keypairCreds struct {
 	certFile string
 	keyFile  string
 	caFile   string
 }
 
 // Dialer is used to dial a connection to an Auth server.
-func (c *KeyPairCreds) Dialer(cfg Config) (ContextDialer, error) {
+func (c *keypairCreds) Dialer(cfg Config) (ContextDialer, error) {
 	return nil, trace.NotImplemented("no dialer")
 }
 
 // TLSConfig returns TLS configuration.
-func (c *KeyPairCreds) TLSConfig() (*tls.Config, error) {
+func (c *keypairCreds) TLSConfig() (*tls.Config, error) {
 	cert, err := tls.LoadX509KeyPair(c.certFile, c.keyFile)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -115,41 +136,41 @@ func (c *KeyPairCreds) TLSConfig() (*tls.Config, error) {
 		return nil, trace.BadParameter("invalid TLS CA cert PEM")
 	}
 
-	return configure(&tls.Config{
+	return configureTLS(&tls.Config{
 		Certificates: []tls.Certificate{cert},
 		RootCAs:      pool,
 	}), nil
 }
 
 // SSHClientConfig returns SSH configuration.
-func (c *KeyPairCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
+func (c *keypairCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 	return nil, trace.NotImplemented("no ssh config")
 }
 
 // LoadIdentityFile is used to load Credentials from an identity file on disk.
 // A new identity file can be generated with tsh or tctl.
-// See the example below (godoc).
-func LoadIdentityFile(path string) *IdentityCreds {
-	return &IdentityCreds{
+// See the example below.
+func LoadIdentityFile(path string) Credentials {
+	return &identityCreds{
 		path: path,
 	}
 }
 
-// IdentityCreds use an identity file to provide TLS authentication
+// identityCreds use an identity file to provide TLS authentication
 // and ssh connectivity. They can be used to connect to an Auth server
 // directly (local), or through the cluster's reverse proxy or web proxy.
-type IdentityCreds struct {
+type identityCreds struct {
 	path         string
-	identityFile *IdentityFile
+	identityFile *identity.IdentityFile
 }
 
 // Dialer is used to dial a connection to an Auth server.
-func (c *IdentityCreds) Dialer(cfg Config) (ContextDialer, error) {
+func (c *identityCreds) Dialer(cfg Config) (ContextDialer, error) {
 	return nil, trace.NotImplemented("no dialer")
 }
 
 // TLSConfig returns TLS configuration.
-func (c *IdentityCreds) TLSConfig() (*tls.Config, error) {
+func (c *identityCreds) TLSConfig() (*tls.Config, error) {
 	if err := c.load(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -159,11 +180,11 @@ func (c *IdentityCreds) TLSConfig() (*tls.Config, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return configure(tlsConfig), nil
+	return configureTLS(tlsConfig), nil
 }
 
 // SSHClientConfig returns SSH configuration.
-func (c *IdentityCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
+func (c *identityCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 	if err := c.load(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -178,71 +199,56 @@ func (c *IdentityCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 
 // load is used to lazy load the identity file from persistent storage.
 // This allows LoadIdentity to avoid possible errors for UX purposes.
-func (c *IdentityCreds) load() error {
+func (c *identityCreds) load() error {
 	if c.identityFile != nil {
 		return nil
 	}
 	var err error
-	if c.identityFile, err = ReadIdentityFile(c.path); err != nil {
+	if c.identityFile, err = identity.ReadIdentityFile(c.path); err != nil {
 		return trace.BadParameter("identity file could not be decoded: %v", err)
 	}
 	return nil
 }
 
-// LoadProfile is used to load Credentials from a tsh Profile.
-// If dir is not specified, the default profile path will be used.
-// If name is not specified, the current profile name will be used.
-
 // LoadProfile is used to load Credentials from a tsh profile on disk.
 // A new profile can be generated with tsh.
-// See the example below (godoc).
-func LoadProfile(dir, name string) *ProfileCreds {
-	return &ProfileCreds{
+// See the example below.
+func LoadProfile(dir, name string) Credentials {
+	return &profileCreds{
 		dir:  dir,
 		name: name,
 	}
 }
 
-// ProfileCreds are used to authenticate the client
-// with a tsh profile with the given directory and name.
-
-// ProfileCreds use a tsh profile to provide TLS authentication, ssh
+// profileCreds use a tsh profile to provide TLS authentication, ssh
 // connectivity, and automatic address discovery. They can be used to
 // connect to an Auth server directly (local), or through the cluster's
 // reverse proxy or web proxy. The cluster's web proxy address will
 // be retrieved from the profile and used to connect over ssh.
-type ProfileCreds struct {
+type profileCreds struct {
 	dir     string
 	name    string
-	profile *Profile
+	profile *profile.Profile
 }
 
 // Dialer is used to dial a connection to an Auth server.
-func (c *ProfileCreds) Dialer(cfg Config) (ContextDialer, error) {
+func (c *profileCreds) Dialer(cfg Config) (ContextDialer, error) {
 	sshConfig, err := c.SSHClientConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	dialer := NewTunnelDialer(*sshConfig, cfg.KeepAlivePeriod, cfg.DialTimeout)
-	return ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
-		// Ping web proxy to retrieve tunnel proxy address.
-		pr, err := Find(ctx, c.profile.WebProxyAddr, cfg.InsecureAddressDiscovery, nil)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		conn, err = dialer.DialContext(ctx, network, pr.Proxy.SSH.TunnelPublicAddr)
-		if err != nil {
-			// not wrapping on purpose to preserve the original error
-			return nil, err
-		}
-		return conn, nil
-	}), nil
+	return NewTunnelDialerWithAddressDiscovery(
+		*sshConfig,
+		cfg.KeepAlivePeriod,
+		cfg.DialTimeout,
+		c.profile.WebProxyAddr,
+		cfg.InsecureAddressDiscovery,
+	), nil
 }
 
 // TLSConfig returns TLS configuration.
-func (c *ProfileCreds) TLSConfig() (*tls.Config, error) {
+func (c *profileCreds) TLSConfig() (*tls.Config, error) {
 	if err := c.load(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -252,11 +258,11 @@ func (c *ProfileCreds) TLSConfig() (*tls.Config, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return configure(tlsConfig), nil
+	return configureTLS(tlsConfig), nil
 }
 
 // SSHClientConfig returns SSH configuration.
-func (c *ProfileCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
+func (c *profileCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 	if err := c.load(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -271,18 +277,18 @@ func (c *ProfileCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 
 // load is used to lazy load the profile from persistent storage.
 // This allows LoadProfile to avoid possible errors for UX purposes.
-func (c *ProfileCreds) load() error {
+func (c *profileCreds) load() error {
 	if c.profile != nil {
 		return nil
 	}
 	var err error
-	if c.profile, err = ProfileFromDir(c.dir, c.name); err != nil {
+	if c.profile, err = profile.ProfileFromDir(c.dir, c.name); err != nil {
 		return trace.BadParameter("profile could not be decoded: %v", err)
 	}
 	return nil
 }
 
-func configure(c *tls.Config) *tls.Config {
+func configureTLS(c *tls.Config) *tls.Config {
 	tlsConfig := c.Clone()
 
 	tlsConfig.NextProtos = []string{http2.NextProtoTLS}

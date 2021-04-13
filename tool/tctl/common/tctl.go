@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/config"
@@ -259,7 +260,7 @@ func findReverseTunnel(ctx context.Context, addrs []utils.NetAddr, insecureTLS b
 	for _, addr := range addrs {
 		// In insecure mode, any certificate is accepted. In secure mode the hosts
 		// CAs are used to validate the certificate on the proxy.
-		resp, err := apiclient.Find(ctx, addr.String(), insecureTLS, nil)
+		resp, err := webclient.Find(ctx, addr.String(), insecureTLS, nil)
 		if err == nil {
 			return tunnelAddr(addr, resp.Proxy)
 		}
@@ -273,7 +274,7 @@ func findReverseTunnel(ctx context.Context, addrs []utils.NetAddr, insecureTLS b
 //  2. SSH Proxy Public Address.
 //  3. HTTP Proxy Public Address.
 //  4. Tunnel Listen Address.
-func tunnelAddr(webAddr utils.NetAddr, settings apiclient.ProxySettings) (string, error) {
+func tunnelAddr(webAddr utils.NetAddr, settings webclient.ProxySettings) (string, error) {
 	// Extract the port the tunnel server is listening on.
 	netAddr, err := utils.ParseHostPortAddr(settings.SSH.TunnelListenAddr, defaults.SSHProxyTunnelListenPort)
 	if err != nil {
