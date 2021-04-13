@@ -21,8 +21,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
@@ -30,6 +30,8 @@ import (
 
 // UploadCompleterConfig specifies configuration for the uploader
 type UploadCompleterConfig struct {
+	// AuditLog is used for storing logs
+	AuditLog IAuditLog
 	// Uploader allows the completer to list and complete uploads
 	Uploader MultipartUploader
 	// GracePeriod is the period after which uploads are considered
@@ -137,6 +139,22 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 		}
 		u.log.Debugf("Completed upload %v.", upload)
 		completed++
+		uploadData := u.cfg.Uploader.GetUploadMetadata(upload.SessionID)
+		session := &events.SessionUpload{
+			Metadata: Metadata{
+				Type:  SessionUploadEvent,
+				Code:  SessionUploadCode,
+				Index: SessionUploadIndex,
+			},
+			SessionMetadata: SessionMetadata{
+				SessionID: string(uploadData.SessionID),
+			},
+			SessionURL: uploadData.URL,
+		}
+		err = u.cfg.AuditLog.EmitAuditEvent(ctx, session)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	if completed > 0 {
 		u.log.Debugf("Found %v active uploads, completed %v.", len(uploads), completed)

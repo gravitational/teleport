@@ -20,7 +20,7 @@ func SafeToRetry(err error) bool {
 }
 
 // Timeout checks if err was was caused by a timeout. To be specific, it is true if err is or was caused by a
-// context.Canceled, context.Canceled or an implementer of net.Error where Timeout() is true.
+// context.Canceled, context.DeadlineExceeded or an implementer of net.Error where Timeout() is true.
 func Timeout(err error) bool {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return true

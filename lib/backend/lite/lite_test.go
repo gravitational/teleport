@@ -18,6 +18,7 @@ package lite
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -29,6 +30,11 @@ import (
 	"gopkg.in/check.v1"
 )
 
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
+
 func TestLite(t *testing.T) { check.TestingT(t) }
 
 type LiteSuite struct {
@@ -39,7 +45,6 @@ type LiteSuite struct {
 var _ = check.Suite(&LiteSuite{})
 
 func (s *LiteSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
 	newBackend := func() (backend.Backend, error) {
 		return New(context.Background(), map[string]interface{}{
 			"path":               c.MkDir(),

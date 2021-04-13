@@ -17,15 +17,22 @@ limitations under the License.
 package memory
 
 import (
+	"os"
 	"testing"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
 	"gopkg.in/check.v1"
+
+	"github.com/gravitational/trace"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 func TestLite(t *testing.T) { check.TestingT(t) }
 
@@ -37,7 +44,6 @@ type MemorySuite struct {
 var _ = check.Suite(&MemorySuite{})
 
 func (s *MemorySuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
 	newBackend := func() (backend.Backend, error) {
 		mem, err := New(Config{})
 		if err != nil {

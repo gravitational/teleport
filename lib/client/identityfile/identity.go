@@ -18,14 +18,13 @@ limitations under the License.
 package identityfile
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"strings"
 
+	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -64,11 +63,6 @@ const (
 // KnownFormats is a list of all above formats.
 var KnownFormats = []Format{FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase}
 
-const (
-	// The files created by Write will have these permissions.
-	writeFileMode = 0600
-)
-
 // WriteConfig holds the necessary information to write an identity file.
 type WriteConfig struct {
 	// OutputPath is the output path for the identity file. Note that some
@@ -98,19 +92,19 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 	switch cfg.Format {
 	// dump user identity into a single file:
 	case FormatFile:
-		buf := new(bytes.Buffer)
-		// write key:
-		if err := writeWithNewline(buf, cfg.Key.Priv); err != nil {
+		filesWritten = append(filesWritten, cfg.OutputPath)
+		if err := checkOverwrite(cfg.OverwriteDestination, filesWritten...); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// append ssh cert:
-		if err := writeWithNewline(buf, cfg.Key.Cert); err != nil {
-			return nil, trace.Wrap(err)
+
+		idFile := &apiclient.IdentityFile{
+			PrivateKey: cfg.Key.Priv,
+			Certs: apiclient.Certs{
+				SSH: cfg.Key.Cert,
+				TLS: cfg.Key.TLSCert,
+			},
 		}
-		// append tls cert:
-		if err := writeWithNewline(buf, cfg.Key.TLSCert); err != nil {
-			return nil, trace.Wrap(err)
-		}
+
 		// append trusted host certificate authorities
 		for _, ca := range cfg.Key.TrustedCA {
 			// append ssh ca certificates
@@ -119,41 +113,31 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				if err := writeWithNewline(buf, []byte(data)); err != nil {
-					return nil, trace.Wrap(err)
-				}
+				idFile.CACerts.SSH = append(idFile.CACerts.SSH, []byte(data))
 			}
 			// append tls ca certificates
-			for _, cert := range ca.TLSCertificates {
-				if err := writeWithNewline(buf, cert); err != nil {
-					return nil, trace.Wrap(err)
-				}
-			}
+			idFile.CACerts.TLS = append(idFile.CACerts.TLS, ca.TLSCertificates...)
 		}
 
-		filesWritten = append(filesWritten, cfg.OutputPath)
-		if err := checkOverwrite(cfg.OverwriteDestination, filesWritten...); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if err := writeFile(cfg.OutputPath, buf.Bytes()); err != nil {
+		if err := apiclient.WriteIdentityFile(idFile, cfg.OutputPath); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 	// dump user identity into separate files:
 	case FormatOpenSSH:
 		keyPath := cfg.OutputPath
-		certPath := keyPath + "-cert.pub"
+		certPath := keyPath + constants.FileExtSSHCert
 		filesWritten = append(filesWritten, keyPath, certPath)
 		if err := checkOverwrite(cfg.OverwriteDestination, filesWritten...); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		err = writeFile(certPath, cfg.Key.Cert)
+		err = ioutil.WriteFile(certPath, cfg.Key.Cert, apiclient.IdentityFilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		err = writeFile(keyPath, cfg.Key.Priv)
+		err = ioutil.WriteFile(keyPath, cfg.Key.Priv, apiclient.IdentityFilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -167,12 +151,12 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			return nil, trace.Wrap(err)
 		}
 
-		err = writeFile(certPath, cfg.Key.TLSCert)
+		err = ioutil.WriteFile(certPath, cfg.Key.TLSCert, apiclient.IdentityFilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		err = writeFile(keyPath, cfg.Key.Priv)
+		err = ioutil.WriteFile(keyPath, cfg.Key.Priv, apiclient.IdentityFilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -182,7 +166,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 				caCerts = append(caCerts, cert...)
 			}
 		}
-		err = writeFile(casPath, caCerts)
+		err = ioutil.WriteFile(casPath, caCerts, apiclient.IdentityFilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -214,22 +198,6 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 	return filesWritten, nil
 }
 
-func writeWithNewline(w io.Writer, data []byte) error {
-	if _, err := w.Write(data); err != nil {
-		return trace.Wrap(err)
-	}
-	if !bytes.HasSuffix(data, []byte{'\n'}) {
-		if _, err := fmt.Fprintln(w); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
-func writeFile(path string, data []byte) error {
-	return trace.Wrap(ioutil.WriteFile(path, data, writeFileMode))
-}
-
 func checkOverwrite(force bool, paths ...string) error {
 	var existingFiles []string
 	// Check if the destination file exists.
@@ -259,89 +227,4 @@ func checkOverwrite(force bool, paths ...string) error {
 		return trace.Errorf("not overwriting destination files %s", strings.Join(existingFiles, ", "))
 	}
 	return nil
-}
-
-// IdentityFile represents the basic components of an identity file.
-type IdentityFile struct {
-	PrivateKey []byte
-	Certs      struct {
-		SSH []byte
-		TLS []byte
-	}
-	CACerts struct {
-		SSH [][]byte
-		TLS [][]byte
-	}
-}
-
-// Decode attempts to break up the contents of an identity file
-// into its respective components.
-func Decode(r io.Reader) (*IdentityFile, error) {
-	scanner := bufio.NewScanner(r)
-	var ident IdentityFile
-	// Subslice of scanner's buffer pointing to current line
-	// with leading and trailing whitespace trimmed.
-	var line []byte
-	// Attempt to scan to the next line.
-	scanln := func() bool {
-		if !scanner.Scan() {
-			line = nil
-			return false
-		}
-		line = bytes.TrimSpace(scanner.Bytes())
-		return true
-	}
-	// Check if the current line starts with prefix `p`.
-	peekln := func(p string) bool {
-		return bytes.HasPrefix(line, []byte(p))
-	}
-	// Get an "owned" copy of the current line.
-	cloneln := func() []byte {
-		ln := make([]byte, len(line))
-		copy(ln, line)
-		return ln
-	}
-	// Scan through all lines of identity file.  Lines with a known prefix
-	// are copied out of the scanner's buffer.  All others are ignored.
-	for scanln() {
-		switch {
-		case peekln("ssh"):
-			ident.Certs.SSH = cloneln()
-		case peekln("@cert-authority"):
-			ident.CACerts.SSH = append(ident.CACerts.SSH, cloneln())
-		case peekln("-----BEGIN"):
-			// Current line marks the beginning of a PEM block.  Consume all
-			// lines until a corresponding END is found.
-			var pemBlock []byte
-			for {
-				pemBlock = append(pemBlock, line...)
-				pemBlock = append(pemBlock, '\n')
-				if peekln("-----END") {
-					break
-				}
-				if !scanln() {
-					// If scanner has terminated in the middle of a PEM block, either
-					// the reader encountered an error, or the PEM block is a fragment.
-					if err := scanner.Err(); err != nil {
-						return nil, trace.Wrap(err)
-					}
-					return nil, trace.BadParameter("invalid PEM block (fragment)")
-				}
-			}
-			// Decide where to place the pem block based on
-			// which pem blocks have already been found.
-			switch {
-			case ident.PrivateKey == nil:
-				ident.PrivateKey = pemBlock
-			case ident.Certs.TLS == nil:
-				ident.Certs.TLS = pemBlock
-			default:
-				ident.CACerts.TLS = append(ident.CACerts.TLS, pemBlock)
-			}
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &ident, nil
 }

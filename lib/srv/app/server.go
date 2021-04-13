@@ -374,9 +374,17 @@ func (s *Server) authorize(ctx context.Context, r *http.Request) (*tlsca.Identit
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	err = authContext.Checker.CheckAccessToApp(defaults.Namespace, app, identity.MFAVerified)
+	ap, err := s.c.AccessPoint.GetAuthPreference()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
+	}
+	mfaParams := services.AccessMFAParams{
+		Verified:       identity.MFAVerified != "",
+		AlwaysRequired: ap.GetRequireSessionMFA(),
+	}
+	err = authContext.Checker.CheckAccessToApp(defaults.Namespace, app, mfaParams)
+	if err != nil {
+		return nil, nil, utils.OpaqueAccessDenied(err)
 	}
 
 	return &identity, app, nil

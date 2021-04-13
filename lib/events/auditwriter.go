@@ -47,15 +47,19 @@ func NewAuditWriter(cfg AuditWriterConfig) (*AuditWriter, error) {
 	writer := &AuditWriter{
 		mtx:    sync.Mutex{},
 		cfg:    cfg,
-		stream: NewCheckingStream(stream, cfg.Clock),
+		stream: NewCheckingStream(stream, cfg.Clock, cfg.ClusterName),
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: cfg.Component,
 		}),
 		cancel:   cancel,
 		closeCtx: ctx,
 		eventsCh: make(chan AuditEvent),
+		doneCh:   make(chan struct{}),
 	}
-	go writer.processEvents()
+	go func() {
+		writer.processEvents()
+		close(writer.doneCh)
+	}()
 	return writer, nil
 }
 
@@ -96,18 +100,24 @@ type AuditWriterConfig struct {
 
 	// BackoffDuration is a duration of the backoff before the next try
 	BackoffDuration time.Duration
+
+	// ClusterName defines the name of this teleport cluster.
+	ClusterName string
 }
 
 // CheckAndSetDefaults checks and sets defaults
 func (cfg *AuditWriterConfig) CheckAndSetDefaults() error {
 	if cfg.SessionID.IsZero() {
-		return trace.BadParameter("missing parameter SessionID")
+		return trace.BadParameter("audit writer config: missing parameter SessionID")
 	}
 	if cfg.Streamer == nil {
-		return trace.BadParameter("missing parameter Streamer")
+		return trace.BadParameter("audit writer config: missing parameter Streamer")
 	}
 	if cfg.Context == nil {
-		return trace.BadParameter("missing parameter Context")
+		return trace.BadParameter("audit writer config: missing parameter Context")
+	}
+	if cfg.ClusterName == "" {
+		return trace.BadParameter("audit writer config: missing parameter ClusterName")
 	}
 	if cfg.Namespace == "" {
 		cfg.Namespace = defaults.Namespace
@@ -141,6 +151,8 @@ type AuditWriter struct {
 	stream         Stream
 	cancel         context.CancelFunc
 	closeCtx       context.Context
+	// doneCh is closed when all internal processes have exited
+	doneCh chan struct{}
 
 	backoffUntil   time.Time
 	lostEvents     atomic.Int64
@@ -358,6 +370,7 @@ func (a *AuditWriter) Stats() AuditWriterStats {
 // the interface - io.WriteCloser has only close method
 func (a *AuditWriter) Close(ctx context.Context) error {
 	a.cancel()
+	<-a.doneCh
 	stats := a.Stats()
 	if stats.LostEvents != 0 {
 		a.log.Errorf("Session has lost %v out of %v audit events because of disk or network issues. Check disk and network on this server.", stats.LostEvents, stats.AcceptedEvents)
@@ -538,7 +551,7 @@ func (a *AuditWriter) setupEvent(event AuditEvent) error {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 
-	if err := CheckAndSetEventFields(event, a.cfg.Clock, a.cfg.UID); err != nil {
+	if err := checkAndSetEventFields(event, a.cfg.Clock, a.cfg.UID, a.cfg.ClusterName); err != nil {
 		return trace.Wrap(err)
 	}
 

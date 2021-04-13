@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/interval"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -367,6 +368,7 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 			CAPin:                process.Config.CAPin,
 			CAPath:               filepath.Join(defaults.DataDir, defaults.CACertFile),
 			GetHostCredentials:   client.HostCredentials,
+			Clock:                process.Clock,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -432,16 +434,21 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 		return nil
 	}
 
-	retryTicker := time.NewTicker(defaults.HighResPollingPeriod)
-	defer retryTicker.Stop()
+	periodic := interval.New(interval.Config{
+		Duration:      defaults.HighResPollingPeriod,
+		FirstDuration: utils.HalfJitter(defaults.HighResPollingPeriod),
+		Jitter:        utils.NewSeventhJitter(),
+	})
+	defer periodic.Stop()
+
 	for {
 		err := process.syncRotationStateCycle()
 		if err == nil {
 			return nil
 		}
-		process.log.Warningf("Sync rotation state cycle failed: %v, going to retry after %v.", err, defaults.HighResPollingPeriod)
+		process.log.Warningf("Sync rotation state cycle failed: %v, going to retry after ~%v.", err, defaults.HighResPollingPeriod)
 		select {
-		case <-retryTicker.C:
+		case <-periodic.Next():
 		case <-process.ExitContext().Done():
 			return nil
 		}
@@ -480,8 +487,12 @@ func (process *TeleportProcess) syncRotationStateCycle() error {
 	}
 	defer watcher.Close()
 
-	t := time.NewTicker(process.Config.PollingPeriod)
-	defer t.Stop()
+	periodic := interval.New(interval.Config{
+		Duration:      process.Config.PollingPeriod,
+		FirstDuration: utils.HalfJitter(process.Config.PollingPeriod),
+		Jitter:        utils.NewSeventhJitter(),
+	})
+	defer periodic.Stop()
 	for {
 		select {
 		case event := <-watcher.Events():
@@ -510,7 +521,7 @@ func (process *TeleportProcess) syncRotationStateCycle() error {
 			}
 		case <-watcher.Done():
 			return trace.ConnectionProblem(watcher.Error(), "watcher has disconnected")
-		case <-t.C:
+		case <-periodic.Next():
 			status, err := process.syncRotationStateAndBroadcast(conn)
 			if err != nil {
 				return trace.Wrap(err)
@@ -792,8 +803,11 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 	// Try and connect to the Auth Server. If the request fails, try and
 	// connect through a tunnel.
 	process.log.Debugf("Attempting to connect to Auth Server directly.")
-	_, err = directClient.GetLocalClusterName()
-	if err != nil {
+	if _, err = directClient.GetLocalClusterName(); err != nil {
+		if err := directClient.Close(); err != nil {
+			process.log.WithError(err).Warn("Failed to close direct Auth Server client.")
+		}
+
 		// Don't attempt to connect through a tunnel as a proxy or auth server.
 		if identity.ID.Role == teleport.RoleAuth || identity.ID.Role == teleport.RoleProxy {
 			return nil, trace.Wrap(err)
@@ -820,7 +834,7 @@ func (process *TeleportProcess) findReverseTunnel(addrs []utils.NetAddr) (string
 	for _, addr := range addrs {
 		// In insecure mode, any certificate is accepted. In secure mode the hosts
 		// CAs are used to validate the certificate on the proxy.
-		resp, err := client.Find(process.ExitContext(),
+		resp, err := apiclient.Find(process.ExitContext(),
 			addr.String(),
 			lib.IsInsecureDevMode(),
 			nil)
@@ -837,7 +851,7 @@ func (process *TeleportProcess) findReverseTunnel(addrs []utils.NetAddr) (string
 //  2. SSH Proxy Public Address.
 //  3. HTTP Proxy Public Address.
 //  4. Tunnel Listen Address.
-func tunnelAddr(settings client.ProxySettings) (string, error) {
+func tunnelAddr(settings apiclient.ProxySettings) (string, error) {
 	// Extract the port the tunnel server is listening on.
 	netAddr, err := utils.ParseHostPortAddr(settings.SSH.TunnelListenAddr, defaults.SSHProxyTunnelListenPort)
 	if err != nil {
@@ -890,7 +904,9 @@ func (process *TeleportProcess) newClientThroughTunnel(servers []utils.NetAddr, 
 			ProxyAddr:    proxyAddr,
 			ClientConfig: identity.SSHClientConfig(),
 		},
-		TLS: tlsConfig,
+		Credentials: []apiclient.Credentials{
+			apiclient.LoadTLS(tlsConfig),
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -914,7 +930,15 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, ide
 	if process.Config.ClientTimeout != 0 {
 		return auth.NewClient(apiclient.Config{
 			Addrs: utils.NetAddrsToStrings(authServers),
-			TLS:   tlsConfig}, auth.ClientTimeout(process.Config.ClientTimeout))
+			Credentials: []apiclient.Credentials{
+				apiclient.LoadTLS(tlsConfig),
+			},
+		}, auth.ClientTimeout(process.Config.ClientTimeout))
 	}
-	return auth.NewClient(apiclient.Config{Addrs: utils.NetAddrsToStrings(authServers), TLS: tlsConfig})
+	return auth.NewClient(apiclient.Config{
+		Addrs: utils.NetAddrsToStrings(authServers),
+		Credentials: []apiclient.Credentials{
+			apiclient.LoadTLS(tlsConfig),
+		},
+	})
 }

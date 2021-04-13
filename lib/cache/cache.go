@@ -46,6 +46,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: true},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: services.KindClusterAuthPreference},
 		{Kind: services.KindStaticTokens},
 		{Kind: services.KindToken},
 		{Kind: services.KindUser},
@@ -76,6 +77,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: false},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: services.KindClusterAuthPreference},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindNamespace},
@@ -152,6 +154,7 @@ func ForNode(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: false},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: services.KindClusterAuthPreference},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		// Node only needs to "know" about default
@@ -170,6 +173,7 @@ func ForKubernetes(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: false},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: services.KindClusterAuthPreference},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindNamespace, Name: defaults.Namespace},
@@ -186,6 +190,7 @@ func ForApps(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: false},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: services.KindClusterAuthPreference},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindProxy},
@@ -203,6 +208,7 @@ func ForDatabases(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: false},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: services.KindClusterAuthPreference},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindProxy},
@@ -358,7 +364,7 @@ type readGuard struct {
 	provisioner   services.Provisioner
 	users         services.UsersService
 	access        services.Access
-	dynamicAccess services.DynamicAccess
+	dynamicAccess services.DynamicAccessCore
 	presence      services.Presence
 	appSession    services.AppSession
 	webSession    types.WebSessionInterface
@@ -405,7 +411,7 @@ type Config struct {
 	// Access is an access service
 	Access services.Access
 	// DynamicAccess is a dynamic access service
-	DynamicAccess services.DynamicAccess
+	DynamicAccess services.DynamicAccessCore
 	// Presence is a presence service
 	Presence services.Presence
 	// AppSession holds application sessions.
@@ -968,30 +974,30 @@ func (c *Cache) GetStaticTokens() (services.StaticTokens, error) {
 }
 
 // GetTokens returns all active (non-expired) provisioning tokens
-func (c *Cache) GetTokens(opts ...services.MarshalOption) ([]services.ProvisionToken, error) {
+func (c *Cache) GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]services.ProvisionToken, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.provisioner.GetTokens(services.AddOptions(opts, services.SkipValidation())...)
+	return rg.provisioner.GetTokens(ctx, services.AddOptions(opts, services.SkipValidation())...)
 }
 
 // GetToken finds and returns token by ID
-func (c *Cache) GetToken(name string) (services.ProvisionToken, error) {
+func (c *Cache) GetToken(ctx context.Context, name string) (services.ProvisionToken, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
-	token, err := rg.provisioner.GetToken(name)
+	token, err := rg.provisioner.GetToken(ctx, name)
 	if trace.IsNotFound(err) && rg.IsCacheRead() {
 		// release read lock early
 		rg.Release()
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
-		if token, err := c.Config.Provisioner.GetToken(name); err == nil {
+		if token, err := c.Config.Provisioner.GetToken(ctx, name); err == nil {
 			return token, nil
 		}
 	}
@@ -1019,29 +1025,29 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (services.Cluster
 }
 
 // GetRoles is a part of auth.AccessPoint implementation
-func (c *Cache) GetRoles() ([]services.Role, error) {
+func (c *Cache) GetRoles(ctx context.Context) ([]services.Role, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.access.GetRoles()
+	return rg.access.GetRoles(ctx)
 }
 
 // GetRole is a part of auth.AccessPoint implementation
-func (c *Cache) GetRole(name string) (services.Role, error) {
+func (c *Cache) GetRole(ctx context.Context, name string) (services.Role, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	role, err := rg.access.GetRole(name)
+	role, err := rg.access.GetRole(ctx, name)
 	if trace.IsNotFound(err) && rg.IsCacheRead() {
 		// release read lock early
 		rg.Release()
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
-		if role, err := c.Config.Access.GetRole(name); err == nil {
+		if role, err := c.Config.Access.GetRole(ctx, name); err == nil {
 			return role, nil
 		}
 	}
@@ -1247,4 +1253,14 @@ func (c *Cache) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (
 	}
 	defer rg.Release()
 	return rg.webToken.Get(ctx, req)
+}
+
+// GetAuthPreference gets the cluster authentication config.
+func (c *Cache) GetAuthPreference() (services.AuthPreference, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.clusterConfig.GetAuthPreference()
 }

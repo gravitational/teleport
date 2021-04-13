@@ -33,6 +33,25 @@ const (
 	// Backups have not yet been enabled for this table.
 	ErrCodeContinuousBackupsUnavailableException = "ContinuousBackupsUnavailableException"
 
+	// ErrCodeDuplicateItemException for service response error code
+	// "DuplicateItemException".
+	//
+	// There was an attempt to insert an item with the same primary key as an item
+	// that already exists in the DynamoDB table.
+	ErrCodeDuplicateItemException = "DuplicateItemException"
+
+	// ErrCodeExportConflictException for service response error code
+	// "ExportConflictException".
+	//
+	// There was a conflict when writing to the specified S3 bucket.
+	ErrCodeExportConflictException = "ExportConflictException"
+
+	// ErrCodeExportNotFoundException for service response error code
+	// "ExportNotFoundException".
+	//
+	// The specified export was not found.
+	ErrCodeExportNotFoundException = "ExportNotFoundException"
+
 	// ErrCodeGlobalTableAlreadyExistsException for service response error code
 	// "GlobalTableAlreadyExistsException".
 	//
@@ -63,6 +82,12 @@ const (
 	//
 	// An error occurred on the server side.
 	ErrCodeInternalServerError = "InternalServerError"
+
+	// ErrCodeInvalidExportTimeException for service response error code
+	// "InvalidExportTimeException".
+	//
+	// The specified ExportTime is outside of the point in time recovery window.
+	ErrCodeInvalidExportTimeException = "InvalidExportTimeException"
 
 	// ErrCodeInvalidRestoreTimeException for service response error code
 	// "InvalidRestoreTimeException".
@@ -274,11 +299,15 @@ var exceptionFromCode = map[string]func(protocol.ResponseMetadata) error{
 	"BackupNotFoundException":                  newErrorBackupNotFoundException,
 	"ConditionalCheckFailedException":          newErrorConditionalCheckFailedException,
 	"ContinuousBackupsUnavailableException":    newErrorContinuousBackupsUnavailableException,
+	"DuplicateItemException":                   newErrorDuplicateItemException,
+	"ExportConflictException":                  newErrorExportConflictException,
+	"ExportNotFoundException":                  newErrorExportNotFoundException,
 	"GlobalTableAlreadyExistsException":        newErrorGlobalTableAlreadyExistsException,
 	"GlobalTableNotFoundException":             newErrorGlobalTableNotFoundException,
 	"IdempotentParameterMismatchException":     newErrorIdempotentParameterMismatchException,
 	"IndexNotFoundException":                   newErrorIndexNotFoundException,
 	"InternalServerError":                      newErrorInternalServerError,
+	"InvalidExportTimeException":               newErrorInvalidExportTimeException,
 	"InvalidRestoreTimeException":              newErrorInvalidRestoreTimeException,
 	"ItemCollectionSizeLimitExceededException": newErrorItemCollectionSizeLimitExceededException,
 	"LimitExceededException":                   newErrorLimitExceededException,

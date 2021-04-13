@@ -19,7 +19,11 @@ package types
 
 import (
 	"fmt"
+	"reflect"
+	"sort"
 	"time"
+
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
 )
@@ -66,6 +70,26 @@ type AccessRequest interface {
 	GetSystemAnnotations() map[string][]string
 	// SetSystemAnnotations sets the teleport-applied annotations.
 	SetSystemAnnotations(map[string][]string)
+	// GetOriginalRoles gets the original (pre-override) role list.
+	GetOriginalRoles() []string
+	// GetThresholds gets the review thresholds.
+	GetThresholds() []AccessReviewThreshold
+	// SetThresholds sets the review thresholds (internal use only).
+	SetThresholds([]AccessReviewThreshold)
+	// GetRoleThresholdMapping gets the rtm.  See documentation of the
+	// AccessRequestSpecV3.RoleThresholdMapping field for details.
+	GetRoleThresholdMapping() map[string]ThresholdIndexSets
+	// SetRoleThresholdMapping sets the rtm (internal use only).  See documentation
+	// of the AccessRequestSpecV3.RoleThresholdMapping field for details.
+	SetRoleThresholdMapping(map[string]ThresholdIndexSets)
+	// GetReviews gets the list of currently applied access reviews.
+	GetReviews() []AccessReview
+	// SetReviews sets the list of currently applied access reviews (internal use only).
+	SetReviews([]AccessReview)
+	// GetSuggestedReviewers gets the suggested reviewer list.
+	GetSuggestedReviewers() []string
+	// SetSuggestedReviewers sets the suggested reviewer list.
+	SetSuggestedReviewers([]string)
 	// CheckAndSetDefaults validates the access request and
 	// supplies default values where appropriate.
 	CheckAndSetDefaults() error
@@ -185,6 +209,64 @@ func (r *AccessRequestV3) SetSystemAnnotations(annotations map[string][]string) 
 	r.Spec.SystemAnnotations = annotations
 }
 
+func (r *AccessRequestV3) GetOriginalRoles() []string {
+	if l := len(r.Spec.RoleThresholdMapping); l == 0 || l == len(r.Spec.Roles) {
+		// rtm is unspecified or original role list is unmodified.  since the rtm
+		// keys and role list are identical until role subselection is applied,
+		// we can return the role list directly.
+		return r.Spec.Roles
+	}
+
+	// role subselection has been applied.  calculate original roles
+	// by collecting the keys of the rtm.
+	roles := make([]string, 0, len(r.Spec.RoleThresholdMapping))
+	for role := range r.Spec.RoleThresholdMapping {
+		roles = append(roles, role)
+	}
+	sort.Strings(roles)
+	return roles
+}
+
+// GetThresholds gets the review thresholds.
+func (r *AccessRequestV3) GetThresholds() []AccessReviewThreshold {
+	return r.Spec.Thresholds
+}
+
+// SetThresholds sets the review thresholds.
+func (r *AccessRequestV3) SetThresholds(thresholds []AccessReviewThreshold) {
+	r.Spec.Thresholds = thresholds
+}
+
+// GetRoleThresholdMapping gets the rtm.
+func (r *AccessRequestV3) GetRoleThresholdMapping() map[string]ThresholdIndexSets {
+	return r.Spec.RoleThresholdMapping
+}
+
+// SetRoleThresholdMapping sets the rtm (internal use only).
+func (r *AccessRequestV3) SetRoleThresholdMapping(rtm map[string]ThresholdIndexSets) {
+	r.Spec.RoleThresholdMapping = rtm
+}
+
+// SetReviews sets the list of currently applied access reviews.
+func (r *AccessRequestV3) SetReviews(revs []AccessReview) {
+	r.Spec.Reviews = revs
+}
+
+// GetReviews gets the list of currently applied access reviews.
+func (r *AccessRequestV3) GetReviews() []AccessReview {
+	return r.Spec.Reviews
+}
+
+// GetSuggestedReviewers gets the suggested reviewer list.
+func (r *AccessRequestV3) GetSuggestedReviewers() []string {
+	return r.Spec.SuggestedReviewers
+}
+
+// SetSuggestedReviewers sets the suggested reviewer list.
+func (r *AccessRequestV3) SetSuggestedReviewers(reviewers []string) {
+	r.Spec.SuggestedReviewers = reviewers
+}
+
 // CheckAndSetDefaults validates set values and sets default values
 func (r *AccessRequestV3) CheckAndSetDefaults() error {
 	if err := r.Metadata.CheckAndSetDefaults(); err != nil {
@@ -195,6 +277,11 @@ func (r *AccessRequestV3) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 	}
+
+	// dedupe and sort roles to simplify comparing role lists
+	r.Spec.Roles = utils.Deduplicate(r.Spec.Roles)
+	sort.Strings(r.Spec.Roles)
+
 	if err := r.Check(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -306,6 +393,34 @@ func (r *AccessRequestV3) Equals(other AccessRequest) bool {
 		return false
 	}
 	return r.Spec.Equals(&o.Spec)
+}
+
+func (t AccessReviewThreshold) Equals(other AccessReviewThreshold) bool {
+	return reflect.DeepEqual(t, other)
+}
+
+func (c AccessReviewConditions) IsZero() bool {
+	return reflect.ValueOf(c).IsZero()
+}
+
+func (c AccessRequestConditions) IsZero() bool {
+	return reflect.ValueOf(c).IsZero()
+}
+
+func (s AccessReviewSubmission) Check() error {
+	if s.RequestID == "" {
+		return trace.BadParameter("missing request ID")
+	}
+
+	return s.Review.Check()
+}
+
+func (s AccessReview) Check() error {
+	if s.Author == "" {
+		return trace.BadParameter("missing review author")
+	}
+
+	return nil
 }
 
 // AccessRequestUpdate encompasses the parameters of a

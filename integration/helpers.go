@@ -400,7 +400,7 @@ type UserCreds struct {
 
 // SetupUserCreds sets up user credentials for client
 func SetupUserCreds(tc *client.TeleportClient, proxyHost string, creds UserCreds) error {
-	_, err := tc.AddKey(proxyHost, &creds.Key)
+	_, err := tc.AddKey(&creds.Key)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1125,6 +1125,8 @@ type ClientConfig struct {
 	JumpHost bool
 	// Labels represents host labels
 	Labels map[string]string
+	// Interactive launches with the terminal attached if true
+	Interactive bool
 }
 
 // NewClientWithCreds creates client with credentials
@@ -1177,6 +1179,7 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		Labels:             cfg.Labels,
 		WebProxyAddr:       webProxyAddr,
 		SSHProxyAddr:       sshProxyAddr,
+		Interactive:        cfg.Interactive,
 	}
 
 	// JumpHost turns on jump host mode
@@ -1206,7 +1209,7 @@ func (i *TeleInstance) NewClient(cfg ClientConfig) (*client.TeleportClient, erro
 	if user.Key == nil {
 		return nil, trace.BadParameter("user %q has no key", cfg.Login)
 	}
-	_, err = tc.AddKey(cfg.Host, user.Key)
+	_, err = tc.AddKey(user.Key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

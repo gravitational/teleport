@@ -1,24 +1,189 @@
 # Changelog
 
-## 6.0.0-alpha.2
+## 6.1.1
 
-**Note:** This version is a pre-release and is not recommended for production usage.
+This release of Teleport contains a bug fix.
 
-This release of Teleport contains a number of improvements and bug fixes.
+* Fixed an issue where DEB builds were not published to the [Teleport DEB repository](https://deb.releases.teleport.dev/).
 
-* Enable proxy protocol support for Teleport Kubernetes proxy service: [#5299](https://github.com/gravitational/teleport/pull/5299).
-* Update `tsh db ls` command to include connection information and add `tsh db config` command: [#5319](https://github.com/gravitational/teleport/pull/5319).
-* Fix authentication failure when logging in via CLI with Access Workflows after removing `.tsh` directory: [#5323](https://github.com/gravitational/teleport/pull/5323).
-* Rename Database Access service `database` role to `db`: [#5359](https://github.com/gravitational/teleport/pull/5359).
-* Fix `tsh login` failure when `--proxy` differs from actual proxy public address: [#5380](https://github.com/gravitational/teleport/pull/5380).
+## 6.1.0
 
-## 6.0.0-alpha.1
+Teleport 6.1 contains multiple new features, improvements, and bug fixes.
 
-**Note:** This version is a pre-release and is not recommended for production usage.
+## New Features
 
-This release of Teleport introduces Database Access with PostgreSQL support.
+### U2F for Kubernetes and SSH sessions
 
-See [Database Access Preview](https://goteleport.com/teleport/docs/preview/database-access/) docs for more information.
+Added support for U2F authentication on every SSH and Kubernetes "connection" (a single `tsh ssh` or `kubectl` call). This is an advanced security feature that protects users against compromises of their on-disk Teleport certificates. Per-session MFA can be enforced cluster-wide or only for some specific roles.
+
+For more details see [Per-Session MFA](https://goteleport.com/docs/access-controls/guides/per-session-mfa) documentation or [RFD 14](https://github.com/gravitational/teleport/blob/master/rfd/0014-session-2FA.md) and [RFD 15](https://github.com/gravitational/teleport/blob/master/rfd/0015-2fa-management.md) for technical details.
+
+### Dual Authorization Workflows
+
+Added ability to request multiple users to review and approve access requests.
+
+See [#5071](https://github.com/gravitational/teleport/pull/5071) for technical details.
+
+## Improvements 
+
+* Added the ability to propagate SSO claims to PAM modules. [#6158](https://github.com/gravitational/teleport/pull/6158)
+* Added support for cluster routing to reduce latency to leaf clusters. [RFD 21](https://github.com/gravitational/teleport/blob/master/rfd/0021-cluster-routing.md)
+* Added support for Google Cloud SQL to Database Access. [#6090](https://github.com/gravitational/teleport/pull/6090)
+* Added support CLI credential issuance for Application Access. [#5918](https://github.com/gravitational/teleport/pull/5918)
+* Added support for Encrypted SAML Assertions. [#5598](https://github.com/gravitational/teleport/pull/5598)
+* Added support for user impersonation. [#6073](https://github.com/gravitational/teleport/pull/6073)
+
+## Fixes
+
+* Fixed interoperability issues with `gpg-agent`. [RFD 18](http://github.com/gravitational/teleport/blob/master/rfd/0018-agent-loading.md)
+* Fixed websocket support in Application Access. [#6028](https://github.com/gravitational/teleport/pull/6028)
+* Fixed file argument issues with `tsh play`. [#1580](https://github.com/gravitational/teleport/issues/1580)
+* Fixed `utmp` regressions that caused issues in LXC containers. [#6256](https://github.com/gravitational/teleport/pull/6256)
+
+## 6.0.3
+
+This release of Teleport contains a bug fix.
+
+* Fixed a issue that caused high network on deployments with many leaf Trusted Clusters. [#6263](https://github.com/gravitational/teleport/pull/6263)
+
+## 6.0.2
+
+This release of Teleport contains bug fixes and adds new default roles.
+
+* Fixed an issue with proxy web endpoint resetting connection when run with `--insecure-no-tls` flag. [#5923](https://github.com/gravitational/teleport/pull/5923)
+* Introduced role presets: `auditor`, `editor` and `access`. [#5968](https://github.com/gravitational/teleport/pull/5968)
+* Added ability to inline `google_service_account` field into Google Workspace OIDC connector. [#5563](http://github.com/gravitational/teleport/pull/5563)
+
+## 6.0.1
+
+This release of Teleport contains multiple bug fixes.
+
+* Fixed issue that caused ACME default configuration to fail with `TLS-ALPN-01` challenge. [#5839](https://github.com/gravitational/teleport/pull/5839)
+* Fixed regression in ADFS integration. [#5880](https://github.com/gravitational/teleport/pull/5880)
+
+## 6.0.0
+
+Teleport 6.0 is a major release with new features, functionality, and bug fixes.
+
+We have implemented [Database Access](https://goteleport.com/teleport/docs/database-access/),
+open sourced role-based access control (RBAC), and added official API and a Go client library.
+
+Users can review the [6.0 milestone](https://github.com/gravitational/teleport/milestone/33?closed=1) on Github for more details.
+
+## New Features
+
+### Database Access
+
+Review the Database Access design in [RFD #11](https://github.com/gravitational/teleport/blob/master/rfd/0011-database-access.md).
+
+With Database Access users can connect to PostgreSQL and MySQL databases using short-lived certificates, configure SSO authentication and role-based access controls for databases, and capture SQL query activity in the audit log.
+
+#### Getting Started
+
+Configure Database Access following the [Getting Started](https://goteleport.com/teleport/docs/database-access/getting-started/) guide.
+
+#### Guides
+
+* [AWS RDS/Aurora PostgreSQL](https://goteleport.com/teleport/docs/database-access/guides/postgres-aws/)
+* [AWS RDS/Aurora MySQL](https://goteleport.com/teleport/docs/database-access/guides/mysql-aws/)
+* [Self-hosted PostgreSQL](https://goteleport.com/teleport/docs/database-access/guides/postgres-self-hosted/)
+* [Self-hosted MySQL](https://goteleport.com/teleport/docs/database-access/guides/mysql-self-hosted/)
+* [GUI clients](https://goteleport.com/teleport/docs/database-access/guides/gui-clients/)
+
+#### Resources
+
+To learn more about configuring role-based access control for Database Access, check out [RBAC](https://goteleport.com/teleport/docs/database-access/rbac/) section.
+
+[Architecture](https://goteleport.com/teleport/docs/database-access/architecture/) provides a more in-depth look at Database Access internals such as networking and security.
+
+See [Reference](https://goteleport.com/teleport/docs/database-access/reference/) for an overview of Database Access related configuration and CLI commands.
+
+Finally, check out [Frequently Asked Questions](./database-access/faq/).
+
+### OSS RBAC
+
+Open source RBAC support was introduced in [RFD #7](https://github.com/gravitational/teleport/blob/master/rfd/0007-rbac-oss.md).
+
+RBAC support gives OSS administrators more granular access controls to servers and other resources with a cluster (like session recording access). An example of an RBAC policy could be: "admins can do anything, developers must never touch production servers and interns can only SSH into staging servers as guests"
+
+In addition, some Access Workflow Plugins will now become available to open source users.
+
+* Access Workflows Golang SDK and API
+* Slack
+* Gitlab
+* Mattermost
+* JIRA Plugin
+* PagerDuty Plugin
+
+### Client libraries and API
+
+API and Client Libraries support was introduced in [RFD #10](https://github.com/gravitational/teleport/blob/master/rfd/0010-api.md).
+
+The new API and client library reduces the dependencies needed to use the Teleport API as well as making it easier to use. An example of using the new API is below.
+
+```go
+// Create a client connected to the Auth server with an exported identity file.
+clt, err := client.NewClient(client.Config{
+  Addrs: []string{"auth.example.com:3025"},
+  Credentials: []client.Credentials{
+    client.LoadIdentityFile("identity.pem"),
+  },
+})
+if err != nil {
+  log.Fatalf("Failed to create client: %v.", err)
+}
+defer clt.Close()
+
+// Create a Access Request.
+accessRequest, err := types.NewAccessRequest(uuid.New(), "access-admin", "admin")
+if err != nil {
+  log.Fatalf("Failed to build access request: %v.", err)
+}
+if err = clt.CreateAccessRequest(ctx, accessRequest); err != nil {
+  log.Fatalf("Failed to create access request: %v.", err)
+}
+```
+
+## Improvements
+
+* Added `utmp`/`wtmp` support for SSH in [#5491](https://github.com/gravitational/teleport/pull/5491).
+* Added the ability to set a Kubernetes specific public address in [#5611](https://github.com/gravitational/teleport/pull/5611).
+* Added Proxy Protocol support to Kubernetes Access in [#5299](https://github.com/gravitational/teleport/pull/5299).
+* Added ACME ([Let's Encrypt](https://letsencrypt.org/)) support to make getting and using TLS certificates easier. [#5177](https://github.com/gravitational/teleport/issues/5177).
+* Added the ability to manage local users to the Web UI in [#2945](https://github.com/gravitational/teleport/issues/2945).
+* Added the ability to preserve timestamps when using `tsh scp` in [#2889](https://github.com/gravitational/teleport/issues/2889).
+
+## Fixes
+
+* Fixed authentication failure when logging in via CLI with Access Workflows after removing `.tsh` directory in [#5323](https://github.com/gravitational/teleport/pull/5323).
+* Fixed `tsh login` failure when `--proxy` differs from actual proxy public address in [#5380](https://github.com/gravitational/teleport/pull/5380).
+* Fixed session playback issues in [#2945](https://github.com/gravitational/teleport/issues/2945).
+* Fixed several UX issues in [#5559](https://github.com/gravitational/teleport/issues/5559), [#5568](https://github.com/gravitational/teleport/issues/5568), [#4965](https://github.com/gravitational/teleport/issues/4965), and [#5057](https://github.com/gravitational/teleport/pull/5057).
+
+## Upgrade Notes
+
+Please follow our [standard upgrade procedure](https://goteleport.com/teleport/docs/admin-guide/#upgrading-teleport) to upgrade your cluster.
+
+Note, for clusters using GitHub SSO and Trusted Clusters, when upgrading SSO users will lose connectivity to leaf clusters. Local users will not be affected.
+
+To restore connectivity to leaf clusters for SSO users, leaf admins should update the `trusted_cluster` role mapping resource like below.
+
+```yaml
+kind: trusted_cluster
+version: v2
+metadata:
+   name: "zztop-oss"
+spec:
+   enabled: true
+   token: "bar"
+   web_proxy_addr: 172.10.1.1:3080
+   tunnel_addr: 172.10.1.1:3024
+   role_map:
+   - remote: "admin"
+     local: ['admin']
+   - remote: "^(github-.*)$"
+     local: ['admin']
+```
 
 ## 5.1.0
 

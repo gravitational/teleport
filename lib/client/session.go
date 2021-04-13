@@ -32,7 +32,8 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/docker/docker/pkg/term"
+	"github.com/moby/term"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client/escape"
 	"github.com/gravitational/teleport/lib/defaults"

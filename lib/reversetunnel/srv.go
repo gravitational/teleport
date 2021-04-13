@@ -27,7 +27,9 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -414,6 +416,12 @@ func (s *server) fetchClusterPeers() error {
 		if newConn.GetProxyName() == s.ID {
 			continue
 		}
+
+		// Filter out tunnels which are not online.
+		if services.TunnelConnectionStatus(s.Clock, newConn, s.offlineThreshold) != teleport.RemoteClusterStatusOnline {
+			continue
+		}
+
 		newConns[newConn.GetName()] = newConn
 	}
 	existingConns := s.existingConns()
@@ -567,7 +575,7 @@ func (s *server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 		s.handleHeartbeat(conn, sconn, nch)
 	// Transport requests come from nodes requesting a connection to the Auth
 	// Server through the reverse tunnel.
-	case chanTransport:
+	case constants.ChanTransport:
 		s.handleTransport(sconn, nch)
 	default:
 		msg := fmt.Sprintf("reversetunnel received unknown channel request %v from %v",
@@ -793,7 +801,7 @@ func (s *server) checkClientCert(logger *log.Entry, user string, clusterName str
 	// match key of the certificate authority with the signature key
 	var match bool
 	for _, k := range keys {
-		if sshutils.KeysEqual(k, cert.SignatureKey) {
+		if apisshutils.KeysEqual(k, cert.SignatureKey) {
 			match = true
 			break
 		}
@@ -983,6 +991,7 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	connInfo.SetExpiry(srv.Clock.Now().Add(srv.offlineThreshold))
 
 	closeContext, cancel := context.WithCancel(srv.ctx)
 	remoteSite := &remoteSite{
@@ -1052,22 +1061,22 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	return remoteSite, nil
 }
 
-// DELETE IN: 5.1.0.
+// DELETE IN: 7.0.0.
 //
-// isOldCluster checks if the cluster is older than 5.0.0.
+// isOldCluster checks if the cluster is older than 6.0.0.
 func isOldCluster(ctx context.Context, conn ssh.Conn) (bool, error) {
 	version, err := sendVersionRequest(ctx, conn)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
 
-	// Return true if the version is older than 5.0.0, the check is actually for
-	// 4.5.0, a non-existent version, to allow this check to work during development.
+	// Return true if the version is older than 6.0.0, the check is actually for
+	// 5.99.99, a non-existent version, to allow this check to work during development.
 	remoteClusterVersion, err := semver.NewVersion(version)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	minClusterVersion, err := semver.NewVersion("4.5.0")
+	minClusterVersion, err := semver.NewVersion("5.99.99")
 	if err != nil {
 		return false, trace.Wrap(err)
 	}

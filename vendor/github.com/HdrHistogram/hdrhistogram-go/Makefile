@@ -7,6 +7,7 @@ GOTEST=$(GOCMD) test
 GOGET=$(GOCMD) get
 GOMOD=$(GOCMD) mod
 GOFMT=$(GOCMD) fmt
+GODOC=godoc
 
 .PHONY: all test coverage
 all: test coverage
@@ -35,4 +36,7 @@ test: get fmt
 
 coverage: get test
 	$(GOTEST) -race -coverprofile=coverage.txt -covermode=atomic .
+
+godoc:
+	$(GODOC)
 

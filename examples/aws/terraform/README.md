@@ -11,7 +11,7 @@ If you are planning on using our Terraform example in production, please referen
 
 We recommend familiarizing yourself with the following resources prior to reviewing our Terraform examples:
 
-- [Teleport Architecture](https://gravitational.com/teleport/docs/architecture/teleport_architecture_overview/)
+- [Teleport Architecture](https://goteleport.com/teleport/docs/architecture/overview/)
 - [Admin Guide](https://gravitational.com/teleport/docs/admin-guide/)
 
 In order to spin up AWS resources using these Terraform examples, you need the following software:

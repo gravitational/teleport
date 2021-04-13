@@ -3,5 +3,5 @@ teleport:
   storage:
       type: etcd
       peers: ["http://127.0.0.1:2379"]
-      prefix: teleport.secrets
+      prefix: /teleport.secrets/
       insecure: true

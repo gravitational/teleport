@@ -19,6 +19,7 @@ package db
 import (
 	"context"
 	"net"
+	"os"
 	"testing"
 	"time"
 
@@ -26,9 +27,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
@@ -40,6 +41,11 @@ import (
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 // TestPostgresAccess verifies access scenarios to a Postgres database based
 // on the configured RBAC rules.
@@ -137,8 +143,8 @@ func TestPostgresAccess(t *testing.T) {
 			_, role, err := auth.CreateUserAndRole(testCtx.tlsServer.Auth(), test.user, []string{test.role})
 			require.NoError(t, err)
 
-			role.SetDatabaseNames(services.Allow, test.allowDbNames)
-			role.SetDatabaseUsers(services.Allow, test.allowDbUsers)
+			role.SetDatabaseNames(types.Allow, test.allowDbNames)
+			role.SetDatabaseUsers(types.Allow, test.allowDbUsers)
 			err = testCtx.tlsServer.Auth().UpsertRole(ctx, role)
 			require.NoError(t, err)
 
@@ -246,7 +252,7 @@ func TestMySQLAccess(t *testing.T) {
 			_, role, err := auth.CreateUserAndRole(testCtx.tlsServer.Auth(), test.user, []string{test.role})
 			require.NoError(t, err)
 
-			role.SetDatabaseUsers(services.Allow, test.allowDbUsers)
+			role.SetDatabaseUsers(types.Allow, test.allowDbUsers)
 			err = testCtx.tlsServer.Auth().UpsertRole(ctx, role)
 			require.NoError(t, err)
 
@@ -281,6 +287,72 @@ func TestMySQLAccess(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+type testModules struct {
+	modules.Modules
+}
+
+func (m *testModules) Features() modules.Features {
+	return modules.Features{
+		DB: false, // Explicily turn off database access.
+	}
+}
+
+// TestDatabaseAccessDisabled makes sure database access can be disabled via
+// modules.
+func TestDatabaseAccessDisabled(t *testing.T) {
+	defaultModules := modules.GetModules()
+	defer modules.SetModules(defaultModules)
+	modules.SetModules(&testModules{})
+
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t)
+	t.Cleanup(func() { testCtx.Close() })
+
+	// Start multiplexer.
+	go testCtx.mux.Serve()
+	// Start fake Postgres server.
+	go testCtx.postgresServer.Serve()
+	// Start database proxy server.
+	go testCtx.proxyServer.Serve(testCtx.mux.DB())
+	// Start database service server.
+	go func() {
+		for conn := range testCtx.proxyConn {
+			testCtx.server.HandleConnection(conn)
+		}
+	}()
+
+	userName := "alice"
+	roleName := "admin"
+	dbUser := "postgres"
+	dbName := "postgres"
+
+	// Create user/role with the requested permissions.
+	_, role, err := auth.CreateUserAndRole(testCtx.tlsServer.Auth(), userName, []string{roleName})
+	require.NoError(t, err)
+
+	role.SetDatabaseNames(types.Allow, []string{types.Wildcard})
+	role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
+	err = testCtx.tlsServer.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	// Try to connect to the database as this user.
+	_, err = postgres.MakeTestClient(ctx, common.TestClientConfig{
+		AuthClient: testCtx.authClient,
+		AuthServer: testCtx.authServer,
+		Address:    testCtx.mux.DB().Addr().String(),
+		Cluster:    testCtx.clusterName,
+		Username:   userName,
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: "postgres-test",
+			Protocol:    defaults.ProtocolPostgres,
+			Username:    dbUser,
+			Database:    dbName,
+		},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "this Teleport cluster doesn't support database access")
 }
 
 type testContext struct {
@@ -320,8 +392,6 @@ func (c *testContext) Close() error {
 }
 
 func setupTestContext(ctx context.Context, t *testing.T) *testContext {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	clusterName := "root.example.com"
 	postgresServerName := "postgres-test"
 	mysqlServerName := "mysql-test"
@@ -357,13 +427,13 @@ func setupTestContext(ctx context.Context, t *testing.T) *testContext {
 	// Auth client/authorizer for database service.
 	dbAuthClient, err := tlsServer.NewClient(auth.TestServerID(teleport.RoleDatabase, hostID))
 	require.NoError(t, err)
-	dbAuthorizer, err := auth.NewAuthorizer(dbAuthClient, dbAuthClient, dbAuthClient)
+	dbAuthorizer, err := auth.NewAuthorizer(clusterName, dbAuthClient, dbAuthClient, dbAuthClient)
 	require.NoError(t, err)
 
 	// Auth client/authorizer for database proxy.
 	proxyAuthClient, err := tlsServer.NewClient(auth.TestBuiltin(teleport.RoleProxy))
 	require.NoError(t, err)
-	proxyAuthorizer, err := auth.NewAuthorizer(proxyAuthClient, proxyAuthClient, proxyAuthClient)
+	proxyAuthorizer, err := auth.NewAuthorizer(clusterName, proxyAuthClient, proxyAuthClient, proxyAuthClient)
 	require.NoError(t, err)
 
 	// TLS config for database proxy and database service.

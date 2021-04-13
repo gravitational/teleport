@@ -17,22 +17,16 @@ limitations under the License.
 package services
 
 import (
-	"testing"
-
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/utils"
+
+	"gopkg.in/check.v1"
 
 	"github.com/gravitational/trace"
-	"gopkg.in/check.v1"
 )
 
 type RoleMapSuite struct{}
 
 var _ = check.Suite(&RoleMapSuite{})
-
-func (s *RoleMapSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (s *RoleMapSuite) TestRoleParsing(c *check.C) {
 	testCases := []struct {

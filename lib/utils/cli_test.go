@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package utils
 
 import (
 	"crypto/x509"
+	"fmt"
 	"io/ioutil"
 	"strings"
 	"testing"
@@ -26,20 +27,10 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/check.v1"
 )
 
-type CLISuite struct {
-}
-
-var _ = check.Suite(&CLISuite{})
-
-func (s *CLISuite) SetUpSuite(c *check.C) {
-	InitLoggerForTests(testing.Verbose())
-}
-
-func (s *CLISuite) TestUserMessageFromError(c *check.C) {
-	c.Skip("Enable after https://drone.gravitational.io/gravitational/teleport/3517 is merged.")
+func TestUserMessageFromError(t *testing.T) {
+	t.Skip("Enable after https://drone.gravitational.io/gravitational/teleport/3517 is merged.")
 	tests := []struct {
 		comment   string
 		inError   error
@@ -63,9 +54,8 @@ func (s *CLISuite) TestUserMessageFromError(c *check.C) {
 	}
 
 	for _, tt := range tests {
-		comment := check.Commentf(tt.comment)
 		message := UserMessageFromError(tt.inError)
-		c.Assert(strings.HasPrefix(message, tt.outString), check.Equals, true, comment)
+		require.True(t, strings.HasPrefix(message, tt.outString), tt.comment)
 	}
 }
 
@@ -76,4 +66,62 @@ func TestConsolefLongComponent(t *testing.T) {
 		component := strings.Repeat("na ", 10) + "batman!"
 		Consolef(ioutil.Discard, logrus.New(), component, "test message")
 	})
+}
+
+// TestEscapeControl tests escape control
+func TestEscapeControl(t *testing.T) {
+	tests := []struct {
+		in  string
+		out string
+	}{
+		{
+			in:  "hello, world!",
+			out: "hello, world!",
+		},
+		{
+			in:  "hello,\nworld!",
+			out: `"hello,\nworld!"`,
+		},
+		{
+			in:  "hello,\r\tworld!",
+			out: `"hello,\r\tworld!"`,
+		},
+	}
+
+	for i, tt := range tests {
+		require.Equal(t, tt.out, EscapeControl(tt.in), fmt.Sprintf("test case %v", i))
+	}
+}
+
+// TestAllowNewlines tests escape control that allows newlines
+func TestAllowNewlines(t *testing.T) {
+	tests := []struct {
+		in  string
+		out string
+	}{
+		{
+			in:  "hello, world!",
+			out: "hello, world!",
+		},
+		{
+			in:  "hello,\nworld!",
+			out: "hello,\nworld!",
+		},
+		{
+			in:  "hello,\r\tworld!",
+			out: `"hello,\r\tworld!"`,
+		},
+		{
+			in:  "hello,\n\r\tworld!",
+			out: "hello,\n" + `"\r\tworld!"`,
+		},
+		{
+			in:  "hello,\t\n\r\tworld!",
+			out: `"hello,\t"` + "\n" + `"\r\tworld!"`,
+		},
+	}
+
+	for i, tt := range tests {
+		require.Equal(t, tt.out, AllowNewlines(tt.in), fmt.Sprintf("test case %v", i))
+	}
 }

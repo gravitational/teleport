@@ -18,12 +18,14 @@ package s3sessions
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
@@ -183,4 +185,12 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 		return uploads[i].Initiated.Before(uploads[j].Initiated)
 	})
 	return uploads, nil
+}
+
+// GetUploadMetadata gets the metadata for session upload
+func (h *Handler) GetUploadMetadata(sessionID session.ID) events.UploadMetadata {
+	return events.UploadMetadata{
+		URL:       fmt.Sprintf("%v://%v/%v", teleport.SchemeS3, h.Bucket, sessionID),
+		SessionID: sessionID,
+	}
 }

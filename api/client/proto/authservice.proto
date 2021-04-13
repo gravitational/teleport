@@ -153,9 +153,14 @@ message UserCertsRequest {
         SSH = 1;
         Kubernetes = 2;
         Database = 3;
+        App = 4;
     }
     // CertUsage limits the resulting user certificate to a single protocol.
     CertUsage Usage = 10 [ (gogoproto.jsontag) = "usage,omitempty" ];
+
+    // RouteToApp specifies application to issue certificate for.
+    RouteToApp RouteToApp = 11
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "route_to_app,omitempty" ];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -168,6 +173,18 @@ message RouteToDatabase {
     string Username = 3 [ (gogoproto.jsontag) = "username,omitempty" ];
     // Database is an optional database name to embed.
     string Database = 4 [ (gogoproto.jsontag) = "database,omitempty" ];
+}
+
+// RouteToApp contains parameters for application access certificate requests.
+message RouteToApp {
+    // Name is the application name certificate is being requested for.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+    // SessionID is the ID of the application session.
+    string SessionID = 2 [ (gogoproto.jsontag) = "session_id" ];
+    // PublicAddr is the application public address.
+    string PublicAddr = 3 [ (gogoproto.jsontag) = "public_addr" ];
+    // ClusterName is the cluster where the application resides.
+    string ClusterName = 4 [ (gogoproto.jsontag) = "cluster_name" ];
 }
 
 // GetUserRequest specifies parameters for the GetUser method.
@@ -254,6 +271,30 @@ message PingResponse {
     string ClusterName = 1 [ (gogoproto.jsontag) = "cluster_name" ];
     // ServerVersion is the version of the auth server.
     string ServerVersion = 2 [ (gogoproto.jsontag) = "server_version" ];
+    // ServerFeatures are the features supported by the auth server.
+    Features ServerFeatures = 3 [ (gogoproto.jsontag) = "server_features" ];
+    // ProxyPublicAddr is the server's public proxy address.
+    string ProxyPublicAddr = 4 [ (gogoproto.jsontag) = "proxy_public_addr" ];
+}
+
+// Features are auth server features.
+message Features {
+    // Kubernetes enables Kubernetes Access product
+    bool Kubernetes = 1 [ (gogoproto.jsontag) = "kubernetes" ];
+    // App enables Application Access product
+    bool App = 2 [ (gogoproto.jsontag) = "app" ];
+    // DB enables database access product
+    bool DB = 3 [ (gogoproto.jsontag) = "db" ];
+    // OIDC enables OIDC connectors
+    bool OIDC = 4 [ (gogoproto.jsontag) = "oidc" ];
+    // SAML enables SAML connectors
+    bool SAML = 5 [ (gogoproto.jsontag) = "saml" ];
+    // AccessControls enables FIPS access controls
+    bool AccessControls = 6 [ (gogoproto.jsontag) = "access_controls" ];
+    // AdvancedAccessWorkflows enables advanced access workflows
+    bool AdvancedAccessWorkflows = 7 [ (gogoproto.jsontag) = "advanced_access_workflows" ];
+    // Cloud enables some cloud-related features
+    bool Cloud = 8 [ (gogoproto.jsontag) = "cloud" ];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.
@@ -384,10 +425,9 @@ message GetAppSessionsResponse {
 
 // CreateAppSessionRequest contains the parameters to request a application web session.
 message CreateAppSessionRequest {
+    reserved 2;
     // Username is the name of the user requesting the session.
     string Username = 1 [ (gogoproto.jsontag) = "username" ];
-    // ParentSession is the session ID of the parent session.
-    string ParentSession = 2 [ (gogoproto.jsontag) = "parent_session" ];
     // PublicAddr is the public address the application.
     string PublicAddr = 3 [ (gogoproto.jsontag) = "public_addr" ];
     // ClusterName is cluster within which the application is running.
@@ -522,6 +562,24 @@ message DatabaseCertResponse {
     repeated bytes CACerts = 2 [ (gogoproto.jsontag) = "ca_certs" ];
 }
 
+// GetRoleRequest is a request to query a role.
+message GetRoleRequest {
+    // Name is the name of the role to get.
+    string Name = 1;
+}
+
+// GetRolesResponse is a response to querying for all roles.
+message GetRolesResponse {
+    // Roles is a list of roles.
+    repeated types.RoleV3 Roles = 1;
+}
+
+// DeleteRoleRequest is a request to delete a role.
+message DeleteRoleRequest {
+    // Name is the role name to delete.
+    string Name = 1;
+}
+
 // MFAAuthenticateChallenge is a challenge for all MFA devices registered for a
 // user.
 message MFAAuthenticateChallenge {
@@ -548,6 +606,7 @@ message U2FChallenge {
     string KeyHandle = 1;
     string Challenge = 2;
     string AppID = 3;
+    string Version = 4;
 }
 
 // U2FResponse is a U2F auth challenge response.
@@ -589,6 +648,7 @@ message MFARegisterResponse {
 message U2FRegisterChallenge {
     string Challenge = 1;
     string AppID = 2;
+    string Version = 3;
 }
 
 // U2FRegisterResponse is a response to U2FRegisterChallenge.
@@ -709,6 +769,30 @@ message UserSingleUseCertsResponse {
     }
 }
 
+// IsMFARequiredRequest is a request to check whether MFA is required to access
+// the Target.
+message IsMFARequiredRequest {
+    oneof Target {
+        // KubernetesCluster specifies the target kubernetes cluster.
+        string KubernetesCluster = 1;
+        // RouteToDatabase specifies the target database proxy name.
+        RouteToDatabase Database = 2;
+        // Node specifies the target SSH node.
+        NodeLogin Node = 3;
+    }
+}
+
+// NodeLogin specifies an SSH node and OS login.
+message NodeLogin {
+    // Node can be node's hostname or UUID.
+    string Node = 1;
+    // Login is the OS login name.
+    string Login = 2;
+}
+
+// IsMFARequiredResponse is a response for MFA requirement check.
+message IsMFARequiredResponse { bool Required = 1; }
+
 // SingleUseUserCert is a single-use user certificate, either SSH or TLS.
 message SingleUseUserCert {
     oneof Cert {
@@ -731,10 +815,10 @@ service AuthService {
     // certificates.
     rpc GenerateUserSingleUseCerts(stream UserSingleUseCertsRequest)
         returns (stream UserSingleUseCertsResponse);
-    // GetUser gets a user resource by name.
-    rpc GetUser(GetUserRequest) returns (types.UserV2);
-    // GetUsers gets all current user resources.
-    rpc GetUsers(GetUsersRequest) returns (stream types.UserV2);
+    // IsMFARequired checks whether MFA is required to access the specified
+    // target.
+    rpc IsMFARequired(IsMFARequiredRequest) returns (IsMFARequiredResponse);
+
     // GetAccessRequests gets all pending access requests.
     rpc GetAccessRequests(types.AccessRequestFilter) returns (AccessRequests);
     // CreateAccessRequest creates a new access request.
@@ -743,6 +827,8 @@ service AuthService {
     rpc DeleteAccessRequest(RequestID) returns (google.protobuf.Empty);
     // SetAccessRequestState sets the state of an access request.
     rpc SetAccessRequestState(RequestStateSetter) returns (google.protobuf.Empty);
+    // SubmitAccessReview applies a review to a request and returns the post-application state.
+    rpc SubmitAccessReview(types.AccessReviewSubmission) returns (types.AccessRequestV3);
     // GetAccessCapabilities requests the access capabilites of a user.
     rpc GetAccessCapabilities(types.AccessCapabilitiesRequest) returns (types.AccessCapabilities);
 
@@ -754,6 +840,7 @@ service AuthService {
     // to mimic the behavior of the proxy's Ping method, and may be used by
     // clients for verification or configuration on startup.
     rpc Ping(PingRequest) returns (PingResponse);
+
     // RotateResetPasswordTokenSecrets rotates token secrets for a given tokenID.
     rpc RotateResetPasswordTokenSecrets(RotateResetPasswordTokenSecretsRequest)
         returns (types.ResetPasswordTokenSecretsV3);
@@ -762,6 +849,11 @@ service AuthService {
     // CreateResetPasswordToken creates ResetPasswordToken.
     rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest)
         returns (types.ResetPasswordTokenV3);
+
+    // GetUser gets a user resource by name.
+    rpc GetUser(GetUserRequest) returns (types.UserV2);
+    // GetUsers gets all current user resources.
+    rpc GetUsers(GetUsersRequest) returns (stream types.UserV2);
     // CreateUser inserts a new user entry to a backend.
     rpc CreateUser(types.UserV2) returns (google.protobuf.Empty);
     // UpdateUser updates an existing user in a backend.
@@ -855,6 +947,15 @@ service AuthService {
     // service to authenticate with the database instance.
     rpc GenerateDatabaseCert(DatabaseCertRequest) returns (DatabaseCertResponse);
 
+    // GetRole retrieves a role described by the given request.
+    rpc GetRole(GetRoleRequest) returns (types.RoleV3);
+    // GetRole retrieves all roles.
+    rpc GetRoles(google.protobuf.Empty) returns (GetRolesResponse);
+    // UpsertRole upserts a role in a backend.
+    rpc UpsertRole(types.RoleV3) returns (google.protobuf.Empty);
+    // DeleteRole deletes an existing role in a backend described by the given request.
+    rpc DeleteRole(DeleteRoleRequest) returns (google.protobuf.Empty);
+
     // AddMFADevice adds an MFA device for the user calling this RPC.
     //
     // The RPC is streaming both ways and the message sequence is:
@@ -878,4 +979,50 @@ service AuthService {
     // GetMFADevices returns all MFA devices registered for the user calling
     // this RPC.
     rpc GetMFADevices(GetMFADevicesRequest) returns (GetMFADevicesResponse);
+
+    // GetOIDCConnector gets an OIDC connector resource by name.
+    rpc GetOIDCConnector(types.ResourceWithSecretsRequest) returns (types.OIDCConnectorV2);
+    // GetOIDCConnectors gets all current OIDC connector resources.
+    rpc GetOIDCConnectors(types.ResourcesWithSecretsRequest) returns (types.OIDCConnectorV2List);
+    // UpsertOIDCConnector upserts an OIDC connector in a backend.
+    rpc UpsertOIDCConnector(types.OIDCConnectorV2) returns (google.protobuf.Empty);
+    // DeleteOIDCConnector deletes an existing OIDC connector in a backend by name.
+    rpc DeleteOIDCConnector(types.ResourceRequest) returns (google.protobuf.Empty);
+
+    // GetSAMLConnector gets a SAML connector resource by name.
+    rpc GetSAMLConnector(types.ResourceWithSecretsRequest) returns (types.SAMLConnectorV2);
+    // GetSAMLConnectors gets all current SAML connector resources.
+    rpc GetSAMLConnectors(types.ResourcesWithSecretsRequest) returns (types.SAMLConnectorV2List);
+    // UpsertSAMLConnector upserts a SAML connector in a backend.
+    rpc UpsertSAMLConnector(types.SAMLConnectorV2) returns (google.protobuf.Empty);
+    // DeleteSAMLConnector deletes an existing SAML connector in a backend by name.
+    rpc DeleteSAMLConnector(types.ResourceRequest) returns (google.protobuf.Empty);
+
+    // GetGithubConnector gets a Github connector resource by name.
+    rpc GetGithubConnector(types.ResourceWithSecretsRequest) returns (types.GithubConnectorV3);
+    // GetGithubConnectors gets all current Github connector resources.
+    rpc GetGithubConnectors(types.ResourcesWithSecretsRequest)
+        returns (types.GithubConnectorV3List);
+    // UpsertGithubConnector upserts a Github connector in a backend.
+    rpc UpsertGithubConnector(types.GithubConnectorV3) returns (google.protobuf.Empty);
+    // DeleteGithubConnector deletes an existing Github connector in a backend by name.
+    rpc DeleteGithubConnector(types.ResourceRequest) returns (google.protobuf.Empty);
+
+    // GetTrustedCluster gets a Trusted Cluster resource by name.
+    rpc GetTrustedCluster(types.ResourceRequest) returns (types.TrustedClusterV2);
+    // GetTrustedClusters gets all current Trusted Cluster resources.
+    rpc GetTrustedClusters(google.protobuf.Empty) returns (types.TrustedClusterV2List);
+    // UpsertTrustedCluster upserts a Trusted Cluster in a backend.
+    rpc UpsertTrustedCluster(types.TrustedClusterV2) returns (types.TrustedClusterV2);
+    // DeleteTrustedCluster deletes an existing Trusted Cluster in a backend by name.
+    rpc DeleteTrustedCluster(types.ResourceRequest) returns (google.protobuf.Empty);
+
+    // GetToken retrieves a token described by the given request.
+    rpc GetToken(types.ResourceRequest) returns (types.ProvisionTokenV2);
+    // GetToken retrieves all tokens.
+    rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List);
+    // UpsertToken upserts a token in a backend.
+    rpc UpsertToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
+    // DeleteToken deletes an existing token in a backend described by the given request.
+    rpc DeleteToken(types.ResourceRequest) returns (google.protobuf.Empty);
 }

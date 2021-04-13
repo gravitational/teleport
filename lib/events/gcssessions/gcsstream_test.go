@@ -26,18 +26,16 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events/test"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"cloud.google.com/go/storage"
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
+
+	"github.com/gravitational/trace"
 )
 
 // TestStreams tests various streaming upload scenarios
 func TestStreams(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	uri := os.Getenv(teleport.GCSTestURI)
 	if uri == "" {
 		t.Skip(

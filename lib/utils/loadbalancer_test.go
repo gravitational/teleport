@@ -23,7 +23,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"testing"
 
 	"gopkg.in/check.v1"
 )
@@ -34,10 +33,6 @@ type LBSuite struct {
 }
 
 var _ = check.Suite(&LBSuite{})
-
-func (s *LBSuite) SetUpSuite(c *check.C) {
-	InitLoggerForTests(testing.Verbose())
-}
 
 func (s *LBSuite) TestSingleBackendLB(c *check.C) {
 	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

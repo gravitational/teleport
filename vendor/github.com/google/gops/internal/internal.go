@@ -1,20 +1,39 @@
+// Copyright 2017 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 package internal
 
 import (
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 )
 
+const gopsConfigDirEnvKey = "GOPS_CONFIG_DIR"
+
 func ConfigDir() (string, error) {
+	if configDir := os.Getenv(gopsConfigDirEnvKey); configDir != "" {
+		return configDir, nil
+	}
+
+	if osUserConfigDir := getOSUserConfigDir(); osUserConfigDir != "" {
+		return filepath.Join(osUserConfigDir, "gops"), nil
+	}
+
 	if runtime.GOOS == "windows" {
 		return filepath.Join(os.Getenv("APPDATA"), "gops"), nil
 	}
+
+	if xdgConfigDir := os.Getenv("XDG_CONFIG_HOME"); xdgConfigDir != "" {
+		return filepath.Join(xdgConfigDir, "gops"), nil
+	}
+
 	homeDir := guessUnixHomeDir()
 	if homeDir == "" {
 		return "", errors.New("unable to get current user home directory: os/user lookup failed; $HOME is empty")
@@ -35,7 +54,7 @@ func PIDFile(pid int) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%s/%d", gopsdir, pid), nil
+	return filepath.Join(gopsdir, strconv.Itoa(pid)), nil
 }
 
 func GetPort(pid int) (string, error) {

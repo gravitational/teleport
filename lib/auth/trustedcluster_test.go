@@ -8,15 +8,12 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRemoteClusterStatus(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	a := newTestAuthServer(t)
 
 	rc, err := services.NewRemoteCluster("rc")

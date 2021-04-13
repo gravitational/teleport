@@ -252,7 +252,7 @@ func (c *Client) getAll(ctx context.Context, docRefs []*DocumentRef, tid []byte)
 	return docs, nil
 }
 
-// Collections returns an interator over the top-level collections.
+// Collections returns an iterator over the top-level collections.
 func (c *Client) Collections(ctx context.Context) *CollectionIterator {
 	it := &CollectionIterator{
 		client: c,

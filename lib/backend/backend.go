@@ -34,7 +34,9 @@ const (
 	Forever time.Duration = 0
 )
 
-// Backend implements abstraction over local or remote storage backend
+// Backend implements abstraction over local or remote storage backend.
+// Item keys are assumed to be valid UTF8, which may be enforced by the
+// various Backend implementations.
 type Backend interface {
 	// Create creates item if it does not exist
 	Create(ctx context.Context, i Item) (*Lease, error)
