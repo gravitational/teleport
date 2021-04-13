@@ -55,7 +55,7 @@ func (h *Handler) siteAppsGet(w http.ResponseWriter, r *http.Request, p httprout
 	return makeResponse(ui.MakeApps(h.auth.clusterName, h.proxyDNSName(), appClusterName, appServers))
 }
 
-type CreateAppSessionRequest struct {
+type AppParams struct {
 	// FQDN is the fully qualified domain name of the application.
 	FQDN string `json:"fqdn"`
 
@@ -66,6 +66,11 @@ type CreateAppSessionRequest struct {
 	ClusterName string `json:"cluster_name"`
 }
 
+type GetAppFQDNResponse struct {
+	// FQDN is application FQDN.
+	FQDN string `json:"fqdn"`
+}
+
 type CreateAppSessionResponse struct {
 	// CookieValue is the application session cookie value.
 	CookieValue string `json:"value"`
@@ -73,8 +78,46 @@ type CreateAppSessionResponse struct {
 	FQDN string `json:"fqdn"`
 }
 
+// getAppFQDN resolves the input params to a known application and returns
+// its valid FQDN.
+//
+// GET /v1/webapi/apps/:fqdn/:clusterName/:publicAddr
+func (h *Handler) getAppFQDN(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	req := &AppParams{
+		FQDN:        p.ByName("fqdn"),
+		ClusterName: p.ByName("clusterName"),
+		PublicAddr:  p.ByName("publicAddr"),
+	}
+
+	// Get an auth client connected with the user's identity.
+	authClient, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Get a reverse tunnel proxy aware of the user's permissions.
+	proxy, err := h.ProxyWithRoles(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Use the information the caller provided to attempt to resolve to an
+	// application running within either the root or leaf cluster.
+	result, err := h.resolveApp(r.Context(), authClient, proxy, req)
+	if err != nil {
+		return nil, trace.Wrap(err, "Unable to resolve FQDN: %v", req.FQDN)
+	}
+
+	return &GetAppFQDNResponse{
+		FQDN: result.FQDN,
+	}, nil
+}
+
+// createAppSession creates a new application session.
+//
+// POST /v1/webapi/sessions/app
 func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	var req *CreateAppSessionRequest
+	var req *AppParams
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -93,7 +136,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 
 	// Use the information the caller provided to attempt to resolve to an
 	// application running within either the root or leaf cluster.
-	result, err := h.validateAppSessionRequest(r.Context(), authClient, proxy, req)
+	result, err := h.resolveApp(r.Context(), authClient, proxy, req)
 	if err != nil {
 		return nil, trace.Wrap(err, "Unable to resolve FQDN: %v", req.FQDN)
 	}
@@ -175,7 +218,7 @@ func (h *Handler) waitForAppSession(ctx context.Context, sessionID, user string)
 	return auth.WaitForAppSession(ctx, sessionID, user, h.cfg.AccessPoint)
 }
 
-func (h *Handler) validateAppSessionRequest(ctx context.Context, clt app.Getter, proxy reversetunnel.Tunnel, req *CreateAppSessionRequest) (*validateAppSessionResult, error) {
+func (h *Handler) resolveApp(ctx context.Context, clt app.Getter, proxy reversetunnel.Tunnel, req *AppParams) (*resolveAppResult, error) {
 	var (
 		app            *services.App
 		server         services.Server
@@ -197,7 +240,7 @@ func (h *Handler) validateAppSessionRequest(ctx context.Context, clt app.Getter,
 
 	fqdn := ui.AssembleAppFQDN(h.auth.clusterName, h.proxyDNSName(), appClusterName, app)
 
-	return &validateAppSessionResult{
+	return &resolveAppResult{
 		ServerID:    server.GetName(),
 		FQDN:        fqdn,
 		PublicAddr:  app.PublicAddr,
@@ -205,7 +248,7 @@ func (h *Handler) validateAppSessionRequest(ctx context.Context, clt app.Getter,
 	}, nil
 }
 
-type validateAppSessionResult struct {
+type resolveAppResult struct {
 	// ServerID is the ID of the server this application is running on.
 	ServerID string
 	// FQDN is the best effort FQDN resolved for this application.
