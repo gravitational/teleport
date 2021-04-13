@@ -3,7 +3,7 @@ title: Running a highly-available Teleport cluster using AWS, EKS and Helm
 description: How to install and configure a highly-available Gravitational Teleport cluster using Amazon Web Services and Elastic Kubernetes Service
 ---
 
-In this guide, we'll go through how to set up a highly-availabie Teleport cluster with multiple replicas in Kubernetes
+In this guide, we'll go through how to set up a highly-available Teleport cluster with multiple replicas in Kubernetes
 using Teleport Helm charts and AWS products (DynamoDB and S3).
 
 This guide assumes that you've finished the [Getting Started with the Teleport Helm chart repository guide](./getting-started.mdx) and have Helm configured successfully.
@@ -48,7 +48,7 @@ See the [high availability section of our `teleport-cluster` chart reference](./
 ### AWS IAM configuration
 
 For Teleport to be able to create the DynamoDB tables, indexes and the S3 storage bucket it needs,
-you'll need to configure AWS IAM polciies to allow access.
+you'll need to configure AWS IAM policies to allow access.
 
 <Admonition type="note">
   These IAM policies should be added to your AWS account, then granted to the instance role associated with the

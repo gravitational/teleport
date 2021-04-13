@@ -196,7 +196,7 @@ kubectl -n teleport create configmap teleport --from-file=teleport.yaml
   ```
 </Admonition>
 
-After editing the `ConfigMap`, you must inititate a rolling restart of your Teleport deployment to pick up the changed `ConfigMap`:
+After editing the `ConfigMap`, you must initiate a rolling restart of your Teleport deployment to pick up the changed `ConfigMap`:
 
 ```shell
 kubectl -n teleport rollout restart deploy/teleport
