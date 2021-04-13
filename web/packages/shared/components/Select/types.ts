@@ -21,13 +21,13 @@ export type Props = {
   isSearchable?: boolean;
   isDisabled?: boolean;
   maxMenuHeight?: number;
-  onChange(e: Option | Option[]): void;
-  value: null | Option | Option[];
+  onChange(e: Option<any> | Option<any>[]): void;
+  value: null | Option<any> | Option<any>[];
   isMulti?: boolean;
   autoFocus?: boolean;
   label?: string;
   placeholder?: string;
-  options: Option[];
+  options: Option<any>[];
   width?: string | number;
   menuPlacement?: string;
   components?: any;
@@ -42,7 +42,7 @@ export type AsyncProps = Omit<Props, 'options'> & {
   noOptionsMessage(): string;
 };
 
-export type Option = {
-  value: string;
+export type Option<T = string> = {
+  value: T;
   label: string;
 };

@@ -71,6 +71,13 @@ export const userContext = makeUserContext({
       remove: true,
     },
     sshLogins: ['dev', 'root'],
+    billing: {
+      list: true,
+      read: true,
+      edit: true,
+      create: true,
+      remove: true,
+    },
   },
   cluster: {
     name: 'aws',

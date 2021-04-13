@@ -615,11 +615,11 @@ exports[`loaded 1`] = `
   background-color: rgb(37,49,98);
 }
 
-.c14 tbody tr:hover:last-child td:first-child {
+.c14 tbody > tr:last-child td:first-child {
   border-bottom-left-radius: 8px;
 }
 
-.c14 tbody tr:hover:last-child td:last-child {
+.c14 tbody > tr:last-child td:last-child {
   border-bottom-right-radius: 8px;
 }
 

@@ -77,14 +77,15 @@ export const StyledTable = styled.table(
 
   tbody tr:hover {
     background-color: ${darken(props.theme.colors.primary.lighter, 0.14)};
-    :last-child {
-      td:first-child {
-        border-bottom-left-radius: 8px;
-      }
+  }
 
-      td:last-child {
-        border-bottom-right-radius: 8px;
-      }
+  tbody > tr:last-child {
+    td:first-child {
+      border-bottom-left-radius: 8px;
+    }
+    
+    td:last-child {
+      border-bottom-right-radius: 8px
     }
   }
 

@@ -274,11 +274,11 @@ exports[`loaded 1`] = `
   background-color: rgb(37,49,98);
 }
 
-.c12 tbody tr:hover:last-child td:first-child {
+.c12 tbody > tr:last-child td:first-child {
   border-bottom-left-radius: 8px;
 }
 
-.c12 tbody tr:hover:last-child td:last-child {
+.c12 tbody > tr:last-child td:last-child {
   border-bottom-right-radius: 8px;
 }
 
@@ -2246,11 +2246,11 @@ exports[`overflow 1`] = `
   background-color: rgb(37,49,98);
 }
 
-.c13 tbody tr:hover:last-child td:first-child {
+.c13 tbody > tr:last-child td:first-child {
   border-bottom-left-radius: 8px;
 }
 
-.c13 tbody tr:hover:last-child td:last-child {
+.c13 tbody > tr:last-child td:last-child {
   border-bottom-right-radius: 8px;
 }
 

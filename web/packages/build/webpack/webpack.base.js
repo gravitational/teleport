@@ -26,11 +26,23 @@ module.exports = function createConfig() {
     optimization: {
       splitChunks: {
         cacheGroups: {
+          // Vendor chunk creates a chunk file that contains files coming from import statements
+          // from node_modules. The 'initial' flag directs this group to add modules to this chunk
+          //  that were imported inside only from sync chunks.
           vendors: {
-            chunks: 'all',
+            chunks: 'initial',
             name: 'vendor',
             test: /([\\/]node_modules[\\/])/,
-            priority: -10,
+            // Priority states that if a module falls under many cacheGroups, then
+            // the module will be part of a chunk with a higher priority.
+          },
+          // Common chunk creates a chunk file that contains modules that were shared between
+          // at least 2 (or more) async chunks. The 'async' flag directs this group to add modules
+          // to this chunk that were specifically imported inside async chunks (dynamic imports).
+          common: {
+            chunks: 'async',
+            minChunks: 2,
+            test: /([\\/]node_modules[\\/])/,
           },
         },
       },
