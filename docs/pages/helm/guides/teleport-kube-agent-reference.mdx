@@ -15,8 +15,7 @@ This parameter is not mandatory to preserve backwards compatibility with older c
 | - |
 | `kube` |
 
-`roles` is a comma-separated list of services (Teleport refers to these internally as `Roles`, hence the naming) which should be enabled
-when running for the `teleport-kube-agent` chart.
+`roles` is a comma-separated list of services which should be enabled when running the `teleport-kube-agent` chart.
 
 | Services | Value for `roles` | Mandatory additional settings for this role |
 | - | - | - |
@@ -67,10 +66,8 @@ are trying to add with the `teleport-kube-agent` chart. Here are a few examples:
   When you use a token, all of the services that it provides **must** be used.
 
   For example, you cannot use a token of type `app,db` to only join a Teleport `app` service by itself. It must join both `app` and `db` services at once.
-</Admonition>
 
-<Admonition type="warning">
-  Each static token you configure must be unique, as the token itself is used to define which services will be supported.
+  Also, each static token you configure must be unique, as the token itself is used to define which services will be supported.
 
   You cannot reuse the same static token and specify a different set of services.
 </Admonition>
@@ -417,7 +414,7 @@ Set to a number higher than `1` for a high availability mode where multiple Tele
   </TabItem>
 </Tabs>
 
-## clusterRoleName
+## `clusterRoleName`
 
 <Admonition type="note">
   Most users will not need to change this.
@@ -443,7 +440,7 @@ Set to a number higher than `1` for a high availability mode where multiple Tele
   </TabItem>
 </Tabs>
 
-## clusterRoleBindingName
+## `clusterRoleBindingName`
 
 <Admonition type="note">
   Most users will not need to change this.
@@ -469,7 +466,7 @@ Set to a number higher than `1` for a high availability mode where multiple Tele
   </TabItem>
 </Tabs>
 
-## serviceAccountName
+## `serviceAccountName`
 
 <Admonition type="note">
   Most users will not need to change this.
@@ -494,7 +491,7 @@ Set to a number higher than `1` for a high availability mode where multiple Tele
   </TabItem>
 </Tabs>
 
-## secretName
+## `secretName`
 
 | Default value |
 | - |
@@ -539,9 +536,9 @@ kubectl -n teleport create secret generic teleport-kube-agent-join-token --from-
 
 Available log levels (in order of most to least verbose) are: `DEBUG`, `INFO`, `WARNING`, `ERROR`.
 
-The default is INFO, which is recommended in production.
+The default is `INFO`, which is recommended in production.
 
- DEBUG is useful during first-time setup or to see more detailed logs for debugging.
+`DEBUG` is useful during first-time setup or to see more detailed logs for debugging.
 
 <Tabs>
   <TabItem label="values.yaml">

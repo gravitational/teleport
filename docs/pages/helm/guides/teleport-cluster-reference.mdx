@@ -15,8 +15,8 @@ This reference details available values for the `teleport-cluster` chart.
 
 `clusterName` controls the name used to refer to the Teleport cluster, along with the externally-facing public address to use to access it.
 
-<Admonition type="warning" title="Mandatory value">
-  This value **must** be set when running in any mode other than `ownconfig`.
+<Admonition type="warning" title="Potential mandatory value">
+  This value must be set when `chartMode` is set to `aws`, `gcp` or `standalone`.
 </Admonition>
 
 <Admonition type="note">
@@ -56,7 +56,7 @@ Setting `enterprise` to `true` will use the Teleport Enterprise image.
 You will also need to download your Enterprise license from the Teleport dashboard and add it as a Kubernetes secret to use this:
 
 ```
-$ kubectl create secret generic license --from-file=/path/to/downloaded/license.pem
+kubectl create secret generic license --from-file=/path/to/downloaded/license.pem
 ```
 
 <Admonition type="tip">
@@ -438,9 +438,9 @@ You can override this to use your own Teleport Enterprise image rather than a Te
 
 Available log levels (in order of most to least verbose) are: `DEBUG`, `INFO`, `WARNING`, `ERROR`.
 
-The default is INFO, which is recommended in production.
+The default is `INFO`, which is recommended in production.
 
- DEBUG is useful during first-time setup or to see more detailed logs for debugging.
+`DEBUG` is useful during first-time setup or to see more detailed logs for debugging.
 
 <Tabs>
   <TabItem label="values.yaml">
