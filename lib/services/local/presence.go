@@ -495,6 +495,7 @@ func (s *PresenceService) UpsertTunnelConnection(conn services.TunnelConnection)
 	if err := conn.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+
 	value, err := services.MarshalTunnelConnection(conn)
 	if err != nil {
 		return trace.Wrap(err)

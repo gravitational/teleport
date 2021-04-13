@@ -1,0 +1,105 @@
+---
+title: Application Access Reference
+description: Configuration and CLI reference for Teleport Application Access
+---
+
+# Application Access Reference
+
+## Configuration
+
+The following snippet shows full YAML configuration of an Application Service
+appearing in the `teleport.yaml` configuration file:
+
+```yaml
+app_service:
+  # Enables application proxy service.
+  enabled: yes
+  # Enable debug app that can be used to make sure application access is
+  # working correctly. It'll output JWTs so it can be useful for when
+  # extending your application.
+  debug_app: true
+  # This section contains definitions of all applications proxied by this
+  # service. It can contain multiple items.
+  apps:
+    # Name of the application. Used for identification purposes.
+  - name: "grafana"
+    # Free-form application description.
+    description: "This is an internal Grafana instance"
+    # URI and port the application is available at.
+    uri: "http://localhost:3000"
+    # Optional application public address to override.
+    public_addr: "grafana.teleport.example.com"
+    # Rewrites section.
+    rewrite:
+      # Rewrite the "Location" header on redirect responses replacing the
+      # host with the public address of this application.
+      redirect:
+      - "grafana.internal.dev"
+    # Disable application certificate validation.
+    insecure_skip_verify: true
+    # Optional static labels to assign to the app. Used in RBAC.
+    labels:
+      env: "prod"
+    # Optional dynamic labels to assign to the app. Used in RBAC.
+    commands:
+    - name: "hostname"
+      command: ["hostname"]
+      period: 1m0s
+```
+
+## CLI
+
+This section shows CLI commands relevant for Application Access.
+
+### tsh app ls
+
+Lists available applications.
+
+```sh
+$ tsh app ls
+```
+
+### tsh app login
+
+Retrieves short-lived X.509 certificate for CLI application access.
+
+```sh
+$ tsh app login grafana
+```
+
+### tsh app logout
+
+Removes CLI application access certificate.
+
+```sh
+# Log out of a particular app.
+$ tsh app logout grafana
+
+# Log out of all apps.
+$ tsh app logout
+```
+
+### tsh app config
+
+Prints application connection information.
+
+```sh
+# Print app information in a table form.
+$ tsh app config
+
+# Print information for a particular app.
+$ tsh app config grafana
+
+# Print an example curl command.
+$ tsh app config --format=curl
+
+# Construct a curl command.
+$ curl $(tsh app config --format=uri) \
+    --cacert $(tsh app config --format=ca) \
+    --cert $(tsh app config --format=cert) \
+    --key $(tsh app config --format=key)
+```
+
+| Flag | Description |
+| - | - |
+| `--format` | Optional print format, one of: `uri` to print app address, `ca` to print CA cert path, `cert` to print cert path, `key` print key path, `curl` to print example curl command.|

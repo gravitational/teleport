@@ -758,6 +758,37 @@ func CreateUserRoleAndRequestable(clt clt, username string, rolename string) (se
 	return user, nil
 }
 
+// CreateAccessPluginUser creates a user with list/read abilites for access requests, and list/read/update
+// abilities for access plugin data.
+func CreateAccessPluginUser(ctx context.Context, clt clt, username string) (services.User, error) {
+	user, err := services.NewUser(username)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	role := services.RoleForUser(user)
+	rules := role.GetRules(types.Allow)
+	rules = append(rules,
+		types.Rule{
+			Resources: []string{types.KindAccessRequest},
+			Verbs:     []string{types.VerbRead, types.VerbList},
+		},
+		types.Rule{
+			Resources: []string{types.KindAccessPluginData},
+			Verbs:     []string{types.VerbRead, types.VerbList, types.VerbUpdate},
+		},
+	)
+	role.SetRules(types.Allow, rules)
+	role.SetLogins(types.Allow, nil)
+	if err := clt.UpsertRole(ctx, role); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	user.AddRole(role.GetName())
+	if err := clt.UpsertUser(user); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return user, nil
+}
+
 // CreateUser creates user and role and assignes role to a user, used in tests
 func CreateUser(clt clt, username string, roles ...types.Role) (types.User, error) {
 	ctx := context.TODO()

@@ -17,16 +17,19 @@ ENV LANGUAGE="en_US.UTF-8" \
     LC_CTYPE="en_US.UTF-8" \
     DEBIAN_FRONTEND="noninteractive"
 
+# Install packages.
+# We install curl first to allow setting up the Google SDK as part of the same layer.
 RUN apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
-    apt-get install -q -y \
-        apt-utils \
+    apt-get install -y --no-install-recommends apt-utils ca-certificates curl gnupg && \
+    echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] http://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list && \
+    curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key --keyring /usr/share/keyrings/cloud.google.gpg add - && \
+    apt-get -y update && \
+    apt-get install -q -y --no-install-recommends \
         clang-format \
-        curl \
         gcc \
         gcc-multilib \
         git \
-        gnupg \
         gzip \
         libbpfcc-dev \
         libc6-dev \
@@ -36,14 +39,18 @@ RUN apt-get update -y --fix-missing && \
         make \
         mingw-w64 \
         net-tools \
+        openssh-client \
+        python-pip \
         shellcheck \
         tar \
         tree \
         unzip \
         zip \
         && \
+    pip --no-cache-dir install yamllint && \
     dpkg-reconfigure locales && \
-    apt-get -y autoclean && apt-get -y clean
+    apt-get -y clean && \
+    rm -rf /var/lib/apt/lists/*
 
 ARG UID
 ARG GID
@@ -53,11 +60,6 @@ RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home
 # Install etcd.
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz && \
      cp etcd-v3.3.9-linux-amd64/etcd* /bin/)
-
-# Install Google Cloud SDK.
-RUN (echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] http://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list && \
-     curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key --keyring /usr/share/keyrings/cloud.google.gpg add - && \
-     apt-get update -y && apt-get install google-cloud-sdk google-cloud-sdk-firestore-emulator -y)
 
 # Install Go.
 ARG RUNTIME
@@ -97,7 +99,7 @@ ENV GOGOPROTO_ROOT ${GOPATH}/src/github.com/gogo/protobuf
 RUN (curl -L -o /tmp/${PROTOC_TARBALL} https://github.com/google/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
      cd /tmp && unzip /tmp/${PROTOC_TARBALL} -d /usr/local && \
      rm /tmp/${PROTOC_TARBALL})
-RUN (go get -u github.com/gogo/protobuf/proto github.com/gogo/protobuf/protoc-gen-gogo github.com/gogo/protobuf/gogoproto golang.org/x/tools/cmd/goimports && \
+RUN (git clone https://github.com/gogo/protobuf.git ${GOPATH}/src/github.com/gogo/protobuf && go install golang.org/x/tools/cmd/goimports@latest && \
      cd ${GOPATH}/src/github.com/gogo/protobuf && \
      git reset --hard ${GOGO_PROTO_TAG} && \
      make install)
