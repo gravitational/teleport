@@ -13,7 +13,7 @@ This RFD proposes the option of securing the `/metrics` endpoint read by prometh
 
 To prevent leaking metrics shipped to prometheus over an insecure network.
 
-## Implementation
+## Details
 
 Currently the `/metrics` handler resides under `initDiagnosticService()` in `lib/service/service.go` which will be hosted at the address provided by the `--diag-addr` flag given to `teleport start`.
 
@@ -31,11 +31,11 @@ metrics_service:
   prometheus_ca_cert: /var/lib/teleport/...
 ```
 
-## Backwards compatibility
+### Backwards compatibility
 
 This is a breaking change for systems relying on metrics being hosted at the `diag-addr`. People would have to update their configurations and use the new endpoint.
 Unless we keep supporting the old endpoint for insecure metrics delivery and disable it if mTLS is configured to be used through the new one, which is not a clean solution in my opinion.
 
-## Additional work
+### Additional work
 
 Update the documentation with all the relevant changes
