@@ -353,13 +353,15 @@ func (b *EtcdBackend) watchEvents() error {
 	defer close(b.watchDone)
 
 start:
-	eventsC := b.client.Watch(b.ctx, b.cfg.Key, clientv3.WithPrefix())
+	ctx, cancel := context.WithCancel(b.ctx)
+	eventsC := b.client.Watch(ctx, b.cfg.Key, clientv3.WithPrefix())
 	b.signalWatchStart()
 	for {
 		select {
 		case e, ok := <-eventsC:
 			if e.Canceled || !ok {
 				b.Debugf("Watch channel has closed.")
+				cancel()
 				goto start
 			}
 			out := make([]backend.Event, 0, len(e.Events))
@@ -373,6 +375,7 @@ start:
 			}
 			b.buf.PushBatch(out)
 		case <-b.ctx.Done():
+			cancel()
 			return trace.ConnectionProblem(b.ctx.Err(), "context is closing")
 		}
 	}

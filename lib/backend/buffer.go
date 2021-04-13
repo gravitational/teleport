@@ -356,7 +356,15 @@ func (t *watcherTree) rm(w *BufferWatcher) bool {
 		prevLen := len(buffers)
 		for i := range buffers {
 			if buffers[i] == w {
+				// preserve a window to the rightmost pointer
+				tail := buffers[len(buffers)-1:]
+				// trim the target watcher
 				buffers = append(buffers[:i], buffers[i+1:]...)
+				// zero the rightmost pointer since it is now out of bounds
+				// of the buffer (necessary because gc treats all pointers in
+				// underlying array as live, even if they are out of bounds
+				// of all valid slices).
+				tail[0] = nil
 				found = true
 				break
 			}
