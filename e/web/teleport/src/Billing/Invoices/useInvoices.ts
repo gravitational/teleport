@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import TeleportContextE from 'e-teleport/teleportContextE';
 import { Invoice, formatCents } from 'e-teleport/services/cloud';
+import { displayUnixDate } from 'shared/services/loc';
 
 export default function useInvoices(ctx: TeleportContextE) {
   const { attempt, run } = useAttempt('processing');
@@ -36,13 +37,9 @@ export function makeListItems(invoices: Invoice[]): ListItem[] {
     ...inv,
     amountDueText: formatCents(inv.amountDue),
     amountPaidText: formatCents(inv.amountPaid),
-    periodText: `${unixDisplayDate(inv.periodEnd)}-${unixDisplayDate(
+    periodText: `${displayUnixDate(inv.periodEnd)} - ${displayUnixDate(
       inv.periodStart
     )}`,
-    periodEndText: unixDisplayDate(inv.periodStart),
+    periodEndText: displayUnixDate(inv.periodStart),
   }));
-}
-
-function unixDisplayDate(seconds: number) {
-  return new Date(seconds * 1000).toLocaleDateString();
 }

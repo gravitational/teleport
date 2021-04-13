@@ -89,7 +89,7 @@ const StatusCell = props => {
   const { status } = data[rowIndex] as ListItem;
 
   let kind = 'warning';
-  if (status === 'paid') {
+  if (status === 'PAID') {
     kind = 'success';
   }
 

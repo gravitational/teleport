@@ -318,11 +318,11 @@ exports[`loaded state 1`] = `
   background-color: rgb(37,49,98);
 }
 
-.c7 tbody tr:hover:last-child td:first-child {
+.c7 tbody > tr:last-child td:first-child {
   border-bottom-left-radius: 8px;
 }
 
-.c7 tbody tr:hover:last-child td:last-child {
+.c7 tbody > tr:last-child td:last-child {
   border-bottom-right-radius: 8px;
 }
 

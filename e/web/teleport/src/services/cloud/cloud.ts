@@ -28,18 +28,32 @@ class CloudService {
   }
 
   fetchBillingInformation(): Promise<BillingInformation> {
-    return api.get(cfg.api.billingPath);
+    return api.get(cfg.api.billingPath).then(makeBillingInformation);
   }
 
-  fetchInvoices() {
+  fetchInvoices(): Promise<Invoice[]> {
     return api.get(cfg.api.invoicesPath).then((json: Invoice[]) => json || []);
   }
 
-  fetchBillingCycles() {
-    return api
-      .get(cfg.api.cyclesPath)
-      .then((json: BillingCycle[]) => json || []);
+  fetchBillingCycles(): Promise<BillingCycle[]> {
+    return api.get(cfg.api.cyclesPath).then(makeBillingCycles);
   }
 }
 
 export default CloudService;
+
+function makeBillingCycles(json: any) {
+  json = json || [];
+
+  return json.map((cycle: BillingCycle) => ({
+    ...cycle,
+    itemsList: cycle.itemsList || [],
+  })) as BillingCycle[];
+}
+
+function makeBillingInformation(json: any) {
+  json.cardsList = json.cardsList || [];
+  json.bankAccountsList = json.bankAccountsList || [];
+
+  return json as BillingInformation;
+}
