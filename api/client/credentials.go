@@ -34,26 +34,6 @@ import (
 // also provide other functionality, such as automatic address discovery and ssh
 // connectivity.
 //
-// Since there are several Credential loaders to choose from, here's a quick breakdown:
-//
-//  - Profile Credentials are the easiest to get started with. All you have to do is login
-//    on your device with `tsh login`. Your Teleport proxy address and credentials will
-//    automatically be located and used. However, the other options don't necessarily require
-//    a login step and have the ability to authenticate long lived clients.
-//
-//  - IdentityFile Credentials are the most well rounded in terms of usability, functionality,
-//    and customizability. Identity files can be generated through `tsh login` or `tctl auth sign`,
-//    making them ideal for both long lived proxy and auth server connections.
-//
-//  - Key Pair Credentials have a much simpler implementation than the first two Credentials listed,
-//    and may feel more familiar. These are good for authenticating client's hosted on the auth server.
-//
-//  - TLS Credentials leave everything up to the client user. This isn't recommended for most
-//    users and is mostly used internally, but some users may find that this fits their use case best.
-//
-// Visit https://goteleport.com/docs/api-reference/#credentials to see a
-// feature matrix comparing each loader directly.
-//
 // See the examples below for an example of each loader.
 type Credentials interface {
 	// Dialer is used to create a dialer used to connect to the Auth server.
