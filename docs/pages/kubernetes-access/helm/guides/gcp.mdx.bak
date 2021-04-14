@@ -1,49 +1,45 @@
 ---
 title: Running a highly-available Teleport cluster using GCP, GKE and Helm
-description: How to install and configure a highly-available Gravitational Teleport cluster using Google Cloud Platform and Google Kubernetes Engine
+description: Install and configure an HA Teleport cluster using a Google Cloud GKE cluster
 ---
 
 In this guide, we'll go through how to set up a highly-available Teleport cluster with multiple replicas in Kubernetes
 using Teleport Helm charts and Google Cloud Platform products (Firestore and Google Cloud Storage).
 
-This guide assumes that you've finished the [Getting Started with the Teleport Helm chart repository guide](./getting-started.mdx) and have Helm configured successfully.
+### Install Helm
 
-If not, please finish that guide first before starting this one!
+Teleport's charts require the use of Helm version 3. You can [install Helm 3 by following these instructions](https://helm.sh/docs/intro/install/).
 
-### Setting up an HA Teleport cluster using Helm
+Throughout this guide, we will assume that you have the `helm` and `kubectl` binaries available in your `PATH`:
 
-In `gcp` mode, the `teleport-cluster` Helm chart uses Google Cloud Firestore for storing its backend database and audit logs. The highly-available
-shared storage of Google Cloud Firestore means that multiple Teleport pods can use the same backing database, enabling a Teleport cluster to scale
-efficiently with load.
+```bash
+$ helm version
+version.BuildInfo{Version:"v3.4.2"}
 
-The chart also uses Google Cloud Firestore to hold Teleport's audit log, keeping track of actions performed within your cluster.
+$ kubectl version
+Client Version: version.Info{Major:"1", Minor:"17+"}
+Server Version: version.Info{Major:"1", Minor:"17+"}
+```
 
-Teleport's session recordings will be stored in a Google Cloud storage bucket, providing functional, efficient storage for any number of users.
+### Add the Teleport Helm chart repository
 
-### Mandatory settings
+To allow Helm to install charts which are hosted in the Teleport Helm repository, use `helm repo add`:
 
-You'll need five pieces of information to configure `gcp` mode:
+```bash
+helm repo add teleport https://charts.releases.teleport.dev
+```
 
-| Key | Description | Example |
-| - | - | - |
-| `clusterName` | Name of your Teleport cluster. We recommend using the fully-qualified domain name you'll use for external access to your cluster | `teleport.example.com` |
-| `gcp.projectId` | Google Cloud project ID | `gcpproj-123456` |
-| `gcp.backendTable` | Name of the Firestore collection to use for Teleport's backend database | `teleport-helm-backend` |
-| `gcp.auditLogTable` | Name of the Firestore collection to use for Teleport's audit event log (this **must** be different to `backendTable` due to differing schemas) | `teleport-helm-events` |
-| `gcp.sessionRecordingBucket` | Name of the Google Cloud Storage bucket to use for Teleport's session recordings | `teleport-helm-sessions` |
+Once installed, you can search repositories for charts using the `helm search repo` command:
 
-<Admonition type="note">
-  You cannot change the `clusterName` after the cluster is configured, so make sure you choose wisely. It's usually a good idea to use the
-  fully-qualified domain name that you'll use for external access to your Teleport cluster.
-</Admonition>
+```bash
+helm search repo teleport
+```
 
-#### High availability
+To update the cache of charts from the remote repository, run `helm repo update`:
 
-To make your cluster highly available, set the `highAvailability.replicaCount` parameter to the number of replicas you would like.
-
-In this guide, we'll be configuring 2 replicas. This can be changed after installation [using `helm upgrade` as detailed below](#making-changes-to-the-cluster-after-deployment).
-
-See the [high availability section of our `teleport-cluster` chart reference](./teleport-cluster-reference.mdx#highavailability) for more details.
+```bash
+helm repo update
+```
 
 ### Google Cloud IAM configuration
 
@@ -56,27 +52,27 @@ Go to the "Roles" section of Google Cloud IAM & Admin.
 
 1. Click the "Create Role" button at the top.
 
-![Roles section](../../../img/helm/gcp/1-roles.png)
+![Roles section](../../../../img/helm/gcp/1-roles@1.5x.png)
 
 2. Fill in the details of a "Storage Bucket Creator" role (we suggest using the name `storage-bucket-creator-role`)
 
-![Create role](../../../img/helm/gcp/2-createrole.png)
+![Create role](../../../../img/helm/gcp/2-createrole@1.5x.png)
 
 3. Click the "Add Permissions" button.
 
-![Storage bucket creator role](../../../img/helm/gcp/3-addpermissions.png)
+![Storage bucket creator role](../../../../img/helm/gcp/3-addpermissions@1.5x.png)
 
 4. Use the "Filter" box to enter `storage.buckets.create` and select it in the list.
 
-![Filter the list](../../../img/helm/gcp/4-storagebucketscreate.png)
+![Filter the list](../../../../img/helm/gcp/4-storagebucketscreate@1.5x.png)
 
 5. Check the `storage.buckets.create` permission in the list and click the "Add" button to add it to the role.
 
-![Select storage.buckets.create](../../../img/helm/gcp/5-select.png)
+![Select storage.buckets.create](../../../../img/helm/gcp/5-select@1.5x.png)
 
 6. Once all these settings are entered successfully, click the "Create" button.
 
-![Create role](../../../img/helm/gcp/6-createrole.png)
+![Create role](../../../../img/helm/gcp/6-createrole@1.5x.png)
 
 #### Create a service account for the Teleport Helm chart
 
@@ -90,11 +86,11 @@ Go to the "Service Accounts" section of Google Cloud IAM & Admin.
 
 1. Click the "Create Service Account" button at the top.
 
-![Create service account](../../../img/helm/gcp/7-serviceaccounts.png)
+![Create service account](../../../../img/helm/gcp/7-serviceaccounts@1.5x.png)
 
 2. Enter details for the service account (we recommend using the name `teleport-helm`) and click the "Create" button.
 
-![Enter service account details](../../../img/helm/gcp/8-createserviceaccount.png)
+![Enter service account details](../../../../img/helm/gcp/8-createserviceaccount@1.5x.png)
 
 3. In the "Grant this service account access to project" section, add these four roles:
 
@@ -105,7 +101,7 @@ Go to the "Service Accounts" section of Google Cloud IAM & Admin.
 | Storage Object Creator | Allows writing of Google Cloud storage objects |
 | Storage Object Viewer | Allows reading of Google Cloud storage objects |
 
-![Add roles](../../../img/helm/gcp/9-addroles.png)
+![Add roles](../../../../img/helm/gcp/9-addroles@1.5x.png)
 
 4. Click the "continue" button to save these settings, then click the "create" button to create the service account.
 
@@ -115,16 +111,16 @@ Go back to the "Service Accounts" view in Google Cloud IAM & Admin.
 
 1. Click on the `teleport-helm` service account that you just created.
 
-![Click on the service account](../../../img/helm/gcp/10-serviceaccountdetails.png)
+![Click on the service account](../../../../img/helm/gcp/10-serviceaccountdetails@1.5x.png)
 
 2. Click the "Keys" tab at the top and click "Add Key". Choose "JSON" and click "Create".
 
-![Create JSON key](../../../img/helm/gcp/11-createkey.png)
+![Create JSON key](../../../../img/helm/gcp/11-createkey.png)
 
 3. The JSON private key will be downloaded to your computer. Take note of the filename (`bens-demos-24150b1a0a7f.json` in this example)
    as you will need it shortly.
 
-![Private key saved](../../../img/helm/gcp/12-privatekey.png)
+![Private key saved](../../../../img/helm/gcp/12-privatekey@1.5x.png)
 
 #### Create the Kubernetes secret containing the JSON private key for the service account
 
@@ -132,7 +128,7 @@ Find the path where the JSON private key was just saved (likely your browser's d
 
 Use `kubectl` to create the secret, using the path to the JSON private key:
 
-```shell
+```bash
 kubectl create namespace teleport && \
 kubectl --namespace teleport create secret generic teleport-gcp-credentials --from-file=gcp-credentials.json=/path/to/downloads/bens-demos-24150b1a0a7f.json
 ```
@@ -163,20 +159,20 @@ The `--set` CLI method is more appropriate for quick test deployments.
   Create a `gcp-values.yaml` file and write the values you've chosen above to it:
 
   ```yaml
-  clusterName: teleport.example.com
   chartMode: gcp
+  clusterName: teleport.example.com                 # Name of your cluster. Use the FDQN you intend to configure in DNS below
   gcp:
-    projectId: gcpproj-123456
-    backendTable: teleport-helm-backend
-    auditLogTable: teleport-helm-events
-    sessionRecordingBucket: teleport-helm-sessions
+    projectId: gcpproj-123456                       # Google Cloud project ID
+    backendTable: teleport-helm-backend             # Firestore collection to use for the Teleport backend
+    auditLogTable: teleport-helm-events             # Firestore collection to use for the Teleport audit log (must be different to the backend collection)
+    sessionRecordingBucket: teleport-helm-sessions  # Google Cloud Storage bucket to use for Teleport session recordings
   highAvailability:
-    replicaCount: 2
+    replicaCount: 2                                 # Number of replicas to configure
   ```
 
   Install the chart with the values from your `gcp-values.yaml` file using this command:
 
-  ```shell
+  ```bash
   helm install teleport teleport/teleport-cluster \
     --create-namespace \
     --namespace teleport \
@@ -187,36 +183,29 @@ The `--set` CLI method is more appropriate for quick test deployments.
   <TabItem label="Using --set via CLI">
   Install the chart using this command, replacing the placeholders with the values you've chosen above:
 
-  ```shell
+  ```bash
   helm install teleport teleport/teleport-cluster \
     --create-namespace \
     --namespace teleport \
-    --set clusterName=teleport.example.com \
     --set chartMode=gcp \
-    --set gcp.projectId=gcpproj-123456 \
-    --set gcp.backendTable=teleport-helm-backend \
-    --set gcp.auditLogTable=teleport-helm-events \
-    --set gcp.sessionRecordingBucket=teleport-helm-sessions \
-    --set highAvailability.replicaCount=2
+    --set clusterName=teleport.example.com                   `# Name of your cluster. Use the FDQN you intend to configure in DNS below` \
+    --set gcp.projectId=gcpproj-123456                       `# GCP project ID` \
+    --set gcp.backendTable=teleport-helm-backend             `# Firestore collection to use for the Teleport backend` \
+    --set gcp.auditLogTable=teleport-helm-events             `# Firestore collection to use for the Teleport audit log (must be different to the backend collection)` \
+    --set gcp.sessionRecordingBucket=teleport-helm-sessions  `# Google Cloud storage bucket to use for Teleport session recordings` \
+    --set highAvailability.replicaCount=2                    `# Number of replicas to configure`
   ```
   </TabItem>
 </Tabs>
 
-<Admonition type="tip">
-  It will help if you have access to the DNS provider which hosts `example.com` so you can add a `teleport.example.com` record
-  and point it to the external IP or hostname of the Kubernetes load balancer.
-
-  If you're using Google Cloud DNS, you can do this by using [`gcloud dns record-sets`](https://cloud.google.com/sdk/gcloud/reference/dns/record-sets)
-  on the command line, or using the Google Cloud DNS UI.
-
-  You can also consider using other Kubernetes-based services like [external-dns](https://github.com/kubernetes-sigs/external-dns).
-
-  For other DNS providers, consult their documentation.
+<Admonition type="note">
+  You cannot change the `clusterName` after the cluster is configured, so make sure you choose wisely. We recommend using the
+  fully-qualified domain name that you'll use for external access to your Teleport cluster.
 </Admonition>
 
 Once the chart is installed, you can use `kubectl` commands to view the deployment:
 
-```shell
+```bash
 $ kubectl --namespace teleport get all
 NAME                           READY   STATUS    RESTARTS   AGE
 pod/teleport-b64dd8849-fklvk   1/1     Running   0          7m4s
@@ -233,10 +222,35 @@ replicaset.apps/teleport-55bd4f7d44   0         0         0       26m
 replicaset.apps/teleport-b64dd8849    2         2         2       7m16s
 ```
 
+### Set up DNS
+
+You'll need to set up two DNS `A` records: `teleport.example.com` for the web UI, and `*.teleport.example.com`
+for web apps using [application access](../../../application-access.mdx).
+
+Here's how to do this using Google Cloud DNS:
+
+```bash
+# Change these parameters if you altered them above
+$ NAMESPACE=teleport
+$ RELEASE_NAME=teleport
+
+$ MYIP=$(kubectl --namespace ${NAMESPACE?} get service/${RELEASE_NAME?} -o jsonpath='{.status.loadBalancer.ingress[*].ip}')
+$ MYZONE="myzone"
+$ MYDNS="teleport.example.com"
+
+$ gcloud dns record-sets transaction start --zone="${MYZONE?}"
+$ gcloud dns record-sets transaction add ${MYIP?} --name="${MYDNS?}" --ttl="300" --type="A" --zone="${MYZONE?}"
+$ gcloud dns record-sets transaction add ${MYIP?} --name="*.${MYDNS?}" --ttl="300" --type="A" --zone="${MYZONE?}"
+$ gcloud dns record-sets transaction describe --zone="${MYZONE?}"
+$ gcloud dns record-sets transaction execute --zone="${MYZONE?}"
+```
+
+### Create a Teleport user
+
 At this point, you'll still need to create a user to be able to log into Teleport. This needs to be done on the Teleport auth server,
 so we can run the command using `kubectl`:
 
-```shell
+```bash
 $ kubectl --namespace teleport exec deploy/teleport -- tctl users add test --roles=access,editor
 User "test" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
 https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
@@ -245,35 +259,32 @@ NOTE: Make sure teleport.example.com:443 points at a Teleport proxy which users 
 ```
 
 <Admonition type="note">
-  If you didn't set up DNS for your hostname earlier, remember to replace `teleport.example.com` with the external IP or hostname of the Kubernetes load balancer.
-
-  ```shell
-  $ kubectl --namespace teleport get service/teleport -o jsonpath='{.status.loadBalancer.ingress[*].ip}'
-  35.203.56.38
-  ```
-
-  In this instance, you would load https://35.203.56.38/web/invite/91cfbd08bc89122275006e48b516cc68 instead to create the Teleport user.
-
-  You may need to accept insecure warnings in your browser to view the page successfully.
-</Admonition>
-
-<Admonition type="warning">
-  Using a Kubernetes-issued load balancer IP or hostname is OK for testing, but is not viable when running a production Teleport cluster
-  as the Subject Alternative Name on any public-facing certificate will be expected to match the cluster's configured public address (which is
-  the same as the configured `clusterName` when using the `teleport-cluster` chart). For security, all Teleport services will validate this when
-  communicating with the cluster.
-
-  You must configure DNS properly using methods described above for production workloads.
+  As you have not configured TLS certificates for your cluster, you will need to accept insecure warnings in your browser to view
+  the user creation page successfully. You can use services like `cert-manager` to provision certificates for your cluster.
 </Admonition>
 
 Load the user creation link to create a password and set up 2-factor authentication for the Teleport user via the web UI.
 
-You can follow our [Getting Started with Teleport guide](../../getting-started.mdx#step-2-create-a-teleport-user-and-set-up-2-factor-authentication) to finish setting up your
+You can follow our [Getting Started with Teleport guide](../../../getting-started.mdx#step-2-create-a-teleport-user-and-set-up-2-factor-authentication) to finish setting up your
 Teleport cluster.
 
-### Making changes to the cluster after deployment
+#### High availability
 
-To make changes to your Teleport cluster after deployment, you can use `helm upgrade`:
+In this guide, we have configured 2 replicas. This can be changed after cluster creation by altering the `highAvailability.replicaCount`
+value [using `helm upgrade` as detailed below](#upgrading-the-cluster-after-deployment).
+
+See the [high availability section of our Helm chart reference](../reference.mdx#highavailability) for more details on high availability.
+
+### Upgrading the cluster after deployment
+
+To make changes to your Teleport cluster after deployment, you can use `helm upgrade`.
+
+Helm defaults to using the latest version of the chart available in the repo, which will also correspond to the latest
+version of Teleport. You can make sure that the repo is up to date by running `helm repo update`.
+
+If you want to use a different version of Teleport, set the [`teleportVersionOverride`](../reference.mdx#teleportversionoverride) value.
+
+Here's an example where we set the chart to use 3 replicas:
 
 <Tabs>
   <TabItem label="Using values.yaml">
@@ -281,7 +292,7 @@ To make changes to your Teleport cluster after deployment, you can use `helm upg
 
   Upgrade the deployment with the values from your `gcp-values.yaml` file using this command:
 
-  ```shell
+  ```bash
   helm upgrade teleport teleport/teleport-cluster \
     --namespace teleport \
     -f gcp-values.yaml
@@ -291,7 +302,7 @@ To make changes to your Teleport cluster after deployment, you can use `helm upg
   <TabItem label="Using --set via CLI">
   Run this command, editing your command line parameters as appropriate:
 
-  ```shell
+  ```bash
   helm upgrade teleport teleport/teleport-cluster \
     --namespace teleport \
     --set highAvailability.replicaCount=3
@@ -304,10 +315,10 @@ To make changes to your Teleport cluster after deployment, you can use `helm upg
   a new version with the appropriate values.
 </Admonition>
 
-### Uninstalling the Helm chart
+### Uninstalling Teleport
 
 To uninstall the `teleport-cluster` chart, use `helm uninstall <release-name>`. For example:
 
-```shell
+```bash
 helm --namespace teleport uninstall teleport
 ```

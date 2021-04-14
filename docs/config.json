@@ -49,6 +49,17 @@
             { "title": "Migration", "slug": "/kubernetes-access/guides/migration/" }
           ]
         },
+        { "title": "Helm Chart reference", "slug": "/kubernetes-access/helm/reference/" },
+        {
+          "title": "Helm Guides",
+          "slug": "/kubernetes-access/helm/guides/",
+          "entries": [
+            { "title": "AWS EKS Cluster", "slug": "/kubernetes-access/helm/guides/aws/" },
+            { "title": "Google Cloud GKE Cluster", "slug": "/kubernetes-access/helm/guides/gcp/" },
+            { "title": "Customize Deployment config", "slug": "/kubernetes-access/helm/guides/ownconfig/" },
+            { "title": "Migrating from older charts", "slug": "/kubernetes-access/helm/guides/migration/" }
+          ]
+        },
         { "title": "Access Controls", "slug": "/kubernetes-access/controls/" }
       ]
     },
@@ -88,7 +99,7 @@
           "entries": [
             { "title": "Role Templates", "slug": "/access-controls/guides/role-templates/" },
             { "title": "Second Factor - U2F", "slug": "/access-controls/guides/u2f/" },
-            { "title": "Per-session MFA", "slug": "/access-controls/guides/per-session-mfa/" },            
+            { "title": "Per-session MFA", "slug": "/access-controls/guides/per-session-mfa/" },
             { "title": "Dual Authorization", "slug": "/access-controls/guides/dual-authz/" },
             { "title": "Impersonation", "slug": "/access-controls/guides/impersonation/" }
           ]
@@ -111,21 +122,7 @@
         { "title": "AWS", "slug": "/aws-oss-guide/" },
         { "title": "GCP", "slug": "/gcp-guide/" },
         { "title": "IBM", "slug": "/ibm-cloud-guide/" },
-        { "title": "OpenSSH Guide", "slug": "/openssh-teleport/" },
-        {
-          "title": "Helm Guides",
-          "slug": "/helm/guides/",
-          "entries": [
-            { "title": "Getting started", "slug": "/helm/guides/getting-started/" },
-            { "title": "Quick one-pod cluster", "slug": "/helm/guides/standalone/" },
-            { "title": "HA using AWS & EKS", "slug": "/helm/guides/aws/" },
-            { "title": "HA using GCP & GKE", "slug": "/helm/guides/gcp/" },
-            { "title": "Custom Teleport config", "slug": "/helm/guides/ownconfig/" },
-            { "title": "Migrating from older charts", "slug": "/helm/guides/migration/" },
-            { "title": "teleport-cluster reference", "slug": "/helm/guides/teleport-cluster-reference/" },
-            { "title": "teleport-kube-agent reference", "slug": "/helm/guides/teleport-kube-agent-reference/" }
-          ]
-        }
+        { "title": "OpenSSH Guide", "slug": "/openssh-teleport/" }
       ]
     },
     {
