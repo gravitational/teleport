@@ -22,6 +22,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport/api/constants"
+
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
@@ -111,7 +113,16 @@ func (c *ChConn) RemoteAddr() net.Addr {
 
 // Read reads from the channel.
 func (c *ChConn) Read(data []byte) (int, error) {
-	return c.reader.Read(data)
+	n, err := c.reader.Read(data)
+	// A lot of code relies on "use of closed network connection" error to
+	// gracefully handle terminated connections so convert the closed pipe
+	// error to it.
+	if err != nil && err == io.ErrClosedPipe {
+		return n, trace.ConnectionProblem(err, constants.UseOfClosedNetworkConnection)
+	}
+	// Do not wrap the error to avoid masking the underlying error such as
+	// timeout error which is returned when read deadline is exceeded.
+	return n, err
 }
 
 // SetDeadline sets a connection deadline.

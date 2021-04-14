@@ -143,16 +143,28 @@ func (s *TestServer) handleConnection(conn net.Conn) error {
 			return trace.Wrap(err)
 		}
 		s.log.Debugf("Received %#v.", message)
-		switch msg := message.(type) {
+		switch message.(type) {
 		case *pgproto3.Query:
-			err := s.handleQuery(client, msg)
-			if err != nil {
+			if err := s.handleQuery(client); err != nil {
+				s.log.WithError(err).Error("Failed to handle query.")
+			}
+		// Following messages are for handling Postgres extended query
+		// protocol flow used by prepared statements.
+		case *pgproto3.Parse:
+			// Parse prepares the statement.
+		case *pgproto3.Bind:
+			// Bind binds prepared statement with parameters.
+		case *pgproto3.Describe:
+		case *pgproto3.Sync:
+		case *pgproto3.Execute:
+			// Execute executes prepared statement.
+			if err := s.handleQuery(client); err != nil {
 				s.log.WithError(err).Error("Failed to handle query.")
 			}
 		case *pgproto3.Terminate:
 			return nil
 		default:
-			return trace.BadParameter("unsupported message %#v", msg)
+			return trace.BadParameter("unsupported message %#v", message)
 		}
 	}
 }
@@ -195,7 +207,7 @@ func (s *TestServer) handleStartup(client *pgproto3.Backend) error {
 	return nil
 }
 
-func (s *TestServer) handleQuery(client *pgproto3.Backend, query *pgproto3.Query) error {
+func (s *TestServer) handleQuery(client *pgproto3.Backend) error {
 	atomic.AddUint32(&s.queryCount, 1)
 	messages := []pgproto3.BackendMessage{
 		&pgproto3.RowDescription{Fields: TestQueryResponse.FieldDescriptions},
