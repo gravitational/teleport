@@ -96,7 +96,7 @@ version: v2
   type="note"
   title="IMPORTANT"
 >
-  The `prompt` value must be blank.  Setting to blank means Teleport will not send this as a parameter sending the `select_account` parameter will result in an error from GitLab.
+  The `prompt` value must be `non`.  Setting to `none` means Teleport will not send this as a parameter since sending the `select_account` parameter will result in an error from GitLab.
 </Admonition>
 
 Create the connector using `tctl` tool:
