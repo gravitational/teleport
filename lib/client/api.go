@@ -485,7 +485,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 	}
 
 	// Read in the profile for this proxy.
-	profile, err := profile.ProfileFromDir(profileDir, profileName)
+	profile, err := profile.FromDir(profileDir, profileName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -738,7 +738,7 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 // directory ~/.tsh is used.
 func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 	// read the profile:
-	cp, err := profile.ProfileFromDir(profileDir, ProxyHost(proxyName))
+	cp, err := profile.FromDir(profileDir, ProxyHost(proxyName))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil

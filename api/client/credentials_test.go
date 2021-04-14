@@ -26,7 +26,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/gravitational/teleport/api/identity"
+	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 
@@ -63,18 +63,18 @@ func TestLoadIdentityFile(t *testing.T) {
 
 	// Write identity file to disk.
 	path := filepath.Join(t.TempDir(), "file")
-	idFile := &identity.IdentityFile{
+	idFile := &identityfile.IdentityFile{
 		PrivateKey: keyPEM,
-		Certs: identity.Certs{
+		Certs: identityfile.Certs{
 			TLS: tlsCert,
 			SSH: sshCert,
 		},
-		CACerts: identity.CACerts{
+		CACerts: identityfile.CACerts{
 			TLS: [][]byte{tlsCACert},
 			SSH: [][]byte{sshCACert},
 		},
 	}
-	err := identity.WriteIdentityFile(idFile, path)
+	err := identityfile.Write(idFile, path)
 	require.NoError(t, err)
 
 	// Load identity file from disk.

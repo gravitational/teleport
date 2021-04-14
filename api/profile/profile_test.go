@@ -77,12 +77,12 @@ func TestProfileBasics(t *testing.T) {
 	require.Equal(t, p.Name(), name)
 
 	// load and verify current profile
-	clone, err := profile.ProfileFromDir(dir, "")
+	clone, err := profile.FromDir(dir, "")
 	require.NoError(t, err)
 	require.Equal(t, *p, *clone)
 
 	// load and verify directly
-	clone, err = profile.ProfileFromDir(dir, p.Name())
+	clone, err = profile.FromDir(dir, p.Name())
 	require.NoError(t, err)
 	require.Equal(t, *p, *clone)
 }

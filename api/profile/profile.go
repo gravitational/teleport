@@ -216,11 +216,11 @@ func defaultProfilePath() string {
 	return filepath.Join(home, profileDir)
 }
 
-// ProfileFromDir reads the user (yaml) profile from a given directory. If
+// FromDir reads the user (yaml) profile from a given directory. If
 // dir is empty, this function defaults to the default tsh profile directory.
 // If name is empty, this function defaults to loading the currently active
 // profile (if any).
-func ProfileFromDir(dir string, name string) (*Profile, error) {
+func FromDir(dir string, name string) (*Profile, error) {
 	dir = FullProfilePath(dir)
 	var err error
 	if name == "" {

@@ -15,13 +15,13 @@ limitations under the License.
 
 */
 
-package identity_test
+package identityfile_test
 
 import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gravitational/teleport/api/identity"
+	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,24 +30,24 @@ import (
 func TestIdentityFileBasics(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "file")
-	writeIDFile := &identity.IdentityFile{
+	writeIDFile := &identityfile.IdentityFile{
 		PrivateKey: []byte("-----BEGIN RSA PRIVATE KEY-----\nkey\n-----END RSA PRIVATE KEY-----\n"),
-		Certs: identity.Certs{
+		Certs: identityfile.Certs{
 			SSH: []byte("ssh ssh-cert"),
 			TLS: []byte("-----BEGIN CERTIFICATE-----\ntls-cert\n-----END CERTIFICATE-----\n"),
 		},
-		CACerts: identity.CACerts{
+		CACerts: identityfile.CACerts{
 			SSH: [][]byte{[]byte("@cert-authority ssh-cacerts")},
 			TLS: [][]byte{[]byte("-----BEGIN CERTIFICATE-----\ntls-cacerts\n-----END CERTIFICATE-----\n")},
 		},
 	}
 
 	// Write identity file
-	err := identity.WriteIdentityFile(writeIDFile, path)
+	err := identityfile.Write(writeIDFile, path)
 	require.NoError(t, err)
 
 	// Read identity file
-	readIDFile, err := identity.ReadIdentityFile(path)
+	readIDFile, err := identityfile.Read(path)
 	require.NoError(t, err)
 
 	// Check that read and write values are equal

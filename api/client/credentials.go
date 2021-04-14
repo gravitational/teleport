@@ -22,7 +22,7 @@ import (
 	"io/ioutil"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/identity"
+	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/profile"
 
 	"github.com/gravitational/trace"
@@ -159,7 +159,7 @@ func LoadIdentityFile(path string) Credentials {
 // directly (local), or through the cluster's reverse proxy or web proxy.
 type identityCreds struct {
 	path         string
-	identityFile *identity.IdentityFile
+	identityFile *identityfile.IdentityFile
 }
 
 // Dialer is used to dial a connection to an Auth server.
@@ -202,7 +202,7 @@ func (c *identityCreds) load() error {
 		return nil
 	}
 	var err error
-	if c.identityFile, err = identity.ReadIdentityFile(c.path); err != nil {
+	if c.identityFile, err = identityfile.Read(c.path); err != nil {
 		return trace.BadParameter("identity file could not be decoded: %v", err)
 	}
 	return nil
@@ -287,7 +287,7 @@ func (c *profileCreds) load() error {
 		return nil
 	}
 	var err error
-	if c.profile, err = profile.ProfileFromDir(c.dir, c.name); err != nil {
+	if c.profile, err = profile.FromDir(c.dir, c.name); err != nil {
 		return trace.BadParameter("profile could not be decoded: %v", err)
 	}
 	return nil
