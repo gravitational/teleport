@@ -54,83 +54,65 @@ func TestListKeys(t *testing.T) {
 	// add 5 keys for "bob"
 	keys := make([]Key, keyNum)
 	for i := 0; i < keyNum; i++ {
-		key := s.makeSignedKey(t, false)
-		host := fmt.Sprintf("host-%v", i)
-		require.NoError(t, s.addKey(host, "bob", key))
-		key.ProxyHost = host
+		idx := KeyIndex{fmt.Sprintf("host-%v", i), "bob", "root"}
+		key := s.makeSignedKey(t, idx, false)
+		require.NoError(t, s.addKey(key))
 		keys[i] = *key
 	}
 	// add 1 key for "sam"
-	samKey := s.makeSignedKey(t, false)
-	require.NoError(t, s.addKey("sam.host", "sam", samKey))
+	samIdx := KeyIndex{"sam.host", "sam", "root"}
+	samKey := s.makeSignedKey(t, samIdx, false)
+	require.NoError(t, s.addKey(samKey))
 
 	// read all bob keys:
 	for i := 0; i < keyNum; i++ {
-		host := fmt.Sprintf("host-%v", i)
-		keys2, err := s.store.GetKey(host, "bob", WithDBCerts(samKey.ClusterName, ""))
+		keys2, err := s.store.GetKey(keys[i].KeyIndex, WithSSHCerts{}, WithDBCerts{})
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(*keys2, keys[i], cmpopts.EquateEmpty()))
 	}
 
 	// read sam's key and make sure it's the same:
-	skey, err := s.store.GetKey("sam.host", "sam")
+	skey, err := s.store.GetKey(samIdx, WithSSHCerts{})
 	require.NoError(t, err)
 	require.Equal(t, samKey.Cert, skey.Cert)
 	require.Equal(t, samKey.Pub, skey.Pub)
-}
-
-func TestEmptyTeleportClusterNameIsNotAnError(t *testing.T) {
-	s, cleanup := newTest(t)
-	defer cleanup()
-
-	// Given a key store with a valid directory structure
-	host := "some-host"
-	user := "zaphod"
-	key := s.makeSignedKey(t, false)
-	require.NoError(t, s.addKey(host, user, key))
-
-	// When I attempt to enumerate the user's keys with an empty teleport
-	// cluster name
-	k, err := s.store.GetKey(host, user, WithDBCerts("", ""), WithKubeCerts(""))
-
-	// Expect the key enumeration to succeed
-	require.NoError(t, err)
-	require.NotNil(t, k)
 }
 
 func TestKeyCRUD(t *testing.T) {
 	s, cleanup := newTest(t)
 	defer cleanup()
 
-	key := s.makeSignedKey(t, false)
+	idx := KeyIndex{"host.a", "bob", "root"}
+	key := s.makeSignedKey(t, idx, false)
 
 	// add key:
-	err := s.addKey("host.a", "bob", key)
+	err := s.addKey(key)
 	require.NoError(t, err)
 
 	// load back and compare:
-	keyCopy, err := s.store.GetKey("host.a", "bob", WithDBCerts(key.ClusterName, ""))
+	keyCopy, err := s.store.GetKey(idx, WithSSHCerts{}, WithDBCerts{})
 	require.NoError(t, err)
 	key.ProxyHost = keyCopy.ProxyHost
 	require.Empty(t, cmp.Diff(key, keyCopy, cmpopts.EquateEmpty()))
+	require.Len(t, key.DBTLSCerts, 1)
 
 	// Delete just the db cert, reload & verify it's gone
-	err = s.store.DeleteKeyOption("host.a", "bob", WithDBCerts(key.ClusterName, ""))
+	err = s.store.DeleteUserCerts(idx, WithDBCerts{})
 	require.NoError(t, err)
-	keyCopy, err = s.store.GetKey("host.a", "bob", WithDBCerts(key.ClusterName, ""))
+	keyCopy, err = s.store.GetKey(idx, WithSSHCerts{}, WithDBCerts{})
 	require.NoError(t, err)
 	key.DBTLSCerts = nil
 	require.Empty(t, cmp.Diff(key, keyCopy, cmpopts.EquateEmpty()))
 
 	// Delete & verify that it's gone
-	err = s.store.DeleteKey("host.a", "bob")
+	err = s.store.DeleteKey(idx)
 	require.NoError(t, err)
-	_, err = s.store.GetKey("host.a", "bob")
+	_, err = s.store.GetKey(idx)
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err))
 
 	// Delete non-existing
-	err = s.store.DeleteKey("non-existing-host", "non-existing-user")
+	err = s.store.DeleteKey(KeyIndex{ProxyHost: "non-existing-host", Username: "non-existing-user"})
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err))
 }
@@ -139,18 +121,22 @@ func TestDeleteAll(t *testing.T) {
 	s, cleanup := newTest(t)
 	defer cleanup()
 
-	key := s.makeSignedKey(t, false)
+	// generate keys
+	idxFoo := KeyIndex{"proxy.example.com", "foo", "root"}
+	keyFoo := s.makeSignedKey(t, idxFoo, false)
+	idxBar := KeyIndex{"proxy.example.com", "bar", "root"}
+	keyBar := s.makeSignedKey(t, idxBar, false)
 
 	// add keys
-	err := s.addKey("proxy.example.com", "foo", key)
+	err := s.addKey(keyFoo)
 	require.NoError(t, err)
-	err = s.addKey("proxy.example.com", "bar", key)
+	err = s.addKey(keyBar)
 	require.NoError(t, err)
 
 	// check keys exist
-	_, err = s.store.GetKey("proxy.example.com", "foo")
+	_, err = s.store.GetKey(idxFoo)
 	require.NoError(t, err)
-	_, err = s.store.GetKey("proxy.example.com", "bar")
+	_, err = s.store.GetKey(idxBar)
 	require.NoError(t, err)
 
 	// delete all keys
@@ -158,9 +144,9 @@ func TestDeleteAll(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify keys are gone
-	_, err = s.store.GetKey("proxy.example.com", "foo")
+	_, err = s.store.GetKey(idxFoo)
 	require.True(t, trace.IsNotFound(err))
-	_, err = s.store.GetKey("proxy.example.com", "bar")
+	_, err = s.store.GetKey(idxBar)
 	require.Error(t, err)
 }
 
@@ -211,17 +197,18 @@ func TestCheckKey(t *testing.T) {
 	s, cleanup := newTest(t)
 	defer cleanup()
 
-	key := s.makeSignedKey(t, false)
+	idx := KeyIndex{"host.a", "bob", "root"}
+	key := s.makeSignedKey(t, idx, false)
 
 	// Swap out the key with a ECDSA SSH key.
 	ellipticCertificate, _, err := utils.CreateEllipticCertificate("foo", ssh.UserCert)
 	require.NoError(t, err)
 	key.Cert = ssh.MarshalAuthorizedKey(ellipticCertificate)
 
-	err = s.addKey("host.a", "bob", key)
+	err = s.addKey(key)
 	require.NoError(t, err)
 
-	_, err = s.store.GetKey("host.a", "bob")
+	_, err = s.store.GetKey(idx)
 	require.NoError(t, err)
 }
 
@@ -231,7 +218,8 @@ func TestProxySSHConfig(t *testing.T) {
 	s, cleanup := newTest(t)
 	defer cleanup()
 
-	key := s.makeSignedKey(t, false)
+	idx := KeyIndex{"host.a", "bob", "root"}
+	key := s.makeSignedKey(t, idx, false)
 
 	caPub, _, _, _, err := ssh.ParseAuthorizedKey(CAPub)
 	require.NoError(t, err)
@@ -239,7 +227,7 @@ func TestProxySSHConfig(t *testing.T) {
 	err = s.store.AddKnownHostKeys("127.0.0.1", []ssh.PublicKey{caPub})
 	require.NoError(t, err)
 
-	clientConfig, err := ProxyClientSSHConfig(key, s.store)
+	clientConfig, err := key.ProxyClientSSHConfig(s.store)
 	require.NoError(t, err)
 
 	called := atomic.NewInt32(0)
@@ -310,18 +298,19 @@ func TestCheckKeyFIPS(t *testing.T) {
 		t.Skip("This test only runs in FIPS mode.")
 	}
 
-	key := s.makeSignedKey(t, false)
+	idx := KeyIndex{"host.a", "bob", "root"}
+	key := s.makeSignedKey(t, idx, false)
 
 	// Swap out the key with a ECDSA SSH key.
 	ellipticCertificate, _, err := utils.CreateEllipticCertificate("foo", ssh.UserCert)
 	require.NoError(t, err)
 	key.Cert = ssh.MarshalAuthorizedKey(ellipticCertificate)
 
-	err = s.addKey("host.a", "bob", key)
+	err = s.addKey(key)
 	require.NoError(t, err)
 
 	// Should return trace.BadParameter error because only RSA keys are supported.
-	_, err = s.store.GetKey("host.a", "bob")
+	_, err = s.store.GetKey(idx)
 	require.True(t, trace.IsBadParameter(err))
 }
 
@@ -333,23 +322,22 @@ type keyStoreTest struct {
 	tlsCACert auth.TrustedCerts
 }
 
-func (s *keyStoreTest) addKey(host, user string, key *Key) error {
-	if err := s.store.AddKey(host, user, key); err != nil {
+func (s *keyStoreTest) addKey(key *Key) error {
+	if err := s.store.AddKey(key); err != nil {
 		return err
 	}
 	// Also write the trusted CA certs for the host.
-	return s.store.SaveCerts(host, []auth.TrustedCerts{s.tlsCACert})
+	return s.store.SaveTrustedCerts(key.ProxyHost, []auth.TrustedCerts{s.tlsCACert})
 }
 
 // makeSignedKey helper returns all 3 components of a user key (signed by CAPriv key)
-func (s *keyStoreTest) makeSignedKey(t *testing.T, makeExpired bool) *Key {
+func (s *keyStoreTest) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired bool) *Key {
 	var (
 		err             error
 		priv, pub, cert []byte
 	)
 	priv, pub, _ = s.keygen.GenerateKeyPair("")
-	username := "vincento"
-	allowedLogins := []string{username, "root"}
+	allowedLogins := []string{idx.Username, "root"}
 	ttl := 20 * time.Minute
 	if makeExpired {
 		ttl = -ttl
@@ -360,7 +348,7 @@ func (s *keyStoreTest) makeSignedKey(t *testing.T, makeExpired bool) *Key {
 	require.NoError(t, err)
 	clock := clockwork.NewRealClock()
 	identity := tlsca.Identity{
-		Username: username,
+		Username: idx.Username,
 	}
 	subject, err := identity.Subject()
 	require.NoError(t, err)
@@ -376,7 +364,7 @@ func (s *keyStoreTest) makeSignedKey(t *testing.T, makeExpired bool) *Key {
 		PrivateCASigningKey:   CAPriv,
 		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
-		Username:              username,
+		Username:              idx.Username,
 		AllowedLogins:         allowedLogins,
 		TTL:                   ttl,
 		PermitAgentForwarding: false,
@@ -384,13 +372,13 @@ func (s *keyStoreTest) makeSignedKey(t *testing.T, makeExpired bool) *Key {
 	})
 	require.NoError(t, err)
 	return &Key{
-		Priv:        priv,
-		Pub:         pub,
-		Cert:        cert,
-		TLSCert:     tlsCert,
-		TrustedCA:   []auth.TrustedCerts{s.tlsCACert},
-		DBTLSCerts:  map[string][]byte{"example-db": tlsCert},
-		ClusterName: "root",
+		KeyIndex:   idx,
+		Priv:       priv,
+		Pub:        pub,
+		Cert:       cert,
+		TLSCert:    tlsCert,
+		TrustedCA:  []auth.TrustedCerts{s.tlsCACert},
+		DBTLSCerts: map[string][]byte{"example-db": tlsCert},
 	}
 }
 
@@ -471,40 +459,39 @@ func TestMemLocalKeyStore(t *testing.T) {
 	s, cleanup := newTest(t)
 	defer cleanup()
 
-	// define some helpers
-	const proxy = "test.com"
-	const username = "test"
-
 	// create keystore
 	dir := t.TempDir()
 	keystore, err := NewMemLocalKeyStore(dir)
 	require.NoError(t, err)
 
-	// add test key
-	key := s.makeSignedKey(t, false)
-	err = keystore.AddKey(proxy, username, key)
+	// create a test key
+	idx := KeyIndex{"test.com", "test", "root"}
+	key := s.makeSignedKey(t, idx, false)
+
+	// add the test key to the memory store
+	err = keystore.AddKey(key)
 	require.NoError(t, err)
 
 	// check that the key exists in the store
-	retrievedKey, err := keystore.GetKey(proxy, username)
+	retrievedKey, err := keystore.GetKey(idx)
 	require.NoError(t, err)
 	require.Equal(t, key, retrievedKey)
 
 	// delete the key
-	err = keystore.DeleteKey(proxy, username)
+	err = keystore.DeleteKey(idx)
 	require.NoError(t, err)
 
 	// check that the key doesn't exist in the store
-	retrievedKey, err = keystore.GetKey(proxy, username)
+	retrievedKey, err = keystore.GetKey(idx)
 	require.Error(t, err)
 	require.Nil(t, retrievedKey)
 
 	// add it again
-	err = keystore.AddKey(proxy, username, key)
+	err = keystore.AddKey(key)
 	require.NoError(t, err)
 
-	// check for the key
-	retrievedKey, err = keystore.GetKey(proxy, username)
+	// check for the key, now without cluster name
+	retrievedKey, err = keystore.GetKey(KeyIndex{idx.ProxyHost, idx.Username, ""})
 	require.NoError(t, err)
 	require.Equal(t, key, retrievedKey)
 
@@ -513,7 +500,7 @@ func TestMemLocalKeyStore(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify it's deleted
-	retrievedKey, err = keystore.GetKey(proxy, username)
+	retrievedKey, err = keystore.GetKey(idx)
 	require.Error(t, err)
 	require.Nil(t, retrievedKey)
 }

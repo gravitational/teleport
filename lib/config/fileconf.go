@@ -855,6 +855,10 @@ type PAM struct {
 	// UsePAMAuth specifies whether to trigger the "auth" PAM modules from the
 	// policy.
 	UsePAMAuth bool `yaml:"use_pam_auth"`
+
+	// Environment represents environment variables to pass to PAM.
+	// These may contain role-style interpolation syntax.
+	Environment map[string]string `yaml:"environment,omitempty"`
 }
 
 // Parse returns a parsed pam.Config.
@@ -868,6 +872,7 @@ func (p *PAM) Parse() *pam.Config {
 		Enabled:     enabled,
 		ServiceName: serviceName,
 		UsePAMAuth:  p.UsePAMAuth,
+		Environment: p.Environment,
 	}
 }
 
