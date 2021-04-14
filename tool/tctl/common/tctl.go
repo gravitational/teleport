@@ -439,7 +439,7 @@ func loadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServi
 		return nil, trace.BadParameter("your credentials have expired, please login using `tsh login`")
 	}
 
-	log.Debugf("Found active profile: %v %v.", profile.ProxyURL.String(), profile.Username)
+	log.WithFields(log.Fields{"proxy": profile.ProxyURL.String(), "user": profile.Username}).Debugf("Found active profile.")
 
 	c := client.MakeDefaultConfig()
 	if err := c.LoadProfile("", proxyAddr); err != nil {
