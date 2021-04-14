@@ -82,6 +82,12 @@ type WebSession interface {
 	GetBearerTokenExpiryTime() time.Time
 	// GetExpiryTime - absolute time when web session expires
 	GetExpiryTime() time.Time
+	// GetDefaultExpiryTime returns the absolute time when session should expire,
+	// which is derived from user's first web session creation with their default roles.
+	// Used when user's are switching back from assuming access request approved roles.
+	GetDefaultExpiryTime() time.Time
+	// SetDefaultExpiryTime sets the default expiry time.
+	SetDefaultExpiryTime(time.Time)
 	// WithoutSecrets returns copy of the web session but without private keys
 	WithoutSecrets() WebSession
 	// CheckAndSetDefaults checks and set default values for any missing fields.
@@ -250,6 +256,18 @@ func (ws *WebSessionV2) GetBearerTokenExpiryTime() time.Time {
 // GetExpiryTime - absolute time when web session expires
 func (ws *WebSessionV2) GetExpiryTime() time.Time {
 	return ws.Spec.Expires
+}
+
+// GetDefaultExpiryTime returns the absolute time when session should expire,
+// which is derived from user's first web session creation with their default roles.
+// Used when user's are switching back from assuming roles from approved access requests.
+func (ws *WebSessionV2) GetDefaultExpiryTime() time.Time {
+	return ws.Spec.DefaultExpires
+}
+
+// SetDefaultExpiryTime sets the default expiry time.
+func (ws *WebSessionV2) SetDefaultExpiryTime(expiry time.Time) {
+	ws.Spec.DefaultExpires = expiry
 }
 
 // GetAppSessionRequest contains the parameters to request an application
@@ -490,6 +508,12 @@ type NewWebSessionRequest struct {
 	// SessionTTL optionally specifies the session time-to-live.
 	// If left unspecified, the default certificate duration is used.
 	SessionTTL time.Duration
+	// IsFirstSession indiciates if this is the user's very first session request.
+	// First session request are made with user's default/static roles.
+	// This flag is used to preserve the first session's expiration time so users can
+	// switch back to their default roles (from assuming roles from approved access requests)
+	// and resume the remainder of their default expiration time.
+	IsFirstSession bool
 }
 
 // Check validates the request.

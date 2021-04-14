@@ -1442,7 +1442,10 @@ func (s *TLSSuite) TestWebSessionWithoutAccessRequest(c *check.C) {
 	_, err = web.GetWebSessionInfo(context.TODO(), user, ws.GetName())
 	c.Assert(err, check.IsNil)
 
-	new, err := web.ExtendWebSession(user, ws.GetName(), "")
+	new, err := web.ExtendWebSession(WebSessionReq{
+		User:          user,
+		PrevSessionID: ws.GetName(),
+	})
 	c.Assert(err, check.IsNil)
 	c.Assert(new, check.NotNil)
 
@@ -1456,11 +1459,14 @@ func (s *TLSSuite) TestWebSessionWithoutAccessRequest(c *check.C) {
 	_, err = web.GetWebSessionInfo(context.TODO(), user, ws.GetName())
 	c.Assert(err, check.NotNil)
 
-	_, err = web.ExtendWebSession(user, ws.GetName(), "")
+	_, err = web.ExtendWebSession(WebSessionReq{
+		User:          user,
+		PrevSessionID: ws.GetName(),
+	})
 	c.Assert(err, check.NotNil)
 }
 
-func (s *TLSSuite) TestWebSessionWithApprovedAccessRequest(c *check.C) {
+func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
 
@@ -1470,8 +1476,6 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequest(c *check.C) {
 	newUser, err := CreateUserRoleAndRequestable(clt, user, "test-request-role")
 	c.Assert(err, check.IsNil)
 	c.Assert(newUser.GetRoles(), check.HasLen, 1)
-
-	initialRole := newUser.GetRoles()[0]
 	c.Assert(newUser.GetRoles(), check.DeepEquals, []string{"user:user2"})
 
 	proxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
@@ -1494,17 +1498,29 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequest(c *check.C) {
 	web, err := s.server.NewClientFromWebSession(ws)
 	c.Assert(err, check.IsNil)
 
+	initialRole := newUser.GetRoles()[0]
+	initialSession, err := web.GetWebSessionInfo(context.TODO(), user, ws.GetName())
+	c.Assert(err, check.IsNil)
+
 	// Create a approved access request.
 	accessReq, err := services.NewAccessRequest(user, []string{"test-request-role"}...)
 	c.Assert(err, check.IsNil)
 
+	// Set a lesser expiry date, to test switching back to default expiration later.
+	accessReq.SetAccessExpiry(s.clock.Now().Add(time.Minute * 10))
 	accessReq.SetState(services.RequestState_APPROVED)
 
 	err = clt.CreateAccessRequest(context.Background(), accessReq)
 	c.Assert(err, check.IsNil)
 
-	sess, err := web.ExtendWebSession(user, ws.GetName(), accessReq.GetMetadata().Name)
+	sess, err := web.ExtendWebSession(WebSessionReq{
+		User:            user,
+		PrevSessionID:   ws.GetName(),
+		AccessRequestID: accessReq.GetMetadata().Name,
+	})
 	c.Assert(err, check.IsNil)
+	c.Assert(sess.Expiry(), check.Equals, s.clock.Now().Add(time.Minute*10))
+	c.Assert(sess.GetDefaultExpiryTime(), check.Not(check.Equals), sess.Expiry())
 
 	sshcert, err := sshutils.ParseCertificate(sess.GetPub())
 	c.Assert(err, check.IsNil)
@@ -1524,6 +1540,23 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequest(c *check.C) {
 
 	_, hasRole = mappedRole["test-request-role"]
 	c.Assert(hasRole, check.Equals, true)
+
+	// Test switch back to default role and expiry.
+	sess, err = web.ExtendWebSession(WebSessionReq{
+		User:          user,
+		PrevSessionID: ws.GetName(),
+		Switchback:    true,
+	})
+	c.Assert(err, check.IsNil)
+	c.Assert(sess.GetExpiryTime(), check.Equals, initialSession.GetExpiryTime())
+	c.Assert(sess.GetExpiryTime(), check.Equals, sess.GetDefaultExpiryTime())
+
+	sshcert, err = sshutils.ParseCertificate(sess.GetPub())
+	c.Assert(err, check.IsNil)
+
+	roles, _, err = services.ExtractFromCertificate(clt, sshcert)
+	c.Assert(err, check.IsNil)
+	c.Assert(roles, check.DeepEquals, []string{initialRole})
 }
 
 // TestGetCertAuthority tests certificate authority permissions

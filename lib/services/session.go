@@ -38,7 +38,8 @@ const WebSessionSpecV2Schema = `{
 	  "tls_cert": {"type": "string"},
 	  "bearer_token": {"type": "string"},
 	  "bearer_token_expires": {"type": "string"},
-	  "expires": {"type": "string"}%v
+	  "expires": {"type": "string"},
+		"default_expires": {"type": "string"}%v
 	}
   }`
 
