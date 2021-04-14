@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
 
 	"github.com/gravitational/trace"
@@ -34,7 +35,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestLite(t *testing.T) { check.TestingT(t) }
+func TestMemory(t *testing.T) { check.TestingT(t) }
 
 type MemorySuite struct {
 	bk    *Memory
@@ -44,14 +45,16 @@ type MemorySuite struct {
 var _ = check.Suite(&MemorySuite{})
 
 func (s *MemorySuite) SetUpSuite(c *check.C) {
+	clock := clockwork.NewFakeClock()
 	newBackend := func() (backend.Backend, error) {
-		mem, err := New(Config{})
+		mem, err := New(Config{Clock: clock})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return mem, nil
 	}
 	s.suite.NewBackend = newBackend
+	s.suite.Clock = clock
 }
 
 func (s *MemorySuite) SetUpTest(c *check.C) {

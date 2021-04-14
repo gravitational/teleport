@@ -44,7 +44,7 @@ type Engine struct {
 	// Auth handles database access authentication.
 	Auth *common.Auth
 	// Audit emits database access audit events.
-	Audit *common.Audit
+	Audit common.Audit
 	// Context is the database server close context.
 	Context context.Context
 	// Clock is the clock interface.
@@ -91,16 +91,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = e.Audit.OnSessionStart(e.Context, *sessionCtx, nil)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer func() {
-		err := e.Audit.OnSessionEnd(e.Context, *sessionCtx)
-		if err != nil {
-			e.Log.WithError(err).Error("Failed to emit audit event.")
-		}
-	}()
+	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
+	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
 	// Copy between the connections.
 	clientErrCh := make(chan error, 1)
 	serverErrCh := make(chan error, 1)
@@ -141,9 +133,7 @@ func (e *Engine) checkAccess(sessionCtx *common.Session) error {
 		&services.DatabaseLabelsMatcher{Labels: sessionCtx.Server.GetAllLabels()},
 		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser})
 	if err != nil {
-		if err := e.Audit.OnSessionStart(e.Context, *sessionCtx, err); err != nil {
-			e.Log.WithError(err).Error("Failed to emit audit event.")
-		}
+		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
 		return trace.Wrap(err)
 	}
 	return nil
@@ -194,10 +184,7 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 		}
 		switch pkt := packet.(type) {
 		case *protocol.Query:
-			err := e.Audit.OnQuery(e.Context, *sessionCtx, pkt.Query())
-			if err != nil {
-				log.WithError(err).Error("Failed to emit audit event.")
-			}
+			e.Audit.OnQuery(e.Context, sessionCtx, pkt.Query())
 		case *protocol.Quit:
 			clientErrCh <- nil
 			return
