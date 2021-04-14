@@ -863,9 +863,7 @@ func (c *Config) WebProxyHostPort() (string, int) {
 			return addr.Host(), addr.Port(defaults.HTTPListenPort)
 		}
 	}
-
-	webProxyHost, _ := c.WebProxyHostPort()
-	return webProxyHost, defaults.HTTPListenPort
+	return "unknown", defaults.HTTPListenPort
 }
 
 // WebProxyPort returns the port of the web proxy.
