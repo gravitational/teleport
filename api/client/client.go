@@ -74,17 +74,14 @@ type Client struct {
 
 // New creates a new API client with an open connection to a Teleport server.
 //
-// Credentials are required in cfg for TLS authentication and SSH connectivity.
+// New will try to open a connection with all combinations of addresses and credentials.
+// The first successful connection to a server will be used, or an aggregated error will
+// be returned if all combinations fail.
 //
-// Addrs must be provided unless ProfileCreds are used. The addresses can point
-// to a web proxy, tunnel proxy, or local auth server. The proxy addresses can
-// only be used in tandom with Credentials that support SSH connectivity.
+// At least one Credentials object and one address or dialer must be provided. If Profile
+// Credentials are used, a web proxy dialer will automatically be provided.
 //
-// New will try to open a connection with all combinations of addresses,
-// server types, and credentials. The first successful connection to a server
-// will be used, or an aggregated error will be returned if all combinations fail.
-//
-// See the example below (godoc).
+// See the example below for usage.
 func New(ctx context.Context, cfg Config) (clt *Client, err error) {
 	if err = cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
