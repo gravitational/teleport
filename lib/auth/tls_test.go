@@ -1513,16 +1513,16 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	err = clt.CreateAccessRequest(context.Background(), accessReq)
 	c.Assert(err, check.IsNil)
 
-	sess, err := web.ExtendWebSession(WebSessionReq{
+	sess1, err := web.ExtendWebSession(WebSessionReq{
 		User:            user,
 		PrevSessionID:   ws.GetName(),
 		AccessRequestID: accessReq.GetMetadata().Name,
 	})
 	c.Assert(err, check.IsNil)
-	c.Assert(sess.Expiry(), check.Equals, s.clock.Now().Add(time.Minute*10))
-	c.Assert(sess.GetDefaultExpiryTime(), check.Not(check.Equals), sess.Expiry())
+	c.Assert(sess1.Expiry(), check.Equals, s.clock.Now().Add(time.Minute*10))
+	c.Assert(sess1.GetLoggedInTime(), check.Equals, initialSession.GetLoggedInTime())
 
-	sshcert, err := sshutils.ParseCertificate(sess.GetPub())
+	sshcert, err := sshutils.ParseCertificate(sess1.GetPub())
 	c.Assert(err, check.IsNil)
 
 	// Roles extracted from cert should contain the initial role and the role assigned with access request.
@@ -1542,16 +1542,16 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	c.Assert(hasRole, check.Equals, true)
 
 	// Test switch back to default role and expiry.
-	sess, err = web.ExtendWebSession(WebSessionReq{
+	sess2, err := web.ExtendWebSession(WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
 		Switchback:    true,
 	})
 	c.Assert(err, check.IsNil)
-	c.Assert(sess.GetExpiryTime(), check.Equals, initialSession.GetExpiryTime())
-	c.Assert(sess.GetExpiryTime(), check.Equals, sess.GetDefaultExpiryTime())
+	c.Assert(sess2.GetExpiryTime(), check.Equals, initialSession.GetExpiryTime())
+	c.Assert(sess2.GetLoggedInTime(), check.Equals, initialSession.GetLoggedInTime())
 
-	sshcert, err = sshutils.ParseCertificate(sess.GetPub())
+	sshcert, err = sshutils.ParseCertificate(sess2.GetPub())
 	c.Assert(err, check.IsNil)
 
 	roles, _, err = services.ExtractFromCertificate(clt, sshcert)

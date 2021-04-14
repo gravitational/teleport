@@ -184,7 +184,6 @@ func (s *Server) generateAppToken(username string, roles []string, uri string, e
 }
 
 func (a *Server) createWebSession(ctx context.Context, req types.NewWebSessionRequest) (services.WebSession, error) {
-	req.IsFirstSession = true
 	// It's safe to extract the roles and traits directly from services.User
 	// because this occurs during the user creation process and services.User
 	// is not fetched from the backend.

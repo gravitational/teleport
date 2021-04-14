@@ -414,10 +414,11 @@ func (a *Server) validateSAMLResponse(samlResponse string) (*samlAuthResponse, e
 	// If the request is coming from a browser, create a web session.
 	if request.CreateWebSession {
 		session, err := a.createWebSession(context.TODO(), types.NewWebSessionRequest{
-			User:       user.GetName(),
-			Roles:      user.GetRoles(),
-			Traits:     user.GetTraits(),
-			SessionTTL: params.sessionTTL,
+			User:         user.GetName(),
+			Roles:        user.GetRoles(),
+			Traits:       user.GetTraits(),
+			SessionTTL:   params.sessionTTL,
+			LoggedInTime: a.clock.Now().UTC(),
 		})
 		if err != nil {
 			return re, trace.Wrap(err)

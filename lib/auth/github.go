@@ -267,10 +267,11 @@ func (a *Server) validateGithubAuthCallback(q url.Values) (*githubAuthResponse, 
 	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
 		session, err := a.createWebSession(context.TODO(), types.NewWebSessionRequest{
-			User:       user.GetName(),
-			Roles:      user.GetRoles(),
-			Traits:     user.GetTraits(),
-			SessionTTL: params.sessionTTL,
+			User:         user.GetName(),
+			Roles:        user.GetRoles(),
+			Traits:       user.GetTraits(),
+			SessionTTL:   params.sessionTTL,
+			LoggedInTime: a.clock.Now().UTC(),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

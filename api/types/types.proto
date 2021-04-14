@@ -1564,14 +1564,11 @@ message WebSessionSpecV2 {
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "expires"
     ];
-    // DefaultExpires is the absolute time when the default sessione expires which
-    // is the expiration time derived from the user's first session creation
-    // with their default roles. Used when users are switching back to their
-    // default roles from assuming roles from approved access requests.
-    google.protobuf.Timestamp DefaultExpires = 8 [
+    // LoggedInTime is the time this user recently logged in.
+    google.protobuf.Timestamp LoggedInTime = 8 [
         (gogoproto.stdtime) = true,
         (gogoproto.nullable) = false,
-        (gogoproto.jsontag) = "default_expires"
+        (gogoproto.jsontag) = "logged_in_time"
     ];
 }
 
