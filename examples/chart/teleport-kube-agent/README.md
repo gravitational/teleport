@@ -8,7 +8,8 @@ with an existing Teleport cluster:
 
 To use it, you will need:
 - an existing Teleport cluster (at least proxy and auth services)
-- a reachable proxy endpoint (`$PROXY_ENDPOINT`)
+- a reachable proxy endpoint (`$PROXY_ENDPOINT` e.g. `teleport.example.com:3080` or `teleport.example.com:443`) 
+- a reachable reverse tunnel port on the proxy (e.g. `teleport.example.com:3024`). The address is automatically retrieved from the Teleport proxy configuration.
 - a [static join
   token](https://goteleport.com/teleport/docs/admin-guide/#adding-nodes-to-the-cluster)
   for this Teleport cluster (`$JOIN_TOKEN`)
