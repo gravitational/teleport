@@ -439,7 +439,7 @@ func loadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServi
 		return nil, trace.BadParameter("your credentials have expired, please login using `tsh login`")
 	}
 
-	log.Debugf("Found active profile: %v %v.", profile.ProxyURL, profile.Username)
+	log.Debugf("Found active profile: %v %v.", profile.ProxyURL.String(), profile.Username)
 
 	c := client.MakeDefaultConfig()
 	if err := c.LoadProfile("", proxyAddr); err != nil {
@@ -454,6 +454,15 @@ func loadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServi
 	key, err := keyStore.GetKey(idx, client.WithSSHCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Auth config can be created only using a key associated with the root cluster.
+	rootCluster, err := key.RootClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if profile.Cluster != rootCluster {
+		return nil, trace.BadParameter("your credentials are for cluster %q, please run `tsh login %q` to log in to the root cluster", profile.Cluster, rootCluster)
 	}
 
 	authConfig := &AuthServiceClientConfig{}
