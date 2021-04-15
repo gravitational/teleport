@@ -16,12 +16,12 @@ With Teleport you can:
 ## What Makes Teleport Different
 
 - Teleport replaces legacy keys and shared secrets with short-lived X.509 and SSH certificates
-for services and users.
+  for services and users.
 - It proxies and inspects SSH, Kubernetes, Web and Database protocols.
-For example for SSH, it controls the session from the start 
-and captures a session recording and in-kernel system calls using BPF.
+  For example for SSH, it controls the session from the start
+  and captures a session recording and in-kernel system calls using BPF.
 - It removes a need for VPN and can connect multiple regions and organizations
-in a decentralized network using mutual TLS and SSH tunnels.
+  in a decentralized network using mutual TLS and SSH tunnels.
 
 <iframe
   width="712"
@@ -52,7 +52,7 @@ Here are some of the most popular use-cases for Teleport:
 - Collaboratively troubleshoot issues through [session sharing](user-manual.mdx#sharing-sessions).
 - Discover online servers and Docker containers within a cluster with [dynamic node labels](admin-guide.mdx#labeling-nodes-and-applications).
 - Capture sessions and manage certificates for existing [OpenSSH fleet](openssh-teleport.mdx).
-- Secure access to internal web applications and services with [application access](application-access.mdx).
+- Secure access to internal web applications and services with [application access](./application-access/introduction.mdx).
 
 ## Teleport Enterprise
 
@@ -72,18 +72,18 @@ or a commercial edition ("Teleport Enterprise Edition").
 
 Teleport is officially supported on the platforms listed below. It is worth noting
 that the open source community has been successful in building and running Teleport on
-UNIX variants other than Linux [2].
+UNIX variants other than Linux \[2].
 
 | Operating System | Teleport Client | Teleport Server |
 | - | - | - |
 | Linux v2.6+ | yes | yes |
 | MacOS v10.12+ | yes | yes |
-| Windows [1] | yes [1] | no |
+| Windows \[1] | yes \[1] | no |
 
-[1] *Teleport server does not run on Windows yet, but `tsh` (the Teleport client)
+\[1] *Teleport server does not run on Windows yet, but `tsh` (the Teleport client)
 can be used on Windows to execute `tsh login` to retrieve a user's SSH
 certificate and use it with `ssh`, the OpenSSH client, running on a Windows
 client machine.*
 
-[2] *Teleport is written in Go and it is theoretically possible to build it on
+\[2] *Teleport is written in Go and it is theoretically possible to build it on
 any OS supported by the [Golang toolchain](https://github.com/golang/go/wiki/MinimumRequirements)*.

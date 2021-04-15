@@ -47,17 +47,14 @@ Before you get started you’ll need:
 
 ## Configure G Suite
 
-1. Obtain OAuth 2.0 credentials  [https://developers.google.com/identity/protocols/OpenIDConnect](https://developers.google.com/identity/protocols/OpenIDConnect)
-
+1. Obtain OAuth 2.0 credentials
+   [https://developers.google.com/identity/protocols/OpenIDConnect](https://developers.google.com/identity/protocols/OpenIDConnect)
 2. Create a new Project.
    ![Create New Project](../../../img/gsuite/gsuite-1-new-project.png)
-
 3. Select OAuth client ID.
    ![Create OAuth Creds](../../../img/gsuite/gsuite-2-created-creds.png)
-
 4. Make Application Type Public & Setup Domain Verification
    ![Setup Application Type](../../../img/gsuite/gsuite-3-oauth.png)
-
 5. Copy OAuth Client ID and Client Secret for YAML Below.
    Note: The redirect_url: `https://teleport.example.com:3080/v1/webapi/oidc/callback`
 
@@ -66,15 +63,20 @@ Before you get started you’ll need:
 ## Create a Service Account
 
 ![Create OAuth Creds](../../../img/gsuite/gsuite-5a-service-account.png)
+
 Leave Service account users roles, and admin roles as blank.
+
 ![Create OAuth Creds](../../../img/gsuite/gsuite-5b-service-account.png)
+
 Leave Service account permissions as blank.
+
 ![Create OAuth Creds](../../../img/gsuite/gsuite-5c-service-account.png)
 
 ### Enable Account Delegation
 
 ![Create OAuth Creds](../../../img/gsuite/gsuite-5d-service-account-delegation.png)
-![Create OAuth Creds](../../../img/gsuite/gsuite-5e-enable-delegation.png)
+
+![Create OAuth Creds](../../../img/gsuite/gsuite-5e-enable-delegation@2x.png)
 
 ### Download Service Account JSON
 
@@ -124,7 +126,7 @@ Now, create a OIDC connector [resource](../../admin-guide.mdx#resources).
 Write down this template as `gsuite-connector.yaml`:
 
 ```yaml
-{!examples/resources/gworkspace-connector.yaml!}
+(!examples/resources/gworkspace-connector.yaml!)
 ```
 
 Create the connector using `tctl` tool:
