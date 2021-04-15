@@ -1520,7 +1520,7 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	})
 	c.Assert(err, check.IsNil)
 	c.Assert(sess1.Expiry(), check.Equals, s.clock.Now().Add(time.Minute*10))
-	c.Assert(sess1.GetLoggedInTime(), check.Equals, initialSession.GetLoggedInTime())
+	c.Assert(sess1.GetLoginTime(), check.Equals, initialSession.GetLoginTime())
 
 	sshcert, err := sshutils.ParseCertificate(sess1.GetPub())
 	c.Assert(err, check.IsNil)
@@ -1549,7 +1549,7 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	})
 	c.Assert(err, check.IsNil)
 	c.Assert(sess2.GetExpiryTime(), check.Equals, initialSession.GetExpiryTime())
-	c.Assert(sess2.GetLoggedInTime(), check.Equals, initialSession.GetLoggedInTime())
+	c.Assert(sess2.GetLoginTime(), check.Equals, initialSession.GetLoginTime())
 
 	sshcert, err = sshutils.ParseCertificate(sess2.GetPub())
 	c.Assert(err, check.IsNil)

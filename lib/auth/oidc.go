@@ -370,11 +370,11 @@ func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, erro
 	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
 		session, err := a.createWebSession(context.TODO(), types.NewWebSessionRequest{
-			User:         user.GetName(),
-			Roles:        user.GetRoles(),
-			Traits:       user.GetTraits(),
-			SessionTTL:   params.sessionTTL,
-			LoggedInTime: a.clock.Now().UTC(),
+			User:       user.GetName(),
+			Roles:      user.GetRoles(),
+			Traits:     user.GetTraits(),
+			SessionTTL: params.sessionTTL,
+			LoginTime:  a.clock.Now().UTC(),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

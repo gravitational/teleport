@@ -1564,11 +1564,11 @@ message WebSessionSpecV2 {
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "expires"
     ];
-    // LoggedInTime is the time this user recently logged in.
-    google.protobuf.Timestamp LoggedInTime = 8 [
+    // LoginTime is the time this user recently logged in.
+    google.protobuf.Timestamp LoginTime = 8 [
         (gogoproto.stdtime) = true,
         (gogoproto.nullable) = false,
-        (gogoproto.jsontag) = "logged_in_time"
+        (gogoproto.jsontag) = "login_time"
     ];
 }
 

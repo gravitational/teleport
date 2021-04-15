@@ -39,7 +39,7 @@ const WebSessionSpecV2Schema = `{
 	  "bearer_token": {"type": "string"},
 	  "bearer_token_expires": {"type": "string"},
 	  "expires": {"type": "string"},
-		"logged_in_time": {"type": "string"}%v
+		"login_time": {"type": "string"}%v
 	}
   }`
 
