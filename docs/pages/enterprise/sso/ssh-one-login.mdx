@@ -94,7 +94,7 @@ Now, create a SAML connector [resource](../../admin-guide.mdx#resources).
 Write down this template as `onelogin-connector.yaml`:
 
 ```yaml
-{!examples/resources/onelogin-connector.yaml!}
+(!examples/resources/onelogin-connector.yaml!)
 ```
 
 To fill in the fields, open `SSO` tab:
@@ -158,7 +158,7 @@ spec:
   options:
     max_session_ttl: "24h"
   allow:
-    logins: [ "{% raw %}{{external.username}}{% endraw %}", ubuntu ]
+    logins: [ "{{external.username}}", ubuntu ]
     node_labels:
       access: relaxed
 ```

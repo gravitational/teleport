@@ -82,10 +82,8 @@ func ProxyClientSSHConfig(sshCert, privKey []byte, caCerts [][]byte) (*ssh.Clien
 	}, nil
 }
 
-// AsAuthMethod returns an "auth method" interface, a common abstraction
-// used by Golang SSH library. This is how you actually use a Key to feed
-// it into the SSH lib.
-func AsAuthMethod(sshCert *ssh.Certificate, privKey []byte) (ssh.AuthMethod, error) {
+// AsSigner returns an ssh.Signer from raw marshaled key and certificate.
+func AsSigner(sshCert *ssh.Certificate, privKey []byte) (ssh.Signer, error) {
 	keys, err := AsAgentKeys(sshCert, privKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -94,10 +92,22 @@ func AsAuthMethod(sshCert *ssh.Certificate, privKey []byte) (ssh.AuthMethod, err
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if signer, err = ssh.NewCertSigner(keys[0].Certificate, signer); err != nil {
+	signer, err = ssh.NewCertSigner(keys[0].Certificate, signer)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return NewAuthMethodForCert(signer), nil
+	return signer, nil
+}
+
+// AsAuthMethod returns an "auth method" interface, a common abstraction
+// used by Golang SSH library. This is how you actually use a Key to feed
+// it into the SSH lib.
+func AsAuthMethod(sshCert *ssh.Certificate, privKey []byte) (ssh.AuthMethod, error) {
+	signer, err := AsSigner(sshCert, privKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ssh.PublicKeys(signer), nil
 }
 
 // AsAgentKeys converts Key struct to a []*agent.AddedKey. All elements
@@ -188,26 +198,6 @@ func HostKeyCallback(caCerts [][]byte) (ssh.HostKeyCallback, error) {
 		}
 		return trace.AccessDenied("host %v is untrusted or Teleport CA has been rotated; try getting new credentials by logging in again ('tsh login') or re-exporting the identity file ('tctl auth sign' or 'tsh login -o'), depending on how you got them initially", host)
 	}, nil
-}
-
-// CertAuthMethod is a wrapper around ssh.Signer (certificate signer) object.
-// CertAuthMethod then implements ssh.AuthMethod interface around this one certificate signer.
-//
-// We need this wrapper because Golang's SSH library's unfortunate API design. It uses
-// callbacks with 'authMethod' interfaces and without this wrapper it is impossible to
-// tell which certificate an 'authMethod' passed via a callback had succeeded authenticating with.
-type CertAuthMethod struct {
-	ssh.AuthMethod
-	Cert ssh.Signer
-}
-
-func NewAuthMethodForCert(cert ssh.Signer) *CertAuthMethod {
-	return &CertAuthMethod{
-		Cert: cert,
-		AuthMethod: ssh.PublicKeysCallback(func() ([]ssh.Signer, error) {
-			return []ssh.Signer{cert}, nil
-		}),
-	}
 }
 
 // KeysEqual is constant time compare of the keys to avoid timing attacks

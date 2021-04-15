@@ -24,13 +24,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
 
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 	"go.etcd.io/etcd/clientv3"
 	"gopkg.in/check.v1"
 )
@@ -65,10 +66,17 @@ func (s *EtcdSuite) SetUpSuite(c *check.C) {
 		"tls_ca_file":   "../../../examples/etcd/certs/ca-cert.pem",
 	}
 
+	clock := clockwork.NewFakeClock()
 	newBackend := func() (backend.Backend, error) {
-		return New(context.Background(), s.config)
+		bk, err := New(context.Background(), s.config)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		bk.clock = clock
+		return bk, nil
 	}
 	s.suite.NewBackend = newBackend
+	s.suite.Clock = fakeClock{FakeClock: clock}
 }
 
 func (s *EtcdSuite) SetUpTest(c *check.C) {
@@ -203,6 +211,7 @@ func TestCompareAndSwapOversizedValue(t *testing.T) {
 		"etcd_max_client_msg_size_bytes": maxClientMsgSize,
 	})
 	require.NoError(t, err)
+	defer bk.Close()
 	prefix := test.MakePrefix()
 	// Explicitly exceed the message size
 	value := make([]byte, maxClientMsgSize+1)
@@ -218,4 +227,14 @@ func TestCompareAndSwapOversizedValue(t *testing.T) {
 
 func etcdTestEnabled() bool {
 	return os.Getenv("TELEPORT_ETCD_TEST") != ""
+}
+
+func (r fakeClock) Advance(d time.Duration) {
+	// We cannot rewind time for etcd since it will not have any effect on the server
+	// so we actually sleep in this case
+	time.Sleep(d)
+}
+
+type fakeClock struct {
+	clockwork.FakeClock
 }
