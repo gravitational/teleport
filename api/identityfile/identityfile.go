@@ -27,7 +27,7 @@ import (
 	"os"
 
 	"github.com/gravitational/teleport/api/constants"
-	sshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"

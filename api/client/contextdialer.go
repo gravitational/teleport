@@ -51,7 +51,7 @@ func NewDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 	}
 }
 
-// NewTunnelDialer make a dialer to dail with SSH through the tunnel proxy to connect to an Auth server.
+// NewTunnelDialer make a dialer to connect to an Auth server through the tunnel proxy using SSH.
 func NewTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 	dialer := NewDialer(keepAlivePeriod, dialTimeout)
 	return ContextDialerFunc(func(ctx context.Context, network, addr string) (conn net.Conn, err error) {
@@ -78,7 +78,7 @@ func NewTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Dur
 	})
 }
 
-// NewTunnelDialer make a dialer to dail with SSH through the tunnel proxy to connect to an Auth server.
+// NewTunnelDialer make a dialer to connect to an Auth server through the tunnel proxy using SSH.
 // The dialer will ping the web client to discover the tunnel proxy address on each dial.
 func NewTunnelDialerWithAddressDiscovery(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration, discoveryAddr string, insecure bool) ContextDialer {
 	dialer := NewTunnelDialer(ssh, keepAlivePeriod, dialTimeout)
@@ -91,8 +91,7 @@ func NewTunnelDialerWithAddressDiscovery(ssh ssh.ClientConfig, keepAlivePeriod, 
 
 		conn, err = dialer.DialContext(ctx, network, pr.Proxy.SSH.TunnelPublicAddr)
 		if err != nil {
-			// not wrapping on purpose to preserve the original error
-			return nil, err
+			return nil, trace.Wrap(err)
 		}
 		return conn, nil
 	})

@@ -31,8 +31,8 @@ import (
 )
 
 // Credentials are used to authenticate the API auth client. Some Credentials
-// also provide other functionality, such as automatic address discovery and ssh
-// connectivity.
+// also provide other functionality, such as automatic address discovery and
+// ssh connectivity.
 //
 // See the examples below for an example of each loader.
 type Credentials interface {
@@ -40,7 +40,8 @@ type Credentials interface {
 	Dialer(cfg Config) (ContextDialer, error)
 	// TLSConfig returns TLS configuration used to authenticate the client.
 	TLSConfig() (*tls.Config, error)
-	// SSHClientConfig returns SSH configuration used to connect to Auth through a reverse tunnel.
+	// SSHClientConfig returns SSH configuration used to connect to the
+	// Auth server through a reverse tunnel.
 	SSHClientConfig() (*ssh.ClientConfig, error)
 }
 
@@ -53,8 +54,7 @@ func LoadTLS(tlsConfig *tls.Config) Credentials {
 	}
 }
 
-// tlsConfigCreds use a defined *tls.Config to provide TLS authentication.
-// tlsConfigCreds can only be used to connect directly to a local Teleport Auth server.
+// tlsConfigCreds use a defined *tls.Config to provide client credentials.
 type tlsConfigCreds struct {
 	tlsConfig *tls.Config
 }
@@ -95,8 +95,7 @@ func LoadKeyPair(certFile string, keyFile string, caFile string) Credentials {
 	}
 }
 
-// keypairCreds use a certificate keypair to provide TLS authentication.
-// keypairCreds can only be used to connect directly to a local Teleport Auth server.
+// keypairCreds use keypair certificates to provide client credentials.
 type keypairCreds struct {
 	certFile string
 	keyFile  string
@@ -138,8 +137,8 @@ func (c *keypairCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 
 // LoadIdentityFile is used to load Credentials from an identity file on disk.
 //
-// Identity Credentials can be used to connect directly to an auth server, or through ssh
-// to a web proxy or tunnel proxy server.
+// Identity Credentials can be used to connect to an auth server directly
+// or through a reverse tunnel.
 //
 // A new identity file can be generated with tsh or tctl.
 //  $ tsh login --user=api-user --out=identity-file-path
@@ -154,9 +153,7 @@ func LoadIdentityFile(path string) Credentials {
 	}
 }
 
-// identityCreds use an identity file to provide TLS authentication
-// and ssh connectivity. They can be used to connect to an Auth server
-// directly (local), or through the cluster's reverse proxy or web proxy.
+// identityCreds use an identity file to provide client credentials.
 type identityCreds struct {
 	path         string
 	identityFile *identityfile.IdentityFile
@@ -210,11 +207,11 @@ func (c *identityCreds) load() error {
 
 // LoadProfile is used to load Credentials from a tsh profile on disk.
 //
-// Profile Credentials can be used to connect directly to an auth server, or through ssh
-// to a web proxy or tunnel proxy server.
+// Profile Credentials can be used to connect to an auth server directly
+// or through a reverse tunnel.
 //
-// Profile Credentials will also automatically find your Teleport web proxy address
-// and attempt to make a connection to it through ssh.
+// Profile Credentials will automatically attempt to find your reverse
+// tunnel address and make a connection through it.
 //
 // A new profile can be generated with tsh.
 //  $ tsh login --user=api-user
@@ -225,11 +222,7 @@ func LoadProfile(dir, name string) Credentials {
 	}
 }
 
-// profileCreds use a tsh profile to provide TLS authentication, ssh
-// connectivity, and automatic address discovery. They can be used to
-// connect to an Auth server directly (local), or through the cluster's
-// reverse proxy or web proxy. The cluster's web proxy address will
-// be retrieved from the profile and used to connect over ssh.
+// profileCreds use a tsh profile to provide client credentials.
 type profileCreds struct {
 	dir     string
 	name    string

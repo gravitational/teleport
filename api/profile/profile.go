@@ -284,34 +284,42 @@ func (p *Profile) saveToFile(filepath string) error {
 	return nil
 }
 
+// KeyDir returns the path to the profile's directory.
 func (p *Profile) KeyDir() string {
 	return filepath.Join(p.Dir, constants.SessionKeyDir)
 }
 
+// KeyDir returns the path to the profile's key directory.
 func (p *Profile) UserKeyDir() string {
 	return filepath.Join(p.KeyDir(), p.Name())
 }
 
+// KeyDir returns the path to the profile's PEM-encoded key.
 func (p *Profile) KeyPath() string {
 	return filepath.Join(p.UserKeyDir(), p.Username)
 }
 
+// KeyDir returns the path to the profile's TLS certificate.
 func (p *Profile) TLSCertPath() string {
 	return filepath.Join(p.UserKeyDir(), p.Username+constants.FileExtTLSCert)
 }
 
+// KeyDir returns the path to the profile's TLS certificate authorities.
 func (p *Profile) TLSCasPath() string {
 	return filepath.Join(p.UserKeyDir(), constants.FileNameTLSCerts)
 }
 
+// KeyDir returns the path to the profile's ssh directory.
 func (p *Profile) SSHDir() string {
 	return filepath.Join(p.UserKeyDir(), p.Username+constants.SSHDirSuffix)
 }
 
+// KeyDir returns the path to the profile's ssh certificate.
 func (p *Profile) SSHCertPath() string {
 	return filepath.Join(p.SSHDir(), p.SiteName+constants.FileExtSSHCert)
 }
 
+// KeyDir returns the path to the profile's ssh certificate authorities.
 func (p *Profile) SSHCasPath() string {
 	return filepath.Join(p.Dir, constants.FileNameKnownHosts)
 }

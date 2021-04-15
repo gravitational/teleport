@@ -24,10 +24,12 @@ import (
 	"net"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
@@ -38,6 +40,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	ggzip "google.golang.org/grpc/encoding/gzip"
+	"google.golang.org/grpc/keepalive"
 )
 
 func init() {
@@ -298,6 +301,63 @@ func (c *Client) grpcDialer() func(ctx context.Context, addr string) (net.Conn, 
 		}
 		return conn, nil
 	}
+}
+
+// Config contains configuration of the client
+type Config struct {
+	// Addrs is a list of teleport auth/proxy server addresses to dial.
+	Addrs []string
+	// Credentials are a list of credentials to use when attempting
+	// to connect to the server.
+	Credentials []Credentials
+	// Dialer is a custom dialer used to dial a server. If set, Dialer
+	// takes precedence over all other connection options.
+	Dialer ContextDialer
+	// DialOpts define options for dialing the client connection.
+	DialOpts []grpc.DialOption
+	// DialInBackground specifies to dial the connection in the background
+	// rather than blocking until the connection is up. A predefined Dialer
+	// or an auth server address must be provided.
+	DialInBackground bool
+	// DialTimeout defines how long to attempt dialing before timing out.
+	DialTimeout time.Duration
+	// KeepAlivePeriod defines period between keep alives.
+	KeepAlivePeriod time.Duration
+	// KeepAliveCount specifies the amount of missed keep alives
+	// to wait for before declaring the connection as broken.
+	KeepAliveCount int
+	// The web proxy uses a self-signed TLS certificate by default, which
+	// requires this field to be set. If the web proxy was provided with
+	// signed TLS certificates, this field should not be set.
+	InsecureAddressDiscovery bool
+}
+
+// CheckAndSetDefaults checks and sets default config values.
+func (c *Config) CheckAndSetDefaults() error {
+	if len(c.Credentials) == 0 {
+		return trace.BadParameter("missing connection credentials")
+	}
+
+	if c.KeepAlivePeriod == 0 {
+		c.KeepAlivePeriod = defaults.ServerKeepAliveTTL
+	}
+	if c.KeepAliveCount == 0 {
+		c.KeepAliveCount = defaults.KeepAliveCountMax
+	}
+	if c.DialTimeout == 0 {
+		c.DialTimeout = defaults.DefaultDialTimeout
+	}
+
+	c.DialOpts = append(c.DialOpts, grpc.WithKeepaliveParams(keepalive.ClientParameters{
+		Time:                c.KeepAlivePeriod,
+		Timeout:             c.KeepAlivePeriod * time.Duration(c.KeepAliveCount),
+		PermitWithoutStream: true,
+	}))
+	if !c.DialInBackground {
+		c.DialOpts = append(c.DialOpts, grpc.WithBlock())
+	}
+
+	return nil
 }
 
 // Config returns the tls.Config the client connected with.

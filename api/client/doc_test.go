@@ -84,12 +84,14 @@ func ExampleNew() {
 		// connect to the auth server. At least one address
 		// must be provided, except when using the ProfileCreds.
 		Addrs: []string{
-			// The auth server is only directly available locally
-			"localhost:3025", // 3025 is the default auth port
-			// public_address is the cluster's public address, and can be
-			// used to connect to the auth server over ssh.
-			"public_address:3080", // 3080 is the default web proxy port
-			"public_address:3024", // 3024 is the default tunnel proxy port
+			// The Auth server address can be provided to connect locally.
+			"localhost:3025",
+			// The tunnel proxy address can be provided
+			// to connect to the Auth server over SSH.
+			"public_address:3024",
+			// The web proxy address can be provided to automatically
+			// find the tunnel proxy address and connect using it.
+			"public_address:3080",
 		},
 		// Multiple Credentials can be provided to attempt to authenticate
 		// the client. At least one Credentials object must be provided.
