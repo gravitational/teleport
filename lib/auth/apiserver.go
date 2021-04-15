@@ -239,7 +239,8 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/u2f/users/:user/sign", srv.withAuth(srv.u2fSignRequest))
 	srv.GET("/:version/u2f/appid", srv.withAuth(srv.getU2FAppID))
 
-	// Provisioning tokens
+	// Provisioning tokens- Moved to grpc
+	// DELETE IN 8.0
 	srv.GET("/:version/tokens", srv.withAuth(srv.getTokens))
 	srv.GET("/:version/tokens/:token", srv.withAuth(srv.getToken))
 	srv.DELETE("/:version/tokens/:token", srv.withAuth(srv.deleteToken))

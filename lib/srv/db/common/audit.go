@@ -24,40 +24,54 @@ import (
 	libevents "github.com/gravitational/teleport/lib/events"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
+
+// Audit defines an interface for database access audit events logger.
+type Audit interface {
+	// OnSessionStart is called on successful/unsuccessful database session start.
+	OnSessionStart(ctx context.Context, session *Session, sessionErr error)
+	// OnSessionEnd is called when database session terminates.
+	OnSessionEnd(ctx context.Context, session *Session)
+	// OnQuery is called when a SQL statement is executed.
+	OnQuery(ctx context.Context, session *Session, query string, parameters ...string)
+}
 
 // AuditConfig is the audit events emitter configuration.
 type AuditConfig struct {
-	// StreamWriter is used to emit audit events.
-	StreamWriter libevents.StreamWriter
+	// Emitter is used to emit audit events.
+	Emitter events.Emitter
 }
 
 // Check validates the config.
 func (c *AuditConfig) Check() error {
-	if c.StreamWriter == nil {
-		return trace.BadParameter("missing StreamWriter")
+	if c.Emitter == nil {
+		return trace.BadParameter("missing Emitter")
 	}
 	return nil
 }
 
-// Audit provides methods for emitting database access audit events.
-type Audit struct {
+// audit provides methods for emitting database access audit events.
+type audit struct {
 	// cfg is the audit events emitter configuration.
 	cfg AuditConfig
+	// log is used for logging
+	log logrus.FieldLogger
 }
 
 // NewAudit returns a new instance of the audit events emitter.
-func NewAudit(config AuditConfig) (*Audit, error) {
+func NewAudit(config AuditConfig) (Audit, error) {
 	if err := config.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &Audit{
+	return &audit{
 		cfg: config,
+		log: logrus.WithField(trace.Component, "db:audit"),
 	}, nil
 }
 
 // OnSessionStart emits an audit event when database session starts.
-func (a *Audit) OnSessionStart(ctx context.Context, session Session, sessionErr error) error {
+func (a *audit) OnSessionStart(ctx context.Context, session *Session, sessionErr error) {
 	event := &events.DatabaseSessionStart{
 		Metadata: events.Metadata{
 			Type:        libevents.DatabaseSessionStartEvent,
@@ -76,15 +90,15 @@ func (a *Audit) OnSessionStart(ctx context.Context, session Session, sessionErr 
 			SessionID: session.ID,
 			WithMFA:   session.Identity.MFAVerified,
 		},
-		Status: events.Status{
-			Success: true,
-		},
 		DatabaseMetadata: events.DatabaseMetadata{
 			DatabaseService:  session.Server.GetName(),
 			DatabaseProtocol: session.Server.GetProtocol(),
 			DatabaseURI:      session.Server.GetURI(),
 			DatabaseName:     session.DatabaseName,
 			DatabaseUser:     session.DatabaseUser,
+		},
+		Status: events.Status{
+			Success: true,
 		},
 	}
 	// If the database session wasn't started successfully, emit
@@ -97,16 +111,12 @@ func (a *Audit) OnSessionStart(ctx context.Context, session Session, sessionErr 
 			UserMessage: sessionErr.Error(),
 		}
 	}
-	err := a.cfg.StreamWriter.EmitAuditEvent(ctx, event)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	a.emitAuditEvent(ctx, event)
 }
 
 // OnSessionEnd emits an audit event when database session ends.
-func (a *Audit) OnSessionEnd(ctx context.Context, session Session) error {
-	err := a.cfg.StreamWriter.EmitAuditEvent(ctx, &events.DatabaseSessionEnd{
+func (a *audit) OnSessionEnd(ctx context.Context, session *Session) {
+	a.emitAuditEvent(ctx, &events.DatabaseSessionEnd{
 		Metadata: events.Metadata{
 			Type:        libevents.DatabaseSessionEndEvent,
 			Code:        libevents.DatabaseSessionEndCode,
@@ -128,15 +138,11 @@ func (a *Audit) OnSessionEnd(ctx context.Context, session Session) error {
 			DatabaseUser:     session.DatabaseUser,
 		},
 	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 // OnQuery emits an audit event when a database query is executed.
-func (a *Audit) OnQuery(ctx context.Context, session Session, query string) error {
-	err := a.cfg.StreamWriter.EmitAuditEvent(ctx, &events.DatabaseSessionQuery{
+func (a *audit) OnQuery(ctx context.Context, session *Session, query string, parameters ...string) {
+	a.emitAuditEvent(ctx, &events.DatabaseSessionQuery{
 		Metadata: events.Metadata{
 			Type:        libevents.DatabaseSessionQueryEvent,
 			Code:        libevents.DatabaseSessionQueryCode,
@@ -157,10 +163,13 @@ func (a *Audit) OnQuery(ctx context.Context, session Session, query string) erro
 			DatabaseName:     session.DatabaseName,
 			DatabaseUser:     session.DatabaseUser,
 		},
-		DatabaseQuery: query,
+		DatabaseQuery:           query,
+		DatabaseQueryParameters: parameters,
 	})
-	if err != nil {
-		return trace.Wrap(err)
+}
+
+func (a *audit) emitAuditEvent(ctx context.Context, event events.AuditEvent) {
+	if err := a.cfg.Emitter.EmitAuditEvent(ctx, event); err != nil {
+		a.log.WithError(err).Errorf("Failed to emit audit event: %v.", event)
 	}
-	return nil
 }

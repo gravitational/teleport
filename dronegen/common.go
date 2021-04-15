@@ -17,18 +17,23 @@ var (
 		Ref:   triggerRef{Include: []string{"refs/tags/v*"}},
 		Repo:  triggerRef{Include: []string{"gravitational/*"}},
 	}
+	triggerPushMasterOnly = trigger{
+		Event:  triggerRef{Include: []string{"push"}},
+		Branch: triggerRef{Include: []string{"master"}},
+		Repo:   triggerRef{Include: []string{"gravitational/teleport"}},
+	}
 
 	volumeDocker = volume{
 		Name: "dockersock",
 		Temp: &volumeTemp{},
 	}
+	volumeDockerTmpfs = volume{
+		Name: "dockertmpfs",
+		Temp: &volumeTemp{},
+	}
 	volumeTmpfs = volume{
 		Name: "tmpfs",
 		Temp: &volumeTemp{Medium: "memory"},
-	}
-	volumeTmpDind = volume{
-		Name: "tmp-dind",
-		Temp: &volumeTemp{},
 	}
 	volumeTmpIntegration = volume{
 		Name: "tmp-integration",
@@ -43,9 +48,9 @@ var (
 		Name: "dockersock",
 		Path: "/var/run",
 	}
-	volumeRefTmpDind = volumeRef{
-		Name: "tmp-dind",
-		Path: "/tmp",
+	volumeRefDockerTmpfs = volumeRef{
+		Name: "dockertmpfs",
+		Path: "/var/lib/docker",
 	}
 	volumeRefTmpIntegration = volumeRef{
 		Name: "tmp-integration",
@@ -55,7 +60,7 @@ var (
 	// TODO(gus): Set this from `make -C build.assets print-runtime-version` or similar rather
 	// than hardcoding it. Also remove the usage of RUNTIME as a pipeline-level environment variable
 	// (as support for these varies among Drone runners) and only set it for steps that need it.
-	goRuntime = value{raw: "go1.15.5"}
+	goRuntime = value{raw: "go1.16.2"}
 )
 
 type buildType struct {
@@ -97,4 +102,17 @@ func releaseMakefileTarget(b buildType) string {
 		makefileTarget += "-fips"
 	}
 	return makefileTarget
+}
+
+// waitForDockerStep returns a step which checks that the Docker socket is active before trying
+// to run container operations
+func waitForDockerStep() step {
+	return step{
+		Name:  "Wait for docker",
+		Image: "docker",
+		Commands: []string{
+			`timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'`,
+		},
+		Volumes: dockerVolumeRefs(),
+	}
 }
