@@ -17,6 +17,7 @@ limitations under the License.
 package client
 
 import (
+	"crypto/subtle"
 	"fmt"
 	"io"
 	"net"
@@ -26,12 +27,13 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
-	"github.com/gravitational/trace"
 
 	"github.com/sirupsen/logrus"
 )
@@ -418,12 +420,29 @@ func (a *LocalKeyAgent) AddKey(key *Key) (*agent.AddedKey, error) {
 	if key.Username == "" {
 		key.Username = a.username
 	}
-	// save it to the keystore (usually into ~/.tsh)
-	err := a.keyStore.AddKey(key)
+
+	// In order to prevent unrelated key data to be left over after the new
+	// key is added, delete any already stored key with the same index if their
+	// RSA private keys do not match.
+	storedKey, err := a.keyStore.GetKey(key.KeyIndex)
 	if err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		if subtle.ConstantTimeCompare(storedKey.Priv, key.Priv) == 0 {
+			a.log.Debugf("Deleting obsolete stored key with index %+v.", storedKey.KeyIndex)
+			if err := a.keyStore.DeleteKey(storedKey.KeyIndex); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+	}
+
+	// Save the new key to the keystore (usually into ~/.tsh).
+	if err := a.keyStore.AddKey(key); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// load key into the teleport agent and system agent
+	// Load key into the teleport agent and system agent.
 	return a.LoadKey(*key)
 }
 
@@ -471,12 +490,23 @@ func (a *LocalKeyAgent) DeleteKeys() error {
 	return nil
 }
 
-// AuthMethods returns the list of different authentication methods this agent supports:
-//	  1. First to try is the external SSH agent
-//    2. Itself (disk-based local agent)
-// It returns an error in case there is no auth method method available.
-func (a *LocalKeyAgent) AuthMethods() ([]ssh.AuthMethod, error) {
-	// combine our certificates with external SSH agent's:
+// certsForCluster returns a set of ssh.Signers using certificates for a
+// specific cluster. If clusterName is empty, certsForCluster returns
+// ssh.Signers for all known clusters.
+func (a *LocalKeyAgent) certsForCluster(clusterName string) ([]ssh.Signer, error) {
+	if clusterName != "" {
+		k, err := a.GetKey(clusterName, WithSSHCerts{})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		signer, err := k.AsSigner()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return []ssh.Signer{signer}, nil
+	}
+
+	// Load all certs, including the ones from a local SSH agent.
 	var signers []ssh.Signer
 	if a.sshAgent != nil {
 		if sshAgentCerts, _ := a.sshAgent.Signers(); sshAgentCerts != nil {
@@ -486,17 +516,16 @@ func (a *LocalKeyAgent) AuthMethods() ([]ssh.AuthMethod, error) {
 	if ourCerts, _ := a.Signers(); ourCerts != nil {
 		signers = append(signers, ourCerts...)
 	}
-	// for every certificate create a new "auth method" and return them
-	m := []ssh.AuthMethod{}
-	for i := range signers {
-		// filter out non-certificates (like regular public SSH keys stored in the SSH agent):
-		_, ok := signers[i].PublicKey().(*ssh.Certificate)
-		if ok {
-			m = append(m, sshutils.NewAuthMethodForCert(signers[i]))
+	// Filter out non-certificates (like regular public SSH keys stored in the SSH agent).
+	certs := make([]ssh.Signer, 0, len(signers))
+	for _, s := range signers {
+		if _, ok := s.PublicKey().(*ssh.Certificate); !ok {
+			continue
 		}
+		certs = append(certs, s)
 	}
-	if len(m) == 0 {
+	if len(certs) == 0 {
 		return nil, trace.BadParameter("no auth method available")
 	}
-	return m, nil
+	return certs, nil
 }

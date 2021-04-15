@@ -17,6 +17,11 @@ var (
 		Ref:   triggerRef{Include: []string{"refs/tags/v*"}},
 		Repo:  triggerRef{Include: []string{"gravitational/*"}},
 	}
+	triggerPushMasterOnly = trigger{
+		Event:  triggerRef{Include: []string{"push"}},
+		Branch: triggerRef{Include: []string{"master"}},
+		Repo:   triggerRef{Include: []string{"gravitational/teleport"}},
+	}
 
 	volumeDocker = volume{
 		Name: "dockersock",
@@ -57,17 +62,6 @@ var (
 	// (as support for these varies among Drone runners) and only set it for steps that need it.
 	goRuntime = value{raw: "go1.16.2"}
 )
-
-// boringCryptoRuntime specifies the version of Go (as the branch name)
-// used for FIPS builds
-const boringCryptoRuntime = "dev.boringcrypto.go1.16"
-
-func (r buildType) platform() platform {
-	return platform{
-		OS:   r.os,
-		Arch: r.arch,
-	}
-}
 
 type buildType struct {
 	os      string
@@ -110,23 +104,15 @@ func releaseMakefileTarget(b buildType) string {
 	return makefileTarget
 }
 
-func sendSlackNotification() step {
+// waitForDockerStep returns a step which checks that the Docker socket is active before trying
+// to run container operations
+func waitForDockerStep() step {
 	return step{
-		Name:  "Send Slack notification (exec)",
-		Image: "plugins/slack",
-		Settings: map[string]value{
-			"webhook": {fromSecret: "SLACK_WEBHOOK_DEV_TELEPORT"},
+		Name:  "Wait for docker",
+		Image: "docker",
+		Commands: []string{
+			`timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'`,
 		},
-		Template: []string{
-			`*{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: ` + "`{{ build.event }}`" + `)
-			` + "`${DRONE_STAGE_NAME}`" + ` artifact build failed.
-			*Warning:* This is a genuine failure to build the Teleport binary from ` + "`{{ build.branch }}`" + ` (likely due to a bad merge or commit) and should be investigated immediately.
-			Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-			Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-			Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-			<{{ build.link }}|Visit Drone build page ↗>
-			`,
-		},
-		When: &condition{Status: []string{"failure"}},
+		Volumes: dockerVolumeRefs(),
 	}
 }

@@ -146,11 +146,11 @@ func TestLoadProfile(t *testing.T) {
 	require.NoError(t, os.MkdirAll(p.keyDir(), 0700))
 	require.NoError(t, os.MkdirAll(p.userKeyDir(), 0700))
 	require.NoError(t, os.MkdirAll(p.sshDir(), 0700))
-	require.NoError(t, ioutil.WriteFile(p.keyPath(), []byte(keyPEM), 0600))
-	require.NoError(t, ioutil.WriteFile(p.tlsCertPath(), []byte(tlsCert), 0600))
-	require.NoError(t, ioutil.WriteFile(p.tlsCasPath(), []byte(tlsCACert), 0600))
-	require.NoError(t, ioutil.WriteFile(p.sshCertPath(), []byte(sshCert), 0600))
-	require.NoError(t, ioutil.WriteFile(p.sshCasPath(), []byte(sshCACert), 0600))
+	require.NoError(t, ioutil.WriteFile(p.keyPath(), keyPEM, 0600))
+	require.NoError(t, ioutil.WriteFile(p.tlsCertPath(), tlsCert, 0600))
+	require.NoError(t, ioutil.WriteFile(p.tlsCasPath(), tlsCACert, 0600))
+	require.NoError(t, ioutil.WriteFile(p.sshCertPath(), sshCert, 0600))
+	require.NoError(t, ioutil.WriteFile(p.sshCasPath(), sshCACert, 0600))
 
 	// Load profile from disk.
 	creds := LoadProfile(dir, name)
@@ -190,7 +190,7 @@ func getExpectedTLSConfig(t *testing.T) *tls.Config {
 }
 
 func getExpectedSSHConfig(t *testing.T) *ssh.ClientConfig {
-	config, err := sshutils.SSHClientConfig(sshCert, keyPEM, [][]byte{sshCACert})
+	config, err := sshutils.ProxyClientSSHConfig(sshCert, keyPEM, [][]byte{sshCACert})
 	require.NoError(t, err)
 
 	return config

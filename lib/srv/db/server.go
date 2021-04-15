@@ -57,6 +57,8 @@ type Config struct {
 	AccessPoint auth.AccessPoint
 	// StreamEmitter is a non-blocking audit events emitter.
 	StreamEmitter events.StreamEmitter
+	// NewAudit allows to override audit logger in tests.
+	NewAudit NewAuditFn
 	// TLSConfig is the *tls.Config for this server.
 	TLSConfig *tls.Config
 	// Authorizer is used to authorize requests coming from proxy.
@@ -72,6 +74,9 @@ type Config struct {
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)
 }
+
+// NewAuditFn defines a function that creates an audit logger.
+type NewAuditFn func(common.AuditConfig) (common.Audit, error)
 
 // CheckAndSetDefaults makes sure the configuration has the minimum required
 // to function.
@@ -90,6 +95,9 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) error {
 	}
 	if c.StreamEmitter == nil {
 		return trace.BadParameter("missing StreamEmitter")
+	}
+	if c.NewAudit == nil {
+		c.NewAudit = common.NewAudit
 	}
 	if c.TLSConfig == nil {
 		return trace.BadParameter("missing TLSConfig")
@@ -381,8 +389,8 @@ func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.Stream
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	audit, err := common.NewAudit(common.AuditConfig{
-		StreamWriter: streamWriter,
+	audit, err := s.cfg.NewAudit(common.AuditConfig{
+		Emitter: streamWriter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -447,6 +455,7 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 		DatabaseName:      identity.RouteToDatabase.Database,
 		Checker:           authContext.Checker,
 		StartupParameters: make(map[string]string),
+		Statements:        common.NewStatementsCache(),
 		Log: s.log.WithFields(logrus.Fields{
 			"id": id,
 			"db": server.GetName(),
