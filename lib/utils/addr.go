@@ -165,7 +165,7 @@ func ParseAddr(a string) (*NetAddr, error) {
 		return nil, trace.BadParameter("missing parameter address")
 	}
 	if !strings.Contains(a, "://") {
-		return &NetAddr{Addr: a, AddrNetwork: "tcp"}, nil
+		a = "tcp://" + a
 	}
 	u, err := url.Parse(a)
 	if err != nil {
