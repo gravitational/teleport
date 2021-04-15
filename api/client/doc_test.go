@@ -6,10 +6,77 @@ package client_test
 import (
 	"context"
 	"log"
+	"time"
 
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/types"
 )
 
+// Below is an example of creating a new Teleport Auth client with Profile credentials,
+// and using that client to create, get, and delete a Role resource object.
+//
+// Make sure to look at the Getting Started guide before attempting to run this example.
+func ExampleClient_roleCRUD() {
+	ctx := context.Background()
+
+	// Create a new client in your go file.
+	clt, err := client.New(ctx, client.Config{
+		Credentials: []client.Credentials{
+			client.LoadProfile("", ""),
+		},
+		// set to true if your Teleport web proxy doesn't have HTTP/TLS certificate
+		// configured yet (never use this in production).
+		InsecureAddressDiscovery: false,
+	})
+	if err != nil {
+		log.Fatalf("failed to create client: %v", err)
+	}
+	defer clt.Close()
+
+	// Resource Spec structs reflect their Resource's yaml definition.
+	roleSpec := types.RoleSpecV3{
+		Options: types.RoleOptions{
+			MaxSessionTTL: types.Duration(time.Hour),
+		},
+		Allow: types.RoleConditions{
+			Logins: []string{"role1"},
+			Rules: []types.Rule{
+				types.NewRule(types.KindAccessRequest, []string{types.VerbList, types.VerbRead}),
+			},
+		},
+		Deny: types.RoleConditions{
+			NodeLabels: types.Labels{"*": []string{"*"}},
+		},
+	}
+
+	// There are helper functions for dealing with Teleport resources.
+	role, err := types.NewRole("role1", roleSpec)
+	if err != nil {
+		log.Fatalf("failed to get role: %v", err)
+	}
+
+	// Getters and setters can be used to alter specs.
+	role.SetLogins(types.Allow, []string{""})
+
+	// Upsert overwrites the resource if it exists. Use this to create/update resources.
+	// Equivalent to `tctl create -f role1.yaml`.
+	err = clt.UpsertRole(ctx, role)
+	if err != nil {
+		log.Fatalf("failed to create role: %v", err)
+	}
+
+	// Equivalent to `tctl get role/role1`.
+	role, err = clt.GetRole(ctx, "role1")
+	if err != nil {
+		log.Fatalf("failed to get role: %v", err)
+	}
+
+	// Equivalent to `tctl rm role/role1`.
+	err = clt.DeleteRole(ctx, "role1")
+	if err != nil {
+		log.Fatalf("failed to delete role: %v", err)
+	}
+}
 func ExampleNew() {
 	ctx := context.Background()
 	clt, err := client.New(ctx, client.Config{

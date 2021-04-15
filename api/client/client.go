@@ -49,11 +49,11 @@ func init() {
 }
 
 // Client is a gRPC Client that connects to a Teleport Auth server either
-//  locally or over ssh through a Teleport web proxy or tunnel proxy..
+// locally or over ssh through a Teleport web proxy or tunnel proxy.
 //
-// This client is meant to be used to cover a variety of Teleport use cases,
-// such as programmatically handling access requests, or managing resources
-// that are available through the API.
+// This client can be used to cover a variety of Teleport use cases,
+// such as programmatically handling access requests, integrating
+// with external tools, or dynamically configuring Teleport.
 type Client struct {
 	// c contains configuration values for the client.
 	c Config

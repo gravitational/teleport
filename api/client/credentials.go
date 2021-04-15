@@ -79,7 +79,7 @@ func (c *tlsConfigCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 
 // LoadKeyPair is used to load Credentials from a certicate keypair on disk.
 //
-// KeyPair creds can only be used to connect directly to a local Teleport Auth server.
+// KeyPair Credentials can only be used to connect directly to a local Teleport Auth server.
 //
 // New KeyPair files can be generated with tsh or tctl.
 //  $ tctl auth sign --format=tls --user=api-user --out=path/to/certs
@@ -138,7 +138,7 @@ func (c *keypairCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 
 // LoadIdentityFile is used to load Credentials from an identity file on disk.
 //
-// Identity creds can be used to connect directly to an auth server, or through ssh
+// Identity Credentials can be used to connect directly to an auth server, or through ssh
 // to a web proxy or tunnel proxy server.
 //
 // A new identity file can be generated with tsh or tctl.
@@ -210,10 +210,10 @@ func (c *identityCreds) load() error {
 
 // LoadProfile is used to load Credentials from a tsh profile on disk.
 //
-// Profile creds can be used to connect directly to an auth server, or through ssh
+// Profile Credentials can be used to connect directly to an auth server, or through ssh
 // to a web proxy or tunnel proxy server.
 //
-// Profile creds will also automatically find your Teleport web proxy address
+// Profile Credentials will also automatically find your Teleport web proxy address
 // and attempt to make a connection to it through ssh.
 //
 // A new profile can be generated with tsh.
