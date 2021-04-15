@@ -801,6 +801,8 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 	return nil
 }
 
+// ParsedProxyHost holds the hostname and Web & SSH proxy addresses
+// parsed out of a WebProxyAddress string.
 type ParsedProxyHost struct {
 	Host         string
 	WebProxyAddr string
@@ -811,7 +813,8 @@ type ParsedProxyHost struct {
 // and returns the parsed components.
 //
 // If a definitive answer is not possible (e.g. no proxy port is specified in
-// the supplied string), the empty string is returned
+// the supplied string), the empty string is returned in the appropriate slot
+// of the resulting ParsedProxyHost.
 func ParseProxyHost(proxyHost string) (ParsedProxyHost, error) {
 	host, port, err := net.SplitHostPort(proxyHost)
 	if err != nil {
