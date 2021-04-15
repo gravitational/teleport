@@ -24,9 +24,20 @@ existing SSH implementations, such as OpenSSH. This section will cover:
   You can view your OpenSSH version with `ssh -V`.
 </Admonition>
 
+### Follow along with our video guide
+
+<iframe
+  width="712"
+  height="400"
+  src="https://www.youtube-nocookie.com/embed/x0eYFUEIOrM?rel=0&modestbranding=1"
+  frameBorder="0"
+  allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+/>
+
 ## Architecture
 
-![Node Service ping API](../img/openssh-proxy.svg)
+![Teleport OpenSSH Recording Proxy](../img/openssh-proxy.svg)
 
 The recording proxy mode, although less secure, was added to allow Teleport users
 to enable session recording for OpenSSH's servers running `sshd`, which is helpful
@@ -79,11 +90,13 @@ $ tctl auth export --type=user > teleport_user_ca.pub
 
 To allow access for all users:
 
-- Edit `teleport_user_ca.pub` and remove `cert-authority` from the start of the line.
-- Copy `teleport_user_ca.pub` to `/etc/ssh/teleport_user_ca.pub`
-- Update `sshd` configuration (usually `/etc/ssh/sshd_config` ) to point to
+1. Edit `teleport_user_ca.pub` and remove `cert-authority` from the start of the line.
+2. Copy `teleport_user_ca.pub` to `/etc/ssh/teleport_user_ca.pub`
+3. Update `sshd` configuration (usually `/etc/ssh/sshd_config` ) to point to
   this file:
-  `TrustedUserCAKeys /etc/ssh/teleport_user_ca.pub`
+  ```
+  TrustedUserCAKeys /etc/ssh/teleport_user_ca.pub
+  ```
 
 Now `sshd` will trust users who present a Teleport-issued certificate. The next
 step is to configure host authentication.

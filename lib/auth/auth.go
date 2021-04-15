@@ -676,7 +676,10 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if req.routeToCluster != "" && clusterName != req.routeToCluster {
+	if req.routeToCluster == "" {
+		req.routeToCluster = clusterName
+	}
+	if req.routeToCluster != clusterName {
 		// Authorize access to a remote cluster.
 		rc, err := a.Presence.GetRemoteCluster(req.routeToCluster)
 		if err != nil {
@@ -734,7 +737,7 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	// Only validate/default kubernetes cluster name for the current teleport
 	// cluster. If this cert is targeting a trusted teleport cluster, leave all
 	// the kubernetes cluster validation up to them.
-	if req.routeToCluster == "" || req.routeToCluster == clusterName {
+	if req.routeToCluster == clusterName {
 		req.kubernetesCluster, err = kubeutils.CheckOrSetKubeCluster(a.closeCtx, a.Presence, req.kubernetesCluster, clusterName)
 		if err != nil {
 			if !trace.IsNotFound(err) {

@@ -28,8 +28,8 @@ func (s *UtilsSuite) TestProxyJumpParsing(c *check.C) {
 	}
 	testCases := []tc{
 		{
-			in:  "host:port",
-			out: []JumpHost{{Addr: NetAddr{Addr: "host:port", AddrNetwork: "tcp"}}},
+			in:  "host:12345",
+			out: []JumpHost{{Addr: NetAddr{Addr: "host:12345", AddrNetwork: "tcp"}}},
 		},
 		{
 			in:  "host",

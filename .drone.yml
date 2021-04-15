@@ -4400,7 +4400,7 @@ steps:
         Origin: teleport
         Label: teleport
         Codename: stable
-        Architectures: i386 amd64
+        Architectures: i386 amd64 arm arm64
         Components: main
         Description: apt repository for teleport
         SignWith: 6282C411
@@ -4465,6 +4465,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: eddaaeffac5342f7e576a9512396c1c9e3c9952907693dcc33be0bb9755241c5
+hmac: f0299a5810cf2a4a89aaf0c521009855cb764e357deaed4c8be73819085a83dd
 
 ...
