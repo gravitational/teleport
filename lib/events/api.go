@@ -355,11 +355,14 @@ const (
 	// AppSessionRequestEvent is an HTTP request and response.
 	AppSessionRequestEvent = "app.session.request"
 
-	// DatabaseSessionStartEvent indicates the start of a database session.
+	// DatabaseSessionStartEvent is emitted when a database client attempts
+	// to connect to a database.
 	DatabaseSessionStartEvent = "db.session.start"
-	// DatabaseSessionEndEvent indicates the end of a database session.
+	// DatabaseSessionEndEvent is emitted when a database client disconnects
+	// from a database.
 	DatabaseSessionEndEvent = "db.session.end"
-	// DatabaseSessionQueryEvent indicates a database query execution.
+	// DatabaseSessionQueryEvent is emitted when a database client executes
+	// a query.
 	DatabaseSessionQueryEvent = "db.session.query"
 
 	// SessionRejectedReasonMaxConnections indicates that a session.rejected event

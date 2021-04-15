@@ -275,7 +275,7 @@ func (s *SrvSuite) TestAdvertiseAddr(c *C) {
 	var (
 		advIP      = utils.MustParseAddr("10.10.10.1")
 		advIPPort  = utils.MustParseAddr("10.10.10.1:1234")
-		advBadAddr = utils.MustParseAddr("localhost:badport")
+		advBadAddr = &utils.NetAddr{Addr: "localhost:badport", AddrNetwork: "tcp"}
 	)
 	// IP-only advertiseAddr should use the port from srvAddress.
 	s.srv.setAdvertiseAddr(advIP)
