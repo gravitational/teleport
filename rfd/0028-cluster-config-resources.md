@@ -1,0 +1,176 @@
+---
+authors: Andrej Tokarčík (andrej@goteleport.com)
+state: draft
+---
+
+# RFD 28 - Cluster configuration related resources
+
+## What
+
+Reorganization of resources related to cluster configuration, primarily as it
+regards the splitting of the `ClusterConfig` resource into smaller logical
+resources.
+
+## Why
+
+To provide coherent user experience when working with dynamically-configurable singleton resources,
+see [RFD 16](https://github.com/gravitational/teleport/blob/master/rfd/0016-dynamic-configuration.md).
+
+## Details
+
+### Splitting `ClusterConfig`
+
+The current `ClusterConfig` resource has the following fields:
+
+```proto
+message ClusterConfig {
+    // ClusterID is the unique cluster ID that is set once during the first auth
+    // server startup.
+    string ClusterID;
+
+    // SessionRecording controls where (or if) the session is recorded.
+    string SessionRecording;
+
+    // ProxyChecksHostKeys is used to control if the proxy will check host keys
+    // when in recording mode.
+    string ProxyChecksHostKeys;
+
+    // Audit is a section with audit config
+    AuditConfig Audit;
+
+    // ClientIdleTimeout sets global cluster default setting for client idle
+    // timeouts
+    int64 ClientIdleTimeout;
+
+    // DisconnectExpiredCert provides disconnect expired certificate setting -
+    // if true, connections with expired client certificates will get disconnected
+    bool DisconnectExpiredCert;
+
+    // KeepAliveInterval is the interval the server sends keep-alive messsages
+    // to the client at.
+    int64 KeepAliveInterval;
+
+    // KeepAliveCountMax is the number of keep-alive messages that can be missed
+    // before
+    // the server disconnects the connection to the client.
+    int64 KeepAliveCountMax;
+
+    // LocalAuth is true if local authentication is enabled.
+    bool LocalAuth;
+
+    // SessionControlTimeout is the session control lease expiry and defines
+    // the upper limit of how long a node may be out of contact with the auth
+    // server before it begins terminating controlled sessions.
+    int64 SessionControlTimeout;
+}
+```
+
+It is proposed to distribute them in the following fashion:
+
+```proto
+message ClusterMeta {
+    // This resource is not genuine configuration, it would contain only the
+    // common resource metadata.  The metadata name field would be used to
+    // represent the ClusterID.
+}
+
+message SessionRecordingConfig {
+    string SessionRecording;
+    string ProxyChecksHostKeys;
+}
+
+message ClusterNetworkingConfig {
+    int64 ClientIdleTimeout;
+    int64 KeepAliveInterval;
+    int64 KeepAliveCountMax;
+    int64 SessionControlTimeout;
+}
+
+// The already existing AuditConfig is turned into a standalone resource.
+message AuditConfig { ... }
+
+// LocalAuth field is dropped altogether.  This information should be inferred
+// from ClusterAuthPreference.Type.
+
+// DisconnectExpiredCert field is moved into ClusterAuthPreference.
+message ClusterAuthPreference {
+    ...
+    bool DisconnectExpiredCert;
+}
+```
+
+### Data migration
+
+A new step should be added to `migrateLegacyResources` (called during auth
+server initialization) that takes care of migrating the `ClusterConfig` data
+stored in the backend to the new resource structures.
+
+### Restricting to a subset of values of a field
+
+Some users should not be capable of setting a field to any of the otherwise
+accepted values.  It is proposed to satisfy this requirement by introducing new
+RBAC verbs, interpreted as implying additional constraints. Such new verbs
+would be evaluated together with other RBAC verbs in the auth API handlers.
+
+In particular, this is needed for `SessionRecordingConfig` which has two
+fields:
+* `session_recording` with the possible values: `off`, `node`, `node-sync`,
+  `proxy`, `proxy-sync`;
+* a boolean `proxy_checks_host_keys`.
+
+Some users should be subject to the following restrictions:
+1. The value of `session_recording` can be changed only if its original value
+   is one of `off`, `node` or `node-sync`.
+1. The value of `session_recording` can be changed to only one of `off`, `node`
+   or `node-sync`.
+1. The value of `proxy_checks_host_keys` cannot be changed.
+
+This would be achieved by a new RBAC verb `update.no-proxy`. A user could then
+be assigned a role featuring `update.on-proxy` instead of the regular, more
+permissive `update`:
+```
+  allow:
+    rules:
+    - resources: [session_recording_config]
+      verbs: [read, update.no-proxy]
+```
+
+### Additional dynamically configurable resources
+
+In addition to the resources derived from `ClusterConfig`, the resources
+`ClusterAuthPreference` and `PAMConfig` should also adapted to facilitate
+the dynamic configuration workflow.
+
+### Working with a whole cluster configuration
+
+`KindClusterConfig` should be retained but reinterpreted as a helper meta-kind
+similar to `KindConnectors`. It would allow aggregating all the cluster config
+related resources into a single `tctl get` output:
+
+```
+$ tctl get cluster_config
+kind: session_recording_config
+[...]
+---
+kind: cluster_networking_config
+[...]
+---
+kind: audit_config
+[...]
+---
+kind: cluster_auth_preference
+[...]
+---
+kind: pam_config
+[...]
+```
+
+This combined output can be subsequently edited and used to replace the old
+configuration by passing it to the `tctl create` command which is able to
+consume multiple resource definitions (provided the user has the privileges
+needed to update all the resource kinds).
+
+Note that if a field of a configuration resource is omitted from the YAML, the
+field's value will be reset to its default.  The `tctl` workflow supports only
+replacing (or overwriting) of a stored resource with another full resource,
+not a partial update of the stored resource.
