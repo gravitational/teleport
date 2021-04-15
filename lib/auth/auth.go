@@ -1647,9 +1647,9 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (services.WebSess
 	}
 	bearerTokenTTL := utils.MinTTL(sessionTTL, BearerTokenTTL)
 
-	currTime := a.clock.Now()
+	startTime := a.clock.Now()
 	if !req.LoginTime.IsZero() {
-		currTime = req.LoginTime
+		startTime = req.LoginTime
 	}
 
 	sessionSpec := services.WebSessionSpecV2{
@@ -1657,9 +1657,9 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (services.WebSess
 		Priv:               priv,
 		Pub:                certs.ssh,
 		TLSCert:            certs.tls,
-		Expires:            currTime.UTC().Add(sessionTTL),
+		Expires:            startTime.UTC().Add(sessionTTL),
 		BearerToken:        bearerToken,
-		BearerTokenExpires: currTime.UTC().Add(bearerTokenTTL),
+		BearerTokenExpires: startTime.UTC().Add(bearerTokenTTL),
 		LoginTime:          req.LoginTime,
 	}
 
