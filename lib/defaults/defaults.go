@@ -512,6 +512,9 @@ var (
 	// the Teleport configuration file that tctl reads on use
 	ConfigFileEnvar = "TELEPORT_CONFIG_FILE"
 
+	// TunnelPublicAddrEnvar optionally specifies the alternative reverse tunnel address.
+	TunnelPublicAddrEnvar = "TELEPORT_TUNNEL_PUBLIC_ADDR"
+
 	// LicenseFile is the default name of the license file
 	LicenseFile = "license.pem"
 
