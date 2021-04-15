@@ -47,8 +47,8 @@ Before you get started you’ll need:
 4. Enter the display name (Ex: Teleport)
    ![Enter application name](../../../img/azuread/azuread-4-enterappname.png)
 
-5.Select properties under Manage and turn off User assignment required
-![Turn off user assignment](../../../img/azuread/azuread-5-turnoffuserassign.png)
+5. Select properties under Manage and turn off User assignment required
+   ![Turn off user assignment](../../../img/azuread/azuread-5-turnoffuserassign.png)
 
 6. Select Single Sign-on under Manage and choose SAML
    ![Select SAML](../../../img/azuread/azuread-6-selectsaml.png)
@@ -69,7 +69,6 @@ Before you get started you’ll need:
 
    iii. Add a Claim to pass the username from transforming the AzureAD User name.
    ![Add a transformed username](../../../img/azuread/azuread-9c-usernameclaim.png)
-
 
 10. On the SAML Signing Certificate select to download SAML Download the Federation Metadata XML.
     ![Download Federation Metadata XML](../../../img/azuread/azuread-10-fedmeatadataxml.png)
@@ -158,7 +157,7 @@ spec:
   options:
     max_session_ttl: 24h
   allow:
-    logins: [ "{% raw %}{{external.username}}{% endraw %}", ubuntu ]
+    logins: [ "{{external.username}}", ubuntu ]
     node_labels:
       access: relaxed
 ```

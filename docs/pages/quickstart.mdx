@@ -51,8 +51,8 @@ Take a look at the [Teleport Installation](installation.mdx) page to pick the mo
 
   <TabItem label="ARMv7 (32-bit)">
     ```bash
-    curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-arm-bin.tar.gz
-    tar -xzf teleport-v{{ teleport.version }}-linux-arm-bin.tar.gz
+    curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm-bin.tar.gz
+    tar -xzf teleport-v(=teleport.version=)-linux-arm-bin.tar.gz
     cd teleport
     sudo ./install
     ```
@@ -60,8 +60,8 @@ Take a look at the [Teleport Installation](installation.mdx) page to pick the mo
 
   <TabItem label="ARMv8 (64-bit)">
     ```bash
-    curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz
-    tar -xzf teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz
+    curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
+    tar -xzf teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
     cd teleport
     sudo ./install
     ```
@@ -69,8 +69,8 @@ Take a look at the [Teleport Installation](installation.mdx) page to pick the mo
 
   <TabItem label="Linux Tarball">
     ```bash
-    curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
-    tar -xzf teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
+    curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
+    tar -xzf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
     cd teleport
     sudo ./install
     ```
@@ -205,10 +205,10 @@ Here's a selection of compatible Two-Factor authentication apps:
 >
   The OS users that you specify (`root`, `ubuntu` and `ec2-user` in our examples) must exist!
   On Linux, if a user does not already exist, you can create it with `adduser <login>`. If you
-  do not have the permission to create new users on the Linux host, run `tctl users add teleport
-  $(whoami)` to explicitly allow Teleport to authenticate as the user that you are currently logged
-  in as. If you do not map to an existing OS user,  you will get authentication errors later on in
-  this tutorial!
+  do not have the permission to create new users on the Linux host, run
+  `tctl users add teleport $(whoami)` to explicitly allow Teleport to authenticate as the user
+  that you are currently logged in as. If you do not map to an existing OS user,  you will get
+  authentication errors later on in this tutorial!
 </Admonition>
 
 ![Teleport UI Dashboard](../img/quickstart/teleport-nodes.png)
@@ -232,7 +232,7 @@ Here's a selection of compatible Two-Factor authentication apps:
 
   <TabItem label="Windows - Powershell">
     ```bash
-    curl -O teleport-v{{ teleport.version }}-windows-amd64-bin.zip https://get.gravitational.com/teleport-v{{ teleport.version }}-windows-amd64-bin.zip
+    curl -O teleport-v(=teleport.version=)-windows-amd64-bin.zip https://get.gravitational.com/teleport-v(=teleport.version=)-windows-amd64-bin.zip
     # Unzip the archive and move `tsh.exe` to your %PATH%
     ```
   </TabItem>
@@ -241,8 +241,8 @@ Here's a selection of compatible Two-Factor authentication apps:
     For more options (including RPM/DEB packages and downloads for i386/ARM/ARM64) please see our [installation page](installation.mdx).
 
     ```bash
-    curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
-    tar -xzf teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
+    curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
+    tar -xzf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
     cd teleport
     sudo ./install
     Teleport binaries have been copied to /usr/local/bin
@@ -357,8 +357,8 @@ Armed with these details, we'll bootstrap a new host using
 
     runcmd:
     - 'mkdir -p /tmp/teleport'
-    - 'cd /tmp/teleport && curl -O https://get.gravitational.com/teleport_{{ teleport.version }}_amd64.deb'
-    - 'dpkg -i /tmp/teleport/teleport_5.0.0-{{ teleport.version }}_amd64.deb'
+    - 'cd /tmp/teleport && curl -O https://get.gravitational.com/teleport_(=teleport.version=)_amd64.deb'
+    - 'dpkg -i /tmp/teleport/teleport_5.0.0-(=teleport.version=)_amd64.deb'
     - 'systemctl enable teleport.service'
     - 'systemctl start teleport.service'
     ```

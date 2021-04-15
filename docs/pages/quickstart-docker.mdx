@@ -6,12 +6,12 @@ h1: Run Teleport using Docker
 
 We provide pre-built Docker images for every version of Teleport. These images are hosted on quay.io.
 
-- [All tags under `quay.io/gravitational/teleport` are Teleport Community images](https://quay.io/repository/gravitational/teleport?tag=latest&tab=tags)
+- [All tags under `quay.io/gravitational/teleport` are Teleport Community images](https://quay.io/repository/gravitational/teleport?tag=latest\&tab=tags)
 
 We currently only offer Docker images for `x86_64` architectures.
 
 <Admonition type="note">
-  You will need a recent version of [Docker](https://hub.docker.com/search?q=&type=edition&offering=community) installed to follow this section of the quick start guide.
+  You will need a recent version of [Docker](https://hub.docker.com/search?q=\&type=edition\&offering=community) installed to follow this section of the quick start guide.
 </Admonition>
 
 <Admonition type="warning">
@@ -28,10 +28,10 @@ easily keep your Teleport installation up to date.
 
 | Image name | Teleport version | Image automatically updated? | Image base |
 | - | - | - | - |
-| `quay.io/gravitational/teleport:{{ version }}` | The latest version of Teleport Community {{ version }} | Yes | [Ubuntu 20.04](https://hub.docker.com/_/ubuntu) |
-| `quay.io/gravitational/teleport:{{ teleport.version }}` | The version specified in the image's tag (i.e. {{ teleport.version }}) | No | [Ubuntu 20.04](https://hub.docker.com/_/ubuntu) |
+| `quay.io/gravitational/teleport:(=version=)` | The latest version of Teleport Community (=version=) | Yes | [Ubuntu 20.04](https://hub.docker.com/\_/ubuntu) |
+| `quay.io/gravitational/teleport:(=teleport.version=)` | The version specified in the image's tag (i.e. (=teleport.version=)) | No | [Ubuntu 20.04](https://hub.docker.com/\_/ubuntu) |
 
-For testing, we always recommend that you use the latest release version of Teleport, which is currently `{{teleport.latest_oss_docker_image}}`.
+For testing, we always recommend that you use the latest release version of Teleport, which is currently `(=teleport.latest_oss_docker_image=)`.
 
 ## Quickstart using docker-compose
 
@@ -69,14 +69,14 @@ mkdir -p ~/teleport/config ~/teleport/data
 docker run --hostname localhost --rm \
   --entrypoint=/bin/sh \
   -v ~/teleport/config:/etc/teleport \
-  {{teleport.latest_oss_docker_image}} -c "teleport configure > /etc/teleport/teleport.yaml"
+  (=teleport.latest_oss_docker_image=) -c "teleport configure > /etc/teleport/teleport.yaml"
 
 # start teleport with mounted config and data directories, plus all ports
 docker run --hostname localhost --name teleport \
   -v ~/teleport/config:/etc/teleport \
   -v ~/teleport/data:/var/lib/teleport \
   -p 3023:3023 -p 3025:3025 -p 3080:3080 \
-  {{teleport.latest_oss_docker_image}}
+  (=teleport.latest_oss_docker_image=)
 ```
 
 ## Creating a Teleport user when using Docker quickstart

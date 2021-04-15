@@ -80,7 +80,6 @@ There are a couple of important things to notice about this file:
 1. The start command in the unit file specifies `--config` as a file and there
    are very few flags passed to the `teleport` binary. Most of the configuration
    for Teleport should be done in the [configuration file](admin-guide.mdx#configuration).
-
 2. The **ExecReload** command allows admins to run `systemctl reload teleport`.
    This will attempt to perform a graceful restart of Teleport **but it only works if
    network-based backend storage like [DynamoDB](admin-guide.mdx#using-dynamodb) or
