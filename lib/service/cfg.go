@@ -357,7 +357,7 @@ type ProxyConfig struct {
 	SSHPublicAddrs []utils.NetAddr
 
 	// TunnelPublicAddrs is a list of the public addresses the proxy advertises
-	// for the tunnel endpoint. The hosts in in PublicAddr are included in the
+	// for the tunnel endpoint. The hosts in PublicAddr are included in the
 	// list of host principals on the TLS and SSH certificate.
 	TunnelPublicAddrs []utils.NetAddr
 
@@ -503,6 +503,14 @@ type SSHConfig struct {
 
 	// BPF holds BPF configuration for Teleport.
 	BPF *bpf.Config
+
+	// ProxyReverseTunnelFallbackAddr optionall specifies the address of the proxy if reverse tunnel
+	// discovered proxy fails.
+	// This configuration is not exposed directly but can be set from environment via
+	// defaults.ProxyFallbackAddrEnvar.
+	//
+	// See github.com/gravitational/teleport/issues/4141 for details.
+	ProxyReverseTunnelFallbackAddr *utils.NetAddr
 }
 
 // KubeConfig specifies configuration for kubernetes service

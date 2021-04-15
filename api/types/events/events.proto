@@ -1171,6 +1171,9 @@ message DatabaseSessionQuery {
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
     // DatabaseQuery is the executed query string.
     string DatabaseQuery = 5 [ (gogoproto.jsontag) = "db_query" ];
+    // DatabaseQueryParameters are the query parameters for prepared statements.
+    repeated string DatabaseQueryParameters = 6
+        [ (gogoproto.jsontag) = "db_query_parameters,omitempty" ];
 }
 
 // DatabaseSessionEnd is emitted when a user ends the database session.
