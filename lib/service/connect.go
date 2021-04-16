@@ -808,8 +808,8 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 	// Try and connect to the Auth Server. If the request fails, try and
 	// connect through a tunnel.
 	process.log.Debugf("Attempting to connect to Auth Server directly.")
-	directClient, directDialErr := process.newClientDirect(authServers, tlsConfig)
-	if directDialErr == nil {
+	directClient, err := process.newClientDirect(authServers, tlsConfig)
+	if err == nil {
 		process.log.Debug("Connected to Auth Server with direct connection.")
 		return directClient, nil
 	}
@@ -817,15 +817,15 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 
 	// Don't attempt to connect through a tunnel as a proxy or auth server.
 	if identity.ID.Role == teleport.RoleAuth || identity.ID.Role == teleport.RoleProxy {
-		return nil, trace.Wrap(directDialErr)
+		return nil, trace.Wrap(err)
 	}
+	directDialErr := err
 
 	var proxyAddr string
 	if process.Config.SSH.ProxyReverseTunnelFallbackAddr != nil {
 		proxyAddr = process.Config.SSH.ProxyReverseTunnelFallbackAddr.String()
 	} else {
 		// Discover address of SSH reverse tunnel server.
-		var err error
 		proxyAddr, err = process.findReverseTunnel(authServers)
 		if err != nil {
 			process.log.Debug("Failed to discover reverse tunnel address.")
