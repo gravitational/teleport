@@ -153,10 +153,10 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 
 	transport := &http.Transport{
 		// notice that below roundtrip.Client is passed
-		// teleport.APIEndpoint as an address for the API server, this is
-		// to make sure client verifies the DNS name of the API server
-		// custom DialContext overrides this DNS name to the real address
-		// in addition this dialer tries multiple adresses if provided
+		// teleport.APIDomain as an address for the API server, this is
+		// to make sure client verifies the DNS name of the API server and
+		// custom DialContext overrides this DNS name to the real address.
+		// In addition this dialer tries multiple addresses if provided
 		DialContext:           dialer.DialContext,
 		ResponseHeaderTimeout: defaults.DefaultDialTimeout,
 		TLSClientConfig:       tls,
