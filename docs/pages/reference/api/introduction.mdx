@@ -5,14 +5,15 @@ description: Introduction for the Teleport API
 
 The Teleport Auth API provides a gRPC API for remotely interacting with a Teleport Auth server.
 
-We recently created a public [Go client](https://pkg.go.dev/github.com/gravitational/teleport/api/client)
+Teleport has a public [Go client](https://pkg.go.dev/github.com/gravitational/teleport/api/client)
 to programatically interact with the API. [tsh and tctl](../../cli-docs.mdx/) use the same API.
 
 ## Go Client
 
-The Go client can be used to programatically interact with Teleport. For example:
+Here is what you can do with the Go Client:
  - Integrating with external tools, which we have already done 
-   for [several tools](../../enterprise/workflow/index.mdx#integrating-with-an-external-tool).
+   for [several tools](../../enterprise/workflow/index.mdx#integrating-with-an-external-tool),
+   such as Slack, Jira, and Mattermost.
  - Writing a program/bot to manage access requests automatically, based on your use case. One idea
    is to allow/deny developer requests based on their currently assigned tasks.
  - Performing CRUD actions on resources, such as `roles`, `auth connectors`, and `provisioning tokens`.

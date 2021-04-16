@@ -12,12 +12,6 @@ Here are the steps we'll walk through:
  2. Generate credentials
  3. Create a Go program to demo the client
 
-<Admonition type="warning">
-  This quickstart connects to the Teleport web proxy with an insecure connection. In production, 
-  make sure to [setup HTTPS](https://goteleport.com/blog/letsencrypt-teleport-ssh/). Then you 
-  can change `InsecureAddressDiscovery` to false in the client's config and `tsh login` without `--insecure`.
-</Admonition>
-
 ## Prerequisites
 
 - Install [Go](https://golang.org/doc/install) (=teleport.golang=)+ and Setup Go Dev Environment
@@ -43,7 +37,7 @@ Login as the newly created user with `tsh`.
 
 ```bash
 # generate tsh profile
-tsh login --insecure --user=api-user
+tsh login --user=api-user
 ```
 
 The [profile Credentials loader](https://pkg.go.dev/github.com/gravitational/teleport/api/client#LoadProfile)
@@ -78,9 +72,6 @@ func main() {
 		Credentials: []client.Credentials{
 			client.LoadProfile("", ""),
 		},
-		// set to true if your Teleport web proxy doesn't have an HTTP/TLS
-		// certificate configured yet (never use this in production).
-		InsecureAddressDiscovery: true,
 	})
 	if err != nil {
 		log.Fatalf("failed to create client: %v", err)
