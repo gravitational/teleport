@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2020-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -39,6 +39,7 @@ import (
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
+	"github.com/siddontang/go-mysql/client"
 	"github.com/stretchr/testify/require"
 )
 
@@ -53,19 +54,7 @@ func TestPostgresAccess(t *testing.T) {
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t)
 	t.Cleanup(func() { testCtx.Close() })
-
-	// Start multiplexer.
-	go testCtx.mux.Serve()
-	// Start fake Postgres server.
-	go testCtx.postgresServer.Serve()
-	// Start database proxy server.
-	go testCtx.proxyServer.Serve(testCtx.mux.DB())
-	// Start database service server.
-	go func() {
-		for conn := range testCtx.proxyConn {
-			testCtx.server.HandleConnection(conn)
-		}
-	}()
+	go testCtx.startHandlingPostgresConnections()
 
 	tests := []struct {
 		desc         string
@@ -149,19 +138,7 @@ func TestPostgresAccess(t *testing.T) {
 			require.NoError(t, err)
 
 			// Try to connect to the database as this user.
-			pgConn, err := postgres.MakeTestClient(ctx, common.TestClientConfig{
-				AuthClient: testCtx.authClient,
-				AuthServer: testCtx.authServer,
-				Address:    testCtx.mux.DB().Addr().String(),
-				Cluster:    testCtx.clusterName,
-				Username:   test.user,
-				RouteToDatabase: tlsca.RouteToDatabase{
-					ServiceName: "postgres-test",
-					Protocol:    defaults.ProtocolPostgres,
-					Username:    test.dbUser,
-					Database:    test.dbName,
-				},
-			})
+			pgConn, err := testCtx.postgresClient(ctx, test.user, test.dbUser, test.dbName)
 			if test.err != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), test.err)
@@ -188,17 +165,7 @@ func TestMySQLAccess(t *testing.T) {
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t)
 	t.Cleanup(func() { testCtx.Close() })
-
-	// Start test MySQL server.
-	go testCtx.mysqlServer.Serve()
-	// Start MySQL proxy server.
-	go testCtx.proxyServer.ServeMySQL(testCtx.mysqlListener)
-	// Start database service server.
-	go func() {
-		for conn := range testCtx.proxyConn {
-			testCtx.server.HandleConnection(conn)
-		}
-	}()
+	go testCtx.startHandlingMySQLConnections()
 
 	tests := []struct {
 		// desc is the test case description.
@@ -257,18 +224,7 @@ func TestMySQLAccess(t *testing.T) {
 			require.NoError(t, err)
 
 			// Try to connect to the database as this user.
-			mysqlConn, err := mysql.MakeTestClient(common.TestClientConfig{
-				AuthClient: testCtx.authClient,
-				AuthServer: testCtx.authServer,
-				Address:    testCtx.mysqlListener.Addr().String(),
-				Cluster:    testCtx.clusterName,
-				Username:   test.user,
-				RouteToDatabase: tlsca.RouteToDatabase{
-					ServiceName: "mysql-test",
-					Protocol:    defaults.ProtocolPostgres,
-					Username:    test.dbUser,
-				},
-			})
+			mysqlConn, err := testCtx.mysqlClient(test.user, test.dbUser)
 			if test.err != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), test.err)
@@ -309,19 +265,7 @@ func TestDatabaseAccessDisabled(t *testing.T) {
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t)
 	t.Cleanup(func() { testCtx.Close() })
-
-	// Start multiplexer.
-	go testCtx.mux.Serve()
-	// Start fake Postgres server.
-	go testCtx.postgresServer.Serve()
-	// Start database proxy server.
-	go testCtx.proxyServer.Serve(testCtx.mux.DB())
-	// Start database service server.
-	go func() {
-		for conn := range testCtx.proxyConn {
-			testCtx.server.HandleConnection(conn)
-		}
-	}()
+	go testCtx.startHandlingPostgresConnections()
 
 	userName := "alice"
 	roleName := "admin"
@@ -338,19 +282,7 @@ func TestDatabaseAccessDisabled(t *testing.T) {
 	require.NoError(t, err)
 
 	// Try to connect to the database as this user.
-	_, err = postgres.MakeTestClient(ctx, common.TestClientConfig{
-		AuthClient: testCtx.authClient,
-		AuthServer: testCtx.authServer,
-		Address:    testCtx.mux.DB().Addr().String(),
-		Cluster:    testCtx.clusterName,
-		Username:   userName,
-		RouteToDatabase: tlsca.RouteToDatabase{
-			ServiceName: "postgres-test",
-			Protocol:    defaults.ProtocolPostgres,
-			Username:    dbUser,
-			Database:    dbName,
-		},
-	})
+	_, err = testCtx.postgresClient(ctx, userName, dbUser, dbName)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "this Teleport cluster doesn't support database access")
 }
@@ -369,6 +301,66 @@ type testContext struct {
 	server           *Server
 	postgresDBServer types.DatabaseServer
 	mysqlDBServer    types.DatabaseServer
+	emitter          *testEmitter
+}
+
+func (c *testContext) startHandlingPostgresConnections() {
+	// Start multiplexer.
+	go c.mux.Serve()
+	// Start fake Postgres server.
+	go c.postgresServer.Serve()
+	// Start database proxy server.
+	go c.proxyServer.Serve(c.mux.DB())
+	// Start handling Postgres connection on the database server.
+	for conn := range c.proxyConn {
+		c.server.HandleConnection(conn)
+	}
+}
+
+// postgresClient connects to test Postgres through database access as a
+// specified Teleport user and database account.
+func (c *testContext) postgresClient(ctx context.Context, teleportUser, dbUser, dbName string) (*pgconn.PgConn, error) {
+	return postgres.MakeTestClient(ctx, common.TestClientConfig{
+		AuthClient: c.authClient,
+		AuthServer: c.authServer,
+		Address:    c.mux.DB().Addr().String(),
+		Cluster:    c.clusterName,
+		Username:   teleportUser,
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: c.postgresDBServer.GetName(),
+			Protocol:    defaults.ProtocolPostgres,
+			Username:    dbUser,
+			Database:    dbName,
+		},
+	})
+}
+
+func (c *testContext) startHandlingMySQLConnections() {
+	// Start test MySQL server.
+	go c.mysqlServer.Serve()
+	// Start MySQL proxy server.
+	go c.proxyServer.ServeMySQL(c.mysqlListener)
+	// Start handling MySQL connections on the database server.
+	for conn := range c.proxyConn {
+		c.server.HandleConnection(conn)
+	}
+}
+
+// mysqlClient connects to test MySQL through database access as a specified
+// Teleport user and database account.
+func (c *testContext) mysqlClient(teleportUser, dbUser string) (*client.Conn, error) {
+	return mysql.MakeTestClient(common.TestClientConfig{
+		AuthClient: c.authClient,
+		AuthServer: c.authServer,
+		Address:    c.mysqlListener.Addr().String(),
+		Cluster:    c.clusterName,
+		Username:   teleportUser,
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: c.mysqlDBServer.GetName(),
+			Protocol:    defaults.ProtocolMySQL,
+			Username:    dbUser,
+		},
+	})
 }
 
 // Close closes all resources associated with the test context.
@@ -487,6 +479,9 @@ func setupTestContext(ctx context.Context, t *testing.T) *testContext {
 	})
 	require.NoError(t, err)
 
+	// Create test audit events emitter.
+	emitter := newTestEmitter()
+
 	// Create database service server.
 	server, err := New(ctx, Config{
 		Clock:         clockwork.NewFakeClockAt(time.Now()),
@@ -498,6 +493,13 @@ func setupTestContext(ctx context.Context, t *testing.T) *testContext {
 		Servers:       []types.DatabaseServer{postgresDBServer, mysqlDBServer},
 		TLSConfig:     tlsConfig,
 		GetRotation:   func(teleport.Role) (*types.Rotation, error) { return &types.Rotation{}, nil },
+		NewAudit: func(common.AuditConfig) (common.Audit, error) {
+			// Use the same audit logger implementation but substitute the
+			// underlying emitter so events can be tracked in tests.
+			return common.NewAudit(common.AuditConfig{
+				Emitter: emitter,
+			})
+		},
 	})
 	require.NoError(t, err)
 
@@ -515,6 +517,7 @@ func setupTestContext(ctx context.Context, t *testing.T) *testContext {
 		tlsServer:        tlsServer,
 		authServer:       tlsServer.Auth(),
 		authClient:       dbAuthClient,
+		emitter:          emitter,
 	}
 }
 
