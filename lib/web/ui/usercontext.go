@@ -18,6 +18,7 @@ package ui
 
 import (
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -178,7 +179,11 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContex
 	nodeAccess := newAccess(userRoles, ctx, services.KindNode)
 	appServerAccess := newAccess(userRoles, ctx, services.KindAppServer)
 	requestAccess := newAccess(userRoles, ctx, services.KindAccessRequest)
-	billingAccess := newAccess(userRoles, ctx, services.KindBilling)
+
+	var billingAccess access
+	if modules.GetModules().Features().Cloud {
+		billingAccess = newAccess(userRoles, ctx, services.KindBilling)
+	}
 
 	logins := getLogins(userRoles)
 	accessStrategy := getAccessStrategy(userRoles)
