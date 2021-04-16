@@ -25,7 +25,7 @@ two team members for a privileged role `dbadmin`.
 
 ## Prerequisites
 
-- Installed [Teleport Enterprise](../../enterprise/introduction.mdx) or [Teleport Cloud](../../cloud.mdx) >= (=teleport.version=)
+- Installed [Teleport Enterprise](../../enterprise/introduction.mdx) or [Teleport Cloud](../../cloud/introduction.mdx) >= (=teleport.version=)
 - [Tctl enterprise admin tool](https://goteleport.com/teleport/download) >= (=teleport.version=)
 - Mattermost installed.
 
@@ -43,7 +43,7 @@ Verify that your Teleport client is connected:
 ```bash
 $ tctl status
 Cluster  acme.example.com
-Version  6.0.2
+Version  (=teleport.version=)
 Host CA  never updated
 User CA  never updated
 Jwt CA   never updated
