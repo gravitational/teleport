@@ -137,8 +137,7 @@ func (s *ProxyServer) Serve(listener net.Listener) error {
 			defer clientConn.Close()
 			err := proxy.HandleConnection(s.closeCtx, clientConn)
 			if err != nil {
-				s.log.Errorf("Failed to handle client connection: %v.",
-					trace.DebugReport(err))
+				s.log.WithError(err).Warn("Failed to handle client connection.")
 			}
 		}()
 	}
@@ -260,7 +259,7 @@ func (s *ProxyServer) Proxy(ctx context.Context, clientConn, serviceConn io.Read
 	for i := 0; i < 2; i++ {
 		select {
 		case err := <-errCh:
-			if err != nil && err != io.EOF && !strings.Contains(err.Error(), teleport.UseOfClosedNetworkConnection) {
+			if err != nil && !trace.IsEOF(err) && !strings.Contains(err.Error(), teleport.UseOfClosedNetworkConnection) {
 				s.log.WithError(err).Warn("Connection problem.")
 				errs = append(errs, err)
 			}
