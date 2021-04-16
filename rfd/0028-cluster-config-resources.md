@@ -89,21 +89,23 @@ message ClusterNetworkingConfig {
 // The already existing AuditConfig is turned into a standalone resource.
 message AuditConfig { ... }
 
-// LocalAuth field is dropped altogether.  This information should be inferred
-// from ClusterAuthPreference.Type.
-
-// DisconnectExpiredCert field is moved into ClusterAuthPreference.
+// DisconnectExpiredCert & LocalAuth fields are moved into ClusterAuthPreference.
 message ClusterAuthPreference {
     ...
+    bool AllowLocalAuth;
     bool DisconnectExpiredCert;
 }
 ```
 
-### Data migration
+#### Data migration & docs updates
 
 A new step should be added to `migrateLegacyResources` (called during auth
 server initialization) that takes care of migrating the `ClusterConfig` data
-stored in the backend to the new resource structures.
+stored in the backend to the new resource structures.  This probably implies
+that `ClusterConfig` as a structure needs to be kept around for a couple of
+subsequent Teleport versions for marshalling purposes.
+
+Documentation should be updated accordingly.
 
 ### Restricting to a subset of values of a field
 
