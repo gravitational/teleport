@@ -104,7 +104,7 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 	}
 	uploadCompleter, err := events.NewUploadCompleter(events.UploadCompleterConfig{
 		Uploader:  handler,
-		AuditLog:  events.NewDiscardAuditLog(),
+		AuditLog:  cfg.AuditLog,
 		Unstarted: true,
 	})
 	if err != nil {
