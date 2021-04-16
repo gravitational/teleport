@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -552,11 +553,12 @@ func (rc *ResourceCommand) IsForced() bool {
 
 // getCollection lists all resources of a given type
 func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollection, error) {
-	ctx := context.TODO()
 	if rc.ref.Kind == "" {
 		return nil, trace.BadParameter("specify resource to list, e.g. 'tctl get roles'")
 	}
 
+	// TODO: pass the context from CLI to terminate requests on Ctrl-C
+	ctx := context.TODO()
 	switch rc.ref.Kind {
 	case services.KindUser:
 		if rc.ref.Name == "" {
@@ -621,53 +623,65 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		}
 		return &reverseTunnelCollection{tunnels: []services.ReverseTunnel{tunnel}}, nil
 	case services.KindCertAuthority:
-		if rc.ref.Name == "" {
-			var authorities []services.CertAuthority
-
-			userAuthorities, err := client.GetCertAuthorities(services.UserCA, rc.withSecrets)
-			if err != nil {
-				return nil, trace.Wrap(err)
+		if rc.ref.SubKind == "" && rc.ref.Name == "" {
+			var allAuthorities []services.CertAuthority
+			for _, caType := range types.CertAuthTypes {
+				authorities, err := client.GetCertAuthorities(caType, rc.withSecrets)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				allAuthorities = append(allAuthorities, authorities...)
 			}
-			authorities = append(authorities, userAuthorities...)
-
-			hostAuthorities, err := client.GetCertAuthorities(services.HostCA, rc.withSecrets)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			authorities = append(authorities, hostAuthorities...)
-
-			jwtSigners, err := client.GetCertAuthorities(services.JWTSigner, rc.withSecrets)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			authorities = append(authorities, jwtSigners...)
-
-			return &authorityCollection{cas: authorities}, nil
+			return &authorityCollection{cas: allAuthorities}, nil
 		}
+		id := types.CertAuthID{Type: types.CertAuthType(rc.ref.SubKind), DomainName: rc.ref.Name}
+		authority, err := client.GetCertAuthority(id, rc.withSecrets)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &authorityCollection{cas: []services.CertAuthority{authority}}, nil
 	case services.KindNode:
+		nodes, err := client.GetNodes(rc.namespace)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		if rc.ref.Name == "" {
-			nodes, err := client.GetNodes(rc.namespace)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
 			return &serverCollection{servers: nodes}, nil
 		}
+		for _, node := range nodes {
+			if node.GetName() == rc.ref.Name {
+				return &serverCollection{servers: []services.Server{node}}, nil
+			}
+		}
+		return nil, trace.NotFound("node with ID %q not found", rc.ref.Name)
 	case services.KindAuthServer:
+		servers, err := client.GetAuthServers()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		if rc.ref.Name == "" {
-			servers, err := client.GetAuthServers()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
 			return &serverCollection{servers: servers}, nil
 		}
+		for _, server := range servers {
+			if server.GetName() == rc.ref.Name {
+				return &serverCollection{servers: []services.Server{server}}, nil
+			}
+		}
+		return nil, trace.NotFound("server with ID %q not found", rc.ref.Name)
 	case services.KindProxy:
+		servers, err := client.GetProxies()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		if rc.ref.Name == "" {
-			servers, err := client.GetProxies()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
 			return &serverCollection{servers: servers}, nil
 		}
+		for _, server := range servers {
+			if server.GetName() == rc.ref.Name {
+				return &serverCollection{servers: []services.Server{server}}, nil
+			}
+		}
+		return nil, trace.NotFound("server with ID %q not found", rc.ref.Name)
 	case services.KindRole:
 		if rc.ref.Name == "" {
 			roles, err := client.GetRoles(ctx)
@@ -730,13 +744,19 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		}
 		return &semaphoreCollection{sems: sems}, nil
 	case services.KindKubeService:
+		servers, err := client.GetKubeServices(context.TODO())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		if rc.ref.Name == "" {
-			servers, err := client.GetKubeServices(context.TODO())
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
 			return &serverCollection{servers: servers}, nil
 		}
+		for _, server := range servers {
+			if server.GetName() == rc.ref.Name {
+				return &serverCollection{servers: []services.Server{server}}, nil
+			}
+		}
+		return nil, trace.NotFound("server with ID %q not found", rc.ref.Name)
 	case services.KindClusterAuthPreference:
 		if rc.ref.Name == "" {
 			authPref, err := client.GetAuthPreference()
