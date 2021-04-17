@@ -1808,7 +1808,7 @@ func onStatus(cf *CLIConf) error {
 	}
 
 	duration := time.Until(profile.ValidUntil)
-	if duration.Nanoseconds() <= 0 {
+	if !profile.ValidUntil.IsZero() && duration.Nanoseconds() <= 0 {
 		return trace.NotFound("active profile expired")
 	}
 
