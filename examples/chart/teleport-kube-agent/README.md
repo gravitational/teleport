@@ -12,7 +12,8 @@ To use it, you will need:
 - a reachable reverse tunnel port on the proxy (e.g. `teleport.example.com:3024`). The address is automatically retrieved from the Teleport proxy configuration.
 - a [static join
   token](https://goteleport.com/teleport/docs/admin-guide/#adding-nodes-to-the-cluster)
-  for this Teleport cluster (`$JOIN_TOKEN`) or you can use a [dynamic join token](https://goteleport.com/docs/admin-guide/#short-lived-dynamic-tokens) with a lengthy time to live (ttl) (`tctl tokens add --type=kube --ttl=10000`).  The token setting will need updating if the static token is changed or before the dynamic token ttl expiration.
+  for this Teleport cluster (`$JOIN_TOKEN`)
+    - you can also use a [dynamic join token](https://goteleport.com/docs/admin-guide/#short-lived-dynamic-tokens) with a lengthy time to live (TTL) (`tctl tokens add --type=kube --ttl=10000`). The token setting will need updating if the token is changed or the TTL expires.
 
 
 ## Combining roles
