@@ -574,18 +574,23 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		}
 		return &userCollection{users: services.Users{user}}, nil
 	case services.KindConnectors:
-		sc, err := getSAMLConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		sc, scErr := getSAMLConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
+		oc, ocErr := getOIDCConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
+		gc, gcErr := getGithubConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
+
+		errs := []error{scErr, ocErr, gcErr}
+		allEmpty := len(sc) == 0 && len(oc) == 0 && len(gc) == 0
+		reportErr := false
+		for _, err := range errs {
+			if err != nil && !trace.IsNotFound(err) {
+				reportErr = true
+				break
+			}
 		}
-		oc, err := getOIDCConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		if allEmpty || reportErr {
+			return nil, trace.NewAggregate(errs...)
 		}
-		gc, err := getGithubConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+
 		return &connectorsCollection{
 			saml:   sc,
 			oidc:   oc,
