@@ -1807,12 +1807,12 @@ func onStatus(cf *CLIConf) error {
 	printProfiles(cf.Debug, profile, profiles)
 
 	if profile == nil {
-		return trace.NotFound("no active profile")
+		return trace.NotFound("No active profile.")
 	}
 
 	duration := time.Until(profile.ValidUntil)
 	if !profile.ValidUntil.IsZero() && duration.Nanoseconds() <= 0 {
-		return trace.NotFound("active profile expired")
+		return trace.NotFound("Active profile expired.")
 	}
 
 	return nil
