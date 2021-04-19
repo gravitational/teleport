@@ -1925,7 +1925,7 @@ func onStatus(cf *CLIConf) error {
 	printProfiles(cf.Debug, profile, profiles)
 
 	if profile == nil {
-		return trace.NotFound("No active profile.")
+		return trace.NotFound("Not logged in.")
 	}
 
 	duration := time.Until(profile.ValidUntil)
@@ -1938,7 +1938,6 @@ func onStatus(cf *CLIConf) error {
 
 func printProfiles(debug bool, profile *client.ProfileStatus, profiles []*client.ProfileStatus) {
 	if profile == nil && len(profiles) == 0 {
-		fmt.Printf("Not logged in.\n")
 		return
 	}
 
