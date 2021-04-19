@@ -62,6 +62,16 @@ resource "aws_security_group_rule" "proxy_ingress_allow_tunnel" {
   count             = var.use_acm ? 1 : 0
 }
 
+// Ingress traffic to web port 3026 is allowed from all directions
+resource "aws_security_group_rule" "proxy_ingress_allow_kube" {
+  type              = "ingress"
+  from_port         = 3026
+  to_port           = 3026
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.proxy.id
+}
+
 // Ingress traffic to web port 3080 is allowed from all directions
 resource "aws_security_group_rule" "proxy_ingress_allow_web" {
   type              = "ingress"
@@ -106,11 +116,12 @@ resource "aws_security_group_rule" "proxy_egress_allow_all_traffic_acm" {
 
 // Network load balancer for proxy server
 resource "aws_lb" "proxy" {
-  name               = "${var.cluster_name}-proxy"
-  internal           = false
-  subnets            = aws_subnet.public.*.id
-  load_balancer_type = "network"
-  idle_timeout       = 3600
+  name                              = "${var.cluster_name}-proxy"
+  internal                          = false
+  subnets                           = aws_subnet.public.*.id
+  load_balancer_type                = "network"
+  idle_timeout                      = 3600
+  enable_cross_zone_load_balancing  = true
 
   tags = {
     TeleportCluster = var.cluster_name
@@ -168,6 +179,25 @@ resource "aws_lb_listener" "proxy_tunnel_acm" {
 
   default_action {
     target_group_arn = aws_lb_target_group.proxy_tunnel_acm[0].arn
+    type             = "forward"
+  }
+}
+
+// Proxy is for Kube proxy - jumphost target endpoint.
+resource "aws_lb_target_group" "proxy_kube" {
+  name     = "${var.cluster_name}-proxy-kube"
+  port     = 3026
+  vpc_id   = aws_vpc.teleport.id
+  protocol = "TCP"
+}
+
+resource "aws_lb_listener" "proxy_kube" {
+  load_balancer_arn = aws_lb.proxy.arn
+  port              = "3026"
+  protocol          = "TCP"
+
+  default_action {
+    target_group_arn = aws_lb_target_group.proxy_kube.arn
     type             = "forward"
   }
 }

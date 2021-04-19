@@ -26,9 +26,12 @@ import (
 )
 
 const (
-	// CookieName is a name of the cookie
-	CookieName = "grv_csrf"
-	// HeaderName is the default HTTP request header to inspect
+	// CookieName is the name of the CSRF cookie. It's prefixed with "__Host-" as
+	// an additional defense in depth measure. It makes sure it is sent from a
+	// secure page (HTTPS), won't be sent to subdomains, and the path attribute
+	// is set to /.
+	CookieName = "__Host-grv_csrf"
+	// HeaderName is the default HTTP request header to inspect.
 	HeaderName = "X-CSRF-Token"
 	// tokenLenBytes is CSRF token length in bytes.
 	tokenLenBytes = 32

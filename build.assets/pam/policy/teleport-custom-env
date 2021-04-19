@@ -1,0 +1,3 @@
+account     required    pam_teleport.so test_custom_env
+auth        required    pam_teleport.so 1
+session     required    pam_teleport.so 1

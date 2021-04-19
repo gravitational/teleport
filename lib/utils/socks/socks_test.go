@@ -19,6 +19,7 @@ package socks
 import (
 	"io"
 	"net"
+	"os"
 	"testing"
 
 	"golang.org/x/net/proxy"
@@ -30,15 +31,16 @@ import (
 	"gopkg.in/check.v1"
 )
 
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
+
 func TestSocks(t *testing.T) { check.TestingT(t) }
 
 type SOCKSSuite struct{}
 
 var _ = check.Suite(&SOCKSSuite{})
-
-func (s *SOCKSSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (s *SOCKSSuite) TestHandshake(c *check.C) {
 	remoteAddrs := []string{

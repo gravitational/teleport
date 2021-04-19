@@ -26,6 +26,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -42,14 +43,15 @@ import (
 	"gopkg.in/check.v1"
 )
 
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
+
 type ServiceTestSuite struct {
 }
 
 var _ = check.Suite(&ServiceTestSuite{})
-
-func (s *ServiceTestSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (s *ServiceTestSuite) TestDebugModeEnv(c *check.C) {
 	c.Assert(isDebugMode(), check.Equals, false)
@@ -64,13 +66,6 @@ func (s *ServiceTestSuite) TestDebugModeEnv(c *check.C) {
 }
 
 func (s *ServiceTestSuite) TestSelfSignedHTTPS(c *check.C) {
-	fileExists := func(fp string) bool {
-		_, err := os.Stat(fp)
-		if err != nil && os.IsNotExist(err) {
-			return false
-		}
-		return true
-	}
 	cfg := &Config{
 		DataDir:  c.MkDir(),
 		Hostname: "example.com",
@@ -79,8 +74,8 @@ func (s *ServiceTestSuite) TestSelfSignedHTTPS(c *check.C) {
 	err := initSelfSignedHTTPSCert(cfg)
 	c.Assert(err, check.IsNil)
 	c.Assert(cfg.Proxy.KeyPairs, check.HasLen, 1)
-	c.Assert(fileExists(cfg.Proxy.KeyPairs[0].Certificate), check.Equals, true)
-	c.Assert(fileExists(cfg.Proxy.KeyPairs[0].PrivateKey), check.Equals, true)
+	c.Assert(utils.FileExists(cfg.Proxy.KeyPairs[0].Certificate), check.Equals, true)
+	c.Assert(utils.FileExists(cfg.Proxy.KeyPairs[0].PrivateKey), check.Equals, true)
 }
 
 func TestMonitor(t *testing.T) {

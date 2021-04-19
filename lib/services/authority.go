@@ -33,9 +33,18 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jonboulle/clockwork"
+
+	"github.com/gravitational/trace"
 )
+
+// CertAuthoritiesEquivalent checks if a pair of certificate authority resources are equivalent.
+// This differs from normal equality only in that resource IDs are ignored.
+func CertAuthoritiesEquivalent(lhs, rhs CertAuthority) bool {
+	return cmp.Equal(lhs, rhs, cmpopts.IgnoreFields(types.Metadata{}, "ID"))
+}
 
 // NewJWTAuthority creates and returns a services.CertAuthority with a new
 // key pair.
@@ -244,6 +253,8 @@ type UserCertParams struct {
 	TTL time.Duration
 	// Username is teleport username
 	Username string
+	// Impersonator is set when a user requests certificate for another user
+	Impersonator string
 	// AllowedLogins is a list of SSH principals
 	AllowedLogins []string
 	// PermitX11Forwarding permits X11 forwarding for this cert
@@ -265,20 +276,20 @@ type UserCertParams struct {
 	// ActiveRequests tracks privilege escalation requests applied during
 	// certificate construction.
 	ActiveRequests RequestIDs
-	// MFAVerified is set when these cert parameters were provided by the auth
-	// server immediately after an MFA check.
-	MFAVerified bool
+	// MFAVerified is the UUID of an MFA device when this Identity was
+	// confirmed immediately after an MFA check.
+	MFAVerified string
 	// ClientIP is an IP of the client to embed in the certificate.
 	ClientIP string
 }
 
 // Check checks the user certificate parameters
-func (c UserCertParams) Check() error {
+func (c *UserCertParams) CheckAndSetDefaults() error {
 	if len(c.PrivateCASigningKey) == 0 || c.CASigningAlg == "" {
 		return trace.BadParameter("PrivateCASigningKey and CASigningAlg are required")
 	}
 	if c.TTL < defaults.MinCertDuration {
-		return trace.BadParameter("TTL can't be less than %v", defaults.MinCertDuration)
+		c.TTL = defaults.MinCertDuration
 	}
 	if len(c.AllowedLogins) == 0 {
 		return trace.BadParameter("AllowedLogins are required")
@@ -302,7 +313,6 @@ func CertPoolFromCertAuthorities(cas []CertAuthority) (*x509.CertPool, error) {
 			}
 			certPool.AddCert(cert)
 		}
-		return certPool, nil
 	}
 	return certPool, nil
 }
@@ -476,23 +486,26 @@ func UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (CertAuthority,
 }
 
 // MarshalCertAuthority marshals the CertAuthority resource to JSON.
-func MarshalCertAuthority(ca CertAuthority, opts ...MarshalOption) ([]byte, error) {
+func MarshalCertAuthority(certAuthority CertAuthority, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	switch authority := ca.(type) {
+	switch certAuthority := certAuthority.(type) {
 	case *CertAuthorityV2:
+		if version := certAuthority.GetVersion(); version != V2 {
+			return nil, trace.BadParameter("mismatched certificate authority version %v and type %T", version, certAuthority)
+		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
-			copy := *authority
+			copy := *certAuthority
 			copy.SetResourceID(0)
-			authority = &copy
+			certAuthority = &copy
 		}
-		return utils.FastMarshal(authority)
+		return utils.FastMarshal(certAuthority)
 	default:
-		return nil, trace.BadParameter("unrecognized certificate authority version %T", ca)
+		return nil, trace.BadParameter("unrecognized certificate authority version %T", certAuthority)
 	}
 }

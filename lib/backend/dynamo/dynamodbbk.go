@@ -300,7 +300,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 
 	// Enable auto scaling if requested.
 	if b.Config.EnableAutoScaling {
-		if err := SetAutoScaling(ctx, applicationautoscaling.New(b.session), b.TableName, AutoScalingParams{
+		if err := SetAutoScaling(ctx, applicationautoscaling.New(b.session), GetTableID(b.TableName), AutoScalingParams{
 			ReadMinCapacity:  b.Config.ReadMinCapacity,
 			ReadMaxCapacity:  b.Config.ReadMaxCapacity,
 			ReadTargetValue:  b.Config.ReadTargetValue,

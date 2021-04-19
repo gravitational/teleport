@@ -131,12 +131,12 @@ func ReadConfigFile(cliConfigPath string) (*FileConfig, error) {
 	// --config tells us to use a specific conf. file:
 	if cliConfigPath != "" {
 		configFilePath = cliConfigPath
-		if !fileExists(configFilePath) {
-			return nil, trace.Errorf("file not found: %s", configFilePath)
+		if !utils.FileExists(configFilePath) {
+			return nil, trace.NotFound("file %s is not found", configFilePath)
 		}
 	}
 	// default config doesn't exist? quietly return:
-	if !fileExists(configFilePath) {
+	if !utils.FileExists(configFilePath) {
 		log.Info("not using a config file")
 		return nil, nil
 	}
@@ -401,6 +401,16 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 	default:
 		return trace.BadParameter("unsupported logger severity: %q", loggerConfig.Severity)
 	}
+
+	formatter := &textFormatter{
+		LogFormat:    loggerConfig.Format,
+		EnableColors: trace.IsTerminal(os.Stderr),
+	}
+	err := formatter.CheckAndSetDefaults()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	logger.Formatter = formatter
 	return nil
 }
 
@@ -569,10 +579,10 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	for _, p := range fc.Proxy.KeyPairs {
 		// Check that the certificate exists on disk. This exists to provide the
 		// user a sensible error message.
-		if !fileExists(p.PrivateKey) {
+		if !utils.FileExists(p.PrivateKey) {
 			return trace.Errorf("https private key does not exist: %s", p.PrivateKey)
 		}
-		if !fileExists(p.Certificate) {
+		if !utils.FileExists(p.Certificate) {
 			return trace.Errorf("https cert does not exist: %s", p.Certificate)
 		}
 
@@ -608,7 +618,8 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	// apply kubernetes proxy config, by default kube proxy is disabled
-	legacyKube, newKube := fc.Proxy.Kube.Configured() && fc.Proxy.Kube.Enabled(), fc.Proxy.KubeAddr != ""
+	legacyKube := fc.Proxy.Kube.Configured() && fc.Proxy.Kube.Enabled()
+	newKube := fc.Proxy.KubeAddr != "" || len(fc.Proxy.KubePublicAddr) > 0
 	switch {
 	case legacyKube && !newKube:
 		cfg.Proxy.Kube.Enabled = true
@@ -634,14 +645,23 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		// proxy_service.kube_listen_addr) is only relevant in the config file
 		// format. Under the hood, we use the same cfg.Proxy.Kube field to
 		// enable it.
+		if len(fc.Proxy.KubePublicAddr) > 0 && fc.Proxy.KubeAddr == "" {
+			return trace.BadParameter("kube_listen_addr must be set when kube_public_addr is set")
+		}
 		cfg.Proxy.Kube.Enabled = true
 		addr, err := utils.ParseHostPortAddr(fc.Proxy.KubeAddr, int(defaults.KubeListenPort))
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.Kube.ListenAddr = *addr
+
+		publicAddrs, err := utils.AddrsFromStrings(fc.Proxy.KubePublicAddr, defaults.KubeListenPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.Kube.PublicAddrs = publicAddrs
 	case legacyKube && newKube:
-		return trace.BadParameter("proxy_service should either set kube_listen_addr or kubernetes.enabled, not both; keep kubernetes.enabled if you don't enable kubernetes_service, or keep kube_listen_addr otherwise")
+		return trace.BadParameter("proxy_service should either set kube_listen_addr/kube_public_addr or kubernetes.enabled, not both; keep kubernetes.enabled if you don't enable kubernetes_service, or keep kube_listen_addr otherwise")
 	case !legacyKube && !newKube:
 		// Nothing enabled, this is just for completeness.
 	}
@@ -678,7 +698,7 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 }
 
 // applySSHConfig applies file configuration for the "ssh_service" section.
-func applySSHConfig(fc *FileConfig, cfg *service.Config) error {
+func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	if fc.SSH.ListenAddress != "" {
 		addr, err := utils.ParseHostPortAddr(fc.SSH.ListenAddress, int(defaults.SSHServerListenPort))
 		if err != nil {
@@ -738,6 +758,13 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	if fc.SSH.BPF != nil {
 		cfg.SSH.BPF = fc.SSH.BPF.Parse()
+	}
+
+	if proxyAddr := os.Getenv(defaults.TunnelPublicAddrEnvar); proxyAddr != "" {
+		cfg.SSH.ProxyReverseTunnelFallbackAddr, err = utils.ParseHostPortAddr(proxyAddr, defaults.SSHProxyTunnelListenPort)
+		if err != nil {
+			return trace.Wrap(err, "invalid reverse tunnel address format %q", proxyAddr)
+		}
 	}
 
 	return nil
@@ -828,6 +855,10 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 			AWS: service.DatabaseAWS{
 				Region: database.AWS.Region,
 			},
+			GCP: service.DatabaseGCP{
+				ProjectID:  database.GCP.ProjectID,
+				InstanceID: database.GCP.InstanceID,
+			},
 		}
 		if err := db.Check(); err != nil {
 			return trace.Wrap(err)
@@ -867,6 +898,7 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 		// Add the application to the list of proxied applications.
 		app := service.App{
 			Name:               application.Name,
+			Description:        application.Description,
 			URI:                application.URI,
 			PublicAddr:         application.PublicAddr,
 			StaticLabels:       staticLabels,
@@ -1440,14 +1472,6 @@ func replaceHost(addr *utils.NetAddr, newHost string) {
 		log.Errorf("failed parsing address: '%v'", addr.Addr)
 	}
 	addr.Addr = net.JoinHostPort(newHost, port)
-}
-
-func fileExists(fp string) bool {
-	_, err := os.Stat(fp)
-	if err != nil && os.IsNotExist(err) {
-		return false
-	}
-	return true
 }
 
 // validateRoles makes sure that value upassed to --roles flag is valid

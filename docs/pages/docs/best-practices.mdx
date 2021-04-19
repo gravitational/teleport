@@ -1,0 +1,182 @@
+---
+title: Docs Best Practices
+---
+
+## Content
+
+**Keep it simple**
+
+Read the book [On Writing Well](https://www.amazon.com/Writing-Well-Classic-Guide-Nonfiction/dp/0060891548).
+
+**Write for the target audience**
+
+Do not overload getting started guides with content and complex terminology, focus
+on benefits to the user. Do not add architecture diagrams in getting started guides.
+Likewise, do not do demos in architecture articles.
+
+**Keep guides self-contained**
+
+All guides should have everything that is needed for a reader
+to accomplish their goal. This sometimes leads to duplication.
+Use include directives for repeated content. Remove backslash before the exclamation marks for it to work:
+
+```bash
+(\!CHANGELOG.md\!)
+```
+
+Filepath should be relative to the repository root folder.
+
+## Diagrams
+
+Use [Teleport's lucidchart library](https://app.lucidchart.com/lucidchart/dfcf1f4a-5cf0-4758-8ebb-f6ea86900aba/edit)
+to create diagrams with a consistent design language.
+
+## Videos
+
+Mac users should use Quicktime's `Cmd-Shift-5` to record a small part of the screen:
+
+![quicktime](../../img/docs/quicktime.webp)
+
+**Convert Mov to MP4 and WebM**
+
+Quicktime outputs large `.mov` files. Use `ffmpeg` to convert them into `mp4` and `webm`
+web-friendly formats:
+
+```bash
+# create MP4
+ffmpeg -i input.mov -b:v 0 -crf 25 output.mp4
+# create WebM
+ffmpeg -i input.mov -c vp9 -b:v 0 -crf 41 output.webm
+```
+
+**Embed videos**
+
+```html
+<video autoPlay loop muted playsInline>
+  <source src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.mp4" type="video/mp4" />
+  <source src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.webm" type="video/webm" />
+Your browser does not support the video tag.
+</video>
+```
+
+To test videos locally, add them to the `../img/video` folder of the docs.
+For production, upload to the website and refer from there:
+
+```html
+<video autoplay loop muted playsinline>
+  <source src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.mp4" type="video/mp4">
+  <source src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.webm" type="video/webm">
+Your browser does not support the video tag.
+</video>
+```
+
+## Custom syntax used in the docs
+
+### Varibles
+
+To prevent updating links and code examples after each release, we can replace them with
+variables. This way, it will be enough to update them in one place.
+
+Variables are stored in the `docs/config.json` file under the key `variables`.
+Variables can be nested inside the config.
+
+To insert variabe to the page use `(\= path.to.variable \=)` syntax
+(remove backslashes in actual code).
+
+Variables will be linted on CI. If the variable didn't exist in the config, it would cause an error.
+
+### Includes
+
+To prevent content duplication, it may be useful to include code examples or other
+MDX files inside the current page. To do it use `(\! path-to-file.mdx \!)` syntax (remove
+backslashes in actual code).
+
+Paths are resolved from the root of the repository.
+
+Includes will only work in these two cases:
+
+1. Include surrounded by newlines. E. g.:
+
+   ```md
+   Some text.
+
+   (\! include.mdx \!)
+
+   Some other text.
+   ```
+
+   If the include is an `mdx` file, it will be parsed and rendered as a markdown. In other cases 
+   it will be included as-is.
+
+2. Include inside the code blocks. E. g.:
+
+   ````md
+   ```bash
+   # Code example below
+
+   (\! include.sh \!)
+
+   ```
+   ````
+
+   These will be inserted as-is, even in the case of the `mdx` files.
+
+Includes in any other places will not be resolved and will be left as is.
+
+Includes will be linted on CI. If the file didn't exist in the repository,
+it would cause an error. Wrong placement of includes will also cause errors.
+
+### Image pixel density marker
+
+The browser can't distinguish between retina-ready and not retina-ready images.
+Because of this, screenshots made on the retina screens may look large on the page.
+
+To hint to the browser that the images are meant for retina display, we can add
+the suffix `@Nx` to the image's file name. For example, screenshots made on macOS
+should have the suffix `filename@2x.png`. It will tell the browser to scale images
+down twice to show them in their actual size. Different OSes may require different
+suffixes based on which logical and physical resolutions their screens have. 
+
+### Admonitons
+
+<Admonition title="Admontion title" type="tip">
+ Admontion content.
+</Admonition>
+
+If you want to add admonition like the one above to the page use this syntax:
+
+```jsx
+<Admonition title="Admontion title" type="tip">
+ Admontion content.
+</Admonition>
+```
+
+`type` can be one of the following values: `warning`, `tip`, `note`, `danger`. 
+Different types will result in different colors for the header. Omitting the type
+or using some other value will result in resetting it to the `tip`.
+
+If `title` is omitted, `type` will be used instead as the title value.
+
+### Tabs
+
+<Tabs>
+  <TabItem label="First label">
+    First tab.
+  </TabItem>
+  <TabItem label="Second label">
+    Second tab.
+  </TabItem>
+</Tabs>
+
+To inser tabs block like the one above use this syntax:
+
+```jsx
+<Tabs>
+  <TabItem label="First label">
+    First tab.
+  </TabItem>
+  <TabItem label="Second label">
+    Second tab.
+  </TabItem>
+</Tabs>
+```

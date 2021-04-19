@@ -16,21 +16,16 @@ limitations under the License.
 package services
 
 import (
-	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/utils"
 	"gopkg.in/check.v1"
+
+	"github.com/gravitational/teleport/lib/fixtures"
 )
 
 type ResetPasswordTokenSuite struct{}
 
 var _ = check.Suite(&ResetPasswordTokenSuite{})
-
-func (r *ResetPasswordTokenSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (r *ResetPasswordTokenSuite) TestUnmarshal(c *check.C) {
 	created, err := time.Parse(time.RFC3339, "2020-01-14T18:52:39.523076855Z")

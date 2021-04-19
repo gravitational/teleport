@@ -33,5 +33,5 @@ func main() {
 		&common.AppsCommand{},
 		&common.DBCommand{},
 	}
-	common.Run(commands, nil)
+	common.Run(commands)
 }

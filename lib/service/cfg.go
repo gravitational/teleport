@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2020 Gravitational, Inc.
+Copyright 2015-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
+	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -200,6 +201,9 @@ type Config struct {
 
 	// Log optionally specifies the logger
 	Log utils.Logger
+
+	// PluginRegistry allows adding enterprise logic to Teleport services
+	PluginRegistry plugin.Registry
 }
 
 // ApplyToken assigns a given token to all internal services but only if token
@@ -353,7 +357,7 @@ type ProxyConfig struct {
 	SSHPublicAddrs []utils.NetAddr
 
 	// TunnelPublicAddrs is a list of the public addresses the proxy advertises
-	// for the tunnel endpoint. The hosts in in PublicAddr are included in the
+	// for the tunnel endpoint. The hosts in PublicAddr are included in the
 	// list of host principals on the TLS and SSH certificate.
 	TunnelPublicAddrs []utils.NetAddr
 
@@ -499,6 +503,14 @@ type SSHConfig struct {
 
 	// BPF holds BPF configuration for Teleport.
 	BPF *bpf.Config
+
+	// ProxyReverseTunnelFallbackAddr optionall specifies the address of the proxy if reverse tunnel
+	// discovered proxy fails.
+	// This configuration is not exposed directly but can be set from environment via
+	// defaults.ProxyFallbackAddrEnvar.
+	//
+	// See github.com/gravitational/teleport/issues/4141 for details.
+	ProxyReverseTunnelFallbackAddr *utils.NetAddr
 }
 
 // KubeConfig specifies configuration for kubernetes service
@@ -555,12 +567,22 @@ type Database struct {
 	CACert []byte
 	// AWS contains AWS specific settings for RDS/Aurora.
 	AWS DatabaseAWS
+	// GCP contains GCP specific settings for Cloud SQL.
+	GCP DatabaseGCP
 }
 
 // DatabaseAWS contains AWS specific settings for RDS/Aurora databases.
 type DatabaseAWS struct {
 	// Region is the cloud region database is running in when using AWS RDS.
 	Region string
+}
+
+// DatabaseGCP contains GCP specific settings for Cloud SQL databases.
+type DatabaseGCP struct {
+	// ProjectID is the GCP project ID where the database is deployed.
+	ProjectID string
+	// InstanceID is the Cloud SQL instance ID.
+	InstanceID string
 }
 
 // Check validates the database proxy configuration.
@@ -588,6 +610,26 @@ func (d *Database) Check() error {
 				d.Name, err)
 		}
 	}
+	// Validate Cloud SQL specific configuration.
+	switch {
+	case d.GCP.ProjectID != "" && d.GCP.InstanceID == "":
+		return trace.BadParameter("missing Cloud SQL instance ID for database %q", d.Name)
+	case d.GCP.ProjectID == "" && d.GCP.InstanceID != "":
+		return trace.BadParameter("missing Cloud SQL project ID for database %q", d.Name)
+	case d.GCP.ProjectID != "" && d.GCP.InstanceID != "":
+		// Only Postgres Cloud SQL instances currently support IAM authentication.
+		// It's a relatively new feature so we'll be able to enable it once it
+		// expands to MySQL as well:
+		//   https://cloud.google.com/sql/docs/postgres/authentication
+		if d.Protocol != defaults.ProtocolPostgres {
+			return trace.BadParameter("Cloud SQL IAM authentication is currently supported only for PostgreSQL databases, can't use database %q with protocol %q", d.Name, d.Protocol)
+		}
+		// TODO(r0mant): See if we can download it automatically similar to RDS:
+		// https://cloud.google.com/sql/docs/postgres/instance-info#rest-v1beta4
+		if len(d.CACert) == 0 {
+			return trace.BadParameter("missing Cloud SQL instance root certificate for database %q", d.Name)
+		}
+	}
 	return nil
 }
 
@@ -609,6 +651,9 @@ type AppsConfig struct {
 type App struct {
 	// Name of the application.
 	Name string
+
+	// Description is the app description.
+	Description string
 
 	// URI is the internal address of the application.
 	URI string

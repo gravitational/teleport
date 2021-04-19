@@ -27,6 +27,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -38,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/proxy"
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
@@ -566,7 +566,7 @@ func (s *Server) newRemoteClient(systemLogin string) (*ssh.Client, error) {
 	// the correct host. It must occur in the list of principals presented by
 	// the remote server.
 	dstAddr := net.JoinHostPort(s.address, "0")
-	client, err := proxy.NewClientConnWithDeadline(s.targetConn, dstAddr, clientConfig)
+	client, err := apisshutils.NewClientConnWithDeadline(s.targetConn, dstAddr, clientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -712,8 +712,9 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 			Code: events.PortForwardCode,
 		},
 		UserMetadata: events.UserMetadata{
-			Login: s.identityContext.Login,
-			User:  s.identityContext.TeleportUser,
+			Login:        s.identityContext.Login,
+			User:         s.identityContext.TeleportUser,
+			Impersonator: s.identityContext.Impersonator,
 		},
 		ConnectionMetadata: events.ConnectionMetadata{
 			LocalAddr:  s.sconn.LocalAddr().String(),
@@ -1049,8 +1050,9 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 			Type: events.X11ForwardEvent,
 		},
 		UserMetadata: events.UserMetadata{
-			Login: s.identityContext.Login,
-			User:  s.identityContext.TeleportUser,
+			Login:        s.identityContext.Login,
+			User:         s.identityContext.TeleportUser,
+			Impersonator: s.identityContext.Impersonator,
 		},
 		ConnectionMetadata: events.ConnectionMetadata{
 			LocalAddr:  s.sconn.LocalAddr().String(),

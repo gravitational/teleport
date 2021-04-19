@@ -215,7 +215,7 @@ func (m *Memory) Update(ctx context.Context, i backend.Item) (*backend.Lease, er
 }
 
 // Put puts value into backend (creates if it does not
-// exists, updates it otherwise)
+// exist, updates it otherwise)
 func (m *Memory) Put(ctx context.Context, i backend.Item) (*backend.Lease, error) {
 	if len(i.Key) == 0 {
 		return nil, trace.BadParameter("missing parameter key")
@@ -223,6 +223,9 @@ func (m *Memory) Put(ctx context.Context, i backend.Item) (*backend.Lease, error
 	m.Lock()
 	defer m.Unlock()
 	m.removeExpired()
+	if !m.Mirror {
+		i.ID = m.generateID()
+	}
 	event := backend.Event{
 		Type: backend.OpPut,
 		Item: i,
@@ -234,8 +237,8 @@ func (m *Memory) Put(ctx context.Context, i backend.Item) (*backend.Lease, error
 	return m.newLease(i), nil
 }
 
-// PutRange puts range of items into backend (creates if items does not
-// exists, updates it otherwise)
+// PutRange puts range of items into backend (creates if items do not
+// exist, updates it otherwise)
 func (m *Memory) PutRange(ctx context.Context, items []backend.Item) error {
 	for i := range items {
 		if items[i].Key == nil {
@@ -344,6 +347,10 @@ func (m *Memory) KeepAlive(ctx context.Context, lease backend.Lease, expires tim
 	}
 	item := i.(*btreeItem).Item
 	item.Expires = expires
+	if !m.Mirror {
+		// ID is updated on keep alive for consistency with other backends
+		item.ID = m.generateID()
+	}
 	event := backend.Event{
 		Type: backend.OpPut,
 		Item: item,

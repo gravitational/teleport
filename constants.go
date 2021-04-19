@@ -26,22 +26,26 @@ import (
 // The following constants have been moved to /api/constants/constants.go, and are now
 // imported here for backwards compatibility. DELETE IN 7.0.0
 const (
-	Local                      = constants.Local
-	OIDC                       = constants.OIDC
-	SAML                       = constants.SAML
-	Github                     = constants.Github
-	HumanDateFormatSeconds     = constants.HumanDateFormatSeconds
-	DefaultImplicitRole        = constants.DefaultImplicitRole
-	APIDomain                  = constants.APIDomain
-	CertificateFormatStandard  = constants.CertificateFormatStandard
-	DurationNever              = constants.DurationNever
-	EnhancedRecordingMinKernel = constants.EnhancedRecordingMinKernel
-	EnhancedRecordingCommand   = constants.EnhancedRecordingCommand
-	EnhancedRecordingDisk      = constants.EnhancedRecordingDisk
-	EnhancedRecordingNetwork   = constants.EnhancedRecordingNetwork
-	KeepAliveNode              = constants.KeepAliveNode
-	KeepAliveApp               = constants.KeepAliveApp
-	KeepAliveDatabase          = constants.KeepAliveDatabase
+	Local                        = constants.Local
+	OIDC                         = constants.OIDC
+	SAML                         = constants.SAML
+	Github                       = constants.Github
+	HumanDateFormatSeconds       = constants.HumanDateFormatSeconds
+	DefaultImplicitRole          = constants.DefaultImplicitRole
+	APIDomain                    = constants.APIDomain
+	CertificateFormatStandard    = constants.CertificateFormatStandard
+	DurationNever                = constants.DurationNever
+	EnhancedRecordingMinKernel   = constants.EnhancedRecordingMinKernel
+	EnhancedRecordingCommand     = constants.EnhancedRecordingCommand
+	EnhancedRecordingDisk        = constants.EnhancedRecordingDisk
+	EnhancedRecordingNetwork     = constants.EnhancedRecordingNetwork
+	KeepAliveNode                = constants.KeepAliveNode
+	KeepAliveApp                 = constants.KeepAliveApp
+	KeepAliveDatabase            = constants.KeepAliveDatabase
+	WindowsOS                    = constants.WindowsOS
+	LinuxOS                      = constants.LinuxOS
+	DarwinOS                     = constants.DarwinOS
+	UseOfClosedNetworkConnection = constants.UseOfClosedNetworkConnection
 )
 
 // WebAPIVersion is a current webapi version
@@ -260,6 +264,9 @@ const (
 	// ComponentKube is an Kubernetes API gateway.
 	ComponentKube = "kubernetes"
 
+	// ComponentSAML is a SAML service provider.
+	ComponentSAML = "saml"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 
@@ -310,15 +317,6 @@ const (
 
 	// LinuxAdminGID is the ID of the standard adm group on linux
 	LinuxAdminGID = 4
-
-	// LinuxOS is the GOOS constant used for Linux.
-	LinuxOS = "linux"
-
-	// WindowsOS is the GOOS constant used for Microsoft Windows.
-	WindowsOS = "windows"
-
-	// DarwinOS is the GOOS constant for Apple macOS/darwin.
-	DarwinOS = "darwin"
 
 	// DirMaskSharedGroup is the mask for a directory accessible
 	// by the owner and group
@@ -445,6 +443,9 @@ const (
 	// CertExtensionClientIP is used to embed the IP of the client that created
 	// the certificate.
 	CertExtensionClientIP = "client-ip"
+	// CertExtensionImpersonator is set when one user has requested certificates
+	// for another user
+	CertExtensionImpersonator = "impersonator"
 )
 
 const (
@@ -469,6 +470,16 @@ const MaxEnvironmentFileLines = 1000
 // typically only enforced against resources that are likely to arbitrarily grow (e.g. PluginData).
 const MaxResourceSize = 1000000
 
+// MaxHTTPRequestSize is the maximum accepted size (in bytes) of the body of
+// a received HTTP request.  This limit is meant to be used with utils.ReadAtMost
+// to prevent resource exhaustion attacks.
+const MaxHTTPRequestSize = 10 * 1024 * 1024
+
+// MaxHTTPResponseSize is the maximum accepted size (in bytes) of the body of
+// a received HTTP response.  This limit is meant to be used with utils.ReadAtMost
+// to prevent resource exhaustion attacks.
+const MaxHTTPResponseSize = 10 * 1024 * 1024
+
 const (
 	// CertificateFormatOldSSH is used to make Teleport interoperate with older
 	// versions of OpenSSH.
@@ -483,6 +494,9 @@ const (
 	// TraitInternalPrefix is the role variable prefix that indicates it's for
 	// local accounts.
 	TraitInternalPrefix = "internal"
+
+	// TraitExternalPrefix is the role variable prefix that indicates the data comes from an external identity provider.
+	TraitExternalPrefix = "external"
 
 	// TraitLogins is the name the role variable used to store
 	// allowed logins.
@@ -543,8 +557,25 @@ const SCP = "scp"
 const Root = "root"
 
 // AdminRoleName is the name of the default admin role for all local users if
-// another role is not explicitly assigned (Enterprise only).
+// another role is not explicitly assigned
 const AdminRoleName = "admin"
+
+const (
+	// PresetEditorRoleName is a name of a preset role that allows
+	// editing cluster configuration.
+	PresetEditorRoleName = "editor"
+
+	// PresetAccessRoleName is a name of a preset role that allows
+	// accessing cluster resources.
+	PresetAccessRoleName = "access"
+
+	// PresetAuditorRoleName is a name of a preset role that allows
+	// reading cluster events and playing back session records.
+	PresetAuditorRoleName = "auditor"
+)
+
+// OSSMigratedV6 is a label to mark migrated OSS users and resources
+const OSSMigratedV6 = "migrate-v6.0"
 
 // MinClientVersion is the minimum client version required by the server.
 const MinClientVersion = "3.0.0"
@@ -617,10 +648,6 @@ const (
 )
 
 const (
-	// UseOfClosedNetworkConnection is a special string some parts of
-	// go standard lib are using that is the only way to identify some errors
-	UseOfClosedNetworkConnection = "use of closed network connection"
-
 	// NodeIsAmbiguous serves as an identifying error string indicating that
 	// the proxy subsystem found multiple nodes matching the specified hostname.
 	NodeIsAmbiguous = "err-node-is-ambiguous"
@@ -695,3 +722,7 @@ const (
 
 // UserSingleUseCertTTL is a TTL for per-connection user certificates.
 const UserSingleUseCertTTL = time.Minute
+
+// StandardHTTPSPort is the default port used for the https URI scheme,
+// cf. RFC 7230 § 2.7.2.
+const StandardHTTPSPort = 443

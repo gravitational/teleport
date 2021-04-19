@@ -186,22 +186,26 @@ func UnmarshalClusterConfig(bytes []byte, opts ...MarshalOption) (ClusterConfig,
 }
 
 // MarshalClusterConfig marshals the ClusterConfig resource to JSON.
-func MarshalClusterConfig(c ClusterConfig, opts ...MarshalOption) ([]byte, error) {
+func MarshalClusterConfig(clusterConfig ClusterConfig, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	switch resource := c.(type) {
+
+	switch clusterConfig := clusterConfig.(type) {
 	case *ClusterConfigV3:
+		if version := clusterConfig.GetVersion(); version != V3 {
+			return nil, trace.BadParameter("mismatched cluster config version %v and type %T", version, clusterConfig)
+		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
-			copy := *resource
+			copy := *clusterConfig
 			copy.SetResourceID(0)
-			resource = &copy
+			clusterConfig = &copy
 		}
-		return utils.FastMarshal(resource)
+		return utils.FastMarshal(clusterConfig)
 	default:
-		return nil, trace.BadParameter("unrecognized resource version %T", c)
+		return nil, trace.BadParameter("unrecognized cluster config version %T", clusterConfig)
 	}
 }

@@ -6,11 +6,12 @@ Great for getting started with Teleport.
 
 ## Getting Started
 
-Install Teleport in a separate namespace and provision a web certificate using Letsencrypt:
+Install Teleport in a separate namespace and provision a web certificate using
+Let's Encrypt:
 
 ```bash
-$ helm install teleport-cluster \
-    --set acmeEnabled=true \
+$ helm install teleport/teleport-cluster \
+    --set acme=true \
     --set acmeEmail=alice@example.com \
     --set clusterName=teleport.example.com\
     --create-namespace \
@@ -37,7 +38,7 @@ Check https://goteleport.com/teleport/docs for more details.
 | `teleportVersionOverride` | Teleport version                                                            | Current stable version                                 | no       |
 | `image`                   | OSS Docker image                                                            | `quay.io/gravitational/teleport`                       | no       |
 | `enterpriseImage`         | Enterprise Docker image                                                     | `quay.io/gravitational/teleport-ent`                   | no       |
-| `acmeEnabled`             | Enable ACME support in Teleport (Letsencrypt.org)                           | `false`                                                | no       |
+| `acme`             | Enable ACME support in Teleport (Letsencrypt.org)                           | `false`                                                | no       |
 | `acmeEmail`               | Email to use for ACME certificates                                          |                                                        | no       |
 | `acmeURI`                 | ACME server to use for certificates                                         | `https://acme-v02.api.letsencrypt.org/directory`       | no       |
 | `labels.[name]`           | Key-value pairs, for example `--labels.env=local --labels.region=us-west-1` |                                                        | no       |

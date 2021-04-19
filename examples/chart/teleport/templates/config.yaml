@@ -172,10 +172,10 @@ data:
 {{- end }}
 
 {{- if .Values.config.teleport.auth_service.session_control_timeout }}
-     session_control_timeout: {{ .Values.config.teleport.auth_service.session_control_timeout }}
+      session_control_timeout: {{ .Values.config.teleport.auth_service.session_control_timeout }}
 {{- end }}
 {{- if .Values.config.teleport.auth_service.session_recording }}
-     session_recording: {{ .Values.config.teleport.auth_service.session_recording }}
+      session_recording: {{ .Values.config.teleport.auth_service.session_recording }}
 {{- end }}
       public_addr: {{ .Values.config.auth_public_address }}:{{ .Values.service.ports.authssh.port }}
       cluster_name: {{ .Values.config.public_address }}

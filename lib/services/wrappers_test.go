@@ -20,9 +20,9 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/lib/utils"
 	"gopkg.in/check.v1"
+
+	"github.com/gravitational/teleport/api/types/wrappers"
 )
 
 type WrappersSuite struct{}
@@ -30,10 +30,6 @@ type WrappersSuite struct{}
 var _ = check.Suite(&WrappersSuite{})
 
 func TestWrappers(t *testing.T) { check.TestingT(t) }
-
-func (w *WrappersSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (w *WrappersSuite) TestUnmarshalBackwards(c *check.C) {
 	var traits wrappers.Traits

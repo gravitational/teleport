@@ -22,18 +22,21 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"fmt"
 	"math/big"
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 )
 
 // ParseSigningKeyStore parses signing key store from PEM encoded key pair
 func ParseSigningKeyStorePEM(keyPEM, certPEM string) (*SigningKeyStore, error) {
-	_, err := ParseCertificatePEM([]byte(certPEM))
+	_, err := tlsutils.ParseCertificatePEM([]byte(certPEM))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -100,19 +103,6 @@ func GenerateSelfSignedSigningCert(entity pkix.Name, dnsNames []string, ttl time
 	return keyPEM, certPEM, nil
 }
 
-// ParseCertificatePEM parses PEM-encoded certificate
-func ParseCertificatePEM(bytes []byte) (*x509.Certificate, error) {
-	block, _ := pem.Decode(bytes)
-	if block == nil {
-		return nil, trace.BadParameter("expected PEM-encoded block")
-	}
-	cert, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return nil, trace.BadParameter(err.Error())
-	}
-	return cert, nil
-}
-
 // ParsePrivateKeyPEM parses PEM-encoded private key
 func ParsePrivateKeyPEM(bytes []byte) (crypto.Signer, error) {
 	block, _ := pem.Decode(bytes)
@@ -144,6 +134,30 @@ func ParsePrivateKeyDER(der []byte) (crypto.Signer, error) {
 	}
 
 	return nil, trace.BadParameter("unsupported private key type")
+}
+
+// VerifyCertificateExpiry checks the certificate's expiration status.
+func VerifyCertificateExpiry(c *x509.Certificate, clock clockwork.Clock) error {
+	if clock == nil {
+		clock = clockwork.NewRealClock()
+	}
+	now := clock.Now()
+
+	if now.Before(c.NotBefore) {
+		return x509.CertificateInvalidError{
+			Cert:   c,
+			Reason: x509.Expired,
+			Detail: fmt.Sprintf("current time %s is before %s", now.Format(time.RFC3339), c.NotBefore.Format(time.RFC3339)),
+		}
+	}
+	if now.After(c.NotAfter) {
+		return x509.CertificateInvalidError{
+			Cert:   c,
+			Reason: x509.Expired,
+			Detail: fmt.Sprintf("current time %s is after %s", now.Format(time.RFC3339), c.NotAfter.Format(time.RFC3339)),
+		}
+	}
+	return nil
 }
 
 // VerifyCertificateChain reads in chain of certificates and makes sure the

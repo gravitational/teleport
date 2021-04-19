@@ -7,14 +7,15 @@ package secret
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"strings"
 
-	"golang.org/x/crypto/nacl/secretbox"
 	"github.com/mailgun/lemma/random"
 	"github.com/mailgun/metrics"
+	"golang.org/x/crypto/nacl/secretbox"
 )
 
 // SecretSevice is an interface for encrypting/decrypting and authenticating messages.
@@ -77,20 +78,18 @@ type Service struct {
 
 // New returns a new Service. Config can not be nil.
 func New(config *Config) (SecretService, error) {
-
 	var err error
 	var keyBytes *[SecretKeyLength]byte
 	var metricsClient metrics.Client
 
-	// read in key from keypath or if not given, try getting them from key bytes.
+	// Read in key from KeyPath or if not given, try getting them from KeyBytes.
 	if config.KeyPath != "" {
-		keyBytes, err = ReadKeyFromDisk(config.KeyPath)
-		if err != nil {
+		if keyBytes, err = ReadKeyFromDisk(config.KeyPath); err != nil {
 			return nil, err
 		}
 	} else {
 		if config.KeyBytes == nil {
-			return nil, fmt.Errorf("No key bytes provided.")
+			return nil, errors.New("No key bytes provided.")
 		}
 		keyBytes = config.KeyBytes
 	}

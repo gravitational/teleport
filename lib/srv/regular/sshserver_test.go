@@ -93,6 +93,7 @@ var _ = Suite(&SrvSuite{})
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise it will run tests as normal.
 func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
 	if len(os.Args) == 2 &&
 		(os.Args[1] == teleport.ExecSubCommand || os.Args[1] == teleport.ForwardSubCommand) {
 		srv.RunAndExit(os.Args[1])
@@ -101,10 +102,6 @@ func TestMain(m *testing.M) {
 
 	code := m.Run()
 	os.Exit(code)
-}
-
-func (s *SrvSuite) SetUpSuite(c *C) {
-	utils.InitLoggerForTests(testing.Verbose())
 }
 
 const hostID = "00000000-0000-0000-0000-000000000000"
@@ -278,7 +275,7 @@ func (s *SrvSuite) TestAdvertiseAddr(c *C) {
 	var (
 		advIP      = utils.MustParseAddr("10.10.10.1")
 		advIPPort  = utils.MustParseAddr("10.10.10.1:1234")
-		advBadAddr = utils.MustParseAddr("localhost:badport")
+		advBadAddr = &utils.NetAddr{Addr: "localhost:badport", AddrNetwork: "tcp"}
 	)
 	// IP-only advertiseAddr should use the port from srvAddress.
 	s.srv.setAdvertiseAddr(advIP)
@@ -303,7 +300,7 @@ func (s *SrvSuite) TestAgentForwardPermission(c *C) {
 	ctx := context.Background()
 	// make sure the role does not allow agent forwarding
 	roleName := services.RoleNameForUser(s.user)
-	role, err := s.server.Auth().GetRole(roleName)
+	role, err := s.server.Auth().GetRole(ctx, roleName)
 	c.Assert(err, IsNil)
 	roleOptions := role.GetOptions()
 	roleOptions.ForwardAgent = services.NewBool(false)
@@ -333,7 +330,7 @@ func (s *SrvSuite) TestMaxSessions(c *C) {
 	ctx := context.Background()
 	// make sure the role does not allow agent forwarding
 	roleName := services.RoleNameForUser(s.user)
-	role, err := s.server.Auth().GetRole(roleName)
+	role, err := s.server.Auth().GetRole(ctx, roleName)
 	c.Assert(err, IsNil)
 	roleOptions := role.GetOptions()
 	roleOptions.MaxSessions = maxSessions
@@ -377,7 +374,7 @@ func (s *SrvSuite) TestOpenExecSessionSetsSession(c *C) {
 func (s *SrvSuite) TestAgentForward(c *C) {
 	ctx := context.Background()
 	roleName := services.RoleNameForUser(s.user)
-	role, err := s.server.Auth().GetRole(roleName)
+	role, err := s.server.Auth().GetRole(ctx, roleName)
 	c.Assert(err, IsNil)
 	roleOptions := role.GetOptions()
 	roleOptions.ForwardAgent = services.NewBool(true)

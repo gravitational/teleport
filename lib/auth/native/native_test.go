@@ -18,12 +18,12 @@ package native
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/test"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -32,6 +32,11 @@ import (
 	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 func TestNative(t *testing.T) { check.TestingT(t) }
 
@@ -42,8 +47,6 @@ type NativeSuite struct {
 var _ = check.Suite(&NativeSuite{})
 
 func (s *NativeSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	fakeClock := clockwork.NewFakeClockAt(time.Date(2016, 9, 8, 7, 6, 5, 0, time.UTC))
 
 	a := New(
@@ -178,11 +181,8 @@ func (s *NativeSuite) TestBuildPrincipals(c *check.C) {
 			})
 		c.Assert(err, check.IsNil)
 
-		publicKey, _, _, _, err := ssh.ParseAuthorizedKey(hostCertificateBytes)
+		hostCertificate, err := sshutils.ParseCertificate(hostCertificateBytes)
 		c.Assert(err, check.IsNil)
-
-		hostCertificate, ok := publicKey.(*ssh.Certificate)
-		c.Assert(ok, check.Equals, true)
 
 		c.Assert(hostCertificate.ValidPrincipals, check.DeepEquals, tt.outValidPrincipals)
 	}
@@ -228,15 +228,12 @@ func (s *NativeSuite) TestUserCertCompatibility(c *check.C) {
 		})
 		c.Assert(err, check.IsNil, comment)
 
-		publicKey, _, _, _, err := ssh.ParseAuthorizedKey(userCertificateBytes)
+		userCertificate, err := sshutils.ParseCertificate(userCertificateBytes)
 		c.Assert(err, check.IsNil, comment)
-
-		userCertificate, ok := publicKey.(*ssh.Certificate)
-		c.Assert(ok, check.Equals, true, comment)
 		// Check that the signature algorithm is correct.
 		c.Assert(userCertificate.Signature.Format, check.Equals, defaults.CASignatureAlgorithm)
 		// check if we added the roles extension
-		_, ok = userCertificate.Extensions[teleport.CertExtensionTeleportRoles]
+		_, ok := userCertificate.Extensions[teleport.CertExtensionTeleportRoles]
 		c.Assert(ok, check.Equals, tt.outHasRoles, comment)
 	}
 }

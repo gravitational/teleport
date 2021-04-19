@@ -22,7 +22,6 @@ import (
 	"encoding/base64"
 	"encoding/xml"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
@@ -54,7 +53,7 @@ func ValidateSAMLConnector(sc SAMLConnector) error {
 			return trace.BadParameter("status code %v when fetching from %q", resp.StatusCode, sc.GetEntityDescriptorURL())
 		}
 		defer resp.Body.Close()
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -89,7 +88,7 @@ func ValidateSAMLConnector(sc SAMLConnector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		sc.SetSigningKeyPair(&SigningKeyPair{
+		sc.SetSigningKeyPair(&AsymmetricKeyPair{
 			PrivateKey: string(keyPEM),
 			Cert:       string(certPEM),
 		})
@@ -140,11 +139,11 @@ func GetSAMLServiceProvider(sc SAMLConnector, clock clockwork.Clock) (*saml2.SAM
 			for _, samlCert := range kd.KeyInfo.X509Data.X509Certificates {
 				certData, err := base64.StdEncoding.DecodeString(strings.TrimSpace(samlCert.Data))
 				if err != nil {
-					return nil, trace.Wrap(err)
+					return nil, trace.Wrap(err, "failed to decode certificate defined in entity_descriptor")
 				}
 				cert, err := x509.ParseCertificate(certData)
 				if err != nil {
-					return nil, trace.Wrap(err, "failed to parse certificate in metadata")
+					return nil, trace.Wrap(err, "failed to parse certificate defined in entity_descriptor")
 				}
 				certStore.Roots = append(certStore.Roots, cert)
 			}
@@ -154,7 +153,7 @@ func GetSAMLServiceProvider(sc SAMLConnector, clock clockwork.Clock) (*saml2.SAM
 	if sc.GetCert() != "" {
 		cert, err := tlsca.ParseCertificatePEM([]byte(sc.GetCert()))
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "failed to parse certificate defined in cert")
 		}
 		certStore.Roots = append(certStore.Roots, cert)
 	}
@@ -162,9 +161,21 @@ func GetSAMLServiceProvider(sc SAMLConnector, clock clockwork.Clock) (*saml2.SAM
 		return nil, trace.BadParameter("no identity provider certificate provided, either set certificate as a parameter or via entity_descriptor")
 	}
 
-	keyStore, err := utils.ParseSigningKeyStorePEM(sc.GetSigningKeyPair().PrivateKey, sc.GetSigningKeyPair().Cert)
+	signingKeyStore, err := utils.ParseSigningKeyStorePEM(sc.GetSigningKeyPair().PrivateKey, sc.GetSigningKeyPair().Cert)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "failed to parse certificate defined in signing_key_pair")
+	}
+
+	// The encryption keystore here is defaulted to the value of the signing keystore
+	// if no separate assertion decryption keys are provided. We do this here to initialize
+	// the variable but if set to nil, gosaml2 will do this internally anyway.
+	encryptionKeyStore := signingKeyStore
+	encryptionKeyPair := sc.GetEncryptionKeyPair()
+	if encryptionKeyPair != nil {
+		encryptionKeyStore, err = utils.ParseSigningKeyStorePEM(encryptionKeyPair.PrivateKey, encryptionKeyPair.Cert)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to parse certificate defined in assertion_key_pair")
+		}
 	}
 
 	sp := &saml2.SAMLServiceProvider{
@@ -176,13 +187,17 @@ func GetSAMLServiceProvider(sc SAMLConnector, clock clockwork.Clock) (*saml2.SAM
 		SignAuthnRequestsCanonicalizer: dsig.MakeC14N11Canonicalizer(),
 		AudienceURI:                    sc.GetAudience(),
 		IDPCertificateStore:            &certStore,
-		SPKeyStore:                     keyStore,
+		SPKeyStore:                     encryptionKeyStore,
+		SPSigningKeyStore:              signingKeyStore,
 		Clock:                          dsig.NewFakeClock(clock),
 		NameIdFormat:                   "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified",
 	}
 
 	// adfs specific settings
-	if sc.GetAudience() == teleport.ADFS {
+	if sc.GetProvider() == teleport.ADFS {
+		log.WithFields(log.Fields{
+			trace.Component: teleport.ComponentSAML,
+		}).Debug("Setting ADFS values.")
 		if sp.SignAuthnRequests {
 			// adfs does not support C14N11, we have to use the C14N10 canonicalizer
 			sp.SignAuthnRequestsCanonicalizer = dsig.MakeC14N10ExclusiveCanonicalizerWithPrefixList(dsig.DefaultPrefix)
@@ -231,9 +246,10 @@ var SAMLConnectorSpecV2Schema = fmt.Sprintf(`{
 		"type": "array",
 		"items": %v
 	  },
-	  "signing_key_pair": %v
+	  "signing_key_pair": %v,
+	  "assertion_key_pair": %v
 	}
-  }`, AttributeMappingSchema, SigningKeyPairSchema)
+  }`, AttributeMappingSchema, SigningKeyPairSchema, SigningKeyPairSchema)
 
 // AttributeMappingSchema is JSON schema for claim mapping
 var AttributeMappingSchema = `{
@@ -309,23 +325,26 @@ func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (SAMLConnector,
 }
 
 // MarshalSAMLConnector marshals the SAMLConnector resource to JSON.
-func MarshalSAMLConnector(c SAMLConnector, opts ...MarshalOption) ([]byte, error) {
+func MarshalSAMLConnector(samlConnector SAMLConnector, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	switch connector := c.(type) {
+	switch samlConnector := samlConnector.(type) {
 	case *SAMLConnectorV2:
+		if version := samlConnector.GetVersion(); version != V2 {
+			return nil, trace.BadParameter("mismatched SAML connector version %v and type %T", version, samlConnector)
+		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
-			copy := *connector
+			copy := *samlConnector
 			copy.SetResourceID(0)
-			connector = &copy
+			samlConnector = &copy
 		}
-		return utils.FastMarshal(connector)
+		return utils.FastMarshal(samlConnector)
 	default:
-		return nil, trace.BadParameter("unrecognized SAMLConnector version %T", c)
+		return nil, trace.BadParameter("unrecognized SAML connector version %T", samlConnector)
 	}
 }

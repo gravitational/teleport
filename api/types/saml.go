@@ -50,9 +50,9 @@ type SAMLConnector interface {
 	// GetIssuer returns issuer
 	GetIssuer() string
 	// GetSigningKeyPair returns signing key pair
-	GetSigningKeyPair() *SigningKeyPair
+	GetSigningKeyPair() *AsymmetricKeyPair
 	// GetSigningKeyPair sets signing key pair
-	SetSigningKeyPair(k *SigningKeyPair)
+	SetSigningKeyPair(k *AsymmetricKeyPair)
 	// Equals returns true if the connectors are identical
 	Equals(other SAMLConnector) bool
 	// GetSSO returns SSO service
@@ -87,6 +87,10 @@ type SAMLConnector interface {
 	GetProvider() string
 	// SetProvider sets the identity provider.
 	SetProvider(string)
+	// GetEncryptionKeyPair returns the key pair for SAML assertions.
+	GetEncryptionKeyPair() *AsymmetricKeyPair
+	// SetEncryptionKeyPair sets the key pair for SAML assertions.
+	SetEncryptionKeyPair(k *AsymmetricKeyPair)
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
@@ -100,20 +104,6 @@ func NewSAMLConnector(name string, spec SAMLConnectorSpecV2) SAMLConnector {
 		},
 		Spec: spec,
 	}
-}
-
-// SAMLConnectorV2 is version 1 resource spec for SAML connector
-type SAMLConnectorV2 struct {
-	// Kind is a resource kind
-	Kind string `json:"kind"`
-	// SubKind is a resource sub kind
-	SubKind string `json:"sub_kind,omitempty"`
-	// Version is version
-	Version string `json:"version"`
-	// Metadata is connector metadata
-	Metadata Metadata `json:"metadata"`
-	// Spec contains connector specification
-	Spec SAMLConnectorSpecV2 `json:"spec"`
 }
 
 // GetVersion returns resource version
@@ -370,13 +360,23 @@ func (o *SAMLConnectorV2) GetTraitMappings() TraitMappingSet {
 }
 
 // GetSigningKeyPair returns signing key pair
-func (o *SAMLConnectorV2) GetSigningKeyPair() *SigningKeyPair {
+func (o *SAMLConnectorV2) GetSigningKeyPair() *AsymmetricKeyPair {
 	return o.Spec.SigningKeyPair
 }
 
 // SetSigningKeyPair sets signing key pair
-func (o *SAMLConnectorV2) SetSigningKeyPair(k *SigningKeyPair) {
+func (o *SAMLConnectorV2) SetSigningKeyPair(k *AsymmetricKeyPair) {
 	o.Spec.SigningKeyPair = k
+}
+
+// GetEncryptionKeyPair returns the key pair for SAML assertions.
+func (o *SAMLConnectorV2) GetEncryptionKeyPair() *AsymmetricKeyPair {
+	return o.Spec.EncryptionKeyPair
+}
+
+// SetEncryptionKeyPair sets the key pair for SAML assertions.
+func (o *SAMLConnectorV2) SetEncryptionKeyPair(k *AsymmetricKeyPair) {
+	o.Spec.EncryptionKeyPair = k
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -407,55 +407,4 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 		}
 	}
 	return nil
-}
-
-// SAMLConnectorSpecV2 specifies configuration for Open ID Connect compatible external
-// identity provider, e.g. google in some organisation
-type SAMLConnectorSpecV2 struct {
-	// Issuer is identity provider issuer
-	Issuer string `json:"issuer"`
-	// SSO is URL of the identity provider SSO service
-	SSO string `json:"sso"`
-	// Cert is identity provider certificate PEM
-	// IDP signs <Response> responses using this certificate
-	Cert string `json:"cert"`
-	// Display controls how this connector is displayed
-	Display string `json:"display"`
-	// AssertionConsumerService is a URL for assertion consumer service
-	// on the service provider (Teleport's side)
-	AssertionConsumerService string `json:"acs"`
-	// Audience uniquely identifies our service provider
-	Audience string `json:"audience"`
-	// SertviceProviderIssuer is the issuer of the service provider (Teleport)
-	ServiceProviderIssuer string `json:"service_provider_issuer"`
-	// EntityDescriptor is XML with descriptor, can be used to supply configuration
-	// parameters in one XML files vs supplying them in the individual elements
-	EntityDescriptor string `json:"entity_descriptor"`
-	// EntityDescriptor points to a URL that supplies a configuration XML.
-	EntityDescriptorURL string `json:"entity_descriptor_url"`
-	// AttriburesToRoles is a list of mappings of attribute statements to roles
-	AttributesToRoles []AttributeMapping `json:"attributes_to_roles"`
-	// SigningKeyPair is x509 key pair used to sign AuthnRequest
-	SigningKeyPair *SigningKeyPair `json:"signing_key_pair,omitempty"`
-	// Provider is the external identity provider.
-	Provider string `json:"provider,omitempty"`
-}
-
-// AttributeMapping is SAML Attribute statement mapping
-// from SAML attribute statements to roles
-type AttributeMapping struct {
-	// Name is attribute statement name
-	Name string `json:"name"`
-	// Value is attribute statement value to match
-	Value string `json:"value"`
-	// Roles is a list of teleport roles to map to
-	Roles []string `json:"roles,omitempty"`
-}
-
-// SigningKeyPair is a key pair used to sign SAML AuthnRequest
-type SigningKeyPair struct {
-	// PrivateKey is PEM encoded x509 private key
-	PrivateKey string `json:"private_key"`
-	// Cert is certificate in OpenSSH authorized keys format
-	Cert string `json:"cert"`
 }

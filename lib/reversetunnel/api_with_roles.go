@@ -19,8 +19,10 @@ package reversetunnel
 import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 // NewTunnelWithRoles returns new authorizing tunnel
@@ -56,7 +58,11 @@ func (t *TunnelWithRoles) GetSites() ([]RemoteSite, error) {
 		}
 		rc, err := t.ap.GetRemoteCluster(cluster.GetName())
 		if err != nil {
-			return nil, trace.Wrap(err)
+			if !trace.IsNotFound(err) {
+				return nil, trace.Wrap(err)
+			}
+			logrus.Warningf("Skipping dangling cluster %q, no remote cluster resource found.", cluster.GetName())
+			continue
 		}
 		if err := t.roles.CheckAccessToRemoteCluster(rc); err != nil {
 			if !trace.IsAccessDenied(err) {
@@ -83,7 +89,7 @@ func (t *TunnelWithRoles) GetSite(clusterName string) (RemoteSite, error) {
 		return nil, trace.Wrap(err)
 	}
 	if err := t.roles.CheckAccessToRemoteCluster(rc); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, utils.OpaqueAccessDenied(err)
 	}
 	return cluster, nil
 }

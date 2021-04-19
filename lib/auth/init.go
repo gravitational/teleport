@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,11 +29,14 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -107,8 +110,8 @@ type InitConfig struct {
 	// Access is service controlling access to resources
 	Access services.Access
 
-	// DynamicAccess is a service that manages dynamic RBAC.
-	DynamicAccess services.DynamicAccess
+	// DynamicAccessExt is a service that manages dynamic RBAC.
+	DynamicAccessExt services.DynamicAccessExt
 
 	// Events is an event service
 	Events services.Events
@@ -465,6 +468,12 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// Create presets - convenience and example resources.
+	err = createPresets(ctx, asrv)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if !cfg.SkipPeriodicOperations {
 		log.Infof("Auth server is running periodic operations.")
 		go asrv.runPeriodicOperations()
@@ -476,7 +485,12 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 }
 
 func migrateLegacyResources(ctx context.Context, cfg InitConfig, asrv *Server) error {
-	err := migrateRemoteClusters(asrv)
+	err := migrateOSS(ctx, asrv)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = migrateRemoteClusters(ctx, asrv)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -491,6 +505,203 @@ func migrateLegacyResources(ctx context.Context, cfg InitConfig, asrv *Server) e
 	}
 
 	return nil
+}
+
+// createPresets creates preset resources - roles
+func createPresets(ctx context.Context, asrv *Server) error {
+	roles := []services.Role{
+		services.NewPresetEditorRole(),
+		services.NewPresetAccessRole(),
+		services.NewPresetAuditorRole()}
+	for _, role := range roles {
+		err := asrv.CreateRole(role)
+		if err != nil {
+			if !trace.IsAlreadyExists(err) {
+				return trace.Wrap(err, "failed to create preset role")
+			}
+		}
+	}
+	return nil
+}
+
+const migrationAbortedMessage = "migration to RBAC has aborted because of the backend error, restart teleport to try again"
+
+// migrateOSS performs migration to enable role-based access controls
+// to open source users. It creates a less privileged role 'ossuser'
+// and migrates all users and trusted cluster mappings to it
+// this function can be called multiple times
+// DELETE IN(7.0)
+func migrateOSS(ctx context.Context, asrv *Server) error {
+	if modules.GetModules().BuildType() != modules.BuildOSS {
+		return nil
+	}
+	role := services.NewDowngradedOSSAdminRole()
+	existing, err := asrv.GetRole(ctx, role.GetName())
+	if err != nil {
+		return trace.Wrap(err, "expected to find built-in admin role")
+	}
+	_, ok := existing.GetMetadata().Labels[teleport.OSSMigratedV6]
+	if ok {
+		log.Debugf("Admin role is already migrated, skipping OSS migration.")
+		// Role is created, assume that migration has been completed.
+		// To re-run the migration, users can remove migrated label from the role
+		return nil
+	}
+	err = asrv.UpsertRole(ctx, role)
+	updatedRoles := 0
+	if err != nil {
+		return trace.Wrap(err, migrationAbortedMessage)
+	}
+	if err == nil {
+		updatedRoles++
+		log.Infof("Enabling RBAC in OSS Teleport. Migrating users, roles and trusted clusters.")
+	}
+	migratedUsers, err := migrateOSSUsers(ctx, role, asrv)
+	if err != nil {
+		return trace.Wrap(err, migrationAbortedMessage)
+	}
+
+	migratedTcs, err := migrateOSSTrustedClusters(ctx, role, asrv)
+	if err != nil {
+		return trace.Wrap(err, migrationAbortedMessage)
+	}
+
+	migratedConns, err := migrateOSSGithubConns(ctx, role, asrv)
+	if err != nil {
+		return trace.Wrap(err, migrationAbortedMessage)
+	}
+
+	if updatedRoles > 0 || migratedUsers > 0 || migratedTcs > 0 || migratedConns > 0 {
+		log.Infof("Migration completed. Created %v roles, updated %v users, %v trusted clusters and %v Github connectors.",
+			updatedRoles, migratedUsers, migratedTcs, migratedConns)
+	}
+
+	return nil
+}
+
+// migrateOSSTrustedClusters updates role mappings in trusted clusters
+// OSS Trusted clusters had no explicit mapping from remote roles, to local roles.
+// Maps admin roles to local OSS admin role.
+func migrateOSSTrustedClusters(ctx context.Context, role types.Role, asrv *Server) (int, error) {
+	migratedTcs := 0
+	tcs, err := asrv.GetTrustedClusters(ctx)
+	if err != nil {
+		return migratedTcs, trace.Wrap(err, migrationAbortedMessage)
+	}
+
+	for _, tc := range tcs {
+		meta := tc.GetMetadata()
+		_, ok := meta.Labels[teleport.OSSMigratedV6]
+		if ok {
+			continue
+		}
+		setLabels(&meta.Labels, teleport.OSSMigratedV6, types.True)
+		roleMap := []types.RoleMapping{{Remote: role.GetName(), Local: []string{role.GetName()}}}
+		tc.SetRoleMap(roleMap)
+		tc.SetMetadata(meta)
+		if _, err := asrv.Presence.UpsertTrustedCluster(ctx, tc); err != nil {
+			return migratedTcs, trace.Wrap(err, migrationAbortedMessage)
+		}
+		for _, catype := range []services.CertAuthType{services.UserCA, services.HostCA} {
+			ca, err := asrv.GetCertAuthority(services.CertAuthID{Type: catype, DomainName: tc.GetName()}, true)
+			if err != nil {
+				return migratedTcs, trace.Wrap(err, migrationAbortedMessage)
+			}
+			meta := ca.GetMetadata()
+			_, ok := meta.Labels[teleport.OSSMigratedV6]
+			if ok {
+				continue
+			}
+			setLabels(&meta.Labels, teleport.OSSMigratedV6, types.True)
+			ca.SetRoleMap(roleMap)
+			ca.SetMetadata(meta)
+			err = asrv.UpsertCertAuthority(ca)
+			if err != nil {
+				return migratedTcs, trace.Wrap(err, migrationAbortedMessage)
+			}
+		}
+		migratedTcs++
+	}
+	return migratedTcs, nil
+}
+
+// migrateOSSUsers assigns all OSS users to a less privileged role
+// All OSS users were using implicit admin role. Migrate all users to less privileged
+// role that is read only and only lets users use assigned logins.
+func migrateOSSUsers(ctx context.Context, role types.Role, asrv *Server) (int, error) {
+	migratedUsers := 0
+	users, err := asrv.GetUsers(true)
+	if err != nil {
+		return migratedUsers, trace.Wrap(err, migrationAbortedMessage)
+	}
+
+	for _, user := range users {
+		meta := user.GetMetadata()
+		_, ok := meta.Labels[teleport.OSSMigratedV6]
+		if ok {
+			continue
+		}
+		setLabels(&meta.Labels, teleport.OSSMigratedV6, types.True)
+		user.SetRoles([]string{role.GetName()})
+		user.SetMetadata(meta)
+		if err := asrv.UpsertUser(user); err != nil {
+			return migratedUsers, trace.Wrap(err, migrationAbortedMessage)
+		}
+		migratedUsers++
+	}
+
+	return migratedUsers, nil
+}
+
+func setLabels(v *map[string]string, key, val string) {
+	if *v == nil {
+		*v = map[string]string{
+			key: val,
+		}
+		return
+	}
+	(*v)[key] = val
+}
+
+func migrateOSSGithubConns(ctx context.Context, role types.Role, asrv *Server) (int, error) {
+	migratedConns := 0
+	// Migrate Github's OSS teams_to_logins to teams_to_roles.
+	// To do that, create a new role per connector's teams_to_logins entry
+	conns, err := asrv.GetGithubConnectors(ctx, true)
+	if err != nil {
+		return migratedConns, trace.Wrap(err)
+	}
+	for _, conn := range conns {
+		meta := conn.GetMetadata()
+		_, ok := meta.Labels[teleport.OSSMigratedV6]
+		if ok {
+			continue
+		}
+		setLabels(&meta.Labels, teleport.OSSMigratedV6, types.True)
+		conn.SetMetadata(meta)
+		// replace every team with a new role
+		teams := conn.GetTeamsToLogins()
+		newTeams := make([]types.TeamMapping, len(teams))
+		for i, team := range teams {
+			r := services.NewOSSGithubRole(team.Logins, team.KubeUsers, team.KubeGroups)
+			err := asrv.CreateRole(r)
+			if err != nil {
+				return migratedConns, trace.Wrap(err)
+			}
+			newTeams[i] = types.TeamMapping{
+				Organization: team.Organization,
+				Team:         team.Team,
+				Logins:       []string{r.GetName()},
+			}
+		}
+		conn.SetTeamsToLogins(newTeams)
+		if err := asrv.UpsertGithubConnector(ctx, conn); err != nil {
+			return migratedConns, trace.Wrap(err)
+		}
+		migratedConns++
+	}
+
+	return migratedConns, nil
 }
 
 // isFirstStart returns 'true' if the auth server is starting for the 1st time
@@ -715,7 +926,7 @@ func (i *Identity) hostKeyCallback(hostname string, remote net.Addr, key ssh.Pub
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if sshutils.KeysEqual(cert.SignatureKey, pubkey) {
+		if apisshutils.KeysEqual(cert.SignatureKey, pubkey) {
 			return nil
 		}
 	}
@@ -829,14 +1040,9 @@ func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 		return nil, trace.BadParameter("Cert: missing parameter")
 	}
 
-	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(certBytes)
+	cert, err := apisshutils.ParseCertificate(certBytes)
 	if err != nil {
 		return nil, trace.BadParameter("failed to parse server certificate: %v", err)
-	}
-
-	cert, ok := pubKey.(*ssh.Certificate)
-	if !ok {
-		return nil, trace.BadParameter("expected ssh.Certificate, got %v", pubKey)
 	}
 
 	signer, err := ssh.ParsePrivateKey(keyBytes)
@@ -912,7 +1118,7 @@ func ReadLocalIdentity(dataDir string, id IdentityID) (*Identity, error) {
 // This migration adds remote cluster resource migrating from 2.5.0
 // where the presence of remote cluster was identified only by presence
 // of host certificate authority with cluster name not equal local cluster name
-func migrateRemoteClusters(asrv *Server) error {
+func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 	clusterName, err := asrv.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
@@ -938,7 +1144,7 @@ func migrateRemoteClusters(asrv *Server) error {
 			return trace.Wrap(err)
 		}
 		// the cert authority is associated with trusted cluster
-		_, err = asrv.GetTrustedCluster(certAuthority.GetName())
+		_, err = asrv.GetTrustedCluster(ctx, certAuthority.GetName())
 		if err == nil {
 			log.Debugf("Migrations: trusted cluster resource exists for cert authority %q.", certAuthority.GetName())
 			continue
@@ -965,7 +1171,7 @@ func migrateRemoteClusters(asrv *Server) error {
 // DELETE IN: 4.3.0.
 // migrateRoleOptions adds the "enhanced_recording" option to all roles.
 func migrateRoleOptions(ctx context.Context, asrv *Server) error {
-	roles, err := asrv.GetRoles()
+	roles, err := asrv.GetRoles(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

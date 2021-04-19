@@ -113,9 +113,8 @@ func (l *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 	if err != nil {
 		return "", trace.ConvertSystemError(err)
 	}
-	defer f.Close()
 	_, err = io.Copy(f, reader)
-	if err != nil {
+	if err = trace.NewAggregate(err, f.Close()); err != nil {
 		return "", trace.Wrap(err)
 	}
 	return fmt.Sprintf("%v://%v", teleport.SchemeFile, path), nil
