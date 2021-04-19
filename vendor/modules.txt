@@ -284,9 +284,10 @@ github.com/gravitational/teleport/api/types/wrappers
 github.com/gravitational/teleport/api/utils
 github.com/gravitational/teleport/api/utils/sshutils
 github.com/gravitational/teleport/api/utils/tlsutils
-# github.com/gravitational/trace v1.1.14
+# github.com/gravitational/trace v1.1.15
 ## explicit
 github.com/gravitational/trace
+github.com/gravitational/trace/internal
 github.com/gravitational/trace/trail
 # github.com/gravitational/ttlmap v0.0.0-20171116003245-91fd36b9004c
 ## explicit
