@@ -577,7 +577,6 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		sc, scErr := getSAMLConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
 		oc, ocErr := getOIDCConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
 		gc, gcErr := getGithubConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
-
 		errs := []error{scErr, ocErr, gcErr}
 		allEmpty := len(sc) == 0 && len(oc) == 0 && len(gc) == 0
 		reportErr := false
@@ -587,15 +586,15 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 				break
 			}
 		}
+		var finalErr error
 		if allEmpty || reportErr {
-			return nil, trace.NewAggregate(errs...)
+			finalErr = trace.NewAggregate(errs...)
 		}
-
 		return &connectorsCollection{
 			saml:   sc,
 			oidc:   oc,
 			github: gc,
-		}, nil
+		}, finalErr
 	case services.KindSAMLConnector:
 		connectors, err := getSAMLConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
 		if err != nil {
