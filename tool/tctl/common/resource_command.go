@@ -763,14 +763,15 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		}
 		return nil, trace.NotFound("kube_service with ID %q not found", rc.ref.Name)
 	case services.KindClusterAuthPreference:
-		if rc.ref.Name == "" {
-			authPref, err := client.GetAuthPreference()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			authPrefs := []services.AuthPreference{authPref}
-			return &authPrefCollection{authPrefs: authPrefs}, nil
+		if rc.ref.Name != "" {
+			return nil, trace.BadParameter("only simple `tctl get cluster_auth_preference` can be used")
 		}
+		authPref, err := client.GetAuthPreference()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		authPrefs := []services.AuthPreference{authPref}
+		return &authPrefCollection{authPrefs: authPrefs}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
