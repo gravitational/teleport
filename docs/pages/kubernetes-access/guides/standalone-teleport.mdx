@@ -47,5 +47,11 @@ kubernetes_service:
   kubeconfig_file: "path/to/kubeconfig"
 ```
 
+<Admonition type="warning" title="Warning" >
+  When using `kubeconfig_file`, EKS users may need to replace illegal characters in the `context` names.
+  Supported characters are alphanumeric characters, ".", "_", and "-". EKS typically includes ":" and "@" 
+  in their `kubeconfig` which are not allowed in Teleport.
+</Admonition>
+
 After Teleport starts with the above config, you should be able to see all new
 clusters in `tsh kube ls` or `tctl get kube_service`.
