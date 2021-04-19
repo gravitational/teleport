@@ -46,6 +46,8 @@ type Session struct {
 	StartupParameters map[string]string
 	// Log is the logger with session specific fields.
 	Log logrus.FieldLogger
+	// Statements is the session's prepared statements cache.
+	Statements *StatementsCache
 }
 
 // String returns string representation of the session parameters.

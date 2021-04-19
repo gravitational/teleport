@@ -812,9 +812,13 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector services.OIDCConne
 		return nil, trace.Wrap(err, "unable to merge OIDC claims")
 	}
 
-	// for GSuite users, fetch extra data from the proprietary google API
-	// only if scope includes admin groups readonly scope
-	if connector.GetIssuerURL() == teleport.GSuiteIssuerURL {
+	// For Google Workspace users, fetch extra data from the proprietary Google groups API.
+	//
+	// If google_service_account_uri and google_service_account are not set, we
+	// assume that this is a non-GWorkspace OIDC provider using the same
+	// issuer URL as Google Workspace (e.g.
+	// https://developers.google.com/identity/protocols/oauth2/openid-connect).
+	if connector.GetIssuerURL() == teleport.GSuiteIssuerURL && (connector.GetGoogleServiceAccountURI() != "" || connector.GetGoogleServiceAccount() != "") {
 		email, _, err := claims.StringClaim("email")
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -838,8 +842,6 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector services.OIDCConne
 			// load the google service account from string
 			credentialLoadingMethod = "google_service_account"
 			jsonCredentials = []byte(connector.GetGoogleServiceAccount())
-		} else {
-			return nil, trace.NotFound("the google workspace connector requires google_service_account parameter with JSON-formatted credentials or google_service_account_uri parameter pointing to a valid google service account file with credentials to be specified, read this article for more details https://developers.google.com/admin-sdk/directory/v1/guides/delegation")
 		}
 
 		config, err := google.JWTConfigFromJSON(jsonCredentials, teleport.GSuiteGroupsScope)
