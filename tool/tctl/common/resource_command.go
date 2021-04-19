@@ -667,7 +667,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 				return &serverCollection{servers: []services.Server{server}}, nil
 			}
 		}
-		return nil, trace.NotFound("server with ID %q not found", rc.ref.Name)
+		return nil, trace.NotFound("auth server with ID %q not found", rc.ref.Name)
 	case services.KindProxy:
 		servers, err := client.GetProxies()
 		if err != nil {
@@ -681,7 +681,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 				return &serverCollection{servers: []services.Server{server}}, nil
 			}
 		}
-		return nil, trace.NotFound("server with ID %q not found", rc.ref.Name)
+		return nil, trace.NotFound("proxy with ID %q not found", rc.ref.Name)
 	case services.KindRole:
 		if rc.ref.Name == "" {
 			roles, err := client.GetRoles(ctx)
@@ -756,7 +756,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 				return &serverCollection{servers: []services.Server{server}}, nil
 			}
 		}
-		return nil, trace.NotFound("server with ID %q not found", rc.ref.Name)
+		return nil, trace.NotFound("kube_service with ID %q not found", rc.ref.Name)
 	case services.KindClusterAuthPreference:
 		if rc.ref.Name == "" {
 			authPref, err := client.GetAuthPreference()
