@@ -654,7 +654,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 			return &serverCollection{servers: nodes}, nil
 		}
 		for _, node := range nodes {
-			if node.GetName() == rc.ref.Name {
+			if node.GetName() == rc.ref.Name || node.GetHostname() == rc.ref.Name {
 				return &serverCollection{servers: []services.Server{node}}, nil
 			}
 		}
@@ -668,7 +668,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 			return &serverCollection{servers: servers}, nil
 		}
 		for _, server := range servers {
-			if server.GetName() == rc.ref.Name {
+			if server.GetName() == rc.ref.Name || server.GetHostname() == rc.ref.Name {
 				return &serverCollection{servers: []services.Server{server}}, nil
 			}
 		}
@@ -682,7 +682,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 			return &serverCollection{servers: servers}, nil
 		}
 		for _, server := range servers {
-			if server.GetName() == rc.ref.Name {
+			if server.GetName() == rc.ref.Name || server.GetHostname() == rc.ref.Name {
 				return &serverCollection{servers: []services.Server{server}}, nil
 			}
 		}
@@ -757,7 +757,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 			return &serverCollection{servers: servers}, nil
 		}
 		for _, server := range servers {
-			if server.GetName() == rc.ref.Name {
+			if server.GetName() == rc.ref.Name || server.GetHostname() == rc.ref.Name {
 				return &serverCollection{servers: []services.Server{server}}, nil
 			}
 		}
