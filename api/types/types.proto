@@ -1564,6 +1564,12 @@ message WebSessionSpecV2 {
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "expires"
     ];
+    // LoginTime is the time this user recently logged in.
+    google.protobuf.Timestamp LoginTime = 8 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "login_time"
+    ];
 }
 
 // WebSessionFilter encodes cache watch parameters for filtering web sessions.
