@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package identityfile provides the IdentityFile struct and its methods.
+// Package identityfile implements parsing and serialization of Teleport identity files.
 package identityfile
 
 import (

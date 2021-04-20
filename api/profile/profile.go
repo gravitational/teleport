@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package profile provides the tsh Profile struct and its methods and functions.
+// Package profile handles management of the Teleport profile directory (~/.tsh).
 package profile
 
 import (
