@@ -127,14 +127,14 @@ Some users should be subject to the following restrictions:
    or `node-sync`.
 1. The value of `proxy_checks_host_keys` cannot be changed.
 
-This would be achieved by a new RBAC verb `update.no-proxy`. A user could then
-be assigned a role featuring `update.on-proxy` instead of the regular, more
+This would be achieved by a new RBAC verb `update.no_proxy_recording`. A user could then
+be assigned a role featuring `update.no_proxy_recording` instead of the regular, more
 permissive `update`:
 ```
   allow:
     rules:
     - resources: [session_recording_config]
-      verbs: [read, update.no-proxy]
+      verbs: [read, update.no_proxy_recording]
 ```
 
 ### Additional dynamically configurable resources
