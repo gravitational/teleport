@@ -12,6 +12,3 @@ annotations:
   pod:
     kubernetes.io/pod: "test-annotation"
     kubernetes.io/pod-different: 4
-  service:
-    kubernetes.io/service: "test-annotation"
-    kubernetes.io/service-different: 5

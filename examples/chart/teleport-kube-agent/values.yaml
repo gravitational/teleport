@@ -5,18 +5,18 @@
 # Join token for the cluster.
 # Leave empty if the secret "teleport-kube-agent-join-token"
 # has been created before and contains a valid join token
-authToken:
+authToken: ""
 # Address of the teleport proxy with port (usually :3080).
-proxyAddr:
+proxyAddr: ""
 # Comma-separated list of roles to enable (any of: kube,db,app)
-roles:
+roles: "kube"
 
 ################################################################
 # Values that must be provided if Kubernetes access is enabled.
 ################################################################
 
 # Name for this kubernetes cluster to be used by teleport users.
-kubeClusterName:
+kubeClusterName: ""
 
 ################################################################
 # Values that must be provided if Application access is enabled.
@@ -26,7 +26,7 @@ kubeClusterName:
 # apps:
 #  - name: grafana
 #    uri: http://localhost:3000
-apps:
+apps: []
 
 ################################################################
 # Values that must be provided if Database access is enabled.
@@ -37,7 +37,7 @@ apps:
 #  - name: aurora
 #    uri: "postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432"
 #    protocol: "postgres"
-databases:
+databases: []
 
 ################################################################
 # Values that you may need to change.
