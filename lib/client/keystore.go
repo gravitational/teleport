@@ -29,8 +29,8 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -147,7 +147,7 @@ func NewFSLocalKeyStore(dirPath string) (s *FSLocalKeyStore, err error) {
 
 // initKeysDir initializes the keystore root directory, usually `~/.tsh`.
 func initKeysDir(dirPath string) (string, error) {
-	dirPath = client.FullProfilePath(dirPath)
+	dirPath = profile.FullProfilePath(dirPath)
 	if err := os.MkdirAll(dirPath, os.ModeDir|profileDirPerms); err != nil {
 		return "", trace.ConvertSystemError(err)
 	}
