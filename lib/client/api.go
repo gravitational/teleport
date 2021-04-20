@@ -862,7 +862,7 @@ func ParseProxyHost(proxyHost string) (ParsedProxyHost, error) {
 func (c *Config) ParseProxyHost(proxyHost string) error {
 	parsedAddrs, err := ParseProxyHost(proxyHost)
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 
 	// if the parser wasn't able to unambiguously provide a WebProxyAddr,

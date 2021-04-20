@@ -70,7 +70,7 @@ func mustGetCandidatePorts(servers []*httptest.Server) []int {
 	return result
 }
 
-func Test_ResolveDefaultAddr(t *testing.T) {
+func TestResolveDefaultAddr(t *testing.T) {
 	// Given a set of candidate servers, with one "magic" server configured to
 	// respond, and all the others configured to wait forever
 	const magicServerIndex = 3
@@ -113,7 +113,7 @@ func Test_ResolveDefaultAddr_NoCandidates(t *testing.T) {
 // Test that the resolver doesn't crash on a single candidate. This situation
 // should not arise in production; it would be better to just assume that the
 // single candidate is correct, as you have no other choice.
-func Test_ResolveDefaultAddr_SingleCandidate(t *testing.T) {
+func Test_ResolveDefaultAddrSingleCandidate(t *testing.T) {
 	// Given a single candidate
 	respondingHandler := newRespondingHandler()
 
@@ -135,7 +135,7 @@ func Test_ResolveDefaultAddr_SingleCandidate(t *testing.T) {
 	require.Equal(t, expectedAddr, addr)
 }
 
-func Test_ResolveDefaultAddr_Timeout(t *testing.T) {
+func TestResolveDefaultAddrTimeout(t *testing.T) {
 	// Given a set of candidate servers that will all block forever...
 
 	blockingHandler, doneCh := newWaitForeverHandler()
@@ -164,7 +164,7 @@ func Test_ResolveDefaultAddr_Timeout(t *testing.T) {
 	require.Equal(t, context.DeadlineExceeded, err)
 }
 
-func Test_ResolveDefaultAddr_TimeoutBeforeAllRacersLaunched(t *testing.T) {
+func TestResolveDefaultAddrTimeoutBeforeAllRacersLaunched(t *testing.T) {
 	// Given a large set of candidate servers that will all block forever...
 
 	blockingHandler, doneCh := newWaitForeverHandler()
