@@ -1661,9 +1661,9 @@ type AuthPreferenceV2 struct {
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind"`
 	// SubKind is an optional resource sub kind, used in some resources
 	SubKind string `protobuf:"bytes,2,opt,name=SubKind,proto3" json:"sub_kind,omitempty"`
-	// Version is version
+	// Version is a resource version
 	Version string `protobuf:"bytes,3,opt,name=Version,proto3" json:"version"`
-	// Metadata is User metadata
+	// Metadata is resource metadata
 	Metadata Metadata `protobuf:"bytes,4,opt,name=Metadata,proto3" json:"metadata"`
 	// Spec is an AuthPreference specification
 	Spec                 AuthPreferenceSpecV2 `protobuf:"bytes,5,opt,name=Spec,proto3" json:"spec"`
