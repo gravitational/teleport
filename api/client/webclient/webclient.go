@@ -14,7 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package client
+// Package webclient provides a client for the Teleport Proxy API endpoints.
+package webclient
 
 import (
 	"context"
