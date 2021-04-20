@@ -6,7 +6,7 @@
 # This value cannot be changed after your cluster starts without rebuilding it from scratch.
 # We recommend using the fully qualified domain name that you use to access your cluster,
 # for example: teleport.example.com
-clusterName:
+clusterName: ""
 
 ##################################################
 # Values that you may need to change.
@@ -21,9 +21,9 @@ teleportVersionOverride: ""
 # Setting acme to 'false' (the default) will cause Teleport to generate and use self-signed certificates for its web UI.
 acme: false
 # acmeEmail is the email address to provide during certificate registration (this is a Let's Encrypt requirement)
-acmeEmail:
+acmeEmail: ""
 # acmeURI is the ACME server to use for getting certificates. The default is to use Let's Encrypt's production server.
-acmeURI:
+acmeURI: ""
 
 # Set enterprise to true to use enterprise image
 # You will need to download your Enterprise license from the Teleport dashboard and create a secret to use this:
@@ -48,7 +48,7 @@ labels: {}
 # (3) When set to "ownconfig", you must create a ConfigMap containing a 'teleport.yaml' key with an inline Teleport YAML config,
 #     give it the same name as the Helm release and place it in the chart namespace.
 #     kubectl -n ${TELEPORT_NAMESPACE?} create configmap ${HELM_RELEASE_NAME?} --from-file=teleport.yaml
-chartMode: ownconfig
+chartMode: standalone
 
 ################################################################
 # Standalone-specific settings (only used in "standalone" mode)
@@ -56,7 +56,7 @@ chartMode: ownconfig
 standalone:
   # Leave blank to automatically create a PersistentVolumeClaim for Teleport storage.
   # If you would like to use a pre-existing PersistentVolumeClaim, put its name here.
-  existingClaimName:
+  existingClaimName: ""
   # Size of persistent volume to request when created by Teleport.
   # Ignored if existingClaimName is provided.
   volumeSize: 10Gi
@@ -66,17 +66,17 @@ standalone:
 ##################################################
 aws:
   # The AWS region where the DynamoDB tables are located.
-  region:
+  region: ""
   # The DynamoDB table name to use for backend storage. Teleport will attempt to create this table automatically if it does not exist.
   # The container will need an appropriately-provisioned IAM role with permissions to create DynamoDB tables.
-  backendTable:
+  backendTable: ""
   # The DynamoDB table name to use for audit log storage. Teleport will attempt to create this table automatically if it does not exist.
   # The container will need an appropriately-provisioned IAM role with permissions to create DynamoDB tables.
   # This MUST NOT be the same table name as used for 'backendTable' as the schemas are different.
-  auditLogTable:
+  auditLogTable: ""
   # The S3 bucket name to use for recorded session storage. Teleport will attempt to create this bucket automatically if it does not exist.
   # The container will need an appropriately-provisioned IAM role with permissions to create S3 buckets.
-  sessionRecordingBucket:
+  sessionRecordingBucket: ""
 
 ##################################################
 # GCP-specific settings (only used in "gcp" mode)
@@ -84,20 +84,20 @@ aws:
 gcp:
   # The project name being used for the GCP account where Teleport is running.
   # See https://support.google.com/googleapi/answer/7014113?hl=en
-  projectId:
+  projectId: ""
   # The Firestore collection to use for backend storage. Teleport will attempt to create this collection automatically if it does not exist.
   # Either of the following must be true:
   # - The container will need an appropriately-provisioned IAM role/service account with permissions to create Firestore collections
   # - The service account credentials provided via 'credentialSecretName' will need permissions to create Firestore collections.
-  backendTable:
+  backendTable: ""
   # The Firestore collection to use for audit log storage. Teleport will attempt to create this collection automatically if it does not exist.
   # Either of the following must be true:
   # - The container will need an appropriately-provisioned IAM role/service account with permissions to create Firestore collections
   # - The service account credentials provided via 'credentialSecretName' will need permissions to create Firestore collections.
   # This MUST NOT be the same collection name as used for 'backendTable' as the schemas are different.
-  auditLogTable:
+  auditLogTable: ""
   # The Google storage bucket name to use for recorded session storage. This bucket must already exist in the Google account being used.
-  sessionRecordingBucket:
+  sessionRecordingBucket: ""
   # The name of the Kubernetes secret used to store the Google credentials.
   # You will need to create this secret manually. It must contain a JSON file from Google with the credentials that Teleport will use.
   # You can override this to a blank value if the worker node running Teleport already has a service account which grants access.

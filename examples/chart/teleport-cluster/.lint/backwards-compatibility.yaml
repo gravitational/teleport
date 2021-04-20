@@ -1,4 +1,0 @@
-chartMode: ""
-clusterName: test-acme-cluster
-acme: true
-acmeEmail: test@email.com
