@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { hot } from 'react-hot-loader/root';
-import Main from './Main';
+import Main, { StyledMain } from './Main';
 
+export { StyledMain };
 export default hot(Main);

@@ -18,14 +18,13 @@ import Logger from 'shared/libs/logger';
 import cfg from 'teleport/config';
 import history from 'teleport/services/history';
 import api from 'teleport/services/api';
-import localStorage, {
-  KeysEnum,
-  BearerToken,
-} from 'teleport/services/localStorage';
+import localStorage, { KeysEnum } from 'teleport/services/localStorage';
+import { makeSession, makeBearerToken } from './makeSession';
+import { RenewSessionRequest } from './types';
 
 // Time to determine when to renew session which is
 // when expiry time of token is less than 3 minutes.
-const RENEW_TOKEN_TIME = 180 * 1000
+const RENEW_TOKEN_TIME = 180 * 1000;
 const TOKEN_CHECKER_INTERVAL = 15 * 1000; //  every 15 sec
 const logger = Logger.create('services/session');
 
@@ -68,8 +67,10 @@ const session = {
     }
   },
 
-  renewSession(requestId: string) {
-    return this._renewToken(requestId);
+  // renewSession renews session and returns the
+  // absolute time the new session expires.
+  renewSession(req: RenewSessionRequest): Promise<Date> {
+    return this._renewToken(req);
   },
 
   isValid() {
@@ -104,7 +105,7 @@ const session = {
     el.parentNode.removeChild(el);
     const decoded = window.atob(el.content);
     const json = JSON.parse(decoded);
-    return new BearerToken(json);
+    return makeBearerToken(json);
   },
 
   _shouldRenewToken() {
@@ -119,19 +120,19 @@ const session = {
     return this._timeLeft() < RENEW_TOKEN_TIME;
   },
 
-  _renewToken(requestId?: string) {
+  _renewToken(req: RenewSessionRequest) {
     this._setAndBroadcastIsRenewing(true);
     return api
-      .post(cfg.getRenewTokenUrl(requestId))
-      .then(this._receiveBearerToken.bind(this))
+      .post(cfg.getRenewTokenUrl(), req)
+      .then(res => {
+        const session = makeSession(res);
+        localStorage.setBearerToken(session.token);
+
+        return session.expires;
+      })
       .finally(() => {
         this._setAndBroadcastIsRenewing(false);
       });
-  },
-
-  _receiveBearerToken(json) {
-    const token = new BearerToken(json);
-    localStorage.setBearerToken(token);
   },
 
   _setAndBroadcastIsRenewing(value) {

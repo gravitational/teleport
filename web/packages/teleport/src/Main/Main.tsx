@@ -73,24 +73,24 @@ export function Main(props: State) {
       <RouterDOM.Switch>
         <Redirect exact={true} from={cfg.routes.root} to={indexRoute} />
       </RouterDOM.Switch>
-      <VerticalSplit>
+      <StyledMain>
         <SideNav />
         <HorizontalSplit>
           <TopBar />
           <Switch>{$features}</Switch>
         </HorizontalSplit>
-      </VerticalSplit>
+      </StyledMain>
     </>
   );
 }
 
-const VerticalSplit = styled.div`
+export const StyledMain = styled.div`
   width: 100%;
   height: 100%;
   display: flex;
   flex: 1;
   position: absolute;
-  min-width: 900px;
+  min-width: 1000px;
 `;
 
 const HorizontalSplit = styled.div`
@@ -98,6 +98,9 @@ const HorizontalSplit = styled.div`
   flex-direction: column;
   width: 100%;
   height: 100%;
+
+  // Allows shrinking beyond content size on flexed childrens.
+  min-width: 0;
 `;
 
 const StyledIndicator = styled(HorizontalSplit)`
