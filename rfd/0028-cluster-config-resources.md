@@ -177,3 +177,122 @@ Note that if a field of a configuration resource is omitted from the YAML, the
 field's value will be reset to its default.  The `tctl` workflow supports only
 replacing (or overwriting) of a stored resource with another full resource,
 not a partial update of the stored resource.
+
+### Examples
+
+#### Setting up node-sync session recording
+
+In this example, `session_recording_config` is assumed to be already
+dynamically pre-configured: in particular, while the `mode` field would be by
+default set to `node`, here it is already set to `off`.
+
+```
+$ tctl get session_recording_config | tee reccfg.yaml
+kind: session_recording_config
+metadata:
+  id: 1618929344290245400
+  name: session-recording-config
+  labels:
+    teleport.dev/origin: dynamic
+spec:
+  mode: "off"
+  proxy_checks_host_keys: yes
+version: v2
+
+$ sed -i 's/mode: "off"/mode: "node-sync"/' reccfg.yaml
+$ tctl create -f reccfg.yaml
+session recording config has been updated
+```
+
+#### Configuring PAM custom environment variables
+
+```
+$ tctl get pam_config
+kind: pam_config
+metadata:
+  id: 1618929344290245400
+  name: pam-config
+  labels:
+    teleport.dev/origin: defaults
+spec:
+  enabled: false
+version: v3
+
+$ tctl create <<EOF
+kind: pam_config
+spec:
+  enabled: true
+  environment:
+    FOO: "bar"
+    EMAIL: "{{ external.email }}"
+version: v3
+EOF
+
+PAM config has been updated
+```
+
+#### Setting auth preference to Auth0 OIDC
+
+```
+$ tctl get oidc/auth0
+kind: oidc
+metadata:
+  name: auth0
+spec:
+  [...]
+
+$ tctl create <<EOF
+kind: cluster_auth_preference
+spec:
+  type: oidc
+  connector_name: auth0
+  second_factor: "off"
+version: v2
+EOF
+
+cluster auth preference has been updated
+```
+
+#### Setting up U2F second factor
+
+```
+$ cat >u2fcap.yaml
+kind: cluster_auth_preference
+version: v2
+spec:
+  type: local
+  second_factor: u2f
+  u2f:
+    app_id: https://proxy.example.com:443
+    facets:
+    - https://proxy.example.com:443
+    - https://proxy.example.com
+    - proxy.example.com:443
+    - proxy.example.com
+
+$ tctl create u2fcap.yaml
+cluster auth preference has been updated
+```
+
+##### With U2F CA attestation
+
+```
+$ cat >>u2fcap.yaml
+    # under spec.u2f
+    device_attestation_cas:
+    - "/path/to/u2f_attestation_ca.pem"
+
+$ tctl create -f u2fcap.yaml
+cluster auth preference has been updated
+```
+
+##### With cluster-wide per-session U2F checks
+
+```
+$ cat >>u2fcap.yml
+  # under spec
+  require_session_mfa: yes
+
+$ tctl create -f u2fcap.yaml
+cluster auth preference has been updated
+```
