@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package webclient provides an implementation for the
+// Teleport web client Ping and Find http endpoints.
 package webclient
 
 import (

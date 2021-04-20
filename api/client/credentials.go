@@ -207,6 +207,10 @@ func (c *identityCreds) load() error {
 
 // LoadProfile is used to load Credentials from a tsh profile on disk.
 //
+// dir is the profile directory. It will defaults to "~/.tsh".
+//
+// name is the profile name. It will default to the currently active tsh profile.
+//
 // Profile Credentials can be used to connect to an auth server directly
 // or through a reverse tunnel.
 //
@@ -236,7 +240,7 @@ func (c *profileCreds) Dialer(cfg Config) (ContextDialer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return NewTunnelDialerWithAddressDiscovery(
+	return NewProxyDialer(
 		*sshConfig,
 		cfg.KeepAlivePeriod,
 		cfg.DialTimeout,

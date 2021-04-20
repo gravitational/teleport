@@ -81,8 +81,8 @@ type Client struct {
 // The first successful connection to a server will be used, or an aggregated error will
 // be returned if all combinations fail.
 //
-// At least one Credentials object and one address or dialer must be provided. If Profile
-// Credentials are used, a web proxy dialer will automatically be provided.
+// cfg.Credentials must be non-empty. One of cfg.Addrs and cfg.Dialer must be non-empty,
+// unless LoadProfile is used to fetch Credentials and load a web proxy dialer.
 //
 // See the example below for usage.
 func New(ctx context.Context, cfg Config) (clt *Client, err error) {
@@ -125,7 +125,7 @@ func connectInBackground(ctx context.Context, cfg Config) (*Client, error) {
 		return nil, trace.BadParameter("must have a Dialer or Addrs in config")
 	}
 	if dialer == nil {
-		dialer = NewDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
+		dialer = NewDirectDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
 		addr = cfg.Addrs[0]
 	}
 
@@ -213,7 +213,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 
 			for _, addr := range cfg.Addrs {
 				// Connect to auth.
-				dialer := NewDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
+				dialer := NewDirectDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
 				clt := newClient(cfg, dialer, tlsConfig)
 				syncConnect(clt, addr)
 
@@ -226,7 +226,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 						if pr, err := webclient.Find(ctx, addr, cfg.InsecureAddressDiscovery, nil); err == nil {
 							addr = pr.Proxy.SSH.TunnelPublicAddr
 						}
-						dialer := NewTunnelDialer(*sshConfig, cfg.KeepAlivePeriod, cfg.DialTimeout)
+						dialer := newTunnelDialer(*sshConfig, cfg.KeepAlivePeriod, cfg.DialTimeout)
 						clt := newClient(cfg, dialer, tlsConfig)
 						syncConnect(clt, addr)
 					}(addr)
