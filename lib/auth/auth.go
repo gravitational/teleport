@@ -955,13 +955,18 @@ func (a *Server) CheckU2FSignResponse(ctx context.Context, user string, response
 	return a.checkU2F(ctx, user, *response, a.Identity)
 }
 
-// ExtendWebSession creates a new web session for a user based on a valid previous session.
-// Additional roles are appended to initial roles if there is an approved access request.
-// The new session expiration time will not exceed the expiration time of the old session.
-func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, identity tlsca.Identity) (services.WebSession, error) {
+// ExtendWebSession creates a new web session for a user based on a valid previous (current) session.
+//
+// If there is an approved access request, additional roles are appended to the roles that were
+// extracted from identity. The new session expiration time will not exceed the expiration time
+// of the previous session.
+//
+// If there is a switchback request, the roles will switchback to user's default roles and
+// the expiration time is derived from users recently logged in time.
+func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (services.WebSession, error) {
 	prevSession, err := a.GetWebSession(context.TODO(), types.GetWebSessionRequest{
-		User:      user,
-		SessionID: prevSessionID,
+		User:      req.User,
+		SessionID: req.PrevSessionID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -980,8 +985,8 @@ func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, i
 		return nil, trace.Wrap(err)
 	}
 
-	if accessRequestID != "" {
-		newRoles, requestExpiry, err := a.getRolesAndExpiryFromAccessRequest(user, accessRequestID)
+	if req.AccessRequestID != "" {
+		newRoles, requestExpiry, err := a.getRolesAndExpiryFromAccessRequest(req.User, req.AccessRequestID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -995,9 +1000,33 @@ func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, i
 		}
 	}
 
+	if req.Switchback {
+		if prevSession.GetLoginTime().IsZero() {
+			return nil, trace.BadParameter("Unable to switchback, log in time was not recorded.")
+		}
+
+		// Get default/static roles.
+		user, err := a.GetUser(req.User, false)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to switchback")
+		}
+
+		// Calculate expiry time.
+		roleSet, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		sessionTTL := roleSet.AdjustSessionTTL(defaults.CertDuration)
+
+		// Set default roles and expiration.
+		expiresAt = prevSession.GetLoginTime().UTC().Add(sessionTTL)
+		roles = user.GetRoles()
+	}
+
 	sessionTTL := utils.ToTTL(a.clock, expiresAt)
 	sess, err := a.NewWebSession(types.NewWebSessionRequest{
-		User:       user,
+		User:       req.User,
 		Roles:      roles,
 		Traits:     traits,
 		SessionTTL: sessionTTL,
@@ -1006,7 +1035,10 @@ func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, i
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.upsertWebSession(context.TODO(), user, sess); err != nil {
+	// Keep preserving the login time.
+	sess.SetLoginTime(prevSession.GetLoginTime())
+
+	if err := a.upsertWebSession(context.TODO(), req.User, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1061,9 +1093,10 @@ func (a *Server) CreateWebSession(user string) (services.WebSession, error) {
 		return nil, trace.Wrap(err)
 	}
 	sess, err := a.NewWebSession(types.NewWebSessionRequest{
-		User:   user,
-		Roles:  u.GetRoles(),
-		Traits: u.GetTraits(),
+		User:      user,
+		Roles:     u.GetRoles(),
+		Traits:    u.GetTraits(),
+		LoginTime: a.clock.Now().UTC(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1613,15 +1646,24 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (services.WebSess
 		return nil, trace.Wrap(err)
 	}
 	bearerTokenTTL := utils.MinTTL(sessionTTL, BearerTokenTTL)
-	return services.NewWebSession(token, services.KindWebSession, services.KindWebSession, services.WebSessionSpecV2{
+
+	startTime := a.clock.Now()
+	if !req.LoginTime.IsZero() {
+		startTime = req.LoginTime
+	}
+
+	sessionSpec := services.WebSessionSpecV2{
 		User:               req.User,
 		Priv:               priv,
 		Pub:                certs.ssh,
 		TLSCert:            certs.tls,
-		Expires:            a.clock.Now().UTC().Add(sessionTTL),
+		Expires:            startTime.UTC().Add(sessionTTL),
 		BearerToken:        bearerToken,
-		BearerTokenExpires: a.clock.Now().UTC().Add(bearerTokenTTL),
-	}), nil
+		BearerTokenExpires: startTime.UTC().Add(bearerTokenTTL),
+		LoginTime:          req.LoginTime,
+	}
+
+	return services.NewWebSession(token, services.KindWebSession, services.KindWebSession, sessionSpec), nil
 }
 
 // GetWebSessionInfo returns the web session specified with sessionID for the given user.

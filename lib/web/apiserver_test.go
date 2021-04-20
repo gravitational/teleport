@@ -2354,7 +2354,7 @@ func decodeSessionCookie(t *testing.T, value string) (sessionID string) {
 }
 
 func (r CreateSessionResponse) response() (*CreateSessionResponse, error) {
-	return &CreateSessionResponse{Type: r.Type, Token: r.Token, ExpiresIn: r.ExpiresIn}, nil
+	return &CreateSessionResponse{TokenType: r.TokenType, Token: r.Token, TokenExpiresIn: r.TokenExpiresIn}, nil
 }
 
 func newWebPack(t *testing.T, numProxies int) *webPack {
@@ -2662,8 +2662,8 @@ func (r *proxy) authPackFromResponse(t *testing.T, httpResp *roundtrip.Response)
 
 	session, err := resp.response()
 	require.NoError(t, err)
-	if session.ExpiresIn < 0 {
-		t.Errorf("Expected expiry time to be in the future but got %v", session.ExpiresIn)
+	if session.TokenExpiresIn < 0 {
+		t.Errorf("Expected expiry time to be in the future but got %v", session.TokenExpiresIn)
 	}
 	return &authPack{
 		session: session,
