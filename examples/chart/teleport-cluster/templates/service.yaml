@@ -5,6 +5,10 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     app: {{ .Release.Name }}
+  {{- if .Values.annotations.service }}
+  annotations:
+    {{- toYaml .Values.annotations.service | nindent 4 }}
+  {{- end }}
 spec:
   type: LoadBalancer
   ports:

@@ -130,3 +130,49 @@ enterpriseImage: quay.io/gravitational/teleport-ent
 # The default is INFO, which is recommended in production.
 # DEBUG is useful during first-time setup or to see more detailed logs for debugging.
 logLevel: INFO
+
+
+##################################
+# Extra Kubernetes configuration #
+##################################
+
+# Kubernetes annotations to apply
+# https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+annotations:
+  # Annotations for the ConfigMap (note: these will not be applied in 'ownconfig' mode)
+  config: {}
+  # Annotations for the Deployment
+  deployment: {}
+  # Annotations for each Pod in the Deployment
+  pod: {}
+  # Annotations for the Service object
+  service: {}
+
+# Extra volumes to mount into the Teleport pods
+# https://kubernetes.io/docs/concepts/storage/volumes/
+extraVolumes: []
+#- name: myvolume
+#  secret:
+#    secretName: testSecret
+
+# Extra volume mounts corresponding to the volumes mounted above
+extraVolumeMounts: []
+#- name: myvolume
+#  path: /path/on/host
+
+# Allow the imagePullPolicy to be overridden
+imagePullPolicy: IfNotPresent
+
+# A list of initContainers to run before each Teleport pod starts
+# https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
+initContainers: []
+#- name: "teleport-init"
+#  image: "alpine"
+#  args: ["echo test"]
+
+# Resources to request for each pod in the deployment
+# https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+resources: {}
+#  requests:
+#    cpu: "1"
+#    memory: "2Gi"

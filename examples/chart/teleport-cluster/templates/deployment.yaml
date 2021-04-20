@@ -5,6 +5,10 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     app: {{ .Release.Name }}
+  {{- if .Values.annotations.deployment }}
+  annotations:
+    {{- toYaml .Values.annotations.deployment | nindent 4 }}
+  {{- end }}
 spec:
   {{- if not (eq .Values.chartMode "standalone") }}
   replicas: {{ .Values.highAvailability.replicaCount }}
@@ -19,6 +23,9 @@ spec:
       annotations:
         # ConfigMap checksum, to recreate the pod on config changes.
         checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
+{{- if .Values.annotations.pod }}
+  {{- toYaml .Values.annotations.pod | nindent 8 }}
+{{- end }}
       labels:
         app: {{ .Release.Name }}
     spec:
@@ -40,9 +47,36 @@ spec:
                   - {{ .Release.Name }}
               topologyKey: "kubernetes.io/hostname"
       {{- end }}
+{{- if .Values.initContainers }}
+      initContainers: {{- toYaml .Values.initContainers | nindent 6 }}
+  {{- if .Values.resources }}
+        resources:
+    {{- toYaml .Values.resources | nindent 10 }}
+  {{- end }}
+        volumeMounts:
+  {{- if .Values.enterprise }}
+        - mountPath: /var/lib/license
+          name: "license"
+          readOnly: true
+  {{- end }}
+  {{- if eq .Values.chartMode "gcp" }}
+        - mountPath: /etc/teleport-secrets
+          name: "gcp-credentials"
+          readOnly: true
+  {{- end }}
+        - mountPath: /etc/teleport
+          name: "config"
+          readOnly: true
+        - mountPath: /var/lib/teleport
+          name: "data"
+  {{- if .Values.extraVolumeMounts }}
+    {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
+  {{- end }}
+{{- end }}
       containers:
       - name: "teleport"
         image: "{{ if .Values.enterprise }}{{ .Values.enterpriseImage }}{{ else }}{{ .Values.image }}{{ end }}:{{ if .Values.teleportVersionOverride }}{{ .Values.teleportVersionOverride }}{{ else }}{{ .Chart.Version }}{{ end }}"
+        imagePullPolicy: {{ .Values.imagePullPolicy }}
         args:
         - "--diag-addr=0.0.0.0:3000"
         {{- if .Values.insecureSkipProxyTLSVerify }}
@@ -66,6 +100,10 @@ spec:
           initialDelaySeconds: 5 # wait 5s for agent to register
           periodSeconds: 5 # poll health every 5s
           failureThreshold: 12 # consider agent unhealthy after 60s (12 * 5s)
+{{- if .Values.resources }}
+        resources:
+  {{- toYaml .Values.resources | nindent 10 }}
+{{- end }}
         volumeMounts:
 {{- if .Values.enterprise }}
         - mountPath: /var/lib/license
@@ -82,6 +120,9 @@ spec:
           readOnly: true
         - mountPath: /var/lib/teleport
           name: "data"
+{{- if .Values.extraVolumeMounts }}
+  {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
+{{- end }}
       volumes:
 {{- if .Values.enterprise }}
       - name: license
@@ -103,4 +144,7 @@ spec:
         {{- else }}
         emptyDir: {}
         {{- end }}
+{{- if .Values.extraVolumes }}
+  {{- toYaml .Values.extraVolumes | nindent 6 }}
+{{- end }}
       serviceAccountName: {{ .Release.Name }}
