@@ -424,9 +424,10 @@ func (s *Server) createUserWebSession(ctx context.Context, user services.User) (
 	// It's safe to extract the roles and traits directly from services.User as this method
 	// is only used for local accounts.
 	return s.createWebSession(ctx, types.NewWebSessionRequest{
-		User:   user.GetName(),
-		Roles:  user.GetRoles(),
-		Traits: user.GetTraits(),
+		User:      user.GetName(),
+		Roles:     user.GetRoles(),
+		Traits:    user.GetTraits(),
+		LoginTime: s.clock.Now().UTC(),
 	})
 }
 
