@@ -39,7 +39,6 @@ implementation. It is _fully compatible with OpenSSH_,
 | [Teleport Website](https://goteleport.com/teleport) | The official website of the project. |
 | [Documentation](https://goteleport.com/teleport/docs/quickstart/) | Admin guide, user manual and more. |
 | [Demo Video](https://www.youtube.com/watch?v=0HlyGk8dihM) | 5-minute video overview of the UI. |
-| [Teleconsole](https://www.teleconsole.com) | The free service to "invite" SSH clients behind NAT, built on top of Teleport. |
 | [Blog](https://goteleport.com/blog/) | Our blog where we publish Teleport news. |
 | [Forum](https://github.com/gravitational/teleport/discussions) | Ask us a setup question, post your tutorial, feedback, or idea on our forum. |
 | [Slack](https://goteleport.com/slack) | Need help with your setup? Ping us in our Slack channel. |
