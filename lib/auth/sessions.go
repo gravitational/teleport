@@ -183,16 +183,16 @@ func (s *Server) generateAppToken(username string, roles []string, uri string, e
 	return token, nil
 }
 
-func (a *Server) createWebSession(ctx context.Context, req types.NewWebSessionRequest) (services.WebSession, error) {
+func (s *Server) createWebSession(ctx context.Context, req types.NewWebSessionRequest) (services.WebSession, error) {
 	// It's safe to extract the roles and traits directly from services.User
 	// because this occurs during the user creation process and services.User
 	// is not fetched from the backend.
-	session, err := a.NewWebSession(req)
+	session, err := s.NewWebSession(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	err = a.upsertWebSession(ctx, req.User, session)
+	err = s.upsertWebSession(ctx, req.User, session)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -200,16 +200,16 @@ func (a *Server) createWebSession(ctx context.Context, req types.NewWebSessionRe
 	return session, nil
 }
 
-func (a *Server) createSessionCert(user services.User, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster string) ([]byte, []byte, error) {
+func (s *Server) createSessionCert(user services.User, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster string) ([]byte, []byte, error) {
 	// It's safe to extract the roles and traits directly from services.User
 	// because this occurs during the user creation process and services.User
 	// is not fetched from the backend.
-	checker, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
+	checker, err := services.FetchRoles(user.GetRoles(), s.Access, user.GetTraits())
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	certs, err := a.generateUserCert(certRequest{
+	certs, err := s.generateUserCert(certRequest{
 		user:              user,
 		ttl:               sessionTTL,
 		publicKey:         publicKey,
