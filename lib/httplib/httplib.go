@@ -21,6 +21,7 @@ package httplib
 import (
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
