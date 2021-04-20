@@ -1,5 +1,11 @@
 # Changelog
 
+## 6.1.2
+
+This release of teleport contains a new feature 
+
+* Added log formatting and support to enable timestamps for logs. 
+
 ## 6.1.1
 
 This release of Teleport contains a bug fix.
