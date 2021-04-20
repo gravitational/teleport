@@ -577,9 +577,9 @@ message AuthPreferenceV2 {
     string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
     // SubKind is an optional resource sub kind, used in some resources
     string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
-    // Version is version
+    // Version is a resource version
     string Version = 3 [ (gogoproto.jsontag) = "version" ];
-    // Metadata is User metadata
+    // Metadata is resource metadata
     Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is an AuthPreference specification
     AuthPreferenceSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
