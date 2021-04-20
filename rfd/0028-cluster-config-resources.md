@@ -75,7 +75,8 @@ message ClusterMeta {
 }
 
 message SessionRecordingConfig {
-    string SessionRecording;
+    // ClusterConfig.SessionRecording is renamed to SessionRecordingConfig.Mode.
+    string Mode;
     bool ProxyChecksHostKeys;
 }
 
@@ -116,14 +117,14 @@ would be evaluated together with other RBAC verbs in the auth API handlers.
 
 In particular, this is needed for `SessionRecordingConfig` which has two
 fields:
-* `session_recording` with the possible values: `off`, `node`, `node-sync`,
+* `mode` with the possible values: `off`, `node`, `node-sync`,
   `proxy`, `proxy-sync`;
 * a boolean `proxy_checks_host_keys`.
 
 Some users should be subject to the following restrictions:
-1. The value of `session_recording` can be changed only if its original value
+1. The value of `mode` can be changed only if its original value
    is one of `off`, `node` or `node-sync`.
-1. The value of `session_recording` can be changed to only one of `off`, `node`
+1. The value of `mode` can be changed to only one of `off`, `node`
    or `node-sync`.
 1. The value of `proxy_checks_host_keys` cannot be changed.
 
