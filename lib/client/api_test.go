@@ -20,8 +20,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
 )
 
@@ -264,5 +266,49 @@ func (s *APITestSuite) TestDynamicPortsParsing(c *check.C) {
 		}
 
 		c.Assert(specs, check.DeepEquals, tt.output)
+	}
+}
+
+func TestWebProxyHostPort(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		desc         string
+		webProxyAddr string
+		wantHost     string
+		wantPort     int
+	}{
+		{
+			desc:         "valid WebProxyAddr",
+			webProxyAddr: "example.com:12345",
+			wantHost:     "example.com",
+			wantPort:     12345,
+		},
+		{
+			desc:         "WebProxyAddr without port",
+			webProxyAddr: "example.com",
+			wantHost:     "example.com",
+			wantPort:     defaults.HTTPListenPort,
+		},
+		{
+			desc:         "invalid WebProxyAddr",
+			webProxyAddr: "not a valid addr",
+			wantHost:     "unknown",
+			wantPort:     defaults.HTTPListenPort,
+		},
+		{
+			desc:         "empty WebProxyAddr",
+			webProxyAddr: "",
+			wantHost:     "unknown",
+			wantPort:     defaults.HTTPListenPort,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			c := &Config{WebProxyAddr: tt.webProxyAddr}
+			gotHost, gotPort := c.WebProxyHostPort()
+			require.Equal(t, tt.wantHost, gotHost)
+			require.Equal(t, tt.wantPort, gotPort)
+		})
 	}
 }

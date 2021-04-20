@@ -27,10 +27,10 @@ import (
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	adminpb "google.golang.org/genproto/googleapis/firestore/admin/v1"
 	"google.golang.org/protobuf/proto"
-
 	"gopkg.in/check.v1"
 )
 
@@ -80,6 +80,9 @@ func (s *FirestoreSuite) SetUpSuite(c *check.C) {
 	s.bk = bk.(*Backend)
 	s.suite.B = s.bk
 	s.suite.NewBackend = newBackend
+	clock := clockwork.NewFakeClock()
+	s.bk.clock = clock
+	s.suite.Clock = clock
 }
 
 func emulatorRunning() bool {
