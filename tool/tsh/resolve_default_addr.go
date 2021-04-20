@@ -34,7 +34,7 @@ type raceResult struct {
 	err  error
 }
 
-// raceRequest drives an HHTP request to completion and posts the results back
+// raceRequest drives an HTTP request to completion and posts the results back
 // to the supplied channel.
 func raceRequest(ctx context.Context, cli *http.Client, addr string, results chan<- raceResult) {
 	target := fmt.Sprintf("https://%s/", addr)

@@ -275,6 +275,9 @@ const (
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
 
+	// proxyDefaultResolutionTimeout is how long to wait for an unknown proxy
+	// port to be resolved.
+	//
 	// Originally based on the RFC-8305 "Maximum Connection Attempt Delay"
 	// recommended default value of 2s. In the RFC this value is for the
 	// establishment of a TCP connection, rather than the full HTTP round-
@@ -1791,9 +1794,10 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	return tc, nil
 }
 
-// The order of default proxy ports to try, in order that they will be tried.
+// defaultWebProxyPorts is the order of default proxy ports to try, in order that
+// they will be tried.
 var defaultWebProxyPorts = []int{
-	defaults.HTTPListenPort, defaults.StandardHTTPSListenPort,
+	defaults.HTTPListenPort, teleport.StandardHTTPSPort,
 }
 
 // setClientWebProxyAddr configures the client WebProxyAddr and SSHProxyAddr
@@ -1804,10 +1808,6 @@ var defaultWebProxyPorts = []int{
 func setClientWebProxyAddr(cf *CLIConf, c *client.Config) error {
 	// If the user has specified a proxy on the command line, and one has not
 	// already been specified from configuration...
-
-	// NB: I think this *might* be the origin of the behaviour I described in
-	//     this conversation:
-	// https://gravitational.slack.com/archives/C0DF0TPMY/p1617251076408700
 
 	if cf.Proxy != "" && c.WebProxyAddr == "" {
 		parsedAddrs, err := client.ParseProxyHost(cf.Proxy)
