@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"gopkg.in/check.v1"
 )
@@ -47,10 +46,6 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 			Resources: []string{services.KindTrustedCluster},
 			Verbs:     services.RW(),
 		},
-		{
-			Resources: []string{services.KindBilling},
-			Verbs:     services.RO(),
-		},
 	})
 
 	// set some logins
@@ -83,9 +78,6 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 		Prompt: "",
 	})
 
-	// By default, cloud features are turned off, which will deny billing access.
-	c.Assert(userContext.ACL.Billing, check.DeepEquals, denied)
-
 	// test local auth type
 	c.Assert(userContext.AuthType, check.Equals, authLocal)
 
@@ -94,23 +86,4 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	userContext, err = NewUserContext(user, roleSet)
 	c.Assert(err, check.IsNil)
 	c.Assert(userContext.AuthType, check.Equals, authSSO)
-
-	// Turn on cloud features, to test billing access rules are respected.
-	defaultModules := modules.GetModules()
-	defer modules.SetModules(defaultModules)
-	modules.SetModules(&testModules{})
-
-	userContext, err = NewUserContext(user, roleSet)
-	c.Assert(err, check.IsNil)
-	c.Assert(userContext.ACL.Billing, check.DeepEquals, access{true, true, false, false, false})
-}
-
-type testModules struct {
-	modules.Modules
-}
-
-func (m *testModules) Features() modules.Features {
-	return modules.Features{
-		Cloud: true, // Explicily turn on cloud access.
-	}
 }
