@@ -9,6 +9,26 @@ We expect Teleport Cloud to be suitable to use in non mission critical systems
 that do not require 24/7 access or a guaranteed SLA. We recommend a
 fallback option be available in the event of error or outage.
 
+### How does Cloud Billing work?
+
+Teleport counts the number of unique Resources connected to the account's Proxy 
+("Connected Resources") at frequent time intervals during the month. 
+The aggregate gross price for each Resource on a monthly invoice is 
+determined by multiplying the maximum number of Connected Resources counted in 
+a given month by the per unit pricing for that Resource. Below is an example:
+
+| Time Interval                   |     | T1 | T2 | T3 | T4 | T5 |
+|---------------------------------|-----|----|----|----|----|----|
+| Connected Resources             |     | 10 | 5  | 7  | 15 | 5  |
+|                                 |     |    |    |    |    |    |
+| Max Connected Resources         | 15  |    |    |    |    |    |
+| Per Unit Monthly Pricing        | $5  |    |    |    |    |    |
+| **Total Gross Price for the Month** | **$75** |    |    |    |    |    |
+
+The current self-serve pricing is available on our [online pricing calculator](https://goteleport.com/pricing).
+
+For larger infrastructure footprints, you can [reach out to us directly](https://goteleport.com/signup/enterprise) to discuss volume discounts.
+
 ### Are you using AWS-managed encryption keys, or CMKs via KMS?
 
 We use AWS-managed keys. Currently there is no option to provide your own key.
@@ -34,7 +54,7 @@ $ tsh login --proxy=myinstance.teleport.sh:443
 # tctl (Enterprise edition) can use tsh credentials as of version 5.0
 $ tctl status
 ```
-
+You must use the enterprise version of `tctl`. 
 ### Are dynamic node tokens available?
 
 After [connecting](#how-can-i-access-the-tctl-admin-tool) `tctl` to Teleport Cloud, users can generate
