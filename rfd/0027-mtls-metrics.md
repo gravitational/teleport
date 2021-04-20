@@ -31,6 +31,8 @@ metrics_service:
   prometheus_ca_cert: /var/lib/teleport/...
 ```
 
+Supplying a keypair to the service should be the indicator that tls is on and vice versa.
+
 ### Backwards compatibility
 
 This is a breaking change for systems relying on metrics being hosted at the `diag-addr`. People would have to update their configurations and use the new endpoint.
