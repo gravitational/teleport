@@ -19,7 +19,6 @@ package config
 import (
 	"bytes"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -46,148 +45,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
-)
-
-var (
-	// all possible valid YAML config keys
-	// true  = has sub-keys
-	// false = does not have sub-keys (a leaf)
-	validKeys = map[string]bool{
-		"proxy_protocol":          false,
-		"namespace":               true,
-		"cluster_name":            true,
-		"trusted_clusters":        true,
-		"pid_file":                true,
-		"cert_file":               true,
-		"private_key_file":        true,
-		"cert":                    true,
-		"private_key":             true,
-		"checking_keys":           true,
-		"checking_key_files":      true,
-		"signing_keys":            true,
-		"signing_key_files":       true,
-		"allowed_logins":          true,
-		"teleport":                true,
-		"enabled":                 true,
-		"ssh_service":             true,
-		"proxy_service":           true,
-		"auth_service":            true,
-		"kubernetes":              true,
-		"kubeconfig_file":         true,
-		"auth_token":              true,
-		"auth_servers":            true,
-		"domain_name":             true,
-		"storage":                 false,
-		"nodename":                true,
-		"log":                     true,
-		"period":                  true,
-		"connection_limits":       true,
-		"max_connections":         true,
-		"max_users":               true,
-		"rates":                   true,
-		"commands":                true,
-		"labels":                  false,
-		"output":                  true,
-		"severity":                true,
-		"role":                    true,
-		"name":                    true,
-		"type":                    true,
-		"data_dir":                true,
-		"web_listen_addr":         true,
-		"tunnel_listen_addr":      true,
-		"ssh_listen_addr":         true,
-		"listen_addr":             true,
-		"ca_cert_file":            false,
-		"https_key_file":          true,
-		"https_cert_file":         true,
-		"advertise_ip":            true,
-		"authorities":             true,
-		"keys":                    true,
-		"reverse_tunnels":         true,
-		"addresses":               true,
-		"oidc_connectors":         true,
-		"id":                      true,
-		"issuer_url":              true,
-		"client_id":               true,
-		"client_secret":           true,
-		"redirect_url":            true,
-		"acr_values":              true,
-		"provider":                true,
-		"tokens":                  true,
-		"region":                  true,
-		"table_name":              true,
-		"access_key":              true,
-		"secret_key":              true,
-		"u2f":                     true,
-		"app_id":                  true,
-		"facets":                  true,
-		"device_attestation_cas":  true,
-		"authentication":          true,
-		"second_factor":           false,
-		"oidc":                    true,
-		"display":                 false,
-		"scope":                   false,
-		"claims_to_roles":         true,
-		"dynamic_config":          false,
-		"seed_config":             false,
-		"public_addr":             false,
-		"ssh_public_addr":         false,
-		"tunnel_public_addr":      false,
-		"cache":                   true,
-		"ttl":                     false,
-		"issuer":                  false,
-		"permit_user_env":         false,
-		"ciphers":                 false,
-		"kex_algos":               false,
-		"mac_algos":               false,
-		"ca_signature_algo":       false,
-		"connector_name":          false,
-		"session_recording":       false,
-		"read_capacity_units":     false,
-		"write_capacity_units":    false,
-		"license_file":            false,
-		"proxy_checks_host_keys":  false,
-		"audit_table_name":        false,
-		"audit_sessions_uri":      false,
-		"audit_events_uri":        false,
-		"pam":                     true,
-		"use_pam_auth":            false,
-		"service_name":            false,
-		"client_idle_timeout":     false,
-		"session_control_timeout": false,
-		"disconnect_expired_cert": false,
-		"ciphersuites":            false,
-		"ca_pin":                  false,
-		"keep_alive_interval":     false,
-		"keep_alive_count_max":    false,
-		"local_auth":              false,
-		"enhanced_recording":      false,
-		"command_buffer_size":     false,
-		"disk_buffer_size":        false,
-		"network_buffer_size":     false,
-		"cgroup_path":             false,
-		"kubernetes_service":      true,
-		"kube_cluster_name":       false,
-		"kube_listen_addr":        false,
-		"kube_public_addr":        false,
-		"app_service":             true,
-		"db_service":              true,
-		"protocol":                false,
-		"uri":                     false,
-		"apps":                    false,
-		"databases":               false,
-		"https_keypairs":          true,
-		"key_file":                false,
-		"insecure_skip_verify":    false,
-		"rewrite":                 false,
-		"redirect":                false,
-		"debug_app":               false,
-		"acme":                    true,
-		"email":                   false,
-		"mysql_listen_addr":       false,
-	}
 )
 
 var validCASigAlgos = []string{
@@ -215,8 +73,6 @@ type FileConfig struct {
 	// that defined database access configuration.
 	Databases Databases `yaml:"db_service,omitempty"`
 }
-
-type YAMLMap map[interface{}]interface{}
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
 // format is supported
@@ -248,78 +104,13 @@ func ReadConfig(reader io.Reader) (*FileConfig, error) {
 	}
 	var fc FileConfig
 
-	// New validation in 6.0:
-	//
-	// Try strict unmarshal first (fails if any yaml entry doesn't map to a
-	// FileConfig field).
-	//
-	// If strict unmarshal failed, there may be some innocent mis-placed config
-	// fields. Fall back to the old validation first.
-	//
-	// If the old validation fails too, then we'll report the above error
-	// because the config is definitely invalid.
-	//
-	// If the old validation succeeds, we'll log the above error, but won't
-	// enforce it yet to let users fix the problem
-	strictUnmarshalErr := yaml.UnmarshalStrict(bytes, &fc)
-	if strictUnmarshalErr == nil {
-		// don't start Teleport with invalid ciphers, kex algorithms, or mac algorithms.
-		if err = fc.CheckAndSetDefaults(); err != nil {
-			return nil, trace.BadParameter("failed to parse Teleport configuration: %v", err)
-		}
-		return &fc, nil
+	if err := yaml.UnmarshalStrict(bytes, &fc); err != nil {
+		// Remove all newlines in the YAML error, to avoid escaping when printing.
+		return nil, trace.BadParameter("failed parsing the config file: %s", strings.Replace(err.Error(), "\n", "", -1))
 	}
-	// Remove all newlines in the YAML error, to avoid escaping when printing.
-	strictUnmarshalErr = errors.New(strings.Replace(strictUnmarshalErr.Error(), "\n", "", -1))
-	// DELETE IN 7.0: during 6.0, users should notice any issues that passed
-	// old validation but not the new strict one. With 7.0, we should always
-	// enforce the strict validation.
-	if err = yaml.Unmarshal(bytes, &fc); err != nil {
-		return nil, trace.BadParameter("failed to parse Teleport configuration: %v", strictUnmarshalErr)
-	}
-	// don't start Teleport with invalid ciphers, kex algorithms, or mac algorithms.
-	err = fc.CheckAndSetDefaults()
-	if err != nil {
+	if err := fc.CheckAndSetDefaults(); err != nil {
 		return nil, trace.BadParameter("failed to parse Teleport configuration: %v", err)
 	}
-	// now check for unknown (misspelled) config keys:
-	var validateKeys func(m YAMLMap) error
-	validateKeys = func(m YAMLMap) error {
-		var recursive, ok bool
-		var key string
-		for k, v := range m {
-			if key, ok = k.(string); ok {
-				if recursive, ok = validKeys[key]; !ok {
-					return trace.BadParameter("unrecognized configuration key: '%v'", key)
-				}
-				if recursive {
-					if m2, ok := v.(YAMLMap); ok {
-						if err := validateKeys(m2); err != nil {
-							return err
-						}
-					}
-				}
-			}
-		}
-		return nil
-	}
-	// validate configuration keys:
-	var tmp YAMLMap
-	if err = yaml.Unmarshal(bytes, &tmp); err != nil {
-		return nil, trace.BadParameter("error parsing YAML config: %v", err)
-	}
-	if err = validateKeys(tmp); err != nil {
-		// Both old an new validations failed. Report the new strict validation
-		// error.
-		return nil, trace.Wrap(strictUnmarshalErr)
-	}
-	// New strict validation failed but old one succeeded. There's something
-	// wrong with the config, but don't prevent it from starting up.
-	logrus.Errorf("Teleport configuration is invalid: %v.", strictUnmarshalErr)
-	logrus.Error("This error will be enforced in the next Teleport release.")
-	// Also add a short but noticeable sleep, to nudge users to pay attention
-	// to logs.
-	time.Sleep(5 * time.Second)
 	return &fc, nil
 }
 
