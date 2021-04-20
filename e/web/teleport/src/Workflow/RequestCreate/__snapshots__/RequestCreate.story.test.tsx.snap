@@ -27,6 +27,7 @@ exports[`failed state 1`] = `
   margin-right: 56px;
   padding: 24px;
   padding-top: 16px;
+  height: 100%;
   width: 600px;
   background-color: #1C254D;
   border: 1px solid;
@@ -42,7 +43,6 @@ exports[`failed state 1`] = `
 .c5 {
   box-sizing: border-box;
   margin-bottom: 24px;
-  width: 300px;
 }
 
 .c8 {
@@ -53,7 +53,7 @@ exports[`failed state 1`] = `
   box-sizing: border-box;
   padding: 8px;
   height: 200px;
-  width: 500px;
+  width: 100%;
   border: 0;
   border-radius: 4px;
   border-color: none;
@@ -233,6 +233,7 @@ exports[`failed state 1`] = `
 
 .c0 {
   box-sizing: border-box;
+  margin-bottom: 16px;
   display: flex;
 }
 
@@ -421,6 +422,7 @@ exports[`failed state 1`] = `
   >
     <div
       class="c1"
+      height="100%"
       width="600px"
     >
       <div
@@ -439,7 +441,6 @@ exports[`failed state 1`] = `
         </div>
         <div
           class="c5"
-          width="300px"
         >
           <label
             class="c6"
@@ -531,7 +532,7 @@ exports[`failed state 1`] = `
             height="200px"
             placeholder="Describe your request..."
             style="outline: none;"
-            width="500px"
+            width="100%"
           >
             Some reason for requesting access for specified role.
           </textarea>
@@ -729,6 +730,7 @@ exports[`loaded state 1`] = `
   margin-right: 56px;
   padding: 24px;
   padding-top: 16px;
+  height: 100%;
   width: 600px;
   background-color: #1C254D;
   border: 1px solid;
@@ -744,7 +746,6 @@ exports[`loaded state 1`] = `
 .c4 {
   box-sizing: border-box;
   margin-bottom: 24px;
-  width: 300px;
 }
 
 .c7 {
@@ -755,7 +756,7 @@ exports[`loaded state 1`] = `
   box-sizing: border-box;
   padding: 8px;
   height: 200px;
-  width: 500px;
+  width: 100%;
   border: 0;
   border-radius: 4px;
   border-color: none;
@@ -935,6 +936,7 @@ exports[`loaded state 1`] = `
 
 .c0 {
   box-sizing: border-box;
+  margin-bottom: 16px;
   display: flex;
 }
 
@@ -1123,6 +1125,7 @@ exports[`loaded state 1`] = `
   >
     <div
       class="c1"
+      height="100%"
       width="600px"
     >
       <div
@@ -1135,7 +1138,6 @@ exports[`loaded state 1`] = `
       >
         <div
           class="c4"
-          width="300px"
         >
           <label
             class="c5"
@@ -1227,7 +1229,7 @@ exports[`loaded state 1`] = `
             height="200px"
             placeholder="Describe your request... (optional)"
             style="outline: none;"
-            width="500px"
+            width="100%"
           />
         </div>
       </div>
@@ -1423,6 +1425,7 @@ exports[`processing state 1`] = `
   margin-right: 56px;
   padding: 24px;
   padding-top: 16px;
+  height: 100%;
   width: 600px;
   background-color: #1C254D;
   border: 1px solid;
@@ -1438,7 +1441,6 @@ exports[`processing state 1`] = `
 .c4 {
   box-sizing: border-box;
   margin-bottom: 24px;
-  width: 300px;
 }
 
 .c7 {
@@ -1449,7 +1451,7 @@ exports[`processing state 1`] = `
   box-sizing: border-box;
   padding: 8px;
   height: 200px;
-  width: 500px;
+  width: 100%;
   border: 0;
   border-radius: 4px;
   border-color: none;
@@ -1629,6 +1631,7 @@ exports[`processing state 1`] = `
 
 .c0 {
   box-sizing: border-box;
+  margin-bottom: 16px;
   display: flex;
 }
 
@@ -1817,6 +1820,7 @@ exports[`processing state 1`] = `
   >
     <div
       class="c1"
+      height="100%"
       width="600px"
     >
       <div
@@ -1829,7 +1833,6 @@ exports[`processing state 1`] = `
       >
         <div
           class="c4"
-          width="300px"
         >
           <label
             class="c5"
@@ -1921,7 +1924,7 @@ exports[`processing state 1`] = `
             height="200px"
             placeholder="Describe your request..."
             style="outline: none;"
-            width="500px"
+            width="100%"
           >
             Some reason for requesting access for specified role.
           </textarea>

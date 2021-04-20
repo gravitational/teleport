@@ -39,10 +39,12 @@ export default function useWaitingRoom(ctx: TeleportContextE) {
 
   function updateState(result: AccessRequest) {
     if (result.state === 'APPROVED') {
-      return workflowService.applyPermission(result.id).then(() => {
-        ctx.storeAccessRequests.setApprovedWaitingRoom(result);
-        historyService.reload();
-      });
+      return workflowService
+        .applyPermission({ requestId: result.id })
+        .then(expires => {
+          ctx.storeAccessRequests.setApprovedWaitingRoom(result, expires);
+          historyService.reload();
+        });
     }
     ctx.storeAccessRequests.setWaitingRoom(result);
   }

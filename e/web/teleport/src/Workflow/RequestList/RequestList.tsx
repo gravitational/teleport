@@ -13,13 +13,7 @@ import {
   Alert,
   Indicator,
 } from 'design';
-import {
-  Cell,
-  Column,
-  TextCell,
-  SortHeaderCell,
-  SortTypes,
-} from 'design/DataTable';
+import { Cell, Column, SortHeaderCell, SortTypes } from 'design/DataTable';
 import PagedTable from 'design/DataTable/Paged';
 import isMatch from 'design/utils/match';
 import InputSearch from 'teleport/components/InputSearch';
@@ -112,7 +106,7 @@ export function RequestList({ attempt, requests, assumeRole }: State) {
             />
             <Column
               columnKey="user"
-              cell={<TextCell />}
+              cell={<UserCell />}
               header={
                 <SortHeaderCell
                   sortDir={sort.key === 'user' ? sort.dir : null}
@@ -165,6 +159,25 @@ export function RequestList({ attempt, requests, assumeRole }: State) {
   );
 }
 
+const UserCell = props => {
+  const { rowIndex, data } = props;
+  const { user } = data[rowIndex] as Row;
+
+  return (
+    <Cell
+      style={{
+        maxWidth: '100px',
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+      }}
+      title={user}
+    >
+      {user}
+    </Cell>
+  );
+};
+
 const ReasonCell = props => {
   const { rowIndex, data } = props;
   const { requestReason } = data[rowIndex] as Row;
@@ -172,7 +185,7 @@ const ReasonCell = props => {
   return (
     <Cell
       style={{
-        maxWidth: '350px',
+        maxWidth: '150px',
         whiteSpace: 'nowrap',
         overflow: 'hidden',
         textOverflow: 'ellipsis',
@@ -220,11 +233,10 @@ const ActionCell = props => {
   const request = data[rowIndex] as Row;
 
   return (
-    <Cell align="right" style={{ minWidth: '160px' }}>
+    <Cell align="right">
       {request.canAssume && (
         <ButtonPrimary
           size="small"
-          mr={3}
           disabled={request.isAssumed}
           onClick={() => assumeRole(request)}
           width="80px"
@@ -235,6 +247,7 @@ const ActionCell = props => {
       <ButtonBorder
         as={Link}
         size="small"
+        ml={3}
         to={cfg.getAccessRequestRoute(request.id)}
       >
         View

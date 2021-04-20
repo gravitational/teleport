@@ -59,6 +59,7 @@ exports[`loaded state 1`] = `
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
+  margin-left: 16px;
 }
 
 .c13:active {
@@ -105,7 +106,6 @@ exports[`loaded state 1`] = `
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
-  margin-right: 16px;
   width: 80px;
 }
 
@@ -537,7 +537,10 @@ exports[`loaded state 1`] = `
               PENDING
             </div>
           </td>
-          <td>
+          <td
+            style="max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+            title="Sam"
+          >
             Sam
           </td>
           <td>
@@ -549,7 +552,7 @@ exports[`loaded state 1`] = `
             </div>
           </td>
           <td
-            style="max-width: 350px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+            style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
             title="Testing long message format. I am requesting access for the developer role that i will be using to     commit fixes for our production application. I will need access for the     rest of the day to complete my changes."
           >
             Testing long message format. I am requesting access for the developer role that i will be using to     commit fixes for our production application. I will need access for the     rest of the day to complete my changes.
@@ -559,12 +562,12 @@ exports[`loaded state 1`] = `
           </td>
           <td
             align="right"
-            style="min-width: 160px;"
           >
             <a
               class="c13"
               href="/web/requests/461ff4bb-62f1-53b5-84ae-731022261a12"
               kind="border"
+              ml="3"
               theme="[object Object]"
             >
               View
@@ -590,7 +593,10 @@ exports[`loaded state 1`] = `
               DENIED
             </div>
           </td>
-          <td>
+          <td
+            style="max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+            title="Sam"
+          >
             Sam
           </td>
           <td>
@@ -608,7 +614,7 @@ exports[`loaded state 1`] = `
             </div>
           </td>
           <td
-            style="max-width: 350px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+            style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
             title="Some short request reason"
           >
             Some short request reason
@@ -618,12 +624,12 @@ exports[`loaded state 1`] = `
           </td>
           <td
             align="right"
-            style="min-width: 160px;"
           >
             <a
               class="c13"
               href="/web/requests/3ce23da9-6b85-5fce-9bf3-5fb826120cb2"
               kind="border"
+              ml="3"
               theme="[object Object]"
             >
               View
@@ -649,7 +655,10 @@ exports[`loaded state 1`] = `
               APPROVED
             </div>
           </td>
-          <td>
+          <td
+            style="max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+            title="Sam"
+          >
             Sam
           </td>
           <td>
@@ -673,7 +682,7 @@ exports[`loaded state 1`] = `
             </div>
           </td>
           <td
-            style="max-width: 350px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+            style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
             title=""
           />
           <td>
@@ -681,7 +690,6 @@ exports[`loaded state 1`] = `
           </td>
           <td
             align="right"
-            style="min-width: 160px;"
           >
             <button
               class="c16"
@@ -695,6 +703,7 @@ exports[`loaded state 1`] = `
               class="c13"
               href="/web/requests/72de9b90-04fd-5621-a55d-432d9fe56ef2"
               kind="border"
+              ml="3"
               theme="[object Object]"
             >
               View
@@ -720,7 +729,10 @@ exports[`loaded state 1`] = `
               APPROVED
             </div>
           </td>
-          <td>
+          <td
+            style="max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+            title="Sam"
+          >
             Sam
           </td>
           <td>
@@ -744,7 +756,7 @@ exports[`loaded state 1`] = `
             </div>
           </td>
           <td
-            style="max-width: 350px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+            style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
             title=""
           />
           <td>
@@ -752,7 +764,6 @@ exports[`loaded state 1`] = `
           </td>
           <td
             align="right"
-            style="min-width: 160px;"
           >
             <button
               class="c16"
@@ -765,6 +776,7 @@ exports[`loaded state 1`] = `
               class="c13"
               href="/web/requests/72de9b90-04fd-5621-a55d-432d9fe56ef2"
               kind="border"
+              ml="3"
               theme="[object Object]"
             >
               View

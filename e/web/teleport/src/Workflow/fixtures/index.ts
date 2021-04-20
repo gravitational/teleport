@@ -116,7 +116,7 @@ export class MockedWorkflowService {
     return Promise.reject(new Error('not implemented'));
   };
 
-  applyPermission = () => Promise.resolve();
+  applyPermission = () => Promise.resolve(null);
   submitAccessRequestReview = () => Promise.resolve(requestApproved);
   deleteAccessRequest = () => Promise.resolve();
 }

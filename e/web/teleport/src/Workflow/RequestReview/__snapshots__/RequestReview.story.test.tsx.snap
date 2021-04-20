@@ -57,9 +57,10 @@ exports[`failed state 1`] = `
 
 .c9 {
   box-sizing: border-box;
+  max-width: 500px;
   padding: 8px;
   height: 150px;
-  width: 500px;
+  width: 100%;
   border-radius: 4px;
 }
 
@@ -275,7 +276,7 @@ exports[`failed state 1`] = `
           height="150px"
           placeholder="Optional message..."
           style="outline: none; font-family: theme.font;"
-          width="500px"
+          width="100%"
         />
       </div>
       <button
@@ -325,9 +326,10 @@ exports[`loaded state 1`] = `
 
 .c8 {
   box-sizing: border-box;
+  max-width: 500px;
   padding: 8px;
   height: 150px;
-  width: 500px;
+  width: 100%;
   border-radius: 4px;
 }
 
@@ -537,7 +539,7 @@ exports[`loaded state 1`] = `
           height="150px"
           placeholder="Optional message..."
           style="outline: none; font-family: theme.font;"
-          width="500px"
+          width="100%"
         />
       </div>
       <button
@@ -587,9 +589,10 @@ exports[`processing state 1`] = `
 
 .c8 {
   box-sizing: border-box;
+  max-width: 500px;
   padding: 8px;
   height: 150px;
-  width: 500px;
+  width: 100%;
   border-radius: 4px;
 }
 
@@ -799,7 +802,7 @@ exports[`processing state 1`] = `
           height="150px"
           placeholder="Optional message..."
           style="outline: none; font-family: theme.font;"
-          width="500px"
+          width="100%"
         />
       </div>
       <button

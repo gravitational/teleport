@@ -36,8 +36,9 @@ exports[`loaded approved request state 1`] = `
 .c1 {
   box-sizing: border-box;
   max-width: 860px;
-  min-width: 700px;
+  min-width: 515px;
   margin-right: 32px;
+  width: 100%;
   flex: 1 1 auto;
 }
 
@@ -63,7 +64,7 @@ exports[`loaded approved request state 1`] = `
   border-radius: 50%;
 }
 
-.c22 {
+.c21 {
   box-sizing: border-box;
   margin-left: 16px;
   margin-right: 8px;
@@ -72,26 +73,26 @@ exports[`loaded approved request state 1`] = `
   border-radius: 50%;
 }
 
-.c24 {
+.c23 {
   box-sizing: border-box;
   margin-top: 16px;
   border: 1px solid;
   border-color: #111B48;
 }
 
-.c27 {
+.c26 {
   box-sizing: border-box;
   padding: 16px;
   background-color: #2C3A73;
 }
 
-.c29 {
+.c28 {
   box-sizing: border-box;
   min-width: 120px;
   flex: 0 1 260px;
 }
 
-.c36 {
+.c35 {
   box-sizing: border-box;
   margin-left: 4px;
   margin-top: 16px;
@@ -123,6 +124,7 @@ exports[`loaded approved request state 1`] = `
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
+  margin-left: 16px;
   width: 60px;
 }
 
@@ -146,7 +148,7 @@ exports[`loaded approved request state 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c28 {
+.c27 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -173,20 +175,20 @@ exports[`loaded approved request state 1`] = `
   margin-top: 24px;
 }
 
-.c28:active {
+.c27:active {
   opacity: 0.56;
 }
 
-.c28:hover,
-.c28:focus {
+.c27:hover,
+.c27:focus {
   background: #651FFF;
 }
 
-.c28:active {
+.c27:active {
   background: #354AA4;
 }
 
-.c28:disabled {
+.c27:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -198,7 +200,7 @@ exports[`loaded approved request state 1`] = `
   font-size: 26px;
 }
 
-.c23 {
+.c22 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
@@ -245,7 +247,7 @@ exports[`loaded approved request state 1`] = `
   font-size: 10px;
 }
 
-.c34 {
+.c33 {
   box-sizing: border-box;
   border-radius: 100px;
   display: inline-flex;
@@ -265,7 +267,7 @@ exports[`loaded approved request state 1`] = `
   font-size: 10px;
 }
 
-.c35 {
+.c34 {
   box-sizing: border-box;
   border-radius: 100px;
   display: inline-flex;
@@ -312,7 +314,6 @@ exports[`loaded approved request state 1`] = `
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
-  margin-right: 16px;
 }
 
 .c20 {
@@ -325,16 +326,7 @@ exports[`loaded approved request state 1`] = `
   margin-right: 8px;
 }
 
-.c21 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-}
-
-.c26 {
+.c25 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -343,7 +335,7 @@ exports[`loaded approved request state 1`] = `
   margin: 0px;
 }
 
-.c31 {
+.c30 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
@@ -353,7 +345,7 @@ exports[`loaded approved request state 1`] = `
   margin-right: 8px;
 }
 
-.c33 {
+.c32 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
@@ -363,7 +355,7 @@ exports[`loaded approved request state 1`] = `
   margin-right: 16px;
 }
 
-.c37 {
+.c36 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -409,10 +401,11 @@ exports[`loaded approved request state 1`] = `
 
 .c11 {
   box-sizing: border-box;
-  flex: 1 0 auto;
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  flex-wrap: wrap-reverse;
 }
 
 .c16 {
@@ -428,7 +421,7 @@ exports[`loaded approved request state 1`] = `
   align-items: baseline;
 }
 
-.c25 {
+.c24 {
   box-sizing: border-box;
   padding-left: 16px;
   padding-right: 16px;
@@ -439,7 +432,7 @@ exports[`loaded approved request state 1`] = `
   align-items: baseline;
 }
 
-.c30 {
+.c29 {
   box-sizing: border-box;
   margin-bottom: 16px;
   padding-bottom: 16px;
@@ -448,7 +441,7 @@ exports[`loaded approved request state 1`] = `
   display: flex;
 }
 
-.c32 {
+.c31 {
   box-sizing: border-box;
   margin-bottom: 8px;
   padding-left: 16px;
@@ -479,6 +472,7 @@ exports[`loaded approved request state 1`] = `
   >
     <div
       class="c1"
+      width="100%"
     >
       <div
         class="c2"
@@ -545,6 +539,7 @@ exports[`loaded approved request state 1`] = `
         >
           <div
             class="c12"
+            style="white-space: nowrap;"
           >
             (expires in 
             24 hours
@@ -590,7 +585,7 @@ exports[`loaded approved request state 1`] = `
               Sam
             </div>
             <div
-              class="c21"
+              class="c12"
             >
               submitted
                this request 
@@ -607,11 +602,11 @@ exports[`loaded approved request state 1`] = `
             style="position: relative;"
           >
             <div
-              class="c22"
+              class="c21"
               style="display: flex;"
             >
               <span
-                class="c23 icon icon-checkmark-circle "
+                class="c22 icon icon-checkmark-circle "
                 color="light"
                 font-size="8"
               />
@@ -626,7 +621,7 @@ exports[`loaded approved request state 1`] = `
                 alice
               </div>
               <div
-                class="c21"
+                class="c12"
               >
                 approved
                  this request 
@@ -635,11 +630,11 @@ exports[`loaded approved request state 1`] = `
             </div>
           </div>
           <div
-            class="c24"
+            class="c23"
             style="position: relative;"
           >
             <div
-              class="c25"
+              class="c24"
             >
               <div
                 class="c20"
@@ -647,13 +642,13 @@ exports[`loaded approved request state 1`] = `
                 alice
               </div>
               <div
-                class="c26"
+                class="c25"
               >
                 26 hours ago
               </div>
             </div>
             <div
-              class="c27"
+              class="c26"
             >
               Approving for developer role not admin. Admins access is not needed for this request.
             </div>
@@ -663,11 +658,11 @@ exports[`loaded approved request state 1`] = `
             style="position: relative;"
           >
             <div
-              class="c22"
+              class="c21"
               style="display: flex;"
             >
               <span
-                class="c23 icon icon-checkmark-circle "
+                class="c22 icon icon-checkmark-circle "
                 color="light"
                 font-size="8"
               />
@@ -682,7 +677,7 @@ exports[`loaded approved request state 1`] = `
                 test-long-user-name@testing.com
               </div>
               <div
-                class="c21"
+                class="c12"
               >
                 approved
                  this request 
@@ -694,36 +689,36 @@ exports[`loaded approved request state 1`] = `
         </div>
       </div>
       <button
-        class="c28"
+        class="c27"
         kind="primary"
       >
         assume
       </button>
     </div>
     <div
-      class="c29"
+      class="c28"
     >
       <div
-        class="c30"
+        class="c29"
       >
         <div
-          class="c31"
+          class="c30"
         >
           Reviewers
         </div>
       </div>
       <div
-        class="c32"
+        class="c31"
       >
         <div
-          class="c33"
+          class="c32"
           style="white-space: nowrap; max-width: 200px;"
           title="alice"
         >
           alice
         </div>
         <span
-          class="c34"
+          class="c33"
           color="light"
           font-size="0"
           font-weight="bold"
@@ -733,17 +728,17 @@ exports[`loaded approved request state 1`] = `
         />
       </div>
       <div
-        class="c32"
+        class="c31"
       >
         <div
-          class="c33"
+          class="c32"
           style="white-space: nowrap; max-width: 200px;"
           title="bob"
         >
           bob
         </div>
         <span
-          class="c35"
+          class="c34"
           color="light"
           font-size="0"
           font-weight="bold"
@@ -753,17 +748,17 @@ exports[`loaded approved request state 1`] = `
         />
       </div>
       <div
-        class="c32"
+        class="c31"
       >
         <div
-          class="c33"
+          class="c32"
           style="white-space: nowrap; max-width: 200px;"
           title="test-long-user-name@testing.com"
         >
           test-long-user-name@testing.com
         </div>
         <span
-          class="c34"
+          class="c33"
           color="light"
           font-size="0"
           font-weight="bold"
@@ -773,10 +768,10 @@ exports[`loaded approved request state 1`] = `
         />
       </div>
       <div
-        class="c36"
+        class="c35"
       >
         <div
-          class="c37"
+          class="c36"
           color="text.secondary"
         >
           Thresholds: 
@@ -792,8 +787,9 @@ exports[`loaded denied request state 1`] = `
 .c1 {
   box-sizing: border-box;
   max-width: 860px;
-  min-width: 700px;
+  min-width: 515px;
   margin-right: 32px;
+  width: 100%;
   flex: 1 1 auto;
 }
 
@@ -819,20 +815,20 @@ exports[`loaded denied request state 1`] = `
   border-radius: 50%;
 }
 
-.c22 {
+.c21 {
   box-sizing: border-box;
   margin-top: 16px;
   border: 1px solid;
   border-color: #111B48;
 }
 
-.c25 {
+.c24 {
   box-sizing: border-box;
   padding: 16px;
   background-color: #2C3A73;
 }
 
-.c26 {
+.c25 {
   box-sizing: border-box;
   margin-left: 16px;
   margin-right: 8px;
@@ -841,13 +837,13 @@ exports[`loaded denied request state 1`] = `
   border-radius: 50%;
 }
 
-.c28 {
+.c27 {
   box-sizing: border-box;
   min-width: 120px;
   flex: 0 1 260px;
 }
 
-.c35 {
+.c34 {
   box-sizing: border-box;
   margin-left: 4px;
   margin-top: 16px;
@@ -879,6 +875,7 @@ exports[`loaded denied request state 1`] = `
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
+  margin-left: 16px;
   width: 60px;
 }
 
@@ -909,7 +906,7 @@ exports[`loaded denied request state 1`] = `
   font-size: 26px;
 }
 
-.c27 {
+.c26 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
@@ -956,7 +953,7 @@ exports[`loaded denied request state 1`] = `
   font-size: 10px;
 }
 
-.c33 {
+.c32 {
   box-sizing: border-box;
   border-radius: 100px;
   display: inline-flex;
@@ -976,7 +973,7 @@ exports[`loaded denied request state 1`] = `
   font-size: 10px;
 }
 
-.c34 {
+.c33 {
   box-sizing: border-box;
   border-radius: 100px;
   display: inline-flex;
@@ -1023,7 +1020,6 @@ exports[`loaded denied request state 1`] = `
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
-  margin-right: 16px;
 }
 
 .c20 {
@@ -1036,16 +1032,7 @@ exports[`loaded denied request state 1`] = `
   margin-right: 8px;
 }
 
-.c21 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-}
-
-.c24 {
+.c23 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -1054,7 +1041,7 @@ exports[`loaded denied request state 1`] = `
   margin: 0px;
 }
 
-.c30 {
+.c29 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
@@ -1064,7 +1051,7 @@ exports[`loaded denied request state 1`] = `
   margin-right: 8px;
 }
 
-.c32 {
+.c31 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
@@ -1074,7 +1061,7 @@ exports[`loaded denied request state 1`] = `
   margin-right: 16px;
 }
 
-.c36 {
+.c35 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -1120,10 +1107,11 @@ exports[`loaded denied request state 1`] = `
 
 .c11 {
   box-sizing: border-box;
-  flex: 1 0 auto;
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  flex-wrap: wrap-reverse;
 }
 
 .c16 {
@@ -1139,7 +1127,7 @@ exports[`loaded denied request state 1`] = `
   align-items: baseline;
 }
 
-.c23 {
+.c22 {
   box-sizing: border-box;
   padding-left: 16px;
   padding-right: 16px;
@@ -1150,7 +1138,7 @@ exports[`loaded denied request state 1`] = `
   align-items: baseline;
 }
 
-.c29 {
+.c28 {
   box-sizing: border-box;
   margin-bottom: 16px;
   padding-bottom: 16px;
@@ -1159,7 +1147,7 @@ exports[`loaded denied request state 1`] = `
   display: flex;
 }
 
-.c31 {
+.c30 {
   box-sizing: border-box;
   margin-bottom: 8px;
   padding-left: 16px;
@@ -1190,6 +1178,7 @@ exports[`loaded denied request state 1`] = `
   >
     <div
       class="c1"
+      width="100%"
     >
       <div
         class="c2"
@@ -1250,6 +1239,7 @@ exports[`loaded denied request state 1`] = `
         >
           <div
             class="c12"
+            style="white-space: nowrap;"
           >
             (expires in 
             20 hours
@@ -1295,7 +1285,7 @@ exports[`loaded denied request state 1`] = `
               Sam
             </div>
             <div
-              class="c21"
+              class="c12"
             >
               submitted
                this request 
@@ -1304,11 +1294,11 @@ exports[`loaded denied request state 1`] = `
           </div>
         </div>
         <div
-          class="c22"
+          class="c21"
           style="position: relative;"
         >
           <div
-            class="c23"
+            class="c22"
           >
             <div
               class="c20"
@@ -1316,13 +1306,13 @@ exports[`loaded denied request state 1`] = `
               Sam
             </div>
             <div
-              class="c24"
+              class="c23"
             >
               35 minutes ago
             </div>
           </div>
           <div
-            class="c25"
+            class="c24"
           >
             Some short request reason
           </div>
@@ -1335,11 +1325,11 @@ exports[`loaded denied request state 1`] = `
             style="position: relative;"
           >
             <div
-              class="c26"
+              class="c25"
               style="display: flex;"
             >
               <span
-                class="c27 icon icon-cross-circle "
+                class="c26 icon icon-cross-circle "
                 color="light"
                 font-size="8"
               />
@@ -1354,7 +1344,7 @@ exports[`loaded denied request state 1`] = `
                 alice
               </div>
               <div
-                class="c21"
+                class="c12"
               >
                 denied
                  this request 
@@ -1363,11 +1353,11 @@ exports[`loaded denied request state 1`] = `
             </div>
           </div>
           <div
-            class="c22"
+            class="c21"
             style="position: relative;"
           >
             <div
-              class="c23"
+              class="c22"
             >
               <div
                 class="c20"
@@ -1375,13 +1365,13 @@ exports[`loaded denied request state 1`] = `
                 alice
               </div>
               <div
-                class="c24"
+                class="c23"
               >
                 26 hours ago
               </div>
             </div>
             <div
-              class="c25"
+              class="c24"
             >
               Not today
             </div>
@@ -1390,29 +1380,29 @@ exports[`loaded denied request state 1`] = `
       </div>
     </div>
     <div
-      class="c28"
+      class="c27"
     >
       <div
-        class="c29"
+        class="c28"
       >
         <div
-          class="c30"
+          class="c29"
         >
           Reviewers
         </div>
       </div>
       <div
-        class="c31"
+        class="c30"
       >
         <div
-          class="c32"
+          class="c31"
           style="white-space: nowrap; max-width: 200px;"
           title="alice"
         >
           alice
         </div>
         <span
-          class="c33"
+          class="c32"
           color="light"
           font-size="0"
           font-weight="bold"
@@ -1422,17 +1412,17 @@ exports[`loaded denied request state 1`] = `
         />
       </div>
       <div
-        class="c31"
+        class="c30"
       >
         <div
-          class="c32"
+          class="c31"
           style="white-space: nowrap; max-width: 200px;"
           title="bob"
         >
           bob
         </div>
         <span
-          class="c34"
+          class="c33"
           color="light"
           font-size="0"
           font-weight="bold"
@@ -1442,10 +1432,10 @@ exports[`loaded denied request state 1`] = `
         />
       </div>
       <div
-        class="c35"
+        class="c34"
       >
         <div
-          class="c36"
+          class="c35"
           color="text.secondary"
         >
           Thresholds: 
@@ -1461,8 +1451,9 @@ exports[`loaded pending request state 1`] = `
 .c1 {
   box-sizing: border-box;
   max-width: 860px;
-  min-width: 700px;
+  min-width: 515px;
   margin-right: 32px;
+  width: 100%;
   flex: 1 1 auto;
 }
 
@@ -1488,27 +1479,27 @@ exports[`loaded pending request state 1`] = `
   border-radius: 50%;
 }
 
-.c22 {
+.c21 {
   box-sizing: border-box;
   margin-top: 16px;
   border: 1px solid;
   border-color: #111B48;
 }
 
-.c25 {
+.c24 {
   box-sizing: border-box;
   padding: 16px;
   background-color: #2C3A73;
 }
 
-.c26 {
+.c25 {
   box-sizing: border-box;
   margin-top: 48px;
   border: 1px solid;
   border-color: #111B48;
 }
 
-.c27 {
+.c26 {
   box-sizing: border-box;
   padding-left: 16px;
   padding-right: 16px;
@@ -1517,32 +1508,33 @@ exports[`loaded pending request state 1`] = `
   background-color: #111B48;
 }
 
-.c29 {
+.c28 {
   box-sizing: border-box;
   margin-bottom: 24px;
   width: 200px;
 }
 
-.c32 {
+.c31 {
   box-sizing: border-box;
   margin-bottom: 24px;
 }
 
-.c33 {
+.c32 {
   box-sizing: border-box;
+  max-width: 500px;
   padding: 8px;
   height: 150px;
-  width: 500px;
+  width: 100%;
   border-radius: 4px;
 }
 
-.c35 {
+.c34 {
   box-sizing: border-box;
   min-width: 120px;
   flex: 0 1 260px;
 }
 
-.c41 {
+.c40 {
   box-sizing: border-box;
   margin-left: 4px;
   margin-top: 16px;
@@ -1574,6 +1566,7 @@ exports[`loaded pending request state 1`] = `
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
+  margin-left: 16px;
   width: 60px;
 }
 
@@ -1597,7 +1590,7 @@ exports[`loaded pending request state 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c34 {
+.c33 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1623,20 +1616,20 @@ exports[`loaded pending request state 1`] = `
   padding: 0px 24px;
 }
 
-.c34:active {
+.c33:active {
   opacity: 0.56;
 }
 
-.c34:hover,
-.c34:focus {
+.c33:hover,
+.c33:focus {
   background: #651FFF;
 }
 
-.c34:active {
+.c33:active {
   background: #354AA4;
 }
 
-.c34:disabled {
+.c33:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -1665,7 +1658,7 @@ exports[`loaded pending request state 1`] = `
   margin-top: 4px;
 }
 
-.c30 {
+.c29 {
   color: #FFFFFF;
   display: block;
   font-size: 11px;
@@ -1698,7 +1691,7 @@ exports[`loaded pending request state 1`] = `
   font-size: 10px;
 }
 
-.c40 {
+.c39 {
   box-sizing: border-box;
   border-radius: 100px;
   display: inline-flex;
@@ -1745,7 +1738,6 @@ exports[`loaded pending request state 1`] = `
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
-  margin-right: 16px;
 }
 
 .c20 {
@@ -1758,16 +1750,7 @@ exports[`loaded pending request state 1`] = `
   margin-right: 8px;
 }
 
-.c21 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-}
-
-.c24 {
+.c23 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -1776,7 +1759,7 @@ exports[`loaded pending request state 1`] = `
   margin: 0px;
 }
 
-.c28 {
+.c27 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
@@ -1786,7 +1769,7 @@ exports[`loaded pending request state 1`] = `
   margin-right: 16px;
 }
 
-.c37 {
+.c36 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
@@ -1796,7 +1779,7 @@ exports[`loaded pending request state 1`] = `
   margin-right: 8px;
 }
 
-.c39 {
+.c38 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
@@ -1806,7 +1789,7 @@ exports[`loaded pending request state 1`] = `
   margin-right: 16px;
 }
 
-.c42 {
+.c41 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -1852,10 +1835,11 @@ exports[`loaded pending request state 1`] = `
 
 .c11 {
   box-sizing: border-box;
-  flex: 1 0 auto;
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  flex-wrap: wrap-reverse;
 }
 
 .c16 {
@@ -1871,7 +1855,7 @@ exports[`loaded pending request state 1`] = `
   align-items: baseline;
 }
 
-.c23 {
+.c22 {
   box-sizing: border-box;
   padding-left: 16px;
   padding-right: 16px;
@@ -1882,7 +1866,7 @@ exports[`loaded pending request state 1`] = `
   align-items: baseline;
 }
 
-.c36 {
+.c35 {
   box-sizing: border-box;
   margin-bottom: 16px;
   padding-bottom: 16px;
@@ -1891,7 +1875,7 @@ exports[`loaded pending request state 1`] = `
   display: flex;
 }
 
-.c38 {
+.c37 {
   box-sizing: border-box;
   margin-bottom: 8px;
   padding-left: 16px;
@@ -1907,12 +1891,12 @@ exports[`loaded pending request state 1`] = `
   justify-content: space-between;
 }
 
-.c31 .react-select__control,
-.c31 .react-select__control--is-focused {
+.c30 .react-select__control,
+.c30 .react-select__control--is-focused {
   min-height: 40px;
 }
 
-.c31 .react-select-container {
+.c30 .react-select-container {
   box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
   border: none;
@@ -1926,20 +1910,20 @@ exports[`loaded pending request state 1`] = `
   border-radius: 4px;
 }
 
-.c31 .react-select__menu {
+.c30 .react-select__menu {
   margin-top: 0px;
 }
 
-.c31 .react-select__indicator-separator {
+.c30 .react-select__indicator-separator {
   display: none;
 }
 
-.c31 .react-select__control:hover {
+.c30 .react-select__control:hover {
   border-color: transparent;
   cursor: pointer;
 }
 
-.c31 .react-select__control--is-focused {
+.c30 .react-select__control--is-focused {
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -1948,7 +1932,7 @@ exports[`loaded pending request state 1`] = `
   box-shadow: none;
 }
 
-.c31 .react-select__option--is-selected {
+.c30 .react-select__option--is-selected {
   background-color: #cfd8dc;
   color: inherit;
 }
@@ -1968,6 +1952,7 @@ exports[`loaded pending request state 1`] = `
   >
     <div
       class="c1"
+      width="100%"
     >
       <div
         class="c2"
@@ -2022,6 +2007,7 @@ exports[`loaded pending request state 1`] = `
         >
           <div
             class="c12"
+            style="white-space: nowrap;"
           >
             (expires in 
             35 minutes
@@ -2067,7 +2053,7 @@ exports[`loaded pending request state 1`] = `
               Sam
             </div>
             <div
-              class="c21"
+              class="c12"
             >
               submitted
                this request 
@@ -2076,11 +2062,11 @@ exports[`loaded pending request state 1`] = `
           </div>
         </div>
         <div
-          class="c22"
+          class="c21"
           style="position: relative;"
         >
           <div
-            class="c23"
+            class="c22"
           >
             <div
               class="c20"
@@ -2088,46 +2074,46 @@ exports[`loaded pending request state 1`] = `
               Sam
             </div>
             <div
-              class="c24"
+              class="c23"
             >
               1 minute ago
             </div>
           </div>
           <div
-            class="c25"
+            class="c24"
           >
             Testing long message format. I am requesting access for the developer role that i will be using to     commit fixes for our production application. I will need access for the     rest of the day to complete my changes.
           </div>
         </div>
         <div
-          class="c26"
+          class="c25"
           style="position: relative;"
         >
           <div
-            class="c27"
+            class="c26"
           >
             <div
-              class="c28"
+              class="c27"
             >
               loggedInUsername
                - add a review
             </div>
           </div>
           <div
-            class="c25"
+            class="c24"
           >
             <div
-              class="c29"
+              class="c28"
               width="200px"
             >
               <label
-                class="c30"
+                class="c29"
                 font-size="0"
               >
                 Request Status
               </label>
               <div
-                class="c31"
+                class="c30"
               >
                 <div
                   class="react-select-container css-2b097c-container"
@@ -2181,24 +2167,24 @@ exports[`loaded pending request state 1`] = `
               </div>
             </div>
             <div
-              class="c32"
+              class="c31"
             >
               <label
-                class="c30"
+                class="c29"
                 font-size="0"
               >
                 Message
               </label>
               <textarea
-                class="c33"
+                class="c32"
                 height="150px"
                 placeholder="Optional message..."
                 style="outline: none; font-family: theme.font;"
-                width="500px"
+                width="100%"
               />
             </div>
             <button
-              class="c34"
+              class="c33"
               kind="primary"
             >
               Submit Review
@@ -2208,29 +2194,29 @@ exports[`loaded pending request state 1`] = `
       </div>
     </div>
     <div
-      class="c35"
+      class="c34"
     >
       <div
-        class="c36"
+        class="c35"
       >
         <div
-          class="c37"
+          class="c36"
         >
           Reviewers
         </div>
       </div>
       <div
-        class="c38"
+        class="c37"
       >
         <div
-          class="c39"
+          class="c38"
           style="white-space: nowrap; max-width: 200px;"
           title="alice"
         >
           alice
         </div>
         <span
-          class="c40"
+          class="c39"
           color="light"
           font-size="0"
           font-weight="bold"
@@ -2240,17 +2226,17 @@ exports[`loaded pending request state 1`] = `
         />
       </div>
       <div
-        class="c38"
+        class="c37"
       >
         <div
-          class="c39"
+          class="c38"
           style="white-space: nowrap; max-width: 200px;"
           title="bob"
         >
           bob
         </div>
         <span
-          class="c40"
+          class="c39"
           color="light"
           font-size="0"
           font-weight="bold"
@@ -2260,10 +2246,10 @@ exports[`loaded pending request state 1`] = `
         />
       </div>
       <div
-        class="c41"
+        class="c40"
       >
         <div
-          class="c42"
+          class="c41"
           color="text.secondary"
         >
           Thresholds: 

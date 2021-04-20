@@ -160,7 +160,7 @@ describe('access strategy behavioral testing', () => {
     jest
       .spyOn(workflowService, 'fetchAccessRequest')
       .mockResolvedValue(request);
-    jest.spyOn(workflowService, 'applyPermission').mockResolvedValue({});
+    jest.spyOn(workflowService, 'applyPermission').mockResolvedValue(null);
     jest.spyOn(userService, 'fetchUserContext').mockResolvedValue(userContext);
     jest.spyOn(historyService, 'reload').mockImplementation();
 

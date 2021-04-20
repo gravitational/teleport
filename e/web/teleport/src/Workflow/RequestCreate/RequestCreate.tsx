@@ -102,7 +102,7 @@ export function RequestCreate(props: State) {
       return (
         <components.Option {...props} className="react-select__selected">
           <Flex alignItems="center" justifyContent="space-between">
-            <Flex alignItems="center" width="230px">
+            <Flex alignItems="center" width="210px">
               <Icon.CircleCheck />
               <Text title={props.data.value}>{props.data.value}</Text>
             </Flex>
@@ -160,8 +160,9 @@ export function RequestCreate(props: State) {
   return (
     <Validation>
       {({ validator }) => (
-        <Flex>
+        <Flex mb={3}>
           <Box
+            height="100%"
             width="600px"
             p={4}
             pt={3}
@@ -179,7 +180,6 @@ export function RequestCreate(props: State) {
                 <Alert kind="danger" children={attempt.statusText} />
               )}
               <FieldSelect
-                width="300px"
                 menuPosition="fixed"
                 label="Roles Allowed to Request"
                 rule={requiredField('At least one role is required')}
@@ -273,7 +273,7 @@ function TextBox({ reason, setReason, requireReason }: TextBoxProps) {
       <Box
         as="textarea"
         height="200px"
-        width="500px"
+        width="100%"
         borderRadius={2}
         p={2}
         border={hasError ? '2px solid' : '0'}

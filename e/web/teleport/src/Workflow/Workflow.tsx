@@ -64,11 +64,13 @@ function Header({ match }: RouteComponentProps<{ requestId?: string }>) {
           </StyledLink>
           <Icons.ArrowRight mx={3} fontSize={2} />
           {requestId ? (
-            <Flex mr={4} alignItems="baseline">
-              <Text mr={3} title={'New Request'}>
+            <Flex mr={4} alignItems="baseline" overflow="hidden">
+              <Text mr={3} title={'New Request'} style={{ flexShrink: 0 }}>
                 Request
               </Text>
-              <Text typography="body1">{requestId}</Text>
+              <Text typography="body1" title={requestId}>
+                {requestId}
+              </Text>
             </Flex>
           ) : (
             <Text mr={4} title={'New Request'}>

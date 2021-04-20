@@ -67,7 +67,13 @@ export function RequestView({
 
       <Flex>
         {/* Left box contains: status, timestamps, and comments */}
-        <Box mr={5} minWidth="700px" maxWidth="860px" flex="1 1 auto">
+        <Box
+          mr={5}
+          width="100%"
+          minWidth="515px"
+          maxWidth="860px"
+          flex="1 1 auto"
+        >
           {/* First half of this box contains status, roles, expiry, and delete btn */}
           <Flex
             bg="primary.lighter"
@@ -110,8 +116,13 @@ export function RequestView({
                 <RolesRequested roles={request.roles} />
               </Flex>
             </Flex>
-            <Flex alignItems="center" justifyContent="flex-end" flex="1 0 auto">
-              <Text mr={3} typography="body2">
+            <Flex
+              alignItems="center"
+              justifyContent="flex-end"
+              flexWrap="wrap-reverse"
+              flex="1"
+            >
+              <Text typography="body2" style={{ whiteSpace: 'nowrap' }}>
                 (expires in {request.expiresDuration})
               </Text>
               <ButtonBorder
@@ -119,6 +130,7 @@ export function RequestView({
                 onClick={toggleConfirmDelete}
                 size="small"
                 width="60px"
+                ml={3}
               >
                 Delete
               </ButtonBorder>

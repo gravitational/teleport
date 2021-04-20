@@ -6,6 +6,9 @@ const ACCESS_REQUESTS_STORE = 'grv_teleport_access_requests_store';
 type State = {
   waitingRoom: AccessRequest;
   assumed: Record<string, AccessRequest>;
+  // sessionExpiry is the absolute time the current web session expires
+  // for the most recently consumed access request.
+  sessionExpiry: Date;
 };
 
 export default class StoreAccessRequests extends Store<State> {
@@ -21,23 +24,27 @@ export default class StoreAccessRequests extends Store<State> {
     super.setState(nextState);
   }
 
+  // setWaitingRoom is used to update non-approved requests (denied, still pending, error),
+  // which requires re-rendering of the component.
   setWaitingRoom(request: AccessRequest) {
     this.setState({
       waitingRoom: request,
       assumed: {},
+      sessionExpiry: null,
     });
   }
 
-  // setApprovedWaitingRoom is used to update local storage
-  // but prevent rerenders caused by setState notifying subscribers.
-  // A usecase is when we want to reload a page in place of rerendering.
-  setApprovedWaitingRoom(request: AccessRequest) {
+  // setApprovedWaitingRoom is used to update state with requests that were approved.
+  // Approved requests requires page reload to apply new perms. This method prevents
+  // unncessary rerendering right before a page reload.
+  setApprovedWaitingRoom(request: AccessRequest, expires: Date) {
     request.state = 'APPLIED';
     setLocalStorageState({
       waitingRoom: request,
       assumed: {
         [request.id]: request,
       },
+      sessionExpiry: expires,
     });
   }
 
@@ -45,11 +52,12 @@ export default class StoreAccessRequests extends Store<State> {
     return getLocalStorageState().waitingRoom;
   }
 
-  addAssumed(request: AccessRequest) {
+  addAssumed(request: AccessRequest, expires: Date) {
     this.state.assumed[request.id] = request;
     this.setState({
       waitingRoom: this.state.waitingRoom,
       assumed: this.state.assumed,
+      sessionExpiry: expires,
     });
   }
 
@@ -60,6 +68,32 @@ export default class StoreAccessRequests extends Store<State> {
   isAssumed(requestId: string) {
     return getLocalStorageState().assumed[requestId];
   }
+
+  // getAssumedRoles returns a list of all the roles the user is assigned.
+  getAssumedRoles() {
+    const assumed = this.state.assumed;
+    let roles = [];
+
+    Object.keys(assumed).forEach(key => {
+      const request = assumed[key];
+      const newRoles = request.roles.filter(r => !roles.includes(r));
+      roles = [...roles, ...newRoles];
+    });
+
+    return roles;
+  }
+
+  getSessionExpiry() {
+    return getLocalStorageState().sessionExpiry;
+  }
+
+  clearAssumes() {
+    setLocalStorageState({
+      waitingRoom: this.state.waitingRoom,
+      assumed: {},
+      sessionExpiry: null,
+    });
+  }
 }
 
 function getLocalStorageState() {
@@ -69,6 +103,7 @@ function getLocalStorageState() {
     : {
         waitingRoom: makeAccessRequest(),
         assumed: {},
+        sessionExpiry: null,
       };
 }
 

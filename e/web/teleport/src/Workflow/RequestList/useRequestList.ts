@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
-import historyService from 'teleport/services/history';
+import history from 'teleport/services/history';
 import TeleportContextE from 'e-teleport/teleportContextE';
 import { AccessRequest } from 'e-teleport/services/workflow';
 
@@ -20,10 +20,10 @@ export default function useRequestList(ctx: TeleportContextE) {
   function assumeRole(req: Row) {
     setAttempt({ status: 'processing' });
     ctx.workflowService
-      .applyPermission(req.id)
-      .then(() => {
-        ctx.storeAccessRequests.addAssumed(req);
-        historyService.reload();
+      .applyPermission({ requestId: req.id })
+      .then(expires => {
+        ctx.storeAccessRequests.addAssumed(req, expires);
+        history.reload();
       })
       .catch((err: Error) =>
         setAttempt({ status: 'failed', statusText: err.message })

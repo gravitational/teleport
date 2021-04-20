@@ -60,7 +60,8 @@ export default function RequestReview({ attempt, submitReview, user }: Props) {
             <Box mb={4}>
               <LabelInput mb={1}>Message</LabelInput>
               <Box
-                width="500px"
+                width="100%"
+                maxWidth="500px"
                 height="150px"
                 as="textarea"
                 p={2}
