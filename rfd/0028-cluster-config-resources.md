@@ -76,7 +76,7 @@ message ClusterMeta {
 
 message SessionRecordingConfig {
     string SessionRecording;
-    string ProxyChecksHostKeys;
+    bool ProxyChecksHostKeys;
 }
 
 message ClusterNetworkingConfig {
@@ -140,7 +140,7 @@ permissive `update`:
 ### Additional dynamically configurable resources
 
 In addition to the resources derived from `ClusterConfig`, the resources
-`ClusterAuthPreference` and `PAMConfig` should also adapted to facilitate
+`ClusterAuthPreference` and `PAMConfig` should also be adapted to facilitate
 the dynamic configuration workflow.
 
 ### Working with a whole cluster configuration
