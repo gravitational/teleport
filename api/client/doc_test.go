@@ -49,14 +49,14 @@ func ExampleClient_roleCRUD() {
 		},
 	}
 
-	// There are helper functions for dealing with Teleport resources.
+	// There are helper functions for creating Teleport resources.
 	role, err := types.NewRole("role1", roleSpec)
 	if err != nil {
 		log.Fatalf("failed to get role: %v", err)
 	}
 
 	// Getters and setters can be used to alter specs.
-	role.SetLogins(types.Allow, []string{""})
+	role.SetLogins(types.Allow, []string{"root"})
 
 	// Upsert overwrites the resource if it exists. Use this to create/update resources.
 	// Equivalent to `tctl create -f role1.yaml`.
@@ -85,13 +85,13 @@ func ExampleNew() {
 		// must be provided, except when using the ProfileCreds.
 		Addrs: []string{
 			// The Auth server address can be provided to connect locally.
-			"localhost:3025",
+			"auth.example.com:3025",
 			// The tunnel proxy address can be provided
 			// to connect to the Auth server over SSH.
-			"public_address:3024",
+			"proxy.example.com:3024",
 			// The web proxy address can be provided to automatically
 			// find the tunnel proxy address and connect using it.
-			"public_address:3080",
+			"proxy.example.com:3080",
 		},
 		// Multiple Credentials can be provided to attempt to authenticate
 		// the client. At least one Credentials object must be provided.

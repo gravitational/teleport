@@ -47,7 +47,7 @@ type Credentials interface {
 
 // LoadTLS is used to load Credentials directly from a *tls.Config.
 //
-// TLS creds can only be used to connect directly to a local Teleport Auth server.
+// TLS creds can only be used to connect directly to a Teleport Auth server.
 func LoadTLS(tlsConfig *tls.Config) Credentials {
 	return &tlsConfigCreds{
 		tlsConfig: tlsConfig,
@@ -79,7 +79,7 @@ func (c *tlsConfigCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 
 // LoadKeyPair is used to load Credentials from a certicate keypair on disk.
 //
-// KeyPair Credentials can only be used to connect directly to a local Teleport Auth server.
+// KeyPair Credentials can only be used to connect directly to a Teleport Auth server.
 //
 // New KeyPair files can be generated with tsh or tctl.
 //  $ tctl auth sign --format=tls --user=api-user --out=path/to/certs
@@ -87,7 +87,7 @@ func (c *tlsConfigCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 // The certificates' time to live can be specified with --ttl.
 //
 // See the example below for usage.
-func LoadKeyPair(certFile string, keyFile string, caFile string) Credentials {
+func LoadKeyPair(certFile, keyFile, caFile string) Credentials {
 	return &keypairCreds{
 		certFile: certFile,
 		keyFile:  keyFile,
