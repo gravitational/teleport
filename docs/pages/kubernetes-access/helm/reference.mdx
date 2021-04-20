@@ -487,6 +487,261 @@ The default is `INFO`, which is recommended in production.
   </TabItem>
 </Tabs>
 
+## `annotations.config`
+
+| Type | Default value | Can be used in `ownconfig` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `object` | `{}` | ❌ | None |
+
+Kubernetes reference: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+
+Kubernetes annotations which should be applied to the `ConfigMap` created by the chart.
+
+<Admonition type="note">
+  These annotations will not be applied in `ownconfig` mode, as the `ConfigMap` is not managed by the chart.
+  In this instance, you should apply annotations manually to your created `ConfigMap`.
+</Admonition>
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  annotations:
+    config:
+      kubernetes.io/annotation: value
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set annotations.config."kubernetes\.io\/annotation"=value
+  ```
+  <Admonition type="warning" title="Escaping values">
+    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
+    using a `values.yaml` file instead to avoid confusion and errors.
+  </Admonition>
+  </TabItem>
+</Tabs>
+
+## `annotations.deployment`
+
+| Type | Default value | Can be used in `ownconfig` mode? |
+| - | - | - |
+| `object` | `{}` | ✅  |
+
+Kubernetes reference: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+
+Kubernetes annotations which should be applied to the `Deployment` created by the chart.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  annotations:
+    deployment:
+      kubernetes.io/annotation: value
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set annotations.deployment."kubernetes\.io\/annotation"=value
+  ```
+  <Admonition type="warning" title="Escaping values">
+    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
+    using a `values.yaml` file instead to avoid confusion and errors.
+  </Admonition>
+  </TabItem>
+</Tabs>
+
+## `annotations.pod`
+
+| Type | Default value | Can be used in `ownconfig` mode? |
+| - | - | - |
+| `object` | `{}` | ✅  |
+
+Kubernetes reference: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+
+Kubernetes annotations which should be applied to each `Pod` created by the chart.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  annotations:
+    pod:
+      kubernetes.io/annotation: value
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set annotations.pod."kubernetes\.io\/annotation"=value
+  ```
+  <Admonition type="warning" title="Escaping values">
+    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
+    using a `values.yaml` file instead to avoid confusion and errors.
+  </Admonition>
+  </TabItem>
+</Tabs>
+
+## `annotations.service`
+
+| Type | Default value | Can be used in `ownconfig` mode? |
+| - | - | - |
+| `object` | `{}` | ✅  |
+
+Kubernetes reference: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+
+Kubernetes annotations which should be applied to the `Service` created by the chart.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  annotations:
+    service:
+      kubernetes.io/annotation: value
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set annotations.service."kubernetes\.io\/annotation"=value
+  ```
+  <Admonition type="warning" title="Escaping values">
+    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
+    using a `values.yaml` file instead to avoid confusion and errors.
+  </Admonition>
+  </TabItem>
+</Tabs>
+
+## `extraVolumes`
+
+| Type | Default value | Can be used in `ownconfig` mode? |
+| - | - | - |
+| `list` | `[]` | ✅  |
+
+Kubernetes reference: https://kubernetes.io/docs/concepts/storage/volumes/
+
+A list of extra Kubernetes `Volumes` which should be available to any `Pod` created by the chart. These volumes
+will also be available to any `initContainers` configured by the chart.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  extraVolumes:
+  - name: myvolume
+    secret:
+      secretName: mysecret
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set "extraVolumes[0].name=myvolume" \
+  --set "extraVolumes[0].secret.secretName=mysecret"
+  ```
+  </TabItem>
+</Tabs>
+
+## `extraVolumeMounts`
+
+| Type | Default value | Can be used in `ownconfig` mode? |
+| - | - | - |
+| `list` | `[]` | ✅  |
+
+Kubernetes reference: https://kubernetes.io/docs/concepts/storage/volumes/
+
+A list of extra Kubernetes volume mounts which should be mounted into any `Pod` created by the chart. These volume
+mounts will also be mounted into any `initContainers` configured by the chart.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  extraVolumeMounts:
+  - name: myvolume
+    path: /path/to/mount/volume
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set "extraVolumeMounts[0].name=myvolume" \
+  --set "extraVolumeMounts[0].path=/path/to/mount/volume"
+  ```
+  </TabItem>
+</Tabs>
+
+## `imagePullPolicy`
+
+| Type | Default value | Can be used in `ownconfig` mode? |
+| - | - | - |
+| `string` | `IfNotPresent` | ✅  |
+
+Kubernetes reference: https://kubernetes.io/docs/concepts/containers/images/#updating-images
+
+Allows the `imagePullPolicy` for any pods created by the chart to be overridden.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  imagePullPolicy: Always
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set imagePullPolicy=Always
+  ```
+  </TabItem>
+</Tabs>
+
+## `initContainers`
+
+| Type | Default value | Can be used in `ownconfig` mode? |
+| - | - | - |
+| `list` | `[]` | ✅  |
+
+Kubernetes reference: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
+
+A list of `initContainers` which will be run before the main Teleport container in any pod created by the chart.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  initContainers:
+  - name: teleport-init
+    image: alpine
+    args: ['echo test']
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set "initContainers[0].name=teleport-init" \
+  --set "initContainers[0].image=alpine" \
+  --set "initContainers[0].args={echo test}"
+  ```
+  </TabItem>
+</Tabs>
+
+## `resources`
+
+| Type | Default value | Can be used in `ownconfig` mode? |
+| - | - | - |
+| `object` | `{}` | ✅  |
+
+Kubernetes reference: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+
+Resource requests/limits which should be configured for each container inside the pod. These resource limits
+will also be applied to `initContainers`.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  resources:
+    requests:
+      cpu: 1
+      memory: 2Gi
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set resources.requests.cpu=1 \
+  --set resources.requests.memory=2Gi
+  ```
+  </TabItem>
+</Tabs>
+
 ## ---
 
 ## `teleport-kube-agent`
@@ -672,12 +927,12 @@ You can specify multiple apps by adding additional list elements.
   </TabItem>
   <TabItem label="--set">
   ```bash
-  --set apps[0].name=grafana \
-  --set apps[0].uri="http://localhost:3000" \
-  --set apps[0].purpose=monitoring \
-  --set apps[1].name=grafana \
-  --set apps[1].uri="http://jenkins:8080" \
-  --set apps[1].purpose=ci
+  --set "apps[0].name=grafana" \
+  --set "apps[0].uri=http://localhost:3000" \
+  --set "apps[0].purpose=monitoring" \
+  --set "apps[1].name=grafana" \
+  --set "apps[1].uri=http://jenkins:8080" \
+  --set "apps[1].purpose=ci"
   ```
 
   <Admonition type="note">
@@ -732,16 +987,16 @@ You can specify multiple databases by adding additional list elements.
   </TabItem>
   <TabItem label="--set">
   ```bash
-  --set databases[0].name=aurora \
-  --set databases[0].uri="postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432" \
-  --set databases[0].protocol=postgres \
-  --set databases[0].aws.region=us-east-1 \
-  --set databases[0].labels.env=staging \
-  --set databases[1].name=mysql \
-  --set databases[1].uri="mysql-instance-1.xxx.us-east-1.rds.amazonaws.com:3306" \
-  --set databases[1].protocol=mysql \
-  --set databases[1].aws.region=us-east-1 \
-  --set databases[1].labels.env=staging \
+  --set "databases[0].name=aurora" \
+  --set "databases[0].uri=postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432" \
+  --set "databases[0].protocol=postgres" \
+  --set "databases[0].aws.region=us-east-1" \
+  --set "databases[0].labels.env=staging" \
+  --set "databases[1].name=mysql" \
+  --set "databases[1].uri=mysql-instance-1.xxx.us-east-1.rds.amazonaws.com:3306" \
+  --set "databases[1].protocol=mysql" \
+  --set "databases[1].aws.region=us-east-1" \
+  --set "databases[1].labels.env=staging" \
   ```
 
   <Admonition type="note">
@@ -1074,3 +1329,228 @@ The default is `INFO`, which is recommended in production.
   </TabItem>
 </Tabs>
 
+## `annotations.config`
+
+| Type | Default value | Can be used in `ownconfig` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `object` | `{}` | ❌ | None |
+
+Kubernetes reference: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+
+Kubernetes annotations which should be applied to the `ConfigMap` created by the chart.
+
+<Admonition type="note">
+  These annotations will not be applied in `ownconfig` mode, as the `ConfigMap` is not managed by the chart.
+  In this instance, you should apply annotations manually to your created `ConfigMap`.
+</Admonition>
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  annotations:
+    config:
+      kubernetes.io/annotation: value
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set annotations.config."kubernetes\.io\/annotation"=value
+  ```
+  <Admonition type="warning" title="Escaping values">
+    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
+    using a `values.yaml` file instead to avoid confusion and errors.
+  </Admonition>
+  </TabItem>
+</Tabs>
+
+## `annotations.deployment`
+
+| Type | Default value | Can be used in `ownconfig` mode? |
+| - | - | - |
+| `object` | `{}` | ✅  |
+
+Kubernetes reference: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+
+Kubernetes annotations which should be applied to the `Deployment` created by the chart.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  annotations:
+    deployment:
+      kubernetes.io/annotation: value
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set annotations.deployment."kubernetes\.io\/annotation"=value
+  ```
+  <Admonition type="warning" title="Escaping values">
+    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
+    using a `values.yaml` file instead to avoid confusion and errors.
+  </Admonition>
+  </TabItem>
+</Tabs>
+
+## `annotations.pod`
+
+| Type | Default value | Can be used in `ownconfig` mode? |
+| - | - | - |
+| `object` | `{}` | ✅  |
+
+Kubernetes reference: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+
+Kubernetes annotations which should be applied to each `Pod` created by the chart.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  annotations:
+    pod:
+      kubernetes.io/annotation: value
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set annotations.pod."kubernetes\.io\/annotation"=value
+  ```
+  <Admonition type="warning" title="Escaping values">
+    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
+    using a `values.yaml` file instead to avoid confusion and errors.
+  </Admonition>
+  </TabItem>
+</Tabs>
+
+## `extraVolumes`
+
+| Type | Default value | Can be used in `ownconfig` mode? |
+| - | - | - |
+| `list` | `[]` | ✅  |
+
+Kubernetes reference: https://kubernetes.io/docs/concepts/storage/volumes/
+
+A list of extra Kubernetes `Volumes` which should be available to any `Pod` created by the chart. These volumes
+will also be available to any `initContainers` configured by the chart.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  extraVolumes:
+  - name: myvolume
+    secret:
+      secretName: mysecret
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set "extraVolumes[0].name=myvolume" \
+  --set "extraVolumes[0].secret.secretName=mysecret"
+  ```
+  </TabItem>
+</Tabs>
+
+## `extraVolumeMounts`
+
+| Type | Default value | Can be used in `ownconfig` mode? |
+| - | - | - |
+| `list` | `[]` | ✅  |
+
+Kubernetes reference: https://kubernetes.io/docs/concepts/storage/volumes/
+
+A list of extra Kubernetes volume mounts which should be mounted into any `Pod` created by the chart. These volume
+mounts will also be mounted into any `initContainers` configured by the chart.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  extraVolumeMounts:
+  - name: myvolume
+    path: /path/to/mount/volume
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set "extraVolumeMounts[0].name=myvolume" \
+  --set "extraVolumeMounts[0].path=/path/to/mount/volume"
+  ```
+  </TabItem>
+</Tabs>
+
+## `imagePullPolicy`
+
+| Type | Default value | Can be used in `ownconfig` mode? |
+| - | - | - |
+| `string` | `IfNotPresent` | ✅  |
+
+Kubernetes reference: https://kubernetes.io/docs/concepts/containers/images/#updating-images
+
+Allows the `imagePullPolicy` for any pods created by the chart to be overridden.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  imagePullPolicy: Always
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set imagePullPolicy=Always
+  ```
+  </TabItem>
+</Tabs>
+
+## `initContainers`
+
+| Type | Default value | Can be used in `ownconfig` mode? |
+| - | - | - |
+| `list` | `[]` | ✅  |
+
+Kubernetes reference: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
+
+A list of `initContainers` which will be run before the main Teleport container in any pod created by the chart.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  initContainers:
+  - name: teleport-init
+    image: alpine
+    args: ['echo test']
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set "initContainers[0].name=teleport-init" \
+  --set "initContainers[0].image=alpine" \
+  --set "initContainers[0].args={echo test}"
+  ```
+  </TabItem>
+</Tabs>
+
+## `resources`
+
+| Type | Default value | Can be used in `ownconfig` mode? |
+| - | - | - |
+| `object` | `{}` | ✅  |
+
+Kubernetes reference: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+
+Resource requests/limits which should be configured for each container inside the pod. These resource limits
+will also be applied to `initContainers`.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  resources:
+    requests:
+      cpu: 1
+      memory: 2Gi
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set resources.requests.cpu=1 \
+  --set resources.requests.memory=2Gi
+  ```
+  </TabItem>
+</Tabs>
