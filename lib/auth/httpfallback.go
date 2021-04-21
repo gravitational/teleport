@@ -559,28 +559,6 @@ func (c *Client) DeleteTrustedCluster(ctx context.Context, name string) error {
 	return trace.Wrap(err)
 }
 
-// UpsertNodes bulk inserts nodes.
-func (c *Client) UpsertNodes(ctx context.Context, namespace string, servers []services.Server) error {
-	if err := c.APIClient.UpsertNodes(ctx, namespace, servers); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return trace.Wrap(err)
-		}
-	} else {
-		return nil
-	}
-
-	bytes, err := services.MarshalServers(servers)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	args := &upsertNodesReq{
-		Namespace: namespace,
-		Nodes:     bytes,
-	}
-	_, err = c.PutJSON(c.Endpoint("namespaces", namespace, "nodes"), args)
-	return trace.Wrap(err)
-}
-
 // DeleteAllNodes deletes all nodes in a given namespace
 func (c *Client) DeleteAllNodes(ctx context.Context, namespace string) error {
 	if err := c.APIClient.DeleteAllNodes(ctx, namespace); err != nil {

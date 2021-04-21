@@ -620,6 +620,24 @@ func (c *Client) KeepAliveServer(ctx context.Context, keepAlive services.KeepAli
 	return trace.BadParameter("not implemented, use StreamKeepAlives instead")
 }
 
+// UpsertNodes bulk inserts nodes.
+func (c *Client) UpsertNodes(namespace string, servers []services.Server) error {
+	if namespace == "" {
+		return trace.BadParameter("missing node namespace")
+	}
+
+	bytes, err := services.MarshalServers(servers)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	args := &upsertNodesReq{
+		Namespace: namespace,
+		Nodes:     bytes,
+	}
+	_, err = c.PutJSON(c.Endpoint("namespaces", namespace, "nodes"), args)
+	return trace.Wrap(err)
+}
+
 // UpsertReverseTunnel is used by admins to create a new reverse tunnel
 // to the remote proxy to bypass firewall restrictions
 func (c *Client) UpsertReverseTunnel(tunnel services.ReverseTunnel) error {

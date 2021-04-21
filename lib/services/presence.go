@@ -49,7 +49,7 @@ type Presence interface {
 	UpsertNode(ctx context.Context, server Server) (*KeepAlive, error)
 
 	// UpsertNodes bulk inserts nodes.
-	UpsertNodes(ctx context.Context, namespace string, servers []Server) error
+	UpsertNodes(namespace string, servers []Server) error
 
 	// DELETE IN: 5.1.0
 	//

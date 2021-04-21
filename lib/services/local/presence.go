@@ -202,6 +202,22 @@ func (s *PresenceService) DeleteNode(ctx context.Context, namespace string, name
 	return s.Delete(ctx, key)
 }
 
+// GetNode returns a node by name and namespace.
+func (s *PresenceService) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
+	if namespace == "" {
+		return nil, trace.BadParameter("missing parameter namespace")
+	}
+	if name == "" {
+		return nil, trace.BadParameter("missing parameter name")
+	}
+	item, err := s.Get(ctx, backend.Key(nodesPrefix, namespace, name))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return services.UnmarshalServer(item.Value, types.KindNode, services.SkipValidation(),
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+}
+
 // GetNodes returns a list of registered servers
 func (s *PresenceService) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
 	if namespace == "" {
@@ -279,7 +295,7 @@ func (s *PresenceService) KeepAliveNode(ctx context.Context, h services.KeepAliv
 
 // UpsertNodes is used for bulk insertion of nodes. Schema validation is
 // always skipped during bulk insertion.
-func (s *PresenceService) UpsertNodes(ctx context.Context, namespace string, servers []services.Server) error {
+func (s *PresenceService) UpsertNodes(namespace string, servers []services.Server) error {
 	batch, ok := s.Backend.(backend.Batch)
 	if !ok {
 		return trace.BadParameter("backend does not support batch interface")
@@ -305,7 +321,7 @@ func (s *PresenceService) UpsertNodes(ctx context.Context, namespace string, ser
 		}
 	}
 
-	err := batch.PutRange(ctx, items)
+	err := batch.PutRange(context.TODO(), items)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -377,14 +377,14 @@ func (a *ServerWithRoles) GenerateServerKeys(req GenerateServerKeysRequest) (*Pa
 }
 
 // UpsertNodes bulk upserts nodes into the backend.
-func (a *ServerWithRoles) UpsertNodes(ctx context.Context, namespace string, servers []services.Server) error {
+func (a *ServerWithRoles) UpsertNodes(namespace string, servers []services.Server) error {
 	if err := a.action(namespace, services.KindNode, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.action(namespace, services.KindNode, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertNodes(ctx, namespace, servers)
+	return a.authServer.UpsertNodes(namespace, servers)
 }
 
 func (a *ServerWithRoles) UpsertNode(ctx context.Context, s services.Server) (*services.KeepAlive, error) {

@@ -2408,22 +2408,6 @@ func (g *GRPCServer) DeleteNode(ctx context.Context, req *types.ResourceInNamesp
 	return &empty.Empty{}, nil
 }
 
-// UpsertNodes bulk inserts nodes.
-func (g *GRPCServer) UpsertNodes(ctx context.Context, req *proto.UpsertServersReq) (*empty.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trail.ToGRPC(err)
-	}
-	nodes := make([]types.Server, len(req.Servers))
-	for i, node := range req.Servers {
-		nodes[i] = node
-	}
-	if err = auth.ServerWithRoles.UpsertNodes(ctx, req.Namespace, nodes); err != nil {
-		return nil, trail.ToGRPC(err)
-	}
-	return &empty.Empty{}, nil
-}
-
 // DeleteAllNodes deletes all nodes in a given namespace.
 func (g *GRPCServer) DeleteAllNodes(ctx context.Context, req *types.ResourcesInNamespaceRequest) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)

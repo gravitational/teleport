@@ -407,16 +407,13 @@ func (s *APIServer) upsertNodes(auth ClientI, w http.ResponseWriter, r *http.Req
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !services.IsValidNamespace(req.Namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", req.Namespace)
-	}
 
 	nodes, err := services.UnmarshalServers(req.Nodes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	err = auth.UpsertNodes(r.Context(), req.Namespace, nodes)
+	err = auth.UpsertNodes(req.Namespace, nodes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

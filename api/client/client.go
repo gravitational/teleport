@@ -1228,12 +1228,10 @@ func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server
 	if namespace == "" {
 		return nil, trace.BadParameter("missing parameter namespace")
 	}
-
-	resp, err := c.grpc.GetNodes(ctx, &types.ResourcesInNamespaceRequest{}, c.callOpts...)
+	resp, err := c.grpc.GetNodes(ctx, &types.ResourcesInNamespaceRequest{Namespace: namespace}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
-
 	nodes := make([]types.Server, len(resp.Servers))
 	for i, node := range resp.Servers {
 		nodes[i] = node
@@ -1268,31 +1266,6 @@ func (c *Client) DeleteNode(ctx context.Context, namespace, name string) error {
 	}
 	_, err := c.grpc.DeleteNode(ctx, &types.ResourceInNamespaceRequest{
 		Name:      name,
-		Namespace: namespace,
-	}, c.callOpts...)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// UpsertNodes bulk inserts nodes.
-func (c *Client) UpsertNodes(ctx context.Context, namespace string, nodes []types.Server) error {
-	if namespace == "" {
-		return trace.BadParameter("missing parameter namespace")
-	}
-
-	serverV2s := make([]*types.ServerV2, len(nodes))
-	for i, node := range nodes {
-		var ok bool
-		serverV2s[i], ok = node.(*types.ServerV2)
-		if !ok {
-			return trace.BadParameter("invalid type %T", node)
-		}
-	}
-
-	_, err := c.grpc.UpsertNodes(ctx, &proto.UpsertServersReq{
-		Servers:   serverV2s,
 		Namespace: namespace,
 	}, c.callOpts...)
 	return trail.FromGRPC(err)
