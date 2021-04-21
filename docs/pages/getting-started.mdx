@@ -23,7 +23,7 @@ Teleport on Linux machines.
   allowFullScreen
 />
 
-## Step 1: Install Teleport on a Linux Host
+## Step 1: Install Teleport on a Linux host
 
 <Tabs>
   <TabItem label="Amazon Linux 2/RHEL (RPM)">
@@ -88,7 +88,7 @@ $ sudo teleport configure --acme --acme-email=your-email@example.com --cluster-n
 Wrote config to file "/etc/teleport.yaml". Now you can start the server. Happy Teleporting!
 ```
 
-## Step 1c: Configure Domain Name and obtain TLS certificates using Let's Encrypt
+## Step 1c: Configure domain name and obtain TLS certificates using Let's Encrypt
 
 Teleport requires a secure public endpoint for the Teleport UI and for end users to connect to.
 To get started setup two `A` records for `tele.example.com` and `*.tele.example.com`
@@ -200,7 +200,7 @@ Login to receive short-lived certificates from Teleport:
 tsh login --proxy=teleport.example.com:443 --user=teleport-admin
 ```
 
-## Step 4: Have Fun with Teleport!
+## Step 4: Have fun with Teleport!
 
 ### View Status
 
@@ -218,7 +218,7 @@ tsh ls
 tsh ssh root@node-name
 ```
 
-### Add a Node to the Cluster
+### Add a node to the cluster
 
 Generate a short-lived dynamic join token using `tctl`:
 
@@ -277,7 +277,7 @@ Bootstrap a new node:
   </TabItem>
 </Tabs>
 
-### Add an Application to your Teleport cluster
+### Add an application to your teleport cluster
 
 Generate a short-lived dynamic token to join apps:
 
