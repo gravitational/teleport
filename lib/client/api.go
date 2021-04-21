@@ -825,9 +825,9 @@ type ParsedProxyHost struct {
 // There are several "default" ports that the Web Proxy service may use, and if the port is not
 // specified in the supplied
 //
-// If a definitive answer is not possible (i.e.  no proxy port is specified in
-// the supplied string), the empty string is returned in the appropriate slot
-// of the resulting ParsedProxyHost.
+// If a definitive answer is not possible (e.g.  no proxy port is specified in
+// the supplied string), ParseProxyHost() will supply default versions and flag
+// that a default value is being used in the returned `ParsedProxyHost`
 func ParseProxyHost(proxyHost string) (*ParsedProxyHost, error) {
 	host, port, err := net.SplitHostPort(proxyHost)
 	if err != nil {
