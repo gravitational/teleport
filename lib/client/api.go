@@ -46,9 +46,10 @@ import (
 	"golang.org/x/term"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth"
@@ -484,7 +485,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 	}
 
 	// Read in the profile for this proxy.
-	profile, err := client.ProfileFromDir(profileDir, profileName)
+	profile, err := profile.FromDir(profileDir, profileName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -650,7 +651,7 @@ func StatusFor(profileDir, proxyHost, username string) (*ProfileStatus, error) {
 // If no profile is active, Status returns a nil error and nil profile.
 func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, error) {
 	var err error
-	var profile *ProfileStatus
+	var profileStatus *ProfileStatus
 	var others []*ProfileStatus
 
 	// remove ports from proxy host, because profile name is stored
@@ -663,7 +664,7 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 	}
 
 	// Construct the full path to the profile requested and make sure it exists.
-	profileDir = client.FullProfilePath(profileDir)
+	profileDir = profile.FullProfilePath(profileDir)
 	stat, err := os.Stat(profileDir)
 	if err != nil {
 		log.Debugf("Failed to stat file: %v.", err)
@@ -683,7 +684,7 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 	// no proxyHost was supplied.
 	profileName := proxyHost
 	if profileName == "" {
-		profileName, err = client.GetCurrentProfileName(profileDir)
+		profileName, err = profile.GetCurrentProfileName(profileDir)
 		if err != nil {
 			if trace.IsNotFound(err) {
 				return nil, nil, trace.NotFound("not logged in")
@@ -695,7 +696,7 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 	// Read in the target profile first. If readProfile returns trace.NotFound,
 	// that means the profile may have been corrupted (for example keys were
 	// deleted but profile exists), treat this as the user not being logged in.
-	profile, err = readProfile(profileDir, profileName)
+	profileStatus, err = readProfile(profileDir, profileName)
 	if err != nil {
 		log.Debug(err)
 		if !trace.IsNotFound(err) {
@@ -703,11 +704,11 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 		}
 		// Make sure the profile is nil, which tsh uses to detect that no
 		// active profile exists.
-		profile = nil
+		profileStatus = nil
 	}
 
 	// load the rest of the profiles
-	profiles, err := client.ListProfileNames(profileDir)
+	profiles, err := profile.ListProfileNames(profileDir)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -729,7 +730,7 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 		others = append(others, ps)
 	}
 
-	return profile, others, nil
+	return profileStatus, others, nil
 }
 
 // LoadProfile populates Config with the values stored in the given
@@ -737,7 +738,7 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 // directory ~/.tsh is used.
 func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 	// read the profile:
-	cp, err := client.ProfileFromDir(profileDir, ProxyHost(proxyName))
+	cp, err := profile.FromDir(profileDir, ProxyHost(proxyName))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil
@@ -772,9 +773,9 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 		return nil
 	}
 
-	dir = client.FullProfilePath(dir)
+	dir = profile.FullProfilePath(dir)
 
-	var cp client.Profile
+	var cp profile.Profile
 	cp.Username = c.Username
 	cp.WebProxyAddr = c.WebProxyAddr
 	cp.SSHProxyAddr = c.SSHProxyAddr
@@ -849,7 +850,7 @@ func (c *Config) KubeProxyHostPort() (string, int) {
 }
 
 // KubeClusterAddr returns a public HTTPS address of the proxy for use by
-// Kubernetes clients.
+// Kubernetes client.
 func (c *Config) KubeClusterAddr() string {
 	host, port := c.KubeProxyHostPort()
 	return fmt.Sprintf("https://%s:%d", host, port)
@@ -863,9 +864,7 @@ func (c *Config) WebProxyHostPort() (string, int) {
 			return addr.Host(), addr.Port(defaults.HTTPListenPort)
 		}
 	}
-
-	webProxyHost, _ := c.WebProxyHostPort()
-	return webProxyHost, defaults.HTTPListenPort
+	return "unknown", defaults.HTTPListenPort
 }
 
 // WebProxyPort returns the port of the web proxy.
@@ -930,7 +929,7 @@ type TeleportClient struct {
 
 	// Note: there's no mutex guarding this or localAgent, making
 	// TeleportClient NOT safe for concurrent use.
-	lastPing *client.PingResponse
+	lastPing *webclient.PingResponse
 }
 
 // ShellCreatedCallback can be supplied for every teleport client. It will
@@ -2253,14 +2252,14 @@ func (tc *TeleportClient) ActivateKey(ctx context.Context, key *Key) error {
 //
 // Ping can be called for its side-effect of applying the proxy-provided
 // settings (such as various listening addresses).
-func (tc *TeleportClient) Ping(ctx context.Context) (*client.PingResponse, error) {
+func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, error) {
 	// If, at some point, there's a need to bypass this caching, consider
 	// adding a bool argument. At the time of writing this we always want to
 	// cache.
 	if tc.lastPing != nil {
 		return tc.lastPing, nil
 	}
-	pr, err := client.Ping(
+	pr, err := webclient.Ping(
 		ctx,
 		tc.WebProxyAddr,
 		tc.InsecureSkipVerify,
@@ -2341,7 +2340,7 @@ func (tc *TeleportClient) UpdateTrustedCA(ctx context.Context, clusterName strin
 
 // applyProxySettings updates configuration changes based on the advertised
 // proxy settings, overriding existing fields in tc.
-func (tc *TeleportClient) applyProxySettings(proxySettings client.ProxySettings) error {
+func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettings) error {
 	// Kubernetes proxy settings.
 	if proxySettings.Kube.Enabled {
 		switch {

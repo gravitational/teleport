@@ -2,16 +2,12 @@
   "navigation": [
     {
       "icon": "stack",
-      "title": "Documentation",
+      "title": "Home",
       "entries": [
         { "title": "Introduction", "slug": "/" },
         { "title": "Adopters", "slug": "/adopters/" },
         { "title": "Getting Started", "slug": "/getting-started/" },
         { "title": "Installation", "slug": "/installation/" },
-        { "title": "Application Access", "slug": "/application-access/" },
-        { "title": "Kubernetes Access", "slug": "/kubernetes-access/" },
-        { "title": "Database Access", "slug": "/database-access/" },
-        { "title": "Cloud", "slug": "/cloud/" },
         { "title": "User Manual", "slug": "/user-manual/" },
         { "title": "Admin Manual", "slug": "/admin-guide/" },
         { "title": "Production Guide", "slug": "/production/" },
@@ -23,6 +19,7 @@
       "icon": "window",
       "title": "Application Access",
       "entries": [
+        { "title": "Introduction", "slug": "/application-access/introduction/" },
         { "title": "Getting Started", "slug": "/application-access/getting-started/" },
         {
           "title": "Guides",
@@ -40,6 +37,7 @@
       "icon": "kubernetes",
       "title": "Kubernetes Access",
       "entries": [
+        { "title": "Introduction", "slug": "/kubernetes-access/introduction/" },
         { "title": "Getting Started", "slug": "/kubernetes-access/getting-started/" },
         {
           "title": "Guides",
@@ -58,6 +56,7 @@
       "icon": "database",
       "title": "Database Access",
       "entries": [
+        { "title": "Introduction", "slug": "/database-access/introduction/" },
         { "title": "Getting Started", "slug": "/database-access/getting-started/" },
         {
           "title": "Guides",
@@ -137,6 +136,7 @@
       "icon": "cloud",
       "title": "Cloud",
       "entries": [
+        { "title": "Introduction", "slug": "/cloud/introduction/" },        
         { "title": "Getting Started", "slug": "/cloud/getting-started/" },
         { "title": "Architecture", "slug": "/cloud/architecture/" },
         { "title": "FAQ", "slug": "/cloud/faq/" }
@@ -171,8 +171,16 @@
       "entries": [
         { "title": "YAML", "slug": "/config-reference/" },
         { "title": "CLI", "slug": "/cli-docs/" },
-        { "title": "API", "slug": "/api-reference/" },
-        { "title": "Metrics", "slug": "/metrics-logs-reference/" }
+        { "title": "Metrics", "slug": "/metrics-logs-reference/" },
+        { 
+          "title": "API",
+          "slug": "/reference/api/",
+          "entries": [
+            {"title": "Introduction", "slug": "/reference/api/introduction/"},
+            {"title": "Getting Started", "slug": "/reference/api/getting-started/"},
+            {"title": "Architecture", "slug": "/reference/api/architecture/"}
+          ]
+        }
       ]
     }
   ],
@@ -189,6 +197,26 @@
     }
   },
   "redirects": [
+    {
+      "source": "/cloud/",
+      "destination": "/cloud/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/application-access/",
+      "destination": "/application-access/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/",
+      "destination": "/database-access/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/",
+      "destination": "/kubernetes-access/introduction/",
+      "permanent": true
+    },
     {
       "source": "/enterprise/ssh-rbac/",
       "destination": "/access-controls/introduction/",

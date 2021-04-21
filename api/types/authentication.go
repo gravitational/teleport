@@ -123,24 +123,6 @@ func DefaultAuthPreference() AuthPreference {
 	}
 }
 
-// AuthPreferenceV2 implements AuthPreference.
-type AuthPreferenceV2 struct {
-	// Kind is a resource kind - always resource.
-	Kind string `json:"kind"`
-
-	// SubKind is a resource sub kind.
-	SubKind string `json:"sub_kind,omitempty"`
-
-	// Version is a resource version.
-	Version string `json:"version"`
-
-	// Metadata is metadata about the resource.
-	Metadata Metadata `json:"metadata"`
-
-	// Spec is the specification of the resource.
-	Spec AuthPreferenceSpecV2 `json:"spec"`
-}
-
 // GetVersion returns resource version.
 func (c *AuthPreferenceV2) GetVersion() string {
 	return c.Version
@@ -312,39 +294,6 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 // String represents a human readable version of authentication settings.
 func (c *AuthPreferenceV2) String() string {
 	return fmt.Sprintf("AuthPreference(Type=%q,SecondFactor=%q)", c.Spec.Type, c.Spec.SecondFactor)
-}
-
-// AuthPreferenceSpecV2 is the actual data we care about for AuthPreferenceV2.
-type AuthPreferenceSpecV2 struct {
-	// Type is the type of authentication.
-	Type string `json:"type"`
-
-	// SecondFactor is the type of second factor.
-	SecondFactor constants.SecondFactorType `json:"second_factor,omitempty"`
-
-	// ConnectorName is the name of the OIDC or SAML connector. If this value is
-	// not set the first connector in the backend will be used.
-	ConnectorName string `json:"connector_name,omitempty"`
-
-	// U2F are the settings for the U2F device.
-	U2F *U2F `json:"u2f,omitempty"`
-
-	// RequireSessionMFA causes all sessions in this cluster to require MFA
-	// checks.
-	RequireSessionMFA bool `json:"require_session_mfa,omitempty"`
-}
-
-// U2F defines settings for U2F device.
-type U2F struct {
-	// AppID returns the application ID for universal second factor.
-	AppID string `json:"app_id,omitempty"`
-
-	// Facets returns the facets for universal second factor.
-	Facets []string `json:"facets,omitempty"`
-
-	// DeviceAttestationCAs contains the trusted attestation CAs for U2F
-	// devices.
-	DeviceAttestationCAs []string `json:"device_attestation_cas,omitempty"`
 }
 
 func (u *U2F) Check() error {

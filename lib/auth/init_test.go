@@ -475,6 +475,7 @@ func TestMigrateMFADevices(t *testing.T) {
 	cmpOpts := []cmp.Option{
 		cmpopts.IgnoreFields(types.UserSpecV2{}, "CreatedBy"),
 		cmpopts.IgnoreFields(types.MFADevice{}, "Id"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 		cmpopts.SortSlices(func(a, b types.User) bool { return a.GetName() < b.GetName() }),
 	}
 
