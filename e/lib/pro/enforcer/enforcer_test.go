@@ -27,6 +27,8 @@ type EnforcerSuite struct {
 var _ = check.Suite(&EnforcerSuite{})
 
 func (s *EnforcerSuite) SetUpSuite(c *check.C) {
+	ctx := context.TODO()
+
 	directory := c.MkDir()
 	s.clock = clockwork.NewFakeClock()
 
@@ -54,7 +56,7 @@ func (s *EnforcerSuite) SetUpSuite(c *check.C) {
 		Version:  services.V2,
 	}
 	server.SetNamespace(clusterID)
-	_, err = presence.UpsertNode(server)
+	_, err = presence.UpsertNode(ctx, server)
 	c.Assert(err, check.IsNil)
 
 	s.enforcer, err = New(context.Background(), Config{

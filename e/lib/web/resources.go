@@ -22,11 +22,10 @@ func (p *Plugin) getAuthConnectorsHandle(w http.ResponseWriter, r *http.Request,
 		return nil, trace.Wrap(err)
 	}
 
-	return getAuthConnectors(clt)
+	return getAuthConnectors(r.Context(), clt)
 }
 
-func getAuthConnectors(clt resourcesAPIGetter) ([]ui.ResourceItem, error) {
-	ctx := context.TODO()
+func getAuthConnectors(ctx context.Context, clt resourcesAPIGetter) ([]ui.ResourceItem, error) {
 	githubConns, err := clt.GetGithubConnectors(ctx, true)
 	if err != nil {
 		return nil, trace.Wrap(err)

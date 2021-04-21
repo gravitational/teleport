@@ -46,6 +46,8 @@ func (s *IntSuite) TearDownSuite(c *check.C) {
 // We use a custom init function before a test because we might need to run
 // custom control logic before the initialization of an "enforcer"
 func (s *IntSuite) init(c *check.C) {
+	ctx := context.TODO()
+
 	anonymizer, err := utils.NewHMACAnonymizer(ClusterID)
 	c.Assert(err, check.IsNil)
 
@@ -69,7 +71,7 @@ func (s *IntSuite) init(c *check.C) {
 	presence := local.NewPresenceService(backend)
 	err = presence.UpsertNamespace(*namespace)
 	c.Assert(err, check.IsNil)
-	_, err = presence.UpsertNode(server)
+	_, err = presence.UpsertNode(ctx, server)
 	c.Assert(err, check.IsNil)
 
 	s.enforcer, err = enforcer.New(s.ctx, enforcer.Config{

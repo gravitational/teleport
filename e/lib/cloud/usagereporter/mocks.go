@@ -31,7 +31,7 @@ type MockedResourceGetter struct {
 	MockedGetAppServers      func() ([]types.Server, error)
 }
 
-func (g *MockedResourceGetter) GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+func (g *MockedResourceGetter) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
 	if g.MockedGetNodes != nil {
 		return g.MockedGetNodes()
 	}
