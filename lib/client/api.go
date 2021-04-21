@@ -804,31 +804,47 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 // ParsedProxyHost holds the hostname and Web & SSH proxy addresses
 // parsed out of a WebProxyAddress string.
 type ParsedProxyHost struct {
-	Host         string
-	WebProxyAddr string
-	SSHProxyAddr string
+	Host string
+
+	// UsingDefaultWebProxyPort means that the port in WebProxyAddr was
+	// supplied by ParseProxyHost function rather than ProxyHost string
+	// itself.
+	UsingDefaultWebProxyPort bool
+	WebProxyAddr             string
+
+	// UsingDefaultSSHProxyPort means that the port in SSHProxyAddr was
+	// supplied by ParseProxyHost function rather than ProxyHost string
+	// itself.
+	UsingDefaultSSHProxyPort bool
+	SSHProxyAddr             string
 }
 
 // ParseProxyHost parses a ProxyHost string of the format <hostname>:<proxy_web_port>,<proxy_ssh_port>
 // and returns the parsed components.
 //
-// If a definitive answer is not possible (e.g. no proxy port is specified in
+// There are several "default" ports that the Web Proxy service may use, and if the port is not
+// specified in the supplied
+//
+// If a definitive answer is not possible (i.e.  no proxy port is specified in
 // the supplied string), the empty string is returned in the appropriate slot
 // of the resulting ParsedProxyHost.
-func ParseProxyHost(proxyHost string) (ParsedProxyHost, error) {
+func ParseProxyHost(proxyHost string) (*ParsedProxyHost, error) {
 	host, port, err := net.SplitHostPort(proxyHost)
 	if err != nil {
 		host = proxyHost
 		port = ""
 	}
 
-	result := ParsedProxyHost{Host: host}
-
-	// Split on comma.
-	parts := strings.Split(port, ",")
-
-	webPort := ""
+	// set the default values of the port strings. One, both, or neither may
+	// be overridden by the port string parsing below.
+	usingDefaultWebProxyPort := true
+	usingDefaultSSHProxyPort := true
+	webPort := strconv.Itoa(defaults.HTTPListenPort)
 	sshPort := strconv.Itoa(defaults.SSHProxyListenPort)
+
+	// Split the port string out into at most two parts, the proxy port and
+	// ssh port. Any more that 2 parts will be considered an error.
+	parts := strings.Split(port, ",")
 
 	switch {
 	// Default ports for both the SSH and Web proxy.
@@ -837,21 +853,34 @@ func ParseProxyHost(proxyHost string) (ParsedProxyHost, error) {
 
 	// User defined HTTP proxy port, default SSH proxy port.
 	case len(parts) == 1:
-		webPort = parts[0]
+		if text := strings.TrimSpace(parts[0]); len(text) > 0 {
+			webPort = text
+			usingDefaultWebProxyPort = false
+		}
 
 	// User defined HTTP and SSH proxy ports.
 	case len(parts) == 2:
-		webPort, sshPort = parts[0], parts[1]
+		if text := strings.TrimSpace(parts[0]); len(text) > 0 {
+			webPort = text
+			usingDefaultWebProxyPort = false
+		}
+		if text := strings.TrimSpace(parts[1]); len(text) > 0 {
+			sshPort = text
+			usingDefaultSSHProxyPort = false
+		}
 
 	default:
-		return result, trace.BadParameter("unable to parse port: %v", port)
+		return nil, trace.BadParameter("unable to parse port: %v", port)
 	}
 
-	if webPort != "" {
-		result.WebProxyAddr = net.JoinHostPort(host, webPort)
-	}
-	result.SSHProxyAddr = net.JoinHostPort(host, sshPort)
+	result := &ParsedProxyHost{
+		Host:                     host,
+		UsingDefaultWebProxyPort: usingDefaultWebProxyPort,
+		WebProxyAddr:             net.JoinHostPort(host, webPort),
 
+		UsingDefaultSSHProxyPort: usingDefaultSSHProxyPort,
+		SSHProxyAddr:             net.JoinHostPort(host, sshPort),
+	}
 	return result, nil
 }
 
@@ -864,14 +893,6 @@ func (c *Config) ParseProxyHost(proxyHost string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	// if the parser wasn't able to unambiguously provide a WebProxyAddr,
-	// then we just pick the standard teleport one and be done with it.
-	if parsedAddrs.WebProxyAddr == "" {
-		parsedAddrs.WebProxyAddr = net.JoinHostPort(
-			parsedAddrs.Host, strconv.Itoa(defaults.HTTPListenPort))
-	}
-
 	c.WebProxyAddr = parsedAddrs.WebProxyAddr
 	c.SSHProxyAddr = parsedAddrs.SSHProxyAddr
 	return nil
