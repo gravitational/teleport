@@ -171,8 +171,16 @@
       "entries": [
         { "title": "YAML", "slug": "/config-reference/" },
         { "title": "CLI", "slug": "/cli-docs/" },
-        { "title": "API", "slug": "/api-reference/" },
-        { "title": "Metrics", "slug": "/metrics-logs-reference/" }
+        { "title": "Metrics", "slug": "/metrics-logs-reference/" },
+        { 
+          "title": "API",
+          "slug": "/reference/api/",
+          "entries": [
+            {"title": "Introduction", "slug": "/reference/api/introduction/"},
+            {"title": "Getting Started", "slug": "/reference/api/getting-started/"},
+            {"title": "Architecture", "slug": "/reference/api/architecture/"}
+          ]
+        }
       ]
     }
   ],
