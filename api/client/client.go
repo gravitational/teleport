@@ -1223,6 +1223,24 @@ func (c *Client) DeleteToken(ctx context.Context, name string) error {
 	return trail.FromGRPC(err)
 }
 
+// GetNode returns a node by name and namespace.
+func (c *Client) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
+	if namespace == "" {
+		return nil, trace.BadParameter("missing parameter namespace")
+	}
+	if name == "" {
+		return nil, trace.BadParameter("missing parameter name")
+	}
+	resp, err := c.grpc.GetNode(ctx, &types.ResourceInNamespaceRequest{
+		Name:      name,
+		Namespace: namespace,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
 // GetNodes returns a list of nodes by namespace.
 // Nodes that the user doesn't have access to are filtered out.
 func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {

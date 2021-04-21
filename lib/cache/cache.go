@@ -1074,6 +1074,16 @@ func (c *Cache) GetNamespaces() ([]services.Namespace, error) {
 	return rg.presence.GetNamespaces()
 }
 
+// GetNode finds and returns node by ID
+func (c *Cache) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.presence.GetNode(ctx, namespace, name)
+}
+
 // GetNodes is a part of auth.AccessPoint implementation
 func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
 	rg, err := c.read()
