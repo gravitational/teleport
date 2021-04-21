@@ -19,10 +19,14 @@ package services
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
 
 	"github.com/gravitational/trace"
+
+	log "github.com/sirupsen/logrus"
+	"go.uber.org/atomic"
 )
 
 const defaultQueueSize = 64
@@ -40,6 +44,7 @@ type Fanout struct {
 	watchers     map[string][]fanoutEntry
 	// eventsCh is used in tests
 	eventsCh chan FanoutEvent
+	closeC   chan struct{}
 }
 
 // NewFanout creates a new Fanout instance in an uninitialized
@@ -48,6 +53,7 @@ type Fanout struct {
 func NewFanout(eventsCh ...chan FanoutEvent) *Fanout {
 	f := &Fanout{
 		watchers: make(map[string][]fanoutEntry),
+		closeC:   make(chan struct{}),
 	}
 	if len(eventsCh) != 0 {
 		f.eventsCh = eventsCh[0]
@@ -200,6 +206,9 @@ func (f *Fanout) Reset() {
 func (f *Fanout) Close() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if !f.closed {
+		close(f.closeC)
+	}
 	f.closeWatchers()
 	f.closed = true
 }
@@ -215,7 +224,57 @@ func (f *Fanout) closeWatchers() {
 	f.watchers = make(map[string][]fanoutEntry)
 }
 
+var totalWatchers = atomic.NewUint64(0)
+
+var openedWatchers = atomic.NewUint64(0)
+
+var closedWatchers = atomic.NewUint64(0)
+
+var logWatchersOnce sync.Once
+
+func logWatchers(f *Fanout) {
+	logWatchersOnce.Do(func() {
+		go func() {
+			ticker := time.NewTicker(time.Second * 30)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					log.Infof("---> Fanout watcher stats: total=%d, opened=%d, closed=%d, queued_events=%d",
+						totalWatchers.Load(),
+						openedWatchers.Swap(0),
+						closedWatchers.Swap(0),
+						f.queuedEventTotal(),
+					)
+				case <-f.closeC:
+					return
+				}
+			}
+		}()
+	})
+}
+
+func (f *Fanout) queuedEventTotal() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	watchers := make(map[*fanoutWatcher]struct{})
+	for _, entries := range f.watchers {
+		for _, entry := range entries {
+			watchers[entry.watcher] = struct{}{}
+		}
+	}
+	var total int
+	for watcher := range watchers {
+		total += len(watcher.eventC)
+	}
+	return total
+}
+
 func (f *Fanout) addWatcher(w *fanoutWatcher) {
+	logWatchers(f)
+	totalWatchers.Inc()
+	openedWatchers.Inc()
 	for _, kind := range w.watch.Kinds {
 		entries := f.watchers[kind.Kind]
 		entries = append(entries, fanoutEntry{
@@ -236,11 +295,19 @@ func (f *Fanout) removeWatcherWithLock(w *fanoutWatcher) {
 }
 
 func (f *Fanout) removeWatcher(w *fanoutWatcher) {
+	var found bool
+	defer func() {
+		if found {
+			totalWatchers.Dec()
+			closedWatchers.Inc()
+		}
+	}()
 	for _, kind := range w.watch.Kinds {
 		entries := f.watchers[kind.Kind]
 	Inner:
 		for i, entry := range entries {
 			if entry.watcher == w {
+				found = true
 				entries = append(entries[:i], entries[i+1:]...)
 				f.trySendEvent(FanoutEvent{Kind: EventWatcherRemoved})
 				break Inner

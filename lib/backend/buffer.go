@@ -22,12 +22,14 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/gravitational/teleport"
 
 	radix "github.com/armon/go-radix"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"go.uber.org/atomic"
 )
 
 // CircularBuffer implements in-memory circular buffer
@@ -240,6 +242,7 @@ func (c *CircularBuffer) NewWatcher(ctx context.Context, watch Watch) (Watcher, 
 		w.Close()
 		return nil, trace.BadParameter("buffer overflow")
 	}
+	logWatchers(c)
 	c.watchers.add(w)
 	return w, nil
 }
@@ -326,8 +329,56 @@ type watcherTree struct {
 	*radix.Tree
 }
 
+var totalWatchers = atomic.NewUint64(0)
+
+var openedWatchers = atomic.NewUint64(0)
+
+var closedWatchers = atomic.NewUint64(0)
+
+var logWatchersOnce sync.Once
+
+func logWatchers(c *CircularBuffer) {
+	logWatchersOnce.Do(func() {
+		go func() {
+			ticker := time.NewTicker(time.Second * 30)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					log.Infof("---> Buffer watcher stats: total=%d, opened=%d, closed=%d, queued_events=%d",
+						totalWatchers.Load(),
+						openedWatchers.Swap(0),
+						closedWatchers.Swap(0),
+						c.queuedEventTotal(),
+					)
+				case <-c.ctx.Done():
+					return
+				}
+			}
+		}()
+	})
+}
+
+func (c *CircularBuffer) queuedEventTotal() int {
+	c.Lock()
+	defer c.Unlock()
+
+	watchers := make(map[*BufferWatcher]struct{})
+	c.watchers.walk(func(w *BufferWatcher) {
+		watchers[w] = struct{}{}
+	})
+
+	var total int
+	for watcher := range watchers {
+		total += len(watcher.eventsC)
+	}
+	return total
+}
+
 // add adds buffer watcher to the tree
 func (t *watcherTree) add(w *BufferWatcher) {
+	totalWatchers.Inc()
+	openedWatchers.Inc()
 	for _, p := range w.Prefixes {
 		prefix := string(p)
 		val, ok := t.Tree.Get(prefix)
@@ -346,6 +397,14 @@ func (t *watcherTree) rm(w *BufferWatcher) bool {
 		return false
 	}
 	var found bool
+
+	defer func() {
+		if found {
+			totalWatchers.Dec()
+			closedWatchers.Inc()
+		}
+	}()
+
 	for _, p := range w.Prefixes {
 		prefix := string(p)
 		val, ok := t.Tree.Get(prefix)

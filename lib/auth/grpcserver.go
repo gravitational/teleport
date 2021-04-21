@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"io"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -41,6 +42,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"github.com/sirupsen/logrus"
+	"go.uber.org/atomic"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/keepalive"
@@ -257,12 +259,53 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 // logInterval is used to log stats after this many events
 const logInterval = 10000
 
+var totalWatchers = atomic.NewUint64(0)
+
+var openedWatchers = atomic.NewUint64(0)
+
+var closedWatchers = atomic.NewUint64(0)
+
+var authWatchers = atomic.NewUint64(0)
+
+var proxyWatchers = atomic.NewUint64(0)
+
+var nodeWatchers = atomic.NewUint64(0)
+
+var logWatchersOnce sync.Once
+
+func logWatchers(closeCtx context.Context) {
+	logWatchersOnce.Do(func() {
+		go func() {
+			ticker := time.NewTicker(time.Second * 30)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					log.Infof("---> Remote watcher stats: total=%d, opened=%d, closed=%d, auth=%d, proxy=%d, node=%d",
+						totalWatchers.Load(),
+						openedWatchers.Swap(0),
+						closedWatchers.Swap(0),
+						authWatchers.Load(),
+						proxyWatchers.Load(),
+						nodeWatchers.Load(),
+					)
+				case <-closeCtx.Done():
+					return
+				}
+			}
+		}()
+	})
+}
+
 // WatchEvents returns a new stream of cluster events
 func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_WatchEventsServer) error {
 	auth, err := g.authenticate(stream.Context())
 	if err != nil {
 		return trail.ToGRPC(err)
 	}
+
+	logWatchers(auth.CloseContext())
+
 	servicesWatch := services.Watch{
 		Name: auth.User.GetName(),
 	}
@@ -274,6 +317,27 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 		return trail.ToGRPC(err)
 	}
 	defer watcher.Close()
+
+	totalWatchers.Inc()
+	defer totalWatchers.Dec()
+
+	openedWatchers.Inc()
+	defer closedWatchers.Inc()
+
+	if auth.hasBuiltinRole(string(teleport.RoleAuth)) {
+		authWatchers.Inc()
+		defer authWatchers.Dec()
+	}
+
+	if auth.hasBuiltinRole(string(teleport.RoleProxy)) {
+		proxyWatchers.Inc()
+		defer proxyWatchers.Dec()
+	}
+
+	if auth.hasBuiltinRole(string(teleport.RoleNode)) {
+		nodeWatchers.Inc()
+		defer nodeWatchers.Dec()
+	}
 
 	for {
 		select {

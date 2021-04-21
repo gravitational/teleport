@@ -360,7 +360,11 @@ start:
 		select {
 		case e, ok := <-eventsC:
 			if e.Canceled || !ok {
-				b.Debugf("Watch channel has closed.")
+				var err error
+				if ok {
+					err = e.Err()
+				}
+				log.Infof("---> ETCD watch channel has closed, err=%v", err)
 				cancel()
 				goto start
 			}

@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/sirupsen/logrus"
+	"go.uber.org/atomic"
 )
 
 // ServerWithRoles is a wrapper around auth service
@@ -418,8 +419,11 @@ func (a *ServerWithRoles) KeepAliveNode(ctx context.Context, handle services.Kee
 	if err := a.action(defaults.Namespace, services.KindNode, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
+	nodeKeepAlives.Inc()
 	return a.authServer.KeepAliveNode(ctx, handle)
 }
+
+var nodeKeepAlives = atomic.NewUint64(0)
 
 // KeepAliveServer updates expiry time of a server resource.
 func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle services.KeepAlive) error {
@@ -443,6 +447,7 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle services.K
 		if err := a.action(defaults.Namespace, services.KindNode, services.VerbUpdate); err != nil {
 			return trace.Wrap(err)
 		}
+		nodeKeepAlives.Inc()
 	case teleport.KeepAliveApp:
 		if serverName != handle.Name {
 			return trace.AccessDenied("access denied")

@@ -2008,8 +2008,49 @@ func (a *Server) GetNamespaces() ([]services.Namespace, error) {
 	return a.GetCache().GetNamespaces()
 }
 
+var logNodesOnce sync.Once
+
+func logNodes(a *Server) {
+	logNodesOnce.Do(func() {
+		go func() {
+			var totalKeepAlives uint64
+			ticker := time.NewTicker(time.Second * 30)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					cn, err := a.GetNodes(defaults.Namespace, services.SkipValidation())
+					if err != nil {
+						log.Errorf("---> Failed to load cache nodes: %v", err)
+						continue
+					}
+
+					bn, err := a.Presence.GetNodes(defaults.Namespace, services.SkipValidation())
+					if err != nil {
+						log.Errorf("---> Failed to load backend nodes: %v", err)
+						continue
+					}
+
+					newKeepAlives := nodeKeepAlives.Swap(0)
+					totalKeepAlives += newKeepAlives
+
+					log.Infof("---> Node stats: cache=%d, backend=%d, total_keep_alives=%d, new_keep_alives=%d",
+						len(cn),
+						len(bn),
+						totalKeepAlives,
+						newKeepAlives,
+					)
+				case <-a.closeCtx.Done():
+					return
+				}
+			}
+		}()
+	})
+}
+
 // GetNodes is a part of auth.AccessPoint implementation
 func (a *Server) GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+	logNodes(a)
 	return a.GetCache().GetNodes(namespace, opts...)
 }
 
