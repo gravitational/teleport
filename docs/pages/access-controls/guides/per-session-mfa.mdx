@@ -92,10 +92,10 @@ kind: role
 version: v3
 metadata:
   name: access-prod
+spec:
   options:
     # require per-session MFA for production access
     require_session_mfa: true
-spec:
   allow:
     node_labels:
     - env: prod
