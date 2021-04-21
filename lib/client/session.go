@@ -35,6 +35,8 @@ import (
 
 	"github.com/moby/term"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client/escape"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -42,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 type NodeSession struct {
@@ -230,17 +231,8 @@ func (ns *NodeSession) interactiveSession(callback interactiveCallback) error {
 	// Catch term signals, but only if we're attached to a real terminal
 	if ns.isTerminalAttached() {
 		ns.watchSignals(remoteTerm)
-	}
 
-	// start piping input into the remote shell and pipe the output from
-	// the remote shell into stdout:
-	// Note, pipeInOut takes ownership of remoteTerm and will close it
-	// upon completion
-	var wg sync.WaitGroup
-	ns.pipeInOut(remoteTerm, &wg)
-
-	// switch the terminal to raw mode (and switch back on exit!)
-	if ns.isTerminalAttached() {
+		// switch the terminal to raw mode (and switch back on exit!)
 		ts, err := term.SetRawTerminal(0)
 		if err != nil {
 			log.Warn(err)
@@ -248,9 +240,13 @@ func (ns *NodeSession) interactiveSession(callback interactiveCallback) error {
 			defer term.RestoreTerminal(0, ts)
 		}
 	}
-	// wait for the session to end
-	<-ns.closer.C
-	wg.Wait()
+
+	// Pipe input into the remote shell and pipe the output from the remote
+	// shell into stdout.
+	//
+	// Note, pipeInOut takes ownership of remoteTerm and will close it upon
+	// completion.
+	ns.pipeInOut(remoteTerm)
 	return nil
 }
 
@@ -542,28 +538,47 @@ func (ns *NodeSession) watchSignals(shell io.Writer) {
 	}()
 }
 
-// pipeInOut launches two goroutines: one to pipe the local input into the remote shell,
-// and another to pipe the output of the remote shell into the local output
-// func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser, wg *sync.WaitGroup) {
-func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser, wg *sync.WaitGroup) {
+// pipeInOut pipes the local input into the remote shell, and the output of the
+// remote shell into the local output.
+func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser) {
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	// Create a pipe to use in front of ns.stdin.
+	//
+	// This allows us to close the goroutine sending stdin to the remote shell
+	// while blocked reading from stdin.
+	stdin, stdinSink := io.Pipe()
+	go func() {
+		// Forward actual stdin to the pipe.
+		//
+		// Note: this is not registered with the WaitGroup on purpse. This
+		// goroutine will dangle after the session was terminated, until the
+		// last read from ns.stdin unblocks.
+		_, err := io.Copy(stdinSink, ns.stdin)
+		stdinSink.CloseWithError(err)
+	}()
 	// copy from the remote shell to the local output
-	wg.Add(2)
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		defer ns.closer.Close()
+		defer stdinSink.Close()
 		_, err := io.Copy(ns.stdout, shell)
 		if err != nil {
 			log.Error("Error copying from shell:", err.Error())
 		}
 	}()
 	// copy from the local input to the remote shell:
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		defer ns.closer.Close()
 		defer shell.Close()
+		defer stdin.Close()
 		buf := make([]byte, 128)
 
-		stdin := ns.stdin
+		stdin := io.Reader(stdin)
 		if ns.isTerminalAttached() && ns.enableEscapeSequences {
 			stdin = escape.NewReader(stdin, ns.stderr, func(err error) {
 				switch err {
@@ -590,10 +605,11 @@ func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser, wg *sync.WaitGroup) {
 					}
 				}
 				if err != nil {
-					fmt.Fprintf(ns.stderr, "\r\n%v\r\n", trace.Wrap(err))
+					if err != io.EOF {
+						fmt.Fprintf(ns.stderr, "\r\n%v\r\n", trace.Wrap(err))
+					}
 					return
 				}
-
 			}
 		}
 	}()
