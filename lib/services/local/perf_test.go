@@ -35,6 +35,7 @@ import (
 // BenchmarkGetNodes verifies the performance of the GetNodes operation
 // on local (sqlite) databases (as used by the cache system).
 func BenchmarkGetNodes(b *testing.B) {
+	ctx := context.TODO()
 
 	type testCase struct {
 		validation, memory bool
@@ -90,11 +91,11 @@ func BenchmarkGetNodes(b *testing.B) {
 
 			svc := NewPresenceService(bk)
 			// seed the test nodes
-			insertNodes(b, svc, tt.nodes)
+			insertNodes(b, ctx, svc, tt.nodes)
 
 			sb.StartTimer() // restart timer for benchmark operations
 
-			benchmarkGetNodes(sb, svc, tt.nodes, opts...)
+			benchmarkGetNodes(sb, ctx, svc, tt.nodes, opts...)
 
 			sb.StopTimer() // stop timer to exclude deferred cleanup
 		})
@@ -102,7 +103,7 @@ func BenchmarkGetNodes(b *testing.B) {
 }
 
 // insertNodes inserts a collection of test nodes into a backend.
-func insertNodes(t assert.TestingT, svc services.Presence, nodeCount int) {
+func insertNodes(t assert.TestingT, ctx context.Context, svc services.Presence, nodeCount int) {
 	const labelCount = 10
 	labels := make(map[string]string, labelCount)
 	for i := 0; i < labelCount; i++ {
@@ -123,17 +124,17 @@ func insertNodes(t assert.TestingT, svc services.Presence, nodeCount int) {
 				PublicAddr: addr,
 			},
 		}
-		_, err := svc.UpsertNode(node)
+		_, err := svc.UpsertNode(ctx, node)
 		assert.NoError(t, err)
 	}
 }
 
 // benchmarkGetNodes runs GetNodes b.N times.
-func benchmarkGetNodes(b *testing.B, svc services.Presence, nodeCount int, opts ...services.MarshalOption) {
+func benchmarkGetNodes(b *testing.B, ctx context.Context, svc services.Presence, nodeCount int, opts ...services.MarshalOption) {
 	var nodes []services.Server
 	var err error
 	for i := 0; i < b.N; i++ {
-		nodes, err = svc.GetNodes(defaults.Namespace, opts...)
+		nodes, err = svc.GetNodes(ctx, defaults.Namespace, opts...)
 		assert.NoError(b, err)
 	}
 	// do *something* with the loop result.  probably unnecessary since the loop

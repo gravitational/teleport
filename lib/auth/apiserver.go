@@ -365,7 +365,7 @@ func (s *APIServer) upsertServer(auth services.Presence, role teleport.Role, r *
 			return nil, trace.BadParameter("invalid namespace %q", namespace)
 		}
 		server.SetNamespace(namespace)
-		handle, err := auth.UpsertNode(server)
+		handle, err := auth.UpsertNode(r.Context(), server)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -416,7 +416,7 @@ func (s *APIServer) upsertNodes(auth ClientI, w http.ResponseWriter, r *http.Req
 		return nil, trace.Wrap(err)
 	}
 
-	err = auth.UpsertNodes(req.Namespace, nodes)
+	err = auth.UpsertNodes(r.Context(), req.Namespace, nodes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -444,7 +444,7 @@ func (s *APIServer) getNodes(auth ClientI, w http.ResponseWriter, r *http.Reques
 		opts = append(opts, services.SkipValidation())
 	}
 
-	servers, err := auth.GetNodes(namespace, opts...)
+	servers, err := auth.GetNodes(r.Context(), namespace, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -457,7 +457,7 @@ func (s *APIServer) deleteAllNodes(auth ClientI, w http.ResponseWriter, r *http.
 	if !services.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
-	err := auth.DeleteAllNodes(namespace)
+	err := auth.DeleteAllNodes(r.Context(), namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -474,7 +474,7 @@ func (s *APIServer) deleteNode(auth ClientI, w http.ResponseWriter, r *http.Requ
 	if name == "" {
 		return nil, trace.BadParameter("missing node name")
 	}
-	err := auth.DeleteNode(namespace, name)
+	err := auth.DeleteNode(r.Context(), namespace, name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

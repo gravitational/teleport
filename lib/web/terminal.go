@@ -82,7 +82,7 @@ type TerminalRequest struct {
 
 // AuthProvider is a subset of the full Auth API.
 type AuthProvider interface {
-	GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error)
+	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error)
 	GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]events.EventFields, error)
 }
 
@@ -102,7 +102,7 @@ func NewTerminal(req TerminalRequest, authProvider AuthProvider, ctx *SessionCon
 		return nil, trace.BadParameter("term: bad term dimensions")
 	}
 
-	servers, err := authProvider.GetNodes(req.Namespace, services.SkipValidation())
+	servers, err := authProvider.GetNodes(context.TODO(), req.Namespace, services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

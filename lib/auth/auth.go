@@ -1712,10 +1712,11 @@ func (a *Server) GetWebSessionInfo(ctx context.Context, user, sessionID string) 
 }
 
 func (a *Server) DeleteNamespace(namespace string) error {
+	ctx := context.TODO()
 	if namespace == defaults.Namespace {
 		return trace.AccessDenied("can't delete default namespace")
 	}
-	nodes, err := a.Presence.GetNodes(namespace, services.SkipValidation())
+	nodes, err := a.Presence.GetNodes(ctx, namespace, services.SkipValidation())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2043,8 +2044,8 @@ func (a *Server) GetNamespaces() ([]services.Namespace, error) {
 }
 
 // GetNodes is a part of auth.AccessPoint implementation
-func (a *Server) GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
-	return a.GetCache().GetNodes(namespace, opts...)
+func (a *Server) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+	return a.GetCache().GetNodes(ctx, namespace, opts...)
 }
 
 // GetReverseTunnels is a part of auth.AccessPoint implementation
@@ -2153,7 +2154,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.BadParameter("empty Login field")
 		}
 		// Find the target node and check whether MFA is required.
-		nodes, err := a.GetNodes(defaults.Namespace, services.SkipValidation())
+		nodes, err := a.GetNodes(ctx, defaults.Namespace, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

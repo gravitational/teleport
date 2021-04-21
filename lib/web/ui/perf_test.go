@@ -41,6 +41,8 @@ import (
 const clusterName = "bench.example.com"
 
 func BenchmarkGetClusterDetails(b *testing.B) {
+	ctx := context.TODO()
+
 	const authCount = 6
 	const proxyCount = 6
 
@@ -99,9 +101,9 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 			svc := local.NewPresenceService(bk)
 
 			// seed the test nodes
-			insertServers(b, svc, services.KindNode, tt.nodes)
-			insertServers(b, svc, services.KindProxy, proxyCount)
-			insertServers(b, svc, services.KindAuthServer, authCount)
+			insertServers(b, ctx, svc, services.KindNode, tt.nodes)
+			insertServers(b, ctx, svc, services.KindProxy, proxyCount)
+			insertServers(b, ctx, svc, services.KindAuthServer, authCount)
 
 			site := &mockRemoteSite{
 				accessPoint: &mockAccessPoint{
@@ -111,7 +113,7 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 
 			sb.StartTimer() // restart timer for benchmark operations
 
-			benchmarkGetClusterDetails(sb, site, tt.nodes, opts...)
+			benchmarkGetClusterDetails(sb, ctx, site, tt.nodes, opts...)
 
 			sb.StopTimer() // stop timer to exclude deferred cleanup
 		})
@@ -119,7 +121,7 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 }
 
 // insertServers inserts a collection of servers into a backend.
-func insertServers(t assert.TestingT, svc services.Presence, kind string, count int) {
+func insertServers(t assert.TestingT, ctx context.Context, svc services.Presence, kind string, count int) {
 	const labelCount = 10
 	labels := make(map[string]string, labelCount)
 	for i := 0; i < labelCount; i++ {
@@ -145,7 +147,7 @@ func insertServers(t assert.TestingT, svc services.Presence, kind string, count 
 		var err error
 		switch kind {
 		case services.KindNode:
-			_, err = svc.UpsertNode(server)
+			_, err = svc.UpsertNode(ctx, server)
 		case services.KindProxy:
 			err = svc.UpsertProxy(server)
 		case services.KindAuthServer:
@@ -157,11 +159,11 @@ func insertServers(t assert.TestingT, svc services.Presence, kind string, count 
 	}
 }
 
-func benchmarkGetClusterDetails(b *testing.B, site reversetunnel.RemoteSite, nodes int, opts ...services.MarshalOption) {
+func benchmarkGetClusterDetails(b *testing.B, ctx context.Context, site reversetunnel.RemoteSite, nodes int, opts ...services.MarshalOption) {
 	var cluster *Cluster
 	var err error
 	for i := 0; i < b.N; i++ {
-		cluster, err = GetClusterDetails(site, opts...)
+		cluster, err = GetClusterDetails(ctx, site, opts...)
 		assert.NoError(b, err)
 	}
 	assert.NotNil(b, cluster)
@@ -194,8 +196,8 @@ type mockAccessPoint struct {
 	presence *local.PresenceService
 }
 
-func (m *mockAccessPoint) GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
-	return m.presence.GetNodes(namespace, opts...)
+func (m *mockAccessPoint) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+	return m.presence.GetNodes(ctx, namespace, opts...)
 }
 
 func (m *mockAccessPoint) GetProxies() ([]services.Server, error) {

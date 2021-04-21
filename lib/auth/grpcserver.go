@@ -416,29 +416,6 @@ func eventTypeToGRPC(in types.OpType) (proto.Operation, error) {
 	}
 }
 
-// UpsertNode upserts node
-func (g *GRPCServer) UpsertNode(ctx context.Context, server *services.ServerV2) (*services.KeepAlive, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trail.ToGRPC(err)
-	}
-
-	// Extract peer (remote host) from context and if the server sent 0.0.0.0 as
-	// its address (meaning it did not set an advertise address) update it with
-	// the address of the peer.
-	p, ok := peer.FromContext(ctx)
-	if !ok {
-		return nil, trail.ToGRPC(trace.BadParameter("unable to find peer"))
-	}
-	server.SetAddr(utils.ReplaceLocalhost(server.GetAddr(), p.Addr.String()))
-
-	keepAlive, err := auth.UpsertNode(server)
-	if err != nil {
-		return nil, trail.ToGRPC(err)
-	}
-	return keepAlive, nil
-}
-
 func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *proto.UserCertsRequest) (*proto.Certs, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -2369,6 +2346,91 @@ func (g *GRPCServer) DeleteToken(ctx context.Context, req *types.ResourceRequest
 		return nil, trail.ToGRPC(err)
 	}
 	if err := auth.ServerWithRoles.DeleteToken(ctx, req.Name); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// GetNodes retrieves all nodes.
+func (g *GRPCServer) GetNodes(ctx context.Context, req *types.ResourcesInNamespaceRequest) (*types.ServerV2List, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	nodes, err := auth.ServerWithRoles.GetNodes(ctx, req.Namespace)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	serversV2 := make([]*types.ServerV2, len(nodes))
+	for i, t := range nodes {
+		var ok bool
+		if serversV2[i], ok = t.(*types.ServerV2); !ok {
+			return nil, trail.ToGRPC(trace.Errorf("encountered unexpected node type: %T", t))
+		}
+	}
+	return &types.ServerV2List{
+		Servers: serversV2,
+	}, nil
+}
+
+// UpsertNode upserts a node.
+func (g *GRPCServer) UpsertNode(ctx context.Context, node *services.ServerV2) (*services.KeepAlive, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	// Extract peer (remote host) from context and if the node sent 0.0.0.0 as
+	// its address (meaning it did not set an advertise address) update it with
+	// the address of the peer.
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return nil, trail.ToGRPC(trace.BadParameter("unable to find peer"))
+	}
+	node.SetAddr(utils.ReplaceLocalhost(node.GetAddr(), p.Addr.String()))
+
+	keepAlive, err := auth.ServerWithRoles.UpsertNode(ctx, node)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return keepAlive, nil
+}
+
+// DeleteNode deletes a node by name.
+func (g *GRPCServer) DeleteNode(ctx context.Context, req *types.ResourceInNamespaceRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err = auth.ServerWithRoles.DeleteNode(ctx, req.Namespace, req.Name); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// UpsertNodes bulk inserts nodes.
+func (g *GRPCServer) UpsertNodes(ctx context.Context, req *proto.UpsertServersReq) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	nodes := make([]types.Server, len(req.Servers))
+	for i, node := range req.Servers {
+		nodes[i] = node
+	}
+	if err = auth.ServerWithRoles.UpsertNodes(ctx, req.Namespace, nodes); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// DeleteAllNodes deletes all nodes in a given namespace.
+func (g *GRPCServer) DeleteAllNodes(ctx context.Context, req *types.ResourcesInNamespaceRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err = auth.ServerWithRoles.DeleteAllNodes(ctx, req.Namespace); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 	return &empty.Empty{}, nil

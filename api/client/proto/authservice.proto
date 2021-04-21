@@ -800,6 +800,13 @@ message SingleUseUserCert {
         bytes TLS = 2;
     }
 }
+// UpsertServersReq is a request to upsert servers.
+message UpsertServersReq {
+    // Servers is a list of servers.
+    repeated types.ServerV2 Servers = 1;
+    // Namespace is the namespace of the servers.
+    string Namespace = 2;
+}
 
 // AuthService is authentication/authorization service implementation
 service AuthService {
@@ -807,8 +814,18 @@ service AuthService {
     rpc SendKeepAlives(stream types.KeepAlive) returns (google.protobuf.Empty);
     // WatchEvents returns a new stream of cluster events
     rpc WatchEvents(Watch) returns (stream Event);
-    // UpsertNode upserts node
+
+    // GetNodes retrieves all nodes.
+    rpc GetNodes(types.ResourcesInNamespaceRequest) returns (types.ServerV2List);
+    // UpsertNode upserts a node in a backend.
     rpc UpsertNode(types.ServerV2) returns (types.KeepAlive);
+    // DeleteNode deletes an existing node in a backend described by the given request.
+    rpc DeleteNode(types.ResourceInNamespaceRequest) returns (google.protobuf.Empty);
+    // UpsertNodes upserts nodes in bulk.
+    rpc UpsertNodes(UpsertServersReq) returns (google.protobuf.Empty);
+    // DeleteAllNodes deletes all nodes.
+    rpc DeleteAllNodes(types.ResourcesInNamespaceRequest) returns (google.protobuf.Empty);
+
     // GenerateUserCerts generates a set of user certificates.
     rpc GenerateUserCerts(UserCertsRequest) returns (Certs);
     // GenerateUserSingleUseCerts generates a set of single-use user
