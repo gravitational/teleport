@@ -2351,7 +2351,7 @@ func (g *GRPCServer) DeleteToken(ctx context.Context, req *types.ResourceRequest
 	return &empty.Empty{}, nil
 }
 
-// GetNodes retrieves all nodes.
+// GetNodes retrieves all nodes in the given namespace.
 func (g *GRPCServer) GetNodes(ctx context.Context, req *types.ResourcesInNamespaceRequest) (*types.ServerV2List, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {

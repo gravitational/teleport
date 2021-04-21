@@ -408,6 +408,10 @@ func (s *APIServer) upsertNodes(auth ClientI, w http.ResponseWriter, r *http.Req
 		return nil, trace.Wrap(err)
 	}
 
+	if !services.IsValidNamespace(req.Namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", req.Namespace)
+	}
+
 	nodes, err := services.UnmarshalServers(req.Nodes)
 	if err != nil {
 		return nil, trace.Wrap(err)

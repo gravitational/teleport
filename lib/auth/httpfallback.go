@@ -604,6 +604,10 @@ func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...service
 		return resp, nil
 	}
 
+	if namespace == "" {
+		return nil, trace.BadParameter(MissingNamespaceError)
+	}
+
 	cfg, err := services.CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
