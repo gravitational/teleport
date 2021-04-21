@@ -18,9 +18,9 @@ package config
 
 import (
 	"encoding/base64"
-	"fmt"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,7 +30,6 @@ func TestAuthenticationSection(t *testing.T) {
 		inConfigString          string
 		outAuthenticationConfig *AuthenticationConfig
 	}{
-		// 0 - local with otp
 		{
 			`0 - local with otp`,
 
@@ -45,7 +44,6 @@ auth_service:
 				SecondFactor: "otp",
 			},
 		},
-		// 1 - local auth without otp
 		{
 			`1 - local auth without otp`,
 
@@ -60,7 +58,6 @@ auth_service:
 				SecondFactor: "off",
 			},
 		},
-		// 2 - local auth with u2f
 		{
 			`2 - local auth with u2f`,
 
@@ -73,6 +70,12 @@ auth_service:
            app_id: https://graviton:3080
            facets:
            - https://graviton:3080
+           device_attestation_cas:
+           - testdata/u2f_attestation_ca.pam
+           - |
+             -----BEGIN CERTIFICATE-----
+             fake certificate
+             -----END CERTIFICATE-----
 `,
 			&AuthenticationConfig{
 				Type:         "local",
@@ -82,6 +85,13 @@ auth_service:
 					Facets: []string{
 						"https://graviton:3080",
 					},
+					DeviceAttestationCAs: []string{
+						"testdata/u2f_attestation_ca.pam",
+						`-----BEGIN CERTIFICATE-----
+fake certificate
+-----END CERTIFICATE-----
+`,
+					},
 				},
 			},
 		},
@@ -89,39 +99,12 @@ auth_service:
 
 	// run tests
 	for _, tt := range tests {
-		comment := fmt.Sprintf("Test %s", tt.comment)
-		encodedConfigString := base64.StdEncoding.EncodeToString([]byte(tt.inConfigString))
+		t.Run(tt.comment, func(t *testing.T) {
+			encodedConfigString := base64.StdEncoding.EncodeToString([]byte(tt.inConfigString))
 
-		fc, err := ReadFromString(encodedConfigString)
-		require.NoError(t, err, comment)
-		require.Equal(t, fc.Auth.Authentication, tt.outAuthenticationConfig, comment)
+			fc, err := ReadFromString(encodedConfigString)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(fc.Auth.Authentication, tt.outAuthenticationConfig))
+		})
 	}
-}
-
-// TestLegacySection ensures we continue to parse and correctly load deprecated
-// OIDC connector and U2F authentication configuration.
-func TestLegacyAuthenticationSection(t *testing.T) {
-	encodedLegacyAuthenticationSection := base64.StdEncoding.EncodeToString([]byte(LegacyAuthenticationSection))
-
-	// read config into struct
-	fc, err := ReadFromString(encodedLegacyAuthenticationSection)
-	require.NoError(t, err)
-
-	// validate oidc connector and u2f
-	require.Equal(t, fc.Auth, Auth{
-		Service: Service{
-			defaultEnabled: true,
-		},
-		OIDCConnectors: []OIDCConnector{{
-			ID:           "google",
-			RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
-			ClientID:     "id-from-google.apps.googleusercontent.com",
-			ClientSecret: "secret-key-from-google",
-			IssuerURL:    "https://accounts.google.com",
-		}},
-		U2F: U2F{
-			AppID:  "https://graviton:3080",
-			Facets: []string{"https://graviton:3080"},
-		},
-	})
 }

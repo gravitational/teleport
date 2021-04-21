@@ -4,16 +4,21 @@ description: How to configure SSH login approval using PagerDuty and Teleport
 h1: SSH Login Approval using PagerDuty
 ---
 
-## Teleport Pagerduty Plugin Setup
+## Teleport PagerDuty Plugin Setup
 
-This guide will talk through how to setup Teleport with Pagerduty. Teleport to
-Pagerduty integration  allows you to treat Teleport access and permission
-requests as Pagerduty incidents — notifying the appropriate team, and approve
-or deny the requests via Pagerduty special action.
+This guide will talk through how to setup Teleport with PagerDuty. Teleport to
+PagerDuty integration  allows you to treat Teleport access and permission
+requests as PagerDuty incidents — notifying the appropriate team, and approve
+or deny the requests via PagerDuty special action.
 
-<Admonition type="warning">
-  The Approval Workflow only works with Teleport Enterprise as it requires several roles.
-</Admonition>
+<iframe
+  width="712"
+  height="400"
+  src="https://www.youtube-nocookie.com/embed/RzTB4Lsm09M?rel=0&modestbranding=1"
+  frameBorder="0"
+  allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+/>
 
 ## Setup
 
@@ -21,10 +26,10 @@ or deny the requests via Pagerduty special action.
 
 This guide assumes that you have:
 
-- Teleport Enterprise 4.2.8 or newer
+- A running Teleport Cluster
 - Admin privileges with access to `tctl`
-- Pagerduty account already set, with access to creating a new API token.
-- A node to run the plugin, we recommend running it alongside the Teleport Proxy for convenience.
+- A PagerDuty account, with access to creating a new API token
+- A node to run the plugin, we recommend running it alongside the Teleport Proxy for convenience
 
 #### Create User and Role for access
 
@@ -79,11 +84,11 @@ The above sequence should result in three PEM encoded files being generated: aut
   By default, [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign) produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
 </Admonition>
 
-### Setting up Pagerduty API key
+### Setting up PagerDuty API key
 
-In your Pagerduty dashboard, go to **Configuration → API Access → Create New API Key**, add a key description, and save the key. We'll use the key in the plugin config file later.
+In your PagerDuty dashboard, go to **Configuration → API Access → Create New API Key**, add a key description, and save the key. We'll use the key in the plugin config file later.
 
-**Create Pager Duty API Key**
+**Create PagerDuty API Key**
 ![Create a service account](../../../img/enterprise/plugins/pagerduty/pagerduty-api-key.png)
 
 **Create Service Account**
@@ -97,8 +102,8 @@ and Teleport Auth access.  We currently only provide linux-amd64 binaries, you c
 compile these plugins from [source](https://github.com/gravitational/teleport-plugins/tree/master/access/pagerduty).
 
 ```bash
-$ wget https://get.gravitational.com/teleport-access-pagerduty-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
-$ tar -xzf teleport-access-pagerduty-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
+$ wget https://get.gravitational.com/teleport-access-pagerduty-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
+$ tar -xzf teleport-access-pagerduty-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
 $ cd teleport-access-pagerduty/
 $ ./install
 $ which teleport-pagerduty
@@ -109,7 +114,7 @@ Run `./install` in from 'teleport-pagerduty' or place the executable in the appr
 
 ### Config file
 
-Teleport Pagerduty plugin has its own configuration file in TOML format. Before starting the plugin for the first time, you'll need to generate and edit that config file.
+Teleport PagerDuty plugin has its own configuration file in TOML format. Before starting the plugin for the first time, you'll need to generate and edit that config file.
 
 ```bash
 $ teleport-pagerduty configure > teleport-pagerduty.toml
@@ -122,14 +127,14 @@ After generating the config, edit it as follows:
 
 ```toml
 # Example PagerDuty config file
-{!examples/resources/plugins/teleport-pagerduty.toml!}
+(!examples/resources/plugins/teleport-pagerduty.toml!)
 ```
 
 ### Testing the Plugin
 
 With the config above, you should be able to run the plugin invoking
 `teleport-pagerduty start -d`. The will provide some debug information to make sure
-the bot can connect to Pagerduty.
+the bot can connect to PagerDuty.
 
 ```bash
 $ teleport-pagerduty start -d
@@ -151,7 +156,7 @@ By default, `teleport-pagerduty` will assume its config is in `/etc/teleport-pag
 In production, we recommend starting teleport plugin daemon via an init system like systemd . Here's the recommended Teleport Plugin service unit file for systemd:
 
 ```bash
-{!examples/systemd/plugins/teleport-pagerduty.service!}
+(!examples/systemd/plugins/teleport-pagerduty.service!)
 ```
 
 Save this as `teleport-pagerduty.service`.
@@ -171,6 +176,25 @@ Save this as `teleport-pagerduty.service`.
 
   Your browser does not support the video tag.
 </video>
+
+## On-call Auto Approval
+
+The PagerDuty plugin has an option to auto-approve access requests. This
+feature will map external SSO identity to PagerDuty on call email addresses.
+If the user requesting matches the person on call the request will be
+automatically approved.
+
+This feature can be enabled via the PagerDuty config file using `auto_approve = true`.
+
+```
+# Example teleport-pagerduty.toml snippet
+#...
+[pagerduty]
+api_key = "key"               # PagerDuty API Key
+user_email = "me@example.com" # PagerDuty bot user email (Could be admin email)
+service_id = "PIJ90N7"        # PagerDuty service id
+auto_approve = true           # Auto approve
+```
 
 ## Audit Log
 

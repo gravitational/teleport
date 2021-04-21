@@ -698,7 +698,7 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 }
 
 // applySSHConfig applies file configuration for the "ssh_service" section.
-func applySSHConfig(fc *FileConfig, cfg *service.Config) error {
+func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	if fc.SSH.ListenAddress != "" {
 		addr, err := utils.ParseHostPortAddr(fc.SSH.ListenAddress, int(defaults.SSHServerListenPort))
 		if err != nil {
@@ -758,6 +758,13 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	if fc.SSH.BPF != nil {
 		cfg.SSH.BPF = fc.SSH.BPF.Parse()
+	}
+
+	if proxyAddr := os.Getenv(defaults.TunnelPublicAddrEnvar); proxyAddr != "" {
+		cfg.SSH.ProxyReverseTunnelFallbackAddr, err = utils.ParseHostPortAddr(proxyAddr, defaults.SSHProxyTunnelListenPort)
+		if err != nil {
+			return trace.Wrap(err, "invalid reverse tunnel address format %q", proxyAddr)
+		}
 	}
 
 	return nil
@@ -848,6 +855,10 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 			AWS: service.DatabaseAWS{
 				Region: database.AWS.Region,
 			},
+			GCP: service.DatabaseGCP{
+				ProjectID:  database.GCP.ProjectID,
+				InstanceID: database.GCP.InstanceID,
+			},
 		}
 		if err := db.Check(); err != nil {
 			return trace.Wrap(err)
@@ -887,6 +898,7 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 		// Add the application to the list of proxied applications.
 		app := service.App{
 			Name:               application.Name,
+			Description:        application.Description,
 			URI:                application.URI,
 			PublicAddr:         application.PublicAddr,
 			StaticLabels:       staticLabels,

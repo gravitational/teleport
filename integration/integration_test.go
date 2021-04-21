@@ -44,6 +44,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -140,7 +141,7 @@ func (s *IntSuite) TearDownSuite(c *check.C) {
 }
 
 func (s *IntSuite) SetUpTest(c *check.C) {
-	os.RemoveAll(client.FullProfilePath(""))
+	os.RemoveAll(profile.FullProfilePath(""))
 }
 
 // setUpTest configures the specific test identified with the given c.
@@ -774,7 +775,7 @@ func (s *IntSuite) TestInteractiveRegular(c *check.C) {
 	s.verifySessionJoin(c, t)
 }
 
-// TestInteractive covers SSH into shell and joining the same session from another client
+// TestInteractiveReverseTunnel covers SSH into shell and joining the same session from another client
 // against a reversetunnel node.
 func (s *IntSuite) TestInteractiveReverseTunnel(c *check.C) {
 	s.setUpTest(c)
@@ -791,6 +792,69 @@ func (s *IntSuite) TestInteractiveReverseTunnel(c *check.C) {
 	defer t.StopAll()
 
 	s.verifySessionJoin(c, t)
+}
+
+// TestCustomReverseTunnel tests that the SSH node falls back to configured
+// proxy address if it cannot connect via the proxy address from the reverse
+// tunnel discovery query.
+// See https://github.com/gravitational/teleport/issues/4141 for context.
+func (s *IntSuite) TestCustomReverseTunnel(c *check.C) {
+	s.setUpTest(c)
+	defer s.tearDownTest(c)
+
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	// InsecureDevMode needed for IoT node handshake
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	failingListener, err := net.Listen("tcp", "localhost:0")
+	c.Assert(err, check.IsNil)
+	failingAddr := failingListener.Addr().String()
+	failingListener.Close()
+
+	// Create a Teleport instance with Auth/Proxy.
+	conf := s.defaultServiceConfig()
+	conf.Auth.Enabled = true
+	conf.Proxy.Enabled = true
+	conf.Proxy.DisableWebService = false
+	conf.Proxy.DisableWebInterface = true
+	conf.Proxy.DisableDatabaseProxy = true
+	conf.Proxy.TunnelPublicAddrs = []utils.NetAddr{
+		{
+			// Connect on the address that refuses connection on purpose
+			// to test address fallback behavior
+			Addr:        failingAddr,
+			AddrNetwork: "tcp",
+		},
+	}
+	conf.SSH.Enabled = false
+
+	instanceConfig := s.defaultInstanceConfig()
+	instanceConfig.MultiplexProxy = true
+	main := NewInstance(instanceConfig)
+
+	c.Assert(main.CreateEx(nil, conf), check.IsNil)
+	c.Assert(main.Start(), check.IsNil)
+	defer main.StopAll()
+
+	// Create a Teleport instance with a Node.
+	nodeConf := s.defaultServiceConfig()
+	nodeConf.Hostname = Host
+	nodeConf.Token = "token"
+	nodeConf.Auth.Enabled = false
+	nodeConf.Proxy.Enabled = false
+	nodeConf.SSH.Enabled = true
+	nodeConf.SSH.ProxyReverseTunnelFallbackAddr = &utils.NetAddr{
+		// Configure the original proxy address as a fallback so the node is able to connect
+		Addr:        main.Secrets.WebProxyAddr,
+		AddrNetwork: "tcp",
+	}
+
+	// verify the node is able to join the cluster
+	_, err = main.StartReverseTunnelNode(nodeConf)
+	c.Assert(err, check.IsNil)
 }
 
 // verifySessionJoin covers SSH into shell and joining the same session from another client
@@ -1663,7 +1727,7 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 	err = aux.Process.GetAuthServer().UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 	trustedClusterToken := "trusted-cluster-token"
-	err = main.Process.GetAuthServer().UpsertToken(
+	err = main.Process.GetAuthServer().UpsertToken(ctx,
 		services.MustCreateProvisionToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, time.Time{}))
 	c.Assert(err, check.IsNil)
 	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, services.RoleMap{
@@ -1996,7 +2060,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 		meta.Labels = map[string]string{"access": "prod"}
 		tokenResource.SetMetadata(meta)
 	}
-	err = main.Process.GetAuthServer().UpsertToken(tokenResource)
+	err = main.Process.GetAuthServer().UpsertToken(ctx, tokenResource)
 	c.Assert(err, check.IsNil)
 	// Note that the mapping omits admins role, this is to cover the scenario
 	// when root cluster and leaf clusters have different role sets
@@ -2202,7 +2266,7 @@ func (s *IntSuite) TestTrustedTunnelNode(c *check.C) {
 	err = aux.Process.GetAuthServer().UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 	trustedClusterToken := "trusted-cluster-token"
-	err = main.Process.GetAuthServer().UpsertToken(
+	err = main.Process.GetAuthServer().UpsertToken(ctx,
 		services.MustCreateProvisionToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, time.Time{}))
 	c.Assert(err, check.IsNil)
 	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, services.RoleMap{
@@ -3223,6 +3287,7 @@ func (s *IntSuite) TestPAM(c *check.C) {
 		inServiceName string
 		inUsePAMAuth  bool
 		outContains   []string
+		environment   map[string]string
 	}{
 		// 0 - No PAM support, session should work but no PAM related output.
 		{
@@ -3268,6 +3333,23 @@ func (s *IntSuite) TestPAM(c *check.C) {
 			inUsePAMAuth:  true,
 			outContains:   []string{},
 		},
+		// 5 - PAM enabled, custom environment variables are passed.
+		{
+			inEnabled:     true,
+			inServiceName: "teleport-custom-env",
+			inUsePAMAuth:  false,
+			outContains: []string{
+				"pam_sm_acct_mgmt OK",
+				"pam_sm_open_session OK",
+				"pam_sm_close_session OK",
+				"pam_custom_envs OK",
+			},
+			environment: map[string]string{
+				"FIRST_NAME": "JOHN",
+				"LAST_NAME":  "DOE",
+				"OTHER":      "{{ external.testing }}",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -3284,6 +3366,7 @@ func (s *IntSuite) TestPAM(c *check.C) {
 			tconf.SSH.PAM.Enabled = tt.inEnabled
 			tconf.SSH.PAM.ServiceName = tt.inServiceName
 			tconf.SSH.PAM.UsePAMAuth = tt.inUsePAMAuth
+			tconf.SSH.PAM.Environment = tt.environment
 
 			return c, nil, nil, tconf
 		}
@@ -3410,9 +3493,10 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 	defer svc.Shutdown(context.TODO())
 
 	cfg := ClientConfig{
-		Login: s.me.Username,
-		Host:  Loopback,
-		Port:  t.GetPortSSHInt(),
+		Login:   s.me.Username,
+		Cluster: Site,
+		Host:    Loopback,
+		Port:    t.GetPortSSHInt(),
 	}
 	clt, err := t.NewClientWithCreds(cfg, *initialCreds)
 	c.Assert(err, check.IsNil)
@@ -3557,9 +3641,10 @@ func (s *IntSuite) TestRotateRollback(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	cfg := ClientConfig{
-		Login: s.me.Username,
-		Host:  Loopback,
-		Port:  t.GetPortSSHInt(),
+		Login:   s.me.Username,
+		Cluster: Site,
+		Host:    Loopback,
+		Port:    t.GetPortSSHInt(),
 	}
 	clt, err := t.NewClientWithCreds(cfg, *initialCreds)
 	c.Assert(err, check.IsNil)
@@ -3682,7 +3767,7 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	err = aux.Process.GetAuthServer().UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 	trustedClusterToken := "trusted-clsuter-token"
-	err = svc.GetAuthServer().UpsertToken(
+	err = svc.GetAuthServer().UpsertToken(ctx,
 		services.MustCreateProvisionToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, time.Time{}))
 	c.Assert(err, check.IsNil)
 	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, services.RoleMap{
@@ -4333,8 +4418,9 @@ func (s *IntSuite) TestList(c *check.C) {
 
 		// Create a Teleport client.
 		cfg := ClientConfig{
-			Login: tt.inLogin,
-			Port:  t.GetPortSSHInt(),
+			Login:   tt.inLogin,
+			Cluster: Site,
+			Port:    t.GetPortSSHInt(),
 		}
 		userClt, err := t.NewClientWithCreds(cfg, *initialCreds)
 		c.Assert(err, check.IsNil)
@@ -4432,8 +4518,9 @@ func (s *IntSuite) TestCmdLabels(c *check.C) {
 
 	for _, tt := range tts {
 		cfg := ClientConfig{
-			Login:  s.me.Username,
-			Labels: tt.labels,
+			Login:   s.me.Username,
+			Cluster: Site,
+			Labels:  tt.labels,
 		}
 
 		output, err := runCommand(t, tt.command, cfg, 1)
@@ -5024,7 +5111,11 @@ func (s *IntSuite) getPorts(num int) []int {
 }
 
 func (s *IntSuite) newTeleportInstance(c *check.C) *TeleInstance {
-	return NewInstance(InstanceConfig{
+	return NewInstance(s.defaultInstanceConfig())
+}
+
+func (s *IntSuite) defaultInstanceConfig() InstanceConfig {
+	return InstanceConfig{
 		ClusterName: Site,
 		HostID:      HostID,
 		NodeName:    Host,
@@ -5032,7 +5123,7 @@ func (s *IntSuite) newTeleportInstance(c *check.C) *TeleInstance {
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
-	})
+	}
 }
 
 func (s *IntSuite) newNamedTeleportInstance(c *check.C, clusterName string) *TeleInstance {
@@ -5126,6 +5217,7 @@ func hasPAMPolicy() bool {
 		"/etc/pam.d/teleport-acct-failure",
 		"/etc/pam.d/teleport-session-failure",
 		"/etc/pam.d/teleport-success",
+		"/etc/pam.d/teleport-custom-env",
 	}
 
 	for _, fileName := range pamPolicyFiles {
@@ -5201,7 +5293,8 @@ func TestWebProxyInsecure(t *testing.T) {
 
 	// Web proxy endpoint should just respond with 200 when called over http://,
 	// content doesn't matter.
-	resp, err := http.Get(fmt.Sprintf("http://%v", net.JoinHostPort(Loopback, rc.GetPortWeb())))
+	resp, err := http.Get(fmt.Sprintf("http://%v/webapi/ping", net.JoinHostPort(Loopback, rc.GetPortWeb())))
 	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 	require.NoError(t, resp.Body.Close())
 }

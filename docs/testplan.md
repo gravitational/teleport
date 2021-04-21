@@ -30,6 +30,8 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] Allow/deny role option: SSH agent forwarding
   - [ ] Allow/deny role option: Port forwarding
 
+- [ ] Verify that custom PAM environment variables are available as expected.
+
 - [ ] Users
 With every user combination, try to login and signup with invalid second factor, invalid password to see how the system reacts.
 

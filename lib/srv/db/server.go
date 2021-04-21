@@ -35,8 +35,10 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/utils"
 
+	gcpcredentials "cloud.google.com/go/iam/credentials/apiv1"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
+
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
@@ -55,6 +57,8 @@ type Config struct {
 	AccessPoint auth.AccessPoint
 	// StreamEmitter is a non-blocking audit events emitter.
 	StreamEmitter events.StreamEmitter
+	// NewAudit allows to override audit logger in tests.
+	NewAudit NewAuditFn
 	// TLSConfig is the *tls.Config for this server.
 	TLSConfig *tls.Config
 	// Authorizer is used to authorize requests coming from proxy.
@@ -62,16 +66,21 @@ type Config struct {
 	// GetRotation returns the certificate rotation state.
 	GetRotation func(role teleport.Role) (*services.Rotation, error)
 	// Servers contains a list of database servers this service proxies.
-	Servers []types.DatabaseServer
-	// Credentials are credentials to AWS API.
-	Credentials *credentials.Credentials
+	Servers types.DatabaseServers
+	// AWSCredentials are credentials to AWS API.
+	AWSCredentials *credentials.Credentials
+	// GCPIAM is the GCP IAM client.
+	GCPIAM *gcpcredentials.IamCredentialsClient
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)
 }
 
+// NewAuditFn defines a function that creates an audit logger.
+type NewAuditFn func(common.AuditConfig) (common.Audit, error)
+
 // CheckAndSetDefaults makes sure the configuration has the minimum required
 // to function.
-func (c *Config) CheckAndSetDefaults() error {
+func (c *Config) CheckAndSetDefaults(ctx context.Context) error {
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
 	}
@@ -87,6 +96,9 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.StreamEmitter == nil {
 		return trace.BadParameter("missing StreamEmitter")
 	}
+	if c.NewAudit == nil {
+		c.NewAudit = common.NewAudit
+	}
 	if c.TLSConfig == nil {
 		return trace.BadParameter("missing TLSConfig")
 	}
@@ -99,14 +111,23 @@ func (c *Config) CheckAndSetDefaults() error {
 	if len(c.Servers) == 0 {
 		return trace.BadParameter("missing Servers")
 	}
-	if c.Credentials == nil {
+	// Only initialize AWS session if this service is proxying any RDS databases.
+	if c.AWSCredentials == nil && c.Servers.HasRDS() {
 		session, err := awssession.NewSessionWithOptions(awssession.Options{
 			SharedConfigState: awssession.SharedConfigEnable,
 		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		c.Credentials = session.Config.Credentials
+		c.AWSCredentials = session.Config.Credentials
+	}
+	// Only initialize GCP IAM client if this service is proxying any Cloud SQL databases.
+	if c.GCPIAM == nil && c.Servers.HasGCP() {
+		iamClient, err := gcpcredentials.NewIamCredentialsClient(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.GCPIAM = iamClient
 	}
 	return nil
 }
@@ -136,7 +157,7 @@ type Server struct {
 
 // New returns a new database server.
 func New(ctx context.Context, config Config) (*Server, error) {
-	err := config.CheckAndSetDefaults()
+	err := config.CheckAndSetDefaults(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -273,6 +294,10 @@ func (s *Server) Close() error {
 	for _, heartbeat := range s.heartbeats {
 		errors = append(errors, heartbeat.Close())
 	}
+	// Close the GCP IAM client if needed.
+	if s.cfg.GCPIAM != nil {
+		errors = append(errors, s.cfg.GCPIAM.Close())
+	}
 	return trace.NewAggregate(errors...)
 }
 
@@ -355,16 +380,17 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) error {
 // dispatch returns an appropriate database engine for the session.
 func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.StreamWriter) (common.Engine, error) {
 	auth, err := common.NewAuth(common.AuthConfig{
-		AuthClient:  s.cfg.AuthClient,
-		Credentials: s.cfg.Credentials,
-		RDSCACerts:  s.rdsCACerts,
-		Clock:       s.cfg.Clock,
+		AuthClient:     s.cfg.AuthClient,
+		AWSCredentials: s.cfg.AWSCredentials,
+		GCPIAM:         s.cfg.GCPIAM,
+		RDSCACerts:     s.rdsCACerts,
+		Clock:          s.cfg.Clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	audit, err := common.NewAudit(common.AuditConfig{
-		StreamWriter: streamWriter,
+	audit, err := s.cfg.NewAudit(common.AuditConfig{
+		Emitter: streamWriter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -429,6 +455,7 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 		DatabaseName:      identity.RouteToDatabase.Database,
 		Checker:           authContext.Checker,
 		StartupParameters: make(map[string]string),
+		Statements:        common.NewStatementsCache(),
 		Log: s.log.WithFields(logrus.Fields{
 			"id": id,
 			"db": server.GetName(),

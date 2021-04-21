@@ -19,8 +19,10 @@ package u2f
 import (
 	"context"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 
 	"github.com/flynn/u2f/u2ftoken"
 	"github.com/jonboulle/clockwork"
@@ -30,6 +32,7 @@ import (
 	"github.com/gravitational/ttlmap"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
 )
 
 // Registration sequence:
@@ -187,6 +190,7 @@ type RegisterVerifyParams struct {
 	RegistrationStorageKey string
 	Storage                RegistrationStorage
 	Clock                  clockwork.Clock
+	AttestationCAs         []string
 }
 
 // RegisterVerify is the last step in the registration sequence. It runs on the
@@ -198,14 +202,35 @@ func RegisterVerify(ctx context.Context, params RegisterVerifyParams) (*types.MF
 		return nil, trace.Wrap(err)
 	}
 
-	// Set SkipAttestationVerify because we don't yet know what vendor CAs to
-	// trust. For now, this means accepting U2F devices created by anyone.
+	// Set SkipAttestationVerify because the u2f library has a small hardcoded
+	// list of attestation CAs that's likely out of date. We'll verify the
+	// attestation cert below if needed.
 	reg, err := u2f.Register(params.Resp, *challenge, &u2f.Config{SkipAttestationVerify: true})
 	if err != nil {
 		// U2F is a 3rd party library and sends back a string based error. Wrap this error with a
 		// trace.BadParameter error to allow the Web UI to unmarshal it correctly.
 		return nil, trace.BadParameter(err.Error())
 	}
+
+	// Verify attestation cert if cluster config specifies CAs to trust.
+	// Otherwise, accept a U2F device from any manufacturer.
+	if len(params.AttestationCAs) > 0 {
+		if reg.AttestationCert == nil {
+			return nil, trace.BadParameter("U2F device did not return an attestation certificate during registration; make sure you're using a U2F device from a trusted manufacturer")
+		}
+
+		caPool, caNames, err := attestationCAPool(params.AttestationCAs)
+		if err != nil {
+			return nil, trace.BadParameter("failed parsing U2F device attestation CAs: %v", err)
+		}
+		if _, err := reg.AttestationCert.Verify(x509.VerifyOptions{Roots: caPool}); err != nil {
+			if errors.As(err, &x509.UnknownAuthorityError{}) {
+				return nil, trace.BadParameter("U2F device attestation certificate is signed by %q, but this cluster only accepts certificates from %q; make sure you're using a U2F device from a trusted manufacturer", reg.AttestationCert.Issuer, caNames)
+			}
+			return nil, trace.BadParameter("failed to verify U2F device attestation certificate (%v); make sure you're using a U2F device from a trusted manufacturer", err)
+		}
+	}
+
 	dev, err := NewDevice(params.DevName, reg, params.Clock.Now())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -215,4 +240,20 @@ func RegisterVerify(ctx context.Context, params RegisterVerifyParams) (*types.MF
 	}
 
 	return dev, nil
+}
+
+func attestationCAPool(cas []string) (pool *x509.CertPool, names []string, err error) {
+	if len(cas) == 0 {
+		return nil, nil, trace.NotFound("no attestation CAs provided")
+	}
+	pool = x509.NewCertPool()
+	for _, ca := range cas {
+		crt, err := tlsutils.ParseCertificatePEM([]byte(ca))
+		if err != nil {
+			return nil, nil, trace.BadParameter("U2F config has an invalid attestation CA: %v", err)
+		}
+		pool.AddCert(crt)
+		names = append(names, crt.Subject.String())
+	}
+	return pool, names, nil
 }

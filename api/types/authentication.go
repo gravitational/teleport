@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
@@ -57,6 +58,10 @@ type AuthPreference interface {
 	GetU2F() (*U2F, error)
 	// SetU2F sets the U2F configuration settings.
 	SetU2F(*U2F)
+
+	// GetRequireSessionMFA returns true when all sessions in this cluster
+	// require an MFA check.
+	GetRequireSessionMFA() bool
 
 	// CheckAndSetDefaults sets and default values and then
 	// verifies the constraints for AuthPreference.
@@ -98,24 +103,6 @@ func DefaultAuthPreference() AuthPreference {
 			SecondFactor: constants.SecondFactorOTP,
 		},
 	}
-}
-
-// AuthPreferenceV2 implements AuthPreference.
-type AuthPreferenceV2 struct {
-	// Kind is a resource kind - always resource.
-	Kind string `json:"kind"`
-
-	// SubKind is a resource sub kind.
-	SubKind string `json:"sub_kind,omitempty"`
-
-	// Version is a resource version.
-	Version string `json:"version"`
-
-	// Metadata is metadata about the resource.
-	Metadata Metadata `json:"metadata"`
-
-	// Spec is the specification of the resource.
-	Spec AuthPreferenceSpecV2 `json:"spec"`
 }
 
 // GetVersion returns resource version.
@@ -225,6 +212,12 @@ func (c *AuthPreferenceV2) SetU2F(u2f *U2F) {
 	c.Spec.U2F = u2f
 }
 
+// GetRequireSessionMFA returns true when all sessions in this cluster require
+// an MFA check.
+func (c *AuthPreferenceV2) GetRequireSessionMFA() bool {
+	return c.Spec.RequireSessionMFA
+}
+
 // CheckAndSetDefaults verifies the constraints for AuthPreference.
 func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	// make sure we have defaults for all metadata fields
@@ -270,37 +263,17 @@ func (c *AuthPreferenceV2) String() string {
 	return fmt.Sprintf("AuthPreference(Type=%q,SecondFactor=%q)", c.Spec.Type, c.Spec.SecondFactor)
 }
 
-// AuthPreferenceSpecV2 is the actual data we care about for AuthPreferenceV2.
-type AuthPreferenceSpecV2 struct {
-	// Type is the type of authentication.
-	Type string `json:"type"`
-
-	// SecondFactor is the type of second factor.
-	SecondFactor constants.SecondFactorType `json:"second_factor,omitempty"`
-
-	// ConnectorName is the name of the OIDC or SAML connector. If this value is
-	// not set the first connector in the backend will be used.
-	ConnectorName string `json:"connector_name,omitempty"`
-
-	// U2F are the settings for the U2F device.
-	U2F *U2F `json:"u2f,omitempty"`
-}
-
-// U2F defines settings for U2F device.
-type U2F struct {
-	// AppID returns the application ID for universal second factor.
-	AppID string `json:"app_id,omitempty"`
-
-	// Facets returns the facets for universal second factor.
-	Facets []string `json:"facets,omitempty"`
-}
-
 func (u *U2F) Check() error {
 	if u.AppID == "" {
 		return trace.BadParameter("u2f configuration missing app_id")
 	}
 	if len(u.Facets) == 0 {
 		return trace.BadParameter("u2f configuration missing facets")
+	}
+	for _, ca := range u.DeviceAttestationCAs {
+		if _, err := tlsutils.ParseCertificatePEM([]byte(ca)); err != nil {
+			return trace.BadParameter("u2f configuration has an invalid attestation CA: %v", err)
+		}
 	}
 	return nil
 }

@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -63,6 +64,11 @@ import (
 	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+)
+
+const (
+	// ssoLoginConsoleErr is a generic error message to hide revealing sso login failure msgs.
+	ssoLoginConsoleErr = "Failed to login. Please check Teleport's log for more details."
 )
 
 // Handler is HTTP web proxy handler
@@ -125,7 +131,7 @@ type Config struct {
 	CipherSuites []uint16
 
 	// ProxySettings is a settings communicated to proxy
-	ProxySettings client.ProxySettings
+	ProxySettings webclient.ProxySettings
 
 	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
 	// configuration.
@@ -171,7 +177,7 @@ func (h *RewritingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// request is already authenticated (has a session cookie), forward to
 	// application handlers. If the request is unauthenticated and requesting a
 	// FQDN that is not of the proxy, redirect to application launcher.
-	if app.HasFragment(r) || app.HasSession(r) {
+	if app.HasFragment(r) || app.HasSession(r) || app.HasClientCert(r) {
 		h.appHandler.ServeHTTP(w, r)
 		return
 	}
@@ -179,7 +185,6 @@ func (h *RewritingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, redir, http.StatusFound)
 		return
 	}
-
 	// Serve the Web UI.
 	h.Handler.ServeHTTP(w, r)
 }
@@ -253,7 +258,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.POST("/webapi/sessions/app", h.WithAuth(h.createAppSession))
 	h.DELETE("/webapi/sessions", h.WithAuth(h.deleteSession))
 	h.POST("/webapi/sessions/renew", h.WithAuth(h.renewSession))
-	h.POST("/webapi/sessions/renew/:requestId", h.WithAuth(h.renewSession))
 
 	h.POST("/webapi/users", h.WithAuth(h.createUserHandle))
 	h.PUT("/webapi/users", h.WithAuth(h.updateUserHandle))
@@ -488,13 +492,8 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	user, err := clt.GetUser(c.GetUser(), false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	res, err := clt.GetAccessCapabilities(r.Context(), services.AccessCapabilitiesRequest{
-		RequestableRoles: true,
-	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -503,7 +502,20 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	userContext.RequestableRoles = res.RequestableRoles
+
+	res, err := clt.GetAccessCapabilities(r.Context(), services.AccessCapabilitiesRequest{
+		RequestableRoles:   true,
+		SuggestedReviewers: true,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	userContext.AccessCapabilities = ui.AccessCapabilities{
+		RequestableRoles:   res.RequestableRoles,
+		SuggestedReviewers: res.SuggestedReviewers,
+	}
+
 	userContext.Cluster, err = ui.GetClusterDetails(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -512,8 +524,8 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	return userContext, nil
 }
 
-func localSettings(authClient auth.ClientI, cap services.AuthPreference) (client.AuthenticationSettings, error) {
-	as := client.AuthenticationSettings{
+func localSettings(authClient auth.ClientI, cap services.AuthPreference) (webclient.AuthenticationSettings, error) {
+	as := webclient.AuthenticationSettings{
 		Type:         teleport.Local,
 		SecondFactor: cap.GetSecondFactor(),
 	}
@@ -525,17 +537,17 @@ func localSettings(authClient auth.ClientI, cap services.AuthPreference) (client
 		return as, nil
 	}
 	if err != nil {
-		return client.AuthenticationSettings{}, trace.Wrap(err)
+		return webclient.AuthenticationSettings{}, trace.Wrap(err)
 	}
-	as.U2F = &client.U2FSettings{AppID: u2fs.AppID}
+	as.U2F = &webclient.U2FSettings{AppID: u2fs.AppID}
 
 	return as, nil
 }
 
-func oidcSettings(connector services.OIDCConnector, cap services.AuthPreference) client.AuthenticationSettings {
-	return client.AuthenticationSettings{
+func oidcSettings(connector services.OIDCConnector, cap services.AuthPreference) webclient.AuthenticationSettings {
+	return webclient.AuthenticationSettings{
 		Type: teleport.OIDC,
-		OIDC: &client.OIDCSettings{
+		OIDC: &webclient.OIDCSettings{
 			Name:    connector.GetName(),
 			Display: connector.GetDisplay(),
 		},
@@ -544,10 +556,10 @@ func oidcSettings(connector services.OIDCConnector, cap services.AuthPreference)
 	}
 }
 
-func samlSettings(connector services.SAMLConnector, cap services.AuthPreference) client.AuthenticationSettings {
-	return client.AuthenticationSettings{
+func samlSettings(connector services.SAMLConnector, cap services.AuthPreference) webclient.AuthenticationSettings {
+	return webclient.AuthenticationSettings{
 		Type: teleport.SAML,
-		SAML: &client.SAMLSettings{
+		SAML: &webclient.SAMLSettings{
 			Name:    connector.GetName(),
 			Display: connector.GetDisplay(),
 		},
@@ -556,10 +568,10 @@ func samlSettings(connector services.SAMLConnector, cap services.AuthPreference)
 	}
 }
 
-func githubSettings(connector services.GithubConnector, cap services.AuthPreference) client.AuthenticationSettings {
-	return client.AuthenticationSettings{
+func githubSettings(connector services.GithubConnector, cap services.AuthPreference) webclient.AuthenticationSettings {
+	return webclient.AuthenticationSettings{
 		Type: teleport.Github,
-		Github: &client.GithubSettings{
+		Github: &webclient.GithubSettings{
 			Name:    connector.GetName(),
 			Display: connector.GetDisplay(),
 		},
@@ -567,77 +579,77 @@ func githubSettings(connector services.GithubConnector, cap services.AuthPrefere
 	}
 }
 
-func defaultAuthenticationSettings(authClient auth.ClientI) (client.AuthenticationSettings, error) {
+func defaultAuthenticationSettings(ctx context.Context, authClient auth.ClientI) (webclient.AuthenticationSettings, error) {
 	cap, err := authClient.GetAuthPreference()
 	if err != nil {
-		return client.AuthenticationSettings{}, trace.Wrap(err)
+		return webclient.AuthenticationSettings{}, trace.Wrap(err)
 	}
 
-	var as client.AuthenticationSettings
+	var as webclient.AuthenticationSettings
 
 	switch cap.GetType() {
 	case teleport.Local:
 		as, err = localSettings(authClient, cap)
 		if err != nil {
-			return client.AuthenticationSettings{}, trace.Wrap(err)
+			return webclient.AuthenticationSettings{}, trace.Wrap(err)
 		}
 	case teleport.OIDC:
 		if cap.GetConnectorName() != "" {
-			oidcConnector, err := authClient.GetOIDCConnector(cap.GetConnectorName(), false)
+			oidcConnector, err := authClient.GetOIDCConnector(ctx, cap.GetConnectorName(), false)
 			if err != nil {
-				return client.AuthenticationSettings{}, trace.Wrap(err)
+				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 
 			as = oidcSettings(oidcConnector, cap)
 		} else {
-			oidcConnectors, err := authClient.GetOIDCConnectors(false)
+			oidcConnectors, err := authClient.GetOIDCConnectors(ctx, false)
 			if err != nil {
-				return client.AuthenticationSettings{}, trace.Wrap(err)
+				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 			if len(oidcConnectors) == 0 {
-				return client.AuthenticationSettings{}, trace.BadParameter("no oidc connectors found")
+				return webclient.AuthenticationSettings{}, trace.BadParameter("no oidc connectors found")
 			}
 
 			as = oidcSettings(oidcConnectors[0], cap)
 		}
 	case teleport.SAML:
 		if cap.GetConnectorName() != "" {
-			samlConnector, err := authClient.GetSAMLConnector(cap.GetConnectorName(), false)
+			samlConnector, err := authClient.GetSAMLConnector(ctx, cap.GetConnectorName(), false)
 			if err != nil {
-				return client.AuthenticationSettings{}, trace.Wrap(err)
+				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 
 			as = samlSettings(samlConnector, cap)
 		} else {
-			samlConnectors, err := authClient.GetSAMLConnectors(false)
+			samlConnectors, err := authClient.GetSAMLConnectors(ctx, false)
 			if err != nil {
-				return client.AuthenticationSettings{}, trace.Wrap(err)
+				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 			if len(samlConnectors) == 0 {
-				return client.AuthenticationSettings{}, trace.BadParameter("no saml connectors found")
+				return webclient.AuthenticationSettings{}, trace.BadParameter("no saml connectors found")
 			}
 
 			as = samlSettings(samlConnectors[0], cap)
 		}
 	case teleport.Github:
 		if cap.GetConnectorName() != "" {
-			githubConnector, err := authClient.GetGithubConnector(cap.GetConnectorName(), false)
+			githubConnector, err := authClient.GetGithubConnector(ctx, cap.GetConnectorName(), false)
 			if err != nil {
-				return client.AuthenticationSettings{}, trace.Wrap(err)
+				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 			as = githubSettings(githubConnector, cap)
 		} else {
-			githubConnectors, err := authClient.GetGithubConnectors(false)
+			githubConnectors, err := authClient.GetGithubConnectors(ctx, false)
 			if err != nil {
-				return client.AuthenticationSettings{}, trace.Wrap(err)
+				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 			if len(githubConnectors) == 0 {
-				return client.AuthenticationSettings{}, trace.BadParameter("no github connectors found")
+				return webclient.AuthenticationSettings{}, trace.BadParameter("no github connectors found")
 			}
 			as = githubSettings(githubConnectors[0], cap)
 		}
 	default:
-		return client.AuthenticationSettings{}, trace.BadParameter("unknown type %v", cap.GetType())
+		return webclient.AuthenticationSettings{}, trace.BadParameter("unknown type %v", cap.GetType())
 	}
 
 	return as, nil
@@ -646,12 +658,12 @@ func defaultAuthenticationSettings(authClient auth.ClientI) (client.Authenticati
 func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var err error
 
-	defaultSettings, err := defaultAuthenticationSettings(h.cfg.ProxyClient)
+	defaultSettings, err := defaultAuthenticationSettings(r.Context(), h.cfg.ProxyClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return client.PingResponse{
+	return webclient.PingResponse{
 		Auth:             defaultSettings,
 		Proxy:            h.cfg.ProxySettings,
 		ServerVersion:    teleport.Version,
@@ -660,7 +672,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 }
 
 func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	return client.PingResponse{
+	return webclient.PingResponse{
 		Proxy:            h.cfg.ProxySettings,
 		ServerVersion:    teleport.Version,
 		MinClientVersion: teleport.MinClientVersion,
@@ -676,7 +688,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 		return nil, trace.Wrap(err)
 	}
 
-	response := &client.PingResponse{
+	response := &webclient.PingResponse{
 		Proxy:         h.cfg.ProxySettings,
 		ServerVersion: teleport.Version,
 	}
@@ -691,21 +703,21 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	}
 
 	// first look for a oidc connector with that name
-	oidcConnector, err := authClient.GetOIDCConnector(connectorName, false)
+	oidcConnector, err := authClient.GetOIDCConnector(r.Context(), connectorName, false)
 	if err == nil {
 		response.Auth = oidcSettings(oidcConnector, cap)
 		return response, nil
 	}
 
 	// if no oidc connector was found, look for a saml connector
-	samlConnector, err := authClient.GetSAMLConnector(connectorName, false)
+	samlConnector, err := authClient.GetSAMLConnector(r.Context(), connectorName, false)
 	if err == nil {
 		response.Auth = samlSettings(samlConnector, cap)
 		return response, nil
 	}
 
 	// look for github connector
-	githubConnector, err := authClient.GetGithubConnector(connectorName, false)
+	githubConnector, err := authClient.GetGithubConnector(r.Context(), connectorName, false)
 	if err == nil {
 		response.Auth = githubSettings(githubConnector, cap)
 		return response, nil
@@ -722,7 +734,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	secondFactor := constants.SecondFactorOff
 
 	// get all OIDC connectors
-	oidcConnectors, err := h.cfg.ProxyClient.GetOIDCConnectors(false)
+	oidcConnectors, err := h.cfg.ProxyClient.GetOIDCConnectors(r.Context(), false)
 	if err != nil {
 		h.log.WithError(err).Error("Cannot retrieve OIDC connectors.")
 	}
@@ -736,7 +748,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	// get all SAML connectors
-	samlConnectors, err := h.cfg.ProxyClient.GetSAMLConnectors(false)
+	samlConnectors, err := h.cfg.ProxyClient.GetSAMLConnectors(r.Context(), false)
 	if err != nil {
 		h.log.WithError(err).Error("Cannot retrieve SAML connectors.")
 	}
@@ -750,7 +762,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	// get all Github connectors
-	githubConnectors, err := h.cfg.ProxyClient.GetGithubConnectors(false)
+	githubConnectors, err := h.cfg.ProxyClient.GetGithubConnectors(r.Context(), false)
 	if err != nil {
 		h.log.WithError(err).Error("Cannot retrieve Github connectors.")
 	}
@@ -898,14 +910,20 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 }
 
 func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	h.log.WithField("auth", "github").Debug("Console login start.")
+	logger := h.log.WithField("auth", "github")
+	logger.Debug("Console login start.")
+
 	req := new(client.SSOLoginConsoleReq)
 	if err := httplib.ReadJSON(r, req); err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Error reading json.")
+		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
+
 	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Missing request parameters.")
+		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
+
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(
 		services.GithubAuthRequest{
 			ConnectorID:       req.ConnectorID,
@@ -917,8 +935,10 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 			KubernetesCluster: req.KubernetesCluster,
 		})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Failed to create Github auth request.")
+		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
+
 	return &client.SSOLoginConsoleResponse{
 		RedirectURL: response.RedirectURL,
 	}, nil
@@ -978,14 +998,20 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 }
 
 func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	h.log.WithField("auth", "oidc").Debug("Console login start.")
+	logger := h.log.WithField("auth", "oidc")
+	logger.Debug("Console login start.")
+
 	req := new(client.SSOLoginConsoleReq)
 	if err := httplib.ReadJSON(r, req); err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Error reading json.")
+		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
+
 	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Missing request parameters.")
+		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
+
 	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(
 		services.OIDCAuthRequest{
 			ConnectorID:       req.ConnectorID,
@@ -998,8 +1024,10 @@ func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 			KubernetesCluster: req.KubernetesCluster,
 		})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		logger.WithError(err).Error("Failed to create OIDC auth request.")
+		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
+
 	return &client.SSOLoginConsoleResponse{
 		RedirectURL: response.RedirectURL,
 	}, nil
@@ -1170,18 +1198,20 @@ type CreateSessionReq struct {
 // String returns text description of this response
 func (r *CreateSessionResponse) String() string {
 	return fmt.Sprintf("WebSession(type=%v,token=%v,expires=%vs)",
-		r.Type, r.Token, r.ExpiresIn)
+		r.TokenType, r.Token, r.TokenExpiresIn)
 }
 
 // CreateSessionResponse returns OAuth compabible data about
 // access token: https://tools.ietf.org/html/rfc6749
 type CreateSessionResponse struct {
-	// Type is token type (bearer)
-	Type string `json:"type"`
+	// TokenType is token type (bearer)
+	TokenType string `json:"type"`
 	// Token value
 	Token string `json:"token"`
-	// ExpiresIn sets seconds before this token is not valid
-	ExpiresIn int `json:"expires_in"`
+	// TokenExpiresIn sets seconds before this token is not valid
+	TokenExpiresIn int `json:"expires_in"`
+	// SessionExpires is when this session expires.
+	SessionExpires time.Time `json:"sessionExpires,omitempty"`
 }
 
 func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
@@ -1206,10 +1236,11 @@ func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return &CreateSessionResponse{
-		Type:      roundtrip.AuthBearer,
-		Token:     token.GetName(),
-		ExpiresIn: int(token.Expiry().Sub(ctx.parent.clock.Now()) / time.Second),
+		TokenType:      roundtrip.AuthBearer,
+		Token:          token.GetName(),
+		TokenExpiresIn: int(token.Expiry().Sub(ctx.parent.clock.Now()) / time.Second),
 	}, nil
 }
 
@@ -1242,8 +1273,14 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	switch cap.GetSecondFactor() {
 	case constants.SecondFactorOff:
 		webSession, err = h.auth.AuthWithoutOTP(req.User, req.Pass)
-	case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
+	case constants.SecondFactorOTP, constants.SecondFactorOn:
 		webSession, err = h.auth.AuthWithOTP(req.User, req.Pass, req.SecondFactorToken)
+	case constants.SecondFactorOptional:
+		if req.SecondFactorToken == "" {
+			webSession, err = h.auth.AuthWithoutOTP(req.User, req.Pass)
+		} else {
+			webSession, err = h.auth.AuthWithOTP(req.User, req.Pass, req.SecondFactorToken)
+		}
 	default:
 		return nil, trace.AccessDenied("unknown second factor type: %q", cap.GetSecondFactor())
 	}
@@ -1302,13 +1339,32 @@ func (h *Handler) logout(w http.ResponseWriter, ctx *SessionContext) error {
 	return nil
 }
 
-// renewSession is called in two ways:
-// 	- Without requestId: Updates the existing session about to expire.
-// 	- With requestId: Updates existing session with additional roles assigned with approving access request.
-func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	requestID := params.ByName("requestId")
+type renewSessionRequest struct {
+	// AccessRequestID is the id of an approved access request.
+	AccessRequestID string `json:"requestId"`
+	// Switchback indicates switching back to default roles when creating new session.
+	Switchback bool `json:"switchback"`
+}
 
-	newSession, err := ctx.extendWebSession(requestID)
+// renewSession updates this existing session with a new session.
+//
+// Depending on request fields sent in for extension, the new session creation can vary depending on:
+//   - requestId (opt): appends roles approved from access request to currently assigned roles or,
+//   - switchback (opt): roles stacked with assuming approved access requests, will revert to user's default roles
+//   - default (none set): create new session with currently assigned roles
+func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	req := renewSessionRequest{}
+	if r.Body != http.NoBody {
+		if err := httplib.ReadJSON(r, &req); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if req.AccessRequestID != "" && req.Switchback {
+		return nil, trace.BadParameter("Failed to renew session: fields 'AccessRequestID' and 'Switchback' cannot be both set")
+	}
+
+	newSession, err := ctx.extendWebSession(req.AccessRequestID, req.Switchback)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1319,7 +1375,14 @@ func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params ht
 	if err := SetSessionCookie(w, newSession.GetUser(), newSession.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return newSessionResponse(newContext)
+
+	res, err := newSessionResponse(newContext)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	res.SessionExpires = newSession.GetExpiryTime()
+
+	return res, nil
 }
 
 func (h *Handler) changePasswordWithToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {

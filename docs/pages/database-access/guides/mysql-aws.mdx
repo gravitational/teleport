@@ -3,7 +3,7 @@ title: Database Access with MySQL on AWS
 description: How to configure Teleport Database Access with AWS RDS/Aurora MySQL
 ---
 
-# MySQL on AWS
+# AWS RDS/Aurora MySQL
 
 ## Enable IAM Authentication
 
@@ -181,8 +181,13 @@ a single AWS Aurora MySQL database:
 
 ```yaml
 teleport:
+  # The data_dir should be a different location if running on the same
+  # machine as Teleport auth and proxy.
   data_dir: /var/lib/teleport-db
-  nodename: test
+  nodename: teleport-db-instance
+  # Teleport invitation token used to join a cluster.
+  # can also be passed on start using --token flag
+  auth_token: /tmp/token
   # Proxy address to connect to. Note that it has to be the proxy address
   # because database service always connects to the cluster over reverse
   # tunnel.

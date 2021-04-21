@@ -282,7 +282,7 @@ var (
 	// Median sleep time between node pings is this value / 2 + random
 	// deviation added to this time to avoid lots of simultaneous
 	// heartbeats coming to auth server
-	ServerAnnounceTTL = 600 * time.Second
+	ServerAnnounceTTL = defaults.ServerAnnounceTTL
 
 	// ServerKeepAliveTTL is a period between server keep alives,
 	// when servers announce only presence withough sending full data
@@ -512,6 +512,9 @@ var (
 	// the Teleport configuration file that tctl reads on use
 	ConfigFileEnvar = "TELEPORT_CONFIG_FILE"
 
+	// TunnelPublicAddrEnvar optionally specifies the alternative reverse tunnel address.
+	TunnelPublicAddrEnvar = "TELEPORT_TUNNEL_PUBLIC_ADDR"
+
 	// LicenseFile is the default name of the license file
 	LicenseFile = "license.pem"
 
@@ -621,6 +624,9 @@ const (
 
 	// WebsocketResize is receiving a resize request.
 	WebsocketResize = "w"
+
+	// WebsocketU2FChallenge is sending a U2F challenge.
+	WebsocketU2FChallenge = "u"
 )
 
 // The following are cryptographic primitives Teleport does not support in

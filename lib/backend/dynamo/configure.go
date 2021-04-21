@@ -19,6 +19,7 @@ package dynamo
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/applicationautoscaling"
@@ -58,13 +59,25 @@ type AutoScalingParams struct {
 }
 
 // SetAutoScaling enables auto-scaling for the specified table with given configuration.
-func SetAutoScaling(ctx context.Context, svc *applicationautoscaling.ApplicationAutoScaling, tableName string, params AutoScalingParams) error {
+func SetAutoScaling(ctx context.Context, svc *applicationautoscaling.ApplicationAutoScaling, resourceID string, params AutoScalingParams) error {
+	readDimension := applicationautoscaling.ScalableDimensionDynamodbTableReadCapacityUnits
+	writeDimension := applicationautoscaling.ScalableDimensionDynamodbTableWriteCapacityUnits
+
+	// Check if the resource ID refers to an index - those IDs have the following form:
+	// 'table/<tableName>/index/<indexName>'
+	//
+	// Indices use a slightly different scaling dimension than tables
+	if strings.Contains(resourceID, "/index/") {
+		readDimension = applicationautoscaling.ScalableDimensionDynamodbIndexReadCapacityUnits
+		writeDimension = applicationautoscaling.ScalableDimensionDynamodbIndexWriteCapacityUnits
+	}
+
 	// Define scaling targets. Defines minimum and maximum {read,write} capacity.
 	if _, err := svc.RegisterScalableTarget(&applicationautoscaling.RegisterScalableTargetInput{
 		MinCapacity:       aws.Int64(params.ReadMinCapacity),
 		MaxCapacity:       aws.Int64(params.ReadMaxCapacity),
-		ResourceId:        aws.String(fmt.Sprintf("%v/%v", resourcePrefix, tableName)),
-		ScalableDimension: aws.String(applicationautoscaling.ScalableDimensionDynamodbTableReadCapacityUnits),
+		ResourceId:        aws.String(resourceID),
+		ScalableDimension: aws.String(readDimension),
 		ServiceNamespace:  aws.String(applicationautoscaling.ServiceNamespaceDynamodb),
 	}); err != nil {
 		return convertError(err)
@@ -72,8 +85,8 @@ func SetAutoScaling(ctx context.Context, svc *applicationautoscaling.Application
 	if _, err := svc.RegisterScalableTarget(&applicationautoscaling.RegisterScalableTargetInput{
 		MinCapacity:       aws.Int64(params.WriteMinCapacity),
 		MaxCapacity:       aws.Int64(params.WriteMaxCapacity),
-		ResourceId:        aws.String(fmt.Sprintf("%v/%v", resourcePrefix, tableName)),
-		ScalableDimension: aws.String(applicationautoscaling.ScalableDimensionDynamodbTableWriteCapacityUnits),
+		ResourceId:        aws.String(resourceID),
+		ScalableDimension: aws.String(writeDimension),
 		ServiceNamespace:  aws.String(applicationautoscaling.ServiceNamespaceDynamodb),
 	}); err != nil {
 		return convertError(err)
@@ -82,10 +95,10 @@ func SetAutoScaling(ctx context.Context, svc *applicationautoscaling.Application
 	// Define scaling policy. Defines the ratio of {read,write} consumed capacity to
 	// provisioned capacity DynamoDB will try and maintain.
 	if _, err := svc.PutScalingPolicy(&applicationautoscaling.PutScalingPolicyInput{
-		PolicyName:        aws.String(fmt.Sprintf("%v-%v", tableName, readScalingPolicySuffix)),
+		PolicyName:        aws.String(getReadScalingPolicyName(resourceID)),
 		PolicyType:        aws.String(applicationautoscaling.PolicyTypeTargetTrackingScaling),
-		ResourceId:        aws.String(fmt.Sprintf("%v/%v", resourcePrefix, tableName)),
-		ScalableDimension: aws.String(applicationautoscaling.ScalableDimensionDynamodbTableReadCapacityUnits),
+		ResourceId:        aws.String(resourceID),
+		ScalableDimension: aws.String(readDimension),
 		ServiceNamespace:  aws.String(applicationautoscaling.ServiceNamespaceDynamodb),
 		TargetTrackingScalingPolicyConfiguration: &applicationautoscaling.TargetTrackingScalingPolicyConfiguration{
 			PredefinedMetricSpecification: &applicationautoscaling.PredefinedMetricSpecification{
@@ -97,10 +110,10 @@ func SetAutoScaling(ctx context.Context, svc *applicationautoscaling.Application
 		return convertError(err)
 	}
 	if _, err := svc.PutScalingPolicy(&applicationautoscaling.PutScalingPolicyInput{
-		PolicyName:        aws.String(fmt.Sprintf("%v-%v", tableName, writeScalingPolicySuffix)),
+		PolicyName:        aws.String(getWriteScalingPolicyName(resourceID)),
 		PolicyType:        aws.String(applicationautoscaling.PolicyTypeTargetTrackingScaling),
-		ResourceId:        aws.String(fmt.Sprintf("%v/%v", resourcePrefix, tableName)),
-		ScalableDimension: aws.String(applicationautoscaling.ScalableDimensionDynamodbTableWriteCapacityUnits),
+		ResourceId:        aws.String(resourceID),
+		ScalableDimension: aws.String(writeDimension),
 		ServiceNamespace:  aws.String(applicationautoscaling.ServiceNamespaceDynamodb),
 		TargetTrackingScalingPolicyConfiguration: &applicationautoscaling.TargetTrackingScalingPolicyConfiguration{
 			PredefinedMetricSpecification: &applicationautoscaling.PredefinedMetricSpecification{
@@ -115,8 +128,24 @@ func SetAutoScaling(ctx context.Context, svc *applicationautoscaling.Application
 	return nil
 }
 
-const (
-	readScalingPolicySuffix  = "read-target-tracking-scaling-policy"
-	writeScalingPolicySuffix = "write-target-tracking-scaling-policy"
-	resourcePrefix           = "table"
-)
+// GetTableID returns the resourceID of a table based on its table name
+func GetTableID(tableName string) string {
+	return fmt.Sprintf("table/%s", tableName)
+}
+
+// GetIndexID returns the resourceID of an index, based on the table & index name
+func GetIndexID(tableName, indexName string) string {
+	return fmt.Sprintf("table/%s/index/%s", tableName, indexName)
+}
+
+// getWriteScalingPolicyName returns the policy name for our write scaling policy
+func getWriteScalingPolicyName(resourceID string) string {
+	// We're trimming the "table/" prefix since policies before 6.1.0 didn't contain it. By referencing an existing
+	// policy name in 'PutScalingPolicy', AWS will update that one instead of creating a new resource.
+	return fmt.Sprintf("%s-write-target-tracking-scaling-policy", strings.TrimPrefix(resourceID, "table/"))
+}
+
+// getWriteScalingPolicyName returns the policy name for our read scaling policy
+func getReadScalingPolicyName(resourceID string) string {
+	return fmt.Sprintf("%s-read-target-tracking-scaling-policy", strings.TrimPrefix(resourceID, "table/"))
+}

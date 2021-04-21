@@ -188,6 +188,10 @@ const (
 	UserIdentifier = "user"
 	// ResourceIdentifier represents resource registered identifier in the rules
 	ResourceIdentifier = "resource"
+	// ImpersonateRoleIdentifier is a role to impersonate
+	ImpersonateRoleIdentifier = "impersonate_role"
+	// ImpersonateUserIdentifier is a user to impersonate
+	ImpersonateUserIdentifier = "impersonate_user"
 )
 
 // GetResource returns resource specified in the context,
@@ -302,4 +306,53 @@ func (r *EmptyResource) GetName() string {
 // GetMetadata returns role metadata.
 func (r *EmptyResource) GetMetadata() Metadata {
 	return r.Metadata
+}
+
+// BoolPredicateParser extends predicate.Parser with a convenience method
+// for evaluating bool predicates.
+type BoolPredicateParser interface {
+	predicate.Parser
+	EvalBoolPredicate(string) (bool, error)
+}
+
+type boolPredicateParser struct {
+	predicate.Parser
+}
+
+func (p boolPredicateParser) EvalBoolPredicate(expr string) (bool, error) {
+	ifn, err := p.Parse(expr)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	fn, ok := ifn.(predicate.BoolPredicate)
+	if !ok {
+		return false, trace.BadParameter("unsupported type: %T", ifn)
+	}
+
+	return fn(), nil
+}
+
+// NewJSONBoolParser returns a generic parser for boolean expressions based on a
+// json-serializable context.
+func NewJSONBoolParser(ctx interface{}) (BoolPredicateParser, error) {
+	p, err := predicate.NewParser(predicate.Def{
+		Operators: predicate.Operators{
+			AND: predicate.And,
+			OR:  predicate.Or,
+			NOT: predicate.Not,
+		},
+		Functions: map[string]interface{}{
+			"equals":   predicate.Equals,
+			"contains": predicate.Contains,
+		},
+		GetIdentifier: func(fields []string) (interface{}, error) {
+			return predicate.GetFieldByTag(ctx, teleport.JSON, fields)
+		},
+		GetProperty: GetStringMapValue,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return boolPredicateParser{Parser: p}, nil
 }

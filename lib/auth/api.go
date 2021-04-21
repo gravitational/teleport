@@ -73,6 +73,9 @@ type ReadAccessPoint interface {
 	// GetClusterConfig returns cluster level configuration.
 	GetClusterConfig(opts ...services.MarshalOption) (services.ClusterConfig, error)
 
+	// GetAuthPreference returns the cluster authentication configuration.
+	GetAuthPreference() (services.AuthPreference, error)
+
 	// GetNamespaces returns a list of namespaces
 	GetNamespaces() ([]services.Namespace, error)
 
@@ -180,10 +183,10 @@ type Cache interface {
 	GetStaticTokens() (services.StaticTokens, error)
 
 	// GetTokens returns all active (non-expired) provisioning tokens
-	GetTokens(opts ...services.MarshalOption) ([]services.ProvisionToken, error)
+	GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]services.ProvisionToken, error)
 
 	// GetToken finds and returns token by ID
-	GetToken(token string) (services.ProvisionToken, error)
+	GetToken(ctx context.Context, token string) (services.ProvisionToken, error)
 
 	// NewWatcher returns a new event watcher
 	NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error)

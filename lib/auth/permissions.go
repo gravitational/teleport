@@ -23,9 +23,9 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 
@@ -311,6 +311,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 						services.NewRule(services.KindReverseTunnel, services.RW()),
 						services.NewRule(services.KindTunnelConnection, services.RO()),
 						services.NewRule(services.KindClusterConfig, services.RO()),
+						services.NewRule(services.KindClusterAuthPreference, services.RO()),
 						services.NewRule(services.KindSemaphore, services.RW()),
 					},
 				},
@@ -332,6 +333,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 						services.NewRule(services.KindReverseTunnel, services.RW()),
 						services.NewRule(services.KindTunnelConnection, services.RO()),
 						services.NewRule(services.KindClusterConfig, services.RO()),
+						services.NewRule(services.KindClusterAuthPreference, services.RO()),
 						services.NewRule(services.KindAppServer, services.RW()),
 						services.NewRule(services.KindWebSession, services.RO()),
 						services.NewRule(services.KindWebToken, services.RO()),
@@ -356,6 +358,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 						services.NewRule(services.KindReverseTunnel, services.RW()),
 						services.NewRule(services.KindTunnelConnection, services.RO()),
 						services.NewRule(services.KindClusterConfig, services.RO()),
+						services.NewRule(services.KindClusterAuthPreference, services.RO()),
 						services.NewRule(types.KindDatabaseServer, services.RW()),
 					},
 				},
@@ -545,6 +548,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 						services.NewRule(services.KindEvent, services.RW()),
 						services.NewRule(services.KindCertAuthority, services.ReadNoSecrets()),
 						services.NewRule(services.KindClusterConfig, services.RO()),
+						services.NewRule(services.KindClusterAuthPreference, services.RO()),
 						services.NewRule(services.KindUser, services.RO()),
 						services.NewRule(services.KindRole, services.RO()),
 						services.NewRule(services.KindNamespace, services.RO()),
@@ -616,12 +620,12 @@ const (
 )
 
 // WithDelegator alias for backwards compatibility
-var WithDelegator = client.WithDelegator
+var WithDelegator = utils.WithDelegator
 
-// clientUsername returns the username of a remote HTTP client making the call.
+// ClientUsername returns the username of a remote HTTP client making the call.
 // If ctx didn't pass through auth middleware or did not come from an HTTP
 // request, teleport.UserSystem is returned.
-func clientUsername(ctx context.Context) string {
+func ClientUsername(ctx context.Context) string {
 	userI := ctx.Value(ContextUser)
 	userWithIdentity, ok := userI.(IdentityGetter)
 	if !ok {
@@ -632,6 +636,18 @@ func clientUsername(ctx context.Context) string {
 		return teleport.UserSystem
 	}
 	return identity.Username
+}
+
+// ClientImpersonator returns the impersonator username of a remote client
+// making the call. If not present, returns an empty string
+func ClientImpersonator(ctx context.Context) string {
+	userI := ctx.Value(ContextUser)
+	userWithIdentity, ok := userI.(IdentityGetter)
+	if !ok {
+		return ""
+	}
+	identity := userWithIdentity.GetIdentity()
+	return identity.Impersonator
 }
 
 // LocalUser is a local user

@@ -237,10 +237,11 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 
 // Del is called to execute "tokens del ..." command.
 func (c *TokenCommand) Del(client auth.ClientI) error {
+	ctx := context.TODO()
 	if c.value == "" {
 		return trace.Errorf("Need an argument: token")
 	}
-	if err := client.DeleteToken(c.value); err != nil {
+	if err := client.DeleteToken(ctx, c.value); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("Token %s has been deleted\n", c.value)
@@ -249,7 +250,8 @@ func (c *TokenCommand) Del(client auth.ClientI) error {
 
 // List is called to execute "tokens ls" command.
 func (c *TokenCommand) List(client auth.ClientI) error {
-	tokens, err := client.GetTokens()
+	ctx := context.TODO()
+	tokens, err := client.GetTokens(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

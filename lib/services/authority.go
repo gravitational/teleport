@@ -33,10 +33,18 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/trace"
 )
+
+// CertAuthoritiesEquivalent checks if a pair of certificate authority resources are equivalent.
+// This differs from normal equality only in that resource IDs are ignored.
+func CertAuthoritiesEquivalent(lhs, rhs CertAuthority) bool {
+	return cmp.Equal(lhs, rhs, cmpopts.IgnoreFields(types.Metadata{}, "ID"))
+}
 
 // NewJWTAuthority creates and returns a services.CertAuthority with a new
 // key pair.
@@ -245,6 +253,8 @@ type UserCertParams struct {
 	TTL time.Duration
 	// Username is teleport username
 	Username string
+	// Impersonator is set when a user requests certificate for another user
+	Impersonator string
 	// AllowedLogins is a list of SSH principals
 	AllowedLogins []string
 	// PermitX11Forwarding permits X11 forwarding for this cert
@@ -303,7 +313,6 @@ func CertPoolFromCertAuthorities(cas []CertAuthority) (*x509.CertPool, error) {
 			}
 			certPool.AddCert(cert)
 		}
-		return certPool, nil
 	}
 	return certPool, nil
 }

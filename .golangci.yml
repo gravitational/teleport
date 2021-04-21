@@ -1,0 +1,34 @@
+issues:
+  exclude-rules:
+    - linters: gosimple
+      text: "S1002: should omit comparison to bool constant"
+  exclude-use-default: true
+  max-same-issues: 0
+  max-issues-per-linter: 0
+
+linters:
+  disable-all: true
+  enable:
+    - bodyclose
+    - deadcode
+    - goimports
+    - golint
+    - gosimple
+    - govet
+    - ineffassign
+    - misspell
+    - staticcheck
+    - structcheck
+    - typecheck
+    - unused
+    - unconvert
+    - varcheck
+
+output:
+  uniq-by-line: false
+
+run:
+  skip-dirs:
+    - vendor
+  skip-dirs-use-default: false
+  timeout: 5m

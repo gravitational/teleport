@@ -82,6 +82,10 @@ type WebSession interface {
 	GetBearerTokenExpiryTime() time.Time
 	// GetExpiryTime - absolute time when web session expires
 	GetExpiryTime() time.Time
+	// GetLoginTime returns the time this user recently logged in.
+	GetLoginTime() time.Time
+	// SetLoginTime sets when this user logged in.
+	SetLoginTime(time.Time)
 	// WithoutSecrets returns copy of the web session but without private keys
 	WithoutSecrets() WebSession
 	// CheckAndSetDefaults checks and set default values for any missing fields.
@@ -252,6 +256,16 @@ func (ws *WebSessionV2) GetExpiryTime() time.Time {
 	return ws.Spec.Expires
 }
 
+// GetLoginTime returns the time this user recently logged in.
+func (ws *WebSessionV2) GetLoginTime() time.Time {
+	return ws.Spec.LoginTime
+}
+
+// SetLoginTime sets when this user logged in.
+func (ws *WebSessionV2) SetLoginTime(loginTime time.Time) {
+	ws.Spec.LoginTime = loginTime
+}
+
 // GetAppSessionRequest contains the parameters to request an application
 // web session.
 type GetAppSessionRequest struct {
@@ -272,8 +286,6 @@ func (r *GetAppSessionRequest) Check() error {
 type CreateAppSessionRequest struct {
 	// Username is the identity of the user requesting the session.
 	Username string `json:"username"`
-	// ParentSession is the session ID of the parent session.
-	ParentSession string `json:"parent_session"`
 	// PublicAddr is the public address of the application.
 	PublicAddr string `json:"public_addr"`
 	// ClusterName is the name of the cluster within which the application is running.
@@ -284,9 +296,6 @@ type CreateAppSessionRequest struct {
 func (r CreateAppSessionRequest) Check() error {
 	if r.Username == "" {
 		return trace.BadParameter("username missing")
-	}
-	if r.ParentSession == "" {
-		return trace.BadParameter("parent session missing")
 	}
 	if r.PublicAddr == "" {
 		return trace.BadParameter("public address missing")
@@ -495,6 +504,8 @@ type NewWebSessionRequest struct {
 	// SessionTTL optionally specifies the session time-to-live.
 	// If left unspecified, the default certificate duration is used.
 	SessionTTL time.Duration
+	// LoginTime is the time that this user recently logged in.
+	LoginTime time.Time
 }
 
 // Check validates the request.
@@ -533,4 +544,45 @@ func (r *DeleteWebTokenRequest) Check() error {
 		return trace.BadParameter("token missing")
 	}
 	return nil
+}
+
+// IntoMap makes this filter into a map.
+//
+// This filter is used with the cache watcher to make sure only sessions
+// for a particular user are returned.
+func (f *WebSessionFilter) IntoMap() map[string]string {
+	m := make(map[string]string)
+	if f.User != "" {
+		m[keyUser] = f.User
+	}
+	return m
+}
+
+// FromMap converts provided map into this filter.
+//
+// This filter is used with the cache watcher to make sure only sessions
+// for a particular user are returned.
+func (f *WebSessionFilter) FromMap(m map[string]string) error {
+	for key, val := range m {
+		switch key {
+		case keyUser:
+			f.User = val
+		default:
+			return trace.BadParameter("unknown filter key %s", key)
+		}
+	}
+	return nil
+}
+
+// Match checks if a given web session matches this filter.
+func (f *WebSessionFilter) Match(session WebSession) bool {
+	if f.User != "" && session.GetUser() != f.User {
+		return false
+	}
+	return true
+}
+
+// Equals compares two filters.
+func (f *WebSessionFilter) Equals(o WebSessionFilter) bool {
+	return f.User == o.User
 }
