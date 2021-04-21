@@ -501,7 +501,12 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	userContext, err := ui.NewUserContext(user, roleset)
+	pingResponse, err := clt.Ping(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	userContext, err := ui.NewUserContext(user, roleset, pingResponse.GetServerFeatures())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
