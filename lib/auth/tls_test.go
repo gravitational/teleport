@@ -91,7 +91,7 @@ func (s *TLSSuite) TearDownTest(c *check.C) {
 // TestRemoteBuiltinRole tests remote builtin role
 // that gets mapped to remote proxy readonly role
 func (s *TLSSuite) TestRemoteBuiltinRole(c *check.C) {
-	ctx := context.TODO()
+	ctx := context.Background()
 	remoteServer, err := NewTestAuthServer(TestAuthServerConfig{
 		Dir:         c.MkDir(),
 		ClusterName: "remote",
@@ -133,7 +133,7 @@ func (s *TLSSuite) TestRemoteBuiltinRole(c *check.C) {
 // to accept certificates with certain usage metadata restrictions
 // encoded
 func (s *TLSSuite) TestAcceptedUsage(c *check.C) {
-	ctx := context.TODO()
+	ctx := context.Background()
 	server, err := NewTestAuthServer(TestAuthServerConfig{
 		Dir:           c.MkDir(),
 		ClusterName:   "remote",
@@ -331,7 +331,7 @@ func (s *TLSSuite) TestLocalProxyPermissions(c *check.C) {
 
 // TestAutoRotation tests local automatic rotation
 func (s *TLSSuite) TestAutoRotation(c *check.C) {
-	ctx := context.TODO()
+	ctx := context.Background()
 	var ok bool
 
 	// create proxy client
@@ -425,7 +425,7 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 // when user intervenes with rollback and rotation gets switched
 // to manual mode
 func (s *TLSSuite) TestAutoFallback(c *check.C) {
-	ctx := context.TODO()
+	ctx := context.Background()
 	var ok bool
 
 	// create proxy client just for test purposes
@@ -481,7 +481,7 @@ func (s *TLSSuite) TestAutoFallback(c *check.C) {
 // TestManualRotation tests local manual rotation
 // that performs full-cycle certificate authority rotation
 func (s *TLSSuite) TestManualRotation(c *check.C) {
-	ctx := context.TODO()
+	ctx := context.Background()
 	var ok bool
 
 	// create proxy client just for test purposes
@@ -587,7 +587,7 @@ func (s *TLSSuite) TestManualRotation(c *check.C) {
 
 // TestRollback tests local manual rotation rollback
 func (s *TLSSuite) TestRollback(c *check.C) {
-	ctx := context.TODO()
+	ctx := context.Background()
 	var ok bool
 
 	// create proxy client just for test purposes
@@ -859,7 +859,7 @@ func (s *TLSSuite) TestRemoteUser(c *check.C) {
 // TestNopUser tests user with no permissions except
 // the ones that require other authentication methods ("nop" user)
 func (s *TLSSuite) TestNopUser(c *check.C) {
-	ctx := context.TODO()
+	ctx := context.Background()
 	client, err := s.server.NewClient(TestNop())
 	c.Assert(err, check.IsNil)
 
@@ -2828,7 +2828,7 @@ func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 // TestEventsNodePresence tests streaming node presence API -
 // announcing node and keeping node alive
 func (s *TLSSuite) TestEventsNodePresence(c *check.C) {
-	ctx := context.TODO()
+	ctx := context.Background()
 	node := &services.ServerV2{
 		Kind:    services.KindNode,
 		Version: services.V2,

@@ -35,7 +35,7 @@ import (
 // BenchmarkGetNodes verifies the performance of the GetNodes operation
 // on local (sqlite) databases (as used by the cache system).
 func BenchmarkGetNodes(b *testing.B) {
-	ctx := context.TODO()
+	ctx := context.Background()
 
 	type testCase struct {
 		validation, memory bool

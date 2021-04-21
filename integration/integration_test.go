@@ -256,7 +256,7 @@ func (s *IntSuite) newTeleportWithConfig(c *check.C, logins []string, instanceSe
 // TestAuditOn creates a live session, records a bunch of data through it
 // and then reads it back and compares against simulated reality.
 func (s *IntSuite) TestAuditOn(c *check.C) {
-	ctx := context.TODO()
+	ctx := context.Background()
 
 	s.setUpTest(c)
 	defer s.tearDownTest(c)
@@ -680,7 +680,7 @@ func (s *IntSuite) TestInteroperability(c *check.C) {
 // TestUUIDBasedProxy verifies that attempts to proxy to nodes using ambiguous
 // hostnames fails with the correct error, and that proxying by UUID succeeds.
 func (s *IntSuite) TestUUIDBasedProxy(c *check.C) {
-	ctx := context.TODO()
+	ctx := context.Background()
 
 	s.setUpTest(c)
 	defer s.tearDownTest(c)
@@ -2320,7 +2320,7 @@ func (s *IntSuite) TestTrustedTunnelNode(c *check.C) {
 	}
 
 	// Wait for both nodes to show up before attempting to dial to them.
-	err = waitForNodeCount(main, clusterAux, 2)
+	err = waitForNodeCount(ctx, main, clusterAux, 2)
 	c.Assert(err, check.IsNil)
 
 	cmd := []string{"echo", "hello world"}
@@ -2824,8 +2824,7 @@ func waitForProxyCount(t *TeleInstance, clusterName string, count int) error {
 }
 
 // waitForNodeCount waits for a certain number of nodes to show up in the remote site.
-func waitForNodeCount(t *TeleInstance, clusterName string, count int) error {
-	ctx := context.TODO()
+func waitForNodeCount(ctx context.Context, t *TeleInstance, clusterName string, count int) error {
 	for i := 0; i < 30; i++ {
 		remoteSite, err := t.Tunnel.GetSite(clusterName)
 		if err != nil {
@@ -4302,7 +4301,7 @@ func (s *IntSuite) TestWindowChange(c *check.C) {
 
 // TestList checks that the list of servers returned is identity aware.
 func (s *IntSuite) TestList(c *check.C) {
-	ctx := context.TODO()
+	ctx := context.Background()
 
 	s.setUpTest(c)
 	defer s.tearDownTest(c)

@@ -1773,7 +1773,7 @@ func (s *WebSuite) searchEvents(c *C, clt *client.WebClient, query url.Values, f
 }
 
 func (s *WebSuite) TestGetClusterDetails(c *C) {
-	ctx := context.TODO()
+	ctx := context.Background()
 
 	site, err := s.proxyTunnel.GetSite(s.server.ClusterName())
 	c.Assert(err, IsNil)

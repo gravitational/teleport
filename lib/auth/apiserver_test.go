@@ -38,7 +38,7 @@ import (
 func TestUpsertServer(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.TODO()
+	ctx := context.Background()
 	const remoteAddr = "request-remote-addr"
 
 	tests := []struct {

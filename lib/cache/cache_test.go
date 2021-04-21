@@ -1218,7 +1218,7 @@ func (s *CacheSuite) TestTunnelConnections(c *check.C) {
 
 // TestNodes tests nodes cache
 func (s *CacheSuite) TestNodes(c *check.C) {
-	ctx := context.TODO()
+	ctx := context.Background()
 
 	p := s.newPackForProxy(c)
 	defer p.Close()

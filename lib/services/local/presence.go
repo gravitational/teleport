@@ -202,22 +202,6 @@ func (s *PresenceService) DeleteNode(ctx context.Context, namespace string, name
 	return s.Delete(ctx, key)
 }
 
-// GetNode returns a node by name and namespace.
-func (s *PresenceService) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
-	if namespace == "" {
-		return nil, trace.BadParameter("missing parameter namespace")
-	}
-	if name == "" {
-		return nil, trace.BadParameter("missing parameter name")
-	}
-	item, err := s.Get(ctx, backend.Key(nodesPrefix, namespace, name))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.UnmarshalServer(item.Value, types.KindNode, services.SkipValidation(),
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
-}
-
 // GetNodes returns a list of registered servers
 func (s *PresenceService) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
 	if namespace == "" {
