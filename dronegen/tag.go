@@ -156,9 +156,6 @@ func tagPipelines() []pipeline {
 	// Also add the two CentOS 6 artifacts.
 	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos6: true}))
 	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos6: true, fips: true}))
-
-	// Darwin-specific tag pipelines
-	ps = append(ps, darwinTagPipelines()...)
 	return ps
 }
 
@@ -206,6 +203,7 @@ func tagPipeline(b buildType) pipeline {
 			},
 			Commands: tagCheckoutCommands(b.fips),
 		},
+		waitForDockerStep(),
 		{
 			Name:        "Build artifacts",
 			Image:       "docker",
@@ -345,6 +343,7 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			},
 			Commands: tagCheckoutCommands(b.fips),
 		},
+		waitForDockerStep(),
 		{
 			Name:  "Download artifacts from S3",
 			Image: "amazon/aws-cli",

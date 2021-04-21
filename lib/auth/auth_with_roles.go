@@ -55,7 +55,7 @@ func (a *ServerWithRoles) CloseContext() context.Context {
 }
 
 func (a *ServerWithRoles) actionWithContext(ctx *services.Context, namespace string, resource string, action string) error {
-	return utils.OpaqueAccessDenied(a.context.Checker.CheckAccessToRule(ctx, namespace, resource, action, false))
+	return a.context.Checker.CheckAccessToRule(ctx, namespace, resource, action, false)
 }
 
 type actionConfig struct {
@@ -75,7 +75,7 @@ func (a *ServerWithRoles) action(namespace string, resource string, action strin
 	for _, opt := range opts {
 		opt(&cfg)
 	}
-	return utils.OpaqueAccessDenied(a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, action, cfg.quiet))
+	return a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, action, cfg.quiet)
 }
 
 // currentUserAction is a special checker that allows certain actions for users
@@ -85,10 +85,8 @@ func (a *ServerWithRoles) currentUserAction(username string) error {
 	if hasLocalUserRole(a.context.Checker) && username == a.context.User.GetName() {
 		return nil
 	}
-	return utils.OpaqueAccessDenied(
-		a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User},
-			defaults.Namespace, services.KindUser, services.VerbCreate, true),
-	)
+	return a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User},
+		defaults.Namespace, services.KindUser, services.VerbCreate, true)
 }
 
 // authConnectorAction is a special checker that grants access to auth
@@ -98,7 +96,7 @@ func (a *ServerWithRoles) currentUserAction(username string) error {
 func (a *ServerWithRoles) authConnectorAction(namespace string, resource string, verb string) error {
 	if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, verb, true); err != nil {
 		if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, services.KindAuthConnector, verb, false); err != nil {
-			return utils.OpaqueAccessDenied(err)
+			return trace.Wrap(err)
 		}
 	}
 	return nil
@@ -827,11 +825,11 @@ func (a *ServerWithRoles) CreateWebSession(user string) (services.WebSession, er
 // ExtendWebSession creates a new web session for a user based on a valid previous session.
 // Additional roles are appended to initial roles if there is an approved access request.
 // The new session expiration time will not exceed the expiration time of the old session.
-func (a *ServerWithRoles) ExtendWebSession(user, prevSessionID, accessRequestID string) (services.WebSession, error) {
-	if err := a.currentUserAction(user); err != nil {
+func (a *ServerWithRoles) ExtendWebSession(req WebSessionReq) (services.WebSession, error) {
+	if err := a.currentUserAction(req.User); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.ExtendWebSession(user, prevSessionID, accessRequestID, a.context.Identity.GetIdentity())
+	return a.authServer.ExtendWebSession(req, a.context.Identity.GetIdentity())
 }
 
 // GetWebSessionInfo returns the web session for the given user specified with sid.

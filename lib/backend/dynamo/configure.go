@@ -95,7 +95,7 @@ func SetAutoScaling(ctx context.Context, svc *applicationautoscaling.Application
 	// Define scaling policy. Defines the ratio of {read,write} consumed capacity to
 	// provisioned capacity DynamoDB will try and maintain.
 	if _, err := svc.PutScalingPolicy(&applicationautoscaling.PutScalingPolicyInput{
-		PolicyName:        aws.String(fmt.Sprintf("%v-%v", resourceID, readScalingPolicySuffix)),
+		PolicyName:        aws.String(getReadScalingPolicyName(resourceID)),
 		PolicyType:        aws.String(applicationautoscaling.PolicyTypeTargetTrackingScaling),
 		ResourceId:        aws.String(resourceID),
 		ScalableDimension: aws.String(readDimension),
@@ -110,7 +110,7 @@ func SetAutoScaling(ctx context.Context, svc *applicationautoscaling.Application
 		return convertError(err)
 	}
 	if _, err := svc.PutScalingPolicy(&applicationautoscaling.PutScalingPolicyInput{
-		PolicyName:        aws.String(fmt.Sprintf("%v-%v", resourceID, writeScalingPolicySuffix)),
+		PolicyName:        aws.String(getWriteScalingPolicyName(resourceID)),
 		PolicyType:        aws.String(applicationautoscaling.PolicyTypeTargetTrackingScaling),
 		ResourceId:        aws.String(resourceID),
 		ScalableDimension: aws.String(writeDimension),
@@ -128,11 +128,6 @@ func SetAutoScaling(ctx context.Context, svc *applicationautoscaling.Application
 	return nil
 }
 
-const (
-	readScalingPolicySuffix  = "read-target-tracking-scaling-policy"
-	writeScalingPolicySuffix = "write-target-tracking-scaling-policy"
-)
-
 // GetTableID returns the resourceID of a table based on its table name
 func GetTableID(tableName string) string {
 	return fmt.Sprintf("table/%s", tableName)
@@ -141,4 +136,16 @@ func GetTableID(tableName string) string {
 // GetIndexID returns the resourceID of an index, based on the table & index name
 func GetIndexID(tableName, indexName string) string {
 	return fmt.Sprintf("table/%s/index/%s", tableName, indexName)
+}
+
+// getWriteScalingPolicyName returns the policy name for our write scaling policy
+func getWriteScalingPolicyName(resourceID string) string {
+	// We're trimming the "table/" prefix since policies before 6.1.0 didn't contain it. By referencing an existing
+	// policy name in 'PutScalingPolicy', AWS will update that one instead of creating a new resource.
+	return fmt.Sprintf("%s-write-target-tracking-scaling-policy", strings.TrimPrefix(resourceID, "table/"))
+}
+
+// getWriteScalingPolicyName returns the policy name for our read scaling policy
+func getReadScalingPolicyName(resourceID string) string {
+	return fmt.Sprintf("%s-read-target-tracking-scaling-policy", strings.TrimPrefix(resourceID, "table/"))
 }

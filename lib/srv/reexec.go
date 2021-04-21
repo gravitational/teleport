@@ -151,6 +151,7 @@ func RunCommand() (io.Writer, int, error) {
 
 	var tty *os.File
 	var pty *os.File
+	uaccEnabled := false
 
 	// If a terminal was requested, file descriptor 4 and 5 always point to the
 	// PTY and TTY. Extract them and set the controlling TTY. Otherwise, connect
@@ -163,8 +164,13 @@ func RunCommand() (io.Writer, int, error) {
 		}
 		errorWriter = tty
 		err = uacc.Open(c.UaccMetadata.UtmpPath, c.UaccMetadata.WtmpPath, c.Login, c.UaccMetadata.Hostname, c.UaccMetadata.RemoteAddr, tty)
-		if err != nil && !trace.IsAccessDenied(err) {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		if err != nil {
+			// the error is critical and we should fail command execution
+			if !trace.IsAccessDenied(err) && !trace.IsNotFound(err) {
+				return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+			}
+		} else {
+			uaccEnabled = true
 		}
 	}
 
@@ -237,9 +243,9 @@ func RunCommand() (io.Writer, int, error) {
 	// an exit code.
 	err = cmd.Wait()
 
-	if c.Terminal {
+	if uaccEnabled {
 		uaccErr := uacc.Close(c.UaccMetadata.UtmpPath, c.UaccMetadata.WtmpPath, tty)
-		if uaccErr != nil && !trace.IsAccessDenied(uaccErr) {
+		if uaccErr != nil && !trace.IsAccessDenied(uaccErr) && !trace.IsNotFound(uaccErr) {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(uaccErr)
 		}
 	}

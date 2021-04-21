@@ -1,5 +1,5 @@
 /*
-Copyright 2016-2019 Gravitational, Inc.
+Copyright 2016-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -1821,7 +1821,7 @@ func authFromIdentity(k *client.Key) (ssh.AuthMethod, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return apisshutils.NewAuthMethodForCert(signer), nil
+	return ssh.PublicKeys(signer), nil
 }
 
 // onShow reads an identity file (a public SSH key or a cert) and dumps it to stdout
@@ -1875,7 +1875,7 @@ func printStatus(debug bool, p *client.ProfileStatus, isActive bool) {
 	if p.Cluster != "" {
 		fmt.Printf("  Cluster:            %v\n", p.Cluster)
 	}
-	fmt.Printf("  Roles:              %v*\n", strings.Join(p.Roles, ", "))
+	fmt.Printf("  Roles:              %v\n", strings.Join(p.Roles, ", "))
 	if debug {
 		for k, v := range p.Traits {
 			if count == 0 {
@@ -1928,6 +1928,11 @@ func onStatus(cf *CLIConf) error {
 }
 
 func printProfiles(debug bool, profile *client.ProfileStatus, profiles []*client.ProfileStatus) {
+	if profile == nil && len(profiles) == 0 {
+		fmt.Printf("Not logged in.\n")
+		return
+	}
+
 	// Print the active profile.
 	if profile != nil {
 		printStatus(debug, profile, true)
