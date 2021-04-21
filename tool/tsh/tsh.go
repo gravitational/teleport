@@ -1816,7 +1816,7 @@ func setClientWebProxyAddr(cf *CLIConf, c *client.Config) error {
 		}
 
 		proxyAddress := parsedAddrs.WebProxyAddr
-		if parsedAddrs.WebProxyAddr == "" {
+		if parsedAddrs.UsingDefaultWebProxyPort {
 			timeout, cancel := context.WithTimeout(context.Background(), proxyDefaultResolutionTimeout)
 			defer cancel()
 
