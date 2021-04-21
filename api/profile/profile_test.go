@@ -15,7 +15,7 @@ limitations under the License.
 
 */
 
-package client
+package profile_test
 
 import (
 	"io/ioutil"
@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/trace"
 
 	"github.com/stretchr/testify/require"
@@ -37,7 +38,7 @@ func TestProfileBasics(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 
-	p := &Profile{
+	p := &profile.Profile{
 		WebProxyAddr:          "proxy:3088",
 		SSHProxyAddr:          "proxy:3023",
 		Username:              "testuser",
@@ -63,7 +64,7 @@ func TestProfileBasics(t *testing.T) {
 	require.Error(t, err)
 
 	// make sure current profile was not set
-	_, err = GetCurrentProfileName(dir)
+	_, err = profile.GetCurrentProfileName(dir)
 	require.True(t, trace.IsNotFound(err))
 
 	// save again, this time also making current
@@ -71,17 +72,17 @@ func TestProfileBasics(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify that current profile is set and matches this profile
-	name, err := GetCurrentProfileName(dir)
+	name, err := profile.GetCurrentProfileName(dir)
 	require.NoError(t, err)
 	require.Equal(t, p.Name(), name)
 
 	// load and verify current profile
-	clone, err := ProfileFromDir(dir, "")
+	clone, err := profile.FromDir(dir, "")
 	require.NoError(t, err)
 	require.Equal(t, *p, *clone)
 
 	// load and verify directly
-	clone, err = ProfileFromDir(dir, p.Name())
+	clone, err = profile.FromDir(dir, p.Name())
 	require.NoError(t, err)
 	require.Equal(t, *p, *clone)
 }
