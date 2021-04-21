@@ -102,8 +102,8 @@ $ tsh login --proxy=work.example.com:2002
 
 | Port | Description |
 | - | - |
-| https_proxy_port | the HTTPS port the proxy host is listening to (defaults to 3080). |
-| ssh_proxy_port | the SSH port the proxy is listening to (defaults to 3023). |
+| https_proxy_port | the HTTPS port the proxy host is listening to (defaults to `3080`). |
+| ssh_proxy_port | the SSH port the proxy is listening to (defaults to `3023`). |
 
 The login command retrieves a user's certificate and stores it in `~/.tsh`
 directory as well as in the [ssh
@@ -203,7 +203,7 @@ $ tsh ssh --proxy=proxy.example.com -i joe joe@db
 
 By default, `--out` flag will create an identity file suitable for `tsh -i` but
 if compatibility with OpenSSH is needed, `--format=openssh` must be specified.
-In this case the identity will be saved into two files: `joe` and
+In this case, the identity will be saved into two files: `joe` and
 `joe-cert.pub`:
 
 ```bash
