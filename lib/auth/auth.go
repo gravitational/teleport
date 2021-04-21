@@ -38,11 +38,11 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1808,7 +1808,7 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params services.Acce
 		Roles:        params.Roles,
 	}
 
-	if delegator := client.GetDelegator(ctx); delegator != "" {
+	if delegator := apiutils.GetDelegator(ctx); delegator != "" {
 		event.Delegator = delegator
 	}
 

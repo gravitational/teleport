@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -282,7 +281,7 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 		case <-watcher.Done():
 			return trail.ToGRPC(watcher.Error())
 		case event := <-watcher.Events():
-			out, err := client.EventToGRPC(event)
+			out, err := eventToGRPC(event)
 			if err != nil {
 				return trail.ToGRPC(err)
 			}
@@ -290,6 +289,115 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 				return trail.ToGRPC(err)
 			}
 		}
+	}
+}
+
+// eventToGRPC converts a types.Event to an proto.Event
+func eventToGRPC(in types.Event) (*proto.Event, error) {
+	eventType, err := eventTypeToGRPC(in.Type)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out := proto.Event{
+		Type: eventType,
+	}
+	if in.Type == types.OpInit {
+		return &out, nil
+	}
+	switch r := in.Resource.(type) {
+	case *types.ResourceHeader:
+		out.Resource = &proto.Event_ResourceHeader{
+			ResourceHeader: r,
+		}
+	case *types.CertAuthorityV2:
+		out.Resource = &proto.Event_CertAuthority{
+			CertAuthority: r,
+		}
+	case *types.StaticTokensV2:
+		out.Resource = &proto.Event_StaticTokens{
+			StaticTokens: r,
+		}
+	case *types.ProvisionTokenV2:
+		out.Resource = &proto.Event_ProvisionToken{
+			ProvisionToken: r,
+		}
+	case *types.ClusterNameV2:
+		out.Resource = &proto.Event_ClusterName{
+			ClusterName: r,
+		}
+	case *types.ClusterConfigV3:
+		out.Resource = &proto.Event_ClusterConfig{
+			ClusterConfig: r,
+		}
+	case *types.UserV2:
+		out.Resource = &proto.Event_User{
+			User: r,
+		}
+	case *types.RoleV3:
+		out.Resource = &proto.Event_Role{
+			Role: r,
+		}
+	case *types.Namespace:
+		out.Resource = &proto.Event_Namespace{
+			Namespace: r,
+		}
+	case *types.ServerV2:
+		out.Resource = &proto.Event_Server{
+			Server: r,
+		}
+	case *types.ReverseTunnelV2:
+		out.Resource = &proto.Event_ReverseTunnel{
+			ReverseTunnel: r,
+		}
+	case *types.TunnelConnectionV2:
+		out.Resource = &proto.Event_TunnelConnection{
+			TunnelConnection: r,
+		}
+	case *types.AccessRequestV3:
+		out.Resource = &proto.Event_AccessRequest{
+			AccessRequest: r,
+		}
+	case *types.WebSessionV2:
+		switch r.GetSubKind() {
+		case types.KindAppSession:
+			out.Resource = &proto.Event_AppSession{
+				AppSession: r,
+			}
+		case types.KindWebSession:
+			out.Resource = &proto.Event_WebSession{
+				WebSession: r,
+			}
+		default:
+			return nil, trace.BadParameter("only %q supported", types.WebSessionSubKinds)
+		}
+	case *types.WebTokenV3:
+		out.Resource = &proto.Event_WebToken{
+			WebToken: r,
+		}
+	case *types.RemoteClusterV3:
+		out.Resource = &proto.Event_RemoteCluster{
+			RemoteCluster: r,
+		}
+	case *types.DatabaseServerV3:
+		out.Resource = &proto.Event_DatabaseServer{
+			DatabaseServer: r,
+		}
+	default:
+		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
+	}
+	return &out, nil
+}
+
+func eventTypeToGRPC(in types.OpType) (proto.Operation, error) {
+	switch in {
+	case types.OpInit:
+		return proto.Operation_INIT, nil
+	case types.OpPut:
+		return proto.Operation_PUT, nil
+	case types.OpDelete:
+		return proto.Operation_DELETE, nil
+	default:
+		return -1, trace.BadParameter("event type %v is not supported", in)
 	}
 }
 
