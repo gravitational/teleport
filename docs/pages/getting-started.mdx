@@ -114,7 +114,7 @@ sudo teleport start
 You can access Teleport's Web UI on port 443.
 Replace `tele.example.com` with your domain: `https://tele.example.com/`
 
-## Step 2: Create a Teleport user and set up 2-factor authentication
+## Step 2: Create a Teleport user and set up two-factor authentication
 
 In this example, we'll create a new Teleport user `teleport-admin` which is allowed to log into
 SSH hosts as any of the principals `root`, `ubuntu` or `ec2-user`.
@@ -124,11 +124,11 @@ SSH hosts as any of the principals `root`, `ubuntu` or `ec2-user`.
 sudo tctl users add teleport-admin --roles=editor,access --logins=root,ubuntu,ec2-user
 ```
 
-Teleport will always enforce the use of 2-factor authentication by default. It supports one-time
+Teleport will always enforce the use of two-factor authentication by default. It supports one-time
 passwords (OTP) and hardware tokens (U2F). This quick start will use OTP - you'll need an OTP-compatible
 app which can scan a QR code.
 
-Here's a selection of compatible Two-Factor authentication apps:
+Here's a selection of compatible two-factor authentication apps:
 
 - [Authy](https://authy.com/download/)
 - [Google Authenticator](https://www.google.com/landing/2step/)
