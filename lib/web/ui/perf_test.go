@@ -101,9 +101,9 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 			svc := local.NewPresenceService(bk)
 
 			// seed the test nodes
-			insertServers(b, ctx, svc, services.KindNode, tt.nodes)
-			insertServers(b, ctx, svc, services.KindProxy, proxyCount)
-			insertServers(b, ctx, svc, services.KindAuthServer, authCount)
+			insertServers(ctx, b, svc, services.KindNode, tt.nodes)
+			insertServers(ctx, b, svc, services.KindProxy, proxyCount)
+			insertServers(ctx, b, svc, services.KindAuthServer, authCount)
 
 			site := &mockRemoteSite{
 				accessPoint: &mockAccessPoint{
@@ -113,7 +113,7 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 
 			sb.StartTimer() // restart timer for benchmark operations
 
-			benchmarkGetClusterDetails(sb, ctx, site, tt.nodes, opts...)
+			benchmarkGetClusterDetails(ctx, sb, site, tt.nodes, opts...)
 
 			sb.StopTimer() // stop timer to exclude deferred cleanup
 		})
@@ -121,7 +121,7 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 }
 
 // insertServers inserts a collection of servers into a backend.
-func insertServers(t assert.TestingT, ctx context.Context, svc services.Presence, kind string, count int) {
+func insertServers(ctx context.Context, t assert.TestingT, svc services.Presence, kind string, count int) {
 	const labelCount = 10
 	labels := make(map[string]string, labelCount)
 	for i := 0; i < labelCount; i++ {
@@ -159,7 +159,7 @@ func insertServers(t assert.TestingT, ctx context.Context, svc services.Presence
 	}
 }
 
-func benchmarkGetClusterDetails(b *testing.B, ctx context.Context, site reversetunnel.RemoteSite, nodes int, opts ...services.MarshalOption) {
+func benchmarkGetClusterDetails(ctx context.Context, b *testing.B, site reversetunnel.RemoteSite, nodes int, opts ...services.MarshalOption) {
 	var cluster *Cluster
 	var err error
 	for i := 0; i < b.N; i++ {

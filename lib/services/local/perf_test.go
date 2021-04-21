@@ -91,11 +91,11 @@ func BenchmarkGetNodes(b *testing.B) {
 
 			svc := NewPresenceService(bk)
 			// seed the test nodes
-			insertNodes(b, ctx, svc, tt.nodes)
+			insertNodes(ctx, b, svc, tt.nodes)
 
 			sb.StartTimer() // restart timer for benchmark operations
 
-			benchmarkGetNodes(sb, ctx, svc, tt.nodes, opts...)
+			benchmarkGetNodes(ctx, sb, svc, tt.nodes, opts...)
 
 			sb.StopTimer() // stop timer to exclude deferred cleanup
 		})
@@ -103,7 +103,7 @@ func BenchmarkGetNodes(b *testing.B) {
 }
 
 // insertNodes inserts a collection of test nodes into a backend.
-func insertNodes(t assert.TestingT, ctx context.Context, svc services.Presence, nodeCount int) {
+func insertNodes(ctx context.Context, t assert.TestingT, svc services.Presence, nodeCount int) {
 	const labelCount = 10
 	labels := make(map[string]string, labelCount)
 	for i := 0; i < labelCount; i++ {
@@ -130,7 +130,7 @@ func insertNodes(t assert.TestingT, ctx context.Context, svc services.Presence, 
 }
 
 // benchmarkGetNodes runs GetNodes b.N times.
-func benchmarkGetNodes(b *testing.B, ctx context.Context, svc services.Presence, nodeCount int, opts ...services.MarshalOption) {
+func benchmarkGetNodes(ctx context.Context, b *testing.B, svc services.Presence, nodeCount int, opts ...services.MarshalOption) {
 	var nodes []services.Server
 	var err error
 	for i := 0; i < b.N; i++ {
