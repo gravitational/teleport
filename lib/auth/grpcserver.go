@@ -2027,13 +2027,13 @@ func (g *GRPCServer) GetOIDCConnector(ctx context.Context, req *types.ResourceWi
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	oidcConnector, err := auth.ServerWithRoles.GetOIDCConnector(ctx, req.Name, req.WithSecrets)
+	oc, err := auth.ServerWithRoles.GetOIDCConnector(ctx, req.Name, req.WithSecrets)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	oidcConnectorV2, ok := oidcConnector.(*types.OIDCConnectorV2)
+	oidcConnectorV2, ok := oc.(*types.OIDCConnectorV2)
 	if !ok {
-		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected OIDC connector type %T", oidcConnector))
+		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected OIDC connector type %T", oc))
 	}
 	return oidcConnectorV2, nil
 }
@@ -2044,12 +2044,12 @@ func (g *GRPCServer) GetOIDCConnectors(ctx context.Context, req *types.Resources
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	oidcConnectors, err := auth.ServerWithRoles.GetOIDCConnectors(ctx, req.WithSecrets)
+	ocs, err := auth.ServerWithRoles.GetOIDCConnectors(ctx, req.WithSecrets)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	oidcConnectorsV2 := make([]*types.OIDCConnectorV2, len(oidcConnectors))
-	for i, oc := range oidcConnectors {
+	oidcConnectorsV2 := make([]*types.OIDCConnectorV2, len(ocs))
+	for i, oc := range ocs {
 		var ok bool
 		if oidcConnectorsV2[i], ok = oc.(*types.OIDCConnectorV2); !ok {
 			return nil, trail.ToGRPC(trace.Errorf("encountered unexpected OIDC connector type %T", oc))
@@ -2093,13 +2093,13 @@ func (g *GRPCServer) GetSAMLConnector(ctx context.Context, req *types.ResourceWi
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	samlConnector, err := auth.ServerWithRoles.GetSAMLConnector(ctx, req.Name, req.WithSecrets)
+	sc, err := auth.ServerWithRoles.GetSAMLConnector(ctx, req.Name, req.WithSecrets)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	samlConnectorV2, ok := samlConnector.(*types.SAMLConnectorV2)
+	samlConnectorV2, ok := sc.(*types.SAMLConnectorV2)
 	if !ok {
-		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected SAML connector type: %T", samlConnector))
+		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected SAML connector type: %T", sc))
 	}
 	return samlConnectorV2, nil
 }
@@ -2110,15 +2110,15 @@ func (g *GRPCServer) GetSAMLConnectors(ctx context.Context, req *types.Resources
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	samlConnectors, err := auth.ServerWithRoles.GetSAMLConnectors(ctx, req.WithSecrets)
+	scs, err := auth.ServerWithRoles.GetSAMLConnectors(ctx, req.WithSecrets)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	samlConnectorsV2 := make([]*types.SAMLConnectorV2, len(samlConnectors))
-	for i, sc := range samlConnectors {
+	samlConnectorsV2 := make([]*types.SAMLConnectorV2, len(scs))
+	for i, sc := range scs {
 		var ok bool
 		if samlConnectorsV2[i], ok = sc.(*types.SAMLConnectorV2); !ok {
-			return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", sc))
+			return nil, trail.ToGRPC(trace.Errorf("encountered unexpected SAML connector type: %T", sc))
 		}
 	}
 	return &types.SAMLConnectorV2List{
@@ -2159,13 +2159,13 @@ func (g *GRPCServer) GetGithubConnector(ctx context.Context, req *types.Resource
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	githubConnector, err := auth.ServerWithRoles.GetGithubConnector(ctx, req.Name, req.WithSecrets)
+	gc, err := auth.ServerWithRoles.GetGithubConnector(ctx, req.Name, req.WithSecrets)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	githubConnectorV3, ok := githubConnector.(*types.GithubConnectorV3)
+	githubConnectorV3, ok := gc.(*types.GithubConnectorV3)
 	if !ok {
-		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected Github connector type: %T", githubConnector))
+		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected Github connector type: %T", gc))
 	}
 	return githubConnectorV3, nil
 }
@@ -2176,15 +2176,15 @@ func (g *GRPCServer) GetGithubConnectors(ctx context.Context, req *types.Resourc
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	githubConnectors, err := auth.ServerWithRoles.GetGithubConnectors(ctx, req.WithSecrets)
+	gcs, err := auth.ServerWithRoles.GetGithubConnectors(ctx, req.WithSecrets)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	githubConnectorsV3 := make([]*types.GithubConnectorV3, len(githubConnectors))
-	for i, gc := range githubConnectors {
+	githubConnectorsV3 := make([]*types.GithubConnectorV3, len(gcs))
+	for i, gc := range gcs {
 		var ok bool
 		if githubConnectorsV3[i], ok = gc.(*types.GithubConnectorV3); !ok {
-			return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", gc))
+			return nil, trail.ToGRPC(trace.Errorf("encountered unexpected Github connector type: %T", gc))
 		}
 	}
 	return &types.GithubConnectorV3List{
@@ -2239,15 +2239,15 @@ func (g *GRPCServer) GetTrustedClusters(ctx context.Context, _ *empty.Empty) (*t
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	trustedClusters, err := auth.ServerWithRoles.GetTrustedClusters(ctx)
+	tcs, err := auth.ServerWithRoles.GetTrustedClusters(ctx)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	trustedClustersV2 := make([]*types.TrustedClusterV2, len(trustedClusters))
-	for i, tc := range trustedClusters {
+	trustedClustersV2 := make([]*types.TrustedClusterV2, len(tcs))
+	for i, tc := range tcs {
 		var ok bool
 		if trustedClustersV2[i], ok = tc.(*types.TrustedClusterV2); !ok {
-			return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", tc))
+			return nil, trail.ToGRPC(trace.Errorf("encountered unexpected Trusted Cluster type: %T", tc))
 		}
 	}
 	return &types.TrustedClusterV2List{
@@ -2264,14 +2264,14 @@ func (g *GRPCServer) UpsertTrustedCluster(ctx context.Context, cluster *types.Tr
 	if err = services.ValidateTrustedCluster(cluster); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	trustedCluster, err := auth.ServerWithRoles.UpsertTrustedCluster(ctx, cluster)
+	tc, err := auth.ServerWithRoles.UpsertTrustedCluster(ctx, cluster)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 
-	trustedClusterV2, ok := trustedCluster.(*types.TrustedClusterV2)
+	trustedClusterV2, ok := tc.(*types.TrustedClusterV2)
 	if !ok {
-		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected Trusted Cluster type"))
+		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected Trusted Cluster type: %T", tc))
 	}
 	return trustedClusterV2, nil
 }
@@ -2294,13 +2294,13 @@ func (g *GRPCServer) GetToken(ctx context.Context, req *types.ResourceRequest) (
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	token, err := auth.ServerWithRoles.GetToken(ctx, req.Name)
+	t, err := auth.ServerWithRoles.GetToken(ctx, req.Name)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	provisionTokenV2, ok := token.(*types.ProvisionTokenV2)
+	provisionTokenV2, ok := t.(*types.ProvisionTokenV2)
 	if !ok {
-		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected token type: %T", token))
+		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected token type: %T", t))
 	}
 	return provisionTokenV2, nil
 }
@@ -2311,12 +2311,12 @@ func (g *GRPCServer) GetTokens(ctx context.Context, _ *empty.Empty) (*types.Prov
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	tokens, err := auth.ServerWithRoles.GetTokens(ctx)
+	ts, err := auth.ServerWithRoles.GetTokens(ctx)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	provisionTokensV2 := make([]*types.ProvisionTokenV2, len(tokens))
-	for i, t := range tokens {
+	provisionTokensV2 := make([]*types.ProvisionTokenV2, len(ts))
+	for i, t := range ts {
 		var ok bool
 		if provisionTokensV2[i], ok = t.(*types.ProvisionTokenV2); !ok {
 			return nil, trail.ToGRPC(trace.Errorf("encountered unexpected token type: %T", t))
@@ -2357,12 +2357,12 @@ func (g *GRPCServer) GetNodes(ctx context.Context, req *types.ResourcesInNamespa
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	nodes, err := auth.ServerWithRoles.GetNodes(ctx, req.Namespace)
+	ns, err := auth.ServerWithRoles.GetNodes(ctx, req.Namespace)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	serversV2 := make([]*types.ServerV2, len(nodes))
-	for i, t := range nodes {
+	serversV2 := make([]*types.ServerV2, len(ns))
+	for i, t := range ns {
 		var ok bool
 		if serversV2[i], ok = t.(*types.ServerV2); !ok {
 			return nil, trail.ToGRPC(trace.Errorf("encountered unexpected node type: %T", t))
