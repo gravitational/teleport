@@ -47,7 +47,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
@@ -2484,11 +2484,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	var webServer *http.Server
 	var webHandler *web.RewritingHandler
 	if !process.Config.Proxy.DisableWebService {
-		proxySettings := client.ProxySettings{
-			Kube: client.KubeProxySettings{
+		proxySettings := webclient.ProxySettings{
+			Kube: webclient.KubeProxySettings{
 				Enabled: cfg.Proxy.Kube.Enabled,
 			},
-			SSH: client.SSHProxySettings{
+			SSH: webclient.SSHProxySettings{
 				ListenAddr:       proxySSHAddr.Addr,
 				TunnelListenAddr: cfg.Proxy.ReverseTunnelListenAddr.String(),
 			},
