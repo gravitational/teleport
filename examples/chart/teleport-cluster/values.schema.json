@@ -158,7 +158,8 @@
             "type": "object",
             "required": [
                 "replicaCount",
-                "requireAntiAffinity"
+                "requireAntiAffinity",
+                "certManager"
             ],
             "properties": {
                 "replicaCount": {
@@ -170,6 +171,32 @@
                     "$id": "#/properties/highAvailability/properties/requireAntiAffinity",
                     "type": "boolean",
                     "default": false
+                },
+                "certManager": {
+                    "$id": "#/properties/highAvailability/properties/certManager",
+                    "type": "object",
+                    "required": [
+                        "enabled",
+                        "issuerName",
+                        "issuerKind"
+                    ],
+                    "properties": {
+                        "enabled": {
+                            "$id": "#/properties/highAvailability/properties/certManager/properties/enabled",
+                            "type": "boolean",
+                            "default": "false"
+                        },
+                        "issuerName": {
+                            "$id": "#/properties/highAvailability/properties/certManager/properties/issuerName",
+                            "type": "string",
+                            "default": ""
+                        },
+                        "issuerKind": {
+                            "$id": "#/properties/highAvailability/properties/certManager/properties/issuerKind",
+                            "type": "string",
+                            "default": "Issuer"
+                        }
+                    }
                 }
             }
         },
@@ -220,6 +247,11 @@
                     "default": {}
                 }
             }
+        },
+        "extraArgs": {
+            "$id": "#/properties/extraArgs",
+            "type": "array",
+            "default": []
         },
         "extraVolumes": {
             "$id": "#/properties/extraVolumes",

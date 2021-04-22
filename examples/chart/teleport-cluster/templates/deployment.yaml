@@ -82,6 +82,9 @@ spec:
         {{- if .Values.insecureSkipProxyTLSVerify }}
         - "--insecure"
         {{- end }}
+        {{- if .Values.extraArgs }}
+          {{- toYaml .Values.extraArgs | nindent 8 }}
+        {{- end }}
         ports:
         - name: diag
           containerPort: 3000
@@ -115,6 +118,11 @@ spec:
           name: "gcp-credentials"
           readOnly: true
 {{- end }}
+{{- if .Values.highAvailability.certManager.enabled }}
+        - mountPath: /etc/teleport-tls
+          name: "teleport-tls"
+          readOnly: true
+{{- end }}
         - mountPath: /etc/teleport
           name: "config"
           readOnly: true
@@ -133,6 +141,11 @@ spec:
       - name: gcp-credentials
         secret:
           secretName: {{ required "gcp.credentialSecretName is required in chart values" .Values.gcp.credentialSecretName }}
+{{- end }}
+{{- if .Values.highAvailability.certManager.enabled }}
+      - name: teleport-tls
+        secret:
+          secretName: teleport-tls
 {{- end }}
       - name: "config"
         configMap:

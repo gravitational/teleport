@@ -115,6 +115,16 @@ highAvailability:
   # Setting 'requireAntiAffinity' to false (the default) uses 'preferredDuringSchedulingIgnoredDuringExecution' to make this a soft requirement.
   # This setting only has any effect when replicaCount is greater than 1.
   requireAntiAffinity: false
+  # Settings for cert-manager (can be used for provisioning TLS certs in HA mode)
+  certManager:
+    # If set to true, use cert-manager to get certificates for Teleport to use for TLS termination
+    enabled: false
+    # Name of the Issuer/ClusterIssuer to use for certs
+    # NOTE: You will always need to create this yourself when certManager.enabled is true.
+    issuerName: ""
+    # Kind of Issuer that cert-manager should look for.
+    # This defaults to 'Issuer' to keep everything contained within the teleport namespace.
+    issuerKind: Issuer
 
 
 ##################################################
@@ -147,6 +157,9 @@ annotations:
   pod: {}
   # Annotations for the Service object
   service: {}
+
+# Extra arguments to pass to 'teleport start' for the main Teleport pod
+extraArgs: []
 
 # Extra volumes to mount into the Teleport pods
 # https://kubernetes.io/docs/concepts/storage/volumes/

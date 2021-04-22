@@ -1,4 +1,4 @@
-{{- if not .Values.standalone.existingClaimName }}
+{{- if and (eq .Values.chartMode "standalone") (not .Values.standalone.existingClaimName) }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
