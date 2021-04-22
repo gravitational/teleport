@@ -106,3 +106,10 @@ Now you can see the monitoring information by visiting several endpoints:
 | `auth_generate_requests_throttled_total` | counter | Teleport Auth | Number of throttled requests to generate new server keys |
 | `auth_generate_requests_total` | counter | Teleport Auth | Number of requests to generate new server keys |
 | `auth_generate_seconds` | `histogram` | Teleport Auth | Latency for generate requests |
+| `cluster_name_not_found_total` | counter | Teleport Auth | Number of times a cluster was not found |
+| `heartbeat_connections_received_total` | counter | Teleport Auth | Number of times auth received a heartbeat connection |
+| `user_login_total` | counter | Teleport Auth | Number of user logins |
+| `failed_connect_to_node_attempts_total` | counter | Teleport Proxy | Number of times a user failed connecting to a node |
+| `proxy_connection_limit_exceeded_total` | counter | Teleport Proxy | Number of connections that exceeded the proxy connection limit |
+| `certificate_mismatch_total` | counter | Teleport Proxy | Number of times there was a certificate mismatch | 
+| `user_max_concurrent_sessions_hit_total` | counter | Teleport Node | Number of times a user exceeded their concurrent session limit |

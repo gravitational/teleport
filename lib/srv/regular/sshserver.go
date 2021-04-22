@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 )
 
@@ -815,6 +816,19 @@ func (s *Server) serveAgent(ctx *srv.ServerContext) error {
 	return nil
 }
 
+var (
+	userSessionLimitHitCount = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: teleport.MetricUserMaxConcurrentSessionsHit,
+			Help: "Number of times the user exceeded their max concurrent ssh connections",
+		},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(userSessionLimitHitCount)
+}
+
 // HandleRequest processes global out-of-band requests. Global out-of-band
 // requests are processed in order (this way the originator knows which
 // request we are responding to). If Teleport does not support the request
@@ -880,6 +894,7 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 	if err != nil {
 		if strings.Contains(err.Error(), teleport.MaxLeases) {
 			// user has exceeded their max concurrent ssh connections.
+			userSessionLimitHitCount.Inc()
 			if err := s.EmitAuditEvent(s.ctx, &events.SessionReject{
 				Metadata: events.Metadata{
 					Type: events.SessionRejectedEvent,
