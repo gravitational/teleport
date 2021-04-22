@@ -54,7 +54,7 @@ export default function FieldInputSsh({
       <StyledInput
         bg="primary.light"
         color="text.primary"
-        placeholder="login@host"
+        placeholder="login@host:port"
         autoFocus={autoFocus}
         onKeyPress={onKeyPress}
         {...inputProps}

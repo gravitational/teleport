@@ -247,7 +247,7 @@ exports[`failed 1`] = `
       <input
         class="c8"
         color="text.primary"
-        placeholder="login@host"
+        placeholder="login@host:port"
       />
     </div>
   </div>
@@ -713,7 +713,7 @@ exports[`loaded 1`] = `
       <input
         class="c8"
         color="text.primary"
-        placeholder="login@host"
+        placeholder="login@host:port"
       />
     </div>
   </div>

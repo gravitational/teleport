@@ -659,7 +659,7 @@ exports[`render DocumentNodes 1`] = `
           <input
             class="c12"
             color="text.primary"
-            placeholder="login@host"
+            placeholder="login@host:port"
           />
         </div>
       </div>
