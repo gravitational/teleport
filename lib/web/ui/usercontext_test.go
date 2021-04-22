@@ -59,7 +59,7 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	role2.SetLogins(services.Allow, []string{"d"})
 
 	roleSet := []services.Role{role1, role2}
-	userContext, err := NewUserContext(user, roleSet, nil)
+	userContext, err := NewUserContext(user, roleSet, proto.Features{})
 	c.Assert(err, check.IsNil)
 
 	allowed := access{true, true, true, true, true}
@@ -89,12 +89,11 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 
 	// test sso auth type
 	user.Spec.GithubIdentities = []services.ExternalIdentity{{ConnectorID: "foo", Username: "bar"}}
-	userContext, err = NewUserContext(user, roleSet, &proto.Features{Cloud: false})
+	userContext, err = NewUserContext(user, roleSet, proto.Features{})
 	c.Assert(err, check.IsNil)
 	c.Assert(userContext.AuthType, check.Equals, authSSO)
-	c.Assert(userContext.ACL.Billing, check.DeepEquals, denied)
 
-	userContext, err = NewUserContext(user, roleSet, &proto.Features{Cloud: true})
+	userContext, err = NewUserContext(user, roleSet, proto.Features{Cloud: true})
 	c.Assert(err, check.IsNil)
 	c.Assert(userContext.ACL.Billing, check.DeepEquals, access{true, true, false, false, false})
 }

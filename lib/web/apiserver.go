@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -84,6 +85,9 @@ type Handler struct {
 	// sshPort specifies the SSH proxy port extracted
 	// from configuration
 	sshPort string
+
+	// authServerFeatures contain flags for supported and unsupported features.
+	authServerFeatures proto.Features
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -157,6 +161,9 @@ type Config struct {
 	// in the cache before getting purged after it has expired.
 	// Defaults to cachedSessionLingeringThreshold if unspecified.
 	cachedSessionLingeringThreshold *time.Duration
+
+	// AuthServerFeatures contains flags for supported/unsupported features.
+	AuthServerFeatures proto.Features
 }
 
 type RewritingHandler struct {
@@ -197,9 +204,10 @@ func (h *RewritingHandler) Close() error {
 func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	const apiPrefix = "/" + teleport.WebAPIVersion
 	h := &Handler{
-		cfg:   cfg,
-		log:   newPackageLogger(),
-		clock: clockwork.NewRealClock(),
+		cfg:                cfg,
+		log:                newPackageLogger(),
+		clock:              clockwork.NewRealClock(),
+		authServerFeatures: cfg.AuthServerFeatures,
 	}
 
 	for _, o := range opts {
@@ -501,12 +509,9 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	pingResponse, err := clt.Ping(r.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	fmt.Println("--------------------- >>>> : ", h.authServerFeatures)
 
-	userContext, err := ui.NewUserContext(user, roleset, pingResponse.GetServerFeatures())
+	userContext, err := ui.NewUserContext(user, roleset, h.authServerFeatures)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

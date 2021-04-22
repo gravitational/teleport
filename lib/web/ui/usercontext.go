@@ -167,7 +167,7 @@ func getAccessStrategy(roleset services.RoleSet) accessStrategy {
 }
 
 // NewUserContext returns user context
-func NewUserContext(user services.User, userRoles services.RoleSet, features *proto.Features) (*UserContext, error) {
+func NewUserContext(user services.User, userRoles services.RoleSet, features proto.Features) (*UserContext, error) {
 	ctx := &services.Context{User: user}
 	sessionAccess := newAccess(userRoles, ctx, services.KindSession)
 	roleAccess := newAccess(userRoles, ctx, services.KindRole)
@@ -181,7 +181,7 @@ func NewUserContext(user services.User, userRoles services.RoleSet, features *pr
 	requestAccess := newAccess(userRoles, ctx, services.KindAccessRequest)
 
 	var billingAccess access
-	if features != nil && features.Cloud {
+	if features.Cloud {
 		billingAccess = newAccess(userRoles, ctx, services.KindBilling)
 	}
 

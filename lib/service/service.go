@@ -2528,23 +2528,25 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				return trace.Wrap(err)
 			}
 		}
+
 		webHandler, err = web.NewHandler(
 			web.Config{
-				Proxy:          tsrv,
-				AuthServers:    cfg.AuthServers[0],
-				DomainName:     cfg.Hostname,
-				ProxyClient:    conn.Client,
-				ProxySSHAddr:   proxySSHAddr,
-				ProxyWebAddr:   cfg.Proxy.WebAddr,
-				ProxySettings:  proxySettings,
-				CipherSuites:   cfg.CipherSuites,
-				FIPS:           cfg.FIPS,
-				AccessPoint:    accessPoint,
-				Emitter:        streamEmitter,
-				PluginRegistry: process.PluginRegistry,
-				HostUUID:       process.Config.HostUUID,
-				Context:        process.ExitContext(),
-				StaticFS:       fs,
+				Proxy:              tsrv,
+				AuthServers:        cfg.AuthServers[0],
+				DomainName:         cfg.Hostname,
+				ProxyClient:        conn.Client,
+				ProxySSHAddr:       proxySSHAddr,
+				ProxyWebAddr:       cfg.Proxy.WebAddr,
+				ProxySettings:      proxySettings,
+				CipherSuites:       cfg.CipherSuites,
+				FIPS:               cfg.FIPS,
+				AccessPoint:        accessPoint,
+				Emitter:            streamEmitter,
+				PluginRegistry:     process.PluginRegistry,
+				HostUUID:           process.Config.HostUUID,
+				Context:            process.ExitContext(),
+				StaticFS:           fs,
+				AuthServerFeatures: process.Config.AuthServerFeatures,
 			})
 		if err != nil {
 			return trace.Wrap(err)
