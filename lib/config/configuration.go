@@ -262,6 +262,18 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	default:
 		return trace.BadParameter("unsupported logger severity: '%v'", fc.Logger.Severity)
 	}
+
+	// set log formatter
+	formatter := &textFormatter{
+		LogFormat:    fc.Logger.Format,
+		EnableColors: trace.IsTerminal(os.Stderr),
+	}
+	err = formatter.CheckAndSetDefaults()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	log.SetFormatter(formatter)
+
 	// apply cache policy for node and proxy
 	cachePolicy, err := fc.CachePolicy.Parse()
 	if err != nil {
