@@ -487,13 +487,13 @@ db-1          xxxxxxxxx     10.0.20.31:3022    kernel:4.4
 db-2          xxxxxxxxx     10.0.20.41:3022    kernel:4.2
 ```
 
-Similarly, if you want to SSH into `db-1` inside the "production" cluster:
+Similarly, if you want to SSH into `db-1` inside the `production` cluster:
 
 ```bash
 $ tsh --proxy=work ssh --cluster=production db-1
 ```
 
-This is possible even if nodes in the "production" cluster are located behind a
+This is possible even if nodes in the `production` cluster are located behind a
 firewall without open ports. This works because the `production` cluster
 establishes a reverse SSH tunnel back into `work` proxy, and this tunnel is used
 to establish inbound SSH connections.
