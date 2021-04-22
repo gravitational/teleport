@@ -1933,7 +1933,7 @@ This release focus was to increase Teleport user experience in the following are
 
 #### Bug Fixes
 
-* Proper handling of `ENV_SUPATH` from login.defs [#1004](https://github.com/gravitational/teleport/pull/1004)
+* Proper handling of `ENV_SUPATH` from `login.defs` [#1004](https://github.com/gravitational/teleport/pull/1004)
 * Reverse tunnels would periodically lose connectivity. [#1156](https://github.com/gravitational/teleport/issues/1156)
 * `tsh` now stores user identities in a format compatible with OpenSSH. [1171](https://github.com/gravitational/teleport/issues/1171).
 
