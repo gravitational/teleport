@@ -17,7 +17,7 @@ With Teleport you can:
 
 - Teleport replaces legacy keys and shared secrets with short-lived X.509 and SSH certificates
   for services and users.
-- It proxies and inspects SSH, Kubernetes, Web and Database protocols.
+- It proxies and inspects SSH, Kubernetes, Web, and Database protocols.
   For example for SSH, it controls the session from the start
   and captures a session recording and in-kernel system calls using BPF.
 - It removes a need for VPN and can connect multiple regions and organizations
@@ -85,5 +85,4 @@ any OS supported by the [Golang toolchain](https://github.com/golang/go/wiki/Min
 
 \[2] *Teleport server does not run on Windows yet, but `tsh` (the Teleport client)
 can be used on Windows to execute `tsh login` to retrieve a user's SSH
-certificate and use it with `ssh`, the OpenSSH client, running on a Windows
-client machine.*
+certificate and use it with `ssh`, the OpenSSH client, running on a Windows client machine.*
