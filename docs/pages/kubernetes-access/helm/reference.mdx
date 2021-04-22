@@ -153,7 +153,7 @@ Setting acme to `false` (the default) will cause Teleport to generate and use se
   Using a self-signed TLS certificate and disabling TLS verification is OK for testing, but is not viable when running a production Teleport
   cluster as it will drastically reduce security. You must configure valid TLS certificates on your Teleport cluster for production workloads.
 
-  One option might be to use Teleport's built-in ACME support or [cert-manager](https://cert-manager.io/docs/).
+  One option might be to use Teleport's built-in ACME support or enable [cert-manager support](#highavailabilitycertmanager).
 </Admonition>
 
 ## `acmeEmail`
@@ -333,9 +333,7 @@ You can set `volumeSize` to request a different size of persistent volume when i
 
 `gcp` settings are described in the GCP guide: [Running an HA Teleport cluster using a Google Cloud GKE cluster](./guides/gcp.mdx)
 
-## `highAvailability`
-
-### `highAvailability.replicaCount`
+## `highAvailability.replicaCount`
 
 | Type | Default value | Can be used in `ownconfig` mode? |
 | - | - | - |
@@ -378,7 +376,7 @@ Set to a number higher than `1` for a high availability mode where multiple Tele
   </TabItem>
 </Tabs>
 
-### `highAvailability.requireAntiAffinity`
+## `highAvailability.requireAntiAffinity`
 
 | Type | Default value | Can be used in `ownconfig` mode? |
 | - | - | - |
@@ -410,6 +408,82 @@ Teleport pods must not be scheduled on the same physical host.
   <TabItem label="--set">
   ```shell
   --set highAvailability.requireAntiAffinity=true
+  ```
+  </TabItem>
+</Tabs>
+
+## `highAvailability.certManager`
+
+See the [cert-manager](https://cert-manager.io/docs/) docs for more information.
+
+### `highAvailability.certManager.enabled`
+
+| Type | Default value | Can be used in `ownconfig` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `bool` | `false` | ❌ | `proxy_service.https_keypairs` (to provide your own certificates) |
+
+Setting `highAvailability.certManager.enabled` to `true` will use `cert-manager` to provision a TLS certificate for a Teleport
+cluster deployed in HA mode.
+
+<Admonition type="note" title="Installing cert-manager">
+  You must install and configure `cert-manager` in your Kubernetes cluster yourself.
+
+  See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/kubernetes/#option-2-install-crds-as-part-of-the-helm-release)
+  and the relevant sections of the [AWS](./guides/aws.mdx#install-cert-manager) and [GCP](./guides/gcp.mdx#install-cert-manager) guides for more information.
+</Admonition>
+
+### `highAvailability.certManager.issuerName`
+
+| Type | Default value | Can be used in `ownconfig` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `string` | `nil` | ❌ | None |
+
+Sets the name of the `cert-manager` `Issuer` or `ClusterIssuer` to use for to use for issuing certificates.
+
+<Admonition type="note" title="Configuring an Issuer">
+  You must install configure an appropriate `Issuer` supporting a DNS01 challenge yourself.
+
+  Please see the [cert-manager DNS01 docs](https://cert-manager.io/docs/configuration/acme/dns01/#supported-dns01-providers) and the relevant sections
+  of the [AWS](./guides/aws.mdx#install-and-configure-cert-manager) and [GCP](./guides/gcp.mdx#install-and-configure-cert-manager) guides for more information.
+</Admonition>
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  highAvailability:
+    certManager:
+      enabled: true
+      issuerName: letsencrypt-production
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set highAvailability.certManager.enabled=true \
+  --set highAvailability.certManager.issuerName=letsencrypt-production
+  ```
+  </TabItem>
+</Tabs>
+
+### `highAvailability.certManager.issuerKind`
+
+| Type | Default value | Can be used in `ownconfig` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `string` | `Issuer` | ❌ | None |
+
+Sets the `Kind` of `Issuer` to be used when issuing certificates with `cert-manager`. Defaults to `Issuer` to keep permissions
+scoped to a single namespace.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  highAvailability:
+    certManager:
+      issuerKind: ClusterIssuer
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set highAvailability.certManager.issuerKind=ClusterIssuer
   ```
   </TabItem>
 </Tabs>
@@ -605,6 +679,28 @@ Kubernetes annotations which should be applied to the `Service` created by the c
     You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
     using a `values.yaml` file instead to avoid confusion and errors.
   </Admonition>
+  </TabItem>
+</Tabs>
+
+## `extraArgs`
+
+| Type | Default value | Can be used in `ownconfig` mode? |
+| - | - | - |
+| `list` | `[]` | ✅  |
+
+A list of extra arguments to pass to the `teleport start` command when running a Teleport Pod.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  extraArgs:
+  - "--bootstrap=/etc/teleport-bootstrap/roles.yaml"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set "extraArgs={--bootstrap=/etc/teleport-bootstrap/roles.yaml}"
+  ```
   </TabItem>
 </Tabs>
 
@@ -1069,7 +1165,7 @@ This can be used for joining a Teleport agent to a Teleport cluster which does n
   Using a self-signed TLS certificate and disabling TLS verification is OK for testing, but is not viable when running a production Teleport
   cluster as it will drastically reduce security. You must configure valid TLS certificates on your Teleport cluster for production workloads.
 
-  One option might be to use Teleport's built-in [ACME support](#acme), or [cert-manager](https://cert-manager.io/docs/).
+  One option might be to use Teleport's built-in [ACME support](#acme) enable [cert-manager support](#highavailabilitycertmanager).
 </Admonition>
 
 ## `podSecurityPolicy`

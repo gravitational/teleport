@@ -29,18 +29,6 @@ To allow Helm to install charts which are hosted in the Teleport Helm repository
 helm repo add teleport https://charts.releases.teleport.dev
 ```
 
-Once installed, you can search repositories for charts using the `helm search repo` command:
-
-```bash
-helm search repo teleport
-```
-
-To update the cache of charts from the remote repository, run `helm repo update`:
-
-```bash
-helm repo update
-```
-
 ### Set up AWS IAM configuration
 
 For Teleport to be able to create the DynamoDB tables, indexes and the S3 storage bucket it needs,
@@ -154,6 +142,99 @@ You'll need to replace these values in the policy example below:
 }
 ```
 
+#### Route53 IAM policy
+
+This policy allows `cert-manager` to use DNS01 challenges to provision TLS certificates for your Teleport cluster.
+
+You'll need to replace these values in the policy example below:
+
+| Placeholder value | Replace with |
+| - | - |
+| `Z0159221358P96JYAUAA4` | Route 53 hosted zone ID for the domain hosting your Teleport cluster |
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "route53:GetChange",
+            "Resource": "arn:aws:route53:::change/*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "route53:ChangeResourceRecordSets",
+                "route53:ListResourceRecordSets"
+            ],
+            "Resource": "arn:aws:route53:::hostedzone/Z0159221358P96JYAUAA4"
+        }
+    ]
+}
+```
+
+### Install and configure `cert-manager`
+
+Reference: [`cert-manager` docs](https://cert-manager.io/docs/)
+
+In this example, we are using multiple pods to create a highly-available Teleport cluster. As such, we will be using
+`cert-manager` to centrally provision TLS certificates using Let's Encrypt. These certificates will be mounted into each
+Teleport pod, and automatically renewed and kept up to date by `cert-manager`.
+
+If you do not have `cert-manager` already configured in the Kubernetes cluster where you are installing Teleport,
+you should add the Jetstack Helm chart repository which hosts the `cert-manager` chart, and install the chart:
+
+```bash
+helm repo add jetstack https://charts.jetstack.io
+helm repo update
+helm install cert-manager jetstack/cert-manager \
+--create-namespace \
+--namespace cert-manager \
+--set installCRDs=true \
+--set extraArgs="{--issuer-ambient-credentials}" # required to automount ambient AWS credentials when using an Issuer
+```
+
+Once `cert-manager` is installed, you should create and add an `Issuer`.
+
+You'll need to replace these values in the `Issuer` example below:
+
+| Placeholder value | Replace with |
+| - | - |
+| `email@address.com` | An email address to receive communications from Let's Encrypt |
+| `example.com` | The name of the Route 53 domain hosting your Teleport cluster |
+| `us-east-1` | AWS region where the cluster is running |
+| `Z0159221358P96JYAUAA4` | Route 53 hosted zone ID for the domain hosting your Teleport cluster |
+
+```yaml
+cat << EOF > aws-issuer.yaml
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: letsencrypt-production
+  namespace: teleport
+spec:
+  acme:
+    email: email@address.com                                # Change this
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-production
+    solvers:
+    - selector:
+        dnsZones:
+          - "example.com"                                  # Change this
+      dns01:
+        route53:
+          region: us-east-1                                # Change this
+          hostedZoneID: Z0159221358P96JYAUAA4              # Change this
+EOF
+```
+
+After you have created the `Issuer` and updated the values, add it to your cluster using `kubectl`:
+
+```bash
+kubectl -n teleport create -f aws-issuer.yaml
+```
+
 ### Set values to configure the cluster
 
 There are two different ways to configure the `teleport-cluster` Helm chart to use `aws` mode - using a `values.yaml` file, or using `--set`
@@ -177,6 +258,9 @@ The `--set` CLI method is more appropriate for quick test deployments.
     sessionRecordingBucket: teleport-helm-sessions  # S3 bucket to use for Teleport session recordings
   highAvailability:
     replicaCount: 2                                 # Number of replicas to configure
+    certManager:
+      enabled: true                                 # Enable cert-manager support to get TLS certificates
+      issuerName: letsencrypt-production            # Name of the cert-manager Issuer to use (as configured above)
   ```
 
   Install the chart with the values from your `aws-values.yaml` file using this command:
@@ -197,18 +281,20 @@ The `--set` CLI method is more appropriate for quick test deployments.
     --create-namespace \
     --namespace teleport \
     --set chartMode=aws \
-    --set clusterName=teleport.example.com                    `# Name of your cluster. Use the FQDN you intend to configure in DNS below.` \
-    --set aws.region=us-west-2                                `# AWS region` \
-    --set aws.backendTable=teleport-helm-backend              `# DynamoDB table to use for the Teleport backend` \
-    --set aws.auditLogTable=teleport-helm-events              `# DynamoDB table to use for the Teleport audit log (must be different to the backend table)` \
-    --set aws.sessionRecordingBucket=teleport-helm-sessions   `# S3 bucket to use for Teleport session recordings` \
-    --set highAvailability.replicaCount=2                     `# Number of replicas to configure`
+    --set clusterName=teleport.example.com                                `# Name of your cluster. Use the FQDN you intend to configure in DNS below.` \
+    --set aws.region=us-west-2                                            `# AWS region` \
+    --set aws.backendTable=teleport-helm-backend                          `# DynamoDB table to use for the Teleport backend` \
+    --set aws.auditLogTable=teleport-helm-events                          `# DynamoDB table to use for the Teleport audit log (must be different to the backend table)` \
+    --set aws.sessionRecordingBucket=teleport-helm-sessions               `# S3 bucket to use for Teleport session recordings` \
+    --set highAvailability.replicaCount=2                                 `# Number of replicas to configure` \
+    --set highAvailability.certManager.enabled=true                       `# Enable cert-manager support to get TLS certificates` \
+    --set highAvailability.certManager.issuerName=letsencrypt-production  `# Name of the cert-manager Issuer to use`
   ```
   </TabItem>
 </Tabs>
 
 <Admonition type="note">
-  You cannot change the `clusterName` after the cluster is configured, so make sure you choose wisely. We recommend using the
+  You cannot change the `clusterName` after the cluster is configured, so make sure you choose wisely. You should use the
   fully-qualified domain name that you'll use for external access to your Teleport cluster.
 </Admonition>
 
@@ -217,17 +303,17 @@ Once the chart is installed, you can use `kubectl` commands to view the deployme
 ```bash
 $ kubectl --namespace teleport get all
 NAME                            READY   STATUS    RESTARTS   AGE
-pod/teleport-5cf46ddf5f-dzh65   1/1     Running   0          21s
-pod/teleport-5cf46ddf5f-mpghq   1/1     Running   0          21s
+pod/teleport-5cf46ddf5f-dzh65   1/1     Running   0          4m21s
+pod/teleport-5cf46ddf5f-mpghq   1/1     Running   0          4m21s
 
 NAME               TYPE           CLUSTER-IP      EXTERNAL-IP                                                               PORT(S)                                                      AGE
-service/teleport   LoadBalancer   10.100.37.171   a232d92df01f940339adea0e645d88bb-1576732600.us-east-1.elb.amazonaws.com   443:30821/TCP,3023:30801/TCP,3026:32612/TCP,3024:31253/TCP   21s
+service/teleport   LoadBalancer   10.100.37.171   a232d92df01f940339adea0e645d88bb-1576732600.us-east-1.elb.amazonaws.com   443:30821/TCP,3023:30801/TCP,3026:32612/TCP,3024:31253/TCP   4m21s
 
 NAME                       READY   UP-TO-DATE   AVAILABLE   AGE
-deployment.apps/teleport   2/2     2            2           21s
+deployment.apps/teleport   2/2     2            2           4m21s
 
 NAME                                  DESIRED   CURRENT   READY   AGE
-replicaset.apps/teleport-5cf46ddf5f   2         2         2       21s
+replicaset.apps/teleport-5cf46ddf5f   2         2         2       4m21s
 ```
 
 ### Set up DNS
@@ -277,11 +363,6 @@ https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
 
 NOTE: Make sure teleport.example.com:443 points at a Teleport proxy which users can access.
 ```
-
-<Admonition type="note">
-  As you have not configured TLS certificates for your cluster, you will need to accept insecure warnings in your browser to view
-  the user creation page successfully. You can use services like `cert-manager` to provision certificates for your cluster.
-</Admonition>
 
 Load the user creation link to create a password and set up 2-factor authentication for the Teleport user via the web UI.
 
