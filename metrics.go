@@ -64,7 +64,7 @@ const (
 	// MetricHeartbeatConnectionsReceived counts heartbeat connections received by auth
 	MetricHeartbeatConnectionsReceived = "heartbeat_connections_received_total"
 
-	// MetricCertificateMistmatch counts login failures due to cert mismatch 
+	// MetricCertificateMistmatch counts login failures due to cert mismatch
 	MetricCertificateMistmatch = "certificate_mismatch_total"
 
 	// MetricHeartbeatsMissed counts the nodes that failed to heartbeat
