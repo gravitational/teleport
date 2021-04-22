@@ -509,8 +509,6 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	fmt.Println("--------------------- >>>> : ", h.authServerFeatures)
-
 	userContext, err := ui.NewUserContext(user, roleset, h.authServerFeatures)
 	if err != nil {
 		return nil, trace.Wrap(err)

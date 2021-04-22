@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -353,6 +354,13 @@ func (process *TeleportProcess) addConnector(connector *Connector) {
 	defer process.Unlock()
 
 	process.connectors[connector.ClientIdentity.ID.Role] = connector
+}
+
+func (process *TeleportProcess) setAuthServerFeatures(features proto.Features) {
+	process.Lock()
+	defer process.Unlock()
+
+	process.Config.AuthServerFeatures = features
 }
 
 // GetIdentity returns the process identity (credentials to the auth server) for a given
