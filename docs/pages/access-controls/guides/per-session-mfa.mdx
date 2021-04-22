@@ -82,25 +82,25 @@ metadata:
 spec:
   allow:
     node_labels:
-    - env: dev
+      env: dev
     kubernetes_labels:
-    - env: dev
+      env: dev
   deny: {}
-
+---
 # access-prod.yaml
 kind: role
 version: v3
 metadata:
   name: access-prod
+spec:
   options:
     # require per-session MFA for production access
     require_session_mfa: true
-spec:
   allow:
     node_labels:
-    - env: prod
+      env: prod
     kubernetes_labels:
-    - env: prod
+      env: prod
   deny: {}
 ```
 
