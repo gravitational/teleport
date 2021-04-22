@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/interval"
 
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
@@ -298,7 +299,14 @@ func (a *Server) runPeriodicOperations() {
 	period := defaults.HighResPollingPeriod + time.Duration(r.Intn(int(defaults.HighResPollingPeriod/time.Second)))*time.Second
 	log.Debugf("Ticking with period: %v.", period)
 	ticker := time.NewTicker(period)
+		// Create a ticker with jitter
+	heartbeatCheckTicker := interval.New(interval.Config{
+		Duration: defaults.ServerKeepAliveTTL * 2,
+		Jitter:   utils.NewSeventhJitter(),
+	})
+	missedKeepAliveCount := 0
 	defer ticker.Stop()
+	defer heartbeatCheckTicker.Stop()
 	for {
 		select {
 		case <-a.closeCtx.Done():
@@ -312,6 +320,18 @@ func (a *Server) runPeriodicOperations() {
 					log.Errorf("Failed to perform cert rotation check: %v.", err)
 				}
 			}
+		case <-heartbeatCheckTicker.Next():
+			nodes, err := a.GetNodes(defaults.Namespace, services.SkipValidation())
+			if err != nil {
+				log.Errorf("Failed to update prometheus metric: %v", err)
+			}
+			for _, node := range nodes {
+				if services.NodeHasMissedKeepAlives(node) {
+					missedKeepAliveCount++
+				}
+			}
+			// Update prometheus gauge
+			heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
 		}
 	}
 }
