@@ -1,5 +1,11 @@
 # Changelog
 
+## 6.1.2
+
+This release of Teleport contains a new feature. 
+
+* Added log formatting and support to enable timestamps for logs. [#5898](https://github.com/gravitational/teleport/pull/5898)
+
 ## 6.1.1
 
 This release of Teleport contains a bug fix.
