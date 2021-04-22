@@ -1939,7 +1939,7 @@ This release focus was to increase Teleport user experience in the following are
 
 #### Bug Fixes
 
-* Proper handling of `ENV_SUPATH` from login.defs [#1004](https://github.com/gravitational/teleport/pull/1004)
+* Proper handling of `ENV_SUPATH` from `login.defs` [#1004](https://github.com/gravitational/teleport/pull/1004)
 * Reverse tunnels would periodically lose connectivity. [#1156](https://github.com/gravitational/teleport/issues/1156)
 * `tsh` now stores user identities in a format compatible with OpenSSH. [1171](https://github.com/gravitational/teleport/issues/1171).
 
@@ -2120,7 +2120,7 @@ v1.3.1 is a maintenance release which fixes a few issues found in 1.3
 ### Bugfixes
 
 * Teleport session recorder can skip characters.
-* U2F was enabled by default in "demo mode" if teleport.yaml file was missing.
+* U2F was enabled by default in "demo mode" if `teleport.yaml` file was missing.
 
 ### Improvements
 
@@ -2133,7 +2133,7 @@ This release includes several major new features and it's recommended for produc
 ### Features
 
 * Support for hardware U2F keys for 2nd factor authentication.
-* CLI client profiles: `tsh` can now remember its --proxy setting.
+* CLI client profiles: `tsh` can now remember its `--proxy` setting.
 * tctl auth sign command to allow administrators to generate user session keys
 * Web UI is now served directly from the executable. There is no more need for web
   assets in `/usr/local/share/teleport`
@@ -2160,7 +2160,7 @@ This is a maintenance release meant to be a drop-in upgrade of previous versions
 ### Changes
 
 * User experience improvements: nicer error messages
-* Better compatibility with ssh command: -t flag can be used to force allocation of TTY
+* Better compatibility with ssh command: `-t` flag can be used to force allocation of TTY
 
 ## 1.0.5
 
