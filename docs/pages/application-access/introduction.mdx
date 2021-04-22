@@ -9,9 +9,9 @@ Teleport Application Access is designed to provide secure access to
 internal dashboards and applications, such as:
 
 - Internal control panels.
-- Wikis / tooling that's only available on the VPN.
+- Wikis / tooling that're available only when connected to a VPN.
 - Infrastructure dashboards, such as Kubernetes or Grafana.
-- Developer tools, such as Jenkins, Gitlab or Opsgenie.
+- Developer tools, such as Jenkins, Gitlab, or Opsgenie.
 
 ## Demo
 
@@ -47,19 +47,26 @@ Get started with Application Access in a 10 minute [guide](./getting-started.mdx
 
 ## Example Legacy Apps
 
-A device such as a load balancer might come with a control panel, but it
-doesn't have any authentication and can only be access via a privileged network.
-These applications are supported and can extend access beyond your network.
+A load balancer might display network telemetry through 
+a control panel but might lack the ability to authenticate with 
+and be accessed by resources outside your private newtork.
 
-Other example legacy apps:
+Teleport let's team members access these resources securely, even outside a private network:
+
+1. Team members can access private resources securely using certificates and SSH tunnels.
+1. No sharing of resource secrets, passwords, or credentials.
+1. All interactions with any connected resource can be monitored, logged, and tracked.
+1. Now, private resources can securely communicate with other resources that aren't on the network.
+
+Other common legacy app scenarios:
 
 - An internal admin tool.
 - Control panel for networking devices.
 
 ## Example Modern Apps
 
-Teleport Application Access supports web applications such as internal web
-tools and infrastructure software like:
+Teleport Application Access also supports modern web applications such as internal web
+tools and infrastructure software:
 
 - Kubernetes Dashboard.
 - Grafana.
