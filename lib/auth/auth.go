@@ -299,7 +299,7 @@ func (a *Server) runPeriodicOperations() {
 	period := defaults.HighResPollingPeriod + time.Duration(r.Intn(int(defaults.HighResPollingPeriod/time.Second)))*time.Second
 	log.Debugf("Ticking with period: %v.", period)
 	ticker := time.NewTicker(period)
-		// Create a ticker with jitter
+	// Create a ticker with jitter
 	heartbeatCheckTicker := interval.New(interval.Config{
 		Duration: defaults.ServerKeepAliveTTL * 2,
 		Jitter:   utils.NewSeventhJitter(),
