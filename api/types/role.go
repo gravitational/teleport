@@ -579,15 +579,15 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 	}
 
 	if r.Spec.Allow.AppLabels == nil {
-		r.Spec.Allow.AppLabels = Labels{Wildcard: []string{Wildcard}}
+		r.Spec.Allow.AppLabels = Labels{}
 	}
 
 	if r.Spec.Allow.KubernetesLabels == nil {
-		r.Spec.Allow.KubernetesLabels = Labels{Wildcard: []string{Wildcard}}
+		r.Spec.Allow.KubernetesLabels = Labels{}
 	}
 
 	if r.Spec.Allow.DatabaseLabels == nil {
-		r.Spec.Allow.DatabaseLabels = Labels{Wildcard: []string{Wildcard}}
+		r.Spec.Allow.DatabaseLabels = Labels{}
 	}
 
 	if r.Spec.Deny.Namespaces == nil {

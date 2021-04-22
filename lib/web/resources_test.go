@@ -97,12 +97,6 @@ metadata:
   name: roleName
 spec:
   allow:
-    app_labels:
-      '*': '*'
-    db_labels:
-      '*': '*'
-    kubernetes_labels:
-      '*': '*'
     logins:
     - test
     node_labels:

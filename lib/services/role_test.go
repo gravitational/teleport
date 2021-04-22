@@ -179,9 +179,9 @@ func TestRoleParse(t *testing.T) {
 					},
 					Allow: RoleConditions{
 						NodeLabels:       Labels{},
-						AppLabels:        Labels{Wildcard: []string{Wildcard}},
-						KubernetesLabels: Labels{Wildcard: []string{Wildcard}},
-						DatabaseLabels:   Labels{Wildcard: []string{Wildcard}},
+						AppLabels:        Labels{},
+						KubernetesLabels: Labels{},
+						DatabaseLabels:   Labels{},
 						Namespaces:       []string{defaults.Namespace},
 					},
 					Deny: RoleConditions{
@@ -2136,15 +2136,14 @@ func TestCheckAccessToDatabase(t *testing.T) {
 			},
 		},
 	}
-	// Database labels are not set in allow/deny rules on purpose to test
-	// that they're set during check and set defaults below.
 	roleDeny := &types.RoleV3{
 		Metadata: Metadata{Name: "deny", Namespace: defaults.Namespace},
 		Spec: RoleSpecV3{
 			Allow: RoleConditions{
-				Namespaces:    []string{defaults.Namespace},
-				DatabaseNames: []string{Wildcard},
-				DatabaseUsers: []string{Wildcard},
+				Namespaces:     []string{defaults.Namespace},
+				DatabaseLabels: Labels{"env": []string{"prod"}},
+				DatabaseNames:  []string{Wildcard},
+				DatabaseUsers:  []string{Wildcard},
 			},
 			Deny: RoleConditions{
 				Namespaces:    []string{defaults.Namespace},
@@ -2153,7 +2152,6 @@ func TestCheckAccessToDatabase(t *testing.T) {
 			},
 		},
 	}
-	require.NoError(t, roleDeny.CheckAndSetDefaults())
 	type access struct {
 		server types.DatabaseServer
 		dbName string
