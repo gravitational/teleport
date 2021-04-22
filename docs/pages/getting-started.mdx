@@ -9,7 +9,9 @@ Teleport on Linux machines.
 ### Prerequisites
 
 - A Linux machine with ports `3023`, `3024`, `3025` and `443` open.
-- A domain name.
+- A registered domain name.
+- A two-factor authenticator app.
+- An SSH client like OpenSSH.
 - Around 20 minutes to complete; half of this may be waiting for DNS propagation.
 
 ### Follow along with our video guide
@@ -23,7 +25,7 @@ Teleport on Linux machines.
   allowFullScreen
 />
 
-## Step 1: Install Teleport on a Linux Host
+## Step 1: Install Teleport on a Linux host
 
 <Tabs>
   <TabItem label="Amazon Linux 2/RHEL (RPM)">
@@ -80,14 +82,15 @@ Take a look at the [Installation Guide](installation.mdx) for more options.
 
 Generate a configuration file for Teleport using `teleport configure`.
 
-Acme turns on automatic TLS certificates from [Letsencrypt](https://letsencrypt.org).
+Acme turns on automatic TLS certificates from [Let's Encrypt](https://letsencrypt.org).
+
 Set up email to receive updates from Let's Encrypt, and use a valid DNS name for a cluster name.
 
 ```bash
 sudo teleport configure --acme --acme-email=your-email@example.com --cluster-name=tele.example.com -o file
 ```
 
-## Step 1c: Configure Domain Name and obtain TLS certificates using Let's Encrypt
+## Step 1c: Configure domain name and obtain TLS certificates using Let's Encrypt
 
 Teleport requires a secure public endpoint for the Teleport UI and for end users to connect to.
 To get started setup two `A` records for `tele.example.com` and `*.tele.example.com`
@@ -110,10 +113,10 @@ Start Teleport:
 sudo teleport start
 ```
 
-You can access Teleport's Web UI on port 443.
+You can access Teleport's Web UI on port `443`.
 Replace `tele.example.com` with your domain: `https://tele.example.com/`
 
-## Step 2: Create a Teleport user and set up 2-factor authentication
+## Step 2: Create a Teleport user and set up two-factor authentication
 
 In this example, we'll create a new Teleport user `teleport-admin` which is allowed to log into
 SSH hosts as any of the principals `root`, `ubuntu` or `ec2-user`.
@@ -123,11 +126,11 @@ SSH hosts as any of the principals `root`, `ubuntu` or `ec2-user`.
 sudo tctl users add teleport-admin --roles=editor,access --logins=root,ubuntu,ec2-user
 ```
 
-Teleport will always enforce the use of 2-factor authentication by default. It supports one-time
+Teleport will always enforce the use of two-factor authentication by default. It supports one-time
 passwords (OTP) and hardware tokens (U2F). This quick start will use OTP - you'll need an OTP-compatible
 app which can scan a QR code.
 
-Here's a selection of compatible Two-Factor authentication apps:
+Here's a selection of compatible two-factor authentication apps:
 
 - [Authy](https://authy.com/download/)
 - [Google Authenticator](https://www.google.com/landing/2step/)
@@ -153,7 +156,7 @@ Here's a selection of compatible Two-Factor authentication apps:
 
 <Tabs>
   <TabItem label="Mac">
-    [Download MacOS .pkg installer](https://goteleport.com/teleport/download?os=macos) (tsh client only, signed) file, double-click to run the installer.
+    [Download MacOS .pkg installer](https://goteleport.com/teleport/download?os=macos) (`tsh` client only, signed) file, double-click to run the installer.
   </TabItem>
 
   <TabItem label="Mac - Homebrew">
@@ -193,7 +196,7 @@ Here's a selection of compatible Two-Factor authentication apps:
   </TabItem>
 </Tabs>
 
-## Step 3: Log in using `tsh`
+## Step 3: Log in using tsh
 
 `tsh` is our client tool. It helps you log into Teleport clusters and obtain short-lived credentials. It can also be used to
 list servers, applications and Kubernetes clusters registered with Teleport.
@@ -205,7 +208,11 @@ Login to receive short-lived certificates from Teleport:
 tsh login --proxy=teleport.example.com:443 --user=teleport-admin
 ```
 
-## Step 4: Have Fun with Teleport!
+## Step 4: Have fun with Teleport!
+
+Congrats! You've completed setting up Teleport! Now, feel free to have fun and explore the many features Teleport has to offer.
+
+Here are several common commands and operations you'll likely find useful: 
 
 ### View Status
 
@@ -223,7 +230,7 @@ tsh ls
 tsh ssh root@node-name
 ```
 
-### Add a Node to the Cluster
+### Add a node to the cluster
 
 Generate a short-lived dynamic join token using `tctl`:
 
@@ -282,7 +289,7 @@ Bootstrap a new node:
   </TabItem>
 </Tabs>
 
-### Add an Application to your Teleport cluster
+### Add an application to your Teleport cluster
 
 Generate a short-lived dynamic token to join apps:
 
@@ -295,7 +302,7 @@ Add a new application:
 <Tabs>
   <TabItem label="teleport start">
     Install Teleport on the target node, then start it using a command as shown below.
-    Review and update `auth-server`, `token`, `app-name` and `app-uri` before running this command.
+    Review and update `auth-server`, `token`, `app-name`, and `app-uri` before running this command.
 
     ```bash
     sudo teleport start \
