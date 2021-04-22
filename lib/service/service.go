@@ -2003,7 +2003,11 @@ func (process *TeleportProcess) initDiagnosticService() error {
 	// Create a state machine that will process and update the internal state of
 	// Teleport based off Events. Use this state machine to return return the
 	// status from the /readyz endpoint.
-	ps := newProcessState(process)
+	ps, err := newProcessState(process)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	process.RegisterFunc("readyz.monitor", func() error {
 		// Start loop to monitor for events that are used to update Teleport state.
 		eventCh := make(chan Event, 1024)
@@ -3104,7 +3108,6 @@ func (process *TeleportProcess) initApps() {
 
 		log.Infof("Exited.")
 	})
-
 }
 
 func warnOnErr(err error, log logrus.FieldLogger) {

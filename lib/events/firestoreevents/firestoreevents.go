@@ -92,15 +92,6 @@ var (
 	)
 )
 
-func init() {
-	prometheus.MustRegister(writeRequests)
-	prometheus.MustRegister(batchWriteRequests)
-	prometheus.MustRegister(batchReadRequests)
-	prometheus.MustRegister(writeLatencies)
-	prometheus.MustRegister(batchWriteLatencies)
-	prometheus.MustRegister(batchReadLatencies)
-}
-
 const (
 
 	// defaultEventRetentionPeriod is the duration applied to time the ticker executes scrutinizing records for purging
@@ -165,7 +156,6 @@ func (cfg *EventsConfig) SetFromParams(params backend.Params) error {
 
 // SetFromURL establishes values on an EventsConfig from the supplied URI
 func (cfg *EventsConfig) SetFromURL(url *url.URL) error {
-
 	disableExpiredDocumentPurgeParamString := url.Query().Get(disableExpiredDocumentPurgePropertyKey)
 	if disableExpiredDocumentPurgeParamString == "" {
 		cfg.DisableExpiredDocumentPurge = false
@@ -268,6 +258,12 @@ type event struct {
 // New returns new instance of Firestore backend.
 // It's an implementation of backend API's NewFunc
 func New(cfg EventsConfig) (*Log, error) {
+	err := utils.RegisterPrometheusCollectors(writeRequests, batchWriteRequests, batchReadRequests,
+		writeLatencies, batchWriteLatencies, batchReadLatencies)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	l := log.WithFields(log.Fields{
 		trace.Component: teleport.Component(teleport.ComponentFirestore),
 	})

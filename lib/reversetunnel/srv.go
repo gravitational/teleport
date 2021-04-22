@@ -63,12 +63,6 @@ var (
 	)
 )
 
-func init() {
-	// Metrics have to be registered to be exposed:
-	prometheus.MustRegister(remoteClustersStats)
-	prometheus.MustRegister(trustedClustersStats)
-}
-
 // server is a "reverse tunnel server". it exposes the cluster capabilities
 // (like access to a cluster's auth) to remote trusted clients
 // (also known as 'reverse tunnel agents').
@@ -255,6 +249,11 @@ func (cfg *Config) CheckAndSetDefaults() error {
 // NewServer creates and returns a reverse tunnel server which is fully
 // initialized but hasn't been started yet
 func NewServer(cfg Config) (Server, error) {
+	err := utils.RegisterPrometheusCollectors(remoteClustersStats, trustedClustersStats)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

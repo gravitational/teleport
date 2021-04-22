@@ -49,10 +49,6 @@ var proxiedSessions = prometheus.NewGauge(
 	},
 )
 
-func init() {
-	prometheus.MustRegister(proxiedSessions)
-}
-
 // proxySubsys implements an SSH subsystem for proxying listening sockets from
 // remote hosts to a proxy client (AKA port mapping)
 type proxySubsys struct {
@@ -163,6 +159,11 @@ func (p *proxySubsysRequest) SetDefaults() {
 // a port forwarding request, used to implement ProxyJump feature in proxy
 // and reuse the code
 func newProxySubsys(ctx *srv.ServerContext, srv *Server, req proxySubsysRequest) (*proxySubsys, error) {
+	err := utils.RegisterPrometheusCollectors(proxiedSessions)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	req.SetDefaults()
 	if req.clusterName == "" && ctx.Identity.RouteToCluster != "" {
 		log.Debugf("Proxy subsystem: routing user %q to cluster %q based on the route to cluster extension.",
@@ -256,7 +257,6 @@ func (t *proxySubsys) Start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 // auth server of the requested remote site
 func (t *proxySubsys) proxyToSite(
 	ctx *srv.ServerContext, site reversetunnel.RemoteSite, remoteAddr net.Addr, ch ssh.Channel) error {
-
 	conn, err := site.DialAuthServer()
 	if err != nil {
 		return trace.Wrap(err)
@@ -279,7 +279,6 @@ func (t *proxySubsys) proxyToSite(
 		}()
 		defer conn.Close()
 		_, err = io.Copy(conn, ch)
-
 	}()
 
 	return nil

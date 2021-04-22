@@ -48,19 +48,12 @@ const (
 	instantReplayLen = 20
 )
 
-var (
-	serverSessions = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: teleport.MetricServerInteractiveSessions,
-			Help: "Number of active sessions to this host",
-		},
-	)
+var serverSessions = prometheus.NewGauge(
+	prometheus.GaugeOpts{
+		Name: teleport.MetricServerInteractiveSessions,
+		Help: "Number of active sessions to this host",
+	},
 )
-
-func init() {
-	// Metrics have to be registered to be exposed:
-	prometheus.MustRegister(serverSessions)
-}
 
 // SessionRegistry holds a map of all active sessions on a given
 // SSH server
@@ -80,6 +73,11 @@ type SessionRegistry struct {
 }
 
 func NewSessionRegistry(srv Server) (*SessionRegistry, error) {
+	err := utils.RegisterPrometheusCollectors(serverSessions)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if srv.GetSessionServer() == nil {
 		return nil, trace.BadParameter("session server is required")
 	}
