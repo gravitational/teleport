@@ -6,7 +6,7 @@ h1: Teleport Nodes
 
 Teleport calls any computing device (server, VM, AWS intance, etc) a "node".
 
-## The Node Service
+## The Node service
 
 A node becomes a Teleport Node when the node joins a cluster with a
 "join" token. Read about how nodes are issued certificates in the
@@ -44,7 +44,7 @@ The `node` service provides SSH access to every node with all of the following c
 
 Each client is authenticated via the [Auth Service](authentication.mdx#authentication-in-teleport) before being granted access to a Node.
 
-## Node Identity on a Cluster
+## Node identity on a cluster
 
 Node Identity is defined on the Cluster level by the certificate a node possesses.
 
@@ -84,7 +84,7 @@ a node in the [Architecture Overview](overview.mdx).
 
 ![Proxy Connection between client and node](../../img/proxy_client_connect.svg)
 
-## Cluster State
+## Cluster state
 
 Cluster state is stored in a central storage location configured by the Auth
 Server. This means that each node is completely stateless and holds no secrets
@@ -102,7 +102,7 @@ The cluster state information stored includes:
 
 Read more about what is stored in the [Auth Guide](authentication.mdx#auth-state)
 
-## Session Recording
+## Session recording
 
 By default, nodes submit SSH session traffic to the Auth server
 for storage. These recorded sessions can be replayed later via `tsh play`
@@ -128,7 +128,7 @@ a public key of the trusted CA. It can be configured via `teleport.yaml` file.
   /* TODO: incomplete, write more on this */
 }
 
-## More Concepts
+## More concepts
 
 - [Architecture Overview](overview.mdx)
 - [Teleport Users](users.mdx)

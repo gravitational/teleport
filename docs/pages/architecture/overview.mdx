@@ -8,7 +8,7 @@ This guide is for those looking for a deeper understanding of Teleport. If you
 are looking for hands-on instructions on how to set up Teleport for your team,
 check out the [Admin Guide](../admin-guide.mdx)
 
-## Design Principles
+## Design principles
 
 Teleport was designed in accordance with the following principles:
 
@@ -45,7 +45,7 @@ Here are definitions of the key concepts you will use in Teleport.
 | Teleport Cluster | A Teleport Cluster is comprised of one or more nodes, each of which hold certificates signed by the same [Auth Server CA](authentication.mdx). The CA cryptographically signs the certificate of a node, establishing cluster membership. |
 | [Teleport CA](authentication.mdx) | Teleport operates two internal CAs as a function of the Auth service. One is used to sign User certificates and the other signs Node certificates. Each certificate is used to prove identity, cluster membership and manage access. |
 
-## Teleport Services
+## Teleport services
 
 Teleport uses three services which work together: [Nodes](nodes.mdx),
 [Auth](authentication.mdx), and [Proxy](proxy.mdx).
@@ -67,7 +67,7 @@ Nodes.
 Service](authentication.mdx), creates connections to a requested Node after successful
 authentication, and serves a [Web UI](proxy.mdx#web-to-ssh-proxy).
 
-## Basic Architecture Overview
+## Basic architecture overview
 
 The numbers correspond to the steps needed to connect a client to a node. These
 steps are explained below the diagram.
@@ -99,7 +99,7 @@ steps are explained below the diagram.
   Guide](../getting-started.mdx).
 </Admonition>
 
-## Detailed Architecture Overview
+## Detailed architecture overview
 
 Here is a detailed diagram of a Teleport Cluster.
 
@@ -117,7 +117,7 @@ steps are explained in detail below the diagram.
   inviting new users to the cluster is only possible using this tool.
 </Admonition>
 
-### 1: Initiate Client Connection
+### 1: Initiate client connection
 
 ![Client offers certificate](../../img/client_initiate.svg)
 
@@ -132,7 +132,7 @@ its certificate. Clients must always connect through a proxy for two reasons:
    This makes it possible for an SSH user to see if someone else is connected to
    a node she is about to work on.
 
-### 2: Authenticate Client Certificate
+### 2: Authenticate client certificate
 
 ![Client offers valid certificate](../../img/cert_ok.svg)
 
@@ -191,7 +191,7 @@ sending the session history to the auth server to be stored.
   information.
 </Admonition>
 
-### 4: Authenticate Node Certificate
+### 4: Authenticate Node certificate
 
 ![Node Membership Authentication](../../img/node_cluster_auth.svg)
 
@@ -201,7 +201,7 @@ validate the node's certificate and validate the Node's cluster membership.
 If the node certificate is valid, the node is allowed to access the Auth Server
 API which provides access to information about nodes and users in the cluster.
 
-### 5: Grant User Node Access
+### 5: Grant user Node access
 
 ![User Granted Node Access](../../img/user_node_access.svg)
 
@@ -213,7 +213,7 @@ Finally, the client is authorized to create an SSH connection to a node.
 
 ![Proxy Connection Established](../../img/proxy_client_connect.svg)
 
-## Teleport CLI Tools
+## Teleport CLI tools
 
 Teleport offers two command line tools. `tsh` is a client tool used by the end
 users, while `tctl` is used for cluster administration.
@@ -248,7 +248,7 @@ the cluster, like creating new user roles or connecting trusted clusters.
 
 You can learn more about `tctl` in the [Admin Manual](../admin-guide.mdx).
 
-## Next Steps
+## Next steps
 
 - If you haven't already, read the [Getting Started Guide](../getting-started.mdx) to run a
   minimal setup of Teleport yourself.

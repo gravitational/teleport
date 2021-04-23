@@ -8,7 +8,7 @@ h1: Teleport Users
   /* TODO: This doc is incomplete, pending addition of Enterprise topics */
 }
 
-## Types of Users
+## Types of users
 
 Unlike traditional SSH, Teleport introduces the concept of a User Account. A
 User Account is not the same as SSH login. Instead each Teleport User is
@@ -107,7 +107,7 @@ OpenID/OAuth2 or SAML endpoint.
   Enterprise](../enterprise/introduction.mdx) chapter for more information.
 </Admonition>
 
-#### Multiple Identity Sources
+#### Multiple identity sources
 
 It is possible to have multiple identity sources configured for a Teleport
 cluster. In this case, an identity source (called a "connector") will have to be
@@ -120,7 +120,7 @@ passed to [`tsh --auth=connector_name login`](../cli-docs.mdx#tsh-login).
 The local users connector can be specified via [`tsh --auth=local
 login`](../cli-docs.mdx#tsh-login).
 
-## User Roles
+## User roles
 
 Unlike traditional SSH, each Teleport user account is assigned a `role` . Having
 roles allows Teleport to implement role-based access control (RBAC), i.e. assign
@@ -131,7 +131,7 @@ subset of nodes in a cluster.
   /* TODO: Enterprise Topic */
 }
 
-## More Concepts
+## More concepts
 
 - [Architecture Overview](overview.mdx)
 - [Teleport Auth](authentication.mdx)

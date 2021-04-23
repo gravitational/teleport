@@ -33,7 +33,7 @@ database.
 
 ![Authentication and Authorization](../../img/authn_authz.svg)
 
-## SSH Certificates
+## SSH certificates
 
 One can think of an SSH certificate as a "permit" issued and time-stamped by a
 trusted authority. In this case the authority is the Auth Server's Certificate
@@ -57,7 +57,7 @@ need their own certificates. {/* TODO: Why? */}
 - The **User CA** issues certificates which identify a User. These certificates
   are used to authenticate users when they try to connect to a cluster node.
 
-### Issuing Node Certificates
+### Issuing Node certificates
 
 Node Certificates identify a node within a cluster and establish the permissions
 of the node to access other Teleport services. The presence of a signed
@@ -84,7 +84,7 @@ certificate on a node makes it a cluster member.
    certificate contains the node's role(s) (`proxy`, `auth` or `node`) as a
    certificate extension (opaque signed string).
 
-### Using Node Certificates
+### Using Node certificates
 
 ![Node Authorization](../../img/node_cluster_auth.svg)
 
@@ -96,7 +96,7 @@ connection using a certificate with only the `node` role won't be able to add
 and delete users. This client connection would only be authorized to get auth
 servers registered in the cluster.
 
-### Issuing User Certificates
+### Issuing user certificates
 
 ![Client obtains new certificate](../../img/cert_invalid.svg)
 
@@ -118,7 +118,7 @@ SSH options, like "permit-agent-forwarding" {/* TODO: link to config/set options
 This additional data is stored as a certificate extension and is protected by
 the CA signature.
 
-### Using User Certificates
+### Using user certificates
 
 ![Client offers valid certificate](../../img/user_auth.svg)
 
@@ -129,7 +129,7 @@ certificate is still valid, the Auth Server validates the certificate's
 signature. The client is then granted access to the cluster. From here, the
 [Proxy Server](proxy.mdx) establishes a connection between client and node.
 
-## Certificate Rotation
+## Certificate rotation
 
 By default, all user certificates have an expiration date, also known as time to
 live (TTL). This TTL can be configured by a Teleport administrator. However, the node
@@ -164,7 +164,7 @@ learn how to do certificate rotation in practice.
 Clients can also connect to the auth API through the Teleport proxy to use a
 limited subset of the API to discover the member nodes of the cluster.
 
-## Auth State
+## Auth state
 
 The Auth service maintains state using a database of users, credentials,
 certificates, and audit logs. The default storage location is
@@ -189,7 +189,7 @@ There are three types of data stored by the auth server:
   server. Each recorded session is a file which is saved in /var/lib/teleport by
   default, but can also be saved in external storage, like an AWS S3 bucket.
 
-## Audit Log
+## Audit log
 
 The Teleport auth server keeps the audit log of SSH-related events that take
 place on any node within a Teleport cluster. Each node in a cluster emits audit
@@ -228,7 +228,7 @@ storage.
   same audit log. [Learn how to deploy Teleport in HA Mode.](../admin-guide.mdx#high-availability)
 </Admonition>
 
-## Storage Back-Ends
+## Storage back-ends
 
 Different types of cluster data can be configured with different storage
 back-ends as shown in the table below:
@@ -264,7 +264,7 @@ it allows them to run Teleport clusters completely devoid of local state.
   configuration](../admin-guide.mdx#high-availability) in the Admin Guide.
 </Admonition>
 
-## More Concepts
+## More concepts
 
 - [Architecture Overview](overview.mdx)
 - [Teleport Users](users.mdx)

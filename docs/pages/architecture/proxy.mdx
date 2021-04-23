@@ -16,9 +16,9 @@ Teleport cluster:
    their accounts, explore Nodes in a cluster, log into remote Nodes, join
    existing SSH sessions or replay recorded sessions.
 
-## Connecting to a Node
+## Connecting to a node
 
-### Web to SSH Proxy
+### Web to SSH proxy
 
 In this mode, Teleport Proxy implements WSS - secure web sockets - to proxy a
 client SSH connection:
@@ -45,7 +45,7 @@ client SSH connection:
   When using the web UI, the Teleport Proxy terminates SSL traffic and re-encodes data for the SSH client connection.
 </Admonition>
 
-### CLI to SSH Proxy
+### CLI to SSH proxy
 
 **Getting Client Certificates**
 
@@ -98,7 +98,7 @@ client `ssh` or using `tsh`:
   Teleport's proxy command makes it compatible with [SSH jump hosts](https://wiki.gentoo.org/wiki/SSH_jump_host) implemented using OpenSSH's `ProxyCommand`. It also supports OpenSSH's ProxyJump/ssh -J implementation as of Teleport 4.1. See [User Manual](../user-manual.mdx#ssh-proxy-configuration)
 </Admonition>
 
-## Recording Proxy Mode
+## Recording proxy mode
 
 In this mode, the proxy terminates (decrypts) the SSH connection using the
 certificate supplied by the client via SSH agent forwarding and then establishes
@@ -134,7 +134,7 @@ See the [admin guide](../admin-guide.mdx#recorded-sessions) to learn how to turn
 on the recording proxy mode. Note that the recording mode is configured on the
 Auth Service.
 
-## More Concepts
+## More concepts
 
 - [Architecture Overview](overview.mdx)
 - [Teleport Users](users.mdx)
