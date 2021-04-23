@@ -45,7 +45,7 @@ Other things needed:
 
 - [SSL Certificate](https://www.ibm.com/cloud/ssl-certificates)
 
-We recommend setting up Teleport in high availability mode (HA). In HA mode [etcd](https://etcd.io/)
+We recommend setting up Teleport in High Availability (HA) mode. In HA mode [etcd](https://etcd.io/)
 stores the state of the system and [IBM Cloud Storage](https://www.ibm.com/cloud/storage)
 stores the audit logs.
 
@@ -75,7 +75,7 @@ cluster.
 
 ![Creating IBM Server](../img/IBM/cloud.ibm.com_catalog_services_databases-for-etcd.png)
 
-#### Saving Credentials
+#### Saving credentials
 
 ![Creating IBM Server](../img/IBM/etcd-pass.png)
 ![etcd cert and host](../img/IBM/etcd-cert-and-host.png)
@@ -106,11 +106,11 @@ We recommend using [IBM Cloud File Storage](https://www.ibm.com/cloud/file-stora
 
 1. Create New File Storage Resource. [IBM Catalog - File Storage Quick Link](https://cloud.ibm.com/catalog/infrastructure/file-storage)
 
-   1a. We recommend using `Standard`
+   1a. We recommend using `Standard`.
 
 2. Create a new bucket.
 
-3. Setup [HMAC Credentials](https://cloud.ibm.com/docs/cloud-object-storage?topic=cloud-object-storage-uhc-hmac-credentials-main)
+3. Setup [HMAC Credentials](https://cloud.ibm.com/docs/cloud-object-storage?topic=cloud-object-storage-uhc-hmac-credentials-main).
 
 4. Update audit sessions URI: `audit_sessions_uri: 's3://BUCKET-NAME/readonly/records?endpoint=s3.us-east.cloud-object-storage.appdomain.cloud&region=ibm'`
 
@@ -136,7 +136,7 @@ The credentials are used from `~/.aws/credentials` and should be created with HM
 }
 ```
 
-Save these settings to `~/.aws/credentials`
+Save these settings to `~/.aws/credentials`:
 
 ```yaml
 # Example keys from example service account to be saved into ~/.aws/credentials
@@ -145,7 +145,7 @@ access_key_id="e668d66374e141668e3432443bc879e"
 secret_access_key="d8762b57f61d5dd524ccd49c7d44861ceafdsfds37d05836"
 ```
 
-Example `/etc/teleport.yaml`
+Example `/etc/teleport.yaml`:
 
 ```yaml
 ...

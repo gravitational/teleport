@@ -51,7 +51,7 @@ Optional:
 - Management Tools: Cloud Deployment Manager
 - Stackdriver Logging
 
-We recommend setting up Teleport in high availability mode (HA). In HA mode Firestore
+We recommend setting up Teleport in High Availability (HA) mode. In HA mode Firestore
 stores the state of the system and Google Cloud Storage stores the audit logs.
 
 ![GCP Intro Image](../img/gcp/gcp-teleport.svg)
@@ -60,7 +60,7 @@ stores the state of the system and Google Cloud Storage stores the audit logs.
 
 To run Teleport in a HA configuration we recommend using `n1-standard-2` instances in
 Production. It's best practice to separate the proxy and authentication server, using
-Instance groups for the proxy and auth server.
+Instance Groups for the proxy and auth server.
 
 ### Computer Engine: Health Checks
 

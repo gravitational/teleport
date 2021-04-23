@@ -51,7 +51,7 @@ We consider the "recording proxy mode" to be less secure for two reasons:
   physical access to a proxy node running in the "recording" mode, they will be able
   to see the decrypted traffic and client keys stored in proxy's process memory.
 - Recording proxy mode requires the use of SSH agent forwarding. Agent forwarding is required
-  because without it, a proxy will not be able to establish the 2nd connection to the
+  because without it, a proxy will not be able to establish the second connection to the
   destination node.
 
 Teleport proxy should be available to clients, and be setup with TLS.
@@ -91,7 +91,7 @@ $ tctl auth export --type=user > teleport_user_ca.pub
 To allow access for all users:
 
 1. Edit `teleport_user_ca.pub` and remove `cert-authority` from the start of the line.
-2. Copy `teleport_user_ca.pub` to `/etc/ssh/teleport_user_ca.pub`
+2. Copy `teleport_user_ca.pub` to `/etc/ssh/teleport_user_ca.pub`.
 3. Update `sshd` configuration (usually `/etc/ssh/sshd_config` ) to point to
   this file:
   ```
@@ -104,9 +104,9 @@ step is to configure host authentication.
 When in recording mode, Teleport will check that the host certificate of any
 node a user connects to is signed by a Teleport CA. By default this is a strict
 check. If the node presents just a key, or a certificate signed by a different
-CA, Teleport will reject this connection with the error message saying *"ssh:
+CA, Teleport will reject this connection with the error message: `"ssh:
 handshake failed: remote host presented a public key, expected a host
-certificate"*
+certificate"`.
 
 You can disable strict host checks as shown below. However, this opens the
 possibility for Man-in-the-Middle (MITM) attacks and is not recommended.
@@ -312,7 +312,7 @@ $ ssh root@database.root.example.com
 
 To connect to the OpenSSH server via `tsh`, add `--port=<ssh port>` with the `tsh ssh` command:
 
-Example ssh to `database.work.example.com` as `root` with a OpenSSH server on port 22 via `tsh`:
+Example ssh to `database.work.example.com` as `root` with a OpenSSH server on port `22` via `tsh`:
 
 ```bash
 tsh ssh --port=22 dev@database.root.example.com

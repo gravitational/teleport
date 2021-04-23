@@ -59,7 +59,7 @@ This guide will cover how to setup, configure and run Teleport on [AWS](https://
 - [ACM](#acm)
 - [SSM](#aws-systems-manager-parameter-store)
 
-We recommend setting up Teleport in high availability mode (HA). In HA mode DynamoDB
+We recommend setting up Teleport in High Availability (HA) mode. In HA mode DynamoDB
 stores the state of the system and S3 will store audit logs.
 
 ![AWS Intro Image](../img/aws/aws-intro.png)
@@ -85,7 +85,7 @@ See [DynamoDB Admin Guide for more information](admin-guide.mdx#using-dynamodb)
 
 ![AWS DynamoDB Tables](../img/aws/dynamodb-tables.png)
 ![Setting Streams](../img/aws/setting-stream.png)
-Setting Stream to `NEW IMAGE`
+Set Stream to `NEW IMAGE`.
 
 For maintainability and ease of use, we recommend following our [Terraform example](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/dynamo.tf)
 but below are high level definitions for the tables required to run Teleport.
@@ -129,9 +129,7 @@ We recommend using Amazon S3 Standard.
 ### Route53
 
 Route53 is a highly available Domain Name System (DNS) provided by AWS. It'll be
-needed to setup a URL for the proxy - we recommend using a subdomain.
-
-e.g. `teleport.acmeinc.com`
+needed to setup a URL for the proxy - we recommend using a subdomain. (e.g. `teleport.acmeinc.com`)
 
 ### NLB: Network Load Balancer
 
@@ -463,7 +461,7 @@ To check, run `kubectl describe configmap -n kube-system aws-auth`
 #### Create EC2 instance
 
 Create an EC2 instance using the [Teleport Community AMI](https://aws.amazon.com/marketplace/pp/Gravitational-Teleport-Community-Edition/B07FYTZB9B) on a public subnet in your VPC.
-Modify the security group associated with that instance to allow port 22 inbound, so
+Modify the security group associated with that instance to allow port `22` inbound, so
 you can SSH to the instance after it’s running. You will need security group rules
 to allow access to ports `3080` and `3022-3026` so that users can access the Teleport
 server from the Internet.
@@ -479,7 +477,7 @@ SSL certificates/unless you provide pre-provisioned TLS certificates.
 | HTTP | TCP | 80 | 0.0.0.0/0 |
 | SSH | TCP | 22 | your IP |
 
-You must modify the EKS control plane security group to allow port 443 inbound from
+You must modify the EKS control plane security group to allow port `443` inbound from
 the Teleport security group, to allow your Teleport instance to communicate with the Kubernetes API.
 
 Assign role to instance:

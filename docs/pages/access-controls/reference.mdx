@@ -204,7 +204,7 @@ spec:
 
   deny:
     node_labels:
-      # multiple labels are interpreted as an "or" operation.  in this case
+      # Multiple labels are interpreted as an "or" operation. In this case
       # Teleport will deny access to any node labeled as 'database' or 'backup'
       'workload': ['database', 'backup']
 ```
@@ -231,13 +231,13 @@ metadata:
 spec:
   allow:
     node_labels:
-      # literal strings:
+      # Literal strings:
       'environment': 'test'
-      # the wildcard ('*') means "any node"
+      # The wildcard ('*') means "any node"
       '*': '*'
-      # a list of alternative options:
+      # A list of alternative options:
       'environment': ['test', 'staging']
-      # regular expressions are also supported, for example the equivalent
+      # Regular expressions are also supported, for example the equivalent
       # of the list example above can be expressed as:
       'environment': '^test|staging$'
 ```
