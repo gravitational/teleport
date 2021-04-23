@@ -11,14 +11,14 @@ This article serves to define [documentation](../docs) best practices.
 
 This section describes the general workflow for writing documentation:
 
-1. Select a branch from [github.com/teleport](https://github.com/gravitational/teleport/) corresponding to the version of the documentation/product you'd like to work on.
+1. Select a branch from [github.com/gravitational/teleport](https://github.com/gravitational/teleport/) corresponding to the version of the documentation/product you'd like to work on.
 2. Use `$ git submodule update --init --recursive` when you `git switch` to or `git checkout` a new branch!
 3. Make changes locally using [Next](https://github.com/gravitational/next), our primary documentation tool.
-4. Validate your changes locally using the super helpful linters provided [therein](https://github.com/gravitational/next#development-related-commands).
+4. Validate your changes locally using the provided [linters](https://github.com/gravitational/next#development-related-commands).
 5. Commit your changes and create a PR.
 6. Get approved and merge your changes in.
 
-Typically if you make changes to some version `A.b`, you'll also want to port those changes to `master/main` and any version following `A.b.`
+Typically if you make changes to some version `6.1`, you'll also want to port those changes to `master/main`, and any version following `6.1`.
 
 In otherwords, making changes to `6.1` usually entails making changes to `6.2` and `7.0 (master/main)`. This isn't universally the case (if some document or change is specific to a single version) but generally applies. Eventually most of this will be automated since it can be a bit cumbersome.
 
@@ -26,7 +26,7 @@ To see the current submodule and version mappings review [the mappings](https://
 
 ## Tooling
 
-Our documentation is primarily built with [Next](https://github.com/gravitational/next) which has the following awesome features:
+Our documentation is primarily built with [Next](https://github.com/gravitational/next) which has the following features:
 
 1. It compiles React and specifically, React within Markdown. This gives us the ability to create uniform UI/UX markers (the resuable UI/UX components React is known for) that engage and help the reader.
 2. Lints and checks both React and native language *within* Markdown as part of the CI/CD and PR process.
@@ -81,7 +81,7 @@ Some standards are presently codified in the [Next](https://github.com/gravitati
 
 The following standards are already in use. Please follow them (although these are non-blocking, do read the comments below):
 
-1. `tsh`, `tctl`, etc. should be placed in tic marks.
+1. `tsh`, `tctl`, and other core commands should be placed in tic marks.
 2. All ports or values should be enclosed in tic marks `443`.
 3. Footnotes should be ordered by appearance (chronological precedence). `2` should not come before `1`.
 4. Tend to write sparser one to two-sentence groupings rather than lengthier text block paragraphs.
