@@ -1723,13 +1723,26 @@ func (g *GRPCServer) DeleteMFADevice(stream proto.AuthService_DeleteMFADeviceSer
 	// Find the device and delete it from backend.
 	devs, err := auth.GetMFADevices(ctx, user)
 	if err != nil {
-		return trace.Wrap(err)
+		return trail.ToGRPC(err)
+	}
+	authPref, err := auth.GetAuthPreference()
+	if err != nil {
+		return trail.ToGRPC(err)
 	}
 	for _, d := range devs {
 		// Match device by name or ID.
 		if d.Metadata.Name != initReq.DeviceName && d.Id != initReq.DeviceName {
 			continue
 		}
+
+		// Make sure that the user won't be locked out by deleting the last MFA
+		// device. This only applies when the cluster requires MFA.
+		if authPref.GetSecondFactor() != constants.SecondFactorOff &&
+			authPref.GetSecondFactor() != constants.SecondFactorOptional &&
+			len(devs) == 1 {
+			return trail.ToGRPC(trace.BadParameter("cannot delete the last MFA device for this user; add a replacement device first to avoid getting locked out"))
+		}
+
 		if err := auth.DeleteMFADevice(ctx, user, d.Id); err != nil {
 			return trail.ToGRPC(err)
 		}
