@@ -52,10 +52,10 @@ const (
 	// MetricFailedConnectToNodeAttempts counts failed ssh attempts
 	MetricFailedConnectToNodeAttempts = "failed_connect_to_node_attempts_total"
 
-	// MetricUserMaxConcurrentSessionsHit counts number of times the user exceeded their max concurrent ssh connections
+	// MetricUserMaxConcurrentSessionsHit counts number of times a user exceeded their max concurrent ssh connections
 	MetricUserMaxConcurrentSessionsHit = "user_max_concurrent_sessions_hit_total"
 
-	// MetricProxyConnectionLimitHit counts the number of times proxy connection limit was exceeded
+	// MetricProxyConnectionLimitHit counts the number of times the proxy connection limit was exceeded
 	MetricProxyConnectionLimitHit = "proxy_connection_limit_exceeded_total"
 
 	// MetricUserLoginCount counts user logins
@@ -64,7 +64,7 @@ const (
 	// MetricHeartbeatConnectionsReceived counts heartbeat connections received by auth
 	MetricHeartbeatConnectionsReceived = "heartbeat_connections_received_total"
 
-	// MetricCertificateMistmatch counts login failures due to cert mismatch
+	// MetricCertificateMistmatch counts login failures due to certificate mismatch
 	MetricCertificateMistmatch = "certificate_mismatch_total"
 
 	// MetricHeartbeatsMissed counts the nodes that failed to heartbeat

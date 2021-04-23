@@ -820,7 +820,7 @@ var (
 	userSessionLimitHitCount = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: teleport.MetricUserMaxConcurrentSessionsHit,
-			Help: "Number of times the user exceeded their max concurrent ssh connections",
+			Help: "Number of times a user exceeded their max concurrent ssh connections",
 		},
 	)
 )

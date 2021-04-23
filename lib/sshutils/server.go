@@ -396,7 +396,7 @@ var (
 	proxyConnectionLimitHitCount = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: teleport.MetricProxyConnectionLimitHit,
-			Help: "Number of times proxy connection limit was exceeded",
+			Help: "Number of times the proxy connection limit was exceeded",
 		},
 	)
 )

@@ -290,7 +290,7 @@ var (
 	failedConnectingToNode = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: teleport.MetricFailedConnectToNodeAttempts,
-			Help: "Number of times client failed to connect to a node",
+			Help: "Number of failed attempts to connect to a node",
 		},
 	)
 )

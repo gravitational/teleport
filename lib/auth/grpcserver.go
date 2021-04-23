@@ -71,7 +71,7 @@ var (
 	heartbeatConnectionsReceived = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: teleport.MetricHeartbeatConnectionsReceived,
-			Help: "Number of auth received a heartbeat",
+			Help: "Number of times auth received a heartbeat connection",
 		},
 	)
 )
