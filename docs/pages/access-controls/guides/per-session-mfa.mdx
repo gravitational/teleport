@@ -36,7 +36,7 @@ to contain:
 ```yaml
 auth_service:
   authentication:
-    # require per-session MFA cluster-wide
+    # Require per-session MFA cluster-wide
     require_session_mfa: yes
 ```
 
@@ -51,7 +51,7 @@ metadata:
   name: example-role-with-mfa
 spec:
   options:
-    # require per-session MFA for this role
+    # Require per-session MFA for this role
     require_session_mfa: true
   allow:
     ...
@@ -93,7 +93,7 @@ version: v3
 metadata:
   name: access-prod
   options:
-    # require per-session MFA for production access
+    # Require per-session MFA for production access
     require_session_mfa: true
 spec:
   allow:

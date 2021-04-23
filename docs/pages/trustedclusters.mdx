@@ -132,7 +132,7 @@ the fly using `tctl` tool.
   won't be using the token to re-establish the connection in the future.
 </Admonition>
 
-### Static Join Tokens
+### Static join tokens
 
 To create a static join token, update the configuration file on "root" cluster
 to look like this:
@@ -149,13 +149,13 @@ auth_service:
 
 This token can be used an unlimited number of times.
 
-### Security Implications
+### Security implications
 
 Consider the security implications when deciding which token method to use.
 Short lived tokens decrease the window for attack, but will require any automation
 which uses these tokens to refresh them on a regular basis.
 
-### Dynamic Join Tokens
+### Dynamic join tokens
 
 Creating a token dynamically with a CLI tool offers the advantage of applying a
 time to live (TTL) interval on it, i.e. it will be impossible to re-use such
@@ -369,7 +369,7 @@ Then following updating the role map, we can re-create the cluster by executing:
 $ tctl create root-user-updated-role.yaml
 ```
 
-### Updating Cluster Labels
+### Updating cluster labels
 
 Teleport gives administrators of root clusters the ability to control cluster labels.
 Allowing leaf clusters to propagate their own labels could create a problem with
@@ -571,7 +571,7 @@ you will get an error: "the trusted cluster uses misconfigured HTTP/TLS certific
 testing, the teleport daemon on "leaf" can be started with the `--insecure` CLI flag to accept
 self-signed certificates. Make sure to configure HTTPS properly and remove the insecure flag for production use.
 
-### Connectivity Problems
+### Connectivity problems
 
 To troubleshoot connectivity problems, enable verbose output for the auth
 servers on both clusters. Usually this can be done by adding `--debug` flag to
@@ -597,7 +597,7 @@ mismatched/expired, or the network addresses for `tunnel_addr` or
 `web_proxy_addr` cannot be reached due to pre-existing firewall rules or
 how your network security groups are configured on AWS.
 
-### Access Problems
+### Access problems
 
 Troubleshooting access denied messages can be challenging. A Teleport administrator
 should check to see the following:

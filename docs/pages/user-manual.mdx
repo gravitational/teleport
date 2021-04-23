@@ -62,7 +62,7 @@ to call [`tsh login`](cli-docs.mdx#tsh-login) in the beginning.
   The Teleport package in Homebrew is not maintained by Teleport. We recommend the use of our [own Teleport packages](https://goteleport.com/teleport/download?os=macos).
 </Admonition>
 
-## User Identities
+## User identities
 
 A user identity in Teleport exists in the scope of a cluster. The member nodes
 of a cluster may have multiple OS users on them. A Teleport administrator
@@ -80,7 +80,7 @@ $ tsh ssh --proxy=work.example.com --user=joe root@node
 
 [CLI Docs - tsh ssh](cli-docs.mdx#tsh-ssh)
 
-## Logging In
+## Logging in
 
 To retrieve a user's certificate, execute:
 
@@ -152,7 +152,7 @@ a browser of your choice to continue the login flow.
 
 [CLI Docs - tsh login](cli-docs.mdx#tsh-login)
 
-### Inspecting SSH Certificate
+### Inspecting SSH certificate
 
 To inspect the SSH certificates in `~/.tsh`, a user may execute the following
 command:
@@ -170,7 +170,7 @@ $ tsh status
 
 [CLI Docs - tsh status](cli-docs.mdx#tsh-status)
 
-### SSH Agent Support
+### SSH agent support
 
 If there is an [ssh agent](https://en.wikipedia.org/wiki/Ssh-agent) running,
 `tsh login` will store the user certificate in the agent. This can be verified
@@ -187,7 +187,7 @@ If you wish to disable SSH agent integration, pass `--no-use-local-ssh-agent`
 to `tsh`. You can also set the `TELEPORT_USE_LOCAL_SSH_AGENT` environment
 variable to `false` in your shell profile to make this permanent.
 
-### Identity Files
+### Identity files
 
 [`tsh login`](cli-docs.mdx#tsh-login) can also save the user certificate into a
 file:
@@ -214,7 +214,7 @@ total 8.0K
 -rw------- 1 joe staff 1.5K Aug 10 16:16 joe-cert.pub
 ```
 
-### SSH Certificates for Automation
+### SSH certificates for automation
 
 {
   /* This seems more like an admin task */
@@ -243,7 +243,7 @@ Now `jenkins.pem` can be copied to the jenkins server and passed to `-i`
 equivalent of `tsh login --out` and allows for unrestricted certificate TTL
 values.
 
-## Exploring the Cluster
+## Exploring the cluster
 
 In a Teleport cluster, all nodes periodically ping the cluster's auth server and
 update their status. This allows Teleport users to see which nodes are online
@@ -276,7 +276,7 @@ graviton      33333333-aaaa-1284     10.1.0.7:3022      os:osx
 
 [CLI Docs -tsh ls](cli-docs.mdx#tsh-ls)
 
-## Interactive Shell
+## Interactive shell
 
 To launch an interactive shell on a remote node or to execute a command, use
 `tsh ssh`.
@@ -300,7 +300,7 @@ $ ssh -o ForwardAgent=yes user@node
 $ ssh -o AddKeysToAgent=yes user@node
 ```
 
-### Proxy Ports
+### Proxy ports
 
 A Teleport proxy uses two ports: `3080` for HTTPS and `3023` for proxying SSH
 connections. The HTTPS port is used to serve Web UI and also to implement 2nd
@@ -315,7 +315,7 @@ tsh --proxy=proxy.example.com:5000,5001 <subcommand>
 
 This means *use port `5000` for HTTPS and `5001` for SSH*.
 
-### Port Forwarding
+### Port forwarding
 
 `tsh ssh` supports the OpenSSH `-L` flag which forwards incoming
 connections from localhost to the specified remote host:port. The syntax of `-L`
@@ -352,7 +352,7 @@ This command:
 3. Executes `curl` command locally, which results in `curl` hitting
    `google.com:80` via `node`
 
-### SSH Jumphost
+### SSH jumphost
 
 While implementing ProxyJump for Teleport, we have extended the feature to `tsh`.
 
@@ -365,7 +365,7 @@ Known limitations:
 - Only one jump host is supported (`-J` supports chaining that Teleport does not utilise) and `tsh` will return with error in the case of two jumphosts, i.e. `-J proxy-1.example.com,proxy-2.example.com` will not work.
 - When `tsh ssh -J user@proxy` is used, it overrides the SSH proxy defined in the tsh profile and port forwarding is used instead of the existing Teleport proxy subsystem.
 
-### Resolving Node Names
+### Resolving node names
 
 `tsh` supports multiple methods to resolve remote node names.
 
@@ -390,7 +390,7 @@ Linux:
 $ tsh ssh os=ubuntu apt-get update -y
 ```
 
-### Short-lived Sessions
+### Short-lived sessions
 
 The default TTL of a Teleport user certificate is 12 hours. This can be modified
 at login with the `--ttl` flag. This command logs you into the cluster with a
@@ -407,7 +407,7 @@ you can always do:
 $ tsh logout
 ```
 
-## Copying Files
+## Copying files
 
 To securely copy files to and from cluster nodes, use the `tsh scp` command. It
 is designed to mimic traditional `scp` as much as possible:
@@ -423,7 +423,7 @@ scp"` and use the familiar syntax:
 $ scp -P 61122 -r files root@node:/path/to/dest
 ```
 
-## Sharing Sessions
+## Sharing sessions
 
 Suppose you are trying to troubleshoot a problem on a remote server. Sometimes
 it makes sense to ask another team member for help. Traditionally, this could be
@@ -454,7 +454,7 @@ $ tsh join <session_ID>
   Joining sessions is not supported in recording proxy mode (where `session_recording` is set to `proxy`).
 </Admonition>
 
-## Connecting to SSH Clusters behind Firewalls
+## Connecting to SSH clusters behind firewalls
 
 Teleport supports creating clusters of servers located behind firewalls
 **without any open listening TCP ports**.  This works by creating reverse SSH
@@ -505,7 +505,7 @@ to see the list of online nodes in a cluster, open a web-based terminal to them,
 see recorded sessions, and replay them. You can also join other users in active
 sessions.
 
-## Using OpenSSH Client
+## Using OpenSSH client
 
 There are a few differences between Teleport's `tsh` and OpenSSH's `ssh` but
 most of them can be mitigated.
@@ -576,7 +576,7 @@ Host teleport.proxy
   ForwardAgent yes
 ```
 
-### Passing Teleport SSH Certificate to OpenSSH Client
+### Passing Teleport SSH certificate to OpenSSH client
 
 If a user does not want to use an SSH agent or if the agent is not available,
 the certificate must be passed to `ssh` via `IdentityFile` option (see `man
@@ -613,7 +613,7 @@ the verbose logging by specifying `-d` flag when launching `tsh`. Also, you may
 want to reset it to a clean state by deleting temporary keys and other data from
 `~/.tsh`
 
-## Getting Help
+## Getting help
 
 If you need help, please ask on our [community forum](https://community.gravitational.com/). You can also open an [issue on Github](https://github.com/gravitational/teleport/issues).
 

@@ -3,7 +3,7 @@ title: Dual Authorization
 description: Dual Authorization for SSH and Kubernetes
 ---
 
-# Dual Authorization
+# Dual authorization
 
 You can set up Teleport to require require the approval of multiple team members to perform some critical actions.
 Here are the most common scenarios:
@@ -169,7 +169,7 @@ output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/tele
 severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
 ```
 
-## Dual Authorization
+## Dual authorization
 
 Alice and Ivan are reviewers - they can approve requests for assuming role `dbadmin`.
 Bob is a devops and can assume `dbadmin` role if two members of the `reviewer` role
@@ -220,7 +220,7 @@ $ tctl users add alice@example.com --roles=reviewer
 $ tctl users add ivan@example.com --roles=reviewer
 ```
 
-## Access Requests Flow
+## Access requests flow
 
 Bob can create an access request for the `dbadmin` role in the Web UI or CLI:
 

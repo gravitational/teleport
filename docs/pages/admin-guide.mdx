@@ -1252,7 +1252,7 @@ Ansible uses the OpenSSH client by default. This makes it compatible with
 Teleport without any extra work, except configuring OpenSSH client to work with
 Teleport Proxy:
 
-- configure your OpenSSH to connect to Teleport proxy and use `ssh-agent` socket
+- configure your OpenSSH to connect to Teleport Proxy and use `ssh-agent` socket
 - enable scp mode in the Ansible config file (default is `/etc/ansible/ansible.cfg` ):
 
 ```bash
@@ -1262,7 +1262,7 @@ scp_if_ssh = True
 ## Kubernetes Integration
 
 Teleport can be configured as a compliance gateway for Kubernetes clusters.
-This allows users to authenticate against a Teleport proxy using [`tsh
+This allows users to authenticate against Teleport Proxy using [`tsh
 login`](cli-docs.mdx#tsh) and  [`tsh kube login`](cli-docs.mdx#tsh-kube-login) command to retrieve credentials for both SSH and
 Kubernetes API.
 
@@ -1305,7 +1305,7 @@ If high availability cannot be provided by the infrastructure (perhaps you're
 running Teleport on a bare metal cluster), you can still configure Teleport to
 run in a highly available fashion.
 
-### Auth Server HA
+### Auth Server High Availability
 
 In order to run multiple instances of Teleport Auth Server, you must switch to a
 highly available secrets back-end first. Also, you must tell each node in a
@@ -1322,9 +1322,9 @@ do this:
 attention needs to be paid to keeping their configuration identical. Settings
 like `cluster_name` , `tokens` , `storage` , etc must be the same.
 
-### Teleport Proxy HA
+### Teleport Proxy High Availability
 
-The Teleport Proxy is stateless which makes running multiple instances trivial.
+TTeleport Proxy is stateless which makes running multiple instances trivial.
 If using the [default configuration](#ports), configure your load balancer to
 forward ports `3023` and `3080` to the servers that run the Teleport proxy. If
 you have configured your proxy to use non-default ports, you will need to
@@ -1362,13 +1362,13 @@ is running without problems.
 We'll cover how to use `etcd`, DynamoDB and Firestore storage back-ends to make Teleport
 highly available below.
 
-### Teleport Scalability Tweaks
+### Teleport scalability tweaks
 
 When running Teleport at scale (for example in the case where there are 10,000+ nodes connected
 to a cluster via [node tunneling mode](#adding-a-node-located-behind-nat), the following settings
 should be set on Teleport auth and proxies:
 
-#### Proxy Servers
+#### Proxy servers
 
 These settings alter Teleport's [default connection limit](https://github.com/gravitational/teleport/blob/5cd212fecda63ec6790cc5ffe508a626c56e2b2c/lib/defaults/defaults.go#L385) from 15000 to 65000.
 
@@ -1385,7 +1385,7 @@ teleport:
     max_users: 1000
 ```
 
-#### Auth Servers
+#### Auth servers
 
 ```yaml
 # Teleport Auth
@@ -1792,14 +1792,14 @@ offers significant benefits on a cluster level, it also adds some complexity to
 cluster upgrades. To ensure robust operation Teleport administrators must follow
 the upgrade rules listed below.
 
-### Production Releases
+### Production releases
 
 First of all, avoid running pre-releases (release candidates) in production
 environments. Teleport development team uses [Semantic
 Versioning](https://semver.org/) which makes it easy to tell if a specific
 version is recommended for production use.
 
-### Component Compatibility
+### Component compatibility
 
 When running multiple binaries of Teleport within a cluster (nodes, proxies,
 clients, etc), the following rules apply:
@@ -1850,12 +1850,12 @@ As an extra precaution you might want to backup your application prior to upgrad
   After updating to 4.3+ rotate the cluster CA [following these docs](#certificate-rotation).
 </Admonition>
 
-### Backup Before Upgrading
+### Backup before upgrading
 
 As an extra precaution you might want to backup your application prior to upgrading. We have more
 instructions in [Backing up Teleport](#backing-up-teleport).
 
-### Upgrade Sequence
+### Upgrade sequence
 
 When upgrading a single Teleport cluster:
 
@@ -1884,7 +1884,7 @@ When upgrading multiple clusters:
 1. First, upgrade the main cluster, i.e. the one which other clusters trust.
 2. Upgrade the trusted clusters.
 
-## Backing Up Teleport
+## Backing up Teleport
 
 When planning a backup of Teleport, it's important to know what is where and the
 importance of each component. Teleport's Proxies and Nodes are stateless, and thus
@@ -1919,7 +1919,7 @@ the audit log, logged events have a TTL of 1 year.
 | etcd | [Follow etcD Guidleines for Disaster Recovery](https://etcd.io/docs/v2/admin_guide) |
 | Firestore | [Follow GCP Guidlines for Automated Backups](https://firebase.google.com/docs/database/backups) |
 
-### Teleport Resources
+### Teleport resources
 
 Teleport uses YAML resources for roles, trusted clusters, local users and auth connectors.
 These could be created via `tctl` or via the UI.
@@ -1934,7 +1934,7 @@ restore Teleport. At a high level, this is our recommended approach:
 - Store your configs as discrete files in VCS
 - Have your CI run `tctl create -f *.yaml` from that git directory
 
-## Migrating Backends
+## Migrating backends
 
 As of version v4.1 you can now quickly export a collection of resources from
 Teleport. This feature was designed to help customers migrate from local storage
@@ -1985,7 +1985,7 @@ by auth server on first start), so it is safe for use in supervised/HA contexts.
   - Some user authentication mechanisms (e.g. u2f) require that the public endpoint of the web ui remains the same (this can't be caught by teleport, be careful!).
 - Any node whose invite token is defined statically (in the config file of the auth server) will be able to join automatically, but nodes that were added dynamically will need to be re-invited
 
-### Daemon Restarts
+### Daemon restarts
 
 As covered in the [Graceful Restarts](#graceful-restarts) section, Teleport
 supports graceful restarts. To upgrade a host to a newer Teleport version, an
@@ -1999,7 +1999,7 @@ This will perform a graceful restart, i.e.the Teleport daemon will fork a new
 process to handle new incoming requests, leaving the old daemon process running
 until existing clients disconnect.
 
-## License File
+## License file
 
 Commercial Teleport subscriptions require a valid license. The license file can
 be downloaded from the [Teleport Customer

@@ -125,7 +125,7 @@ Note that the `--auth-server` flag must point to the Teleport cluster's proxy
 endpoint because the application service always connects back to the cluster over
 a reverse tunnel.
 
-### Application Name
+### Application name
 
 An application name should make a valid sub-domain (\<=63 characters, no spaces, only `a-z 0-9 _ -` allowed).
 
@@ -190,7 +190,7 @@ $ teleport start --config=/path/to/teleport.yaml
 
 ## Advanced Options
 
-### Running Debug Application
+### Running debug application
 
 For testing and debugging purposes we provide a built-in debug app. It can
 be turned on using `debug_app: true`.
@@ -214,7 +214,7 @@ address. To override the public address, specify the `public_addr` field:
   public_addr: "jira.example.com"
 ```
 
-### Skip TLS Certificate Verification
+### Skip TLS certificate verification
 
 <Admonition
   type="warning"
@@ -235,7 +235,7 @@ verification step:
   insecure_skip_verify: true
 ```
 
-### Deeplink to Subdirectory
+### Deeplink to subdirectory
 
 Some applications are available on a subdirectory. Examples include the
 [Kubernetes Dashboard.](https://kubernetes.io/docs/tasks/access-application-cluster/web-ui-dashboard/).
@@ -264,7 +264,7 @@ that provide internal redirect headers:
     - "jenkins.internal.dev"
 ```
 
-## View Applications in Teleport
+## View applications in Teleport
 
 Teleport provides a UI for quickly launching connected applications.
 
@@ -273,7 +273,7 @@ The URL structure looks like this:
 
 `https://[cluster-url:cluster-port]/web/cluster/[cluster-name]/apps`
 
-## Logging out of Applications
+## Logging out of applications
 
 When you log into an application, you'll get a certificate and login session
 per your defined RBAC. If you want to force logout before this period you can
