@@ -22,11 +22,11 @@ By default U2F is disabled. To enable U2F support, edit the Teleport
 configuration file `/etc/teleport.yaml` like so:
 
 ```yaml
-# snippet from /etc/teleport.yaml to show an example configuration of U2F:
+# Snippet from /etc/teleport.yaml to show an example configuration of U2F:
 auth_service:
   authentication:
     type: local
-    # to enable U2F support, set this field to 'u2f', 'on' or 'optional'
+    # To enable U2F support, set this field to 'u2f', 'on' or 'optional'
     second_factor: u2f
     u2f:
        app_id: https://example.com:443

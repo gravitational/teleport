@@ -206,13 +206,13 @@ metadata:
 spec:
   # Client ID of Github OAuth app
   client_id: client-id
-  # client secret of Github OAuth app
+  # Client secret of Github OAuth app
   client_secret: secret-data-here
-  # connector display name that will be shown on web UI login screen
+  # Connector display name that will be shown on web UI login screen
   display: Github
-  # callback URL that will be called after successful authentication
+  # Callback URL that will be called after successful authentication
   redirect_url: https://teleport.example.com/v1/webapi/github/callback
-  # mapping of org/team memberships onto allowed logins and roles
+  # Mapping of org/team memberships onto allowed logins and roles
   teams_to_logins:
     - organization: octocats # Github organization name
       team: cyber # Github team name within that organization

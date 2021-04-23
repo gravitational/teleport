@@ -48,7 +48,7 @@ spec:
     # issued to the users with this role.
     max_session_ttl: 240h
 
-  # allow section declares a list of resource/verb combinations that are
+  # The allow section declares a list of resource/verb combinations that are
   # allowed for the users of this role. by default nothing is allowed.
   allow:
     logins: ['jenkins']
@@ -90,15 +90,15 @@ spec:
     # issued to the users with this role.
     max_session_ttl: 10h
 
-  # allow section declares a list of resource/verb combinations that are
+  # The allow section declares a list of resource/verb combinations that are
   # allowed for the users of this role. by default nothing is allowed.
   allow:
     impersonate:
       users: ['jenkins']
       roles: ['jenkins']
 
-  # the deny section uses the identical format as the 'allow' section.
-  # the deny rules always override allow rules.
+  # The deny section uses the identical format as the 'allow' section.
+  # The deny rules always override allow rules.
   deny:
     node_labels:
       '*': '*'
@@ -122,9 +122,9 @@ $ tctl auth sign --user=jenkins --format=openssh --out=jenkins --ttl=240h
 Here is an example of how Alice can use the keys:
 
 ```bash
-# start a fresh SSH agent for this session
+# Start a fresh SSH agent for this session
 $ eval $(ssh-agent)
-# adds cert to the agent
+# Adds cert to the agent
 $ ssh-add jenkins
 # ssh into the node as jenkins
 $ ssh -J jenkins@teleport.localhost:3023 -p 3022 jenkins@127.0.0.1
@@ -180,8 +180,8 @@ spec:
       roles: ['*']
       where: 'equals(impersonate_role.metadata.labels["group"], "security") && equals(impersonate_user.metadata.labels["group"], "security")'
 
-  # the deny section uses the identical format as the 'allow' section.
-  # the deny rules always override allow rules.
+  # The deny section uses the identical format as the 'allow' section.
+  # The deny rules always override allow rules.
   deny:
     node_labels:
       '*': '*'
@@ -247,8 +247,8 @@ spec:
       roles: ['*']
       where: 'contains(user.spec.traits["group"], impersonate_role.metadata.labels["group"]) && contains(user.spec.traits["group"], impersonate_user.metadata.labels["group"])'
 
-  # the deny section uses the identical format as the 'allow' section.
-  # the deny rules always override allow rules.
+  # The deny section uses the identical format as the 'allow' section.
+  # The deny rules always override allow rules.
   deny:
     node_labels:
       '*': '*'
@@ -280,10 +280,10 @@ $ tctl auth sign --user=security-scanner --format=openssh --out=security-scanner
 Here is a summary of variables and functions we used in this guide:
 
 <table>
-<th>
-  <td>Variable or Function</td>
-  <td>Description</td>
-</th>
+<tr>
+  <th>Variable or Function</th>
+  <th>Description</th>
+</tr>
 <tr>
   <td>`user.spec.traits`</td>
   <td>Access traits of local or SSO user.</td>
