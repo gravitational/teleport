@@ -9,7 +9,7 @@ In most cases, you can interact with Teleport using our CLI tools, [tsh](cli-doc
   We are currently working on improving our API Documentation. If you have an API suggestion, [please complete our survey](https://docs.google.com/forms/d/1HPQu5Asg3lR0cu5crnLDhlvovGpFVIIbDMRvqclPhQg/viewform).
 </Admonition>
 
-## Go Examples
+## Go examples
 
 <Admonition type="note">
   The Go examples below depend on some features and changes that are released in Teleport 5.0.
@@ -59,11 +59,11 @@ kind: role
 metadata:
   name: api-admin
 spec:
-  # allow section declares a list of resource/verb combinations that are
+  # The allow section declares a list of resource/verb combinations that are
   # allowed for the users of this role. By default nothing is allowed.
   allow:
     rules:
-      # these rules are intentionally overly permissive to allow all crud operations
+      # These rules are intentionally overly permissive to allow all crud operations
       # for the api examples, but in practice, you should have as few rules/verbs
       # as possible in a role. Be especially careful with cert_authority, as it
       # is responsible for maintaining your Teleport cluster's security.
@@ -77,12 +77,12 @@ spec:
         verbs: ['create', 'list', 'read', 'update', 'delete']
       - resources: ['remote_cluster']
         verbs: ['create', 'list', 'read', 'update', 'delete']
-    # teleport currently refuses to issue certs for a user with 0 logins,
+    # Teleport currently refuses to issue certs for a user with 0 logins,
     # this restriction may be lifted in future versions.
     logins: ['api-admin']
     request:
       roles: ['*']
-  # the deny section uses the identical format as the 'allow' section.
+  # The deny section uses the identical format as the 'allow' section.
   # the deny rules always override allow rules.
   deny:
     node_labels:
@@ -102,10 +102,10 @@ Move the `/certs` folder into your `/api-examples` folder.
 <Admonition type="note">
   By default, `tctl auth sign` produces certificates with a relatively short lifetime. See our [Kubernetes Section](./kubernetes-access/guides/cicd.mdx) for more information on automating the signing process for short lived certificates.
 
-  While we encourage you to use short lived certificates, we understand you may not have all the infrastructure to issues and obtain them at the onset. You can use the --ttl flag to extend the lifetime of a certificate in these cases but understand this reduces your security posture
+  While we encourage you to use short lived certificates, we understand you may not have all the infrastructure to issues and obtain them at the onset. You can use the --ttl flag to extend the lifetime of a certificate in these cases but understand this reduces your security posture.
 </Admonition>
 
-## Go Client
+## Go client
 
 The client below interfaces with the Teleport gRPC API, and relies on the `certs` generated above for TLS.
 
@@ -174,7 +174,7 @@ func LoadTLSCertPool(path string) (*x509.CertPool, error) {
 }
 ```
 
-## Go Packages
+## Go packages
 
 Copy the Teleport module's go.mod below into `/api-examples` and then run `go mod tidy` to slim it down to only what's needed for these api examples.
 
@@ -312,7 +312,7 @@ func main() {
 }
 ```
 
-## Object Resource
+## Object resource
 
 All Teleport resources, such as `Roles` and `Tokens`, share several fields for database management. To keep the documentation below clear, we will refer to these fields as `Resource Fields`.
 
@@ -626,8 +626,8 @@ These tokens can be predefined static tokens, or dynamic tokens with a short lif
 
 You may want to use this API to manage tokens if:
 
-- You have a program that dynamically adds new hosts to clusters
-- You want to programmatically add leaf clusters to a trusted cluster
+- You have a program that dynamically adds new hosts to clusters.
+- You want to programmatically add leaf clusters to a trusted cluster.
 
 ### The Token Object
 
@@ -785,7 +785,6 @@ rc.SetMetadata(md)
 if err = client.UpdateRemoteCluster(ctx, rc); err != nil {
   return err
 }
-
 ```
 
 ## Access Workflows
