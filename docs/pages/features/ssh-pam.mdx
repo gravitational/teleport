@@ -29,7 +29,7 @@ In PAM parlance, the application that uses PAM to authenticate a user is the ser
 and is identified for configuration purposes by a service name, which is often (but
 not necessarily) the program name.
 
-The user requesting authentication is called the applicant, while the user (usually, root)
+The user requesting authentication is called the applicant, while the user (usually, `root`)
 charged with verifying his identity and granting them the requested credentials is
 called the arbitrator.
 
@@ -43,7 +43,7 @@ management.
 
 Teleport currently supports account management and session management.
 
-## Setting up PAM on a Linux Machine running Teleport
+## Setting up PAM on a Linux machine running Teleport
 
 To enable PAM on a given Linux machine, update `/etc/teleport.yaml` with:
 
@@ -67,7 +67,7 @@ own PAM service file like `/etc/pam.d/teleport` and specifying it as
 
 ## Setting Message of the Day (motd) with Teleport
 
-The file `/etc/motd` is normally displayed by login(1) after a user has logged in
+The file `/etc/motd` is normally displayed by `login(1)` after a user has logged in
 but before the shell is run. It is generally used for important system-wide announcements.
 
 This feature can help you inform users that activity on the node is being audited
@@ -77,7 +77,7 @@ and recorded.
 
 Teleport supports setting arbitrary environment variables for PAM modules as of version 6.1.
 These variables can also be role-style SSO claims in the form `{{ external.email }}`
-where `email` is a claim made by the configured SSO IdP.
+where `email` is a claim made by the configured SSO Identity Provider.
 
 To set custom environment variables, update `/etc/teleport.yaml` with:
 
