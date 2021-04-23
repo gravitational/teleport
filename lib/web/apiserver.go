@@ -352,8 +352,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.POST("/webapi/trustedcluster", h.WithAuth(h.upsertTrustedClusterHandle))
 	h.DELETE("/webapi/trustedcluster/:name", h.WithAuth(h.deleteTrustedCluster))
 
-	h.GET("/webapi/apps/:fqdn", h.WithAuth(h.getAppFQDN))
-	h.GET("/webapi/apps/:fqdn/:clusterName/:publicAddr", h.WithAuth(h.getAppFQDN))
+	h.GET("/webapi/apps/:fqdnHint", h.WithAuth(h.getAppFQDN))
+	h.GET("/webapi/apps/:fqdnHint/:clusterName/:publicAddr", h.WithAuth(h.getAppFQDN))
 
 	// if Web UI is enabled, check the assets dir:
 	var indexPage *template.Template

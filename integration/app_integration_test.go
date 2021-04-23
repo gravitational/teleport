@@ -764,8 +764,8 @@ func (p *pack) createAppSession(t *testing.T, publicAddr, clusterName string) st
 	require.NotEmpty(t, p.webCookie)
 	require.NotEmpty(t, p.webToken)
 
-	casReq, err := json.Marshal(web.AppParams{
-		FQDN:        publicAddr,
+	casReq, err := json.Marshal(web.AppResolveParams{
+		FQDNHint:    publicAddr,
 		PublicAddr:  publicAddr,
 		ClusterName: clusterName,
 	})
