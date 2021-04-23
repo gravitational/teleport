@@ -29,7 +29,7 @@ func NewCloseBroadcaster() *CloseBroadcaster {
 
 // CloseBroadcaster is a helper struct
 // that implements io.Closer and uses channel
-// to broadcast it's closed state once called
+// to broadcast its closed state once called
 type CloseBroadcaster struct {
 	sync.Once
 	C chan struct{}
