@@ -142,7 +142,7 @@ spec:
 EOF
 ```
 
-Create the user assigned the `db` role we've just created:
+Create a user assigned to the `db` role we've just created:
 
 ```sh
 $ tctl --config=/path/to/teleport.yaml users add --roles=admin,db testuser
@@ -237,8 +237,8 @@ Name    Description        Labels
 example Example PostgreSQL env=dev
 ```
 
-Note that you will only be able to see databases your role has access to. See
-[RBAC](../rbac.mdx) section for more details.
+Note that you will only be able to see databases your role has access to. Read about
+[Role-Based Access Control](../rbac.mdx) for more details.
 
 To connect to a particular database server, first retrieve credentials from
 Teleport using `tsh db login` command:
@@ -265,7 +265,7 @@ When logging into a PostgreSQL database, `tsh` automatically configures a sectio
 in the [connection service file](https://www.postgresql.org/docs/current/libpq-pgservice.html)
 with the name of `<cluster-name>-<database-service-name>`.
 
-Suppose the cluster name is "root", then you can connect to the database using
+Suppose the cluster name is `root`, then you can connect to the database using
 the following `psql` command:
 
 ```sh

@@ -200,7 +200,7 @@ Update the user:
 $ tctl create alice.yaml -f
 ```
 
-For more detailed information about database access controls see [RBAC](../rbac.mdx)
+For more detailed information about database access controls read our [Role-Based Access Control](../rbac.mdx) 
 documentation.
 
 ## Setup Teleport Database Service
@@ -290,8 +290,8 @@ Name     Description              Labels
 cloudsql GCP Cloud SQL PostgreSQL env=dev
 ```
 
-Note that you will only be able to see databases your role has access to. See
-[RBAC](../rbac.mdx) section for more details.
+Note that you will only be able to see databases your role has access to. Read about
+[Role-Based Access Control](../rbac.mdx) for more details.
 
 To connect to a particular database server, first retrieve credentials from
 Teleport using `tsh db login` command:

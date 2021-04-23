@@ -143,7 +143,7 @@ spec:
 EOF
 ```
 
-Create the user assigned the `db` role we've just created:
+Create a user assigned to the `db` role we've just created:
 
 ```sh
 $ tctl --config=/path/to/teleport.yaml users add --roles=admin,db testuser
@@ -238,8 +238,8 @@ Name    Description   Labels
 example Example MySQL env=dev
 ```
 
-Note that you will only be able to see databases your role has access to. See
-[RBAC](../rbac.mdx) section for more details.
+Note that you will only be able to see databases your role has access to. Read about
+[Role-Based Access Control](../rbac.mdx) for more details.
 
 To connect to a particular database server, first retrieve credentials from
 Teleport using `tsh db login` command:
@@ -267,7 +267,7 @@ in the [option file](https://dev.mysql.com/doc/refman/8.0/en/option-files.html)
 with the name of `client_<cluster-name>-<database-service-name>` which `mysql`
 client can refer to via "group suffix" flag.
 
-Suppose the cluster name is "root", then you can connect to the database using
+Suppose the cluster name is `root`, then you can connect to the database using
 the following `mysql` command:
 
 ```sh

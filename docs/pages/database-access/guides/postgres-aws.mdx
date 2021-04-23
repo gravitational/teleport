@@ -7,14 +7,14 @@ description: How to configure Teleport Database Access with AWS RDS/Aurora Postg
 
 ## Enable IAM Authentication
 
-Teleport Database Access for AWS RDS and Aurora uses IAM authentication which
+Teleport Database Access for Amazon Web Services (AWS) RDS and Aurora uses IAM authentication which
 can be enabled with the following steps.
 
 Open [Amazon RDS console](https://console.aws.amazon.com/rds/) and create a new
 database instance with IAM authentication enabled, or modify an existing one to
 turn it on. Make sure to use PostgreSQL database type.
 
-See [Enabling and disabling IAM database authentication](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.Enabling.html)
+Consult ["Enabling and disabling IAM database authentication"](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.Enabling.html)
 for more information.
 
 ## Create IAM Policy
@@ -140,7 +140,7 @@ spec:
 EOF
 ```
 
-Create the user assigned the `db` role we've just created:
+Create a user assigned to the `db` role we've just created:
 
 ```sh
 $ tctl --config=/path/to/teleport.yaml users add --roles=admin,db testuser
@@ -249,8 +249,8 @@ Name   Description           Labels
 aurora AWS Aurora PostgreSQL env=dev
 ```
 
-Note that you will only be able to see databases your role has access to. See
-[RBAC](../rbac.mdx) section for more details.
+Note that you will only be able to see databases your role has access to. Read about
+[Role-Based Access Control](../rbac.mdx) for more details.
 
 To connect to a particular database server, first retrieve credentials from
 Teleport using `tsh db login` command:
@@ -277,7 +277,7 @@ When logging into a PostgreSQL database, `tsh` automatically configures a sectio
 in the [connection service file](https://www.postgresql.org/docs/current/libpq-pgservice.html)
 with the name of `<cluster-name>-<database-service-name>`.
 
-Suppose the cluster name is "root", then you can connect to the database using
+Suppose the cluster name is `root`, then you can connect to the database using
 the following `psql` command:
 
 ```sh
