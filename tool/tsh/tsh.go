@@ -656,6 +656,10 @@ func onLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	for i, ca := range key.TrustedCA {
+		log.Debugf("After login, got CAs for: %v: %v.\n", i, ca.ClusterName)
+	}
+
 	// the login operation may update the username and should be considered the more
 	// "authoritative" source.
 	cf.Username = tc.Username

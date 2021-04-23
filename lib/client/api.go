@@ -2124,6 +2124,10 @@ func (tc *TeleportClient) UpdateTrustedCA(ctx context.Context, clusterName strin
 	}
 	trustedCerts := auth.AuthoritiesToTrustedCerts(hostCerts)
 
+	for i, ca := range trustedCerts {
+		log.Debugf("UpdateTrustedCA: %v %v.\n", i, ca.ClusterName)
+	}
+
 	// Update the ~/.tsh/known_hosts file to include all the CA the cluster
 	// knows about.
 	err = tc.localAgent.AddHostSignersToCache(trustedCerts)

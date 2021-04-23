@@ -19,6 +19,7 @@ package multiplexer
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"io"
 	"net"
 	"sync/atomic"
@@ -132,7 +133,8 @@ func (l *TLSListener) Serve() error {
 }
 
 func (l *TLSListener) detectAndForward(conn *tls.Conn) {
-	err := conn.SetReadDeadline(l.cfg.Clock.Now().Add(l.cfg.ReadDeadline))
+	start := time.Now()
+	err := conn.SetReadDeadline(time.Time{})
 	if err != nil {
 		l.log.WithError(err).Debugf("Failed to set connection deadline.")
 		conn.Close()
@@ -144,6 +146,10 @@ func (l *TLSListener) detectAndForward(conn *tls.Conn) {
 		}
 		conn.Close()
 		return
+	}
+
+	if elapsed := time.Since(start); elapsed > 1*time.Second {
+		fmt.Printf("--> Slow handshake: %v.\n", time.Since(start))
 	}
 
 	err = conn.SetReadDeadline(time.Time{})
