@@ -342,7 +342,7 @@ func NewServer(kind, name, addr, namespace string) *services.ServerV2 {
 }
 
 func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
-	ctx := context.TODO()
+	ctx := context.Background()
 	// SSH service.
 	out, err := s.PresenceS.GetNodes(ctx, defaults.Namespace)
 	c.Assert(err, check.IsNil)
