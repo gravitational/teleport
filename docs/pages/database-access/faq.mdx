@@ -14,7 +14,7 @@ Teleport Database Access currently supports PostgreSQL and MySQL protocols.
 The following PostgreSQL protocol features aren't currently supported:
 
 - [Canceling requests in progress](https://www.postgresql.org/docs/current/protocol-flow.html#id-1.10.5.7.9).
-  Cancel requests issued by the PostgreSQL clients connected to Teleport proxy
+  Cancel requests issued by PostgreSQL clients connected to the Teleport proxy
   won't be passed to the database server.
 - Any of the [authentication methods](https://www.postgresql.org/docs/current/auth-methods.html)
   except for client certificate authentication and IAM authentication for AWS
@@ -32,9 +32,8 @@ are also instructions for configuring select [graphical clients](./guides/gui-cl
 ## When will you support X database?
 
 We're focusing on PostgreSQL and MySQL initially but planning to support more
-databases in the future based on the customer demand.
+databases in the future based on customer demand.
 
-See if the database you're interested in has already been requested among
-[Github issues](https://github.com/gravitational/teleport/labels/database-access)
-or open a [new issue](https://github.com/gravitational/teleport/issues/new/choose)
-to register your interest.
+Check if the database you're interested in has [already been requested](https://github.com/gravitational/teleport/labels/database-access).
+
+Open a [new issue](https://github.com/gravitational/teleport/issues/new/choose) to register your interest.

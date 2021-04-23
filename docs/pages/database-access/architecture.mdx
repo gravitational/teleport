@@ -48,7 +48,7 @@ connect to a database.
    certificate for it with `tsh db login`.
 3. The user uses a standard database client (e.g. `psql`, `mysql` or one of the
    [graphical clients](./guides/gui-clients.mdx)) to connect to the Proxy, authenticating
-   with the client certificate from step 2.
+   with the client certificate from **Step 2**.
 4. The Proxy authenticates the connection and dispatches it to the appropriate
    Database Service based on the routing information encoded in the client
    certificate, over the reverse tunnel.
