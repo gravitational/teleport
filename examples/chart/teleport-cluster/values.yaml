@@ -51,5 +51,5 @@ replicaCount: 1
 # The default is INFO, which is recommended in production.
 # DEBUG is useful during first-time setup or to see more detailed logs for debugging.
 logLevel: INFO
-# Annotations for to put on the serviceaccount
+# Annotations to put on the serviceaccount
 serviceAccountAnnotations: {}
