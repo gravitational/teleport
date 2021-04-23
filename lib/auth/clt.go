@@ -132,7 +132,7 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 		if len(cfg.Addrs) == 0 {
 			return nil, trace.BadParameter("no addresses to dial")
 		}
-		contextDialer := client.NewDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
+		contextDialer := client.NewDirectDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
 		dialer = ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 			for _, addr := range cfg.Addrs {
 				conn, err = contextDialer.DialContext(ctx, network, addr)
@@ -153,10 +153,10 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 
 	transport := &http.Transport{
 		// notice that below roundtrip.Client is passed
-		// teleport.APIEndpoint as an address for the API server, this is
-		// to make sure client verifies the DNS name of the API server
-		// custom DialContext overrides this DNS name to the real address
-		// in addition this dialer tries multiple adresses if provided
+		// teleport.APIDomain as an address for the API server, this is
+		// to make sure client verifies the DNS name of the API server and
+		// custom DialContext overrides this DNS name to the real address.
+		// In addition this dialer tries multiple addresses if provided
 		DialContext:           dialer.DialContext,
 		ResponseHeaderTimeout: defaults.DefaultDialTimeout,
 		TLSClientConfig:       tls,
@@ -1170,14 +1170,9 @@ func (c *Client) GetMFAAuthenticateChallenge(user string, password []byte) (*MFA
 
 // ExtendWebSession creates a new web session for a user based on another
 // valid web session
-func (c *Client) ExtendWebSession(user string, prevSessionID string, accessRequestID string) (services.WebSession, error) {
+func (c *Client) ExtendWebSession(req WebSessionReq) (services.WebSession, error) {
 	out, err := c.PostJSON(
-		c.Endpoint("users", user, "web", "sessions"),
-		createWebSessionReq{
-			PrevSessionID:   prevSessionID,
-			AccessRequestID: accessRequestID,
-		},
-	)
+		c.Endpoint("users", req.User, "web", "sessions"), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1188,7 +1183,7 @@ func (c *Client) ExtendWebSession(user string, prevSessionID string, accessReque
 func (c *Client) CreateWebSession(user string) (services.WebSession, error) {
 	out, err := c.PostJSON(
 		c.Endpoint("users", user, "web", "sessions"),
-		createWebSessionReq{},
+		WebSessionReq{User: user},
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2442,7 +2437,7 @@ type WebService interface {
 	GetWebSessionInfo(ctx context.Context, user, sessionID string) (types.WebSession, error)
 	// ExtendWebSession creates a new web session for a user based on another
 	// valid web session
-	ExtendWebSession(user, prevSessionID, accessRequestID string) (types.WebSession, error)
+	ExtendWebSession(req WebSessionReq) (types.WebSession, error)
 	// CreateWebSession creates a new web session for a user
 	CreateWebSession(user string) (types.WebSession, error)
 

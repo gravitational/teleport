@@ -181,6 +181,7 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 		"Get automatic certificate from Letsencrypt.org using ACME.").BoolVar(&dumpFlags.ACMEEnabled)
 	dump.Flag("acme-email",
 		"Email to receive updates from Letsencrypt.org.").StringVar(&dumpFlags.ACMEEmail)
+	dump.Flag("test", "Path to a configuration file to test.").ExistingFileVar(&dumpFlags.testConfigFile)
 
 	// parse CLI commands+flags:
 	command, err := app.Parse(options.Args)
@@ -256,10 +257,14 @@ func onStatus() error {
 
 type dumpFlags struct {
 	config.SampleFlags
-	output string
+	output         string
+	testConfigFile string
 }
 
 func (flags *dumpFlags) CheckAndSetDefaults() error {
+	if flags.testConfigFile != "" && flags.output != teleport.SchemeStdout {
+		return trace.BadParameter("only --output or --test can be set, not both")
+	}
 	if flags.output == "" || flags.output == teleport.SchemeFile {
 		flags.output = teleport.SchemeFile + "://" + defaults.ConfigFilePath
 	} else if flags.output == teleport.SchemeStdout {
@@ -273,6 +278,19 @@ func onConfigDump(flags dumpFlags) error {
 	if err := flags.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if flags.testConfigFile != "" {
+		// Test an existing config.
+		_, err := config.ReadFromFile(flags.testConfigFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "FAIL %s\n", flags.testConfigFile)
+			return trace.Wrap(err)
+		}
+		fmt.Fprintf(os.Stderr, "OK %s\n", flags.testConfigFile)
+		return nil
+	}
+
+	// Generate a new config.
 	uri, err := url.Parse(flags.output)
 	if err != nil {
 		return trace.BadParameter("could not parse output value %q, use --output=%q",

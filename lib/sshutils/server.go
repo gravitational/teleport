@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -439,7 +439,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 		return
 	}
 	// Connection successfully initiated
-	s.log.Debugf("Incoming connection %v -> %v vesion: %v.",
+	s.log.Debugf("Incoming connection %v -> %v version: %v.",
 		sconn.RemoteAddr(), sconn.LocalAddr(), string(sconn.ClientVersion()))
 
 	// will be called when the connection is closed

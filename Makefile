@@ -265,7 +265,7 @@ docs-test-whitespace:
 # Runs all Go/shell tests, called by CI/CD.
 #
 .PHONY: test
-test: test-sh test-go
+test: test-sh test-api test-go
 
 #
 # Runs all Go tests except integration, called by CI/CD.
@@ -280,10 +280,24 @@ test-go: $(VERSRC)
 	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) -cover
 
+# Runs API Go tests. These have to be run separately as the package name is different.
+#
+.PHONY: test-api
+test-api:
+test-api: FLAGS ?= '-race'
+test-api: PACKAGES := $(shell cd api && go list ./...)
+test-api: $(VERSRC)
+	GOMODCACHE=/tmp go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+
 # Find and run all shell script unit tests (using https://github.com/bats-core/bats-core)
 .PHONY: test-sh
 test-sh:
-	@find . -iname "*.bats" -exec dirname {} \; | uniq | xargs -t -L1 bats $(BATSFLAGS)
+	@if ! type bats 2>&1 >/dev/null; then \
+		echo "Not running 'test-sh' target as 'bats' is not installed."; \
+		if [ "$${DRONE}" = "true" ]; then echo "This is a failure when running in CI." && exit 1; fi; \
+		exit 0; \
+	fi; \
+	find . -iname "*.bats" -exec dirname {} \; | uniq | xargs -t -L1 bats $(BATSFLAGS)
 
 #
 # Integration tests. Need a TTY to work.
@@ -313,12 +327,19 @@ integration-root:
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-sh lint-helm lint-go
+lint: lint-sh lint-helm lint-api lint-go
 
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
 lint-go:
 	golangci-lint run -c .golangci.yml $(GO_LINT_FLAGS)
+
+# api is no longer part of the teleport package, so golangci-lint skips it by default
+# GOMODCACHE needs to be set here as api downloads dependencies and cannot write to /go/pkg/mod/cache
+.PHONY: lint-api
+lint-api: GO_LINT_API_FLAGS ?=
+lint-api:
+	cd api && GOMODCACHE=/tmp golangci-lint run -c ../.golangci.yml $(GO_LINT_API_FLAGS)
 
 # TODO(awly): remove the `--exclude` flag after cleaning up existing scripts
 .PHONY: lint-sh
@@ -340,14 +361,21 @@ lint-sh:
 
 # Lints all the Helm charts found in directories under examples/chart and exits on failure
 # If there is a .lint directory inside, the chart gets linted once for each .yaml file in that directory
+# We use yamllint's 'relaxed' configuration as it's more compatible with Helm output and will only error on
+# show-stopping issues. Kubernetes' YAML parser is not particularly fussy.
 .PHONY: lint-helm
 lint-helm:
+	@if ! type yamllint 2>&1 >/dev/null; then \
+		echo "Not running 'lint-helm' target as 'yamllint' is not installed."; \
+		if [ "$${DRONE}" = "true" ]; then echo "This is a failure when running in CI." && exit 1; fi; \
+		exit 0; \
+	fi; \
 	for CHART in $$(find examples/chart -mindepth 1 -maxdepth 1 -type d); do \
 		if [ -d $$CHART/.lint ]; then \
 			for VALUES in $$CHART/.lint/*.yaml; do \
 				echo "$$CHART: $$VALUES"; \
 				helm lint --strict $$CHART -f $$VALUES || exit 1; \
-				helm template test $$CHART -f $$VALUES 1>/dev/null || exit 1; \
+				helm template test $$CHART -f $$VALUES | yamllint -d relaxed - || exit 1; \
 			done \
 		else \
 			helm lint --strict $$CHART || exit 1; \
@@ -374,6 +402,7 @@ tag:
 # build/webassets.zip archive contains the web assets (UI) which gets
 # appended to teleport binary
 $(ASSETS_BUILDDIR)/webassets.zip: | $(ASSETS_BUILDDIR)
+$(ASSETS_BUILDDIR)/webassets.zip: ensure-webassets
 ifneq ("$(OS)", "windows")
 	@echo "---> Building OSS web assets."
 	cd webassets/teleport/ ; zip -qr ../../$@ .
