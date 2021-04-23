@@ -113,7 +113,7 @@ spec:
 **Export access-plugin cert**
 
 Teleport Plugin uses the `access-plugin` role and user to perform the approval.
-We export the identify files, using tctl auth sign.
+We export the identify files, using `tctl auth sign`.
 
 ```bash
 $ tctl auth sign --format=tls --user=access-plugin --out=auth --ttl=720h
@@ -149,7 +149,7 @@ Teleport will generate `auth.crt`, `auth.key`, and `auth.cas` - a certificate, a
 $ teleport-mattermost configure > /etc/teleport-mattermost.toml
 ```
 
-Update the config with Teleport address, Mattermost URL and a bot token.
+Update the config with Teleport address, Mattermost URL, and a bot token.
 
 ```toml
 # example Mattermost configuration TOML file
@@ -269,8 +269,7 @@ Bob can also assume granted access request roles using Web UI:
 
 **Cert errors**
 
-You may be getting certificate errors if Teleport's auth server is missing
-address in the server certificate:
+You may be getting certificate errors if Teleport's auth server is missing an address in the server certificate:
 
 ```bash
 authentication handshake failed: x509: cannot validate certificate for 127.0.0.1 because it doesn't contain any IP SANs
@@ -280,7 +279,7 @@ authentication handshake failed: x509: cannot validate certificate for 127.0.0.1
 x509: certificate is valid for,*.teleport.cluster.local, teleport.cluster.local, not example.com
 ```
 
-To fix the problem, update the auth service with public address and restart Teleport:
+To fix the problem, update the auth service with a public address, and restart Teleport:
 
 ```yaml
 auth_service:
