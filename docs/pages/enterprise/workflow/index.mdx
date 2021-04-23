@@ -69,7 +69,7 @@ spec:
     # ...
   deny:
     # ...
-# list of allow-rules, see
+# List of allow-rules, see
 # https://gravitational.com/teleport/docs/enterprise/ssh-rbac/
 rules:
     # Access Request is part of Access Workflows introduced in 4.2
@@ -106,8 +106,7 @@ the permission of the `dba`.
   We recommend only escalating to the next role of least privilege vs jumping directly
   to "Super Admin" role.
 
-  The `deny.request` block can help mitigate the risk of doing this by accident. See
-  Example Below.
+  The `deny.request` block can help mitigate the risk of doing this by accident. See the example below.
 </Admonition>
 
 ```yaml

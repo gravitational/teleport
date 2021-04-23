@@ -47,7 +47,7 @@ succeeds, Teleport will retrieve an SSH certificate and will store it in
 ## Configuring SSO
 
 Teleport works with SSO providers by relying on a concept called
-*"authentication connector"*. An auth connector is a plugin which controls how
+*authentication connector*. An auth connector is a plugin which controls how
 a user logs in and which group he or she belongs to.
 
 The following connectors are supported:
@@ -114,7 +114,7 @@ spec:
 Often it is required to restrict SSO users to their unique UNIX logins when they
 connect to Teleport nodes. To support this:
 
-- Use the SSO provider to create a field called *"unix_login"* (you can use another name).
+- Use the SSO provider to create a field called `unix_login` (you can use another name).
 - Make sure it's exposed as a claim via SAML/OIDC.
 - Update a Teleport SSH role to include `{{external.unix_login}}` variable into the list of allowed logins:
 

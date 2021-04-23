@@ -4,7 +4,7 @@ description: How to configure SSH login approval using PagerDuty and Teleport
 h1: SSH Login Approval using PagerDuty
 ---
 
-## Teleport Pagerduty Plugin Setup
+## Teleport Pagerduty plugin setup
 
 This guide will talk through how to setup Teleport with Pagerduty. Teleport to
 Pagerduty integration  allows you to treat Teleport access and permission
@@ -21,8 +21,8 @@ or deny the requests via Pagerduty special action.
 
 This guide assumes that you have:
 
-- Teleport Enterprise 4.2.8 or newer
-- Admin privileges with access to `tctl`
+- Teleport Enterprise 4.2.8 or newer.
+- Admin privileges with access to `tctl`.
 - Pagerduty account already set, with access to creating a new API token.
 - A node to run the plugin, we recommend running it alongside the Teleport Proxy for convenience.
 
@@ -61,7 +61,7 @@ EOF
 $ tctl create -f rscs.yaml
 ```
 
-#### Export access-plugin Certificate
+#### Export access-plugin certificate
 
 Teleport Plugin use the `access-plugin-pagerduty` role and user to perform the approval. We export the identity files, using [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign).
 
@@ -70,7 +70,7 @@ $ tctl auth sign --format=tls --user=access-plugin-pagerduty --out=auth --ttl=87
 # ...
 ```
 
-The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference the auth.crt, auth.key, and auth.cas files later when [configuring the plugins](#editing-the-config-file).
+The above sequence should result in three PEM encoded files being generated: `auth.crt`, `auth.key`, and `auth.cas` (certificate, private key, and CA certs respectively).  We'll reference the auth.crt, auth.key, and auth.cas files later when [configuring the plugins](#editing-the-config-file).
 
 <Admonition
   type="note"
@@ -81,7 +81,7 @@ The above sequence should result in three PEM encoded files being generated: aut
 
 ### Setting up Pagerduty API key
 
-In your Pagerduty dashboard, go to **Configuration → API Access → Create New API Key**, add a key description, and save the key. We'll use the key in the plugin config file later.
+In your Pagerduty dashboard, go to "Configuration" → "API Access" → "Create New API Key", add a key description, and save the key. We'll use the key in the plugin config file later.
 
 **Create Pager Duty API Key**
 ![Create a service account](../../../img/enterprise/plugins/pagerduty/pagerduty-api-key.png)
@@ -105,7 +105,7 @@ $ which teleport-pagerduty
 /usr/local/bin/teleport-pagerduty
 ```
 
-Run `./install` in from 'teleport-pagerduty' or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
+Run `./install` within `teleport-pagerduty` or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
 
 ### Config file
 
@@ -148,7 +148,7 @@ By default, `teleport-pagerduty` will assume its config is in `/etc/teleport-pag
 
 ### Setup with SystemD
 
-In production, we recommend starting teleport plugin daemon via an init system like systemd . Here's the recommended Teleport Plugin service unit file for systemd:
+In production, we recommend starting teleport plugin daemon via an init system like `systemd`. Here's the recommended Teleport Plugin service unit file for `systemd`:
 
 ```bash
 (!examples/systemd/plugins/teleport-pagerduty.service!)
@@ -156,7 +156,7 @@ In production, we recommend starting teleport plugin daemon via an init system l
 
 Save this as `teleport-pagerduty.service`.
 
-#### Example PagerDuty Request
+#### Example PagerDuty request
 
 <video controls>
   <source
@@ -172,7 +172,7 @@ Save this as `teleport-pagerduty.service`.
   Your browser does not support the video tag.
 </video>
 
-## Audit Log
+## Audit log
 
 The plugin will let anyone with access to the PagerDuty account so it's
 important to review Teleport's audit log.
