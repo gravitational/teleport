@@ -13,21 +13,23 @@ Here are examples of access policies you can define with Teleport:
 - Devops can access production server only when using a registered U2F hardware token.
 - Members of my team can access prod Kubernetes cluster if approved by someone else from the team.
 
-RBAC is almost always used in conjunction with Single Sign-On, Github in OSS and OIDC or SAML in Enterprise
-editions. It also works with users stored in Teleport's internal database.
+Role-Based Access Control (RBAC) is almost always used in conjunction with Single Sign-On (SSO), Github (in the Teleport Open Source Edition) and OIDC or SAML (in the Teleport Enterprise
+editions). 
+
+It also works with users stored in Teleport's internal database.
 
 ### How does it work?
 
-Let's assume a company is using [Okta](https://www.okta.com/) to authenticate users and place
+Consider a company using [Okta](https://www.okta.com/) to authenticate users and place
 them into groups. A typical deployment of Teleport in this scenario
-would look like this:
+would involve:
 
-1. Configure Teleport to use existing user identities stored in Okta.
-2. Okta would have users placed in certain groups, perhaps "developers", "admins", "contractors", etc.
-3. Teleport would have certain *Teleport roles* defined. For example: "developers" and "admins".
-4. Mappings would connect the Okta groups (SAML assertions) to the Teleport roles.
-   Every Teleport user will be assigned a *Teleport role* based on their Okta
-   group membership.
+1. Configuring Teleport to use existing user identities stored in Okta.
+2. Okta would have users placed in certain groups, perhaps `developers`, `admins`, `contractors`, and so on.
+3. Teleport would have certain Teleport *Roles* defined: `developers` and `admins`.
+4. Mappings would connect the Okta groups (SAML assertions) to the defined Teleport roles.
+
+Every Teleport user will be assigned a Teleport role based on their Okta group membership.
 
 ## Getting Started
 
