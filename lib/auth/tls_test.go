@@ -111,10 +111,15 @@ func (s *TLSSuite) TestRemoteBuiltinRole(c *check.C) {
 	// certificate authority is not recognized, because
 	// the trust has not been established yet
 	_, err = remoteProxy.GetNodes(ctx, defaults.Namespace, services.SkipValidation())
-	c.Assert(err, check.ErrorMatches, ".*bad certificate.*")
+	fixtures.ExpectConnectionProblem(c, err)
 
 	// after trust is established, things are good
 	err = s.server.AuthServer.Trust(remoteServer, nil)
+	c.Assert(err, check.IsNil)
+
+	// re initialize client with trust established.
+	remoteProxy, err = remoteServer.NewRemoteClient(
+		TestBuiltin(teleport.RoleProxy), s.server.Addr(), certPool)
 	c.Assert(err, check.IsNil)
 
 	_, err = remoteProxy.GetNodes(ctx, defaults.Namespace, services.SkipValidation())
