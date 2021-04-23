@@ -9,7 +9,7 @@ h1: Introduction
 Teleport is a Certificate Authority and an Access Plane for your infrastructure.
 With Teleport you can:
 
-- Set up single sign-on and have one place to access your SSH servers, Kubernetes, Databases and Web Apps.
+- Set up single sign-on and have one place to access your SSH servers, Kubernetes, Databases, and Web Apps.
 - Use your favorite programming language to define access policies to your infrastructure.
 - Share and record interactive sessions across all environments.
 
@@ -17,7 +17,7 @@ With Teleport you can:
 
 - Teleport replaces legacy keys and shared secrets with short-lived X.509 and SSH certificates
   for services and users.
-- It proxies and inspects SSH, Kubernetes, Web and Database protocols.
+- It proxies and inspects SSH, Kubernetes, Web, and Database protocols.
   For example for SSH, it controls the session from the start
   and captures a session recording and in-kernel system calls using BPF.
 - It removes a need for VPN and can connect multiple regions and organizations
@@ -44,7 +44,7 @@ With Teleport you can:
 
 Here are some of the most popular use-cases for Teleport:
 
-- Use short lived certificates instead of static keys for SSH, Kubernetes, Databases and Web Apps.
+- Use short lived certificates instead of static keys for SSH, Kubernetes, Databases, and Web Apps.
 - Gather structured events and session recording/replay for `ssh` and `kubectl`.
 - Centralized SSH and Kubernetes Certificate Authority.
 - Enforce 2nd factor auth with U2F or TOTP.
@@ -52,7 +52,7 @@ Here are some of the most popular use-cases for Teleport:
 - Collaboratively troubleshoot issues through [session sharing](user-manual.mdx#sharing-sessions).
 - Discover online servers and Docker containers within a cluster with [dynamic node labels](admin-guide.mdx#labeling-nodes-and-applications).
 - Capture sessions and manage certificates for existing [OpenSSH fleet](openssh-teleport.mdx).
-- Secure access to internal web applications and services with [application access](application-access.mdx).
+- Secure access to internal web applications and services with [application access](./application-access/introduction.mdx).
 
 ## Teleport Enterprise
 
@@ -72,18 +72,17 @@ or a commercial edition ("Teleport Enterprise Edition").
 
 Teleport is officially supported on the platforms listed below. It is worth noting
 that the open source community has been successful in building and running Teleport on
-UNIX variants other than Linux \[2].
+UNIX variants other than Linux \[1].
 
 | Operating System | Teleport Client | Teleport Server |
 | - | - | - |
 | Linux v2.6+ | yes | yes |
 | MacOS v10.12+ | yes | yes |
-| Windows \[1] | yes \[1] | no |
+| Windows \[2] | yes \[2] | no |
 
-\[1] *Teleport server does not run on Windows yet, but `tsh` (the Teleport client)
-can be used on Windows to execute `tsh login` to retrieve a user's SSH
-certificate and use it with `ssh`, the OpenSSH client, running on a Windows
-client machine.*
-
-\[2] *Teleport is written in Go and it is theoretically possible to build it on
+\[1] *Teleport is written in Go and it's possible to build it on
 any OS supported by the [Golang toolchain](https://github.com/golang/go/wiki/MinimumRequirements)*.
+
+\[2] *Teleport server does not run on Windows yet, but `tsh` (the Teleport client)
+can be used on Windows to execute `tsh login` to retrieve a user's SSH
+certificate and use it with `ssh`, the OpenSSH client, running on a Windows client machine.*

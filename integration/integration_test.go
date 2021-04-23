@@ -44,7 +44,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -141,7 +141,7 @@ func (s *IntSuite) TearDownSuite(c *check.C) {
 }
 
 func (s *IntSuite) SetUpTest(c *check.C) {
-	os.RemoveAll(apiclient.FullProfilePath(""))
+	os.RemoveAll(profile.FullProfilePath(""))
 }
 
 // setUpTest configures the specific test identified with the given c.
@@ -423,6 +423,7 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 
 		// lets type "echo hi" followed by "enter" and then "exit" + "enter":
 		myTerm.Type("\aecho hi\n\r\aexit\n\r\a")
+		myTerm.closeSend()
 
 		// wait for session to end:
 		select {
@@ -775,7 +776,7 @@ func (s *IntSuite) TestInteractiveRegular(c *check.C) {
 	s.verifySessionJoin(c, t)
 }
 
-// TestInteractive covers SSH into shell and joining the same session from another client
+// TestInteractiveReverseTunnel covers SSH into shell and joining the same session from another client
 // against a reversetunnel node.
 func (s *IntSuite) TestInteractiveReverseTunnel(c *check.C) {
 	s.setUpTest(c)
@@ -794,6 +795,69 @@ func (s *IntSuite) TestInteractiveReverseTunnel(c *check.C) {
 	s.verifySessionJoin(c, t)
 }
 
+// TestCustomReverseTunnel tests that the SSH node falls back to configured
+// proxy address if it cannot connect via the proxy address from the reverse
+// tunnel discovery query.
+// See https://github.com/gravitational/teleport/issues/4141 for context.
+func (s *IntSuite) TestCustomReverseTunnel(c *check.C) {
+	s.setUpTest(c)
+	defer s.tearDownTest(c)
+
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	// InsecureDevMode needed for IoT node handshake
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	failingListener, err := net.Listen("tcp", "localhost:0")
+	c.Assert(err, check.IsNil)
+	failingAddr := failingListener.Addr().String()
+	failingListener.Close()
+
+	// Create a Teleport instance with Auth/Proxy.
+	conf := s.defaultServiceConfig()
+	conf.Auth.Enabled = true
+	conf.Proxy.Enabled = true
+	conf.Proxy.DisableWebService = false
+	conf.Proxy.DisableWebInterface = true
+	conf.Proxy.DisableDatabaseProxy = true
+	conf.Proxy.TunnelPublicAddrs = []utils.NetAddr{
+		{
+			// Connect on the address that refuses connection on purpose
+			// to test address fallback behavior
+			Addr:        failingAddr,
+			AddrNetwork: "tcp",
+		},
+	}
+	conf.SSH.Enabled = false
+
+	instanceConfig := s.defaultInstanceConfig()
+	instanceConfig.MultiplexProxy = true
+	main := NewInstance(instanceConfig)
+
+	c.Assert(main.CreateEx(nil, conf), check.IsNil)
+	c.Assert(main.Start(), check.IsNil)
+	defer main.StopAll()
+
+	// Create a Teleport instance with a Node.
+	nodeConf := s.defaultServiceConfig()
+	nodeConf.Hostname = Host
+	nodeConf.Token = "token"
+	nodeConf.Auth.Enabled = false
+	nodeConf.Proxy.Enabled = false
+	nodeConf.SSH.Enabled = true
+	nodeConf.SSH.ProxyReverseTunnelFallbackAddr = &utils.NetAddr{
+		// Configure the original proxy address as a fallback so the node is able to connect
+		Addr:        main.Secrets.WebProxyAddr,
+		AddrNetwork: "tcp",
+	}
+
+	// verify the node is able to join the cluster
+	_, err = main.StartReverseTunnelNode(nodeConf)
+	c.Assert(err, check.IsNil)
+}
+
 // verifySessionJoin covers SSH into shell and joining the same session from another client
 func (s *IntSuite) verifySessionJoin(c *check.C, t *TeleInstance) {
 	sessionEndC := make(chan interface{})
@@ -804,6 +868,7 @@ func (s *IntSuite) verifySessionJoin(c *check.C, t *TeleInstance) {
 
 	personA := NewTerminal(250)
 	personB := NewTerminal(250)
+	personB.closeSend()
 
 	// PersonA: SSH into the server, wait one second, then type some commands on stdin:
 	openSession := func() {
@@ -841,6 +906,7 @@ func (s *IntSuite) verifySessionJoin(c *check.C, t *TeleInstance) {
 			}
 		}
 		c.Assert(err, check.IsNil)
+		personA.closeSend()
 	}
 
 	go openSession()
@@ -873,21 +939,12 @@ func (s *IntSuite) TestShutdown(c *check.C) {
 
 	person := NewTerminal(250)
 
-	// commandsC receive commands
-	commandsC := make(chan string)
-
 	// PersonA: SSH into the server, wait one second, then type some commands on stdin:
 	openSession := func() {
 		cl, err := t.NewClient(ClientConfig{Login: s.me.Username, Cluster: Site, Host: Host, Port: t.GetPortSSHInt()})
 		c.Assert(err, check.IsNil)
 		cl.Stdout = person
 		cl.Stdin = person
-
-		go func() {
-			for command := range commandsC {
-				person.Type(command)
-			}
-		}()
 
 		err = cl.SSH(context.TODO(), []string{}, false)
 		c.Assert(err, check.IsNil)
@@ -928,6 +985,7 @@ func (s *IntSuite) TestShutdown(c *check.C) {
 
 	// now type exit and wait for shutdown to complete
 	person.Type("exit\n\r")
+	person.closeSend()
 
 	select {
 	case <-shutdownContext.Done():
@@ -957,6 +1015,7 @@ func (s *IntSuite) TestDisconnectScenarios(c *check.C) {
 
 	testCases := []disconnectTestCase{
 		{
+			comment:       "recording at node",
 			recordingMode: services.RecordAtNode,
 			options: services.RoleOptions{
 				ClientIdleTimeout: services.NewDuration(500 * time.Millisecond),
@@ -964,6 +1023,7 @@ func (s *IntSuite) TestDisconnectScenarios(c *check.C) {
 			disconnectTimeout: time.Second,
 		},
 		{
+			comment:       "recording at proxy",
 			recordingMode: services.RecordAtProxy,
 			options: services.RoleOptions{
 				ForwardAgent:      services.NewBool(true),
@@ -972,6 +1032,7 @@ func (s *IntSuite) TestDisconnectScenarios(c *check.C) {
 			disconnectTimeout: time.Second,
 		},
 		{
+			comment:       "recording at node: expired certificate is disconnected",
 			recordingMode: services.RecordAtNode,
 			options: services.RoleOptions{
 				DisconnectExpiredCert: services.NewBool(true),
@@ -980,6 +1041,7 @@ func (s *IntSuite) TestDisconnectScenarios(c *check.C) {
 			disconnectTimeout: 4 * time.Second,
 		},
 		{
+			comment:       "recording at proxy: expired certificate is disconnected and forwarding agent",
 			recordingMode: services.RecordAtProxy,
 			options: services.RoleOptions{
 				ForwardAgent:          services.NewBool(true),
@@ -1152,7 +1214,7 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 	select {
 	case <-time.After(tc.disconnectTimeout + time.Second):
 		dumpGoroutineProfile()
-		c.Fatalf("%s: timeout waiting for session to exit: %+v", timeNow(), tc)
+		c.Fatalf("%s (%s): timeout waiting for session to exit: %+v", timeNow(), tc.comment, tc)
 	case <-ctx.Done():
 		// session closed.  a test case is successful if the first
 		// session to close encountered the expected error variant.
@@ -1165,6 +1227,7 @@ func timeNow() string {
 
 func enterInput(ctx context.Context, c *check.C, person *Terminal, command, pattern string) {
 	person.Type(command)
+	defer person.closeSend()
 	abortTime := time.Now().Add(10 * time.Second)
 	var matched bool
 	var output string
@@ -1182,7 +1245,7 @@ func enterInput(ctx context.Context, c *check.C, person *Terminal, command, patt
 			return
 		}
 		if time.Now().After(abortTime) {
-			c.Fatalf("failed to capture pattern %q in %q", pattern, output)
+			c.Fatalf("Failed to capture pattern %q in %q", pattern, output)
 		}
 	}
 }
@@ -3176,6 +3239,7 @@ func (s *IntSuite) TestAuditOff(c *check.C) {
 
 	// lets type "echo hi" followed by "enter" and then "exit" + "enter":
 	myTerm.Type("\aecho hi\n\r\aexit\n\r\a")
+	myTerm.closeSend()
 
 	// wait for session to end
 	select {
@@ -3185,9 +3249,7 @@ func (s *IntSuite) TestAuditOff(c *check.C) {
 	}
 
 	// audit log should have the fact that the session occurred recorded in it
-	sessions, err = site.GetSessions(defaults.Namespace)
-	c.Assert(err, check.IsNil)
-	c.Assert(len(sessions), check.Equals, 1)
+	// but the session could have been garbage collected at this point.
 
 	// however, attempts to read the actual sessions should fail because it was
 	// not actually recorded
@@ -3327,6 +3389,7 @@ func (s *IntSuite) TestPAM(c *check.C) {
 			cl.Stdin = termSession
 
 			termSession.Type("\aecho hi\n\r\aexit\n\r\a")
+			termSession.closeSend()
 			err = cl.SSH(context.TODO(), []string{}, false)
 			c.Assert(err, check.IsNil)
 
@@ -4125,6 +4188,7 @@ func (s *IntSuite) TestWindowChange(c *check.C) {
 
 	personA := NewTerminal(250)
 	personB := NewTerminal(250)
+	defer personB.closeSend()
 
 	// openSession will open a new session on a server.
 	openSession := func() {
@@ -4230,6 +4294,7 @@ func (s *IntSuite) TestWindowChange(c *check.C) {
 
 	// Close the session.
 	personA.Type("\aexit\r\n\a")
+	personA.closeSend()
 }
 
 // TestList checks that the list of servers returned is identity aware.
@@ -4609,6 +4674,7 @@ func (s *IntSuite) TestBPFInteractive(c *check.C) {
 
 			// "Type" a command into the terminal.
 			term.Type(fmt.Sprintf("\a%v\n\r\aexit\n\r\a", lsPath))
+			term.closeSend()
 			err = client.SSH(context.TODO(), []string{}, false)
 			c.Assert(err, check.IsNil)
 
@@ -4827,6 +4893,8 @@ func (s *IntSuite) TestBPFSessionDifferentiation(c *check.C) {
 	}
 	writeTerm(termA)
 	writeTerm(termB)
+	termA.closeSend()
+	termB.closeSend()
 
 	// Wait 10 seconds for both events to arrive, otherwise timeout.
 	timeout := time.After(10 * time.Second)
@@ -5019,6 +5087,8 @@ func runCommand(instance *TeleInstance, cmd []string, cfg ClientConfig, attempts
 		close(doneC)
 	}()
 	tc.Stdout = write
+	var buf bytes.Buffer
+	tc.Stdin = &buf
 	for i := 0; i < attempts; i++ {
 		err = tc.SSH(context.TODO(), cmd, false)
 		if err == nil {
@@ -5048,7 +5118,11 @@ func (s *IntSuite) getPorts(num int) []int {
 }
 
 func (s *IntSuite) newTeleportInstance(c *check.C) *TeleInstance {
-	return NewInstance(InstanceConfig{
+	return NewInstance(s.defaultInstanceConfig())
+}
+
+func (s *IntSuite) defaultInstanceConfig() InstanceConfig {
+	return InstanceConfig{
 		ClusterName: Site,
 		HostID:      HostID,
 		NodeName:    Host,
@@ -5056,7 +5130,7 @@ func (s *IntSuite) newTeleportInstance(c *check.C) *TeleInstance {
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
-	})
+	}
 }
 
 func (s *IntSuite) newNamedTeleportInstance(c *check.C, clusterName string) *TeleInstance {
@@ -5117,9 +5191,14 @@ func (t *Terminal) Write(data []byte) (n int, err error) {
 	return t.written.Write(data)
 }
 
+// closeSend closes the input channel thus signalling the reads to exit
+func (t *Terminal) closeSend() {
+	close(t.typed)
+}
+
 func (t *Terminal) Read(p []byte) (n int, err error) {
-	for n = 0; n < len(p); n++ {
-		p[n] = <-t.typed
+	for ch := range t.typed {
+		p[n] = ch
 		if p[n] == '\r' {
 			break
 		}
@@ -5128,6 +5207,10 @@ func (t *Terminal) Read(p []byte) (n int, err error) {
 			n--
 		}
 		time.Sleep(time.Millisecond * 10)
+		n++
+		if n == len(p) {
+			return n, nil
+		}
 	}
 	return n, nil
 }
