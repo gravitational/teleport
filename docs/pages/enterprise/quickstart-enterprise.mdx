@@ -45,7 +45,7 @@ the following DNS names and IPs:
 | *"node.example.com"* | 10.1.1.11 | This server will only run the SSH service. |
 
 This Quick Start Guide assumes that both servers are running a [systemd-based](https://www.freedesktop.org/wiki/Software/systemd/)
-Linux distribution such as Debian, Ubuntu or a RHEL derivative.  The *node.example.com* must be able to connect to the *auth.example.com* `3025` port and the *auth.example.com* must be able to connect to the 3022 port on *node.example.com*.
+Linux distribution such as Debian, Ubuntu or a RHEL derivative. `node.example.com` must be able to connect to `auth.example.com` `3025` port and `auth.example.com` must be able to connect to the `3022` port on `node.example.com`.
 
 ## Optional: Quickstart using Docker
 
@@ -87,7 +87,7 @@ $ sudo systemctl enable teleport
 
 ### Configuration File
 
-Save the following configuration file as `/etc/teleport.yaml` on the *auth.example.com*:
+Save the following configuration file as `/etc/teleport.yaml` on the `auth.example.com`:
 
 ```yaml
 teleport:
@@ -118,7 +118,7 @@ ssh_service:
   enabled: "yes"
 ```
 
-## Start Teleport on *auth.example.com*
+## Start Teleport on auth.example.com
 
 Start the Teleport service and confirm the service has started. After it has started you can get the Certificate Authority (CA) pin that has been generated.
 
@@ -136,11 +136,11 @@ Jwt CA   never updated
 CA pin   sha256:58b1c5cb8885d84ce08f3e3a47acb33d49841f12dd7648c0c1dd31bd501628
 ```
 
-Save the following configuration file as `/etc/teleport.yaml` on the *node.example.com*:
+Save the following configuration file as `/etc/teleport.yaml` on the `node.example.com`:
 
-!!! note "Note"
-
-Make sure to replace the ca_pin with the above `tctl status` output and the right auth server address.
+<Admonition title="Note" type="note">
+ Make sure to replace the ca_pin with the above `tctl status` output and the right auth server address.
+</Admonition>
 
 ```yaml
 teleport:
@@ -175,7 +175,7 @@ You can review the logs of the Teleport service with `journalctl -fu teleport` a
 with `sudo systemctl status teleport`.
 
 You can use `netstat -lptne` to review the port that Teleport is
-listening on  on [TCP/IP ports](../admin-guide.mdx#ports). On *auth.example.com*, it should
+listening on  on [TCP/IP ports](../admin-guide.mdx#ports). On `auth.example.com`, it should
 look something like this:
 
 ```bsh
@@ -189,7 +189,7 @@ tcp6       0      0 :::3022         LISTEN      0          337/teleport
 tcp6       0      0 :::3023         LISTEN      0          337/teleport
 ```
 
-and *node.example.com* should look something like this:
+and `node.example.com` should look something like this:
 
 ```bsh
 $ node.example.com ~: sudo netstat -lptne
@@ -203,7 +203,7 @@ See [troubleshooting](#troubleshooting) section at the bottom if something is no
 ## Adding Users
 
 This portion of the Quick Start Guide should be performed on the auth server, i.e.
-on *auth.example.com*
+on `auth.example.com`.
 
 Every user in a Teleport cluster must be assigned at least one role. By
 default, Teleport comes with one pre-configured role called "admin". You can
