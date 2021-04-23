@@ -72,6 +72,8 @@ clusterRoleName: teleport-kube-agent
 clusterRoleBindingName: teleport-kube-agent
 # Name of the service account used by the agent.
 serviceAccountName: teleport-kube-agent
+# Annotations to put on the serviceaccount
+serviceAccountAnnotations: {}
 # Name of the Secret to store the teleport join token.
 secretName: teleport-kube-agent-join-token
 # Log level for the Teleport process.
