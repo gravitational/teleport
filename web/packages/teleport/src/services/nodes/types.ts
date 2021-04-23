@@ -14,16 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-export interface Tag {
-  name: string;
-  value: string;
-}
-
 export interface Node {
   id: string;
   clusterId: string;
   hostname: string;
-  tags: Tag[];
+  tags: string[];
   addr: string;
   tunnel: boolean;
 }

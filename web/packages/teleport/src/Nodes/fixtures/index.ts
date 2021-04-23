@@ -14,17 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-export const nodes = [
+import { Node } from 'teleport/services/nodes';
+
+export const nodes: Node[] = [
   {
     tunnel: false,
     id: '104',
     clusterId: 'one',
     hostname: 'fujedu',
     addr: '172.10.1.20:3022',
-    tags: [
-      { name: 'cluster', value: 'one' },
-      { name: 'kernel', value: '4.15.0-51-generic' },
-    ],
+    tags: ['cluster: one', 'kernel: 4.15.0-51-generic'],
   },
   {
     tunnel: false,
@@ -32,10 +31,7 @@ export const nodes = [
     clusterId: 'one',
     hostname: 'facuzguv',
     addr: '172.10.1.1:3022',
-    tags: [
-      { name: 'cluster', value: 'one' },
-      { name: 'kernel', value: '4.15.0-51-generic' },
-    ],
+    tags: ['cluster: one', 'kernel: 4.15.0-51-generic'],
   },
   {
     tunnel: false,
@@ -43,10 +39,7 @@ export const nodes = [
     clusterId: 'one',
     hostname: 'duzsevkig',
     addr: '172.10.1.1:3022',
-    tags: [
-      { name: 'cluster', value: 'one' },
-      { name: 'kernel', value: '4.15.0-51-generic' },
-    ],
+    tags: ['cluster: one', 'kernel: 4.15.0-51-generic'],
   },
   {
     tunnel: false,
@@ -54,10 +47,7 @@ export const nodes = [
     clusterId: 'one',
     hostname: 'kuhinur',
     addr: '172.10.1.1:3022',
-    tags: [
-      { name: 'cluster', value: 'one' },
-      { name: 'kernel', value: '4.15.0-51-generic' },
-    ],
+    tags: ['cluster: one', 'kernel: 4.15.0-51-generic'],
   },
   {
     tunnel: false,
@@ -65,10 +55,7 @@ export const nodes = [
     clusterId: 'one',
     hostname: 'zebpecda',
     addr: '172.10.1.1:3022',
-    tags: [
-      { name: 'cluster', value: 'one' },
-      { name: 'kernel', value: '4.15.0-51-generic' },
-    ],
+    tags: ['cluster: one', 'kernel: 4.15.0-51-generic'],
   },
   {
     tunnel: true,
@@ -76,10 +63,7 @@ export const nodes = [
     clusterId: 'one',
     hostname: 'zebpecda',
     addr: '172.10.1.1:3022',
-    tags: [
-      { name: 'cluster', value: 'one' },
-      { name: 'kernel', value: '4.15.0-51-generic' },
-    ],
+    tags: ['cluster: one', 'kernel: 4.15.0-51-generic'],
   },
   {
     tunnel: true,
@@ -87,10 +71,7 @@ export const nodes = [
     clusterId: 'one',
     hostname: 'zebpecda',
     addr: '172.10.1.1:3022',
-    tags: [
-      { name: 'cluster', value: 'one' },
-      { name: 'kernel', value: '4.15.0-51-generic' },
-    ],
+    tags: ['cluster: one', 'kernel: 4.15.0-51-generic'],
   },
 ];
 
