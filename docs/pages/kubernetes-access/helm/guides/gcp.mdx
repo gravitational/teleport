@@ -29,18 +29,6 @@ To allow Helm to install charts which are hosted in the Teleport Helm repository
 helm repo add teleport https://charts.releases.teleport.dev
 ```
 
-Once installed, you can search repositories for charts using the `helm search repo` command:
-
-```bash
-helm search repo teleport
-```
-
-To update the cache of charts from the remote repository, run `helm repo update`:
-
-```bash
-helm repo update
-```
-
 ### Google Cloud IAM configuration
 
 For Teleport to be able to create the Firestore collections, indexes and the Google Cloud storage bucket it needs,
@@ -74,6 +62,40 @@ Go to the "Roles" section of Google Cloud IAM & Admin.
 
 ![Create role](../../../../img/helm/gcp/6-createrole@1.5x.png)
 
+#### Create an IAM role granting Cloud DNS permissions
+
+Go to the "Roles" section of Google Cloud IAM & Admin.
+
+1. Click the "Create Role" button at the top.
+
+![Roles section](../../../../img/helm/gcp/1-roles@1.5x.png)
+
+2. Fill in the details of a "DNS Updater" role (we suggest using the name `dns-updater-role`)
+
+![Create role](../../../../img/helm/gcp/13-dns-createrole@1.5x.png)
+
+3. Click the "Add Permissions" button.
+
+![DNS updater role](../../../../img/helm/gcp/3-addpermissions@1.5x.png)
+
+4. Use the "Filter" box to find each of the following permissions in the list and add it
+(you can type things like `dns.resourceRecordSets.*` to quickly filter the list):
+
+```console
+dns.resourceRecordSets.create
+dns.resourceRecordSets.delete
+dns.resourceRecordSets.list
+dns.resourceRecordSets.update
+dns.changes.create
+dns.changes.get
+dns.changes.list
+dns.managedZones.list
+```
+
+5. Once all these settings are entered successfully, click the "Create" button.
+
+![Add DNS permissions](../../../../img/helm/gcp/14-dns-permissions-create@1.5x.png)
+
 #### Create a service account for the Teleport Helm chart
 
 <Admonition type="note">
@@ -97,6 +119,7 @@ Go to the "Service Accounts" section of Google Cloud IAM & Admin.
 | Role | Purpose |
 | - | - |
 | storage-bucket-creator-role | Role you just created allowing creation of storage buckets |
+| dns-updater-role | Role you just created allowing updates to Cloud DNS records |
 | Cloud Datastore Owner | Grants permissions to create Cloud Datastore collections |
 | Storage Object Creator | Allows writing of Google Cloud storage objects |
 | Storage Object Viewer | Allows reading of Google Cloud storage objects |
@@ -145,7 +168,75 @@ kubectl --namespace teleport create secret generic teleport-gcp-credentials --fr
  The credentials file stored in any secret used must have the key name `gcp-credentials.json`.
 </Admonition>
 
-### Choose how to configure the cluster
+### Install and configure `cert-manager`
+
+Reference: [`cert-manager` docs](https://cert-manager.io/docs/)
+
+In this example, we are using multiple pods to create a highly-available Teleport cluster. As such, we will be using
+`cert-manager` to centrally provision TLS certificates using Let's Encrypt. These certificates will be mounted into each
+Teleport pod, and automatically renewed and kept up to date by `cert-manager`.
+
+If you do not have `cert-manager` already configured in the Kubernetes cluster where you are installing Teleport,
+you should add the Jetstack Helm chart repository which hosts the `cert-manager` chart, and install the chart:
+
+```bash
+helm repo add jetstack https://charts.jetstack.io
+helm repo update
+helm install cert-manager jetstack/cert-manager \
+--create-namespace \
+--namespace cert-manager \
+--set installCRDs=true
+```
+
+Once `cert-manager` is installed, you should create and add an `Issuer`.
+
+You'll need to replace these values in the `Issuer` example below:
+
+| Placeholder value | Replace with |
+| - | - |
+| `email@address.com` | An email address to receive communications from Let's Encrypt |
+| `example.com` | The name of the Cloud DNS domain hosting your Teleport cluster |
+| `gcp-project-id` | GCP project ID where the Cloud DNS domain is registered |
+
+```yaml
+cat << EOF > gcp-issuer.yaml
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: letsencrypt-production
+  namespace: teleport
+spec:
+  acme:
+    email: email@address.com                                # Change this
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-production
+    solvers:
+    - selector:
+        dnsZones:
+          - "example.com"                                  # Change this
+      dns01:
+        cloudDNS:
+          project: gcp-project-id                          # Change this
+          serviceAccountSecretRef:
+            name: teleport-gcp-credentials
+            key: gcp-credentials.json
+EOF
+```
+
+<Admonition type="note">
+  The secret name under `serviceAccountSecretRef` here defaults to `teleport-gcp-credentials`.
+
+  If you have changed `gcp.credentialSecretName` in your chart values, you must also make sure it matches here.
+</Admonition>
+
+After you have created the `Issuer` and updated the values, add it to your cluster using `kubectl`:
+
+```bash
+kubectl -n teleport create -f gcp-issuer.yaml
+```
+
+### Set values to configure the cluster
 
 There are two different ways to configure the `teleport-cluster` Helm chart to use `gcp` mode - using a `values.yaml` file or using `--set`
 on the command line.
@@ -168,6 +259,9 @@ The `--set` CLI method is more appropriate for quick test deployments.
     sessionRecordingBucket: teleport-helm-sessions  # Google Cloud Storage bucket to use for Teleport session recordings
   highAvailability:
     replicaCount: 2                                 # Number of replicas to configure
+    certManager:
+      enabled: true                                 # Enable cert-manager support to get TLS certificates
+      issuerName: letsencrypt-production            # Name of the cert-manager Issuer to use (as configured above)
   ```
 
   Install the chart with the values from your `gcp-values.yaml` file using this command:
@@ -188,12 +282,14 @@ The `--set` CLI method is more appropriate for quick test deployments.
     --create-namespace \
     --namespace teleport \
     --set chartMode=gcp \
-    --set clusterName=teleport.example.com                   `# Name of your cluster. Use the FQDN you intend to configure in DNS below` \
-    --set gcp.projectId=gcpproj-123456                       `# GCP project ID` \
-    --set gcp.backendTable=teleport-helm-backend             `# Firestore collection to use for the Teleport backend` \
-    --set gcp.auditLogTable=teleport-helm-events             `# Firestore collection to use for the Teleport audit log (must be different to the backend collection)` \
-    --set gcp.sessionRecordingBucket=teleport-helm-sessions  `# Google Cloud storage bucket to use for Teleport session recordings` \
-    --set highAvailability.replicaCount=2                    `# Number of replicas to configure`
+    --set clusterName=teleport.example.com                                `# Name of your cluster. Use the FQDN you intend to configure in DNS below` \
+    --set gcp.projectId=gcpproj-123456                                    `# GCP project ID` \
+    --set gcp.backendTable=teleport-helm-backend                          `# Firestore collection to use for the Teleport backend` \
+    --set gcp.auditLogTable=teleport-helm-events                          `# Firestore collection to use for the Teleport audit log (must be different to the backend collection)` \
+    --set gcp.sessionRecordingBucket=teleport-helm-sessions               `# Google Cloud storage bucket to use for Teleport session recordings` \
+    --set highAvailability.replicaCount=2                                 `# Number of replicas to configure` \
+    --set highAvailability.certManager.enabled=true                       `# Enable cert-manager support to get TLS certificates` \
+    --set highAvailability.certManager.issuerName=letsencrypt-production  `# Name of the cert-manager Issuer to use`
   ```
   </TabItem>
 </Tabs>
@@ -212,13 +308,12 @@ pod/teleport-b64dd8849-fklvk   1/1     Running   0          7m4s
 pod/teleport-b64dd8849-jqvns   1/1     Running   0          7m15s
 
 NAME               TYPE           CLUSTER-IP     EXTERNAL-IP    PORT(S)                                                      AGE
-service/teleport   LoadBalancer   10.40.14.191   35.203.56.38   443:31758/TCP,3023:30409/TCP,3026:30939/TCP,3024:31403/TCP   26m
+service/teleport   LoadBalancer   10.40.14.191   35.203.56.38   443:31758/TCP,3023:30409/TCP,3026:30939/TCP,3024:31403/TCP   7m16s
 
 NAME                       READY   UP-TO-DATE   AVAILABLE   AGE
-deployment.apps/teleport   2/2     2            2           26m
+deployment.apps/teleport   2/2     2            2           7m16s
 
 NAME                                  DESIRED   CURRENT   READY   AGE
-replicaset.apps/teleport-55bd4f7d44   0         0         0       26m
 replicaset.apps/teleport-b64dd8849    2         2         2       7m16s
 ```
 
@@ -257,11 +352,6 @@ https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
 
 NOTE: Make sure teleport.example.com:443 points at a Teleport proxy which users can access.
 ```
-
-<Admonition type="note">
-  As you have not configured TLS certificates for your cluster, you will need to accept insecure warnings in your browser to view
-  the user creation page successfully. You can use services like `cert-manager` to provision certificates for your cluster.
-</Admonition>
 
 Load the user creation link to create a password and set up 2-factor authentication for the Teleport user via the web UI.
 
@@ -321,4 +411,12 @@ To uninstall the `teleport-cluster` chart, use `helm uninstall <release-name>`. 
 
 ```bash
 helm --namespace teleport uninstall teleport
+```
+
+#### Uninstalling `cert-manager`
+
+If you want to remove the `cert-manager` installation later, you can use this command:
+
+```bash
+helm --namespace cert-manager uninstall cert-manager
 ```
