@@ -22,8 +22,8 @@ document will be referring to:
 | Node | Synonym to "server" or "computer", something one can "SSH to". A node must be running the [`teleport`](cli-docs.mdx#teleport) daemon with "node" role/service turned on. |
 | Certificate Authority (CA) | A pair of public/private keys Teleport uses to manage access. A CA can sign a public key of a user or node, establishing their cluster membership. |
 | Teleport Cluster | A Teleport Auth Service contains two CAs. One is used to sign user keys and the other signs node keys. A collection of nodes connected to the same CA is called a "cluster". |
-| Cluster Name | Every Teleport cluster must have a name. If a name is not supplied via `teleport.yaml` configuration file, a GUID will be generated.**IMPORTANT:** renaming a cluster invalidates its keys and all certificates it had created. |
-| Trusted Cluster | Teleport Auth Service can allow 3rd party users or nodes to connect if their public keys are signed by a trusted CA. A "trusted cluster" is a pair of public keys of the trusted CA. It can be configured via `teleport.yaml` file. |
+| Cluster Name | Every Teleport cluster must have a name. If a name is not supplied via `teleport.yaml` configuration file, a GUID will be generated. **IMPORTANT:** renaming a cluster invalidates its keys and all certificates it had created. |
+| Trusted Cluster | Teleport Auth Service can allow 3rd party users or nodes to connect if their public keys are signed by a trusted CA. A *trusted cluster* is a pair of public keys of the trusted CA. It can be configured via `teleport.yaml` file. |
 
 ## Teleport Daemon
 
@@ -74,8 +74,8 @@ WantedBy=multi-user.target
 
 ### Graceful Restarts
 
-If using the systemd service unit file above, executing `systemctl reload
-teleport` will perform a graceful restart, i.e.the Teleport daemon will fork a
+If using the `systemd` service unit file above, executing `systemctl reload
+teleport` will perform a graceful restart, i.e. the Teleport daemon will fork a
 new process to handle new incoming requests, leaving the old daemon process
 running until existing clients disconnect.
 
