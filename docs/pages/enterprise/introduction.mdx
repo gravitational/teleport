@@ -5,15 +5,15 @@ h1: Teleport Enterprise
 ---
 
 This section will give an overview of Teleport Enterprise, the commercial product built around
-the open source Teleport Community core. For those that want to jump right in, you can play
+the open source Teleport Community Edition core. For those that want to jump right in, start
 with the [Quick Start Guide for Teleport Enterprise](quickstart-enterprise.mdx).
 
-The table below gives a quick overview of the benefits of Teleport Enterprise.
+The table below summarizes the benefits of the Teleport Enterprise Edition.
 
 | Teleport Enterprise Feature | Description |
 | - | - |
-| [Role-Based Access Control (RBAC)](#rbac) | Allows Teleport administrators to define User Roles and restrict each role to specific actions. RBAC also allows administrators to partition cluster nodes into groups with different access permissions. |
-| [Single Sign-On (SSO)](#sso) | Allows Teleport to integrate with existing enterprise identity systems. Examples include Active Directory, Github, Google Apps and numerous identity middleware solutions like Auth0, Okta, and so on. Teleport supports SAML and OAuth/OpenID Connect protocols to interact with them. |
+| [Role-Based Access Control (RBAC)](#role-based-access-control) | Allows Teleport administrators to define User Roles and restrict each role to specific actions. RBAC also allows administrators to partition cluster nodes into groups with different access permissions. |
+| [Single Sign-On (SSO)](#single-sign-on) | Allows Teleport to integrate with existing enterprise identity systems. Examples include Active Directory, Github, Google Apps and numerous identity middleware solutions like Auth0, Okta, and so on. Teleport supports SAML and OAuth/OpenID Connect protocols to interact with them. |
 | [Approval Plugins](workflow/index.mdx) | Plugins to approve or deny escalated RBAC requests. |
 | [FedRAMP/FIPS](#fedrampfips) | With Teleport 4.0, we have built out the foundation to help Teleport Enterprise customers build and meet the requirements in a FedRAMP System Security Plan (SSP). This includes a FIPS 140-2 friendly build of Teleport Enterprise as well as a variety of improvements to aid in complying with security controls even in FedRAMP High environments. |
 | Commercial Support | In addition to these features, Teleport Enterprise also comes with a premium support SLA with guaranteed response times. |
@@ -36,7 +36,7 @@ A typical scenario where RBAC is used might limit roles in the following way:
 2. *developers* must never touch production servers
 3. *interns* can only SSH into staging servers as guests
 
-Each role is defined by specific permissions and limits on access.
+Each role is defined by specific permissions and limits on access. 
 
 ### How does it work?
 
