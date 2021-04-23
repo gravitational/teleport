@@ -333,6 +333,8 @@ You can set `volumeSize` to request a different size of persistent volume when i
 
 `gcp` settings are described in the GCP guide: [Running an HA Teleport cluster using a Google Cloud GKE cluster](./guides/gcp.mdx)
 
+### `highAvailability`
+
 ## `highAvailability.replicaCount`
 
 | Type | Default value | Can be used in `ownconfig` mode? |
@@ -429,7 +431,7 @@ cluster deployed in HA mode.
   You must install and configure `cert-manager` in your Kubernetes cluster yourself.
 
   See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/kubernetes/#option-2-install-crds-as-part-of-the-helm-release)
-  and the relevant sections of the [AWS](./guides/aws.mdx#install-cert-manager) and [GCP](./guides/gcp.mdx#install-cert-manager) guides for more information.
+  and the relevant sections of the [AWS](./guides/aws.mdx#install-and-configure-cert-manager) and [GCP](./guides/gcp.mdx#install-and-configure-cert-manager) guides for more information.
 </Admonition>
 
 ### `highAvailability.certManager.issuerName`
