@@ -150,7 +150,7 @@ cluster from scratch, so choose carefully.
 
 Setting `export TF_VAR_ami_name="gravitational-teleport-ami-ent-(=teleport.version=)"`
 
-Gravitational automatically builds and publishes OSS, Enterprise and Enterprise FIPS 140-2 AMIs when we
+Gravitational automatically builds and publishes Community, Enterprise, and Enterprise FIPS 140-2 AMIs when we
 release a new version of Teleport. The AMI names follow the format: `gravitational-teleport-ami-<type>-<version>`
 where `<type>` is either `oss` or `ent` (Enterprise) and `version` is the version of Teleport e.g. `(=teleport.version=)`.
 
@@ -163,7 +163,7 @@ the example `awscli` commands below. The output is in JSON format by default.
   type="tip"
   title="List Gravitational AMIs"
 >
-  OSS AMIs<br/>
+  Community Edition AMIs<br/>
   `aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-oss*'`
 
   Enterprise AMIs<br/>
@@ -191,7 +191,7 @@ The full local path to your Teleport license file, which customers can download 
 This license will be uploaded to AWS SSM and automatically downloaded to Teleport auth nodes in order to enable
 Teleport Enterprise/Pro functionality.
 
-(OSS users can provide any valid local file path here - it isn't used by the auth server in a Teleport OSS install)
+(Community Edition users can provide any valid local file path here - it isn't used by the auth server in a Teleport Community Edition install)
 
 ### route53\_zone
 
@@ -486,7 +486,7 @@ You can use the Teleport command line tool (`tsh`) to log into your Teleport clu
 
 You can [download the Teleport package containing the `tsh` client from here](https://gravitational.com/teleport/download)
 
-- the client is the same for both OSS and Enterprise versions of Teleport.
+- the client is the same for both Community and Enterprise editions of Teleport.
 
 ```bash
 $ tsh login --proxy=${TF_VAR_route53_domain}:443 --user=teleport-admin

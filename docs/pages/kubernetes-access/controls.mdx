@@ -11,12 +11,12 @@ to map users to Kubernetes users and groups.
 
 ![Impersonation](../../img/k8s/auth.svg)
 
-Teleport's connectors configure single sign-on for OIDC, OAuth or SAML providers.
-Here are examples of connectors that map SSO users to Kubernetes groups in OSS
-and Teleport's roles in enterprise:
+Teleport's connectors configure single sign-on for OIDC, OAuth, or SAML providers.
+Here are examples of connectors that map SSO users to Kubernetes groups in the Community Edition
+and Teleport's roles in Enterprise:
 
 <Tabs>
-  <TabItem label="Open Source">
+  <TabItem label="Community">
     Github's `teams_to_logins` section maps users to roles based on users's teams.
 
     ```yaml
@@ -126,7 +126,7 @@ $ tctl create -f member.yaml
 Assign this role to a user in OIDC or SAML connector:
 
 <Tabs>
-  <TabItem label="Github (OSS)">
+  <TabItem label="Github (Community)">
     ```yaml
     kind: github
     version: v3

@@ -128,7 +128,7 @@ chosen, Teleport will fail to start.  In addition, Teleport checks if the
 binary was compiled against an approved cryptographic module (BoringCrypto) and
 fails to start if it was not.
 
-- For OSS and Enterprise binaries not compiled with BoringCrypto, this flag will report that this version of Teleport is not compiled with the appropriate cryptographic module.
+- For Teleport Community and Enterprise binaries not compiled with BoringCrypto, this flag will report that this version of Teleport is not compiled with the appropriate cryptographic module.
 - Running commands like `ps aux` can be useful to note that Teleport is running in FedRAMP enforcing mode.
 - If no ciphersuites are provided, Teleport will set the default ciphersuites to be FIPS 140-2 compliant.
 - If ciphersuites, key exchange and MAC algorithms are provided in the Teleport configuration, Teleport will validate that they are FIPS 140-2 compliant..
