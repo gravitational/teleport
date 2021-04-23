@@ -335,6 +335,13 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 
 // DeepCopy creates a clone of this server value
 func (s *ServerV2) DeepCopy() Server {
+	// Convert to UTC.
+	s.Spec.Rotation.Started = s.Spec.Rotation.Started.UTC()
+	s.Spec.Rotation.LastRotated = s.Spec.Rotation.LastRotated.UTC()
+	s.Spec.Rotation.Schedule.UpdateClients = s.Spec.Rotation.Schedule.UpdateClients.UTC()
+	s.Spec.Rotation.Schedule.UpdateServers = s.Spec.Rotation.Schedule.UpdateServers.UTC()
+	s.Spec.Rotation.Schedule.Standby = s.Spec.Rotation.Schedule.Standby.UTC()
+
 	return proto.Clone(s).(*ServerV2)
 }
 
