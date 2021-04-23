@@ -17,6 +17,7 @@ limitations under the License.
 package srv
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -526,6 +527,8 @@ type session struct {
 	// hasEnhancedRecording returns true if this session has enhanced session
 	// recording events associated.
 	hasEnhancedRecording bool
+
+	serverCtx context.Context
 }
 
 // newSession creates a new session with a given ID within a given context.
@@ -597,6 +600,7 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		closeC:       make(chan bool),
 		lingerTTL:    defaults.SessionIdlePeriod,
 		startTime:    startTime,
+		serverCtx:    ctx.srv.Context(),
 	}
 	return sess, nil
 }
@@ -636,9 +640,9 @@ func (s *session) Close() error {
 				s.term.Close()
 			}
 			close(s.closeC)
-
-			// close all writers in our multi-writer
-			s.writer.Close()
+			if s.recorder != nil {
+				s.recorder.Close(s.serverCtx)
+			}
 		}()
 	})
 	return nil
@@ -1325,18 +1329,6 @@ func (m *multiWriter) Write(p []byte) (n int, err error) {
 		}
 	}
 	return len(p), nil
-}
-
-func (m *multiWriter) Close() error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	for writerName, writer := range m.writers {
-		logrus.Debugf("Closing session writer: %v.", writerName)
-		if closer, ok := writer.WriteCloser.(io.Closer); ok {
-			closer.Close()
-		}
-	}
-	return nil
 }
 
 func (m *multiWriter) getRecentWrites() []byte {
