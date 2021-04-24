@@ -298,7 +298,6 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 			services.RoleSpecV3{
 				Allow: services.RoleConditions{
 					Namespaces: []string{services.Wildcard},
-					AppLabels:  services.Labels{services.Wildcard: []string{services.Wildcard}},
 					Rules: []services.Rule{
 						services.NewRule(services.KindNode, services.RW()),
 						services.NewRule(services.KindSSHSession, services.RW()),
@@ -374,10 +373,12 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 				role.String(),
 				services.RoleSpecV3{
 					Allow: services.RoleConditions{
-						Namespaces:     []string{services.Wildcard},
-						AppLabels:      services.Labels{services.Wildcard: []string{services.Wildcard}},
-						ClusterLabels:  services.Labels{services.Wildcard: []string{services.Wildcard}},
-						DatabaseLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
+						Namespaces:       []string{services.Wildcard},
+						AppLabels:        services.Labels{services.Wildcard: []string{services.Wildcard}},
+						ClusterLabels:    services.Labels{services.Wildcard: []string{services.Wildcard}},
+						DatabaseLabels:   services.Labels{services.Wildcard: []string{services.Wildcard}},
+						KubernetesLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
+						NodeLabels:       services.Labels{services.Wildcard: []string{services.Wildcard}},
 						Rules: []services.Rule{
 							services.NewRule(services.KindProxy, services.RW()),
 							services.NewRule(services.KindOIDCRequest, services.RW()),
@@ -434,10 +435,12 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 			role.String(),
 			services.RoleSpecV3{
 				Allow: services.RoleConditions{
-					Namespaces:     []string{services.Wildcard},
-					AppLabels:      services.Labels{services.Wildcard: []string{services.Wildcard}},
-					ClusterLabels:  services.Labels{services.Wildcard: []string{services.Wildcard}},
-					DatabaseLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
+					Namespaces:       []string{services.Wildcard},
+					AppLabels:        services.Labels{services.Wildcard: []string{services.Wildcard}},
+					ClusterLabels:    services.Labels{services.Wildcard: []string{services.Wildcard}},
+					DatabaseLabels:   services.Labels{services.Wildcard: []string{services.Wildcard}},
+					KubernetesLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
+					NodeLabels:       services.Labels{services.Wildcard: []string{services.Wildcard}},
 					Rules: []services.Rule{
 						services.NewRule(services.KindProxy, services.RW()),
 						services.NewRule(services.KindOIDCRequest, services.RW()),
@@ -526,12 +529,13 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 					MaxSessionTTL: services.MaxDuration(),
 				},
 				Allow: services.RoleConditions{
-					Namespaces:     []string{services.Wildcard},
-					Logins:         []string{},
-					AppLabels:      services.Labels{services.Wildcard: []string{services.Wildcard}},
-					NodeLabels:     services.Labels{services.Wildcard: []string{services.Wildcard}},
-					ClusterLabels:  services.Labels{services.Wildcard: []string{services.Wildcard}},
-					DatabaseLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
+					Namespaces:       []string{services.Wildcard},
+					Logins:           []string{},
+					AppLabels:        services.Labels{services.Wildcard: []string{services.Wildcard}},
+					ClusterLabels:    services.Labels{services.Wildcard: []string{services.Wildcard}},
+					DatabaseLabels:   services.Labels{services.Wildcard: []string{services.Wildcard}},
+					KubernetesLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
+					NodeLabels:       services.Labels{services.Wildcard: []string{services.Wildcard}},
 					Rules: []services.Rule{
 						services.NewRule(services.Wildcard, services.RW()),
 					},
