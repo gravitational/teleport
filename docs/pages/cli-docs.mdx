@@ -120,13 +120,13 @@ information about the cluster.
 
 Prints help.
 
-**Usage** `tsh help`
+**Usage**: `tsh help`
 
 ### tsh version
 
 Prints client version.
 
-**Usage** `tsh version`
+**Usage**: `tsh version`
 
 ### tsh ssh
 
@@ -162,7 +162,7 @@ Run shell or execute a command on a remote SSH node.
 
 #### [Global Flags](#tsh-global-flags)
 
-These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost`. Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost`. Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags).
 
 #### Examples
 
@@ -201,7 +201,7 @@ Joins an active session.
 
 #### [Global Flags](#tsh-global-flags)
 
-These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost`. Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost`. Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags).
 
 #### Examples
 
@@ -242,7 +242,7 @@ tsh --proxy proxy.example.com play <session-id>
 
 Copies files from `source` to `dest`.
 
-**Usage** `usage: tsh scp [<flags>] <source>... <dest>`
+**Usage**: `usage: tsh scp [<flags>] <source>... <dest>`
 
 {/* TODO Confirm which flags are supported, and whether supports multiple sources */}
 
@@ -262,7 +262,7 @@ Copies files from `source` to `dest`.
 
 #### [Global Flags](#tsh-global-flags)
 
-These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version, --debug, --jumphost`. Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version, --debug, --jumphost`. Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags).
 
 #### Examples
 
@@ -274,7 +274,7 @@ $ tsh --proxy=proxy.example.com scp -P example.txt user@host/destination/dir
 
 List cluster nodes.
 
-**Usage** `usage: tsh ls [<flags>] [<label>]`
+**Usage**: `usage: tsh ls [<flags>] [<label>]`
 
 {/* TODO: label? or labels? seems like it only supports one label at a time */}
 
@@ -319,7 +319,7 @@ grav-02      10.156.0.7:3022    os:osx
 
 List Kubernetes Clusters.
 
-**Usage** `usage: tsh kube ls`
+**Usage**: `usage: tsh kube ls`
 
 #### Examples
 
@@ -547,7 +547,7 @@ creating new user roles or connecting trusted clusters.
 
 Shows help.
 
-**Usage** `tctl help`
+**Usage**: `tctl help`
 
 ### tctl users add
 
@@ -741,7 +741,7 @@ List all active SSH nodes within the cluster.
 #### [Global Flags](#tctl-global-flags)
 
 These flags are available for all commands `--debug, --config` . Run
-`tctl help <subcommand>` or see the [Global Flags Section](#tctl-global-flags)
+`tctl help <subcommand>` or see the [Global Flags Section](#tctl-global-flags).
 
 ### tctl tokens add
 
@@ -1020,7 +1020,7 @@ $ tctl get all > state.yaml
 
 Report cluster status.
 
-**Usage** `tctl status`
+**Usage**: `tctl status`
 
 #### Examples
 
@@ -1040,7 +1040,7 @@ Reports diagnostic information.
 
 The diagnostic metrics endpoint must be enabled with `teleport start --diag-addr=<bind-addr>` for `tctl top` to work.
 
-**Usage** `tctl top [<diag-addr>] [<refresh>]`
+**Usage**: `tctl top [<diag-addr>] [<refresh>]`
 
 #### Argument
 
