@@ -1975,33 +1975,40 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 // keystore (and into the ssh-agent) for future use.
 func (tc *TeleportClient) ActivateKey(ctx context.Context, key *Key) error {
 	if tc.localAgent == nil {
+		log.Debugf("--> ActivateKey: No local agent present.")
 		// skip activation if no local agent is present
 		return nil
 	}
+
+	log.Debugf("--> ActivateKey: Calling AddHostSignersToCache.")
 	// save the list of CAs client trusts to ~/.tsh/known_hosts
 	err := tc.localAgent.AddHostSignersToCache(key.TrustedCA)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	log.Debugf("--> ActivateKey: Calling SaveCerts.")
 	// save the list of TLS CAs client trusts
 	err = tc.localAgent.SaveCerts(key.TrustedCA)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	log.Debugf("--> ActivateKey: Calling localAgent.AddKey.")
 	// save the cert to the local storage (~/.tsh usually):
 	_, err = tc.localAgent.AddKey(key)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	log.Debugf("--> ActivateKey: Calling UpdateTrustedCA(%v).", key.ClusterName)
 	// Connect to the Auth Server of the main cluster and fetch the known hosts
 	// for this cluster.
 	if err := tc.UpdateTrustedCA(ctx, key.ClusterName); err != nil {
 		return trace.Wrap(err)
 	}
 
+	log.Debugf("--> ActivateKey: Calling AddHostSignersToCache(%v).", tc.SiteName)
 	// Update the cluster name (which will be saved in the profile) with the
 	// name of the cluster the caller requested to connect to.
 	tc.SiteName, err = updateClusterName(ctx, tc, tc.SiteName, key.TrustedCA)
@@ -2009,6 +2016,7 @@ func (tc *TeleportClient) ActivateKey(ctx context.Context, key *Key) error {
 		return trace.Wrap(err)
 	}
 
+	log.Debugf("--> ActivateKey: Returning successfully.")
 	return nil
 }
 
@@ -2093,30 +2101,43 @@ func updateClusterName(ctx context.Context, certGetter certGetter, clusterName s
 func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) ([]services.CertAuthority, error) {
 	// Connect to the proxy.
 	if !tc.Config.ProxySpecified() {
+		log.Debugf("--> GetTrustedCA: Proxy not specified.")
 		return nil, trace.BadParameter("proxy server is not specified")
 	}
+	log.Debugf("--> GetTrustedCA: Calling ConnectToProxy.")
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer proxyClient.Close()
 
+	log.Debugf("--> GetTrustedCA: Calling proxyClient.ClusterAccessPoint(%v).", clusterName)
 	// Get a client to the Auth Server.
 	clt, err := proxyClient.ClusterAccessPoint(ctx, clusterName, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	log.Debugf("--> GetTrustedCA: Calling GetCertAuthorities(services.HostCA, false).")
 	// Get the list of host certificates that this cluster knows about.
-	return clt.GetCertAuthorities(services.HostCA, false)
+	cas, err := clt.GetCertAuthorities(services.HostCA, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	log.Debugf("--> GetTrustedCA: Returning successfully. %v CAs.", len(cas))
+	return cas, nil
 }
 
 // UpdateTrustedCA connects to the Auth Server and fetches all host certificates
 // and updates ~/.tsh/keys/proxy/certs.pem and ~/.tsh/known_hosts.
 func (tc *TeleportClient) UpdateTrustedCA(ctx context.Context, clusterName string) error {
 	if tc.localAgent == nil {
+		log.Debugf("--> UpdateTrustedCA: Missing local agent.")
 		return trace.BadParameter("TeleportClient.UpdateTrustedCA called on a client without localAgent")
 	}
+
+	log.Debugf("--> UpdateTrustedCA: Calling GetTrustedCA(%v).", clusterName)
 	// Get the list of host certificates that this cluster knows about.
 	hostCerts, err := tc.GetTrustedCA(ctx, clusterName)
 	if err != nil {
@@ -2124,10 +2145,12 @@ func (tc *TeleportClient) UpdateTrustedCA(ctx context.Context, clusterName strin
 	}
 	trustedCerts := auth.AuthoritiesToTrustedCerts(hostCerts)
 
+	log.Debugf("--> UpdateTrustedCA: GetTrustedCA returned %v CAs.", len(trustedCerts))
 	for i, ca := range trustedCerts {
-		log.Debugf("UpdateTrustedCA: %v %v.\n", i, ca.ClusterName)
+		log.Debugf("--> UpdateTrustedCA: %v: %v.", i, ca.ClusterName)
 	}
 
+	log.Debugf("--> UpdateTrustedCA: Calling localAgent.AddHostSignersToCache().")
 	// Update the ~/.tsh/known_hosts file to include all the CA the cluster
 	// knows about.
 	err = tc.localAgent.AddHostSignersToCache(trustedCerts)
@@ -2135,12 +2158,14 @@ func (tc *TeleportClient) UpdateTrustedCA(ctx context.Context, clusterName strin
 		return trace.Wrap(err)
 	}
 
+	log.Debugf("--> UpdateTrustedCA: Calling localAgent.SaveCerts().")
 	// Update the CA pool with all the CA the cluster knows about.
 	err = tc.localAgent.SaveCerts(trustedCerts)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	log.Debugf("--> UpdateTrustedCA: Returning successfully.")
 	return nil
 }
 

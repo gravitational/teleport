@@ -656,8 +656,9 @@ func onLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	log.Debugf("--> Login return %v CAs, expecting: 1.", len(key.TrustedCA))
 	for i, ca := range key.TrustedCA {
-		log.Debugf("After login, got CAs for: %v: %v.\n", i, ca.ClusterName)
+		log.Debugf("--> After login, got CAs for: %v: %v.", i, ca.ClusterName)
 	}
 
 	// the login operation may update the username and should be considered the more
@@ -694,7 +695,12 @@ func onLogin(cf *CLIConf) error {
 		return nil
 	}
 
-	tc.ActivateKey(cf.Context, key)
+	log.Debugf("--> Attempting to activate key.")
+	err = tc.ActivateKey(cf.Context, key)
+	if err != nil {
+		log.Debugf("--> Failed to activate key: %v.", err)
+	}
+	log.Debugf("--> Successfully activated key.")
 
 	// If the proxy is advertising that it supports Kubernetes, update kubeconfig.
 	if tc.KubeProxyAddr != "" {
