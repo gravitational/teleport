@@ -569,14 +569,6 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 	if r.Spec.Allow.Namespaces == nil {
 		r.Spec.Allow.Namespaces = []string{defaults.Namespace}
 	}
-	if r.Spec.Allow.NodeLabels == nil {
-		if len(r.Spec.Allow.Logins) == 0 {
-			// no logins implies no node access
-			r.Spec.Allow.NodeLabels = Labels{}
-		} else {
-			r.Spec.Allow.NodeLabels = Labels{Wildcard: []string{Wildcard}}
-		}
-	}
 
 	if r.Spec.Deny.Namespaces == nil {
 		r.Spec.Deny.Namespaces = []string{defaults.Namespace}

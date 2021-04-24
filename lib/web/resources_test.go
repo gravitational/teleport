@@ -99,8 +99,6 @@ spec:
   allow:
     logins:
     - test
-    node_labels:
-      '*': '*'
   deny: {}
   options:
     cert_format: standard
