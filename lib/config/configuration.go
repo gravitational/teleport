@@ -381,7 +381,7 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 		}
 	default:
 		// assume it's a file path:
-		logFile, err := os.Create(loggerConfig.Output)
+		logFile, err := os.OpenFile(loggerConfig.Output, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
 		if err != nil {
 			return trace.Wrap(err, "failed to create the log file")
 		}
