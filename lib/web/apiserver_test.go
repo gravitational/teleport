@@ -1836,7 +1836,7 @@ func TestApplicationAccessDisabled(t *testing.T) {
 	require.NoError(t, err)
 
 	endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
-	_, err = pack.clt.PostJSON(context.Background(), endpoint, &AppResolveParams{
+	_, err = pack.clt.PostJSON(context.Background(), endpoint, &CreateAppSessionRequest{
 		FQDNHint:    "panel.example.com",
 		PublicAddr:  "panel.example.com",
 		ClusterName: "localhost",
@@ -1882,14 +1882,14 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 
 	var tests = []struct {
 		inComment       CommentInterface
-		inCreateRequest *AppResolveParams
+		inCreateRequest *CreateAppSessionRequest
 		outError        bool
 		outFQDN         string
 		outUsername     string
 	}{
 		{
 			inComment: Commentf("Valid request: all fields."),
-			inCreateRequest: &AppResolveParams{
+			inCreateRequest: &CreateAppSessionRequest{
 				FQDNHint:    "panel.example.com",
 				PublicAddr:  "panel.example.com",
 				ClusterName: "localhost",
@@ -1900,7 +1900,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		},
 		{
 			inComment: Commentf("Valid request: without FQDN."),
-			inCreateRequest: &AppResolveParams{
+			inCreateRequest: &CreateAppSessionRequest{
 				PublicAddr:  "panel.example.com",
 				ClusterName: "localhost",
 			},
@@ -1910,7 +1910,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		},
 		{
 			inComment: Commentf("Valid request: only FQDN."),
-			inCreateRequest: &AppResolveParams{
+			inCreateRequest: &CreateAppSessionRequest{
 				FQDNHint: "panel.example.com",
 			},
 			outError:    false,
@@ -1919,21 +1919,21 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		},
 		{
 			inComment: Commentf("Invalid request: only public address."),
-			inCreateRequest: &AppResolveParams{
+			inCreateRequest: &CreateAppSessionRequest{
 				PublicAddr: "panel.example.com",
 			},
 			outError: true,
 		},
 		{
 			inComment: Commentf("Invalid request: only cluster name."),
-			inCreateRequest: &AppResolveParams{
+			inCreateRequest: &CreateAppSessionRequest{
 				ClusterName: "localhost",
 			},
 			outError: true,
 		},
 		{
 			inComment: Commentf("Invalid application."),
-			inCreateRequest: &AppResolveParams{
+			inCreateRequest: &CreateAppSessionRequest{
 				FQDNHint:    "panel.example.com",
 				PublicAddr:  "invalid.example.com",
 				ClusterName: "localhost",
@@ -1942,7 +1942,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		},
 		{
 			inComment: Commentf("Invalid cluster name."),
-			inCreateRequest: &AppResolveParams{
+			inCreateRequest: &CreateAppSessionRequest{
 				FQDNHint:    "panel.example.com",
 				PublicAddr:  "panel.example.com",
 				ClusterName: "example.com",
@@ -1951,7 +1951,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		},
 		{
 			inComment: Commentf("Malicious request: all fields."),
-			inCreateRequest: &AppResolveParams{
+			inCreateRequest: &CreateAppSessionRequest{
 				FQDNHint:    "panel.example.com@malicious.com",
 				PublicAddr:  "panel.example.com",
 				ClusterName: "localhost",
@@ -1962,7 +1962,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		},
 		{
 			inComment: Commentf("Malicious request: only FQDN."),
-			inCreateRequest: &AppResolveParams{
+			inCreateRequest: &CreateAppSessionRequest{
 				FQDNHint: "panel.example.com@malicious.com",
 			},
 			outError: true,
