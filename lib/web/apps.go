@@ -81,7 +81,7 @@ type CreateAppSessionResponse struct {
 // getAppFQDN resolves the input params to a known application and returns
 // its valid FQDN.
 //
-// GET /v1/webapi/apps/:fqdn/:clusterName/:publicAddr
+// GET /v1/webapi/apps/:fqdnHint/:clusterName/:publicAddr
 func (h *Handler) getAppFQDN(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	req := &AppResolveParams{
 		FQDNHint:    p.ByName("fqdnHint"),
@@ -105,7 +105,7 @@ func (h *Handler) getAppFQDN(w http.ResponseWriter, r *http.Request, p httproute
 	// application running within either the root or leaf cluster.
 	result, err := h.resolveApp(r.Context(), authClient, proxy, req)
 	if err != nil {
-		return nil, trace.Wrap(err, "Unable to resolve FQDN: %v", req.FQDNHint)
+		return nil, trace.Wrap(err, "unable to resolve FQDN: %v", req.FQDNHint)
 	}
 
 	return &GetAppFQDNResponse{
@@ -138,7 +138,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	// application running within either the root or leaf cluster.
 	result, err := h.resolveApp(r.Context(), authClient, proxy, req)
 	if err != nil {
-		return nil, trace.Wrap(err, "Unable to resolve FQDN: %v", req.FQDNHint)
+		return nil, trace.Wrap(err, "unable to resolve FQDN: %v", req.FQDNHint)
 	}
 
 	h.log.Debugf("Creating application web session for %v in %v.", result.PublicAddr, result.ClusterName)
@@ -229,10 +229,13 @@ func (h *Handler) resolveApp(ctx context.Context, clt app.Getter, proxy reverset
 	// If the request contains a public address and cluster name (for example, if it came
 	// from the application launcher in the Web UI) then directly exactly resolve the
 	// application that the caller is requesting. If it does not, do best effort FQDN resolution.
-	if req.PublicAddr != "" && req.ClusterName != "" {
+	switch {
+	case req.PublicAddr != "" && req.ClusterName != "":
 		app, server, appClusterName, err = h.resolveDirect(ctx, proxy, req.PublicAddr, req.ClusterName)
-	} else {
+	case req.FQDNHint != "":
 		app, server, appClusterName, err = h.resolveFQDN(ctx, clt, proxy, req.FQDNHint)
+	default:
+		err = trace.BadParameter("no inputs to resolve application")
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
