@@ -7,13 +7,13 @@ description: Mapping SSO and Local Users Traits to Roles with Template
 
 As organizations grow, infrastructure teams have to figure out
 how to define access control policies that don't require manual configuration
-every time people join, leave and form new teams.
+every time people join, leave, and form new teams.
 
 Here are some common examples of such policies:
 
 - Grant every single sign-on user an SSH login generated from their email.
 - Assign each team member to their team's Kubernetes group.
-- Limit dev team to read-only replica of a database.
+- Limit the dev team to a read-only replica of a database.
 
 Let's explore how Teleport's role templates provide a way to describe these and other policies.
 
@@ -39,8 +39,8 @@ CA pin   sha256:e63c7c44be468d37a5b0276b70e9d10b17f24f4be19d6b579810fc94eaa31783
 Imagine you have two users, Alice and Bob. We would like to set the following
 access policies:
 
-- Alice to login as SSH user `admin` and Kubernetes group `edit`
-- Bob to login as `ubuntu` and Kubernetes group `view`
+- Alice to log in as SSH user `admin` and Kubernetes group `edit`
+- Bob to log in as `ubuntu` and Kubernetes group `view`
 
 We can create two roles, one for each user in file `roles.yaml`:
 
@@ -206,13 +206,13 @@ metadata:
 spec:
   # Client ID of Github OAuth app
   client_id: client-id
-  # client secret of Github OAuth app
+  # Client secret of Github OAuth app
   client_secret: secret-data-here
-  # connector display name that will be shown on web UI login screen
+  # Connector display name that will be shown on web UI login screen
   display: Github
-  # callback URL that will be called after successful authentication
+  # Callback URL that will be called after successful authentication
   redirect_url: https://teleport.example.com/v1/webapi/github/callback
-  # mapping of org/team memberships onto allowed logins and roles
+  # Mapping of org/team memberships onto allowed logins and roles
   teams_to_logins:
     - organization: octocats # Github organization name
       team: cyber # Github team name within that organization
@@ -247,7 +247,7 @@ $ tsh login --proxy=teleport.example.com:443 --auth=github
 ## Interpolation rules
 
 Administrators can configure what attributes identity providers return
-during single-sign on and present to Teleport. Let's review a couple of scenarios
+during Single-Sign-On and present to Teleport. Let's review a couple of scenarios
 and see how Teleport interpolates the variables.
 
 Let's go back to the the list of attributes for Alice's user entry:
@@ -301,7 +301,7 @@ metadata:
   name: interpolation
 spec:
   allow:
-    # The variable external.logins is not sent by provider and it renders empty,
+    # The variable external.logins is not sent by the provider and it renders empty,
     # leaving only hard-coded admin value
     logins: ['admin']
 

@@ -1,12 +1,12 @@
 ---
 title: Teleport integration with Mattermost
-description: This guide explains how to setup a Mattermost plugin for Teleport for privilege elevation approvals.
+description: This guide explains how to set up a Mattermost plugin for Teleport for privilege elevation approvals.
 h1: Teleport Mattermost Plugin Setup
 ---
 
-This guide will talk through how to setup Teleport with Mattermost. Teleport to
+This guide will talk through how to set up Teleport with Mattermost. Teleport to
 Mattermost integration allows teams to approve or deny Teleport access requests
-using [Mattermost](https://mattermost.com/) an open source messaging platform.
+using [Mattermost](https://mattermost.com/) an open-source messaging platform.
 
 <Admonition type="warning">
   The Approval Workflow only works with Teleport Enterprise as it requires several roles.
@@ -34,30 +34,30 @@ using [Mattermost](https://mattermost.com/) an open source messaging platform.
 
 This guide assumes that you have:
 
-- Teleport Enterprise 4.2.8 or newer
-- Admin privileges with access to `tctl`
-- Mattermost account with admin privileges. This plugin has been tested with Mattermost 5.x
+- Teleport Enterprise 4.2.8 or newer.
+- Admin privileges with access to `tctl`.
+- Mattermost account with admin privileges. This plugin has been tested with Mattermost 5.x.
 
 #### Setting up Mattermost to work with the bot
 
 ![Enable Mattermost bots](../../../img/enterprise/plugins/mattermost/mattermost_admin_console_integrations_bot_accounts.png)
 
-In Mattermost, go to System Console → Integrations → Enable Bot Account Creation → Set to True.
+In Mattermost, go to "System Console" → "Integrations" → "Enable Bot Account Creation" → Set to `True`.
 This will allow us to create a new bot account that the Teleport bot will use.
 
-Go back to your team, then Integrations → Bot Accounts → Add Bot Account.
+Go back to your team, then "Integrations" → "Bot Accounts" → "Add Bot Account".
 
-The new bot account will need Post All permission.
+The new bot account will need the `Post All` permission.
 
-**App Icon:** <a href="../../../img/enterprise/plugins/teleport_bot@2x.png" download>Download Teleport Bot Icon</a>
+**App Icon:** <a href="../../../img/enterprise/plugins/teleport_bot@2x.png" download>Download Teleport Bot Icon</a>.
 
 ![Enable Mattermost Bots](../../../img/enterprise/plugins/mattermost/mattermost_bot.png)
 
-##### Create an OAuth 2.0 Application
+##### Create an OAuth 2.0 application
 
-In Mattermost, go to System Console → Integrations → OAuth 2.0 Applications.
+In Mattermost, go to "System Console" → "Integrations" → "OAuth 2.0 Applications".
 
-- Set Callback URLs to the location of your Teleport Proxy
+- Set Callback URLs to the location of your Teleport Proxy.
 
 ![Create OAuth Application](../../../img/enterprise/plugins/mattermost/mattermost_OAuth_token.png)
 
@@ -89,7 +89,7 @@ spec:
     rules:
       - resources: ['access_request']
         verbs: ['list','read','update']
-    # teleport currently refuses to issue certs for a user with 0 logins,
+    # Teleport currently refuses to issue certs for a user with 0 logins,
     # this restriction may be lifted in future versions.
     logins: ['access-plugin-mattermost']
 version: v3
@@ -99,22 +99,22 @@ EOF
 $ tctl create -f rscs.yaml
 ```
 
-#### Export access-plugin Certificate
+#### Export access-plugin certificate
 
-Teleport Plugin use the `access-plugin-mattermost` role and user to perform the approval. We export the identity files, using [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign).
+Teleport Plugin uses the `access-plugin-mattermost` role and user to perform the approval. We export the identity files, using [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign).
 
 ```bash
 $ tctl auth sign --format=tls --user=access-plugin-mattermost --out=auth --ttl=8760h
 # ...
 ```
 
-The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference the auth.crt, auth.key, and auth.cas files later when [configuring the plugins](#configuring-mattermost-bot).
+The above sequence should result in three PEM encoded files being generated: `auth.crt`, `auth.key`, and `auth.cas` (certificate, private key, and CA certs respectively).  We'll reference the auth.crt, auth.key, and auth.cas files later when [configuring the plugins](#configuring-mattermost-bot).
 
 <Admonition
   type="note"
   title="Certificate Lifetime"
 >
-  By default, [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign) produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
+  By default, [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign) produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1-year token
 </Admonition>
 
 ## Downloading and installing the plugin
@@ -151,7 +151,7 @@ Then, edit the config as needed.
 (!examples/resources/plugins/teleport-mattermost.toml!)
 ```
 
-### Testing the Plugin
+### Testing the plugin
 
 With the config above, you should be able to run the bot invoking
 `teleport-mattermost start -d`. The will provide some debug information to make sure
@@ -179,7 +179,7 @@ In production, we recommend starting teleport plugin daemon via an init system l
 
 Save this as `teleport-mattermost.service`.
 
-## Audit Log
+## Audit log
 
 The plugin will let anyone with access to the Mattermost channel requests so it's
 important to review Teleport's audit log.

@@ -7,8 +7,7 @@ h1: Teleport SSO Authentication with GitLab
 ## How to use GitLab as a single sign-on (SSO) provider with Teleport
 
 This guide will cover how to configure [GitLab](https://www.gitlab.com/) to issue
-SSH credentials to specific groups of users. When used in combination with role
-based access control (RBAC), it allows administrators to define policies
+SSH credentials to specific groups of users. When used in combination with Role-Based Access Control (RBAC), it allows administrators to define policies
 like:
 
 - Only members of "DBA" group can SSH into machines running PostgreSQL.
@@ -26,7 +25,7 @@ like:
 
 ## Enable OIDC Authentication
 
-First, configure Teleport auth server to use OIDC authentication instead of the local
+First, configure the Teleport auth server to use OIDC authentication instead of the local
 user database. Update `/etc/teleport.yaml` as shown below and restart the
 teleport daemon.
 
@@ -38,9 +37,9 @@ auth_service:
 
 ## Configure GitLab
 
-You should have at least one group configured in GitLab to map to Teleport roles. In this example we use the names `gitlab-dev` and `gitlab-admin`.  Assign users to each of these groups.
+You should have at least one group configured in GitLab to map to Teleport roles. In this example, we use the names `gitlab-dev` and `gitlab-admin`.  Assign users to each of these groups.
 
-1. Create a Application in one of your Groups that will allow using GitLab as a OAuh provider to Teleport.
+1. Create an Application in one of your Groups that will allow using GitLab as a OAuh provider to Teleport.
 
 Settings
 
@@ -58,7 +57,7 @@ These will be used in the Teleport OIDC Auth Connector.
 3. Confirm the GitLab Issuer Address
 
 For GitLab cloud that is `https://gitlab.com`. That allows accessing the Open-ID configuration at `https://gitlab.com/.well-known/openid-configuration`.
-If you are self hosting that is likely another local address.
+If you are self-hosting that is likely another local address.
 
 ## Configure Teleport
 
@@ -107,7 +106,7 @@ $ tctl create oidc-connector.yaml
 
 ## Create Teleport Roles
 
-We are going to create 2 roles, privileged role admin who is able to login as
+We are going to create 2 roles, privileged role admin who can log in as
 root and is capable of administrating the cluster and non-privileged dev.
 
 ```yaml
@@ -143,12 +142,11 @@ spec:
       access: relaxed
 ```
 
-- Devs are only allowed to login to nodes labelled with `access: relaxed` label.
+- Devs are only allowed to log in to nodes labeled with `access: relaxed` label.
 - Developers can log in as `ubuntu` user
 - Notice `{{external.email}}` login. It configures Teleport to look at
   *"email"* GitLab claim and use that field as an allowed login for each user.  The `email.local(external.trait)` function will remove the `@domain` and just have the username prefix.
-- Developers also do not have any "allow rules" i.e. they will not be able to
-  see/replay past sessions or re-configure the Teleport cluster.
+- Developers also do not have any "allow rules" i.e. they will not be able to see or replay past sessions or re-configure the Teleport cluster.
 
 Create both roles on the auth server:
 
@@ -181,9 +179,7 @@ automatically in a browser).
   type="note"
   title="IMPORTANT"
 >
-  Teleport only supports sending party initiated flows for OIDC Connect. This
-  means you can not initiate login from your identity provider, you have to
-  initiate login from either the Teleport Web UI or CLI.
+  Teleport only supports sending party-initiated flows for OIDC Connect. This means you can not initiate login from your identity provider, you have to initiate login from either the Teleport Web UI or CLI.
 </Admonition>
 
 ## Troubleshooting

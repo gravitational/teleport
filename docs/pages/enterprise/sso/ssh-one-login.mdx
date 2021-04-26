@@ -7,8 +7,7 @@ h1: SSH Authentication with OneLogin
 ## Using OneLogin as a single sign-on (SSO) provider for SSH
 
 This guide will cover how to configure [OneLogin](https://www.onelogin.com/) to issue
-SSH credentials to specific groups of users. When used in combination with role
-based access control (RBAC) it allows SSH administrators to define policies
+SSH credentials to specific groups of users. When used in combination with Role-Based Access Control (RBAC) it allows SSH administrators to define policies
 like:
 
 - Only members of "DBA" group can SSH into machines running PostgreSQL.
@@ -125,7 +124,7 @@ $ tctl create onelogin-connector.yaml
 
 ## Create Teleport Roles
 
-We are going to create 2 roles, privileged role admin who is able to login as
+We are going to create 2 roles, privileged role admin who can login as
 root and is capable of administrating the cluster and non-privileged dev.
 
 ```yaml
@@ -145,7 +144,7 @@ spec:
         verbs: ["*"]
 ```
 
-Devs are only allowed to login to nodes labelled with `access: relaxed`
+Devs are only allowed to log in to nodes labeled with `access: relaxed`
 Teleport label. Developers can log in as either `ubuntu` to a username that
 arrives in their assertions. Developers also do not have any rules needed to
 obtain admin access to Teleport.
@@ -195,9 +194,7 @@ automatically in a browser).
   type="note"
   title="IMPORTANT"
 >
-  Teleport only supports sending party initiated flows for SAML 2.0. This
-  means you can not initiate login from your identity provider, you have to
-  initiate login from either the Teleport Web UI or CLI.
+  Teleport only supports sending party-initiated flows for SAML 2.0. This means you can not initiate login from your identity provider, you have to initiate login from either the Teleport Web UI or CLI.
 </Admonition>
 
 ![Teleport](../../../img/sso/onelogin/onelogin-saml-8.png)

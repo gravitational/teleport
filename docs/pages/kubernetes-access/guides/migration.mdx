@@ -5,7 +5,7 @@ h1: Migrating to Teleport Kubernetes Access 5.0
 ---
 
 In release 5.0, Teleport has changed the [Kubernetes integration](../../kubernetes-access/introduction.mdx) to improve configuration and user experience.
-These changes are backwards compatible and there is no *required* migration.
+These changes are backward compatible and there is no *required* migration.
 However, to get the most out of Teleport, you should consider migrating as
 described below.
 
@@ -98,7 +98,7 @@ Instead of running multiple Teleport clusters (auth and proxy for each
 Kubernetes cluster), we will connect multiple `kubernetes_service` agents to
 the same root Teleport cluster.
 
-Each `kubernetes_service` will create its own reverse tunnel back to a Teleport
+Each `kubernetes_service` will create its reverse tunnel back to a Teleport
 proxy to join the cluster.
 
 Before 5.0:
@@ -210,7 +210,7 @@ Logged into kubernetes cluster "kube-2"
 
 #### Option 2: One Teleport agent connected to multiple clusters
 
-This approach requires you to manually craft a `kubeconfig` file which contains
+This approach requires you to manually craft a `kubeconfig` file that contains
 the exact set of Kubernetes cluster entries you wish to connect. Updates to the
 set of clusters require a restart.
 
@@ -327,8 +327,7 @@ cluster you are currently logged into.
 ## RBAC
 
 <Admonition type="note">
-  Kubernetes RBAC integration only works with `kubernetes_service`. Make sure
-  you've migrated all the clusters as described above before proceeding.
+  Kubernetes RBAC integration only works with `kubernetes_service`. Make sure you've migrated all the clusters as described above before proceeding.
 </Admonition>
 
 By default, all users have access to all Kubernetes clusters (as a limited set
@@ -361,7 +360,7 @@ spec:
       '*': '*'
       # labels can be specified as a list:
       'environment': ['test', 'staging']
-      # regular expressions are also supported, for example the equivalent
+      # regular expressions are also supported. For example, the equivalent
       # of the list example above can be expressed as:
       'environment': '^test|staging$'
   # You can also strictly restrict access using deny kubernetes_labels.
@@ -387,6 +386,6 @@ kubernetes_service:
     period: 1h
 ```
 
-Users with a role that matches a specific Kubernetes cluster labels will be
+Users with a role that matches specific Kubernetes cluster labels will be
 able to see and connect to that cluster. Other users will neither see nor
 be able to connect to it.

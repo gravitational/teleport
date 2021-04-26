@@ -3,12 +3,12 @@ title: Dual Authorization
 description: Dual Authorization for SSH and Kubernetes
 ---
 
-# Dual Authorization
+# Dual authorization
 
-You can set up Teleport to require require the approval of multiple team members to perform some critical actions.
+You can set up Teleport to require the approval of multiple team members to perform some critical actions.
 Here are the most common scenarios:
 
-- Improve security of your system and prevent one successful phishing attack from compromizing your system.
+- Improve the security of your system and prevent one successful phishing attack from compromising your system.
 - Satisfy FedRamp AC-3 Dual authorization control that requires approval of two authorized individuals.
 
 Let's set up Teleport's access requests to require approval of
@@ -18,8 +18,7 @@ two team members for a privileged role `dbadmin`.
   type="warning"
   title="Version Warning"
 >
-  This guide requires a commercial edition of Teleport. The open source
-  edition of Teleport only supports [Github](../../admin-guide.mdx#github-oauth-20) as
+  This guide requires a commercial edition of Teleport. The Teleport Open Source Edition only supports [Github](../../admin-guide.mdx#github-oauth-20) as
   an SSO provider.
 </Admonition>
 
@@ -170,9 +169,9 @@ output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/tele
 severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
 ```
 
-## Dual Authorization
+## Dual authorization
 
-Alice and Ivan are reviewers - they can approve requests for assuming role `dbadmin`.
+Alice and Ivan are reviewers - they can approve requests since they have the role `dbadmin`.
 Bob is a devops and can assume `dbadmin` role if two members of the `reviewer` role
 approved the request.
 
@@ -212,8 +211,8 @@ spec:
       'type': 'db'
 ```
 
-Example below creates local users Alice, Ivan and Bob.
-Bob does not have a role `dbadmin` assigned to him, but can create an access request for it.
+The example below creates local users Alice, Ivan, and Bob.
+Bob does not have a role `dbadmin` assigned to him but can create an access request for it.
 
 ```bash
 $ tctl users add bob@example.com --roles=devops
@@ -221,7 +220,7 @@ $ tctl users add alice@example.com --roles=reviewer
 $ tctl users add ivan@example.com --roles=reviewer
 ```
 
-## Access Requests Flow
+## Access requests flow
 
 Bob can create an access request for the `dbadmin` role in the Web UI or CLI:
 

@@ -8,8 +8,8 @@ description: Getting started with Teleport Kubernetes Access
 Let's deploy Teleport in a Kubernetes with SSO and Audit logs:
 
 - Install Teleport in a Kubernetes cluster.
-- Set up Single Sign On (SSO).
-- Capture and play back Kubernetes commands.
+- Set up Single Sign-On (SSO).
+- Capture and playback Kubernetes commands.
 
 ## Follow along with our video guide
 
@@ -84,7 +84,7 @@ to create a public IP for Teleport.
     # Set kubectl context to the namespace to save some typing
     $ kubectl config set-context --current --namespace=teleport-cluster
 
-    # Service is up, load balancer is created
+    # Service is up, the load balancer is created
     $ kubectl get services
     NAME               TYPE           CLUSTER-IP   EXTERNAL-IP      PORT(S)                        AGE
     teleport-cluster   LoadBalancer   10.4.4.73    104.199.126.88   443:31204/TCP,3026:32690/TCP   89s
@@ -101,7 +101,7 @@ to create a public IP for Teleport.
     # Set kubectl context to the namespace to set some typing
     $ kubectl config set-context --current --namespace=teleport-cluster-ent
 
-    # Service is up, load balancer is created
+    # Service is up, the load balancer is created
     $ kubectl get services
     NAME                   TYPE           CLUSTER-IP   EXTERNAL-IP      PORT(S)                        AGE
     teleport-cluster-ent   LoadBalancer   10.4.4.73    104.199.126.88   443:31204/TCP,3026:32690/TCP   89s
@@ -159,7 +159,7 @@ for web apps using [application access](../application-access/introduction.mdx).
 
 The first request to Teleport's API will take a bit longer because it gets
 a cert from [Let's Encrypt](https://letsencrypt.org).
-Teleport will respond back with a discovery info:
+Teleport will respond with discovery info:
 
 ```bash
 $ curl https://tele.example.com/webapi/ping
@@ -203,7 +203,7 @@ complete user setup, link is valid for 1h:
 
 https://tele.example.com:443/web/invite/random-token-id-goes-here
 
-NOTE: Make sure tele.example.com:443 points at a Teleport proxy which users can access.
+NOTE: Make sure tele.example.com:443 points at a Teleport proxy that users can access.
 ```
 
 Let's install `tsh` and `tctl` on Linux.
@@ -236,7 +236,7 @@ the default one in case there is a problem.
 $ KUBECONFIG=${HOME?}/teleport.yaml tsh login --proxy=tele.example.com:443 --user=alice
 ```
 
-Teleport updated `KUBECONFIG` with a short-lived 12 hour certificate.
+Teleport updated `KUBECONFIG` with a short-lived 12-hour certificate.
 
 ```bash
 # List connected Kubernetes clusters
@@ -260,7 +260,7 @@ teleport-cluster-6c9b88fd8f-glmhf   1/1     Running   0          127m
 
 ## Step 3/3 SSO for Kubernetes
 
-We are going to setup Github connector for OSS and Okta for Enterprises version.
+We're going to set up a Github connector for the Open Source Edition and Okta for Enterprise versions.
 
 <Tabs>
   <TabItem label="Open Source">
@@ -296,7 +296,7 @@ We are going to setup Github connector for OSS and Okta for Enterprises version.
     Follow [SAML Okta Guide](../enterprise/sso/ssh-okta.mdx#configure-okta) to create a SAML app.
     Check out [OIDC guides](../enterprise/sso/oidc.mdx#identity-providers) for OpenID Connect apps.
     Save the file below as `okta.yaml` and update the `acs` field.
-    Any member in Okta group `okta-admin` will assume a builtin role `admin`.
+    Any member in Okta group `okta-admin` will assume a built-in role `admin`.
 
     ```yaml
     kind: saml
@@ -369,7 +369,7 @@ the default one in case there is a problem.
   ```
 </Admonition>
 
-## Next Steps
+## Next steps
 
 - [Connect Multiple Kubernetes Clusters](./guides/multiple-clusters.mdx)
 - [Setup CI/CD Access with Teleport](./guides/cicd.mdx)

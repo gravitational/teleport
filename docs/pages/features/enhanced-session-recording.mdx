@@ -7,19 +7,16 @@ h1: Enhanced Session Recording
 Teleport [SSH and Kubernetes session recording](../architecture/nodes.mdx#session-recording)
 feature captures what is echoed to a terminal.
 
-This has inherent advantages, for example because no input is captured, Teleport
+This has inherent advantages, for example, because no input is captured, Teleport
 session recordings typically do not contain passwords that were entered into a terminal.
 
-The disadvantage is that session recordings can by bypassed using several techniques:
+The disadvantage is that session recordings can be bypassed using several techniques:
 
 - **Obfuscation**. For example, even though the command
   `echo Y3VybCBodHRwOi8vd3d3LmV4YW1wbGUuY29tCg== | base64 --decode | sh` does not contain
   `curl http://www.example.com`, when decoded, that is what is run.
-- **Shell scripts**. For example, if a user uploads and executes a script, the commands
-  run within the script are not captured, simply the output.
-- **Terminal controls**. Terminals support a wide variety of controls including the
-  ability for users to disable terminal echo. This is frequently used when requesting
-  credentials. Disabling terminal echo allows commands to be run without being captured.
+- **Shell scripts**. For example, if a user uploads and executes a script, the commands run within the script are not captured, simply the output.
+- **Terminal controls**. Terminals support a wide variety of controls including the ability for users to disable terminal echo. This is frequently used when requesting credentials. Disabling terminal echo allows commands to be run without being captured.
 
 Furthermore, due to their unstructured nature, session recordings are difficult to
 ingest and perform monitoring/alerting on.
@@ -52,29 +49,69 @@ Linux ip-172-31-43-104.ec2.internal 4.19.72-25.58.amzn2.x86_64 x86_64 x86_64 x86
 
 <Tabs>
   <TabItem label="Ubuntu">
-    | | | Kernel Version |
-    | - | - | - |
-    | 18.04 | Bionic Beaver | 4.18+ ✅ |
-    | 20.04 | Focal Fossa | 5.4 ✅ |
+    <table>
+      <tr>
+        <th>Ubuntu version</th>
+        <th>Ubuntu release</th>
+        <th>Kernel version</th>
+      </tr>
+      <tr>
+        <td>18.04</td>
+        <td>Bionic Beaver</td>
+        <td>4.18+ ✅</td>
+      </tr>
+      <tr>
+        <td>20.04</td>
+        <td> Focal Fossa </td>
+        <td>5.4 ✅</td>
+      </tr>
+    </table>
   </TabItem>
 
   <TabItem label="CentOS">
-    | | Kernel Version |
-    | - | - |
-    | 8.0-1905 | 4.18.0.80 ✅ |
+    <table>
+      <tr>
+        <th>CentOS</th>
+        <th>Kernel version</th>
+      </tr>
+      <tr>
+        <td>8.0-1905 </td>
+        <td>4.18.0.80 ✅</td>
+      </tr>
+    </table>
   </TabItem>
 
   <TabItem label="Debian">
-    | | | Kernel Version |
-    | - | - | - |
-    | 9 | Debian Stretch | 4.9.0-6 [Patch Kernel](https://wiki.debian.org/HowToUpgradeKernel) |
-    | 10 | Buster | 4.19 ✅ |
+    <table>
+      <tr>
+        <th>Debian version</th>
+        <th>Debian release</th>
+        <th>Kernel version</th>
+      </tr>
+      <tr>
+        <td>9</td>
+        <td>Debian Stretch</td>
+        <td>4.9.0-6 <a href="https://wiki.debian.org/HowToUpgradeKernel">Patch Kernel</a></td>
+      </tr>
+      <tr>
+        <td>10</td>
+        <td>Buster</td>
+        <td>4.19 ✅</td>
+      </tr>
+    </table>
   </TabItem>
 
   <TabItem label="Red Hat">
-    | | Kernel Version |
-    | - | - |
-    | Enterprise Linux 8 | 4.18.0-147 ✅ |
+    <table>
+      <tr>
+        <th>Red Hat version</th>
+        <th>Kernel version</th>
+      </tr>
+      <tr>
+        <td>Enterprise Linux 8</td>
+        <td>4.18.0-147 ✅</td>
+      </tr>
+    </table>
   </TabItem>
 
   <TabItem label="Amazon Linux">
@@ -83,13 +120,20 @@ Linux ip-172-31-43-104.ec2.internal 4.19.72-25.58.amzn2.x86_64 x86_64 x86_64 x86
   </TabItem>
 
   <TabItem label="archlinux">
-    | | Kernel Version |
-    | - | - |
-    | 2019.12.01 | 5.3.13 ✅ |
+    <table>
+      <tr>
+        <th>Arch Linux version</th>
+        <th>Kernel version</th>
+      </tr>
+      <tr>
+        <td>2019.12.01</td>
+        <td>5.3.13 ✅</td>
+      </tr>
+    </table>
   </TabItem>
 </Tabs>
 
-## 2. Install BCC Tools
+## 2. Install BCC tools
 
 We recommend installing BCC tools using your distribution's package manager wherever possible.
 
@@ -110,7 +154,7 @@ We recommend installing BCC tools using your distribution's package manager wher
     <TabItem label="Amazon Linux 2+">
     **Example Script to install relevant bcc packages for Amazon 2 Linux**
 
-    Make sure the the machine is at Kernel 4.19+/5+ (`uname -r`). Run the following script, sourced from [BCC github](https://github.com/iovisor/bcc/blob/master/INSTALL.md#amazon-linux-2---binary), to enable BCC in Amazon Linux Extras, install required `kernel-devel` package for the Kernel version and install the BCC tools.
+    Make sure the machine is at Kernel 4.19+/5+ (`uname -r`). Run the following script, sourced from [BCC github](https://github.com/iovisor/bcc/blob/master/INSTALL.md#amazon-linux-2---binary), to enable BCC in Amazon Linux Extras, install the required `kernel-devel` package for the Kernel version and install the BCC tools.
 
     ```sh
     #!/bin/bash
@@ -290,7 +334,7 @@ ssh_service:
 
 ## 4. Test by logging into node via Teleport
 
-**Session with Enhanced Session Recording will be marked as 'true' in the logs.**
+A session with Enhanced Session Recording will be marked as `true` in the logs.
 
 ```json
 {

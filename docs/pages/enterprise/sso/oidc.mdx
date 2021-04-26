@@ -5,8 +5,8 @@ h1: OAuth2 / OIDC Authentication for SSH
 ---
 
 This guide will cover how to configure an SSO provider using [OpenID Connect](http://openid.net/connect/)
-(also known as OIDC) to issue SSH credentials to a specific groups of users.
-When used in combination with role based access control (RBAC) it allows SSH
+(also known as OIDC) to issue SSH credentials to specific groups of users.
+When used in combination with role-based access control (RBAC) it allows SSH
 administrators to define policies like:
 
 - Only members of "DBA" group can SSH into machines running PostgreSQL.
@@ -17,15 +17,15 @@ administrators to define policies like:
   type="warning"
   title="Version Warning"
 >
-  This guide requires an Enterprise edition of Teleport. The Community
+  This guide requires an Enterprise edition of Teleport. The Open Source
   edition of Teleport only supports [Github](../../admin-guide.mdx#github-oauth-20) as
   an SSO provider.
 </Admonition>
 
 ## Enable OIDC Authentication
 
-First, configure Teleport auth server to use OIDC authentication instead of the local
-user database. Update `/etc/teleport.yaml` as show below and restart the
+First, configure the Teleport auth server to use OIDC authentication instead of the local
+user database. Update `/etc/teleport.yaml` as shown below and restart the
 teleport daemon.
 
 ```yaml
@@ -38,7 +38,7 @@ auth_service:
 
 Register Teleport with the external identity provider you will be using and
 obtain your `client_id` and `client_secret`. This information should be
-documented on the identity providers website. Here are a few links:
+documented on the identity provider's website. Here are a few links:
 
 - [Auth0 Client Configuration](https://auth0.com/docs/applications)
 - [Google Identity Platform](https://developers.google.com/identity/protocols/OpenIDConnect)
@@ -53,7 +53,7 @@ provided below.
 
 ## OIDC Redirect URL
 
-OIDC relies on HTTP re-directs to return control back to Teleport after
+OIDC relies on HTTP re-directs to return control to Teleport after
 authentication is complete. The redirect URL must be selected by a Teleport
 administrator in advance.
 
@@ -108,7 +108,7 @@ spec:
         verbs: ["*"]
 ```
 
-Users are only allowed to login to nodes labelled with `access: relaxed`
+Users are only allowed to log in to nodes labeled with `access: relaxed`
 teleport label. Developers can log in as either `ubuntu` to a username that
 arrives in their assertions. Developers also do not have any rules needed to
 obtain admin access.
@@ -138,12 +138,12 @@ $ tctl create role-dev.yaml
 ### Optional: ACR Values
 
 Teleport supports sending Authentication Context Class Reference (ACR) values
-when obtaining an authorization code from an OIDC provider. By default ACR
+when obtaining an authorization code from an OIDC provider. By default, ACR
 values are not set. However, if the `acr_values` field is set, Teleport expects
-to receive the same value in the `acr` claim, otherwise it will consider the
+to receive the same value in the `acr` claim, otherwise, it will consider the
 callback invalid.
 
-In addition, Teleport supports OIDC provider specific ACR value processing
+Also, Teleport supports OIDC provider-specific ACR value processing
 which can be enabled by setting the `provider` field in OIDC configuration. At
 the moment, the only build-in support is for NetIQ.
 
@@ -175,7 +175,7 @@ spec:
 
 ### Optional: Redirect URL and Timeout
 
-The redirect URL must be accessible by all user, optional redirect timeout.
+The redirect URL must be accessible by all users, with an optional redirect timeout.
 
 ```yaml
 # Extra parts of OIDC yaml have been removed.
@@ -187,7 +187,7 @@ spec:
 
 ### Optional: Prompt
 
-By default, Teleport will prompt end users to select an account each time they log in
+By default, Teleport will prompt end-users to select an account each time they log in
 even if the user only has one account.
 
 Teleport 4.2 now lets Teleport Admins configure this option. Since `prompt` is optional,
@@ -226,7 +226,7 @@ redirected back to Teleport.
 
 For console login, you simple type `tsh --proxy <proxy-addr> ssh <server-addr>`
 and a browser window should automatically open taking you to the login page for
-your identity provider. `tsh` will also output a link the login page of the
+your identity provider. `tsh` will also output a link to the login page of the
 identity provider if you are not automatically redirected.
 
 ## Troubleshooting
