@@ -56,6 +56,7 @@ func MakeTestClient(config common.TestClientConfig) (*client.Conn, error) {
 // TestServer is a test MySQL server used in functional database
 // access tests.
 type TestServer struct {
+	cfg       common.TestServerConfig
 	listener  net.Listener
 	port      string
 	tlsConfig *tls.Config
@@ -86,6 +87,7 @@ func NewTestServer(config common.TestServerConfig) (*TestServer, error) {
 		"name":          config.Name,
 	})
 	return &TestServer{
+		cfg:       config,
 		listener:  listener,
 		port:      port,
 		tlsConfig: tlsConfig,
@@ -121,6 +123,14 @@ func (s *TestServer) Serve() error {
 }
 
 func (s *TestServer) handleConnection(conn net.Conn) error {
+	var creds server.CredentialProvider = &credentialProvider{}
+	if s.cfg.AuthToken != "" {
+		creds = &testCredentialProvider{
+			credentials: map[string]string{
+				s.cfg.AuthUser: s.cfg.AuthToken,
+			},
+		}
+	}
 	serverConn, err := server.NewCustomizedConn(
 		conn,
 		server.NewServer(
@@ -129,7 +139,7 @@ func (s *TestServer) handleConnection(conn net.Conn) error {
 			mysql.AUTH_NATIVE_PASSWORD,
 			nil,
 			s.tlsConfig),
-		&credentialProvider{},
+		creds,
 		s.handler)
 	if err != nil {
 		return trace.Wrap(err)
@@ -143,6 +153,24 @@ func (s *TestServer) handleConnection(conn net.Conn) error {
 			return trace.Wrap(err)
 		}
 	}
+}
+
+// testCredentialProvider is used in tests that simulate MySQL password auth
+// (e.g. when using IAM auth tokens).
+type testCredentialProvider struct {
+	credentials map[string]string
+}
+
+// CheckUsername returns true is specified MySQL user account exists.
+func (p *testCredentialProvider) CheckUsername(username string) (bool, error) {
+	_, ok := p.credentials[username]
+	return ok, nil
+}
+
+// GetCredential returns credentials for the specified MySQL user account.
+func (p *testCredentialProvider) GetCredential(username string) (string, bool, error) {
+	password, ok := p.credentials[username]
+	return password, ok, nil
 }
 
 // Port returns the port server is listening on.
