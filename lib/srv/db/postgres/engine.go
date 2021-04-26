@@ -41,7 +41,7 @@ import (
 // Implements common.Engine.
 type Engine struct {
 	// Auth handles database access authentication.
-	Auth *common.Auth
+	Auth common.Auth
 	// Audit emits database access audit events.
 	Audit common.Audit
 	// Context is the database server close context.
@@ -370,6 +370,11 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 	switch sessionCtx.Server.GetType() {
 	case types.DatabaseTypeRDS:
 		config.Password, err = e.Auth.GetRDSAuthToken(sessionCtx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case types.DatabaseTypeRedshift:
+		config.User, config.Password, err = e.Auth.GetRedshiftAuthToken(sessionCtx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

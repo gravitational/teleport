@@ -41,17 +41,30 @@ type TestServerConfig struct {
 	Name string
 	// Address is an optional server listen address.
 	Address string
+	// AuthUser is used in tests simulating IAM token authentication.
+	AuthUser string
+	// AuthToken is used in tests simulating IAM token authentication.
+	AuthToken string
+	// CN allows to set specific CommonName in the database server certificate.
+	//
+	// Used when simulating test Cloud SQL database which should contains
+	// <project-id>:<instance-id> in its certificate.
+	CN string
 }
 
 // MakeTestServerTLSConfig returns TLS config suitable for configuring test
 // database Postgres/MySQL servers.
 func MakeTestServerTLSConfig(config TestServerConfig) (*tls.Config, error) {
+	cn := config.CN
+	if cn == "" {
+		cn = "localhost"
+	}
 	privateKey, _, err := testauthority.New().GenerateKeyPair("")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	csr, err := tlsca.GenerateCertificateRequestPEM(pkix.Name{
-		CommonName: "localhost",
+		CommonName: cn,
 	}, privateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -59,7 +72,7 @@ func MakeTestServerTLSConfig(config TestServerConfig) (*tls.Config, error) {
 	resp, err := config.AuthClient.GenerateDatabaseCert(context.Background(),
 		&proto.DatabaseCertRequest{
 			CSR:        csr,
-			ServerName: "localhost",
+			ServerName: cn,
 			TTL:        proto.Duration(time.Hour),
 		})
 	if err != nil {

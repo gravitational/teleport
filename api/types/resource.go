@@ -66,6 +66,16 @@ type ResourceWithSecrets interface {
 	WithoutSecrets() Resource
 }
 
+// ResourceWithOrigin provides information on the origin of the resource
+// (defaults, config-file, dynamic).
+type ResourceWithOrigin interface {
+	Resource
+	// Origin returns the origin value of the resource.
+	Origin() string
+	// SetOrigin sets the origin value of the resource.
+	SetOrigin(string)
+}
+
 // Clock is used to track TTL of resources.
 // This is only used in SetTTL which is deprecated.
 // DELETE IN 7.0.0
@@ -173,6 +183,22 @@ func (m *Metadata) Expiry() time.Time {
 	return *m.Expires
 }
 
+// Origin returns the origin value of the resource.
+func (m *Metadata) Origin() string {
+	if m.Labels == nil {
+		return ""
+	}
+	return m.Labels[OriginLabel]
+}
+
+// SetOrigin sets the origin value of the resource.
+func (m *Metadata) SetOrigin(origin string) {
+	if m.Labels == nil {
+		m.Labels = map[string]string{}
+	}
+	m.Labels[OriginLabel] = origin
+}
+
 // SetTTL sets Expires header using the provided clock.
 // Use SetExpiry instead.
 // DELETE IN 7.0.0
@@ -199,6 +225,11 @@ func (m *Metadata) CheckAndSetDefaults() error {
 		if !IsValidLabelKey(key) {
 			return trace.BadParameter("invalid label key: %q", key)
 		}
+	}
+
+	// Check the origin value.
+	if !utils.SliceContainsStr(append(OriginValues, ""), m.Origin()) {
+		return trace.BadParameter("invalid origin value %q, should be one of %v (this is a bug)", m.Origin(), OriginValues)
 	}
 
 	return nil
