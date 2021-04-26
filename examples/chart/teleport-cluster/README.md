@@ -35,6 +35,7 @@ Check https://goteleport.com/teleport/docs for more details.
 | Name                      | Description                                                                 | Default                                                | Required |
 |---------------------------|-----------------------------------------------------------------------------|--------------------------------------------------------|----------|
 | `clusterName`             | Teleport cluster name (must be an FQDN)                                     |                                                        | yes      |
+| `kubeClusterName`         | kubernetes cluster name (used in the kubeconfig)                            | clusterName value                                      | no       |
 | `teleportVersionOverride` | Teleport version                                                            | Current stable version                                 | no       |
 | `image`                   | OSS Docker image                                                            | `quay.io/gravitational/teleport`                       | no       |
 | `enterpriseImage`         | Enterprise Docker image                                                     | `quay.io/gravitational/teleport-ent`                   | no       |

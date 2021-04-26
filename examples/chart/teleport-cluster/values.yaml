@@ -12,6 +12,9 @@ clusterName:
 # Values that you may need to change.
 ##################################################
 
+# Name for this kubernetes cluster to be used by teleport users.
+kubeClusterName: ""
+
 # Version of teleport image, if different from appVersion in Chart.yaml.
 teleportVersionOverride: ""
 
