@@ -210,7 +210,7 @@ release-unix: clean full
 	rm -rf teleport
 	@echo "---> Created $(RELEASE).tar.gz."
 	@if [ -f e/Makefile ]; then \
-		rm -fr $(WEBASSETS_BUILDDIR)/webassets.zip; \
+		rm -fr $(ASSETS_BUILDDIR)/webassets.zip; \
 		$(MAKE) -C e release; \
 	fi
 
