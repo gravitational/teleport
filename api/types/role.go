@@ -778,8 +778,7 @@ func (r *Rule) HasResource(resource string) bool {
 	return false
 }
 
-// HasVerb returns true if the rule has verb,
-// this method also matches wildcard
+// HasVerb returns true if the rule has the specified verb.
 func (r *Rule) HasVerb(verb string) bool {
 	for _, v := range r.Verbs {
 		// readnosecrets can be satisfied by having readnosecrets or read
