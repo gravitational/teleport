@@ -6,12 +6,12 @@ h1: Pluggable Authentication Modules (PAM)
 
 Teleport's node service can be configured to integrate with [PAM](https://en.wikipedia.org/wiki/Linux_PAM). This allows Teleport to create user sessions using PAM session profiles.
 
-Teleport only supports the `auth`, `account` and `session` stack. The `auth`
+Teleport only supports the `auth`, `account`, and `session` stack. The `auth`
 stack is optional and not used by default.
 
 ## Introduction to Pluggable Authentication Modules
 
-Pluggable Authentication Modules (PAM) date back to 1995 when Sun Microsystems
+Pluggable Authentication Modules (PAM) dates back to 1995 when Sun Microsystems
 implemented a generic authentication framework for Solaris. Since then most GNU/Linux
 distributions have adopted PAM.
 
@@ -19,7 +19,7 @@ distributions have adopted PAM.
 $ man pam
 ```
 
-The Pluggable Authentication Modules (PAM) library abstracts a number of common
+The Pluggable Authentication Modules (PAM) library abstracts many common
 authentication-related operations and provides a framework for dynamically loaded
 modules that implement these operations in various ways.
 
@@ -38,7 +38,7 @@ whatever task their requested is a PAM transaction; the context within which the
 performs the requested task is called a session.
 
 The functionality embodied by PAM is divided into six primitives grouped into four
-facilities: authentication, account management, session management and password
+facilities: authentication, account management, session management, and password
 management.
 
 Teleport currently supports account management and session management.
@@ -59,7 +59,7 @@ ssh_service:
     use_pam_auth: true
 ```
 
-Please note that most Linux distributions come with a number of PAM services in
+Please note that most Linux distributions come with some PAM services in
 `/etc/pam.d` and Teleport will try to use `sshd` by default, which will be
 removed if you uninstall the `openssh-server` package. We recommend creating your
 own PAM service file like `/etc/pam.d/teleport` and specifying it as
@@ -163,7 +163,7 @@ account    required     pam_nologin.so
 @include common-account
 
 # SELinux needs to be the first session rule.  This ensures that any
-# lingering context has been cleared.  Without this it is possible that a
+# lingering context has been cleared.  Without this, it's possible that a
 # module could execute code in the wrong domain.
 session [success=ok ignore=ignore module_unknown=ignore default=bad]        pam_selinux.so close
 
@@ -248,7 +248,7 @@ Here are some details on the contents of these environment variables which will 
 
 `TELEPORT_USERNAME`: The Teleport username of the user who is logging into the node. This is usually an email address (such as `user@example.com`) if using SAML/OIDC identities with Teleport Enterprise, or a more standard `exampleuser` if using local Teleport users.
 
-`TELEPORT_LOGIN`: The name of the Linux/UNIX principal which the Teleport user is logging into the Teleport node as - for example `root`, `developer`, `ubuntu`, `ec2-user` or similar.
+`TELEPORT_LOGIN`: The name of the Linux/UNIX principal which the Teleport user is logging into the Teleport node as - for example, `root`, `developer`, `ubuntu`, `ec2-user` or similar.
 
 `TELEPORT_ROLES`: A space-separated list of Teleport roles which the Teleport user has - for example: `developer tester admin`.
 
@@ -276,8 +276,7 @@ session   required   pam_permit.so
 ```
 
 <Admonition type="note">
-  Pay attention to the inclusion of `pam_motd.so` under the `session` facility. While `pam_motd.so` is
-  not required for user creation, Teleport requires at least one module to be set under both
+  Pay attention to the inclusion of `pam_motd.so` under the `session` facility. While `pam_motd.so` is not required for user creation, Teleport requires at least one module to be set under both
   the `account` and `session` facilities for it to work.
 </Admonition>
 
@@ -290,7 +289,7 @@ to write richer scripts that may change the system in other ways based on
 identity information.
 
 <Admonition type="note">
-  The `useradd` location can have a different path then the example below depending on your linux flavor.  Adjust to your particular system as needed from `which useradd` (Ex: `/usr/sbin/useradd` instead of the below example).
+  The `useradd` location can have a different path than the example below depending on your linux flavor.  Adjust to your particular system as needed from `which useradd` (Ex: `/usr/sbin/useradd` instead of the below example).
 </Admonition>
 
 ```bash
@@ -317,12 +316,12 @@ ssh_service:
 Now attempting to login as an existing user should result in the creation of the
 user and a successful login.
 
-The `/etc/pam-exec.d/teleport_acct script` can set the user's groups as an option to auto populate user's permissions.  The user's roles are populated as space delimited `TELEPORT_ROLES` variables. These could be used to map to a particular `sudo` group with additional scripting.
+The `/etc/pam-exec.d/teleport_acct script` can set the user's groups as an option to auto-populate the user's permissions.  The user's roles are populated as space-delimited `TELEPORT_ROLES` variables. These could be used to map to a particular `sudo` group with additional scripting.
 
 ## Additional authentication steps
 
 Using the PAM `auth` modules, it is possible to add additional authentication
-steps during user login. These can include passwords, 2nd factor or even
+steps during user login. These can include passwords, 2nd factor, or even
 biometrics.
 
 Note that Teleport enables strong SSH authentication out of the box using

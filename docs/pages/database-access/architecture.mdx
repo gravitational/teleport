@@ -5,7 +5,7 @@ description: How Teleport Database Access works
 
 # Database Access Architecture
 
-This section provides an overview of Teleport Database Access inner workings.
+This section provides an overview of Teleport Database Access's inner workings.
 
 ## How It Works
 
@@ -15,14 +15,11 @@ Let's take a look at a sample Database Access deployment:
 
 In it, we have the following Teleport components:
 
-- [Teleport Proxy](../architecture/proxy.mdx). A stateless service
-  that performs a function of an authentication gateway, serves web UI and
-  accepts database (and other) client connections.
+- [Teleport Proxy](../architecture/proxy.mdx). A stateless service that performs a function of an authentication gateway, serves web UI and accepts database (and other) client connections.
 - [Teleport Auth](../architecture/authentication.mdx). Serves as
-  cluster's certificate authority, handles user authentication/authorization
-  and issues short-lived client certificates.
-- Teleport Database Service. The Database Access' "brain" that connects
-  to the databases, performs database authentication and protocol parsing.
+  cluster's certificate authority handles user authentication/authorization
+  , and issues short-lived client certificates.
+- Teleport Database Service. The Database Access' "brain" that connects to the databases, performs database authentication and protocol parsing.
 
 Database Service establishes an SSH reverse tunnel to the Proxy. As such, users
 do not need to have direct connectivity to the Database Service, or the databases
@@ -40,23 +37,18 @@ can be located behind a firewall.
 Let's take a look at the typical flow Database Access users go through to
 connect to a database.
 
-1. A user logs into the cluster with `tsh login` command and retrieves
-   a client certificate. See [Issuing User Certificates](../architecture/authentication.mdx#issuing-user-certificates)
+1. A user logs into the cluster with `tsh login` command and retrieves a client certificate. See [Issuing User Certificates](../architecture/authentication.mdx#issuing-user-certificates)
    for more details on how it works.
 2. The user picks the database they want to connect to from the list of available
    databases shown in `tsh db ls` command and retrieves a short-lived X.509
    certificate for it with `tsh db login`.
 3. The user uses a standard database client (e.g. `psql`, `mysql` or one of the
-   [graphical clients](./guides/gui-clients.mdx)) to connect to the Proxy, authenticating
-   with the client certificate from **Step 2**.
+   [graphical clients](./guides/gui-clients.mdx)) to connect to the Proxy, authenticating with the client certificate from **Step 2**.
 4. The Proxy authenticates the connection and dispatches it to the appropriate
    Database Service based on the routing information encoded in the client
    certificate, over the reverse tunnel.
-5. The Database Service authenticates the connection, performs an authorization
-   check, and then establishes the connection to the database.
-6. The Database Service begins proxying traffic between the user's database
-   client and the database. Additionally, it interprets the database wire
-   protocol messages and submits events to the Teleport audit log.
+5. The Database Service authenticates the connection, performs an authorization check, and then establishes the connection to the database.
+6. The Database Service begins proxying traffic between the user's database client and the database. Additionally, it interprets the database wire protocol messages and submits events to the Teleport audit log.
 
 ## Authentication
 
@@ -80,8 +72,7 @@ obtained from the `tsh db login` command.
   type="note"
   title="SSL"
 >
-  Many database clients/servers refer to these certificates as SSL which is
-  legacy terminology. In Teleport documentation we most often refer to them as
+  Many database clients/servers refer to these certificates as SSL which is legacy terminology. In Teleport documentation, we most often refer to them as
   TLS or x509 certificates.
 </Admonition>
 
@@ -102,7 +93,7 @@ with mutual TLS.
 
 The Proxy generates a short-lived X.509 certificate signed by the
 cluster's host authority, with the client's identity and database routing
-information encoded in it, and uses it to authenticate with the Database Service.
+the information encoded in it and uses to authenticate with the Database Service.
 
 ### Database Service to Database
 
@@ -124,7 +115,7 @@ With RDS and Aurora database instances, the Database Service authenticates using
 [IAM Authentication](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html).
 
 The Database Service automatically generates an IAM token for each connection
-and uses the token as a password.
+and uses the token like a password.
 
 See respective configuration guides for [PostgreSQL](./guides/postgres-aws.mdx) and
 [MySQL](./guides/mysql-aws.mdx) for details on configuring IAM authentication.

@@ -7,19 +7,16 @@ h1: Enhanced Session Recording
 Teleport [SSH and Kubernetes session recording](../architecture/nodes.mdx#session-recording)
 feature captures what is echoed to a terminal.
 
-This has inherent advantages, for example because no input is captured, Teleport
+This has inherent advantages, for example, because no input is captured, Teleport
 session recordings typically do not contain passwords that were entered into a terminal.
 
-The disadvantage is that session recordings can by bypassed using several techniques:
+The disadvantage is that session recordings can be bypassed using several techniques:
 
 - **Obfuscation**. For example, even though the command
   `echo Y3VybCBodHRwOi8vd3d3LmV4YW1wbGUuY29tCg== | base64 --decode | sh` does not contain
   `curl http://www.example.com`, when decoded, that is what is run.
-- **Shell scripts**. For example, if a user uploads and executes a script, the commands
-  run within the script are not captured, simply the output.
-- **Terminal controls**. Terminals support a wide variety of controls including the
-  ability for users to disable terminal echo. This is frequently used when requesting
-  credentials. Disabling terminal echo allows commands to be run without being captured.
+- **Shell scripts**. For example, if a user uploads and executes a script, the commands run within the script are not captured, simply the output.
+- **Terminal controls**. Terminals support a wide variety of controls including the ability for users to disable terminal echo. This is frequently used when requesting credentials. Disabling terminal echo allows commands to be run without being captured.
 
 Furthermore, due to their unstructured nature, session recordings are difficult to
 ingest and perform monitoring/alerting on.
@@ -157,7 +154,7 @@ We recommend installing BCC tools using your distribution's package manager wher
     <TabItem label="Amazon Linux 2+">
     **Example Script to install relevant bcc packages for Amazon 2 Linux**
 
-    Make sure the the machine is at Kernel 4.19+/5+ (`uname -r`). Run the following script, sourced from [BCC github](https://github.com/iovisor/bcc/blob/master/INSTALL.md#amazon-linux-2---binary), to enable BCC in Amazon Linux Extras, install required `kernel-devel` package for the Kernel version and install the BCC tools.
+    Make sure the machine is at Kernel 4.19+/5+ (`uname -r`). Run the following script, sourced from [BCC github](https://github.com/iovisor/bcc/blob/master/INSTALL.md#amazon-linux-2---binary), to enable BCC in Amazon Linux Extras, install the required `kernel-devel` package for the Kernel version and install the BCC tools.
 
     ```sh
     #!/bin/bash
@@ -337,7 +334,7 @@ ssh_service:
 
 ## 4. Test by logging into node via Teleport
 
-Session with Enhanced Session Recording will be marked as `true` in the logs.
+A session with Enhanced Session Recording will be marked as `true` in the logs.
 
 ```json
 {

@@ -19,7 +19,7 @@ $ terraform version
 Terraform v0.12.20
 ```
 
-You will also require the `aws` command line tool. This is available in Ubuntu/Debian/Fedora/CentOS and MacOS Homebrew
+You will also require the `aws` command-line tool. This is available in Ubuntu/Debian/Fedora/CentOS and macOS Homebrew
 as the `awscli` package.
 
 Fedora/CentOS: `yum -y install awscli`
@@ -63,7 +63,7 @@ AWS services:
 - [IAM](https://aws.amazon.com/iam/)
 - [SSM Parameter Store](https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-parameter-store.html)
 
-The Terraform deployment itself will create new IAM roles to be used by Teleport instances which have appropriately
+The Terraform deployment itself will create new IAM roles to be used by Teleport instances that have appropriately
 limited permission scopes for AWS services. However, the initial cluster setup must be done by a user with a high
 level of AWS permissions.
 
@@ -141,7 +141,7 @@ at rest](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Encryp
 
 Setting `export TF_VAR_cluster_name="example-cluster"`
 
-This is the internal Teleport cluster name to use. This should be unique, and not contain spaces, dots (.) or other
+This is the internal Teleport cluster name to use. This should be unique, and not contain spaces, dots (.), or other
 special characters. Some AWS services will not allow you to use dots in a name, so this should not be set to a domain
 name. This will appear in the web UI for your cluster and cannot be changed after creation without rebuilding your
 cluster from scratch, so choose carefully.
@@ -150,7 +150,7 @@ cluster from scratch, so choose carefully.
 
 Setting `export TF_VAR_ami_name="gravitational-teleport-ami-ent-(=teleport.version=)"`
 
-Gravitational automatically builds and publishes Community, Enterprise, and Enterprise FIPS 140-2 AMIs when we
+Gravitational automatically builds and publishes Open Source, Enterprise, and Enterprise FIPS 140-2 AMIs when we
 release a new version of Teleport. The AMI names follow the format: `gravitational-teleport-ami-<type>-<version>`
 where `<type>` is either `oss` or `ent` (Enterprise) and `version` is the version of Teleport e.g. `(=teleport.version=)`.
 
@@ -163,7 +163,7 @@ the example `awscli` commands below. The output is in JSON format by default.
   type="tip"
   title="List Gravitational AMIs"
 >
-  Community Edition AMIs<br/>
+  Open Source Edition AMIs<br/>
   `aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-oss*'`
 
   Enterprise AMIs<br/>
@@ -177,7 +177,7 @@ the example `awscli` commands below. The output is in JSON format by default.
 
 Setting `export TF_VAR_key_name="exampleuser"`
 
-The AWS keypair name to use when deploying EC2 instances. This must exist in the same region as you
+The AWS key pair name to use when deploying EC2 instances. This must exist in the same region as you
 specify in the `region` variable, and you will need a copy of this keypair available to connect to the deployed
 EC2 instances. Do not use a keypair that you do not have access to.
 
@@ -188,10 +188,10 @@ Setting `export TF_VAR_license_path="/home/user/teleport-license.pem"`
 The full local path to your Teleport license file, which customers can download from
 [the Gravitational dashboard](https://dashboard.gravitational.com/).
 
-This license will be uploaded to AWS SSM and automatically downloaded to Teleport auth nodes in order to enable
+This license will be uploaded to AWS SSM and automatically downloaded to Teleport auth nodes to enable
 Teleport Enterprise/Pro functionality.
 
-(Community Edition users can provide any valid local file path here - it isn't used by the auth server in a Teleport Community Edition install)
+(Open Source Edition users can provide any valid local file path here - it isn't used by the auth server in a Teleport Open Source Edition install)
 
 ### route53\_zone
 
@@ -225,7 +225,7 @@ This must be a subdomain of the domain you chose for [`route53_zone`](#route53\_
 Setting `export TF_VAR_s3_bucket_name="example-cluster"`
 
 The Terraform example also provisions an S3 bucket to hold certificates provisioned by LetsEncrypt and distribute these
-to EC2 instances. This can be any S3-compatible name, and will be generated in the same region as set above.
+to EC2 instances. This can be any S3-compatible name and will be generated in the same region as set above.
 
 This bucket is still provisioned when using ACM, as it is also used to store Teleport session logs.
 
@@ -234,7 +234,7 @@ This bucket is still provisioned when using ACM, as it is also used to store Tel
 Setting `export TF_VAR_email="support@example.com"`
 
 LetsEncrypt requires an email address for every certificate registered which can be used to send notifications and
-useful information. We recommend a generic ops/support email address which the team deploying Teleport has access to.
+useful information. We recommend a generic ops/support email address that the team deploying Teleport has access to.
 
 ### grafana_pass
 
@@ -275,13 +275,11 @@ terraform import aws_acm_certificate.cert <certificate_arn>
 
 Our reference deployment will provision the following instances for your cluster by default:
 
-- 2 x m4.large Teleport **auth** instances in an ASG, behind an internal network load balancer, configured using DynamoDB for
-  shared storage. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/auth_asg.tf#L11)
+- 2 x m4.large Teleport **auth** instances in an ASG, behind an internal network load balancer, configured using DynamoDB for shared storage. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/auth_asg.tf#L11)
 - 2 x m4.large Teleport **proxy** instances in an ASG, behind a public-facing load balancer - NLB for LetsEncrypt, ALB for ACM. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/proxy_asg.tf#L12)
 - 1 x m4.large Teleport **node** instance in an ASG. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/node_asg.tf#L10)
-- 1 x m4.large monitoring server in an ASG which hosts the Grafana instance and receives monitoring data from each service in the cluster. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/monitor_asg.tf#L12)
-- 1 x t2.medium bastion server which is the only permitted source for inbound SSH traffic to the instances. This is done
-  to avoid exposing each instance to the internet directly.
+- 1 x m4.large monitoring server in an ASG that hosts the Grafana instance and receives monitoring data from each service in the cluster. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/monitor_asg.tf#L12)
+- 1 x t2.medium bastion server which is the only permitted source for inbound SSH traffic to the instances. This is done to avoid exposing each instance to the internet directly.
 
 [The instance types used for each ASG can be configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/vars.tf#L23-L45)
 
@@ -312,21 +310,20 @@ More information about how Teleport works with DynamoDB can be found in our [Dyn
 The reference Terraform deployment sets Teleport up to store recorded session logs in the same S3 bucket configured in
 the [`s3_bucket_name`](#s3\_bucket_name) variable, under the `records` directory.
 
-In our example this would be `s3://example-cluster/records`
+In our example, this would be `s3://example-cluster/records`
 
 <Admonition
   type="tip"
   title="Tip"
 >
   S3 provides [Amazon S3 Object Lock](https://docs.aws.amazon.com/AmazonS3/latest/dev/object-lock.html),
-  which is useful for customers deploying Teleport in regulated environments. Configuration of object lock is out of
-  the scope of this guide.
+  which is useful for customers deploying Teleport in regulated environments. Configuration of object lock is out of the scope of this guide.
 </Admonition>
 
 ### Cluster domain
 
 The reference Terraform deployment sets the Teleport cluster up to be available on a domain defined in Route53, referenced
-by the [`route53_domain`](#route53\_domain) variable. In our example this would be `teleport.example.com`
+by the [`route53_domain`](#route53\_domain) variable. In our example, this would be `teleport.example.com`
 
 Teleport's web interface will be available on port 443 - [https://teleport.example.com](https://teleport.example.com) - this is via a configured CNAME
 to the AWS load balancer.
@@ -482,11 +479,11 @@ Once this user is successfully configured, you should be logged into the Telepor
 
 ### Logging into the cluster with tsh
 
-You can use the Teleport command line tool (`tsh`) to log into your Teleport cluster after provisioning a user.
+You can use the Teleport command-line tool (`tsh`) to log into your Teleport cluster after provisioning a user.
 
 You can [download the Teleport package containing the `tsh` client from here](https://gravitational.com/teleport/download)
 
-- the client is the same for both Community and Enterprise editions of Teleport.
+- The client is the same for both the Open Source and Enterprise editions of Teleport.
 
 ```bash
 $ tsh login --proxy=${TF_VAR_route53_domain}:443 --user=teleport-admin
@@ -753,12 +750,12 @@ auth_servers:
   - example-cluster-auth-c5b0fc2764ee015b.elb.us-east-1.amazonaws.com:3025
 ```
 
-### Joining nodes via Teleport IoT/node tunnelling
+### Joining nodes via Teleport IoT/node tunneling
 
 To join Teleport nodes from outside the same VPC, you will either need to investigate VPC peering/gateways (out of scope
 for this document) or join your nodes using [Teleport's node tunnelling](admin-guide.mdx#adding-a-node-located-behind-nat) functionality.
 
-With this method, you can join the nodes using the public facing proxy address - `teleport.example.com:443` for our
+With this method, you can join the nodes using the public-facing proxy address - `teleport.example.com:443` for our
 example.
 
 ```yaml

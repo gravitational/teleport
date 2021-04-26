@@ -3,9 +3,9 @@ title: Running Teleport on IBM Cloud
 description: How to install and configure Gravitational Teleport on IBM cloud for SSH and Kubernetes access.
 ---
 
-We've created this guide to give customers a high level overview of how to use Teleport
-on the [IBM Cloud](https://www.ibm.com/cloud). This guide provides a high level
-introduction leading to a deep dive into how to setup and run Teleport in production.
+We've created this guide to give customers a high-level overview of how to use Teleport
+on the [IBM Cloud](https://www.ibm.com/cloud). This guide provides a high-level
+introduction leading to a deep dive into how to set up and run Teleport in production.
 
 We have split this guide into:
 
@@ -26,13 +26,13 @@ Softlayer infrastructure.
 
 ### Which Services can I use Teleport with?
 
-You can use Teleport for all the services that you would SSH into. This guide is
-focused on IBM Cloud. In the future we'll plan to update on how to use Teleport
-with IBM Cloud Kubernetes Service.
+While you can use Teleport for all the services that you would SSH int, this guide is focused on IBM Cloud. 
+
+In the future, we'll update how to use Teleport with IBM Cloud Kubernetes Service.
 
 ## IBM Teleport introduction
 
-This guide will cover how to setup, configure and run Teleport on IBM Cloud.
+This guide will cover how to set up, configure and run Teleport on IBM Cloud.
 
 IBM Services required to run Teleport in HA:
 
@@ -56,7 +56,7 @@ stores the audit logs.
 We recommend Gen 2 Cloud IBM [Virtual Servers](https://www.ibm.com/cloud/virtual-servers) and [Auto Scaling](https://www.ibm.com/cloud/auto-scaling)
 
 - For Staging and POCs we recommend using `bx2-2x8` machines with 2 vCPUs, 4GB RAM, 4 Gbps.
-- For Production we would recommend `cx2-4x8` with 4 vCPUs, 8 GB RAM, 8 Gbps.
+- For Production, we would recommend `cx2-4x8` with 4 vCPUs, 8 GB RAM, 8 Gbps.
 
 ### Storage: Database for etcd
 
@@ -163,8 +163,7 @@ storage:
 ```
 
 <Admonition type="tip">
-  When starting with `teleport start --config=/etc/teleport.yaml -d` you can confirm that the
-  bucket has been created.
+  When starting with `teleport start --config=/etc/teleport.yaml -d` you can confirm that the bucket has been created.
 </Admonition>
 
 ```bash

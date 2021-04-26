@@ -13,8 +13,7 @@ In this document you will learn how to:
 - Connect to SSH clusters behind firewalls without any open ports, using SSH
   reverse tunnels.
 - Explore a cluster and execute commands on specific nodes in a cluster.
-- Share interactive shell sessions with colleagues or join someone else's
-  session.
+- Share interactive shell sessions with colleagues or join someone else's session.
 - Replay recorded interactive sessions.
 
 In addition to this document, you can always simply type `tsh` into your
@@ -107,7 +106,7 @@ $ tsh login --proxy=work.example.com:2002
 
 The login command retrieves a user's certificate and stores it in `~/.tsh`
 directory as well as in the [ssh
-agent](https://en.wikipedia.org/wiki/Ssh-agent), if there is one running.
+agent](https://en.wikipedia.org/wiki/Ssh-agent) if there is one running.
 
 This allows you to authenticate just once, maybe at the beginning of the day.
 Subsequent `tsh ssh` commands will run without asking for credentials until the
@@ -118,14 +117,12 @@ with a TTL (time to live) of 12 hours.
   type="tip"
   title="Tip"
 >
-  It is recommended to always use [`tsh login`](cli-docs.mdx#tsh-login) before
-  using any other `tsh` commands. This
-  allows users to omit `--proxy` flag in subsequent tsh commands. For example
+  It is recommended to always use [`tsh login`](cli-docs.mdx#tsh-login) before using any other `tsh` commands. This allows users to omit `--proxy` flag in subsequent tsh commands. For example
   `tsh ssh user@host` will work.
 </Admonition>
 
-A Teleport cluster can be configured for multiple user identity sources. For
-example, a cluster may have a local user called `admin` while regular users
+A Teleport cluster can be configured for multiple user identity sources.
+For example, a cluster may have a local user called `admin` while regular users
 should [authenticate via Github](admin-guide.mdx#github-oauth-20). In this case,
 you have to pass `--auth` flag to `tsh login` to specify which identity storage
 to use:
@@ -140,7 +137,7 @@ $ tsh --proxy=proxy.example.com --auth=github --user=admin login
 
 When using an external identity provider to log in, `tsh` will need to open a web browser to
 complete the authentication flow. By default, `tsh` will use your system's default browser to open
-such links. If you wish to suppress this behaviour, you can use the `--browser=none` flag:
+such links. If you wish to suppress this behavior, you can use the `--browser=none` flag:
 
 ```
 # Don't open the system default browser when logging in
@@ -227,7 +224,7 @@ CI/CD pipeline.
 For such automation, it is recommended to create a separate Teleport user for
 bots and request a certificate for them with a long time to live (TTL).
 
-In this example we're creating a certificate with a TTL of 10 years for the
+In this example, we're creating a certificate with a TTL of 10 years for the
 jenkins user and storing it in a `jenkins.pem` file, which can be later used with
 `-i` (identity) flag for `tsh`.
 
@@ -318,8 +315,7 @@ This means *use port `5000` for HTTPS and `5001` for SSH*.
 ### Port forwarding
 
 `tsh ssh` supports the OpenSSH `-L` flag which forwards incoming
-connections from localhost to the specified remote host:port. The syntax of `-L`
-flag is as follows, where "bind_ip" defaults to `127.0.0.1`:
+connections from localhost to the specified remote host:port. The syntax of the `-L` flag is as follows, where "bind_ip" defaults to `127.0.0.1`:
 
 ```bash
 -L [bind_ip]:listen_port:remote_host:remote_port
@@ -362,8 +358,8 @@ $ tsh ssh -J proxy.example.com telenode
 
 Known limitations:
 
-- Only one jump host is supported (`-J` supports chaining that Teleport does not utilise) and `tsh` will return with error in the case of two jumphosts, i.e. `-J proxy-1.example.com,proxy-2.example.com` will not work.
-- When `tsh ssh -J user@proxy` is used, it overrides the SSH proxy defined in the tsh profile and port forwarding is used instead of the existing Teleport proxy subsystem.
+- Only one jump host is supported (`-J` supports chaining that Teleport does not utilize) and `tsh` will return with error in the case of two jumphosts, i.e. `-J proxy-1.example.com,proxy-2.example.com` will not work.
+- When `tsh ssh -J user@proxy` is used, it overrides the SSH proxy defined in the tsh profile, and port forwarding is used instead of the existing Teleport proxy subsystem.
 
 ### Resolving node names
 
@@ -428,7 +424,7 @@ $ scp -P 61122 -r files root@node:/path/to/dest
 Suppose you are trying to troubleshoot a problem on a remote server. Sometimes
 it makes sense to ask another team member for help. Traditionally, this could be
 done by letting them know which node you're on, having them SSH in, start a
-terminal multiplexer like `screen` and join a session there.
+terminal multiplexer like `screen`, and join a session there.
 
 Teleport makes this more convenient. Let's log into a server named `luna`
 and ask Teleport for our current session status:
@@ -443,7 +439,7 @@ Session URL: https://work:3080/web/sessions/7645d523-60cb-436d-b732-99c5df14b7c4
 ```
 
 Now you can invite another user account to the `work` cluster. You can share the
-URL for access through a web browser, or you can share the session ID and she
+URL for access through a web browser, or you can share the session ID, and she
 can join you through her terminal by typing:
 
 ```bash
@@ -502,20 +498,16 @@ to establish inbound SSH connections.
 
 Teleport proxy serves the web UI on `https://proxyhost:3080`. The UI allows you
 to see the list of online nodes in a cluster, open a web-based terminal to them,
-see recorded sessions, and replay them. You can also join other users in active
-sessions.
+see recorded sessions, and replay them. You can also join other users in active sessions.
 
 ## Using OpenSSH client
 
 There are a few differences between Teleport's `tsh` and OpenSSH's `ssh` but
 most of them can be mitigated.
 
-1. `tsh` always requires the `--proxy` flag because `tsh` needs to know which
-   cluster you are connecting to. But if you execute `tsh --proxy=xxx login`,
-   the current proxy will be saved in your `~/.tsh` profile and won't be needed
-   for other `tsh` commands.
-2. `tsh ssh` operates *two* usernames: one for the cluster and another for the
-   node you are trying to log into. See [User Identities](#user-identities)
+1. `tsh` always requires the `--proxy` flag because `tsh` needs to know which cluster you are connecting to. But if you execute `tsh --proxy=xxx login`,
+   the current proxy will be saved in your `~/.tsh` profile and won't be needed for other `tsh` commands.
+2. `tsh ssh` operates *two* usernames: one for the cluster and another for the node you are trying to log into. See [User Identities](#user-identities)
    section below. For convenience, `tsh` assumes `$USER` for both by default.
    But again, if you use `tsh login` before `tsh ssh`, your Teleport username
    will be stored in `~/.tsh`.
@@ -527,12 +519,10 @@ If you'd like to set the login name that should be used by default on the remote
   title="Tip"
 >
   To avoid typing `tsh ssh user@host` when logging into servers,
-  you can create a symlink `ssh -> tsh` and execute the symlink. It will
-  behave exactly like a standard `ssh` command, i.e. `ssh login@host`. This is
-  helpful with other tools that expect `ssh` to just work.
+  you can create a symlink `ssh -> tsh` and execute the symlink. It will behave exactly like a standard `ssh` command, i.e. `ssh login@host`. This is helpful with other tools that expect `ssh` to just work.
 </Admonition>
 
-Teleport is built using standard SSH constructs: keys, certificates and
+Teleport is built using standard SSH constructs: keys, certificates, and
 protocols. This means that a Teleport system is 100% compatible with both
 OpenSSH clients and servers.
 

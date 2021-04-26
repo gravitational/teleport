@@ -22,7 +22,7 @@ allow:
       verbs: [list]
 ```
 
-If this rule was declared in `deny` section of a role definition, it effectively
+If this rule was declared in the `deny` section of a role definition, it effectively
 prohibits users from getting a list of trusted clusters and sessions. You can see
 all of the available resources and verbs under the `allow` section in the `admin` role configuration
 below.
@@ -60,10 +60,10 @@ spec:
     # certificates expire in the middle of an active SSH session.
     # It overrides the global cluster setting.
     disconnect_expired_cert: no
-    # Optional: max_connections Per user limit of concurrent sessions within a
+    # Optional: max_connections Per-user limit of concurrent sessions within a
     # cluster.
     max_connections: 2
-    # Optional: max_sessions total number of session channels which can be established
+    # Optional: max_sessions total number of session channels that can be established
     # across a single connection. 10 will match OpenSSH default behavior.
     max_sessions: 10
     # permit_x11_forwarding allows users to use X11 forwarding with openssh clients and servers through the proxy
@@ -83,7 +83,7 @@ spec:
 
     # list of node labels a user will be allowed to connect to:
     node_labels:
-      # A user can only connect to a node marked with 'test' label:
+      # A user can only connect to a node marked with the 'test' label:
       'environment': 'test'
       # The wildcard ('*') means "any node"
       '*': '*'
@@ -100,7 +100,7 @@ spec:
       'region': 'us-west-*'
       'cluster_name': '^us.*\.example\.com$'
 
-    # Defines roles that this user can can request.
+    # Defines roles that this user can request.
     # Needed for teleport's request workflow
     # https://goteleport.com/teleport/docs/enterprise/workflow/
     request:
@@ -129,11 +129,11 @@ spec:
   deny: {}
 ```
 
-The following variables can be used with `logins` field:
+The following variables can be used with the `logins` field:
 
 | Variable | Description |
 | - | - |
-| `{{internal.logins}}` | Substituted with "allowed logins" parameter used in `tctl users add [user] <allowed logins>` command. This applies only to users stored in Teleport's own local database. |
+| `{{internal.logins}}` | Substituted with "allowed logins" parameter used in `tctl users add [user] <allowed logins>` command. This applies only to users stored in Teleport's local database. |
 | `{{external.xyz}}` | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on). If using SAML, this will be expanded with "xyz" assertion value. For OIDC, this will be expanded a value of "xyz" claim. |
 
 Both variables above are there to deliver the same benefit: they allow Teleport
@@ -176,14 +176,14 @@ The table below documents the behavior of each option if multiple roles are assi
 
 A Teleport role can also define which hosts (nodes) a user can have access to.
 This works by [labeling nodes](../admin-guide.mdx#labeling-nodes-and-applications) and listing
-allow/deny labels in a role definition conforming to Role-Based Access Control (RBAC) best-practices.
+`allow`/`deny` labels in a role definition conforming to Role-Based Access Control (RBAC) best-practices.
 
 Consider the following use case:
 
 The infrastructure is split into staging/production environments using labels
 like `'environment': 'production'` and `'environment': 'staging'`. You can create roles
 that only have access to one environment. Let's say you create an intern role
-with allow rule for label `environment=staging`.
+with allow rule for the label `environment=staging`.
 
 ### Example
 
@@ -213,8 +213,7 @@ spec:
   type="tip"
   title="Dynamic RBAC"
 >
-  Node labels can be dynamic, i.e. determined at runtime by an output
-  of an executable. In this case, you can implement "permissions follow workload"
+  Node labels can be dynamic, i.e. determined at runtime by an output of an executable. In this case, you can implement "permissions follow workload"
   policies (eg., any server where PostgreSQL is running becomes *automatically*
   accessible only by the members of the "DBA" group and nobody else).
 </Admonition>

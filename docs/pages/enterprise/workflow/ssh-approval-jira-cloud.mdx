@@ -6,7 +6,7 @@ h1: SSH login approvals using Jira
 
 ## Teleport Jira Plugin setup
 
-This guide will talk through how to setup Teleport with Jira. Teleport to Jira integration allows you to treat Teleport access and permission requests using Jira tickets.
+This guide will talk through how to set up Teleport with Jira. Teleport to Jira integration allows you to treat Teleport access and permission requests using Jira tickets.
 
 <Admonition type="warning">
   The Approval Workflow only works with Teleport Enterprise as it requires several roles.
@@ -18,7 +18,7 @@ This guide assumes that you have:
 
 - Teleport Enterprise 4.2.8 or newer.
 - Admin privileges with access to `tctl`.
-- Jira Server or Jira Cloud installation with an owner privileges, specifically to setup webhooks, issue types, and workflows.
+- Jira Server or Jira Cloud installation with owner privileges, specifically to set up webhooks, issue types, and workflows.
 
 ### Create an access-plugin role and user within Teleport
 
@@ -72,14 +72,14 @@ The above sequence should result in three PEM encoded files being generated: `au
   type="note"
   title="Certificate Lifetime"
 >
-  By default, [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign) produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
+  By default, [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign) produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1-year token
 </Admonition>
 
 ## Setting up your Jira project
 
 ### Creating the permission management project
 
-All new permission requests are going to show up in a project you choose. We recommend that you create a separate project for permissions management, and a new board in said project.
+All new permission requests are going to show up in a project you choose. We recommend that you create a separate project for permissions management and a new board in said project.
 
 You'll need the project Jira key to configure the plugin.
 
@@ -93,9 +93,9 @@ Create a new board for tasks in the permission management project. The board has
 
 Teleport Jira Plugin will create a new issue for each new permission request in the first available column on the board. 
 
-When you drag the request task to "Approved" column on Jira, the request will be approved. 
+When you drag the requested task to the "Approved" column on Jira, the request will be approved. 
 
-If you drag the request task to the "Denied" column in Jira, the request will be denied.
+If you drag the requested task to the "Denied" column in Jira, the request will be denied.
 
 ### Setting up Request ID field on Jira
 
@@ -107,7 +107,7 @@ Teleport uses this field to reference its internal request ID. If anyone changes
 
 ### Getting your Jira API token
 
-If you're using Jira Cloud, navigate to ["Account Settings" → "Security" → "API Tokens"](https://id.atlassian.com/manage/api-tokens) and create a new app specific API token in your Jira installation.
+If you're using Jira Cloud, navigate to ["Account Settings" → "Security" → "API Tokens"](https://id.atlassian.com/manage/api-tokens) and create a new app-specific API token in your Jira installation.
 You'll need this token later to configure the plugin.
 
 For Jira Server, the URL of the API tokens page will be different depending on your installation.
@@ -187,7 +187,7 @@ You should be able to run the Teleport plugin now!
 teleport-jira start
 ```
 
-The log output should look familiar to what Teleport service logs. You should see that it connected to Teleport, and is listening for new Teleport requests and Jira webhooks.
+The log output should look familiar to what Teleport service logs. You should see that it is connected to Teleport, and is listening for new Teleport requests and Jira webhooks.
 
 Go ahead and test it:
 
@@ -199,7 +199,7 @@ That should create a new permission request on Teleport (you can test if it did 
 
 ### Setup with SystemD
 
-In production, we recommend starting teleport plugin daemon via an init system like `systemd`.
+In production, we recommend starting the teleport plugin daemon via an init system like `systemd`.
 Here's the recommended Teleport Plugin service unit file for `systemd`:
 
 ```bash

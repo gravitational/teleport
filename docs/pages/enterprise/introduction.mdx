@@ -5,7 +5,7 @@ h1: Teleport Enterprise
 ---
 
 This section will give an overview of Teleport Enterprise, the commercial product built around
-the open source Teleport Community Edition core. For those that want to jump right in, start
+the Teleport Open Source Edition core. For those that want to jump right in, start
 with the [Quick Start Guide for Teleport Enterprise](quickstart-enterprise.mdx).
 
 The table below summarizes the benefits of the Teleport Enterprise Edition.
@@ -13,7 +13,7 @@ The table below summarizes the benefits of the Teleport Enterprise Edition.
 | Teleport Enterprise Feature | Description |
 | - | - |
 | [Role-Based Access Control (RBAC)](#role-based-access-control) | Allows Teleport administrators to define User Roles and restrict each role to specific actions. RBAC also allows administrators to partition cluster nodes into groups with different access permissions. |
-| [Single Sign-On (SSO)](#single-sign-on) | Allows Teleport to integrate with existing enterprise identity systems. Examples include Active Directory, Github, Google Apps and numerous identity middleware solutions like Auth0, Okta, and so on. Teleport supports SAML and OAuth/OpenID Connect protocols to interact with them. |
+| [Single Sign-On (SSO)](#single-sign-on) | Allows Teleport to integrate with existing enterprise identity systems. Examples include Active Directory, Github, Google Apps, and numerous identity middleware solutions like Auth0, Okta, and so on. Teleport supports SAML and OAuth/OpenID Connect protocols to interact with them. |
 | [Approval Plugins](workflow/index.mdx) | Plugins to approve or deny escalated RBAC requests. |
 | [FedRAMP/FIPS](#fedrampfips) | With Teleport 4.0, we have built out the foundation to help Teleport Enterprise customers build and meet the requirements in a FedRAMP System Security Plan (SSP). This includes a FIPS 140-2 friendly build of Teleport Enterprise as well as a variety of improvements to aid in complying with security controls even in FedRAMP High environments. |
 | Commercial Support | In addition to these features, Teleport Enterprise also comes with a premium support SLA with guaranteed response times. |
@@ -40,10 +40,9 @@ Each role is defined by specific permissions and limits on access.
 
 ### How does it work?
 
-Every user in Teleport is **always** assigned a set of roles. The open source Teleport Comunity Edition 
+Every user in Teleport is **always** assigned a set of roles. The open-source Teleport Comunity Edition 
 automatically assigns every user to the built-in `admin`
-role. Teleport Enterprise allows administrators to define their own
-roles with far greater control over user permissions.
+role. Teleport Enterprise allows administrators to define their roles with far greater control over user permissions.
 
 For example, let's assume a company is using Active Directory to authenticate users and place
 them into groups. A typical enterprise deployment of Teleport in this scenario
@@ -56,8 +55,7 @@ would comprise:
 3. The Teleport administrator will have to define Teleport *Roles*. For
    example: `users`, `developers`, and `admins`.
 4. The last step will be to define mappings from the Active Directory groups (claims)
-   to the Teleport Roles so every Teleport user will be assigned a role based
-   on group membership.
+   to the Teleport Roles so every Teleport user will be assigned a role based on group membership.
 
 Read more about how to configure [RBAC](../access-controls/introduction.mdx) within Teleport.
 
@@ -106,18 +104,18 @@ the purposes of accessing infrastructure.
 
 This includes support for [FIPS 140-2](https://en.wikipedia.org/wiki/FIPS\_140-2),
 also known as the Federal Information Processing Standard, the US
-government approved standard for cryptographic modules.
+government-approved standard for cryptographic modules.
 
 Enterprise customers can download the custom FIPS package from the [Gravitational Dashboard](https://dashboard.gravitational.com/web/).
 
 Look for `Linux 64-bit (FedRAMP/FIPS)`.
 
 Using `teleport start --fips` Teleport will start in FIPS mode, Teleport will
-configure the TLS and SSH servers with FIPS compliant cryptographic algorithms.
+configure the TLS and SSH servers with FIPS-compliant cryptographic algorithms.
 
 In FIPS mode, if non-compliant algorithms are chosen, Teleport will fail to start.
 
-In addition, Teleport checks if the binary was compiled against an approved
+Teleport also checks if the binary was compiled against an approved
 cryptographic module (BoringCrypto) and fails to start if it was not.
 
 See our [FedRAMP for SSH and Kubernetes](ssh-kubernetes-fedramp.mdx) guide for more infromation.

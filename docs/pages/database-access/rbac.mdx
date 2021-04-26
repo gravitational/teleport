@@ -80,8 +80,8 @@ spec:
   title="Deny Rules"
 >
   Deny rules will match greedily. In the example above, a database connection
-  attempting to use the `postgres` database account (regardless of database instance
-  or database name) or the `postgres database name (regardless of database instance
+  attempting to use the `postgres` database account (regardless of the database instance
+  or database name) or the `postgres database name (regardless of the database instance
   or database account) will be rejected.
 </Admonition>
 
@@ -92,7 +92,7 @@ which leads to a difference in how `db_names` role field is applied to a connect
 attempt.
 
 PostgreSQL supports multiple logical databases, and each logical database can
-contain multiple schemas. In order to change to a different database, a user
+contain multiple schemas. To change to a different database, a user
 disconnects from the current one and establishes a new connection. During a
 PostgreSQL connection attempt, `db_names` field is checked against the name
 of the logical database that the user is connecting to.

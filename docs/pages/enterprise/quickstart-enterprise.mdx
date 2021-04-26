@@ -10,17 +10,12 @@ The goal of this document is to show off the basic capabilities of Teleport.
 There are three types of services Teleport nodes can run: `nodes`, `proxies`
 and `auth servers`.
 
-- **Auth servers** store user accounts and
-  provide authentication and authorization services for every node and every
-  user in a cluster.
+- **Auth servers** store user accounts and provide authentication and authorization services for every node and every user in a cluster.
 - **Proxy servers** route client connection requests to the appropriate node and serve a
-  Web UI which can also be used to log into SSH nodes. Every client-to-node
+  Web UI can also be used to log into SSH nodes. Every client-to-node
   connection in Teleport must be routed via a proxy.
 - **Nodes** provide access to resources including SSH, Kubernetes, web applications
-  and databases.  In this quick start guide we are highlighting the SSH service. This SSH service
-  is similar to the `sshd` daemon you may be familiar
-  with. When a node receives a connection request, the request is authenticated
-  through the cluster's auth server.
+  , and databases.  In this quick start guide, we are highlighting the SSH service. This SSH service is similar to the `sshd` daemon you may be familiar with. When a node receives a connection request, the request is authenticated through the cluster's auth server.
 
 The `teleport` daemon runs all three of these services by default. This Quick
 Start Guide will be using this default behavior to create a cluster and
@@ -29,7 +24,7 @@ interact with it using Teleport's client-side tools:
 | Tool | Description |
 | - | - |
 | tctl | Cluster administration tool used to invite nodes to a cluster and manage user accounts. |
-| tsh | Allows users to authenticate and access resources via their local machine. `tsh`'s ssh functionality is similar in principle to OpenSSH's `ssh`. Users can login into remote SSH nodes, list and search for nodes in a cluster, securely upload/download files, etc. |
+| tsh | Allows users to authenticate and access resources via their local machine. `tsh`'s ssh functionality is similar in principle to OpenSSH's `ssh`. Users can log in into remote SSH nodes, list and search for nodes in a cluster, securely upload/download files, etc. |
 | browser | You can use your web browser to login into any Teleport node by opening `https://<proxy-host>:3080`. |
 
 ## Prerequisites
@@ -41,11 +36,11 @@ the following DNS names and IPs:
 
 | Server Name | IP Address | Purpose |
 | - | - | - |
-| *"auth.example.com"* | 10.1.1.10 | This server will be used to run all three Teleport services: auth, proxy and ssh. |
+| *"auth.example.com"* | 10.1.1.10 | This server will be used to run all three Teleport services: auth, proxy, and ssh. |
 | *"node.example.com"* | 10.1.1.11 | This server will only run the SSH service. |
 
 This Quick Start Guide assumes that both servers are running a [systemd-based](https://www.freedesktop.org/wiki/Software/systemd/)
-Linux distribution such as Debian, Ubuntu or a RHEL derivative. `node.example.com` must be able to connect to `auth.example.com` `3025` port and `auth.example.com` must be able to connect to the `3022` port on `node.example.com`.
+Linux distribution such as Debian, Ubuntu, or a RHEL derivative. `node.example.com` must be able to connect to `auth.example.com` `3025` port and `auth.example.com` must be able to connect to the `3022` port on `node.example.com`.
 
 ## Optional: Quickstart using Docker
 
@@ -54,7 +49,7 @@ if you don't want to install Teleport Enterprise binaries straight away.
 
 ## Installing
 
-To start using Teleport Enterprise, you will need to Download the binaries and the license file from the [customer portal](https://dashboard.gravitational.com/web/login).
+To start using Teleport Enterprise, you will need to download the binaries and the license file from the [customer portal](https://dashboard.gravitational.com/web/login).
 After downloading the binary tarball, run:
 
 ```bsh
@@ -198,7 +193,7 @@ Proto Recv-Q Send-Q Local Address   State       User       PID/Program name
 tcp6       0      0 :::3022         LISTEN      0          337/teleport
 ```
 
-See [troubleshooting](#troubleshooting) section at the bottom if something is not working.
+See [troubleshooting](#troubleshooting) section below for further debugging and troubleshooting options.
 
 ## Adding Users
 
@@ -207,7 +202,7 @@ on `auth.example.com`.
 
 Every user in a Teleport cluster must be assigned at least one role. By
 default, Teleport comes with one pre-configured role called "admin". You can
-see it's definition by executing `sudo tctl get roles/admin > admin-role.yaml`.
+see its definition by executing `sudo tctl get roles/admin > admin-role.yaml`.
 
 The output will look like this (re-formatted here to use compact YAML
 representation for brevity):
@@ -268,7 +263,7 @@ role only allows SSH logins as `root@host`.
 </Admonition>
 
 You probably want to replace "root" with something else. Let's assume there will
-be a local UNIX account called "admin" on all hosts. In this case you can
+be a local UNIX account called "admin" on all hosts. In this case, you can
 dump the role definition YAML into *admin-role.yaml* file and update "allow/logins"
 to look like this:
 
@@ -290,17 +285,17 @@ Then send it back into Teleport:
 $ sudo tctl create -f admin-role.yaml
 ```
 
-Now, lets create a new Teleport user "joe" with "admin" role:
+Now, let's create a new Teleport user "joe" with "admin" role:
 
 ```bsh
 $ sudo tctl users add --roles=admin joe
 
-Signup token has been created and is valid for 1 hours. Share this URL with the user:
+The signup token has been created and is valid for 1 hour. Share this URL with the user:
 https://auth.example.com:3080/web/newuser/22e3acb6a0c2cde22f13bdc879ff9d2a
 ```
 
 Share the generated sign-up URL with Joe and let him pick a password and configure
-the second factor authentication. We recommend [Google Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator)
+the 2nd-factor authentication. We recommend [Google Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator)
 which is available for both Android and iPhone.
 
 ## Assigning Roles
@@ -324,7 +319,7 @@ Joe now has a local account on a Teleport cluster. The local account is good for
 administrative purposes but regular users of Teleport Enterprise should be using
 a Single Sign-On (SSO) mechanism.
 
-But first, lets see how Joe can log into the Teleport cluster. He can do this
+But first, let's see how Joe can log into the Teleport cluster. He can do this
 on his client laptop:
 
 ```bsh
@@ -334,19 +329,16 @@ $ tsh --proxy=auth.example.com --insecure login --user=joe
 Note that "--user=joe" part can be omitted if `$USER` environment variable is "joe".
 
 Notice that `tsh` client always needs `--proxy` flag because all client connections
-in Teleport always must to go through an SSH proxy, sometimes called an "SSH bastion".
+in Teleport always must go through an SSH proxy, sometimes called an "SSH bastion".
 
 <Admonition
   type="warning"
   title="Warning"
 >
-  For the purposes of this quickstart we are using the `--insecure` flag which allows
-  us to skip configuring the HTTP/TLS certificate for Teleport proxy. Your browser will
-  throw a warning **Your connection is not private**. Click Advanced, and **Proceed to 0.0.0.0 (unsafe)**
+  For this quickstart, we are using the `--insecure` flag which allows us to skip configuring the HTTP/TLS certificate for Teleport proxy. Your browser will throw a warning **Your connection is not private**. Click Advanced, and **Proceed to 0.0.0.0 (unsafe)**
   to preview the Teleport UI.
 
-  Never use `--insecure` in production unless you terminate SSL at a load balancer. This will
-  apply to most cloud providers (AWS, GCP and Azure). You must configure a HTTP/TLS certificate for the Proxy.
+  Never use `--insecure` in production unless you terminate SSL at a load balancer. This will apply to most cloud providers (AWS, GCP, and Azure). You must configure an HTTP/TLS certificate for the Proxy.
   This process has been made easier with Let's Encrypt. [We've instructions here](https://gravitational.com/blog/letsencrypt-teleport-ssh/).
 </Admonition>
 
@@ -369,7 +361,7 @@ $ tsh logout
 ## Configuring SSO
 
 The local account is good for administrative purposes but regular users of
-Teleport Enterprise should be using a Single Sign-On (SSO) mechanism that use SAML or OIDC protocols.
+Teleport Enterprise should be using a Single Sign-On (SSO) mechanism that uses SAML or OIDC protocols.
 
 Take a look at the [SSH via Single Sign-on](sso/ssh-sso.mdx) chapter to learn the basics of
 integrating Teleport with SSO providers. We have the following detailed guides for
@@ -402,11 +394,11 @@ We currently only offer Docker images for `x86_64` architectures.
 
 ### Pick your image
 
-This table gives an idea of how our image naming scheme works. We offer images which point to a static version of Teleport Enterprise, as well as images which are
+This table gives an idea of how our image naming scheme works. We offer images that point to a static version of Teleport Enterprise, as well as images that are
 automatically rebuilt every night. These nightly images point to the latest version of Teleport Enterprise from the three most recent release branches.
 They are stable, and we recommend their use to easily keep your Teleport Enterprise installation up to date.
 
-| Image name | Community or Enterprise? | Teleport version | Image automatically updated? | Image base |
+| Image name | Open Source or Enterprise? | Teleport version | Image automatically updated? | Image base |
 | - | - | - | - | - |
 | `quay.io/gravitational/teleport-ent:(=version=)` | Enterprise | The latest version of Teleport Enterprise (=version=) | Yes | [Ubuntu 20.04](https://hub.docker.com/\_/ubuntu) |
 | `quay.io/gravitational/teleport-ent:(=version=)-fips` | Enterprise FIPS | The latest version of Teleport Enterprise (=version=) FIPS | Yes | [Ubuntu 20.04](https://hub.docker.com/\_/ubuntu) |
@@ -441,7 +433,7 @@ docker-compose -f teleport-ent-quickstart.yml up
 
 ### Quickstart using docker run
 
-If you'd prefer to complete these steps manually, here's some sample `docker run` commands:
+If you'd prefer to complete these steps manually, here are some sample `docker run` commands:
 
 ```bash
 # create local config and data directories for teleport, which will be mounted into the container
@@ -479,7 +471,7 @@ This example command will create a Teleport user called `testuser` which has the
 docker exec teleport tctl users add testuser --roles=admin
 ```
 
-When you run this command, Teleport will output a URL which you must open to complete the user signup process:
+When you run this command, Teleport will output a URL that you must open to complete the user signup process:
 
 ```bash
 User testuser has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h0m0s:
@@ -498,9 +490,9 @@ If Teleport services do not start, take a look at the syslog:
 $ sudo journalctl -fu teleport
 ```
 
-Usually the error will be reported there. Common reasons for failure are:
+Usually, the error will be reported there. Common reasons for failure are:
 
-- Mismatched tokens, i.e. "auth_token" on the node does not match "tokens/node" value on the auth server.
+- Mismatched tokens, i.e. "auth_token" on the node do not match "tokens/node" value on the auth server.
 - Network issues: port `3025` is closed via iptables.
 - Network issues: ports `3025` or `3022` are occupied by another process.
 - Disk issues: Teleport fails to create `/var/lib/teleport` because the volume is read-only or not accessible.

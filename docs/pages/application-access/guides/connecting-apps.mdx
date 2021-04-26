@@ -78,8 +78,7 @@ proxy_service:
 >
   Teleport uses [TLS-ALPN-01](https://letsencrypt.org/docs/challenge-types/#tls-alpn-01)
   ACME challenge to validate certificate requests which only works on port `443`.
-  As such, in order to use ACME for certificate management, web proxy needs to
-  be accessible on port `443`.
+  As such, to use ACME for certificate management, web proxy needs to be accessible on port `443`.
 </Admonition>
 
 Alternatively, if you have obtained certificate/key pairs for your domain
@@ -153,7 +152,7 @@ teleport:
   - teleport.example.com:3080
 app_service:
     enabled: yes
-    # Teleport provides a small debug app that can be used to make sure application
+    # Teleport provides a small debug app that can be used to make sure  application
     # access is working correctly. It'll output JWTs so it can be useful
     # when extending your application.
     debug_app: true
@@ -190,9 +189,9 @@ $ teleport start --config=/path/to/teleport.yaml
 
 ## Advanced Options
 
-### Running debug application
+### Running debug on an application
 
-For testing and debugging purposes we provide a built-in debug app. It can
+For testing and debugging purposes, we provide a built-in debug app. It can
 be turned on using `debug_app: true`.
 
 ```yaml
@@ -235,9 +234,9 @@ verification step:
   insecure_skip_verify: true
 ```
 
-### Deeplink to subdirectory
+### Deeplink to a subdirectory
 
-Some applications are available on a subdirectory. Examples include the
+Some applications are available in a subdirectory. Examples include the
 [Kubernetes Dashboard.](https://kubernetes.io/docs/tasks/access-application-cluster/web-ui-dashboard/).
 The URI should be updated to include the subdirectory:
 
@@ -276,7 +275,7 @@ The URL structure looks like this:
 ## Logging out of applications
 
 When you log into an application, you'll get a certificate and login session
-per your defined RBAC. If you want to force logout before this period you can
+per your defined RBAC. If you want to force log out before this period you can
 do so by hitting the `/teleport-logout` endpoint:
 
 [https://internal-app.teleport.example.com/teleport-logout](https://internal-app.teleport.example.com/teleport-logout)

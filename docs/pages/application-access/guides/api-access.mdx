@@ -11,9 +11,8 @@ Postman.
 
 ## Prerequisites
 
-We will assume that you followed the [Getting Started](../getting-started.mdx)
-guide or the general [App Access Usage](./connecting-apps.mdx) guide to connect the web
-application providing an API to Teleport.
+Fpollow the [Getting Started](../getting-started.mdx)
+guide or the general [App Access Usage](./connecting-apps.mdx) guide to connect the web application providing an API to Teleport.
 
 For the simplicity of the guide, we will be using Grafana running in a
 [Docker container](https://grafana.com/docs/grafana/latest/installation/docker/)
@@ -70,8 +69,7 @@ target application's API through Teleport App Access.
   type="note"
   title="CA and Key Pair Files"
 >
-  Note the paths to the CA certificate and your user's certificate/key pair in
-  the command - `curl` will use a client certificate to authenticate with Teleport.
+  Note the paths to the CA certificate and your user's certificate/key pair in the command - `curl` will use a client certificate to authenticate with Teleport.
 </Admonition>
 
 As Grafana's API requires authentication, let's update the `curl` command to
@@ -97,7 +95,7 @@ Logged out of app "grafana"
 
 ## App information
 
-`tsh app config` shows current app URI and paths to the secrets. This is useful
+`tsh app config` shows the current app URI and paths to the secrets. This is useful
 when configuring CLI tools (such as `curl`) or GUI tools (such as Postman).
 
 Let's print the app information in a table format:

@@ -1,6 +1,6 @@
 ---
 title: Getting Started
-description: Getting started with Teleport - identity-aware, multi-protocol access proxy for SSH, HTTPS, Kubernetes and more.
+description: Getting started with Teleport - identity-aware, multi-protocol access proxy for SSH, HTTPS, Kubernetes, and more.
 ---
 
 This tutorial will guide you through the steps needed to install and run
@@ -83,7 +83,7 @@ Take a look at the [Installation Guide](installation.mdx) for more options.
 Generate a configuration file for Teleport using `teleport configure`.
 
 Acme turns on automatic TLS certificates from [Let's Encrypt](https://letsencrypt.org).
-Set up email to receive updates from Let's Encrypt, and use a valid DNS name for a cluster name.
+Set up an email to receive updates from Let's Encrypt, and use a valid DNS name for a cluster name.
 
 ```bash
 $ sudo teleport configure --acme --acme-email=your-email@example.com --cluster-name=tele.example.com -o file
@@ -92,8 +92,8 @@ Wrote config to file "/etc/teleport.yaml". Now you can start the server. Happy T
 
 ## Step 1c: Configure domain name and obtain TLS certificates using Let's Encrypt
 
-Teleport requires a secure public endpoint for the Teleport UI and for end users to connect to.
-To get started setup two `A` records for `tele.example.com` and `*.tele.example.com`
+Teleport requires a secure public endpoint for the Teleport UI and for end-users to connect to.
+To get started set up two `A` records for `tele.example.com` and `*.tele.example.com`
 pointing to the IP/FQDN of the machine with Teleport installed.
 
 <Admonition
@@ -145,8 +145,7 @@ Here's a selection of compatible two-factor authentication apps:
   The OS users that you specify (`root`, `ubuntu` and `ec2-user` in our examples) must exist!
   On Linux, if a user does not already exist, you can create it with `adduser <login>`. If you
   do not have the permission to create new users on the Linux host, run
-  `tctl users add teleport $(whoami)` to explicitly allow Teleport to authenticate as the user
-  that you are currently logged in as. If you do not map to an existing OS user,
+  `tctl users add teleport $(whoami)` to explicitly allow Teleport to authenticate as the user that you have currently logged in as. If you do not map to an existing OS user,
   you will get authentication errors later on in this tutorial!
 </Admonition>
 
@@ -193,9 +192,9 @@ Here's a selection of compatible two-factor authentication apps:
 ## Step 3: Log in using tsh
 
 `tsh` is our client tool. It helps you log into Teleport clusters and obtain short-lived credentials. It can also be used to
-list servers, applications and Kubernetes clusters registered with Teleport.
+list servers, applications, and Kubernetes clusters registered with Teleport.
 
-Login to receive short-lived certificates from Teleport:
+Log in to receive short-lived certificates from Teleport:
 
 ```bash
 # Replace teleport.example.com:443 with your Teleport cluster's public address as configured above.

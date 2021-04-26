@@ -1,14 +1,14 @@
 ---
 title: Teleport Kubernetes Access for CI/CD
-description: Short Lived Certs CI/CD systems to Kubernetes RBAC with Teleport
+description: Short-Lived Certs CI/CD systems to Kubernetes RBAC with Teleport
 ---
 
-## Short Lived Certs for Kubernetes CI/CD
+## Short-Lived Certs for Kubernetes CI/CD
 
 CI/CD tools like Jenkins can use short-lived certificates to talk to the Kubernetes API.
 
 Create a non-interactive local Teleport user. Non-interactive users
-don't have username or password defined and can't login, but can be used
+don't have username or password defined and can't log in, but can be used
 to create credentials.
 
 ```yaml
@@ -17,8 +17,8 @@ version: v3
 metadata:
   name: robot
 spec:
-  # allow section declares a list of resource/verb combinations that are
-  # allowed for the users of this role. by default nothing is allowed.
+  # The allow section declares a list of resource/verb combinations that are
+  # allowed for the users of this role. By default, nothing is allowed.
   allow:
     # This field is used for SSH logins. You have to keep 'logins' as a non-empty random value
     # for Kubernetes to work until we fix it.
@@ -60,8 +60,7 @@ $ kubectl --kubeconfig /path/to/kubeconfig get pods
   type="tip"
   title="Short-Lived Certs"
 >
-  Short lived certificates expire in hours or minutes. You don't have to revoke
-  them if the host gets compromised.
+  Short-lived certificates expire in hours or minutes. You don't have to revoke them if the host gets compromised.
   Generate a new kubeconfig every hour using `tctl` or [API](../../api-reference.mdx)
   and publish it to secret storage, like [AWS](https://aws.amazon.com/secrets-manager/) or
   [GCP](https://cloud.google.com/secret-manager) secret managers.

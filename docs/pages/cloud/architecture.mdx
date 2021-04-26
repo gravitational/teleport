@@ -1,16 +1,16 @@
 ---
 title: Teleport Cloud Architecture
-description: Cloud security, availability and networking details.
+description: Cloud security, availability, and networking details.
 ---
 
 ## Security
 
 We have designed the Teleport Cloud environment to be secure; and, security is an ongoing process of improvement.
 
-Our team routinely scrutinizes, reviews, updates, improves upon, and executes our security roadmap by working with independent security
+Our team routinely scrutinizes, reviews, updates, improves upon and executes our security roadmap by working with independent security
 auditors to identify any gaps. 
 
-Teleport Cloud only gets the greenlight for use in strict compliance use-cases only when the team has full confidence that all security gaps or vulnerabilities have been identified and resolved.
+Teleport Cloud only gets the green light for use in strict compliance use-cases only when the team has full confidence that all security gaps or vulnerabilities have been identified and resolved.
 
 ## Compliance
 
@@ -21,7 +21,7 @@ An SOC2 audit is presently underway and should be concluded by June 2021.
 SSH sessions are recorded [on nodes](../architecture/nodes.mdx#session-recording).
 
 Teleport Cloud Proxy does not terminate SSH sessions when using OpenSSH and `tsh` sessions.
-The Cloud Proxy terminates TLS for Application, Database and Kubernetes sessions.
+The Cloud Proxy terminates TLS for Application, Database, and Kubernetes sessions.
 
 ## Data retention
 
@@ -29,7 +29,7 @@ The session recordings are stored in S3 using at-rest encryption.
 We have yet to define specific retention policies.
 
 Customer data, including audit logging, is backed up using the DynamoDB
-"point in time recovery" system. Data can be recovered up to 35 days.
+"point in time recovery" system. Data can be recovered for up to 35 days.
 This retention period is not configurable.
 
 ## High availability
