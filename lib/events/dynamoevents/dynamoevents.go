@@ -854,7 +854,7 @@ func (l *Log) createV2GSI() error {
 
 		time.Sleep(time.Second * 5)
 		elapsed := time.Since(waitStart).Seconds()
-		log.Infof("Creating new DynamoDB index, %q seconds elapsed...", elapsed)
+		log.Infof("Creating new DynamoDB index, %f seconds elapsed...", elapsed)
 	}
 
 	return nil
