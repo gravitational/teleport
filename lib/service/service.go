@@ -2097,6 +2097,8 @@ func (process *TeleportProcess) getAdditionalPrincipals(role teleport.Role) ([]s
 		)
 		addrs = append(addrs, process.Config.Proxy.SSHPublicAddrs...)
 		addrs = append(addrs, process.Config.Proxy.TunnelPublicAddrs...)
+		addrs = append(addrs, process.Config.Proxy.PostgresPublicAddrs...)
+		addrs = append(addrs, process.Config.Proxy.MySQLPublicAddrs...)
 		addrs = append(addrs, process.Config.Proxy.Kube.PublicAddrs...)
 		// Automatically add wildcards for every proxy public address for k8s SNI routing
 		if process.Config.Proxy.Kube.Enabled {
@@ -2508,8 +2510,14 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if len(cfg.Proxy.Kube.PublicAddrs) > 0 {
 			proxySettings.Kube.PublicAddr = cfg.Proxy.Kube.PublicAddrs[0].String()
 		}
+		if len(cfg.Proxy.PostgresPublicAddrs) > 0 {
+			proxySettings.DB.PostgresPublicAddr = cfg.Proxy.PostgresPublicAddrs[0].String()
+		}
 		if !cfg.Proxy.MySQLAddr.IsEmpty() {
 			proxySettings.DB.MySQLListenAddr = cfg.Proxy.MySQLAddr.String()
+		}
+		if len(cfg.Proxy.MySQLPublicAddrs) > 0 {
+			proxySettings.DB.MySQLPublicAddr = cfg.Proxy.MySQLPublicAddrs[0].String()
 		}
 		var fs http.FileSystem
 		if !process.Config.Proxy.DisableWebInterface {

@@ -1050,6 +1050,12 @@ type Proxy struct {
 
 	// MySQLAddr is MySQL proxy listen address.
 	MySQLAddr string `yaml:"mysql_listen_addr,omitempty"`
+	// MySQLPublicAddr is the hostport the proxy advertises for MySQL
+	// client connections.
+	MySQLPublicAddr utils.Strings `yaml:"mysql_public_addr,omitempty"`
+	// PostgresPublicAddr is the hostport the proxy advertises for Postgres
+	// client connections.
+	PostgresPublicAddr utils.Strings `yaml:"postgres_public_addr,omitempty"`
 }
 
 // ACME configures ACME protocol - automatic X.509 certificates
