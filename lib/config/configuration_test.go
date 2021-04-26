@@ -530,6 +530,7 @@ func TestApplyConfig(t *testing.T) {
 		Metadata: types.Metadata{
 			Name:      "cluster-auth-preference",
 			Namespace: defaults.Namespace,
+			Labels:    map[string]string{types.OriginLabel: types.OriginConfigFile},
 		},
 		Spec: types.AuthPreferenceSpecV2{
 			Type:         teleport.Local,
