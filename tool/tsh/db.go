@@ -103,7 +103,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = tc.ReissueUserCerts(cf.Context, client.ReissueParams{
+	_, err = tc.ReissueUserCerts(cf.Context, client.ReissueParams{
 		RouteToCluster: tc.SiteName,
 		RouteToDatabase: proto.RouteToDatabase{
 			ServiceName: db.ServiceName,

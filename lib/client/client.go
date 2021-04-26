@@ -180,29 +180,15 @@ func (p ReissueParams) isMFARequiredRequest(sshLogin string) *proto.IsMFARequire
 
 // ReissueUserCerts generates certificates for the user
 // that have a metadata instructing server to route the requests to the cluster
-func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, params ReissueParams) error {
+func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, params ReissueParams) (*Key, error) {
 	key, err := proxy.reissueUserCerts(ctx, params)
 	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	localKeyAgent := proxy.localAgent()
-
-	// The re-issued certificate may contain new roles that change our
-	// permissions with *any* service (e.g. Kubernetes, Database) in the
-	// cluster. We want to make sure no cached certificates are preserved
-	// once we have the re-issued certificate, forcing each service to get
-	// a new certificate (with the potentially updated roles) on first
-	// access, so we explicitly delete them all.
-	log.Debugf("Deleting all user certs...")
-	if err = localKeyAgent.DeleteUserCerts(params.RouteToCluster, WithAllCerts...); err != nil {
-		log.Errorf("Deleting user certs failed")
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// save the cert to the local storage (~/.tsh usually):
-	_, err = localKeyAgent.AddKey(key)
-	return trace.Wrap(err)
+	_, err = proxy.localAgent().AddKey(key)
+	return key, trace.Wrap(err)
 }
 
 func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, params ReissueParams) (*Key, error) {
@@ -212,13 +198,7 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, params ReissuePa
 	key := params.ExistingCreds
 	if key == nil {
 		var err error
-		// Note that we are explicitly NOT persisting any existing service
-		// (e.g. DB, Kubernetes, etc) certificates across the re-issue of the
-		// main certificate. This is because the re-issued certificate may
-		// contain new roles, and preserving the old certificates will
-		// only stop those new roles being applied to the service
-		// certificate.
-		key, err = proxy.localAgent().GetKey(params.RouteToCluster)
+		key, err = proxy.localAgent().GetKey(params.RouteToCluster, WithAllCerts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

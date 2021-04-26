@@ -711,7 +711,7 @@ func onLogin(cf *CLIConf) error {
 		// for the same proxy
 		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && cf.SiteName != "":
 			// trigger reissue, preserving any active requests.
-			err = tc.ReissueUserCerts(cf.Context, client.ReissueParams{
+			_, err = tc.ReissueUserCerts(cf.Context, client.ReissueParams{
 				AccessRequests: profile.ActiveRequests.AccessRequests,
 				RouteToCluster: cf.SiteName,
 			})
@@ -2021,20 +2021,58 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...strin
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	params := client.ReissueParams{
 		AccessRequests: reqIDs,
 		RouteToCluster: cf.SiteName,
 	}
+
 	// if the certificate already had active requests, add them to our inputs parameters.
 	if len(profile.ActiveRequests.AccessRequests) > 0 {
 		params.AccessRequests = append(params.AccessRequests, profile.ActiveRequests.AccessRequests...)
 	}
+
 	if params.RouteToCluster == "" {
 		params.RouteToCluster = profile.Cluster
 	}
-	if err := tc.ReissueUserCerts(cf.Context, params); err != nil {
+
+	// Look up any existing key for the cluster. We will need this to check whether
+	// the granted roles have changed post-approval. For our purposes here, it's OK
+	// for this oldKey not to exist.
+
+	oldKey, err := tc.LocalAgent().GetKey(profile.Cluster, client.WithSSHCerts{})
+	switch {
+	case trace.IsNotFound(err):
+		oldKey = nil
+	case err != nil:
+		return trace.Wrap(err)
+	default:
+		// carry on
+	}
+
+	newKey, err := tc.ReissueUserCerts(cf.Context, params)
+	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// The re-issued certificate attached to newKey may have a different role
+	// set to the old cert, which may in turn change the user's permissions
+	// with *any* service in the cluster (e.g. Kubernetes, Database, etc).
+	//
+	// Check to see if there is a mismatch between the roles granted by the
+	// old key (if any) and the new  key, then delete the user certificates
+	// for the cluster if such a mismatch is detected.
+	//
+	// NB: The SSH cert will have been explicitly updated by the re-issue
+	//     process, so we don't want to delete that. All of the rest are
+	//     fair game.
+
+	err = deleteUserCertsOnRoleMismatch(oldKey, newKey, newKey.ClusterName,
+		tc.LocalAgent(), withAllCertsExceptSSH()...)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := tc.SaveProfile("", true); err != nil {
 		return trace.Wrap(err)
 	}

@@ -1068,7 +1068,7 @@ func (tc *TeleportClient) LoadKeyForClusterWithReissue(ctx context.Context, clus
 		return trace.Wrap(err)
 	}
 	// Reissuing also loads the new key.
-	err = tc.ReissueUserCerts(ctx, ReissueParams{RouteToCluster: clusterName})
+	_, err = tc.ReissueUserCerts(ctx, ReissueParams{RouteToCluster: clusterName})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1131,10 +1131,10 @@ func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient
 
 // ReissueUserCerts issues new user certs based on params and stores them in
 // the local key agent (usually on disk in ~/.tsh).
-func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, params ReissueParams) error {
+func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, params ReissueParams) (*Key, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer proxyClient.Close()
 

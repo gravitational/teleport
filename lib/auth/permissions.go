@@ -572,13 +572,13 @@ func contextForBuiltinRole(r BuiltinRole, clusterConfig services.ClusterConfig) 
 	}, nil
 }
 
-func contextForLocalUser(u LocalUser, identitySvc services.UserGetter, access services.Access) (*Context, error) {
+func contextForLocalUser(u LocalUser, identity services.UserGetter, access services.Access) (*Context, error) {
 	// User has to be fetched to check if it's a blocked username
-	user, err := identitySvc.GetUser(u.Username, false)
+	user, err := identity.GetUser(u.Username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roles, traits, err := services.ExtractFromIdentity(identitySvc, u.Identity)
+	roles, traits, err := services.ExtractFromIdentity(identity, u.Identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
