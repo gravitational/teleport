@@ -35,7 +35,7 @@ import (
 // of it.
 type AuthPreference interface {
 	// Resource provides common resource properties.
-	Resource
+	ResourceWithOrigin
 
 	// GetType gets the type of authentication: local, saml, or oidc.
 	GetType() string
@@ -73,12 +73,27 @@ type AuthPreference interface {
 
 // NewAuthPreference is a convenience method to to create AuthPreferenceV2.
 func NewAuthPreference(spec AuthPreferenceSpecV2) (AuthPreference, error) {
+	return newAuthPreferenceWithLabels(spec, map[string]string{})
+}
+
+// NewAuthPreferenceFromConfigFile is a convenience method to create
+// AuthPreferenceV2 labelled as originating from config file.
+func NewAuthPreferenceFromConfigFile(spec AuthPreferenceSpecV2) (AuthPreference, error) {
+	return newAuthPreferenceWithLabels(spec, map[string]string{
+		OriginLabel: OriginConfigFile,
+	})
+}
+
+// NewAuthPreferenceWithLabels is a convenience method to create
+// AuthPreferenceV2 with a specific map of labels.
+func newAuthPreferenceWithLabels(spec AuthPreferenceSpecV2, labels map[string]string) (AuthPreference, error) {
 	pref := AuthPreferenceV2{
 		Kind:    KindClusterAuthPreference,
 		Version: V2,
 		Metadata: Metadata{
 			Name:      MetaNameClusterAuthPreference,
 			Namespace: defaults.Namespace,
+			Labels:    labels,
 		},
 		Spec: spec,
 	}
@@ -97,6 +112,9 @@ func DefaultAuthPreference() AuthPreference {
 		Metadata: Metadata{
 			Name:      MetaNameClusterAuthPreference,
 			Namespace: defaults.Namespace,
+			Labels: map[string]string{
+				OriginLabel: OriginDefaults,
+			},
 		},
 		Spec: AuthPreferenceSpecV2{
 			Type:         constants.Local,
@@ -150,6 +168,16 @@ func (c *AuthPreferenceV2) GetResourceID() int64 {
 // SetResourceID sets resource ID.
 func (c *AuthPreferenceV2) SetResourceID(id int64) {
 	c.Metadata.ID = id
+}
+
+// Origin returns the origin value of the resource.
+func (c *AuthPreferenceV2) Origin() string {
+	return c.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (c *AuthPreferenceV2) SetOrigin(origin string) {
+	c.Metadata.SetOrigin(origin)
 }
 
 // GetKind returns resource kind.
@@ -224,6 +252,11 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	err := c.Metadata.CheckAndSetDefaults()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// Make sure origin value is always set.
+	if c.Origin() == "" {
+		c.SetOrigin(OriginDynamic)
 	}
 
 	// if nothing is passed in, set defaults
