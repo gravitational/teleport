@@ -530,6 +530,7 @@ func TestApplyConfig(t *testing.T) {
 		Metadata: types.Metadata{
 			Name:      "cluster-auth-preference",
 			Namespace: defaults.Namespace,
+			Labels:    map[string]string{types.OriginLabel: types.OriginConfigFile},
 		},
 		Spec: types.AuthPreferenceSpecV2{
 			Type:         teleport.Local,
@@ -1404,6 +1405,21 @@ db_service:
     uri: 192.168.1.1
 `,
 			outError: `invalid database "foo" address`,
+		},
+		{
+			desc: "missing Redshift region",
+			inConfigString: `
+db_service:
+  enabled: true
+  databases:
+  - name: foo
+    protocol: postgres
+    uri: 192.168.1.1:5438
+    aws:
+      redshift:
+        cluster_id: cluster-1
+`,
+			outError: `missing AWS region for Redshift database "foo"`,
 		},
 	}
 	for _, tt := range tests {

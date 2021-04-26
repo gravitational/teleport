@@ -42,7 +42,7 @@ import (
 // Implements common.Engine.
 type Engine struct {
 	// Auth handles database access authentication.
-	Auth *common.Auth
+	Auth common.Auth
 	// Audit emits database access audit events.
 	Audit common.Audit
 	// Context is the database server close context.
