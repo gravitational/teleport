@@ -180,6 +180,15 @@ message DatabaseServerSpecV3 {
 message AWS {
     // Region is a AWS cloud region.
     string Region = 1 [ (gogoproto.jsontag) = "region,omitempty" ];
+    // Redshift contains Redshift specific settings.
+    Redshift Redshift = 2
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "redshift,omitempty" ];
+}
+
+// Redshift contains AWS Redshift specific settings.
+message Redshift {
+    // ClusterID is the Redshift cluster identifier.
+    string ClusterID = 1 [ (gogoproto.jsontag) = "cluster_id,omitempty" ];
 }
 
 // GCPCloudSQL contains parameters specific to GCP Cloud SQL databases.
