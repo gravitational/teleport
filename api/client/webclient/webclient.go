@@ -14,7 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package client
+// Package webclient provides a client for the Teleport Proxy API endpoints.
+package webclient
 
 import (
 	"context"
@@ -145,8 +146,12 @@ type SSHProxySettings struct {
 
 // DBProxySettings contains database access specific proxy settings.
 type DBProxySettings struct {
+	// PostgresPublicAddr is advertised to Postgres clients.
+	PostgresPublicAddr string `json:"postgres_public_addr,omitempty"`
 	// MySQLListenAddr is MySQL proxy listen address.
 	MySQLListenAddr string `json:"mysql_listen_addr,omitempty"`
+	// MySQLPublicAddr is advertised to MySQL clients.
+	MySQLPublicAddr string `json:"mysql_public_addr,omitempty"`
 }
 
 // PingResponse contains the form of authentication the auth server supports.

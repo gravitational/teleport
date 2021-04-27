@@ -180,6 +180,15 @@ message DatabaseServerSpecV3 {
 message AWS {
     // Region is a AWS cloud region.
     string Region = 1 [ (gogoproto.jsontag) = "region,omitempty" ];
+    // Redshift contains Redshift specific settings.
+    Redshift Redshift = 2
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "redshift,omitempty" ];
+}
+
+// Redshift contains AWS Redshift specific settings.
+message Redshift {
+    // ClusterID is the Redshift cluster identifier.
+    string ClusterID = 1 [ (gogoproto.jsontag) = "cluster_id,omitempty" ];
 }
 
 // GCPCloudSQL contains parameters specific to GCP Cloud SQL databases.
@@ -566,6 +575,60 @@ message AuditConfig {
     int64 WriteMinCapacity = 12 [ (gogoproto.jsontag) = "write_min_capacity,omitempty" ];
     // WriteTargetValue is the ratio of consumed write to provisioned capacity.
     double WriteTargetValue = 13 [ (gogoproto.jsontag) = "write_target_value,omitempty" ];
+}
+
+// AuthPreferenceV2 implements the AuthPreference interface.
+message AuthPreferenceV2 {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
+    // Kind is a resource kind
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is a resource version
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is resource metadata
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is an AuthPreference specification
+    AuthPreferenceSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// AuthPreferenceSpecV2 is the actual data we care about for AuthPreference.
+message AuthPreferenceSpecV2 {
+    // Type is the type of authentication.
+    string Type = 1 [ (gogoproto.jsontag) = "type" ];
+
+    // SecondFactor is the type of second factor.
+    string SecondFactor = 2 [
+        (gogoproto.jsontag) = "second_factor,omitempty",
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.SecondFactorType"
+    ];
+
+    // ConnectorName is the name of the OIDC or SAML connector. If this value is
+    // not set the first connector in the backend will be used.
+    string ConnectorName = 3 [ (gogoproto.jsontag) = "connector_name,omitempty" ];
+
+    // U2F are the settings for the U2F device.
+    U2F U2F = 4 [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "u2f,omitempty" ];
+
+    // RequireSessionMFA causes all sessions in this cluster to require MFA
+    // checks.
+    bool RequireSessionMFA = 5 [ (gogoproto.jsontag) = "require_session_mfa,omitempty" ];
+}
+
+// U2F defines settings for U2F device.
+message U2F {
+    // AppID returns the application ID for universal second factor.
+    string AppID = 1 [ (gogoproto.jsontag) = "app_id,omitempty" ];
+
+    // Facets returns the facets for universal second factor.
+    repeated string Facets = 2 [ (gogoproto.jsontag) = "facets,omitempty" ];
+
+    // DeviceAttestationCAs contains the trusted attestation CAs for U2F
+    // devices.
+    repeated string DeviceAttestationCAs = 3
+        [ (gogoproto.jsontag) = "device_attestation_cas,omitempty" ];
 }
 
 // Namespace represents namespace resource specification
@@ -1563,6 +1626,12 @@ message WebSessionSpecV2 {
         (gogoproto.stdtime) = true,
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "expires"
+    ];
+    // LoginTime is the time this user recently logged in.
+    google.protobuf.Timestamp LoginTime = 8 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "login_time"
     ];
 }
 

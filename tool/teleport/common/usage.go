@@ -39,7 +39,7 @@ Examples:
 > teleport start --roles=app --token=xyz --auth-server=proxy.example.com:3080 \
     --app-name="example-app" \
     --app-uri="http://localhost:8080" \
-    --labels=group:dev
+    --labels=group=dev
   Same as the above, but the app server runs with "group=dev" label which only
   allows access to users with the role "group=dev".
   
