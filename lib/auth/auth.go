@@ -323,7 +323,7 @@ func (a *Server) runPeriodicOperations() {
 		case <-heartbeatCheckTicker.Next():
 			nodes, err := a.GetNodes(defaults.Namespace, services.SkipValidation())
 			if err != nil {
-				log.Errorf("Failed to update prometheus metric: %v", err)
+				log.Errorf("Failed to load nodes for heartbeat metric calculation: %v", err)
 			}
 			for _, node := range nodes {
 				if services.NodeHasMissedKeepAlives(node) {
