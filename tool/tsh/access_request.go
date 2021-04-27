@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -29,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
@@ -290,76 +288,4 @@ func showRequestTable(reqs []types.AccessRequest) error {
 
 	fmt.Fprintf(os.Stderr, "\nhint: use 'tsh request show <request-id>' for additional details\n")
 	return trace.Wrap(err)
-}
-
-// rolesHaveChanged checks to see if there is a difference in the rolesets
-// applied to two certificates. Duplicates are treated as a single item and
-// the ordering of roles is ignored.
-func rolesHaveChanged(oldKey, newKey *client.Key) (bool, error) {
-	oldRoles, err := oldKey.CertRoles()
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-
-	newRoles, err := newKey.CertRoles()
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-
-	oldRoleSet := make(map[string]int)
-	for _, r := range oldRoles {
-		oldRoleSet[r] = 0
-	}
-
-	newRoleSet := make(map[string]int)
-	for _, r := range newRoles {
-		newRoleSet[r] = 0
-	}
-
-	return !reflect.DeepEqual(oldRoleSet, newRoleSet), nil
-}
-
-// deleteUserCertsOnRoleMismatch() checks to see if there is a difference
-// between the roleset supplied by an old key and a new one. If a mismatch
-// exists, it will delete the user certs for the cluster
-//
-// Note that it's legitimate behaviour for `oldKey` to be nil; this just
-// implies that there are no "old" credentials for us to expire and there
-// is nothing to do.
-func deleteUserCertsOnRoleMismatch(oldKey, newKey *client.Key,
-	clusterName string, keyAgent *client.LocalKeyAgent,
-	options ...client.CertOption) error {
-
-	if oldKey == nil {
-		// If there is no such key in the store, then we can't possibly
-		// need to clean up any certificates attached to it.
-		return nil
-	}
-
-	if oldKey.KeyIndex != newKey.KeyIndex {
-		return trace.BadParameter(
-			"old key index %+v does not match new key index %+v",
-			oldKey.KeyIndex, newKey.KeyIndex)
-	}
-
-	// If we get here, we have an old key that matches the new key's index. If
-	// the old and new keys have conflicting roles then all of the service
-	// certificates for the key will have to be reissued, as they may no longer
-	// reflect the permissions that the auth server is granting the user.
-	//
-	// Let's delete the current set of certificates so that they cannot be
-	// used by mistake
-	rolesChanged, err := rolesHaveChanged(oldKey, newKey)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if rolesChanged {
-		err = keyAgent.DeleteUserCerts(newKey.ClusterName, options...)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	return nil
 }
