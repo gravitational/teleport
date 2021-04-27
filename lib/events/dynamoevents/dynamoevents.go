@@ -998,6 +998,26 @@ func (l *Log) createTable(tableName string) error {
 		AttributeDefinitions:  tableSchema,
 		KeySchema:             elems,
 		ProvisionedThroughput: &provisionedThroughput,
+		GlobalSecondaryIndexes: []*dynamodb.GlobalSecondaryIndex{
+			{
+				IndexName: aws.String(indexTimeSearchV2),
+				KeySchema: []*dynamodb.KeySchemaElement{
+					{
+						// Partition by date instead of namespace.
+						AttributeName: aws.String(keyDate),
+						KeyType:       aws.String("HASH"),
+					},
+					{
+						AttributeName: aws.String(keyCreatedAt),
+						KeyType:       aws.String("RANGE"),
+					},
+				},
+				Projection: &dynamodb.Projection{
+					ProjectionType: aws.String("ALL"),
+				},
+				ProvisionedThroughput: &provisionedThroughput,
+			},
+		},
 	}
 	_, err := l.svc.CreateTable(&c)
 	if err != nil {
@@ -1009,9 +1029,6 @@ func (l *Log) createTable(tableName string) error {
 	})
 	if err == nil {
 		log.Infof("Table %q has been created", tableName)
-	}
-	if err := l.createV2GSI(); err != nil {
-		return trace.Wrap(err)
 	}
 	return trace.Wrap(err)
 }
