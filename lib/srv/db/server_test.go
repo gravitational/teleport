@@ -31,7 +31,9 @@ import (
 // dynamic labels and heartbeats its presence to the auth server.
 func TestDatabaseServerStart(t *testing.T) {
 	ctx := context.Background()
-	testCtx := setupTestContext(ctx, t)
+	testCtx := setupTestContext(ctx, t,
+		withSelfHostedPostgres("postgres"),
+		withSelfHostedMySQL("mysql"))
 	t.Cleanup(func() { testCtx.Close() })
 
 	err := testCtx.server.Start()
@@ -42,10 +44,10 @@ func TestDatabaseServerStart(t *testing.T) {
 		server types.DatabaseServer
 	}{
 		{
-			server: testCtx.postgresDBServer,
+			server: testCtx.postgres["postgres"].server,
 		},
 		{
-			server: testCtx.mysqlDBServer,
+			server: testCtx.mysql["mysql"].server,
 		},
 	}
 

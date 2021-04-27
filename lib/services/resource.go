@@ -211,11 +211,6 @@ type Ref struct {
 	Name    string
 }
 
-// IsEmpty checks whether the provided resource name is empty
-func (r *Ref) IsEmpty() bool {
-	return r.Name == ""
-}
-
 // Set sets the name of the resource
 func (r *Ref) Set(v string) error {
 	out, err := ParseRef(v)

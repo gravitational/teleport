@@ -117,7 +117,7 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 	start.Flag("config-string",
 		"Base64 encoded configuration string").Hidden().Envar(defaults.ConfigEnvar).
 		StringVar(&ccf.ConfigString)
-	start.Flag("labels", "List of labels for this node").StringVar(&ccf.Labels)
+	start.Flag("labels", "Comma-separated list of labels for this node, for example env=dev,app=web").StringVar(&ccf.Labels)
 	start.Flag("diag-addr",
 		"Start diagnostic prometheus and healthz endpoint.").Hidden().StringVar(&ccf.DiagnosticAddr)
 	start.Flag("permit-user-env",
