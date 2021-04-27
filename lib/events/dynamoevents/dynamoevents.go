@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -213,7 +212,7 @@ const (
 
 // New returns new instance of DynamoDB backend.
 // It's an implementation of backend API's NewFunc
-func New(ctx context.Context, cfg Config, backend backend.Backend) (*Log, error) {
+func New(ctx context.Context, cfg Config) (*Log, error) {
 	l := log.WithFields(log.Fields{
 		trace.Component: teleport.Component(teleport.ComponentDynamoDB),
 	})
@@ -272,7 +271,7 @@ func New(ctx context.Context, cfg Config, backend backend.Backend) (*Log, error)
 	}
 
 	// Migrate the table according to RFD 24 if it still has the old schema.
-	err = b.migrateRFD24(ctx, backend)
+	err = b.migrateRFD24(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -321,74 +320,53 @@ const (
 	tableStatusOK
 )
 
-var migrateRFD24FinishedKey = backend.Key("internal", "dynamoevents", "rfd_24_migration_complete")
-
 // migrateRFD24 checks if any migration actions need to be performed
 // as specified in RFD 24 and applies them as needed.
-func (l *Log) migrateRFD24(ctx context.Context, dataBackend backend.Backend) error {
+func (l *Log) migrateRFD24(ctx context.Context) error {
 	hasIndexV1, err := l.indexExists(l.Tablename, indexTimeSearch)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	migrateIndices := true
-	migrateEvents := true
-
 	// Table is already up to date.
+	// We use the existence of the V1 index has a completion flag
+	// for migration. We remove it and the end of the migration which
+	// means it is finished if it doesn't exist.
 	if !hasIndexV1 {
-		migrateIndices = false
+		return nil
+	}
 
-		_, err := dataBackend.Get(ctx, migrateRFD24FinishedKey)
-		if err == nil {
-			migrateEvents = false
-		} else if !trace.IsNotFound(err) {
+	hasIndexV2, err := l.indexExists(l.Tablename, indexTimeSearchV2)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Table does not have the new index, so we send off an API
+	// request to create it and wait until it's active.
+	if !hasIndexV2 {
+		log.Info("Creating new DynamoDB index...")
+		err = l.createV2GSI()
+		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
-	if migrateIndices {
-		log.Info("DynamoDB Index still in old format. Starting migration...")
-
-		hasIndexV2, err := l.indexExists(l.Tablename, indexTimeSearchV2)
+	go func() {
+		// Migrate events to the new format so that the V2 index can use them.
+		log.Info("Starting event migration to v6.2 format")
+		err := l.migrateDateAttribute(ctx)
 		if err != nil {
-			return trace.Wrap(err)
+			log.WithError(err).Error("Encountered error migrating events to v6.2 format")
+			return
 		}
 
-		log.Info("Creating new DynamoDB index...")
-		if !hasIndexV2 {
-			err = l.createV2GSI()
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
-
+		// Remove the old index, marking migration as complete
 		log.Info("Removing old DynamoDB index")
 		err = l.removeV1GSI()
 		if err != nil {
-			return trace.Wrap(err)
+			log.WithError(err).Error("Migrated all events to v6.2 format successfully but failed to write flag to backend.")
 		}
-	}
-
-	if migrateEvents {
-		go func() {
-			log.Info("Starting event migration to v6.2 format")
-			err := l.migrateDateAttribute(ctx)
-			if err != nil {
-				log.WithError(err).Error("Encountered error migrating events to v6.2 format")
-				return
-			}
-
-			item := backend.Item{
-				Key:   migrateRFD24FinishedKey,
-				Value: make([]byte, 0),
-			}
-
-			_, err = dataBackend.Put(ctx, item)
-			if err != nil {
-				log.WithError(err).Error("Migrated all events to v6.2 format successfully but failed to write flag to backend.")
-			}
-		}()
-	}
+	}()
 
 	return nil
 }

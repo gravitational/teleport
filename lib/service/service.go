@@ -982,7 +982,7 @@ func initExternalLog(ctx context.Context, auditConfig services.AuditConfig, log 
 				return nil, trace.Wrap(err)
 			}
 
-			logger, err := dynamoevents.New(ctx, cfg, backend)
+			logger, err := dynamoevents.New(ctx, cfg)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/utils"
@@ -59,14 +58,12 @@ func (s *DynamoeventsSuite) SetUpSuite(c *check.C) {
 	}
 
 	fakeClock := clockwork.NewFakeClock()
-	backend, err := memory.New(memory.Config{})
-	c.Assert(err, check.IsNil)
 	log, err := New(context.Background(), Config{
 		Region:       "us-west-1",
 		Tablename:    fmt.Sprintf("teleport-test-%v", uuid.New()),
 		Clock:        fakeClock,
 		UIDGenerator: utils.NewFakeUID(),
-	}, backend)
+	})
 	c.Assert(err, check.IsNil)
 	s.log = log
 	s.EventsSuite.Log = log
