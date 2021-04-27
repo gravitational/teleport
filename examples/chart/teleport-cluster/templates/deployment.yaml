@@ -55,6 +55,9 @@ spec:
           readOnly: true
         - mountPath: /var/lib/teleport
           name: "data"
+        - mountPath: /etc/teleport-secrets
+          name: "auth-token"
+          readOnly: true
       volumes:
 {{- if .Values.enterprise }}
       - name: license
@@ -64,6 +67,9 @@ spec:
       - name: "config"
         configMap:
           name: {{ .Release.Name }}
+      - name: "auth-token"
+        secret:
+          secretName: {{ .Values.secretName }}
       - name: "data"
         persistentVolumeClaim:
           claimName: {{ .Release.Name }}
