@@ -271,10 +271,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 	}
 
 	// Migrate the table according to RFD 24 if it still has the old schema.
-	err = b.migrateRFD24(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	b.migrateRFD24WithRetry(ctx)
 
 	// Enable continuous backups if requested.
 	if b.Config.EnableContinuousBackups {
@@ -320,8 +317,32 @@ const (
 	tableStatusOK
 )
 
+// migrateRFD24WithRetry repeatedly attempts to kick off RFD 24 migration in the event
+// of an error on a long and jittered interval.
+func (l *Log) migrateRFD24WithRetry(ctx context.Context) {
+	for {
+		if err := l.migrateRFD24(ctx); err != nil {
+			delay := utils.HalfJitter(time.Minute * 5)
+			log.WithError(err).Errorf("Failed RFD 24 migration, making another attempt in %f seconds", delay.Seconds())
+		} else {
+			break
+		}
+	}
+}
+
 // migrateRFD24 checks if any migration actions need to be performed
 // as specified in RFD 24 and applies them as needed.
+//
+// In the case of this being called concurrently from multiple auth servers the
+// behaviour depends on the current state of the migration. If the V2 index is not
+// yet visible, one server will receive an error. In the case of event migration
+// being in progress both servers will attempt to migrate events, in some cases this may
+// lead to increased migration performance via parallelism but it may also lead to duplicated work.
+// No data or schema can be broken by multiple auth servers calling this function
+// but it is preferable to perform the migration with only one active auth server.
+// To combat this behaviour the servers will detect errors and wait a relatively long
+// jittered interval until retrying migration again. This allows one server to pull ahead
+// and finish or make significant progress on the migartion.
 func (l *Log) migrateRFD24(ctx context.Context) error {
 	hasIndexV1, err := l.indexExists(l.Tablename, indexTimeSearch)
 	if err != nil {
@@ -345,26 +366,37 @@ func (l *Log) migrateRFD24(ctx context.Context) error {
 	// request to create it and wait until it's active.
 	if !hasIndexV2 {
 		log.Info("Creating new DynamoDB index...")
-		err = l.createV2GSI()
+		err = l.createV2GSI(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
+	// Kick off a background task to migrate events, this task is safely
+	// interruptible without breaking data and can be resumed from the
+	// last point so no checkpointing state needs to be managed here.
 	go func() {
-		// Migrate events to the new format so that the V2 index can use them.
-		log.Info("Starting event migration to v6.2 format")
-		err := l.migrateDateAttribute(ctx)
-		if err != nil {
-			log.WithError(err).Error("Encountered error migrating events to v6.2 format")
-			return
-		}
+		for {
+			// Migrate events to the new format so that the V2 index can use them.
+			log.Info("Starting event migration to v6.2 format")
+			err := l.migrateDateAttribute(ctx)
+			if err != nil {
+				log.WithError(err).Error("Encountered error migrating events to v6.2 format")
+			} else {
+				break
+			}
 
-		// Remove the old index, marking migration as complete
-		log.Info("Removing old DynamoDB index")
-		err = l.removeV1GSI()
-		if err != nil {
-			log.WithError(err).Error("Migrated all events to v6.2 format successfully but failed to write flag to backend.")
+			// Remove the old index, marking migration as complete
+			log.Info("Removing old DynamoDB index")
+			err = l.removeV1GSI()
+			if err != nil {
+				log.WithError(err).Error("Migrated all events to v6.2 format successfully but failed remove old index.")
+			} else {
+				break
+			}
+
+			delay := utils.HalfJitter(time.Minute * 5)
+			log.Errorf("Background migration task failed, retrying in %f seconds", delay)
 		}
 	}()
 
@@ -778,7 +810,7 @@ func (l *Log) indexExists(tableName, indexName string) (bool, error) {
 // - This function must not be called concurrently with itself.
 // - This function must be called before the
 //   backend is considered initialized and the main Teleport process is started.
-func (l *Log) createV2GSI() error {
+func (l *Log) createV2GSI(ctx context.Context) error {
 	provisionedThroughput := dynamodb.ProvisionedThroughput{
 		ReadCapacityUnits:  aws.Int64(l.ReadCapacityUnits),
 		WriteCapacityUnits: aws.Int64(l.WriteCapacityUnits),
@@ -832,6 +864,10 @@ func (l *Log) createV2GSI() error {
 		if indexExists {
 			log.Info("DynamoDB index created")
 			break
+		}
+
+		if ctx.Err() != nil {
+			return trace.Wrap(ctx.Err())
 		}
 
 		time.Sleep(time.Second * 5)
