@@ -62,6 +62,7 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig) (*pgcon
 //   - Reply with the same TestQueryResponse to every query the client sends.
 //   - Recognize terminate messages from clients closing connections.
 type TestServer struct {
+	cfg       common.TestServerConfig
 	listener  net.Listener
 	port      string
 	tlsConfig *tls.Config
@@ -89,6 +90,7 @@ func NewTestServer(config common.TestServerConfig) (*TestServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &TestServer{
+		cfg:       config,
 		listener:  listener,
 		port:      port,
 		tlsConfig: tlsConfig,
@@ -197,12 +199,41 @@ func (s *TestServer) handleStartup(client *pgproto3.Backend) error {
 		return trace.BadParameter("expected *pgproto3.StartupMessage, got: %#v", startupMessage)
 	}
 	s.log.Debugf("Received %#v.", startupMessage)
+	// If auth token is specified, used it for password authentication, this
+	// simulates cloud provider IAM auth.
+	if s.cfg.AuthToken != "" {
+		if err := s.handlePasswordAuth(client); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	// Accept auth and send ready for query.
 	if err := client.Send(&pgproto3.AuthenticationOk{}); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := client.Send(&pgproto3.ReadyForQuery{}); err != nil {
 		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *TestServer) handlePasswordAuth(client *pgproto3.Backend) error {
+	// Request cleartext password.
+	if err := client.Send(&pgproto3.AuthenticationCleartextPassword{}); err != nil {
+		return trace.Wrap(err)
+	}
+	// Wait for response which should be PasswordMessage.
+	message, err := client.Receive()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	passwordMessage, ok := message.(*pgproto3.PasswordMessage)
+	if !ok {
+		return trace.BadParameter("expected *pgproto3.PasswordMessage, got: %#v", message)
+	}
+	// Verify the token.
+	if passwordMessage.Password != s.cfg.AuthToken {
+		// Logging auth tokens just for the tests debugging convenience...
+		return trace.AccessDenied("invalid auth token: got %q, want %q", passwordMessage.Password, s.cfg.AuthToken)
 	}
 	return nil
 }
