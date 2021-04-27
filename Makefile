@@ -144,7 +144,9 @@ endif
 .PHONY:full-ent
 full-ent:
 ifneq ("$(OS)", "windows")
-	@if [ -f e/Makefile ]; then $(MAKE) -C e full; fi
+	@if [ -f e/Makefile ]; then \
+	rm -fr $(ASSETS_BUILDDIR)/webassets.zip; \
+	$(MAKE) -C e full; fi
 endif
 
 #
@@ -401,15 +403,15 @@ tag:
 
 # build/webassets.zip archive contains the web assets (UI) which gets
 # appended to teleport binary
-$(ASSETS_BUILDDIR)/webassets.zip: | $(ASSETS_BUILDDIR)
 $(ASSETS_BUILDDIR)/webassets.zip: ensure-webassets
 ifneq ("$(OS)", "windows")
 	@echo "---> Building OSS web assets."
+	rm -fr $(ASSETS_BUILDDIR)/webassets.zip
+	mkdir -p $(ASSETS_BUILDDIR)
 	cd webassets/teleport/ ; zip -qr ../../$@ .
 endif
 
-$(ASSETS_BUILDDIR):
-	mkdir -p $@
+
 
 .PHONY: test-package
 test-package: remove-temp-files
