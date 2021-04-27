@@ -71,6 +71,8 @@ type Config struct {
 	Servers types.DatabaseServers
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)
+	// GCPIAM allows to override GCP IAM client used in tests.
+	GCPIAM *gcpcredentials.IamCredentialsClient
 }
 
 type (
@@ -141,9 +143,6 @@ type Server struct {
 	// awsSessions contains per-region AWS sessions which are only initialized
 	// if there are any RDS/Aurora/Redshift databases in respective regions.
 	awsSessions map[string]*awssession.Session
-	// gcpIAM is the GCP IAM client which is only initialized if there are
-	// any Cloud SQL databases.
-	gcpIAM *gcpcredentials.IamCredentialsClient
 }
 
 // New returns a new database server.
@@ -215,16 +214,18 @@ func (s *Server) initCloudClients(ctx context.Context, server types.DatabaseServ
 			},
 		})
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "failed to initialize AWS session in region %q for database %q",
+				region, server.GetName())
 		}
 		s.awsSessions[region] = session
 	case types.DatabaseTypeCloudSQL:
-		if s.gcpIAM != nil {
+		if s.cfg.GCPIAM != nil {
 			return nil // Already initialized.
 		}
-		s.gcpIAM, err = gcpcredentials.NewIamCredentialsClient(ctx)
+		s.cfg.GCPIAM, err = gcpcredentials.NewIamCredentialsClient(ctx)
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "failed to initialize GCP IAM client for database %q",
+				server.GetName())
 		}
 	default:
 		// For other types of databases e.g. self-hosted we don't need to
@@ -322,8 +323,8 @@ func (s *Server) Close() error {
 		errors = append(errors, heartbeat.Close())
 	}
 	// Close the GCP IAM client if needed.
-	if s.gcpIAM != nil {
-		errors = append(errors, s.gcpIAM.Close())
+	if s.cfg.GCPIAM != nil {
+		errors = append(errors, s.cfg.GCPIAM.Close())
 	}
 	return trace.NewAggregate(errors...)
 }
@@ -409,7 +410,7 @@ func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.Stream
 	auth, err := s.cfg.NewAuth(common.AuthConfig{
 		AuthClient: s.cfg.AuthClient,
 		AWSSession: s.awsSessions[sessionCtx.Server.GetAWS().Region],
-		GCPIAM:     s.gcpIAM,
+		GCPIAM:     s.cfg.GCPIAM,
 		Clock:      s.cfg.Clock,
 	})
 	if err != nil {

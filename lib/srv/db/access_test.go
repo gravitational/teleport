@@ -35,13 +35,16 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 
+	gcpcredentials "cloud.google.com/go/iam/credentials/apiv1"
+	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 	"github.com/siddontang/go-mysql/client"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/api/option"
+	"google.golang.org/grpc"
 )
 
 func TestMain(m *testing.M) {
@@ -470,6 +473,12 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	// Create test audit events emitter.
 	testCtx.emitter = newTestEmitter()
 
+	// Unauthenticated GCP IAM client so we don't try to initialize a real one.
+	gcpIAM, err := gcpcredentials.NewIamCredentialsClient(ctx,
+		option.WithGRPCDialOption(grpc.WithInsecure()), // Insecure must be set for unauth client.
+		option.WithoutAuthentication())
+	require.NoError(t, err)
+
 	// Create database service server.
 	testCtx.server, err = New(ctx, Config{
 		Clock:         clockwork.NewFakeClockAt(time.Now()),
@@ -493,6 +502,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 				Emitter: testCtx.emitter,
 			})
 		},
+		GCPIAM: gcpIAM,
 	})
 	require.NoError(t, err)
 
