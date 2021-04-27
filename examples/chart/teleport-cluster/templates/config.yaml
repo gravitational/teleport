@@ -6,11 +6,12 @@ metadata:
 data:
   teleport.yaml: |
     teleport:
-      auth_token: "/etc/teleport-secrets/auth-token"
       log:
         severity: {{ .Values.logLevel }}
         output: stderr
     auth_service:
+      tokens:
+      - "app:/etc/teleport-secrets/auth-token"
       enabled: true
       cluster_name: {{ required "clusterName is required in chart values" .Values.clusterName }}
 {{- if .Values.enterprise }}
