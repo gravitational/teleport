@@ -68,10 +68,10 @@ message ClusterConfig {
 It is proposed to distribute them in the following fashion:
 
 ```proto
-message ClusterMeta {
-    // This resource is not genuine configuration, it would contain only the
-    // common resource metadata.  The metadata name field would be used to
-    // represent the ClusterID.
+// ClusterID field is moved into ClusterName resource.
+message ClusterName {
+    ...
+    string ClusterID;
 }
 
 message SessionRecordingConfig {
