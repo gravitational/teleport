@@ -269,6 +269,20 @@ func TestCheckDatabase(t *testing.T) {
 			},
 			outErr: true,
 		},
+		{
+			desc: "Redshift region not set",
+			inDatabase: Database{
+				Name:     "example",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "redshift-cluster-1.aaa.us-east-1.redshift.amazonaws.com:5439",
+				AWS: DatabaseAWS{
+					Redshift: DatabaseAWSRedshift{
+						ClusterID: "redshift-cluster-1",
+					},
+				},
+			},
+			outErr: true,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {

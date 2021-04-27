@@ -1046,7 +1046,7 @@ func (s *ServicesTestSuite) RemoteClustersCRUD(c *check.C) {
 
 // AuthPreference tests authentication preference service
 func (s *ServicesTestSuite) AuthPreference(c *check.C) {
-	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+	ap, err := types.NewAuthPreferenceFromConfigFile(services.AuthPreferenceSpecV2{
 		Type:         "local",
 		SecondFactor: "otp",
 	})
