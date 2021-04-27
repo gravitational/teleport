@@ -246,7 +246,7 @@ This logic implies Choices 2.B and 3.B.
    configuration from teleport.yaml, restarting the servers and trying this
    command again.
 
-   If you would still like to proceed, re-run the comand with both --force and
+   If you would still like to proceed, re-run the command with both --force and
    --confirm flags.
    ```
 

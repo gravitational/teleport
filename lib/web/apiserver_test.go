@@ -44,7 +44,7 @@ import (
 	"golang.org/x/text/encoding/unicode"
 
 	"github.com/gravitational/teleport"
-	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -1547,7 +1547,7 @@ func (s *WebSuite) TestPing(c *C) {
 	re, err := wc.Get(context.Background(), wc.Endpoint("webapi", "ping"), url.Values{})
 	c.Assert(err, IsNil)
 
-	var out *apiclient.PingResponse
+	var out *webclient.PingResponse
 	c.Assert(json.Unmarshal(re.Bytes(), &out), IsNil)
 
 	preference, err := s.server.Auth().GetAuthPreference()
@@ -1593,7 +1593,7 @@ func (s *WebSuite) TestMultipleConnectors(c *C) {
 	// hit the ping endpoint to get the auth type and connector name
 	re, err := wc.Get(ctx, wc.Endpoint("webapi", "ping"), url.Values{})
 	c.Assert(err, IsNil)
-	var out *apiclient.PingResponse
+	var out *webclient.PingResponse
 	c.Assert(json.Unmarshal(re.Bytes(), &out), IsNil)
 
 	// make sure the connector name we got back was the first connector
@@ -1837,7 +1837,7 @@ func TestApplicationAccessDisabled(t *testing.T) {
 
 	endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
 	_, err = pack.clt.PostJSON(context.Background(), endpoint, &CreateAppSessionRequest{
-		FQDN:        "panel.example.com",
+		FQDNHint:    "panel.example.com",
 		PublicAddr:  "panel.example.com",
 		ClusterName: "localhost",
 	})
@@ -1890,7 +1890,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		{
 			inComment: Commentf("Valid request: all fields."),
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDN:        "panel.example.com",
+				FQDNHint:    "panel.example.com",
 				PublicAddr:  "panel.example.com",
 				ClusterName: "localhost",
 			},
@@ -1911,7 +1911,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		{
 			inComment: Commentf("Valid request: only FQDN."),
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDN: "panel.example.com",
+				FQDNHint: "panel.example.com",
 			},
 			outError:    false,
 			outFQDN:     "panel.example.com",
@@ -1934,7 +1934,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		{
 			inComment: Commentf("Invalid application."),
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDN:        "panel.example.com",
+				FQDNHint:    "panel.example.com",
 				PublicAddr:  "invalid.example.com",
 				ClusterName: "localhost",
 			},
@@ -1943,7 +1943,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		{
 			inComment: Commentf("Invalid cluster name."),
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDN:        "panel.example.com",
+				FQDNHint:    "panel.example.com",
 				PublicAddr:  "panel.example.com",
 				ClusterName: "example.com",
 			},
@@ -1952,7 +1952,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		{
 			inComment: Commentf("Malicious request: all fields."),
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDN:        "panel.example.com@malicious.com",
+				FQDNHint:    "panel.example.com@malicious.com",
 				PublicAddr:  "panel.example.com",
 				ClusterName: "localhost",
 			},
@@ -1963,7 +1963,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		{
 			inComment: Commentf("Malicious request: only FQDN."),
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDN: "panel.example.com@malicious.com",
+				FQDNHint: "panel.example.com@malicious.com",
 			},
 			outError: true,
 		},
@@ -2354,7 +2354,7 @@ func decodeSessionCookie(t *testing.T, value string) (sessionID string) {
 }
 
 func (r CreateSessionResponse) response() (*CreateSessionResponse, error) {
-	return &CreateSessionResponse{Type: r.Type, Token: r.Token, ExpiresIn: r.ExpiresIn}, nil
+	return &CreateSessionResponse{TokenType: r.TokenType, Token: r.Token, TokenExpiresIn: r.TokenExpiresIn}, nil
 }
 
 func newWebPack(t *testing.T, numProxies int) *webPack {
@@ -2662,8 +2662,8 @@ func (r *proxy) authPackFromResponse(t *testing.T, httpResp *roundtrip.Response)
 
 	session, err := resp.response()
 	require.NoError(t, err)
-	if session.ExpiresIn < 0 {
-		t.Errorf("Expected expiry time to be in the future but got %v", session.ExpiresIn)
+	if session.TokenExpiresIn < 0 {
+		t.Errorf("Expected expiry time to be in the future but got %v", session.TokenExpiresIn)
 	}
 	return &authPack{
 		session: session,

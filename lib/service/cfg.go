@@ -357,9 +357,17 @@ type ProxyConfig struct {
 	SSHPublicAddrs []utils.NetAddr
 
 	// TunnelPublicAddrs is a list of the public addresses the proxy advertises
-	// for the tunnel endpoint. The hosts in in PublicAddr are included in the
+	// for the tunnel endpoint. The hosts in PublicAddr are included in the
 	// list of host principals on the TLS and SSH certificate.
 	TunnelPublicAddrs []utils.NetAddr
+
+	// PostgresPublicAddrs is a list of the public addresses the proxy
+	// advertises for Postgres clients.
+	PostgresPublicAddrs []utils.NetAddr
+
+	// MySQLPublicAddrs is a list of the public addresses the proxy
+	// advertises for MySQL clients.
+	MySQLPublicAddrs []utils.NetAddr
 
 	// Kube specifies kubernetes proxy configuration
 	Kube KubeProxyConfig
@@ -503,6 +511,14 @@ type SSHConfig struct {
 
 	// BPF holds BPF configuration for Teleport.
 	BPF *bpf.Config
+
+	// ProxyReverseTunnelFallbackAddr optionall specifies the address of the proxy if reverse tunnel
+	// discovered proxy fails.
+	// This configuration is not exposed directly but can be set from environment via
+	// defaults.ProxyFallbackAddrEnvar.
+	//
+	// See github.com/gravitational/teleport/issues/4141 for details.
+	ProxyReverseTunnelFallbackAddr *utils.NetAddr
 }
 
 // KubeConfig specifies configuration for kubernetes service
@@ -557,9 +573,9 @@ type Database struct {
 	DynamicLabels services.CommandLabels
 	// CACert is an optional database CA certificate.
 	CACert []byte
-	// AWS contains AWS specific settings for RDS/Aurora.
+	// AWS contains AWS specific settings for RDS/Aurora/Redshift databases.
 	AWS DatabaseAWS
-	// GCP contains GCP specific settings for Cloud SQL.
+	// GCP contains GCP specific settings for Cloud SQL databases.
 	GCP DatabaseGCP
 }
 
@@ -567,6 +583,14 @@ type Database struct {
 type DatabaseAWS struct {
 	// Region is the cloud region database is running in when using AWS RDS.
 	Region string
+	// Redshift contains Redshift specific settings.
+	Redshift DatabaseAWSRedshift
+}
+
+// DatabaseAWSRedshift contains AWS Redshift specific settings.
+type DatabaseAWSRedshift struct {
+	// ClusterID is the Redshift cluster identifier.
+	ClusterID string
 }
 
 // DatabaseGCP contains GCP specific settings for Cloud SQL databases.
@@ -600,6 +624,12 @@ func (d *Database) Check() error {
 		if _, err := tlsca.ParseCertificatePEM(d.CACert); err != nil {
 			return trace.BadParameter("provided database %q CA doesn't appear to be a valid x509 certificate: %v",
 				d.Name, err)
+		}
+	}
+	// Validate Redshift specific configuration.
+	if d.AWS.Redshift.ClusterID != "" {
+		if d.AWS.Region == "" {
+			return trace.BadParameter("missing AWS region for Redshift database %q", d.Name)
 		}
 	}
 	// Validate Cloud SQL specific configuration.
