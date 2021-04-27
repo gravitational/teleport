@@ -749,7 +749,7 @@ func (l *Log) getTableStatus(tableName string) (tableStatus, error) {
 	return tableStatusOK, nil
 }
 
-// indexExists checks if a given index exists on a given table and that it is active.
+// indexExists checks if a given index exists on a given table and that it is active or updating.
 func (l *Log) indexExists(tableName, indexName string) (bool, error) {
 	tableDescription, err := l.svc.DescribeTable(&dynamodb.DescribeTableInput{
 		TableName: aws.String(tableName),
@@ -759,7 +759,7 @@ func (l *Log) indexExists(tableName, indexName string) (bool, error) {
 	}
 
 	for _, gsi := range tableDescription.Table.GlobalSecondaryIndexes {
-		if *gsi.IndexName == indexName && *gsi.IndexStatus == dynamodb.IndexStatusActive {
+		if *gsi.IndexName == indexName && (*gsi.IndexStatus == dynamodb.IndexStatusActive || *gsi.IndexStatus == dynamodb.IndexStatusUpdating) {
 			return true, nil
 		}
 	}
@@ -820,9 +820,9 @@ func (l *Log) createV2GSI() error {
 
 	// If we hit this time, we give up waiting.
 	waitStart := time.Now()
-	endWait := waitStart.Add(time.Hour * 24)
+	endWait := waitStart.Add(time.Minute * 10)
 
-	// Wait until the index is created and active.
+	// Wait until the index is created and active or updating.
 	for time.Now().Before(endWait) {
 		indexExists, err := l.indexExists(l.Tablename, indexTimeSearchV2)
 		if err != nil {
