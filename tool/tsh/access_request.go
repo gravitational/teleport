@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -292,8 +293,8 @@ func showRequestTable(reqs []types.AccessRequest) error {
 }
 
 // rolesHaveChanged checks to see if there is a difference in the rolesets
-// applied to two certificates. Handles duplicates and different sort
-// orders in the rolesets.
+// applied to two certificates. Duplicates are treated as a single item and
+// the ordering of roles is ignored.
 func rolesHaveChanged(oldKey, newKey *client.Key) (bool, error) {
 	oldRoles, err := oldKey.CertRoles()
 	if err != nil {
@@ -305,44 +306,17 @@ func rolesHaveChanged(oldKey, newKey *client.Key) (bool, error) {
 		return false, trace.Wrap(err)
 	}
 
-	// If the roleset lengths differ then the rolesets *must* have changed, so
-	// let's call it now & bypass the more expensive search below.
-
-	if len(newRoles) != len(oldRoles) {
-		return true, nil
+	oldRoleSet := make(map[string]int)
+	for _, r := range oldRoles {
+		oldRoleSet[r] = 0
 	}
 
-	// Sort the roles in each key so that we can assert that the contents
-	// of both rolesets is identical, allowing for duplicates and different
-	// ordering. There are probably faster ways to do this, but we'll worry
-	// about that if/when this starts to dominate the performance of `tsh`.
-
-	sort.Strings(oldRoles)
-	sort.Strings(newRoles)
-
-	for i := range oldRoles {
-		if oldRoles[i] != newRoles[i] {
-			return true, nil
-		}
+	newRoleSet := make(map[string]int)
+	for _, r := range newRoles {
+		newRoleSet[r] = 0
 	}
 
-	return false, nil
-}
-
-// withAllCertsExceptSSH returns a list of all of the certificate query
-// options specified in the `client` package, excluding the SSH query. We
-// define it as a filter over the advertised list of all options as we will
-// want it to automatically expand as new query options are added.
-func withAllCertsExceptSSH() []client.CertOption {
-	result := make([]client.CertOption, 0, len(client.WithAllCerts))
-	for _, opt := range client.WithAllCerts {
-		if _, ok := opt.(client.WithSSHCerts); ok {
-			continue
-		}
-
-		result = append(result, opt)
-	}
-	return result
+	return !reflect.DeepEqual(oldRoleSet, newRoleSet), nil
 }
 
 // deleteUserCertsOnRoleMismatch() checks to see if there is a difference
@@ -362,14 +336,19 @@ func deleteUserCertsOnRoleMismatch(oldKey, newKey *client.Key,
 		return nil
 	}
 
+	if oldKey.KeyIndex != newKey.KeyIndex {
+		return trace.BadParameter(
+			"old key index %+v does not match new key index %+v",
+			oldKey.KeyIndex, newKey.KeyIndex)
+	}
+
 	// If we get here, we have an old key that matches the new key's index. If
 	// the old and new keys have conflicting roles then all of the service
 	// certificates for the key will have to be reissued, as they may no longer
 	// reflect the permissions that the auth server is granting the user.
 	//
-	// We can force those certs to be re-issued by explicitly deleting them
-	// from the keystore.
-
+	// Let's delete the current set of certificates so that they cannot be
+	// used by mistake
 	rolesChanged, err := rolesHaveChanged(oldKey, newKey)
 	if err != nil {
 		return trace.Wrap(err)

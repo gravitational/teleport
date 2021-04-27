@@ -380,6 +380,9 @@ type CertOption interface {
 // WithAllCerts lists all known CertOptions.
 var WithAllCerts = []CertOption{WithSSHCerts{}, WithKubeCerts{}, WithDBCerts{}, WithAppCerts{}}
 
+// WithAllCertsExceptSSH lists all known CertOptions.
+var WithAllCertsExceptSSH = []CertOption{WithKubeCerts{}, WithDBCerts{}, WithAppCerts{}}
+
 // WithSSHCerts is a CertOption for handling SSH certificates.
 type WithSSHCerts struct{}
 

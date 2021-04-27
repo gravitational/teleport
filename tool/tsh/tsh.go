@@ -2068,7 +2068,7 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...strin
 	//     fair game.
 
 	err = deleteUserCertsOnRoleMismatch(oldKey, newKey, newKey.ClusterName,
-		tc.LocalAgent(), withAllCertsExceptSSH()...)
+		tc.LocalAgent(), client.WithAllCertsExceptSSH...)
 	if err != nil {
 		return trace.Wrap(err)
 	}

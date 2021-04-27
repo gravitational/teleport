@@ -31,14 +31,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newKeygen(precompute int) *native.Keygen {
+func newKeygen(t *testing.T, precompute int) *native.Keygen {
 	fakeClock := clockwork.NewFakeClockAt(time.Date(2016, 9, 8, 7, 6, 5, 0, time.UTC))
 
-	return native.New(
+	keygen := native.New(
 		context.TODO(),
 		native.PrecomputeKeys(precompute),
 		native.SetClock(fakeClock))
 
+	t.Cleanup(func() { keygen.Close() })
+
+	return keygen
 }
 
 func newKey(keygen *native.Keygen, roles []string) (*client.Key, error) {
@@ -119,6 +122,16 @@ func TestKeysTriggerRoleChange(t *testing.T) {
 			rolesOld:     []string{"delta", "epsilon", "zeta"},
 			expectChange: true,
 		}, {
+			desc:         "Duplicate coalescing (old)",
+			rolesOld:     []string{"alpha", "alpha", "beta", "gamma"},
+			rolesNew:     []string{"alpha", "beta", "gamma"},
+			expectChange: false,
+		}, {
+			desc:         "Duplicate coalescing (new)",
+			rolesOld:     []string{"alpha", "beta", "gamma"},
+			rolesNew:     []string{"alpha", "beta", "gamma", "gamma"},
+			expectChange: false,
+		}, {
 			desc:         "Duplicate replacement",
 			rolesOld:     []string{"alpha", "alpha", "gamma"},
 			rolesNew:     []string{"alpha", "beta", "gamma"},
@@ -130,8 +143,7 @@ func TestKeysTriggerRoleChange(t *testing.T) {
 			expectChange: true,
 		},
 	}
-	keyGen := newKeygen(len(testCases))
-	defer keyGen.Close()
+	keyGen := newKeygen(t, len(testCases))
 
 	for _, testCase := range testCases {
 		t.Run(testCase.desc, func(t *testing.T) {
