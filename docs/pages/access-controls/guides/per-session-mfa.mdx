@@ -16,6 +16,14 @@ that protects users against compromises of their on-disk Teleport certificates.
   users](../../admin-guide.mdx#local-connector).
 </Admonition>
 
+<Admonition type="warning">
+  Per-session U2F checks were introduced in Teleport v6.1. To enforce the
+  checks, you must update **all** `teleport` binaries in your deployment. If
+  only Auth and Proxy services are updated, these checks will _not_ be properly
+  enforced.  Additionally, only v6.1 or newer `tsh` binaries implement
+  per-session U2F checks.
+</Admonition>
+
 ## Prerequisites
 
 - Installed [Teleport](../getting-started.mdx) or [Teleport Cloud](../../cloud/introduction.mdx) >= (=teleport.version=)
