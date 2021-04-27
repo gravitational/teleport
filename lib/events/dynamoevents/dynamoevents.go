@@ -686,6 +686,8 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, filter string, limit int) (
 				break pageLoop
 			}
 		}
+
+		g.Error("DynamoDB response size exceeded limit.")
 	}
 
 	return values, nil
