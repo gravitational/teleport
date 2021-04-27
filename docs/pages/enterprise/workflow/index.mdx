@@ -4,7 +4,7 @@ description: How to customize SSH and Kubernetes access using Teleport.
 h1: Teleport Access Requests
 ---
 
-#### Approving Workflow using an External Integration
+#### Approving Requests using an External Integration
 
 - [Integrating Teleport with Slack](ssh-approval-slack.mdx)
 - [Integrating Teleport with Mattermost](ssh-approval-mattermost.mdx)
@@ -15,7 +15,7 @@ h1: Teleport Access Requests
 ## Access Requests Setup
 
 Teleport 4.2 introduced the ability for users to request additional roles. The
-workflow API makes it easy to dynamically approve or deny these requests.
+Access Request API makes it easy to dynamically approve or deny these requests.
 
 ### Setup
 
@@ -223,7 +223,7 @@ Because automatically generated requests always include all roles that the user 
 $ tctl request approve --roles=role-1,role-3 --reason='Approved, but not role-2 right now' 28a3fb86-0230-439d-ad88-11cfcb213193
 ```
 
-### Other features of Access Workflows
+### Other features of Access Requests
 
 - Users can request multiple roles at one time. e.g `roles: ['dba','netsec','cluster-x']`
 - Approved requests do not affect Teleport's behavior outside of allowing additional

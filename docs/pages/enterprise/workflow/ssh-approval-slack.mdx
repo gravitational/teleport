@@ -6,8 +6,8 @@ h1: Teleport Slack Plugin Setup
 
 This guide will talk through how to set up Teleport with Slack. Teleport to Slack integration allows you to treat Teleport access and permission requests via Slack message and inline interactive components.
 
-<Admonition type="warning">
-  The Approval Workflow only works with Teleport Enterprise as it requires several roles.
+<Admonition type="tip">
+  The Request Approval workflow is now supported in both Teleport Enterprise (multirole) and Open Source.
 </Admonition>
 
 #### Example Slack request
@@ -211,7 +211,7 @@ INFO   Starting insecure HTTP server on 0.0.0.0:8081 utils/http.go:64
 INFO   Watcher connected slack/main.go:298
 ```
 
-### Testing the approval workflow
+### Testing the request approval workflow
 
 You can create a test permissions request with `tctl` and check if the plugin works as expected like this:
 
