@@ -342,7 +342,7 @@ func (l *Log) migrateRFD24WithRetry(ctx context.Context) {
 // but it is preferable to perform the migration with only one active auth server.
 // To combat this behaviour the servers will detect errors and wait a relatively long
 // jittered interval until retrying migration again. This allows one server to pull ahead
-// and finish or make significant progress on the migartion.
+// and finish or make significant progress on the migration.
 func (l *Log) migrateRFD24(ctx context.Context) error {
 	hasIndexV1, err := l.indexExists(l.Tablename, indexTimeSearch)
 	if err != nil {
