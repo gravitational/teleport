@@ -609,13 +609,20 @@ func (l *Log) GetSessionEvents(namespace string, sid session.ID, after int, inlc
 	return values, nil
 }
 
+func daysSinceEpoch(timestamp time.Time) int64 {
+	return timestamp.Unix() / (60 * 60 * 24)
+}
+
 // daysBetween returns a list of all dates between `start` and `end` in the format `yyyy-mm-dd`.
 func daysBetween(start, end time.Time) []string {
 	var days []string
 	oneDay := time.Hour * time.Duration(24)
+	startDay := daysSinceEpoch(start)
+	endDay := daysSinceEpoch(end)
 
-	for start.Before(end) {
-		days = append(days, start.Add(oneDay).Format(iso8601DateFormat))
+	for startDay <= endDay {
+		days = append(days, start.Format(iso8601DateFormat))
+		startDay++
 		start = start.Add(oneDay)
 	}
 
