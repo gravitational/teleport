@@ -234,6 +234,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 		services.RoleSpecV3{
 			Allow: services.RoleConditions{
 				Namespaces: []string{services.Wildcard},
+				AppLabels:  services.Labels{services.Wildcard: []string{services.Wildcard}},
 				Rules: []services.Rule{
 					services.NewRule(services.KindNode, services.RO()),
 					services.NewRule(services.KindProxy, services.RO()),
