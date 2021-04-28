@@ -23,7 +23,6 @@ import (
 	"io"
 	"net"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -64,13 +63,13 @@ type Client struct {
 	tlsConfig *tls.Config
 	// dialer is the ContextDialer for a successfully connected client.
 	dialer ContextDialer
+	// dialAddr is the client's dial target.
+	dialAddr string
 	// conn is a grpc connection to the auth server.
-	conn *grpc.ClientConn
+	conn   *grpc.ClientConn
+	connMu *sync.Mutex
 	// grpc is the gRPC client specification for the auth server.
 	grpc proto.AuthServiceClient
-	// closedFlag is set to indicate that the connnection is closed.
-	// It's a pointer to allow the Client struct to be copied.
-	closedFlag *int32
 	// callOpts configure calls made by this client.
 	callOpts []grpc.CallOption
 }
@@ -100,12 +99,13 @@ func New(ctx context.Context, cfg Config) (clt *Client, err error) {
 }
 
 // newClient constructs a new client.
-func newClient(cfg Config, dialer ContextDialer, tlsConfig *tls.Config) (clt *Client) {
+func newClient(cfg Config, dialer ContextDialer, addr string, tlsConfig *tls.Config) (clt *Client) {
 	return &Client{
-		c:          cfg,
-		dialer:     dialer,
-		tlsConfig:  tlsConfig,
-		closedFlag: new(int32),
+		c:         cfg,
+		dialer:    dialer,
+		dialAddr:  addr,
+		tlsConfig: tlsConfig,
+		connMu:    &sync.Mutex{},
 	}
 }
 
@@ -129,8 +129,8 @@ func connectInBackground(ctx context.Context, cfg Config) (*Client, error) {
 		addr = cfg.Addrs[0]
 	}
 
-	clt := newClient(cfg, dialer, tlsConfig)
-	if err := clt.dialGRPC(ctx, addr); err != nil {
+	clt := newClient(cfg, dialer, addr, tlsConfig)
+	if err := clt.Dial(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -159,11 +159,11 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 
 	// syncConnect is used to concurrently test several connections, and apply
 	// the first successful connection to the client's connection attributes.
-	syncConnect := func(clt *Client, addr string) {
+	syncConnect := func(clt *Client) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := clt.dialGRPC(ctx, addr); err != nil {
+			if err := clt.Dial(ctx); err != nil {
 				sendError(trace.Wrap(err))
 				return
 			}
@@ -197,8 +197,8 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 
 			// Connect with dialer provided in config.
 			if cfg.Dialer != nil {
-				clt := newClient(cfg, cfg.Dialer, tlsConfig)
-				syncConnect(clt, constants.APIDomain)
+				clt := newClient(cfg, cfg.Dialer, constants.APIDomain, tlsConfig)
+				syncConnect(clt)
 			}
 
 			// Connect with dialer provided in creds.
@@ -207,15 +207,15 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 					sendError(trace.Wrap(err))
 				}
 			} else {
-				clt := newClient(cfg, dialer, tlsConfig)
-				syncConnect(clt, constants.APIDomain)
+				clt := newClient(cfg, dialer, constants.APIDomain, tlsConfig)
+				syncConnect(clt)
 			}
 
 			for _, addr := range cfg.Addrs {
 				// Connect to auth.
 				dialer := NewDirectDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
-				clt := newClient(cfg, dialer, tlsConfig)
-				syncConnect(clt, addr)
+				clt := newClient(cfg, dialer, addr, tlsConfig)
+				syncConnect(clt)
 
 				// Connect to proxy.
 				if sshConfig != nil {
@@ -227,8 +227,8 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 							addr = pr.Proxy.SSH.TunnelPublicAddr
 						}
 						dialer := newTunnelDialer(*sshConfig, cfg.KeepAlivePeriod, cfg.DialTimeout)
-						clt := newClient(cfg, dialer, tlsConfig)
-						syncConnect(clt, addr)
+						clt := newClient(cfg, dialer, addr, tlsConfig)
+						syncConnect(clt)
 					}(addr)
 				}
 			}
@@ -267,10 +267,9 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 	}
 }
 
-// dialGRPC dials a connection between server and client. If withBlock is true,
-// the dial will block until the connection is up, rather than returning
-// immediately and connecting to the server in the background.
-func (c *Client) dialGRPC(ctx context.Context, addr string) error {
+// Dial dials a connection for the grpc client. Dial can be
+// used to reinitialize the client's connection.
+func (c *Client) Dial(ctx context.Context) error {
 	dialContext, cancel := context.WithTimeout(ctx, c.c.DialTimeout)
 	defer cancel()
 
@@ -280,27 +279,32 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 		grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConfig)),
 	)
 
-	var err error
-	if c.conn, err = grpc.DialContext(dialContext, addr, dialOptions...); err != nil {
+	conn, err := grpc.DialContext(dialContext, c.dialAddr, dialOptions...)
+	if err != nil {
 		return trace.Wrap(err)
 	}
-	c.grpc = proto.NewAuthServiceClient(c.conn)
 
+	c.setConn(conn)
 	return nil
 }
 
 // grpcDialer wraps the client's dialer with a grpcDialer.
 func (c *Client) grpcDialer() func(ctx context.Context, addr string) (net.Conn, error) {
 	return func(ctx context.Context, addr string) (net.Conn, error) {
-		if c.isClosed() {
-			return nil, trace.ConnectionProblem(nil, "client is closed")
-		}
 		conn, err := c.dialer.DialContext(ctx, "tcp", addr)
 		if err != nil {
 			return nil, trace.ConnectionProblem(err, "failed to dial: %v", err)
 		}
 		return conn, nil
 	}
+}
+
+// setConn sets the client's grpc connection.
+func (c *Client) setConn(conn *grpc.ClientConn) {
+	c.connMu.Lock()
+	defer c.connMu.Unlock()
+	c.conn = conn
+	c.grpc = proto.NewAuthServiceClient(c.conn)
 }
 
 // Config contains configuration of the client
@@ -370,29 +374,21 @@ func (c *Client) Dialer() ContextDialer {
 	return c.dialer
 }
 
-// GetConnection returns GRPC connection.
+// GetConnection returns GRPC connection. Used by cloud.
 func (c *Client) GetConnection() *grpc.ClientConn {
 	return c.conn
 }
 
 // Close closes the Client connection to the auth server.
 func (c *Client) Close() error {
-	if c.setClosed() && c.conn != nil {
+	c.connMu.Lock()
+	defer c.connMu.Unlock()
+	if c.conn != nil {
 		err := c.conn.Close()
 		c.conn = nil
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// isClosed returns whether the client is marked as closed.
-func (c *Client) isClosed() bool {
-	return atomic.LoadInt32(c.closedFlag) == 1
-}
-
-// setClosed marks the client as closed and returns true if it was open.
-func (c *Client) setClosed() bool {
-	return atomic.CompareAndSwapInt32(c.closedFlag, 0, 1)
 }
 
 // WithCallOptions returns a copy of the client with the given call options set.
