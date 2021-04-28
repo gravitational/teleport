@@ -17,7 +17,6 @@ limitations under the License.
 package service
 
 import (
-	"context"
 	"crypto/tls"
 	"net"
 	"path/filepath"
@@ -56,9 +55,9 @@ func (process *TeleportProcess) reconnectToAuthService(role teleport.Role) (*Con
 			// if connected and client is present, make sure the connector's
 			// client works, by using call that should succeed at all times
 			if connector.Client != nil {
-				pingResponse, err := connector.Client.Ping(context.TODO())
+				pingResponse, err := connector.Client.Ping(process.ExitContext())
 				if err == nil {
-					process.setAuthServerFeatures(*pingResponse.GetServerFeatures())
+					process.setClusterFeatures(pingResponse.GetServerFeatures())
 					return connector, nil
 				}
 				process.log.Debugf("Connected client %v failed to execute test call: %v. Node or proxy credentials are out of sync.", role, err)

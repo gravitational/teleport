@@ -20,7 +20,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -40,17 +39,6 @@ var _ = check.Suite(&ConfigSuite{})
 func (s *ConfigSuite) TestDefaultConfig(c *check.C) {
 	config := MakeDefaultConfig()
 	c.Assert(config, check.NotNil)
-
-	c.Assert(config.AuthServerFeatures, check.DeepEquals, proto.Features{
-		Kubernetes:              false,
-		App:                     false,
-		DB:                      false,
-		OIDC:                    false,
-		SAML:                    false,
-		AccessControls:          false,
-		AdvancedAccessWorkflows: false,
-		Cloud:                   false,
-	})
 
 	// all 3 services should be enabled by default
 	c.Assert(config.Auth.Enabled, check.Equals, true)

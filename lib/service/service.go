@@ -294,6 +294,9 @@ type TeleportProcess struct {
 	// appDependCh is used by application service in single process mode to block
 	// until auth and reverse tunnel servers are ready.
 	appDependCh chan Event
+
+	// clusterFeatures contain flags for supported and unsupported features.
+	clusterFeatures proto.Features
 }
 
 type keyPairKey struct {
@@ -356,11 +359,20 @@ func (process *TeleportProcess) addConnector(connector *Connector) {
 	process.connectors[connector.ClientIdentity.ID.Role] = connector
 }
 
-func (process *TeleportProcess) setAuthServerFeatures(features proto.Features) {
+func (process *TeleportProcess) setClusterFeatures(features *proto.Features) {
 	process.Lock()
 	defer process.Unlock()
 
-	process.Config.AuthServerFeatures = features
+	if features != nil {
+		process.clusterFeatures = *features
+	}
+}
+
+func (process *TeleportProcess) getClusterFeatures() proto.Features {
+	process.Lock()
+	defer process.Unlock()
+
+	return process.clusterFeatures
 }
 
 // GetIdentity returns the process identity (credentials to the auth server) for a given
@@ -2539,22 +2551,22 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		webHandler, err = web.NewHandler(
 			web.Config{
-				Proxy:              tsrv,
-				AuthServers:        cfg.AuthServers[0],
-				DomainName:         cfg.Hostname,
-				ProxyClient:        conn.Client,
-				ProxySSHAddr:       proxySSHAddr,
-				ProxyWebAddr:       cfg.Proxy.WebAddr,
-				ProxySettings:      proxySettings,
-				CipherSuites:       cfg.CipherSuites,
-				FIPS:               cfg.FIPS,
-				AccessPoint:        accessPoint,
-				Emitter:            streamEmitter,
-				PluginRegistry:     process.PluginRegistry,
-				HostUUID:           process.Config.HostUUID,
-				Context:            process.ExitContext(),
-				StaticFS:           fs,
-				AuthServerFeatures: process.Config.AuthServerFeatures,
+				Proxy:           tsrv,
+				AuthServers:     cfg.AuthServers[0],
+				DomainName:      cfg.Hostname,
+				ProxyClient:     conn.Client,
+				ProxySSHAddr:    proxySSHAddr,
+				ProxyWebAddr:    cfg.Proxy.WebAddr,
+				ProxySettings:   proxySettings,
+				CipherSuites:    cfg.CipherSuites,
+				FIPS:            cfg.FIPS,
+				AccessPoint:     accessPoint,
+				Emitter:         streamEmitter,
+				PluginRegistry:  process.PluginRegistry,
+				HostUUID:        process.Config.HostUUID,
+				Context:         process.ExitContext(),
+				StaticFS:        fs,
+				ClusterFeatures: process.getClusterFeatures(),
 			})
 		if err != nil {
 			return trace.Wrap(err)

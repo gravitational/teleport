@@ -86,8 +86,8 @@ type Handler struct {
 	// from configuration
 	sshPort string
 
-	// authServerFeatures contain flags for supported and unsupported features.
-	authServerFeatures proto.Features
+	// clusterFeatures contain flags for supported and unsupported features.
+	clusterFeatures proto.Features
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -162,8 +162,8 @@ type Config struct {
 	// Defaults to cachedSessionLingeringThreshold if unspecified.
 	cachedSessionLingeringThreshold *time.Duration
 
-	// AuthServerFeatures contains flags for supported/unsupported features.
-	AuthServerFeatures proto.Features
+	// ClusterFeatures contains flags for supported/unsupported features.
+	ClusterFeatures proto.Features
 }
 
 type RewritingHandler struct {
@@ -204,10 +204,10 @@ func (h *RewritingHandler) Close() error {
 func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	const apiPrefix = "/" + teleport.WebAPIVersion
 	h := &Handler{
-		cfg:                cfg,
-		log:                newPackageLogger(),
-		clock:              clockwork.NewRealClock(),
-		authServerFeatures: cfg.AuthServerFeatures,
+		cfg:             cfg,
+		log:             newPackageLogger(),
+		clock:           clockwork.NewRealClock(),
+		clusterFeatures: cfg.ClusterFeatures,
 	}
 
 	for _, o := range opts {
@@ -509,7 +509,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	userContext, err := ui.NewUserContext(user, roleset, h.authServerFeatures)
+	userContext, err := ui.NewUserContext(user, roleset, h.clusterFeatures)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
