@@ -610,7 +610,7 @@ func (l *Log) GetSessionEvents(namespace string, sid session.ID, after int, inlc
 }
 
 // daysBetween returns a list of all dates between `start` and `end` in the format `yyyy-mm-dd`.
-func daysBetween(start time.Time, end time.Time) []string {
+func daysBetween(start, end time.Time) []string {
 	var days []string
 	oneDay := time.Hour * time.Duration(24)
 
