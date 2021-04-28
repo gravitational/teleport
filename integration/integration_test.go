@@ -1140,7 +1140,8 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 	role, err := services.NewRole("devs", services.RoleSpecV3{
 		Options: tc.options,
 		Allow: services.RoleConditions{
-			Logins: []string{username},
+			Logins:     []string{username},
+			NodeLabels: services.Labels{services.Wildcard: {services.Wildcard}},
 		},
 	})
 	c.Assert(err, check.IsNil, comment)
@@ -1720,7 +1721,8 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 	auxDevs := "aux-devs"
 	role, err = services.NewRole(auxDevs, services.RoleSpecV3{
 		Allow: services.RoleConditions{
-			Logins: []string{username},
+			Logins:     []string{username},
+			NodeLabels: services.Labels{services.Wildcard: {services.Wildcard}},
 		},
 	})
 	c.Assert(err, check.IsNil)
@@ -2045,7 +2047,8 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 	auxDevs := "aux-devs"
 	auxRole, err := services.NewRole(auxDevs, services.RoleSpecV3{
 		Allow: services.RoleConditions{
-			Logins: []string{username},
+			Logins:     []string{username},
+			NodeLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
 		},
 	})
 	c.Assert(err, check.IsNil)
@@ -2259,7 +2262,8 @@ func (s *IntSuite) TestTrustedTunnelNode(c *check.C) {
 	auxDevs := "aux-devs"
 	role, err = services.NewRole(auxDevs, services.RoleSpecV3{
 		Allow: services.RoleConditions{
-			Logins: []string{username},
+			Logins:     []string{username},
+			NodeLabels: services.Labels{services.Wildcard: {services.Wildcard}},
 		},
 	})
 	c.Assert(err, check.IsNil)
@@ -3760,7 +3764,8 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	auxDevs := "aux-devs"
 	role, err = services.NewRole(auxDevs, services.RoleSpecV3{
 		Allow: services.RoleConditions{
-			Logins: []string{s.me.Username},
+			Logins:     []string{s.me.Username},
+			NodeLabels: services.Labels{services.Wildcard: {services.Wildcard}},
 		},
 	})
 	c.Assert(err, check.IsNil)
