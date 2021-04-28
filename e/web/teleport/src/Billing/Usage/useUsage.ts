@@ -47,12 +47,14 @@ function getYearlyUsages(cycles: BillingCycle[]) {
   let usages: YearlyUsage[] = [];
 
   Object.keys(cyclesMap)
-    .sort()
-    .reverse()
+    .sort((a, b) => Number(b) - Number(a))
     .forEach(year => {
       const cycles = cyclesMap[year];
       const items = getResourcesMonthlyItemCount(cycles);
-      const totals = cycles.map(cycle => cycle.totalAmount);
+      const totals = cycles.map(cycle => {
+        // Convert to dollar amount.
+        return cycle.totalAmount / 100;
+      });
 
       usages = [
         ...usages,

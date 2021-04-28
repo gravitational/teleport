@@ -32,8 +32,8 @@ test('formatting of cycles and its item list in yearlyUsages', async () => {
     setCyclesTotalAmts[index] = cycle;
   });
   expect(setCyclesTotalAmts).toEqual({
-    0: cycleJan2021.totalAmount,
-    3: cycleApr2021.totalAmount,
+    0: 160.94,
+    3: 250,
   });
   expect(list1.totals).toHaveLength(12);
 
@@ -47,7 +47,7 @@ test('formatting of cycles and its item list in yearlyUsages', async () => {
     setCyclesTotalAmts[index] = cycle;
   });
   expect(setCyclesTotalAmts).toEqual({
-    11: cycleDec2020.totalAmount,
+    11: 160.94,
   });
   expect(list2.totals).toHaveLength(12);
 

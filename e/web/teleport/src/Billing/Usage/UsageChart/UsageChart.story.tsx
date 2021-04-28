@@ -7,13 +7,20 @@ export default {
 
 export const Loaded = () => {
   const arr = new Array(12);
-  arr[1] = 16094;
+  arr[1] = 160.94;
   arr[2] = 0;
-  arr[4] = 25000;
-  arr[11] = 45000;
+  arr[4] = 250.0;
+  arr[11] = 450.0;
   return <UsageChart totalAmts={arr} />;
 };
 
 export const Empty = () => {
   return <UsageChart totalAmts={[]} />;
+};
+
+export const ZeroValues = () => {
+  const arr = new Array(12);
+  arr[5] = 0;
+  arr[11] = 0;
+  return <UsageChart totalAmts={arr} />;
 };

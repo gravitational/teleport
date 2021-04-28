@@ -9,7 +9,6 @@ import {
 } from 'chart.js';
 import { Box, Text, Card } from 'design';
 import theme from 'design/theme';
-import { formatCents } from 'e-teleport/services/cloud';
 
 Chart.register(LinearScale, CategoryScale, BarController, BarElement, Tooltip);
 
@@ -32,18 +31,6 @@ export default function UsageChart({ totalAmts, mt = 0 }: Props) {
   const chartContainerRef = useRef(null);
 
   useEffect(() => {
-    // Default formatter is needed (if list is empty) to avoid
-    // dividing with fractional numbers.
-    let yTickFormatter = value =>
-      value.toLocaleString('en-US', {
-        style: 'currency',
-        currency: 'USD',
-      });
-
-    if (totalAmts.length > 0) {
-      yTickFormatter = value => formatCents(value);
-    }
-
     const chart = new Chart(chartContainerRef.current, {
       type: 'bar',
       data: {
@@ -63,7 +50,7 @@ export default function UsageChart({ totalAmts, mt = 0 }: Props) {
           },
           tooltip: {
             callbacks: {
-              label: item => formatCents(item.parsed.y),
+              label: item => usdFormat(item.parsed.y),
             },
             displayColors: false,
             padding: 8,
@@ -83,7 +70,7 @@ export default function UsageChart({ totalAmts, mt = 0 }: Props) {
           y: {
             ticks: {
               color: theme.colors.text.primary,
-              callback: yTickFormatter,
+              callback: value => usdFormat(value),
             },
             suggestedMin: 0,
           },
@@ -116,3 +103,16 @@ type Props = {
   totalAmts: number[];
   mt?: number;
 };
+
+function usdFormat(value: number | string) {
+  const num = Number(value);
+
+  if (!Number.isFinite(num)) {
+    return 'unknown format';
+  }
+
+  return num.toLocaleString('en-US', {
+    style: 'currency',
+    currency: 'USD',
+  });
+}
