@@ -976,6 +976,9 @@ func (l *Log) migrateDateAttribute(ctx context.Context) error {
 				return trace.Wrap(err)
 			}
 
+			// Pull out the needed composite key attributes for the main table in a key object
+			// since this saves on bandwidth and Dynamo will reject anything with
+			// attributes other than those composing the primary key.
 			key := make(map[string]*dynamodb.AttributeValue)
 			key[keySessionID] = item[keySessionID]
 			key[keyEventIndex] = item[keyEventIndex]
