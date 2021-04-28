@@ -392,12 +392,12 @@ const ConnectedEvent = "connected"
 // to the given SSH connection and processes inbound requests from the
 // remote proxy
 func (a *Agent) processRequests(conn *ssh.Client) error {
-	clusterConfig, err := a.AccessPoint.GetClusterConfig()
+	netConfig, err := a.AccessPoint.GetClusterNetworkingConfig(a.ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	ticker := time.NewTicker(clusterConfig.GetKeepAliveInterval())
+	ticker := time.NewTicker(netConfig.GetKeepAliveInterval())
 	defer ticker.Stop()
 
 	hb, reqC, err := conn.OpenChannel(chanHeartbeat, nil)

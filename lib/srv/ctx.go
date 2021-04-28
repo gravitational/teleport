@@ -285,6 +285,11 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		return nil, nil, trace.Wrap(err)
 	}
 
+	netConfig, err := srv.GetAccessPoint().GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
 	cancelContext, cancel := context.WithCancel(ctx)
 
 	child := &ServerContext{
@@ -297,7 +302,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		ClusterName:       parent.ServerConn.Permissions.Extensions[utils.CertTeleportClusterName],
 		ClusterConfig:     clusterConfig,
 		Identity:          identityContext,
-		clientIdleTimeout: identityContext.RoleSet.AdjustClientIdleTimeout(clusterConfig.GetClientIdleTimeout()),
+		clientIdleTimeout: identityContext.RoleSet.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
 		cancelContext:     cancelContext,
 		cancel:            cancel,
 	}
