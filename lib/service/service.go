@@ -930,7 +930,7 @@ func initUploadHandler(auditConfig services.AuditConfig, dataDir string) (events
 
 // initExternalLog initializes external storage, if the storage is not
 // setup, returns (nil, nil).
-func initExternalLog(ctx context.Context, auditConfig services.AuditConfig, log logrus.FieldLogger, backend backend.Backend) (events.IAuditLog, error) {
+func initExternalLog(ctx context.Context, auditConfig services.AuditConfig, log logrus.FieldLogger) (events.IAuditLog, error) {
 	//
 	// DELETE IN: 5.0
 	// We could probably just remove AuditTableName now (its been deprecated for a while), but
@@ -1087,7 +1087,7 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 		// initialize external loggers.  may return (nil, nil) if no
 		// external loggers have been defined.
-		externalLog, err := initExternalLog(process.ExitContext(), auditConfig, process.log, b)
+		externalLog, err := initExternalLog(process.ExitContext(), auditConfig, process.log)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)

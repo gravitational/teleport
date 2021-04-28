@@ -29,7 +29,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -265,9 +264,6 @@ func (s *ServiceTestSuite) TestInitExternalLog(c *check.C) {
 		{events: []string{"file://localhost"}, isErr: true},
 	}
 
-	backend, err := memory.New(memory.Config{})
-	c.Assert(err, check.IsNil)
-
 	for i, tt := range tts {
 		// isErr implies isNil.
 		if tt.isErr {
@@ -278,7 +274,7 @@ func (s *ServiceTestSuite) TestInitExternalLog(c *check.C) {
 
 		loggers, err := initExternalLog(context.Background(), services.AuditConfig{
 			AuditEventsURI: tt.events,
-		}, t.Log, backend)
+		}, t.Log)
 
 		if tt.isErr {
 			c.Assert(err, check.NotNil, cmt)
