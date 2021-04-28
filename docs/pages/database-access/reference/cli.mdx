@@ -1,0 +1,96 @@
+---
+title: Database Access CLI Reference
+description: CLI reference for Teleport Database Access
+---
+
+# Database Access CLI Reference
+
+## tctl auth sign
+
+When invoked with a `--format=db` flag, produces a certificate authority, a
+client certificate and a private key file used for configuring Database
+Access with self-hosted database instances.
+
+```shell
+$ tctl auth sign --format=db --host=db.example.com --out=server --ttl=8760h
+```
+
+| Flag | Description |
+| - | - |
+| `--format` | When given value `db`, produces secrets in database compatible format. |
+| `--host` | Server name to encode in the certificate. Must match the hostname Teleport will be connecting to the database at. |
+| `--out` | Name prefix for output files. |
+| `--ttl` | Certificate validity period. |
+
+## tctl db ls
+
+Admin tool to list all databases registered with the cluster.
+
+```shell
+$ tctl db ls
+$ tctl db ls --format=yaml
+```
+
+| Flag | Description |
+| - | - |
+| `--format` | Output format, one of `text`, `yaml` or `json`. Defaults to `text`. |
+
+## tsh db ls
+
+Lists available databases and their connection information.
+
+```shell
+$ tsh db ls
+```
+
+Displays only the databases a user has access to (see [RBAC](../rbac.mdx)).
+
+## tsh db login
+
+Retrieves database credentials.
+
+```shell
+$ tsh db login example
+$ tsh db login --db-user=postgres --db-name=postgres example
+```
+
+| Flag | Description |
+| - | - |
+| `--db-user` | Optionally, set default database account name to connect as. |
+| `--db-name` | Optionally, set default database name to connect to. |
+
+## tsh db logout
+
+Removes database credentials.
+
+```shell
+$ tsh db logout example
+$ tsh db logout
+```
+
+## tsh db env
+
+Outputs environment variables for a particular database.
+
+```shell
+$ tsh db env
+$ tsh db env --db=example
+$ eval $(tsh db env)
+```
+
+| Flag | Description |
+| - | - |
+| `--db` | Database server name to print environment for. Required, if logged into multiple databases simultaneously. |
+
+## tsh db config
+
+Prints database connection information. Useful when configuring GUI clients.
+
+```shell
+$ tsh db config
+$ tsh db config --db=example
+```
+
+| Flag | Description |
+| - | - |
+| `--db` | Database server name to print configuration for. Required, if logged into multiple databases simultaneously. |
