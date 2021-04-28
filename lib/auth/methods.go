@@ -393,6 +393,7 @@ func (s *Server) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	UserLoginCount.Inc()
 	return &SSHLoginResponse{
 		Username:    req.Username,
 		Cert:        certs.ssh,
