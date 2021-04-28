@@ -395,7 +395,7 @@ func (l *Log) migrateRFD24(ctx context.Context) error {
 			}
 
 			delay := utils.HalfJitter(time.Minute)
-			log.Errorf("Background migration task failed, retrying in %f seconds", delay)
+			log.Errorf("Background migration task failed, retrying in %f seconds", delay.Seconds())
 			time.Sleep(delay)
 		}
 	}()
