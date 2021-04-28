@@ -43,8 +43,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// isoDateLayout is the time formatting layout used by the date attribute on events.
-const isoDateLayout = "2006-01-02"
+// iso8601DateFormat is the time format used by the date attribute on events.
+const iso8601DateFormat = "2006-01-02"
 
 // Defines the attribute schema for the DynamoDB event table and index.
 var tableSchema = []*dynamodb.AttributeDefinition{
@@ -322,8 +322,9 @@ const (
 func (l *Log) migrateRFD24WithRetry(ctx context.Context) {
 	for {
 		if err := l.migrateRFD24(ctx); err != nil {
-			delay := utils.HalfJitter(time.Minute * 5)
+			delay := utils.HalfJitter(time.Minute)
 			log.WithError(err).Errorf("Failed RFD 24 migration, making another attempt in %f seconds", delay.Seconds())
+			time.Sleep(delay)
 		} else {
 			break
 		}
@@ -350,8 +351,8 @@ func (l *Log) migrateRFD24(ctx context.Context) error {
 	}
 
 	// Table is already up to date.
-	// We use the existence of the V1 index has a completion flag
-	// for migration. We remove it and the end of the migration which
+	// We use the existence of the V1 index as a completion flag
+	// for migration. We remove it at the end of the migration which
 	// means it is finished if it doesn't exist.
 	if !hasIndexV1 {
 		return nil
@@ -383,20 +384,19 @@ func (l *Log) migrateRFD24(ctx context.Context) error {
 			if err != nil {
 				log.WithError(err).Error("Encountered error migrating events to v6.2 format")
 			} else {
-				break
+				// Remove the old index, marking migration as complete
+				log.Info("Removing old DynamoDB index")
+				err = l.removeV1GSI()
+				if err != nil {
+					log.WithError(err).Error("Migrated all events to v6.2 format successfully but failed remove old index.")
+				} else {
+					break
+				}
 			}
 
-			// Remove the old index, marking migration as complete
-			log.Info("Removing old DynamoDB index")
-			err = l.removeV1GSI()
-			if err != nil {
-				log.WithError(err).Error("Migrated all events to v6.2 format successfully but failed remove old index.")
-			} else {
-				break
-			}
-
-			delay := utils.HalfJitter(time.Minute * 5)
+			delay := utils.HalfJitter(time.Minute)
 			log.Errorf("Background migration task failed, retrying in %f seconds", delay)
+			time.Sleep(delay)
 		}
 	}()
 
@@ -427,7 +427,7 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in events.AuditEvent) error {
 		EventNamespace: defaults.Namespace,
 		CreatedAt:      in.GetTime().Unix(),
 		Fields:         string(data),
-		CreatedAtDate:  in.GetTime().Format(isoDateLayout),
+		CreatedAtDate:  in.GetTime().Format(iso8601DateFormat),
 	}
 	l.setExpiry(&e)
 	av, err := dynamodbattribute.MarshalMap(e)
@@ -474,7 +474,7 @@ func (l *Log) EmitAuditEventLegacy(ev events.Event, fields events.EventFields) e
 		EventNamespace: defaults.Namespace,
 		CreatedAt:      created.Unix(),
 		Fields:         string(data),
-		CreatedAtDate:  created.Format(isoDateLayout),
+		CreatedAtDate:  created.Format(iso8601DateFormat),
 	}
 	l.setExpiry(&e)
 	av, err := dynamodbattribute.MarshalMap(e)
@@ -615,7 +615,7 @@ func daysBetween(start time.Time, end time.Time) []string {
 	oneDay := time.Hour * time.Duration(24)
 
 	for start.Before(end) {
-		days = append(days, start.Add(oneDay).Format(isoDateLayout))
+		days = append(days, start.Add(oneDay).Format(iso8601DateFormat))
 		start = start.Add(oneDay)
 	}
 
@@ -957,7 +957,7 @@ func (l *Log) migrateDateAttribute(ctx context.Context) error {
 
 			// Convert the timestamp into a date string of format `yyyy-mm-dd`.
 			timestamp := time.Unix(timestampRaw, 0)
-			date := timestamp.Format(isoDateLayout)
+			date := timestamp.Format(iso8601DateFormat)
 
 			attributes := map[string]interface{}{
 				// Value to set the date attribute to.
@@ -982,7 +982,6 @@ func (l *Log) migrateDateAttribute(ctx context.Context) error {
 
 			_, err = l.svc.UpdateItem(c)
 			if err != nil {
-				log.Infof("item fail data %q", item)
 				return trace.Wrap(convertError(err))
 			}
 
