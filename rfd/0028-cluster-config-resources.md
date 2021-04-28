@@ -98,16 +98,6 @@ message ClusterAuthPreference {
 }
 ```
 
-#### Data migration & docs updates
-
-A new step should be added to `migrateLegacyResources` (called during auth
-server initialization) that takes care of migrating the `ClusterConfig` data
-stored in the backend to the new resource structures.  This probably implies
-that `ClusterConfig` as a structure needs to be kept around for a couple of
-subsequent Teleport versions for marshalling purposes.
-
-Documentation should be updated accordingly.
-
 ### Restricting to a subset of values of a field
 
 Some users should not be capable of setting a field to any of the otherwise
