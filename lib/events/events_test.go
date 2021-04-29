@@ -19,12 +19,14 @@ package events
 import (
 	"encoding/json"
 	"reflect"
+	"testing"
 	"time"
 
 	"gopkg.in/check.v1"
 
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/stretchr/testify/require"
 )
 
 type EventsTestSuite struct {
@@ -511,5 +513,37 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 		c.Assert(err, check.IsNil, comment)
 
 		fixtures.DeepCompare(c, outEvent.Elem().Interface(), tc.event)
+	}
+}
+
+func TestIsRecordOff(t *testing.T) {
+	type testCase struct {
+		comment  string
+		event    EventFields
+		expected bool
+	}
+
+	testCases := []testCase{
+		{
+			comment: "Session recording type is off",
+			event: EventFields{
+				SessionRecordingType: "off",
+			},
+			expected: true,
+		},
+		{
+			comment: "Session recording type is node",
+			event: EventFields{
+				SessionRecordingType: "node",
+			},
+			expected: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.comment, func(t *testing.T) {
+			res := IsRecordOff(tc.event)
+			require.Equal(t, tc.expected, res)
+		})
 	}
 }
