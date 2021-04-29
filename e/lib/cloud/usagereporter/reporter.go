@@ -54,7 +54,7 @@ func (r *UsageReporter) reportUsage(ctx context.Context) {
 		return
 	}
 
-	nodes, err := r.ResourceGetter.GetNodes(defaults.Namespace)
+	nodes, err := r.ResourceGetter.GetNodes(ctx, defaults.Namespace)
 	if err != nil {
 		r.Log.WithError(err).Error("Failed to report number of nodes.")
 	}

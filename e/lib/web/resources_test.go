@@ -63,6 +63,8 @@ version: v2
 }
 
 func TestGetAuthConnectors(t *testing.T) {
+	ctx := context.TODO()
+
 	m := &mockedResourceAPIGetter{}
 	m.mockGetGithubConnectors = func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
 		connector := types.NewGithubConnector("githubName", types.GithubConnectorSpecV3{})
@@ -78,7 +80,7 @@ func TestGetAuthConnectors(t *testing.T) {
 	}
 
 	// Test response is converted to ui objects.
-	conns, err := getAuthConnectors(m)
+	conns, err := getAuthConnectors(ctx, m)
 	require.Nil(t, err)
 	require.Len(t, conns, 3)
 	require.Equal(t, conns[0].Kind, types.KindGithub)
