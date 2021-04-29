@@ -44,7 +44,7 @@ import (
 	"golang.org/x/text/encoding/unicode"
 
 	"github.com/gravitational/teleport"
-	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -778,6 +778,8 @@ func (s *WebSuite) TestResolveServerHostPort(c *C) {
 }
 
 func (s *WebSuite) TestNewTerminalHandler(c *C) {
+	ctx := context.Background()
+
 	validNode := services.ServerV2{}
 	validNode.SetName("eca53e45-86a9-11e7-a893-0242ac0a0101")
 	validNode.Spec.Hostname = "nodehostname"
@@ -869,7 +871,7 @@ func (s *WebSuite) TestNewTerminalHandler(c *C) {
 	}
 
 	for _, testCase := range validCases {
-		term, err := NewTerminal(testCase.req, testCase.authProvider, nil)
+		term, err := NewTerminal(ctx, testCase.req, testCase.authProvider, nil)
 		c.Assert(err, IsNil)
 		c.Assert(term.params, DeepEquals, testCase.req)
 		c.Assert(term.hostName, Equals, testCase.expectedHost)
@@ -877,7 +879,7 @@ func (s *WebSuite) TestNewTerminalHandler(c *C) {
 	}
 
 	for _, testCase := range invalidCases {
-		_, err := NewTerminal(testCase.req, testCase.authProvider, nil)
+		_, err := NewTerminal(ctx, testCase.req, testCase.authProvider, nil)
 		c.Assert(err, ErrorMatches, ".*"+testCase.expectedErr+".*")
 	}
 }
@@ -1547,7 +1549,7 @@ func (s *WebSuite) TestPing(c *C) {
 	re, err := wc.Get(context.Background(), wc.Endpoint("webapi", "ping"), url.Values{})
 	c.Assert(err, IsNil)
 
-	var out *apiclient.PingResponse
+	var out *webclient.PingResponse
 	c.Assert(json.Unmarshal(re.Bytes(), &out), IsNil)
 
 	preference, err := s.server.Auth().GetAuthPreference()
@@ -1593,7 +1595,7 @@ func (s *WebSuite) TestMultipleConnectors(c *C) {
 	// hit the ping endpoint to get the auth type and connector name
 	re, err := wc.Get(ctx, wc.Endpoint("webapi", "ping"), url.Values{})
 	c.Assert(err, IsNil)
-	var out *apiclient.PingResponse
+	var out *webclient.PingResponse
 	c.Assert(json.Unmarshal(re.Bytes(), &out), IsNil)
 
 	// make sure the connector name we got back was the first connector
@@ -1773,11 +1775,13 @@ func (s *WebSuite) searchEvents(c *C, clt *client.WebClient, query url.Values, f
 }
 
 func (s *WebSuite) TestGetClusterDetails(c *C) {
+	ctx := context.Background()
+
 	site, err := s.proxyTunnel.GetSite(s.server.ClusterName())
 	c.Assert(err, IsNil)
 	c.Assert(site, NotNil)
 
-	cluster, err := ui.GetClusterDetails(site)
+	cluster, err := ui.GetClusterDetails(ctx, site)
 	c.Assert(err, IsNil)
 	c.Assert(cluster.Name, Equals, s.server.ClusterName())
 	c.Assert(cluster.ProxyVersion, Equals, teleport.Version)
@@ -1786,7 +1790,7 @@ func (s *WebSuite) TestGetClusterDetails(c *C) {
 	c.Assert(cluster.LastConnected, NotNil)
 	c.Assert(cluster.AuthVersion, Equals, teleport.Version)
 
-	nodes, err := s.proxyClient.GetNodes(defaults.Namespace)
+	nodes, err := s.proxyClient.GetNodes(ctx, defaults.Namespace)
 	c.Assert(err, IsNil)
 	c.Assert(nodes, HasLen, cluster.NodeCount)
 }
@@ -1837,7 +1841,7 @@ func TestApplicationAccessDisabled(t *testing.T) {
 
 	endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
 	_, err = pack.clt.PostJSON(context.Background(), endpoint, &CreateAppSessionRequest{
-		FQDN:        "panel.example.com",
+		FQDNHint:    "panel.example.com",
 		PublicAddr:  "panel.example.com",
 		ClusterName: "localhost",
 	})
@@ -1890,7 +1894,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		{
 			inComment: Commentf("Valid request: all fields."),
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDN:        "panel.example.com",
+				FQDNHint:    "panel.example.com",
 				PublicAddr:  "panel.example.com",
 				ClusterName: "localhost",
 			},
@@ -1911,7 +1915,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		{
 			inComment: Commentf("Valid request: only FQDN."),
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDN: "panel.example.com",
+				FQDNHint: "panel.example.com",
 			},
 			outError:    false,
 			outFQDN:     "panel.example.com",
@@ -1934,7 +1938,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		{
 			inComment: Commentf("Invalid application."),
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDN:        "panel.example.com",
+				FQDNHint:    "panel.example.com",
 				PublicAddr:  "invalid.example.com",
 				ClusterName: "localhost",
 			},
@@ -1943,7 +1947,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		{
 			inComment: Commentf("Invalid cluster name."),
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDN:        "panel.example.com",
+				FQDNHint:    "panel.example.com",
 				PublicAddr:  "panel.example.com",
 				ClusterName: "example.com",
 			},
@@ -1952,7 +1956,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		{
 			inComment: Commentf("Malicious request: all fields."),
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDN:        "panel.example.com@malicious.com",
+				FQDNHint:    "panel.example.com@malicious.com",
 				PublicAddr:  "panel.example.com",
 				ClusterName: "localhost",
 			},
@@ -1963,7 +1967,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		{
 			inComment: Commentf("Malicious request: only FQDN."),
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDN: "panel.example.com@malicious.com",
+				FQDNHint: "panel.example.com@malicious.com",
 			},
 			outError: true,
 		},
@@ -2102,7 +2106,7 @@ type authProviderMock struct {
 	server services.ServerV2
 }
 
-func (mock authProviderMock) GetNodes(n string, opts ...services.MarshalOption) ([]services.Server, error) {
+func (mock authProviderMock) GetNodes(ctx context.Context, n string, opts ...services.MarshalOption) ([]services.Server, error) {
 	return []services.Server{&mock.server}, nil
 }
 

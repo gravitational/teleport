@@ -489,11 +489,6 @@ func setup(t *testing.T) *pack {
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair("")
 	require.NoError(t, err)
 
-	// Find AllocatePortsNum free listening ports to use.
-	startNumber := utils.PortStartingNumber + (AllocatePortsNum * 2) + 1
-	ports, err := utils.GetFreeTCPPorts(AllocatePortsNum, startNumber+1)
-	require.NoError(t, err)
-
 	// Create a new Teleport instance with passed in configuration.
 	p.rootCluster = NewInstance(InstanceConfig{
 		ClusterName: "example.com",
@@ -765,7 +760,7 @@ func (p *pack) createAppSession(t *testing.T, publicAddr, clusterName string) st
 	require.NotEmpty(t, p.webToken)
 
 	casReq, err := json.Marshal(web.CreateAppSessionRequest{
-		FQDN:        publicAddr,
+		FQDNHint:    publicAddr,
 		PublicAddr:  publicAddr,
 		ClusterName: clusterName,
 	})

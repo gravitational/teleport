@@ -14,7 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package client
+// Package identityfile implements parsing and serialization of Teleport identity files.
+package identityfile
 
 import (
 	"bufio"
@@ -27,15 +28,15 @@ import (
 	"os"
 
 	"github.com/gravitational/teleport/api/constants"
-	sshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
 
 const (
-	// IdentityFilePermissions defines file permissions for identity files.
-	IdentityFilePermissions = 0600
+	// FilePermissions defines file permissions for identity files.
+	FilePermissions = 0600
 )
 
 // IdentityFile represents the basic components of an identity file.
@@ -94,20 +95,20 @@ func (i *IdentityFile) SSHClientConfig() (*ssh.ClientConfig, error) {
 	return ssh, nil
 }
 
-// WriteIdentityFile writes the given identityFile to the specified path.
-func WriteIdentityFile(idFile *IdentityFile, path string) error {
+// Write writes the given identityFile to the specified path.
+func Write(idFile *IdentityFile, path string) error {
 	buf := new(bytes.Buffer)
 	if err := encodeIdentityFile(buf, idFile); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := ioutil.WriteFile(path, buf.Bytes(), IdentityFilePermissions); err != nil {
+	if err := ioutil.WriteFile(path, buf.Bytes(), FilePermissions); err != nil {
 		return trace.ConvertSystemError(err)
 	}
 	return nil
 }
 
-// ReadIdentityFile reads an identity file from the given path.
-func ReadIdentityFile(path string) (*IdentityFile, error) {
+// Read reads an identity file from the given path.
+func Read(path string) (*IdentityFile, error) {
 	r, err := os.Open(path)
 	if err != nil {
 		return nil, trace.Wrap(err)

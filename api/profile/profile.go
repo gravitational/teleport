@@ -14,7 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package client
+// Package profile handles management of the Teleport profile directory (~/.tsh).
+package profile
 
 import (
 	"crypto/tls"
@@ -58,6 +59,9 @@ type Profile struct {
 	// KubeProxyAddr is the host:port the Kubernetes proxy can be accessed at.
 	KubeProxyAddr string `yaml:"kube_proxy_addr,omitempty"`
 
+	// PostgresProxyAddr is the host:port the Postgres proxy can be accessed at.
+	PostgresProxyAddr string `yaml:"postgres_proxy_addr,omitempty"`
+
 	// MySQLProxyAddr is the host:port the MySQL proxy can be accessed at.
 	MySQLProxyAddr string `yaml:"mysql_proxy_addr,omitempty"`
 
@@ -93,12 +97,12 @@ func (p *Profile) Name() string {
 
 // TLSConfig returns the profile's associated TLSConfig.
 func (p *Profile) TLSConfig() (*tls.Config, error) {
-	cert, err := tls.LoadX509KeyPair(p.tlsCertPath(), p.keyPath())
+	cert, err := tls.LoadX509KeyPair(p.TLSCertPath(), p.KeyPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	caCerts, err := ioutil.ReadFile(p.tlsCasPath())
+	caCerts, err := ioutil.ReadFile(p.TLSCAsPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -116,17 +120,17 @@ func (p *Profile) TLSConfig() (*tls.Config, error) {
 
 // SSHClientConfig returns the profile's associated SSHClientConfig.
 func (p *Profile) SSHClientConfig() (*ssh.ClientConfig, error) {
-	cert, err := ioutil.ReadFile(p.sshCertPath())
+	cert, err := ioutil.ReadFile(p.SSHCertPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	key, err := ioutil.ReadFile(p.keyPath())
+	key, err := ioutil.ReadFile(p.KeyPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	caCerts, err := ioutil.ReadFile(p.sshCasPath())
+	caCerts, err := ioutil.ReadFile(p.SSHCAsPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -216,11 +220,10 @@ func defaultProfilePath() string {
 	return filepath.Join(home, profileDir)
 }
 
-// ProfileFromDir reads the user (yaml) profile from a given directory. If
-// dir is empty, this function defaults to the default tsh profile directory.
-// If name is empty, this function defaults to loading the currently active
-// profile (if any).
-func ProfileFromDir(dir string, name string) (*Profile, error) {
+// FromDir reads the user profile from a given directory. If dir is empty,
+// this function defaults to the default tsh profile directory. If name is empty,
+// this function defaults to loading the currently active profile (if any).
+func FromDir(dir string, name string) (*Profile, error) {
 	dir = FullProfilePath(dir)
 	var err error
 	if name == "" {
@@ -284,34 +287,42 @@ func (p *Profile) saveToFile(filepath string) error {
 	return nil
 }
 
-func (p *Profile) keyDir() string {
+// KeyDir returns the path to the profile's directory.
+func (p *Profile) KeyDir() string {
 	return filepath.Join(p.Dir, constants.SessionKeyDir)
 }
 
-func (p *Profile) userKeyDir() string {
-	return filepath.Join(p.keyDir(), p.Name())
+// UserKeyDir returns the path to the profile's key directory.
+func (p *Profile) UserKeyDir() string {
+	return filepath.Join(p.KeyDir(), p.Name())
 }
 
-func (p *Profile) keyPath() string {
-	return filepath.Join(p.userKeyDir(), p.Username)
+// KeyPath returns the path to the profile's private key.
+func (p *Profile) KeyPath() string {
+	return filepath.Join(p.UserKeyDir(), p.Username)
 }
 
-func (p *Profile) tlsCertPath() string {
-	return filepath.Join(p.userKeyDir(), p.Username+constants.FileExtTLSCert)
+// TLSCertPath returns the path to the profile's TLS certificate.
+func (p *Profile) TLSCertPath() string {
+	return filepath.Join(p.UserKeyDir(), p.Username+constants.FileExtTLSCert)
 }
 
-func (p *Profile) tlsCasPath() string {
-	return filepath.Join(p.userKeyDir(), constants.FileNameTLSCerts)
+// TLSCAsPath returns the path to the profile's TLS certificate authorities.
+func (p *Profile) TLSCAsPath() string {
+	return filepath.Join(p.UserKeyDir(), constants.FileNameTLSCerts)
 }
 
-func (p *Profile) sshDir() string {
-	return filepath.Join(p.userKeyDir(), p.Username+constants.SSHDirSuffix)
+// SSHDir returns the path to the profile's ssh directory.
+func (p *Profile) SSHDir() string {
+	return filepath.Join(p.UserKeyDir(), p.Username+constants.SSHDirSuffix)
 }
 
-func (p *Profile) sshCertPath() string {
-	return filepath.Join(p.sshDir(), p.SiteName+constants.FileExtSSHCert)
+// SSHCertPath returns the path to the profile's ssh certificate.
+func (p *Profile) SSHCertPath() string {
+	return filepath.Join(p.SSHDir(), p.SiteName+constants.FileExtSSHCert)
 }
 
-func (p *Profile) sshCasPath() string {
+// SSHCAsPath returns the path to the profile's ssh certificate authorities.
+func (p *Profile) SSHCAsPath() string {
 	return filepath.Join(p.Dir, constants.FileNameKnownHosts)
 }
