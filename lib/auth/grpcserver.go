@@ -1729,7 +1729,7 @@ func (g *GRPCServer) DeleteMFADevice(stream proto.AuthService_DeleteMFADeviceSer
 		case *types.MFADevice_U2F:
 			numU2FDevs++
 		default:
-			log.Warningf("Unknown MFA device type: %T", d.Device)
+			return trail.ToGRPC(trace.BadParameter("unknown MFA device type: %T", d.Device))
 		}
 	}
 	for _, d := range devs {
