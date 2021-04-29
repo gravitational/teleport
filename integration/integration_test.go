@@ -256,6 +256,8 @@ func (s *IntSuite) newTeleportWithConfig(c *check.C, logins []string, instanceSe
 // TestAuditOn creates a live session, records a bunch of data through it
 // and then reads it back and compares against simulated reality.
 func (s *IntSuite) TestAuditOn(c *check.C) {
+	ctx := context.Background()
+
 	s.setUpTest(c)
 	defer s.tearDownTest(c)
 
@@ -351,7 +353,7 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 			for {
 				select {
 				case <-tickCh:
-					nodesInSite, err := site.GetNodes(defaults.Namespace, services.SkipValidation())
+					nodesInSite, err := site.GetNodes(ctx, defaults.Namespace, services.SkipValidation())
 					if err != nil && !trace.IsNotFound(err) {
 						return trace.Wrap(err)
 					}
@@ -678,6 +680,8 @@ func (s *IntSuite) TestInteroperability(c *check.C) {
 // TestUUIDBasedProxy verifies that attempts to proxy to nodes using ambiguous
 // hostnames fails with the correct error, and that proxying by UUID succeeds.
 func (s *IntSuite) TestUUIDBasedProxy(c *check.C) {
+	ctx := context.Background()
+
 	s.setUpTest(c)
 	defer s.tearDownTest(c)
 
@@ -728,7 +732,7 @@ func (s *IntSuite) TestUUIDBasedProxy(c *check.C) {
 			for {
 				select {
 				case <-tickCh:
-					nodesInSite, err := site.GetNodes(defaults.Namespace, services.SkipValidation())
+					nodesInSite, err := site.GetNodes(ctx, defaults.Namespace, services.SkipValidation())
 					if err != nil && !trace.IsNotFound(err) {
 						return trace.Wrap(err)
 					}
@@ -1746,6 +1750,7 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 
 	// try and upsert a trusted cluster
 	tryCreateTrustedCluster(c, aux.Process.GetAuthServer(), trustedCluster)
+	waitForTunnelConnections(c, main.Process.GetAuthServer(), clusterAux, 1)
 
 	nodePorts := s.getPorts(3)
 	sshPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
@@ -1765,7 +1770,7 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 	// correct nodes that identity aware GetNodes is done in TestList.
 	var nodes []services.Server
 	for i := 0; i < 10; i++ {
-		nodes, err = aux.Process.GetAuthServer().GetNodes(defaults.Namespace, services.SkipValidation())
+		nodes, err = aux.Process.GetAuthServer().GetNodes(ctx, defaults.Namespace, services.SkipValidation())
 		c.Assert(err, check.IsNil)
 		if len(nodes) != 2 {
 			time.Sleep(100 * time.Millisecond)
@@ -2081,6 +2086,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 
 	// try and upsert a trusted cluster
 	tryCreateTrustedCluster(c, aux.Process.GetAuthServer(), trustedCluster)
+	waitForTunnelConnections(c, main.Process.GetAuthServer(), clusterAux, 1)
 
 	nodePorts := s.getPorts(3)
 	sshPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
@@ -2285,6 +2291,7 @@ func (s *IntSuite) TestTrustedTunnelNode(c *check.C) {
 
 	// try and upsert a trusted cluster
 	tryCreateTrustedCluster(c, aux.Process.GetAuthServer(), trustedCluster)
+	waitForTunnelConnections(c, main.Process.GetAuthServer(), clusterAux, 1)
 
 	// Create a Teleport instance with a node that dials back to the aux cluster.
 	tunnelNodeHostname := "cluster-aux-node"
@@ -2316,7 +2323,7 @@ func (s *IntSuite) TestTrustedTunnelNode(c *check.C) {
 	}
 
 	// Wait for both nodes to show up before attempting to dial to them.
-	err = waitForNodeCount(main, clusterAux, 2)
+	err = waitForNodeCount(ctx, main, clusterAux, 2)
 	c.Assert(err, check.IsNil)
 
 	cmd := []string{"echo", "hello world"}
@@ -2820,7 +2827,7 @@ func waitForProxyCount(t *TeleInstance, clusterName string, count int) error {
 }
 
 // waitForNodeCount waits for a certain number of nodes to show up in the remote site.
-func waitForNodeCount(t *TeleInstance, clusterName string, count int) error {
+func waitForNodeCount(ctx context.Context, t *TeleInstance, clusterName string, count int) error {
 	for i := 0; i < 30; i++ {
 		remoteSite, err := t.Tunnel.GetSite(clusterName)
 		if err != nil {
@@ -2830,7 +2837,7 @@ func waitForNodeCount(t *TeleInstance, clusterName string, count int) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		nodes, err := accessPoint.GetNodes(defaults.Namespace)
+		nodes, err := accessPoint.GetNodes(ctx, defaults.Namespace)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -4297,6 +4304,8 @@ func (s *IntSuite) TestWindowChange(c *check.C) {
 
 // TestList checks that the list of servers returned is identity aware.
 func (s *IntSuite) TestList(c *check.C) {
+	ctx := context.Background()
+
 	s.setUpTest(c)
 	defer s.tearDownTest(c)
 
@@ -4356,7 +4365,7 @@ func (s *IntSuite) TestList(c *check.C) {
 		for {
 			select {
 			case <-tickCh:
-				nodesInCluster, err := clt.GetNodes(defaults.Namespace, services.SkipValidation())
+				nodesInCluster, err := clt.GetNodes(ctx, defaults.Namespace, services.SkipValidation())
 				if err != nil && !trace.IsNotFound(err) {
 					return trace.Wrap(err)
 				}

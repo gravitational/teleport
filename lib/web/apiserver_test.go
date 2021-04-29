@@ -778,6 +778,8 @@ func (s *WebSuite) TestResolveServerHostPort(c *C) {
 }
 
 func (s *WebSuite) TestNewTerminalHandler(c *C) {
+	ctx := context.Background()
+
 	validNode := services.ServerV2{}
 	validNode.SetName("eca53e45-86a9-11e7-a893-0242ac0a0101")
 	validNode.Spec.Hostname = "nodehostname"
@@ -869,7 +871,7 @@ func (s *WebSuite) TestNewTerminalHandler(c *C) {
 	}
 
 	for _, testCase := range validCases {
-		term, err := NewTerminal(testCase.req, testCase.authProvider, nil)
+		term, err := NewTerminal(ctx, testCase.req, testCase.authProvider, nil)
 		c.Assert(err, IsNil)
 		c.Assert(term.params, DeepEquals, testCase.req)
 		c.Assert(term.hostName, Equals, testCase.expectedHost)
@@ -877,7 +879,7 @@ func (s *WebSuite) TestNewTerminalHandler(c *C) {
 	}
 
 	for _, testCase := range invalidCases {
-		_, err := NewTerminal(testCase.req, testCase.authProvider, nil)
+		_, err := NewTerminal(ctx, testCase.req, testCase.authProvider, nil)
 		c.Assert(err, ErrorMatches, ".*"+testCase.expectedErr+".*")
 	}
 }
@@ -1773,11 +1775,13 @@ func (s *WebSuite) searchEvents(c *C, clt *client.WebClient, query url.Values, f
 }
 
 func (s *WebSuite) TestGetClusterDetails(c *C) {
+	ctx := context.Background()
+
 	site, err := s.proxyTunnel.GetSite(s.server.ClusterName())
 	c.Assert(err, IsNil)
 	c.Assert(site, NotNil)
 
-	cluster, err := ui.GetClusterDetails(site)
+	cluster, err := ui.GetClusterDetails(ctx, site)
 	c.Assert(err, IsNil)
 	c.Assert(cluster.Name, Equals, s.server.ClusterName())
 	c.Assert(cluster.ProxyVersion, Equals, teleport.Version)
@@ -1786,7 +1790,7 @@ func (s *WebSuite) TestGetClusterDetails(c *C) {
 	c.Assert(cluster.LastConnected, NotNil)
 	c.Assert(cluster.AuthVersion, Equals, teleport.Version)
 
-	nodes, err := s.proxyClient.GetNodes(defaults.Namespace)
+	nodes, err := s.proxyClient.GetNodes(ctx, defaults.Namespace)
 	c.Assert(err, IsNil)
 	c.Assert(nodes, HasLen, cluster.NodeCount)
 }
@@ -2102,7 +2106,7 @@ type authProviderMock struct {
 	server services.ServerV2
 }
 
-func (mock authProviderMock) GetNodes(n string, opts ...services.MarshalOption) ([]services.Server, error) {
+func (mock authProviderMock) GetNodes(ctx context.Context, n string, opts ...services.MarshalOption) ([]services.Server, error) {
 	return []services.Server{&mock.server}, nil
 }
 
