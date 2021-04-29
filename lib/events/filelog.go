@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -491,6 +492,7 @@ func (l *FileLog) findInFile(fn string, query url.Values, total *int, limit int)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	unrecordedSessionIDs := make([]string, 0)
 	defer lf.Close()
 
 	// for each line...
@@ -521,6 +523,15 @@ func (l *FileLog) findInFile(fn string, query url.Values, total *int, limit int)
 				break
 			}
 		}
+		if ef.GetType() == SessionStartEvent && IsRecordOff(ef) {
+			sessionID := ef[SessionEventID].(string)
+			unrecordedSessionIDs = append(unrecordedSessionIDs, sessionID)
+		} else if ef.GetType() == SessionEndEvent {
+			sessionID := ef[SessionEventID].(string)
+			if utils.SliceContainsStr(unrecordedSessionIDs, sessionID) {
+				continue
+			}
+		}
 		if accepted || !doFilter {
 			retval = append(retval, ef)
 			*total++
@@ -530,6 +541,16 @@ func (l *FileLog) findInFile(fn string, query url.Values, total *int, limit int)
 		}
 	}
 	return retval, nil
+}
+
+// IsRecordOff checks to see if the session recording type of a session start event is off
+func IsRecordOff(ef EventFields) bool {
+	if sessionRecordingType, found := ef[SessionRecordingType]; found {
+		if sessionRecordingType == services.RecordOff {
+			return true
+		}
+	}
+	return false
 }
 
 type eventFile struct {

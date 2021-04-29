@@ -100,6 +100,9 @@ const (
 	// SessionStartTime is the timestamp at which the session began.
 	SessionStartTime = "session_start"
 
+	// SessionRecordingType is the type of session recording
+	SessionRecordingType = "session_recording"
+
 	// SessionEndTime is the timestamp at which the session ended.
 	SessionEndTime = "session_stop"
 

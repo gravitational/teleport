@@ -148,6 +148,9 @@ message SessionStart {
 
     // InitialCommand is the command used to start this session.
     repeated string InitialCommand = 9 [ (gogoproto.jsontag) = "initial_command,omitempty" ];
+
+    // SessionRecording is the type of session recording.
+    string SessionRecording = 10 [ (gogoproto.jsontag) = "session_recording,omitempty" ];
 }
 
 // SessionJoin emitted when another user joins a session
