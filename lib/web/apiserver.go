@@ -305,6 +305,12 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	// web context
 	h.GET("/webapi/sites/:site/context", h.WithClusterAuth(h.getUserContext))
 
+	// Database access handlers.
+	h.GET("/webapi/sites/:site/databases", h.WithClusterAuth(h.siteDatabasesGet))
+
+	// Kube access handlers.
+	h.GET("/webapi/sites/:site/kubernetes", h.WithClusterAuth(h.siteKubesGet))
+
 	// OIDC related callback handlers
 	h.GET("/webapi/oidc/login/web", h.WithRedirect(h.oidcLoginWeb))
 	h.GET("/webapi/oidc/callback", h.WithRedirect(h.oidcCallback))
