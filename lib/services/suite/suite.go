@@ -342,26 +342,26 @@ func NewServer(kind, name, addr, namespace string) *services.ServerV2 {
 }
 
 func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
-	ctx := context.TODO()
+	ctx := context.Background()
 	// SSH service.
-	out, err := s.PresenceS.GetNodes(defaults.Namespace)
+	out, err := s.PresenceS.GetNodes(ctx, defaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Equals, 0)
 
 	srv := NewServer(services.KindNode, "srv1", "127.0.0.1:2022", defaults.Namespace)
-	_, err = s.PresenceS.UpsertNode(srv)
+	_, err = s.PresenceS.UpsertNode(ctx, srv)
 	c.Assert(err, check.IsNil)
 
-	out, err = s.PresenceS.GetNodes(srv.Metadata.Namespace)
+	out, err = s.PresenceS.GetNodes(ctx, srv.Metadata.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 	srv.SetResourceID(out[0].GetResourceID())
 	fixtures.DeepCompare(c, out, []services.Server{srv})
 
-	err = s.PresenceS.DeleteNode(srv.Metadata.Namespace, srv.GetName())
+	err = s.PresenceS.DeleteNode(ctx, srv.Metadata.Namespace, srv.GetName())
 	c.Assert(err, check.IsNil)
 
-	out, err = s.PresenceS.GetNodes(srv.Metadata.Namespace)
+	out, err = s.PresenceS.GetNodes(ctx, srv.Metadata.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 0)
 
@@ -1558,13 +1558,13 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 			crud: func() services.Resource {
 				srv := NewServer(services.KindNode, "srv1", "127.0.0.1:2022", defaults.Namespace)
 
-				_, err := s.PresenceS.UpsertNode(srv)
+				_, err := s.PresenceS.UpsertNode(ctx, srv)
 				c.Assert(err, check.IsNil)
 
-				out, err := s.PresenceS.GetNodes(srv.Metadata.Namespace)
+				out, err := s.PresenceS.GetNodes(ctx, srv.Metadata.Namespace)
 				c.Assert(err, check.IsNil)
 
-				err = s.PresenceS.DeleteAllNodes(srv.Metadata.Namespace)
+				err = s.PresenceS.DeleteAllNodes(ctx, srv.Metadata.Namespace)
 				c.Assert(err, check.IsNil)
 
 				return out[0]

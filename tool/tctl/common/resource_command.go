@@ -453,7 +453,7 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 	ctx := context.TODO()
 	switch rc.ref.Kind {
 	case services.KindNode:
-		if err = client.DeleteNode(defaults.Namespace, rc.ref.Name); err != nil {
+		if err = client.DeleteNode(ctx, defaults.Namespace, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("node %v has been deleted\n", rc.ref.Name)
@@ -672,7 +672,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollect
 
 		return &authorityCollection{cas: authorities}, nil
 	case services.KindNode:
-		nodes, err := client.GetNodes(rc.namespace)
+		nodes, err := client.GetNodes(ctx, rc.namespace)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
