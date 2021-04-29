@@ -223,7 +223,8 @@
                 "config",
                 "deployment",
                 "pod",
-                "service"
+                "service",
+                "serviceAccount"
             ],
             "properties": {
                 "config": {
@@ -243,6 +244,11 @@
                 },
                 "service": {
                     "$id": "#/properties/annotations/properties/service",
+                    "type": "object",
+                    "default": {}
+                },
+                "serviceAccount": {
+                    "$id": "#/properties/annotations/properties/serviceAccount",
                     "type": "object",
                     "default": {}
                 }

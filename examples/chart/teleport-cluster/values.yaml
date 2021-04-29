@@ -157,6 +157,8 @@ annotations:
   pod: {}
   # Annotations for the Service object
   service: {}
+  # Annotations for the ServiceAccount object
+  serviceAccount: {}
 
 # Extra arguments to pass to 'teleport start' for the main Teleport pod
 extraArgs: []
