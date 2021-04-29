@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -107,7 +107,7 @@ func NewKey() (key *Key, err error) {
 // KeyFromIdentityFile loads the private key + certificate
 // from an identity file into a Key.
 func KeyFromIdentityFile(path string) (*Key, error) {
-	ident, err := client.ReadIdentityFile(path)
+	ident, err := identityfile.Read(path)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse identity file")
 	}
@@ -350,6 +350,15 @@ func (k *Key) AsAuthMethod() (ssh.AuthMethod, error) {
 		return nil, trace.Wrap(err)
 	}
 	return sshutils.AsAuthMethod(cert, k.Priv)
+}
+
+// AsSigner returns an ssh.Signer using the SSH certificate in this key.
+func (k *Key) AsSigner() (ssh.Signer, error) {
+	cert, err := k.SSHCert()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sshutils.AsSigner(cert, k.Priv)
 }
 
 // SSHCert returns parsed SSH certificate

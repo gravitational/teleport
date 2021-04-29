@@ -1075,13 +1075,13 @@ func (c *Cache) GetNamespaces() ([]services.Namespace, error) {
 }
 
 // GetNodes is a part of auth.AccessPoint implementation
-func (c *Cache) GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.presence.GetNodes(namespace, opts...)
+	return rg.presence.GetNodes(ctx, namespace, opts...)
 }
 
 // GetAuthServers returns a list of registered servers

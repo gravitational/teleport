@@ -19,8 +19,8 @@ Let's explore how Teleport's role templates provide a way to describe these and 
 
 ## Prerequisites
 
-- Installed [Teleport](../getting-started.mdx) or [Teleport Cloud](../../cloud.mdx) >= {{teleport_version}}
-- [Tctl admin tool](https://goteleport.com/teleport/download) >= {{teleport_version}}
+- Installed [Teleport](../getting-started.mdx) or [Teleport Cloud](../../cloud/introduction.mdx) >= (=teleport.version=)
+- [Tctl admin tool](https://goteleport.com/teleport/download) >= (=teleport.version=)
 
 Verify that your Teleport client is connected:
 
@@ -104,7 +104,7 @@ spec:
 Any role becomes a template once it starts using template variables.
 Just like roles, role templates are a valid YAML and validate both the structure and types.
 
-Role template `devs` is using `internal.` notation referring to local user's
+Role template `devs` is using `internal` notation referring to local user's
 traits `logins` and `kubernetes_groups`.
 
 Use `tctl` to create a role template:
@@ -261,7 +261,7 @@ groups: ["admins", "devs"]
 access: {"env": ["prod", "staging"]}
 ```
 
-Let's see how these variables a role template `interpolation`:
+Let's see how these variables are used with role template `interpolation`:
 
 ```yaml
 kind: role

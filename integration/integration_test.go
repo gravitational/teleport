@@ -44,7 +44,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -141,7 +141,7 @@ func (s *IntSuite) TearDownSuite(c *check.C) {
 }
 
 func (s *IntSuite) SetUpTest(c *check.C) {
-	os.RemoveAll(apiclient.FullProfilePath(""))
+	os.RemoveAll(profile.FullProfilePath(""))
 }
 
 // setUpTest configures the specific test identified with the given c.
@@ -256,6 +256,8 @@ func (s *IntSuite) newTeleportWithConfig(c *check.C, logins []string, instanceSe
 // TestAuditOn creates a live session, records a bunch of data through it
 // and then reads it back and compares against simulated reality.
 func (s *IntSuite) TestAuditOn(c *check.C) {
+	ctx := context.Background()
+
 	s.setUpTest(c)
 	defer s.tearDownTest(c)
 
@@ -351,7 +353,7 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 			for {
 				select {
 				case <-tickCh:
-					nodesInSite, err := site.GetNodes(defaults.Namespace, services.SkipValidation())
+					nodesInSite, err := site.GetNodes(ctx, defaults.Namespace, services.SkipValidation())
 					if err != nil && !trace.IsNotFound(err) {
 						return trace.Wrap(err)
 					}
@@ -678,6 +680,8 @@ func (s *IntSuite) TestInteroperability(c *check.C) {
 // TestUUIDBasedProxy verifies that attempts to proxy to nodes using ambiguous
 // hostnames fails with the correct error, and that proxying by UUID succeeds.
 func (s *IntSuite) TestUUIDBasedProxy(c *check.C) {
+	ctx := context.Background()
+
 	s.setUpTest(c)
 	defer s.tearDownTest(c)
 
@@ -728,7 +732,7 @@ func (s *IntSuite) TestUUIDBasedProxy(c *check.C) {
 			for {
 				select {
 				case <-tickCh:
-					nodesInSite, err := site.GetNodes(defaults.Namespace, services.SkipValidation())
+					nodesInSite, err := site.GetNodes(ctx, defaults.Namespace, services.SkipValidation())
 					if err != nil && !trace.IsNotFound(err) {
 						return trace.Wrap(err)
 					}
@@ -775,7 +779,7 @@ func (s *IntSuite) TestInteractiveRegular(c *check.C) {
 	s.verifySessionJoin(c, t)
 }
 
-// TestInteractive covers SSH into shell and joining the same session from another client
+// TestInteractiveReverseTunnel covers SSH into shell and joining the same session from another client
 // against a reversetunnel node.
 func (s *IntSuite) TestInteractiveReverseTunnel(c *check.C) {
 	s.setUpTest(c)
@@ -792,6 +796,69 @@ func (s *IntSuite) TestInteractiveReverseTunnel(c *check.C) {
 	defer t.StopAll()
 
 	s.verifySessionJoin(c, t)
+}
+
+// TestCustomReverseTunnel tests that the SSH node falls back to configured
+// proxy address if it cannot connect via the proxy address from the reverse
+// tunnel discovery query.
+// See https://github.com/gravitational/teleport/issues/4141 for context.
+func (s *IntSuite) TestCustomReverseTunnel(c *check.C) {
+	s.setUpTest(c)
+	defer s.tearDownTest(c)
+
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	// InsecureDevMode needed for IoT node handshake
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	failingListener, err := net.Listen("tcp", "localhost:0")
+	c.Assert(err, check.IsNil)
+	failingAddr := failingListener.Addr().String()
+	failingListener.Close()
+
+	// Create a Teleport instance with Auth/Proxy.
+	conf := s.defaultServiceConfig()
+	conf.Auth.Enabled = true
+	conf.Proxy.Enabled = true
+	conf.Proxy.DisableWebService = false
+	conf.Proxy.DisableWebInterface = true
+	conf.Proxy.DisableDatabaseProxy = true
+	conf.Proxy.TunnelPublicAddrs = []utils.NetAddr{
+		{
+			// Connect on the address that refuses connection on purpose
+			// to test address fallback behavior
+			Addr:        failingAddr,
+			AddrNetwork: "tcp",
+		},
+	}
+	conf.SSH.Enabled = false
+
+	instanceConfig := s.defaultInstanceConfig()
+	instanceConfig.MultiplexProxy = true
+	main := NewInstance(instanceConfig)
+
+	c.Assert(main.CreateEx(nil, conf), check.IsNil)
+	c.Assert(main.Start(), check.IsNil)
+	defer main.StopAll()
+
+	// Create a Teleport instance with a Node.
+	nodeConf := s.defaultServiceConfig()
+	nodeConf.Hostname = Host
+	nodeConf.Token = "token"
+	nodeConf.Auth.Enabled = false
+	nodeConf.Proxy.Enabled = false
+	nodeConf.SSH.Enabled = true
+	nodeConf.SSH.ProxyReverseTunnelFallbackAddr = &utils.NetAddr{
+		// Configure the original proxy address as a fallback so the node is able to connect
+		Addr:        main.Secrets.WebProxyAddr,
+		AddrNetwork: "tcp",
+	}
+
+	// verify the node is able to join the cluster
+	_, err = main.StartReverseTunnelNode(nodeConf)
+	c.Assert(err, check.IsNil)
 }
 
 // verifySessionJoin covers SSH into shell and joining the same session from another client
@@ -1683,6 +1750,7 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 
 	// try and upsert a trusted cluster
 	tryCreateTrustedCluster(c, aux.Process.GetAuthServer(), trustedCluster)
+	waitForTunnelConnections(c, main.Process.GetAuthServer(), clusterAux, 1)
 
 	nodePorts := s.getPorts(3)
 	sshPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
@@ -1702,7 +1770,7 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 	// correct nodes that identity aware GetNodes is done in TestList.
 	var nodes []services.Server
 	for i := 0; i < 10; i++ {
-		nodes, err = aux.Process.GetAuthServer().GetNodes(defaults.Namespace, services.SkipValidation())
+		nodes, err = aux.Process.GetAuthServer().GetNodes(ctx, defaults.Namespace, services.SkipValidation())
 		c.Assert(err, check.IsNil)
 		if len(nodes) != 2 {
 			time.Sleep(100 * time.Millisecond)
@@ -2018,6 +2086,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 
 	// try and upsert a trusted cluster
 	tryCreateTrustedCluster(c, aux.Process.GetAuthServer(), trustedCluster)
+	waitForTunnelConnections(c, main.Process.GetAuthServer(), clusterAux, 1)
 
 	nodePorts := s.getPorts(3)
 	sshPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
@@ -2222,6 +2291,7 @@ func (s *IntSuite) TestTrustedTunnelNode(c *check.C) {
 
 	// try and upsert a trusted cluster
 	tryCreateTrustedCluster(c, aux.Process.GetAuthServer(), trustedCluster)
+	waitForTunnelConnections(c, main.Process.GetAuthServer(), clusterAux, 1)
 
 	// Create a Teleport instance with a node that dials back to the aux cluster.
 	tunnelNodeHostname := "cluster-aux-node"
@@ -2253,7 +2323,7 @@ func (s *IntSuite) TestTrustedTunnelNode(c *check.C) {
 	}
 
 	// Wait for both nodes to show up before attempting to dial to them.
-	err = waitForNodeCount(main, clusterAux, 2)
+	err = waitForNodeCount(ctx, main, clusterAux, 2)
 	c.Assert(err, check.IsNil)
 
 	cmd := []string{"echo", "hello world"}
@@ -2757,7 +2827,7 @@ func waitForProxyCount(t *TeleInstance, clusterName string, count int) error {
 }
 
 // waitForNodeCount waits for a certain number of nodes to show up in the remote site.
-func waitForNodeCount(t *TeleInstance, clusterName string, count int) error {
+func waitForNodeCount(ctx context.Context, t *TeleInstance, clusterName string, count int) error {
 	for i := 0; i < 30; i++ {
 		remoteSite, err := t.Tunnel.GetSite(clusterName)
 		if err != nil {
@@ -2767,7 +2837,7 @@ func waitForNodeCount(t *TeleInstance, clusterName string, count int) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		nodes, err := accessPoint.GetNodes(defaults.Namespace)
+		nodes, err := accessPoint.GetNodes(ctx, defaults.Namespace)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -4234,6 +4304,8 @@ func (s *IntSuite) TestWindowChange(c *check.C) {
 
 // TestList checks that the list of servers returned is identity aware.
 func (s *IntSuite) TestList(c *check.C) {
+	ctx := context.Background()
+
 	s.setUpTest(c)
 	defer s.tearDownTest(c)
 
@@ -4293,7 +4365,7 @@ func (s *IntSuite) TestList(c *check.C) {
 		for {
 			select {
 			case <-tickCh:
-				nodesInCluster, err := clt.GetNodes(defaults.Namespace, services.SkipValidation())
+				nodesInCluster, err := clt.GetNodes(ctx, defaults.Namespace, services.SkipValidation())
 				if err != nil && !trace.IsNotFound(err) {
 					return trace.Wrap(err)
 				}
@@ -5048,7 +5120,11 @@ func (s *IntSuite) getPorts(num int) []int {
 }
 
 func (s *IntSuite) newTeleportInstance(c *check.C) *TeleInstance {
-	return NewInstance(InstanceConfig{
+	return NewInstance(s.defaultInstanceConfig())
+}
+
+func (s *IntSuite) defaultInstanceConfig() InstanceConfig {
+	return InstanceConfig{
 		ClusterName: Site,
 		HostID:      HostID,
 		NodeName:    Host,
@@ -5056,7 +5132,7 @@ func (s *IntSuite) newTeleportInstance(c *check.C) *TeleInstance {
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
-	})
+	}
 }
 
 func (s *IntSuite) newNamedTeleportInstance(c *check.C, clusterName string) *TeleInstance {

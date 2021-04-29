@@ -4,16 +4,16 @@ description: How to migrate pre-5.0 Teleport clusters to new configuration
 h1: Migrating to Teleport Kubernetes Access 5.0
 ---
 
-In release 5.0, Teleport has changed the [Kubernetes integration](../../kubernetes-access.mdx) to improve configuration and user experience.
+In release 5.0, Teleport has changed the [Kubernetes integration](../../kubernetes-access/introduction.mdx) to improve configuration and user experience.
 These changes are backwards compatible and there is no *required* migration.
 However, to get the most out of Teleport, you should consider migrating as
 described below.
 
 The main changes in 5.0 are:
 
-- new `kubernetes_service` configuration section in `teleport.yaml`, decoupled
+- New `kubernetes_service` configuration section in `teleport.yaml`, decoupled
   from `proxy_service`
-- support for multiple Kubernetes clusters per Teleport cluster (replaces the
+- Support for multiple Kubernetes clusters per Teleport cluster (replaces the
   need to use [Trusted Clusters](../../admin-guide.mdx#trusted-clusters) to achieve this)
 - RBAC support for Kubernetes clusters
 
@@ -195,8 +195,7 @@ kubernetes_service:
 ```
 
 After all the Teleport agents are running, you can view the list of Kubernetes
-clusters using `tsh kube ls` and switch between them using `tsh kube login
-<kube_cluster_name>`:
+clusters using `tsh kube ls` and switch between them using `tsh kube login <kube_cluster_name>`:
 
 ```sh
 $ tsh kube ls
@@ -349,10 +348,10 @@ metadata:
   name: admin
 spec:
   allow:
-    logins: ['{% raw %}{{internal.logins}}{% endraw %}']
+    logins: ['{{internal.logins}}']
     # Define the Kubernetes users and groups mapped to users with this role.
-    kubernetes_users: ["{% raw %}{{internal.kubernetes_users}}{% endraw %}"]
-    kubernetes_groups: ["some-group", "{% raw %}{{internal.kubernetes_groups}}{% endraw %}"]
+    kubernetes_users: ["{{internal.kubernetes_users}}"]
+    kubernetes_groups: ["some-group", "{{internal.kubernetes_groups}}"]
 
     # List of kubernetes labels a user will be allowed to connect to:
     kubernetes_labels:
