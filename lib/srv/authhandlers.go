@@ -412,25 +412,34 @@ func (h *AuthHandlers) fetchRoleSet(cert *ssh.Certificate, ca services.CertAutho
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		roles, err := extractRolesFromCert(cert)
-		if err != nil {
+		// Old-style SSH certificates don't have roles in metadata.
+		roles, err := services.ExtractRolesFromCert(cert)
+		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.AccessDenied("failed to parse certificate roles")
 		}
 		roleNames, err := services.MapRoles(ca.CombinedMapping(), roles)
 		if err != nil {
 			return nil, trace.AccessDenied("failed to map roles")
 		}
-		// Pass the principals on the certificate along as the login traits
-		// to the remote cluster.
-		traits := map[string][]string{
-			teleport.TraitLogins: cert.ValidPrincipals,
+		// Old-style SSH certificates don't have traits in metadata.
+		traits, err := services.ExtractTraitsFromCert(cert)
+		if err != nil && !trace.IsNotFound(err) {
+			return nil, trace.AccessDenied("failed to parse certificate traits")
 		}
+		if traits == nil {
+			traits = make(map[string][]string)
+		}
+		// Prior to Teleport 6.2 the only trait passed to the remote cluster
+		// was the "logins" trait set to the SSH certificate principals.
+		//
+		// Keep backwards-compatible behavior and set it in addition to the
+		// traits extracted from the certificate.
+		traits[teleport.TraitLogins] = cert.ValidPrincipals
 		roleset, err = services.FetchRoles(roleNames, h.AccessPoint, traits)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-
 	return roleset, nil
 }
 
@@ -483,14 +492,4 @@ func (h *AuthHandlers) authorityForCert(caType services.CertAuthType, key ssh.Pu
 // isProxy returns true if it's a regular SSH proxy.
 func (h *AuthHandlers) isProxy() bool {
 	return h.Component == teleport.ComponentProxy
-}
-
-// extractRolesFromCert extracts roles from certificate metadata extensions.
-func extractRolesFromCert(cert *ssh.Certificate) ([]string, error) {
-	data, ok := cert.Extensions[teleport.CertExtensionTeleportRoles]
-	if !ok {
-		// it's ok to not have any roles in the metadata
-		return nil, nil
-	}
-	return services.UnmarshalCertRoles(data)
 }
