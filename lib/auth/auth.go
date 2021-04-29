@@ -291,6 +291,7 @@ func (a *Server) GetCache() Cache {
 // runPeriodicOperations runs some periodic bookkeeping operations
 // performed by auth server
 func (a *Server) runPeriodicOperations() {
+	ctx := context.TODO()
 	// run periodic functions with a semi-random period
 	// to avoid contention on the database in case if there are multiple
 	// auth servers running - so they don't compete trying
@@ -321,7 +322,7 @@ func (a *Server) runPeriodicOperations() {
 				}
 			}
 		case <-heartbeatCheckTicker.Next():
-			nodes, err := a.GetNodes(defaults.Namespace, services.SkipValidation())
+			nodes, err := a.GetNodes(ctx, defaults.Namespace, services.SkipValidation())
 			if err != nil {
 				log.Errorf("Failed to load nodes for heartbeat metric calculation: %v", err)
 			}
