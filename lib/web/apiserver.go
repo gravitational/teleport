@@ -258,7 +258,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.POST("/webapi/sessions/app", h.WithAuth(h.createAppSession))
 	h.DELETE("/webapi/sessions", h.WithAuth(h.deleteSession))
 	h.POST("/webapi/sessions/renew", h.WithAuth(h.renewSession))
-	h.POST("/webapi/sessions/renew/:requestId", h.WithAuth(h.renewSession))
 
 	h.POST("/webapi/users", h.WithAuth(h.createUserHandle))
 	h.PUT("/webapi/users", h.WithAuth(h.updateUserHandle))
@@ -1202,18 +1201,20 @@ type CreateSessionReq struct {
 // String returns text description of this response
 func (r *CreateSessionResponse) String() string {
 	return fmt.Sprintf("WebSession(type=%v,token=%v,expires=%vs)",
-		r.Type, r.Token, r.ExpiresIn)
+		r.TokenType, r.Token, r.TokenExpiresIn)
 }
 
 // CreateSessionResponse returns OAuth compabible data about
 // access token: https://tools.ietf.org/html/rfc6749
 type CreateSessionResponse struct {
-	// Type is token type (bearer)
-	Type string `json:"type"`
+	// TokenType is token type (bearer)
+	TokenType string `json:"type"`
 	// Token value
 	Token string `json:"token"`
-	// ExpiresIn sets seconds before this token is not valid
-	ExpiresIn int `json:"expires_in"`
+	// TokenExpiresIn sets seconds before this token is not valid
+	TokenExpiresIn int `json:"expires_in"`
+	// SessionExpires is when this session expires.
+	SessionExpires time.Time `json:"sessionExpires,omitempty"`
 }
 
 func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
@@ -1238,10 +1239,11 @@ func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return &CreateSessionResponse{
-		Type:      roundtrip.AuthBearer,
-		Token:     token.GetName(),
-		ExpiresIn: int(token.Expiry().Sub(ctx.parent.clock.Now()) / time.Second),
+		TokenType:      roundtrip.AuthBearer,
+		Token:          token.GetName(),
+		TokenExpiresIn: int(token.Expiry().Sub(ctx.parent.clock.Now()) / time.Second),
 	}, nil
 }
 
@@ -1340,13 +1342,32 @@ func (h *Handler) logout(w http.ResponseWriter, ctx *SessionContext) error {
 	return nil
 }
 
-// renewSession is called in two ways:
-// 	- Without requestId: Updates the existing session about to expire.
-// 	- With requestId: Updates existing session with additional roles assigned with approving access request.
-func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	requestID := params.ByName("requestId")
+type renewSessionRequest struct {
+	// AccessRequestID is the id of an approved access request.
+	AccessRequestID string `json:"requestId"`
+	// Switchback indicates switching back to default roles when creating new session.
+	Switchback bool `json:"switchback"`
+}
 
-	newSession, err := ctx.extendWebSession(requestID)
+// renewSession updates this existing session with a new session.
+//
+// Depending on request fields sent in for extension, the new session creation can vary depending on:
+//   - requestId (opt): appends roles approved from access request to currently assigned roles or,
+//   - switchback (opt): roles stacked with assuming approved access requests, will revert to user's default roles
+//   - default (none set): create new session with currently assigned roles
+func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	req := renewSessionRequest{}
+	if r.Body != http.NoBody {
+		if err := httplib.ReadJSON(r, &req); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if req.AccessRequestID != "" && req.Switchback {
+		return nil, trace.BadParameter("Failed to renew session: fields 'AccessRequestID' and 'Switchback' cannot be both set")
+	}
+
+	newSession, err := ctx.extendWebSession(req.AccessRequestID, req.Switchback)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1357,7 +1378,14 @@ func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params ht
 	if err := SetSessionCookie(w, newSession.GetUser(), newSession.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return newSessionResponse(newContext)
+
+	res, err := newSessionResponse(newContext)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	res.SessionExpires = newSession.GetExpiryTime()
+
+	return res, nil
 }
 
 func (h *Handler) changePasswordWithToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
