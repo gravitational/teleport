@@ -233,7 +233,7 @@ EOF
 After you have created the `Issuer` and updated the values, add it to your cluster using `kubectl`:
 
 ```bash
-kubectl -n teleport create -f gcp-issuer.yaml
+kubectl --namespace teleport create -f gcp-issuer.yaml
 ```
 
 ### Set values to configure the cluster

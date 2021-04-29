@@ -91,7 +91,7 @@ You can create the namespace for the config and add the `teleport.yaml` from you
 
 ```bash
 kubectl create namespace teleport
-kubectl -n teleport create configmap teleport --from-file=teleport.yaml
+kubectl --namespace teleport create configmap teleport --from-file=teleport.yaml
 ```
 
 <Admonition type="note">
@@ -102,7 +102,7 @@ kubectl -n teleport create configmap teleport --from-file=teleport.yaml
   on disk, you can specify the key that should be used in the `kubectl` command:
 
   ```bash
-  $ kubectl -n teleport create configmap teleport --from-file=teleport.yaml=my-teleport-config-file.yaml
+  $ kubectl --namespace teleport create configmap teleport --from-file=teleport.yaml=my-teleport-config-file.yaml
   ```
 </Admonition>
 
@@ -118,7 +118,8 @@ helm install teleport teleport/teleport-cluster \
 <Admonition type="warning">
   Most settings from `values.yaml` will not be applied in `ownconfig` mode.
 
-  It's important to specify all `acme`, `aws`, `gcp` and `logLevel` settings in the `teleport.yaml` file that you upload yourself.
+  It's important to specify any settings under the `acme`, `aws`, `gcp` and `logLevel` sections of the chart in your own
+  `teleport.yaml` file that you upload yourself.
 </Admonition>
 
 You can control the externally-facing name of your cluster using the `public_addr` sections of `teleport.yaml`. In this example,
@@ -217,8 +218,8 @@ Teleport cluster.
 If you make changes to your Teleport `ConfigMap`, you can apply these changes by deleting the old `ConfigMap` and applying a new one:
 
 ```bash
-kubectl -n teleport delete configmap teleport && \
-kubectl -n teleport create configmap teleport --from-file=teleport.yaml
+kubectl --namespace teleport delete configmap teleport && \
+kubectl --namespace teleport create configmap teleport --from-file=teleport.yaml
 ```
 
 <Admonition type="note">
@@ -227,7 +228,7 @@ kubectl -n teleport create configmap teleport --from-file=teleport.yaml
   You can list all available `ConfigMap`s in your namespace using this command:
 
   ```bash
-  $ kubectl -n teleport get configmap
+  $ kubectl --namespace teleport get configmap
   NAME       DATA   AGE
   teleport   1      2d21h
   ```
@@ -236,7 +237,7 @@ kubectl -n teleport create configmap teleport --from-file=teleport.yaml
 After editing the `ConfigMap`, you must initiate a rolling restart of your Teleport deployment to pick up the changed `ConfigMap`:
 
 ```bash
-kubectl -n teleport rollout restart deploy/teleport
+kubectl --namespace teleport rollout restart deploy/teleport
 ```
 
 #### Making changes to other Helm values

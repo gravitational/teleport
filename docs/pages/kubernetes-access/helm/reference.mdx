@@ -1380,7 +1380,7 @@ join token stored in your Teleport chart values.
 To create your own join token secret, you can use a command like this (replacing the join token with a valid token for your cluster):
 
 ```bash
-kubectl -n teleport create secret generic teleport-kube-agent-join-token --from-literal=auth-token=D4Z280P1mHiY78bKcfTGNKN52Gg5wc8q
+kubectl --namespace teleport create secret generic teleport-kube-agent-join-token --from-literal=auth-token=D4Z280P1mHiY78bKcfTGNKN52Gg5wc8q
 ```
 
 <Admonition type="note">
