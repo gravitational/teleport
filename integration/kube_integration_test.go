@@ -188,9 +188,10 @@ func (s *KubeSuite) TestKubeExec(c *check.C) {
 	kubeUsers := []string{"alice@example.com"}
 	role, err := services.NewRole("kubemaster", services.RoleSpecV3{
 		Allow: services.RoleConditions{
-			Logins:     []string{username},
-			KubeGroups: kubeGroups,
-			KubeUsers:  kubeUsers,
+			Logins:           []string{username},
+			KubernetesLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
+			KubeGroups:       kubeGroups,
+			KubeUsers:        kubeUsers,
 		},
 	})
 	c.Assert(err, check.IsNil)
@@ -362,9 +363,10 @@ func (s *KubeSuite) TestKubeDeny(c *check.C) {
 	kubeUsers := []string{"alice@example.com"}
 	role, err := services.NewRole("kubemaster", services.RoleSpecV3{
 		Allow: services.RoleConditions{
-			Logins:     []string{username},
-			KubeGroups: kubeGroups,
-			KubeUsers:  kubeUsers,
+			Logins:           []string{username},
+			KubernetesLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
+			KubeGroups:       kubeGroups,
+			KubeUsers:        kubeUsers,
 		},
 		Deny: services.RoleConditions{
 			KubeGroups: kubeGroups,
@@ -417,8 +419,9 @@ func (s *KubeSuite) TestKubePortForward(c *check.C) {
 	kubeGroups := []string{testImpersonationGroup}
 	role, err := services.NewRole("kubemaster", services.RoleSpecV3{
 		Allow: services.RoleConditions{
-			Logins:     []string{username},
-			KubeGroups: kubeGroups,
+			Logins:           []string{username},
+			KubeGroups:       kubeGroups,
+			KubernetesLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
 		},
 	})
 	c.Assert(err, check.IsNil)
@@ -553,7 +556,8 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 	auxKubeGroups := []string{teleport.TraitInternalKubeGroupsVariable}
 	auxRole, err := services.NewRole("aux-kube", services.RoleSpecV3{
 		Allow: services.RoleConditions{
-			Logins: []string{username},
+			Logins:           []string{username},
+			KubernetesLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
 			// Note that main cluster can pass it's kubernetes groups
 			// to the remote cluster, and remote cluster
 			// can choose to use them by using special variable
@@ -778,8 +782,9 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 	mainKubeGroups := []string{testImpersonationGroup}
 	mainRole, err := services.NewRole("main-kube", services.RoleSpecV3{
 		Allow: services.RoleConditions{
-			Logins:     []string{username},
-			KubeGroups: mainKubeGroups,
+			Logins:           []string{username},
+			KubernetesLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
+			KubeGroups:       mainKubeGroups,
 		},
 	})
 	c.Assert(err, check.IsNil)
@@ -1061,8 +1066,9 @@ func (s *KubeSuite) runKubeDisconnectTest(c *check.C, tc disconnectTestCase) {
 	role, err := services.NewRole("kubemaster", services.RoleSpecV3{
 		Options: tc.options,
 		Allow: services.RoleConditions{
-			Logins:     []string{username},
-			KubeGroups: kubeGroups,
+			Logins:           []string{username},
+			KubernetesLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
+			KubeGroups:       kubeGroups,
 		},
 	})
 	c.Assert(err, check.IsNil)
