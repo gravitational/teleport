@@ -189,6 +189,7 @@ func (ns *NodeSession) createServerSession() (*ssh.Session, error) {
 	targetAgent := selectKeyAgent(tc)
 
 	if targetAgent != nil {
+		log.Debugf("Forwarding Selected Key Agent")
 		err = agent.ForwardToAgent(ns.nodeClient.Client, targetAgent)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -207,10 +208,13 @@ func (ns *NodeSession) createServerSession() (*ssh.Session, error) {
 func selectKeyAgent(tc *TeleportClient) agent.Agent {
 	switch tc.ForwardAgent {
 	case ForwardAgentYes:
+		log.Debugf("Selecting System Key Agent")
 		return tc.localAgent.sshAgent
 	case ForwardAgentLocal:
+		log.Debugf("Selecting local Teleport Key Agent")
 		return tc.localAgent.Agent
 	default:
+		log.Debugf("No Key Agent selected")
 		return nil
 	}
 }
