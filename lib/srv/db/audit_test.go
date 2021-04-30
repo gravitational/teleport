@@ -35,7 +35,6 @@ import (
 func TestAuditPostgres(t *testing.T) {
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))
-	t.Cleanup(func() { testCtx.Close() })
 	go testCtx.startHandlingConnections()
 
 	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"postgres"}, []string{"postgres"})
@@ -71,7 +70,6 @@ func TestAuditPostgres(t *testing.T) {
 func TestAuditMySQL(t *testing.T) {
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
-	t.Cleanup(func() { testCtx.Close() })
 	go testCtx.startHandlingConnections()
 
 	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"root"}, []string{types.Wildcard})
