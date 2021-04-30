@@ -20,6 +20,8 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport"
+
+	"github.com/gravitational/trace"
 )
 
 // IsUseOfClosedNetworkError returns true if the specified error
@@ -30,4 +32,10 @@ func IsUseOfClosedNetworkError(err error) bool {
 		return false
 	}
 	return strings.Contains(err.Error(), teleport.UseOfClosedNetworkConnection)
+}
+
+// IsOKNetworkError returns true if the provided error received from a network
+// operation is one of those that usually indicate normal connection close.
+func IsOKNetworkError(err error) bool {
+	return trace.IsEOF(err) || IsUseOfClosedNetworkError(err)
 }

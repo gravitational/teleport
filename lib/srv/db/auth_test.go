@@ -42,7 +42,6 @@ func TestAuthTokens(t *testing.T) {
 		withCloudSQLPostgres("postgres-cloudsql-incorrect-token", "qwe123"),
 		withRDSMySQL("mysql-rds-correct-token", "root", rdsAuthToken),
 		withRDSMySQL("mysql-rds-incorrect-token", "root", "qwe123"))
-	t.Cleanup(func() { testCtx.Close() })
 	go testCtx.startHandlingConnections()
 
 	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{types.Wildcard}, []string{types.Wildcard})
