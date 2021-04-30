@@ -42,10 +42,10 @@ labels: {}
 # - "standalone": will deploy a Teleport container running auth and proxy services with a PersistentVolumeClaim for storage.
 # - "aws": will deploy a Teleport container running auth and proxy services using DynamoDB for backend/audit log storage and S3 for session recordings. (1)
 # - "gcp": will deploy a Teleport container running auth and proxy services using Firestore for backend/audit log storage and Google Cloud storage for session recordings. (2)
-# - "ownconfig": will deploy a Teleport container using a teleport.yaml config file that you provide. (3)
+# - "custom": will deploy a Teleport container using a teleport.yaml config file that you provide. (3)
 # (1) To use "aws" mode, you must also configure the "aws" section below.
 # (2) To use "gcp" mode, you must also configure the "gcp" section below.
-# (3) When set to "ownconfig", you must create a ConfigMap containing a 'teleport.yaml' key with an inline Teleport YAML config,
+# (3) When set to "custom", you must create a ConfigMap containing a 'teleport.yaml' key with an inline Teleport YAML config,
 #     give it the same name as the Helm release and place it in the chart namespace.
 #     kubectl -n ${TELEPORT_NAMESPACE?} create configmap ${HELM_RELEASE_NAME?} --from-file=teleport.yaml
 chartMode: standalone
@@ -104,7 +104,7 @@ gcp:
   credentialSecretName: teleport-gcp-credentials
 
 # Settings for high availability. These are not used in "standalone" mode.
-# When using "ownconfig" mode, you must use highly-available storage (etcd, DynamoDB or Firestore) for multiple replicas to be supported.
+# When using "custom" mode, you must use highly-available storage (etcd, DynamoDB or Firestore) for multiple replicas to be supported.
 # Manually configuring NFS-based storage or ReadWriteMany volume claims is NOT supported and will result in errors.
 highAvailability:
   # Set to >1 for a high availability mode where multiple Teleport pods will be deployed and connections will be load balanced between them.
@@ -149,7 +149,7 @@ logLevel: INFO
 # Kubernetes annotations to apply
 # https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
 annotations:
-  # Annotations for the ConfigMap (note: these will not be applied in 'ownconfig' mode)
+  # Annotations for the ConfigMap (note: these will not be applied in 'custom' mode)
   config: {}
   # Annotations for the Deployment
   deployment: {}

@@ -71,7 +71,7 @@
         "chartMode": {
             "$id": "#/properties/chartMode",
             "type": "string",
-            "enum": ["standalone", "aws", "gcp", "ownconfig"],
+            "enum": ["standalone", "aws", "gcp", "custom"],
             "default": "standalone"
         },
         "standalone": {

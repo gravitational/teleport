@@ -1,4 +1,4 @@
-{{- if not (eq .Values.chartMode "ownconfig") -}}
+{{- if not (eq .Values.chartMode "custom") -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
