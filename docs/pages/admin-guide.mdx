@@ -80,7 +80,7 @@ running until existing clients disconnect.
   type="warning"
   title="Version warning"
 >
-  Graceful restarts only work if Teleport is deployed using network-based storage like DynamoDB or etcd 3.3+. Future versions of Teleport will not have this limitation.
+  Graceful restarts only work if Teleport is deployed using network-based storage like DynamoDB or etcd 3.3+. We plan on removing this limitation in future versions of Teleport.
 </Admonition>
 
 You can also perform restarts/upgrades by sending `kill` signals to a Teleport
@@ -1284,7 +1284,7 @@ like `cluster_name` , `tokens` , `storage` , etc must be the same.
 
 ### Teleport Proxy High Availability
 
-TTeleport Proxy is stateless which makes running multiple instances trivial.
+Teleport Proxy is stateless which makes running multiple instances trivial.
 If using the [default configuration](#ports), configure your load balancer to
 forward ports `3023` and `3080` to the servers that run the Teleport proxy. If
 you have configured your proxy to use non-default ports, you will need to

@@ -124,7 +124,7 @@
           "slug": "/enterprise/quickstart-enterprise/"
         },
         { "title": "Single Sign-On (SSO)", "slug": "/enterprise/sso/ssh-sso/" },
-        { "title": "Access Workflows", "slug": "/enterprise/workflow/" },
+        { "title": "Access Requests", "slug": "/enterprise/workflow/" },
         {
           "title": "FedRAMP for SSH & K8s",
           "slug": "/enterprise/ssh-kubernetes-fedramp/"
