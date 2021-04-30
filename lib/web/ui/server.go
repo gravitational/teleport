@@ -146,8 +146,8 @@ type Database struct {
 	Name string `json:"name"`
 	// Desc is the database description.
 	Desc string `json:"desc"`
-	// Procotol is the database description.
-	Procotol string `json:"protocol"`
+	// Protocol is the database description.
+	Protocol string `json:"protocol"`
 	// Type is the database type, self-hosted or cloud-hosted.
 	Type string `json:"type"`
 	// Labels is a map of static and dynamic labels associated with an database.
@@ -179,7 +179,7 @@ func MakeDatabases(clusterName string, servers []types.DatabaseServer) []Databas
 		uiServers = append(uiServers, Database{
 			Name:     server.GetName(),
 			Desc:     server.GetDescription(),
-			Procotol: server.GetProtocol(),
+			Protocol: server.GetProtocol(),
 			Type:     server.GetType(),
 			Labels:   uiLabels,
 		})

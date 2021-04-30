@@ -1841,7 +1841,7 @@ func TestSiteDatabasesGet(t *testing.T) {
 	require.EqualValues(t, ui.Database{
 		Name:     "test-db-name",
 		Desc:     "test-description",
-		Procotol: "test-protocol",
+		Protocol: "test-protocol",
 		Type:     types.DatabaseTypeSelfHosted,
 		Labels:   []ui.Label{{Name: "test-field", Value: "test-value"}},
 	}, dbs[0])
