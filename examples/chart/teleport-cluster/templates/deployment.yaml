@@ -15,6 +15,9 @@ spec:
       annotations:
         # ConfigMap checksum, to recreate the pod on config changes.
         checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
+{{- if .Values.annotations }}
+{{ toYaml .Values.annotations | indent 8 }}
+{{- end }}
       labels:
         app: {{ .Release.Name }}
     spec:

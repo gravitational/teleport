@@ -36,6 +36,12 @@ customConfig: false
 # Labels is a map of key-value pairs about this cluster
 labels: {}
 
+# Pod annotations
+annotations: {}
+## See https://github.com/uswitch/kiam#overview
+## To enable AWS API access from teleport, use kube2iam or kiam, annotate the namespace, and then set something like:
+# iam.amazonaws.com/role: teleport-dynamodb-and-s3-access
+
 ##################################################
 # Values that you shouldn't need to change.
 ##################################################
