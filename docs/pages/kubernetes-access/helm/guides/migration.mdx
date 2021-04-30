@@ -143,7 +143,7 @@ we'll modify the deployment to remove references to the backup data, and remove 
   Write a `teleport-cluster-values.yaml` file containing the following values:
 
   ```yaml
-  chartMode: ownconfig
+  chartMode: custom
   extraArgs: ['--bootstrap', '/etc/teleport-bootstrap/backup.yaml']
   extraVolumes:
   - name: bootstrap
@@ -167,7 +167,7 @@ we'll modify the deployment to remove references to the backup data, and remove 
     helm install teleport teleport/teleport-cluster \
     --create-namespace \
     --namespace teleport-cluster \
-    --set chartMode=ownconfig \
+    --set chartMode=custom \
     --set extraArgs="{'--bootstrap', '/etc/teleport-bootstrap/backup.yaml'}" \
     --set extraVolumes[0].name="bootstrap" \
     --set extraVolumes[0].secret.name="bootstrap" \
@@ -227,7 +227,7 @@ you should redeploy the chart without your backup data mounted for security.
   Edit your `teleport-cluster-values.yaml` file to remove `extraArgs`, `extraVolumes` and `extraVolumeMounts`:
 
   ```yaml
-  chartMode: ownconfig
+  chartMode: custom
   ```
 
   Upgrade the Helm deployment to use the new values:
@@ -243,7 +243,7 @@ you should redeploy the chart without your backup data mounted for security.
     ```bash
     helm upgrade teleport teleport/teleport-cluster \
     --namespace teleport-cluster \
-    --set chartMode=ownconfig
+    --set chartMode=custom
     ```
   </TabItem>
 </Tabs>

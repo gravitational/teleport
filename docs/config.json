@@ -56,7 +56,7 @@
           "entries": [
             { "title": "AWS EKS Cluster", "slug": "/kubernetes-access/helm/guides/aws/" },
             { "title": "Google Cloud GKE Cluster", "slug": "/kubernetes-access/helm/guides/gcp/" },
-            { "title": "Customize Deployment config", "slug": "/kubernetes-access/helm/guides/ownconfig/" },
+            { "title": "Customize Deployment config", "slug": "/kubernetes-access/helm/guides/custom/" },
             { "title": "Migrating from older charts", "slug": "/kubernetes-access/helm/guides/migration/" }
           ]
         },
@@ -147,7 +147,7 @@
       "icon": "cloud",
       "title": "Cloud",
       "entries": [
-        { "title": "Introduction", "slug": "/cloud/introduction/" },        
+        { "title": "Introduction", "slug": "/cloud/introduction/" },
         { "title": "Getting Started", "slug": "/cloud/getting-started/" },
         { "title": "Architecture", "slug": "/cloud/architecture/" },
         { "title": "FAQ", "slug": "/cloud/faq/" }
@@ -183,7 +183,7 @@
         { "title": "YAML", "slug": "/config-reference/" },
         { "title": "CLI", "slug": "/cli-docs/" },
         { "title": "Metrics", "slug": "/metrics-logs-reference/" },
-        { 
+        {
           "title": "API",
           "slug": "/reference/api/",
           "entries": [

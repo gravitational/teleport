@@ -24,13 +24,13 @@ The `teleport-cluster` chart can be deployed in four different modes. We provide
 | `standalone` | [Getting started with Kubernetes Access](../getting-started.mdx) |
 | `aws` | [Running an HA Teleport cluster using an AWS EKS Cluster](./guides/aws.mdx) |
 | `gcp` | [Running an HA Teleport cluster using a Google Cloud GKE cluster](./guides/gcp.mdx) |
-| `ownconfig` | [Running a Teleport cluster with a custom config](./guides/ownconfig.mdx) |
+| `custom` | [Running a Teleport cluster with a custom config](./guides/custom.mdx) |
 
 This reference details available values for the `teleport-cluster` chart.
 
 ## `clusterName`
 
-| Type | Default value | Can be used in `ownconfig` mode? | `teleport.yaml` equivalent |
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
 | - | - | - | - |
 | `string` | `nil` | ❌ | `auth_service.cluster_name`, `proxy_service.public_addr` |
 
@@ -66,7 +66,7 @@ This reference details available values for the `teleport-cluster` chart.
 
 ## `enterprise`
 
-| Type | Default value | Can be used in `ownconfig` mode? |
+| Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
 | `bool` | `false`| ✅ |
 
@@ -107,7 +107,7 @@ kubectl --namespace teleport create secret generic license --from-file=/path/to/
 
 ## `teleportVersionOverride`
 
-| Type | Default value | Can be used in `ownconfig` mode? |
+| Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
 | `string` | `nil` | ✅ |
 
@@ -136,7 +136,7 @@ See these links for information on Docker image versions:
 
 ## `acme`
 
-| Type | Default value | Can be used in `ownconfig` mode? | `teleport.yaml` equivalent |
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
 | - | - | - | - |
 | `bool` | `false` | ❌ | `proxy_service.acme.enabled` |
 
@@ -158,7 +158,7 @@ Setting acme to `false` (the default) will cause Teleport to generate and use se
 
 ## `acmeEmail`
 
-| Type | Default value | Can be used in `ownconfig` mode? | `teleport.yaml` equivalent |
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
 | - | - | - | - |
 | `string` | `nil`  | ❌ | `proxy_service.acme.email` |
 
@@ -166,7 +166,7 @@ Setting acme to `false` (the default) will cause Teleport to generate and use se
 
 ## `acmeURI`
 
-| Type | Default value | Can be used in `ownconfig` mode? | `teleport.yaml` equivalent |
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
 | - | - | - | - |
 | `string` | Let's Encrypt production server | ❌ | `proxy_service.acme.uri` |
 
@@ -197,7 +197,7 @@ You can also use any other ACME-compatible server.
 
 ### `podSecurityPolicy.enabled`
 
-| Type | Default value | Can be used in `ownconfig` mode? |
+| Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
 | `bool` | `true` | ✅ |
 
@@ -223,7 +223,7 @@ To disable this, you can set `enabled` to `false`.
 
 ## `labels`
 
-| Type | Default value | Can be used in `ownconfig` mode? | `teleport.yaml` equivalent |
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
 | - | - | - | - |
 | `object` | `{}` | ❌ | `kubernetes_service.labels` |
 
@@ -263,13 +263,13 @@ Teleport's RBAC policies to define access rules for the cluster.
 | `standalone` | [Getting started with Kubernetes Access](../getting-started.mdx) |
 | `aws` | [Running an HA Teleport cluster using an AWS EKS Cluster](./guides/aws.mdx) |
 | `gcp` | [Running an HA Teleport cluster using a Google Cloud GKE cluster](./guides/gcp.mdx) |
-| `ownconfig` | [Running a Teleport cluster with a custom config](./guides/ownconfig.mdx) |
+| `custom` | [Running a Teleport cluster with a custom config](./guides/custom.mdx) |
 
 ## `standalone`
 
 ### `standalone.existingClaimName`
 
-| Type | Default value | Can be used in `ownconfig` mode? |
+| Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
 | `string` | `nil` | ✅ |
 
@@ -293,7 +293,7 @@ If you would like to use a pre-existing `PersistentVolumeClaim`, you can specify
 
 ### `standalone.volumeSize`
 
-| Type | Default value | Can be used in `ownconfig` mode? |
+| Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
 | `string`  | `10Gi` | ✅ |
 
@@ -319,7 +319,7 @@ You can set `volumeSize` to request a different size of persistent volume when i
 
 ## `aws`
 
-| Can be used in `ownconfig` mode? | `teleport.yaml` equivalent |
+| Can be used in `custom` mode? | `teleport.yaml` equivalent |
 | - | - |
 | ❌ | See [Using DynamoDB](../../admin-guide.mdx#using-dynamodb) and [Using Amazon S3](../../admin-guide.mdx#using-amazon-s3) for details |
 
@@ -327,7 +327,7 @@ You can set `volumeSize` to request a different size of persistent volume when i
 
 ## `gcp`
 
-| Can be used in `ownconfig` mode? | `teleport.yaml` equivalent |
+| Can be used in `custom` mode? | `teleport.yaml` equivalent |
 | - | - |
 | ❌ | See [Using Firestore](../../admin-guide.mdx#using-firestore) and [Using GCS](../../admin-guide.mdx#using-gcs) for details |
 
@@ -337,7 +337,7 @@ You can set `volumeSize` to request a different size of persistent volume when i
 
 ## `highAvailability.replicaCount`
 
-| Type | Default value | Can be used in `ownconfig` mode? |
+| Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
 | `int` | `1` | ✅ (when using HA storage) |
 
@@ -357,7 +357,7 @@ Set to a number higher than `1` for a high availability mode where multiple Tele
 </Admonition>
 
 <Admonition type="warning">
-  When using `ownconfig` mode, you **must** use highly-available storage (e.g. etcd, DynamoDB or Firestore) for multiple replicas to be supported.
+  When using `custom` mode, you **must** use highly-available storage (e.g. etcd, DynamoDB or Firestore) for multiple replicas to be supported.
 
   [Information on supported Teleport storage backends](../../architecture/authentication.mdx#storage-back-ends)
 
@@ -380,7 +380,7 @@ Set to a number higher than `1` for a high availability mode where multiple Tele
 
 ## `highAvailability.requireAntiAffinity`
 
-| Type | Default value | Can be used in `ownconfig` mode? |
+| Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
 | `bool` | `false` | ✅ (when using HA storage) |
 
@@ -420,7 +420,7 @@ See the [cert-manager](https://cert-manager.io/docs/) docs for more information.
 
 ### `highAvailability.certManager.enabled`
 
-| Type | Default value | Can be used in `ownconfig` mode? | `teleport.yaml` equivalent |
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
 | - | - | - | - |
 | `bool` | `false` | ❌ | `proxy_service.https_keypairs` (to provide your own certificates) |
 
@@ -436,7 +436,7 @@ cluster deployed in HA mode.
 
 ### `highAvailability.certManager.issuerName`
 
-| Type | Default value | Can be used in `ownconfig` mode? | `teleport.yaml` equivalent |
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
 | - | - | - | - |
 | `string` | `nil` | ❌ | None |
 
@@ -468,7 +468,7 @@ Sets the name of the `cert-manager` `Issuer` or `ClusterIssuer` to use for to us
 
 ### `highAvailability.certManager.issuerKind`
 
-| Type | Default value | Can be used in `ownconfig` mode? | `teleport.yaml` equivalent |
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
 | - | - | - | - |
 | `string` | `Issuer` | ❌ | None |
 
@@ -492,7 +492,7 @@ scoped to a single namespace.
 
 ## `image`
 
-| Type | Default value | Can be used in `ownconfig` mode? |
+| Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
 | `string` | `quay.io/gravitational/teleport` | ✅ |
 
@@ -515,7 +515,7 @@ You can override this to use your own Teleport Community image rather than a Tel
 
 ## `enterpriseImage`
 
-| Type | Default value | Can be used in `ownconfig` mode? |
+| Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
 | `string` | `quay.io/gravitational/teleport-ent` | ✅ |
 
@@ -538,7 +538,7 @@ You can override this to use your own Teleport Enterprise image rather than a Te
 
 ## `logLevel`
 
-| Type | Default value | Can be used in `ownconfig` mode? | `teleport.yaml` equivalent |
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
 | - | - | - | - |
 | `string` | `INFO` | ❌ | `teleport.log.severity` |
 
@@ -565,7 +565,7 @@ The default is `INFO`, which is recommended in production.
 
 ## `annotations.config`
 
-| Type | Default value | Can be used in `ownconfig` mode? | `teleport.yaml` equivalent |
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
 | - | - | - | - |
 | `object` | `{}` | ❌ | None |
 
@@ -574,7 +574,7 @@ Kubernetes reference: https://kubernetes.io/docs/concepts/overview/working-with-
 Kubernetes annotations which should be applied to the `ConfigMap` created by the chart.
 
 <Admonition type="note">
-  These annotations will not be applied in `ownconfig` mode, as the `ConfigMap` is not managed by the chart.
+  These annotations will not be applied in `custom` mode, as the `ConfigMap` is not managed by the chart.
   In this instance, you should apply annotations manually to your created `ConfigMap`.
 </Admonition>
 
@@ -599,7 +599,7 @@ Kubernetes annotations which should be applied to the `ConfigMap` created by the
 
 ## `annotations.deployment`
 
-| Type | Default value | Can be used in `ownconfig` mode? |
+| Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
 | `object` | `{}` | ✅  |
 
@@ -628,7 +628,7 @@ Kubernetes annotations which should be applied to the `Deployment` created by th
 
 ## `annotations.pod`
 
-| Type | Default value | Can be used in `ownconfig` mode? |
+| Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
 | `object` | `{}` | ✅  |
 
@@ -657,7 +657,7 @@ Kubernetes annotations which should be applied to each `Pod` created by the char
 
 ## `annotations.service`
 
-| Type | Default value | Can be used in `ownconfig` mode? |
+| Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
 | `object` | `{}` | ✅  |
 
@@ -686,7 +686,7 @@ Kubernetes annotations which should be applied to the `Service` created by the c
 
 ## `extraArgs`
 
-| Type | Default value | Can be used in `ownconfig` mode? |
+| Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
 | `list` | `[]` | ✅  |
 
@@ -708,7 +708,7 @@ A list of extra arguments to pass to the `teleport start` command when running a
 
 ## `extraVolumes`
 
-| Type | Default value | Can be used in `ownconfig` mode? |
+| Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
 | `list` | `[]` | ✅  |
 
@@ -736,7 +736,7 @@ will also be available to any `initContainers` configured by the chart.
 
 ## `extraVolumeMounts`
 
-| Type | Default value | Can be used in `ownconfig` mode? |
+| Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
 | `list` | `[]` | ✅  |
 
@@ -763,7 +763,7 @@ mounts will also be mounted into any `initContainers` configured by the chart.
 
 ## `imagePullPolicy`
 
-| Type | Default value | Can be used in `ownconfig` mode? |
+| Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
 | `string` | `IfNotPresent` | ✅  |
 
@@ -786,7 +786,7 @@ Allows the `imagePullPolicy` for any pods created by the chart to be overridden.
 
 ## `initContainers`
 
-| Type | Default value | Can be used in `ownconfig` mode? |
+| Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
 | `list` | `[]` | ✅  |
 
@@ -814,7 +814,7 @@ A list of `initContainers` which will be run before the main Teleport container 
 
 ## `resources`
 
-| Type | Default value | Can be used in `ownconfig` mode? |
+| Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
 | `object` | `{}` | ✅  |
 
@@ -1429,7 +1429,7 @@ The default is `INFO`, which is recommended in production.
 
 ## `annotations.config`
 
-| Type | Default value | Can be used in `ownconfig` mode? | `teleport.yaml` equivalent |
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
 | - | - | - | - |
 | `object` | `{}` | ❌ | None |
 
@@ -1438,7 +1438,7 @@ Kubernetes reference: https://kubernetes.io/docs/concepts/overview/working-with-
 Kubernetes annotations which should be applied to the `ConfigMap` created by the chart.
 
 <Admonition type="note">
-  These annotations will not be applied in `ownconfig` mode, as the `ConfigMap` is not managed by the chart.
+  These annotations will not be applied in `custom` mode, as the `ConfigMap` is not managed by the chart.
   In this instance, you should apply annotations manually to your created `ConfigMap`.
 </Admonition>
 
@@ -1463,7 +1463,7 @@ Kubernetes annotations which should be applied to the `ConfigMap` created by the
 
 ## `annotations.deployment`
 
-| Type | Default value | Can be used in `ownconfig` mode? |
+| Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
 | `object` | `{}` | ✅  |
 
@@ -1492,7 +1492,7 @@ Kubernetes annotations which should be applied to the `Deployment` created by th
 
 ## `annotations.pod`
 
-| Type | Default value | Can be used in `ownconfig` mode? |
+| Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
 | `object` | `{}` | ✅  |
 
@@ -1521,7 +1521,7 @@ Kubernetes annotations which should be applied to each `Pod` created by the char
 
 ## `extraVolumes`
 
-| Type | Default value | Can be used in `ownconfig` mode? |
+| Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
 | `list` | `[]` | ✅  |
 
@@ -1549,7 +1549,7 @@ will also be available to any `initContainers` configured by the chart.
 
 ## `extraVolumeMounts`
 
-| Type | Default value | Can be used in `ownconfig` mode? |
+| Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
 | `list` | `[]` | ✅  |
 
@@ -1576,7 +1576,7 @@ mounts will also be mounted into any `initContainers` configured by the chart.
 
 ## `imagePullPolicy`
 
-| Type | Default value | Can be used in `ownconfig` mode? |
+| Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
 | `string` | `IfNotPresent` | ✅  |
 
@@ -1599,7 +1599,7 @@ Allows the `imagePullPolicy` for any pods created by the chart to be overridden.
 
 ## `initContainers`
 
-| Type | Default value | Can be used in `ownconfig` mode? |
+| Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
 | `list` | `[]` | ✅  |
 
@@ -1627,7 +1627,7 @@ A list of `initContainers` which will be run before the main Teleport container 
 
 ## `resources`
 
-| Type | Default value | Can be used in `ownconfig` mode? |
+| Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
 | `object` | `{}` | ✅  |
 
