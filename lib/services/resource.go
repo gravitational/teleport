@@ -23,7 +23,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 )
 
@@ -536,44 +535,3 @@ func (u *UnknownResource) UnmarshalJSON(raw []byte) error {
 	copy(u.Raw, raw)
 	return nil
 }
-
-const baseMetadataSchema = `{
-  "type": "object",
-  "additionalProperties": false,
-  "default": {},
-  "required": ["name"],
-  "properties": {
-	"name": {"type": "string"},
-	"namespace": {"type": "string", "default": "default"},
-	"description": {"type": "string"},
-	"expires": {"type": "string"},
-	"id": {"type": "integer"},
-	"labels": {
-	  "type": "object",
-	  "additionalProperties": false,
-	  "patternProperties": {
-  	    "%s":  { "type": "string" }
-  	  }
-    }
-  }
-}`
-
-// V2SchemaTemplate is a template JSON Schema for V2 style objects
-const V2SchemaTemplate = `{
-  "type": "object",
-  "additionalProperties": false,
-  "required": ["kind", "spec", "metadata", "version"],
-  "properties": {
-    "kind": {"type": "string"},
-    "sub_kind": {"type": "string"},
-    "version": {"type": "string", "default": "v2"},
-    "metadata": %v,
-    "spec": %v
-  }%v
-}`
-
-// MetadataSchema is a schema for resource metadata
-var MetadataSchema = fmt.Sprintf(baseMetadataSchema, types.LabelPattern)
-
-// DefaultDefinitions the default list of JSON schema definitions which is none.
-const DefaultDefinitions = ``

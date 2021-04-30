@@ -298,8 +298,7 @@ func (s *PresenceService) KeepAliveNode(ctx context.Context, h services.KeepAliv
 	return trace.Wrap(err)
 }
 
-// UpsertNodes is used for bulk insertion of nodes. Schema validation is
-// always skipped during bulk insertion.
+// UpsertNodes is used for bulk insertion of nodes.
 func (s *PresenceService) UpsertNodes(namespace string, servers []services.Server) error {
 	batch, ok := s.Backend.(backend.Batch)
 	if !ok {
