@@ -26,8 +26,8 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-// siteKubesGet returns a list of kube clusters in a form the UI can present.
-func (h *Handler) siteKubesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+// clusterKubesGet returns a list of kube clusters in a form the UI can present.
+func (h *Handler) clusterKubesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	clt, err := ctx.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -42,8 +42,8 @@ func (h *Handler) siteKubesGet(w http.ResponseWriter, r *http.Request, p httprou
 	return ui.MakeKubes(h.auth.clusterName, kubeServers), nil
 }
 
-// siteDatabasesGet returns a list of db servers in a form the UI can present.
-func (h *Handler) siteDatabasesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+// clusterDatabasesGet returns a list of db servers in a form the UI can present.
+func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	clt, err := ctx.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)

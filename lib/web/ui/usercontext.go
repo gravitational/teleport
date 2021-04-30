@@ -67,8 +67,8 @@ type userACL struct {
 	Nodes access `json:"nodes"`
 	// AppServers defines access to application servers
 	AppServers access `json:"appServers"`
-	// DbServers defines access to database servers.
-	DbServers access `json:"dbServers"`
+	// DBServers defines access to database servers.
+	DBServers access `json:"dbServers"`
 	// KubeServers defines access to kubernetes servers.
 	KubeServers access `json:"kubeServers"`
 	// SSH defines access to servers
@@ -193,7 +193,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet) (*UserContext, 
 	acl := userACL{
 		AccessRequests:  requestAccess,
 		AppServers:      appServerAccess,
-		DbServers:       dbServerAccess,
+		DBServers:       dbServerAccess,
 		KubeServers:     kubeServerAccess,
 		AuthConnectors:  authConnectors,
 		TrustedClusters: trustedClusterAccess,

@@ -1843,7 +1843,6 @@ func TestSiteDatabasesGet(t *testing.T) {
 		Desc:     "test-description",
 		Procotol: "test-protocol",
 		Type:     types.DatabaseTypeSelfHosted,
-		URI:      "test-uri",
 		Labels:   []ui.Label{{Name: "test-field", Value: "test-value"}},
 	}, dbs[0])
 }
@@ -1854,7 +1853,7 @@ func TestSiteKubesGet(t *testing.T) {
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "test-user@example.com")
 
-	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "kubes")
+	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "kubernetes")
 	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
 	require.NoError(t, err)
 

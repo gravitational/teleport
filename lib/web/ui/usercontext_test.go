@@ -65,7 +65,7 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	c.Assert(userContext.ACL.AuthConnectors, check.DeepEquals, allowed)
 	c.Assert(userContext.ACL.TrustedClusters, check.DeepEquals, allowed)
 	c.Assert(userContext.ACL.AppServers, check.DeepEquals, denied)
-	c.Assert(userContext.ACL.DbServers, check.DeepEquals, denied)
+	c.Assert(userContext.ACL.DBServers, check.DeepEquals, denied)
 	c.Assert(userContext.ACL.KubeServers, check.DeepEquals, denied)
 	c.Assert(userContext.ACL.Events, check.DeepEquals, denied)
 	c.Assert(userContext.ACL.Sessions, check.DeepEquals, denied)

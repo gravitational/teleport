@@ -284,7 +284,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.GET("/webapi/sites/:site/namespaces/:namespace/nodes", h.WithClusterAuth(h.siteNodesGet))
 
 	// Get applications.
-	h.GET("/webapi/sites/:site/apps", h.WithClusterAuth(h.siteAppsGet))
+	h.GET("/webapi/sites/:site/apps", h.WithClusterAuth(h.clusterAppsGet))
 
 	// active sessions handlers
 	h.GET("/webapi/sites/:site/namespaces/:namespace/connect", h.WithClusterAuth(h.siteNodeConnect))       // connect to an active session (via websocket)
@@ -306,10 +306,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.GET("/webapi/sites/:site/context", h.WithClusterAuth(h.getUserContext))
 
 	// Database access handlers.
-	h.GET("/webapi/sites/:site/databases", h.WithClusterAuth(h.siteDatabasesGet))
+	h.GET("/webapi/sites/:site/databases", h.WithClusterAuth(h.clusterDatabasesGet))
 
 	// Kube access handlers.
-	h.GET("/webapi/sites/:site/kubernetes", h.WithClusterAuth(h.siteKubesGet))
+	h.GET("/webapi/sites/:site/kubernetes", h.WithClusterAuth(h.clusterKubesGet))
 
 	// OIDC related callback handlers
 	h.GET("/webapi/oidc/login/web", h.WithRedirect(h.oidcLoginWeb))

@@ -148,10 +148,8 @@ type Database struct {
 	Desc string `json:"desc"`
 	// Procotol is the database description.
 	Procotol string `json:"protocol"`
-	// Type is the database type, self-hosted or AWS RDS.
+	// Type is the database type, self-hosted or cloud-hosted.
 	Type string `json:"type"`
-	// URI is the database connection address.
-	URI string `json:"uri"`
 	// Labels is a map of static and dynamic labels associated with an database.
 	Labels []Label `json:"labels"`
 }
@@ -183,7 +181,6 @@ func MakeDatabases(clusterName string, servers []types.DatabaseServer) []Databas
 			Desc:     server.GetDescription(),
 			Procotol: server.GetProtocol(),
 			Type:     server.GetType(),
-			URI:      server.GetURI(),
 			Labels:   uiLabels,
 		})
 	}
