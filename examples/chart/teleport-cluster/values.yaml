@@ -36,6 +36,45 @@ customConfig: false
 # Labels is a map of key-value pairs about this cluster
 labels: {}
 
+## Affinity for pod assignment
+## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+affinity: {}
+#
+## For the sake of security, make specific node group(s) dedicated to Teleport
+#   nodeAffinity:
+#     requiredDuringSchedulingIgnoredDuringExecution:
+#       nodeSelectorTerms:
+#       - matchExpressions:
+#         - key: gravitational.io/dedicated
+#           operator: In
+#           values:
+#           - teleport
+#
+#   podAntiAffinity:
+#     preferredDuringSchedulingIgnoredDuringExecution:
+#     - podAffinityTerm:
+#         labelSelector:
+#           matchExpressions:
+#           - key: app
+#             operator: In
+#             values:
+#             - teleport
+#         topologyKey: kubernetes.io/hostname
+#       weight: 1
+
+# Tolerations for pod assignment
+# Ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+tolerations: []
+#
+# - key: "dedicated"
+#   operator: "Equal"
+#   value: "teleport"
+#   effect: "NoExecute"
+# - key: "dedicated"
+#   operator: "Equal"
+#   value: "teleport"
+#   effect: "NoSchedule"
+
 ##################################################
 # Values that you shouldn't need to change.
 ##################################################
