@@ -825,11 +825,11 @@ func (a *ServerWithRoles) CreateWebSession(user string) (services.WebSession, er
 // ExtendWebSession creates a new web session for a user based on a valid previous session.
 // Additional roles are appended to initial roles if there is an approved access request.
 // The new session expiration time will not exceed the expiration time of the old session.
-func (a *ServerWithRoles) ExtendWebSession(user, prevSessionID, accessRequestID string) (services.WebSession, error) {
-	if err := a.currentUserAction(user); err != nil {
+func (a *ServerWithRoles) ExtendWebSession(req WebSessionReq) (services.WebSession, error) {
+	if err := a.currentUserAction(req.User); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.ExtendWebSession(user, prevSessionID, accessRequestID, a.context.Identity.GetIdentity())
+	return a.authServer.ExtendWebSession(req, a.context.Identity.GetIdentity())
 }
 
 // GetWebSessionInfo returns the web session for the given user specified with sid.
@@ -2214,15 +2214,19 @@ func (a *ServerWithRoles) GetAuthPreference() (services.AuthPreference, error) {
 	return a.authServer.GetAuthPreference()
 }
 
-func (a *ServerWithRoles) SetAuthPreference(cap services.AuthPreference) error {
-	if err := a.action(defaults.Namespace, services.KindClusterAuthPreference, services.VerbCreate); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.action(defaults.Namespace, services.KindClusterAuthPreference, services.VerbUpdate); err != nil {
+func (a *ServerWithRoles) SetAuthPreference(newAuthPref services.AuthPreference) error {
+	storedAuthPref, err := a.authServer.GetAuthPreference()
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.SetAuthPreference(cap)
+	for _, verb := range verbsToReplaceResourceWithOrigin(storedAuthPref) {
+		if err := a.action(defaults.Namespace, services.KindClusterAuthPreference, verb); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return a.authServer.SetAuthPreference(newAuthPref)
 }
 
 // DeleteAuthPreference not implemented: can only be called locally.
@@ -2898,5 +2902,14 @@ func emitSSOLoginFailureEvent(ctx context.Context, emitter events.Emitter, metho
 	if emitErr != nil {
 		log.WithError(err).Warnf("Failed to emit %v login failure event.", method)
 	}
+}
 
+// verbsToReplaceResourceWithOrigin determines the verbs/actions required of a role
+// to replace the resource currently stored in the backend.
+func verbsToReplaceResourceWithOrigin(stored types.ResourceWithOrigin) []string {
+	verbs := []string{types.VerbUpdate}
+	if stored.Origin() == types.OriginConfigFile {
+		verbs = append(verbs, types.VerbCreate)
+	}
+	return verbs
 }
