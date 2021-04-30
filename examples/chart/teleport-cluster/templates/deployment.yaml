@@ -1,3 +1,6 @@
+{{- if and (.Values.acme) (gt (int .Values.highAvailability.replicaCount) 1) }}
+{{- fail "Cannot enable built-in ACME support with more than one replica, use highAvailability.certManager.enabled instead" }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:

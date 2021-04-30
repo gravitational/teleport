@@ -41,7 +41,7 @@ labels: {}
 # Mode to deploy the chart in. The default is "standalone". Options:
 # - "standalone": will deploy a Teleport container running auth and proxy services with a PersistentVolumeClaim for storage.
 # - "aws": will deploy a Teleport container running auth and proxy services using DynamoDB for backend/audit log storage and S3 for session recordings. (1)
-# - "gcp": will deploy a Teleport container running auth and proxy services using Firestore for backend/audit log storage and Google storage for session recordings. (2)
+# - "gcp": will deploy a Teleport container running auth and proxy services using Firestore for backend/audit log storage and Google Cloud storage for session recordings. (2)
 # - "ownconfig": will deploy a Teleport container using a teleport.yaml config file that you provide. (3)
 # (1) To use "aws" mode, you must also configure the "aws" section below.
 # (2) To use "gcp" mode, you must also configure the "gcp" section below.

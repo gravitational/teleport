@@ -40,7 +40,7 @@
         "roles": {
             "$id": "#/properties/roles",
             "type": "string",
-            "default": ""
+            "default": "kube"
         },
         "kubeClusterName": {
             "$id": "#/properties/kubeClusterName",
