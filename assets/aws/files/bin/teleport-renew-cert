@@ -16,4 +16,4 @@ fi
 
 # This is called periodically, if renewal is successful
 # certs are uploaded to the S3 Bucket
-certbot renew --deploy-hook=/usr/local/bin/teleport-upload-cert
+/usr/local/bin/certbot renew --deploy-hook=/usr/local/bin/teleport-upload-cert

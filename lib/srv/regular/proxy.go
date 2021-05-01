@@ -215,9 +215,7 @@ func (t *proxySubsys) Start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 	)
 	// did the client pass us a true client IP ahead of time via an environment variable?
 	// (usually the web client would do that)
-	ctx.Lock()
 	trueClientIP, ok := ctx.GetEnv(sshutils.TrueClientAddrVar)
-	ctx.Unlock()
 	if ok {
 		a, err := utils.ParseAddr(trueClientIP)
 		if err == nil {
@@ -287,6 +285,20 @@ func (t *proxySubsys) proxyToSite(
 	return nil
 }
 
+var (
+	// failedConnectingToNode counts failed attempts to connect to a node
+	failedConnectingToNode = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: teleport.MetricFailedConnectToNodeAttempts,
+			Help: "Number of failed attempts to connect to a node",
+		},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(failedConnectingToNode)
+}
+
 // proxyToHost establishes a proxy connection from the connected SSH client to the
 // requested remote node (t.host:t.port) via the given site
 func (t *proxySubsys) proxyToHost(
@@ -306,7 +318,7 @@ func (t *proxySubsys) proxyToHost(
 	// going to "local" CA? lets use the caching 'auth service' directly and avoid
 	// hitting the reverse tunnel link (it can be offline if the CA is down)
 	if site.GetName() == localCluster.GetName() {
-		servers, err = t.srv.authService.GetNodes(t.namespace, services.SkipValidation())
+		servers, err = t.srv.authService.GetNodes(ctx.CancelContext(), t.namespace, services.SkipValidation())
 		if err != nil {
 			t.log.Warn(err)
 		}
@@ -316,7 +328,7 @@ func (t *proxySubsys) proxyToHost(
 		if err != nil {
 			t.log.Warn(err)
 		} else {
-			servers, err = siteClient.GetNodes(t.namespace, services.SkipValidation())
+			servers, err = siteClient.GetNodes(ctx.CancelContext(), t.namespace, services.SkipValidation())
 			if err != nil {
 				t.log.Warn(err)
 			}
@@ -436,6 +448,7 @@ func (t *proxySubsys) proxyToHost(
 		ConnType:     services.NodeTunnel,
 	})
 	if err != nil {
+		failedConnectingToNode.Inc()
 		return trace.Wrap(err)
 	}
 

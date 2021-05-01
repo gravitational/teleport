@@ -16,6 +16,8 @@ limitations under the License.
 
 package ui
 
+import "github.com/gravitational/teleport/api/constants"
+
 const (
 	// WebConfigAuthProviderOIDCType is OIDC provider type
 	WebConfigAuthProviderOIDCType = "oidc"
@@ -58,7 +60,7 @@ type WebConfigAuthProvider struct {
 // WebConfigAuthSettings describes auth configuration
 type WebConfigAuthSettings struct {
 	// SecondFactor is the type of second factor to use in authentication.
-	SecondFactor string `json:"second_factor,omitempty"`
+	SecondFactor constants.SecondFactorType `json:"second_factor,omitempty"`
 	// Providers contains a list of configured auth providers
 	Providers []WebConfigAuthProvider `json:"providers,omitempty"`
 	// LocalAuthEnabled is a flag that enables local authentication

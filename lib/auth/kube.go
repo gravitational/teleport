@@ -1,5 +1,5 @@
 /*
-Copyright 2018-2019 Gravitational, Inc.
+Copyright 2018-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@ type KubeCSRResponse struct {
 // ProcessKubeCSR processes CSR request against Kubernetes CA, returns
 // signed certificate if successful.
 func (s *Server) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
-	if !modules.GetModules().SupportsKubernetes() {
+	if !modules.GetModules().Features().Kubernetes {
 		return nil, trace.AccessDenied(
 			"this teleport cluster does not support kubernetes, please contact system administrator for support")
 	}
@@ -105,8 +105,24 @@ func (s *Server) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	roleNames := id.Groups
+	// This is a remote user, map roles to local roles first.
+	if id.TeleportCluster != clusterName.GetClusterName() {
+		ca, err := s.GetCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: id.TeleportCluster}, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		roleNames, err = services.MapRoles(ca.CombinedMapping(), id.Groups)
+		if err != nil {
+			return nil, trace.AccessDenied("failed to map roles for remote user %q from cluster %q with remote roles %v", id.Username, id.TeleportCluster, id.Groups)
+		}
+		if len(roleNames) == 0 {
+			return nil, trace.AccessDenied("no roles mapped for remote user %q from cluster %q with remote roles %v", id.Username, id.TeleportCluster, id.Groups)
+		}
+	}
+
 	// Extract user roles from the identity (from the CSR Subject).
-	roles, err := services.FetchRoles(id.Groups, s, id.Traits)
+	roles, err := services.FetchRoles(roleNames, s, id.Traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -121,7 +137,7 @@ func (s *Server) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 	// generate TLS certificate
-	tlsAuthority, err := userCA.TLSCA()
+	tlsAuthority, err := tlsca.FromAuthority(userCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

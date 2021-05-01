@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -65,7 +66,7 @@ func (r *HTTPTransferRequest) parseRemoteLocation() (string, string, error) {
 	return dir, filename, nil
 }
 
-// CreateHTTPUpload creates HTTP download command
+// CreateHTTPUpload creates an HTTP upload command
 func CreateHTTPUpload(req HTTPTransferRequest) (Command, error) {
 	if req.HTTPRequest == nil {
 		return nil, trace.BadParameter("missing parameter HTTPRequest")
@@ -113,7 +114,7 @@ func CreateHTTPUpload(req HTTPTransferRequest) (Command, error) {
 	return cmd, nil
 }
 
-// CreateHTTPDownload creates HTTP upload command
+// CreateHTTPDownload creates an HTTP download command
 func CreateHTTPDownload(req HTTPTransferRequest) (Command, error) {
 	_, filename, err := req.parseRemoteLocation()
 	if err != nil {
@@ -150,9 +151,15 @@ type httpFileSystem struct {
 	fileSize int64
 }
 
-// SetChmod sets file permissions. It does nothing as there are no permissions
+// Chmod sets file permissions. It does nothing as there are no permissions
 // while processing HTTP downloads
-func (l *httpFileSystem) SetChmod(path string, mode int) error {
+func (l *httpFileSystem) Chmod(path string, mode int) error {
+	return nil
+}
+
+// Chtimes sets file access and modification time.
+// It is a no-op for the HTTP file system implementation
+func (l *httpFileSystem) Chtimes(path string, atime, mtime time.Time) error {
 	return nil
 }
 
@@ -241,6 +248,18 @@ func (l *httpFileInfo) ReadDir() ([]FileInfo, error) {
 // file created on the remote host during HTTP upload.
 func (l *httpFileInfo) GetModePerm() os.FileMode {
 	return httpUploadFileMode
+}
+
+// GetModTime returns file modification time.
+// It is a no-op for HTTP file information
+func (l *httpFileInfo) GetModTime() time.Time {
+	return time.Time{}
+}
+
+// GetAccessTime returns file last access time.
+// It is a no-op for HTTP file information
+func (l *httpFileInfo) GetAccessTime() time.Time {
+	return time.Time{}
 }
 
 type nopWriteCloser struct {

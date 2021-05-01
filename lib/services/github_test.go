@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2017-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,8 +17,6 @@ limitations under the License.
 package services
 
 import (
-	"github.com/gravitational/teleport/lib/utils"
-
 	check "gopkg.in/check.v1"
 )
 
@@ -26,11 +24,7 @@ type GithubSuite struct{}
 
 var _ = check.Suite(&GithubSuite{})
 
-func (s *GithubSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
-}
-
-func (s *GithubSuite) TestUnmarshal(c *check.C) {
+func (g *GithubSuite) TestUnmarshal(c *check.C) {
 	data := []byte(`{"kind": "github",
 "version": "v3",
 "metadata": {
@@ -47,7 +41,7 @@ func (s *GithubSuite) TestUnmarshal(c *check.C) {
     "logins": ["admin"]
   }]
 }}`)
-	connector, err := GetGithubConnectorMarshaler().Unmarshal(data)
+	connector, err := UnmarshalGithubConnector(data)
 	c.Assert(err, check.IsNil)
 	expected := NewGithubConnector("github", GithubConnectorSpecV3{
 		ClientID:     "aaa",
@@ -65,7 +59,7 @@ func (s *GithubSuite) TestUnmarshal(c *check.C) {
 	c.Assert(expected, check.DeepEquals, connector)
 }
 
-func (s *GithubSuite) TestMapClaims(c *check.C) {
+func (g *GithubSuite) TestMapClaims(c *check.C) {
 	connector := NewGithubConnector("github", GithubConnectorSpecV3{
 		ClientID:     "aaa",
 		ClientSecret: "bbb",
@@ -89,7 +83,7 @@ func (s *GithubSuite) TestMapClaims(c *check.C) {
 	})
 	logins, kubeGroups, kubeUsers := connector.MapClaims(GithubClaims{
 		OrganizationToTeams: map[string][]string{
-			"gravitational": []string{"admins"},
+			"gravitational": {"admins"},
 		},
 	})
 	c.Assert(logins, check.DeepEquals, []string{"admin", "dev"})
@@ -98,7 +92,7 @@ func (s *GithubSuite) TestMapClaims(c *check.C) {
 
 	logins, kubeGroups, kubeUsers = connector.MapClaims(GithubClaims{
 		OrganizationToTeams: map[string][]string{
-			"gravitational": []string{"devs"},
+			"gravitational": {"devs"},
 		},
 	})
 	c.Assert(logins, check.DeepEquals, []string{"dev", "test"})
@@ -107,7 +101,7 @@ func (s *GithubSuite) TestMapClaims(c *check.C) {
 
 	logins, kubeGroups, kubeUsers = connector.MapClaims(GithubClaims{
 		OrganizationToTeams: map[string][]string{
-			"gravitational": []string{"admins", "devs"},
+			"gravitational": {"admins", "devs"},
 		},
 	})
 	c.Assert(logins, check.DeepEquals, []string{"admin", "dev", "test"})

@@ -20,6 +20,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
@@ -30,8 +31,8 @@ import (
 type localFileSystem struct {
 }
 
-// SetChmod sets file permissions
-func (l *localFileSystem) SetChmod(path string, mode int) error {
+// Chmod sets file permissions
+func (l *localFileSystem) Chmod(path string, mode int) error {
 	chmode := os.FileMode(mode & int(os.ModePerm))
 	if err := os.Chmod(path, chmode); err != nil {
 		return trace.Wrap(err)
@@ -40,10 +41,15 @@ func (l *localFileSystem) SetChmod(path string, mode int) error {
 	return nil
 }
 
+// Chtimes sets file access and modification times
+func (l *localFileSystem) Chtimes(path string, atime, mtime time.Time) error {
+	return trace.ConvertSystemError(os.Chtimes(path, atime, mtime))
+}
+
 // MkDir creates a directory
 func (l *localFileSystem) MkDir(path string, mode int) error {
 	fileMode := os.FileMode(mode & int(os.ModePerm))
-	err := os.MkdirAll(path, fileMode)
+	err := os.Mkdir(path, fileMode)
 	if err != nil && !os.IsExist(err) {
 		return trace.ConvertSystemError(err)
 	}
@@ -93,14 +99,17 @@ func makeFileInfo(filePath string) (FileInfo, error) {
 	}
 
 	return &localFileInfo{
-		filePath: filePath,
-		fileInfo: f}, nil
+		filePath:   filePath,
+		fileInfo:   f,
+		accessTime: atime(f),
+	}, nil
 }
 
 // localFileInfo is implementation of FileInfo for local files
 type localFileInfo struct {
-	filePath string
-	fileInfo os.FileInfo
+	filePath   string
+	fileInfo   os.FileInfo
+	accessTime time.Time
 }
 
 // IsDir tells this is a directory
@@ -151,4 +160,14 @@ func (l *localFileInfo) ReadDir() ([]FileInfo, error) {
 // GetModePerm returns file permissions
 func (l *localFileInfo) GetModePerm() os.FileMode {
 	return l.fileInfo.Mode() & os.ModePerm
+}
+
+// GetModTime returns file modification time
+func (l *localFileInfo) GetModTime() time.Time {
+	return l.fileInfo.ModTime()
+}
+
+// GetAccessTime returns file last access time
+func (l *localFileInfo) GetAccessTime() time.Time {
+	return l.accessTime
 }

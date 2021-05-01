@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,51 +18,44 @@ package utils
 
 import (
 	"crypto/x509"
+	"fmt"
 	"io/ioutil"
 	"strings"
 	"testing"
 
-	"gopkg.in/check.v1"
-
 	"github.com/gravitational/trace"
+
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
-type CLISuite struct {
-}
-
-var _ = check.Suite(&CLISuite{})
-
-func (s *CLISuite) SetUpSuite(c *check.C) {
-	InitLoggerForTests()
-}
-func (s *CLISuite) TearDownSuite(c *check.C) {}
-func (s *CLISuite) SetUpTest(c *check.C)     {}
-func (s *CLISuite) TearDownTest(c *check.C)  {}
-
-func (s *CLISuite) TestUserMessageFromError(c *check.C) {
+func TestUserMessageFromError(t *testing.T) {
+	t.Skip("Enable after https://drone.gravitational.io/gravitational/teleport/3517 is merged.")
 	tests := []struct {
+		comment   string
 		inError   error
 		outString string
 	}{
 		{
+			comment:   "outputs x509-specific unknown authority message",
 			inError:   trace.Wrap(x509.UnknownAuthorityError{}),
 			outString: "WARNING:\n\n  The proxy you are connecting to has presented a",
 		},
 		{
+			comment:   "outputs x509-specific invalid certificate message",
 			inError:   trace.Wrap(x509.CertificateInvalidError{}),
 			outString: "WARNING:\n\n  The certificate presented by the proxy is invalid",
 		},
 		{
+			comment:   "outputs user message as provided",
 			inError:   trace.Errorf("\x1b[1mWARNING\x1b[0m"),
 			outString: `error: "\x1b[1mWARNING\x1b[0m"`,
 		},
 	}
 
-	for i, tt := range tests {
-		comment := check.Commentf("Test %v", i)
+	for _, tt := range tests {
 		message := UserMessageFromError(tt.inError)
-		c.Assert(strings.HasPrefix(message, tt.outString), check.Equals, true, comment)
+		require.True(t, strings.HasPrefix(message, tt.outString), tt.comment)
 	}
 }
 
@@ -71,6 +64,64 @@ func (s *CLISuite) TestUserMessageFromError(c *check.C) {
 func TestConsolefLongComponent(t *testing.T) {
 	require.NotPanics(t, func() {
 		component := strings.Repeat("na ", 10) + "batman!"
-		Consolef(ioutil.Discard, component, "test message")
+		Consolef(ioutil.Discard, logrus.New(), component, "test message")
 	})
+}
+
+// TestEscapeControl tests escape control
+func TestEscapeControl(t *testing.T) {
+	tests := []struct {
+		in  string
+		out string
+	}{
+		{
+			in:  "hello, world!",
+			out: "hello, world!",
+		},
+		{
+			in:  "hello,\nworld!",
+			out: `"hello,\nworld!"`,
+		},
+		{
+			in:  "hello,\r\tworld!",
+			out: `"hello,\r\tworld!"`,
+		},
+	}
+
+	for i, tt := range tests {
+		require.Equal(t, tt.out, EscapeControl(tt.in), fmt.Sprintf("test case %v", i))
+	}
+}
+
+// TestAllowNewlines tests escape control that allows newlines
+func TestAllowNewlines(t *testing.T) {
+	tests := []struct {
+		in  string
+		out string
+	}{
+		{
+			in:  "hello, world!",
+			out: "hello, world!",
+		},
+		{
+			in:  "hello,\nworld!",
+			out: "hello,\nworld!",
+		},
+		{
+			in:  "hello,\r\tworld!",
+			out: `"hello,\r\tworld!"`,
+		},
+		{
+			in:  "hello,\n\r\tworld!",
+			out: "hello,\n" + `"\r\tworld!"`,
+		},
+		{
+			in:  "hello,\t\n\r\tworld!",
+			out: `"hello,\t"` + "\n" + `"\r\tworld!"`,
+		},
+	}
+
+	for i, tt := range tests {
+		require.Equal(t, tt.out, AllowNewlines(tt.in), fmt.Sprintf("test case %v", i))
+	}
 }

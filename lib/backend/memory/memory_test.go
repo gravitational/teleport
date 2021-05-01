@@ -17,17 +17,25 @@ limitations under the License.
 package memory
 
 import (
+	"os"
 	"testing"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
+
+	"github.com/gravitational/trace"
 )
 
-func TestLite(t *testing.T) { check.TestingT(t) }
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
+
+func TestMemory(t *testing.T) { check.TestingT(t) }
 
 type MemorySuite struct {
 	bk    *Memory
@@ -37,15 +45,16 @@ type MemorySuite struct {
 var _ = check.Suite(&MemorySuite{})
 
 func (s *MemorySuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
+	clock := clockwork.NewFakeClock()
 	newBackend := func() (backend.Backend, error) {
-		mem, err := New(Config{})
+		mem, err := New(Config{Clock: clock})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return mem, nil
 	}
 	s.suite.NewBackend = newBackend
+	s.suite.Clock = clock
 }
 
 func (s *MemorySuite) SetUpTest(c *check.C) {
@@ -98,7 +107,7 @@ func (s *MemorySuite) TestPutRange(c *check.C) {
 }
 
 func (s *MemorySuite) TestLocking(c *check.C) {
-	s.suite.Locking(c)
+	s.suite.Locking(c, s.bk)
 }
 
 func (s *MemorySuite) TestConcurrentOperations(c *check.C) {

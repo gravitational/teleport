@@ -1,5 +1,5 @@
 /*
-Copyright 2017-2020 Gravitational, Inc.
+Copyright 2017-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -126,7 +126,13 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		AcceptedUsage: cfg.AcceptedUsage,
 		Limiter:       limiter,
 	}
-	authMiddleware.Wrap(NewAPIServer(&cfg.APIConfig))
+
+	apiServer, err := NewAPIServer(&cfg.APIConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authMiddleware.Wrap(apiServer)
 	// Wrap sets the next middleware in chain to the authMiddleware
 	limiter.WrapHandle(authMiddleware)
 	// force client auth if given
@@ -161,6 +167,12 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if cfg.PluginRegistry != nil {
+		if err := cfg.PluginRegistry.RegisterAuthServices(server.grpcServer); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return server, nil
@@ -204,9 +216,8 @@ func (t *TLSServer) Shutdown(ctx context.Context) error {
 func (t *TLSServer) Serve() error {
 	errC := make(chan error, 2)
 	go func() {
-		if err := t.mux.Serve(); err != nil {
-			t.log.WithError(err).Warningf("Mux serve failed.")
-		}
+		err := t.mux.Serve()
+		t.log.WithError(err).Warningf("Mux serve failed.")
 	}()
 	go func() {
 		errC <- t.httpServer.Serve(t.mux.HTTP())
@@ -338,7 +349,7 @@ func (a *Middleware) UnaryInterceptor(ctx context.Context, req interface{}, info
 	}
 	user, err := a.GetUser(tlsInfo.State)
 	if err != nil {
-		return nil, trail.FromGRPC(err)
+		return nil, trail.ToGRPC(err)
 	}
 	return handler(context.WithValue(ctx, ContextUser, user), req)
 }
@@ -468,6 +479,8 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 			Principals:       identity.Principals,
 			KubernetesGroups: identity.KubernetesGroups,
 			KubernetesUsers:  identity.KubernetesUsers,
+			DatabaseNames:    identity.DatabaseNames,
+			DatabaseUsers:    identity.DatabaseUsers,
 			RemoteRoles:      identity.Groups,
 			Identity:         *identity,
 		}, nil
@@ -525,6 +538,17 @@ func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// determine authenticated user based on the request parameters
 	requestWithContext := r.WithContext(context.WithValue(baseContext, ContextUser, user))
 	a.Handler.ServeHTTP(w, requestWithContext)
+}
+
+// WrapContextWithUser enriches the provided context with the identity information
+// extracted from the provided TLS connection.
+func (a *Middleware) WrapContextWithUser(ctx context.Context, conn *tls.Conn) (context.Context, error) {
+	user, err := a.GetUser(conn.ConnectionState())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	requestWithContext := context.WithValue(ctx, ContextUser, user)
+	return requestWithContext, nil
 }
 
 // ClientCertPool returns trusted x509 cerificate authority pool

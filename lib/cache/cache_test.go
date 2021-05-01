@@ -19,11 +19,13 @@ package cache
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -34,32 +36,33 @@ import (
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
+
+	"github.com/gravitational/trace"
 )
 
-type CacheSuite struct {
-	clock clockwork.Clock
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
 }
+
+type CacheSuite struct{}
 
 var _ = check.Suite(&CacheSuite{})
 
 // bootstrap check
 func TestState(t *testing.T) { check.TestingT(t) }
 
-func (s *CacheSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-	s.clock = clockwork.NewRealClock()
-}
-
 // testPack contains pack of
 // services used for test run
 type testPack struct {
 	dataDir      string
 	backend      *backend.Wrapper
-	clock        clockwork.Clock
 	eventsC      chan Event
 	cache        *Cache
 	cacheBackend backend.Backend
@@ -71,9 +74,11 @@ type testPack struct {
 
 	usersS         services.UsersService
 	accessS        services.Access
-	dynamicAccessS services.DynamicAccess
+	dynamicAccessS services.DynamicAccessCore
 	presenceS      services.Presence
 	appSessionS    services.AppSession
+	webSessionS    types.WebSessionInterface
+	webTokenS      types.WebTokenInterface
 }
 
 func (t *testPack) Close() {
@@ -101,17 +106,30 @@ func (s *CacheSuite) newPackForNode(c *check.C) *testPack {
 	return s.newPack(c, ForNode)
 }
 
-// newPackWithoutCache returns a new test pack without creating cache
+func (s *CacheSuite) newPack(c *check.C, setupConfig SetupConfigFn) *testPack {
+	pack, err := newPack(c.MkDir(), setupConfig)
+	c.Assert(err, check.IsNil)
+	return pack
+}
+
 func (s *CacheSuite) newPackWithoutCache(c *check.C, setupConfig SetupConfigFn) *testPack {
+	pack, err := newPackWithoutCache(c.MkDir(), setupConfig)
+	c.Assert(err, check.IsNil)
+	return pack
+}
+
+// newPackWithoutCache returns a new test pack without creating cache
+func newPackWithoutCache(dir string, ssetupConfig SetupConfigFn) (*testPack, error) {
 	p := &testPack{
-		dataDir: c.MkDir(),
-		clock:   s.clock,
+		dataDir: dir,
 	}
 	bk, err := lite.NewWithConfig(context.TODO(), lite.Config{
 		Path:             p.dataDir,
 		PollStreamPeriod: 200 * time.Millisecond,
 	})
-	c.Assert(err, check.IsNil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	p.backend = backend.NewWrapper(bk)
 
 	p.cacheBackend, err = memory.New(
@@ -119,7 +137,9 @@ func (s *CacheSuite) newPackWithoutCache(c *check.C, setupConfig SetupConfigFn) 
 			Context: context.TODO(),
 			Mirror:  true,
 		})
-	c.Assert(err, check.IsNil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	p.eventsC = make(chan Event, 100)
 
@@ -132,14 +152,19 @@ func (s *CacheSuite) newPackWithoutCache(c *check.C, setupConfig SetupConfigFn) 
 	p.accessS = local.NewAccessService(p.backend)
 	p.dynamicAccessS = local.NewDynamicAccessService(p.backend)
 	p.appSessionS = local.NewIdentityService(p.backend)
+	p.webSessionS = local.NewIdentityService(p.backend).WebSessions()
+	p.webTokenS = local.NewIdentityService(p.backend).WebTokens()
 
-	return p
+	return p, nil
 }
 
 // newPack returns a new test pack or fails the test on error
-func (s *CacheSuite) newPack(c *check.C, setupConfig func(c Config) Config) *testPack {
-	p := s.newPackWithoutCache(c, setupConfig)
-	var err error
+func newPack(dir string, setupConfig func(c Config) Config) (*testPack, error) {
+	p, err := newPackWithoutCache(dir, setupConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	p.cache, err = New(setupConfig(Config{
 		Context:       context.TODO(),
 		Backend:       p.cacheBackend,
@@ -152,18 +177,21 @@ func (s *CacheSuite) newPack(c *check.C, setupConfig func(c Config) Config) *tes
 		DynamicAccess: p.dynamicAccessS,
 		Presence:      p.presenceS,
 		AppSession:    p.appSessionS,
+		WebSession:    p.webSessionS,
+		WebToken:      p.webTokenS,
 		RetryPeriod:   200 * time.Millisecond,
 		EventsC:       p.eventsC,
 	}))
-	c.Assert(err, check.IsNil)
-	c.Assert(p.cache, check.NotNil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	select {
 	case <-p.eventsC:
 	case <-time.After(time.Second):
-		c.Fatalf("wait for the watcher to start")
+		return nil, trace.ConnectionProblem(nil, "wait for the watcher to start")
 	}
-	return p
+	return p, nil
 }
 
 // TestCA tests certificate authorities
@@ -217,6 +245,8 @@ func (s *CacheSuite) TestOnlyRecentInit(c *check.C) {
 		DynamicAccess: p.dynamicAccessS,
 		Presence:      p.presenceS,
 		AppSession:    p.appSessionS,
+		WebSession:    p.webSessionS,
+		WebToken:      p.webTokenS,
 		RetryPeriod:   200 * time.Millisecond,
 		EventsC:       p.eventsC,
 	}))
@@ -430,6 +460,8 @@ func (s *CacheSuite) TestCompletenessInit(c *check.C) {
 			DynamicAccess: p.dynamicAccessS,
 			Presence:      p.presenceS,
 			AppSession:    p.appSessionS,
+			WebSession:    p.webSessionS,
+			WebToken:      p.webTokenS,
 			RetryPeriod:   200 * time.Millisecond,
 			EventsC:       p.eventsC,
 			PreferRecent: PreferRecent{
@@ -484,6 +516,8 @@ func (s *CacheSuite) TestCompletenessReset(c *check.C) {
 		DynamicAccess: p.dynamicAccessS,
 		Presence:      p.presenceS,
 		AppSession:    p.appSessionS,
+		WebSession:    p.webSessionS,
+		WebToken:      p.webTokenS,
 		RetryPeriod:   200 * time.Millisecond,
 		EventsC:       p.eventsC,
 		PreferRecent: PreferRecent{
@@ -543,6 +577,8 @@ func (s *CacheSuite) TestTombstones(c *check.C) {
 		DynamicAccess: p.dynamicAccessS,
 		Presence:      p.presenceS,
 		AppSession:    p.appSessionS,
+		WebSession:    p.webSessionS,
+		WebToken:      p.webTokenS,
 		RetryPeriod:   200 * time.Millisecond,
 		EventsC:       p.eventsC,
 		PreferRecent: PreferRecent{
@@ -575,6 +611,8 @@ func (s *CacheSuite) TestTombstones(c *check.C) {
 		DynamicAccess: p.dynamicAccessS,
 		Presence:      p.presenceS,
 		AppSession:    p.appSessionS,
+		WebSession:    p.webSessionS,
+		WebToken:      p.webTokenS,
 		RetryPeriod:   200 * time.Millisecond,
 		EventsC:       p.eventsC,
 		PreferRecent: PreferRecent{
@@ -618,6 +656,8 @@ func (s *CacheSuite) preferRecent(c *check.C) {
 		DynamicAccess: p.dynamicAccessS,
 		Presence:      p.presenceS,
 		AppSession:    p.appSessionS,
+		WebSession:    p.webSessionS,
+		WebToken:      p.webTokenS,
 		RetryPeriod:   200 * time.Millisecond,
 		EventsC:       p.eventsC,
 		PreferRecent: PreferRecent{
@@ -731,6 +771,7 @@ func (s *CacheSuite) TestRecovery(c *check.C) {
 
 // TestTokens tests static and dynamic tokens
 func (s *CacheSuite) TestTokens(c *check.C) {
+	ctx := context.Background()
 	p := s.newPackForAuth(c)
 	defer p.Close()
 
@@ -764,7 +805,7 @@ func (s *CacheSuite) TestTokens(c *check.C) {
 	token, err := services.NewProvisionToken("token", teleport.Roles{teleport.RoleAuth, teleport.RoleNode}, expires)
 	c.Assert(err, check.IsNil)
 
-	err = p.provisionerS.UpsertToken(token)
+	err = p.provisionerS.UpsertToken(ctx, token)
 	c.Assert(err, check.IsNil)
 
 	select {
@@ -774,12 +815,12 @@ func (s *CacheSuite) TestTokens(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	tout, err := p.cache.GetToken(token.GetName())
+	tout, err := p.cache.GetToken(ctx, token.GetName())
 	c.Assert(err, check.IsNil)
 	token.SetResourceID(tout.GetResourceID())
 	fixtures.DeepCompare(c, token, tout)
 
-	err = p.provisionerS.DeleteToken(token.GetName())
+	err = p.provisionerS.DeleteToken(ctx, token.GetName())
 	c.Assert(err, check.IsNil)
 
 	select {
@@ -789,7 +830,7 @@ func (s *CacheSuite) TestTokens(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	_, err = p.cache.GetToken(token.GetName())
+	_, err = p.cache.GetToken(ctx, token.GetName())
 	fixtures.ExpectNotFound(c, err)
 }
 
@@ -987,7 +1028,7 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 	err = p.accessS.UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 
-	role, err = p.accessS.GetRole(role.GetName())
+	role, err = p.accessS.GetRole(ctx, role.GetName())
 	c.Assert(err, check.IsNil)
 
 	select {
@@ -997,7 +1038,7 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	out, err := p.cache.GetRole(role.GetName())
+	out, err := p.cache.GetRole(ctx, role.GetName())
 	c.Assert(err, check.IsNil)
 	role.SetResourceID(out.GetResourceID())
 	fixtures.DeepCompare(c, role, out)
@@ -1008,7 +1049,7 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 	err = p.accessS.UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 
-	role, err = p.accessS.GetRole(role.GetName())
+	role, err = p.accessS.GetRole(ctx, role.GetName())
 	c.Assert(err, check.IsNil)
 
 	select {
@@ -1018,7 +1059,7 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	out, err = p.cache.GetRole(role.GetName())
+	out, err = p.cache.GetRole(ctx, role.GetName())
 	c.Assert(err, check.IsNil)
 	role.SetResourceID(out.GetResourceID())
 	fixtures.DeepCompare(c, role, out)
@@ -1032,7 +1073,7 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	_, err = p.cache.GetRole(role.GetName())
+	_, err = p.cache.GetRole(ctx, role.GetName())
 	fixtures.ExpectNotFound(c, err)
 }
 
@@ -1107,11 +1148,11 @@ func (s *CacheSuite) TestTunnelConnections(c *check.C) {
 	defer p.Close()
 
 	clusterName := "example.com"
-	dt := time.Date(2015, 6, 5, 4, 3, 2, 1, time.UTC).UTC()
+	hb := time.Now().UTC()
 	conn, err := services.NewTunnelConnection("conn1", services.TunnelConnectionSpecV2{
 		ClusterName:   clusterName,
 		ProxyName:     "p1",
-		LastHeartbeat: dt,
+		LastHeartbeat: hb,
 	})
 	c.Assert(err, check.IsNil)
 	c.Assert(p.presenceS.UpsertTunnelConnection(conn), check.IsNil)
@@ -1136,8 +1177,8 @@ func (s *CacheSuite) TestTunnelConnections(c *check.C) {
 	fixtures.DeepCompare(c, conn, out[0])
 
 	// update conn's parameters
-	dt = time.Date(2015, 6, 5, 5, 3, 2, 1, time.UTC).UTC()
-	conn.SetLastHeartbeat(dt)
+	hb = hb.Add(time.Second)
+	conn.SetLastHeartbeat(hb)
 
 	err = p.presenceS.UpsertTunnelConnection(conn)
 	c.Assert(err, check.IsNil)
@@ -1177,14 +1218,16 @@ func (s *CacheSuite) TestTunnelConnections(c *check.C) {
 
 // TestNodes tests nodes cache
 func (s *CacheSuite) TestNodes(c *check.C) {
+	ctx := context.Background()
+
 	p := s.newPackForProxy(c)
 	defer p.Close()
 
 	server := suite.NewServer(services.KindNode, "srv1", "127.0.0.1:2022", defaults.Namespace)
-	_, err := p.presenceS.UpsertNode(server)
+	_, err := p.presenceS.UpsertNode(ctx, server)
 	c.Assert(err, check.IsNil)
 
-	out, err := p.presenceS.GetNodes(defaults.Namespace)
+	out, err := p.presenceS.GetNodes(ctx, defaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 	srv := out[0]
@@ -1196,7 +1239,7 @@ func (s *CacheSuite) TestNodes(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	out, err = p.cache.GetNodes(defaults.Namespace)
+	out, err = p.cache.GetNodes(ctx, defaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 
@@ -1207,10 +1250,10 @@ func (s *CacheSuite) TestNodes(c *check.C) {
 	srv.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
 	srv.SetAddr("127.0.0.2:2033")
 
-	lease, err := p.presenceS.UpsertNode(srv)
+	lease, err := p.presenceS.UpsertNode(ctx, srv)
 	c.Assert(err, check.IsNil)
 
-	out, err = p.presenceS.GetNodes(defaults.Namespace)
+	out, err = p.presenceS.GetNodes(ctx, defaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 	srv = out[0]
@@ -1222,7 +1265,7 @@ func (s *CacheSuite) TestNodes(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	out, err = p.cache.GetNodes(defaults.Namespace)
+	out, err = p.cache.GetNodes(ctx, defaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 
@@ -1242,7 +1285,7 @@ func (s *CacheSuite) TestNodes(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	out, err = p.cache.GetNodes(defaults.Namespace)
+	out, err = p.cache.GetNodes(ctx, defaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 
@@ -1250,7 +1293,7 @@ func (s *CacheSuite) TestNodes(c *check.C) {
 	srv.SetExpiry(lease.Expires)
 	fixtures.DeepCompare(c, srv, out[0])
 
-	err = p.presenceS.DeleteAllNodes(defaults.Namespace)
+	err = p.presenceS.DeleteAllNodes(ctx, defaults.Namespace)
 	c.Assert(err, check.IsNil)
 
 	select {
@@ -1259,7 +1302,7 @@ func (s *CacheSuite) TestNodes(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	out, err = p.cache.GetNodes(defaults.Namespace)
+	out, err = p.cache.GetNodes(ctx, defaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 0)
 }
@@ -1553,6 +1596,90 @@ func (s *CacheSuite) TestAppServers(c *check.C) {
 	out, err = p.cache.GetAppServers(context.Background(), defaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 0)
+}
+
+// TestDatabaseServers tests that CRUD operations on database servers are
+// replicated from the backend to the cache.
+func TestDatabaseServers(t *testing.T) {
+	p, err := newPack(t.TempDir(), ForProxy)
+	require.NoError(t, err)
+	defer p.Close()
+
+	ctx := context.Background()
+
+	// Upsert database server into backend.
+	server := types.NewDatabaseServerV3("foo", nil,
+		types.DatabaseServerSpecV3{
+			Protocol: defaults.ProtocolPostgres,
+			URI:      "localhost:5432",
+			Hostname: "localhost",
+			HostID:   uuid.New(),
+		})
+	_, err = p.presenceS.UpsertDatabaseServer(ctx, server)
+	require.NoError(t, err)
+
+	// Check that the database server is now in the backend.
+	out, err := p.presenceS.GetDatabaseServers(context.Background(), defaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.DatabaseServer{server}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Wait until the information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Make sure the cache has a single database server in it.
+	out, err = p.cache.GetDatabaseServers(context.Background(), defaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.DatabaseServer{server}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Update the server and upsert it into the backend again.
+	server.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
+	_, err = p.presenceS.UpsertDatabaseServer(context.Background(), server)
+	require.NoError(t, err)
+
+	// Check that the server is in the backend and only one exists (so an
+	// update occurred).
+	out, err = p.presenceS.GetDatabaseServers(context.Background(), defaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.DatabaseServer{server}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Check that information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Make sure the cache has a single database server in it.
+	out, err = p.cache.GetDatabaseServers(context.Background(), defaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.DatabaseServer{server}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Remove all database servers from the backend.
+	err = p.presenceS.DeleteAllDatabaseServers(context.Background(), defaults.Namespace)
+	require.NoError(t, err)
+
+	// Check that information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Check that the cache is now empty.
+	out, err = p.cache.GetDatabaseServers(context.Background(), defaults.Namespace)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(out))
 }
 
 type proxyEvents struct {

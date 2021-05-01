@@ -95,7 +95,11 @@ func (g *GoFakeS3) routeObject(bucket, object string, w http.ResponseWriter, r *
 func (g *GoFakeS3) routeBucket(bucket string, w http.ResponseWriter, r *http.Request) (err error) {
 	switch r.Method {
 	case "GET":
-		return g.listBucket(bucket, w, r)
+		if _, ok := r.URL.Query()["location"]; ok {
+			return g.getBucketLocation(bucket, w, r)
+		} else {
+			return g.listBucket(bucket, w, r)
+		}
 	case "PUT":
 		return g.createBucket(bucket, w, r)
 	case "DELETE":

@@ -24,19 +24,20 @@ import (
 
 	"cloud.google.com/go/firestore"
 	apiv1 "cloud.google.com/go/firestore/apiv1/admin"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 	"google.golang.org/api/option"
 	adminpb "google.golang.org/genproto/googleapis/firestore/admin/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
 
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/trace"
 )
 
 // Config structure represents Firestore configuration as appears in `storage` section of Teleport YAML
@@ -138,7 +139,7 @@ func newRecord(from backend.Item, clock clockwork.Clock) record {
 		Key:       from.Key,
 		Value:     from.Value,
 		Timestamp: clock.Now().UTC().Unix(),
-		ID:        clock.Now().UTC().UnixNano(),
+		ID:        id(clock.Now()),
 	}
 	if !from.Expires.IsZero() {
 		r.Expires = from.Expires.UTC().Unix()
@@ -168,12 +169,12 @@ func newRecordFromDoc(doc *firestore.DocumentSnapshot) (*record, error) {
 }
 
 // isExpired returns 'true' if the given object (record) has a TTL and it's due
-func (r *record) isExpired() bool {
+func (r *record) isExpired(now time.Time) bool {
 	if r.Expires == 0 {
 		return false
 	}
 	expiryDateUTC := time.Unix(r.Expires, 0).UTC()
-	return time.Now().UTC().After(expiryDateUTC)
+	return now.UTC().After(expiryDateUTC)
 }
 
 func (r *record) backendItem() backend.Item {
@@ -195,10 +196,12 @@ const (
 	defaultPurgeInterval = time.Minute
 	// keyDocProperty is used internally to query for records and matches the key in the record struct tag
 	keyDocProperty = "key"
-	// expiresDocProperty is used internally to query for records and matches the key in the record struct tag
+	// expiresDocProperty is used internally to query for records and matches the expiration timestamp in the record struct tag
 	expiresDocProperty = "expires"
-	// timestampDocProperty is used internally to query for records and matches the key in the record struct tag
+	// timestampDocProperty is used internally to query for records and matches the timestamp in the record struct tag
 	timestampDocProperty = "timestamp"
+	// idDocProperty references the record's internal ID
+	idDocProperty = "id"
 	// timeInBetweenIndexCreationStatusChecks
 	timeInBetweenIndexCreationStatusChecks = time.Second * 10
 )
@@ -305,7 +308,7 @@ func (b *Backend) Create(ctx context.Context, item backend.Item) (*backend.Lease
 	return b.newLease(item), nil
 }
 
-// Put puts value into backend (creates if it does not exists, updates it otherwise)
+// Put puts value into backend (creates if it does not exist, updates it otherwise)
 func (b *Backend) Put(ctx context.Context, item backend.Item) (*backend.Lease, error) {
 	r := newRecord(item, b.clock)
 	_, err := b.svc.Collection(b.CollectionName).Doc(b.keyToDocumentID(item.Key)).Set(ctx, r)
@@ -371,7 +374,7 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 			return nil, trace.Wrap(err)
 		}
 
-		if r.isExpired() {
+		if r.isExpired(b.clock.Now()) {
 			if _, err := docSnap.Ref.Delete(ctx); err != nil {
 				return nil, ConvertGRPCError(err)
 			}
@@ -419,7 +422,7 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if r.isExpired() {
+	if r.isExpired(b.clock.Now()) {
 		if _, err := docSnap.Ref.Delete(ctx); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -519,11 +522,15 @@ func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 		return trace.Wrap(err)
 	}
 
-	if r.isExpired() {
+	if r.isExpired(b.clock.Now()) {
 		return trace.NotFound("key %s has already expired, cannot extend lease", lease.Key)
 	}
 
-	updates := []firestore.Update{{Path: expiresDocProperty, Value: expires.UTC().Unix()}, {Path: timestampDocProperty, Value: b.clock.Now().UTC().Unix()}}
+	updates := []firestore.Update{
+		{Path: expiresDocProperty, Value: expires.UTC().Unix()},
+		{Path: timestampDocProperty, Value: b.clock.Now().UTC().Unix()},
+		{Path: idDocProperty, Value: id(b.clock.Now())},
+	}
 	_, err = docSnap.Ref.Update(ctx, updates)
 	if err != nil {
 		return ConvertGRPCError(err)
@@ -741,8 +748,8 @@ func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, tu
 		}
 		// operation can be nil if error code is codes.AlreadyExists.
 		if operation != nil {
-			meta := adminpb.IndexOperationMetadata{}
-			if err := proto.Unmarshal(operation.Metadata.Value, &meta); err != nil {
+			meta, err := operation.Metadata()
+			if err != nil {
 				return trace.Wrap(err)
 			}
 			tuplesToIndexNames[tuple] = meta.Index
@@ -774,4 +781,9 @@ func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, tu
 	}
 
 	return nil
+}
+
+// id returns a new record ID base on the specified timestamp
+func id(now time.Time) int64 {
+	return now.UTC().UnixNano()
 }

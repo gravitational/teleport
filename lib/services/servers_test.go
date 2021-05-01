@@ -23,7 +23,6 @@ import (
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
@@ -34,10 +33,6 @@ type ServerSuite struct {
 }
 
 var _ = check.Suite(&ServerSuite{})
-
-func (s *ServerSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 // TestServersCompare tests comparing two servers
 func (s *ServerSuite) TestServersCompare(c *check.C) {
@@ -51,7 +46,7 @@ func (s *ServerSuite) TestServersCompare(c *check.C) {
 		},
 		Spec: ServerSpecV2{
 			Addr:      "localhost:3022",
-			CmdLabels: map[string]CommandLabelV2{"a": CommandLabelV2{Period: Duration(time.Minute), Command: []string{"ls", "-l"}}},
+			CmdLabels: map[string]CommandLabelV2{"a": {Period: Duration(time.Minute), Command: []string{"ls", "-l"}}},
 			Version:   "4.0.0",
 		},
 	}
@@ -71,7 +66,7 @@ func (s *ServerSuite) TestServersCompare(c *check.C) {
 
 	// Command labels are different
 	node2 = *node
-	node2.Spec.CmdLabels = map[string]CommandLabelV2{"a": CommandLabelV2{Period: Duration(time.Minute), Command: []string{"ls", "-lR"}}}
+	node2.Spec.CmdLabels = map[string]CommandLabelV2{"a": {Period: Duration(time.Minute), Command: []string{"ls", "-lR"}}}
 	c.Assert(CompareServers(node, &node2), check.Equals, Different)
 
 	// Address has changed
@@ -142,7 +137,7 @@ func (s *ServerSuite) TestGuessProxyHostAndVersion(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
-func TestUnmarshalServerResourceKubernetes(t *testing.T) {
+func TestUnmarshalServerKubernetes(t *testing.T) {
 	// Regression test for
 	// https://github.com/gravitational/teleport/issues/4862
 	//
@@ -205,7 +200,7 @@ func TestUnmarshalServerResourceKubernetes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			got, err := UnmarshalServerResource([]byte(tt.in), KindKubeService, &MarshalConfig{})
+			got, err := UnmarshalServer([]byte(tt.in), KindKubeService)
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(got, tt.want))
 		})

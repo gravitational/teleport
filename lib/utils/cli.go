@@ -1,5 +1,5 @@
 /*
-Copyright 2016-2019 Gravitational, Inc.
+Copyright 2016-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,20 +17,27 @@ limitations under the License.
 package utils
 
 import (
+	"bytes"
 	"crypto/x509"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
+	stdlog "log"
 	"math"
 	"os"
 	"strconv"
 	"strings"
+	"testing"
+	"unicode"
 
 	"github.com/gravitational/teleport"
 
+	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 type LoggingPurpose int
@@ -38,14 +45,12 @@ type LoggingPurpose int
 const (
 	LoggingForDaemon LoggingPurpose = iota
 	LoggingForCLI
-	LoggingForTests
 )
 
 // InitLogger configures the global logger for a given purpose / verbosity level
 func InitLogger(purpose LoggingPurpose, level log.Level, verbose ...bool) {
-	log.StandardLogger().SetHooks(make(log.LevelHooks))
+	log.StandardLogger().ReplaceHooks(make(log.LevelHooks))
 	log.SetLevel(level)
-
 	switch purpose {
 	case LoggingForCLI:
 		// If debug logging was asked for on the CLI, then write logs to stderr.
@@ -65,31 +70,60 @@ func InitLogger(purpose LoggingPurpose, level log.Level, verbose ...bool) {
 			EnableColors:     trace.IsTerminal(os.Stderr),
 		})
 		log.SetOutput(os.Stderr)
-	case LoggingForTests:
-		log.SetFormatter(&trace.TextFormatter{
-			DisableTimestamp: true,
-			EnableColors:     true,
-		})
-		log.SetLevel(level)
-		log.SetOutput(os.Stderr)
-		if len(verbose) != 0 && verbose[0] {
-			return
-		}
-		val, _ := strconv.ParseBool(os.Getenv(teleport.VerboseLogsEnvVar))
-		if val {
-			return
-		}
-		val, _ = strconv.ParseBool(os.Getenv(teleport.DebugEnvVar))
-		if val {
-			return
-		}
-		log.SetLevel(log.WarnLevel)
-		log.SetOutput(ioutil.Discard)
 	}
 }
 
-func InitLoggerForTests(verbose ...bool) {
-	InitLogger(LoggingForTests, log.DebugLevel, verbose...)
+// InitLoggerForTests initializes the standard logger for tests.
+func InitLoggerForTests() {
+	// Parse flags to check testing.Verbose().
+	flag.Parse()
+
+	logger := log.StandardLogger()
+	logger.ReplaceHooks(make(log.LevelHooks))
+	logger.SetFormatter(&trace.TextFormatter{})
+	logger.SetLevel(log.DebugLevel)
+	logger.SetOutput(os.Stderr)
+	if testing.Verbose() {
+		return
+	}
+	logger.SetLevel(log.WarnLevel)
+	logger.SetOutput(ioutil.Discard)
+}
+
+// NewLoggerForTests creates a new logger for test environment
+func NewLoggerForTests() *log.Logger {
+	logger := log.New()
+	logger.ReplaceHooks(make(log.LevelHooks))
+	logger.SetFormatter(&trace.TextFormatter{})
+	logger.SetLevel(log.DebugLevel)
+	logger.SetOutput(os.Stderr)
+	return logger
+}
+
+// WrapLogger wraps an existing logger entry and returns
+// an value satisfying the Logger interface
+func WrapLogger(logger *log.Entry) Logger {
+	return &logWrapper{Entry: logger}
+}
+
+// NewLogger creates a new empty logger
+func NewLogger() *log.Logger {
+	logger := log.New()
+	logger.SetFormatter(&trace.TextFormatter{
+		DisableTimestamp: true,
+		EnableColors:     trace.IsTerminal(os.Stderr),
+	})
+	return logger
+}
+
+// Logger describes a logger value
+type Logger interface {
+	log.FieldLogger
+	// GetLevel specifies the level at which this logger
+	// value is logging
+	GetLevel() log.Level
+	// SetLevel sets the logger's level to the specified value
+	SetLevel(level log.Level)
 }
 
 // FatalError is for CLI front-ends: it detects gravitational/trace debugging
@@ -153,26 +187,52 @@ func UserMessageFromError(err error) string {
 		return trace.DebugReport(err)
 	}
 	if err != nil {
+		var buf bytes.Buffer
+		fmt.Fprint(&buf, Color(Red, "ERROR: "))
+
 		// If the error is a trace error, check if it has a user message embedded in
 		// it, if it does, print it, otherwise escape and print the original error.
 		if er, ok := err.(*trace.TraceErr); ok {
-			if er.Message != "" {
-				return fmt.Sprintf("error: %v", EscapeControl(er.Message))
+			for _, message := range er.Messages {
+				fmt.Fprintln(&buf, AllowNewlines(message))
+			}
+			fmt.Fprintln(&buf, AllowNewlines(trace.Unwrap(er).Error()))
+		} else {
+			strErr := err.Error()
+			// Error can be of type trace.proxyError where error message didn't get captured.
+			if strErr == "" {
+				fmt.Fprintln(&buf, "please check Teleport's log for more details")
+			} else {
+				fmt.Fprintln(&buf, AllowNewlines(err.Error()))
 			}
 		}
-		return fmt.Sprintf("error: %v", EscapeControl(err.Error()))
+
+		return buf.String()
 	}
 	return ""
 }
 
+const (
+	// Red is an escape code for red terminal color
+	Red = 31
+	// Yellow is an escape code for yellow terminal color
+	Yellow = 33
+	// Blue is an escape code for blue terminal color
+	Blue = 36
+	// Gray is an escape code for gray terminal color
+	Gray = 37
+)
+
+// Color formats the string in a terminal escape color
+func Color(color int, v interface{}) string {
+	return fmt.Sprintf("\x1b[%dm%v\x1b[0m", color, v)
+}
+
 // Consolef prints the same message to a 'ui console' (if defined) and also to
 // the logger with INFO priority
-func Consolef(w io.Writer, component string, msg string, params ...interface{}) {
-	entry := log.WithFields(log.Fields{
-		trace.Component: component,
-	})
+func Consolef(w io.Writer, log log.FieldLogger, component, msg string, params ...interface{}) {
 	msg = fmt.Sprintf(msg, params...)
-	entry.Info(msg)
+	log.Info(msg)
 	if w != nil {
 		component := strings.ToUpper(component)
 		// 13 is the length of "[KUBERNETES]", which is the longest component
@@ -196,6 +256,14 @@ func InitCLIParser(appName, appHelp string) (app *kingpin.Application) {
 	return app.UsageTemplate(defaultUsageTemplate)
 }
 
+// SplitIdentifiers splits list of identifiers by commas/spaces/newlines.  Helpful when
+// accepting lists of identifiers in CLI (role names, request IDs, etc).
+func SplitIdentifiers(s string) []string {
+	return strings.FieldsFunc(s, func(r rune) bool {
+		return r == ',' || unicode.IsSpace(r)
+	})
+}
+
 // EscapeControl escapes all ANSI escape sequences from string and returns a
 // string that is safe to print on the CLI. This is to ensure that malicious
 // servers can not hide output. For more details, see:
@@ -205,6 +273,62 @@ func EscapeControl(s string) string {
 		return fmt.Sprintf("%q", s)
 	}
 	return s
+}
+
+// AllowNewlines escapes all ANSI escape sequences except newlines from string and returns a
+// string that is safe to print on the CLI. This is to ensure that malicious
+// servers can not hide output. For more details, see:
+//   * https://sintonen.fi/advisories/scp-client-multiple-vulnerabilities.txt
+func AllowNewlines(s string) string {
+	if !strings.Contains(s, "\n") {
+		return EscapeControl(s)
+	}
+	parts := strings.Split(s, "\n")
+	for i, part := range parts {
+		parts[i] = EscapeControl(part)
+	}
+	return strings.Join(parts, "\n")
+}
+
+// NewStdlogger creates a new stdlib logger that uses the specified leveled logger
+// for output and the given component as a logging prefix.
+func NewStdlogger(logger LeveledOutputFunc, component string) *stdlog.Logger {
+	return stdlog.New(&stdlogAdapter{
+		log: logger,
+	}, component, stdlog.LstdFlags)
+}
+
+// Write writes the specified buffer p to the underlying leveled logger.
+// Implements io.Writer
+func (r *stdlogAdapter) Write(p []byte) (n int, err error) {
+	r.log(string(p))
+	return len(p), nil
+}
+
+// stdlogAdapter is an io.Writer that writes into an instance
+// of logrus.Logger
+type stdlogAdapter struct {
+	log LeveledOutputFunc
+}
+
+// LeveledOutputFunc describes a function that emits given
+// arguments at a specific level to an underlying logger
+type LeveledOutputFunc func(args ...interface{})
+
+// GetLevel returns the level of the underlying logger
+func (r *logWrapper) GetLevel() logrus.Level {
+	return r.Entry.Logger.GetLevel()
+}
+
+// SetLevel sets the logging level to the given value
+func (r *logWrapper) SetLevel(level logrus.Level) {
+	r.Entry.Logger.SetLevel(level)
+}
+
+// logWrapper wraps a log entry.
+// Implements Logger
+type logWrapper struct {
+	*logrus.Entry
 }
 
 // needsQuoting returns true if any non-printable characters are found.

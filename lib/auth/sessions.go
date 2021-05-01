@@ -21,11 +21,18 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/wrappers"
+
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 )
 
@@ -33,15 +40,20 @@ import (
 // backend with the identity of the caller used to generate the certificate.
 // The certificate is used for all access requests, which is where access
 // control is enforced.
-func (s *Server) CreateAppSession(ctx context.Context, req services.CreateAppSessionRequest, user services.User, checker services.AccessChecker) (services.WebSession, error) {
-	// Check that a matching parent web session exists in the backend.
-	parentSession, err := s.GetWebSession(req.Username, req.ParentSession)
-	if err != nil {
-		return nil, trace.Wrap(err)
+func (s *Server) CreateAppSession(ctx context.Context, req services.CreateAppSessionRequest, user services.User, identity tlsca.Identity, checker services.AccessChecker) (services.WebSession, error) {
+	if !modules.GetModules().Features().App {
+		return nil, trace.AccessDenied(
+			"this Teleport cluster doesn't support application access, please contact the cluster administrator")
 	}
 
-	// Don't let the TTL of the child certificate go longer than the parent.
-	ttl := checker.AdjustSessionTTL(parentSession.GetExpiryTime().Sub(s.clock.Now()))
+	// Don't let the app session go longer than the identity expiration,
+	// which matches the parent web session TTL as well.
+	//
+	// When using web-based app access, the browser will send a cookie with
+	// sessionID which will be used to fetch services.WebSession which
+	// contains a certificate whose life matches the life of the session
+	// that will be used to establish the connection.
+	ttl := checker.AdjustSessionTTL(identity.Expires.Sub(s.clock.Now()))
 
 	// Create certificate for this session.
 	privateKey, publicKey, err := s.GetNewKeyPairFromPool()
@@ -57,7 +69,7 @@ func (s *Server) CreateAppSession(ctx context.Context, req services.CreateAppSes
 		// used to log into servers but SSH certificate generation code requires a
 		// principal be in the certificate.
 		traits: wrappers.Traits(map[string][]string{
-			teleport.TraitLogins: []string{uuid.New()},
+			teleport.TraitLogins: {uuid.New()},
 		}),
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},
@@ -86,8 +98,55 @@ func (s *Server) CreateAppSession(ctx context.Context, req services.CreateAppSes
 		return nil, trace.Wrap(err)
 	}
 	log.Debugf("Generated application web session for %v with TTL %v.", req.Username, ttl)
-
+	UserLoginCount.Inc()
 	return session, nil
+}
+
+// WaitForAppSession will block until the requested application session shows up in the
+// cache or a timeout occurs.
+func WaitForAppSession(ctx context.Context, sessionID, user string, ap AccessPoint) error {
+	_, err := ap.GetAppSession(ctx, services.GetAppSessionRequest{SessionID: sessionID})
+	if err == nil {
+		return nil
+	}
+	logger := log.WithField("session", sessionID)
+	if !trace.IsNotFound(err) {
+		logger.WithError(err).Debug("Failed to query application session.")
+	}
+	// Establish a watch on application session.
+	watcher, err := ap.NewWatcher(ctx, services.Watch{
+		Name: teleport.ComponentAppProxy,
+		Kinds: []services.WatchKind{
+			{
+				Kind:    services.KindWebSession,
+				SubKind: services.KindAppSession,
+				Filter:  (&types.WebSessionFilter{User: user}).IntoMap(),
+			},
+		},
+		MetricComponent: teleport.ComponentAppProxy,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer watcher.Close()
+	matchEvent := func(event services.Event) (services.Resource, error) {
+		if event.Type == backend.OpPut &&
+			event.Resource.GetKind() == services.KindWebSession &&
+			event.Resource.GetSubKind() == services.KindAppSession &&
+			event.Resource.GetName() == sessionID {
+			return event.Resource, nil
+		}
+		return nil, trace.CompareFailed("no match")
+	}
+	_, err = local.WaitForEvent(ctx, watcher, local.EventMatcherFunc(matchEvent), clockwork.NewRealClock())
+	if err != nil {
+		logger.WithError(err).Warn("Failed to wait for application session.")
+		// See again if we maybe missed the event but the session was actually created.
+		if _, err := ap.GetAppSession(ctx, services.GetAppSessionRequest{SessionID: sessionID}); err == nil {
+			return nil
+		}
+	}
+	return trace.Wrap(err)
 }
 
 // generateAppToken generates an JWT token that will be passed along with every
@@ -107,7 +166,7 @@ func (s *Server) generateAppToken(username string, roles []string, uri string, e
 	}
 
 	// Extract the JWT signing key and sign the claims.
-	privateKey, err := ca.JWTSigner()
+	privateKey, err := services.GetJWTSigner(ca, s.clock)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -122,4 +181,47 @@ func (s *Server) generateAppToken(username string, roles []string, uri string, e
 	}
 
 	return token, nil
+}
+
+func (s *Server) createWebSession(ctx context.Context, req types.NewWebSessionRequest) (services.WebSession, error) {
+	// It's safe to extract the roles and traits directly from services.User
+	// because this occurs during the user creation process and services.User
+	// is not fetched from the backend.
+	session, err := s.NewWebSession(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = s.upsertWebSession(ctx, req.User, session)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return session, nil
+}
+
+func (s *Server) createSessionCert(user services.User, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster string) ([]byte, []byte, error) {
+	// It's safe to extract the roles and traits directly from services.User
+	// because this occurs during the user creation process and services.User
+	// is not fetched from the backend.
+	checker, err := services.FetchRoles(user.GetRoles(), s.Access, user.GetTraits())
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	certs, err := s.generateUserCert(certRequest{
+		user:              user,
+		ttl:               sessionTTL,
+		publicKey:         publicKey,
+		compatibility:     compatibility,
+		checker:           checker,
+		traits:            user.GetTraits(),
+		routeToCluster:    routeToCluster,
+		kubernetesCluster: kubernetesCluster,
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return certs.ssh, certs.tls, nil
 }

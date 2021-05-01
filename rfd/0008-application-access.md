@@ -1,6 +1,6 @@
 ---
-authors: Russell Jones (rjones@gravitational.com)
-state: draft
+authors: Russell Jones (rjones@goteleport.com)
+state: implemented
 ---
 
 # RFD 8 - Teleport Application Access
@@ -109,7 +109,7 @@ To explicitly log a session out, an authenticated session can issue a `GET /tele
 
 Internal applications and implementers are encouraged to support `DELETE /teleport-logout` in the form of a logout button within the internal application.
 
-The `GET /teleport-logout` endpoint is for internal applications that can not be modified. For example, you may go to `https://acme.example.com/teleport-logout` to log out of the ACME application.
+The `GET /teleport-logout` endpoint is for internal applications that can not be modified. For example, you may go to `https://grafana.proxy.example.com/teleport-logout` to log out of the ACME application.
 
 ### Audit Events
 
@@ -168,6 +168,27 @@ Below are examples of the three events.
 }
 ```
 
+### FQDN
+
+By default applications are available at `appName.localProxyAddress`. This is the address most users will access an application at. An example would be `grafana.proxy.example.com`.
+
+Here `localProxyAddress` is the `public_addr` field under `proxy_service` in file configuration or the name of the cluster if that field is not set.
+
+If the application should be available at a different address, administrators can use the `public_addr` field under `app_service` to override this address to a FQDN of their choosing.
+
+When accessing an application through Trusted Clusters, applications are only available at `appName.localProxyAddress`.
+
+In summary, if an application within the root cluster is being accessed.
+
+1. `appPublicAddr`
+2. `appName.rootProxyPublicAddr`
+3. `appName.rootClusterName`
+
+If an application is being accessed in a leaf cluster.
+
+1. `appName.rootProxyPublicAddr`
+2. `appName.rootClusterName`
+
 ## Configuration
 
 ### Server
@@ -197,7 +218,7 @@ The `proxy_service` section has been updated to support loading multiple certifi
 ```yaml
 proxy_service:
   # Tunnel public address defines the address the application service will
-  # attempt to connect to to establish the reverse tunnel. 
+  # attempt to connect to to establish the reverse tunnel.
   tunnel_public_addr: "proxy.example.com:3024"
 
   # List of certificates for the proxy to load.
@@ -235,7 +256,7 @@ app_service:
      # Rewriting rules that get applied to every request.
      rewrite:
         # List of hostnames which should cause the "Location" header
-        # sent on HTTP 30{1-8} responses to be rewritten with the public 
+        # sent on HTTP 30{1-8} responses to be rewritten with the public
         # address of this application. Useful for some applications which
         # redirect clients to their configured internal URL.
         redirect:
@@ -339,7 +360,7 @@ jenkins     a52723a4-e852-4467-b756-18c2978367b3 jenkins.proxy.example.com http:
 `tsh` has been updated to add the `apps` subcommand which is used to display a list of all running applications. Only applications the user has access to are shown.
 
 ```
-$ tsh apps ls 
+$ tsh apps ls
 Application Public Address           Labels
 ----------- ------------------------ ------
 dumper      dumper.proxy.example.com

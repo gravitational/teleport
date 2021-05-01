@@ -23,24 +23,83 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/sirupsen/logrus"
+
+	"gopkg.in/check.v1"
 )
 
 // FailureOnly returns a logger that only prints the logs to STDERR when the
 // test fails.
-func FailureOnly(t *testing.T) *logrus.Entry {
-	// Collect all the output in buf.
+func FailureOnly(t TestingInterface) utils.Logger {
+	// Collect all output into buf.
 	buf := utils.NewSyncBuffer()
-	log := logrus.New()
-	log.Out = buf
+	logger := utils.NewLoggerForTests()
+	logger.SetOutput(buf)
 
 	// Register a cleanup callback which prints buf iff t has failed.
 	t.Cleanup(func() {
-		if !t.Failed() {
-			return
+		if t.Failed() || testing.Verbose() {
+			fmt.Fprintln(os.Stderr, buf.String())
 		}
-		fmt.Fprintln(os.Stderr, buf.String())
 	})
 
-	return logrus.NewEntry(log)
+	return utils.WrapLogger(logger.WithField("test", t.Name()))
+}
+
+// NewCheckTestWrapper creates a new logging wrapper for the specified
+// *gocheck.C value.
+// Returned value has an exported Log attribute that represents
+// the logger for the underlying test.
+// It is caller's responsibility to release the wrapper by invoking
+// Close after the test has completed.
+func NewCheckTestWrapper(c *check.C) *TestWrapper {
+	w := &TestWrapper{
+		c: c,
+	}
+	w.Log = FailureOnly(w)
+	return w
+}
+
+// Cleanup registers the specified handler f to be run
+// after the test has completed
+func (r *TestWrapper) Cleanup(f func()) {
+	r.cleanups = append(r.cleanups, f)
+}
+
+// Failed returns true if the underlying test has failed
+func (r *TestWrapper) Failed() bool {
+	return r.c.Failed()
+}
+
+// Name returns the name of the underlying test
+func (r *TestWrapper) Name() string {
+	return r.c.TestName()
+}
+
+// Close invokes all registered cleanup handlers
+func (r *TestWrapper) Close() {
+	for _, f := range r.cleanups {
+		f()
+	}
+}
+
+// TestWrapper wraps an existing *gocheck.C value for a specific test.
+// Implements TestingInterface
+type TestWrapper struct {
+	// Log specifies the logger that can be used to emit
+	// test-specific messages
+	Log utils.Logger
+
+	c        *check.C
+	cleanups []func()
+}
+
+// TestingInterface abstracts a testing implementation.
+type TestingInterface interface {
+	// Cleanup registers the specified handler f to be run
+	// after the test has completed
+	Cleanup(func())
+	// Failed returns true of the underlying test has failed
+	Failed() bool
+	// Name returns the name of the underlying test
+	Name() string
 }

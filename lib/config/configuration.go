@@ -35,6 +35,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -110,21 +111,32 @@ type CommandLineFlags struct {
 
 	// AppPublicAddr is the public address of the application to proxy.
 	AppPublicAddr string
+
+	// DatabaseName is the name of the database to proxy.
+	DatabaseName string
+	// DatabaseProtocol is the type of the proxied database e.g. postgres or mysql.
+	DatabaseProtocol string
+	// DatabaseURI is the address to connect to the proxied database.
+	DatabaseURI string
+	// DatabaseCACertFile is the database CA cert path.
+	DatabaseCACertFile string
+	// DatabaseAWSRegion is an optional database cloud region e.g. when using AWS RDS.
+	DatabaseAWSRegion string
 }
 
-// readConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
+// ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
 // and overrides values in 'cfg' structure
 func ReadConfigFile(cliConfigPath string) (*FileConfig, error) {
 	configFilePath := defaults.ConfigFilePath
 	// --config tells us to use a specific conf. file:
 	if cliConfigPath != "" {
 		configFilePath = cliConfigPath
-		if !fileExists(configFilePath) {
-			return nil, trace.Errorf("file not found: %s", configFilePath)
+		if !utils.FileExists(configFilePath) {
+			return nil, trace.NotFound("file %s is not found", configFilePath)
 		}
 	}
 	// default config doesn't exist? quietly return:
-	if !fileExists(configFilePath) {
+	if !utils.FileExists(configFilePath) {
 		log.Info("not using a config file")
 		return nil, nil
 	}
@@ -184,6 +196,9 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.Apps.Disabled() {
 		cfg.Apps.Enabled = false
 	}
+	if fc.Databases.Disabled() {
+		cfg.Databases.Enabled = false
+	}
 	applyString(fc.NodeName, &cfg.Hostname)
 
 	// apply "advertise_ip" setting:
@@ -242,41 +257,19 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	// apply logger settings
-	switch fc.Logger.Output {
-	case "":
-		break // not set
-	case "stderr", "error", "2":
-		log.SetOutput(os.Stderr)
-	case "stdout", "out", "1":
-		log.SetOutput(os.Stdout)
-	case teleport.Syslog:
-		err := utils.SwitchLoggingtoSyslog()
-		if err != nil {
-			// this error will go to stderr
-			log.Errorf("Failed to switch logging to syslog: %v.", err)
-		}
-	default:
-		// assume it's a file path:
-		logFile, err := os.Create(fc.Logger.Output)
-		if err != nil {
-			return trace.Wrap(err, "failed to create the log file")
-		}
-		log.SetOutput(logFile)
+	logger := utils.NewLogger()
+	err = applyLogConfig(fc.Logger, logger)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	switch strings.ToLower(fc.Logger.Severity) {
-	case "":
-		break // not set
-	case "info":
-		log.SetLevel(log.InfoLevel)
-	case "err", "error":
-		log.SetLevel(log.ErrorLevel)
-	case teleport.DebugLevel:
-		log.SetLevel(log.DebugLevel)
-	case "warn", "warning":
-		log.SetLevel(log.WarnLevel)
-	default:
-		return trace.BadParameter("unsupported logger severity: '%v'", fc.Logger.Severity)
-	}
+	cfg.Log = logger
+
+	// Apply logging configuration for the global logger instance
+	// DELETE this when global logger instance is no longer in use.
+	//
+	// Logging configuration has already been validated above
+	_ = applyLogConfig(fc.Logger, log.StandardLogger())
+
 	// apply cache policy for node and proxy
 	cachePolicy, err := fc.CachePolicy.Parse()
 	if err != nil {
@@ -363,7 +356,61 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 	}
+	if fc.Databases.Enabled() {
+		if err := applyDatabasesConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 
+	return nil
+}
+
+func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
+	switch loggerConfig.Output {
+	case "":
+		break // not set
+	case "stderr", "error", "2":
+		logger.SetOutput(os.Stderr)
+	case "stdout", "out", "1":
+		logger.SetOutput(os.Stdout)
+	case teleport.Syslog:
+		err := utils.SwitchLoggerToSyslog(logger)
+		if err != nil {
+			// this error will go to stderr
+			log.Errorf("Failed to switch logging to syslog: %v.", err)
+		}
+	default:
+		// assume it's a file path:
+		logFile, err := os.Create(loggerConfig.Output)
+		if err != nil {
+			return trace.Wrap(err, "failed to create the log file")
+		}
+		logger.SetOutput(logFile)
+	}
+	switch strings.ToLower(loggerConfig.Severity) {
+	case "":
+		break // not set
+	case "info":
+		logger.SetLevel(log.InfoLevel)
+	case "err", "error":
+		logger.SetLevel(log.ErrorLevel)
+	case teleport.DebugLevel:
+		logger.SetLevel(log.DebugLevel)
+	case "warn", "warning":
+		logger.SetLevel(log.WarnLevel)
+	default:
+		return trace.BadParameter("unsupported logger severity: %q", loggerConfig.Severity)
+	}
+
+	formatter := &textFormatter{
+		LogFormat:    loggerConfig.Format,
+		EnableColors: trace.IsTerminal(os.Stderr),
+	}
+	err := formatter.CheckAndSetDefaults()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	logger.Formatter = formatter
 	return nil
 }
 
@@ -408,7 +455,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.ReverseTunnels = append(cfg.ReverseTunnels, tun)
 	}
 	if len(fc.Auth.PublicAddr) != 0 {
-		addrs, err := fc.Auth.PublicAddr.Addrs(defaults.AuthListenPort)
+		addrs, err := utils.AddrsFromStrings(fc.Auth.PublicAddr, defaults.AuthListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -513,6 +560,13 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.Proxy.ReverseTunnelListenAddr = *addr
 	}
+	if fc.Proxy.MySQLAddr != "" {
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.MySQLAddr, int(defaults.MySQLListenPort))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.MySQLAddr = *addr
+	}
 
 	// This is the legacy format. Continue to support it forever, but ideally
 	// users now use the list format below.
@@ -525,10 +579,10 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	for _, p := range fc.Proxy.KeyPairs {
 		// Check that the certificate exists on disk. This exists to provide the
 		// user a sensible error message.
-		if !fileExists(p.PrivateKey) {
+		if !utils.FileExists(p.PrivateKey) {
 			return trace.Errorf("https private key does not exist: %s", p.PrivateKey)
 		}
-		if !fileExists(p.Certificate) {
+		if !utils.FileExists(p.Certificate) {
 			return trace.Errorf("https cert does not exist: %s", p.Certificate)
 		}
 
@@ -564,7 +618,8 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	// apply kubernetes proxy config, by default kube proxy is disabled
-	legacyKube, newKube := fc.Proxy.Kube.Configured() && fc.Proxy.Kube.Enabled(), fc.Proxy.KubeAddr != ""
+	legacyKube := fc.Proxy.Kube.Configured() && fc.Proxy.Kube.Enabled()
+	newKube := fc.Proxy.KubeAddr != "" || len(fc.Proxy.KubePublicAddr) > 0
 	switch {
 	case legacyKube && !newKube:
 		cfg.Proxy.Kube.Enabled = true
@@ -579,7 +634,7 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 			cfg.Proxy.Kube.ListenAddr = *addr
 		}
 		if len(fc.Proxy.Kube.PublicAddr) != 0 {
-			addrs, err := fc.Proxy.Kube.PublicAddr.Addrs(defaults.KubeListenPort)
+			addrs, err := utils.AddrsFromStrings(fc.Proxy.Kube.PublicAddr, defaults.KubeListenPort)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -590,45 +645,88 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		// proxy_service.kube_listen_addr) is only relevant in the config file
 		// format. Under the hood, we use the same cfg.Proxy.Kube field to
 		// enable it.
+		if len(fc.Proxy.KubePublicAddr) > 0 && fc.Proxy.KubeAddr == "" {
+			return trace.BadParameter("kube_listen_addr must be set when kube_public_addr is set")
+		}
 		cfg.Proxy.Kube.Enabled = true
 		addr, err := utils.ParseHostPortAddr(fc.Proxy.KubeAddr, int(defaults.KubeListenPort))
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.Kube.ListenAddr = *addr
+
+		publicAddrs, err := utils.AddrsFromStrings(fc.Proxy.KubePublicAddr, defaults.KubeListenPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.Kube.PublicAddrs = publicAddrs
 	case legacyKube && newKube:
-		return trace.BadParameter("proxy_service should either set kube_listen_addr or kubernetes.enabled, not both; keep kubernetes.enabled if you don't enable kubernetes_service, or keep kube_listen_addr otherwise")
+		return trace.BadParameter("proxy_service should either set kube_listen_addr/kube_public_addr or kubernetes.enabled, not both; keep kubernetes.enabled if you don't enable kubernetes_service, or keep kube_listen_addr otherwise")
 	case !legacyKube && !newKube:
 		// Nothing enabled, this is just for completeness.
 	}
 	if len(fc.Proxy.PublicAddr) != 0 {
-		addrs, err := fc.Proxy.PublicAddr.Addrs(defaults.HTTPListenPort)
+		addrs, err := utils.AddrsFromStrings(fc.Proxy.PublicAddr, defaults.HTTPListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.PublicAddrs = addrs
 	}
 	if len(fc.Proxy.SSHPublicAddr) != 0 {
-		addrs, err := fc.Proxy.SSHPublicAddr.Addrs(defaults.SSHProxyListenPort)
+		addrs, err := utils.AddrsFromStrings(fc.Proxy.SSHPublicAddr, defaults.SSHProxyListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.SSHPublicAddrs = addrs
 	}
 	if len(fc.Proxy.TunnelPublicAddr) != 0 {
-		addrs, err := fc.Proxy.TunnelPublicAddr.Addrs(defaults.SSHProxyTunnelListenPort)
+		addrs, err := utils.AddrsFromStrings(fc.Proxy.TunnelPublicAddr, defaults.SSHProxyTunnelListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.TunnelPublicAddrs = addrs
 	}
+	if len(fc.Proxy.PostgresPublicAddr) != 0 {
+		// Postgres proxy is multiplexed on the web proxy port. If the port is
+		// not specified here explicitly, prefer defaults in the following
+		// order, depending on what's set:
+		//   1. Web proxy public port
+		//   2. Web proxy listen port
+		//   3. Web proxy default listen port
+		defaultPort := cfg.Proxy.WebAddr.Port(defaults.HTTPListenPort)
+		if len(cfg.Proxy.PublicAddrs) != 0 {
+			defaultPort = cfg.Proxy.PublicAddrs[0].Port(defaults.HTTPListenPort)
+		}
+		addrs, err := utils.AddrsFromStrings(fc.Proxy.PostgresPublicAddr, defaultPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.PostgresPublicAddrs = addrs
+	}
+	if len(fc.Proxy.MySQLPublicAddr) != 0 {
+		if fc.Proxy.MySQLAddr == "" {
+			return trace.BadParameter("mysql_listen_addr must be set when mysql_public_addr is set")
+		}
+		// MySQL proxy is listening on a separate port.
+		addrs, err := utils.AddrsFromStrings(fc.Proxy.MySQLPublicAddr, defaults.MySQLListenPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.MySQLPublicAddrs = addrs
+	}
+
+	acme, err := fc.Proxy.ACME.Parse()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cfg.Proxy.ACME = *acme
 
 	return nil
 
 }
 
 // applySSHConfig applies file configuration for the "ssh_service" section.
-func applySSHConfig(fc *FileConfig, cfg *service.Config) error {
+func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	if fc.SSH.ListenAddress != "" {
 		addr, err := utils.ParseHostPortAddr(fc.SSH.ListenAddress, int(defaults.SSHServerListenPort))
 		if err != nil {
@@ -667,7 +765,7 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) error {
 			if !pam.BuildHasPAM() {
 				errorMessage := "Unable to start Teleport: PAM was enabled in file configuration but this \n" +
 					"Teleport binary was built without PAM support. To continue either download a \n" +
-					"Teleport binary build with PAM support from https://gravitational.com/teleport \n" +
+					"Teleport binary build with PAM support from https://goteleport.com/teleport \n" +
 					"or disable PAM in file configuration."
 				return trace.BadParameter(errorMessage)
 			}
@@ -680,7 +778,7 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 	if len(fc.SSH.PublicAddr) != 0 {
-		addrs, err := fc.SSH.PublicAddr.Addrs(defaults.SSHServerListenPort)
+		addrs, err := utils.AddrsFromStrings(fc.SSH.PublicAddr, defaults.SSHServerListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -688,6 +786,13 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	if fc.SSH.BPF != nil {
 		cfg.SSH.BPF = fc.SSH.BPF.Parse()
+	}
+
+	if proxyAddr := os.Getenv(defaults.TunnelPublicAddrEnvar); proxyAddr != "" {
+		cfg.SSH.ProxyReverseTunnelFallbackAddr, err = utils.ParseHostPortAddr(proxyAddr, defaults.SSHProxyTunnelListenPort)
+		if err != nil {
+			return trace.Wrap(err, "invalid reverse tunnel address format %q", proxyAddr)
+		}
 	}
 
 	return nil
@@ -703,7 +808,7 @@ func applyKubeConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Kube.ListenAddr = addr
 	}
 	if len(fc.Kube.PublicAddr) != 0 {
-		addrs, err := fc.Kube.PublicAddr.Addrs(defaults.KubeListenPort)
+		addrs, err := utils.AddrsFromStrings(fc.Kube.PublicAddr, defaults.KubeListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -741,6 +846,59 @@ func applyKubeConfig(fc *FileConfig, cfg *service.Config) error {
 	return nil
 }
 
+// applyDatabasesConfig applies file configuration for the "db_service" section.
+func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
+	cfg.Databases.Enabled = true
+	for _, database := range fc.Databases.Databases {
+		staticLabels := make(map[string]string)
+		if database.StaticLabels != nil {
+			staticLabels = database.StaticLabels
+		}
+		dynamicLabels := make(services.CommandLabels)
+		if database.DynamicLabels != nil {
+			for _, v := range database.DynamicLabels {
+				dynamicLabels[v.Name] = &services.CommandLabelV2{
+					Period:  services.NewDuration(v.Period),
+					Command: v.Command,
+					Result:  "",
+				}
+			}
+		}
+		var caBytes []byte
+		var err error
+		if database.CACertFile != "" {
+			caBytes, err = ioutil.ReadFile(database.CACertFile)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		db := service.Database{
+			Name:          database.Name,
+			Description:   database.Description,
+			Protocol:      database.Protocol,
+			URI:           database.URI,
+			StaticLabels:  staticLabels,
+			DynamicLabels: dynamicLabels,
+			CACert:        caBytes,
+			AWS: service.DatabaseAWS{
+				Region: database.AWS.Region,
+				Redshift: service.DatabaseAWSRedshift{
+					ClusterID: database.AWS.Redshift.ClusterID,
+				},
+			},
+			GCP: service.DatabaseGCP{
+				ProjectID:  database.GCP.ProjectID,
+				InstanceID: database.GCP.InstanceID,
+			},
+		}
+		if err := db.Check(); err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Databases.Databases = append(cfg.Databases.Databases, db)
+	}
+	return nil
+}
+
 // applyAppsConfig applies file configuration for the "app_service" section.
 func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 	// Apps are enabled.
@@ -771,6 +929,7 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 		// Add the application to the list of proxied applications.
 		app := service.App{
 			Name:               application.Name,
+			Description:        application.Description,
 			URI:                application.URI,
 			PublicAddr:         application.PublicAddr,
 			StaticLabels:       staticLabels,
@@ -809,14 +968,14 @@ func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (services.CertAut
 	}
 
 	// create a new certificate authority
-	ca := services.NewCertAuthority(
-		services.UserCA,
-		clusterName,
-		nil,
-		[][]byte{ssh.MarshalAuthorizedKey(pubkey)},
-		nil,
-		services.CertAuthoritySpecV2_UNKNOWN,
-	)
+	ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:         services.UserCA,
+		ClusterName:  clusterName,
+		SigningKeys:  nil,
+		CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(pubkey)},
+		Roles:        nil,
+		SigningAlg:   services.CertAuthoritySpecV2_UNKNOWN,
+	})
 
 	// transform old allowed logins into roles
 	role := services.RoleForCertAuthority(ca)
@@ -850,13 +1009,17 @@ func parseKnownHosts(bytes []byte, allowedLogins []string) (services.CertAuthori
 	const prefix = "*."
 	domainName := strings.TrimPrefix(options[0], prefix)
 
-	v1 := &services.CertAuthorityV1{
-		AllowedLogins: utils.CopyStrings(allowedLogins),
-		DomainName:    domainName,
-		Type:          authType,
-		CheckingKeys:  [][]byte{ssh.MarshalAuthorizedKey(pubKey)},
-	}
-	ca, role := services.ConvertV1CertAuthority(v1)
+	ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:         authType,
+		ClusterName:  domainName,
+		CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(pubKey)},
+	})
+
+	// transform old allowed logins into roles
+	role := services.RoleForCertAuthority(ca)
+	role.SetLogins(services.Allow, utils.CopyStrings(allowedLogins))
+	ca.AddRole(role.GetName())
+
 	return ca, role, nil
 }
 
@@ -1007,6 +1170,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		// logger severity in file configuration.
 		if fileConf == nil {
 			log.SetLevel(log.DebugLevel)
+			cfg.Log.SetLevel(log.DebugLevel)
 		} else {
 			fileConf.Logger.Severity = teleport.DebugLevel
 		}
@@ -1042,6 +1206,37 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 		cfg.Apps.Apps = append(cfg.Apps.Apps, app)
+	}
+
+	// If database name was specified on the command line, add to configuration.
+	if clf.DatabaseName != "" {
+		cfg.Databases.Enabled = true
+		staticLabels, dynamicLabels, err := parseLabels(clf.Labels)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		var caBytes []byte
+		if clf.DatabaseCACertFile != "" {
+			caBytes, err = ioutil.ReadFile(clf.DatabaseCACertFile)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		db := service.Database{
+			Name:          clf.DatabaseName,
+			Protocol:      clf.DatabaseProtocol,
+			URI:           clf.DatabaseURI,
+			StaticLabels:  staticLabels,
+			DynamicLabels: dynamicLabels,
+			CACert:        caBytes,
+			AWS: service.DatabaseAWS{
+				Region: clf.DatabaseAWSRegion,
+			},
+		}
+		if err := db.Check(); err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Databases.Databases = append(cfg.Databases.Databases, db)
 	}
 
 	if err = ApplyFileConfig(fileConf, cfg); err != nil {
@@ -1117,6 +1312,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		cfg.Auth.Enabled = strings.Contains(clf.Roles, defaults.RoleAuthService)
 		cfg.Proxy.Enabled = strings.Contains(clf.Roles, defaults.RoleProxy)
 		cfg.Apps.Enabled = strings.Contains(clf.Roles, defaults.RoleApp)
+		cfg.Databases.Enabled = strings.Contains(clf.Roles, defaults.RoleDatabase)
 	}
 
 	// apply --auth-server flag:
@@ -1309,14 +1505,6 @@ func replaceHost(addr *utils.NetAddr, newHost string) {
 	addr.Addr = net.JoinHostPort(newHost, port)
 }
 
-func fileExists(fp string) bool {
-	_, err := os.Stat(fp)
-	if err != nil && os.IsNotExist(err) {
-		return false
-	}
-	return true
-}
-
 // validateRoles makes sure that value upassed to --roles flag is valid
 func validateRoles(roles string) error {
 	for _, role := range splitRoles(roles) {
@@ -1324,7 +1512,8 @@ func validateRoles(roles string) error {
 		case defaults.RoleAuthService,
 			defaults.RoleNode,
 			defaults.RoleProxy,
-			defaults.RoleApp:
+			defaults.RoleApp,
+			defaults.RoleDatabase:
 			break
 		default:
 			return trace.Errorf("unknown role: '%s'", role)

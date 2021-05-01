@@ -1,5 +1,5 @@
 /*
-Copyright 2017-2019 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,48 +18,11 @@ package services
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
-
-// StaticTokens define a list of static []ProvisionToken used to provision a
-// node. StaticTokens is a configuration resource, never create more than one instance
-// of it.
-type StaticTokens interface {
-	// Resource provides common resource properties.
-	Resource
-
-	// SetStaticTokens sets the list of static tokens used to provision nodes.
-	SetStaticTokens([]ProvisionToken)
-	// GetStaticTokens gets the list of static tokens used to provision nodes.
-	GetStaticTokens() []ProvisionToken
-
-	// CheckAndSetDefaults checks and set default values for missing fields.
-	CheckAndSetDefaults() error
-}
-
-// NewStaticTokens is a convenience wrapper to create a StaticTokens resource.
-func NewStaticTokens(spec StaticTokensSpecV2) (StaticTokens, error) {
-	st := StaticTokensV2{
-		Kind:    KindStaticTokens,
-		Version: V2,
-		Metadata: Metadata{
-			Name:      MetaNameStaticTokens,
-			Namespace: defaults.Namespace,
-		},
-		Spec: spec,
-	}
-	if err := st.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &st, nil
-}
 
 // DefaultStaticTokens is used to get the default static tokens (empty list)
 // when nothing is specified in file configuration.
@@ -77,119 +40,33 @@ func DefaultStaticTokens() StaticTokens {
 	}
 }
 
-// GetVersion returns resource version
-func (c *StaticTokensV2) GetVersion() string {
-	return c.Version
-}
-
-// GetKind returns resource kind
-func (c *StaticTokensV2) GetKind() string {
-	return c.Kind
-}
-
-// GetSubKind returns resource sub kind
-func (c *StaticTokensV2) GetSubKind() string {
-	return c.SubKind
-}
-
-// SetSubKind sets resource subkind
-func (c *StaticTokensV2) SetSubKind(sk string) {
-	c.SubKind = sk
-}
-
-// GetResourceID returns resource ID
-func (c *StaticTokensV2) GetResourceID() int64 {
-	return c.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (c *StaticTokensV2) SetResourceID(id int64) {
-	c.Metadata.ID = id
-}
-
-// GetName returns the name of the StaticTokens resource.
-func (c *StaticTokensV2) GetName() string {
-	return c.Metadata.Name
-}
-
-// SetName sets the name of the StaticTokens resource.
-func (c *StaticTokensV2) SetName(e string) {
-	c.Metadata.Name = e
-}
-
-// Expires returns object expiry setting
-func (c *StaticTokensV2) Expiry() time.Time {
-	return c.Metadata.Expiry()
-}
-
-// SetExpiry sets expiry time for the object
-func (c *StaticTokensV2) SetExpiry(expires time.Time) {
-	c.Metadata.SetExpiry(expires)
-}
-
-// SetTTL sets Expires header using realtime clock
-func (c *StaticTokensV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
-	c.Metadata.SetTTL(clock, ttl)
-}
-
-// GetMetadata returns object metadata
-func (c *StaticTokensV2) GetMetadata() Metadata {
-	return c.Metadata
-}
-
-// SetStaticTokens sets the list of static tokens used to provision nodes.
-func (c *StaticTokensV2) SetStaticTokens(s []ProvisionToken) {
-	c.Spec.StaticTokens = ProvisionTokensToV1(s)
-}
-
-// GetStaticTokens gets the list of static tokens used to provision nodes.
-func (c *StaticTokensV2) GetStaticTokens() []ProvisionToken {
-	return ProvisionTokensFromV1(c.Spec.StaticTokens)
-}
-
-// CheckAndSetDefaults checks validity of all parameters and sets defaults.
-func (c *StaticTokensV2) CheckAndSetDefaults() error {
-	// make sure we have defaults for all metadata fields
-	err := c.Metadata.CheckAndSetDefaults()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// String represents a human readable version of static provisioning tokens.
-func (c *StaticTokensV2) String() string {
-	return fmt.Sprintf("StaticTokens(%v)", c.Spec.StaticTokens)
-}
-
 // StaticTokensSpecSchemaTemplate is a template for StaticTokens schema.
 const StaticTokensSpecSchemaTemplate = `{
-  "type": "object",
-  "additionalProperties": false,
-  "properties": {
-	"static_tokens": {
-		"type": "array",
-		"items": {
-			"type": "object",
-			"additionalProperties": false,
-			"properties": {
-				"expires": {
-					"type": "string"
-				},
-				"roles": {
-					"type": "array",
-					"items": {
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"static_tokens": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"properties": {
+					"expires": {
+						"type": "string"
+					},
+					"roles": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"token": {
 						"type": "string"
 					}
-				},
-				"token": {
-					"type": "string"
 				}
 			}
-		}
-	}%v
-  }
+		}%v
+  	}
 }`
 
 // GetStaticTokensSchema returns the schema with optionally injected
@@ -204,41 +81,15 @@ func GetStaticTokensSchema(extensionSchema string) string {
 	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, staticTokensSchema, DefaultDefinitions)
 }
 
-// StaticTokensMarshaler implements marshal/unmarshal of StaticTokens implementations
-// mostly adds support for extended versions.
-type StaticTokensMarshaler interface {
-	Marshal(c StaticTokens, opts ...MarshalOption) ([]byte, error)
-	Unmarshal(bytes []byte, opts ...MarshalOption) (StaticTokens, error)
-}
-
-var staticTokensMarshaler StaticTokensMarshaler = &TeleportStaticTokensMarshaler{}
-
-// SetStaticTokensMarshaler sets the marshaler.
-func SetStaticTokensMarshaler(m StaticTokensMarshaler) {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	staticTokensMarshaler = m
-}
-
-// GetStaticTokensMarshaler gets the marshaler.
-func GetStaticTokensMarshaler() StaticTokensMarshaler {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	return staticTokensMarshaler
-}
-
-// TeleportStaticTokensMarshaler is used to marshal and unmarshal StaticTokens.
-type TeleportStaticTokensMarshaler struct{}
-
-// Unmarshal unmarshals StaticTokens from JSON.
-func (t *TeleportStaticTokensMarshaler) Unmarshal(bytes []byte, opts ...MarshalOption) (StaticTokens, error) {
+// UnmarshalStaticTokens unmarshals the StaticTokens resource from JSON.
+func UnmarshalStaticTokens(bytes []byte, opts ...MarshalOption) (StaticTokens, error) {
 	var staticTokens StaticTokensV2
 
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing resource data")
 	}
 
-	cfg, err := collectOptions(opts)
+	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -268,23 +119,27 @@ func (t *TeleportStaticTokensMarshaler) Unmarshal(bytes []byte, opts ...MarshalO
 	return &staticTokens, nil
 }
 
-// Marshal marshals StaticTokens to JSON.
-func (t *TeleportStaticTokensMarshaler) Marshal(c StaticTokens, opts ...MarshalOption) ([]byte, error) {
-	cfg, err := collectOptions(opts)
+// MarshalStaticTokens marshals the StaticTokens resource to JSON.
+func MarshalStaticTokens(staticToken StaticTokens, opts ...MarshalOption) ([]byte, error) {
+	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	switch resource := c.(type) {
+
+	switch staticToken := staticToken.(type) {
 	case *StaticTokensV2:
+		if version := staticToken.GetVersion(); version != V2 {
+			return nil, trace.BadParameter("mismatched static token version %v and type %T", version, staticToken)
+		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
-			copy := *resource
+			copy := *staticToken
 			copy.SetResourceID(0)
-			resource = &copy
+			staticToken = &copy
 		}
-		return utils.FastMarshal(resource)
+		return utils.FastMarshal(staticToken)
 	default:
-		return nil, trace.BadParameter("unrecognized resource version %T", c)
+		return nil, trace.BadParameter("unrecognized static token version %T", staticToken)
 	}
 }

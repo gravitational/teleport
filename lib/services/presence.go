@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,19 +18,9 @@ package services
 
 import (
 	"context"
-	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/defaults"
-
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/api/types"
 )
-
-// ProxyGetter is an service that gets proxies
-type ProxyGetter interface {
-	// GetProxies returns a list of registered proxies
-	GetProxies() ([]Server, error)
-}
 
 // Presence records and reports the presence of all components
 // of the cluster - Nodes, Proxies and SSH nodes
@@ -46,17 +36,17 @@ type Presence interface {
 
 	// GetNodes returns a list of registered servers. Schema validation can be
 	// skipped to improve performance.
-	GetNodes(namespace string, opts ...MarshalOption) ([]Server, error)
+	GetNodes(ctx context.Context, namespace string, opts ...MarshalOption) ([]Server, error)
 
 	// DeleteAllNodes deletes all nodes in a namespace.
-	DeleteAllNodes(namespace string) error
+	DeleteAllNodes(ctx context.Context, namespace string) error
 
 	// DeleteNode deletes node in a namespace
-	DeleteNode(namespace, name string) error
+	DeleteNode(ctx context.Context, namespace, name string) error
 
 	// UpsertNode registers node presence, permanently if TTL is 0 or for the
 	// specified duration with second resolution if it's >= 1 second.
-	UpsertNode(server Server) (*KeepAlive, error)
+	UpsertNode(ctx context.Context, server Server) (*KeepAlive, error)
 
 	// UpsertNodes bulk inserts nodes.
 	UpsertNodes(namespace string, servers []Server) error
@@ -128,10 +118,10 @@ type Presence interface {
 	UpsertTrustedCluster(ctx context.Context, tc TrustedCluster) (TrustedCluster, error)
 
 	// GetTrustedCluster returns a single TrustedCluster by name.
-	GetTrustedCluster(string) (TrustedCluster, error)
+	GetTrustedCluster(ctx context.Context, name string) (TrustedCluster, error)
 
 	// GetTrustedClusters returns all TrustedClusters in the backend.
-	GetTrustedClusters() ([]TrustedCluster, error)
+	GetTrustedClusters(ctx context.Context) ([]TrustedCluster, error)
 
 	// DeleteTrustedCluster removes a TrustedCluster from the backend by name.
 	DeleteTrustedCluster(ctx context.Context, name string) error
@@ -187,6 +177,15 @@ type Presence interface {
 	// DeleteAllAppServers removes all application servers.
 	DeleteAllAppServers(context.Context, string) error
 
+	// GetDatabaseServers returns all registered database proxy servers.
+	GetDatabaseServers(context.Context, string, ...MarshalOption) ([]types.DatabaseServer, error)
+	// UpsertDatabaseServer creates or updates a new database proxy server.
+	UpsertDatabaseServer(context.Context, types.DatabaseServer) (*KeepAlive, error)
+	// DeleteDatabaseServer removes the specified database proxy server.
+	DeleteDatabaseServer(context.Context, string, string, string) error
+	// DeleteAllDatabaseServers removes all database proxy servers.
+	DeleteAllDatabaseServers(context.Context, string) error
+
 	// KeepAliveServer updates TTL of the server resource in the backend.
 	KeepAliveServer(ctx context.Context, h KeepAlive) error
 
@@ -198,70 +197,4 @@ type Presence interface {
 
 	// DeleteAllKubeServices deletes all registered kubernetes services.
 	DeleteAllKubeServices(context.Context) error
-}
-
-// NewNamespace returns new namespace
-func NewNamespace(name string) Namespace {
-	return Namespace{
-		Kind:    KindNamespace,
-		Version: V2,
-		Metadata: Metadata{
-			Name: name,
-		},
-	}
-}
-
-// Site represents a cluster of teleport nodes who collectively trust the same
-// certificate authority (CA) and have a common name.
-//
-// The CA is represented by an auth server (or multiple auth servers, if running
-// in HA mode)
-type Site struct {
-	Name          string    `json:"name"`
-	LastConnected time.Time `json:"lastconnected"`
-	Status        string    `json:"status"`
-}
-
-// IsEmpty returns true if keepalive is empty,
-// used to indicate that keepalive is not supported
-func (s *KeepAlive) IsEmpty() bool {
-	return s.LeaseID == 0 && s.Name == ""
-}
-
-// GetType return the type of keep alive: either application or server.
-func (s *KeepAlive) GetType() string {
-	switch s.Type {
-	case KeepAlive_NODE:
-		return teleport.KeepAliveNode
-	case KeepAlive_APP:
-		return teleport.KeepAliveApp
-	default:
-		return teleport.KeepAliveNode
-	}
-}
-
-func (s *KeepAlive) CheckAndSetDefaults() error {
-	if s.IsEmpty() {
-		return trace.BadParameter("invalid keep alive, missing lease ID and resource name")
-	}
-	if s.Namespace == "" {
-		s.Namespace = defaults.Namespace
-	}
-	return nil
-}
-
-// KeepAliver keeps object alive
-type KeepAliver interface {
-	// KeepAlives allows to receive keep alives
-	KeepAlives() chan<- KeepAlive
-
-	// Done returns the channel signalling the closure
-	Done() <-chan struct{}
-
-	// Close closes the watcher and releases
-	// all associated resources
-	Close() error
-
-	// Error returns error associated with keep aliver if any
-	Error() error
 }

@@ -23,9 +23,9 @@ import (
 	"unicode"
 
 	"github.com/gravitational/trace"
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/ghodss/yaml"
-	jsoniter "github.com/json-iterator/go"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
@@ -71,7 +71,7 @@ func FastUnmarshal(data []byte, v interface{}) error {
 }
 
 // FastMarshal uses the json-iterator library for fast JSON marshalling.
-// Note, this function marshals floats with 6 digits precision.
+// Note, this function unmarshals floats with 6 digits precision.
 func FastMarshal(v interface{}) ([]byte, error) {
 	data, err := jsoniter.ConfigFastest.Marshal(v)
 	if err != nil {

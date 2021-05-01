@@ -1,6 +1,6 @@
 # Teleport Terraform AWS AMI Simple Example
 
-This is a simple Terraform example to get you started provisioning an all-in-one Teleport cluster (auth, node, proxy) on a single ec2 instance based on Gravitational's pre-built AMI.
+This is a simple Terraform example to get you started provisioning an all-in-one Teleport cluster (auth, node, proxy) on a single ec2 instance based on Teleport's pre-built AMI.
 
 Do not use this in production! This example should be used for demo, proof-of-concept, or learning purposes only.
 
@@ -24,7 +24,7 @@ This Terraform example will configure the following AWS resources:
 
 ### Build Requirements
 
-- terraform v0.12+ [install docs](https://learn.hashicorp.com/terraform/getting-started/install.html)
+- terraform v0.14+ [install docs](https://learn.hashicorp.com/terraform/getting-started/install.html)
 - awscli v1.14+ [install docs](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html)
 
 ### Usage
@@ -54,7 +54,11 @@ Update the included Makefile to define your configuration.
 
 1. Run `make apply`.
 2. SSH to your new instance. `ssh ec2-user@<cluster_domain>`.
-3. Run `tctl users add <username> ec2-user` (this will create a Teleport User and permit login as the local ec2-user)
+3. Create a user (this will create a Teleport User and permit login as the local ec2-user).
+   - OSS:
+   `tctl users add <username> ec2-user`
+   - Enterprise (requires a role):
+    `tctl users add --roles=admin <username> --logins=ec2-user`
 4. Click the registration link provided by the output. Set a password and configure your 2fa token.
 5. Success! You've configured a fully functional Teleport cluster.
 
@@ -77,12 +81,12 @@ TF_VAR_key_name ?="example"
 TF_VAR_license_path ?="/path/to/license"
 
 # AMI name contains the version of Teleport to install, and whether to use OSS or Enterprise version
-# These AMIs are published by Gravitational and shared as public whenever a new version of Teleport is released
+# These AMIs are published by Teleport and shared as public whenever a new version of Teleport is released
 # To list available AMIs:
 # OSS: aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-oss*'
 # Enterprise: aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-ent*'
 # FIPS 140-2 images are also available for Enterprise customers, look for '-fips' on the end of the AMI's name
-TF_VAR_ami_name ?="gravitational-teleport-ami-ent-4.4.5"
+TF_VAR_ami_name ?="gravitational-teleport-ami-ent-6.0.2"
 
 # Route 53 hosted zone to use, must be a root zone registered in AWS, e.g. example.com
 TF_VAR_route53_zone ?="example.com"

@@ -8,19 +8,21 @@ import (
 
 // WriteError sets up HTTP error response and writes it to writer w
 func WriteError(w http.ResponseWriter, err error) {
-	if IsAggregate(err) {
-		for i := 0; i < maxHops; i++ {
-			var aggErr Aggregate
-			var ok bool
-			if aggErr, ok = Unwrap(err).(Aggregate); !ok {
-				break
-			}
-			errors := aggErr.Errors()
-			if len(errors) == 0 {
-				break
-			}
-			err = errors[0]
+	if !IsAggregate(err) {
+		replyJSON(w, ErrorToCode(err), err)
+		return
+	}
+	for i := 0; i < maxHops; i++ {
+		var aggErr Aggregate
+		var ok bool
+		if aggErr, ok = Unwrap(err).(Aggregate); !ok {
+			break
 		}
+		errors := aggErr.Errors()
+		if len(errors) == 0 {
+			break
+		}
+		err = errors[0]
 	}
 	replyJSON(w, ErrorToCode(err), err)
 }
@@ -54,62 +56,49 @@ func ErrorToCode(err error) int {
 // ReadError converts http error to internal error type
 // based on HTTP response code and HTTP body contents
 // if status code does not indicate error, it will return nil
-func ReadError(statusCode int, re []byte) error {
-	var e error
-	switch statusCode {
-	case http.StatusNotFound:
-		e = &NotFoundError{Message: string(re)}
-	case http.StatusBadRequest:
-		e = &BadParameterError{Message: string(re)}
-	case http.StatusNotImplemented:
-		e = &NotImplementedError{Message: string(re)}
-	case http.StatusPreconditionFailed:
-		e = &CompareFailedError{Message: string(re)}
-	case http.StatusForbidden:
-		e = &AccessDeniedError{Message: string(re)}
-	case http.StatusConflict:
-		e = &AlreadyExistsError{Message: string(re)}
-	case http.StatusTooManyRequests:
-		e = &LimitExceededError{Message: string(re)}
-	case http.StatusGatewayTimeout:
-		e = &ConnectionProblemError{Message: string(re)}
-	default:
-		if statusCode < 200 || statusCode > 299 {
-			return Errorf(string(re))
-		}
+func ReadError(statusCode int, respBytes []byte) error {
+	if statusCode >= http.StatusOK && statusCode < http.StatusBadRequest {
 		return nil
 	}
-	return unmarshalError(e, re)
+	var err error
+	switch statusCode {
+	case http.StatusNotFound:
+		err = &NotFoundError{}
+	case http.StatusBadRequest:
+		err = &BadParameterError{}
+	case http.StatusNotImplemented:
+		err = &NotImplementedError{}
+	case http.StatusPreconditionFailed:
+		err = &CompareFailedError{}
+	case http.StatusForbidden:
+		err = &AccessDeniedError{}
+	case http.StatusConflict:
+		err = &AlreadyExistsError{}
+	case http.StatusTooManyRequests:
+		err = &LimitExceededError{}
+	case http.StatusGatewayTimeout:
+		err = &ConnectionProblemError{}
+	default:
+		err = &RawTrace{}
+	}
+	return wrapProxy(unmarshalError(err, respBytes))
 }
 
 func replyJSON(w http.ResponseWriter, code int, err error) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-
 	var out []byte
-	if IsDebug() {
-		// trace error can marshal itself,
-		// otherwise capture error message and marshal it explicitly
-		var obj interface{} = err
-		if _, ok := err.(*TraceErr); !ok {
-			obj = message{Message: err.Error()}
-		}
-		out, err = json.MarshalIndent(obj, "", "    ")
-		if err != nil {
-			out = []byte(fmt.Sprintf(`{"message": "internal marshal error: %v"}`, err))
-		}
-	} else {
-		innerError := err
-		if terr, ok := err.(Error); ok {
-			innerError = terr.OrigError()
-		}
-		out, err = json.Marshal(message{Message: innerError.Error()})
+	// wrap regular errors in order to achieve unification
+	// and provide structurally consistent responses
+	var obj interface{} = err
+	if _, ok := err.(*TraceErr); !ok {
+		obj = &TraceErr{Err: err}
+	}
+	out, err = json.MarshalIndent(obj, "", "    ")
+	if err != nil {
+		out = []byte(fmt.Sprintf(`{"error": {"message": "internal marshal error: %v"}}`, err))
 	}
 	w.Write(out)
-}
-
-type message struct {
-	Message string `json:"message"`
 }
 
 func unmarshalError(err error, responseBody []byte) error {
@@ -121,12 +110,17 @@ func unmarshalError(err error, responseBody []byte) error {
 		return err
 	}
 	if len(raw.Traces) != 0 && len(raw.Err) != 0 {
-		// try to capture traces, if there are any
 		err2 := json.Unmarshal(raw.Err, err)
 		if err2 != nil {
 			return err
 		}
-		return &TraceErr{Traces: raw.Traces, Err: err, Message: raw.Message}
+		return &TraceErr{
+			Traces:   raw.Traces,
+			Err:      err,
+			Message:  raw.Message,
+			Messages: raw.Messages,
+			Fields:   raw.Fields,
+		}
 	}
 	json.Unmarshal(responseBody, err)
 	return err

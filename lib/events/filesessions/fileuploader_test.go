@@ -27,15 +27,19 @@ import (
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
+
+	"github.com/gravitational/trace"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 // TestStreams tests various streaming upload scenarios
 func TestStreams(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
-
 	dir, err := ioutil.TempDir("", "teleport-streams")
 	require.Nil(t, err)
 	defer os.RemoveAll(dir)

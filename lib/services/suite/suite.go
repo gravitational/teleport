@@ -23,7 +23,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
-	"fmt"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -32,6 +31,9 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -44,20 +46,37 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
-	"github.com/tstranex/u2f"
 	"gopkg.in/check.v1"
 )
-
-var _ = fmt.Printf
 
 // NewTestCA returns new test authority with a test key as a public and
 // signing key
 func NewTestCA(caType services.CertAuthType, clusterName string, privateKeys ...[]byte) *services.CertAuthorityV2 {
+	return NewTestCAWithConfig(TestCAConfig{
+		Type:        caType,
+		ClusterName: clusterName,
+		PrivateKeys: privateKeys,
+		Clock:       clockwork.NewRealClock(),
+	})
+}
+
+// TestCAConfig defines the configuration for generating
+// a test certificate authority
+type TestCAConfig struct {
+	Type        services.CertAuthType
+	ClusterName string
+	PrivateKeys [][]byte
+	Clock       clockwork.Clock
+}
+
+// NewTestCAWithConfig generates a new certificate authority with the specified
+// configuration
+func NewTestCAWithConfig(config TestCAConfig) *services.CertAuthorityV2 {
 	// privateKeys is to specify another RSA private key
-	if len(privateKeys) == 0 {
-		privateKeys = [][]byte{fixtures.PEMBytes["rsa"]}
+	if len(config.PrivateKeys) == 0 {
+		config.PrivateKeys = [][]byte{fixtures.PEMBytes["rsa"]}
 	}
-	keyBytes := privateKeys[0]
+	keyBytes := config.PrivateKeys[0]
 	rsaKey, err := ssh.ParseRawPrivateKey(keyBytes)
 	if err != nil {
 		panic(err)
@@ -68,10 +87,15 @@ func NewTestCA(caType services.CertAuthType, clusterName string, privateKeys ...
 		panic(err)
 	}
 
-	key, cert, err := tlsca.GenerateSelfSignedCAWithPrivateKey(rsaKey.(*rsa.PrivateKey), pkix.Name{
-		CommonName:   clusterName,
-		Organization: []string{clusterName},
-	}, nil, defaults.CATTL)
+	key, cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+		PrivateKey: rsaKey.(*rsa.PrivateKey),
+		Entity: pkix.Name{
+			CommonName:   config.ClusterName,
+			Organization: []string{config.ClusterName},
+		},
+		TTL:   defaults.CATTL,
+		Clock: config.Clock,
+	})
 	if err != nil {
 		panic(err)
 	}
@@ -83,15 +107,15 @@ func NewTestCA(caType services.CertAuthType, clusterName string, privateKeys ...
 
 	return &services.CertAuthorityV2{
 		Kind:    services.KindCertAuthority,
-		SubKind: string(caType),
+		SubKind: string(config.Type),
 		Version: services.V2,
 		Metadata: services.Metadata{
-			Name:      clusterName,
+			Name:      config.ClusterName,
 			Namespace: defaults.Namespace,
 		},
 		Spec: services.CertAuthoritySpecV2{
-			Type:         caType,
-			ClusterName:  clusterName,
+			Type:         config.Type,
+			ClusterName:  config.ClusterName,
 			CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(signer.PublicKey())},
 			SigningKeys:  [][]byte{keyBytes},
 			TLSKeyPairs:  []services.TLSKeyPair{{Cert: cert, Key: key}},
@@ -141,7 +165,7 @@ func userSlicesEqual(c *check.C, a []services.User, b []services.User) {
 
 func usersEqual(c *check.C, a services.User, b services.User) {
 	comment := check.Commentf("a: %#v b: %#v", a, b)
-	c.Assert(a.Equals(b), check.Equals, true, comment)
+	c.Assert(services.UsersEquals(a, b), check.Equals, true, comment)
 }
 
 func newUser(name string, roles []string) services.User {
@@ -318,26 +342,26 @@ func NewServer(kind, name, addr, namespace string) *services.ServerV2 {
 }
 
 func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
-	ctx := context.TODO()
+	ctx := context.Background()
 	// SSH service.
-	out, err := s.PresenceS.GetNodes(defaults.Namespace)
+	out, err := s.PresenceS.GetNodes(ctx, defaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Equals, 0)
 
 	srv := NewServer(services.KindNode, "srv1", "127.0.0.1:2022", defaults.Namespace)
-	_, err = s.PresenceS.UpsertNode(srv)
+	_, err = s.PresenceS.UpsertNode(ctx, srv)
 	c.Assert(err, check.IsNil)
 
-	out, err = s.PresenceS.GetNodes(srv.Metadata.Namespace)
+	out, err = s.PresenceS.GetNodes(ctx, srv.Metadata.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 	srv.SetResourceID(out[0].GetResourceID())
 	fixtures.DeepCompare(c, out, []services.Server{srv})
 
-	err = s.PresenceS.DeleteNode(srv.Metadata.Namespace, srv.GetName())
+	err = s.PresenceS.DeleteNode(ctx, srv.Metadata.Namespace, srv.GetName())
 	c.Assert(err, check.IsNil)
 
-	out, err = s.PresenceS.GetNodes(srv.Metadata.Namespace)
+	out, err = s.PresenceS.GetNodes(ctx, srv.Metadata.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 0)
 
@@ -525,64 +549,71 @@ func (s *ServicesTestSuite) PasswordHashCRUD(c *check.C) {
 }
 
 func (s *ServicesTestSuite) WebSessionCRUD(c *check.C) {
-	_, err := s.WebS.GetWebSession("user1", "sid1")
+	req := types.GetWebSessionRequest{User: "user1", SessionID: "sid1"}
+	_, err := s.WebS.WebSessions().Get(context.TODO(), req)
 	c.Assert(trace.IsNotFound(err), check.Equals, true, check.Commentf("%#v", err))
 
-	dt := time.Date(2015, 6, 5, 4, 3, 2, 1, time.UTC).UTC()
-	ws := services.NewWebSession("sid1", services.KindWebSession, services.KindWebSession,
-		services.WebSessionSpecV2{
+	dt := s.Clock.Now().Add(1 * time.Minute)
+	ws := types.NewWebSession("sid1", services.KindWebSession, services.KindWebSession,
+		types.WebSessionSpecV2{
+			User:    "user1",
 			Pub:     []byte("pub123"),
 			Priv:    []byte("priv123"),
 			Expires: dt,
 		})
-	err = s.WebS.UpsertWebSession("user1", "sid1", ws)
+	err = s.WebS.WebSessions().Upsert(context.TODO(), ws)
 	c.Assert(err, check.IsNil)
 
-	out, err := s.WebS.GetWebSession("user1", "sid1")
+	out, err := s.WebS.WebSessions().Get(context.TODO(), req)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.DeepEquals, ws)
 
-	ws1 := services.NewWebSession("sid1", services.KindWebSession, services.KindWebSession,
-		services.WebSessionSpecV2{
+	ws1 := types.NewWebSession("sid1", services.KindWebSession, services.KindWebSession,
+		types.WebSessionSpecV2{
+			User:    "user1",
 			Pub:     []byte("pub321"),
 			Priv:    []byte("priv321"),
 			Expires: dt,
 		})
-	err = s.WebS.UpsertWebSession("user1", "sid1", ws1)
+	err = s.WebS.WebSessions().Upsert(context.TODO(), ws1)
 	c.Assert(err, check.IsNil)
 
-	out2, err := s.WebS.GetWebSession("user1", "sid1")
+	out2, err := s.WebS.WebSessions().Get(context.TODO(), req)
 	c.Assert(err, check.IsNil)
 	c.Assert(out2, check.DeepEquals, ws1)
 
-	c.Assert(s.WebS.DeleteWebSession("user1", "sid1"), check.IsNil)
+	c.Assert(s.WebS.WebSessions().Delete(context.TODO(), types.DeleteWebSessionRequest{
+		User:      req.User,
+		SessionID: req.SessionID,
+	}), check.IsNil)
 
-	_, err = s.WebS.GetWebSession("user1", "sid1")
+	_, err = s.WebS.WebSessions().Get(context.TODO(), req)
 	fixtures.ExpectNotFound(c, err)
 }
 
 func (s *ServicesTestSuite) TokenCRUD(c *check.C) {
-	_, err := s.ProvisioningS.GetToken("token")
+	ctx := context.Background()
+	_, err := s.ProvisioningS.GetToken(ctx, "token")
 	fixtures.ExpectNotFound(c, err)
 
 	t, err := services.NewProvisionToken("token", teleport.Roles{teleport.RoleAuth, teleport.RoleNode}, time.Time{})
 	c.Assert(err, check.IsNil)
 
-	c.Assert(s.ProvisioningS.UpsertToken(t), check.IsNil)
+	c.Assert(s.ProvisioningS.UpsertToken(ctx, t), check.IsNil)
 
-	token, err := s.ProvisioningS.GetToken("token")
+	token, err := s.ProvisioningS.GetToken(ctx, "token")
 	c.Assert(err, check.IsNil)
 	c.Assert(token.GetRoles().Include(teleport.RoleAuth), check.Equals, true)
 	c.Assert(token.GetRoles().Include(teleport.RoleNode), check.Equals, true)
 	c.Assert(token.GetRoles().Include(teleport.RoleProxy), check.Equals, false)
-	diff := time.Now().UTC().Add(defaults.ProvisioningTokenTTL).Second() - token.Expiry().Second()
+	diff := s.Clock.Now().UTC().Add(defaults.ProvisioningTokenTTL).Second() - token.Expiry().Second()
 	if diff > 1 {
 		c.Fatalf("expected diff to be within one second, got %v instead", diff)
 	}
 
-	c.Assert(s.ProvisioningS.DeleteToken("token"), check.IsNil)
+	c.Assert(s.ProvisioningS.DeleteToken(ctx, "token"), check.IsNil)
 
-	_, err = s.ProvisioningS.GetToken("token")
+	_, err = s.ProvisioningS.GetToken(ctx, "token")
 	fixtures.ExpectNotFound(c, err)
 
 	// check tokens backwards compatibility and marshal/unmarshal
@@ -611,26 +642,28 @@ func (s *ServicesTestSuite) TokenCRUD(c *check.C) {
 	// Test delete all tokens
 	t, err = services.NewProvisionToken("token1", teleport.Roles{teleport.RoleAuth, teleport.RoleNode}, time.Time{})
 	c.Assert(err, check.IsNil)
-	c.Assert(s.ProvisioningS.UpsertToken(t), check.IsNil)
+	c.Assert(s.ProvisioningS.UpsertToken(ctx, t), check.IsNil)
 
 	t, err = services.NewProvisionToken("token2", teleport.Roles{teleport.RoleAuth, teleport.RoleNode}, time.Time{})
 	c.Assert(err, check.IsNil)
-	c.Assert(s.ProvisioningS.UpsertToken(t), check.IsNil)
+	c.Assert(s.ProvisioningS.UpsertToken(ctx, t), check.IsNil)
 
-	tokens, err := s.ProvisioningS.GetTokens()
+	tokens, err := s.ProvisioningS.GetTokens(ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(tokens, check.HasLen, 2)
 
 	err = s.ProvisioningS.DeleteAllTokens()
 	c.Assert(err, check.IsNil)
 
-	tokens, err = s.ProvisioningS.GetTokens()
+	tokens, err = s.ProvisioningS.GetTokens(ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(tokens, check.HasLen, 0)
 }
 
 func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
-	out, err := s.Access.GetRoles()
+	ctx := context.Background()
+
+	out, err := s.Access.GetRoles(ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Equals, 0)
 
@@ -653,6 +686,7 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 				NodeLabels:       services.Labels{services.Wildcard: []string{services.Wildcard}},
 				AppLabels:        services.Labels{services.Wildcard: []string{services.Wildcard}},
 				KubernetesLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
+				DatabaseLabels:   services.Labels{services.Wildcard: []string{services.Wildcard}},
 				Namespaces:       []string{defaults.Namespace},
 				Rules: []services.Rule{
 					services.NewRule(services.KindRole, services.RO()),
@@ -663,10 +697,10 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 			},
 		},
 	}
-	ctx := context.Background()
+
 	err = s.Access.UpsertRole(ctx, &role)
 	c.Assert(err, check.IsNil)
-	rout, err := s.Access.GetRole(role.Metadata.Name)
+	rout, err := s.Access.GetRole(ctx, role.Metadata.Name)
 	c.Assert(err, check.IsNil)
 	role.SetResourceID(rout.GetResourceID())
 	fixtures.DeepCompare(c, rout, &role)
@@ -674,7 +708,7 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 	role.Spec.Allow.Logins = []string{"bob"}
 	err = s.Access.UpsertRole(ctx, &role)
 	c.Assert(err, check.IsNil)
-	rout, err = s.Access.GetRole(role.Metadata.Name)
+	rout, err = s.Access.GetRole(ctx, role.Metadata.Name)
 	c.Assert(err, check.IsNil)
 	role.SetResourceID(rout.GetResourceID())
 	c.Assert(rout, check.DeepEquals, &role)
@@ -682,7 +716,7 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 	err = s.Access.DeleteRole(ctx, role.Metadata.Name)
 	c.Assert(err, check.IsNil)
 
-	_, err = s.Access.GetRole(role.Metadata.Name)
+	_, err = s.Access.GetRole(ctx, role.Metadata.Name)
 	fixtures.ExpectNotFound(c, err)
 }
 
@@ -753,15 +787,38 @@ func (s *ServicesTestSuite) U2FCRUD(c *check.C) {
 		KeyHandle: []byte("gn49UWxiMRrReCfH6yJBrF2WS75T4nZbnlTk2s3WIYhzQCaH7QfCFtXZb3Qbv1zEhhLZJUgUB2pNMNe89clt4A=="),
 		PubKey:    *pubkey,
 	}
-	err = s.WebS.UpsertU2FRegistration(user1, &registration)
+	dev, err := u2f.NewDevice("u2f", &registration, s.Clock.Now())
+	c.Assert(err, check.IsNil)
+	ctx := context.Background()
+	err = s.WebS.UpsertMFADevice(ctx, user1, dev)
 	c.Assert(err, check.IsNil)
 
-	registrationOut, err := s.WebS.GetU2FRegistration(user1)
+	devs, err := s.WebS.GetMFADevices(ctx, user1)
+	c.Assert(err, check.IsNil)
+	c.Assert(devs, check.HasLen, 1)
+	// Raw registration output is not stored - it's not used for
+	// authentication.
+	registration.Raw = nil
+	registrationOut, err := u2f.DeviceToRegistration(devs[0].GetU2F())
 	c.Assert(err, check.IsNil)
 	c.Assert(&registration, check.DeepEquals, registrationOut)
+
+	// Attempt to upsert the same device name with a different ID.
+	dev.Id = uuid.New()
+	err = s.WebS.UpsertMFADevice(ctx, user1, dev)
+	c.Assert(trace.IsAlreadyExists(err), check.Equals, true)
+
+	// Attempt to upsert a new device with different name and ID.
+	dev.Metadata.Name = "u2f-2"
+	err = s.WebS.UpsertMFADevice(ctx, user1, dev)
+	c.Assert(err, check.IsNil)
+	devs, err = s.WebS.GetMFADevices(ctx, user1)
+	c.Assert(err, check.IsNil)
+	c.Assert(devs, check.HasLen, 2)
 }
 
 func (s *ServicesTestSuite) SAMLCRUD(c *check.C) {
+	ctx := context.Background()
 	connector := &services.SAMLConnectorV2{
 		Kind:    services.KindSAML,
 		Version: services.V2,
@@ -779,41 +836,41 @@ func (s *ServicesTestSuite) SAMLCRUD(c *check.C) {
 				{Name: "groups", Value: "admin", Roles: []string{"admin"}},
 			},
 			Cert: fixtures.SigningCertPEM,
-			SigningKeyPair: &services.SigningKeyPair{
+			SigningKeyPair: &services.AsymmetricKeyPair{
 				PrivateKey: fixtures.SigningKeyPEM,
 				Cert:       fixtures.SigningCertPEM,
 			},
 		},
 	}
-	err := connector.CheckAndSetDefaults()
+	err := services.ValidateSAMLConnector(connector)
 	c.Assert(err, check.IsNil)
-	err = s.WebS.UpsertSAMLConnector(connector)
+	err = s.WebS.UpsertSAMLConnector(ctx, connector)
 	c.Assert(err, check.IsNil)
-	out, err := s.WebS.GetSAMLConnector(connector.GetName(), true)
+	out, err := s.WebS.GetSAMLConnector(ctx, connector.GetName(), true)
 	c.Assert(err, check.IsNil)
 	fixtures.DeepCompare(c, out, connector)
 
-	connectors, err := s.WebS.GetSAMLConnectors(true)
+	connectors, err := s.WebS.GetSAMLConnectors(ctx, true)
 	c.Assert(err, check.IsNil)
 	fixtures.DeepCompare(c, []services.SAMLConnector{connector}, connectors)
 
-	out2, err := s.WebS.GetSAMLConnector(connector.GetName(), false)
+	out2, err := s.WebS.GetSAMLConnector(ctx, connector.GetName(), false)
 	c.Assert(err, check.IsNil)
 	connectorNoSecrets := *connector
 	connectorNoSecrets.Spec.SigningKeyPair.PrivateKey = ""
 	fixtures.DeepCompare(c, out2, &connectorNoSecrets)
 
-	connectorsNoSecrets, err := s.WebS.GetSAMLConnectors(false)
+	connectorsNoSecrets, err := s.WebS.GetSAMLConnectors(ctx, false)
 	c.Assert(err, check.IsNil)
 	fixtures.DeepCompare(c, []services.SAMLConnector{&connectorNoSecrets}, connectorsNoSecrets)
 
-	err = s.WebS.DeleteSAMLConnector(connector.GetName())
+	err = s.WebS.DeleteSAMLConnector(ctx, connector.GetName())
 	c.Assert(err, check.IsNil)
 
-	err = s.WebS.DeleteSAMLConnector(connector.GetName())
+	err = s.WebS.DeleteSAMLConnector(ctx, connector.GetName())
 	c.Assert(trace.IsNotFound(err), check.Equals, true, check.Commentf("expected not found, got %T", err))
 
-	_, err = s.WebS.GetSAMLConnector(connector.GetName(), true)
+	_, err = s.WebS.GetSAMLConnector(ctx, connector.GetName(), true)
 	c.Assert(trace.IsNotFound(err), check.Equals, true, check.Commentf("expected not found, got %T", err))
 }
 
@@ -823,7 +880,7 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Equals, 0)
 
-	dt := time.Date(2015, 6, 5, 4, 3, 2, 1, time.UTC).UTC()
+	dt := s.Clock.Now()
 	conn, err := services.NewTunnelConnection("conn1", services.TunnelConnectionSpecV2{
 		ClusterName:   clusterName,
 		ProxyName:     "p1",
@@ -886,6 +943,7 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(c *check.C) {
 }
 
 func (s *ServicesTestSuite) GithubConnectorCRUD(c *check.C) {
+	ctx := context.Background()
 	connector := &services.GithubConnectorV3{
 		Kind:    services.KindGithubConnector,
 		Version: services.V3,
@@ -910,33 +968,33 @@ func (s *ServicesTestSuite) GithubConnectorCRUD(c *check.C) {
 	}
 	err := connector.CheckAndSetDefaults()
 	c.Assert(err, check.IsNil)
-	err = s.WebS.UpsertGithubConnector(connector)
+	err = s.WebS.UpsertGithubConnector(ctx, connector)
 	c.Assert(err, check.IsNil)
-	out, err := s.WebS.GetGithubConnector(connector.GetName(), true)
+	out, err := s.WebS.GetGithubConnector(ctx, connector.GetName(), true)
 	c.Assert(err, check.IsNil)
 	fixtures.DeepCompare(c, out, connector)
 
-	connectors, err := s.WebS.GetGithubConnectors(true)
+	connectors, err := s.WebS.GetGithubConnectors(ctx, true)
 	c.Assert(err, check.IsNil)
 	fixtures.DeepCompare(c, []services.GithubConnector{connector}, connectors)
 
-	out2, err := s.WebS.GetGithubConnector(connector.GetName(), false)
+	out2, err := s.WebS.GetGithubConnector(ctx, connector.GetName(), false)
 	c.Assert(err, check.IsNil)
 	connectorNoSecrets := *connector
 	connectorNoSecrets.Spec.ClientSecret = ""
 	fixtures.DeepCompare(c, out2, &connectorNoSecrets)
 
-	connectorsNoSecrets, err := s.WebS.GetGithubConnectors(false)
+	connectorsNoSecrets, err := s.WebS.GetGithubConnectors(ctx, false)
 	c.Assert(err, check.IsNil)
 	fixtures.DeepCompare(c, []services.GithubConnector{&connectorNoSecrets}, connectorsNoSecrets)
 
-	err = s.WebS.DeleteGithubConnector(connector.GetName())
+	err = s.WebS.DeleteGithubConnector(ctx, connector.GetName())
 	c.Assert(err, check.IsNil)
 
-	err = s.WebS.DeleteGithubConnector(connector.GetName())
+	err = s.WebS.DeleteGithubConnector(ctx, connector.GetName())
 	c.Assert(trace.IsNotFound(err), check.Equals, true, check.Commentf("expected not found, got %T", err))
 
-	_, err = s.WebS.GetGithubConnector(connector.GetName(), true)
+	_, err = s.WebS.GetGithubConnector(ctx, connector.GetName(), true)
 	c.Assert(trace.IsNotFound(err), check.Equals, true, check.Commentf("expected not found, got %T", err))
 }
 
@@ -988,7 +1046,7 @@ func (s *ServicesTestSuite) RemoteClustersCRUD(c *check.C) {
 
 // AuthPreference tests authentication preference service
 func (s *ServicesTestSuite) AuthPreference(c *check.C) {
-	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+	ap, err := types.NewAuthPreferenceFromConfigFile(services.AuthPreferenceSpecV2{
 		Type:         "local",
 		SecondFactor: "otp",
 	})
@@ -1001,7 +1059,7 @@ func (s *ServicesTestSuite) AuthPreference(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	c.Assert(gotAP.GetType(), check.Equals, "local")
-	c.Assert(gotAP.GetSecondFactor(), check.Equals, "otp")
+	c.Assert(gotAP.GetSecondFactor(), check.Equals, constants.SecondFactorOTP)
 }
 
 func (s *ServicesTestSuite) StaticTokens(c *check.C) {
@@ -1381,12 +1439,12 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 					teleport.Roles{teleport.RoleAuth, teleport.RoleNode}, expires)
 				c.Assert(err, check.IsNil)
 
-				c.Assert(s.ProvisioningS.UpsertToken(t), check.IsNil)
+				c.Assert(s.ProvisioningS.UpsertToken(ctx, t), check.IsNil)
 
-				token, err := s.ProvisioningS.GetToken("token")
+				token, err := s.ProvisioningS.GetToken(ctx, "token")
 				c.Assert(err, check.IsNil)
 
-				c.Assert(s.ProvisioningS.DeleteToken("token"), check.IsNil)
+				c.Assert(s.ProvisioningS.DeleteToken(ctx, "token"), check.IsNil)
 				return token
 			},
 		},
@@ -1466,7 +1524,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				err = s.Access.UpsertRole(ctx, role)
 				c.Assert(err, check.IsNil)
 
-				out, err := s.Access.GetRole(role.GetName())
+				out, err := s.Access.GetRole(ctx, role.GetName())
 				c.Assert(err, check.IsNil)
 
 				err = s.Access.DeleteRole(ctx, role.GetName())
@@ -1500,13 +1558,13 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 			crud: func() services.Resource {
 				srv := NewServer(services.KindNode, "srv1", "127.0.0.1:2022", defaults.Namespace)
 
-				_, err := s.PresenceS.UpsertNode(srv)
+				_, err := s.PresenceS.UpsertNode(ctx, srv)
 				c.Assert(err, check.IsNil)
 
-				out, err := s.PresenceS.GetNodes(srv.Metadata.Namespace)
+				out, err := s.PresenceS.GetNodes(ctx, srv.Metadata.Namespace)
 				c.Assert(err, check.IsNil)
 
-				err = s.PresenceS.DeleteAllNodes(srv.Metadata.Namespace)
+				err = s.PresenceS.DeleteAllNodes(ctx, srv.Metadata.Namespace)
 				c.Assert(err, check.IsNil)
 
 				return out[0]

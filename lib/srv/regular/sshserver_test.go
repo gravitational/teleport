@@ -51,8 +51,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 
+	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
+	"github.com/sirupsen/logrus"
 	. "gopkg.in/check.v1"
 )
 
@@ -75,6 +77,7 @@ type SrvSuite struct {
 	nodeID      string
 	adminClient *auth.Client
 	testServer  *auth.TestAuthServer
+	clock       clockwork.FakeClock
 }
 
 // teleportTestUser is additional user used for tests
@@ -90,6 +93,7 @@ var _ = Suite(&SrvSuite{})
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise it will run tests as normal.
 func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
 	if len(os.Args) == 2 &&
 		(os.Args[1] == teleport.ExecSubCommand || os.Args[1] == teleport.ForwardSubCommand) {
 		srv.RunAndExit(os.Args[1])
@@ -100,10 +104,6 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func (s *SrvSuite) SetUpSuite(c *C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
-
 const hostID = "00000000-0000-0000-0000-000000000000"
 
 func (s *SrvSuite) SetUpTest(c *C) {
@@ -111,9 +111,12 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.user = u.Username
 
+	s.clock = clockwork.NewFakeClock()
+
 	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		ClusterName: "localhost",
 		Dir:         c.MkDir(),
+		Clock:       s.clock,
 	})
 	c.Assert(err, IsNil)
 	s.server, err = authServer.NewTestTLSServer()
@@ -183,6 +186,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 			},
 		),
 		SetBPF(&bpf.NOP{}),
+		SetClock(s.clock),
 	)
 	c.Assert(err, IsNil)
 	s.srv = srv
@@ -214,7 +218,6 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(agent.ForwardToAgent(client, keyring), IsNil)
 	s.clt = client
-
 }
 
 func (s *SrvSuite) TearDownTest(c *C) {
@@ -272,7 +275,7 @@ func (s *SrvSuite) TestAdvertiseAddr(c *C) {
 	var (
 		advIP      = utils.MustParseAddr("10.10.10.1")
 		advIPPort  = utils.MustParseAddr("10.10.10.1:1234")
-		advBadAddr = utils.MustParseAddr("localhost:badport")
+		advBadAddr = &utils.NetAddr{Addr: "localhost:badport", AddrNetwork: "tcp"}
 	)
 	// IP-only advertiseAddr should use the port from srvAddress.
 	s.srv.setAdvertiseAddr(advIP)
@@ -297,7 +300,7 @@ func (s *SrvSuite) TestAgentForwardPermission(c *C) {
 	ctx := context.Background()
 	// make sure the role does not allow agent forwarding
 	roleName := services.RoleNameForUser(s.user)
-	role, err := s.server.Auth().GetRole(roleName)
+	role, err := s.server.Auth().GetRole(ctx, roleName)
 	c.Assert(err, IsNil)
 	roleOptions := role.GetOptions()
 	roleOptions.ForwardAgent = services.NewBool(false)
@@ -327,7 +330,7 @@ func (s *SrvSuite) TestMaxSessions(c *C) {
 	ctx := context.Background()
 	// make sure the role does not allow agent forwarding
 	roleName := services.RoleNameForUser(s.user)
-	role, err := s.server.Auth().GetRole(roleName)
+	role, err := s.server.Auth().GetRole(ctx, roleName)
 	c.Assert(err, IsNil)
 	roleOptions := role.GetOptions()
 	roleOptions.MaxSessions = maxSessions
@@ -371,7 +374,7 @@ func (s *SrvSuite) TestOpenExecSessionSetsSession(c *C) {
 func (s *SrvSuite) TestAgentForward(c *C) {
 	ctx := context.Background()
 	roleName := services.RoleNameForUser(s.user)
-	role, err := s.server.Auth().GetRole(roleName)
+	role, err := s.server.Auth().GetRole(ctx, roleName)
 	c.Assert(err, IsNil)
 	roleOptions := role.GetOptions()
 	roleOptions.ForwardAgent = services.NewBool(true)
@@ -698,6 +701,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	proxySigner, err := sshutils.NewSigner(proxyKeys.Key, proxyKeys.Cert)
 	c.Assert(err, IsNil)
 
+	logger := logrus.WithField("test", "TestProxyReverseTunnel")
 	listener, reverseTunnelAddress := s.mustListen(c)
 	defer listener.Close()
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
@@ -714,6 +718,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		DataDir:                       c.MkDir(),
 		Component:                     teleport.ComponentProxy,
 		Emitter:                       s.proxyClient,
+		Log:                           logger,
 	})
 	c.Assert(err, IsNil)
 	c.Assert(reverseTunnelServer.Start(), IsNil)
@@ -733,6 +738,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
+		SetClock(s.clock),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
@@ -810,8 +816,8 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetEmitter(s.nodeClient),
+		SetClock(s.clock),
 	)
-	c.Assert(err, IsNil)
 	c.Assert(err, IsNil)
 	c.Assert(srv2.Start(), IsNil)
 	c.Assert(srv2.heartbeat.ForceSend(time.Second), IsNil)
@@ -864,6 +870,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 	log.Infof("[TEST START] TestProxyRoundRobin")
 
+	logger := logrus.WithField("test", "TestProxyRoundRobin")
 	listener, reverseTunnelAddress := s.mustListen(c)
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ClusterName:                   s.server.ClusterName(),
@@ -878,8 +885,10 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		DirectClusters:                []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
 		DataDir:                       c.MkDir(),
 		Emitter:                       s.proxyClient,
+		Log:                           logger,
 	})
 	c.Assert(err, IsNil)
+	logger.WithField("tun-addr", reverseTunnelAddress.String()).Info("Created reverse tunnel server.")
 
 	c.Assert(reverseTunnelServer.Start(), IsNil)
 
@@ -897,6 +906,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
+		SetClock(s.clock),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
@@ -916,6 +926,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		Client:      s.proxyClient,
 		AccessPoint: s.proxyClient,
 		EventsC:     eventsC,
+		Log:         logger,
 	})
 	c.Assert(err, IsNil)
 	rsAgent.Start()
@@ -929,6 +940,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		Client:      s.proxyClient,
 		AccessPoint: s.proxyClient,
 		EventsC:     eventsC,
+		Log:         logger,
 	})
 	c.Assert(err, IsNil)
 	rsAgent2.Start()
@@ -968,6 +980,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 // reverse tunnel
 func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 	listener, _ := s.mustListen(c)
+	logger := logrus.WithField("test", "TestProxyDirectAccess")
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ClientTLS:                     s.proxyClient.TLSConfig(),
 		ID:                            hostID,
@@ -981,6 +994,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 		DirectClusters:                []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
 		DataDir:                       c.MkDir(),
 		Emitter:                       s.proxyClient,
+		Log:                           logger,
 	})
 	c.Assert(err, IsNil)
 
@@ -998,6 +1012,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
+		SetClock(s.clock),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
@@ -1077,12 +1092,12 @@ func (s *SrvSuite) TestLimiter(c *C) {
 		limiter.Config{
 			MaxConnections: 2,
 			Rates: []limiter.Rate{
-				limiter.Rate{
+				{
 					Period:  10 * time.Second,
 					Average: 1,
 					Burst:   3,
 				},
-				limiter.Rate{
+				{
 					Period:  40 * time.Millisecond,
 					Average: 10,
 					Burst:   30,
@@ -1108,6 +1123,7 @@ func (s *SrvSuite) TestLimiter(c *C) {
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
+		SetClock(s.clock),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(srv.Start(), IsNil)

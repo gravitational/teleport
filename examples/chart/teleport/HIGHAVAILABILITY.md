@@ -52,7 +52,8 @@ A high availability deployment of Teleport will typically have at least 2 proxy 
   # High availability configuration with proxy and auth servers. No SSH configured service.
   proxyCount: 2
   authCount: 2
-  authServiceType: ClusterIP
+  authService:
+    type: ClusterIP
   auth_public_address: auth.example.com
 ```
 2. Set the connection for the proxies to connect to the auth service in the config section. The auth service is available at the Kubernetes service name and the public address setting.  So if you deploy an app named `myexample` then the auth service will be available in the Cluster at `myexampleauth` in addition to the public address.

@@ -19,26 +19,19 @@ package shell
 import (
 	"testing"
 
-	"gopkg.in/check.v1"
+	"github.com/stretchr/testify/require"
 )
 
-func Test(t *testing.T) { check.TestingT(t) }
-
-type ShellSuite struct {
-}
-
-var _ = check.Suite(&ShellSuite{})
-
-func (s *ShellSuite) TestGetShell(c *check.C) {
+func TestGetShell(t *testing.T) {
 	shell, err := GetLoginShell("root")
-	c.Assert(err, check.IsNil)
-	c.Assert(shell == "/bin/bash" || shell == "/bin/sh", check.Equals, true)
+	require.NoError(t, err)
+	require.True(t, shell == "/bin/bash" || shell == "/bin/sh")
 
 	shell, err = GetLoginShell("non-existent-user")
-	c.Assert(err, check.IsNil)
-	c.Assert(shell, check.Equals, DefaultShell)
+	require.NoError(t, err)
+	require.Equal(t, shell, DefaultShell)
 
 	shell, err = GetLoginShell("nobody")
-	c.Assert(err, check.IsNil)
-	c.Assert(shell, check.Matches, ".*(nologin|false)")
+	require.NoError(t, err)
+	require.Regexp(t, ".*(nologin|false)", shell)
 }

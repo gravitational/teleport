@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
 )
 
@@ -111,6 +112,10 @@ func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateResetPa
 		return nil, trace.Wrap(err)
 	}
 
+	if err := s.resetMFA(ctx, req.Name); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	token, err := s.newResetPasswordToken(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -133,7 +138,8 @@ func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateResetPa
 			Code: events.ResetPasswordTokenCreateCode,
 		},
 		UserMetadata: events.UserMetadata{
-			User: clientUsername(ctx),
+			User:         ClientUsername(ctx),
+			Impersonator: ClientImpersonator(ctx),
 		},
 		ResourceMetadata: events.ResourceMetadata{
 			Name:    req.Name,
@@ -145,6 +151,18 @@ func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateResetPa
 	}
 
 	return s.GetResetPasswordToken(ctx, token.GetName())
+}
+
+func (s *Server) resetMFA(ctx context.Context, user string) error {
+	devs, err := s.GetMFADevices(ctx, user)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	var errs []error
+	for _, d := range devs {
+		errs = append(errs, s.DeleteMFADevice(ctx, user, d.Id))
+	}
+	return trace.NewAggregate(errs...)
 }
 
 // proxyDomainGetter is a reduced subset of the Auth API for formatAccountName.
@@ -200,14 +218,18 @@ func (s *Server) RotateResetPasswordTokenSecrets(ctx context.Context, tokenID st
 		return nil, trace.Wrap(err)
 	}
 
-	// Fetch account name to display in OTP apps.
-	accountName, err := formatAccountName(s, token.GetUser(), s.AuthServiceName)
+	key, _, err := s.newTOTPKey(token.GetUser())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	key, qr, err := newTOTPKeys("Teleport", accountName)
+	// Create QR code.
+	var otpQRBuf bytes.Buffer
+	otpImage, err := key.Image(456, 456)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := png.Encode(&otpQRBuf, otpImage); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -215,15 +237,39 @@ func (s *Server) RotateResetPasswordTokenSecrets(ctx context.Context, tokenID st
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	secrets.Spec.OTPKey = key
-	secrets.Spec.QRCode = string(qr)
-	err = s.UpsertResetPasswordTokenSecrets(ctx, &secrets)
+	secrets.SetOTPKey(key.Secret())
+	secrets.SetQRCode(otpQRBuf.Bytes())
+	err = s.UpsertResetPasswordTokenSecrets(ctx, secrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &secrets, nil
+	return secrets, nil
+}
+
+func (s *Server) newTOTPKey(user string) (*otp.Key, *totp.GenerateOpts, error) {
+	// Fetch account name to display in OTP apps.
+	accountName, err := formatAccountName(s, user, s.AuthServiceName)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	clusterName, err := s.GetClusterName()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	opts := totp.GenerateOpts{
+		Issuer:      clusterName.GetClusterName(),
+		AccountName: accountName,
+		Period:      30, // seconds
+		Digits:      otp.DigitsSix,
+		Algorithm:   otp.AlgorithmSHA1,
+	}
+	key, err := totp.Generate(opts)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return key, &opts, nil
 }
 
 func (s *Server) newResetPasswordToken(req CreateResetPasswordTokenRequest) (services.ResetPasswordToken, error) {
@@ -256,11 +302,11 @@ func (s *Server) newResetPasswordToken(req CreateResetPasswordTokenRequest) (ser
 	}
 
 	token := services.NewResetPasswordToken(tokenID)
-	token.Metadata.SetExpiry(s.clock.Now().UTC().Add(req.TTL))
-	token.Spec.User = req.Name
-	token.Spec.Created = s.clock.Now().UTC()
-	token.Spec.URL = url
-	return &token, nil
+	token.SetExpiry(s.clock.Now().UTC().Add(req.TTL))
+	token.SetUser(req.Name)
+	token.SetCreated(s.clock.Now().UTC())
+	token.SetURL(url)
+	return token, nil
 }
 
 func formatResetPasswordTokenURL(proxyHost string, tokenID string, reqType string) (string, error) {
@@ -297,27 +343,4 @@ func (s *Server) deleteResetPasswordTokens(ctx context.Context, username string)
 	}
 
 	return nil
-}
-
-func newTOTPKeys(issuer string, accountName string) (key string, qr []byte, err error) {
-	// create totp key
-	otpKey, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      issuer,
-		AccountName: accountName,
-	})
-	if err != nil {
-		return "", nil, trace.Wrap(err)
-	}
-
-	// create QR code
-	var otpQRBuf bytes.Buffer
-	otpImage, err := otpKey.Image(456, 456)
-	if err != nil {
-		return "", nil, trace.Wrap(err)
-	}
-	if err := png.Encode(&otpQRBuf, otpImage); err != nil {
-		return "", nil, trace.Wrap(err)
-	}
-
-	return otpKey.Secret(), otpQRBuf.Bytes(), nil
 }

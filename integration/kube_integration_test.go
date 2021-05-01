@@ -31,7 +31,6 @@ import (
 	"os/user"
 	"strconv"
 	"strings"
-	"testing"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -46,8 +45,8 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/testlog"
 
-	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/check.v1"
 	v1 "k8s.io/api/core/v1"
@@ -60,6 +59,8 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport"
 	"k8s.io/client-go/transport/spdy"
+
+	"github.com/gravitational/trace"
 )
 
 var _ = check.Suite(&KubeSuite{})
@@ -67,8 +68,7 @@ var _ = check.Suite(&KubeSuite{})
 type KubeSuite struct {
 	*kubernetes.Clientset
 
-	ports utils.PortList
-	me    *user.User
+	me *user.User
 	// priv/pub pair to avoid re-generating it
 	priv []byte
 	pub  []byte
@@ -78,32 +78,13 @@ type KubeSuite struct {
 
 	// kubeConfig is a kubernetes config struct
 	kubeConfig *rest.Config
+
+	// log defines the test-specific logger
+	log utils.Logger
+	w   *testlog.TestWrapper
 }
 
 func (s *KubeSuite) SetUpSuite(c *check.C) {
-	kubeproxy.TestOnlySkipSelfPermissionCheck(true)
-
-	var err error
-	utils.InitLoggerForTests(testing.Verbose())
-	SetTestTimeouts(time.Millisecond * time.Duration(100))
-
-	s.priv, s.pub, err = testauthority.New().GenerateKeyPair("")
-	c.Assert(err, check.IsNil)
-
-	s.ports, err = utils.GetFreeTCPPorts(AllocatePortsNum, utils.PortStartingNumber+AllocatePortsNum+1)
-	if err != nil {
-		c.Fatal(err)
-	}
-	s.me, err = user.Current()
-	c.Assert(err, check.IsNil)
-
-	// close & re-open stdin because 'go test' runs with os.stdin connected to /dev/null
-	stdin, err := os.Open("/dev/tty")
-	if err != nil {
-		os.Stdin.Close()
-		os.Stdin = stdin
-	}
-
 	testEnabled := os.Getenv(teleport.KubeRunTests)
 	if ok, _ := strconv.ParseBool(testEnabled); !ok {
 		c.Skip("Skipping Kubernetes test suite.")
@@ -111,8 +92,27 @@ func (s *KubeSuite) SetUpSuite(c *check.C) {
 
 	s.kubeConfigPath = os.Getenv(teleport.EnvKubeConfig)
 	if s.kubeConfigPath == "" {
-		c.Fatal("This test requires path to valid kubeconfig")
+		c.Fatal("This test requires path to valid kubeconfig.")
 	}
+
+	kubeproxy.TestOnlySkipSelfPermissionCheck(true)
+
+	var err error
+	SetTestTimeouts(time.Millisecond * time.Duration(100))
+
+	s.priv, s.pub, err = testauthority.New().GenerateKeyPair("")
+	c.Assert(err, check.IsNil)
+
+	s.me, err = user.Current()
+	c.Assert(err, check.IsNil)
+
+	// close & re-open stdin because 'go test' runs with os.stdin connected to /dev/null
+	stdin, err := os.Open("/dev/tty")
+	if err == nil {
+		os.Stdin.Close()
+		os.Stdin = stdin
+	}
+
 	s.Clientset, s.kubeConfig, err = kubeutils.GetKubeClient(s.kubeConfigPath)
 	c.Assert(err, check.IsNil)
 
@@ -148,17 +148,34 @@ func (s *KubeSuite) TearDownSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
+// setUpTest configures the specific test identified with the given c.
+// Note, that this c is different from the one passed into SetUpTest/TearDownTest
+// and reflects the actual test's state - e.g. c.Failed() will properly reflect whether
+// the test failed
+func (s *KubeSuite) setUpTest(c *check.C) {
+	s.w = testlog.NewCheckTestWrapper(c)
+	s.log = s.w.Log
+}
+
+func (s *KubeSuite) tearDownTest(c *check.C) {
+	s.w.Close()
+}
+
 // TestKubeExec tests kubernetes Exec command set
 func (s *KubeSuite) TestKubeExec(c *check.C) {
+	s.setUpTest(c)
+	defer s.tearDownTest(c)
+
 	tconf := s.teleKubeConfig(Host)
 
 	t := NewInstance(InstanceConfig{
 		ClusterName: Site,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(5),
+		Ports:       ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
+		log:         s.log,
 	})
 
 	username := s.me.Username
@@ -320,15 +337,19 @@ loop:
 // TestKubeDeny makes sure that deny rule conflicting with allow
 // rule takes precedence
 func (s *KubeSuite) TestKubeDeny(c *check.C) {
+	s.setUpTest(c)
+	defer s.tearDownTest(c)
+
 	tconf := s.teleKubeConfig(Host)
 
 	t := NewInstance(InstanceConfig{
 		ClusterName: Site,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(5),
+		Ports:       ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
+		log:         s.log,
 	})
 
 	username := s.me.Username
@@ -372,15 +393,19 @@ func (s *KubeSuite) TestKubeDeny(c *check.C) {
 
 // TestKubePortForward tests kubernetes port forwarding
 func (s *KubeSuite) TestKubePortForward(c *check.C) {
+	s.setUpTest(c)
+	defer s.tearDownTest(c)
+
 	tconf := s.teleKubeConfig(Host)
 
 	t := NewInstance(InstanceConfig{
 		ClusterName: Site,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(5),
+		Ports:       ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
+		log:         s.log,
 	})
 
 	username := s.me.Username
@@ -410,7 +435,7 @@ func (s *KubeSuite) TestKubePortForward(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// forward local port to target port 80 of the nginx container
-	localPort := s.ports.Pop()
+	localPort := ports.Pop()
 
 	forwarder, err := newPortForwarder(proxyClientConfig, kubePortForwardArgs{
 		ports:        []string{fmt.Sprintf("%v:80", localPort)},
@@ -446,7 +471,7 @@ func (s *KubeSuite) TestKubePortForward(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	localPort = s.ports.Pop()
+	localPort = ports.Pop()
 	impersonatingForwarder, err := newPortForwarder(impersonatingProxyClientConfig, kubePortForwardArgs{
 		ports:        []string{fmt.Sprintf("%v:80", localPort)},
 		podName:      testPod,
@@ -463,6 +488,9 @@ func (s *KubeSuite) TestKubePortForward(c *check.C) {
 // TestKubeTrustedClustersClientCert tests scenario with trusted clusters
 // using metadata encoded in the certificate
 func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
+	s.setUpTest(c)
+	defer s.tearDownTest(c)
+
 	ctx := context.Background()
 	clusterMain := "cluster-main"
 	mainConf := s.teleKubeConfig(Host)
@@ -473,9 +501,10 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 		ClusterName: clusterMain,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(5),
+		Ports:       ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
+		log:         s.log,
 	})
 
 	// main cluster has a role and user called main-kube
@@ -496,9 +525,10 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 		ClusterName: clusterAux,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(5),
+		Ports:       ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
+		log:         s.log,
 	})
 
 	lib.SetInsecureDevMode(true)
@@ -529,7 +559,7 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 	err = aux.Process.GetAuthServer().UpsertRole(ctx, auxRole)
 	c.Assert(err, check.IsNil)
 	trustedClusterToken := "trusted-clsuter-token"
-	err = main.Process.GetAuthServer().UpsertToken(
+	err = main.Process.GetAuthServer().UpsertToken(ctx,
 		services.MustCreateProvisionToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, time.Time{}))
 	c.Assert(err, check.IsNil)
 	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, services.RoleMap{
@@ -674,7 +704,7 @@ loop:
 	c.Assert(err.Error(), check.Matches, ".*impersonation request has been denied.*")
 
 	// forward local port to target port 80 of the nginx container
-	localPort := s.ports.Pop()
+	localPort := ports.Pop()
 
 	forwarder, err := newPortForwarder(proxyClientConfig, kubePortForwardArgs{
 		ports:        []string{fmt.Sprintf("%v:80", localPort)},
@@ -702,7 +732,7 @@ loop:
 	c.Assert(resp.Body.Close(), check.IsNil)
 
 	// impersonating client requests will be denied
-	localPort = s.ports.Pop()
+	localPort = ports.Pop()
 	impersonatingForwarder, err := newPortForwarder(impersonatingProxyClientConfig, kubePortForwardArgs{
 		ports:        []string{fmt.Sprintf("%v:80", localPort)},
 		podName:      pod.Name,
@@ -721,6 +751,9 @@ loop:
 // using SNI-forwarding
 // DELETE IN(4.3.0)
 func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
+	s.setUpTest(c)
+	defer s.tearDownTest(c)
+
 	ctx := context.Background()
 
 	clusterMain := "cluster-main"
@@ -729,9 +762,10 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 		ClusterName: clusterMain,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(5),
+		Ports:       ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
+		log:         s.log,
 	})
 
 	// main cluster has a role and user called main-kube
@@ -752,9 +786,10 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 		ClusterName: clusterAux,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(5),
+		Ports:       ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
+		log:         s.log,
 	})
 
 	lib.SetInsecureDevMode(true)
@@ -789,7 +824,7 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 	err = aux.Process.GetAuthServer().UpsertRole(ctx, auxRole)
 	c.Assert(err, check.IsNil)
 	trustedClusterToken := "trusted-cluster-token"
-	err = main.Process.GetAuthServer().UpsertToken(
+	err = main.Process.GetAuthServer().UpsertToken(ctx,
 		services.MustCreateProvisionToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, time.Time{}))
 	c.Assert(err, check.IsNil)
 	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, services.RoleMap{
@@ -932,7 +967,7 @@ loop:
 	c.Assert(err.Error(), check.Matches, ".*impersonation request has been denied.*")
 
 	// forward local port to target port 80 of the nginx container
-	localPort := s.ports.Pop()
+	localPort := ports.Pop()
 
 	forwarder, err := newPortForwarder(proxyClientConfig, kubePortForwardArgs{
 		ports:        []string{fmt.Sprintf("%v:80", localPort)},
@@ -960,7 +995,7 @@ loop:
 	c.Assert(resp.Body.Close(), check.IsNil)
 
 	// impersonating client requests will be denied
-	localPort = s.ports.Pop()
+	localPort = ports.Pop()
 	impersonatingForwarder, err := newPortForwarder(impersonatingProxyClientConfig, kubePortForwardArgs{
 		ports:        []string{fmt.Sprintf("%v:80", localPort)},
 		podName:      pod.Name,
@@ -977,6 +1012,9 @@ loop:
 
 // TestKubeDisconnect tests kubernetes session disconnects
 func (s *KubeSuite) TestKubeDisconnect(c *check.C) {
+	s.setUpTest(c)
+	defer s.tearDownTest(c)
+
 	testCases := []disconnectTestCase{
 		{
 			options: services.RoleOptions{
@@ -1007,9 +1045,10 @@ func (s *KubeSuite) runKubeDisconnectTest(c *check.C, tc disconnectTestCase) {
 		ClusterName: Site,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(5),
+		Ports:       ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
+		log:         s.log,
 	})
 
 	username := s.me.Username
@@ -1088,6 +1127,8 @@ func (s *KubeSuite) runKubeDisconnectTest(c *check.C, tc disconnectTestCase) {
 // teleKubeConfig sets up teleport with kubernetes turned on
 func (s *KubeSuite) teleKubeConfig(hostname string) *service.Config {
 	tconf := service.MakeDefaultConfig()
+	tconf.Console = nil
+	tconf.Log = s.log
 	tconf.SSH.Enabled = true
 	tconf.Proxy.DisableWebInterface = true
 	tconf.PollingPeriod = 500 * time.Millisecond
@@ -1096,7 +1137,7 @@ func (s *KubeSuite) teleKubeConfig(hostname string) *service.Config {
 
 	// set kubernetes specific parameters
 	tconf.Proxy.Kube.Enabled = true
-	tconf.Proxy.Kube.ListenAddr.Addr = net.JoinHostPort(hostname, s.ports.Pop())
+	tconf.Proxy.Kube.ListenAddr.Addr = net.JoinHostPort(hostname, ports.Pop())
 	tconf.Proxy.Kube.KubeconfigPath = s.kubeConfigPath
 
 	return tconf
@@ -1159,7 +1200,7 @@ func kubeProxyClient(cfg kubeProxyConfig) (*kubernetes.Clientset, *rest.Config, 
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	tlsCA, err := ca.TLSCA()
+	tlsCA, err := tlsca.FromAuthority(ca)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

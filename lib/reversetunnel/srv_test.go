@@ -19,8 +19,10 @@ package reversetunnel
 import (
 	"net"
 	"testing"
+	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -38,15 +40,17 @@ func TestServerKeyAuth(t *testing.T) {
 	require.NoError(t, err)
 
 	s := &server{
-		Entry: testlog.FailureOnly(t),
-		localAccessPoint: mockAccessPoint{ca: services.NewCertAuthority(
-			services.HostCA,
-			"cluster-name",
-			[][]byte{priv},
-			[][]byte{pub},
-			nil,
-			services.CertAuthoritySpecV2_RSA_SHA2_256,
-		)},
+		log: testlog.FailureOnly(t),
+		localAccessPoint: mockAccessPoint{
+			ca: types.NewCertAuthority(types.CertAuthoritySpecV2{
+				Type:         services.HostCA,
+				ClusterName:  "cluster-name",
+				SigningKeys:  [][]byte{priv},
+				CheckingKeys: [][]byte{pub},
+				Roles:        nil,
+				SigningAlg:   services.CertAuthoritySpecV2_RSA_SHA2_256,
+			}),
+		},
 	}
 	con := mockSSHConnMetadata{}
 	tests := []struct {
@@ -92,6 +96,7 @@ func TestServerKeyAuth(t *testing.T) {
 					Roles:               []string{"dev", "admin"},
 					RouteToCluster:      "user-cluster-name",
 					CertificateFormat:   teleport.CertificateFormatStandard,
+					TTL:                 time.Minute,
 				})
 				require.NoError(t, err)
 				key, _, _, _, err := ssh.ParseAuthorizedKey(rawCert)

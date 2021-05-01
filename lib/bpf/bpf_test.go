@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/pborman/uuid"
 	"gopkg.in/check.v1"
@@ -41,17 +40,9 @@ import (
 
 type Suite struct{}
 
-var _ = fmt.Printf
 var _ = check.Suite(&Suite{})
 
 func TestBPF(t *testing.T) { check.TestingT(t) }
-
-func (s *Suite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
-}
-func (s *Suite) TearDownSuite(c *check.C) {}
-func (s *Suite) SetUpTest(c *check.C)     {}
-func (s *Suite) TearDownTest(c *check.C)  {}
 
 func (s *Suite) TestWatch(c *check.C) {
 	// This test must be run as root and the host has to be capable of running

@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -41,7 +42,7 @@ func NewDynamicAccessService(backend backend.Backend) *DynamicAccessService {
 
 // CreateAccessRequest stores a new access request.
 func (s *DynamicAccessService) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
-	if err := req.CheckAndSetDefaults(); err != nil {
+	if err := services.ValidateAccessRequest(req); err != nil {
 		return trace.Wrap(err)
 	}
 	item, err := itemFromAccessRequest(req)
@@ -123,6 +124,67 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 	return trace.CompareFailed("too many concurrent writes to access request %s, try again later", params.RequestID)
 }
 
+// ApplyAccessReview applies a review to a request and returns the post-application state.
+func (s *DynamicAccessService) ApplyAccessReview(ctx context.Context, params types.AccessReviewSubmission, checker services.ReviewPermissionChecker) (services.AccessRequest, error) {
+	if err := params.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	retryPeriod := retryPeriodMs * time.Millisecond
+	retry, err := utils.NewLinear(utils.LinearConfig{
+		Step: retryPeriod / 7,
+		Max:  retryPeriod,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Review application is attempted multiple times in the event of concurrent writes.
+	for i := 0; i < maxCmpAttempts; i++ {
+		item, err := s.Get(ctx, accessRequestKey(params.RequestID))
+		if err != nil {
+			if trace.IsNotFound(err) {
+				return nil, trace.NotFound("cannot apply review to access request %q (not found)", params.RequestID)
+			}
+			return nil, trace.Wrap(err)
+		}
+		req, err := itemToAccessRequest(*item)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// verify review permissions against request details
+		if ok, err := checker.CanReviewRequest(req); err != nil || !ok {
+			if err == nil {
+				err = trace.AccessDenied("user %q cannot review request %q", params.Review.Author, params.RequestID)
+			}
+			return nil, trace.Wrap(err)
+		}
+
+		// run the application logic
+		if err := services.ApplyAccessReview(req, params.Review, checker.User); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		newItem, err := itemFromAccessRequest(req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if _, err := s.CompareAndSwap(ctx, *item, newItem); err != nil {
+			if trace.IsCompareFailed(err) {
+				select {
+				case <-retry.After():
+					retry.Inc()
+					continue
+				case <-ctx.Done():
+					return nil, trace.Wrap(ctx.Err())
+				}
+			}
+			return nil, trace.Wrap(err)
+		}
+		return req, nil
+	}
+	return nil, trace.CompareFailed("too many concurrent writes to access request %s, try again later", params.RequestID)
+}
+
 func (s *DynamicAccessService) GetAccessRequest(ctx context.Context, name string) (services.AccessRequest, error) {
 	item, err := s.Get(ctx, accessRequestKey(name))
 	if err != nil {
@@ -170,7 +232,7 @@ func (s *DynamicAccessService) GetAccessRequests(ctx context.Context, filter ser
 			// same namespace.
 			continue
 		}
-		req, err := itemToAccessRequest(item)
+		req, err := itemToAccessRequest(item, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -199,7 +261,7 @@ func (s *DynamicAccessService) DeleteAllAccessRequests(ctx context.Context) erro
 }
 
 func (s *DynamicAccessService) UpsertAccessRequest(ctx context.Context, req services.AccessRequest) error {
-	if err := req.CheckAndSetDefaults(); err != nil {
+	if err := services.ValidateAccessRequest(req); err != nil {
 		return trace.Wrap(err)
 	}
 	item, err := itemFromAccessRequest(req)
@@ -367,7 +429,7 @@ func (s *DynamicAccessService) updateAccessRequestPluginData(ctx context.Context
 }
 
 func itemFromAccessRequest(req services.AccessRequest) (backend.Item, error) {
-	value, err := services.GetAccessRequestMarshaler().MarshalAccessRequest(req)
+	value, err := services.MarshalAccessRequest(req)
 	if err != nil {
 		return backend.Item{}, trace.Wrap(err)
 	}
@@ -379,11 +441,15 @@ func itemFromAccessRequest(req services.AccessRequest) (backend.Item, error) {
 	}, nil
 }
 
-func itemToAccessRequest(item backend.Item) (services.AccessRequest, error) {
-	req, err := services.GetAccessRequestMarshaler().UnmarshalAccessRequest(
-		item.Value,
+func itemToAccessRequest(item backend.Item, opts ...services.MarshalOption) (services.AccessRequest, error) {
+	opts = append(
+		opts,
 		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),
+	)
+	req, err := services.UnmarshalAccessRequest(
+		item.Value,
+		opts...,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -392,7 +458,7 @@ func itemToAccessRequest(item backend.Item) (services.AccessRequest, error) {
 }
 
 func itemFromPluginData(data services.PluginData) (backend.Item, error) {
-	value, err := services.GetPluginDataMarshaler().MarshalPluginData(data)
+	value, err := services.MarshalPluginData(data)
 	if err != nil {
 		return backend.Item{}, trace.Wrap(err)
 	}
@@ -410,7 +476,7 @@ func itemFromPluginData(data services.PluginData) (backend.Item, error) {
 }
 
 func itemToPluginData(item backend.Item) (services.PluginData, error) {
-	data, err := services.GetPluginDataMarshaler().UnmarshalPluginData(
+	data, err := services.UnmarshalPluginData(
 		item.Value,
 		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),

@@ -17,7 +17,6 @@ limitations under the License.
 package utils
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/coreos/go-semver/semver"
@@ -26,15 +25,7 @@ import (
 
 type KernelSuite struct{}
 
-var _ = fmt.Printf
 var _ = check.Suite(&KernelSuite{})
-
-func (s *KernelSuite) SetUpSuite(c *check.C) {
-	InitLoggerForTests()
-}
-func (s *KernelSuite) TearDownSuite(c *check.C) {}
-func (s *KernelSuite) SetUpTest(c *check.C)     {}
-func (s *KernelSuite) TearDownTest(c *check.C)  {}
 
 // TestKernelVersion checks that version strings for various distributions
 // can be parsed correctly.

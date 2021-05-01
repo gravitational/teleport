@@ -149,20 +149,14 @@ func (e *localExec) Start(channel ssh.Channel) (*ExecResult, error) {
 
 	// Connect stdout and stderr to the channel so the user can interact with
 	// the command.
-	e.Cmd.Stderr = channel.Stderr()
-	e.Cmd.Stdout = channel
+	e.Cmd.Stderr = io.MultiWriter(os.Stderr, channel.Stderr())
+	e.Cmd.Stdout = io.MultiWriter(os.Stdout, channel)
 
 	// Copy from the channel (client input) into stdin of the process.
 	inputWriter, err := e.Cmd.StdinPipe()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	go func() {
-		if _, err := io.Copy(inputWriter, channel); err != nil {
-			e.Ctx.Warningf("Failed to forward data from SSH channel to local command %q stdin: %v", e.GetCommand(), err)
-		}
-		inputWriter.Close()
-	}()
 
 	// Start the command.
 	err = e.Cmd.Start()
@@ -178,6 +172,13 @@ func (e *localExec) Start(channel ssh.Channel) (*ExecResult, error) {
 		}, trace.ConvertSystemError(err)
 	}
 
+	go func() {
+		if _, err := io.Copy(inputWriter, channel); err != nil {
+			e.Ctx.Warnf("Failed to forward data from SSH channel to local command %q stdin: %v", e.GetCommand(), err)
+		}
+		inputWriter.Close()
+	}()
+
 	e.Ctx.Infof("Started local command execution: %q", e.Command)
 
 	return nil, nil
@@ -186,7 +187,7 @@ func (e *localExec) Start(channel ssh.Channel) (*ExecResult, error) {
 // Wait will block while the command executes.
 func (e *localExec) Wait() *ExecResult {
 	if e.Cmd.Process == nil {
-		e.Ctx.Errorf("no process")
+		e.Ctx.Error("No process.")
 	}
 
 	// Block until the command is finished executing.
@@ -246,7 +247,7 @@ func (e *localExec) transformSecureCopy() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	e.Command = fmt.Sprintf("%s scp --remote-addr=%s --local-addr=%s %v",
+	e.Command = fmt.Sprintf("%s scp --remote-addr=%q --local-addr=%q %v",
 		teleportBin,
 		e.Ctx.ServerConn.RemoteAddr().String(),
 		e.Ctx.ServerConn.LocalAddr().String(),
@@ -287,6 +288,11 @@ type remoteExec struct {
 	command string
 	session *ssh.Session
 	ctx     *ServerContext
+}
+
+// String describes this remote exec value
+func (e *remoteExec) String() string {
+	return fmt.Sprintf("RemoteExec(Command=%v)", e.command)
 }
 
 // GetCommand returns the command string.
@@ -360,14 +366,15 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 		ServerNamespace: ctx.srv.GetNamespace(),
 	}
 
-	sessionMeta := events.SessionMetadata{}
-	if ctx.session != nil {
-		sessionMeta.SessionID = string(ctx.session.id)
+	sessionMeta := events.SessionMetadata{
+		SessionID: string(ctx.SessionID()),
+		WithMFA:   ctx.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
 	}
 
 	userMeta := events.UserMetadata{
-		User:  ctx.Identity.TeleportUser,
-		Login: ctx.Identity.Login,
+		User:         ctx.Identity.TeleportUser,
+		Login:        ctx.Identity.Login,
+		Impersonator: ctx.Identity.Impersonator,
 	}
 
 	connectionMeta := events.ConnectionMetadata{
@@ -401,7 +408,8 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 	if isSCP {
 		scpEvent := &events.SCP{
 			Metadata: events.Metadata{
-				Type: events.SCPEvent,
+				Type:        events.SCPEvent,
+				ClusterName: ctx.ClusterName,
 			},
 			ServerMetadata:     serverMeta,
 			SessionMetadata:    sessionMeta,

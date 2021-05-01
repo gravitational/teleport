@@ -28,41 +28,6 @@ func CopyStringsMap(in map[string]string) map[string]string {
 	return out
 }
 
-// CopyByteSlice returns a copy of the byte slice.
-func CopyByteSlice(in []byte) []byte {
-	if in == nil {
-		return nil
-	}
-	out := make([]byte, len(in))
-	copy(out, in)
-	return out
-}
-
-// CopyByteSlices returns a copy of the byte slices.
-func CopyByteSlices(in [][]byte) [][]byte {
-	if in == nil {
-		return nil
-	}
-	out := make([][]byte, len(in))
-	for i := range in {
-		out[i] = CopyByteSlice(in[i])
-	}
-	return out
-}
-
-// CopyStrings makes a deep copy of the passed in string slice and returns
-// the copy.
-func CopyStrings(in []string) []string {
-	if in == nil {
-		return nil
-	}
-
-	out := make([]string, len(in))
-	copy(out, in)
-
-	return out
-}
-
 // ReplaceInSlice replaces element old with new and returns a new slice.
 func ReplaceInSlice(s []string, old string, new string) []string {
 	out := make([]string, 0, len(s))

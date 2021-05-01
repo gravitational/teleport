@@ -32,8 +32,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/dustin/go-humanize"
-	ui "github.com/gizak/termui"
-	"github.com/gizak/termui/widgets"
+	ui "github.com/gizak/termui/v3"
+	"github.com/gizak/termui/v3/widgets"
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -55,7 +55,7 @@ type TopCommand struct {
 func (c *TopCommand) Initialize(app *kingpin.Application, config *service.Config) {
 	c.config = config
 	c.top = app.Command("top", "Report diagnostic information")
-	c.diagURL = c.top.Arg("diag-addr", "Diagnostic HTTP URL").Default("http://127.0.0.1:3434").String()
+	c.diagURL = c.top.Arg("diag-addr", "Diagnostic HTTP URL").Default("http://127.0.0.1:3000").String()
 	c.refreshPeriod = c.top.Arg("refresh", "Refresh period").Default("5s").Duration()
 }
 

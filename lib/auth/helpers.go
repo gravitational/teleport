@@ -26,6 +26,9 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -66,7 +69,7 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter Dir")
 	}
 	if cfg.Clock == nil {
-		cfg.Clock = clockwork.NewFakeClockAt(time.Now())
+		cfg.Clock = clockwork.NewFakeClock()
 	}
 	if len(cfg.CipherSuites) == 0 {
 		cfg.CipherSuites = utils.DefaultCipherSuites()
@@ -159,13 +162,13 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 
 	srv.AuthServer, err = NewServer(&InitConfig{
 		Backend:                srv.Backend,
-		Authority:              authority.New(),
+		Authority:              authority.NewWithClock(cfg.Clock),
 		Access:                 access,
 		Identity:               identity,
 		AuditLog:               srv.AuditLog,
 		SkipPeriodicOperations: true,
 		Emitter:                localLog,
-	})
+	}, WithClock(cfg.Clock))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -180,9 +183,9 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+	authPreference, err := types.NewAuthPreferenceFromConfigFile(services.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
-		SecondFactor: teleport.OFF,
+		SecondFactor: constants.SecondFactorOff,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -213,21 +216,41 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 
 	// Setup certificate and signing authorities.
-	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCA(services.HostCA, srv.ClusterName)); err != nil {
+	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
+		Type:        services.HostCA,
+		ClusterName: srv.ClusterName,
+		Clock:       cfg.Clock,
+	})); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCA(services.UserCA, srv.ClusterName)); err != nil {
+	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
+		Type:        services.UserCA,
+		ClusterName: srv.ClusterName,
+		Clock:       cfg.Clock,
+	})); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCA(services.JWTSigner, srv.ClusterName)); err != nil {
+	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
+		Type:        services.JWTSigner,
+		ClusterName: srv.ClusterName,
+		Clock:       cfg.Clock,
+	})); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	srv.Authorizer, err = NewAuthorizer(srv.AuthServer.Access, srv.AuthServer.Identity, srv.AuthServer.Trust)
+	srv.Authorizer, err = NewAuthorizer(srv.ClusterName, srv.AuthServer.Access, srv.AuthServer.Identity, srv.AuthServer.Trust)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return srv, nil
+}
+
+func (a *TestAuthServer) Close() error {
+	return trace.NewAggregate(
+		a.Backend.Close(),
+		a.AuditLog.Close(),
+		a.AuthServer.Close(),
+	)
 }
 
 // GenerateUserCert takes the public key in the OpenSSH `authorized_keys`
@@ -357,6 +380,7 @@ func (a *TestAuthServer) NewTestTLSServer() (*TestTLSServer, error) {
 		Authorizer:     a.Authorizer,
 		SessionService: a.SessionServer,
 		AuditLog:       a.AuditLog,
+		Emitter:        a.AuthServer.emitter,
 	}
 	srv, err := NewTestTLSServer(TestTLSServerConfig{
 		APIConfig:     apiConfig,
@@ -380,10 +404,14 @@ func (a *TestAuthServer) NewRemoteClient(identity TestIdentity, addr net.Addr, p
 	tlsConfig.Certificates = []tls.Certificate{*cert}
 	tlsConfig.RootCAs = pool
 	tlsConfig.ServerName = EncodeClusterName(a.ClusterName)
-	addrs := []utils.NetAddr{{
-		AddrNetwork: addr.Network(),
-		Addr:        addr.String()}}
-	return NewTLSClient(ClientConfig{Addrs: addrs, TLS: tlsConfig})
+	tlsConfig.Time = a.AuthServer.clock.Now
+
+	return NewClient(client.Config{
+		Addrs: []string{addr.String()},
+		Credentials: []client.Credentials{
+			client.LoadTLS(tlsConfig),
+		},
+	})
 }
 
 // TestTLSServerConfig is a configuration for test TLS server
@@ -462,6 +490,7 @@ func NewTestTLSServer(cfg TestTLSServerConfig) (*TestTLSServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	tlsConfig.Time = cfg.AuthServer.Clock().Now
 
 	accessPoint, err := NewAdminAuthServer(srv.AuthServer.AuthServer, srv.AuthServer.SessionServer, srv.AuthServer.AuditLog)
 	if err != nil {
@@ -550,8 +579,14 @@ func (t *TestTLSServer) NewClientFromWebSession(sess services.WebSession) (*Clie
 		return nil, trace.Wrap(err, "failed to parse TLS cert and key")
 	}
 	tlsConfig.Certificates = []tls.Certificate{tlsCert}
-	addrs := []utils.NetAddr{utils.FromAddr(t.Listener.Addr())}
-	return NewTLSClient(ClientConfig{Addrs: addrs, TLS: tlsConfig})
+	tlsConfig.Time = t.AuthServer.AuthServer.clock.Now
+
+	return NewClient(client.Config{
+		Addrs: []string{t.Addr().String()},
+		Credentials: []client.Credentials{
+			client.LoadTLS(tlsConfig),
+		},
+	})
 }
 
 // CertPool returns cert pool that auth server represents
@@ -580,14 +615,39 @@ func (t *TestTLSServer) ClientTLSConfig(identity TestIdentity) (*tls.Config, err
 		// server should apply Nop builtin role
 		tlsConfig.Certificates = nil
 	}
+	tlsConfig.Time = t.AuthServer.AuthServer.clock.Now
 	return tlsConfig, nil
 }
 
 // CloneClient uses the same credentials as the passed client
 // but forces the client to be recreated
 func (t *TestTLSServer) CloneClient(clt *Client) *Client {
-	addr := []utils.NetAddr{{Addr: t.Addr().String(), AddrNetwork: t.Addr().Network()}}
-	newClient, err := NewTLSClient(ClientConfig{Addrs: addr, TLS: clt.TLSConfig()})
+	newClient, err := NewClient(client.Config{
+		Addrs: []string{t.Addr().String()},
+		Credentials: []client.Credentials{
+			client.LoadTLS(clt.Config()),
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
+	return newClient
+}
+
+// NewClientWithCert creates a new client using given cert and private key
+func (t *TestTLSServer) NewClientWithCert(clientCert tls.Certificate) *Client {
+	tlsConfig, err := t.Identity.TLSConfig(t.AuthServer.CipherSuites)
+	if err != nil {
+		panic(err)
+	}
+	tlsConfig.Time = t.AuthServer.AuthServer.clock.Now
+	tlsConfig.Certificates = []tls.Certificate{clientCert}
+	newClient, err := NewClient(client.Config{
+		Addrs: []string{t.Addr().String()},
+		Credentials: []client.Credentials{
+			client.LoadTLS(tlsConfig),
+		},
+	})
 	if err != nil {
 		panic(err)
 	}
@@ -600,8 +660,18 @@ func (t *TestTLSServer) NewClient(identity TestIdentity) (*Client, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	addrs := []utils.NetAddr{utils.FromAddr(t.Listener.Addr())}
-	return NewTLSClient(ClientConfig{Addrs: addrs, TLS: tlsConfig})
+
+	newClient, err := NewClient(client.Config{
+		DialInBackground: true,
+		Addrs:            []string{t.Addr().String()},
+		Credentials: []client.Credentials{
+			client.LoadTLS(tlsConfig),
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return newClient, nil
 }
 
 // Addr returns address of TLS server
@@ -682,6 +752,60 @@ func CreateUserRoleAndRequestable(clt clt, username string, rolename string) (se
 	requestableRole.SetName(rolename)
 	requestableRole.SetLogins(services.Allow, []string{rolename})
 	err = clt.UpsertRole(ctx, requestableRole)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return user, nil
+}
+
+// CreateAccessPluginUser creates a user with list/read abilites for access requests, and list/read/update
+// abilities for access plugin data.
+func CreateAccessPluginUser(ctx context.Context, clt clt, username string) (services.User, error) {
+	user, err := services.NewUser(username)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	role := services.RoleForUser(user)
+	rules := role.GetRules(types.Allow)
+	rules = append(rules,
+		types.Rule{
+			Resources: []string{types.KindAccessRequest},
+			Verbs:     []string{types.VerbRead, types.VerbList},
+		},
+		types.Rule{
+			Resources: []string{types.KindAccessPluginData},
+			Verbs:     []string{types.VerbRead, types.VerbList, types.VerbUpdate},
+		},
+	)
+	role.SetRules(types.Allow, rules)
+	role.SetLogins(types.Allow, nil)
+	if err := clt.UpsertRole(ctx, role); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	user.AddRole(role.GetName())
+	if err := clt.UpsertUser(user); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return user, nil
+}
+
+// CreateUser creates user and role and assignes role to a user, used in tests
+func CreateUser(clt clt, username string, roles ...types.Role) (types.User, error) {
+	ctx := context.TODO()
+	user, err := services.NewUser(username)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, role := range roles {
+		err = clt.UpsertRole(ctx, role)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		user.AddRole(role.GetName())
+	}
+
+	err = clt.UpsertUser(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -24,12 +24,14 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -45,27 +47,27 @@ import (
 )
 
 type KeyAgentTestSuite struct {
-	keyDir   string
-	key      *Key
-	username string
-	hostname string
-	tlsca    *tlsca.CertAuthority
+	keyDir      string
+	key         *Key
+	username    string
+	hostname    string
+	clusterName string
+	tlsca       *tlsca.CertAuthority
+	close       func()
 }
 
 var _ = check.Suite(&KeyAgentTestSuite{})
-var _ = fmt.Printf
 
 func (s *KeyAgentTestSuite) SetUpSuite(c *check.C) {
 	var err error
-	utils.InitLoggerForTests()
-
 	// path to temporary  ~/.tsh directory to use during tests
 	s.keyDir, err = ioutil.TempDir("", "keyagent-test-")
 	c.Assert(err, check.IsNil)
 
-	// temporary username and hostname to use during tests
+	// temporary names to use during tests
 	s.username = "foo"
 	s.hostname = "bar"
+	s.clusterName = "some-cluster"
 
 	pemBytes, ok := fixtures.PEMBytes["rsa"]
 	c.Assert(ok, check.Equals, true)
@@ -78,16 +80,16 @@ func (s *KeyAgentTestSuite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// start a debug agent that will be used in tests
-	err = startDebugAgent()
+	s.close, err = startDebugAgent()
 	c.Assert(err, check.IsNil)
 }
 
 func (s *KeyAgentTestSuite) TearDownSuite(c *check.C) {
 	err := os.RemoveAll(s.keyDir)
 	c.Assert(err, check.IsNil)
-}
-
-func (s *KeyAgentTestSuite) SetUpTest(c *check.C) {
+	if s.close != nil {
+		s.close()
+	}
 }
 
 // TestAddKey ensures correct adding of ssh keys. This test checks the following:
@@ -100,7 +102,9 @@ func (s *KeyAgentTestSuite) SetUpTest(c *check.C) {
 //     a teleport key with the teleport username.
 func (s *KeyAgentTestSuite) TestAddKey(c *check.C) {
 	// make a new local agent
-	lka, err := NewLocalAgent(s.keyDir, s.hostname, s.username, true)
+	keystore, err := NewFSLocalKeyStore(s.keyDir)
+	c.Assert(err, check.IsNil)
+	lka, err := NewLocalAgent(keystore, s.hostname, s.username, AddKeysToAgentAuto)
 	c.Assert(err, check.IsNil)
 
 	// add the key to the local agent, this should write the key
@@ -109,8 +113,14 @@ func (s *KeyAgentTestSuite) TestAddKey(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// check that the key has been written to disk
-	for _, ext := range []string{fileExtCert, "", fileExtPub} {
-		_, err := os.Stat(fmt.Sprintf("%v/keys/%v/%v%v", s.keyDir, s.hostname, s.username, ext))
+	expectedFiles := []string{
+		s.username,                            // private key
+		s.username + constants.FileExtPub,     // public key
+		s.username + constants.FileExtTLSCert, // Teleport TLS certificate
+		filepath.Join(s.username+constants.SSHDirSuffix, s.key.ClusterName+constants.FileExtSSHCert), // SSH certificate
+	}
+	for _, file := range expectedFiles {
+		_, err := os.Stat(filepath.Join(s.keyDir, "keys", s.hostname, file))
 		c.Assert(err, check.IsNil)
 	}
 
@@ -159,7 +169,9 @@ func (s *KeyAgentTestSuite) TestLoadKey(c *check.C) {
 	userdata := []byte("hello, world")
 
 	// make a new local agent
-	lka, err := NewLocalAgent(s.keyDir, s.hostname, s.username, true)
+	keystore, err := NewFSLocalKeyStore(s.keyDir)
+	c.Assert(err, check.IsNil)
+	lka, err := NewLocalAgent(keystore, s.hostname, s.username, AddKeysToAgentAuto)
 	c.Assert(err, check.IsNil)
 
 	// unload any keys that might be in the agent for this user
@@ -217,7 +229,9 @@ func (s *KeyAgentTestSuite) TestLoadKey(c *check.C) {
 
 func (s *KeyAgentTestSuite) TestHostCertVerification(c *check.C) {
 	// Make a new local agent.
-	lka, err := NewLocalAgent(s.keyDir, s.hostname, s.username, true)
+	keystore, err := NewFSLocalKeyStore(s.keyDir)
+	c.Assert(err, check.IsNil)
+	lka, err := NewLocalAgent(keystore, s.hostname, s.username, AddKeysToAgentAuto)
 	c.Assert(err, check.IsNil)
 
 	// By default user has not refused any hosts.
@@ -298,7 +312,9 @@ func (s *KeyAgentTestSuite) TestHostCertVerification(c *check.C) {
 
 func (s *KeyAgentTestSuite) TestHostKeyVerification(c *check.C) {
 	// make a new local agent
-	lka, err := NewLocalAgent(s.keyDir, s.hostname, s.username, true)
+	keystore, err := NewFSLocalKeyStore(s.keyDir)
+	c.Assert(err, check.IsNil)
+	lka, err := NewLocalAgent(keystore, s.hostname, s.username, AddKeysToAgentAuto)
 	c.Assert(err, check.IsNil)
 
 	// by default user has not refused any hosts:
@@ -352,7 +368,9 @@ func (s *KeyAgentTestSuite) TestHostKeyVerification(c *check.C) {
 func (s *KeyAgentTestSuite) TestDefaultHostPromptFunc(c *check.C) {
 	keygen := testauthority.New()
 
-	a, err := NewLocalAgent(s.keyDir, s.hostname, s.username, true)
+	keystore, err := NewFSLocalKeyStore(s.keyDir)
+	c.Assert(err, check.IsNil)
+	a, err := NewLocalAgent(keystore, s.hostname, s.username, AddKeysToAgentAuto)
 	c.Assert(err, check.IsNil)
 
 	_, keyBytes, err := keygen.GenerateKeyPair("")
@@ -448,42 +466,67 @@ func (s *KeyAgentTestSuite) makeKey(username string, allowedLogins []string, ttl
 		Pub:     publicKey,
 		Cert:    certificate,
 		TLSCert: tlsCert,
+		KeyIndex: KeyIndex{
+			ProxyHost:   s.hostname,
+			Username:    username,
+			ClusterName: s.clusterName,
+		},
 	}, nil
 }
 
-func startDebugAgent() error {
-	errorC := make(chan error)
+func startDebugAgent() (closer func(), err error) {
 	rand.Seed(time.Now().Unix())
+	socketpath := filepath.Join(os.TempDir(),
+		fmt.Sprintf("teleport-%d-%d.socket", os.Getpid(), rand.Uint32()))
 
+	listener, err := net.Listen("unix", socketpath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	systemAgent := agent.NewKeyring()
+	os.Setenv(teleport.SSHAuthSock, socketpath)
+
+	startedC := make(chan struct{})
+	doneC := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(2)
 	go func() {
-		socketpath := filepath.Join(os.TempDir(),
-			fmt.Sprintf("teleport-%d-%d.socket", os.Getpid(), rand.Uint32()))
-
-		systemAgent := agent.NewKeyring()
-
-		listener, err := net.Listen("unix", socketpath)
-		if err != nil {
-			errorC <- trace.Wrap(err)
-			return
-		}
-		defer listener.Close()
-
-		os.Setenv(teleport.SSHAuthSock, socketpath)
-
-		// agent is listeninging and environment variable is set unblock now
-		close(errorC)
-
+		defer wg.Done()
+		defer os.Setenv(teleport.SSHAuthSock, "")
+		// agent is listening and environment variable is set, unblock now
+		close(startedC)
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
-				log.Warnf("Unexpected response from listener.Accept: %v", err)
-				continue
+				if !utils.IsUseOfClosedNetworkError(err) {
+					log.Warnf("Unexpected response from listener.Accept: %v", err)
+				}
+				return
 			}
-
-			go agent.ServeAgent(systemAgent, conn)
+			wg.Add(2)
+			go func() {
+				agent.ServeAgent(systemAgent, conn)
+				wg.Done()
+			}()
+			go func() {
+				<-doneC
+				conn.Close()
+				wg.Done()
+			}()
 		}
 	}()
 
+	go func() {
+		<-doneC
+		listener.Close()
+		wg.Done()
+	}()
+
 	// block until agent is started
-	return <-errorC
+	<-startedC
+	return func() {
+		close(doneC)
+		wg.Wait()
+	}, nil
 }

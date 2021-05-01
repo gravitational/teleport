@@ -290,6 +290,19 @@ const (
 	UserDeleteCode = "T1004I"
 	// UserPasswordChangeCode is an event code for when user changes their own password.
 	UserPasswordChangeCode = "T1005I"
+	// MFADeviceAddEventCode is an event code for users adding MFA devices.
+	MFADeviceAddEventCode = "T1006I"
+	// MFADeviceDeleteEventCode is an event code for users deleting MFA devices.
+	MFADeviceDeleteEventCode = "T1007I"
+
+	// BillingCardCreateCode is an event code for when a user creates a new credit card.
+	BillingCardCreateCode = "TBL00I"
+	// BillingCardDeleteCode is an event code for when a user deletes a credit card.
+	BillingCardDeleteCode = "TBL01I"
+	// BillingCardUpdateCode is an event code for when a user updates an existing credit card.
+	BillingCardUpdateCode = "TBL02I"
+	// BillingInformationUpdateCode is an event code for when a user updates their billing info.
+	BillingInformationUpdateCode = "TBL03I"
 
 	// SessionRejectedCode is an event code for when a user's attempt to create an
 	// session/connection has been rejected.
@@ -316,6 +329,15 @@ const (
 	AppSessionChunkCode = "T2008I"
 	// AppSessionRequestCode is the application request/response code.
 	AppSessionRequestCode = "T2009I"
+
+	// DatabaseSessioStartCode is the database session start event code.
+	DatabaseSessionStartCode = "TDB00I"
+	// DatabaseSessionStartFailureCode is the database session start failure event code.
+	DatabaseSessionStartFailureCode = "TDB00W"
+	// DatabaseSessionEndCode is the database session end event code.
+	DatabaseSessionEndCode = "TDB01I"
+	// DatabaseSessionQueryCode is the database query event code.
+	DatabaseSessionQueryCode = "TDB02I"
 
 	// SubsystemCode is the subsystem event code.
 	SubsystemCode = "T3001I"
@@ -362,6 +384,8 @@ const (
 	AccessRequestCreateCode = "T5000I"
 	// AccessRequestUpdateCode is the access request state update code.
 	AccessRequestUpdateCode = "T5001I"
+	// AccessRequestReviewCode is the access review application code.
+	AccessRequestReviewCode = "T5002I"
 
 	// ResetPasswordTokenCreateCode is the token create event code.
 	ResetPasswordTokenCreateCode = "T6000I"

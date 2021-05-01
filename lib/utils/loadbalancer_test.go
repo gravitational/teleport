@@ -34,10 +34,6 @@ type LBSuite struct {
 
 var _ = check.Suite(&LBSuite{})
 
-func (s *LBSuite) SetUpSuite(c *check.C) {
-	InitLoggerForTests()
-}
-
 func (s *LBSuite) TestSingleBackendLB(c *check.C) {
 	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "backend 1")

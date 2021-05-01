@@ -22,8 +22,10 @@ import (
 
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
 )
 
@@ -33,10 +35,6 @@ type ConfigSuite struct {
 }
 
 var _ = check.Suite(&ConfigSuite{})
-
-func (s *ConfigSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
-}
 
 func (s *ConfigSuite) TestDefaultConfig(c *check.C) {
 	config := MakeDefaultConfig()
@@ -141,5 +139,159 @@ func (s *ConfigSuite) TestAppName(c *check.C) {
 		}
 		err := a.Check()
 		c.Assert(err == nil, check.Equals, tt.outValid, tt.desc)
+	}
+}
+
+func TestCheckDatabase(t *testing.T) {
+	tests := []struct {
+		desc       string
+		inDatabase Database
+		outErr     bool
+	}{
+		{
+			desc: "ok",
+			inDatabase: Database{
+				Name:     "example",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+			},
+			outErr: false,
+		},
+		{
+			desc: "empty database name",
+			inDatabase: Database{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+			},
+			outErr: true,
+		},
+		{
+			desc: "invalid database name",
+			inDatabase: Database{
+				Name:     "??--++",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+			},
+			outErr: true,
+		},
+		{
+			desc: "invalid database protocol",
+			inDatabase: Database{
+				Name:     "example",
+				Protocol: "unknown",
+				URI:      "localhost:5432",
+			},
+			outErr: true,
+		},
+		{
+			desc: "invalid database uri",
+			inDatabase: Database{
+				Name:     "example",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost",
+			},
+			outErr: true,
+		},
+		{
+			desc: "invalid database CA cert",
+			inDatabase: Database{
+				Name:     "example",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				CACert:   []byte("cert"),
+			},
+			outErr: true,
+		},
+		{
+			desc: "GCP valid configuration",
+			inDatabase: Database{
+				Name:     "example",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				GCP: DatabaseGCP{
+					ProjectID:  "project-1",
+					InstanceID: "instance-1",
+				},
+				CACert: fixtures.LocalhostCert,
+			},
+			outErr: false,
+		},
+		{
+			desc: "GCP project ID specified without instance ID",
+			inDatabase: Database{
+				Name:     "example",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				GCP: DatabaseGCP{
+					ProjectID: "project-1",
+				},
+				CACert: fixtures.LocalhostCert,
+			},
+			outErr: true,
+		},
+		{
+			desc: "GCP instance ID specified without project ID",
+			inDatabase: Database{
+				Name:     "example",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				GCP: DatabaseGCP{
+					InstanceID: "instance-1",
+				},
+				CACert: fixtures.LocalhostCert,
+			},
+			outErr: true,
+		},
+		{
+			desc: "GCP root cert missing",
+			inDatabase: Database{
+				Name:     "example",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				GCP: DatabaseGCP{
+					ProjectID:  "project-1",
+					InstanceID: "instance-1",
+				},
+			},
+			outErr: true,
+		},
+		{
+			desc: "GCP unsupported for MySQL",
+			inDatabase: Database{
+				Name:     "example",
+				Protocol: defaults.ProtocolMySQL,
+				URI:      "localhost:3306",
+				GCP: DatabaseGCP{
+					ProjectID:  "project-1",
+					InstanceID: "instance-1",
+				},
+				CACert: fixtures.LocalhostCert,
+			},
+			outErr: true,
+		},
+		{
+			desc: "Redshift region not set",
+			inDatabase: Database{
+				Name:     "example",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "redshift-cluster-1.aaa.us-east-1.redshift.amazonaws.com:5439",
+				AWS: DatabaseAWS{
+					Redshift: DatabaseAWSRedshift{
+						ClusterID: "redshift-cluster-1",
+					},
+				},
+			},
+			outErr: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			err := test.inDatabase.Check()
+			if test.outErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
 	}
 }

@@ -1,0 +1,40 @@
+---
+title: Teleport Cloud Architecture
+description: Cloud security, availability and networking details.
+---
+
+## Security
+
+We have designed the Teleport Cloud environment to be secure; however we are still in the process of
+scrutinizing and executing on our security roadmap and working with independent security
+auditors to identify any gaps. Only once this is complete, the team will evaluate
+whether the Teleport Cloud is ready for strict compliance use-cases.
+
+## Compliance
+
+We are going through SOC2 audit that should wrap up by June 2021.
+
+## Managed Teleport Settings
+
+SSH sessions are recorded [on nodes](../architecture/nodes.mdx#session-recording).
+Teleport Cloud Proxy does not terminate SSH sessions when using OpenSSH and `tsh` sessions.
+The Cloud Proxy terminates TLS for Application, Database and Kubernetes sessions.
+
+## Data retention
+
+The session recordings are stored in S3 using at-rest encryption.
+We have yet to define specific retention policies.
+
+Customer data, including audit logging, is backed up using the DynamoDB
+"point in time recovery" system. Data can be recovered up to 35 days.
+This retention period is not configurable.
+
+## High availability
+
+Clusters are deployed in a single AWS region in 2 availability zones.
+AWS guarantees [99.99%](https://aws.amazon.com/compute/sla/) of monthly uptime percentage.
+
+Teleport Cloud preview version does not commit to any SLA. It sets availability
+objective to 99.7% of monthly uptime percentage (a maximum of two hours of downtime per month).
+
+Our goal is to achieve 99.99% uptime once Teleport Cloud graduates preview.

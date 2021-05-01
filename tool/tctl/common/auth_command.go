@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	"crypto/x509/pkix"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -12,9 +13,9 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/auth/proto"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -22,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/kingpin"
@@ -47,6 +49,7 @@ type AuthCommand struct {
 	proxyAddr                  string
 	leafCluster                string
 	kubeCluster                string
+	signOverwrite              bool
 
 	rotateGracePeriod time.Duration
 	rotateType        string
@@ -79,7 +82,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authSign.Flag("user", "Teleport user name").StringVar(&a.genUser)
 	a.authSign.Flag("host", "Teleport host name").StringVar(&a.genHost)
 	a.authSign.Flag("out", "identity output").Short('o').Required().StringVar(&a.output)
-	a.authSign.Flag("format", fmt.Sprintf("identity format: %q (default), %q, %q or %q", identityfile.FormatFile, identityfile.FormatOpenSSH, identityfile.FormatTLS, identityfile.FormatKubernetes)).
+	a.authSign.Flag("format", fmt.Sprintf("identity format: %q (default), %q, %q, %q or %q", identityfile.FormatFile, identityfile.FormatOpenSSH, identityfile.FormatTLS, identityfile.FormatKubernetes, identityfile.FormatDatabase)).
 		Default(string(identityfile.DefaultFormat)).
 		StringVar((*string)(&a.outputFormat))
 	a.authSign.Flag("ttl", "TTL (time to live) for the generated certificate").
@@ -87,6 +90,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 		DurationVar(&a.genTTL)
 	a.authSign.Flag("compat", "OpenSSH compatibility flag").StringVar(&a.compatibility)
 	a.authSign.Flag("proxy", `Address of the teleport proxy. When --format is set to "kubernetes", this address will be set as cluster address in the generated kubeconfig file`).StringVar(&a.proxyAddr)
+	a.authSign.Flag("overwrite", "Whether to overwrite existing destination files. When not set, user will be prompted before overwriting any existing file.").BoolVar(&a.signOverwrite)
 	// --kube-cluster was an unfortunately chosen flag name, before teleport
 	// supported kubernetes_service and registered kubernetes clusters that are
 	// not trusted teleport clusters.
@@ -242,10 +246,7 @@ func (a *AuthCommand) ExportAuthorities(client auth.ClientI) error {
 
 // GenerateKeys generates a new keypair
 func (a *AuthCommand) GenerateKeys() error {
-	keygen, err := native.New(context.TODO(), native.PrecomputeKeys(0))
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	keygen := native.New(context.TODO(), native.PrecomputeKeys(0))
 	defer keygen.Close()
 	privBytes, pubBytes, err := keygen.GenerateKeyPair("")
 	if err != nil {
@@ -268,6 +269,8 @@ func (a *AuthCommand) GenerateKeys() error {
 // GenerateAndSignKeys generates a new keypair and signs it for role
 func (a *AuthCommand) GenerateAndSignKeys(clusterAPI auth.ClientI) error {
 	switch {
+	case a.outputFormat == identityfile.FormatDatabase:
+		return a.generateDatabaseKeys(clusterAPI)
 	case a.genUser != "" && a.genHost == "":
 		return a.generateUserKeys(clusterAPI)
 	case a.genUser == "" && a.genHost != "":
@@ -340,11 +343,54 @@ func (a *AuthCommand) generateHostKeys(clusterAPI auth.ClientI) error {
 		filePath = principals[0]
 	}
 
-	filesWritten, err := identityfile.Write(filePath, key, a.outputFormat, "")
+	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
+		OutputPath:           filePath,
+		Key:                  key,
+		Format:               a.outputFormat,
+		OverwriteDestination: a.signOverwrite,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("\nThe credentials have been written to %s\n", strings.Join(filesWritten, ", "))
+	return nil
+}
+
+func (a *AuthCommand) generateDatabaseKeys(clusterAPI auth.ClientI) error {
+	key, err := client.NewKey()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	subject := pkix.Name{CommonName: a.genHost}
+	csr, err := tlsca.GenerateCertificateRequestPEM(subject, key.Priv)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	resp, err := clusterAPI.GenerateDatabaseCert(context.TODO(),
+		&proto.DatabaseCertRequest{
+			CSR: csr,
+			// Important to include server name as SAN since CommonName has
+			// been deprecated since Go 1.15:
+			//   https://golang.org/doc/go1.15#commonname
+			ServerName: a.genHost,
+			TTL:        proto.Duration(a.genTTL),
+		})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	key.TLSCert = resp.Cert
+	key.TrustedCA = []auth.TrustedCerts{{TLSCertificates: resp.CACerts}}
+	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
+		OutputPath:           a.output,
+		Key:                  key,
+		Format:               a.outputFormat,
+		OverwriteDestination: a.signOverwrite,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("\nThe credentials have been written to %s\n",
+		strings.Join(filesWritten, ", "))
 	return nil
 }
 
@@ -404,7 +450,13 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 	key.TrustedCA = auth.AuthoritiesToTrustedCerts(hostCAs)
 
 	// write the cert+private key to the output:
-	filesWritten, err := identityfile.Write(a.output, key, a.outputFormat, a.proxyAddr)
+	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
+		OutputPath:           a.output,
+		Key:                  key,
+		Format:               a.outputFormat,
+		KubeProxyAddr:        a.proxyAddr,
+		OverwriteDestination: a.signOverwrite,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -539,6 +591,6 @@ func hostCAFormat(ca services.CertAuthority, keyBytes []byte, client auth.Client
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	allowedLogins, _ := roles.CheckLoginDuration(defaults.MinCertDuration + time.Second)
+	allowedLogins, _ := roles.GetLoginsForTTL(defaults.MinCertDuration + time.Second)
 	return sshutils.MarshalAuthorizedHostsFormat(ca.GetClusterName(), keyBytes, allowedLogins)
 }

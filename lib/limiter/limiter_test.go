@@ -16,14 +16,21 @@ limitations under the License.
 package limiter
 
 import (
+	"os"
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/mailgun/timetools"
+
+	"github.com/gravitational/teleport/lib/utils"
 
 	. "gopkg.in/check.v1"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 func TestLimiter(t *testing.T) { TestingT(t) }
 
@@ -31,16 +38,6 @@ type LimiterSuite struct {
 }
 
 var _ = Suite(&LimiterSuite{})
-
-func (s *LimiterSuite) SetUpSuite(c *C) {
-	utils.InitLoggerForTests()
-}
-
-func (s *LimiterSuite) SetUpTest(c *C) {
-}
-
-func (s *LimiterSuite) TearDownTest(c *C) {
-}
 
 func (s *LimiterSuite) TestConnectionsLimiter(c *C) {
 	limiter, err := NewLimiter(

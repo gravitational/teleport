@@ -21,7 +21,7 @@ type DialWithContextFunc func(ctx context.Context, network, addr string) (net.Co
 // is similar to tls.DialWithDialer
 func TLSDial(ctx context.Context, dial DialWithContextFunc, network, addr string, tlsConfig *tls.Config) (*tls.Conn, error) {
 	if tlsConfig == nil {
-		tlsConfig = &tls.Config{}
+		return nil, trace.BadParameter("tls config must be specified")
 	}
 
 	plainConn, err := dial(ctx, network, addr)

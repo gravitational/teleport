@@ -24,14 +24,14 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
+	"gopkg.in/square/go-jose.v2"
 
 	"golang.org/x/crypto/ssh"
-
-	"gopkg.in/square/go-jose.v2"
 )
 
 // Default port numbers used by all teleport tools
@@ -59,6 +59,9 @@ const (
 	// When running as a "SSH Proxy" this port will be used to
 	// serve auth requests.
 	AuthListenPort = 3025
+
+	// MySQLListenPort is the default listen port for MySQL proxy.
+	MySQLListenPort = 3036
 
 	// Default DB to use for persisting state. Another options is "etcd"
 	BackendType = "bolt"
@@ -90,7 +93,7 @@ const (
 
 	// DefaultDialTimeout is a default TCP dial timeout we set for our
 	// connection attempts
-	DefaultDialTimeout = 30 * time.Second
+	DefaultDialTimeout = defaults.DefaultDialTimeout
 
 	// HTTPMaxIdleConns is the max idle connections across all hosts.
 	HTTPMaxIdleConns = 2000
@@ -212,7 +215,7 @@ const (
 	AccountLockInterval = 20 * time.Minute
 
 	// Namespace is default namespace
-	Namespace = "default"
+	Namespace = defaults.Namespace
 
 	// AttemptTTL is TTL for login attempt
 	AttemptTTL = time.Minute * 30
@@ -279,11 +282,11 @@ var (
 	// Median sleep time between node pings is this value / 2 + random
 	// deviation added to this time to avoid lots of simultaneous
 	// heartbeats coming to auth server
-	ServerAnnounceTTL = 600 * time.Second
+	ServerAnnounceTTL = defaults.ServerAnnounceTTL
 
 	// ServerKeepAliveTTL is a period between server keep alives,
 	// when servers announce only presence withough sending full data
-	ServerKeepAliveTTL = 60 * time.Second
+	ServerKeepAliveTTL = defaults.ServerKeepAliveTTL
 
 	// AuthServersRefreshPeriod is a period for clients to refresh their
 	// their stored list of auth servers
@@ -340,12 +343,12 @@ var (
 	// messages to the client. The default interval of 5 minutes (300 seconds) is
 	// set to help keep connections alive when using AWS NLBs (which have a default
 	// timeout of 350 seconds)
-	KeepAliveInterval = 5 * time.Minute
+	KeepAliveInterval = defaults.KeepAliveInterval
 
 	// KeepAliveCountMax is the number of keep-alive messages that can be sent
 	// without receiving a response from the client before the client is
 	// disconnected. The max count mirrors ClientAliveCountMax of sshd.
-	KeepAliveCountMax = 3
+	KeepAliveCountMax = defaults.KeepAliveCountMax
 
 	// DiskAlertThreshold is the disk space alerting threshold.
 	DiskAlertThreshold = 90
@@ -376,6 +379,9 @@ var (
 
 	// AppsQueueSize is apps service queue size.
 	AppsQueueSize = 128
+
+	// DatabasesQueueSize is db service queue size.
+	DatabasesQueueSize = 128
 
 	// CASignatureAlgorithm is the default signing algorithm to use when
 	// creating new SSH CAs.
@@ -419,13 +425,12 @@ const (
 )
 
 const (
-	// MinCertDuration specifies minimum duration of validity of issued cert
+	// MinCertDuration specifies minimum duration of validity of issued certificate
 	MinCertDuration = time.Minute
-	// MaxCertDuration limits maximum duration of validity of issued cert
-	MaxCertDuration = 30 * time.Hour
-	// CertDuration is a default certificate duration
-	// 12 is default as it' longer than average working day (I hope so)
-	CertDuration = 12 * time.Hour
+	// MaxCertDuration limits maximum duration of validity of issued certificate
+	MaxCertDuration = defaults.MaxCertDuration
+	// CertDuration is a default certificate duration.
+	CertDuration = defaults.CertDuration
 	// RotationGracePeriod is a default rotation period for graceful
 	// certificate rotations, by default to set to maximum allowed user
 	// cert duration
@@ -448,7 +453,22 @@ const (
 	RoleAuthService = "auth"
 	// RoleApp is an application proxy.
 	RoleApp = "app"
+	// RoleDatabase is a database proxy role.
+	RoleDatabase = "db"
 )
+
+const (
+	// ProtocolPostgres is the PostgreSQL database protocol.
+	ProtocolPostgres = "postgres"
+	// ProtocolMySQL is the MySQL database protocol.
+	ProtocolMySQL = "mysql"
+)
+
+// DatabaseProtocols is a list of all supported database protocols.
+var DatabaseProtocols = []string{
+	ProtocolPostgres,
+	ProtocolMySQL,
+}
 
 const (
 	// PerfBufferPageCount is the size of the perf ring buffer in number of pages.
@@ -469,12 +489,7 @@ const (
 )
 
 // EnhancedEvents returns the default list of enhanced events.
-func EnhancedEvents() []string {
-	return []string{
-		teleport.EnhancedRecordingCommand,
-		teleport.EnhancedRecordingNetwork,
-	}
-}
+var EnhancedEvents = defaults.EnhancedEvents
 
 var (
 	// ConfigFilePath is default path to teleport config file
@@ -492,6 +507,13 @@ var (
 
 	// ConfigEnvar is a name of teleport's configuration environment variable
 	ConfigEnvar = "TELEPORT_CONFIG"
+
+	// ConfigFileEnvar is the name of the environment variable used to specify a path to
+	// the Teleport configuration file that tctl reads on use
+	ConfigFileEnvar = "TELEPORT_CONFIG_FILE"
+
+	// TunnelPublicAddrEnvar optionally specifies the alternative reverse tunnel address.
+	TunnelPublicAddrEnvar = "TELEPORT_TUNNEL_PUBLIC_ADDR"
 
 	// LicenseFile is the default name of the license file
 	LicenseFile = "license.pem"
@@ -602,6 +624,9 @@ const (
 
 	// WebsocketResize is receiving a resize request.
 	WebsocketResize = "w"
+
+	// WebsocketU2FChallenge is sending a U2F challenge.
+	WebsocketU2FChallenge = "u"
 )
 
 // The following are cryptographic primitives Teleport does not support in
@@ -615,7 +640,8 @@ const (
 
 const (
 	// ApplicationTokenKeyType is the type of asymmetric key used to sign tokens.
-	ApplicationTokenKeyType = "rsa"
+	// See https://tools.ietf.org/html/rfc7518#section-6.1 for possible values.
+	ApplicationTokenKeyType = "RSA"
 	// ApplicationTokenAlgorithm is the default algorithm used to sign
 	// application access tokens.
 	ApplicationTokenAlgorithm = jose.RS256

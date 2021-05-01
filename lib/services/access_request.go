@@ -19,54 +19,38 @@ package services
 import (
 	"context"
 	"fmt"
-	"time"
+	"sort"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
 
 	"github.com/gravitational/trace"
-
-	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
+	"github.com/vulcand/predicate"
 )
 
-// RequestStrategy is an indicator of how access requests
-// should be handled for holders of a given role.
-type RequestStrategy string
-
-const (
-	// RequestStrategyOptional is the default request strategy,
-	// indicating that no special actions/requirements exist.
-	RequestStrategyOptional RequestStrategy = "optional"
-
-	// RequestStrategyReason indicates that client implementations
-	// should automatically generate wildcard requests on login, and
-	// users should be prompted for a reason.
-	RequestStrategyReason RequestStrategy = "reason"
-
-	// RequestStrategyAlways indicates that client implementations
-	// should automatically generate wildcard requests on login, but
-	// that reasons are not required.
-	RequestStrategyAlways RequestStrategy = "always"
-)
-
-// ShouldAutoRequest checks if the request strategy
-// indicates that a request should be automatically
-// generated on login.
-func (s RequestStrategy) ShouldAutoRequest() bool {
-	switch s {
-	case RequestStrategyReason, RequestStrategyAlways:
-		return true
-	default:
-		return false
+// ValidateAccessRequest validates the AccessRequest and sets default values
+func ValidateAccessRequest(ar AccessRequest) error {
+	if err := ar.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
 	}
+	if uuid.Parse(ar.GetName()) == nil {
+		return trace.BadParameter("invalid access request id %q", ar.GetName())
+	}
+	return nil
 }
 
-// RequireReason checks if the request strategy
-// is one that requires users to always supply
-// reasons with their requests.
-func (s RequestStrategy) RequireReason() bool {
-	return s == RequestStrategyReason
+// NewAccessRequest assembles an AccessRequest resource.
+func NewAccessRequest(user string, roles ...string) (AccessRequest, error) {
+	req, err := types.NewAccessRequest(uuid.New(), user, roles...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := ValidateAccessRequest(req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return req, nil
 }
 
 // RequestIDs is a collection of IDs for privilege escalation requests.
@@ -102,121 +86,8 @@ func (r *RequestIDs) IsEmpty() bool {
 	return len(r.AccessRequests) < 1
 }
 
-// stateVariants allows iteration of the expected variants
-// of RequestState.
-var stateVariants = [4]RequestState{
-	RequestState_NONE,
-	RequestState_PENDING,
-	RequestState_APPROVED,
-	RequestState_DENIED,
-}
-
-// Parse attempts to interpret a value as a string representation
-// of a RequestState.
-func (s *RequestState) Parse(val string) error {
-	for _, state := range stateVariants {
-		if state.String() == val {
-			*s = state
-			return nil
-		}
-	}
-	return trace.BadParameter("unknown request state: %q", val)
-}
-
-// key values for map encoding of request filter
-const (
-	keyID    = "id"
-	keyUser  = "user"
-	keyState = "state"
-)
-
-func (f *AccessRequestFilter) IntoMap() map[string]string {
-	m := make(map[string]string)
-	if f.ID != "" {
-		m[keyID] = f.ID
-	}
-	if f.User != "" {
-		m[keyUser] = f.User
-	}
-	if !f.State.IsNone() {
-		m[keyState] = f.State.String()
-	}
-	return m
-}
-
-func (f *AccessRequestFilter) FromMap(m map[string]string) error {
-	for key, val := range m {
-		switch key {
-		case keyID:
-			f.ID = val
-		case keyUser:
-			f.User = val
-		case keyState:
-			if err := f.State.Parse(val); err != nil {
-				return trace.Wrap(err)
-			}
-		default:
-			return trace.BadParameter("unknown filter key %s", key)
-		}
-	}
-	return nil
-}
-
-// Match checks if a given access request matches this filter.
-func (f *AccessRequestFilter) Match(req AccessRequest) bool {
-	if f.ID != "" && req.GetName() != f.ID {
-		return false
-	}
-	if f.User != "" && req.GetUser() != f.User {
-		return false
-	}
-	if !f.State.IsNone() && req.GetState() != f.State {
-		return false
-	}
-	return true
-}
-
-func (f *AccessRequestFilter) Equals(o AccessRequestFilter) bool {
-	return f.ID == o.ID && f.User == o.User && f.State == o.State
-}
-
-// AccessRequestUpdate encompasses the parameters of a
-// SetAccessRequestState call.
-type AccessRequestUpdate struct {
-	// RequestID is the ID of the request to be updated.
-	RequestID string
-	// State is the state that the target request
-	// should resolve to.
-	State RequestState
-	// Reason is an optional description of *why* the
-	// the request is being resolved.
-	Reason string
-	// Annotations supplies extra data associated with
-	// the resolution; primarily for audit purposes.
-	Annotations map[string][]string
-	// Roles, if non-empty declares a list of roles
-	// that should override the role list of the request.
-	// This parameter is only accepted on approvals
-	// and must be a subset of the role list originally
-	// present on the request.
-	Roles []string
-}
-
-func (u *AccessRequestUpdate) Check() error {
-	if u.RequestID == "" {
-		return trace.BadParameter("missing request id")
-	}
-	if u.State.IsNone() {
-		return trace.BadParameter("missing request state")
-	}
-	if len(u.Roles) > 0 && !u.State.IsApproved() {
-		return trace.BadParameter("cannot override roles when setting state: %s", u.State)
-	}
-	return nil
-}
-
-// DynamicAccess is a service which manages dynamic RBAC.
-type DynamicAccess interface {
+// DynamicAccessCore is the core functionality common to all DynamicAccess implementations.
+type DynamicAccessCore interface {
 	// CreateAccessRequest stores a new access request.
 	CreateAccessRequest(ctx context.Context, req AccessRequest) error
 	// SetAccessRequestState updates the state of an existing access request.
@@ -231,63 +102,441 @@ type DynamicAccess interface {
 	UpdatePluginData(ctx context.Context, params PluginDataUpdateParams) error
 }
 
+// DynamicAccess is a service which manages dynamic RBAC.  Specifically, this is the
+// dynamic access interface implemented by remote clients.
+type DynamicAccess interface {
+	DynamicAccessCore
+	// SubmitAccessReview applies a review to a request and returns the post-application state.
+	SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (AccessRequest, error)
+}
+
+// DynamicAccessOracle is a service capable of answering questions related
+// to the dynamic access API.  Necessary because some information (e.g. the
+// list of roles a user is allowed to request) can not be calculated by
+// actors with limited privileges.
+type DynamicAccessOracle interface {
+	GetAccessCapabilities(ctx context.Context, req AccessCapabilitiesRequest) (*AccessCapabilities, error)
+}
+
+// CalculateAccessCapabilities aggregates the requested capabilities using the supplied getter
+// to load relevant resources.
+func CalculateAccessCapabilities(ctx context.Context, clt UserAndRoleGetter, req AccessCapabilitiesRequest) (*AccessCapabilities, error) {
+	var caps AccessCapabilities
+	// all capabilities require use of a request validator.  calculating suggested reviewers
+	// requires that the validator be configured for variable expansion.
+	v, err := NewRequestValidator(clt, req.User, ExpandVars(req.SuggestedReviewers))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if req.RequestableRoles {
+		caps.RequestableRoles, err = v.GetRequestableRoles()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	if req.SuggestedReviewers {
+		caps.SuggestedReviewers = v.SuggestedReviewers
+	}
+	return &caps, nil
+}
+
 // DynamicAccessExt is an extended dynamic access interface
 // used to implement some auth server internals.
 type DynamicAccessExt interface {
-	DynamicAccess
+	DynamicAccessCore
+	// ApplyAccessReview applies a review to a request in the backend and returns the post-application state.
+	ApplyAccessReview(ctx context.Context, params types.AccessReviewSubmission, checker ReviewPermissionChecker) (AccessRequest, error)
 	// UpsertAccessRequest creates or updates an access request.
 	UpsertAccessRequest(ctx context.Context, req AccessRequest) error
 	// DeleteAllAccessRequests deletes all existent access requests.
 	DeleteAllAccessRequests(ctx context.Context) error
 }
 
-// AccessRequest is a request for temporarily granted roles
-type AccessRequest interface {
-	Resource
-	// GetUser gets the name of the requesting user
-	GetUser() string
-	// GetRoles gets the roles being requested by the user
-	GetRoles() []string
-	// SetRoles overrides the roles being requested by the user
-	SetRoles([]string)
-	// GetState gets the current state of the request
-	GetState() RequestState
-	// SetState sets the approval state of the request
-	SetState(RequestState) error
-	// GetCreationTime gets the time at which the request was
-	// originally registered with the auth server.
-	GetCreationTime() time.Time
-	// SetCreationTime sets the creation time of the request.
-	SetCreationTime(time.Time)
-	// GetAccessExpiry gets the upper limit for which this request
-	// may be considered active.
-	GetAccessExpiry() time.Time
-	// SetAccessExpiry sets the upper limit for which this request
-	// may be considered active.
-	SetAccessExpiry(time.Time)
-	// GetRequestReason gets the reason for the request's creation.
-	GetRequestReason() string
-	// SetRequestReason sets the reason for the request's creation.
-	SetRequestReason(string)
-	// GetResolveReason gets the reasson for the request's resolution.
-	GetResolveReason() string
-	// SetResolveReason sets the reason for the request's resolution.
-	SetResolveReason(string)
-	// GetResolveAnnotations gets the annotations associated with
-	// the request's resolution.
-	GetResolveAnnotations() map[string][]string
-	// SetResolveAnnotations sets the annotations associated with
-	// the request's resolution.
-	SetResolveAnnotations(map[string][]string)
-	// GetSystemAnnotations gets the teleport-applied annotations.
-	GetSystemAnnotations() map[string][]string
-	// SetSystemAnnotations sets the teleport-applied annotations.
-	SetSystemAnnotations(map[string][]string)
-	// CheckAndSetDefaults validates the access request and
-	// supplies default values where appropriate.
-	CheckAndSetDefaults() error
-	// Equals checks equality between access request values.
-	Equals(AccessRequest) bool
+// reviewParamsContext is a simplified view of an access review
+// which represents the incoming review during review threshold
+// filter evaluation.
+type reviewParamsContext struct {
+	Reason      string              `json:"reason"`
+	Annotations map[string][]string `json:"annotations"`
+}
+
+// reviewAuthorContext is a simplified view of a user
+// resource which represents the author of a review during
+// review threshold filter evaluation.
+type reviewAuthorContext struct {
+	Roles  []string            `json:"roles"`
+	Traits map[string][]string `json:"traits"`
+}
+
+// reviewRequestContext is a simplified view of an access request
+// resource which represents the request parameters which are in-scope
+// during review threshold filter evaluation.
+type reviewRequestContext struct {
+	Roles             []string            `json:"roles"`
+	Reason            string              `json:"reason"`
+	SystemAnnotations map[string][]string `json:"system_annotations"`
+}
+
+// thresholdFilterContext is the top-level context used to evaluate
+// review threshold filters.
+type thresholdFilterContext struct {
+	Reviewer reviewAuthorContext  `json:"reviewer"`
+	Review   reviewParamsContext  `json:"review"`
+	Request  reviewRequestContext `json:"request"`
+}
+
+// reviewPermissionContext is the top-level context used to evaluate
+// a user's review permissions.  It is functionally identical to the
+// thresholdFilterContext except that it does not expose review parameters.
+// this is because review permissions are used to determine which requests
+// a user is allowed to see, and therefore needs to be calculable prior
+// to construction of review parameters.
+type reviewPermissionContext struct {
+	Reviewer reviewAuthorContext  `json:"reviewer"`
+	Request  reviewRequestContext `json:"request"`
+}
+
+// ValidateAccessPredicates checks request & review permission predicates for
+// syntax errors.  Used to help prevent users from accidentally writing incorrect
+// predicates.  This function should only be called by the auth server prior to
+// storing new/updated roles.  Normal role validation deliberately omits these
+// checks in order to allow us to extend the available namespaces without breaking
+// backwards compatibility with older nodes/proxies (which never need to evaluate
+// these predicates).
+func ValidateAccessPredicates(role Role) error {
+	tp, err := NewJSONBoolParser(thresholdFilterContext{})
+	if err != nil {
+		return trace.Wrap(err, "failed to build empty threshold predicate parser (this is a bug)")
+	}
+
+	if len(role.GetAccessRequestConditions(Deny).Thresholds) != 0 {
+		// deny blocks never contain thresholds.  a threshold which happens to describe a *denial condition* is
+		// still part of the "allow" block.  thresholds are not part of deny blocks because thresholds describe the
+		// state-transition scenarios supported by a request (including potentially being denied).  deny.request blocks match
+		// requests which are *never* allowable, and therefore will never reach the point of needing to encode thresholds.
+		return trace.BadParameter("deny.request cannot contain thresholds, set denial counts in allow.request.thresholds instead")
+	}
+
+	for _, t := range role.GetAccessRequestConditions(Allow).Thresholds {
+		if t.Filter == "" {
+			continue
+		}
+		if _, err := tp.EvalBoolPredicate(t.Filter); err != nil {
+			return trace.BadParameter("invalid threshold predicate: %q, %v", t.Filter, err)
+		}
+	}
+
+	rp, err := NewJSONBoolParser(reviewPermissionContext{})
+	if err != nil {
+		return trace.Wrap(err, "failed to build empty review predicate parser (this is a bug)")
+	}
+
+	if w := role.GetAccessReviewConditions(Deny).Where; w != "" {
+		if _, err := rp.EvalBoolPredicate(w); err != nil {
+			return trace.BadParameter("invalid review predicate: %q, %v", w, err)
+		}
+	}
+
+	if w := role.GetAccessReviewConditions(Allow).Where; w != "" {
+		if _, err := rp.EvalBoolPredicate(w); err != nil {
+			return trace.BadParameter("invalid review predicate: %q, %v", w, err)
+		}
+	}
+
+	return nil
+}
+
+// ApplyAccessReview attempts to apply the specified access review to the specified request.
+func ApplyAccessReview(req AccessRequest, rev types.AccessReview, author User) error {
+	if rev.Author != author.GetName() {
+		return trace.BadParameter("mismatched review author (expected %q, got %q)", rev.Author, author)
+	}
+
+	// role lists must be deduplicated and sorted
+	rev.Roles = utils.Deduplicate(rev.Roles)
+	sort.Strings(rev.Roles)
+
+	// basic compatibility/sanity checks
+	if err := checkReviewCompat(req, rev); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// aggregate the threshold indexes for this review
+	tids, err := collectReviewThresholdIndexes(req, rev, author)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// set threshold indexes and store the review
+	rev.ThresholdIndexes = tids
+	req.SetReviews(append(req.GetReviews(), rev))
+
+	// if request has already exited the pending state, then no further work
+	// needs to be done (subsequent reviews have no effect after initial
+	// state-transition).
+	if !req.GetState().IsPending() {
+		return nil
+	}
+
+	// request is still pending, so check to see if this
+	// review introduces a state-transition.
+	res, err := calculateReviewBasedResolution(req)
+	if err != nil || res == nil {
+		return trace.Wrap(err)
+	}
+
+	// state-transition was triggered.  update the appropriate fields.
+	req.SetState(res.state)
+	req.SetResolveReason(res.reason)
+	req.SetExpiry(req.GetAccessExpiry())
+	return nil
+}
+
+// checkReviewCompat performs basic checks to ensure that the specified review can be
+// applied to the specified request (part of review application logic).
+func checkReviewCompat(req AccessRequest, rev types.AccessReview) error {
+	// we currently only support reviews that propose approval/denial.  future iterations
+	// may support additional states (e.g. None for comment-only reviews).
+	if !rev.ProposedState.IsApproved() && !rev.ProposedState.IsDenied() {
+		return trace.BadParameter("invalid state proposal: %s (expected approval/denial)", rev.ProposedState)
+	}
+
+	// the default threshold should exist. if it does not, the request either is not fully
+	// initialized (i.e. variable expansion has not been run yet) or the request was inserted into
+	// the backend by a teleport instance which does not support the review feature.
+	if len(req.GetThresholds()) == 0 {
+		return trace.BadParameter("request is uninitialized or does not support reviews")
+	}
+
+	// user must not have previously reviewed this request
+	for _, existingReview := range req.GetReviews() {
+		if existingReview.Author == rev.Author {
+			return trace.AccessDenied("user %q has already reviewed this request", rev.Author)
+		}
+	}
+
+	rtm := req.GetRoleThresholdMapping()
+
+	// TODO(fspmarshall): Remove this restriction once role overrides
+	// in reviews are fully supported.
+	if len(rev.Roles) != 0 && len(rev.Roles) != len(rtm) {
+		return trace.NotImplemented("role subselection is not yet supported in reviews, try omitting role list")
+	}
+
+	// TODO(fspmarhsall): Remove this restriction once annotations
+	// in reviews are fully supported.
+	if len(rev.Annotations) != 0 {
+		return trace.NotImplemented("annotations are not yet supported in reviews, try omitting annotations field")
+	}
+
+	// verify that all roles are present within the request
+	for _, role := range rev.Roles {
+		if _, ok := rtm[role]; !ok {
+			return trace.BadParameter("role %q is not a member of this request", role)
+		}
+	}
+
+	return nil
+}
+
+// collectReviewThresholdIndexes aggregates the indexes of all thresholds whose filters match
+// the supplied review (part of review application logic).
+func collectReviewThresholdIndexes(req AccessRequest, rev types.AccessReview, author User) ([]uint32, error) {
+	parser, err := newThresholdFilterParser(req, rev, author)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var tids []uint32
+
+	for i, t := range req.GetThresholds() {
+		match, err := accessReviewThresholdMatchesFilter(t, parser)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if !match {
+			continue
+		}
+
+		tid := uint32(i)
+		if int(tid) != i {
+			// sanity-check.  we disallow extremely large threshold lists elsewhere, but it's always
+			// best to double-check these things.
+			return nil, trace.Errorf("threshold index %d out of supported range (this is a bug)", i)
+		}
+		tids = append(tids, tid)
+	}
+
+	return tids, nil
+}
+
+// accessReviewThresholdMatchesFilter returns true if Filter rule matches
+// Empty Filter block always matches
+func accessReviewThresholdMatchesFilter(t types.AccessReviewThreshold, parser predicate.Parser) (bool, error) {
+	if t.Filter == "" {
+		return true, nil
+	}
+	ifn, err := parser.Parse(t.Filter)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	fn, ok := ifn.(predicate.BoolPredicate)
+	if !ok {
+		return false, trace.BadParameter("unsupported type: %T", ifn)
+	}
+	return fn(), nil
+}
+
+// newThresholdFilterParser creates a custom parser context which exposes a simplified view of the review author
+// and the request for evaluation of review threshold filters.
+func newThresholdFilterParser(req AccessRequest, rev types.AccessReview, author User) (BoolPredicateParser, error) {
+	return NewJSONBoolParser(thresholdFilterContext{
+		Reviewer: reviewAuthorContext{
+			Roles:  author.GetRoles(),
+			Traits: author.GetTraits(),
+		},
+		Review: reviewParamsContext{
+			Reason:      rev.Reason,
+			Annotations: rev.Annotations,
+		},
+		Request: reviewRequestContext{
+			Roles:             req.GetOriginalRoles(),
+			Reason:            req.GetRequestReason(),
+			SystemAnnotations: req.GetSystemAnnotations(),
+		},
+	})
+}
+
+// requestResolution describes a request state-transition from
+// PENDING to some other state.
+type requestResolution struct {
+	state  RequestState
+	reason string
+}
+
+// calculateReviewBasedResolution calculates the request resolution based upon
+// a request's reviews.  Returns (nil,nil) in the event no resolution has been reached.
+func calculateReviewBasedResolution(req AccessRequest) (*requestResolution, error) {
+	// thresholds and reviews must be populated before state-transitions are possible
+	thresholds, reviews := req.GetThresholds(), req.GetReviews()
+	if len(thresholds) == 0 || len(reviews) == 0 {
+		return nil, nil
+	}
+
+	// approved keeps track of roles that have hit at least one
+	// of their approval thresholds.
+	approved := make(map[string]struct{})
+
+	// denied keeps track of whether or not we've seen *any* role get denied
+	// (which role does not currently matter since we short-circuit on the
+	// first denial to be triggered).
+	denied := false
+
+	// counts keeps track of the approval and denial counts for all thresholds.
+	counts := make([]struct{ approval, denial uint32 }, len(thresholds))
+
+	// lastReview stores the most recently processed review.  Since processing halts
+	// once we hit our first approval/denial condition, this review represents the
+	// triggering review for the approval/denial state-transition.
+	var lastReview types.AccessReview
+
+	// Iterate through all reviews and aggregate them against `counts`.
+ProcessReviews:
+	for _, rev := range reviews {
+		lastReview = rev
+		for _, tid := range rev.ThresholdIndexes {
+			idx := int(tid)
+			if len(thresholds) <= idx {
+				return nil, trace.Errorf("threshold index '%d' out of range (this is a bug)", idx)
+			}
+			switch {
+			case rev.ProposedState.IsApproved():
+				counts[idx].approval++
+			case rev.ProposedState.IsDenied():
+				counts[idx].denial++
+			default:
+				return nil, trace.BadParameter("cannot calculate state-transition, unexpected proposal: %s", rev.ProposedState)
+			}
+		}
+
+		// If we hit any denial thresholds, short-circuit immediately
+		for i, t := range thresholds {
+
+			if counts[i].denial >= t.Deny && t.Deny != 0 {
+				denied = true
+				break ProcessReviews
+			}
+		}
+
+		// check for roles that can be transitioned to an approved state
+	CheckRoleApprovals:
+		for role, thresholdSets := range req.GetRoleThresholdMapping() {
+			if _, ok := approved[role]; ok {
+				// role was marked approved during a previous iteration
+				continue CheckRoleApprovals
+			}
+
+			// iterate through all threshold sets.  All sets must have at least
+			// one threshold which has hit its approval count in order for the
+			// role to be considered approved.
+		CheckThresholdSets:
+			for _, tset := range thresholdSets.Sets {
+
+				for _, tid := range tset.Indexes {
+					idx := int(tid)
+					if len(thresholds) <= idx {
+						return nil, trace.Errorf("threshold index out of range %s/%d (this is a bug)", role, tid)
+					}
+					t := thresholds[idx]
+
+					if counts[idx].approval >= t.Approve && t.Approve != 0 {
+						// this set contains a threshold which has met its approval condition.
+						// skip to the next set.
+						continue CheckThresholdSets
+					}
+				}
+
+				// no thresholds met for this set. there may be additional roles/thresholds
+				// which did meet their requirements this iteration, but there is no point
+				// processing them unless this set has also hit its requirements.  we therefore
+				// move immediately to processing the next review.
+				continue ProcessReviews
+			}
+
+			// since we skip to the next review as soon as we see a set which has not hit any of its
+			// approval scenarios, we know that if we get to this point the role must be approved.
+			approved[role] = struct{}{}
+		}
+		// If we got here, then we iterated across all roles in the rtm without hitting any that
+		// had not met their approval scenario.  The request has hit an approved state and further
+		// reviews will not be processed.
+		break ProcessReviews
+	}
+
+	switch {
+	case lastReview.ProposedState.IsApproved():
+		if len(approved) != len(req.GetRoleThresholdMapping()) {
+			// processing halted on approval, but not all roles have
+			// hit their approval thresholds; no state-transition.
+			return nil, nil
+		}
+	case lastReview.ProposedState.IsDenied():
+		if !denied {
+			// processing halted on denial, but no roles have hit
+			// their denial thresholds; no state-transition.
+			return nil, nil
+		}
+	default:
+		return nil, trace.BadParameter("cannot calculate state-transition, unexpected proposal: %s", lastReview.ProposedState)
+	}
+
+	// processing halted on valid state-transition; return resolution
+	// based on last review
+	return &requestResolution{
+		state:  lastReview.ProposedState,
+		reason: lastReview.Reason,
+	}, nil
 }
 
 // GetAccessRequest is a helper function assists with loading a specific request by ID.
@@ -304,49 +553,10 @@ func GetAccessRequest(ctx context.Context, acc DynamicAccess, reqID string) (Acc
 	return reqs[0], nil
 }
 
-func (s RequestState) IsNone() bool {
-	return s == RequestState_NONE
-}
-
-func (s RequestState) IsPending() bool {
-	return s == RequestState_PENDING
-}
-
-func (s RequestState) IsApproved() bool {
-	return s == RequestState_APPROVED
-}
-
-func (s RequestState) IsDenied() bool {
-	return s == RequestState_DENIED
-}
-
-func (s RequestState) IsResolved() bool {
-	return s.IsApproved() || s.IsDenied()
-}
-
-// NewAccessRequest assembled an AccessReqeust resource.
-func NewAccessRequest(user string, roles ...string) (AccessRequest, error) {
-	req := AccessRequestV3{
-		Kind:    KindAccessRequest,
-		Version: V3,
-		Metadata: Metadata{
-			Name: uuid.New(),
-		},
-		Spec: AccessRequestSpecV3{
-			User:  user,
-			Roles: roles,
-			State: RequestState_PENDING,
-		},
-	}
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &req, nil
-}
-
-func (c AccessRequestConditions) GetTraitMappings() TraitMappingSet {
-	tm := make([]TraitMapping, 0, len(c.ClaimsToRoles))
-	for _, mapping := range c.ClaimsToRoles {
+// GetTraitMappings gets the AccessRequestConditions' claims as a TraitMappingsSet
+func GetTraitMappings(cms []types.ClaimMapping) TraitMappingSet {
+	tm := make([]TraitMapping, 0, len(cms))
+	for _, mapping := range cms {
 		tm = append(tm, TraitMapping{
 			Trait: mapping.Claim,
 			Value: mapping.Value,
@@ -359,15 +569,15 @@ func (c AccessRequestConditions) GetTraitMappings() TraitMappingSet {
 type UserAndRoleGetter interface {
 	UserGetter
 	RoleGetter
-	GetRoles() ([]Role, error)
+	GetRoles(ctx context.Context) ([]Role, error)
 }
 
 // appendRoleMatchers constructs all role matchers for a given
 // AccessRequestConditions instance and appends them to the
 // supplied matcher slice.
-func appendRoleMatchers(matchers []parse.Matcher, conditions AccessRequestConditions, traits map[string][]string) ([]parse.Matcher, error) {
+func appendRoleMatchers(matchers []parse.Matcher, roles []string, cms []types.ClaimMapping, traits map[string][]string) ([]parse.Matcher, error) {
 	// build matchers for the role list
-	for _, r := range conditions.Roles {
+	for _, r := range roles {
 		m, err := parse.NewMatcher(r)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -376,7 +586,7 @@ func appendRoleMatchers(matchers []parse.Matcher, conditions AccessRequestCondit
 	}
 
 	// build matchers for all role mappings
-	ms, err := conditions.GetTraitMappings().TraitsToRoleMatchers(traits)
+	ms, err := TraitsToRoleMatchers(GetTraitMappings(cms), traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -408,81 +618,459 @@ func insertAnnotations(annotations map[string][]string, conditions AccessRequest
 	}
 }
 
-// requestValidator a helper for validating access requests.
+// ReviewPermissionChecker is a helper for validating whether or not a user
+// is allowed to review specific access requests.
+type ReviewPermissionChecker struct {
+	User  User
+	Roles struct {
+		// allow/deny mappings sort role matches into lists based on their
+		// constraining predicate (where) expression.
+		AllowReview, DenyReview map[string][]parse.Matcher
+	}
+}
+
+// HasAllowDirectives checks if any allow directives exist.  A user with
+// no allow directives will never be able to review any requests.
+func (c *ReviewPermissionChecker) HasAllowDirectives() bool {
+	for _, allowMatchers := range c.Roles.AllowReview {
+		if len(allowMatchers) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// CanReviewRequest checks if the user is allowed to review the specified request.
+// note that the ability to review a request does not necessarily imply that any specific
+// approval/denial thresholds will actually match the user's review.  Matching one or more
+// thresholds is not a pre-requisite for review submission.
+func (c *ReviewPermissionChecker) CanReviewRequest(req AccessRequest) (bool, error) {
+	// TODO(fspmarshall): Refactor this to improve readability when
+	// adding role subselection support.
+
+	// user cannot review their own request
+	if c.User.GetName() == req.GetUser() {
+		return false, nil
+	}
+
+	// method allocates new array if an override has already been
+	// called, so get the role list once in advance.
+	requestedRoles := req.GetOriginalRoles()
+
+	parser, err := NewJSONBoolParser(reviewPermissionContext{
+		Reviewer: reviewAuthorContext{
+			Roles:  c.User.GetRoles(),
+			Traits: c.User.GetTraits(),
+		},
+		Request: reviewRequestContext{
+			Roles:             requestedRoles,
+			Reason:            req.GetRequestReason(),
+			SystemAnnotations: req.GetSystemAnnotations(),
+		},
+	})
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	// check all denial rules first.
+	for expr, denyMatchers := range c.Roles.DenyReview {
+		// if predicate is non-empty, it must match
+		if expr != "" {
+			match, err := parser.EvalBoolPredicate(expr)
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+			if !match {
+				continue
+			}
+		}
+
+		for _, role := range requestedRoles {
+			for _, deny := range denyMatchers {
+				if deny.Match(role) {
+					// short-circuit on first denial
+					return false, nil
+				}
+			}
+		}
+	}
+
+	// needsAllow tracks the list of roles which still need to match an allow directive
+	// in order for the request to be reviewable.  we need to perform a deep copy here
+	// since we perform a filter-in-place when we find a matching allow directive.
+	needsAllow := make([]string, len(requestedRoles))
+	copy(needsAllow, requestedRoles)
+
+Outer:
+	for expr, allowMatchers := range c.Roles.AllowReview {
+		// if predicate is non-empty, it must match.
+		if expr != "" {
+			match, err := parser.EvalBoolPredicate(expr)
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+			if !match {
+				continue Outer
+			}
+		}
+
+		// unmatched collects unmatched roles for our filter-in-place operation.
+		unmatched := needsAllow[:0]
+
+	MatchRoles:
+		for _, role := range needsAllow {
+			for _, allow := range allowMatchers {
+				if allow.Match(role) {
+					// role matched this allow directive, and will be filtered out
+					continue MatchRoles
+				}
+			}
+
+			// still unmatched, this role will continue to be part of
+			// the needsAllow list next iteration.
+			unmatched = append(unmatched, role)
+		}
+
+		// finalize our filter-in-place
+		needsAllow = unmatched
+
+		if len(needsAllow) == 0 {
+			// all roles have matched an allow directive, no further
+			// processing is required.
+			break Outer
+		}
+	}
+
+	return len(needsAllow) == 0, nil
+}
+
+func NewReviewPermissionChecker(ctx context.Context, getter UserAndRoleGetter, username string) (ReviewPermissionChecker, error) {
+	user, err := getter.GetUser(username, false)
+	if err != nil {
+		return ReviewPermissionChecker{}, trace.Wrap(err)
+	}
+
+	c := ReviewPermissionChecker{
+		User: user,
+	}
+
+	c.Roles.AllowReview = make(map[string][]parse.Matcher)
+	c.Roles.DenyReview = make(map[string][]parse.Matcher)
+
+	// load all statically assigned roles for the user and
+	// use them to build our checker state.
+	for _, roleName := range c.User.GetRoles() {
+		role, err := getter.GetRole(ctx, roleName)
+		if err != nil {
+			return ReviewPermissionChecker{}, trace.Wrap(err)
+		}
+		if err := c.push(role); err != nil {
+			return ReviewPermissionChecker{}, trace.Wrap(err)
+		}
+	}
+
+	return c, nil
+}
+
+func (c *ReviewPermissionChecker) push(role Role) error {
+
+	allow, deny := role.GetAccessReviewConditions(Allow), role.GetAccessReviewConditions(Deny)
+
+	var err error
+
+	c.Roles.DenyReview[deny.Where], err = appendRoleMatchers(c.Roles.DenyReview[deny.Where], deny.Roles, deny.ClaimsToRoles, c.User.GetTraits())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	c.Roles.AllowReview[allow.Where], err = appendRoleMatchers(c.Roles.AllowReview[allow.Where], allow.Roles, allow.ClaimsToRoles, c.User.GetTraits())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// RequestValidator a helper for validating access requests.
 // a user's statically assigned roles are are "added" to the
 // validator via the push() method, which extracts all the
 // relevant rules, peforms variable substitutions, and builds
 // a set of simple Allow/Deny datastructures.  These, in turn,
 // are used to validate and expand the access request.
-type requestValidator struct {
-	traits        map[string][]string
+type RequestValidator struct {
+	getter        UserAndRoleGetter
+	user          User
 	requireReason bool
 	opts          struct {
-		expandRoles, annotate bool
+		expandVars bool
 	}
 	Roles struct {
-		Allow, Deny []parse.Matcher
+		AllowRequest, DenyRequest []parse.Matcher
 	}
 	Annotations struct {
 		Allow, Deny map[string][]string
 	}
+	ThresholdMatchers []struct {
+		Matchers   []parse.Matcher
+		Thresholds []types.AccessReviewThreshold
+	}
+	SuggestedReviewers []string
 }
 
-func newRequestValidator(traits map[string][]string, opts ...ValidateRequestOption) requestValidator {
-	m := requestValidator{
-		traits: traits,
+// NewRequestValidator configures a new RequestValidor for the specified user.
+func NewRequestValidator(getter UserAndRoleGetter, username string, opts ...ValidateRequestOption) (RequestValidator, error) {
+	user, err := getter.GetUser(username, false)
+	if err != nil {
+		return RequestValidator{}, trace.Wrap(err)
+	}
+
+	m := RequestValidator{
+		getter: getter,
+		user:   user,
 	}
 	for _, opt := range opts {
 		opt(&m)
 	}
-	if m.opts.annotate {
+	if m.opts.expandVars {
 		// validation process for incoming access requests requires
 		// generating system annotations to be attached to the request
 		// before it is inserted into the backend.
 		m.Annotations.Allow = make(map[string][]string)
 		m.Annotations.Deny = make(map[string][]string)
 	}
-	return m
+
+	// load all statically assigned roles for the user and
+	// use them to build our validation state.
+	for _, roleName := range m.user.GetRoles() {
+		role, err := m.getter.GetRole(context.TODO(), roleName)
+		if err != nil {
+			return RequestValidator{}, trace.Wrap(err)
+		}
+		if err := m.push(role); err != nil {
+			return RequestValidator{}, trace.Wrap(err)
+		}
+	}
+	return m, nil
+}
+
+// Validate validates an access request and potentially modifies it depending on how
+// the validator was configured.
+func (m *RequestValidator) Validate(req AccessRequest) error {
+	if m.user.GetName() != req.GetUser() {
+		return trace.BadParameter("request validator configured for different user (this is a bug)")
+	}
+
+	if m.requireReason && req.GetRequestReason() == "" {
+		return trace.BadParameter("request reason must be specified (required by static role configuration)")
+	}
+
+	// check for "wildcard request" (`roles=*`).  wildcard requests
+	// need to be expanded into a list consisting of all existing roles
+	// that the user does not hold and is allowed to request.
+	if r := req.GetRoles(); len(r) == 1 && r[0] == Wildcard {
+
+		if !req.GetState().IsPending() {
+			// expansion is only permitted in pending requests.  once resolved,
+			// a request's role list must be immutable.
+			return trace.BadParameter("wildcard requests are not permitted in state %s", req.GetState())
+		}
+
+		if !m.opts.expandVars {
+			// teleport always validates new incoming pending access requests
+			// with ExpandVars(true). after that, it should be impossible to
+			// add new values to the role list.
+			return trace.BadParameter("unexpected wildcard request (this is a bug)")
+		}
+
+		requestable, err := m.GetRequestableRoles()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if len(requestable) == 0 {
+			return trace.BadParameter("no requestable roles, please verify static RBAC configuration")
+		}
+		req.SetRoles(requestable)
+	}
+
+	// verify that all requested roles are permissible
+	for _, roleName := range req.GetRoles() {
+		if !m.CanRequestRole(roleName) {
+			return trace.BadParameter("user %q can not request role %q", req.GetUser(), roleName)
+		}
+	}
+
+	if m.opts.expandVars {
+		// build the thresholds array and role-threshold-mapping.  the rtm encodes the
+		// relationship between a role, and the thresholds which must pass in order
+		// for that role to be considered approved.  when building the validator we
+		// recorded the relationship between the various allow matchers and their associated
+		// threshold groups.
+		rtm := make(map[string]types.ThresholdIndexSets)
+		var tc thresholdCollector
+		for _, role := range req.GetRoles() {
+			sets, err := m.collectSetsForRole(&tc, role)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			rtm[role] = types.ThresholdIndexSets{
+				Sets: sets,
+			}
+		}
+		req.SetThresholds(tc.Thresholds)
+		req.SetRoleThresholdMapping(rtm)
+
+		// incoming requests must have system annotations attached
+		// before being inserted into the backend. this is how the
+		// RBAC system propagates sideband information to plugins.
+		req.SetSystemAnnotations(m.SystemAnnotations())
+
+		// if no suggested reviewers were provided by the user then
+		// use the defaults suggested by the user's static roles.
+		if len(req.GetSuggestedReviewers()) == 0 {
+			req.SetSuggestedReviewers(utils.Deduplicate(m.SuggestedReviewers))
+		}
+	}
+	return nil
+}
+
+// GetRequestableRoles gets the list of all existent roles which the user is
+// able to request.  This operation is expensive since it loads all existent
+// roles in order to determine the role list.  Prefer calling CanRequestRole
+// when checking againt a known role list.
+func (m *RequestValidator) GetRequestableRoles() ([]string, error) {
+	allRoles, err := m.getter.GetRoles(context.TODO())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var expanded []string
+	for _, role := range allRoles {
+		if n := role.GetName(); !utils.SliceContainsStr(m.user.GetRoles(), n) && m.CanRequestRole(n) {
+			// user does not currently hold this role, and is allowed to request it.
+			expanded = append(expanded, n)
+		}
+	}
+	return expanded, nil
 }
 
 // push compiles a role's configuration into the request validator.
 // All of the requesint user's statically assigned roles must be pushed
 // before validation begins.
-func (m *requestValidator) push(role Role) error {
+func (m *RequestValidator) push(role Role) error {
 	var err error
 
 	m.requireReason = m.requireReason || role.GetOptions().RequestAccess.RequireReason()
 
 	allow, deny := role.GetAccessRequestConditions(Allow), role.GetAccessRequestConditions(Deny)
 
-	m.Roles.Deny, err = appendRoleMatchers(m.Roles.Deny, deny, m.traits)
+	m.Roles.DenyRequest, err = appendRoleMatchers(m.Roles.DenyRequest, deny.Roles, deny.ClaimsToRoles, m.user.GetTraits())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	m.Roles.Allow, err = appendRoleMatchers(m.Roles.Allow, allow, m.traits)
+	// record what will be the starting index of the allow
+	// matchers for this role, if it applies any.
+	astart := len(m.Roles.AllowRequest)
+
+	m.Roles.AllowRequest, err = appendRoleMatchers(m.Roles.AllowRequest, allow.Roles, allow.ClaimsToRoles, m.user.GetTraits())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if m.opts.annotate {
+	if m.opts.expandVars {
+		// if this role added additional allow matchers, then we need to record the relationship
+		// between its matchers and its thresholds.  this information is used later to calculate
+		// the rtm and threshold list.
+		if len(m.Roles.AllowRequest) > astart {
+			m.ThresholdMatchers = append(m.ThresholdMatchers, struct {
+				Matchers   []parse.Matcher
+				Thresholds []types.AccessReviewThreshold
+			}{
+				Matchers:   m.Roles.AllowRequest[astart:],
+				Thresholds: allow.Thresholds,
+			})
+		}
+
 		// validation process for incoming access requests requires
 		// generating system annotations to be attached to the request
 		// before it is inserted into the backend.
-		insertAnnotations(m.Annotations.Deny, deny, m.traits)
-		insertAnnotations(m.Annotations.Allow, allow, m.traits)
+		insertAnnotations(m.Annotations.Deny, deny, m.user.GetTraits())
+		insertAnnotations(m.Annotations.Allow, allow, m.user.GetTraits())
+
+		m.SuggestedReviewers = append(m.SuggestedReviewers, allow.SuggestedReviewers...)
 	}
 	return nil
 }
 
+// thresholdCollector is a helper which assembles the Thresholds array for a request.
+// the push() method is used to insert groups of related thresholds and calculate their
+// corresponding index set.
+type thresholdCollector struct {
+	Thresholds []types.AccessReviewThreshold
+}
+
+// push pushes a set of related thresholds and returns the associated indexes.  each set of indexes represents
+// an "or" operator, indicating that one of the referenced thresholds must reach its approval condition in order
+// for the set as a whole to be considered approved.
+func (c *thresholdCollector) push(s []types.AccessReviewThreshold) ([]uint32, error) {
+	if len(s) == 0 {
+		// empty threshold sets are equivalent to the default threshold
+		s = []types.AccessReviewThreshold{
+			{
+				Name:    "default",
+				Approve: 1,
+				Deny:    1,
+			},
+		}
+	}
+
+	var indexes []uint32
+
+	for _, t := range s {
+		tid, err := c.pushThreshold(t)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		indexes = append(indexes, tid)
+	}
+
+	return indexes, nil
+}
+
+// pushThreshold pushes a threshold to the main threshold list and returns its index
+// as a uint32 for compatibility with grpc types.
+func (c *thresholdCollector) pushThreshold(t types.AccessReviewThreshold) (uint32, error) {
+	// maxThresholds is an arbitrary large number that serves as a guard against
+	// odd errors due to casting between int and uint32.  This is probably unnecessary
+	// since we'd likely hit other limitations *well* before wrapping became a concern,
+	// but its best to have explicit guard rails.
+	const maxThresholds = 4096
+
+	// don't bother double-storing equivalent thresholds
+	for i, threshold := range c.Thresholds {
+		if t.Equals(threshold) {
+			return uint32(i), nil
+		}
+	}
+
+	if len(c.Thresholds) >= maxThresholds {
+		return 0, trace.LimitExceeded("max review thresholds exceeded (max=%d)", maxThresholds)
+	}
+
+	c.Thresholds = append(c.Thresholds, t)
+
+	return uint32(len(c.Thresholds) - 1), nil
+}
+
 // CanRequestRole checks if a given role can be requested.
-func (m *requestValidator) CanRequestRole(name string) bool {
-	for _, deny := range m.Roles.Deny {
+func (m *RequestValidator) CanRequestRole(name string) bool {
+	for _, deny := range m.Roles.DenyRequest {
 		if deny.Match(name) {
 			return false
 		}
 	}
-	for _, allow := range m.Roles.Allow {
+	for _, allow := range m.Roles.AllowRequest {
 		if allow.Match(name) {
 			return true
 		}
@@ -490,9 +1078,40 @@ func (m *requestValidator) CanRequestRole(name string) bool {
 	return false
 }
 
+// collectSetsForRole collects the threshold index sets which describe the various groups of
+// thresholds which must pass in order for a request for the given role to be approved.
+func (m *RequestValidator) collectSetsForRole(c *thresholdCollector, role string) ([]types.ThresholdIndexSet, error) {
+	var sets []types.ThresholdIndexSet
+
+Outer:
+	for _, tms := range m.ThresholdMatchers {
+		for _, matcher := range tms.Matchers {
+			if matcher.Match(role) {
+				set, err := c.push(tms.Thresholds)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				sets = append(sets, types.ThresholdIndexSet{
+					Indexes: set,
+				})
+				continue Outer
+			}
+		}
+	}
+
+	if len(sets) == 0 {
+		// this should never happen since every allow directive is associated with at least one
+		// threshold, and this operation happens after requested roles have been validated to match at
+		// least one allow directive.
+		return nil, trace.BadParameter("role %q matches no threshold sets (this is a bug)", role)
+	}
+
+	return sets, nil
+}
+
 // SystemAnnotations calculates the system annotations for a pending
 // access request.
-func (m *requestValidator) SystemAnnotations() map[string][]string {
+func (m *RequestValidator) SystemAnnotations() map[string][]string {
 	annotations := make(map[string][]string)
 	for k, va := range m.Annotations.Allow {
 		var filtered []string
@@ -509,319 +1128,31 @@ func (m *requestValidator) SystemAnnotations() map[string][]string {
 	return annotations
 }
 
-type ValidateRequestOption func(*requestValidator)
+type ValidateRequestOption func(*RequestValidator)
 
-// ExpandRoles activates expansion of wildcard role lists
-// (`[]string{"*"}`) when true.
-func ExpandRoles(expand bool) ValidateRequestOption {
-	return func(v *requestValidator) {
-		v.opts.expandRoles = expand
+// ExpandVars toggles variable expansion during request validation.  Variable expansion
+// includes expanding wildcard requests, setting system annotations, and gathering
+// threshold information.  Variable expansion should be run by the auth server prior
+// to storing an access request for the first time.
+func ExpandVars(expand bool) ValidateRequestOption {
+	return func(v *RequestValidator) {
+		v.opts.expandVars = expand
 	}
 }
 
-// ApplySystemAnnotations causes system annotations to be computed
-// and attached during validation when true.
-func ApplySystemAnnotations(annotate bool) ValidateRequestOption {
-	return func(v *requestValidator) {
-		v.opts.annotate = annotate
-	}
-}
-
-// ValidateAccessRequest validates an access request against the associated users's
+// ValidateAccessRequestForUser validates an access request against the associated users's
 // *statically assigned* roles. If expandRoles is true, it will also expand wildcard
 // requests, setting their role list to include all roles the user is allowed to request.
 // Expansion should be performed before an access request is initially placed in the backend.
-func ValidateAccessRequest(getter UserAndRoleGetter, req AccessRequest, opts ...ValidateRequestOption) error {
-	user, err := getter.GetUser(req.GetUser(), false)
+func ValidateAccessRequestForUser(getter UserAndRoleGetter, req AccessRequest, opts ...ValidateRequestOption) error {
+	v, err := NewRequestValidator(getter, req.GetUser(), opts...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	validator := newRequestValidator(user.GetTraits(), opts...)
-
-	// load all statically assigned roles for the user and
-	// use them to build our validation state.
-	for _, roleName := range user.GetRoles() {
-		role, err := getter.GetRole(roleName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := validator.push(role); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	if validator.requireReason && req.GetRequestReason() == "" {
-		return trace.BadParameter("request reason must be specified (required by static role configuration)")
-	}
-
-	// check for "wildcard request" (`roles=*`).  wildcard requests
-	// need to be expanded into a list consisting of all existing roles
-	// that the user does not hold and is allowed to request.
-	if r := req.GetRoles(); len(r) == 1 && r[0] == Wildcard {
-
-		if !req.GetState().IsPending() {
-			// expansion is only permitted in pending requests.  once resolved,
-			// a request's role list must be immutable.
-			return trace.BadParameter("wildcard requests are not permitted in state %s", req.GetState())
-		}
-
-		if !validator.opts.expandRoles {
-			// teleport always validates new incoming pending access requests
-			// with ExpandRoles(true). after that, it should be impossible to
-			// add new values to the role list.
-			return trace.BadParameter("unexpected wildcard request (this is a bug)")
-		}
-
-		allRoles, err := getter.GetRoles()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		var expanded []string
-		for _, role := range allRoles {
-			if n := role.GetName(); !utils.SliceContainsStr(user.GetRoles(), n) && validator.CanRequestRole(n) {
-				// user does not currently hold this role, and is allowed to request it.
-				expanded = append(expanded, n)
-			}
-		}
-		if len(expanded) == 0 {
-			return trace.BadParameter("no requestable roles, please verify static RBAC configuration")
-		}
-		req.SetRoles(expanded)
-	}
-
-	// verify that all requested roles are permissible
-	for _, roleName := range req.GetRoles() {
-		if !validator.CanRequestRole(roleName) {
-			return trace.BadParameter("user %q can not request role %q", req.GetUser(), roleName)
-		}
-	}
-
-	if validator.opts.annotate {
-		// incoming requests must have system annotations attached before
-		// before being inserted into the backend. this is how the
-		// RBAC system propagates sideband information to plugins.
-		req.SetSystemAnnotations(validator.SystemAnnotations())
-	}
-
-	return nil
+	return trace.Wrap(v.Validate(req))
 }
 
-func (r *AccessRequestV3) GetUser() string {
-	return r.Spec.User
-}
-
-func (r *AccessRequestV3) GetRoles() []string {
-	return r.Spec.Roles
-}
-
-func (r *AccessRequestV3) SetRoles(roles []string) {
-	r.Spec.Roles = roles
-}
-
-func (r *AccessRequestV3) GetState() RequestState {
-	return r.Spec.State
-}
-
-func (r *AccessRequestV3) SetState(state RequestState) error {
-	if r.Spec.State.IsDenied() {
-		if state.IsDenied() {
-			return nil
-		}
-		return trace.BadParameter("cannot set request-state %q (already denied)", state.String())
-	}
-	r.Spec.State = state
-	return nil
-}
-
-func (r *AccessRequestV3) GetCreationTime() time.Time {
-	return r.Spec.Created
-}
-
-func (r *AccessRequestV3) SetCreationTime(t time.Time) {
-	r.Spec.Created = t
-}
-
-func (r *AccessRequestV3) GetAccessExpiry() time.Time {
-	return r.Spec.Expires
-}
-
-func (r *AccessRequestV3) SetAccessExpiry(expiry time.Time) {
-	r.Spec.Expires = expiry
-}
-
-func (r *AccessRequestV3) GetRequestReason() string {
-	return r.Spec.RequestReason
-}
-
-func (r *AccessRequestV3) SetRequestReason(reason string) {
-	r.Spec.RequestReason = reason
-}
-
-func (r *AccessRequestV3) GetResolveReason() string {
-	return r.Spec.ResolveReason
-}
-
-func (r *AccessRequestV3) SetResolveReason(reason string) {
-	r.Spec.ResolveReason = reason
-}
-
-func (r *AccessRequestV3) GetResolveAnnotations() map[string][]string {
-	return r.Spec.ResolveAnnotations
-}
-
-func (r *AccessRequestV3) SetResolveAnnotations(annotations map[string][]string) {
-	r.Spec.ResolveAnnotations = annotations
-}
-
-func (r *AccessRequestV3) GetSystemAnnotations() map[string][]string {
-	return r.Spec.SystemAnnotations
-}
-
-func (r *AccessRequestV3) SetSystemAnnotations(annotations map[string][]string) {
-	r.Spec.SystemAnnotations = annotations
-}
-
-func (r *AccessRequestV3) CheckAndSetDefaults() error {
-	if err := r.Metadata.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-	if r.GetState().IsNone() {
-		if err := r.SetState(RequestState_PENDING); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	if err := r.Check(); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-func (r *AccessRequestV3) Check() error {
-	if r.Kind == "" {
-		return trace.BadParameter("access request kind not set")
-	}
-	if r.Version == "" {
-		return trace.BadParameter("access request version not set")
-	}
-	if r.GetName() == "" {
-		return trace.BadParameter("access request id not set")
-	}
-	if uuid.Parse(r.GetName()) == nil {
-		return trace.BadParameter("invalid access request id %q", r.GetName())
-	}
-	if r.GetUser() == "" {
-		return trace.BadParameter("access request user name not set")
-	}
-	if len(r.GetRoles()) < 1 {
-		return trace.BadParameter("access request does not specify any roles")
-	}
-	if r.GetState().IsPending() {
-		if r.GetResolveReason() != "" {
-			return trace.BadParameter("pending requests cannot include resolve reason")
-		}
-		if len(r.GetResolveAnnotations()) != 0 {
-			return trace.BadParameter("pending requests cannot include resolve annotations")
-		}
-	}
-	return nil
-}
-
-func (r *AccessRequestV3) Equals(other AccessRequest) bool {
-	o, ok := other.(*AccessRequestV3)
-	if !ok {
-		return false
-	}
-	if r.GetName() != o.GetName() {
-		return false
-	}
-	return r.Spec.Equals(&o.Spec)
-}
-
-func (s *AccessRequestSpecV3) Equals(other *AccessRequestSpecV3) bool {
-	if s.User != other.User {
-		return false
-	}
-	if len(s.Roles) != len(other.Roles) {
-		return false
-	}
-	for i, role := range s.Roles {
-		if role != other.Roles[i] {
-			return false
-		}
-	}
-	if s.Created != other.Created {
-		return false
-	}
-	if s.Expires != other.Expires {
-		return false
-	}
-	return s.State == other.State
-}
-
-type AccessRequestMarshaler interface {
-	MarshalAccessRequest(req AccessRequest, opts ...MarshalOption) ([]byte, error)
-	UnmarshalAccessRequest(bytes []byte, opts ...MarshalOption) (AccessRequest, error)
-}
-
-type accessRequestMarshaler struct{}
-
-func (r *accessRequestMarshaler) MarshalAccessRequest(req AccessRequest, opts ...MarshalOption) ([]byte, error) {
-	cfg, err := collectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	switch r := req.(type) {
-	case *AccessRequestV3:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			cp := *r
-			cp.SetResourceID(0)
-			r = &cp
-		}
-		return utils.FastMarshal(r)
-	default:
-		return nil, trace.BadParameter("unrecognized access request type: %T", req)
-	}
-}
-
-func (r *accessRequestMarshaler) UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (AccessRequest, error) {
-	cfg, err := collectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var req AccessRequestV3
-	if cfg.SkipValidation {
-		if err := utils.FastUnmarshal(data, &req); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		if err := utils.UnmarshalWithSchema(GetAccessRequestSchema(), &req, data); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if cfg.ID != 0 {
-		req.SetResourceID(cfg.ID)
-	}
-	if !cfg.Expires.IsZero() {
-		req.SetExpiry(cfg.Expires)
-	}
-	return &req, nil
-}
-
-var accessRequestMarshalerInstance AccessRequestMarshaler = &accessRequestMarshaler{}
-
-func GetAccessRequestMarshaler() AccessRequestMarshaler {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	return accessRequestMarshalerInstance
-}
-
+// AccessRequestSpecSchema is JSON schema for AccessRequestSpec
 const AccessRequestSpecSchema = `{
 	"type": "object",
 	"additionalProperties": false,
@@ -837,62 +1168,68 @@ const AccessRequestSpecSchema = `{
 		"request_reason": { "type": "string" },
 		"resolve_reason": { "type": "string" },
 		"resolve_annotations": { "type": "object" },
-		"system_annotations": { "type": "object" }
+		"system_annotations": { "type": "object" },
+		"thresholds": { "type": "array" },
+		"rtm": { "type": "object" },
+		"reviews": { "type": "array" },
+		"suggested_reviewers": { "type": "array" }
 	}
 }`
 
+// GetAccessRequestSchema gets the full AccessRequest JSON schema
 func GetAccessRequestSchema() string {
 	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, AccessRequestSpecSchema, DefaultDefinitions)
 }
 
-func (r *AccessRequestV3) GetKind() string {
-	return r.Kind
+// UnmarshalAccessRequest unmarshals the AccessRequest resource from JSON.
+func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (AccessRequest, error) {
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var req AccessRequestV3
+	if cfg.SkipValidation {
+		if err := utils.FastUnmarshal(data, &req); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		if err := utils.UnmarshalWithSchema(GetAccessRequestSchema(), &req, data); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	if err := ValidateAccessRequest(&req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if cfg.ID != 0 {
+		req.SetResourceID(cfg.ID)
+	}
+	if !cfg.Expires.IsZero() {
+		req.SetExpiry(cfg.Expires)
+	}
+	return &req, nil
 }
 
-func (r *AccessRequestV3) GetSubKind() string {
-	return r.SubKind
-}
+// MarshalAccessRequest marshals the AccessRequest resource to JSON.
+func MarshalAccessRequest(accessRequest AccessRequest, opts ...MarshalOption) ([]byte, error) {
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-func (r *AccessRequestV3) SetSubKind(subKind string) {
-	r.SubKind = subKind
-}
-
-func (r *AccessRequestV3) GetVersion() string {
-	return r.Version
-}
-
-func (r *AccessRequestV3) GetName() string {
-	return r.Metadata.Name
-}
-
-func (r *AccessRequestV3) SetName(name string) {
-	r.Metadata.Name = name
-}
-
-func (r *AccessRequestV3) Expiry() time.Time {
-	return r.Metadata.Expiry()
-}
-
-func (r *AccessRequestV3) SetExpiry(expiry time.Time) {
-	r.Metadata.SetExpiry(expiry)
-}
-
-func (r *AccessRequestV3) SetTTL(clock clockwork.Clock, ttl time.Duration) {
-	r.Metadata.SetTTL(clock, ttl)
-}
-
-func (r *AccessRequestV3) GetMetadata() Metadata {
-	return r.Metadata
-}
-
-func (r *AccessRequestV3) GetResourceID() int64 {
-	return r.Metadata.GetID()
-}
-
-func (r *AccessRequestV3) SetResourceID(id int64) {
-	r.Metadata.SetID(id)
-}
-
-func (r *AccessRequestV3) String() string {
-	return fmt.Sprintf("AccessRequest(user=%v,roles=%+v)", r.Spec.User, r.Spec.Roles)
+	switch accessRequest := accessRequest.(type) {
+	case *AccessRequestV3:
+		if version := accessRequest.GetVersion(); version != V3 {
+			return nil, trace.BadParameter("mismatched access request version %v and type %T", version, accessRequest)
+		}
+		if !cfg.PreserveResourceID {
+			// avoid modifying the original object
+			// to prevent unexpected data races
+			copy := *accessRequest
+			copy.SetResourceID(0)
+			accessRequest = &copy
+		}
+		return utils.FastMarshal(accessRequest)
+	default:
+		return nil, trace.BadParameter("unrecognized access request type: %T", accessRequest)
+	}
 }

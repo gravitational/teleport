@@ -22,15 +22,15 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/gokyle/hotp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/tstranex/u2f"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -98,22 +98,12 @@ type Identity interface {
 	// Deprecated: HOTP use is deprecated, use GetTOTP instead.
 	GetHOTP(user string) (*hotp.HOTP, error)
 
-	// UpsertTOTP upserts TOTP secret key for a user that can be used to generate and validate tokens.
-	UpsertTOTP(user string, secretKey string) error
-
-	// GetTOTP returns the secret key used by the TOTP algorithm to validate tokens.
-	GetTOTP(user string) (string, error)
-
 	// UpsertUsedTOTPToken upserts a TOTP token to the backend so it can't be used again
 	// during the 30 second window it's valid.
 	UpsertUsedTOTPToken(user string, otpToken string) error
 
 	// GetUsedTOTPToken returns the last successfully used TOTP token.
 	GetUsedTOTPToken(user string) (string, error)
-
-	// DeleteUsedTOTPToken removes the used token from the backend. This should only
-	// be used during tests.
-	DeleteUsedTOTPToken(user string) error
 
 	// UpsertPassword upserts new password and OTP token
 	UpsertPassword(user string, password []byte) error
@@ -124,35 +114,32 @@ type Identity interface {
 	// GetU2FRegisterChallenge returns a U2F challenge for a new user corresponding to the token
 	GetU2FRegisterChallenge(token string) (*u2f.Challenge, error)
 
-	// UpsertU2FRegistration upserts a U2F registration from a valid register response
-	UpsertU2FRegistration(user string, u2fReg *u2f.Registration) error
-
-	// GetU2FRegistration returns a U2F registration from a valid register response
-	GetU2FRegistration(user string) (*u2f.Registration, error)
-
 	// UpsertU2FSignChallenge upserts a U2F sign (auth) challenge
 	UpsertU2FSignChallenge(user string, u2fChallenge *u2f.Challenge) error
 
 	// GetU2FSignChallenge returns a U2F sign (auth) challenge
 	GetU2FSignChallenge(user string) (*u2f.Challenge, error)
 
-	// UpsertU2FRegistrationCounter upserts a counter associated with a U2F registration
-	UpsertU2FRegistrationCounter(user string, counter uint32) error
+	// UpsertMFADevice upserts an MFA device for the user.
+	UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error
 
-	// GetU2FRegistrationCounter returns a counter associated with a U2F registration
-	GetU2FRegistrationCounter(user string) (uint32, error)
+	// GetMFADevices gets all MFA devices for the user.
+	GetMFADevices(ctx context.Context, user string) ([]*types.MFADevice, error)
+
+	// DeleteMFADevice deletes an MFA device for the user by ID.
+	DeleteMFADevice(ctx context.Context, user, id string) error
 
 	// UpsertOIDCConnector upserts OIDC Connector
-	UpsertOIDCConnector(connector OIDCConnector) error
+	UpsertOIDCConnector(ctx context.Context, connector OIDCConnector) error
 
 	// DeleteOIDCConnector deletes OIDC Connector
-	DeleteOIDCConnector(connectorID string) error
+	DeleteOIDCConnector(ctx context.Context, connectorID string) error
 
 	// GetOIDCConnector returns OIDC connector data, withSecrets adds or removes client secret from return results
-	GetOIDCConnector(id string, withSecrets bool) (OIDCConnector, error)
+	GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (OIDCConnector, error)
 
 	// GetOIDCConnectors returns registered connectors, withSecrets adds or removes client secret from return results
-	GetOIDCConnectors(withSecrets bool) ([]OIDCConnector, error)
+	GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]OIDCConnector, error)
 
 	// CreateOIDCAuthRequest creates new auth request
 	CreateOIDCAuthRequest(req OIDCAuthRequest, ttl time.Duration) error
@@ -164,16 +151,16 @@ type Identity interface {
 	CreateSAMLConnector(connector SAMLConnector) error
 
 	// UpsertSAMLConnector upserts SAML Connector
-	UpsertSAMLConnector(connector SAMLConnector) error
+	UpsertSAMLConnector(ctx context.Context, connector SAMLConnector) error
 
 	// DeleteSAMLConnector deletes OIDC Connector
-	DeleteSAMLConnector(connectorID string) error
+	DeleteSAMLConnector(ctx context.Context, connectorID string) error
 
 	// GetSAMLConnector returns OIDC connector data, withSecrets adds or removes secrets from return results
-	GetSAMLConnector(id string, withSecrets bool) (SAMLConnector, error)
+	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (SAMLConnector, error)
 
 	// GetSAMLConnectors returns registered connectors, withSecrets adds or removes secret from return results
-	GetSAMLConnectors(withSecrets bool) ([]SAMLConnector, error)
+	GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]SAMLConnector, error)
 
 	// CreateSAMLAuthRequest creates new auth request
 	CreateSAMLAuthRequest(req SAMLAuthRequest, ttl time.Duration) error
@@ -185,16 +172,16 @@ type Identity interface {
 	CreateGithubConnector(connector GithubConnector) error
 
 	// UpsertGithubConnector creates or updates a new Github connector
-	UpsertGithubConnector(connector GithubConnector) error
+	UpsertGithubConnector(ctx context.Context, connector GithubConnector) error
 
 	// GetGithubConnectors returns all configured Github connectors
-	GetGithubConnectors(withSecrets bool) ([]GithubConnector, error)
+	GetGithubConnectors(ctx context.Context, withSecrets bool) ([]GithubConnector, error)
 
 	// GetGithubConnector returns a Github connector by its name
-	GetGithubConnector(name string, withSecrets bool) (GithubConnector, error)
+	GetGithubConnector(ctx context.Context, name string, withSecrets bool) (GithubConnector, error)
 
 	// DeleteGithubConnector deletes a Github connector by its name
-	DeleteGithubConnector(name string) error
+	DeleteGithubConnector(ctx context.Context, name string) error
 
 	// CreateGithubAuthRequest creates a new auth request for Github OAuth2 flow
 	CreateGithubAuthRequest(req GithubAuthRequest) error
@@ -220,16 +207,10 @@ type Identity interface {
 	// GetResetPasswordTokenSecrets returns token secrets
 	GetResetPasswordTokenSecrets(ctx context.Context, tokenID string) (ResetPasswordTokenSecrets, error)
 
-	// GetWebSession returns a web session state for a given user and session id
-	GetWebSession(user, sid string) (WebSession, error)
+	types.WebSessionsGetter
+	types.WebTokensGetter
 
-	// UpsertWebSession updates or inserts a web session for a user and session
-	UpsertWebSession(user, sid string, session WebSession) error
-
-	// DeleteWebSession deletes web session from the storage
-	DeleteWebSession(user, sid string) error
-
-	// AppSession defines session features.
+	// AppSession defines application session features.
 	AppSession
 }
 
@@ -257,36 +238,6 @@ func VerifyPassword(password []byte) error {
 	if len(password) > defaults.MaxPasswordLength {
 		return trace.BadParameter(
 			"password is too long, max length is %v", defaults.MaxPasswordLength)
-	}
-	return nil
-}
-
-const ExternalIdentitySchema = `{
-  "type": "object",
-  "additionalProperties": false,
-  "properties": {
-     "connector_id": {"type": "string"},
-     "username": {"type": "string"}
-   }
-}`
-
-// String returns debug friendly representation of this identity
-func (i *ExternalIdentity) String() string {
-	return fmt.Sprintf("OIDCIdentity(connectorID=%v, username=%v)", i.ConnectorID, i.Username)
-}
-
-// Equals returns true if this identity equals to passed one
-func (i *ExternalIdentity) Equals(other *ExternalIdentity) bool {
-	return i.ConnectorID == other.ConnectorID && i.Username == other.Username
-}
-
-// Check returns nil if all parameters are great, err otherwise
-func (i *ExternalIdentity) Check() error {
-	if i.ConnectorID == "" {
-		return trace.BadParameter("ConnectorID: missing value")
-	}
-	if i.Username == "" {
-		return trace.BadParameter("Username: missing username")
 	}
 	return nil
 }

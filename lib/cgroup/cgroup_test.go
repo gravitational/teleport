@@ -19,7 +19,6 @@ limitations under the License.
 package cgroup
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
@@ -31,19 +30,16 @@ import (
 	"gopkg.in/check.v1"
 )
 
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
+
 type Suite struct{}
 
-var _ = fmt.Printf
 var _ = check.Suite(&Suite{})
 
 func TestControlGroups(t *testing.T) { check.TestingT(t) }
-
-func (s *Suite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
-}
-func (s *Suite) TearDownSuite(c *check.C) {}
-func (s *Suite) SetUpTest(c *check.C)     {}
-func (s *Suite) TearDownTest(c *check.C)  {}
 
 // TestCreate tests creating and removing cgroups as well as shutting down
 // the service and unmounting the cgroup hierarchy.

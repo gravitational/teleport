@@ -1,7 +1,8 @@
 name: teleport
 apiVersion: v2
-version: 0.0.6
+version: 0.0.12
+appVersion: "6"
 description: Teleport provides a secure SSH and Kubernetes remote access solution that doesn't get in the way.
-icon: https://gravitational.com/gravitational/images/logos/company-logos/teleport-symbol-400x400.png
+icon: https://goteleport.com/images/logos/logo-teleport-square.svg
 keywords:
   - Teleport

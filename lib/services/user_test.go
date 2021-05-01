@@ -20,23 +20,18 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/coreos/go-oidc/jose"
 	saml2 "github.com/russellhaering/gosaml2"
 	"github.com/russellhaering/gosaml2/types"
 	"gopkg.in/check.v1"
+
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 type UserSuite struct {
 }
 
 var _ = check.Suite(&UserSuite{})
-
-func (s *UserSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
-}
 
 func (s *UserSuite) TestTraits(c *check.C) {
 	var tests = []struct {
@@ -62,7 +57,7 @@ func (s *UserSuite) TestTraits(c *check.C) {
 			},
 			Spec: UserSpecV2{
 				Traits: map[string][]string{
-					tt.traitName: []string{"foo"},
+					tt.traitName: {"foo"},
 				},
 			},
 		}
@@ -70,7 +65,7 @@ func (s *UserSuite) TestTraits(c *check.C) {
 		data, err := json.Marshal(user)
 		c.Assert(err, check.IsNil)
 
-		_, err = GetUserMarshaler().UnmarshalUser(data)
+		_, err = UnmarshalUser(data)
 		c.Assert(err, check.IsNil)
 	}
 }
@@ -203,7 +198,7 @@ func (s *UserSuite) TestOIDCMapping(c *check.C) {
 		}
 		for _, input := range testCase.inputs {
 			comment := check.Commentf("OIDC Test case %v %q, input %q", i, testCase.comment, input.comment)
-			outRoles := conn.GetTraitMappings().TraitsToRoles(OIDCClaimsToTraits(input.claims))
+			outRoles := TraitsToRoles(conn.GetTraitMappings(), OIDCClaimsToTraits(input.claims))
 			c.Assert(outRoles, check.DeepEquals, input.roles, comment)
 		}
 
@@ -214,7 +209,7 @@ func (s *UserSuite) TestOIDCMapping(c *check.C) {
 		}
 		for _, input := range testCase.inputs {
 			comment := check.Commentf("SAML Test case %v %v, input %#v", i, testCase.comment, input)
-			outRoles := samlConn.GetTraitMappings().TraitsToRoles(SAMLAssertionsToTraits(claimsToAttributes(input.claims)))
+			outRoles := TraitsToRoles(samlConn.GetTraitMappings(), SAMLAssertionsToTraits(claimsToAttributes(input.claims)))
 			c.Assert(outRoles, check.DeepEquals, input.roles, comment)
 		}
 	}

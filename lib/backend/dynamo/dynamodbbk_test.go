@@ -20,6 +20,7 @@ package dynamo
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -29,6 +30,11 @@ import (
 
 	"gopkg.in/check.v1"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 func TestDynamoDB(t *testing.T) { check.TestingT(t) }
 
@@ -41,9 +47,6 @@ type DynamoDBSuite struct {
 var _ = check.Suite(&DynamoDBSuite{})
 
 func (s *DynamoDBSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-	var err error
-
 	s.tableName = "teleport.dynamo.test"
 	newBackend := func() (backend.Backend, error) {
 		return New(context.Background(), map[string]interface{}{
@@ -98,5 +101,5 @@ func (s *DynamoDBSuite) TestWatchersClose(c *check.C) {
 }
 
 func (s *DynamoDBSuite) TestLocking(c *check.C) {
-	s.suite.Locking(c)
+	s.suite.Locking(c, s.bk)
 }

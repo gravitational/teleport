@@ -83,7 +83,10 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *
 	}
 	fwd, err := forward.New(
 		forward.RoundTripper(transport),
-		forward.Logger(logrus.StandardLogger()))
+		forward.Logger(logrus.StandardLogger()),
+		forward.WebsocketRewriter(transport.ws),
+		forward.WebsocketDial(transport.ws.dialer),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -98,6 +101,11 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *
 // requests that occur within this session to the audit log.
 func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter, error) {
 	clusterConfig, err := s.c.AccessPoint.GetClusterConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusterName, err := s.c.AccessPoint.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -123,6 +131,7 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 		ServerID:     s.c.Server.GetName(),
 		RecordOutput: clusterConfig.GetSessionRecording() != services.RecordOff,
 		Component:    teleport.ComponentApp,
+		ClusterName:  clusterName.GetClusterName(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -131,8 +140,9 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 	// Emit an event to the Audit Log that a new session chunk has been created.
 	appSessionChunkEvent := &events.AppSessionChunk{
 		Metadata: events.Metadata{
-			Type: events.AppSessionChunkEvent,
-			Code: events.AppSessionChunkCode,
+			Type:        events.AppSessionChunkEvent,
+			Code:        events.AppSessionChunkCode,
+			ClusterName: identity.RouteToApp.ClusterName,
 		},
 		ServerMetadata: events.ServerMetadata{
 			ServerID:        s.c.Server.GetName(),
@@ -140,9 +150,11 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 		},
 		SessionMetadata: events.SessionMetadata{
 			SessionID: identity.RouteToApp.SessionID,
+			WithMFA:   identity.MFAVerified,
 		},
 		UserMetadata: events.UserMetadata{
-			User: identity.Username,
+			User:         identity.Username,
+			Impersonator: identity.Impersonator,
 		},
 		SessionChunkID: chunkID,
 	}

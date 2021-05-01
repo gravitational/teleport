@@ -19,6 +19,7 @@ package sshutils
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -31,20 +32,21 @@ import (
 	"gopkg.in/check.v1"
 )
 
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
+
 func TestSSHUtils(t *testing.T) { check.TestingT(t) }
 
 type ServerSuite struct {
 	signer ssh.Signer
 }
 
-var _ = fmt.Printf
 var _ = check.Suite(&ServerSuite{})
 
 func (s *ServerSuite) SetUpSuite(c *check.C) {
 	var err error
-
-	utils.InitLoggerForTests()
-
 	_, s.signer, err = utils.CreateCertificate("foo", ssh.HostCert)
 	c.Assert(err, check.IsNil)
 }

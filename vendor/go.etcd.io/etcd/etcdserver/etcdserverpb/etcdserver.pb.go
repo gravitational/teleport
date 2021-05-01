@@ -77,7 +77,6 @@
 		StatusResponse
 		AuthEnableRequest
 		AuthDisableRequest
-		AuthStatusRequest
 		AuthenticateRequest
 		AuthUserAddRequest
 		AuthUserGetRequest
@@ -94,7 +93,6 @@
 		AuthRoleRevokePermissionRequest
 		AuthEnableResponse
 		AuthDisableResponse
-		AuthStatusResponse
 		AuthenticateResponse
 		AuthUserAddResponse
 		AuthUserGetResponse

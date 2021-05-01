@@ -137,6 +137,15 @@ func (a *NetAddr) Set(s string) error {
 	return nil
 }
 
+// NetAddrsToStrings takes a list of netAddrs and returns a list of address strings.
+func NetAddrsToStrings(netAddrs []NetAddr) []string {
+	addrs := make([]string, len(netAddrs))
+	for i, addr := range netAddrs {
+		addrs[i] = addr.String()
+	}
+	return addrs
+}
+
 // ParseAddrs parses the provided slice of strings as a slice of NetAddr's.
 func ParseAddrs(addrs []string) (result []NetAddr, err error) {
 	for _, addr := range addrs {
@@ -156,7 +165,7 @@ func ParseAddr(a string) (*NetAddr, error) {
 		return nil, trace.BadParameter("missing parameter address")
 	}
 	if !strings.Contains(a, "://") {
-		return &NetAddr{Addr: a, AddrNetwork: "tcp"}, nil
+		a = "tcp://" + a
 	}
 	u, err := url.Parse(a)
 	if err != nil {

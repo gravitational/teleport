@@ -43,7 +43,7 @@ func (process *TeleportProcess) printShutdownStatus(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			log.Infof("Waiting for services: %v to finish.", process.Supervisor.Services())
+			process.log.Infof("Waiting for services: %v to finish.", process.Supervisor.Services())
 		}
 	}
 }
@@ -80,10 +80,10 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 			case syscall.SIGQUIT:
 				go process.printShutdownStatus(doneContext)
 				process.Shutdown(ctx)
-				process.Infof("All services stopped, exiting.")
+				process.log.Infof("All services stopped, exiting.")
 				return nil
 			case syscall.SIGTERM, syscall.SIGKILL, syscall.SIGINT:
-				process.Infof("Got signal %q, exiting immediately.", signal)
+				process.log.Infof("Got signal %q, exiting immediately.", signal)
 				process.Close()
 				return nil
 			case syscall.SIGUSR1:
@@ -96,58 +96,58 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 				// That was not quite enough. With pipelines diagnostics could come from any of several programs running simultaneously.
 				// Diagnostics needed to identify themselves.
 				// - Doug McIllroy, "A Research UNIX Reader: Annotated Excerpts from the Programmer’s Manual, 1971-1986"
-				process.Infof("Got signal %q, logging diagostic info to stderr.", signal)
+				process.log.Infof("Got signal %q, logging diagostic info to stderr.", signal)
 				writeDebugInfo(os.Stderr)
 			case syscall.SIGUSR2:
-				log.Infof("Got signal %q, forking a new process.", signal)
+				process.log.Infof("Got signal %q, forking a new process.", signal)
 				if err := process.forkChild(); err != nil {
-					process.Warningf("Failed to fork: %v", err)
+					process.log.Warningf("Failed to fork: %v", err)
 				} else {
-					process.Infof("Successfully started new process.")
+					process.log.Infof("Successfully started new process.")
 				}
 			case syscall.SIGHUP:
-				process.Infof("Got signal %q, performing graceful restart.", signal)
+				process.log.Infof("Got signal %q, performing graceful restart.", signal)
 				if err := process.forkChild(); err != nil {
-					process.Warningf("Failed to fork: %v", err)
+					process.log.Warningf("Failed to fork: %v", err)
 					continue
 				}
-				process.Infof("Successfully started new process, shutting down gracefully.")
+				process.log.Infof("Successfully started new process, shutting down gracefully.")
 				go process.printShutdownStatus(doneContext)
 				process.Shutdown(ctx)
-				log.Infof("All services stopped, exiting.")
+				process.log.Infof("All services stopped, exiting.")
 				return nil
 			case syscall.SIGCHLD:
 				process.collectStatuses()
 			default:
-				process.Infof("Ignoring %q.", signal)
+				process.log.Infof("Ignoring %q.", signal)
 			}
 		case <-process.ReloadContext().Done():
-			process.Infof("Exiting signal handler: process has started internal reload.")
+			process.log.Infof("Exiting signal handler: process has started internal reload.")
 			return ErrTeleportReloading
 		case <-process.ExitContext().Done():
-			process.Infof("Someone else has closed context, exiting.")
+			process.log.Infof("Someone else has closed context, exiting.")
 			return nil
 		case <-ctx.Done():
 			process.Close()
 			if err := process.Wait(); err != nil {
-				process.Warnf("Error waiting for all services to exit: %v", err)
+				process.log.Warnf("Error waiting for all services to exit: %v", err)
 			}
-			process.Info("Got request to shutdown, context is closing")
+			process.log.Info("Got request to shutdown, context is closing")
 			return nil
 		case event := <-serviceErrorsC:
 			se, ok := event.Payload.(ExitEventPayload)
 			if !ok {
-				process.Warningf("Failed to decode service exit event, %T", event.Payload)
+				process.log.Warningf("Failed to decode service exit event, %T", event.Payload)
 				continue
 			}
 			if se.Service.IsCritical() {
-				process.Errorf("Critical service %v has exited with error %v, aborting.", se.Service, se.Error)
+				process.log.Errorf("Critical service %v has exited with error %v, aborting.", se.Service, se.Error)
 				if err := process.Close(); err != nil {
-					process.Errorf("Error when shutting down teleport %v.", err)
+					process.log.Errorf("Error when shutting down teleport %v.", err)
 				}
 				return trace.Wrap(se.Error)
 			}
-			process.Warningf("Non-critical service %v has exited with error %v, continuing to operate.", se.Service, se.Error)
+			process.log.Warningf("Non-critical service %v has exited with error %v, continuing to operate.", se.Service, se.Error)
 		}
 	}
 }
@@ -167,7 +167,7 @@ func (process *TeleportProcess) writeToSignalPipe(signalPipe *os.File, message s
 	go func() {
 		_, err := signalPipe.Write([]byte(message))
 		if err != nil {
-			process.Debugf("Failed to write to pipe: %v.", trace.DebugReport(err))
+			process.log.Debugf("Failed to write to pipe: %v.", trace.DebugReport(err))
 			return
 		}
 		cancel()
@@ -177,7 +177,7 @@ func (process *TeleportProcess) writeToSignalPipe(signalPipe *os.File, message s
 	case <-time.After(signalPipeTimeout):
 		return trace.BadParameter("Failed to write to parent process pipe.")
 	case <-messageSignalled.Done():
-		process.Infof("Signalled success to parent process.")
+		process.log.Infof("Signalled success to parent process.")
 	}
 	return nil
 }
@@ -192,7 +192,7 @@ func (process *TeleportProcess) closeImportedDescriptors(prefix string) error {
 	for i := range process.importedDescriptors {
 		d := process.importedDescriptors[i]
 		if strings.HasPrefix(d.Type, prefix) {
-			process.Infof("Closing imported but unused descriptor %v %v.", d.Type, d.Address)
+			process.log.Infof("Closing imported but unused descriptor %v %v.", d.Type, d.Address)
 			errors = append(errors, d.File.Close())
 		}
 	}
@@ -204,13 +204,13 @@ func (process *TeleportProcess) closeImportedDescriptors(prefix string) error {
 func (process *TeleportProcess) importOrCreateListener(typ listenerType, address string) (net.Listener, error) {
 	l, err := process.importListener(typ, address)
 	if err == nil {
-		process.Infof("Using file descriptor %v %v passed by the parent process.", typ, address)
+		process.log.Infof("Using file descriptor %v %v passed by the parent process.", typ, address)
 		return l, nil
 	}
 	if !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
-	process.Infof("Service %v is creating new listener on %v.", typ, address)
+	process.log.Infof("Service %v is creating new listener on %v.", typ, address)
 	return process.createListener(typ, address)
 }
 
@@ -280,7 +280,7 @@ func (process *TeleportProcess) ExportFileDescriptors() ([]FileDescriptor, error
 }
 
 // importFileDescriptors imports file descriptors from environment if there are any
-func importFileDescriptors() ([]FileDescriptor, error) {
+func importFileDescriptors(log logrus.FieldLogger) ([]FileDescriptor, error) {
 	// These files may be passed in by the parent process
 	filesString := os.Getenv(teleportFilesEnvVar)
 	if filesString == "" {
@@ -414,7 +414,7 @@ func (process *TeleportProcess) forkChild() error {
 		return err
 	}
 
-	log := log.WithFields(logrus.Fields{"path": path, "workingDir": workingDir})
+	log := process.log.WithFields(logrus.Fields{"path": path, "workingDir": workingDir})
 
 	log.Info("Forking child.")
 
@@ -498,12 +498,12 @@ func (process *TeleportProcess) collectStatuses() {
 		var wait syscall.WaitStatus
 		rpid, err := syscall.Wait4(pid, &wait, syscall.WNOHANG, nil)
 		if err != nil {
-			process.Errorf("Wait call failed: %v.", err)
+			process.log.Errorf("Wait call failed: %v.", err)
 			continue
 		}
 		if rpid == pid {
 			process.popForkedPID(pid)
-			process.Warningf("Forked teleport process %v has exited with status: %v.", pid, wait.ExitStatus())
+			process.log.Warningf("Forked teleport process %v has exited with status: %v.", pid, wait.ExitStatus())
 		}
 	}
 }

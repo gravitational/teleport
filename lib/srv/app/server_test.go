@@ -29,8 +29,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
@@ -38,14 +42,17 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 
 	"gopkg.in/check.v1"
 )
 
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
+
 type Suite struct {
-	clock        clockwork.Clock
+	clock        clockwork.FakeClock
 	dataDir      string
 	authServer   *auth.TestAuthServer
 	tlsServer    *auth.TestTLSServer
@@ -71,17 +78,15 @@ var _ = check.Suite(&Suite{})
 func TestApp(t *testing.T) { check.TestingT(t) }
 
 func (s *Suite) SetUpSuite(c *check.C) {
-	var err error
-
-	utils.InitLoggerForTests(testing.Verbose())
-
-	s.clock = clockwork.NewFakeClockAt(time.Now())
+	s.clock = clockwork.NewFakeClock()
 	s.dataDir = c.MkDir()
 
+	var err error
 	// Create Auth Server.
 	s.authServer, err = auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		ClusterName: "root.example.com",
 		Dir:         s.dataDir,
+		Clock:       s.clock,
 	})
 	c.Assert(err, check.IsNil)
 	s.tlsServer, err = s.authServer.NewTestTLSServer()
@@ -116,10 +121,13 @@ func (s *Suite) SetUpTest(c *check.C) {
 	// Create a in-memory HTTP server that will respond with a UUID. This value
 	// will be checked in the client later to ensure a connection was made.
 	s.message = uuid.New()
-	s.testhttp = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+	s.testhttp = httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, s.message)
 		s.closeFunc()
 	}))
+	s.testhttp.Config.TLSConfig = &tls.Config{Time: s.clock.Now}
+	s.testhttp.Start()
 
 	// Extract the hostport that the in-memory HTTP server is running on.
 	u, err := url.Parse(s.testhttp.URL)
@@ -147,7 +155,7 @@ func (s *Suite) SetUpTest(c *check.C) {
 		Spec: services.ServerSpecV2{
 			Version: teleport.Version,
 			Apps: []*services.App{
-				&services.App{
+				{
 					Name:          "foo",
 					URI:           s.testhttp.URL,
 					PublicAddr:    "foo.example.com",
@@ -166,11 +174,18 @@ func (s *Suite) SetUpTest(c *check.C) {
 	c.Assert(err, check.IsNil)
 	tlsConfig, err := serverIdentity.TLSConfig(nil)
 	c.Assert(err, check.IsNil)
+	tlsConfig.Time = s.clock.Now
 
 	// Generate certificate for user.
 	privateKey, publicKey, err := s.tlsServer.Auth().GenerateKeyPair("")
 	c.Assert(err, check.IsNil)
-	certificate, err := s.tlsServer.Auth().GenerateUserAppTestCert(publicKey, s.user.GetName(), 1*time.Hour, "foo.example.com", "root.example.com")
+	certificate, err := s.tlsServer.Auth().GenerateUserAppTestCert(auth.AppTestCertRequest{
+		PublicKey:   publicKey,
+		Username:    s.user.GetName(),
+		TTL:         1 * time.Hour,
+		PublicAddr:  "foo.example.com",
+		ClusterName: "root.example.com",
+	})
 	c.Assert(err, check.IsNil)
 	s.clientCertificate, err = tls.X509KeyPair(certificate, privateKey)
 	c.Assert(err, check.IsNil)
@@ -182,7 +197,7 @@ func (s *Suite) SetUpTest(c *check.C) {
 	), 0755)
 	c.Assert(err, check.IsNil)
 
-	authorizer, err := auth.NewAuthorizer(s.authClient, s.authClient, s.authClient)
+	authorizer, err := auth.NewAuthorizer("cluster-name", s.authClient, s.authClient, s.authClient)
 	c.Assert(err, check.IsNil)
 
 	s.appServer, err = New(context.Background(), &Config{
@@ -286,12 +301,20 @@ func (s *Suite) TestHandleConnection(c *check.C) {
 				RootCAs: s.hostCertPool,
 				// Certificates is the user's application specific certificate.
 				Certificates: []tls.Certificate{s.clientCertificate},
+				// Time defines the time anchor for certificate validation
+				Time: s.clock.Now,
 			},
 		},
 	}
 
+	var wg sync.WaitGroup
+	wg.Add(1)
+
 	// Handle the connection in another goroutine.
-	go s.appServer.HandleConnection(pw)
+	go func() {
+		s.appServer.HandleConnection(pw)
+		wg.Done()
+	}()
 
 	// Issue request.
 	resp, err := httpClient.Get("https://" + teleport.APIDomain)
@@ -308,6 +331,10 @@ func (s *Suite) TestHandleConnection(c *check.C) {
 	// error here.
 	err = s.appServer.Close()
 	c.Assert(err, check.NotNil)
+
+	// Wait for the application server to actually stop serving before
+	// closing the test. This will make sure the server removes the listeners
+	wg.Wait()
 }
 
 // TestAuthorize verifies that only authorized requests are handled.

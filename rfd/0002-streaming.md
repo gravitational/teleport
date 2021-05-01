@@ -1,6 +1,6 @@
 ---
-authors: Alexander Klizhentas (sasha@gravitational.com)
-state: discussion
+authors: Alexander Klizhentas (sasha@goteleport.com)
+state: implemented
 ---
 
 # RFD 2 - Session Streaming
@@ -270,7 +270,7 @@ to resume the stream.
 
 **Async streams**
 
-Default mode remains async, the file uploader the events on disk in the new protobuf format. 
+Default mode remains async, the file uploader the events on disk in the new protobuf format.
 
 Disk uploader now attempts to resume the upload to the auth server based on the
 last reported status if possible. This solves the problem of very large uploads
