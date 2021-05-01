@@ -105,6 +105,8 @@ The steps below involve:
 
 ## Step 1b. Add a Node to the cluster
 
+<iframe width="560" height="315" src="https://www.youtube.com/embed/2I6bPdXrMAk" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+
 1. Now, create a third terminal and connect to `auth.example.com`:
 
    i. Create a user to access the `auth.example.com` Web UI: 
@@ -186,6 +188,8 @@ Now, we've got our cluster up and running. Let's see how easy it is to connect t
    - The `tsh ssh` command allows one to do anything they would if they were to SSH into a server using a third-party tool. 
    - All commands executed by `auth-admin` are recorded and can be replayed in the Teleport Web interface.
 
+<iframe width="560" height="315" src="https://www.youtube.com/embed/u6wDLg0WvL8" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+
 ## Step 2b. Use tsh to inspect cluster
 
 1. Now, `auth-admin` has the ability to SSH into other Nodes within the cluster, traverse the Linux file system, and execute the command.
@@ -213,6 +217,8 @@ Now, we've got our cluster up and running. Let's see how easy it is to connect t
    We'll review configuring and managing short-lived certificates for programmatic API access below.
 
 ## Step 3a. Set up GitHub SSO
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/QX7w1F3B_OM" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 Teleport Server Access also supports using SSO for authentication. Let's add a new user through GitHub SSO:
 
@@ -262,7 +268,7 @@ Teleport Server Access also supports using SSO for authentication. Let's add a n
        team: TEAM
    ```
 
-4. `tctl create connector.yaml` (use the `-f` flag to override an existing connector).
+4. `sudo tctl create connector.yaml` (use the `-f` flag to override an existing connector).
 
    - Display all connectors with: `tctl get connectors`.
 
