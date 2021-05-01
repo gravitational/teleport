@@ -1590,6 +1590,17 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 				return nil, err
 			}
 		}
+	} else if cf.CopySpec != nil {
+		for _, location := range cf.CopySpec {
+			parts := strings.Split(location, ":")
+			parts = strings.Split(parts[0], "@")
+			partsLength := len(parts)
+			if partsLength > 1 {
+				hostLogin = strings.Join(parts[:partsLength-1], "@")
+				cf.UserHost = parts[partsLength-1]
+				break
+			}
+		}
 	}
 	fPorts, err := client.ParsePortForwardSpec(cf.LocalForwardPorts)
 	if err != nil {
