@@ -19,7 +19,7 @@ Teleport Server Access provides many great features to manage your servers and p
 1. **Built-in server authentication**: Teleport Server Access allows full SSH management without third-party dependencies. [Reduce the likelihood of a tool or dependency vulnerability](https://www.cse.usf.edu/~xou/publications/esorics08.pdf) by limiting the number of vendors.
 2. **Teleport Server Access provides full SSH capabilities combined with support for 2FA, OAuth 2.0, Open ID Connect, SAML, and SSO out-of-the-box**.
 3. The Teleport SSH daemon also offers **several advantages over other SSH alternatives** including [*cluster introspection*](https://goteleport.com/blog/openssh-vs-teleport/), built-in Role-Based Access Control, Two-Factor Authentication, and multi-user sessions.
-4. **Role-Based Access Control (RBAC)**: built-in support for delegating permission and access by the *Principle of Least Privilege* (POLP).
+4. **Role-Based Access Control (RBAC)**: built-in support for delegating permissions and access by the *Principle of Least Privilege* (POLP).
 5. **A convenient web UI** for easily representing and interacting with resources and user sessions.
 6. **Multi-cluster management through a graphical user interface or API**: there's no need to live in Command-Line Hell when managing your many devices.
 7. Single and multi-user **session auditing and recording**.
@@ -123,7 +123,7 @@ Teleport Server Access has built-in [session auditing](../../features/enhanced-s
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/u6wDLg0WvL8" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
-## Inspect and manage the cluster 
+## Introspect and manage the cluster 
 
 Teleport `tctl` (tea-kettle) has powerful querying and multi-command capabilities to make inspecting and managing a cluster even easier.
 
@@ -135,7 +135,7 @@ Teleport `tctl` (tea-kettle) has powerful querying and multi-command capabilitie
 
 Suppose an IP address changes. An admin can quickly find the current Node with that label since it remains unchanged.
 
-Suppose you need to query the SSH Node of each cluster. Give each SSH Node the same label so a single query will allow you to inspect specific resources in multiple clusters.
+Suppose you need to query the SSH Node of each cluster. Give each SSH Node the same label so a single query will allow you to introspect specific resources in multiple clusters.
 
 ## Configure short-lived certificates for access
 
