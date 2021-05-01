@@ -1,0 +1,33 @@
+---
+title: Server Access Guide
+description: Introduction to features and benefits of Teleport Server Access
+---
+
+# Server Access
+
+Teleport Server Access is designed for the following scenarios:
+
+1. When SSH is required (Teleport Node or SSH mode), not just Teleport certificate authority (Teleport Auth) with proxy (Teleport Proxy) mode.
+2. When resource and network security absolutely must be maximized - SSH certificates over secret keys, Two-Factor Authentication (2FA), Single Sign-On (SSO), and short-lived certificates.
+3. When up to a vast number of clusters must be managed either using the command-line (`tsh`) or programmatically (through the Teleport API).
+4. When it's important to track and audit every user session.
+
+Key features provided by Teleport Server Access:
+
+1. **Built-in server authentication**: Teleport Server Access allows full SSH management without third-party dependencies. [Reduce the likelihood of a dependency or tool vulnerability](https://www.cse.usf.edu/~xou/publications/esorics08.pdf) by limiting the number of vendors.
+2. **Teleport Server Access provides full SSH capabilities combined with support for 2FA, OAuth 2.0, Open ID Connect, SAML, and SSO out-of-the-box**.
+3. The Teleport SSH daemon also offers **several advantages over other SSH alternatives** including [*cluster introspection*](https://goteleport.com/blog/openssh-vs-teleport/), built-in Role-Based Access Control, Two-Factor Authentication, and multi-user sessions.
+4. **Role-Based Access Control (RBAC)**: built-in support for delegating permission and access by the *Principle of Least Privilege* (POLP).
+5. **A convenient web UI** for easily representing and interacting with resources and user sessions.
+6. **Multi-cluster management through a clean user interface and API**: there's no need to live in Command-Line Hell when managing your many devices.
+7. Single and multi-user **session auditing and recording**.
+
+## Getting started
+
+Get started using Teleport Server Access in [10 minutes](./getting-started.mdx).
+
+## Guides
+
+- [SSH](./guides/teleport-ssh.mdx)
+- [Using Teleport with PAM](./guides/ssh-pam.mdx)
+- The [OpenSSH Guide](./guides/openssh-teleport.mdx) 

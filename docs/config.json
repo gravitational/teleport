@@ -34,6 +34,23 @@
       ]
     },
     {
+      "icon": "server",
+      "title": "Server Access",
+      "entries": [
+        { "title": "Introduction", "slug": "/server-access/introduction/" },
+        { "title": "Getting Started", "slug": "/server-access/getting-started/" },
+        {
+          "title": "Guides",
+          "slug": "/server-access/guides/",
+          "entries": [
+            { "title": "SSH", "slug": "/server-access/guides/teleport-ssh/" },
+            { "title": "Using Teleport with PAM", "slug": "/server-access/guides/ssh-pam/" },
+            { "title": "OpenSSH Guide", "slug": "/server-access/guides/openssh-teleport/" }
+          ]
+        }
+      ]
+    },
+    {
       "icon": "kubernetes",
       "title": "Kubernetes Access",
       "entries": [
@@ -110,8 +127,7 @@
       "entries": [
         { "title": "AWS", "slug": "/aws-oss-guide/" },
         { "title": "GCP", "slug": "/gcp-guide/" },
-        { "title": "IBM", "slug": "/ibm-cloud-guide/" },
-        { "title": "OpenSSH Guide", "slug": "/openssh-teleport/" }
+        { "title": "IBM", "slug": "/ibm-cloud-guide/" }
       ]
     },    
     {
@@ -123,8 +139,8 @@
           "title": "Quick Start Guide",
           "slug": "/enterprise/quickstart-enterprise/"
         },
-        { "title": "Single sign-on (SSO)", "slug": "/enterprise/sso/ssh-sso/" },
-        { "title": "Access Requests", "slug": "/enterprise/workflow/" },
+        { "title": "Single Sign-On (SSO)", "slug": "/enterprise/sso/ssh-sso/" },
+        { "title": "Access Workflows", "slug": "/enterprise/workflow/" },
         {
           "title": "FedRAMP for SSH & K8s",
           "slug": "/enterprise/ssh-kubernetes-fedramp/"
@@ -161,8 +177,7 @@
         {
           "title": "BPF Session Recording",
           "slug": "/features/enhanced-session-recording/"
-        },
-        { "title": "Using Teleport with PAM", "slug": "/features/ssh-pam/" }
+        }
       ]
     },
     {
@@ -240,6 +255,16 @@
     {
       "source": "/kubernetes-ssh/",
       "destination": "/kubernetes-access/",
+      "permanent": true
+    },
+    {
+      "source": "/features/ssh-pam/",
+      "destination": "/server-access/guides/ssh-pam/",
+      "permanent": true
+    },
+    {
+      "source": "/openssh-teleport/",
+      "destination": "/server-access/guides/openssh-teleport/",
       "permanent": true
     }
   ]

@@ -1,0 +1,148 @@
+---
+title: Server Access Getting Started Guide
+description: How to use Teleport Server Access for SSH
+---
+
+# Teleport SSH
+
+Teleport Server Access provides full SSH capabilities out-of-the-box:
+
+1. Teleport's `tsh` combines support for SSH and SCP in one convenient local command-line tool.
+2. Each Teleport node can be configured into SSH mode (Teleport Node) and run as an enhanced SSH server.
+
+These features can be run without using third-party tools like OpenSSH allowing admins to reduce the complexity of their stack. In short, Teleport is a full-fledged SSH server with advanced capabilities no other SSH alternative currently has.
+
+## Introduction to Teleport SSH capabilities
+
+Teleport Server Access provides many great features to manage your servers and permissions:
+
+1. **Built-in server authentication**: Teleport Server Access allows full SSH management without third-party dependencies. [Reduce the likelihood of a tool or dependency vulnerability](https://www.cse.usf.edu/~xou/publications/esorics08.pdf) by limiting the number of vendors.
+2. **Teleport Server Access provides full SSH capabilities combined with support for 2FA, OAuth 2.0, Open ID Connect, SAML, and SSO out-of-the-box**.
+3. The Teleport SSH daemon also offers **several advantages over other SSH alternatives** including [*cluster introspection*](https://goteleport.com/blog/openssh-vs-teleport/), built-in Role-Based Access Control, Two-Factor Authentication, and multi-user sessions.
+4. **Role-Based Access Control (RBAC)**: built-in support for delegating permission and access by the *Principle of Least Privilege* (POLP).
+5. **A convenient web UI** for easily representing and interacting with resources and user sessions.
+6. **Multi-cluster management through a graphical user interface or API**: there's no need to live in Command-Line Hell when managing your many devices.
+7. Single and multi-user **session auditing and recording**.
+
+## SSH mode and adding an SSH Node to your cluster
+
+Teleport [Nodes](../../architecture/nodes.mdx) have three modes: *Auth*, *Proxy*, and *Node* (SSH) mode. A single Node can run in up to all three. Optionally, you can configure a Node to act as the dedicated *Auth* or SSH Node for a cluster.
+
+The two primary ways a Node can be configured into SSH (or any) mode is through a `teleport.yaml` configuration file or via the `sudo tctl tokens add` command which accepts the `--type` parameter to specify which of `auth`, `proxy`, or `node` (default) the Node will be automatically configured as.
+
+In both cases, you'll likely use a *static* (fixed) or *dynamic* (valid for a limited duration of time) *join token* to link your Nodes to existing clusters.
+
+To link an SSH Node with an existing `auth.example.com` cluster:
+
+1. Execute `sudo tctl tokens add --type=node` on the `auth` cluster machine.
+
+2. You should see:
+
+   ```bash
+   # Join cluster
+   sudo teleport start \
+      --roles=node \
+      --token=d62629ea83e181644e0778af22ec3a8e \
+      --ca-pin=sha256:c75f8be5b21a5cc1b6f91a71200f30a9a083dfea4fc47ec1c55143ccce8882e4 \
+      --auth-server=172.31.17.124:3025
+   ```
+
+   <Admonition type="warning">
+      Remember to replace the IP address supplied by default above with the `auth.example.com` proxy address: `auth.example.com:443`.
+   </Admonition>
+
+3. Run the command above with the correct `auth.example.com` public proxy address on the machine you wish to connect.
+
+4. You should now be able to view both Nodes at: `https://auth.example.com/web/cluster/auth.example.com/nodes` in the Web Interface after logging in with your the user `auth-admin`.
+
+   ![Both Nodes in](../../../img/server-access/teleport_ui.png)
+
+## Connect to a cluster using tsh ssh without OpenSSH
+
+Teleport SSH is robust enough that you can do all the things you'd do with OpenSSH, without it.
+
+To connect to a cluster (`auth.example.com`) with public proxy `auth.example.com:443` as user `auth-admin` using `tsh ssh`:
+
+1. `tsh login --proxy=auth.example.com:443 --user=auth-admin`  
+
+2. You'll be prompted to for the password and One Time Pass code we set up previously.
+
+3. Your user will now see:
+
+   ```bash
+   Profile URL:        https://auth.example.com:443
+     Logged in as:       auth-admin
+     Cluster:            auth.example.com
+     Roles:              access, admin, editor
+     Logins:             root, ubuntu, ec2-user
+     Kubernetes:         disabled
+     Valid until:        2021-04-30 06:39:13 -0500 CDT [valid for 12h0m0s]
+     Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+   ```
+
+   `auth-admin` is now logged into the `auth.example.com` cluster and `auth` Node via Teleport SSH - no third-party tool required.
+
+4. `auth-admin` can now execute the following to find the cluster's `nodenames` which are used for direct SSH connections:
+
+   i. `tctl nodes ls`  
+   ii. The `auth` node is located on the bottom line below:
+
+   ```bash
+   Nodename         UUID                                 Address        Labels                                
+   ---------------- ------------------------------------ -------------- ------------------------------------- 
+   ip-172-31-30-155 8f1e2719-3161-400f-b664-3279cf046511                env=example,hostname=ip-172-31-30-155 
+   ip-172-31-17-124 e7719967-b6eb-4fc0-8e53-00fac6d896d4 127.0.0.1:3022 env=example,hostname=ip-172-31-17-124 
+   ```
+
+5. Using the command `tsh ssh root@ip-172-31-17-124` locally, `auth-admin` can SSH into the `auth` Node and do the following:
+
+   i. Connect to other Nodes in the cluster by repeating the steps above.  
+   ii. Traverse the Linux file system.  
+   iii. Execute desired commands.  
+
+   - The `tsh ssh` command allows one to do anything they would if they were to SSH into a server using a third-party tool. 
+   - All commands executed by `auth-admin` are recorded and can be replayed in the Teleport Web interface.
+
+## Configure Single Sign-On
+
+Teleport Server Access supports Single Sign-On (SSO) for authenticating users when they log into Teleport Web UI and through `tsh`. 
+
+- GitHub SSO is described [here](../getting-started.mdx#step-3a-set-up-github-sso)
+- Gitlab SSO [here](../../enterprise/sso/gitlab.mdx)
+- Okta SSO [here](../../enterprise/sso/ssh-okta.mdx)
+- [Open ID Connect](../../enterprise/sso/oidc.mdx)
+- And [many more](../../enterprise/sso/ssh-sso.mdx)
+
+## Audit user and SSH sessions
+
+Teleport Server Access has built-in [session auditing](../../features/enhanced-session-recording.mdx) that will record single and joint user interactions.
+
+- When a user authenticates and performs commands through `tsh ssh`, their activities are recorded in replayable session videos that can be viewed in Teleport Web UI.
+
+## Inspect and manage the cluster 
+
+Teleport `tctl` (tea-kettle) has powerful querying and multi-command capabilities to make inspecting and managing a cluster even easier.
+
+1. Teleport admins can define `labels` for any Node to easily group resources beyond cluster management.
+
+2. These [labels](../../admin-guide.mdx#labeling-nodes-and-applications) can be used to query any resource sharing them: 
+
+   - `tsh ssh root@env=example` returns the list of all resources with the `env=example` label specified in their `teleport.yaml` (`'env': 'example'`).
+
+Suppose an IP address changes. An admin can quickly find the current Node with that label since it remains unchanged.
+
+Suppose you need to query the SSH Node of each cluster. Give each SSH Node the same label so a single query will allow you to inspect specific resources in multiple clusters.
+
+## Configure short-lived certificates for access
+
+Teleport Server Access provides the ability to manage short-lived certificates and give users API and resource access for specified durations of time:
+
+1. Users can define a role to programmatically interact with the Teleport API per the [Teleport API Getting Started](../../reference/api/introduction.mdx).
+
+   - This is designed to be convenient for mass deployments or operations that must be repeated (daily jobs, frequent operations, etc.)
+
+2. Admins also create short-lived certificates for resources users must connect to directly:
+
+   - Execute: `tctl auth sign --ttl=87600h --user=jenkins --out=jenkins.pem` to generate a certificate valid for a specified *Time To Live* (TTL).
+   - Team members can access private resources securely using certificates and SSH tunnels.
+   - No sharing of resource secrets, passwords, or credentials only certificates that are unique to that user and specified period of time.
