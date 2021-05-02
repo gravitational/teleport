@@ -51,33 +51,8 @@ The steps below involve:
    - `aws % ssh -i "example.pem" ubuntu@ecX-X-XX-XXX-XX.us-north-2.compute.amazonaws.com`  
   
    Most cloud providers require SSH to initially access, configure, and provision your cloud instances. We'll configure and launch our instances then demonstrate how to use the `tsh` tool and Teleport in SSH mode thereafter.
-
-3. Install certbot and acquire TLS (SSL) certificates from Let's Encrypt:
-
-   <Admonition type="note">
-     certbot is the official ACME client from Let's Encrypt. It allows you to easily acquire and renew TLS certificates for registered domains.
-   </Admonition>
-
-   i.  Update your Linux distro and install certbot:
-
-   ```bash
-   # Install certbot
-   sudo apt-get update
-   sudo apt-get install certbot
-   ```
-
-   ii. Acquire a certificate for the instance.
-
-   ```bash
-   # Acquire SSL
-   sudo certbot certonly --standalone \
-     -d auth.example.com \
-     -n \
-     --agree-tos \
-     --email=your_email@example.com
-   ```
        
-4. Install Teleport on each instance.
+3. Install Teleport on each instance.
 
    ```bash
    # Install Teleport
@@ -87,10 +62,10 @@ The steps below involve:
    sudo apt-get install teleport
    ```
 
-5. Since we're using Let's Encrypt certbot, configure Teleport to use ACME:
+4. Cnfigure Teleport to use ACME and to automatically acquire a TLS certificate:
 
    <Admonition type="tip">
-    Teleport supports any ACME provider. We'll stick with Let's Encrypt for this Guide but feel free to use whichever you prefer.
+    Teleport will now automatically acquire an ACME compliant TLS certificate by default. While you can use a third-party ACME client (like Let's Encrypt certbot), the configuration commands below will do the same.
    </Admonition>
 
    ```bash
@@ -101,7 +76,7 @@ The steps below involve:
      -o file
    ```
 
-6. Launch Teleport on `auth.example.com`: `sudo teleport start`. 
+5. Launch Teleport on `auth.example.com`: `sudo teleport start`. 
 
 ## Step 1b. Add a Node to the cluster
 
