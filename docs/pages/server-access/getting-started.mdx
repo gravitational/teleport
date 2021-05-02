@@ -38,7 +38,7 @@ The steps below involve:
 
 2. Create two new instances of your desired Linux distribution (such as CentOS, Debian, Ubuntu).
 
-   <Admonition type="tip">
+   <Admonition type="tip" title="Tip">
      Multiple Teleport Nodes can be run on the same Linux instance. This Guide details how to launch and connect two Nodes on different devices.
    </Admonition>
 
@@ -64,7 +64,7 @@ The steps below involve:
 
 4. Cnfigure Teleport to use ACME and to automatically acquire a TLS certificate:
 
-   <Admonition type="tip">
+   <Admonition type="tip" title="Tip">
     Teleport will now automatically acquire an ACME compliant TLS certificate by default. While you can use a third-party ACME client (like Let's Encrypt certbot), the configuration commands below will do the same.
    </Admonition>
 
@@ -106,7 +106,7 @@ The steps below involve:
      --auth-server=172.31.17.124:3025
    ```
 
-   <Admonition type="warning">
+   <Admonition type="warning" title="Warning">
      Remember to replace the IP address supplied by default above with the `auth.example.com` proxy address: `auth.example.com:443`.
    </Admonition>
 
