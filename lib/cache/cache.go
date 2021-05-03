@@ -547,13 +547,13 @@ func New(config Config) (*Cache, error) {
 	}
 
 	wrapper := backend.NewWrapper(config.Backend)
-	ctx, cancel := context.WithCancel(config.Context)
 
 	clusterConfigCache, err := local.NewClusterConfigurationService(wrapper)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	ctx, cancel := context.WithCancel(config.Context)
 	cs := &Cache{
 		wrapper:            wrapper,
 		ctx:                ctx,
