@@ -3,9 +3,9 @@ title: Using Teleport with OpenSSH
 description: How to use Teleport on legacy systems with OpenSSH and sshd
 ---
 
-Teleport is fully compatible with OpenSSH and can be quickly setup to record and
+Teleport is fully compatible with OpenSSH and can be quickly set up to record and
 audit all SSH activity. Using Teleport and OpenSSH has the advantage of getting you up
-and running, but in the long run we would recommend replacing `sshd` with `teleport`.
+and running, but in the long run, we would recommend replacing `sshd` with `teleport`.
 We've outlined these reasons in [OpenSSH vs Teleport SSH for Servers?](https://gravitational.com/blog/openssh-vs-teleport/)
 
 Teleport is a standards-compliant SSH proxy and it can work in environments with
@@ -45,16 +45,10 @@ when gradually transitioning large server fleets to Teleport.
 
 We consider the "recording proxy mode" to be less secure for two reasons:
 
-- It grants additional privileges to the Teleport proxy. In the default "node recording" mode, the
-  proxy stores no secrets and cannot "see" the decrypted data. This makes a proxy
-  less critical to the security of the overall cluster. But if an attacker gains
-  physical access to a proxy node running in the "recording" mode, they will be able
-  to see the decrypted traffic and client keys stored in proxy's process memory.
-- Recording proxy mode requires the use of SSH agent forwarding. Agent forwarding is required
-  because without it, a proxy will not be able to establish the 2nd connection to the
-  destination node.
+- It grants additional privileges to the Teleport proxy. In the default "node recording" mode, the proxy stores no secrets and cannot "see" the decrypted data. This makes a proxy less critical to the security of the overall cluster. But if an attacker gains physical access to a proxy node running in the "recording" mode, they will be able to see the decrypted traffic and client keys stored in the proxy's process memory.
+- Recording proxy mode requires the use of SSH agent forwarding. Agent forwarding is required because without it, a proxy will not be able to establish the 2nd connection to the destination node.
 
-Teleport proxy should be available to clients, and be setup with TLS.
+Teleport proxy should be available to clients and be set up with TLS.
 
 Teleport OpenSSH supports:
 
@@ -84,7 +78,7 @@ by the Teleport User CA. Start by exporting the Teleport CA public key:
 Export the Teleport CA certificate into a file:
 
 ```bash
-# tctl needs to be ran on the auth server.
+# tctl needs to be run on the auth server.
 $ tctl auth export --type=user > teleport_user_ca.pub
 ```
 
@@ -98,12 +92,11 @@ To allow access for all users:
   TrustedUserCAKeys /etc/ssh/teleport_user_ca.pub
   ```
 
-Now `sshd` will trust users who present a Teleport-issued certificate. The next
-step is to configure host authentication.
+Now, `sshd` will trust users who present a Teleport-issued certificate. The next step is to configure host authentication.
 
 When in recording mode, Teleport will check that the host certificate of any
-node a user connects to is signed by a Teleport CA. By default this is a strict
-check. If the node presents just a key, or a certificate signed by a different
+node a user connects to is signed by a Teleport CA. By default, this is a strict
+check. If the node presents just a key or a certificate signed by a different
 CA, Teleport will reject this connection with the error message saying *"ssh:
 handshake failed: remote host presented a public key, expected a host
 certificate"*
@@ -171,7 +164,7 @@ $ tsh ssh --port=22 user@host.example.com
 
 If you want to use OpenSSH `ssh` client for logging into `sshd` servers behind a proxy
 in "recording mode", you have to tell the `ssh` client to use the jump host and
-enable SSH agent forwarding, otherwise a recording proxy will not be able to
+enable SSH agent forwarding, otherwise, a recording proxy will not be able to
 terminate the SSH connection to record it:
 
 ```bash
@@ -187,8 +180,7 @@ $ ssh -o "ForwardAgent yes" \
   type="tip"
   title="Tip"
 >
-  To avoid typing all this and use the usual `ssh user@host.example.com`, users
-  can update their `~/.ssh/config` file.
+  To avoid typing all this and use the usual `ssh user@host.example.com`, users can update their `~/.ssh/config` file.
 </Admonition>
 
 ### Setup SSH agent forwarding
@@ -208,8 +200,7 @@ $ ssh-add -L
   type="warning"
   title="GNOME Keyring SSH Agent and GPG Agent"
 >
-  It is well-known that Gnome Keyring SSH agent, used by many popular Linux
-  desktops like Ubuntu, and `gpg-agent` from GnuPG do not support SSH
+  It is well-known that the Gnome Keyring SSH agent, used by many popular Linux desktops like Ubuntu, and `gpg-agent` from GnuPG do not support SSH
   certificates. We recommend using the `ssh-agent` from OpenSSH.
   Alternatively, you can disable SSH agent integration entirely using the
   `--no-use-local-ssh-agent` flag or `TELEPORT_USE_LOCAL_SSH_AGENT=false`
@@ -219,8 +210,7 @@ $ ssh-add -L
 ## Using OpenSSH Client
 
 It is possible to use the OpenSSH client `ssh` to connect to nodes within a
-Teleport cluster. Teleport supports SSH subsystems and includes a `proxy`
-subsystem that can be used like `netcat` is with `ProxyCommand` to connect
+Teleport cluster. Teleport supports SSH subsystems and includes a `proxy` subsystem that can be used like `netcat` is with `ProxyCommand` to connect
 through a jump host.
 
 On your client machine, you need to import the public key of Teleport's host
@@ -251,7 +241,7 @@ certificate authorities for each cluster individually.
   from the root auth server only.
 </Admonition>
 
-Make sure you are running OpenSSH's `ssh-agent` , and have logged in to the
+Make sure you are running OpenSSH's `ssh-agent`, and have logged in to the
 Teleport proxy:
 
 ```bash
@@ -284,7 +274,7 @@ Host *.root.example.com
     Port 3022
     ProxyCommand ssh -p 3023 %r@root.example.com -s proxy:%h:%p
 
-# when connecting to a node within a trusted cluster with name "leaf1.example.com",
+# when connecting to a node within a trusted cluster with the name "leaf1.example.com",
 # add the name of the cluster to the invocation of the proxy subsystem.
 Host *.leaf1.example.com
    HostName %h
@@ -303,16 +293,13 @@ $ ssh root@database.root.example.com
   type="tip"
   title="Note"
 >
-  Teleport uses OpenSSH certificates instead of keys which means
-  you cannot ordinarily connect to a Teleport node by IP address. You have to connect by
-  DNS name. This is because OpenSSH ensures the DNS name of the node you are
-  connecting is listed under the `Principals` section of the OpenSSH
-  certificate to verify you are connecting to the correct node.
+  Teleport uses OpenSSH certificates instead of keys which means you cannot ordinarily connect to a Teleport node by IP address. You have to connect by
+  DNS name. This is because OpenSSH ensures the DNS name of the node you are connecting to is listed under the `Principals` section of the OpenSSH certificate to verify you are connecting to the correct node.
 </Admonition>
 
 To connect to the OpenSSH server via `tsh`, add `--port=<ssh port>` with the `tsh ssh` command:
 
-Example ssh to `database.work.example.com` as `root` with a OpenSSH server on port 22 via `tsh`:
+Example ssh to `database.work.example.com` as `root` with an OpenSSH server on port 22 via `tsh`:
 
 ```bash
 tsh ssh --port=22 dev@database.root.example.com
@@ -322,14 +309,13 @@ tsh ssh --port=22 dev@database.root.example.com
   type="warning"
   title="Warning"
 >
-  The principal/username (`dev@` in the example above) being used to connect must be
-  listed in the Teleport user/role configuration.
+  The principal/username (`dev@` in the example above) being used to connect must be listed in the Teleport user/role configuration.
 </Admonition>
 
 ## OpenSSH Rate Limiting
 
 When using a Teleport proxy in "recording mode", be aware of OpenSSH built-in
-rate limiting. On large numbers of proxy connections you may encounter errors
+rate-limiting. On large numbers of proxy connections, you may encounter errors
 like:
 
 ```bash
@@ -345,7 +331,7 @@ dropped.
 To increase the concurrency level, increase the value to something like
 `MaxStartups 50:30:100`. This allows 50 concurrent connections and a max of 100.
 
-## Revoke a SSH Certificate
+## Revoke an SSH Certificate
 
 To revoke the current Teleport CA and generate a new one, run `tctl auth rotate`. Unless you've highly automated your
 infrastructure, we would suggest you proceed with caution as this will invalidate the user
