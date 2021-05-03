@@ -906,11 +906,11 @@ func ExtractFromCertificate(access UserGetter, cert *ssh.Certificate) ([]string,
 	}
 
 	// Standard certificates have the roles and traits embedded in them.
-	roles, err := extractRolesFromCert(cert)
+	roles, err := ExtractRolesFromCert(cert)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	traits, err := extractTraitsFromCert(cert)
+	traits, err := ExtractTraitsFromCert(cert)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -988,8 +988,8 @@ func missingIdentity(identity tlsca.Identity) bool {
 	return false
 }
 
-// extractRolesFromCert extracts roles from certificate metadata extensions.
-func extractRolesFromCert(cert *ssh.Certificate) ([]string, error) {
+// ExtractRolesFromCert extracts roles from certificate metadata extensions.
+func ExtractRolesFromCert(cert *ssh.Certificate) ([]string, error) {
 	data, ok := cert.Extensions[teleport.CertExtensionTeleportRoles]
 	if !ok {
 		return nil, trace.NotFound("no roles found")
@@ -997,8 +997,8 @@ func extractRolesFromCert(cert *ssh.Certificate) ([]string, error) {
 	return UnmarshalCertRoles(data)
 }
 
-// extractTraitsFromCert extracts traits from the certificate extensions.
-func extractTraitsFromCert(cert *ssh.Certificate) (wrappers.Traits, error) {
+// ExtractTraitsFromCert extracts traits from the certificate extensions.
+func ExtractTraitsFromCert(cert *ssh.Certificate) (wrappers.Traits, error) {
 	rawTraits, ok := cert.Extensions[teleport.CertExtensionTeleportTraits]
 	if !ok {
 		return nil, trace.NotFound("no traits found")

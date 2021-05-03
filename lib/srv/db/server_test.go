@@ -34,11 +34,9 @@ func TestDatabaseServerStart(t *testing.T) {
 	testCtx := setupTestContext(ctx, t,
 		withSelfHostedPostgres("postgres"),
 		withSelfHostedMySQL("mysql"))
-	t.Cleanup(func() { testCtx.Close() })
 
 	err := testCtx.server.Start()
 	require.NoError(t, err)
-	t.Cleanup(func() { testCtx.server.Close() })
 
 	tests := []struct {
 		server types.DatabaseServer
