@@ -38,6 +38,22 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+var (
+	failedLoginCount = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: teleport.MetricFailedLoginAttempts,
+			Help: "Number of times there was a failed login",
+		},
+	)
+
+	certificateMismatchCount = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: teleport.MetricCertificateMistmatch,
+			Help: "Number of times there was a certificate mismatch",
+		},
+	)
+)
+
 // AuthHandlers are common authorization and authentication related handlers
 // used by the regular and forwarding server.
 type AuthHandlers struct {
@@ -63,6 +79,34 @@ type AuthHandlers struct {
 	// for TLS certificate verification.
 	// Defaults to real clock if unspecified
 	Clock clockwork.Clock
+}
+
+// NewAuthHandlers initializes authorization and authentication handlers
+func NewAuthHandlers(
+	server Server,
+	component string,
+	accessPoint auth.AccessPoint,
+	fips bool,
+	emitter events.Emitter,
+	clock clockwork.Clock,
+) (*AuthHandlers, error) {
+	err := utils.RegisterPrometheusCollectors(failedLoginCount, certificateMismatchCount)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &AuthHandlers{
+		Entry: log.WithFields(log.Fields{
+			trace.Component:       component,
+			trace.ComponentFields: log.Fields{},
+		}),
+		Server:      server,
+		Component:   component,
+		AccessPoint: accessPoint,
+		FIPS:        fips,
+		Emitter:     emitter,
+		Clock:       clock,
+	}, nil
 }
 
 // CreateIdentityContext returns an IdentityContext populated with information
@@ -149,27 +193,6 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext) error {
 	}
 
 	return nil
-}
-
-var (
-	failedLoginCount = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: teleport.MetricFailedLoginAttempts,
-			Help: "Number of times there was a failed login",
-		},
-	)
-
-	certificateMismatchCount = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: teleport.MetricCertificateMistmatch,
-			Help: "Number of times there was a certificate mismatch",
-		},
-	)
-)
-
-func init() {
-	prometheus.MustRegister(failedLoginCount)
-	prometheus.MustRegister(certificateMismatchCount)
 }
 
 // UserKeyAuth implements SSH client authentication using public keys and is

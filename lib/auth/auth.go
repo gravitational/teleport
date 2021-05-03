@@ -98,7 +98,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.DynamicAccessExt = local.NewDynamicAccessService(cfg.Backend)
 	}
 	if cfg.ClusterConfiguration == nil {
-		cfg.ClusterConfiguration = local.NewClusterConfigurationService(cfg.Backend)
+		if clusterConfig, err := local.NewClusterConfigurationService(cfg.Backend); err != nil {
+			cfg.ClusterConfiguration = clusterConfig
+		}
 	}
 	if cfg.Events == nil {
 		cfg.Events = local.NewEventsService(cfg.Backend)

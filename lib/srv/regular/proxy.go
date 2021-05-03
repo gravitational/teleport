@@ -42,11 +42,20 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var proxiedSessions = prometheus.NewGauge(
-	prometheus.GaugeOpts{
-		Name: teleport.MetricProxySSHSessions,
-		Help: "Number of active sessions through this proxy",
-	},
+var ( // failedConnectingToNode counts failed attempts to connect to a node
+	proxiedSessions = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: teleport.MetricProxySSHSessions,
+			Help: "Number of active sessions through this proxy",
+		},
+	)
+
+	failedConnectingToNode = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: teleport.MetricFailedConnectToNodeAttempts,
+			Help: "Number of failed attempts to connect to a node",
+		},
+	)
 )
 
 // proxySubsys implements an SSH subsystem for proxying listening sockets from
@@ -159,7 +168,7 @@ func (p *proxySubsysRequest) SetDefaults() {
 // a port forwarding request, used to implement ProxyJump feature in proxy
 // and reuse the code
 func newProxySubsys(ctx *srv.ServerContext, srv *Server, req proxySubsysRequest) (*proxySubsys, error) {
-	err := utils.RegisterPrometheusCollectors(proxiedSessions)
+	err := utils.RegisterPrometheusCollectors(proxiedSessions, failedConnectingToNode)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -282,20 +291,6 @@ func (t *proxySubsys) proxyToSite(
 	}()
 
 	return nil
-}
-
-var (
-	// failedConnectingToNode counts failed attempts to connect to a node
-	failedConnectingToNode = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: teleport.MetricFailedConnectToNodeAttempts,
-			Help: "Number of failed attempts to connect to a node",
-		},
-	)
-)
-
-func init() {
-	prometheus.MustRegister(failedConnectingToNode)
 }
 
 // proxyToHost establishes a proxy connection from the connected SSH client to the

@@ -47,22 +47,31 @@ func (s *ClusterConfigurationSuite) TearDownTest(c *check.C) {
 }
 
 func (s *ClusterConfigurationSuite) TestAuthPreference(c *check.C) {
+	clusterConfig, err := NewClusterConfigurationService(s.bk)
+	c.Assert(err, check.IsNil)
+
 	suite := &suite.ServicesTestSuite{
-		ConfigS: NewClusterConfigurationService(s.bk),
+		ConfigS: clusterConfig,
 	}
 	suite.AuthPreference(c)
 }
 
 func (s *ClusterConfigurationSuite) TestClusterConfig(c *check.C) {
+	clusterConfig, err := NewClusterConfigurationService(s.bk)
+	c.Assert(err, check.IsNil)
+
 	suite := &suite.ServicesTestSuite{
-		ConfigS: NewClusterConfigurationService(s.bk),
+		ConfigS: clusterConfig,
 	}
 	suite.ClusterConfig(c)
 }
 
 func (s *ClusterConfigurationSuite) TestStaticTokens(c *check.C) {
+	clusterConfig, err := NewClusterConfigurationService(s.bk)
+	c.Assert(err, check.IsNil)
+
 	suite := &suite.ServicesTestSuite{
-		ConfigS: NewClusterConfigurationService(s.bk),
+		ConfigS: clusterConfig,
 	}
 	suite.StaticTokens(c)
 }

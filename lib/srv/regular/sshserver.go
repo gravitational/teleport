@@ -56,9 +56,18 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentNode,
-})
+var (
+	log = logrus.WithFields(logrus.Fields{
+		trace.Component: teleport.ComponentNode,
+	})
+
+	userSessionLimitHitCount = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: teleport.MetricUserMaxConcurrentSessionsHit,
+			Help: "Number of times a user exceeded their max concurrent ssh connections",
+		},
+	)
+)
 
 // Server implements SSH server that uses configuration backend and
 // certificate-based authentication
@@ -498,7 +507,12 @@ func New(addr utils.NetAddr,
 	dataDir string,
 	advertiseAddr string,
 	proxyPublicAddr utils.NetAddr,
-	options ...ServerOption) (*Server, error) {
+	options ...ServerOption,
+) (*Server, error) {
+	err := utils.RegisterPrometheusCollectors(userSessionLimitHitCount)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// read the host UUID:
 	uuid, err := utils.ReadOrMakeHostUUID(dataDir)
@@ -814,19 +828,6 @@ func (s *Server) serveAgent(ctx *srv.ServerContext) error {
 	}()
 
 	return nil
-}
-
-var (
-	userSessionLimitHitCount = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: teleport.MetricUserMaxConcurrentSessionsHit,
-			Help: "Number of times a user exceeded their max concurrent ssh connections",
-		},
-	)
-)
-
-func init() {
-	prometheus.MustRegister(userSessionLimitHitCount)
 }
 
 // HandleRequest processes global out-of-band requests. Global out-of-band
