@@ -28,6 +28,8 @@ import (
 	"strings"
 	"time"
 
+	"go.mongodb.org/mongo-driver/mongo/readpref"
+	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/http/httpguts"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -638,7 +640,24 @@ func (d *Database) Check() error {
 		return trace.BadParameter("unsupported database %q protocol %q, supported are: %v",
 			d.Name, d.Protocol, defaults.DatabaseProtocols)
 	}
-	if _, _, err := net.SplitHostPort(d.URI); err != nil {
+	// For MongoDB we support specifying either server address or connection
+	// string in the URI which is useful when connecting to a replica set.
+	if d.Protocol == defaults.ProtocolMongoDB &&
+		(strings.HasPrefix(d.URI, connstring.SchemeMongoDB+"://") ||
+			strings.HasPrefix(d.URI, connstring.SchemeMongoDBSRV+"://")) {
+		connString, err := connstring.ParseAndValidate(d.URI)
+		if err != nil {
+			return trace.BadParameter("invalid MongoDB database %q connection string %q: %v",
+				d.Name, d.URI, err)
+		}
+		// Validate read preference to catch typos early.
+		if connString.ReadPreference != "" {
+			if _, err := readpref.ModeFromString(connString.ReadPreference); err != nil {
+				return trace.BadParameter("invalid MongoDB database %q read preference %q",
+					d.Name, connString.ReadPreference)
+			}
+		}
+	} else if _, _, err := net.SplitHostPort(d.URI); err != nil {
 		return trace.BadParameter("invalid database %q address %q: %v",
 			d.Name, d.URI, err)
 	}
