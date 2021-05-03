@@ -28,9 +28,15 @@ Teleport Server Access provides many great features to manage your servers and p
 
 Teleport [Nodes](../../architecture/nodes.mdx) have three modes: *Auth*, *Proxy*, and *Node* (SSH) mode. A single Node can run in up to all three. Optionally, you can configure a Node to act as the dedicated *Auth* or SSH Node for a cluster.
 
+![Example cluster arrangement](../../../img/proxy-web.svg)
+
+The diagram above demonstrates a common cluster arrangement with three independent nodes acting in a single, dedicated, mode each.
+
+### Configuration
+
 The two primary ways a Node can be configured into SSH (or any) mode is through a `teleport.yaml` configuration file or via the `sudo tctl tokens add` command which accepts the `--type` parameter to specify which of `auth`, `proxy`, or `node` (default) the Node will be automatically configured as.
 
-In both cases, you'll likely use a *static* (fixed) or *dynamic* (valid for a limited duration of time) *join token* to link your Nodes to existing clusters.
+In both cases, you'll likely use a *static* (fixed) or *dynamic* (valid for a limited duration of time) [join token](../../admin-guide.mdx#adding-nodes-to-the-cluster) to link your Nodes to existing clusters.
 
 To link an SSH Node with an existing `auth.example.com` cluster:
 
@@ -109,6 +115,10 @@ To connect to a cluster (`auth.example.com`) with public proxy `auth.example.com
 
 Teleport Server Access supports Single Sign-On (SSO) for authenticating users when they log into Teleport Web UI and through `tsh`. 
 
+This augments the enhanced security features that Teleport already offers with the robust security that SAML, multi-factor authentication, and SSO additionally provide.
+
+Specific set up guides are available for the following SSO providers:
+
 - GitHub SSO is described [here](../getting-started.mdx#step-3a-set-up-github-sso)
 - Gitlab SSO [here](../../enterprise/sso/gitlab.mdx)
 - Okta SSO [here](../../enterprise/sso/ssh-okta.mdx)
@@ -120,6 +130,8 @@ Teleport Server Access supports Single Sign-On (SSO) for authenticating users wh
 Teleport Server Access has built-in [session auditing](../../features/enhanced-session-recording.mdx) that will record single and joint user interactions.
 
 - When a user authenticates and performs commands through `tsh ssh`, their activities are recorded in replayable session videos that can be viewed in Teleport Web UI.
+- Session recording captures each keystroke and command line output.
+- Multiuser session auditing is also provided out-of-the-box. You can record remote IT sessions and administrative tasks without additional configuration.
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/u6wDLg0WvL8" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
