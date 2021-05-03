@@ -19,7 +19,6 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"net"
 	"net/http"
@@ -34,6 +33,17 @@ type raceResult struct {
 	err  error
 }
 
+// nonOKResponseError indicates that the racer made contact with a server &
+// issued a request but received a non-OK response. This is still
+// considered a failure by the port resolution algorithm.
+type nonOKResponseError struct {
+	Status int
+}
+
+func (err nonOKResponseError) Error() string {
+	return fmt.Sprintf("Non-OK response status: %03d", err.Status)
+}
+
 // raceRequest drives an HTTP request to completion and posts the results back
 // to the supplied channel.
 func raceRequest(ctx context.Context, cli *http.Client, addr string, results chan<- raceResult) {
@@ -45,9 +55,18 @@ func raceRequest(ctx context.Context, cli *http.Client, addr string, results cha
 		rsp, err = cli.Do(request)
 		if err == nil {
 			rsp.Body.Close()
+
+			// If the request returned a non-OK response then we're still going
+			// to treat this as a failure and return an error to the race
+			// aggregator.
+			if rsp.StatusCode != http.StatusOK {
+				err = nonOKResponseError{Status: rsp.StatusCode}
+				rsp = nil
+			}
 		}
 	}
 
+	// Post the results back to the caller so they can be aggregated.
 	results <- raceResult{addr: addr, err: err}
 }
 
@@ -66,7 +85,7 @@ func startRacer(ctx context.Context, cli *http.Client, host string, candidates [
 //  1. issues a GET request against multiple potential proxy ports,
 //  2. races the requests against one another, and finally
 //  3. selects the first to respond as the canonical proxy
-func pickDefaultAddr(ctx context.Context, insecure bool, host string, ports []int, rootCAs *x509.CertPool) (string, error) {
+func pickDefaultAddr(ctx context.Context, insecure bool, host string, ports []int) (string, error) {
 	log.Debugf("Resolving default proxy port (insecure: %v)", insecure)
 
 	if len(ports) == 0 {
@@ -76,7 +95,6 @@ func pickDefaultAddr(ctx context.Context, insecure bool, host string, ports []in
 	httpClient := &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
-				RootCAs:            rootCAs,
 				InsecureSkipVerify: insecure,
 			},
 		},

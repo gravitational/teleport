@@ -1820,12 +1820,13 @@ func setClientWebProxyAddr(cf *CLIConf, c *client.Config) error {
 			timeout, cancel := context.WithTimeout(context.Background(), proxyDefaultResolutionTimeout)
 			defer cancel()
 
-			caPool := client.LoopbackPool(parsedAddrs.Host)
 			proxyAddress, err = pickDefaultAddr(
-				timeout, cf.InsecureSkipVerify, parsedAddrs.Host, defaultWebProxyPorts, caPool)
+				timeout, cf.InsecureSkipVerify, parsedAddrs.Host, defaultWebProxyPorts)
 
 			// On error, fall back to the legacy behaviour
 			if err != nil {
+				log.Debugf("Proxy port resolution failed: %v", err)
+				log.Debug("Falling back to legacy default")
 				return c.ParseProxyHost(cf.Proxy)
 			}
 		}

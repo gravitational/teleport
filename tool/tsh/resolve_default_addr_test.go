@@ -43,13 +43,17 @@ func newWaitForeverHandler() (http.Handler, chan interface{}) {
 	return handler, doneChannel
 }
 
-func newRespondingHandler() http.Handler {
+func newRespondingHandlerWithStatus(status int) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		testLog.Debug("Responding")
 		w.Header().Add("Content-Type", "text/plain; charset=utf-8")
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(status)
 		io.WriteString(w, "Hello, world")
 	})
+}
+
+func newRespondingHandler() http.Handler {
+	return newRespondingHandlerWithStatus(http.StatusOK)
 }
 
 func mustGetCandidatePorts(servers []*httptest.Server) []int {
@@ -70,6 +74,12 @@ func mustGetCandidatePorts(servers []*httptest.Server) []int {
 	return result
 }
 
+func makeTestServer(t *testing.T, h http.Handler) *httptest.Server {
+	svr := httptest.NewTLSServer(h)
+	t.Cleanup(func() { svr.Close() })
+	return svr
+}
+
 func TestResolveDefaultAddr(t *testing.T) {
 	t.Parallel()
 
@@ -86,9 +96,7 @@ func TestResolveDefaultAddr(t *testing.T) {
 		if i == magicServerIndex {
 			handler = respondingHandler
 		}
-		svr := httptest.NewTLSServer(handler)
-		defer svr.Close()
-		servers[i] = svr
+		servers[i] = makeTestServer(t, handler)
 	}
 
 	// NB: We need to defer this channel close  such that it happens *before*
@@ -100,7 +108,7 @@ func TestResolveDefaultAddr(t *testing.T) {
 	expectedAddr := fmt.Sprintf("127.0.0.1:%d", ports[magicServerIndex])
 
 	// When I attempt to resolve a default address
-	addr, err := pickDefaultAddr(context.Background(), true, "127.0.0.1", ports, nil)
+	addr, err := pickDefaultAddr(context.Background(), true, "127.0.0.1", ports)
 
 	// Expect that the "magic" server is selected
 	require.NoError(t, err)
@@ -109,7 +117,7 @@ func TestResolveDefaultAddr(t *testing.T) {
 
 func TestResolveDefaultAddrNoCandidates(t *testing.T) {
 	t.Parallel()
-	_, err := pickDefaultAddr(context.Background(), true, "127.0.0.1", []int{}, nil)
+	_, err := pickDefaultAddr(context.Background(), true, "127.0.0.1", []int{})
 	require.Error(t, err)
 }
 
@@ -123,16 +131,14 @@ func TestResolveDefaultAddrSingleCandidate(t *testing.T) {
 
 	servers := make([]*httptest.Server, 1)
 	for i := 0; i < len(servers); i++ {
-		svr := httptest.NewTLSServer(respondingHandler)
-		defer svr.Close()
-		servers[i] = svr
+		servers[i] = makeTestServer(t, respondingHandler)
 	}
 
 	ports := mustGetCandidatePorts(servers)
 	expectedAddr := fmt.Sprintf("127.0.0.1:%d", ports[0])
 
 	// When I attempt to resolve a default address
-	addr, err := pickDefaultAddr(context.Background(), true, "127.0.0.1", ports, nil)
+	addr, err := pickDefaultAddr(context.Background(), true, "127.0.0.1", ports)
 
 	// Expect that the only server is selected
 	require.NoError(t, err)
@@ -147,9 +153,7 @@ func TestResolveDefaultAddrTimeout(t *testing.T) {
 
 	servers := make([]*httptest.Server, 5)
 	for i := 0; i < 5; i++ {
-		svr := httptest.NewTLSServer(blockingHandler)
-		defer svr.Close()
-		servers[i] = svr
+		servers[i] = makeTestServer(t, blockingHandler)
 	}
 
 	// NB: We need to defer this channel close  such that it happens *before*
@@ -162,11 +166,29 @@ func TestResolveDefaultAddrTimeout(t *testing.T) {
 	// When I attempt to resolve the default address with a finite timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 1000*time.Millisecond)
 	defer cancel()
-	_, err := pickDefaultAddr(ctx, true, "127.0.0.1", ports, nil)
+	_, err := pickDefaultAddr(ctx, true, "127.0.0.1", ports)
 
 	// Expect that the resolution will fail with `Deadline Exceeded` due to
 	// the call timing out.
 	require.Equal(t, context.DeadlineExceeded, err)
+}
+
+func TestResolveNonOKResponseIsAnError(t *testing.T) {
+	t.Parallel()
+
+	// Given a single candidate servers configured to respond with a non-OK status
+	// code
+	servers := []*httptest.Server{
+		makeTestServer(t, newRespondingHandlerWithStatus(http.StatusTeapot)),
+	}
+	ports := mustGetCandidatePorts(servers)
+
+	// When I attempt to resolve a default address
+	_, err := pickDefaultAddr(context.Background(), true, "127.0.0.1", ports)
+
+	// Expect that the resolution fails because the server responded with a non-OK
+	// response
+	require.ErrorIs(t, err, nonOKResponseError{Status: http.StatusTeapot})
 }
 
 func TestResolveDefaultAddrTimeoutBeforeAllRacersLaunched(t *testing.T) {
@@ -178,9 +200,7 @@ func TestResolveDefaultAddrTimeoutBeforeAllRacersLaunched(t *testing.T) {
 
 	servers := make([]*httptest.Server, 1000)
 	for i := 0; i < len(servers); i++ {
-		svr := httptest.NewTLSServer(blockingHandler)
-		defer svr.Close()
-		servers[i] = svr
+		servers[i] = makeTestServer(t, blockingHandler)
 	}
 
 	// NB: We need to defer this channel close  such that it happens *before*
@@ -194,7 +214,7 @@ func TestResolveDefaultAddrTimeoutBeforeAllRacersLaunched(t *testing.T) {
 	// would allow for all of the racers to have been launched...
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
-	_, err := pickDefaultAddr(ctx, true, "127.0.0.1", ports, nil)
+	_, err := pickDefaultAddr(ctx, true, "127.0.0.1", ports)
 
 	// Expect that the resolution will fail with `Deadline Exceeded` due to
 	// the call timing out.
