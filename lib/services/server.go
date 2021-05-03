@@ -19,6 +19,7 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -528,4 +529,10 @@ func MarshalServers(s []Server) ([]byte, error) {
 	}
 
 	return bytes, nil
+}
+
+// NodeHasMissedKeepAlives checks if node has missed its keep alive
+func NodeHasMissedKeepAlives(s Server) bool {
+	serverExpiry := s.Expiry()
+	return serverExpiry.Before(time.Now().Add(defaults.ServerAnnounceTTL - (defaults.ServerKeepAliveTTL * 2)))
 }
