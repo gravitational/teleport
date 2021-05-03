@@ -1,37 +1,48 @@
 ## Teleport Auth Go Client
 
-### Introduction
-
-Teleport Auth Server has an API which hasn't been officially documented (yet).
-Both `tctl` and `tsh` use the Auth API to perform various actions
-
 This program demonstrates how to...
 
-1. Authenticate against the Auth API using certificates.
-2. Make API calls to issue CRUD requests for cluster join tokens, roles, and labels.
-3. Receive, allow, and deny access requests.
-
-### API Authentication
-
-Auth API clients must perform two-way authentication using x509 certificates:
-
-1. They have to validate the auth server x509 certificate to make sure the
-   API endpoint can be trusted.
-2. They must offer their x509 certificate, which has been previously issued
-   by the auth sever.
-
-Start up a teleport auth server and then run the following commands to create an `api-user` with a signed certificate. Make sure to run this from the `go-client` directory for proper output.
-
-```bash
-$ tctl create -f api-admin.yaml
-$ mkdir -p certs
-$ tctl auth sign --format=tls --ttl=87600h --user=api-admin --out=certs/api-admin
-```
+1. Authenticate the client using credential loaders.
+2. Authorize API calls using an independent user and role.
+3. Create a new client and make API calls to the Auth server.
 
 ### Demo
 
-With the user and certificate created, you can run the go example.
+This demo can be used to quickly get the API client up and running.
+
+##### Create resources
+
+Create the `access-admin` user and role using the following commands:
 
 ```bash
-$ go run .
+$ tctl create -f access-admin.yaml
+$ tctl users add access-admin --roles=access-admin
 ```
+
+##### Generate Credentials
+
+Login with `tsh` to generate Profile credentials.
+
+```bash
+# login and automatically generate keys
+$ tsh login --user=access-admin
+```
+
+NOTE: You can pass the `InsecureAddressDiscovery` in `client.Config` field to skip verification of the TLS certificate of the proxy. Don't do this for production clients.
+
+##### Run
+
+```bash
+$ go run main.go
+```
+
+### Reference
+
+To see more information on the Go Client and how to use it, visit our API documentation:
+
+- [Introduction](https:/goteleport.com/docs/reference/api/introduction)
+- [Getting Started](https:/goteleport.com/docs/reference/api/getting-started)
+- [Architecture](https:/goteleport.com/docs/reference/api/architecture)
+- [pkg.go.dev](https://pkg.go.dev/github.com/gravitational/teleport/api/client)
+  - [Client type](https://pkg.go.dev/github.com/gravitational/teleport/api/client#Client)
+  - [Credentials type](https://pkg.go.dev/github.com/gravitational/teleport/api/client#Credentials)

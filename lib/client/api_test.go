@@ -20,8 +20,11 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
 )
 
@@ -264,5 +267,129 @@ func (s *APITestSuite) TestDynamicPortsParsing(c *check.C) {
 		}
 
 		c.Assert(specs, check.DeepEquals, tt.output)
+	}
+}
+
+func TestWebProxyHostPort(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		desc         string
+		webProxyAddr string
+		wantHost     string
+		wantPort     int
+	}{
+		{
+			desc:         "valid WebProxyAddr",
+			webProxyAddr: "example.com:12345",
+			wantHost:     "example.com",
+			wantPort:     12345,
+		},
+		{
+			desc:         "WebProxyAddr without port",
+			webProxyAddr: "example.com",
+			wantHost:     "example.com",
+			wantPort:     defaults.HTTPListenPort,
+		},
+		{
+			desc:         "invalid WebProxyAddr",
+			webProxyAddr: "not a valid addr",
+			wantHost:     "unknown",
+			wantPort:     defaults.HTTPListenPort,
+		},
+		{
+			desc:         "empty WebProxyAddr",
+			webProxyAddr: "",
+			wantHost:     "unknown",
+			wantPort:     defaults.HTTPListenPort,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			c := &Config{WebProxyAddr: tt.webProxyAddr}
+			gotHost, gotPort := c.WebProxyHostPort()
+			require.Equal(t, tt.wantHost, gotHost)
+			require.Equal(t, tt.wantPort, gotPort)
+		})
+	}
+}
+
+// TestApplyProxySettings validates that settings received from the proxy's
+// ping endpoint are correctly applied to Teleport client.
+func TestApplyProxySettings(t *testing.T) {
+	tests := []struct {
+		desc        string
+		settingsIn  webclient.ProxySettings
+		tcConfigIn  Config
+		tcConfigOut Config
+	}{
+		{
+			desc:       "Postgres public address unspecified, defaults to web proxy address",
+			settingsIn: webclient.ProxySettings{},
+			tcConfigIn: Config{
+				WebProxyAddr: "web.example.com:443",
+			},
+			tcConfigOut: Config{
+				WebProxyAddr:      "web.example.com:443",
+				PostgresProxyAddr: "web.example.com:443",
+			},
+		},
+		{
+			desc: "MySQL enabled without public address, defaults to web proxy host and MySQL default port",
+			settingsIn: webclient.ProxySettings{
+				DB: webclient.DBProxySettings{
+					MySQLListenAddr: "0.0.0.0:3036",
+				},
+			},
+			tcConfigIn: Config{
+				WebProxyAddr: "web.example.com:443",
+			},
+			tcConfigOut: Config{
+				WebProxyAddr:      "web.example.com:443",
+				PostgresProxyAddr: "web.example.com:443",
+				MySQLProxyAddr:    "web.example.com:3036",
+			},
+		},
+		{
+			desc: "both Postgres and MySQL custom public addresses are specified",
+			settingsIn: webclient.ProxySettings{
+				DB: webclient.DBProxySettings{
+					PostgresPublicAddr: "postgres.example.com:5432",
+					MySQLListenAddr:    "0.0.0.0:3036",
+					MySQLPublicAddr:    "mysql.example.com:3306",
+				},
+			},
+			tcConfigIn: Config{
+				WebProxyAddr: "web.example.com:443",
+			},
+			tcConfigOut: Config{
+				WebProxyAddr:      "web.example.com:443",
+				PostgresProxyAddr: "postgres.example.com:5432",
+				MySQLProxyAddr:    "mysql.example.com:3306",
+			},
+		},
+		{
+			desc: "Postgres public address port unspecified, defaults to web proxy address port",
+			settingsIn: webclient.ProxySettings{
+				DB: webclient.DBProxySettings{
+					PostgresPublicAddr: "postgres.example.com",
+				},
+			},
+			tcConfigIn: Config{
+				WebProxyAddr: "web.example.com:443",
+			},
+			tcConfigOut: Config{
+				WebProxyAddr:      "web.example.com:443",
+				PostgresProxyAddr: "postgres.example.com:443",
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			tc := &TeleportClient{Config: test.tcConfigIn}
+			err := tc.applyProxySettings(test.settingsIn)
+			require.NoError(t, err)
+			require.EqualValues(t, test.tcConfigOut, tc.Config)
+		})
 	}
 }
