@@ -1074,7 +1074,7 @@ func (c *Cache) GetNamespaces() ([]services.Namespace, error) {
 	return rg.presence.GetNamespaces()
 }
 
-// GetNode finds and returns node by ID
+// GetNode finds and returns a node by name and namespace.
 func (c *Cache) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
 	rg, err := c.read()
 	if err != nil {
