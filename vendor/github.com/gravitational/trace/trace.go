@@ -23,10 +23,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"sync/atomic"
+
+	"github.com/gravitational/trace/internal"
 
 	"golang.org/x/net/context"
 )
@@ -53,15 +53,16 @@ func Wrap(err error, args ...interface{}) Error {
 	if err == nil {
 		return nil
 	}
-	if len(args) > 0 {
-		format := args[0]
-		args = args[1:]
-		return WrapWithMessage(err, format, args...)
-	}
+	var trace Error
 	if traceErr, ok := err.(Error); ok {
-		return traceErr
+		trace = traceErr
+	} else {
+		trace = newTrace(err, 2)
 	}
-	return newTrace(err, 2)
+	if len(args) > 0 {
+		trace = trace.AddUserMessage(args[0], args[1:]...)
+	}
+	return trace
 }
 
 // Unwrap returns the original error the given error wraps
@@ -149,7 +150,7 @@ func WrapWithMessage(err error, message interface{}, args ...interface{}) Error 
 	if traceErr, ok := err.(Error); ok {
 		trace = traceErr
 	} else {
-		trace = newTrace(err, 3)
+		trace = newTrace(err, 2)
 	}
 	trace.AddUserMessage(message, args...)
 	return trace
@@ -174,121 +175,13 @@ func Fatalf(format string, args ...interface{}) error {
 }
 
 func newTrace(err error, depth int) *TraceErr {
-	var buf [32]uintptr
-	n := runtime.Callers(depth+1, buf[:])
-	pcs := buf[:n]
-	frames := runtime.CallersFrames(pcs)
-	cursor := frameCursor{
-		rest: frames,
-		n:    n,
-	}
-	return newTraceFromFrames(cursor, err)
+	traces := internal.CaptureTraces(depth)
+	return &TraceErr{Err: err, Traces: traces}
 }
 
-func newTraceFromFrames(cursor frameCursor, err error) *TraceErr {
-	traces := make(Traces, 0, cursor.n)
-	if cursor.current != nil {
-		traces = append(traces, frameToTrace(*cursor.current))
-	}
-	for {
-		frame, more := cursor.rest.Next()
-		traces = append(traces, frameToTrace(frame))
-		if !more {
-			break
-		}
-	}
-	return &TraceErr{
-		Err:    err,
-		Traces: traces,
-	}
-}
+type Traces = internal.Traces
 
-func frameToTrace(frame runtime.Frame) Trace {
-	return Trace{
-		Func: frame.Function,
-		Path: frame.File,
-		Line: frame.Line,
-	}
-}
-
-type frameCursor struct {
-	// current specifies the current stack frame.
-	// if omitted, rest contains the complete stack
-	current *runtime.Frame
-	// rest specifies the rest of stack frames to explore
-	rest *runtime.Frames
-	// n specifies the total number of stack frames
-	n int
-}
-
-// Traces is a list of trace entries
-type Traces []Trace
-
-// SetTraces adds new traces to the list
-func (s Traces) SetTraces(traces ...Trace) {
-	s = append(s, traces...)
-}
-
-// Func returns first function in trace list
-func (s Traces) Func() string {
-	if len(s) == 0 {
-		return ""
-	}
-	return s[0].Func
-}
-
-// Func returns just function name
-func (s Traces) FuncName() string {
-	if len(s) == 0 {
-		return ""
-	}
-	fn := filepath.ToSlash(s[0].Func)
-	idx := strings.LastIndex(fn, "/")
-	if idx == -1 || idx == len(fn)-1 {
-		return fn
-	}
-	return fn[idx+1:]
-}
-
-// Loc points to file/line location in the code
-func (s Traces) Loc() string {
-	if len(s) == 0 {
-		return ""
-	}
-	return s[0].String()
-}
-
-// String returns debug-friendly representaton of trace stack
-func (s Traces) String() string {
-	if len(s) == 0 {
-		return ""
-	}
-	out := make([]string, len(s))
-	for i, t := range s {
-		out[i] = fmt.Sprintf("\t%v:%v %v", t.Path, t.Line, t.Func)
-	}
-	return strings.Join(out, "\n")
-}
-
-// Trace stores structured trace entry, including file line and path
-type Trace struct {
-	// Path is a full file path
-	Path string `json:"path"`
-	// Func is a function name
-	Func string `json:"func"`
-	// Line is a code line number
-	Line int `json:"line"`
-}
-
-// String returns debug-friendly representation of this trace
-func (t *Trace) String() string {
-	dir, file := filepath.Split(t.Path)
-	dirs := strings.Split(filepath.ToSlash(filepath.Clean(dir)), "/")
-	if len(dirs) != 0 {
-		file = filepath.Join(dirs[len(dirs)-1], file)
-	}
-	return fmt.Sprintf("%v:%v", file, t.Line)
-}
+type Trace = internal.Trace
 
 // MarshalJSON marshals this error as JSON-encoded payload
 func (r *TraceErr) MarshalJSON() ([]byte, error) {
