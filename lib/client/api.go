@@ -2345,7 +2345,7 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 		ctx,
 		tc.WebProxyAddr,
 		tc.InsecureSkipVerify,
-		LoopbackPool(tc.WebProxyAddr),
+		loopbackPool(tc.WebProxyAddr),
 		tc.AuthConnector)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2622,7 +2622,7 @@ func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType cons
 			PubKey:            pub,
 			TTL:               tc.KeyTTL,
 			Insecure:          tc.InsecureSkipVerify,
-			Pool:              LoopbackPool(tc.WebProxyAddr),
+			Pool:              loopbackPool(tc.WebProxyAddr),
 			Compatibility:     tc.CertificateFormat,
 			RouteToCluster:    tc.SiteName,
 			KubernetesCluster: tc.KubernetesCluster,
@@ -2651,7 +2651,7 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, connectorID string, pub 
 			PubKey:            pub,
 			TTL:               tc.KeyTTL,
 			Insecure:          tc.InsecureSkipVerify,
-			Pool:              LoopbackPool(tc.WebProxyAddr),
+			Pool:              loopbackPool(tc.WebProxyAddr),
 			Compatibility:     tc.CertificateFormat,
 			RouteToCluster:    tc.SiteName,
 			KubernetesCluster: tc.KubernetesCluster,
@@ -2677,7 +2677,7 @@ func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, pub []byte) (*auth.
 			PubKey:            pub,
 			TTL:               tc.KeyTTL,
 			Insecure:          tc.InsecureSkipVerify,
-			Pool:              LoopbackPool(tc.WebProxyAddr),
+			Pool:              loopbackPool(tc.WebProxyAddr),
 			Compatibility:     tc.CertificateFormat,
 			RouteToCluster:    tc.SiteName,
 			KubernetesCluster: tc.KubernetesCluster,
@@ -2707,9 +2707,9 @@ func (tc *TeleportClient) EventsChannel() <-chan events.EventFields {
 	return tc.eventsCh
 }
 
-// LoopbackPool reads trusted CAs if it finds it in a predefined location
+// loopbackPool reads trusted CAs if it finds it in a predefined location
 // and will work only if target proxy address is loopback
-func LoopbackPool(proxyAddr string) *x509.CertPool {
+func loopbackPool(proxyAddr string) *x509.CertPool {
 	if !utils.IsLoopback(proxyAddr) {
 		log.Debugf("not using loopback pool for remote proxy addr: %v", proxyAddr)
 		return nil
