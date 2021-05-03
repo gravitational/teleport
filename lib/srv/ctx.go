@@ -728,9 +728,7 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 				// If the trait isn't passed by the IdP due to misconfiguration
 				// we fallback to setting a value which will indicate this.
 				if trace.IsNotFound(err) {
-					trait := expr.Name()
-					log.Warnf("Attempted to interpolate custom PAM environment with external trait %q but received SAML response does not contain claim %q.", trait, trait)
-					environment[key] = "TELEPORT_DID_NOT_FIND_TRAIT"
+					log.Warnf("Attempted to interpolate custom PAM environment with external trait %[1]q but received SAML response does not contain claim %[1]q", expr.Name())
 					continue
 				}
 
