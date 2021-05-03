@@ -19,12 +19,11 @@ package mysql
 import (
 	"context"
 	"net"
-	"strings"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/siddontang/go-mysql/client"
 	"github.com/siddontang/go-mysql/packet"
@@ -42,7 +41,7 @@ import (
 // Implements common.Engine.
 type Engine struct {
 	// Auth handles database access authentication.
-	Auth *common.Auth
+	Auth common.Auth
 	// Audit emits database access audit events.
 	Audit common.Audit
 	// Context is the database server close context.
@@ -64,8 +63,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	proxyConn := server.Conn{Conn: packet.NewConn(clientConn)}
 	defer func() {
 		if err != nil {
-			if err := proxyConn.WriteError(err); err != nil {
-				e.Log.WithError(err).Error("Failed to send error to client.")
+			if writeErr := proxyConn.WriteError(err); writeErr != nil {
+				e.Log.WithError(writeErr).Debugf("Failed to send error %q to MySQL client.", err)
 			}
 		}
 	}()
@@ -174,10 +173,17 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 		"client": clientConn.RemoteAddr(),
 		"server": serverConn.RemoteAddr(),
 	})
-	defer log.Debug("Stop receiving from client.")
+	defer func() {
+		log.Debug("Stop receiving from client.")
+		close(clientErrCh)
+	}()
 	for {
 		packet, err := protocol.ParsePacket(clientConn)
 		if err != nil {
+			if utils.IsOKNetworkError(err) {
+				log.Debug("Client connection closed.")
+				return
+			}
 			log.WithError(err).Error("Failed to read client packet.")
 			clientErrCh <- err
 			return
@@ -186,7 +192,6 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 		case *protocol.Query:
 			e.Audit.OnQuery(e.Context, sessionCtx, pkt.Query())
 		case *protocol.Quit:
-			clientErrCh <- nil
 			return
 		}
 		_, err = protocol.WritePacket(packet.Bytes(), serverConn)
@@ -206,13 +211,15 @@ func (e *Engine) receiveFromServer(serverConn, clientConn net.Conn, serverErrCh 
 		"client": clientConn.RemoteAddr(),
 		"server": serverConn.RemoteAddr(),
 	})
-	defer log.Debug("Stop receiving from server.")
+	defer func() {
+		log.Debug("Stop receiving from server.")
+		close(serverErrCh)
+	}()
 	for {
 		packet, err := protocol.ParsePacket(serverConn)
 		if err != nil {
-			if strings.Contains(err.Error(), teleport.UseOfClosedNetworkConnection) {
+			if utils.IsOKNetworkError(err) {
 				log.Debug("Server connection closed.")
-				serverErrCh <- nil
 				return
 			}
 			log.WithError(err).Error("Failed to read server packet.")

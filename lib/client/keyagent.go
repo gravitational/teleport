@@ -17,6 +17,7 @@ limitations under the License.
 package client
 
 import (
+	"context"
 	"crypto/subtle"
 	"fmt"
 	"io"
@@ -392,7 +393,9 @@ func (a *LocalKeyAgent) defaultHostPromptFunc(host string, key ssh.PublicKey, wr
 	var err error
 	ok := false
 	if !a.noHosts[host] {
-		ok, err = prompt.Confirmation(writer, reader,
+		cr := prompt.NewContextReader(reader)
+		defer cr.Close()
+		ok, err = prompt.Confirmation(context.Background(), writer, cr,
 			fmt.Sprintf("The authenticity of host '%s' can't be established. Its public key is:\n%s\nAre you sure you want to continue?",
 				host,
 				ssh.MarshalAuthorizedKey(key),

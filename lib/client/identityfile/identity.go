@@ -18,6 +18,7 @@ limitations under the License.
 package identityfile
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -219,7 +220,7 @@ func checkOverwrite(force bool, paths ...string) error {
 	}
 
 	// Some files exist, prompt user whether to overwrite.
-	overwrite, err := prompt.Confirmation(os.Stderr, os.Stdin, fmt.Sprintf("Destination file(s) %s exist. Overwrite?", strings.Join(existingFiles, ", ")))
+	overwrite, err := prompt.Confirmation(context.Background(), os.Stderr, prompt.Stdin(), fmt.Sprintf("Destination file(s) %s exist. Overwrite?", strings.Join(existingFiles, ", ")))
 	if err != nil {
 		return trace.Wrap(err)
 	}

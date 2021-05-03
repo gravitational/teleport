@@ -351,6 +351,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.POST("/webapi/trustedcluster", h.WithAuth(h.upsertTrustedClusterHandle))
 	h.DELETE("/webapi/trustedcluster/:name", h.WithAuth(h.deleteTrustedCluster))
 
+	h.GET("/webapi/apps/:fqdnHint", h.WithAuth(h.getAppFQDN))
+	h.GET("/webapi/apps/:fqdnHint/:clusterName/:publicAddr", h.WithAuth(h.getAppFQDN))
+
 	// if Web UI is enabled, check the assets dir:
 	var indexPage *template.Template
 	if cfg.StaticFS != nil {
@@ -516,7 +519,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		SuggestedReviewers: res.SuggestedReviewers,
 	}
 
-	userContext.Cluster, err = ui.GetClusterDetails(site)
+	userContext.Cluster, err = ui.GetClusterDetails(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1246,7 +1249,7 @@ func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 
 // createWebSession creates a new web session based on user, pass and 2nd factor token
 //
-// POST /v1/webapi/sessions
+// POST /v1/webapi/sessions/web
 //
 // {"user": "alex", "pass": "abc123", "second_factor_token": "token", "second_factor_type": "totp"}
 //
@@ -1628,7 +1631,7 @@ func (h *Handler) siteNodesGet(w http.ResponseWriter, r *http.Request, p httprou
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	servers, err := clt.GetNodes(namespace, services.SkipValidation())
+	servers, err := clt.GetNodes(r.Context(), namespace, services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1697,7 +1700,7 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	term, err := NewTerminal(*req, clt, ctx)
+	term, err := NewTerminal(r.Context(), *req, clt, ctx)
 	if err != nil {
 		h.log.WithError(err).Error("Unable to create terminal.")
 		return nil, trace.Wrap(err)
@@ -1737,7 +1740,7 @@ func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	if req.Session.ServerID != "" {
-		servers, err := clt.GetNodes(namespace, services.SkipValidation())
+		servers, err := clt.GetNodes(r.Context(), namespace, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
