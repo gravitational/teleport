@@ -42,6 +42,8 @@ implementation. It is _fully compatible with OpenSSH_,
 | [Blog](https://goteleport.com/blog/) | Our blog where we publish Teleport news. |
 | [Forum](https://github.com/gravitational/teleport/discussions) | Ask us a setup question, post your tutorial, feedback, or idea on our forum. |
 | [Slack](https://goteleport.com/slack) | Need help with your setup? Ping us in our Slack channel. |
+| [Cloud](https://goteleport.com/pricing) | We run Teleport Cloud as hosted, managed Teleport as a service. Connect your nodes, web applications, kubernetes clusters, and databases. |
+
 
 [Teleport 6.0 - 4:00m Demo Video](https://www.youtube.com/watch?v=0HlyGk8dihM)
 
