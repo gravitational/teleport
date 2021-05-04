@@ -18,7 +18,7 @@ Teleport Server Access provides many great features to manage your servers, sess
 
 1. **Built-in server authentication**: Teleport Server Access allows full SSH management without third-party dependencies. [Reduce the likelihood of a tool or dependency vulnerability](https://www.cse.usf.edu/~xou/publications/esorics08.pdf) by limiting the number of vendors.
 2. **Teleport Server Access provides full SSH capabilities combined with support for 2FA, OAuth 2.0, Open ID Connect, SAML, and SSO out-of-the-box**.
-3. The Teleport SSH daemon also offers **several advantages over other SSH alternatives** including [*cluster introspection*](https://goteleport.com/blog/openssh-vs-teleport/), built-in Role-Based Access Control, Two-Factor Authentication, and multi-user sessions.
+3. The Teleport SSH daemon also offers **several advantages over other SSH alternatives** including [cluster introspection](https://goteleport.com/blog/openssh-vs-teleport/), built-in Role-Based Access Control, Two-Factor Authentication, and multi-user sessions.
 4. **Role-Based Access Control (RBAC)**: built-in support for delegating permissions and access by the *Principle of Least Privilege* (POLP).
 5. **A convenient web UI** for easily representing and interacting with resources and user sessions.
 6. **Multi-cluster management through a graphical user interface or API**.
@@ -143,16 +143,56 @@ Teleport Server Access has built-in [session auditing](../../features/enhanced-s
 Your browser does not support the video tag.
 </video>
 
-Teleport admin's can further define [Events](../../admin-guide.mdx#events) to organize and trigger sending session recordings to customizeable storage back-ends:
+### Defining Events
+
+Teleport admin's can further define [Events](../../admin-guide.mdx#events) to organize and trigger sending session recordings to customizable storage back-ends:
 
 1. All `session.start` events could be stored on AWS S3.
-2. All `exec` events could be stored in subdirectory on AWS S3 specific to remote commands.
+2. All `exec` events could be stored in a subdirectory on AWS S3 specific to remote commands.
 
 This makes it easier to manage, group, and analyze sessions.
 
+We recommend reading through the [Architecture documentation](../../architecture/authentication.mdx#audit-log) to plan out how to best implement sessions and events for your needs.
+
+## Define, approve, and deny access requests
+
+Teleports allows you to define [roles and permissions](../../access-controls/reference.mdx) in line with the best practice *Principle of Least Privilege* (POLP).
+
+Each role is permitted or disallowed to interact with resources in specific ways via allow-rules. For example, a user may be granted super-user authority to manage session events: 
+
+```yaml
+rules:
+- resources: [event]
+  verbs: [list, create, read, update, delete]
+```
+
+Roles and permissions can be further defined to allow **making and denying role requests** themselves. Such users are typically Teleport administrators:
+
+```yaml
+request:
+  roles:
+  - dba
+  - admin
+```
+
+Users can then request a role through `tsh`:
+
+1. A user logins into `teleport-cluster` and requests the `admin` role: `tsh login teleport-cluster --request-roles=admin`.
+2. This will generate a unique request token identifying the request, requested role, and user.
+
+  - `Seeking request approval... (id: bc8ca931-fec9-4b15-9a6f-20c13c5641a9)`
+
+3. A Teleport admin can approve or deny their request from within the Teleport Web UI or through [tctl](../../cli-docs.mdx#tctl-request-ls):
+
+  - `tctl request ls`
+  - `tctl request approve [token]`
+  - `tctl request deny [token]`
+
+As such, Teleport allows organizations to include complex [access request workflows](../../enterprise/workflow/index.mdx) directly within their primary SSH and authentication tool.
+
 ## Introspect and manage the cluster 
 
-Teleport `tctl` (tea-kettle) has powerful querying and multi-command capabilities to make inspecting and managing a cluster even easier.
+Teleport `tctl` ("tea-kettle") has powerful querying and multi-command capabilities to make inspecting and managing a cluster even easier.
 
 1. Teleport admins can define `labels` for any Node to easily group resources beyond cluster management.
 
@@ -163,6 +203,24 @@ Teleport `tctl` (tea-kettle) has powerful querying and multi-command capabilitie
 Suppose an IP address changes. An admin can quickly find the current Node with that label since it remains unchanged.
 
 Suppose you need to query the SSH Node of each cluster. Give each SSH Node the same label so a single query will allow you to introspect specific resources in multiple clusters.
+
+### Multi-querying
+
+`tctl` also supports multi-querying: the ability to execute sequential (or simultaneous) commands on multiple resources at once. 
+
+   - `tsh ssh root@env=example ls` will execute the `ls` command on each Node displaying the contents of each to the screen.
+
+As a consequence, Teleport admins can execute commands on all Nodes that share a label vastly simplifying repeated operations. 
+
+### Progammatic interaction 
+
+Teleport exposes its API to allow for [programmatic interaction](../../reference/api.mdx) with its underlying functionalities beyond the command-line.
+
+This requires:
+
+1. A suitable client written in your favorite language.
+2. Provisioning valid TLS (SSL) certificates.
+3. Supplying the correct roles, permissions, and/or short-lived certificates to the appropriate users.
 
 ## Configure short-lived certificates for access
 
@@ -176,4 +234,4 @@ Teleport Server Access provides the ability to manage short-lived certificates a
 
    - Execute: `tctl auth sign --ttl=87600h --user=jenkins --out=jenkins.pem` to generate a certificate valid for a specified *Time To Live* (TTL).
    - Team members can access private resources securely using certificates and SSH tunnels.
-   - No sharing of resource secrets, passwords, or credentials only certificates that are unique to that user and specified period of time.
+   - No sharing of resource secrets, passwords, or credentials only certificates that are unique to that user and specified length of time.
