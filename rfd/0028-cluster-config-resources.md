@@ -98,35 +98,11 @@ message ClusterAuthPreference {
 }
 ```
 
-### Restricting to a subset of values of a field
+### (Teleport Cloud only) Restricting to a subset of values of a field
 
-Some users should not be capable of setting a field to any of the otherwise
-accepted values.  It is proposed to satisfy this requirement by introducing new
-RBAC verbs, interpreted as implying additional constraints. Such new verbs
-would be evaluated together with other RBAC verbs in the auth API handlers.
-
-In particular, this is needed for `SessionRecordingConfig` which has two
-fields:
-* `mode` with the possible values: `off`, `node`, `node-sync`,
-  `proxy`, `proxy-sync`;
-* a boolean `proxy_checks_host_keys`.
-
-Some users should be subject to the following restrictions:
-1. The value of `mode` can be changed only if its original value
-   is one of `off`, `node` or `node-sync`.
-1. The value of `mode` can be changed to only one of `off`, `node`
-   or `node-sync`.
-1. The value of `proxy_checks_host_keys` cannot be changed.
-
-This would be achieved by a new RBAC verb `update.no_proxy_recording`. A user could then
-be assigned a role featuring `update.no_proxy_recording` instead of the regular, more
-permissive `update`:
-```
-  allow:
-    rules:
-    - resources: [session_recording_config]
-      verbs: [read, update.no_proxy_recording]
-```
+Certain field values should not be available for configuring by Cloud users.
+The `Modules` interface shall be extended to provide a resource validation step,
+allowing to inject additional checks when the Cloud license flag is set.
 
 ### Additional dynamically configurable resources
 
