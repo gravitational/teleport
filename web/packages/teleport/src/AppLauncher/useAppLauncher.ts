@@ -26,21 +26,9 @@ export default function useAppLauncher() {
   const { attempt, setAttempt } = useAttempt('processing');
 
   React.useEffect(() => {
-    service
-      .createAppSession(params)
-      .then(result => {
-        // make a redirect to the requested app auth endpoint
-        const location = window.location;
-        const port = location.port ? ':' + location.port : '';
-        const state = getUrlParameter('state', location.search);
-        const authUrl = `https://${result.fqdn}${port}/x-teleport-auth`;
-        if (state === '') {
-          const clusterId = params.clusterId ? params.clusterId : '';
-          const publicAddr = params.publicAddr ? params.publicAddr : '';
-          window.location.replace(`${authUrl}?cluster=${clusterId}&addr=${publicAddr}`);
-        } else {
-          window.location.replace(`${authUrl}?state=${state}#value=${result.value}`);
-        }
+    resolveRedirectUrl(params)
+      .then(url => {
+        window.location.replace(url);
       })
       .catch((err: Error) => {
         setAttempt({
@@ -53,4 +41,33 @@ export default function useAppLauncher() {
   return {
     ...attempt,
   };
+}
+
+function resolveRedirectUrl(params: UrlLauncherParams) {
+  const location = window.location;
+  const port = location.port ? ':' + location.port : '';
+  const state = getUrlParameter('state', location.search);
+
+  // no state value: let the target app know of a new auth exchange
+  if (!state) {
+    return service.getAppFqdn(params).then(result => {
+      const url = new URL(`https://${result.fqdn}${port}/x-teleport-auth`);
+      if (params.clusterId) {
+        url.searchParams.set('cluster', params.clusterId);
+      }
+      if (params.publicAddr) {
+        url.searchParams.set('addr', params.publicAddr);
+      }
+
+      return url.toString();
+    });
+  }
+
+  // state value received: create new session for the target app
+  return service.createAppSession(params).then(result => {
+    const url = new URL(`https://${result.fqdn}${port}/x-teleport-auth`);
+    url.searchParams.set('state', state);
+    url.hash = `#value=${result.value}`;
+    return url.toString();
+  });
 }

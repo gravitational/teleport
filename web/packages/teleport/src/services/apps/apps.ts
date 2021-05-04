@@ -16,7 +16,7 @@
 
 import { map } from 'lodash';
 import api from 'teleport/services/api';
-import cfg from 'teleport/config';
+import cfg, { UrlAppParams } from 'teleport/config';
 import makeApp from './makeApps';
 
 const service = {
@@ -26,10 +26,10 @@ const service = {
       .then(json => map(json.items, makeApp));
   },
 
-  createAppSession(params: CreateAppSessionParams) {
+  createAppSession(params: UrlAppParams) {
     const { fqdn, clusterId = '', publicAddr = '' } = params;
     return api
-      .post(cfg.api.aapSession, {
+      .post(cfg.api.appSession, {
         fqdn,
         cluster_name: clusterId,
         public_addr: publicAddr,
@@ -39,12 +39,14 @@ const service = {
         value: json.value as string,
       }));
   },
+
+  getAppFqdn(params: UrlAppParams) {
+    return api
+      .get(cfg.getAppFqdnUrl(params))
+      .then(json => ({
+        fqdn: json.fqdn as string,
+      }));
+  },
 };
 
 export default service;
-
-type CreateAppSessionParams = {
-  fqdn: string;
-  clusterId?: string;
-  publicAddr?: string;
-};
