@@ -214,13 +214,17 @@ As a consequence, Teleport admins can execute commands on all Nodes that share a
 
 ### Progammatic interaction 
 
-Teleport exposes its API to allow for [programmatic interaction](../../reference/api.mdx) with its underlying functionalities beyond the command-line.
+Teleport Auth Nodes expose an API through gRPC to allow for [programmatic interaction](../../reference/api.mdx) with its underlying functionalities beyond the command-line.
+
+Teleport clients communicate with clusters by connecting to Teleport Auth Nodes and authenticate using short-lived certificates and Teleport [roles](../../access-controls/reference.mdx).
 
 This requires:
 
 1. A suitable client written in your favorite language.
 2. Provisioning valid TLS (SSL) certificates.
 3. Supplying the correct roles, permissions, and/or short-lived certificates to the appropriate users.
+
+Review the `client` [pkg.go reference documentation](https://pkg.go.dev/github.com/gravitational/teleport/api/client) for more information about working with the Teleport API programmatically.
 
 ## Configure short-lived certificates for access
 

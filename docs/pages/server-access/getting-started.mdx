@@ -283,7 +283,81 @@ Teleport Server Access provides the ability to manage short-lived certificates a
 
    - Execute: `tctl auth sign --ttl=87600h --user=jenkins --out=jenkins.pem` to generate a certificate valid for a specified *Time To Live* (TTL).
    - Team members can access private resources securely using certificates and SSH tunnels.
-   - No sharing of resource secrets, passwords, or credentials only certificates that are unique to that user and specified period of time.
+   - No sharing of resource secrets, passwords, or credentials only certificates that are unique to that user and specified length of time.
+
+## Step 3c. Connect to the Teleport API
+
+Let's connect to the Teleport API using a simple role-based authentication method:
+
+1. Open a terminal to `auth.go-teleport.com`.
+
+2. Create a user `api-admin` with the built-in role `admin`: `tctl users add api-user --roles=admin`.
+
+3. Within the same terminal (or another), log in as `api-admin`: `tsh login --user=api-user --proxy=api.go-teleport.com:443`.
+
+4. Install `Go 1.16+` (`sudo snap go --classic` on AWS Ubuntu). Then:
+
+   ```bash
+   mkdir client-demo && cd client-demo
+   go mod init client-demo
+   go get github.com/gravitational/teleport/api/client
+   ```
+   
+5. Create a file `main.go` via `sudo touch main.go` followed by `sudo nano main.go`. Copy the following Go script into `main.go` modifying the `Addrs` strings as needed:
+
+   ```go
+   package main
+
+   import (
+       "context"
+       "log"
+       "github.com/gravitational/teleport/api/client"
+   )
+
+   func main() {
+       ctx := context.Background()
+
+       clt, err := client.New(ctx, client.Config{
+           Addrs: []string{
+               "auth.go-teleport.com:443",
+               "auth.go-teleport.com:3025",
+               "auth.go-teleport.com:3024",
+               "auth.go-telport.com:3080",
+           },
+           Credentials: []client.Credentials{
+               client.LoadProfile("", ""),
+           },
+       })
+
+       if err != nil {
+           log.Fatalf("Failed to create client: %v", err)
+       }
+
+       defer clt.Close()
+
+       resp, err := clt.Ping(ctx)
+
+       if err != nil {
+           log.Fatalf("Failed to ping server: %v", err)
+       }
+
+       log.Printf("Example success!")
+       log.Printf("Server response: %s", resp)
+       log.Printf("Server version: %s", resp.ServerVersion)
+   }
+   ```
+
+6. Execute: `go run main.go`. On success:
+
+   ```bash
+   2021/05/04 17:43:24 Example success!
+   2021/05/04 17:43:24 Server response: {api.go-teleport.com 6.1.3 Kubernetes:true App:true DB:true  api.go-teleport.com:443 {}  %!s(int32=0)}
+   2021/05/04 17:43:24 Server version: 6.1.3
+   ```
+
+   Note the client `resp` object which contains configuration information.
+
+Review the `client` [pkg.go reference documentation](https://pkg.go.dev/github.com/gravitational/teleport/api/client) for more information about working with the Teleport API programmatically.
 
 ## Conclusion
 
@@ -293,6 +367,9 @@ This Getting Started Guide walked through:
 2. Connect to the cluster using `tsh` to manage and introspect resources.
 3. Set up GitHub SSO and authenticate through `tsh` using SAML.
 4. Describe use scenarios for short-lived certificates and `tctl auth` roles.
+5. How to connect to Teleport API programmatically.
+
+Feel free to shut down, clean up, and delete your resources or use them in further Getting Started exercises.
 
 ## Resources
 
