@@ -58,7 +58,6 @@ func TestParseProxyHostString(t *testing.T) {
 			expect: ParsedProxyHost{
 				Host:                     "example.org",
 				UsingDefaultWebProxyPort: true,
-				UsingDefaultSSHProxyPort: true,
 				WebProxyAddr:             "example.org:3080",
 				SSHProxyAddr:             "example.org:3023",
 			},
@@ -69,7 +68,6 @@ func TestParseProxyHostString(t *testing.T) {
 			expect: ParsedProxyHost{
 				Host:                     "example.org",
 				UsingDefaultWebProxyPort: false,
-				UsingDefaultSSHProxyPort: true,
 				WebProxyAddr:             "example.org:1234",
 				SSHProxyAddr:             "example.org:3023",
 			},
@@ -80,7 +78,6 @@ func TestParseProxyHostString(t *testing.T) {
 			expect: ParsedProxyHost{
 				Host:                     "example.org",
 				UsingDefaultWebProxyPort: false,
-				UsingDefaultSSHProxyPort: true,
 				WebProxyAddr:             "example.org:1234",
 				SSHProxyAddr:             "example.org:3023",
 			},
@@ -91,7 +88,6 @@ func TestParseProxyHostString(t *testing.T) {
 			expect: ParsedProxyHost{
 				Host:                     "example.org",
 				UsingDefaultWebProxyPort: true,
-				UsingDefaultSSHProxyPort: false,
 				WebProxyAddr:             "example.org:3080",
 				SSHProxyAddr:             "example.org:200",
 			},
@@ -102,7 +98,6 @@ func TestParseProxyHostString(t *testing.T) {
 			expect: ParsedProxyHost{
 				Host:                     "example.org",
 				UsingDefaultWebProxyPort: true,
-				UsingDefaultSSHProxyPort: false,
 				WebProxyAddr:             "example.org:3080",
 				SSHProxyAddr:             "example.org:200",
 			},
@@ -113,7 +108,6 @@ func TestParseProxyHostString(t *testing.T) {
 			expect: ParsedProxyHost{
 				Host:                     "example.org",
 				UsingDefaultWebProxyPort: false,
-				UsingDefaultSSHProxyPort: true,
 				WebProxyAddr:             "example.org:100",
 				SSHProxyAddr:             "example.org:3023",
 			},
@@ -124,7 +118,6 @@ func TestParseProxyHostString(t *testing.T) {
 			expect: ParsedProxyHost{
 				Host:                     "example.org",
 				UsingDefaultWebProxyPort: false,
-				UsingDefaultSSHProxyPort: false,
 				WebProxyAddr:             "example.org:100",
 				SSHProxyAddr:             "example.org:200",
 			},
@@ -135,7 +128,6 @@ func TestParseProxyHostString(t *testing.T) {
 			expect: ParsedProxyHost{
 				Host:                     "example.org",
 				UsingDefaultWebProxyPort: false,
-				UsingDefaultSSHProxyPort: true,
 				WebProxyAddr:             "example.org:100",
 				SSHProxyAddr:             "example.org:3023",
 			},
@@ -146,7 +138,6 @@ func TestParseProxyHostString(t *testing.T) {
 			expect: ParsedProxyHost{
 				Host:                     "example.org",
 				UsingDefaultWebProxyPort: false,
-				UsingDefaultSSHProxyPort: false,
 				WebProxyAddr:             "example.org:100",
 				SSHProxyAddr:             "example.org:200",
 			},
@@ -157,7 +148,6 @@ func TestParseProxyHostString(t *testing.T) {
 			expect: ParsedProxyHost{
 				Host:                     "example.org",
 				UsingDefaultWebProxyPort: true,
-				UsingDefaultSSHProxyPort: true,
 				WebProxyAddr:             "example.org:3080",
 				SSHProxyAddr:             "example.org:3023",
 			},
@@ -183,7 +173,6 @@ func TestParseProxyHostString(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, expected.Host, actual.Host)
 			require.Equal(t, expected.UsingDefaultWebProxyPort, actual.UsingDefaultWebProxyPort)
-			require.Equal(t, expected.UsingDefaultSSHProxyPort, actual.UsingDefaultSSHProxyPort)
 			require.Equal(t, expected.WebProxyAddr, actual.WebProxyAddr)
 			require.Equal(t, expected.SSHProxyAddr, actual.SSHProxyAddr)
 		})
