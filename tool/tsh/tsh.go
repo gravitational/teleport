@@ -1828,6 +1828,7 @@ func setClientWebProxyAddr(cf *CLIConf, c *client.Config) error {
 
 		proxyAddress := parsedAddrs.WebProxyAddr
 		if parsedAddrs.UsingDefaultWebProxyPort {
+			log.Debug("Web proxy port was not set. Attempting to detect port number to use.")
 			timeout, cancel := context.WithTimeout(context.Background(), proxyDefaultResolutionTimeout)
 			defer cancel()
 
@@ -1836,8 +1837,7 @@ func setClientWebProxyAddr(cf *CLIConf, c *client.Config) error {
 
 			// On error, fall back to the legacy behaviour
 			if err != nil {
-				log.Debugf("Proxy port resolution failed: %v", err)
-				log.Debug("Falling back to legacy default")
+				log.WithError(err).Debug("Proxy port resolution failed, falling back to legacy default.")
 				return c.ParseProxyHost(cf.Proxy)
 			}
 		}

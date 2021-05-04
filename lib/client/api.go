@@ -811,11 +811,6 @@ type ParsedProxyHost struct {
 	// itself.
 	UsingDefaultWebProxyPort bool
 	WebProxyAddr             string
-
-	// UsingDefaultSSHProxyPort means that the port in SSHProxyAddr was
-	// supplied by ParseProxyHost function rather than ProxyHost string
-	// itself.
-	UsingDefaultSSHProxyPort bool
 	SSHProxyAddr             string
 }
 
@@ -838,7 +833,6 @@ func ParseProxyHost(proxyHost string) (*ParsedProxyHost, error) {
 	// set the default values of the port strings. One, both, or neither may
 	// be overridden by the port string parsing below.
 	usingDefaultWebProxyPort := true
-	usingDefaultSSHProxyPort := true
 	webPort := strconv.Itoa(defaults.HTTPListenPort)
 	sshPort := strconv.Itoa(defaults.SSHProxyListenPort)
 
@@ -866,7 +860,6 @@ func ParseProxyHost(proxyHost string) (*ParsedProxyHost, error) {
 		}
 		if text := strings.TrimSpace(parts[1]); len(text) > 0 {
 			sshPort = text
-			usingDefaultSSHProxyPort = false
 		}
 
 	default:
@@ -877,8 +870,6 @@ func ParseProxyHost(proxyHost string) (*ParsedProxyHost, error) {
 		Host:                     host,
 		UsingDefaultWebProxyPort: usingDefaultWebProxyPort,
 		WebProxyAddr:             net.JoinHostPort(host, webPort),
-
-		UsingDefaultSSHProxyPort: usingDefaultSSHProxyPort,
 		SSHProxyAddr:             net.JoinHostPort(host, sshPort),
 	}
 	return result, nil

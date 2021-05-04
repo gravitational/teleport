@@ -33,8 +33,8 @@ import (
 
 var testLog = log.WithField(trace.Component, "test")
 
-func newWaitForeverHandler() (http.Handler, chan interface{}) {
-	doneChannel := make(chan interface{})
+func newWaitForeverHandler() (http.Handler, chan struct{}) {
+	doneChannel := make(chan struct{})
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		testLog.Debug("Waiting forever...")
 		<-doneChannel
@@ -176,7 +176,7 @@ func TestResolveDefaultAddrTimeout(t *testing.T) {
 func TestResolveNonOKResponseIsAnError(t *testing.T) {
 	t.Parallel()
 
-	// Given a single candidate servers configured to respond with a non-OK status
+	// Given a single candidate server configured to respond with a non-OK status
 	// code
 	servers := []*httptest.Server{
 		makeTestServer(t, newRespondingHandlerWithStatus(http.StatusTeapot)),
@@ -188,7 +188,48 @@ func TestResolveNonOKResponseIsAnError(t *testing.T) {
 
 	// Expect that the resolution fails because the server responded with a non-OK
 	// response
-	require.ErrorIs(t, err, nonOKResponseError{Status: http.StatusTeapot})
+	require.Error(t, err)
+}
+
+func TestResolveUndeliveredBodyDoesNotBlockForever(t *testing.T) {
+	t.Parallel()
+
+	// Given a single candidate server configured to respond with a non-OK status
+	// code and a looooong, streaming body that never arrives
+	doneChannel := make(chan struct{})
+	defer close(doneChannel)
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		f, ok := w.(http.Flusher)
+		if !ok {
+			testLog.Error("ResponseWriter must also be a Flusher, or the test is invalid")
+			t.Fatal()
+		}
+
+		testLog.Debugf("Writing response header to %T", w)
+		w.Header().Set("Content-Length", "1048576")
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusTeapot)
+
+		w.Write([]byte("I'm a little teapot, short and stout."))
+		f.Flush()
+
+		testLog.Debug("Waiting forever instead of sending response body")
+		<-doneChannel
+
+		testLog.Debug("Exiting handler")
+	})
+
+	servers := []*httptest.Server{makeTestServer(t, handler)}
+	ports := mustGetCandidatePorts(servers)
+
+	// When I attempt to resolve a default address
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	_, err := pickDefaultAddr(ctx, true, "127.0.0.1", ports)
+
+	// Expect that the resolution fails with a context timeout
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 }
 
 func TestResolveDefaultAddrTimeoutBeforeAllRacersLaunched(t *testing.T) {
