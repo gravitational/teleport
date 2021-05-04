@@ -23,7 +23,6 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 )
 
@@ -203,36 +202,6 @@ func (m *Metadata) CheckAndSetDefaults() error {
 	}
 
 	return nil
-}
-
-// Merge overwrites r from src and
-// is part of support for cloning Server values
-// using proto.Clone.
-//
-// Note: this does not implement the full Merger interface,
-// specifically, it assumes that r is zero value.
-// See https://github.com/gogo/protobuf/blob/v1.3.1/proto/clone.go#L58-L60
-//
-// Implements proto.Merger
-func (m *Metadata) Merge(src proto.Message) {
-	metadata, ok := src.(*Metadata)
-	if !ok {
-		return
-	}
-	*m = *metadata
-	// Manually clone expiry timestamp as proto.Clone
-	// cannot cope with values that contain unexported
-	// attributes (as time.Time does)
-	if metadata.Expires != nil {
-		expires := *metadata.Expires
-		m.Expires = &expires
-	}
-	if len(metadata.Labels) != 0 {
-		m.Labels = make(map[string]string)
-		for k, v := range metadata.Labels {
-			m.Labels[k] = v
-		}
-	}
 }
 
 // LabelPattern is a regexp that describes a valid label key
