@@ -5,26 +5,41 @@ description: Introduction to features and benefits of Teleport Server Access
 
 # Server Access
 
-Teleport Server Access is designed for the following scenarios:
+Teleport Server Access consolidates SSH access across all environments, decreases configuration complexity, supports industry best practices and compliance while giving complete visibility over all sessions and events.
 
-1. When SSH is required (Teleport Node or SSH mode), not just Teleport certificate authority (Teleport Auth) with proxy (Teleport Proxy) mode.
-2. When resource and network security absolutely must be maximized - SSH certificates over secret keys, Two-Factor Authentication (2FA), Single Sign-On (SSO), and short-lived certificates.
-3. When up to a vast number of clusters must be managed either using the command-line (`tsh`) or programmatically (through the Teleport API).
-4. When it's important to track and audit every user session.
+Teleport Server Access is designed for the following kinds of scenarios:
 
-Key features provided by Teleport Server Access:
+1. When up to a vast number of clusters must be managed using the command-line (`tsh`) or programmatically (through the Teleport API) and you want to simplify your stack, security, and configuration complexity.
+2. When it's important to track and audit every user session. 
+3. When Teleport users require a complete, dedicated, and secure SSH option (Teleport Node running in SSH mode) and more than a certificate authority (Teleport Auth) with proxy (Teleport Proxy).
+4. When resource and network security must be maximized: SSH certificates over secret keys, Two-Factor Authentication (2FA), Single Sign-On (SSO), and short-lived certificates.
 
-1. **Built-in server authentication**: Teleport Server Access allows full SSH management without third-party dependencies. [Reduce the likelihood of a dependency or tool vulnerability](https://www.cse.usf.edu/~xou/publications/esorics08.pdf) by limiting the number of vendors.
-2. **Teleport Server Access provides full SSH capabilities combined with support for 2FA, OAuth 2.0, Open ID Connect, SAML, and SSO out-of-the-box**.
-3. The Teleport SSH daemon also offers **several advantages over other SSH alternatives** including [*cluster introspection*](https://goteleport.com/blog/openssh-vs-teleport/), built-in Role-Based Access Control, Two-Factor Authentication, and multi-user sessions.
-4. **Role-Based Access Control (RBAC)**: built-in support for delegating permissions and access by the *Principle of Least Privilege* (POLP).
-5. **A convenient web UI** for easily representing and interacting with resources and user sessions.
-6. **Multi-cluster management through a clean user interface and API**: there's no need to live in Command-Line Hell when managing your many devices.
-7. Single and multi-user **session auditing and recording**.
+## Features
+
+Server Access features are organized into three main offerings: 
+
+1. **Simplified/unified configuration and stack**: 
+  - Multi-cluster management through a clean user interface and API when managing your many resources or devices.
+  - Teleport Server Access allows full SSH management without third-party dependencies. 
+  - [Reduce the likelihood of a dependency or tool vulnerability](https://www.cse.usf.edu/~xou/publications/esorics08.pdf) by reducing the complexity of your stack.
+2. **Security and compliance**:
+  - 2FA and One-Time Pass (OTP) support.
+  - Role-Based Access Control (RBAC): built-in support for delegating permissions and access by the *Principle of Least Privilege* (POLP).
+  - Support for OAuth 2.0, Open ID Connect, SAML, and SSO out-of-the-box.
+  - Access Requests that can be approved or denied to define a compliance workflow.
+3. **Complete visibility into access and behavior**:
+  - Single and multi-user session auditing and recording.
+  - Configure event streaming to record and send events to specific team members or destinations.
+  - Unified resource management and [*cluster introspection*](https://goteleport.com/blog/openssh-vs-teleport/).
+  - A convenient web UI for easily representing and interacting with resources and user sessions.
 
 ## Demo
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/QX7w1F3B_OM" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+<video autoplay loop muted playsinline>
+  <source src="https://goteleport.com/teleport/videos/server-access/addnode.mp4" type="video/mp4"/>
+  <source src="https://goteleport.com/teleport/videos/server-access/addnode.webm" type="video/webm"/>
+Your browser does not support the video tag.
+</video>
 
 ## Getting started
 

@@ -7,22 +7,22 @@ description: How to use Teleport Server Access for SSH
 
 Teleport Server Access provides full SSH capabilities out-of-the-box:
 
-1. Teleport's `tsh` combines support for SSH and SCP in one convenient local command-line tool.
+1. Teleport's `tsh` combines support for SSH and SCP in one convenient, local, a command-line tool.
 2. Each Teleport node can be configured into SSH mode (Teleport Node) and run as an enhanced SSH server.
 
-These features can be run without using third-party tools like OpenSSH allowing admins to reduce the complexity of their stack. In short, Teleport is a full-fledged SSH server with advanced capabilities no other SSH alternative currently has.
+These features can be used without third-party tools (such as OpenSSH) allowing admins to reduce the complexity of their stack. In short, Teleport is a full-fledged SSH server with advanced capabilities no other SSH alternative currently has.
 
 ## Introduction to Teleport SSH capabilities
 
-Teleport Server Access provides many great features to manage your servers and permissions:
+Teleport Server Access provides many great features to manage your servers, sessions, and permissions:
 
 1. **Built-in server authentication**: Teleport Server Access allows full SSH management without third-party dependencies. [Reduce the likelihood of a tool or dependency vulnerability](https://www.cse.usf.edu/~xou/publications/esorics08.pdf) by limiting the number of vendors.
 2. **Teleport Server Access provides full SSH capabilities combined with support for 2FA, OAuth 2.0, Open ID Connect, SAML, and SSO out-of-the-box**.
 3. The Teleport SSH daemon also offers **several advantages over other SSH alternatives** including [*cluster introspection*](https://goteleport.com/blog/openssh-vs-teleport/), built-in Role-Based Access Control, Two-Factor Authentication, and multi-user sessions.
 4. **Role-Based Access Control (RBAC)**: built-in support for delegating permissions and access by the *Principle of Least Privilege* (POLP).
 5. **A convenient web UI** for easily representing and interacting with resources and user sessions.
-6. **Multi-cluster management through a graphical user interface or API**: there's no need to live in Command-Line Hell when managing your many devices.
-7. Single and multi-user **session auditing and recording**.
+6. **Multi-cluster management through a graphical user interface or API**.
+7. Single and multi-user **session auditing and recording** that can be triggered and sent through defined Events.
 
 ## SSH mode and adding an SSH Node to your cluster
 
@@ -59,7 +59,7 @@ To link an SSH Node with an existing `auth.example.com` cluster:
 
 3. Run the command above with the correct `auth.example.com` public proxy address on the machine you wish to connect.
 
-4. You should now be able to view both Nodes at: `https://auth.example.com/web/cluster/auth.example.com/nodes` in the Web Interface after logging in with your the user `auth-admin`.
+4. You should now be able to view both Nodes at: `https://auth.example.com/web/cluster/auth.example.com/nodes` in the Web Interface after logging in with your user `auth-admin`.
 
    ![Both Nodes in](../../../img/server-access/teleport_ui.png)
 
@@ -71,7 +71,7 @@ To connect to a cluster (`auth.example.com`) with public proxy `auth.example.com
 
 1. `tsh login --proxy=auth.example.com:443 --user=auth-admin`  
 
-2. You'll be prompted to for the password and One Time Pass code we set up previously.
+2. You'll be prompted to for the password and One Time Passcode we set up previously.
 
 3. Your user will now see:
 
@@ -111,7 +111,11 @@ To connect to a cluster (`auth.example.com`) with public proxy `auth.example.com
 
 ## Configure Single Sign-On
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/QX7w1F3B_OM" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+<video autoplay loop muted playsinline>
+  <source src="https://goteleport.com/teleport/videos/server-access/githubsso.mp4" type="video/mp4"/>
+  <source src="https://goteleport.com/teleport/videos/server-access/githubsso.webm" type="video/webm"/>
+Your browser does not support the video tag.
+</video>
 
 Teleport Server Access supports Single Sign-On (SSO) for authenticating users when they log into Teleport Web UI and through `tsh`. 
 
@@ -127,13 +131,24 @@ Specific set up guides are available for the following SSO providers:
 
 ## Audit user and SSH sessions
 
-Teleport Server Access has built-in [session auditing](../../features/enhanced-session-recording.mdx) that will record single and joint user interactions.
+Teleport Server Access has built-in [session auditing](../../features/enhanced-session-recording.mdx) that will record single and joint user interactions in both audit log and video formats.
 
 - When a user authenticates and performs commands through `tsh ssh`, their activities are recorded in replayable session videos that can be viewed in Teleport Web UI.
-- Session recording captures each keystroke and command line output.
+- Session recording captures each keystroke and command-line output.
 - Multiuser session auditing is also provided out-of-the-box. You can record remote IT sessions and administrative tasks without additional configuration.
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/u6wDLg0WvL8" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+<video autoplay loop muted playsinline>
+  <source src="https://goteleport.com/teleport/videos/server-access/replay.mp4" type="video/mp4"/>
+  <source src="https://goteleport.com/teleport/videos/server-access/replay.webm" type="video/webm"/>
+Your browser does not support the video tag.
+</video>
+
+Teleport admin's can further define [Events](../../admin-guide.mdx#events) to organize and trigger sending session recordings to customizeable storage back-ends:
+
+1. All `session.start` events could be stored on AWS S3.
+2. All `exec` events could be stored in subdirectory on AWS S3 specific to remote commands.
+
+This makes it easier to manage, group, and analyze sessions.
 
 ## Introspect and manage the cluster 
 

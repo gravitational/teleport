@@ -12,7 +12,7 @@ Teleport Server Access provides full SSH capabilities out-of-the-box:
 
 The steps below involve:
 
-1. Create and supplement a Teleport Auth node cluster with a Teleport SSH Node.
+1. Creating a Teleport Auth node cluster we'll add a Teleport SSH Node to.
 2. Using `tsh` to SSH into the cluster without external SSH dependencies.
 3. Introspecting the cluster using advanced `tsh` features.
 
@@ -62,10 +62,10 @@ The steps below involve:
    sudo apt-get install teleport
    ```
 
-4. Cnfigure Teleport to use ACME and to automatically acquire a TLS certificate:
+4. Configure Teleport to use ACME and to automatically acquire a TLS certificate:
 
    <Admonition type="tip" title="Tip">
-    Teleport will now automatically acquire an ACME compliant TLS certificate by default. While you can use a third-party ACME client (like Let's Encrypt certbot), the configuration commands below will do the same.
+    Teleport will now automatically acquire an ACME-compliant TLS certificate by default. While you can use a third-party ACME client (like Let's Encrypt certbot), the configuration commands below will do the same.
    </Admonition>
 
    ```bash
@@ -80,7 +80,11 @@ The steps below involve:
 
 ## Step 1b. Add a Node to the cluster
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/2I6bPdXrMAk" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+<video autoplay loop muted playsinline>
+  <source src="https://goteleport.com/teleport/videos/server-access/addnode.mp4" type="video/mp4"/>
+  <source src="https://goteleport.com/teleport/videos/server-access/addnode.webm" type="video/webm"/>
+Your browser does not support the video tag.
+</video>
 
 1. Now, create a third terminal and connect to `auth.example.com`:
 
@@ -125,7 +129,7 @@ Now, we've got our cluster up and running. Let's see how easy it is to connect t
 1. On your local machine, log in through `tsh`: 
 
    i. `tsh login --proxy=auth.example.com:443 --user=auth-admin`  
-   ii. You'll be prompted to supply the password and One Time Pass code we set up previously.
+   ii. You'll be prompted to supply the password and One Time Passcode we set up previously.
 
 2. `auth-admin` will now see:
 
@@ -163,13 +167,18 @@ Now, we've got our cluster up and running. Let's see how easy it is to connect t
    - The `tsh ssh` command allows one to do anything they would if they were to SSH into a server using a third-party tool. 
    - All commands executed by `auth-admin` are recorded and can be replayed in the Teleport Web interface.
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/u6wDLg0WvL8" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+<video autoplay loop muted playsinline>
+  <source src="https://goteleport.com/teleport/videos/server-access/replay.mp4" type="video/mp4"/>
+  <source src="https://goteleport.com/teleport/videos/server-access/replay.webm" type="video/webm"/>
+Your browser does not support the video tag.
+</video>
 
 ## Step 2b. Use tsh to introspect cluster
 
 1. Now, `auth-admin` has the ability to SSH into other Nodes within the cluster, traverse the Linux file system, and execute the command.
 
-   They can also quickly survey any Node that's been assigned a `label`.
+   - They have visibility into all resources within the cluster due to their defined and assigned role.
+   - They can also quickly view any Node or grouping of Nodes that've been assigned a `label`.
 
 2. Executing `tctl nodes ls` displays:
    
@@ -183,7 +192,8 @@ Now, we've got our cluster up and running. Let's see how easy it is to connect t
 3. As a result, `auth-admin` can execute `tsh ssh root@env=example` since each Node has [label](../admin-guide.mdx#labeling-nodes-and-applications) by default. 
 
    - Customized labels can be defined in your `teleport.yaml` configuration file or during Node creation.
-   - This is a convenient feature that allows for more advanced queries. Suppose an IP address changes. An admin can quickly find the current Node with that label since it remains unchanged.
+   - This is a convenient feature that allows for more advanced queries. 
+   - Suppose an IP address changes. An admin can quickly find the current Node with that label since it remains unchanged.
 
 4. `auth-admin` can also execute commands on all Nodes that share a label vastly simplifying repeated operations:
 
@@ -193,7 +203,11 @@ Now, we've got our cluster up and running. Let's see how easy it is to connect t
 
 ## Step 3a. Set up GitHub SSO
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/QX7w1F3B_OM" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+<video autoplay loop muted playsinline>
+  <source src="https://goteleport.com/teleport/videos/server-access/githubsso.mp4" type="video/mp4"/>
+  <source src="https://goteleport.com/teleport/videos/server-access/githubsso.webm" type="video/webm"/>
+Your browser does not support the video tag.
+</video>
 
 Teleport Server Access also supports using SSO for authentication. Let's add a new user through GitHub SSO:
 
@@ -253,7 +267,7 @@ Teleport Server Access also supports using SSO for authentication. Let's add a n
 
    ![OAuth App](../../img/server-access/sso_login_success.png)
 
-   - The user will automatically appear in the "Team" > "Users" panel of the Teleport Web Interface after the first sign in.
+   - The user will automatically appear in the "Team" > "Users" panel of the Teleport Web Interface after the first sign-in.
 
    ![Users Panel](../../img/server-access/github_user_added.png)
 
