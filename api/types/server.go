@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/teleport/api/utils"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 )
 
@@ -335,7 +334,18 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 
 // DeepCopy creates a clone of this server value
 func (s *ServerV2) DeepCopy() Server {
-	return proto.Clone(s).(*ServerV2)
+	newServer := *s
+	if s.Metadata.Expires != nil {
+		expires := *s.Metadata.Expires
+		newServer.Metadata.Expires = &expires
+	}
+	if len(s.Metadata.Labels) != 0 {
+		newServer.Metadata.Labels = make(map[string]string)
+		for k, v := range s.Metadata.Labels {
+			newServer.Metadata.Labels[k] = v
+		}
+	}
+	return &newServer
 }
 
 // CommandLabel is a label that has a value as a result of the

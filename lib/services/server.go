@@ -19,6 +19,7 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -394,47 +395,6 @@ func GetServerSchema() string {
 	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, fmt.Sprintf(ServerSpecV2Schema, RotationSchema), DefaultDefinitions)
 }
 
-// UnmarshalServerResource unmarshals role from JSON or YAML,
-// sets defaults and checks the schema
-func UnmarshalServerResource(data []byte, kind string, cfg *MarshalConfig) (Server, error) {
-	if len(data) == 0 {
-		return nil, trace.BadParameter("missing server data")
-	}
-
-	var h ResourceHeader
-	err := utils.FastUnmarshal(data, &h)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	switch h.Version {
-	case V2:
-		var s ServerV2
-
-		if cfg.SkipValidation {
-			if err := utils.FastUnmarshal(data, &s); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
-		} else {
-			if err := utils.UnmarshalWithSchema(GetServerSchema(), &s, data); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
-		}
-		s.Kind = kind
-		if err := s.CheckAndSetDefaults(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if cfg.ID != 0 {
-			s.SetResourceID(cfg.ID)
-		}
-		if !cfg.Expires.IsZero() {
-			s.SetExpiry(cfg.Expires)
-		}
-		return &s, nil
-	}
-	return nil, trace.BadParameter("server resource version %q is not supported", h.Version)
-}
-
 // UnmarshalServer unmarshals the Server resource from JSON.
 func UnmarshalServer(bytes []byte, kind string, opts ...MarshalOption) (Server, error) {
 	cfg, err := CollectOptions(opts)
@@ -474,6 +434,13 @@ func UnmarshalServer(bytes []byte, kind string, opts ...MarshalOption) (Server, 
 		if !cfg.Expires.IsZero() {
 			s.SetExpiry(cfg.Expires)
 		}
+		if s.Metadata.Expires != nil {
+			utils.UTC(s.Metadata.Expires)
+		}
+		// Force the timestamps to UTC for consistency.
+		// See https://github.com/gogo/protobuf/issues/519 for details on issues this causes for proto.Clone
+		utils.UTC(&s.Spec.Rotation.Started)
+		utils.UTC(&s.Spec.Rotation.LastRotated)
 		return &s, nil
 	}
 	return nil, trace.BadParameter("server resource version %q is not supported", h.Version)
@@ -528,4 +495,10 @@ func MarshalServers(s []Server) ([]byte, error) {
 	}
 
 	return bytes, nil
+}
+
+// NodeHasMissedKeepAlives checks if node has missed its keep alive
+func NodeHasMissedKeepAlives(s Server) bool {
+	serverExpiry := s.Expiry()
+	return serverExpiry.Before(time.Now().Add(defaults.ServerAnnounceTTL - (defaults.ServerKeepAliveTTL * 2)))
 }
