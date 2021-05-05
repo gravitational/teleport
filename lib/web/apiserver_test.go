@@ -1805,7 +1805,7 @@ func (m *testModules) Features() modules.Features {
 	}
 }
 
-func TestSiteDatabasesGet(t *testing.T) {
+func TestClusterDatabasesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]
@@ -1847,7 +1847,7 @@ func TestSiteDatabasesGet(t *testing.T) {
 	}, dbs[0])
 }
 
-func TestSiteKubesGet(t *testing.T) {
+func TestClusterKubesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]

@@ -156,7 +156,7 @@ type Database struct {
 
 // MakeDatabases creates server database objects.
 func MakeDatabases(clusterName string, servers []types.DatabaseServer) []Database {
-	uiServers := []Database{}
+	uiServers := make([]Database, 0, len(servers))
 	for _, server := range servers {
 		uiLabels := []Label{}
 
