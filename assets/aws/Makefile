@@ -35,7 +35,7 @@ BUILD_TIMESTAMP := $(shell TZ=UTC /bin/date "+%Y%m%d-%H%M%S%Z")
 TELEGRAF_VERSION ?= 1.9.3
 
 # InfluxDB version
-INFLUXDB_VERSION ?= 1.7.1
+INFLUXDB_VERSION ?= 1.8.5
 
 # Grafana version
 GRAFANA_VERSION ?= 5.4.3
