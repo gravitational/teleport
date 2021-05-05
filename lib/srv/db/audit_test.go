@@ -23,7 +23,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
 	libevents "github.com/gravitational/teleport/lib/events"
 
 	"github.com/gravitational/trace"
@@ -35,25 +34,18 @@ import (
 // connections.
 func TestAuditPostgres(t *testing.T) {
 	ctx := context.Background()
-	testCtx := setupTestContext(ctx, t)
-	t.Cleanup(func() { testCtx.Close() })
-	go testCtx.startHandlingPostgresConnections()
+	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))
+	go testCtx.startHandlingConnections()
 
-	_, role, err := auth.CreateUserAndRole(testCtx.tlsServer.Auth(), "alice", []string{"admin"})
-	require.NoError(t, err)
-
-	role.SetDatabaseNames(types.Allow, []string{"postgres"})
-	role.SetDatabaseUsers(types.Allow, []string{"postgres"})
-	err = testCtx.tlsServer.Auth().UpsertRole(ctx, role)
-	require.NoError(t, err)
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"postgres"}, []string{"postgres"})
 
 	// Access denied should trigger an unsuccessful session start event.
-	_, err = testCtx.postgresClient(ctx, "alice", "notpostgres", "notpostgres")
+	_, err := testCtx.postgresClient(ctx, "alice", "postgres", "notpostgres", "notpostgres")
 	require.Error(t, err)
 	requireEvent(t, testCtx, libevents.DatabaseSessionStartFailureCode)
 
 	// Connect should trigger successful session start event.
-	psql, err := testCtx.postgresClient(ctx, "alice", "postgres", "postgres")
+	psql, err := testCtx.postgresClient(ctx, "alice", "postgres", "postgres", "postgres")
 	require.NoError(t, err)
 	requireEvent(t, testCtx, libevents.DatabaseSessionStartCode)
 
@@ -77,24 +69,18 @@ func TestAuditPostgres(t *testing.T) {
 // connections.
 func TestAuditMySQL(t *testing.T) {
 	ctx := context.Background()
-	testCtx := setupTestContext(ctx, t)
-	t.Cleanup(func() { testCtx.Close() })
-	go testCtx.startHandlingMySQLConnections()
+	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
+	go testCtx.startHandlingConnections()
 
-	_, role, err := auth.CreateUserAndRole(testCtx.tlsServer.Auth(), "alice", []string{"admin"})
-	require.NoError(t, err)
-
-	role.SetDatabaseUsers(types.Allow, []string{"root"})
-	err = testCtx.tlsServer.Auth().UpsertRole(ctx, role)
-	require.NoError(t, err)
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"root"}, []string{types.Wildcard})
 
 	// Access denied should trigger an unsuccessful session start event.
-	_, err = testCtx.mysqlClient("alice", "notroot")
+	_, err := testCtx.mysqlClient("alice", "mysql", "notroot")
 	require.Error(t, err)
 	requireEvent(t, testCtx, libevents.DatabaseSessionStartFailureCode)
 
 	// Connect should trigger successful session start event.
-	mysql, err := testCtx.mysqlClient("alice", "root")
+	mysql, err := testCtx.mysqlClient("alice", "mysql", "root")
 	require.NoError(t, err)
 	requireEvent(t, testCtx, libevents.DatabaseSessionStartCode)
 

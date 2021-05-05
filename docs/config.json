@@ -124,7 +124,7 @@
           "slug": "/enterprise/quickstart-enterprise/"
         },
         { "title": "Single sign-on (SSO)", "slug": "/enterprise/sso/ssh-sso/" },
-        { "title": "Access Workflows", "slug": "/enterprise/workflow/" },
+        { "title": "Access Requests", "slug": "/enterprise/workflow/" },
         {
           "title": "FedRAMP for SSH & K8s",
           "slug": "/enterprise/ssh-kubernetes-fedramp/"
@@ -171,8 +171,16 @@
       "entries": [
         { "title": "YAML", "slug": "/config-reference/" },
         { "title": "CLI", "slug": "/cli-docs/" },
-        { "title": "API", "slug": "/api-reference/" },
-        { "title": "Metrics", "slug": "/metrics-logs-reference/" }
+        { "title": "Metrics", "slug": "/metrics-logs-reference/" },
+        { 
+          "title": "API",
+          "slug": "/reference/api/",
+          "entries": [
+            {"title": "Introduction", "slug": "/reference/api/introduction/"},
+            {"title": "Getting Started", "slug": "/reference/api/getting-started/"},
+            {"title": "Architecture", "slug": "/reference/api/architecture/"}
+          ]
+        }
       ]
     }
   ],

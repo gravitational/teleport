@@ -202,7 +202,7 @@ setting up the proxy nodes start Teleport with:
 
 `teleport start --insecure --roles=proxy --config=/etc/teleport.yaml`
 
-See [Teleport Proxy HA](admin-guide.mdx#teleport-proxy-ha) for more info.
+See [Teleport Proxy HA](admin-guide.mdx#teleport-proxy-high-availability) for more info.
 
 {
   /* TODO SSL for Webproxy & Auth Section */
@@ -216,10 +216,10 @@ hijack the IP address of the auth server.
 
 To prevent this from happening, you need to supply every new node with an
 additional bit of information about the auth server. This technique is called
-"CA pinning". It works by asking the auth server to produce a "CA pin", which
+*CA pinning*. It works by asking the auth server to produce a *CA pin*, which
 is a hashed value of its private key, i.e. it cannot be forged by an attacker.
 
-To get the current CA pin run this on the auth server:
+To get the current CA pin run the following code on the auth server:
 
 ```bash
 $ tctl status
@@ -271,10 +271,10 @@ teleport:
 ### Secure Data Storage
 
 By default the `teleport` daemon uses the local directory `/var/lib/teleport` to
-store its data. This applies to any role or service including Auth, Node, or Proxy.
-While an Auth node hosts the most sensitive data you will want to prevent
+store its data. This applies to any role or service including `auth`, `node`, or `proxy`.
+While an `auth` node hosts the most sensitive data you will want to prevent
 unauthorized access to this directory. Make sure that regular/non-admin users
-do not have access to this folder, particularly on the Auth server. Change
+do not have access to this folder, particularly on the `auth` server. Change
 the ownership of the directory with [`chown`](https://linuxize.com/post/linux-chown-command/)
 
 ```bash

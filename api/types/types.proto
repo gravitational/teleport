@@ -180,6 +180,15 @@ message DatabaseServerSpecV3 {
 message AWS {
     // Region is a AWS cloud region.
     string Region = 1 [ (gogoproto.jsontag) = "region,omitempty" ];
+    // Redshift contains Redshift specific settings.
+    Redshift Redshift = 2
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "redshift,omitempty" ];
+}
+
+// Redshift contains AWS Redshift specific settings.
+message Redshift {
+    // ClusterID is the Redshift cluster identifier.
+    string ClusterID = 1 [ (gogoproto.jsontag) = "cluster_id,omitempty" ];
 }
 
 // GCPCloudSQL contains parameters specific to GCP Cloud SQL databases.
@@ -205,6 +214,12 @@ message ServerV2 {
     Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is a server spec
     ServerSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// ServerV2List is a list of servers.
+message ServerV2List {
+    // Servers is a list of servers.
+    repeated ServerV2 Servers = 1;
 }
 
 // ServerSpecV2 is a specification for V2 Server
@@ -405,7 +420,7 @@ message ProvisionTokenV2 {
 // ProvisionTokenV2List is a list of provisioning tokens.
 message ProvisionTokenV2List {
     // ProvisionTokens is a list of provisioning tokens.
-    repeated types.ProvisionTokenV2 ProvisionTokens = 1;
+    repeated ProvisionTokenV2 ProvisionTokens = 1;
 }
 
 // ProvisionTokenSpecV2 is a specification for V2 token
@@ -1758,6 +1773,20 @@ message ResourcesWithSecretsRequest {
     bool WithSecrets = 1 [ (gogoproto.jsontag) = "with_secrets,omitempty" ];
 }
 
+// ResourcesInNamespaceRequest is a request relating to a named resource in the given namespace.
+message ResourceInNamespaceRequest {
+    // Name is the name of the resource.
+    string Name = 1;
+    // Namespace is the namespace of resources.
+    string Namespace = 2;
+}
+
+// ResourcesInNamespaceRequest is a request relating to resources in the given namespace.
+message ResourcesInNamespaceRequest {
+    // Namespace is the namespace of resources.
+    string Namespace = 1;
+}
+
 // OIDCConnectorV2 represents an OIDC connector.
 message OIDCConnectorV2 {
     // Kind is a resource kind.
@@ -1775,7 +1804,7 @@ message OIDCConnectorV2 {
 // OIDCConnectorV2List is a list of OIDC connectors.
 message OIDCConnectorV2List {
     // OIDCConnectors is a list of OIDC connectors.
-    repeated types.OIDCConnectorV2 OIDCConnectors = 1;
+    repeated OIDCConnectorV2 OIDCConnectors = 1;
 }
 
 // OIDCConnectorSpecV2 is an OIDC connector specification.
@@ -1834,7 +1863,7 @@ message SAMLConnectorV2 {
 // SAMLConnectorV2List is a list of SAML connectors.
 message SAMLConnectorV2List {
     // SAMLConnectors is a list of SAML connectors.
-    repeated types.SAMLConnectorV2 SAMLConnectors = 1;
+    repeated SAMLConnectorV2 SAMLConnectors = 1;
 }
 
 // SAMLConnectorSpecV2 is a SAML connector specification.
@@ -1909,7 +1938,7 @@ message GithubConnectorV3 {
 // GithubConnectorV3List is a list of Github connectors.
 message GithubConnectorV3List {
     // GithubConnectors is a list of Github connectors.
-    repeated types.GithubConnectorV3 GithubConnectors = 1;
+    repeated GithubConnectorV3 GithubConnectors = 1;
 }
 
 // GithubConnectorSpecV3 is a Github connector specification.
@@ -1959,7 +1988,7 @@ message TrustedClusterV2 {
 // TrustedClusterV2List is a list of trusted cluster.
 message TrustedClusterV2List {
     // TrustedClusters is a list of trusted cluster.
-    repeated types.TrustedClusterV2 TrustedClusters = 1;
+    repeated TrustedClusterV2 TrustedClusters = 1;
 }
 
 // TrustedClusterSpecV2 is a Trusted Cluster specification.
