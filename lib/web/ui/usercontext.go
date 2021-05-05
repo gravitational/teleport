@@ -183,7 +183,7 @@ func NewUserContext(user services.User, userRoles services.RoleSet, features pro
 	tokenAccess := newAccess(userRoles, ctx, services.KindToken)
 	nodeAccess := newAccess(userRoles, ctx, services.KindNode)
 	appServerAccess := newAccess(userRoles, ctx, services.KindAppServer)
-  dbServerAccess := newAccess(userRoles, ctx, types.KindDatabaseServer)
+	dbServerAccess := newAccess(userRoles, ctx, types.KindDatabaseServer)
 	kubeServerAccess := newAccess(userRoles, ctx, types.KindKubeService)
 	requestAccess := newAccess(userRoles, ctx, services.KindAccessRequest)
 
