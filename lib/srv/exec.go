@@ -147,10 +147,9 @@ func (e *localExec) Start(channel ssh.Channel) (*ExecResult, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Connect stdout and stderr to the channel so the user can interact with
-	// the command.
-	e.Cmd.Stderr = io.MultiWriter(os.Stderr, channel.Stderr())
-	e.Cmd.Stdout = io.MultiWriter(os.Stdout, channel)
+	// Connect stdout and stderr to the channel so the user can interact with the command.
+	e.Cmd.Stderr = channel.Stderr()
+	e.Cmd.Stdout = channel
 
 	// Copy from the channel (client input) into stdin of the process.
 	inputWriter, err := e.Cmd.StdinPipe()
