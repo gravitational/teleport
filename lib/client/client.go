@@ -190,7 +190,7 @@ const (
 
 	// CertCacheKeep indicates that all user certificates (except those
 	// explicitly updated by the re-issue) should be preserved across the
-	// re-issue process
+	// re-issue process.
 	CertCacheKeep CertCachePolicy = 1
 )
 
