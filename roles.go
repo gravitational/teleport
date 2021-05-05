@@ -29,7 +29,6 @@ type Roles = types.SystemRoles
 
 var (
 	RoleAuth           = types.RoleAuth
-	RoleWeb            = types.RoleWeb
 	RoleNode           = types.RoleNode
 	RoleProxy          = types.RoleProxy
 	RoleAdmin          = types.RoleAdmin

@@ -2050,7 +2050,7 @@ func TestGenerateCerts(t *testing.T) {
 			Format:    teleport.CertificateFormatStandard,
 		})
 		require.Error(t, err)
-		require.IsType(t, &trace.AccessDeniedError{}, err)
+		require.IsType(t, &trace.AccessDeniedError{}, trace.Unwrap(err))
 
 		_, privateKeyPEM, err := utils.MarshalPrivateKey(privateKey.(crypto.Signer))
 		require.NoError(t, err)
@@ -2068,7 +2068,7 @@ func TestGenerateCerts(t *testing.T) {
 			Format:    teleport.CertificateFormatStandard,
 		})
 		require.Error(t, err)
-		require.IsType(t, &trace.AccessDeniedError{}, err)
+		require.IsType(t, &trace.AccessDeniedError{}, trace.Unwrap(err))
 		require.Contains(t, err.Error(), "impersonated user can not impersonate anyone else")
 
 		// but can renew their own cert, for example set route to cluster

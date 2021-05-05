@@ -504,24 +504,6 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 					},
 				},
 			})
-	case teleport.RoleWeb:
-		return services.FromSpec(
-			role.String(),
-			services.RoleSpecV3{
-				Allow: services.RoleConditions{
-					Namespaces: []string{services.Wildcard},
-					Rules: []services.Rule{
-						services.NewRule(services.KindWebSession, services.RW()),
-						services.NewRule(services.KindWebToken, services.RW()),
-						services.NewRule(services.KindSSHSession, services.RW()),
-						services.NewRule(services.KindAuthServer, services.RO()),
-						services.NewRule(services.KindUser, services.RO()),
-						services.NewRule(services.KindRole, services.RO()),
-						services.NewRule(services.KindNamespace, services.RO()),
-						services.NewRule(services.KindTrustedCluster, services.RO()),
-					},
-				},
-			})
 	case teleport.RoleSignup:
 		return services.FromSpec(
 			role.String(),
