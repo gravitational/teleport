@@ -57,6 +57,8 @@ Let's start with a single-pod Teleport using persistent volume as a backend.
 
   <TabItem label="Enterprise">
     ```bash
+ 
+    # Add the Teleport chart repository 
     $ helm repo add teleport https://charts.releases.teleport.dev
 
     # Create a namespace for a deployment.
@@ -64,8 +66,12 @@ Let's start with a single-pod Teleport using persistent volume as a backend.
 
     # Set kubectl context to the namespace to save some typing
     $ kubectl config set-context --current --namespace=teleport-cluster-ent
-
-    # Get a license from Teleport and create a secret "license" in the namespace teleport-cluster-ent
+    
+    # Download the license file from https://dashboard.goteleport.com
+    # Rename license file from license.pem to license-enterprise.pem
+    $ mv license.pem license-enterprise.pem
+    
+    # Create a secret "license" in the namespace teleport-cluster-ent
     $ kubectl -n teleport-cluster-ent create secret generic license --from-file=license-enterprise.pem
 
     # Install Teleport
