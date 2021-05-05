@@ -527,6 +527,7 @@ func TestIsRecordOff(t *testing.T) {
 		{
 			comment: "Session recording type is off",
 			event: EventFields{
+				EventType:            SessionStartEvent,
 				SessionRecordingType: "off",
 			},
 			expected: true,
@@ -534,7 +535,15 @@ func TestIsRecordOff(t *testing.T) {
 		{
 			comment: "Session recording type is node",
 			event: EventFields{
+				EventType:            SessionStartEvent,
 				SessionRecordingType: "node",
+			},
+			expected: false,
+		},
+		{
+			comment: "Event type is not session start",
+			event: EventFields{
+				EventType: SessionEndEvent,
 			},
 			expected: false,
 		},

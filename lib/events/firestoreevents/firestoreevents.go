@@ -516,14 +516,12 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, filter string, limit int) (
 				break
 			}
 		}
-		if fields.GetType() == events.SessionStartEvent && events.IsRecordOff(fields) {
+		if events.IsRecordOff(fields) {
 			sessionID := fields[events.SessionEventID].(string)
 			unrecordedSessionIDs = append(unrecordedSessionIDs, sessionID)
-		} else if fields.GetType() == events.SessionEndEvent {
-			sessionID := fields[events.SessionEventID].(string)
-			if utils.SliceContainsStr(unrecordedSessionIDs, sessionID) {
-				continue
-			}
+		}
+		if events.FilterOutSessionEnd(fields, unrecordedSessionIDs) {
+			continue
 		}
 		if accepted || !doFilter {
 			values = append(values, fields)

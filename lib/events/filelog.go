@@ -523,14 +523,12 @@ func (l *FileLog) findInFile(fn string, query url.Values, total *int, limit int)
 				break
 			}
 		}
-		if ef.GetType() == SessionStartEvent && IsRecordOff(ef) {
+		if IsRecordOff(ef) {
 			sessionID := ef[SessionEventID].(string)
 			unrecordedSessionIDs = append(unrecordedSessionIDs, sessionID)
-		} else if ef.GetType() == SessionEndEvent {
-			sessionID := ef[SessionEventID].(string)
-			if utils.SliceContainsStr(unrecordedSessionIDs, sessionID) {
-				continue
-			}
+		}
+		if FilterOutSessionEnd(ef, unrecordedSessionIDs) {
+			continue
 		}
 		if accepted || !doFilter {
 			retval = append(retval, ef)
@@ -543,11 +541,26 @@ func (l *FileLog) findInFile(fn string, query url.Values, total *int, limit int)
 	return retval, nil
 }
 
-// IsRecordOff checks to see if the session recording type of a session start event is off
-func IsRecordOff(ef EventFields) bool {
-	if sessionRecordingType, found := ef[SessionRecordingType]; found {
-		if sessionRecordingType == services.RecordOff {
+// FilterOutSessionEnd returns whether to filter out session end event
+// determined by whether the input slice contains session end event session ID
+func FilterOutSessionEnd(ef EventFields, r []string) bool {
+	if ef.GetType() == SessionEndEvent {
+		sessionID := ef[SessionEventID].(string)
+		if utils.SliceContainsStr(r, sessionID) {
 			return true
+		}
+	}
+	return false
+}
+
+// IsRecordOff checks to see if event type is session.start and checks if
+// the session recording type is off
+func IsRecordOff(ef EventFields) bool {
+	if ef.GetType() == SessionStartEvent {
+		if sessionRecordingType, found := ef[SessionRecordingType]; found {
+			if sessionRecordingType == services.RecordOff {
+				return true
+			}
 		}
 	}
 	return false
