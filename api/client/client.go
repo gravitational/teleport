@@ -1225,12 +1225,6 @@ func (c *Client) DeleteToken(ctx context.Context, name string) error {
 
 // GetNode returns a node by name and namespace.
 func (c *Client) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
-	if namespace == "" {
-		return nil, trace.BadParameter("missing parameter namespace")
-	}
-	if name == "" {
-		return nil, trace.BadParameter("missing parameter name")
-	}
 	resp, err := c.grpc.GetNode(ctx, &types.ResourceInNamespaceRequest{
 		Name:      name,
 		Namespace: namespace,
