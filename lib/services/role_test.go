@@ -2111,6 +2111,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 			},
 		},
 	}
+	require.NoError(t, roleDevStage.CheckAndSetDefaults())
 	roleDevProd := &RoleV3{
 		Metadata: Metadata{Name: "dev-prod", Namespace: defaults.Namespace},
 		Spec: RoleSpecV3{
@@ -2122,6 +2123,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 			},
 		},
 	}
+	require.NoError(t, roleDevProd.CheckAndSetDefaults())
 	roleDevProdWithMFA := &RoleV3{
 		Metadata: Metadata{Name: "dev-prod", Namespace: defaults.Namespace},
 		Spec: RoleSpecV3{
@@ -2136,6 +2138,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 			},
 		},
 	}
+	require.NoError(t, roleDevProdWithMFA.CheckAndSetDefaults())
 	roleDeny := &types.RoleV3{
 		Metadata: Metadata{Name: "deny", Namespace: defaults.Namespace},
 		Spec: RoleSpecV3{
@@ -2152,6 +2155,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 			},
 		},
 	}
+	require.NoError(t, roleDeny.CheckAndSetDefaults())
 	type access struct {
 		server types.DatabaseServer
 		dbName string
