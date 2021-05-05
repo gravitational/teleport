@@ -140,6 +140,52 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 		u.log.Debugf("Completed upload %v.", upload)
 		completed++
 		uploadData := u.cfg.Uploader.GetUploadMetadata(upload.SessionID)
+		sessionEvents, err := u.cfg.AuditLog.GetSessionEvents(defaults.Namespace, uploadData.SessionID, 0, false)
+		if err != nil {
+			continue
+		}
+		sessionStart := sessionEvents[0]
+		// getting last event to get end time
+		// lastEvent := sessionEvents[len(sessionEvents)-1]
+
+		//var startTime string
+		var serverID string
+		var clusterName string
+		//var endTime string
+		var user string
+		var login string
+		if sessionStart.GetType() == SessionStartEvent {
+			//startTime = sessionStart[EventTime].(string)
+			serverID = sessionStart[SessionServerHostname].(string)
+			clusterName = sessionStart["cluster_name"].(string)
+			user = sessionStart[EventUser].(string)
+			login = sessionStart[EventLogin].(string)
+		}
+
+		sessionEndEvent := &events.SessionEnd{
+			Metadata: events.Metadata{
+				Type:        SessionEndEvent,
+				Code:        SessionEndCode,
+				ClusterName: clusterName,
+			},
+			ServerMetadata: events.ServerMetadata{
+				ServerID: serverID,
+			},
+			SessionMetadata: events.SessionMetadata{
+				SessionID: string(uploadData.SessionID),
+			},
+			UserMetadata: events.UserMetadata{
+				User:  user,
+				Login: login,
+			},
+			// Interactive: true,  
+			// StartTime: then,
+			// EndTime: now,
+		}
+		err = u.cfg.AuditLog.EmitAuditEvent(ctx, sessionEndEvent)
+		if err != nil {
+			u.log.Debugf("Failed to emit audit event %v", err)
+		}
 		session := &events.SessionUpload{
 			Metadata: Metadata{
 				Type:  SessionUploadEvent,
@@ -153,7 +199,7 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 		}
 		err = u.cfg.AuditLog.EmitAuditEvent(ctx, session)
 		if err != nil {
-			return trace.Wrap(err)
+			u.log.Debugf("Failed to emit audit event %v", err)
 		}
 	}
 	if completed > 0 {
