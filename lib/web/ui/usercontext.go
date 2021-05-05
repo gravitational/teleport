@@ -17,6 +17,7 @@ limitations under the License.
 package ui
 
 import (
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -171,21 +172,25 @@ func getAccessStrategy(roleset services.RoleSet) accessStrategy {
 }
 
 // NewUserContext returns user context
-func NewUserContext(user types.User, userRoles services.RoleSet) (*UserContext, error) {
+func NewUserContext(user services.User, userRoles services.RoleSet, features proto.Features) (*UserContext, error) {
 	ctx := &services.Context{User: user}
-	sessionAccess := newAccess(userRoles, ctx, types.KindSession)
-	roleAccess := newAccess(userRoles, ctx, types.KindRole)
-	authConnectors := newAccess(userRoles, ctx, types.KindAuthConnector)
-	trustedClusterAccess := newAccess(userRoles, ctx, types.KindTrustedCluster)
-	eventAccess := newAccess(userRoles, ctx, types.KindEvent)
-	userAccess := newAccess(userRoles, ctx, types.KindUser)
-	tokenAccess := newAccess(userRoles, ctx, types.KindToken)
-	nodeAccess := newAccess(userRoles, ctx, types.KindNode)
-	appServerAccess := newAccess(userRoles, ctx, types.KindAppServer)
+	sessionAccess := newAccess(userRoles, ctx, services.KindSession)
+	roleAccess := newAccess(userRoles, ctx, services.KindRole)
+	authConnectors := newAccess(userRoles, ctx, services.KindAuthConnector)
+	trustedClusterAccess := newAccess(userRoles, ctx, services.KindTrustedCluster)
+	eventAccess := newAccess(userRoles, ctx, services.KindEvent)
+	userAccess := newAccess(userRoles, ctx, services.KindUser)
+	tokenAccess := newAccess(userRoles, ctx, services.KindToken)
+	nodeAccess := newAccess(userRoles, ctx, services.KindNode)
+	appServerAccess := newAccess(userRoles, ctx, services.KindAppServer)
 	dbServerAccess := newAccess(userRoles, ctx, types.KindDatabaseServer)
 	kubeServerAccess := newAccess(userRoles, ctx, types.KindKubeService)
-	requestAccess := newAccess(userRoles, ctx, types.KindAccessRequest)
-	billingAccess := newAccess(userRoles, ctx, types.KindBilling)
+	requestAccess := newAccess(userRoles, ctx, services.KindAccessRequest)
+
+	var billingAccess access
+	if features.Cloud {
+		billingAccess = newAccess(userRoles, ctx, services.KindBilling)
+	}
 
 	logins := getLogins(userRoles)
 	accessStrategy := getAccessStrategy(userRoles)
