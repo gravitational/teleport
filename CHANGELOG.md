@@ -1,6 +1,6 @@
 # Changelog
 
-## 6.1.4
+## 6.1.5
 
 This release of Teleport contains multiple bug fixes.
 
