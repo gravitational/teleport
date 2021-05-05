@@ -285,6 +285,20 @@ func (t *proxySubsys) proxyToSite(
 	return nil
 }
 
+var (
+	// failedConnectingToNode counts failed attempts to connect to a node
+	failedConnectingToNode = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: teleport.MetricFailedConnectToNodeAttempts,
+			Help: "Number of failed attempts to connect to a node",
+		},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(failedConnectingToNode)
+}
+
 // proxyToHost establishes a proxy connection from the connected SSH client to the
 // requested remote node (t.host:t.port) via the given site
 func (t *proxySubsys) proxyToHost(
@@ -434,6 +448,7 @@ func (t *proxySubsys) proxyToHost(
 		ConnType:     services.NodeTunnel,
 	})
 	if err != nil {
+		failedConnectingToNode.Inc()
 		return trace.Wrap(err)
 	}
 
