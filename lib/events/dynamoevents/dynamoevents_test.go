@@ -172,7 +172,11 @@ func (s *DynamoeventsSuite) TestEventMigration(c *check.C) {
 		for _, event := range events {
 			timestampUnix := event[keyCreatedAt].(int64)
 			dateString := time.Unix(timestampUnix, 0).Format(iso8601DateFormat)
-			eventDateString, ok := event[keyDate].(string)
+			eventDateInterface, ok := event[keyDate]
+			if !ok {
+				correct = false
+			}
+			eventDateString, ok := eventDateInterface.(string)
 			if !ok || dateString != eventDateString {
 				correct = false
 			}
