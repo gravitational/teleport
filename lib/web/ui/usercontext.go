@@ -18,6 +18,7 @@ package ui
 
 import (
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -67,6 +68,10 @@ type userACL struct {
 	Nodes access `json:"nodes"`
 	// AppServers defines access to application servers
 	AppServers access `json:"appServers"`
+	// DBServers defines access to database servers.
+	DBServers access `json:"dbServers"`
+	// KubeServers defines access to kubernetes servers.
+	KubeServers access `json:"kubeServers"`
 	// SSH defines access to servers
 	SSHLogins []string `json:"sshLogins"`
 	// AccessRequests defines access to access requests
@@ -178,6 +183,8 @@ func NewUserContext(user services.User, userRoles services.RoleSet, features pro
 	tokenAccess := newAccess(userRoles, ctx, services.KindToken)
 	nodeAccess := newAccess(userRoles, ctx, services.KindNode)
 	appServerAccess := newAccess(userRoles, ctx, services.KindAppServer)
+  dbServerAccess := newAccess(userRoles, ctx, types.KindDatabaseServer)
+	kubeServerAccess := newAccess(userRoles, ctx, types.KindKubeService)
 	requestAccess := newAccess(userRoles, ctx, services.KindAccessRequest)
 
 	var billingAccess access
@@ -191,6 +198,8 @@ func NewUserContext(user services.User, userRoles services.RoleSet, features pro
 	acl := userACL{
 		AccessRequests:  requestAccess,
 		AppServers:      appServerAccess,
+		DBServers:       dbServerAccess,
+		KubeServers:     kubeServerAccess,
 		AuthConnectors:  authConnectors,
 		TrustedClusters: trustedClusterAccess,
 		Sessions:        sessionAccess,
