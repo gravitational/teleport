@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/interval"
 
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
@@ -201,6 +202,19 @@ var (
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
 		},
 	)
+	// UserLoginCount counts user logins
+	UserLoginCount = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: teleport.MetricUserLoginCount,
+			Help: "Number of times there was a user login",
+		},
+	)
+	heartbeatsMissedByAuth = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: teleport.MetricHeartbeatsMissed,
+			Help: "Number of hearbeats missed by auth server",
+		},
+	)
 )
 
 // Server keeps the cluster together. It acts as a certificate authority (CA) for
@@ -284,7 +298,14 @@ func (a *Server) runPeriodicOperations() {
 	period := defaults.HighResPollingPeriod + time.Duration(r.Intn(int(defaults.HighResPollingPeriod/time.Second)))*time.Second
 	log.Debugf("Ticking with period: %v.", period)
 	ticker := time.NewTicker(period)
+	// Create a ticker with jitter
+	heartbeatCheckTicker := interval.New(interval.Config{
+		Duration: defaults.ServerKeepAliveTTL * 2,
+		Jitter:   utils.NewSeventhJitter(),
+	})
+	missedKeepAliveCount := 0
 	defer ticker.Stop()
+	defer heartbeatCheckTicker.Stop()
 	for {
 		select {
 		case <-a.closeCtx.Done():
@@ -298,6 +319,18 @@ func (a *Server) runPeriodicOperations() {
 					log.Errorf("Failed to perform cert rotation check: %v.", err)
 				}
 			}
+		case <-heartbeatCheckTicker.Next():
+			nodes, err := a.GetNodes(defaults.Namespace, services.SkipValidation())
+			if err != nil {
+				log.Errorf("Failed to load nodes for heartbeat metric calculation: %v", err)
+			}
+			for _, node := range nodes {
+				if services.NodeHasMissedKeepAlives(node) {
+					missedKeepAliveCount++
+				}
+			}
+			// Update prometheus gauge
+			heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
 		}
 	}
 }
@@ -1380,7 +1413,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	// HTTPS requests need to specify DNS name that should be present in the
 	// certificate as one of the DNS Names. It is not known in advance,
 	// that is why there is a default one for all certificates
-	if req.Roles.Include(teleport.RoleAuth) || req.Roles.Include(teleport.RoleAdmin) || req.Roles.Include(teleport.RoleApp) {
+	if req.Roles.Include(teleport.RoleAuth) || req.Roles.Include(teleport.RoleAdmin) || req.Roles.Include(teleport.RoleProxy) || req.Roles.Include(teleport.RoleKube) || req.Roles.Include(teleport.RoleApp) {
 		certRequest.DNSNames = append(certRequest.DNSNames, "*."+teleport.APIDomain, teleport.APIDomain)
 	}
 	// Unlike additional principals, DNS Names is x509 specific and is limited
@@ -1659,7 +1692,7 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (services.WebSess
 		BearerTokenExpires: startTime.UTC().Add(bearerTokenTTL),
 		LoginTime:          req.LoginTime,
 	}
-
+	UserLoginCount.Inc()
 	return services.NewWebSession(token, services.KindWebSession, services.KindWebSession, sessionSpec), nil
 }
 
@@ -2534,4 +2567,6 @@ func init() {
 	prometheus.MustRegister(generateThrottledRequestsCount)
 	prometheus.MustRegister(generateRequestsCurrent)
 	prometheus.MustRegister(generateRequestsLatencies)
+	prometheus.MustRegister(UserLoginCount)
+	prometheus.MustRegister(heartbeatsMissedByAuth)
 }
