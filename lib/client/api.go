@@ -95,9 +95,9 @@ func ValidateAgentKeyOption(supplied string) error {
 type AgentForwardingMode int
 
 const (
-	ForwardAgentNo    AgentForwardingMode = iota
-	ForwardAgentYes   AgentForwardingMode = iota
-	ForwardAgentLocal AgentForwardingMode = iota
+	ForwardAgentNo AgentForwardingMode = iota
+	ForwardAgentYes
+	ForwardAgentLocal
 )
 
 var log = logrus.WithFields(logrus.Fields{
