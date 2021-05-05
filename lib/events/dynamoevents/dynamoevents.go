@@ -271,7 +271,9 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 	}
 
 	// Migrate the table according to RFD 24 if it still has the old schema.
-	b.migrateRFD24WithRetry(ctx)
+	if err := b.migrateRFD24WithRetry(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// Enable continuous backups if requested.
 	if b.Config.EnableContinuousBackups {
@@ -319,16 +321,23 @@ const (
 
 // migrateRFD24WithRetry repeatedly attempts to kick off RFD 24 migration in the event
 // of an error on a long and jittered interval.
-func (l *Log) migrateRFD24WithRetry(ctx context.Context) {
+func (l *Log) migrateRFD24WithRetry(ctx context.Context) error {
 	for {
 		if err := l.migrateRFD24(ctx); err != nil {
 			delay := utils.HalfJitter(time.Minute)
 			log.WithError(err).Errorf("Failed RFD 24 migration, making another attempt in %f seconds", delay.Seconds())
-			time.Sleep(delay)
+
+			select {
+			case <-time.After(delay):
+			case <-ctx.Done():
+				return trace.Wrap(ctx.Err())
+			}
 		} else {
 			break
 		}
 	}
+
+	return nil
 }
 
 // migrateRFD24 checks if any migration actions need to be performed
@@ -396,7 +405,11 @@ func (l *Log) migrateRFD24(ctx context.Context) error {
 
 			delay := utils.HalfJitter(time.Minute)
 			log.Errorf("Background migration task failed, retrying in %f seconds", delay.Seconds())
-			time.Sleep(delay)
+			select {
+			case <-time.After(delay):
+			case <-ctx.Done():
+				log.WithError(ctx.Err()).Error("Background migration task cancelled")
+			}
 		}
 	}()
 
@@ -873,11 +886,12 @@ func (l *Log) createV2GSI(ctx context.Context) error {
 			break
 		}
 
-		if ctx.Err() != nil {
+		select {
+		case <-time.After(time.Second * 5):
+		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
 		}
 
-		time.Sleep(time.Second * 5)
 		elapsed := time.Since(waitStart).Seconds()
 		log.Infof("Creating new DynamoDB index, %f seconds elapsed...", elapsed)
 	}
