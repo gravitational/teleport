@@ -723,7 +723,6 @@ dateLoop:
 			// this value - therefore we use it as our break condition.
 			lastEvaluatedKey = out.LastEvaluatedKey
 			if len(lastEvaluatedKey) == 0 {
-				sort.Sort(events.ByTimeAndIndex(values))
 				break pageLoop
 			}
 		}
@@ -731,6 +730,7 @@ dateLoop:
 		g.Error("DynamoDB response size exceeded limit.")
 	}
 
+	sort.Sort(events.ByTimeAndIndex(values))
 	return values, nil
 }
 
