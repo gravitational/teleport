@@ -40,8 +40,9 @@ type TLSListenerConfig struct {
 	Listener net.Listener
 	// ID is an identifier used for debugging purposes
 	ID string
-	// ReadDeadline is a connection read deadline,
-	// set to defaults.ReadHeadersTimeout if unspecified
+	// ReadDeadline is a connection read deadline during the TLS handshake (start
+	// of the connection). It is set to defaults.HandshakeReadDeadline if
+	// unspecified.
 	ReadDeadline time.Duration
 	// Clock is a clock to override in tests, set to real time clock
 	// by default
@@ -54,7 +55,7 @@ func (c *TLSListenerConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter Listener")
 	}
 	if c.ReadDeadline == 0 {
-		c.ReadDeadline = defaults.ReadHeadersTimeout
+		c.ReadDeadline = defaults.HandshakeReadDeadline
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
@@ -138,12 +139,20 @@ func (l *TLSListener) detectAndForward(conn *tls.Conn) {
 		conn.Close()
 		return
 	}
+
+	start := l.cfg.Clock.Now()
 	if err := conn.Handshake(); err != nil {
 		if trace.Unwrap(err) != io.EOF {
 			l.log.WithError(err).Warning("Handshake failed.")
 		}
 		conn.Close()
 		return
+	}
+
+	// Log warning if TLS handshake takes more than one second to help debug
+	// latency issues.
+	if elapsed := time.Since(start); elapsed > 1*time.Second {
+		l.log.Warnf("Slow TLS handshake from %v, took %v.", conn.RemoteAddr(), time.Since(start))
 	}
 
 	err = conn.SetReadDeadline(time.Time{})
