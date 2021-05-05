@@ -966,7 +966,7 @@ func (s *TLSSuite) TestServersCRUD(c *check.C) {
 
 // TestAppServerCRUD tests CRUD functionality for services.App using an auth client.
 func (s *TLSSuite) TestAppServerCRUD(c *check.C) {
-	clt, err := s.server.NewClient(TestBuiltin(teleport.RoleApp))
+	clt, err := s.server.NewClient(TestBuiltin(teleport.RoleAdmin))
 	c.Assert(err, check.IsNil)
 
 	suite := &suite.ServicesTestSuite{

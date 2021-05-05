@@ -335,7 +335,6 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 			services.RoleSpecV3{
 				Allow: services.RoleConditions{
 					Namespaces: []string{services.Wildcard},
-					AppLabels:  services.Labels{services.Wildcard: []string{services.Wildcard}},
 					Rules: []services.Rule{
 						services.NewRule(services.KindEvent, services.RW()),
 						services.NewRule(services.KindProxy, services.RO()),
@@ -360,8 +359,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 			role.String(),
 			services.RoleSpecV3{
 				Allow: services.RoleConditions{
-					Namespaces:     []string{services.Wildcard},
-					DatabaseLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
+					Namespaces: []string{services.Wildcard},
 					Rules: []services.Rule{
 						services.NewRule(services.KindEvent, services.RW()),
 						services.NewRule(services.KindProxy, services.RO()),
@@ -550,8 +548,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 			role.String(),
 			services.RoleSpecV3{
 				Allow: services.RoleConditions{
-					Namespaces:       []string{services.Wildcard},
-					KubernetesLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
+					Namespaces: []string{services.Wildcard},
 					Rules: []services.Rule{
 						services.NewRule(services.KindKubeService, services.RW()),
 						services.NewRule(services.KindEvent, services.RW()),
