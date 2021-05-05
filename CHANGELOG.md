@@ -1,5 +1,11 @@
 # Changelog
 
+## 6.1.3
+
+This release of Teleport contains a bug fix.
+
+* Added support for PROXY protocol to Database Access (MySQL). [#6517](https://github.com/gravitational/teleport/issues/6517)
+
 ## 6.1.2
 
 This release of Teleport contains a new feature. 
