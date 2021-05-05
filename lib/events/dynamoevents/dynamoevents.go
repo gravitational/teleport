@@ -388,7 +388,7 @@ func (l *Log) migrateRFD24(ctx context.Context) error {
 				log.Info("Removing old DynamoDB index")
 				err = l.removeV1GSI()
 				if err != nil {
-					log.WithError(err).Error("Migrated all events to v6.2 format successfully but failed remove old index.")
+					log.WithError(err).Error("Migrated all events to v6.2 format successfully but failed to remove old index.")
 				} else {
 					break
 				}
@@ -1005,7 +1005,7 @@ func (l *Log) migrateDateAttribute(ctx context.Context) error {
 		startKey = scanOut.LastEvaluatedKey
 
 		total += *scanOut.Count
-		log.Infof("Migrated %q total events to 6.2 format...", total)
+		log.Infof("Migrated %d total events to 6.2 format...", total)
 
 		// If the `LastEvaluatedKey` field is not set we have finished scanning
 		// the entire dataset and we can now break out of the loop.

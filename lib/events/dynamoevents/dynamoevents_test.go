@@ -172,7 +172,8 @@ func (s *DynamoeventsSuite) TestEventMigration(c *check.C) {
 		for _, event := range events {
 			timestampUnix := event[keyCreatedAt].(int64)
 			dateString := time.Unix(timestampUnix, 0).Format(iso8601DateFormat)
-			if dateString != event[keyDate].(string) {
+			eventDateString, ok := event[keyDate].(string)
+			if !ok || dateString != eventDateString {
 				correct = false
 			}
 		}
@@ -208,9 +209,8 @@ func (l *Log) emitTestAuditEventPreRFD24(ctx context.Context, e preRFD24event) e
 		TableName: aws.String(l.Tablename),
 	}
 	_, err = l.svc.PutItemWithContext(ctx, &input)
-	err = convertError(err)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(convertError(err))
 	}
 	return nil
 }
