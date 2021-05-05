@@ -54,8 +54,10 @@ func (process *TeleportProcess) reconnectToAuthService(role teleport.Role) (*Con
 			// if connected and client is present, make sure the connector's
 			// client works, by using call that should succeed at all times
 			if connector.Client != nil {
-				_, err = connector.Client.GetNamespace(defaults.Namespace)
+				pingResponse, err := connector.Client.Ping(process.ExitContext())
 				if err == nil {
+					process.setClusterFeatures(pingResponse.GetServerFeatures())
+					process.log.Infof("%v: features loaded from auth server: %+v", role, pingResponse.GetServerFeatures())
 					return connector, nil
 				}
 				process.log.Debugf("Connected client %v failed to execute test call: %v. Node or proxy credentials are out of sync.", role, err)
