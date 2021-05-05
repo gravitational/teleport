@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -150,6 +151,27 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext) error {
 	return nil
 }
 
+var (
+	failedLoginCount = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: teleport.MetricFailedLoginAttempts,
+			Help: "Number of times there was a failed login",
+		},
+	)
+
+	certificateMismatchCount = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: teleport.MetricCertificateMistmatch,
+			Help: "Number of times there was a certificate mismatch",
+		},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(failedLoginCount)
+	prometheus.MustRegister(certificateMismatchCount)
+}
+
 // UserKeyAuth implements SSH client authentication using public keys and is
 // called by the server every time the client connects.
 func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
@@ -184,6 +206,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 
 	// only failed attempts are logged right now
 	recordFailedLogin := func(err error) {
+		failedLoginCount.Inc()
 		if err := h.Emitter.EmitAuditEvent(h.Server.Context(), &events.AuthAttempt{
 			Metadata: events.Metadata{
 				Type: events.AuthAttemptEvent,
@@ -222,6 +245,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	}
 	permissions, err := certChecker.Authenticate(conn, key)
 	if err != nil {
+		certificateMismatchCount.Inc()
 		recordFailedLogin(err)
 		return nil, trace.Wrap(err)
 	}
