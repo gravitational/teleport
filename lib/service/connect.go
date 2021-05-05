@@ -809,7 +809,7 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 	// Try and connect to the Auth Server. If the request fails, try and
 	// connect through a tunnel.
 	logger := process.log.WithField("auth-addrs", utils.NetAddrsToStrings(authServers))
-	logger.Debugf("Attempting to connect to Auth Server directly.")
+	logger.Debug("Attempting to connect to Auth Server directly.")
 	directClient, err := process.newClientDirect(authServers, tlsConfig)
 	if err == nil {
 		logger.Debug("Connected to Auth Server with direct connection.")
