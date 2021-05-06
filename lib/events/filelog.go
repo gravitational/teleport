@@ -492,7 +492,6 @@ func (l *FileLog) findInFile(fn string, query url.Values, total *int, limit int)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	unrecordedSessionIDs := make([]string, 0)
 	defer lf.Close()
 
 	// for each line...
@@ -523,13 +522,6 @@ func (l *FileLog) findInFile(fn string, query url.Values, total *int, limit int)
 				break
 			}
 		}
-		if IsRecordOff(ef) {
-			sessionID := ef[SessionEventID].(string)
-			unrecordedSessionIDs = append(unrecordedSessionIDs, sessionID)
-		}
-		if FilterOutSessionEnd(ef, unrecordedSessionIDs) {
-			continue
-		}
 		if accepted || !doFilter {
 			retval = append(retval, ef)
 			*total++
@@ -541,29 +533,40 @@ func (l *FileLog) findInFile(fn string, query url.Values, total *int, limit int)
 	return retval, nil
 }
 
-// FilterOutSessionEnd returns whether to filter out session end event
-// determined by whether the input slice contains session end event session ID
-func FilterOutSessionEnd(ef EventFields, r []string) bool {
-	if ef.GetType() == SessionEndEvent {
-		sessionID := ef[SessionEventID].(string)
-		if utils.SliceContainsStr(r, sessionID) {
-			return true
-		}
-	}
-	return false
-}
+// FilterSessionEndEvents filters out session end events where session recording type is off
+func FilterSessionEndEvents(events []EventFields) ([]EventFields, error) {
+	filtered := make([]EventFields, 0)
+	unrecordedSessionIDs := make([]string, 0)
+	for _, ef := range events {
 
-// IsRecordOff checks to see if event type is session.start and checks if
-// the session recording type is off
-func IsRecordOff(ef EventFields) bool {
-	if ef.GetType() == SessionStartEvent {
-		if sessionRecordingType, found := ef[SessionRecordingType]; found {
-			if sessionRecordingType == services.RecordOff {
-				return true
+		// If event type is session.start, check to see if the recording type is off
+		if ef.GetType() == SessionStartEvent {
+			if sessionRecordingType, found := ef[SessionRecordingType]; found {
+				if sessionRecordingType == services.RecordOff {
+					sessionID, ok := ef[SessionEventID].(string)
+					if !ok {
+						return filtered, trace.BadParameter("session ID is not of type string")
+					}
+					unrecordedSessionIDs = append(unrecordedSessionIDs, sessionID)
+
+				}
+			}
+			// If event type is session.end, check to see if session ID is in the unrecorded sid slice
+		} else if ef.GetType() == SessionEndEvent {
+			if _, found := ef[SessionEventID]; !found {
+				return filtered, trace.BadParameter("session ID not found")
+			}
+			sessionID, ok := ef[SessionEventID].(string)
+			if !ok {
+				return filtered, trace.BadParameter("session ID is not of type string")
+			}
+			if utils.SliceContainsStr(unrecordedSessionIDs, sessionID) {
+				continue
 			}
 		}
+		filtered = append(filtered, ef)
 	}
-	return false
+	return filtered, nil
 }
 
 type eventFile struct {

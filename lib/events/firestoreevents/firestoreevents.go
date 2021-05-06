@@ -495,7 +495,6 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, filter string, limit int) (
 	}
 
 	g.WithFields(log.Fields{"duration": time.Since(start)}).Debugf("Query completed.")
-	unrecordedSessionIDs := make([]string, 0)
 	for _, docSnap := range docSnaps {
 
 		var e event
@@ -515,13 +514,6 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, filter string, limit int) (
 				accepted = true
 				break
 			}
-		}
-		if events.IsRecordOff(fields) {
-			sessionID := fields[events.SessionEventID].(string)
-			unrecordedSessionIDs = append(unrecordedSessionIDs, sessionID)
-		}
-		if events.FilterOutSessionEnd(fields, unrecordedSessionIDs) {
-			continue
 		}
 		if accepted || !doFilter {
 			values = append(values, fields)
