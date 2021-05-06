@@ -855,9 +855,19 @@ func (s *CacheSuite) TestClusterConfig(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	// update cluster config to record at the proxy
+	// DELETE IN 8.0.0
+	err = p.clusterConfigS.SetSessionRecordingConfig(context.TODO(), types.DefaultSessionRecordingConfig())
+	c.Assert(err, check.IsNil)
+
+	select {
+	case event := <-p.eventsC:
+		c.Assert(event.Type, check.Equals, EventProcessed)
+	case <-time.After(time.Second):
+		c.Fatalf("timeout waiting for event")
+	}
+
+	// update cluster config
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		SessionRecording: services.RecordAtProxy,
 		Audit: services.AuditConfig{
 			AuditEventsURI: []string{"dynamodb://audit_table_name", "file:///home/log"},
 		},

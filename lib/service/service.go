@@ -1064,7 +1064,7 @@ func (process *TeleportProcess) initAuthService() error {
 		// check if session recording has been disabled. note, we will continue
 		// logging audit events, we just won't record sessions.
 		recordSessions := true
-		if cfg.Auth.ClusterConfig.GetSessionRecording() == services.RecordOff {
+		if cfg.Auth.SessionRecordingConfig.GetMode() == services.RecordOff {
 			recordSessions = false
 
 			warningMessage := "Warning: Teleport session recording have been turned off. " +
@@ -1162,6 +1162,7 @@ func (process *TeleportProcess) initAuthService() error {
 		ClusterConfiguration:    cfg.ClusterConfiguration,
 		ClusterConfig:           cfg.Auth.ClusterConfig,
 		ClusterNetworkingConfig: cfg.Auth.NetworkingConfig,
+		SessionRecordingConfig:  cfg.Auth.SessionRecordingConfig,
 		ClusterName:             cfg.Auth.ClusterName,
 		AuthServiceName:         cfg.Hostname,
 		DataDir:                 cfg.DataDir,
@@ -1668,12 +1669,11 @@ func (process *TeleportProcess) initSSH() error {
 
 		// If session recording is disabled at the cluster level and the node is
 		// attempting to enabled enhanced session recording, show an error.
-		clusterConfig, err := authClient.GetClusterConfig()
+		recConfig, err := authClient.GetSessionRecordingConfig(process.ExitContext())
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if clusterConfig.GetSessionRecording() == services.RecordOff &&
-			cfg.SSH.BPF.Enabled {
+		if recConfig.GetMode() == services.RecordOff && cfg.SSH.BPF.Enabled {
 			return trace.BadParameter("session recording is disabled at the cluster " +
 				"level. To enable enhanced session recording, enable session recording at " +
 				"the cluster level, then restart Teleport.")
