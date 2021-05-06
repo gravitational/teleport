@@ -282,7 +282,18 @@ message App {
 message Rewrite {
     // Redirect defines a list of hosts which will be rewritten to the public
     // address of the application if they occur in the "Location" header.
-    repeated string Redirect = 1 [ (gogoproto.jsontag) = "redirect" ];
+    repeated string Redirect = 1 [ (gogoproto.jsontag) = "redirect,omitempty" ];
+    // Headers is a list of headers to inject when passing the request over
+    // to the application.
+    repeated Header Headers = 2 [ (gogoproto.jsontag) = "headers,omitempty" ];
+}
+
+// Header represents a single http header passed over to the proxied application.
+message Header {
+    // Name is the http header name.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+    // Value is the http header value.
+    string Value = 2 [ (gogoproto.jsontag) = "value" ];
 }
 
 // CommandLabelV2 is a label that has a value as a result of the

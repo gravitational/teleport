@@ -589,7 +589,7 @@ func insertAnnotations(annotations map[string][]string, conditions AccessRequest
 		// variable interpolation syntax they contain.
 	ApplyTraits:
 		for _, v := range vals {
-			applied, err := applyValueTraits(v, traits)
+			applied, err := ApplyValueTraits(v, traits)
 			if err != nil {
 				// skip values that failed variable expansion
 				continue ApplyTraits
