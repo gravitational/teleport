@@ -1,6 +1,6 @@
 ---
-title: Server Access Guide
-description: Introduction to features and benefits of Teleport Server Access
+title: Server Access Introduction | Teleport Docs
+description: Teleport Server Access features and introduction.
 ---
 
 # Server Access
@@ -10,29 +10,53 @@ Teleport Server Access consolidates SSH access across all environments, decrease
 Teleport Server Access is designed for the following kinds of scenarios:
 
 1. When up to a vast number of clusters must be managed using the command-line (`tsh`) or programmatically (through the Teleport API) and you want to simplify your stack, security, and configuration complexity.
-2. When it's important to track and audit every user session. 
+2. When security team members must track and audit every user session. 
 3. When Teleport users require a complete, dedicated, and secure SSH option (Teleport Node running in SSH mode) and more than a certificate authority (Teleport Auth) with proxy (Teleport Proxy).
 4. When resource and network security must be maximized: SSH certificates over secret keys, Two-Factor Authentication (2FA), Single Sign-On (SSO), and short-lived certificates.
 
-## Features
-
 Server Access features are organized into three main offerings: 
 
-1. **Simplified/unified configuration and stack**: 
-  - Multi-cluster management through a clean user interface and API when managing your many resources or devices.
-  - Teleport Server Access allows full SSH management without third-party dependencies. 
-  - Add functionality to Teleport through plugins.
-  - [Reduce the likelihood of a dependency or tool vulnerability](https://www.cse.usf.edu/~xou/publications/esorics08.pdf) by reducing the complexity of your stack.
-2. **Security and compliance**:
-  - 2FA and One-Time Pass (OTP) support.
-  - Role-Based Access Control (RBAC): built-in support for delegating permissions and access by the *Principle of Least Privilege* (POLP).
-  - Support for OAuth 2.0, Open ID Connect, SAML, and SSO out-of-the-box.
-  - Access Requests that can be approved or denied to define a compliance workflow.
-3. **Complete visibility into access and behavior**:
-  - Single and multi-user session auditing and recording.
-  - Configure event streaming to record and send events to specific team members or destinations.
-  - Unified resource management and [cluster introspection](https://goteleport.com/blog/openssh-vs-teleport/).
-  - A convenient web UI for easily representing and interacting with resources and user sessions.
+**Simplified/unified configuration and stack**: 
+
+<TileSet>
+  <Tile icon="server" title="Unifed Resource Catalog" href="">
+    See your full resource inventory across all environments in one place.
+  </Tile>
+  <Tile icon="server" title="Session Sharing and Recording" href="">
+    Work together to solve and problem and replay or share the session later.
+  </Tile>
+  <Tile icon="server" title="Plug-ins and API" href="">
+    Add functionality and integrate access with existing tools through plugins,
+  </Tile>
+</TileSet>
+
+**Security and compliance**:
+
+<TileSet>
+  <Tile icon="server" title="Access Controls" href="">
+    Teleport offers all required server access controls to implement compliance standards such as SOC2, PCI, and FedRAMP.
+  </Tile>
+  <Tile icon="server" title="Access Requests" href="">
+    Define, request, and deny Access Requests through customizeable workflows.
+  </Tile>
+  <Tile icon="server" title="Session Controls" href="">
+    Define policies to control sessions and how they're shared.
+  </Tile>
+</TileSet>
+
+**Complete visibility into access and behavior**:
+
+<TileSet>
+  <Tile icon="server" title="Unifed Resource Catalog" href="">
+    List all online servers, user roles, and access workflows in one place.
+  </Tile>
+  <Tile icon="server" title="Live Session View" href="">
+    Record and replay all SSH sessions.
+  </Tile>
+  <Tile icon="server" title="Event Streaming" href="">
+    Direct recorded SSH sessions and security events to a centralized backend.
+  </Tile>
+</TileSet>
 
 ## Demo
 
@@ -48,6 +72,6 @@ Get started using Teleport Server Access in [10 minutes](./getting-started.mdx).
 
 ## Guides
 
-- [SSH](./guides/teleport-ssh.mdx)
+- [SSH](./guides/ssh.mdx)
 - [Using Teleport with PAM](./guides/ssh-pam.mdx)
-- The [OpenSSH Guide](./guides/openssh-teleport.mdx) 
+- The [OpenSSH Guide](./guides/openssh.mdx) 

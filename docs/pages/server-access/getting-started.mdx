@@ -1,6 +1,6 @@
 ---
-title: Server Access Getting Started Guide
-description: Getting started with Teleport Server Access
+title: Server Access Getting Started Guide | Teleport Docs
+description: Getting started with Teleport Server Access.
 ---
 
 # Getting Started
@@ -8,77 +8,156 @@ description: Getting started with Teleport Server Access
 Teleport Server Access provides full SSH capabilities out-of-the-box:
 
 1. Teleport's `tsh` combines support for SSH and SCP in one convenient local command-line tool.
-2. Each Teleport node can be configured into SSH mode (Teleport Node) and run as an enhanced SSH server.
+2. Each Teleport Node can be configured into SSH mode (Teleport Node) and run as an enhanced SSH server.
 
 The steps below involve:
 
-1. Creating a Teleport Auth node cluster we'll add a Teleport SSH Node to.
-2. Using `tsh` to SSH into the cluster without external SSH dependencies.
+1. Creating a Teleport Auth Node cluster we'll add a Teleport SSH Node to.
+2. SSH into the cluster without external SSH dependencies (using `tsh` as an SSH client).
 3. Introspecting the cluster using advanced `tsh` features.
 
 ## Prerequisites
 
-- A Linux environment (such as Digital Ocean droplets, Azure Linux VM's, or AWS EC2) within which we'll create multiple instances.
+- A Linux environment (such as Ubuntu 20.05, CentOS 8.0-1905, or Debian 10) within which we'll create multiple instances.
 - A registered Doman Name.
 - A Two-Factor Authentication app (such as Authy or Google Authenticator).
-- Teleport installed locally (for `tsh`).
-- A GitHub user belonging to an organization and a team within that organization.
+- Teleport (=teleport.version=) installed locally (for `tsh`).
 
-## Step 1a. Create a cluster
+<Admonition type="warning" title="Warning">
+  The examples below may include the use of the `sudo` keyword to make following each step easier when creating resources from scratch. However, we generally discourage the use of `sudo` in **real-world production environments** per the *Principle of Least Privilege* (POLP). 
+</Admonition>
+
+## Step 1/5. Create a cluster
+
+<Admonition type="note" title="Note">
+  This guide involves configuring your Teleport Nodes into the *Bastion* pattern so that [only a single Node can be accessed publically](https://goteleport.com/blog/ssh-bastion-host/).
+</Admonition>
+
+<Admonition type="tip" title="Tip">
+  Multiple Teleport Nodes can be run on the same Linux instance. This Guide details how to launch and connect two Nodes on different devices.
+</Admonition>
 
 1. Verify you have a registered domain name. 
 
-   i. We'll create two subdomains, one for each Linux instance: `auth.example.com` and `ssh.example.com`.
+  - We'll create one subdomain `tele.example.com` that will be publicly available.
 
-   ![Subdomains](../../img/server-access/subdomains.png)
+2. Create two new instances of your desired Linux distribution (such as Ubuntu 20.05, CentOS 8.0-1905, or Debian 10).
 
-   ii. Then, we'll associate TLS (SSL) certificates from Let's Encrypt with them below.
+   i. The first instance will host a public-facing Auth Node `tele.example.com` that will serve as the *Bastion Host* (following the recommended *Bastion*-pattern). As such, leave the following ports open:
 
-   iii. Make sure ports: `9090`, `443`, `3023-3025`, and `3080` are all open.
+   | Port | Service | Description |
+   | - | - | - |
+   | 3023 | Proxy | SSH port clients connect to. A proxy will forward this connection to port `#3022` on the destination Node. |
+   | 3025 | Auth | SSH port used by the Auth Service to serve its API to other Nodes in a cluster. |
+   | 3080 | Proxy | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Web UI. |
+   | 443 | Browser | Used to access the Teleport Web UI through a browser with HTTPS. |
+   | 22 | Cloud Provider | Used to initially access, configure, and provision your cloud instances. We'll configure and launch our instances then demonstrate how to use the `tsh` tool and Teleport in SSH mode thereafter. |
 
-2. Create two new instances of your desired Linux distribution (such as CentOS, Debian, Ubuntu).
+   ii. Add an `A` record in your domain registrar entry for the `tele` subdomain:
 
-   <Admonition type="tip" title="Tip">
-     Multiple Teleport Nodes can be run on the same Linux instance. This Guide details how to launch and connect two Nodes on different devices.
-   </Admonition>
+   - Map the first IP address to the `tele` subdomain.
 
-   i. Add an `A` record in your domain registrar entry for each Linux instance. 
+   <Figure
+     align="center"
+     bordered
+     caption="Subdomain and IP mapping"
+   >
+     <Image
+       alt=""
+       height="265"
+       src="../../img/server-access/subdomains.png"
+       unoptimized
+       width="581"
+     />
+   </Figure>
 
-   ii. Map the first IP address to the `auth` subdomain and the second IP address to the `ssh` subdomain.  
+   iii. The second instance is configured to host a private SSH Node accessible only indirectly via the *Bastion Host*:
 
-   iii. Create the necessary SSH keys and connect from your local machine to each using the following `ssh` command format:
+   | Port | Service | Description |
+   | - | - | - |
+   | 3023 | Proxy | SSH port clients connect to. A proxy will forward this connection to port `#3022` on the destination Node. |
+   | 3080 | Proxy | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Web UI. |
+   | 22 | Cloud Provider | Used to initially access, configure, and provision your cloud instances. We'll configure and launch our instances then demonstrate how to use the `tsh` tool and Teleport in SSH mode thereafter. |
 
+   iv. For a complete list of ports used by Teleport, read [The Admin Guide](../admin-guide.mdx#ports).
+
+   v. Create the necessary SSH keys and connect from your local machine to each using the following `ssh` command format. For example, on AWS EC2: 
+   
    - `aws % ssh -i "example.pem" ubuntu@ecX-X-XX-XXX-XX.us-north-2.compute.amazonaws.com`  
-  
-   Most cloud providers require SSH to initially access, configure, and provision your cloud instances. We'll configure and launch our instances then demonstrate how to use the `tsh` tool and Teleport in SSH mode thereafter.
-       
+
 3. Install Teleport on each instance.
 
+  <Tabs>
+    <TabItem label="Amazon Linux 2/RHEL (RPM)">
+      ```bash
+      sudo yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
+      sudo yum install teleport
+
+      # Optional:  Using DNF on newer distributions
+      # $ sudo dnf config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
+      # $ sudo dnf install teleport
+      ```
+    </TabItem>
+
+    <TabItem label="Debian/Ubuntu (DEB)">
+      ```bash
+      curl https://deb.releases.teleport.dev/teleport-pubkey.asc | sudo apt-key add -
+      sudo add-apt-repository 'deb https://deb.releases.teleport.dev/ stable main'
+      sudo apt-get update
+      sudo apt-get install teleport
+      ```
+    </TabItem>
+
+    <TabItem label="Linux">
+      ```bash
+      curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
+      tar -xzf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
+      cd teleport
+      sudo ./install
+      ```
+    </TabItem>
+
+    <TabItem label="ARMv7 (32-bit)">
+      ```bash
+      curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm-bin.tar.gz
+      tar -xzf teleport-v(=teleport.version=)-linux-arm-bin.tar.gz
+      cd teleport
+      sudo ./install
+      ```
+    </TabItem>
+
+    <TabItem label="ARMv8 (64-bit)">
+      ```bash
+      curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
+      tar -xzf teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
+      cd teleport
+      sudo ./install
+      ```
+    </TabItem>
+  </Tabs>
+
+4. Configure Teleport on the *Bastion Host*.
+
+   i. Teleport will now automatically acquire a [Let's Encrypt](https://letsencrypt.org/docs/client-options/) ACME-compliant TLS certificate. 
+   
+   While you can use a third-party ACME client (like Let's Encrypt certbot), the configuration commands below will do the same:
+
    ```bash
-   # Install Teleport
-   curl https://deb.releases.teleport.dev/teleport-pubkey.asc | sudo apt-key add -
-   sudo add-apt-repository 'deb https://deb.releases.teleport.dev/ stable main'
-   sudo apt-get update
-   sudo apt-get install teleport
-   ```
-
-4. Configure Teleport to use ACME and to automatically acquire a TLS certificate:
-
-   <Admonition type="tip" title="Tip">
-    Teleport will now automatically acquire an ACME-compliant TLS certificate by default. While you can use a third-party ACME client (like Let's Encrypt certbot), the configuration commands below will do the same.
-   </Admonition>
-
-   ```bash
-   # Configure Teleport
+   # Configure Teleport with TLS certs
    sudo teleport configure \
      --acme --acme-email=your_email@example.com \
-     --cluster-name=auth.example.com \
+     --cluster-name=tele.example.com \
      -o file
    ```
 
-5. Launch Teleport on `auth.example.com`: `sudo teleport start`. 
+   Run the command above on `tele.example.com`.
 
-## Step 1b. Add a Node to the cluster
+5. Launch your  *Bastion Host*:
+
+   - Execute: `sudo teleport start`.
+   - Now, we'll create a *join token* to add and start the second Node.
+
+## Step 2/5. Add a Node to the cluster
 
 <video autoplay loop muted playsinline>
   <source src="https://goteleport.com/teleport/videos/server-access/addnode.mp4" type="video/mp4"/>
@@ -86,18 +165,20 @@ The steps below involve:
 Your browser does not support the video tag.
 </video>
 
-1. Now, create a third terminal and connect to `auth.example.com`:
+1. Now, create a third terminal and connect to `tele.example.com`:
 
-   i. Create a user to access the `auth.example.com` Web UI: 
+   i. Create a user to access the `tele.example.com` Web UI: 
 
-   - `sudo tctl users add auth-admin --roles=editor,access,admin --logins=root,ubuntu,ec2-user`  
+   - `sudo tctl users add tele-admin --roles=editor,access --logins=root,ubuntu,ec2-user`  
 
-   ii. This will generate an initial login link where you can set a password and set up Two-Factor Authentication for `auth-admin`.
+   ii. This will generate an initial login link where you can set a password and set up Two-Factor Authentication for `tele-admin`.
 
-   iii. Create a *join token* to link `ssh.example.com` with the `auth.example.com` cluster:
+   iii. Create a *join token* to add the second Node to the `tele.example.com` cluster:
 
    - `sudo tctl tokens add --type=node`  
-   - "Node" mode specifies that the Teleport Node that will join will act as an SSH server.  
+   - "Node" mode specifies that the Teleport Node will act and join as an SSH server.
+   - Save the resultant `token` value to a token-specific directory of your choice on the second Node. For example: `/tmp/token`. 
+   - This helps to minimize the direct sharing of tokens even when they are *dynamically* generated.
 
    iv. You should see:
 
@@ -105,195 +186,134 @@ Your browser does not support the video tag.
    # Join cluster
    sudo teleport start \
      --roles=node \
-     --token=d62629ea83e181644e0778af22ec3a8e \
+     --token=/tmp/token \
      --ca-pin=sha256:c75f8be5b21a5cc1b6f91a71200f30a9a083dfea4fc47ec1c55143ccce8882e4 \
      --auth-server=172.31.17.124:3025
    ```
 
-   <Admonition type="warning" title="Warning">
-     Remember to replace the IP address supplied by default above with the `auth.example.com` proxy address: `auth.example.com:443`.
-   </Admonition>
+2. In your second, *Bastion*, terminal:
 
-2. On your second terminal, `ssh.example.com`:
+   i. Run the command above with the correct `tele.example.com` public proxy address on the machine you wish to connect.
 
-   i. Run the command above with the correct `auth.example.com` public proxy address on the machine you wish to connect.
+   ii. You should now be able to view both Nodes at: `https://tele.example.com/web/cluster/tele.example.com/nodes` in the Web Interface after logging in with your the user `tele-admin`.
 
-   ii. You should now be able to view both Nodes at: `https://auth.example.com/web/cluster/auth.example.com/nodes` in the Web Interface after logging in with your the user `auth-admin`.
+   <Figure
+     align="center"
+     bordered
+     aption="Both Nodes in the Web UI"
+   >
+     <Image
+       alt=""
+       height="265"
+       src="../../img/server-access/teleport_ui.png"
+       unoptimized
+       width="581"
+     />
+   </Figure>
 
-   ![Both Nodes in](../../img/server-access/teleport_ui.png)
+3. Let's improve our security according to the *Bastion* pattern:
 
-## Step 2a. Use tsh to connect to the cluster
+   - Close port `22` on your second, private, Linux instance now that your Node is configured and running.
 
-Now, we've got our cluster up and running. Let's see how easy it is to connect to our two nodes:
+## Step 3/5. SSH into the server
+
+Now, we've got our cluster up and running. Let's see how easy it is to connect to our two Nodes. We can use `tsh` to SSH into the cluster:
 
 1. On your local machine, log in through `tsh`: 
 
-   i. `tsh login --proxy=auth.example.com:443 --user=auth-admin`  
+   i. `tsh login --proxy=tele.example.com:443 --user=tele-admin`  
    ii. You'll be prompted to supply the password and One Time Passcode we set up previously.
 
-2. `auth-admin` will now see:
+2. `tele-admin` will now see:
 
    ```bash
-   Profile URL:        https://auth.example.com:443
-     Logged in as:       auth-admin
-     Cluster:            auth.example.com
-     Roles:              access, admin, editor
+   Profile URL:        https://tele.example.com:443
+     Logged in as:       tele-admin
+     Cluster:            tele.example.com
+     Roles:              access, editor
      Logins:             root, ubuntu, ec2-user
      Kubernetes:         disabled
      Valid until:        2021-04-30 06:39:13 -0500 CDT [valid for 12h0m0s]
      Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
    ```
 
-  - `auth-admin` is now logged into the `auth.example.com` cluster and `auth` Node via Teleport SSH - no third-party tool required.
+  - `tele-admin` is now logged into the `tele.example.com` cluster and *Bastion Host* Node via Teleport SSH - no third-party tool required.
 
-3. `auth-admin` can now execute the following to find the cluster's `nodenames` which are used for direct SSH connections:
+3. `tele-admin` can now execute the following to find the cluster's `nodenames`. `nodenames` are used for establishing SSH connections:
 
-   i. `tctl nodes ls`  
-   ii. The `auth` node is located on the bottom line below:
+   i. `tsh ls`  
+   ii. The  *Bastion Host* Node is located on the bottom line below:
 
    ```bash
-   Nodename         UUID                                 Address        Labels                                
-   ---------------- ------------------------------------ -------------- ------------------------------------- 
-   ip-172-31-30-155 8f1e2719-3161-400f-b664-3279cf046511                env=example,hostname=ip-172-31-30-155 
-   ip-172-31-17-124 e7719967-b6eb-4fc0-8e53-00fac6d896d4 127.0.0.1:3022 env=example,hostname=ip-172-31-17-124 
+   Node Name        Address            Labels                                
+   ---------------- ------------------ ------------------------------------- 
+   ip-172-31-39-190 172.31.39.190:3022                                       
+   ip-172-31-40-99  127.0.0.1:3022     env=example, hostname=ip-172-31-40-99 
    ```
 
-4. Using the command `tsh ssh root@ip-172-31-17-124` locally, `auth-admin` can SSH into the `auth` Node and do the following:
+4. Using the command `tsh ssh root@ip-172-31-40-99` locally, `tele-admin` can SSH into the *Bastion Host* Node and perform the following:
 
    i. Connect to other Nodes in the cluster by repeating the steps above.  
    ii. Traverse the Linux file system.  
    iii. Execute desired commands.  
 
-   - The `tsh ssh` command allows one to do anything they would if they were to SSH into a server using a third-party tool. 
-   - All commands executed by `auth-admin` are recorded and can be replayed in the Teleport Web interface.
+   - All commands executed by `tele-admin` are recorded and can be replayed in the Teleport Web interface.
+   - The `tsh ssh` command allows one to do anything they would if they were to SSH into a server using a third-party tool. Compare the two equivalent commands:
 
+<Tabs>
+  <TabItem label="tsh">
+    ```bash
+    tsh ssh root@ip-172-31-17-124
+    ```
+  </TabItem>
+  <TabItem label="ssh">
+    ```bash
+    ssh -J tele.example.com user@host
+    ```
+  </TabItem>
+</Tabs>
+  
 <video autoplay loop muted playsinline>
   <source src="https://goteleport.com/teleport/videos/server-access/replay.mp4" type="video/mp4"/>
   <source src="https://goteleport.com/teleport/videos/server-access/replay.webm" type="video/webm"/>
 Your browser does not support the video tag.
 </video>
 
-## Step 2b. Use tsh to introspect cluster
+## Step 4/5. Use tsh and the Universal Resource Catalog to introspect the cluster
 
-1. Now, `auth-admin` has the ability to SSH into other Nodes within the cluster, traverse the Linux file system, and execute the command.
+1. Now, `tele-admin` has the ability to SSH into other Nodes within the cluster, traverse the Linux file system, and execute commands.
 
    - They have visibility into all resources within the cluster due to their defined and assigned role.
    - They can also quickly view any Node or grouping of Nodes that've been assigned a `label`.
 
-2. Executing `tctl nodes ls` displays:
+2. Execute `sudo tctl nodes ls` within your *Bastion Host* console which displays the Universal Resource Catalog with all queried resources in one view. Currently, we're displaying only those Nodes that are part of our *Bastion* cluster.  
    
    ```bash
-   Nodename         UUID                                 Address        Labels                                
-   ---------------- ------------------------------------ -------------- ------------------------------------- 
-   ip-172-31-30-155 8f1e2719-3161-400f-b664-3279cf046511                env=example,hostname=ip-172-31-30-155 
-   ip-172-31-17-124 e7719967-b6eb-4fc0-8e53-00fac6d896d4 127.0.0.1:3022 env=example,hostname=ip-172-31-17-124 
+   Nodename         UUID                                 Address            Labels                               
+   ---------------- ------------------------------------ ------------------ ------------------------------------ 
+   ip-172-31-40-99  bf840c02-68f4-4fac-a9e6-30141e82d242 127.0.0.1:3022     env=example,hostname=ip-172-31-40-99 
+   ip-172-31-39-190 d32945f4-6e35-4318-b8f6-198d7c1fbd4c 172.31.39.190:3022                                      
    ```
 
-3. As a result, `auth-admin` can execute `tsh ssh root@env=example` since each Node has [label](../admin-guide.mdx#labeling-nodes-and-applications) by default. 
+3. Note the "Labels" column on the farthest side. `tele-admin` can query all resources with a shared [label](../admin-guide.mdx#labeling-nodes-and-applications) using the command `tsh ssh root@env=example`.
 
    - Customized labels can be defined in your `teleport.yaml` configuration file or during Node creation.
    - This is a convenient feature that allows for more advanced queries. 
-   - Suppose an IP address changes. An admin can quickly find the current Node with that label since it remains unchanged.
+   - Suppose an IP address changes, an admin can quickly find the current Node with that label since it remains unchanged.
 
-4. `auth-admin` can also execute commands on all Nodes that share a label vastly simplifying repeated operations:
+4. `tele-admin` can also execute commands on all Nodes that share a label vastly simplifying repeated operations:
 
    - `tsh ssh root@env=example ls` will execute the `ls` command on each Node displaying the contents of each to the screen.
-  
-   We'll review configuring and managing short-lived certificates for programmatic API access below.
 
-## Step 3a. Set up GitHub SSO
+## Step 5/5. Connect to the Teleport API
 
-<video autoplay loop muted playsinline>
-  <source src="https://goteleport.com/teleport/videos/server-access/githubsso.mp4" type="video/mp4"/>
-  <source src="https://goteleport.com/teleport/videos/server-access/githubsso.webm" type="video/webm"/>
-Your browser does not support the video tag.
-</video>
+Let's connect to the Teleport API using a simple role-based authentication method and Go client:
 
-Teleport Server Access also supports using SSO for authentication. Let's add a new user through GitHub SSO:
+1. Open a terminal to `tele.example.com`.
 
-1. Make sure the user you'll add to Teleport is a GitHub administrator within your GitHub organization.
+2. Create a user `api-admin` with the built-in role `admin`: `sudo tctl users add api-user --roles=admin`.
 
-   i. As your GitHub administrator, go to your organization's **"Settings"** > **"Developer settings"** > **"OAuth Apps"** page.
-
-   ii. Add an OAuth App to your organization's page taking care to create a Client Secret.
-
-   ![OAuth App](../../img/server-access/oauth_app_config.png)
-
-2. Within your `auth` terminal:
-
-   - Execute `sudo nano /etc/teleport.yaml` and add the following entry to the `auth_service` section:
-
-   ```yaml
-   authentication:
-     type: "saml"
-   ```
-
-3. Within your `auth` terminal:
-
-   i. Execute `sudo touch connector.yaml`.  
-   ii. Then, `sudo nano connector.yaml` and paste in:
-
-   ```yaml
-   kind: github
-   version: v3
-   metadata:
-     name: github
-   spec:
-     # GitHub OAuth app client ID
-     client_id: APP_CLIENT_ID
-     # GitHub OAuth app client secret
-     client_secret: APP_CLIENT_SECRET
-     # GitHub will make a callback to this URL after successful authentication
-     # cluster-url is the address the cluster UI is reachable at
-     redirect_url: "https://auth.example.com/v1/webapi/github/callback"
-     # connector display name that will be appended to the title of "Login with"
-     # button on the cluster login screen so it will say "Login with Github"
-     display: Github
-     # mapping of GitHub team memberships to Teleport cluster roles
-     teams_to_logins:
-     - logins:
-       -  admin
-       organization: "EXAMPLE_GITHUB_OAUTH_APP"
-       team: TEAM
-   ```
-
-4. `sudo tctl create connector.yaml` (use the `-f` flag to override an existing connector).
-
-   - Display all connectors with: `tctl get connectors`.
-
-5. Your GitHub admin user (`github-test-admin`) can now use:
-
-   - `tsh --proxy=auth.example.com login --auth=github --user=github-test-admin` to authenticate via GitHub SSO.
-
-   ![OAuth App](../../img/server-access/sso_login_success.png)
-
-   - The user will automatically appear in the "Team" > "Users" panel of the Teleport Web Interface after the first sign-in.
-
-   ![Users Panel](../../img/server-access/github_user_added.png)
-
-## Step 3b. Create short-lived certificates
-
-Teleport Server Access provides the ability to manage short-lived certificates and give users API and resource access for specified durations of time:
-
-1. Users can define a role to programmatically interact with the Teleport API per the [Teleport API Getting Started](../reference/api/introduction.mdx).
-
-   - This is designed to be convenient for mass deployments or operations that must be repeated (daily jobs, frequent operations, etc.).
-
-2. Admins also create short-lived certificates for resources users must connect to directly:
-
-   - Execute: `tctl auth sign --ttl=87600h --user=jenkins --out=jenkins.pem` to generate a certificate valid for a specified *Time To Live* (TTL).
-   - Team members can access private resources securely using certificates and SSH tunnels.
-   - No sharing of resource secrets, passwords, or credentials only certificates that are unique to that user and specified length of time.
-
-## Step 3c. Connect to the Teleport API
-
-Let's connect to the Teleport API using a simple role-based authentication method:
-
-1. Open a terminal to `auth.go-teleport.com`.
-
-2. Create a user `api-admin` with the built-in role `admin`: `tctl users add api-user --roles=admin`.
-
-3. Within the same terminal (or another), log in as `api-admin`: `tsh login --user=api-user --proxy=api.go-teleport.com:443`.
+3. Within the same terminal log in as `api-admin`: `tsh login --user=api-user --proxy=tele.example.com:443`. This will save and load `api-admin`'s `tsh` profile automatically within the Go client.
 
 4. Install `Go 1.16+` (`sudo snap go --classic` on AWS Ubuntu). Then:
 
@@ -303,56 +323,58 @@ Let's connect to the Teleport API using a simple role-based authentication metho
    go get github.com/gravitational/teleport/api/client
    ```
    
-5. Create a file `main.go` via `sudo touch main.go` followed by `sudo nano main.go`. Copy the following Go script into `main.go` modifying the `Addrs` strings as needed:
+5. Create a file `main.go` with the following command, modifying the `Addrs` strings as needed:
 
-   ```go
+   ```bash
+   cat > main.go << 'EOF'
    package main
 
    import (
-       "context"
-       "log"
-       "github.com/gravitational/teleport/api/client"
+      "context"
+      "log"
+      "github.com/gravitational/teleport/api/client"
    )
 
    func main() {
-       ctx := context.Background()
+      ctx := context.Background()
 
-       clt, err := client.New(ctx, client.Config{
-           Addrs: []string{
-               "auth.go-teleport.com:443",
-               "auth.go-teleport.com:3025",
-               "auth.go-teleport.com:3024",
-               "auth.go-telport.com:3080",
-           },
-           Credentials: []client.Credentials{
-               client.LoadProfile("", ""),
-           },
-       })
+      clt, err := client.New(ctx, client.Config{
+         Addrs: []string{
+            "tele.example.com:443",
+            "tele.example.com:3025",
+            "tele.example.com:3024",
+            "tele.example.com:3080",
+        },
+         Credentials: []client.Credentials{
+            client.LoadProfile("", ""),
+         },
+      })
 
-       if err != nil {
-           log.Fatalf("Failed to create client: %v", err)
-       }
+      if err != nil {
+         log.Fatalf("Failed to create client: %v", err)
+      }
 
-       defer clt.Close()
+      defer clt.Close()
 
-       resp, err := clt.Ping(ctx)
+      resp, err := clt.Ping(ctx)
 
-       if err != nil {
-           log.Fatalf("Failed to ping server: %v", err)
-       }
+      if err != nil {
+         log.Fatalf("Failed to ping server: %v", err)
+      }
 
-       log.Printf("Example success!")
-       log.Printf("Server response: %s", resp)
-       log.Printf("Server version: %s", resp.ServerVersion)
+      log.Printf("Example success!")
+      log.Printf("Server response: %s", resp)
+      log.Printf("Server version: %s", resp.ServerVersion)
    }
+   EOF
    ```
 
 6. Execute: `go run main.go`. On success:
 
    ```bash
-   2021/05/04 17:43:24 Example success!
-   2021/05/04 17:43:24 Server response: {api.go-teleport.com 6.1.3 Kubernetes:true App:true DB:true  api.go-teleport.com:443 {}  %!s(int32=0)}
-   2021/05/04 17:43:24 Server version: 6.1.3
+   2021/05/06 17:37:09 Example success!
+   2021/05/06 17:37:09 Server response: {tele.go-teleport.com 6.1.5 Kubernetes:true App:true DB:true  tele.go-teleport.com:443 {}  %!s(int32=0)}
+   2021/05/06 17:37:09 Server version: 6.1.5  
    ```
 
    Note the client `resp` object which contains configuration information.
@@ -365,9 +387,7 @@ This Getting Started Guide walked through:
 
 1. How to set up and add an SSH Node to a cluster.
 2. Connect to the cluster using `tsh` to manage and introspect resources.
-3. Set up GitHub SSO and authenticate through `tsh` using SAML.
-4. Describe use scenarios for short-lived certificates and `tctl auth` roles.
-5. How to connect to Teleport API programmatically.
+3. How to connect to the Teleport API programmatically.
 
 Feel free to shut down, clean up, and delete your resources or use them in further Getting Started exercises.
 

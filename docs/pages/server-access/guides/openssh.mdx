@@ -1,6 +1,6 @@
 ---
-title: Using Teleport with OpenSSH
-description: How to use Teleport on legacy systems with OpenSSH and sshd
+title: Using Teleport with OpenSSH | Teleport Docs
+description: How to use Teleport on legacy systems with OpenSSH and sshd.
 ---
 
 Teleport is fully compatible with OpenSSH and can be quickly set up to record and
@@ -24,6 +24,10 @@ existing SSH implementations, such as OpenSSH. This section will cover:
   You can view your OpenSSH version with `ssh -V`.
 </Admonition>
 
+<Admonition type="warning" title="Warning">
+  The examples below may include the use of the `sudo` keyword to make following each step easier when creating resources from scratch. However, we generally discourage the use of `sudo` in **real-world production environments** per the *Principle of Least Privilege* (POLP). 
+</Admonition>
+
 ### Follow along with our video guide
 
 <iframe
@@ -37,7 +41,19 @@ existing SSH implementations, such as OpenSSH. This section will cover:
 
 ## Architecture
 
-![Teleport OpenSSH Recording Proxy](../../../img/openssh-proxy.svg)
+<Figure
+  align="center"
+  bordered
+  caption="Teleport OpenSSH Recording Proxy"
+>
+  <Image
+    alt=""
+    height="265"
+    src="../../../img/openssh-proxy.svg"
+    unoptimized
+    width="581"
+  />
+</Figure>
 
 The recording proxy mode, although less secure, was added to allow Teleport users
 to enable session recording for OpenSSH's servers running `sshd`, which is helpful

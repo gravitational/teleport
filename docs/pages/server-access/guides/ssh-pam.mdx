@@ -1,6 +1,6 @@
 ---
-title: Configuring Teleport SSH with PAM (pluggable authentication modules)
-description: How to configure Teleport SSH access to play nicely with PAM (pluggable authentication modules)
+title: Configure SSH with Pluggable Authentication Modules | Teleport Docs
+description: How to configure Teleport SSH with PAM (Pluggable Authentication Modules).
 h1: Pluggable Authentication Modules (PAM)
 ---
 
@@ -42,6 +42,10 @@ facilities: authentication, account management, session management, and password
 management.
 
 Teleport currently supports account management and session management.
+
+<Admonition type="warning" title="Warning">
+  The examples below may include the use of the `sudo` keyword to make following each step easier when creating resources from scratch. However, we generally discourage the use of `sudo` in **real-world production environments** per the *Principle of Least Privilege* (POLP). 
+</Admonition>
 
 ## Setting up PAM on a Linux Machine running Teleport
 
@@ -118,7 +122,19 @@ ssh_service:
      enabled: false
 ```
 
-![Teleport SSH without MOTD](../../../img/motd/teleport-no-MOTD.png)
+<Figure
+  align="center"
+  bordered
+  caption="Teleport SSH without MOTD"
+>
+  <Image
+    alt=""
+    height="265"
+    src="../../../img/motd/teleport-no-MOTD.png"
+    unoptimized
+    width="581"
+  />
+</Figure>
 
 ### Example node with PAM enabled
 
@@ -140,7 +156,19 @@ ssh_service:
      enabled: true
 ```
 
-![Teleport SSH with MOTD](../../../img/motd/teleport-with-MOTD.png)
+<Figure
+  align="center"
+  bordered
+  caption="Teleport SSH with MOTD"
+>
+  <Image
+    alt=""
+    height="265"
+    src="../../../img/motd/teleport-with-MOTD.png"
+    unoptimized
+    width="581"
+  />
+</Figure>
 
 When PAM is enabled it will use the default `sshd` config file. This can differ per
 distro.
@@ -233,7 +261,19 @@ $ cat /etc/motd
 WARNING: All activity on this node is being recorded by Teleport
 ```
 
-![Teleport SSH with updated MOTD](../../../img/motd/teleport-with-updated-MOTD.png)
+<Figure
+  align="center"
+  bordered
+  caption="Teleport SSH with updated MOTD"
+>
+  <Image
+    alt=""
+    height="265"
+    src="../../../img/motd/teleport-with-updated-MOTD.png"
+    unoptimized
+    width="581"
+  />
+</Figure>
 
 ## Creating local users with Teleport
 

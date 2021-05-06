@@ -43,9 +43,9 @@
           "title": "Guides",
           "slug": "/server-access/guides/",
           "entries": [
-            { "title": "SSH", "slug": "/server-access/guides/teleport-ssh/" },
+            { "title": "SSH", "slug": "/server-access/guides/ssh/" },
             { "title": "Using Teleport with PAM", "slug": "/server-access/guides/ssh-pam/" },
-            { "title": "OpenSSH Guide", "slug": "/server-access/guides/openssh-teleport/" }
+            { "title": "OpenSSH Guide", "slug": "/server-access/guides/openssh/" }
           ]
         }
       ]
@@ -140,7 +140,7 @@
           "slug": "/enterprise/quickstart-enterprise/"
         },
         { "title": "Single Sign-On (SSO)", "slug": "/enterprise/sso/ssh-sso/" },
-        { "title": "Access Workflows", "slug": "/enterprise/workflow/" },
+        { "title": "Access Requests", "slug": "/enterprise/workflow/" },
         {
           "title": "FedRAMP for SSH & K8s",
           "slug": "/enterprise/ssh-kubernetes-fedramp/"
@@ -264,7 +264,7 @@
     },
     {
       "source": "/openssh-teleport/",
-      "destination": "/server-access/guides/openssh-teleport/",
+      "destination": "/server-access/guides/openssh/",
       "permanent": true
     }
   ]
