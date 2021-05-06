@@ -259,7 +259,7 @@ func (s *ProxyServer) Proxy(ctx context.Context, clientConn, serviceConn io.Read
 	for i := 0; i < 2; i++ {
 		select {
 		case err := <-errCh:
-			if err != nil && !trace.IsEOF(err) && !strings.Contains(err.Error(), teleport.UseOfClosedNetworkConnection) {
+			if err != nil && !utils.IsOKNetworkError(err) {
 				s.log.WithError(err).Warn("Connection problem.")
 				errs = append(errs, err)
 			}

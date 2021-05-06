@@ -30,7 +30,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
@@ -85,9 +85,9 @@ func (p *cliModules) IsBoringBinary() bool {
 }
 
 func TestFailedLogin(t *testing.T) {
-	os.RemoveAll(apiclient.FullProfilePath(""))
+	os.RemoveAll(profile.FullProfilePath(""))
 	t.Cleanup(func() {
-		os.RemoveAll(apiclient.FullProfilePath(""))
+		os.RemoveAll(profile.FullProfilePath(""))
 	})
 
 	connector := mockConnector(t)
@@ -117,9 +117,9 @@ func TestFailedLogin(t *testing.T) {
 }
 
 func TestOIDCLogin(t *testing.T) {
-	os.RemoveAll(apiclient.FullProfilePath(""))
+	os.RemoveAll(profile.FullProfilePath(""))
 	t.Cleanup(func() {
-		os.RemoveAll(apiclient.FullProfilePath(""))
+		os.RemoveAll(profile.FullProfilePath(""))
 	})
 
 	modules.SetModules(&cliModules{})
@@ -213,9 +213,9 @@ func TestOIDCLogin(t *testing.T) {
 }
 
 func TestRelogin(t *testing.T) {
-	os.RemoveAll(apiclient.FullProfilePath(""))
+	os.RemoveAll(profile.FullProfilePath(""))
 	t.Cleanup(func() {
-		os.RemoveAll(apiclient.FullProfilePath(""))
+		os.RemoveAll(profile.FullProfilePath(""))
 	})
 
 	connector := mockConnector(t)
@@ -271,9 +271,9 @@ func TestRelogin(t *testing.T) {
 }
 
 func TestMakeClient(t *testing.T) {
-	os.RemoveAll(apiclient.FullProfilePath(""))
+	os.RemoveAll(profile.FullProfilePath(""))
 	t.Cleanup(func() {
-		os.RemoveAll(apiclient.FullProfilePath(""))
+		os.RemoveAll(profile.FullProfilePath(""))
 	})
 
 	var conf CLIConf

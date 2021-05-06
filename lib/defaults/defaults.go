@@ -132,6 +132,10 @@ const (
 	// for the response headers to arrive
 	ReadHeadersTimeout = time.Second
 
+	// HandshakeReadDeadline is the default time to wait for the client during
+	// the TLS handshake.
+	HandshakeReadDeadline = 5 * time.Second
+
 	// SignupTokenTTL is a default TTL for a web signup one time token
 	SignupTokenTTL = time.Hour
 
