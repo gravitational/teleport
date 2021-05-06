@@ -308,11 +308,6 @@ func (i *ExternalIdentity) String() string {
 	return fmt.Sprintf("OIDCIdentity(connectorID=%v, username=%v)", i.ConnectorID, i.Username)
 }
 
-// Equals returns true if this identity equals to passed one
-func (i *ExternalIdentity) Equals(other *ExternalIdentity) bool {
-	return i.ConnectorID == other.ConnectorID && i.Username == other.Username
-}
-
 // Check returns nil if all parameters are great, err otherwise
 func (i *ExternalIdentity) Check() error {
 	if i.ConnectorID == "" {

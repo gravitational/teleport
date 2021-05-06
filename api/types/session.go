@@ -581,8 +581,3 @@ func (f *WebSessionFilter) Match(session WebSession) bool {
 	}
 	return true
 }
-
-// Equals compares two filters.
-func (f *WebSessionFilter) Equals(o WebSessionFilter) bool {
-	return f.User == o.User
-}
