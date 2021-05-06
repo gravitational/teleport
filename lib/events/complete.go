@@ -57,7 +57,7 @@ func (cfg *UploadCompleterConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter Uploader")
 	}
 	if cfg.GracePeriod == 0 {
-		cfg.GracePeriod = 1 * defaults.UploadGracePeriod
+		cfg.GracePeriod = defaults.UploadGracePeriod
 	}
 	if cfg.Component == "" {
 		cfg.Component = teleport.ComponentAuth
