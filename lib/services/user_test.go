@@ -231,7 +231,7 @@ func (s *UserSuite) TestOIDCMapping(c *check.C) {
 		},
 	}
 
-	for i, testCase := range testCases[len(testCases)-1:] {
+	for i, testCase := range testCases {
 		conn := OIDCConnectorV2{
 			Spec: OIDCConnectorSpecV2{
 				ClaimsToRoles: testCase.mappings,
