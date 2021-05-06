@@ -57,13 +57,13 @@ func (cfg *UploadCompleterConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter Uploader")
 	}
 	if cfg.GracePeriod == 0 {
-		cfg.GracePeriod = 1 * time.Minute //defaults.UploadGracePeriod
+		cfg.GracePeriod = 1 * defaults.UploadGracePeriod
 	}
 	if cfg.Component == "" {
 		cfg.Component = teleport.ComponentAuth
 	}
 	if cfg.CheckPeriod == 0 {
-		cfg.CheckPeriod = 1 * time.Minute //defaults.LowResPollingPeriod
+		cfg.CheckPeriod = defaults.LowResPollingPeriod
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
