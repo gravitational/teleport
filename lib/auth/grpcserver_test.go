@@ -567,7 +567,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 			Hostname: "node-a",
 		},
 	}
-	_, err = srv.Auth().UpsertNode(node)
+	_, err = srv.Auth().UpsertNode(ctx, node)
 	require.NoError(t, err)
 	// Register a k8s cluster.
 	k8sSrv := &types.ServerV2{
@@ -893,7 +893,7 @@ func TestIsMFARequired(t *testing.T) {
 			Hostname: "node-a",
 		},
 	}
-	_, err = srv.Auth().UpsertNode(node)
+	_, err = srv.Auth().UpsertNode(ctx, node)
 	require.NoError(t, err)
 
 	// Create a fake user.

@@ -350,7 +350,7 @@ func (a *Middleware) UnaryInterceptor(ctx context.Context, req interface{}, info
 	}
 	user, err := a.GetUser(tlsInfo.State)
 	if err != nil {
-		return nil, trail.FromGRPC(err)
+		return nil, trail.ToGRPC(err)
 	}
 	return handler(context.WithValue(ctx, ContextUser, user), req)
 }
