@@ -14,13 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package services
+package roleset
 
 import (
 	"strings"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services/ruleset"
 
 	"github.com/gravitational/trace"
 	"github.com/vulcand/predicate"
@@ -39,11 +40,11 @@ type impersonateContext struct {
 // getIdentifier returns identifier defined in a context
 func (ctx *impersonateContext) getIdentifier(fields []string) (interface{}, error) {
 	switch fields[0] {
-	case UserIdentifier:
+	case ruleset.UserIdentifier:
 		return predicate.GetFieldByTag(ctx.user, teleport.JSON, fields[1:])
-	case ImpersonateUserIdentifier:
+	case ruleset.ImpersonateUserIdentifier:
 		return predicate.GetFieldByTag(ctx.impersonateUser, teleport.JSON, fields[1:])
-	case ImpersonateRoleIdentifier:
+	case ruleset.ImpersonateRoleIdentifier:
 		return predicate.GetFieldByTag(ctx.impersonateRole, teleport.JSON, fields[1:])
 	default:
 		return nil, trace.NotFound("%v is not defined", strings.Join(fields, "."))
@@ -80,6 +81,6 @@ func newImpersonateWhereParser(ctx *impersonateContext) (predicate.Parser, error
 			"contains": predicate.Contains,
 		},
 		GetIdentifier: ctx.getIdentifier,
-		GetProperty:   GetStringMapValue,
+		GetProperty:   ruleset.GetStringMapValue,
 	})
 }

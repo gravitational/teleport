@@ -18,6 +18,8 @@ package services
 
 import (
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services/roleset"
+	"github.com/gravitational/teleport/lib/services/ruleset"
 )
 
 // The following types, functions, and constants have been moved to /api/types, and are now imported here
@@ -509,4 +511,31 @@ const (
 	VerbUpdate                    = types.VerbUpdate
 	VerbDelete                    = types.VerbDelete
 	VerbRotate                    = types.VerbRotate
+)
+
+type (
+	Context       = ruleset.Context
+	EmptyResource = ruleset.EmptyResource
+	RuleSet       = ruleset.RuleSet
+)
+
+const (
+	UserIdentifier            = ruleset.UserIdentifier
+	ResourceIdentifier        = ruleset.ResourceIdentifier
+	ImpersonateRoleIdentifier = ruleset.ImpersonateRoleIdentifier
+	ImpersonateUserIdentifier = ruleset.ImpersonateUserIdentifier
+)
+
+var (
+	ResourceNameExpr      = ruleset.ResourceNameExpr
+	CertAuthorityTypeExpr = ruleset.CertAuthorityTypeExpr
+)
+
+type (
+	RoleSet               = roleset.RoleSet
+	DatabaseLabelsMatcher = roleset.DatabaseLabelsMatcher
+	DatabaseUserMatcher   = roleset.DatabaseUserMatcher
+	AccessMFAParams       = roleset.AccessMFAParams
+	DatabaseNameMatcher   = roleset.DatabaseNameMatcher
+	AccessChecker         = roleset.AccessChecker
 )

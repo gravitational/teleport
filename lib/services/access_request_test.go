@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/services/ruleset"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
@@ -596,7 +597,7 @@ func TestThresholdReviewFilter(t *testing.T) {
 	}
 
 	for _, tt := range tts {
-		parser, err := NewJSONBoolParser(tt.ctx)
+		parser, err := ruleset.NewJSONBoolParser(tt.ctx)
 		require.NoError(t, err)
 		for _, expr := range tt.willMatch {
 			result, err := parser.EvalBoolPredicate(expr)

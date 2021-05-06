@@ -14,13 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package services
+package roleset
 
 import (
 	"fmt"
 	"testing"
 
 	"github.com/gravitational/teleport/api/types"
+	. "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/gravitational/trace"

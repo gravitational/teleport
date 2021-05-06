@@ -32,6 +32,8 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/services/roleset"
+	"github.com/gravitational/teleport/lib/services/ruleset"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -1495,7 +1497,7 @@ func TestCheckRuleSorting(t *testing.T) {
 	}
 	for i, tc := range testCases {
 		comment := fmt.Sprintf("test case %v '%v'", i, tc.name)
-		out := MakeRuleSet(tc.rules)
+		out := ruleset.MakeRuleSet(tc.rules)
 		require.Equal(t, tc.set, out, comment)
 	}
 }
@@ -2075,7 +2077,7 @@ func TestBoolOptions(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		set := NewRoleSet(&RoleV3{
+		set := roleset.NewRoleSet(&RoleV3{
 			Kind:    KindRole,
 			Version: V3,
 			Metadata: Metadata{

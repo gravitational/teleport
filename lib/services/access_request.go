@@ -24,6 +24,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services/ruleset"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
 
@@ -206,7 +207,7 @@ type reviewPermissionContext struct {
 // backwards compatibility with older nodes/proxies (which never need to evaluate
 // these predicates).
 func ValidateAccessPredicates(role Role) error {
-	tp, err := NewJSONBoolParser(thresholdFilterContext{})
+	tp, err := ruleset.NewJSONBoolParser(thresholdFilterContext{})
 	if err != nil {
 		return trace.Wrap(err, "failed to build empty threshold predicate parser (this is a bug)")
 	}
@@ -228,7 +229,7 @@ func ValidateAccessPredicates(role Role) error {
 		}
 	}
 
-	rp, err := NewJSONBoolParser(reviewPermissionContext{})
+	rp, err := ruleset.NewJSONBoolParser(reviewPermissionContext{})
 	if err != nil {
 		return trace.Wrap(err, "failed to build empty review predicate parser (this is a bug)")
 	}
@@ -392,8 +393,8 @@ func accessReviewThresholdMatchesFilter(t types.AccessReviewThreshold, parser pr
 
 // newThresholdFilterParser creates a custom parser context which exposes a simplified view of the review author
 // and the request for evaluation of review threshold filters.
-func newThresholdFilterParser(req AccessRequest, rev types.AccessReview, author User) (BoolPredicateParser, error) {
-	return NewJSONBoolParser(thresholdFilterContext{
+func newThresholdFilterParser(req AccessRequest, rev types.AccessReview, author User) (ruleset.BoolPredicateParser, error) {
+	return ruleset.NewJSONBoolParser(thresholdFilterContext{
 		Reviewer: reviewAuthorContext{
 			Roles:  author.GetRoles(),
 			Traits: author.GetTraits(),
@@ -659,7 +660,7 @@ func (c *ReviewPermissionChecker) CanReviewRequest(req AccessRequest) (bool, err
 	// called, so get the role list once in advance.
 	requestedRoles := req.GetOriginalRoles()
 
-	parser, err := NewJSONBoolParser(reviewPermissionContext{
+	parser, err := ruleset.NewJSONBoolParser(reviewPermissionContext{
 		Reviewer: reviewAuthorContext{
 			Roles:  c.User.GetRoles(),
 			Traits: c.User.GetTraits(),

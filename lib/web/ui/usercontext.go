@@ -21,6 +21,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/roleset"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -115,7 +116,7 @@ func getLogins(roleSet services.RoleSet) []string {
 	denied = utils.Deduplicate(denied)
 	userLogins := []string{}
 	for _, login := range allowed {
-		loginMatch, _ := services.MatchLogin(denied, login)
+		loginMatch, _ := roleset.MatchLogin(denied, login)
 		if !loginMatch {
 			userLogins = append(userLogins, login)
 		}
