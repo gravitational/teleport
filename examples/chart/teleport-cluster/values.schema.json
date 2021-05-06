@@ -11,12 +11,14 @@
         "image",
         "enterpriseImage",
         "logLevel",
+        "affinity",
         "annotations",
         "extraVolumes",
         "extraVolumeMounts",
         "imagePullPolicy",
         "initContainers",
-        "resources"
+        "resources",
+        "tolerations"
     ],
     "properties": {
         "clusterName": {
@@ -216,6 +218,11 @@
             "enum": ["DEBUG", "INFO", "WARN", "WARNING", "ERROR"],
             "default": "INFO"
         },
+        "affinity": {
+            "$id": "#/properties/affinity",
+            "type": "object",
+            "default": {}
+        },
         "annotations": {
             "$id": "#/properties/annotations",
             "type": "object",
@@ -284,6 +291,11 @@
             "$id": "#/properties/resources",
             "type": "object",
             "default": {}
+        },
+        "tolerations": {
+            "$id": "#/properties/tolerations",
+            "type": "array",
+            "default": []
         }
     }
 }

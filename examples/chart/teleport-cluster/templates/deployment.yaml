@@ -35,23 +35,34 @@ spec:
       labels:
         app: {{ .Release.Name }}
     spec:
-      {{- if and (gt (int .Values.highAvailability.replicaCount) 1) (not (eq .Values.chartMode "standalone")) }}
+      {{- if or .Values.affinity (gt (int .Values.highAvailability.replicaCount) 1) }}
       affinity:
-        podAntiAffinity:
+        {{- if .Values.affinity }}
           {{- if .Values.highAvailability.requireAntiAffinity }}
-          requiredDuringSchedulingIgnoredDuringExecution:
-          {{- else }}
-          preferredDuringSchedulingIgnoredDuringExecution:
+            {{- fail "Cannot use highAvailability.requireAntiAffinity when affinity is also set in chart values - unset one or the other" }}
           {{- end }}
-          - weight: 50
-            podAffinityTerm:
-              labelSelector:
-                matchExpressions:
-                - key: app
-                  operator: In
-                  values:
-                  - {{ .Release.Name }}
-              topologyKey: "kubernetes.io/hostname"
+          {{- toYaml .Values.affinity | nindent 8 }}
+        {{- else }}
+        podAntiAffinity:
+        {{- if .Values.highAvailability.requireAntiAffinity }}
+        requiredDuringSchedulingIgnoredDuringExecution:
+        {{- else if and (gt (int .Values.highAvailability.replicaCount) 1) (not (eq .Values.chartMode "standalone")) }}
+        preferredDuringSchedulingIgnoredDuringExecution:
+        {{- end }}
+        - weight: 50
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - {{ .Release.Name }}
+            topologyKey: "kubernetes.io/hostname"
+        {{- end }}
+      {{- end }}
+      {{- if .Values.tolerations }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 6 }}
       {{- end }}
 {{- if .Values.initContainers }}
       initContainers: {{- toYaml .Values.initContainers | nindent 6 }}

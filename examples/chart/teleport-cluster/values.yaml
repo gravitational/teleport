@@ -146,6 +146,11 @@ logLevel: INFO
 # Extra Kubernetes configuration #
 ##################################
 
+# Affinity for pod assignment
+# https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+# NOTE: If affinity is set here, highAvailability.requireAntiAffinity cannot also be used - you can only set one or the other.
+affinity: {}
+
 # Kubernetes annotations to apply
 # https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
 annotations:
@@ -191,3 +196,7 @@ resources: {}
 #  requests:
 #    cpu: "1"
 #    memory: "2Gi"
+
+# Tolerations for pod assignment
+# https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+tolerations: []
