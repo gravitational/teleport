@@ -538,7 +538,6 @@ func FilterSessionEndEvents(events []EventFields) ([]EventFields, error) {
 	filtered := make([]EventFields, 0)
 	unrecordedSessionIDs := make([]string, 0)
 	for _, ef := range events {
-
 		// If event type is session.start, check to see if the recording type is off
 		if ef.GetType() == SessionStartEvent {
 			if sessionRecordingType, found := ef[SessionRecordingType]; found {
@@ -548,7 +547,6 @@ func FilterSessionEndEvents(events []EventFields) ([]EventFields, error) {
 						return filtered, trace.BadParameter("session ID is not of type string")
 					}
 					unrecordedSessionIDs = append(unrecordedSessionIDs, sessionID)
-
 				}
 			}
 			// If event type is session.end, check to see if session ID is in the unrecorded sid slice
