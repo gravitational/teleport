@@ -399,7 +399,7 @@ version: v3
 - [ ] Verify you can't review own requests
 
 ### Viewing & Approving/Denying Requests
-Create a user with the role `reviewer` that allows you to review all requests, and delete them. 
+Create a user with the role `reviewer` that allows you to review all requests, and delete them.
 ```
 kind: role
 version: v3
