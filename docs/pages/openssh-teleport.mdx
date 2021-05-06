@@ -39,7 +39,6 @@ We consider the "recording proxy mode" to be less secure for two reasons:
   less critical to the security of the overall cluster. But if an attacker gains
   physical access to a proxy node running in the "recording" mode, they will be able
   to see the decrypted traffic and client keys stored in proxy's process memory.
-
 - Recording proxy mode requires the use of SSH agent forwarding. Agent forwarding is required
   because without it, a proxy will not be able to establish the 2nd connection to the
   destination node.
@@ -175,8 +174,8 @@ $ ssh -o "ForwardAgent yes" \
   type="tip"
   title="Tip"
 >
-  To avoid typing all this and use the usual `ssh user@host.example.com `, users
-  can update their ` ~/.ssh/config` file.
+  To avoid typing all this and use the usual `ssh user@host.example.com`, users
+  can update their `~/.ssh/config` file.
 </Admonition>
 
 ### Setup SSH agent forwarding

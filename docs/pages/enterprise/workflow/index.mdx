@@ -168,7 +168,7 @@ spec:
       # external identity provider to the plugin system.
       annotations:
         foo: ['bar']
-        groups: ['{% raw %}{{external.groups}}{% endraw %}']
+        groups: ['{{external.groups}}']
   options:
     # the `request_access` field can be set to 'always' or 'reason' to tell
     # tsh or the web UI to always create an access request on login. If it is
@@ -191,9 +191,9 @@ version: v3
 
   `^prod.*$` - Can request all `prod.*` clusters. e.g. prod.us-east
 
-  `dev-{% raw %}{{regexp.match("us-*")}}{% endraw %}` - Can request any dev cluster in the US. e.g. dev-us-east-a, dev-us-west-b
+  `dev-{{regexp.match("us-*")}}` - Can request any dev cluster in the US. e.g. dev-us-east-a, dev-us-west-b
 
-  `dev-{% raw %}{{regexp.not_match("beta")}}{% endraw %}-prod` - Can request any cluster, apart from beta cluster. e.g. Can access dev-alpha-prod, cannot access dev-beta-prod.
+  `dev-{{regexp.not_match("beta")}}-prod` - Can request any cluster, apart from beta cluster. e.g. Can access dev-alpha-prod, cannot access dev-beta-prod.
 </Admonition>
 
 **Unprivileged User Login**<br/>
