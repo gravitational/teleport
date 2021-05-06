@@ -563,6 +563,43 @@ The default is `INFO`, which is recommended in production.
   </TabItem>
 </Tabs>
 
+## `affinity`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `object` | `{}` | ✅ |
+
+Kubernetes reference: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+
+Kubernetes affinity to set for pod assignments.
+
+<Admonition type="note">
+  You cannot set both `affinity` and `highAvailability.requireAntiAffinity` as they conflict with each other. Only set one or the other.
+</Admonition>
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: gravitational.io/dedicated
+            operator: In
+            values:
+            - teleport
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].key=gravitational.io/dedicated \
+  --set affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].operator=In \
+  --set affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values[0]=teleport
+  ```
+  </TabItem>
+</Tabs>
+
 ## `annotations.config`
 
 | Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
@@ -836,6 +873,36 @@ will also be applied to `initContainers`.
   ```shell
   --set resources.requests.cpu=1 \
   --set resources.requests.memory=2Gi
+  ```
+  </TabItem>
+</Tabs>
+
+## `tolerations`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `list` | `[]` | ✅  |
+
+Kubernetes reference: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+
+Kubernetes Tolerations to set for pod assignment.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  tolerations:
+  - key: "dedicated"
+    operator: "Equal"
+    value: "teleport"
+    effect: "NoSchedule"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set tolerations[0].key=dedicated \
+  --set tolerations[0].operator=Equal \
+  --set tolerations[0].value=teleport \
+  --set tolerations[0].effect=NoSchedule
   ```
   </TabItem>
 </Tabs>
@@ -1427,6 +1494,43 @@ The default is `INFO`, which is recommended in production.
   </TabItem>
 </Tabs>
 
+## `affinity`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `object` | `{}` | ✅ |
+
+Kubernetes reference: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+
+Kubernetes affinity to set for pod assignments.
+
+<Admonition type="note">
+  You cannot set both `affinity` and `highAvailability.requireAntiAffinity` as they conflict with each other. Only set one or the other.
+</Admonition>
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: gravitational.io/dedicated
+            operator: In
+            values:
+            - teleport
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].key=gravitational.io/dedicated \
+  --set affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].operator=In \
+  --set affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values[0]=teleport
+  ```
+  </TabItem>
+</Tabs>
+
 ## `annotations.config`
 
 | Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
@@ -1649,6 +1753,36 @@ will also be applied to `initContainers`.
   ```shell
   --set resources.requests.cpu=1 \
   --set resources.requests.memory=2Gi
+  ```
+  </TabItem>
+</Tabs>
+
+## `tolerations`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `list` | `[]` | ✅  |
+
+Kubernetes reference: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+
+Kubernetes Tolerations to set for pod assignment.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  tolerations:
+  - key: "dedicated"
+    operator: "Equal"
+    value: "teleport"
+    effect: "NoSchedule"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set tolerations[0].key=dedicated \
+  --set tolerations[0].operator=Equal \
+  --set tolerations[0].value=teleport \
+  --set tolerations[0].effect=NoSchedule
   ```
   </TabItem>
 </Tabs>
