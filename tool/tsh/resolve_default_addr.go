@@ -37,6 +37,13 @@ type raceResult struct {
 	err  error
 }
 
+// maxPingBodySize represents the absolute maximum number of bytes that we will
+// read from a ping response body before abandoning the read. A minimal ping
+// response is about 256 bytes, so this should be more than enough for a valid
+// response without being too onerous on the client side if we hit a non-
+// teleport responder by mistake.
+const maxPingBodySize = 16 * 1024
+
 // logResponseBody reads and dumps a response body to the log at the supplied
 // level. Note that it is still the caller's responsibility to close the body
 // stream.
@@ -49,14 +56,14 @@ func logResponseBody(level logrus.Level, bodyStream io.Reader) {
 	//     context originally supplied to the request that initiated this
 	//     response, so no need to have an independent reading timeout
 	//     here.
-	body, err := ioutil.ReadAll(bodyStream)
+	body, err := ioutil.ReadAll(io.LimitReader(bodyStream, maxPingBodySize))
 	if err != nil {
 		// This is only for debugging purposes, so it's safe to just give up here.
-		log.WithError(err).Debug("Failed to read body stream")
+		log.WithError(err).Debug("Could not read failed racer response body")
 		return
 	}
 
-	log.Logf(level, "Response body: %q", body)
+	log.Logf(level, "Failed racer response body: %q", body)
 }
 
 // raceRequest drives an HTTP request to completion and posts the results back
@@ -66,29 +73,32 @@ func raceRequest(ctx context.Context, cli *http.Client, addr string, waitgroup *
 
 	target := fmt.Sprintf("https://%s/webapi/ping", addr)
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	if err != nil {
+		results <- raceResult{addr: addr, err: err}
+		return
+	}
 
-	if err == nil {
-		var rsp *http.Response
-		rsp, err = cli.Do(request)
-		if err == nil {
-			defer rsp.Body.Close()
+	rsp, err := cli.Do(request)
+	if err != nil {
+		log.WithError(err).Debug("Race request failed")
+		results <- raceResult{addr: addr, err: err}
+		return
+	}
+	defer rsp.Body.Close()
 
-			// If the request returned a non-OK response then we're still going
-			// to treat this as a failure and return an error to the race
-			// aggregator.
-			if rsp.StatusCode != http.StatusOK {
-				log.Debugf("Racer received non-OK response: %03d", rsp.StatusCode)
-				logResponseBody(logrus.DebugLevel, rsp.Body)
-
-				err = trace.BadParameter("Received non-ok response: %03d", rsp.StatusCode)
-			}
-		} else {
-			log.WithError(err).Debug("Race request failed")
-		}
+	// If the request returned a non-OK response then we're still going
+	// to treat this as a failure and return an error to the race
+	// aggregator.
+	if rsp.StatusCode != http.StatusOK {
+		err = trace.BadParameter("Racer received non-OK response: %03d", rsp.StatusCode)
+		log.Debug(err.Error())
+		logResponseBody(logrus.DebugLevel, rsp.Body)
+		results <- raceResult{addr: addr, err: err}
+		return
 	}
 
 	// Post the results back to the caller so they can be aggregated.
-	results <- raceResult{addr: addr, err: err}
+	results <- raceResult{addr: addr}
 }
 
 // startRacer starts the asynchronous execution of a single request, and keeps
