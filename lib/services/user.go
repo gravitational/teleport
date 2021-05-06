@@ -21,8 +21,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ValidateUser validates the User and sets default values
@@ -40,37 +44,12 @@ func ValidateUser(u User) error {
 
 // UsersEquals checks if the users are equal
 func UsersEquals(u User, other User) bool {
-	if u.GetName() != other.GetName() {
-		return false
-	}
-	otherIdentities := other.GetOIDCIdentities()
-	if len(u.GetOIDCIdentities()) != len(otherIdentities) {
-		return false
-	}
-	for i := range u.GetOIDCIdentities() {
-		if !u.GetOIDCIdentities()[i].Equals(&otherIdentities[i]) {
-			return false
-		}
-	}
-	otherSAMLIdentities := other.GetSAMLIdentities()
-	if len(u.GetSAMLIdentities()) != len(otherSAMLIdentities) {
-		return false
-	}
-	for i := range u.GetSAMLIdentities() {
-		if !u.GetSAMLIdentities()[i].Equals(&otherSAMLIdentities[i]) {
-			return false
-		}
-	}
-	otherGithubIdentities := other.GetGithubIdentities()
-	if len(u.GetGithubIdentities()) != len(otherGithubIdentities) {
-		return false
-	}
-	for i := range u.GetGithubIdentities() {
-		if !u.GetGithubIdentities()[i].Equals(&otherGithubIdentities[i]) {
-			return false
-		}
-	}
-	return LocalAuthSecretsEquals(u.GetLocalAuth(), other.GetLocalAuth())
+	return cmp.Equal(u, other,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.SortSlices(func(a, b *types.MFADevice) bool {
+			return a.Metadata.Name < b.Metadata.Name
+		}),
+	)
 }
 
 // LoginAttempt represents successful or unsuccessful attempt for user to login

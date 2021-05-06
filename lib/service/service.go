@@ -47,7 +47,9 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
@@ -293,6 +295,9 @@ type TeleportProcess struct {
 	// appDependCh is used by application service in single process mode to block
 	// until auth and reverse tunnel servers are ready.
 	appDependCh chan Event
+
+	// clusterFeatures contain flags for supported and unsupported features.
+	clusterFeatures proto.Features
 }
 
 type keyPairKey struct {
@@ -353,6 +358,22 @@ func (process *TeleportProcess) addConnector(connector *Connector) {
 	defer process.Unlock()
 
 	process.connectors[connector.ClientIdentity.ID.Role] = connector
+}
+
+func (process *TeleportProcess) setClusterFeatures(features *proto.Features) {
+	process.Lock()
+	defer process.Unlock()
+
+	if features != nil {
+		process.clusterFeatures = *features
+	}
+}
+
+func (process *TeleportProcess) getClusterFeatures() proto.Features {
+	process.Lock()
+	defer process.Unlock()
+
+	return process.clusterFeatures
 }
 
 // GetIdentity returns the process identity (credentials to the auth server) for a given
@@ -2271,7 +2292,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 	case cfg.Proxy.DisableWebService && cfg.Proxy.DisableReverseTunnel:
 		process.log.Debugf("Setup Proxy: Reverse tunnel proxy and web proxy are disabled.")
 		return &listeners, nil
-	case cfg.Proxy.ReverseTunnelListenAddr.Equals(cfg.Proxy.WebAddr) && !cfg.Proxy.DisableTLS:
+	case cfg.Proxy.ReverseTunnelListenAddr == cfg.Proxy.WebAddr && !cfg.Proxy.DisableTLS:
 		process.log.Debugf("Setup Proxy: Reverse tunnel proxy and web proxy listen on the same port, multiplexing is on.")
 		listener, err := process.importOrCreateListener(listenerProxyTunnelAndWeb, cfg.Proxy.WebAddr.Addr)
 		if err != nil {
@@ -2528,23 +2549,25 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				return trace.Wrap(err)
 			}
 		}
+
 		webHandler, err = web.NewHandler(
 			web.Config{
-				Proxy:          tsrv,
-				AuthServers:    cfg.AuthServers[0],
-				DomainName:     cfg.Hostname,
-				ProxyClient:    conn.Client,
-				ProxySSHAddr:   proxySSHAddr,
-				ProxyWebAddr:   cfg.Proxy.WebAddr,
-				ProxySettings:  proxySettings,
-				CipherSuites:   cfg.CipherSuites,
-				FIPS:           cfg.FIPS,
-				AccessPoint:    accessPoint,
-				Emitter:        streamEmitter,
-				PluginRegistry: process.PluginRegistry,
-				HostUUID:       process.Config.HostUUID,
-				Context:        process.ExitContext(),
-				StaticFS:       fs,
+				Proxy:           tsrv,
+				AuthServers:     cfg.AuthServers[0],
+				DomainName:      cfg.Hostname,
+				ProxyClient:     conn.Client,
+				ProxySSHAddr:    proxySSHAddr,
+				ProxyWebAddr:    cfg.Proxy.WebAddr,
+				ProxySettings:   proxySettings,
+				CipherSuites:    cfg.CipherSuites,
+				FIPS:            cfg.FIPS,
+				AccessPoint:     accessPoint,
+				Emitter:         streamEmitter,
+				PluginRegistry:  process.PluginRegistry,
+				HostUUID:        process.Config.HostUUID,
+				Context:         process.ExitContext(),
+				StaticFS:        fs,
+				ClusterFeatures: process.getClusterFeatures(),
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3014,6 +3037,13 @@ func (process *TeleportProcess) initApps() {
 			if app.Rewrite != nil {
 				a.Rewrite = &services.Rewrite{
 					Redirect: app.Rewrite.Redirect,
+				}
+				for _, header := range app.Rewrite.Headers {
+					a.Rewrite.Headers = append(a.Rewrite.Headers,
+						&types.Header{
+							Name:  header.Name,
+							Value: header.Value,
+						})
 				}
 			}
 
