@@ -1,5 +1,27 @@
 # Changelog
 
+## 6.2
+
+This release of teleport contains minor features and bugfixes.
+
+* Changed DynamoDB events backend indexing strategy. [#6583](https://github.com/gravitational/teleport/pull/6583)
+  Warning! This will trigger a data migration on the first start after upgrade. For optimal performance perform this migration with only one auth server online. It may take some time and progress will be periodically written to the auth server log. Once Teleport starts and is accessible via Web UI, the rest of the cluster may be started.
+
+## 6.1.4
+
+This release of Teleport contains multiple bug fixes.
+
+* Added additional Prometheus Metrics. [#6511](https://github.com/gravitational/teleport/pull/6511)
+* Updated the TLS handshake timeout to 5 seconds to avoid timeout issues on large clusters. [#6692](https://github.com/gravitational/teleport/pull/6692)
+* Fixed issue that caused non-interactive SSH output to show up in logs. [#6683](https://github.com/gravitational/teleport/pull/6683)
+* Fixed two issues that could cause Teleport to panic upon startup. [#6431](https://github.com/gravitational/teleport/pull/6431) [#5712](https://github.com/gravitational/teleport/pull/5712)
+
+## 6.1.3
+
+This release of Teleport contains a bug fix.
+
+* Added support for PROXY protocol to Database Access (MySQL). [#6517](https://github.com/gravitational/teleport/issues/6517)
+
 ## 6.1.2
 
 This release of Teleport contains a new feature. 
