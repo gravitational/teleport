@@ -492,8 +492,8 @@ $ sudo journalctl -fu teleport
 
 Usually, the error will be reported there. Common reasons for failure are:
 
-- Mismatched tokens, i.e. "auth_token" on the node do not match "tokens/node" value on the auth server.
-- Network issues: port `3025` is closed via iptables.
+- Mismatched tokens, i.e. "auth_token" on the node does not match "tokens/node" value on the auth server.
+- Network issues: port `3025` is closed via iptables and/or cloud provider security group rules.
 - Network issues: ports `3025` or `3022` are occupied by another process.
 - Disk issues: Teleport fails to create `/var/lib/teleport` because the volume is read-only or not accessible.
 
@@ -501,4 +501,4 @@ Usually, the error will be reported there. Common reasons for failure are:
 
 If something is not working, please reach out to us by creating a ticket in your [customer portal](https://dashboard.gravitational.com/web/login).
 Customers who have purchased the premium support package can also ping us through
-your Slack channel.
+their Slack channel.
