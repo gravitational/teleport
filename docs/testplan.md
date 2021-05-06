@@ -421,9 +421,11 @@ spec:
 - [ ] Verify assume buttons are only present for approved request and for logged in user
 - [ ] Verify that assuming `allow-roles` allows you to see roles screen and ssh into nodes
 - [ ] Verify that after clicking on the assume button, it is disabled in both the list and in viewing
-- [ ] After assuming `allow-roles`, verify that assuming `allow-users` allows you to see users screen, and denies access to nodes.
-  - [ ] Verify that after 4 minutes, the user is automatically logged out
-- [ ] Verify that after logging out (or getting logged out automatically) and relogging in, permissions are reset to `default`, and requests that are not expired and are approved are assumable again.
+- [ ] After assuming `allow-roles`, verify that assuming `allow-users` allows you to see users screen, and denies access to nodes
+  - [ ] Verify a switchback banner is rendered with roles assumed, and count down of when it expires
+  - [ ] Verify `switching back` goes back to your default static role
+  - [ ] Verify after re-assuming this role, the user is automatically logged out after the expiry is met (4 minutes)
+- [ ] Verify that after logging out (or getting logged out automatically) and relogging in, permissions are reset to `default`, and requests that are not expired and are approved are assumable again
 
 ## Access Request Waiting Room
 #### Strategy Reason
@@ -457,6 +459,8 @@ With the previous role you created from `Strategy Reason`, change `request_acces
 #### Strategy Optional
 With the previous role you created from `Strategy Reason`, change `request_access` to `optional`:
 - [ ] Verify after login, dashboard is rendered
+- [ ] Verify a switchback banner is rendered with roles assumed, and count down of when it expires
+  - [ ] Verify switchback button says `Logout` and clicking goes back to the login screen
 
 ## Account
 - [ ] Verify that Account screen is accessibly from the user menu for local users.
@@ -518,6 +522,13 @@ authentication:
   type: local
   second_factor: optional
   require_session_mfa: yes
+  u2f:
+    app_id: https://example.com:443
+    facets:
+    - https://example.com:443
+    - https://example.com
+    - example.com:443
+    - example.com
 ```
 #### MFA create, login, password reset
 - [ ] Verify when creating a user, and setting password, required 2nd factor is `totp` (TODO: temporary hack, ideally want to allow user to select)
@@ -525,8 +536,9 @@ authentication:
 - [ ] Verify at reset password page, there is the same dropdown to select your mfa, and can reset with `otp`
 
 #### MFA require auth
-Through the CLI, `tsh login` and register a u2f key with `tsh mfa add` (not supported in UI yet)
+Through the CLI, `tsh login` and register a u2f key with `tsh mfa add` (not supported in UI yet).
 
+Using the same user as above:
 - [ ] Verify logging in with registered u2f key works
 - [ ] Verify connecting to a ssh node prompts you to tap your registered u2f key
 
