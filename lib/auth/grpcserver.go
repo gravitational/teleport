@@ -2357,7 +2357,7 @@ func (g *GRPCServer) GetNode(ctx context.Context, req *types.ResourceInNamespace
 		return nil, trail.ToGRPC(trace.BadParameter("missing parameter namespace"))
 	}
 	if req.Name == "" {
-		return nil, trace.BadParameter("missing parameter name")
+		return nil, trail.ToGRPC(trace.BadParameter("missing parameter name"))
 	}
 	auth, err := g.authenticate(ctx)
 	if err != nil {
