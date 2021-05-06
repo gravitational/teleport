@@ -23,7 +23,10 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
+
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 )
@@ -140,51 +143,9 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 		u.log.Debugf("Completed upload %v.", upload)
 		completed++
 		uploadData := u.cfg.Uploader.GetUploadMetadata(upload.SessionID)
-		sessionEvents, err := u.cfg.AuditLog.GetSessionEvents(defaults.Namespace, uploadData.SessionID, 0, false)
+		err = u.emitSessionEndEvent(ctx, uploadData)
 		if err != nil {
-			continue
-		}
-		sessionStart := sessionEvents[0]
-		// getting last event to get end time
-		// lastEvent := sessionEvents[len(sessionEvents)-1]
-
-		//var startTime string
-		var serverID string
-		var clusterName string
-		//var endTime string
-		var user string
-		var login string
-		if sessionStart.GetType() == SessionStartEvent {
-			//startTime = sessionStart[EventTime].(string)
-			serverID = sessionStart[SessionServerHostname].(string)
-			clusterName = sessionStart["cluster_name"].(string)
-			user = sessionStart[EventUser].(string)
-			login = sessionStart[EventLogin].(string)
-		}
-
-		sessionEndEvent := &events.SessionEnd{
-			Metadata: events.Metadata{
-				Type:        SessionEndEvent,
-				Code:        SessionEndCode,
-				ClusterName: clusterName,
-			},
-			ServerMetadata: events.ServerMetadata{
-				ServerID: serverID,
-			},
-			SessionMetadata: events.SessionMetadata{
-				SessionID: string(uploadData.SessionID),
-			},
-			UserMetadata: events.UserMetadata{
-				User:  user,
-				Login: login,
-			},
-			// Interactive: true,  
-			// StartTime: then,
-			// EndTime: now,
-		}
-		err = u.cfg.AuditLog.EmitAuditEvent(ctx, sessionEndEvent)
-		if err != nil {
-			u.log.Debugf("Failed to emit audit event %v", err)
+			return trace.Wrap(err)
 		}
 		session := &events.SessionUpload{
 			Metadata: Metadata{
@@ -199,7 +160,7 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 		}
 		err = u.cfg.AuditLog.EmitAuditEvent(ctx, session)
 		if err != nil {
-			u.log.Debugf("Failed to emit audit event %v", err)
+			return trace.Wrap(err)
 		}
 	}
 	if completed > 0 {
@@ -212,4 +173,109 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 func (u *UploadCompleter) Close() error {
 	u.cancel()
 	return nil
+}
+
+func (u *UploadCompleter) emitSessionEndEvent(ctx context.Context, uploadData UploadMetadata) error {
+	var serverID, clusterName, user, login, hostname, namespace, serverAddr string
+	var interactive bool
+
+	// Get session events to find fields for constructed session end
+	sessionEvents, err := u.cfg.AuditLog.GetSessionEvents(defaults.Namespace, uploadData.SessionID, 0, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(sessionEvents) == 0 {
+		return nil
+	}
+	// Session start event is the first of session events
+	sessionStart := sessionEvents[0]
+
+	// Set variables
+	if sessionStart.GetType() == SessionStartEvent {
+		if _, ok := sessionStart[SessionServerHostname]; ok {
+			serverID = sessionStart[SessionServerHostname].(string)
+		}
+		if _, ok := sessionStart[SessionClusterName]; ok {
+			clusterName = sessionStart[SessionClusterName].(string)
+		}
+		if _, ok := sessionStart[SessionServerHostname]; ok {
+			hostname = sessionStart[SessionServerHostname].(string)
+		}
+		if _, ok := sessionStart[EventNamespace]; ok {
+			namespace = sessionStart[EventNamespace].(string)
+		}
+		if _, ok := sessionStart[SessionServerAddr]; ok {
+			serverAddr = sessionStart[SessionServerAddr].(string)
+		}
+		if _, ok := sessionStart[EventUser]; ok {
+			user = sessionStart[EventUser].(string)
+		}
+		if _, ok := sessionStart[EventLogin]; ok {
+			login = sessionStart[EventLogin].(string)
+		}
+		if _, ok := sessionStart[TerminalSize]; ok {
+			interactive = true
+		}
+	} else {
+		return trace.BadParameter("session start does not exist")
+	}
+
+	// Get last event to get session end time
+	lastEvent := sessionEvents[len(sessionEvents)-1]
+
+	participants := getParticipants(sessionEvents)
+
+	sessionEndEvent := &events.SessionEnd{
+		Metadata: events.Metadata{
+			Type:        SessionEndEvent,
+			Code:        SessionEndCode,
+			ClusterName: clusterName,
+		},
+		ServerMetadata: events.ServerMetadata{
+			ServerID:        serverID,
+			ServerNamespace: namespace,
+			ServerHostname:  hostname,
+			ServerAddr:      serverAddr,
+		},
+		SessionMetadata: events.SessionMetadata{
+			SessionID: string(uploadData.SessionID),
+		},
+		UserMetadata: events.UserMetadata{
+			User:  user,
+			Login: login,
+		},
+		Participants: participants,
+		Interactive:  interactive,
+		StartTime:    sessionStart.GetTime(EventTime),
+		EndTime:      lastEvent.GetTime(EventTime),
+	}
+
+	// Check and set event fields
+	if err = checkAndSetEventFields(sessionEndEvent, u.cfg.Clock, utils.NewRealUID(), clusterName); err != nil {
+		trace.Wrap(err)
+	}
+	if err = u.cfg.AuditLog.EmitAuditEvent(ctx, sessionEndEvent); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func getParticipants(sessionEvents []EventFields) []string {
+	var participants []string
+	for _, event := range sessionEvents {
+		if event.GetType() == SessionJoinEvent || event.GetType() == SessionStartEvent {
+			if _, ok := event[EventUser]; ok {
+				participants = append(participants, event[EventUser].(string))
+			}
+		}
+	}
+	return participants
+}
+
+func parseTime(s string) (time.Time, error) {
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return t, nil
 }
