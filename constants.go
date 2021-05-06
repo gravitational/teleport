@@ -718,6 +718,9 @@ const (
 
 	// AppCFHeader is a compatibility header.
 	AppCFHeader = "cf-access-token"
+
+	// HostHeader is the name of the Host header.
+	HostHeader = "Host"
 )
 
 // UserSingleUseCertTTL is a TTL for per-connection user certificates.

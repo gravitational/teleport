@@ -29,6 +29,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -887,12 +888,12 @@ func (s *AuthSuite) TestUpsertDeleteRoleEventsEmitted(c *C) {
 
 	roleRetrieved, err := s.a.GetRole(ctx, "test")
 	c.Assert(err, IsNil)
-	c.Assert(roleRetrieved.Equals(roleTest), Equals, true)
+	c.Assert(cmp.Diff(roleRetrieved, roleTest, cmpopts.IgnoreFields(types.Metadata{}, "ID")), Equals, "")
 
 	// test update role
 	err = s.a.upsertRole(ctx, roleTest)
 	c.Assert(err, IsNil)
-	c.Assert(roleRetrieved.Equals(roleTest), Equals, true)
+	c.Assert(cmp.Diff(roleRetrieved, roleTest, cmpopts.IgnoreFields(types.Metadata{}, "ID")), Equals, "")
 	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.RoleCreatedEvent)
 	c.Assert(s.mockEmitter.LastEvent().(*events.RoleCreate).Name, Equals, "test")
 	s.mockEmitter.Reset()

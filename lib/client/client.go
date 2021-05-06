@@ -178,12 +178,32 @@ func (p ReissueParams) isMFARequiredRequest(sshLogin string) *proto.IsMFARequire
 	return req
 }
 
+// CertCachePolicy describes what should happen to the certificate cache when a
+// user certificate is re-issued
+type CertCachePolicy int
+
+const (
+	// CertCacheDrop indicates that all user certificates should be dropped as
+	// part of the re-issue process. This can be necessary if the roles
+	// assigned to the user are expected to change as a part of the re-issue.
+	CertCacheDrop CertCachePolicy = 0
+
+	// CertCacheKeep indicates that all user certificates (except those
+	// explicitly updated by the re-issue) should be preserved across the
+	// re-issue process.
+	CertCacheKeep CertCachePolicy = 1
+)
+
 // ReissueUserCerts generates certificates for the user
 // that have a metadata instructing server to route the requests to the cluster
-func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, params ReissueParams) error {
-	key, err := proxy.reissueUserCerts(ctx, params)
+func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, cachePolicy CertCachePolicy, params ReissueParams) error {
+	key, err := proxy.reissueUserCerts(ctx, cachePolicy, params)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if cachePolicy == CertCacheDrop {
+		proxy.localAgent().DeleteUserCerts("", WithAllCerts...)
 	}
 
 	// save the cert to the local storage (~/.tsh usually):
@@ -191,14 +211,25 @@ func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, params ReissuePa
 	return trace.Wrap(err)
 }
 
-func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, params ReissueParams) (*Key, error) {
+func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, cachePolicy CertCachePolicy, params ReissueParams) (*Key, error) {
 	if params.RouteToCluster == "" {
 		params.RouteToCluster = proxy.siteName
 	}
 	key := params.ExistingCreds
 	if key == nil {
 		var err error
-		key, err = proxy.localAgent().GetKey(params.RouteToCluster, WithAllCerts...)
+
+		// Don't load the certs if we're going to drop all of them all as part
+		// of the re-issue. If we load all of the old certs now we won't be able
+		// to differentiate between legacy certificates (that need to be
+		// deleted) and newly re-issued certs (that we definitely do *not* want
+		// to delete) when it comes time to drop them from the local agent.
+		certOptions := []CertOption{}
+		if cachePolicy == CertCacheKeep {
+			certOptions = WithAllCerts
+		}
+
+		key, err = proxy.localAgent().GetKey(params.RouteToCluster, certOptions...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -271,7 +302,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 			if params.usage() == proto.UserCertsRequest_SSH && key.Cert != nil {
 				return key, nil
 			}
-			return proxy.reissueUserCerts(ctx, params)
+			return proxy.reissueUserCerts(ctx, CertCacheKeep, params)
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -284,7 +315,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		}
 		// All other targets need their name embedded in the cert for routing,
 		// fall back to non-MFA reissue.
-		return proxy.reissueUserCerts(ctx, params)
+		return proxy.reissueUserCerts(ctx, CertCacheKeep, params)
 	}
 
 	// Always connect to root for getting new credentials, but attempt to reuse
@@ -312,7 +343,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 			if params.usage() == proto.UserCertsRequest_SSH && key.Cert != nil {
 				return key, nil
 			}
-			return proxy.reissueUserCerts(ctx, params)
+			return proxy.reissueUserCerts(ctx, CertCacheKeep, params)
 		}
 		return nil, trace.Wrap(err)
 	}
