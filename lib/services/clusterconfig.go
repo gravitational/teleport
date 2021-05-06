@@ -34,9 +34,7 @@ func DefaultClusterConfig() types.ClusterConfig {
 			Name:      types.MetaNameClusterConfig,
 			Namespace: defaults.Namespace,
 		},
-		Spec: types.ClusterConfigSpecV3{
-			LocalAuth: types.NewBool(true),
-		},
+		Spec: types.ClusterConfigSpecV3{},
 	}
 }
 

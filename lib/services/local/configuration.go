@@ -249,6 +249,17 @@ func (s *ClusterConfigurationService) GetClusterConfig(opts ...services.MarshalO
 		return nil, trace.Wrap(err)
 	}
 
+	// To ensure backward compatibility, extend the fetched ClusterConfig
+	// resource with the values that are now stored in AuthPreference.
+	// DELETE IN 8.0.0
+	authPref, err := s.GetAuthPreference()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := clusterConfig.SetAuthFields(authPref); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return clusterConfig, nil
 }
 
@@ -271,6 +282,9 @@ func (s *ClusterConfigurationService) SetClusterConfig(c types.ClusterConfig) er
 	}
 	if c.HasSessionRecordingFields() {
 		return trace.BadParameter("cluster config has legacy session recording fields, call SetSessionRecordingConfig to set these fields")
+	}
+	if c.HasAuthFields() {
+		return trace.BadParameter("cluster config has legacy auth fields, call SetAuthPreference to set these fields")
 	}
 
 	value, err := services.MarshalClusterConfig(c)

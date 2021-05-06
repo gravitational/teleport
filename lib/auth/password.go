@@ -349,11 +349,11 @@ func (s *Server) getOTPType(user string) (teleport.OTPType, error) {
 
 func (s *Server) changePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (types.User, error) {
 	// Get cluster configuration and check if local auth is allowed.
-	clusterConfig, err := s.GetClusterConfig()
+	authPref, err := s.GetAuthPreference()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !clusterConfig.GetLocalAuth() {
+	if !authPref.GetAllowLocalAuth() {
 		return nil, trace.AccessDenied(noLocalAuth)
 	}
 

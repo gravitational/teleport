@@ -549,16 +549,10 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 		isRemoteClosed = func() bool { return false }
 	}
 
-	clusterConfig, err := f.cfg.CachingAuthClient.GetClusterConfig()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	netConfig, err := f.cfg.CachingAuthClient.GetClusterNetworkingConfig(f.ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	recordingConfig, err := f.cfg.CachingAuthClient.GetSessionRecordingConfig(f.ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -594,7 +588,12 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 		authCtx.kubeCluster = kubeCluster
 	}
 
-	disconnectExpiredCert := roles.AdjustDisconnectExpiredCert(clusterConfig.GetDisconnectExpiredCert())
+	authPref, err := f.cfg.CachingAuthClient.GetAuthPreference()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	disconnectExpiredCert := roles.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
 	if !certExpires.IsZero() && disconnectExpiredCert {
 		authCtx.disconnectExpiredCert = certExpires
 	}

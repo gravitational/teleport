@@ -250,6 +250,11 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	err = initSetAuthPreference(asrv, cfg.AuthPreference)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// set cluster level config on the backend and then force a sync of the cache.
 	clusterConfig, err := asrv.GetClusterConfig()
 	if err != nil && !trace.IsNotFound(err) {
@@ -301,11 +306,6 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 	log.Infof("Updating cluster configuration: %v.", cfg.StaticTokens)
-
-	err = initSetAuthPreference(asrv, cfg.AuthPreference)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	// always create the default namespace
 	err = asrv.UpsertNamespace(types.NewNamespace(defaults.Namespace))

@@ -2533,12 +2533,12 @@ func (s *TLSSuite) TestLoginAttempts(c *check.C) {
 }
 
 func (s *TLSSuite) TestChangePasswordWithToken(c *check.C) {
-	clusterConfig, err := types.NewClusterConfig(types.ClusterConfigSpecV3{
-		LocalAuth: types.NewBool(true),
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		AllowLocalAuth: types.NewBoolOption(true),
 	})
 	c.Assert(err, check.IsNil)
 
-	err = s.server.Auth().SetClusterConfig(clusterConfig)
+	err = s.server.Auth().SetAuthPreference(authPref)
 	c.Assert(err, check.IsNil)
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -2592,12 +2592,12 @@ func (s *TLSSuite) TestLoginNoLocalAuth(c *check.C) {
 	err = clt.UpsertPassword(user, pass)
 	c.Assert(err, check.IsNil)
 
-	// Set services.ClusterConfig to disallow local auth.
-	clusterConfig, err := types.NewClusterConfig(types.ClusterConfigSpecV3{
-		LocalAuth: types.NewBool(false),
+	// Set auth preference to disallow local auth.
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		AllowLocalAuth: types.NewBoolOption(false),
 	})
 	c.Assert(err, check.IsNil)
-	err = s.server.Auth().SetClusterConfig(clusterConfig)
+	err = s.server.Auth().SetAuthPreference(authPref)
 	c.Assert(err, check.IsNil)
 
 	// Make sure access is denied for web login.

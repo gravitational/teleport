@@ -448,7 +448,7 @@ type Auth struct {
 
 	// DisconnectExpiredCert provides disconnect expired certificate setting -
 	// if true, connections with expired client certificates will get disconnected
-	DisconnectExpiredCert types.Bool `yaml:"disconnect_expired_cert,omitempty"`
+	DisconnectExpiredCert *types.BoolOption `yaml:"disconnect_expired_cert,omitempty"`
 
 	// SessionControlTimeout specifies the maximum amount of time a node can be out
 	// of contact with the auth server before it starts terminating controlled sessions.
@@ -545,7 +545,7 @@ type AuthenticationConfig struct {
 	RequireSessionMFA bool                       `yaml:"require_session_mfa,omitempty"`
 
 	// LocalAuth controls if local authentication is allowed.
-	LocalAuth *types.Bool `yaml:"local_auth"`
+	LocalAuth *types.BoolOption `yaml:"local_auth"`
 }
 
 // Parse returns a types.AuthPreference (type, second factor, U2F).
@@ -560,23 +560,14 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		}
 	}
 
-	ap, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
+	return types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:              a.Type,
 		SecondFactor:      a.SecondFactor,
 		ConnectorName:     a.ConnectorName,
 		U2F:               &u,
 		RequireSessionMFA: a.RequireSessionMFA,
+		AllowLocalAuth:    a.LocalAuth,
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// check to make sure the configuration is valid
-	err = ap.CheckAndSetDefaults()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return ap, nil
 }
 
 type UniversalSecondFactor struct {

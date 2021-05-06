@@ -35,6 +35,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
@@ -483,21 +484,17 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	// read in and set authentication preferences
 	if fc.Auth.Authentication != nil {
-		authPreference, err := fc.Auth.Authentication.Parse()
+		cfg.Auth.Preference, err = fc.Auth.Authentication.Parse()
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		cfg.Auth.Preference = authPreference
+	}
+	if fc.Auth.DisconnectExpiredCert != nil {
+		cfg.Auth.Preference.SetOrigin(types.OriginConfigFile)
+		cfg.Auth.Preference.SetDisconnectExpiredCert(fc.Auth.DisconnectExpiredCert.Value)
 	}
 
-	var localAuth types.Bool
-	if fc.Auth.Authentication == nil || fc.Auth.Authentication.LocalAuth == nil {
-		localAuth = types.NewBool(true)
-	} else {
-		localAuth = *fc.Auth.Authentication.LocalAuth
-	}
-
-	if !localAuth.Value() && fc.Auth.Authentication.SecondFactor != "" {
+	if !cfg.Auth.Preference.GetAllowLocalAuth() && cfg.Auth.Preference.GetSecondFactor() != constants.SecondFactorOff {
 		warningMessage := "Second factor settings will have no affect because local " +
 			"authentication is disabled. Update file configuration and remove " +
 			"\"second_factor\" field to get rid of this error message."
@@ -512,9 +509,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 
 	// Set cluster-wide configuration from file configuration.
 	cfg.Auth.ClusterConfig, err = types.NewClusterConfig(types.ClusterConfigSpecV3{
-		Audit:                 *auditConfig,
-		DisconnectExpiredCert: fc.Auth.DisconnectExpiredCert,
-		LocalAuth:             localAuth,
+		Audit: *auditConfig,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1307,7 +1302,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			// Only SSO based authentication is supported. The SSO provider is where
 			// any FedRAMP/FIPS 140-2 compliance (like password complexity) should be
 			// enforced.
-			if cfg.Auth.ClusterConfig.GetLocalAuth() {
+			if cfg.Auth.Preference.GetAllowLocalAuth() {
 				return trace.BadParameter("non-FIPS compliant authentication setting: \"local_auth\" must be false")
 			}
 

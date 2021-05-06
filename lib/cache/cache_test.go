@@ -855,6 +855,17 @@ func (s *CacheSuite) TestClusterConfig(c *check.C) {
 	}
 
 	// DELETE IN 8.0.0
+	err = p.clusterConfigS.SetAuthPreference(types.DefaultAuthPreference())
+	c.Assert(err, check.IsNil)
+
+	select {
+	case event := <-p.eventsC:
+		c.Assert(event.Type, check.Equals, EventProcessed)
+	case <-time.After(time.Second):
+		c.Fatalf("timeout waiting for event")
+	}
+
+	// DELETE IN 8.0.0
 	err = p.clusterConfigS.SetSessionRecordingConfig(context.TODO(), types.DefaultSessionRecordingConfig())
 	c.Assert(err, check.IsNil)
 
