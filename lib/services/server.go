@@ -289,16 +289,30 @@ const ServerSpecV2Schema = `{
 		  "type": "object",
 		  "additionalProperties": false,
 		  "properties": {
-			  "name": {"type": "string"},
-			  "description": {"type": "string"},
-			  "uri": {"type": "string"},
-			  "public_addr": {"type": "string"},
-			  "insecure_skip_verify": {"type": "boolean"},
-			  "rewrite": {
+			"name": {"type": "string"},
+			"description": {"type": "string"},
+			"uri": {"type": "string"},
+			"public_addr": {"type": "string"},
+			"insecure_skip_verify": {"type": "boolean"},
+			"rewrite": {
 			  "type": "object",
 			  "additionalProperties": false,
 			  "properties": {
-				"redirect": {"type": ["array"], "items": {"type": "string"}}
+			    "redirect": {
+			      "type": ["array", "null"],
+			      "items": {"type": "string"}
+			    },
+			    "headers": {
+			      "type": ["array", "null"],
+			      "items": {
+			        "type": "object",
+			        "additionalProperties": false,
+			        "properties": {
+			          "name": {"type": "string"},
+			          "value": {"type": "string"}
+			        }
+			      }
+			    }
 			  }
 			},
 			"labels": {
@@ -317,7 +331,7 @@ const ServerSpecV2Schema = `{
 				  "additionalProperties": false,
 				  "required": ["command"],
 				  "properties": {
-					  "command": {"type": "array", "items": {"type": "string"}},
+					"command": {"type": "array", "items": {"type": "string"}},
 					"period": {"type": "string"},
 					"result": {"type": "string"}
 				  }
