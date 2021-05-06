@@ -5,11 +5,11 @@ description: Teleport Access Controls
 
 # Getting Started
 
-In Teleport, any local, SSO or robot user can be a member of one or several
-roles. Roles govern access to databases, SSH servers, kubernetes clusters and web apps.
+In Teleport, any local, SSO, or robot user can be a member of one or several
+roles. Roles govern access to databases, SSH servers, kubernetes clusters, and web apps.
 
 We will start with local users and preset roles, map SSO users to roles and wrap up
-with creating your own role.
+with creating your role.
 
 ## Prerequisites
 
@@ -30,9 +30,8 @@ CA pin   sha256:e63c7c44be468d37a5b0276b70e9d10b17f24f4be19d6b579810fc94eaa31783
 
 ## Step 1/3 Add local users with preset roles
 
-Teleport provides a couple of preset roles: `admin`, `editor`, `auditor` and `access`.
-Members of `editor` role can modify cluster configuration, members of `auditor`
-role can view audit logs, and `access` members can access cluster resources.
+Teleport provides a couple of preset roles: `admin`, `editor`, `auditor`, and `access`.
+Members of the `editor` role can modify cluster configuration, members who have the `auditor` role can view audit logs, and `access` members can access cluster resources.
 Members of `admin`, are full cluster administrators.
 
 Invite a local user Alice as cluster `editor`:
@@ -55,16 +54,16 @@ admin@example.com    admin
 You can update user's roles using `tctl users update` command:
 
 ```bash
-# Once Alice relogins, she will be able to view audit logs
+# Once Alice logs in again, she will be able to view audit logs
 $ tctl users update alice --set-roles=editor,auditor
 ```
 
-Because Alice has two roles, permissions from those role create a union -
+Because Alice has two roles, permissions from those roles create a union -
 she will be able to act as a system administrator and auditor at the same time.
 
 ## Step 2/3 Map SSO users to roles
 
-We are going to setup Github connector for OSS and Okta for Enterprises version.
+We're going to set up a Github connector for the Open Source Edition and Okta for Enterprise versions.
 
 <Tabs>
   <TabItem label="Open Source">
@@ -100,7 +99,7 @@ We are going to setup Github connector for OSS and Okta for Enterprises version.
     Follow [SAML Okta Guide](../enterprise/sso/ssh-okta.mdx#configure-okta) to create a SAML app.
     Check out [OIDC guides](../enterprise/sso/oidc.mdx#identity-providers) for OpenID Connect apps.
     Save the file below as `okta.yaml` and update the `acs` field.
-    Any member in Okta group `okta-admin` will assume a builtin role `admin`.
+    Any member in Okta group `okta-admin` will assume a built-in role `admin`.
 
     ```yaml
     kind: saml
@@ -166,7 +165,7 @@ $ tctl create -f /tmp/interns.yaml
 $ tctl get roles --format text
 ```
 
-## Next Steps
+## Next steps
 
 - [Mapping SSO and local users traits with role templates](./guides/role-templates.mdx)
 - [Create certs for CI/CD using impersonation](./guides/impersonation.mdx)

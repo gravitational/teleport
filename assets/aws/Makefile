@@ -38,7 +38,7 @@ S3_BUCKET_ID ?=
 TELEGRAF_VERSION ?= 1.9.3
 
 # InfluxDB version
-INFLUXDB_VERSION ?= 1.7.1
+INFLUXDB_VERSION ?= 1.8.5
 
 # Grafana version
 GRAFANA_VERSION ?= 5.4.3

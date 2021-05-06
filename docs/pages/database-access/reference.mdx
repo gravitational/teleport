@@ -17,7 +17,7 @@ db_service:
   # This section contains definitions of all databases proxied by this
   # service, it can contain multiple database instances.
   databases:
-    # Name of the database proxy instance, used to reference in CLI.
+    # Name of the database proxy instance used to reference in CLI.
   - name: "prod"
     # Free-form description of the database proxy instance.
     description: "Production database"
@@ -131,7 +131,7 @@ $ eval $(tsh db env)
 
 ### tsh db config
 
-Prints database connection information. Useful when configuring GUI clients.
+Prints database-connection information. Useful when configuring GUI clients.
 
 ```shell
 $ tsh db config

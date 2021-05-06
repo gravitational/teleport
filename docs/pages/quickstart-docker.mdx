@@ -6,7 +6,7 @@ h1: Run Teleport using Docker
 
 We provide pre-built Docker images for every version of Teleport. These images are hosted on quay.io.
 
-- [All tags under `quay.io/gravitational/teleport` are Teleport Community images](https://quay.io/repository/gravitational/teleport?tag=latest\&tab=tags)
+- [All tags under `quay.io/gravitational/teleport` are Teleport Open Source images](https://quay.io/repository/gravitational/teleport?tag=latest\&tab=tags)
 
 We currently only offer Docker images for `x86_64` architectures.
 
@@ -20,15 +20,15 @@ We currently only offer Docker images for `x86_64` architectures.
 
 ## Pick your image
 
-This table gives an idea of how our image naming scheme works. We offer images which
-point to a static version of Teleport, as well as images which are automatically rebuilt
+This table gives an idea of how our image naming scheme works. We offer images that
+point to a static version of Teleport, as well as images that are automatically rebuilt
 every night. These nightly images point to the latest version of Teleport from the
 three most recent release branches. They are stable, and we recommend their use to
 easily keep your Teleport installation up to date.
 
 | Image name | Teleport version | Image automatically updated? | Image base |
 | - | - | - | - |
-| `quay.io/gravitational/teleport:(=version=)` | The latest version of Teleport Community (=version=) | Yes | [Ubuntu 20.04](https://hub.docker.com/\_/ubuntu) |
+| `quay.io/gravitational/teleport:(=version=)` | The latest version of Teleport Open Source (=version=) | Yes | [Ubuntu 20.04](https://hub.docker.com/\_/ubuntu) |
 | `quay.io/gravitational/teleport:(=teleport.version=)` | The version specified in the image's tag (i.e. (=teleport.version=)) | No | [Ubuntu 20.04](https://hub.docker.com/\_/ubuntu) |
 
 For testing, we always recommend that you use the latest release version of Teleport, which is currently `(=teleport.latest_oss_docker_image=)`.
@@ -58,7 +58,7 @@ docker-compose -f teleport-quickstart.yml up
 
 ## Quickstart using docker run
 
-If you'd prefer to complete these steps manually, here's some sample `docker run` commands:
+If you'd prefer to complete these steps manually, here are some sample `docker run` commands:
 
 ```bash
 # create local config and data directories for teleport, which will be mounted into the container
@@ -90,7 +90,7 @@ This example command will create a Teleport user called `testuser` which is allo
 docker exec teleport tctl users add testuser root,ubuntu
 ```
 
-When you run this command, Teleport will output a URL which you must open to complete the user signup process:
+When you run this command, Teleport will output a URL that you must open to complete the user signup process:
 
 ```bash
 User testuser has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h0m0s:

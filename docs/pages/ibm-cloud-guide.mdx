@@ -3,9 +3,9 @@ title: Running Teleport on IBM Cloud
 description: How to install and configure Gravitational Teleport on IBM cloud for SSH and Kubernetes access.
 ---
 
-We've created this guide to give customers a high level overview of how to use Teleport
-on the [IBM Cloud](https://www.ibm.com/cloud). This guide provides a high level
-introduction leading to a deep dive into how to setup and run Teleport in production.
+We've created this guide to give customers a high-level overview of how to use Teleport
+on the [IBM Cloud](https://www.ibm.com/cloud). This guide provides a high-level
+introduction leading to a deep dive into how to set up and run Teleport in production.
 
 We have split this guide into:
 
@@ -26,13 +26,13 @@ Softlayer infrastructure.
 
 ### Which Services can I use Teleport with?
 
-You can use Teleport for all the services that you would SSH into. This guide is
-focused on IBM Cloud. In the future we'll plan to update on how to use Teleport
-with IBM Cloud Kubernetes Service.
+While you can use Teleport for all the services that you would SSH int, this guide is focused on IBM Cloud. 
 
-## IBM Teleport Introduction
+We plan on expanding our guide to eventually include using Teleport with IBM Cloud Kubernetes Service.
 
-This guide will cover how to setup, configure and run Teleport on IBM Cloud.
+## IBM Teleport introduction
+
+This guide will cover how to set up, configure and run Teleport on IBM Cloud.
 
 IBM Services required to run Teleport in HA:
 
@@ -45,7 +45,7 @@ Other things needed:
 
 - [SSL Certificate](https://www.ibm.com/cloud/ssl-certificates)
 
-We recommend setting up Teleport in high availability mode (HA). In HA mode [etcd](https://etcd.io/)
+We recommend setting up Teleport in High Availability (HA) mode. In HA mode [etcd](https://etcd.io/)
 stores the state of the system and [IBM Cloud Storage](https://www.ibm.com/cloud/storage)
 stores the audit logs.
 
@@ -56,7 +56,7 @@ stores the audit logs.
 We recommend Gen 2 Cloud IBM [Virtual Servers](https://www.ibm.com/cloud/virtual-servers) and [Auto Scaling](https://www.ibm.com/cloud/auto-scaling)
 
 - For Staging and POCs we recommend using `bx2-2x8` machines with 2 vCPUs, 4GB RAM, 4 Gbps.
-- For Production we would recommend `cx2-4x8` with 4 vCPUs, 8 GB RAM, 8 Gbps.
+- For Production, we would recommend `cx2-4x8` with 4 vCPUs, 8 GB RAM, 8 Gbps.
 
 ### Storage: Database for etcd
 
@@ -75,7 +75,7 @@ cluster.
 
 ![Creating IBM Server](../img/IBM/cloud.ibm.com_catalog_services_databases-for-etcd.png)
 
-#### Saving Credentials
+#### Saving credentials
 
 ![Creating IBM Server](../img/IBM/etcd-pass.png)
 ![etcd cert and host](../img/IBM/etcd-cert-and-host.png)
@@ -106,11 +106,11 @@ We recommend using [IBM Cloud File Storage](https://www.ibm.com/cloud/file-stora
 
 1. Create New File Storage Resource. [IBM Catalog - File Storage Quick Link](https://cloud.ibm.com/catalog/infrastructure/file-storage)
 
-   1a. We recommend using `Standard`
+   1a. We recommend using `Standard`.
 
 2. Create a new bucket.
 
-3. Setup [HMAC Credentials](https://cloud.ibm.com/docs/cloud-object-storage?topic=cloud-object-storage-uhc-hmac-credentials-main)
+3. Setup [HMAC Credentials](https://cloud.ibm.com/docs/cloud-object-storage?topic=cloud-object-storage-uhc-hmac-credentials-main).
 
 4. Update audit sessions URI: `audit_sessions_uri: 's3://BUCKET-NAME/readonly/records?endpoint=s3.us-east.cloud-object-storage.appdomain.cloud&region=ibm'`
 
@@ -136,7 +136,7 @@ The credentials are used from `~/.aws/credentials` and should be created with HM
 }
 ```
 
-Save these settings to `~/.aws/credentials`
+Save these settings to `~/.aws/credentials`:
 
 ```yaml
 # Example keys from example service account to be saved into ~/.aws/credentials
@@ -145,7 +145,7 @@ access_key_id="e668d66374e141668e3432443bc879e"
 secret_access_key="d8762b57f61d5dd524ccd49c7d44861ceafdsfds37d05836"
 ```
 
-Example `/etc/teleport.yaml`
+Example `/etc/teleport.yaml`:
 
 ```yaml
 ...
@@ -163,8 +163,7 @@ storage:
 ```
 
 <Admonition type="tip">
-  When starting with `teleport start --config=/etc/teleport.yaml -d` you can confirm that the
-  bucket has been created.
+  When starting with `teleport start --config=/etc/teleport.yaml -d` you can confirm that the bucket has been created.
 </Admonition>
 
 ```bash

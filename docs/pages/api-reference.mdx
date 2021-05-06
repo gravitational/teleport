@@ -9,7 +9,7 @@ In most cases, you can interact with Teleport using our CLI tools, [tsh](cli-doc
   We are currently working on improving our API Documentation. If you have an API suggestion, [please complete our survey](https://docs.google.com/forms/d/1HPQu5Asg3lR0cu5crnLDhlvovGpFVIIbDMRvqclPhQg/viewform).
 </Admonition>
 
-## Go Examples
+## Go examples
 
 <Admonition type="note">
   The Go examples below depend on some features and changes that are released in Teleport 5.0.
@@ -24,7 +24,7 @@ Before you begin:
 
 The easiest way to get started with the Teleport API is to clone the [Go Client Example](https://github.com/gravitational/teleport/tree/master/examples/go-client) in our github repo. Follow the README there to quickly authenticate the API with your Teleport Auth Server.
 
-Or if you prefer, follow the Authentication, Go Client, and Go Packages sections below to add the necessary files to a new directory called `/api-examples`. At the end, you should have this file structure:
+Or if you prefer, follow the Authentication, Go Client, and Go Packages sections below to add the necessary files to a new directory called `/api-examples`. At the end of the file, you should have this structure:
 
 ```
 api-examples
@@ -41,9 +41,9 @@ api-examples
 
 ## Authentication
 
-In order to interact with the API, you will need to provision appropriate TLS certificates. In order to provision certificates, you will need to create a user with appropriate permissions. You should only give the API user permissions for what it actually needs.
+To interact with the API, you will need to provision appropriate TLS certificates. To provision certificates, you will need to create a user with appropriate permissions. You should only give the API user permissions for what it actually needs.
 
-To quickly get started with the API, you can use this api-admin user. However in production usage, make sure to have stringent permissions in place.
+To quickly get started with the API, you can use this api-admin user. However, in production usage, make sure to have stringent permissions in place.
 
 ```bash
 # Copy and Paste the below and run on the Teleport Auth server.
@@ -59,11 +59,11 @@ kind: role
 metadata:
   name: api-admin
 spec:
-  # allow section declares a list of resource/verb combinations that are
-  # allowed for the users of this role. By default nothing is allowed.
+  # The allow section declares a list of resource/verb combinations that are
+  # allowed for the users of this role. By default, nothing is allowed.
   allow:
     rules:
-      # these rules are intentionally overly permissive to allow all crud operations
+      # These rules are intentionally overly permissive to allow all crud operations
       # for the api examples, but in practice, you should have as few rules/verbs
       # as possible in a role. Be especially careful with cert_authority, as it
       # is responsible for maintaining your Teleport cluster's security.
@@ -77,12 +77,12 @@ spec:
         verbs: ['create', 'list', 'read', 'update', 'delete']
       - resources: ['remote_cluster']
         verbs: ['create', 'list', 'read', 'update', 'delete']
-    # teleport currently refuses to issue certs for a user with 0 logins,
+    # Teleport currently refuses to issue certs for a user with 0 logins,
     # this restriction may be lifted in future versions.
     logins: ['api-admin']
     request:
       roles: ['*']
-  # the deny section uses the identical format as the 'allow' section.
+  # The deny section uses the identical format as the 'allow' section.
   # the deny rules always override allow rules.
   deny:
     node_labels:
@@ -100,12 +100,12 @@ This should result in three PEM encoded files being generated in the `/certs` di
 Move the `/certs` folder into your `/api-examples` folder.
 
 <Admonition type="note">
-  By default, `tctl auth sign` produces certificates with a relatively short lifetime. See our [Kubernetes Section](./kubernetes-access/guides/cicd.mdx) for more information on automating the signing process for short lived certificates.
+  By default, `tctl auth sign` produces certificates with a relatively short lifetime. See our [Kubernetes Section](./kubernetes-access/guides/cicd.mdx) for more information on automating the signing process for short-lived certificates.
 
-  While we encourage you to use short lived certificates, we understand you may not have all the infrastructure to issues and obtain them at the onset. You can use the --ttl flag to extend the lifetime of a certificate in these cases but understand this reduces your security posture
+  While we encourage you to use short-lived certificates, we understand you may not have all the infrastructure to issues and obtain them at the onset. You can use the --ttl flag to extend the lifetime of a certificate in these cases but understand this reduces your security posture.
 </Admonition>
 
-## Go Client
+## Go client
 
 The client below interfaces with the Teleport gRPC API, and relies on the `certs` generated above for TLS.
 
@@ -174,7 +174,7 @@ func LoadTLSCertPool(path string) (*x509.CertPool, error) {
 }
 ```
 
-## Go Packages
+## Go packages
 
 Copy the Teleport module's go.mod below into `/api-examples` and then run `go mod tidy` to slim it down to only what's needed for these api examples.
 
@@ -312,7 +312,7 @@ func main() {
 }
 ```
 
-## Object Resource
+## Object resource
 
 All Teleport resources, such as `Roles` and `Tokens`, share several fields for database management. To keep the documentation below clear, we will refer to these fields as `Resource Fields`.
 
@@ -345,7 +345,7 @@ type Resource struct {
 
 ## Roles
 
-Every user in Teleport is assigned a set of [roles](./access-controls/reference.mdx#roles). A user's roles defines what actions or resources the user is allowed or denied to access. We offer a wide array of permissions, allowing you to safely and precisely give developers access to the resources they need.
+Every user in Teleport is assigned a set of [roles](./access-controls/reference.mdx#roles). A user's roles define what actions or resources the user is allowed or denied to access. We offer a wide array of permissions, allowing you to safely and precisely give developers access to the resources they need.
 
 Some of the permissions a role could define include:
 
@@ -355,7 +355,7 @@ Some of the permissions a role could define include:
 - Which UNIX logins a user is allowed to use when logging into servers.
 
 <Admonition type="note">
-  The open source edition of Teleport automatically assigns every user to the built-in `admin` role, but Teleport Enterprise allows administrators to define their own roles with far greater control over the user permissions.
+  The open-source edition of Teleport automatically assigns every user to the built-in `admin` role, but Teleport Enterprise allows administrators to define their roles with far greater control over the user permissions.
 </Admonition>
 
 You can manage roles with the Teleport CLI tool [tctl](cli-docs.mdx#tctl), or programmatically with the RPC calls documented below.
@@ -363,14 +363,14 @@ You can manage roles with the Teleport CLI tool [tctl](cli-docs.mdx#tctl), or pr
 You may want to use the API to manage roles if:
 
 - You want to write a program that can always ensure certain roles exist on your system and do not want to orchestrate `tctl` to do this.
-- You want to dynamically create short lived roles.
+- You want to dynamically create short-lived roles.
 - You want to dynamically create roles with fields filled that Teleport currently does not support.
 
 ### The Role Object
 
 A Teleport `role` is defined by its `Allow` rules, `Deny` rules, and OpenSSH `Options`. We'll break these down piece by piece below.
 
-To see a role example in `yaml` form, look at the the admin role in the [RBAC documentation](./access-controls/reference.mdx#roles). You'll notice that the role object below has the same exact nested structure as its `yaml` counterpart.
+To see a role example in `yaml` form, look at the the admin role in the [RBAC documentation](./access-controls/reference.mdx#roles). You'll notice that the role object below has the same nested structure as its `yaml` counterpart.
 
 ```go
 // RoleV3 represents role resource specification
@@ -428,9 +428,9 @@ type RoleOptions struct {
 
 The `RoleConditions` struct allows for precise permission combinations between a role's `Allow` and `Deny` fields.
 
-`Deny` conditions are evaluated first and logically OR'ed. That means that when a user attempts an action, if any of their roles has a deny section matching that action, the user will be denied access. If the user is not denied access, then the `Allow` conditions are evaluated and logically AND'ed. So if a user has any roles with an allow section matching the action, the action will be permitted.
+`Deny` conditions are evaluated first and logically OR'ed. That means that when a user attempts an action if any of their roles has a deny section matching that action, the user will be denied access. If the user is not denied access, then the `Allow` conditions are evaluated and logically AND'ed. So if a user has any roles with an allow section matching the action, the action will be permitted.
 
-However, this also allows you to take a modular approach to defining roles. Splitting roles up into logical parts will allow you to manage roles for many developers more effectively. It may also be effective to keep your deny and allow conditions in separate roles so that conflicting roles are obvious.
+However, this also allows you to take a modular approach to define roles. Splitting roles up into logical parts will allow you to manage roles for many developers more effectively. It may also be effective to keep your deny and allow conditions in separate roles so that conflicting roles are obvious.
 
 ```go
 // RoleConditions is a set of conditions that must all match to be allowed or denied access.
@@ -441,8 +441,8 @@ type RoleConditions struct {
   Namespaces []string
   // NodeLabels is a map of node labels (used to dynamically grant access to nodes).
   NodeLabels Labels
-  // Rules is a list of rules and their access levels. Rules represents allow or deny rule
-  // that is executed to check if user or service have access to resource
+  // Rules is a list of rules and their access levels. Rules represent allowed or denied rules
+  // that is executed to check if the user or service has access to a resource
   Rules []Rule
   // KubeGroups is a list of kubernetes groups that Teleport users with this role will be
   KubeGroups []string
@@ -525,7 +525,7 @@ VerbDelete        = "delete"
 VerbRotate        = "rotate"
 ```
 
-There are also helper functions `RW()`, `RO()`, and `ReadNoSecrets()` in the `services` package to quickly get read/write verbs, read only verbs, and read only verbs with `readnosecrets` respectively.
+There are also helper functions `RW()`, `RO()`, and `ReadNoSecrets()` in the `services` package to quickly get read/write verbs, read-only verbs, and read-only verbs with `readnosecrets` respectively.
 
 ### Retrieve Role
 
@@ -542,7 +542,7 @@ if err != nil {
 
 You can use the `UpsertRole` RPC to programmatically create a new role. This is the equivalent of `tctl create -f auditor-role.yaml`, where the `-f` flag signals to overwrite the auditor role if it exists already.
 
-Suppose you wanted to create a role for an auditor that could view all sessions, but could not access any servers. Using `tctl`, you would first create a role that allows reading and listing of the session resource like below. In addition, the user is explicitly denied access to all nodes in the deny block.
+Suppose you wanted to create a role for an auditor that could view all sessions but could not access any servers. Using `tctl`, you would first create a role that allows reading and listing of the session resource like below. The user is also explicitly denied access to all nodes in the deny block.
 
 ```
 $ cat << EOF > /tmp/auditor-role.yaml
@@ -622,12 +622,12 @@ Teleport is a "clustered" system, meaning it only allows access to hosts that ha
 
 A remote host can exchange one of these tokens with the cluster's auth server to receive signed certificates and become a trusted Teleport host (auth, node, proxy, app, or kubernetes server). Likewise, a remote Teleport cluster can exchange a token to become a leaf cluster in a [trusted cluster](admin-guide.mdx#trusted-clusters).
 
-These tokens can be predefined static tokens, or dynamic tokens with a short life time. The latter can be generated by `tctl` or this API, and is more secure.
+These tokens can be predefined static tokens or dynamic tokens with a short lifetime. The latter can be generated by `tctl` or this API, and is more secure.
 
 You may want to use this API to manage tokens if:
 
-- You have a program that dynamically adds new hosts to clusters
-- You want to programmatically add leaf clusters to a trusted cluster
+- You have a program that dynamically adds new hosts to clusters.
+- You want to programmatically add leaf clusters to a trusted cluster.
 
 ### The Token Object
 
@@ -681,7 +681,7 @@ if err != nil {
 
 You can use the `GenerateToken` RPC to programmatically create a new token. This is the equivalent of `tctl tokens add --type=[Roles] --value=[Token] --ttl=[TTL]`.
 
-By default, Teleport will create a random 16 byte string using the `CryptoRandomHex` function in our `utils` package. If you want to customize this yourself, simply provide the `Token` field, though we strongly recommend utilizing best security practices.
+By default, Teleport will create a random 16-byte string using the `CryptoRandomHex` function in our `utils` package. If you want to customize this yourself, simply provide the `Token` field, though we strongly recommend utilizing best security practices.
 
 You can also set `TTL` to a maximum of 48 hours. The shorter the lifetime, the more secure your cluster will be.
 
@@ -736,15 +736,15 @@ if err := client.DeleteToken(tokenString); err != nil {
 
 ## Cluster Labels
 
-Cluster Labels can be used to differentiate between leaf clusters in a [Trusted Cluster](trustedclusters.mdx). These can be useful when defining [roles](./access-controls/reference.mdx#roles) within a trusted cluster, where each cluster has its own requirements for access.
+Cluster Labels can be used to differentiate between leaf clusters in a [Trusted Cluster](trustedclusters.mdx). These can be useful when defining [roles](./access-controls/reference.mdx#roles) within a trusted cluster, where each cluster has its requirements for access.
 
-For example, if each cluster corresponds to a different product that should only be accessed by its product team, you can give each cluster a label like `product: A`. Then create a role for each product which allows access to clusters with its respective product label.
+For example, if each cluster corresponds to a different product that should only be accessed by its product team, you can give each cluster a label like `product: A`. Then create a role for each product that allows access to clusters with its respective product label.
 
 You may want to use the following RPCs to manage your cluster labels if:
 
 - You want to programmatically manage cluster labels from your root cluster
 - You have a complex cluster labeling system that would benefit from automation with the API
-- You have a large distributed trusted cluster where explicit cluster based access control is crucial
+- You have a large distributed trusted cluster where explicit cluster-based access control is crucial
 
 ### Create a Leaf Cluster Join Token with Labels
 
@@ -785,19 +785,18 @@ rc.SetMetadata(md)
 if err = client.UpdateRemoteCluster(ctx, rc); err != nil {
   return err
 }
-
 ```
 
-## Access Workflows
+## Access Requests
 
-[Access Workflows](enterprise/workflow/index.mdx) can be used by Teleport users to request one or more additional roles on the fly. These requests can be partially or fully approved or denied by a Teleport Administrator.
+[Access Requests](enterprise/workflow/index.mdx) can be used by Teleport users to request one or more additional roles on the fly. These requests can be partially or fully approved or denied by a Teleport Administrator.
 
-You may want to use manage Access Workflows using the API if:
+You may want to use manage Access Requests using the API if:
 
 - You want to automatically administer the scaling up and down of permissions for developers depending on their task
-- You want to utilize our supported [external tools](enterprise/workflow/index.mdx#integrating-with-an-external-tool) or other third party tools to control the flow of access
+- You want to utilize our supported [external tools](enterprise/workflow/index.mdx#integrating-with-an-external-tool) or other third-party tools to control the flow of access
 
-For example, you could have a team of contractors which need database access for some tasks, but should not have it permanently. To do this, you can give them the `contractor` role below, which allows them to request the `dba` role.
+For example, you could have a team of contractors who need database access for some tasks but should not have it permanently. To do this, you can give them the `contractor` role below, which allows them to request the `dba` role.
 
 ```yaml
 kind: role
@@ -821,7 +820,7 @@ metadata:
 spec:
   options:
     # ...
-    # Only allows the contractor to use this role for 1 hour from time of request.
+    # Only allows the contractor to use this role for 1 hour from the time of the request.
     max_session_ttl: 1h
   allow:
     # ...
@@ -848,7 +847,7 @@ spec:
 
 A `request-admin` can list all current requests, resolve them, and delete them. Notice that `request-admin` might not be a great job to handle manually.
 
-With the API, you can automatically manage the requesting and or resolution of requests in order to streamline this process. Better yet, this opens up the ability to leverage external identity providers by attaching relevant information as `Annotations` to requests, such as `ticket_id` or `task_id`. You can also use our custom [integrations with external tools](enterprise/workflow/index.mdx#integrating-with-an-external-tool), such as Slack, to manage requests according to your custom configuration.
+With the API, you can automatically manage the requesting and or resolution of requests to streamline this process. Better yet, this opens up the ability to leverage external identity providers by attaching relevant information as `Annotations` to requests, such as `ticket_id` or `task_id`. You can also use our custom [integrations with external tools](enterprise/workflow/index.mdx#integrating-with-an-external-tool), such as Slack, to manage requests according to your custom configuration.
 
 ### The Access Request Object
 
@@ -936,7 +935,7 @@ type AccessRequestFilter struct {
 
 This is equivalent to `tctl request create contractor --roles=dba --reason="I need more power"`.
 
-However with the RPC below, you can also set other useful fields. For example, `SystemAnnotations` can be used to store relevant information for external tools, such as a ticket id from a ticket management system.
+However, with the RPC below, you can also set other useful fields. For example, `SystemAnnotations` can be used to store relevant information for external tools, such as a ticket id from a ticket management system.
 
 ```go
 // create a new access request for contractor to temporarily use the dba role in the cluster
@@ -1008,7 +1007,7 @@ You may want to use this API to manage your CA if:
 
 - You need to access CA information from within the API for some use case
 - You cannot [use tctl to rotate certificates](admin-guide.mdx#certificate-rotation) for some reason
-- You want to set up a custom auto schedule for rotating certificates for more security and stability
+- You want to set up a custom auto-schedule for rotating certificates for more security and stability
 - You want to implement a robust manual rotation solution, which automatically triggers each rotation phase according to your specification, such as by catching an event or webhook
 
 ### Certificate Rotation
@@ -1017,7 +1016,7 @@ To maintain security across your cluster, it is a good idea to set up automatic 
 
 You can use Teleport's `auto` rotation mode to rotate the CA with a default or custom schedule, or you can use `manual` mode to create a custom automated solution that manually triggers each phase.
 
-A carefully implemented `manual` mode solution has the potential to be more fault tolerant and faster, due to the arbitrary nature of rotation schedules and grace periods (explained below).
+A carefully implemented `manual` mode solution has the potential to be more fault-tolerant and faster, due to the arbitrary nature of rotation schedules and grace periods (explained below).
 
 **Rotation Phases**
 
@@ -1026,10 +1025,10 @@ A certificate rotation occurs in a series of phases, either triggered automatica
 1. `Standby`: No rotation operations underway. This is the beginning and end state of every CA rotation. If a CA's rotation is not in the standby state, a new rotation cannot begin.
 2. `Init`: New Certificate Authority is issued, but it remains unused while users and servers get updated certificates.
 3. `Update Clients`: Client credentials will have to be updated and reloaded, but servers will still use and respond with old credentials (grace period).
-4. `Update Servers`: Servers will have to reload and should start serving TLS and SSH certificates signed by new CA (retrieved in previous phase).
+4. `Update Servers`: Servers will have to reload and should start serving TLS and SSH certificates signed by the new CA (retrieved in the previous phase).
 5. `Rollback`: Rollback moves back both clients and servers to use the old credentials, but will continue to trust new credentials as well. Must be triggered Manually.
 
-The phases must occur in the order `Init -> Update Clients -> Update Servers` with the beginning and ending resting state being `Standby`. `Rollback` can occur after any phase.
+The phases must occur in the order `Init -> Update Clients -> Update Servers` with the beginning and ending resting-state being `Standby`. `Rollback` can occur after any phase.
 
 **Automated Rotation**
 
@@ -1048,11 +1047,11 @@ if err := client.RotateCertAuthority(req); err != nil {
 }
 ```
 
-The grace period should be set to 2-3 times the expected time to rotate the CA to ensure completion, while minimizing the grace period. The `type` flag is useful if you want to rotate both user and host CAs with different strategies or frequencies.
+The grace period should be set to 2-3 times the expected time to rotate the CA to ensure completion while minimizing the grace period. The `type` flag is useful if you want to rotate both user and host CAs with different strategies or frequencies.
 
 **Automated Rotation with a Custom Schedule**
 
-You can also rotate certificates with a custom schedule. Using a custom certificate rotation schedule will allow you to target specific phase(s) and extend their length without having to use an unnecessarily long grace period, since long grace periods present a possible vulnerability.
+You can also rotate certificates with a custom schedule. Using a custom certificate rotation schedule will allow you to target specific phase(s) and extend their length without having to use an unnecessarily long grace period since long grace periods present a possible vulnerability.
 
 ```go
 // This will automate your CA rotation with the custom schedule. Use with caution, each phase should have extra time to ensure they complete in less than optimal situations.
@@ -1087,12 +1086,12 @@ if err := client.RotateCertAuthority(auth.RotateRequest{
 
 This can be used to make rotations independent of an arbitrary rotation schedule or grace period. For example, you might be able to set up a custom automated solution where each phase is triggered by the event of the prior phase completing. This is possible in theory, though it may be complicated to set up.
 
-However there are multiple upsides if you make it work:
+However, there are multiple upsides if you make it work:
 
-- it would be quicker than `auto` mode since it wouldn't wait for a phase that is already complete
-- it would be more error proof in cases where the servers miss their chance to update credentials, whether due to time constraints or from going offline during the rotation
-- you would not need to worry about scaling the grace period with the size of your clusters
-- you could catch rotation errors and automatically trigger the `Rollback` phase to try again (though this shouldn't be necessary outside of specific scenarios, such as servers going offline for long periods of time)
+- It would be quicker than `auto` mode since it wouldn't wait for a phase that is already complete.
+- It would be more error-proof in cases where the servers miss their chance to update credentials, whether due to time constraints or from going offline during the rotation.
+- You would not need to worry about scaling the grace period with the size of your clusters.
+- You could catch rotation errors and automatically trigger the `Rollback` phase to try again (though this shouldn't be necessary outside of specific scenarios, such as servers going offline for long periods).
 
 <Admonition type="note">
   See our [TestRotateSuccess](https://github.com/gravitational/teleport/blob/645ac573c59240974a1306d28d79d1df3b2d9845/integration/integration_test.go#L3243) integration test to see how you might get started with implementing a manual rotation solution.

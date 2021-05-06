@@ -29,8 +29,8 @@ On the General tab of the new server dialog, enter the server connection name:
 
 ![pgAdmin General](../../../img/database-access/pgadmin-general@2x.png)
 
-On the Connection tab, enter the default database name (Maintenance database)
-and the connection service name, same as when you specify connecting using
+Within the Connection tab, enter the default database name ("Maintenance database")
+and the connection service name. This is the same name that you previously specified using
 `psql`. Leave all the other fields blank:
 
 ![pgAdmin Connection](../../../img/database-access/pgadmin-connection@2x.png)
@@ -39,7 +39,7 @@ On the SSL tab, set SSL mode to "full":
 
 ![pgAdmin SSL](../../../img/database-access/pgadmin-ssl@2x.png)
 
-Click Save, and pgAdmin should immediately connect.
+Click "Save", and pgAdmin should immediately connect.
 
 ## MySQL Workbench
 
@@ -48,7 +48,7 @@ that provides comprehensive MySQL administration and SQL development tools.
 
 To connect to a database using MySQL Workbench, first retrieve the database
 credentials using `tsh db login` command. After logging in, take a note of
-the database configuration parameters shown by `tsh db config` command:
+the database configuration parameters are shown by `tsh db config` command:
 
 ```bash
 $ tsh db config
@@ -62,13 +62,13 @@ Cert:      /Users/r0mant/.tsh/keys/root.gravitational.io/r0mant-db/root/aurora-x
 Key:       /Users/r0mant/.tsh/keys/root.gravitational.io/r0mant
 ```
 
-In MySQL Workbench Setup New Connection dialog, fill out Connection Name, Hostname,
-Port and Username:
+In MySQL Workbench Setup New Connection dialog, fill out "Connection Name", "Hostname",
+"Port", and "Username":
 
 ![MySQL Workbench Parameters](../../../img/database-access/workbench-parameters@2x.png)
 
 On the SSL tab, set SSL mode to "Require and Verify Identity" and enter paths
-to CA, certificate and private key files from `tsh db config` command:
+to CA, certificate, and private key files from `tsh db config` command:
 
 ![MySQL Workbench SSL](../../../img/database-access/workbench-ssl@2x.png)
 

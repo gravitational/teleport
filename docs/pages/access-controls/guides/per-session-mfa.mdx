@@ -10,8 +10,7 @@ Teleport supports U2F authentication on every SSH and Kubernetes "connection"
 that protects users against compromises of their on-disk Teleport certificates.
 
 <Admonition type="note">
-  Per-session U2F checks don't apply to regular Teleport logins (`tsh login` or
-  logging into the Web UI). We encourage you to enable login MFA in your SSO
+  Per-session U2F checks don't apply to regular Teleport logins (`tsh login` or logging into the Web UI). We encourage you to enable login MFA in your SSO
   provider and/or for all [local Teleport
   users](../../admin-guide.mdx#local-connector).
 </Admonition>
@@ -36,7 +35,7 @@ to contain:
 ```yaml
 auth_service:
   authentication:
-    # require per-session MFA cluster-wide
+    # Require per-session MFA cluster-wide
     require_session_mfa: yes
 ```
 
@@ -51,7 +50,7 @@ metadata:
   name: example-role-with-mfa
 spec:
   options:
-    # require per-session MFA for this role
+    # Require per-session MFA for this role
     require_session_mfa: true
   allow:
     ...
@@ -64,7 +63,7 @@ clusters matching that role's `allow` section.
 
 #### Roles example
 
-Let's walk though an example of setting up per-session MFA checks for roles.
+Let's walk through an example of setting up per-session MFA checks for roles.
 
 Jerry is an engineer with access to the company infrastructure. The
 infrastructure is split into development and production environments. Security
@@ -82,31 +81,31 @@ metadata:
 spec:
   allow:
     node_labels:
-    - env: dev
+      env: dev
     kubernetes_labels:
-    - env: dev
+      env: dev
   deny: {}
-
+---
 # access-prod.yaml
 kind: role
 version: v3
 metadata:
   name: access-prod
   options:
-    # require per-session MFA for production access
+    # Require per-session MFA for production access
     require_session_mfa: true
 spec:
   allow:
     node_labels:
-    - env: prod
+      env: prod
     kubernetes_labels:
-    - env: prod
+      env: prod
   deny: {}
 ```
 
 Olga then assigns both roles to all engineers, including Jerry.
 
-When Jerry logs into node `dev1.example.com` (with label `env: dev`), nothing
+When Jerry logs into node `dev1.example.com` (with the label `env: dev`), nothing
 special happens:
 
 ```sh
@@ -115,7 +114,7 @@ jerry@localhost $ tsh ssh dev1.example.com
 jerry@dev1.example.com >
 ```
 
-But when Jerry logs into node `prod3.example.com` (with label `env: prod`), he
+But when Jerry logs into node `prod3.example.com` (with the label `env: prod`), he
 gets prompted for an MFA check:
 
 ```sh
@@ -130,13 +129,13 @@ even when logging into `dev1.example.com`.
 
 ## Limitations
 
-There are several limitations for this feature:
-- U2F devices are currently not supported in `tsh` on Windows.
+Current limitations for this feature are:
+
+- U2F devices aren't currently supported in `tsh` on Windows.
 - Only `tsh ssh` supports per-session U2F authentication for SSH (OpenSSH `ssh`
   does not).
 - Only `kubectl` supports per-session U2F authentication for Kubernetes.
-- Database and Application access clients do not support per-session U2F
-  authentication yet, although cluster and role configuration applies to them.
-  If you enable per-session U2F checks cluster-wide, you will not be able to
-  use Database or Application access. We are working on integrating per-session
+- Database and Application access clients don't support per-session U2F
+  authentication yet, although cluster and role configuration apply to them.
+  If you enable per-session U2F checks cluster-wide, you will not be able to use Database or Application access. We're working on integrating per-session
   U2F checks for these clients.

@@ -98,7 +98,7 @@ func (s *Server) CreateAppSession(ctx context.Context, req services.CreateAppSes
 		return nil, trace.Wrap(err)
 	}
 	log.Debugf("Generated application web session for %v with TTL %v.", req.Username, ttl)
-
+	UserLoginCount.Inc()
 	return session, nil
 }
 

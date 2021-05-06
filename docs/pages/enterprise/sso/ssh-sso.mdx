@@ -1,10 +1,10 @@
 ---
 title: SSO for SSH
-description: How to set up single sign-on (SSO) for SSH using Gravitational Teleport
+description: How to set up Single Sign-On (SSO) for SSH using Gravitational Teleport
 h1: Single Sign-On (SSO) for SSH
 ---
 
-The commercial edition of Teleport allows users to login and retrieve their SSH
+The commercial edition of Teleport allows users to log in and retrieve their SSH
 credentials through a [Single Sign-On](https://en.wikipedia.org/wiki/Single_sign-on)
 (SSO) system used by the rest of the organization.
 
@@ -35,7 +35,7 @@ From the user's perspective they need to execute the following command login:
 $ tsh login --proxy=proxy.example.com
 
 # output:
-If browser window does not open automatically, open it by clicking on the link:
+If the browser window does not open automatically, open it by clicking on the link:
 http://127.0.0.1:45235/055a310a-1099-43ea-8cf6-ffc41d88ad1f
 ```
 
@@ -47,13 +47,12 @@ succeeds, Teleport will retrieve an SSH certificate and will store it in
 ## Configuring SSO
 
 Teleport works with SSO providers by relying on a concept called
-*"authentication connector"*. An auth connector is a plugin which controls how
+*authentication connector*. An auth connector is a plugin that controls how
 a user logs in and which group he or she belongs to.
 
 The following connectors are supported:
 
-- `local` connector type uses the built-in user database. This database can be
-  manipulated by the `tctl users` command.
+- `local` connector type uses the built-in user database. This database can be manipulated by the `tctl users` command.
 - `saml` connector type uses the [SAML protocol](https://en.wikipedia.org/wiki/Security_Assertion_Markup_Language)
   to authenticate users and query their group membership.
 - `oidc` connector type uses the [OpenID Connect protocol](https://en.wikipedia.org/wiki/OpenID_Connect)
@@ -84,7 +83,7 @@ version: v2
 metadata:
   name: corporate
 spec:
-  # display allows to set the caption of the "login" button
+  # display allows setting the caption of the "login" button
   # in the Web interface
   display: "Okta"
 
@@ -106,15 +105,14 @@ spec:
 
 - See [examples/resources](https://github.com/gravitational/teleport/tree/master/examples/resources)
   directory in the Teleport Github repository for examples of possible connectors.
-- You may use `entity_descriptor_url`, in lieu of `entity_descriptor`, to fetch the entity descriptor from
-  your IDP. Though, we recommend "pinning" the entity descriptor by including the XML rather than fetching from a URL.
+- You may use `entity_descriptor_url`, in place of `entity_descriptor`, to fetch the entity descriptor from your IDP. Though, we recommend "pinning" the entity descriptor by including the XML rather than fetching from a URL.
 
 ### User Logins
 
 Often it is required to restrict SSO users to their unique UNIX logins when they
 connect to Teleport nodes. To support this:
 
-- Use the SSO provider to create a field called *"unix_login"* (you can use another name).
+- Use the SSO provider to create a field called `unix_login` (you can use another name).
 - Make sure it's exposed as a claim via SAML/OIDC.
 - Update a Teleport SSH role to include `{{external.unix_login}}` variable into the list of allowed logins:
 
@@ -215,6 +213,6 @@ must be able to:
 
 If something is not working, we recommend to:
 
-- Double-check the host names, tokens and TCP ports in a connector definition.
+- Double-check the hostnames, tokens, and TCP ports in a connector definition.
 - Look into Teleport's audit log for claim mapping problems. It is usually stored on the
   auth server in the `/var/lib/teleport/log` directory.ad

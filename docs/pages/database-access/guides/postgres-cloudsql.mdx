@@ -36,7 +36,7 @@ page and create a new service account:
 
 Press "Create".
 
-On the second step grant this service account the "Cloud SQL Instance User" role
+On the second step grant, this service account the "Cloud SQL Instance User" role
 which will allow it to connect to Cloud SQL instances using IAM token for
 authentication:
 
@@ -59,7 +59,7 @@ in Google Cloud documentation for more info.
 
 ## Create Service Account for Teleport Database Service
 
-The final part of GCP configuration is to create another service account with
+The final part of configuring GCP is to create another service account with
 "Service Account Token Creator" permission, or modify an existing one to add it.
 This will let Teleport Database Service generate an IAM auth token when
 connecting to the database as a service account user we created above.
@@ -111,7 +111,7 @@ on the "Connect to this instance" panel on the Overview page:
 
 The instance's root certificate is required so Teleport can validate the
 certificate presented by the database instance. You can download `server-ca.pem`
-file from the Connections tab under Security section:
+file from the "Connections" tab under the "Security" section:
 
 ![Instance Root Certificate](../../../img/database-access/guides/cloudsql/instance-root-ca@2x.png)
 
@@ -139,8 +139,7 @@ $ teleport configure --cluster-name=teleport.example.com --acme --acme-email=ali
 >
   Teleport uses [TLS-ALPN-01](https://letsencrypt.org/docs/challenge-types/#tls-alpn-01)
   ACME challenge to validate certificate requests which only works on port `443`.
-  As such, in order to use ACME for certificate management, web proxy needs to
-  be accessible on port `443`.
+  As such, to use ACME for certificate management, web proxy needs to be accessible on port `443`.
 </Admonition>
 
 Start the service:
@@ -200,7 +199,7 @@ Update the user:
 $ tctl create alice.yaml -f
 ```
 
-For more detailed information about database access controls see [RBAC](../rbac.mdx)
+For more detailed information about database access controls read our [Role-Based Access Control](../rbac.mdx) 
 documentation.
 
 ## Setup Teleport Database Service
@@ -253,7 +252,7 @@ proxy_service:
   type="tip"
   title="Tip"
 >
-  A single Teleport process can run multiple different services, for example
+  A single Teleport process can run multiple different services, for example,
   multiple database access proxies as well as running other services such an
   SSH service or an application access proxy.
 </Admonition>
@@ -268,7 +267,7 @@ $ teleport start --config=/path/to/teleport-db.yaml --token=/tmp/token
 
 Teleport Database Service must have credentials of `teleport-db-service` GCP
 service account we created [above](#create-service-account-for-teleport-database-service)
-in order to be able to generate IAM auth tokens.
+to be able to generate IAM auth tokens.
 
 The easiest way to ensure that is to set `GOOGLE_APPLICATION_CREDENTIALS`
 environment variable to point to the JSON credentials file you downloaded
@@ -279,7 +278,7 @@ in Google Cloud documentation for more details.
 
 ## Connect
 
-Once the database service has joined the cluster, login to see the available
+Once the database service has joined the cluster, log in to see the available
 databases:
 
 ```sh
@@ -290,10 +289,10 @@ Name     Description              Labels
 cloudsql GCP Cloud SQL PostgreSQL env=dev
 ```
 
-Note that you will only be able to see databases your role has access to. See
-[RBAC](../rbac.mdx) section for more details.
+Note that you will only be able to see databases your role has access to. Read about
+[Role-Based Access Control](../rbac.mdx) for more details.
 
-To connect to a particular database server, first retrieve credentials from
+To connect to a particular database server, first, retrieve credentials from
 Teleport using `tsh db login` command:
 
 ```sh

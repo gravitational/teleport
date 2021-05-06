@@ -4,7 +4,7 @@ description: The guide for installing Teleport on servers and into Kubernetes cl
 h1: Installation
 ---
 
-Teleport core service [`teleport`](cli-docs.mdx#teleport) and admin tool [`tctl`](cli-docs.mdx#tctl) have been designed to run on **Linux** and **Mac** operating systems. The Teleport user client [`tsh`](cli-docs.mdx#tsh) and UI are available for **Linux, Mac** and **Windows** operating systems.
+Teleport core service [`teleport`](cli-docs.mdx#teleport) and admin tool [`tctl`](cli-docs.mdx#tctl) have been designed to run on **Linux** and **Mac** operating systems. The Teleport user client [`tsh`](cli-docs.mdx#tsh) and UI are available for **Linux, Mac**, and **Windows** operating systems.
 
 ## Linux
 
@@ -129,7 +129,7 @@ $ helm install teleport teleport/teleport
 
 ## Windows (tsh client only)
 
-As of version v3.0.1 we have `tsh` client binary available for Windows 64-bit
+As of version v3.0.1, we have `tsh` client binary available for Windows 64-bit
 architecture - `teleport` and `tctl` are not supported.
 
 <Tabs>
@@ -149,9 +149,9 @@ architecture - `teleport` and `tctl` are not supported.
   </TabItem>
 </Tabs>
 
-## Installing from Source
+## Installing from source
 
-Gravitational Teleport is written in Go language. It requires **Golang v(=teleport.golang=)**
+Gravitational Teleport is written in the Go language. It requires **Golang v(=teleport.golang=)**
 or newer. Check [the repo
 README](https://github.com/gravitational/teleport#building-teleport) for the
 latest requirements.
@@ -162,8 +162,7 @@ If you don't already have Golang installed you can [see installation
 instructions here](https://golang.org/doc/install). If you are new to Go there
 are a few quick set up things to note:
 
-- Go installs all dependencies *for all projects* in a single directory
-  determined by the `$GOPATH` variable. The default directory is
+- Go installs all dependencies *for all projects* in a single directory determined by the `$GOPATH` variable. The default directory is
   `GOPATH=$HOME/go` but you can set it to any directory you wish.
 - If you plan to use Golang for more than just this installation you may want to
   `echo "export GOPATH=$HOME/go" >> ~/.bashrc` (or your shell config).
@@ -183,8 +182,7 @@ $ sudo mkdir -p /var/lib/teleport
 $ sudo chown $USER /var/lib/teleport
 ```
 
-If the build succeeds, the binaries `teleport, tsh`, and `tctl` are now in the
-directory `$GOPATH/src/github.com/gravitational/teleport/build`
+If the build succeeds, the binaries `teleport, tsh`, and `tctl` are now in the directory `$GOPATH/src/github.com/gravitational/teleport/build`
 
 {
   /* Notes on what to do if the build does not succeed, troubleshooting */
@@ -198,7 +196,7 @@ This should be used to verify the integrity of our binary.
 ![Teleport Checksum](../img/teleport-sha.png)
 
 If you download Teleport via an automated system, you can programmatically
-obtain the checksum  by adding `.sha256` to the binary. This is the method shown
+obtain the checksum by adding `.sha256` to the binary. This is the method shown
 in the installation examples.
 
 ```bash
@@ -208,3 +206,24 @@ $ export arch=amd64 # '386' 'arm' on linux or 'amd64' for all distros
 $ curl https://get.gravitational.com/teleport-$version-$os-$arch-bin.tar.gz.sha256
 # <checksum> <filename>
 ```
+
+
+## Operating System Support
+
+Teleport is officially supported on the platforms listed below. It is worth noting
+that the open source community has been successful in building and running Teleport on
+UNIX variants other than Linux \[1].
+
+| Operating System | Teleport Client | Teleport Server |
+| - | - | - |
+| Linux v2.6.23+ | yes | yes |
+| MacOS v10.12+ | yes | yes |
+| Windows \[2] | yes \[2] | no |
+
+\[1] *Teleport is written in Go and it's possible to build it on
+any OS supported by the [Golang toolchain](https://github.com/golang/go/wiki/MinimumRequirements)*.
+
+\[2] *Teleport server does not run on Windows yet, but `tsh` (the Teleport client)
+can be used on Windows to execute `tsh login` to retrieve a user's SSH
+certificate and use it with `ssh`, the OpenSSH client, running on a Windows
+client machine.*

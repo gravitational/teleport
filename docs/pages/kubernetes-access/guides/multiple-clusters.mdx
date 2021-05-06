@@ -45,7 +45,7 @@ $ helm repo add teleport https://charts.releases.teleport.dev
 # Install Kubernetes agent. It dials back to the Teleport cluster tele.example.com.
 $ CLUSTER='cookie'
 $ PROXY='tele.example.com:443'
-$ helm install teleport-agent teleport-kube-agent --set kubeClusterName={CLUSTER?}\
+$ helm install teleport-agent teleport/teleport-kube-agent --set kubeClusterName=${CLUSTER?}\
     --set proxyAddr=${PROXY?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent
 ```
 
@@ -63,6 +63,6 @@ tele.example.com    *
 $ tsh kube login cookie
 Logged into kubernetes cluster "cookie"
 
-# kubectl command executed on `cookie`, but is routed through `tele.example.com` cluster.
+# kubectl command executed on `cookie` but is routed through `tele.example.com` cluster.
 $ kubectl get pods
 ```

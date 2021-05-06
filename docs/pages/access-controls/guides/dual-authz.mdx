@@ -3,12 +3,12 @@ title: Dual Authorization
 description: Dual Authorization for SSH and Kubernetes
 ---
 
-# Dual Authorization
+# Dual authorization
 
-You can set up Teleport to require require the approval of multiple team members to perform some critical actions.
+You can set up Teleport to require the approval of multiple team members to perform some critical actions.
 Here are the most common scenarios:
 
-- Improve security of your system and prevent one successful phishing attack from compromizing your system.
+- Improve the security of your system and prevent one successful phishing attack from compromising your system.
 - Satisfy FedRamp AC-3 Dual authorization control that requires approval of two authorized individuals.
 
 Let's set up Teleport's access requests to require approval of
@@ -18,8 +18,7 @@ two team members for a privileged role `dbadmin`.
   type="warning"
   title="Version Warning"
 >
-  This guide requires a commercial edition of Teleport. The open source
-  edition of Teleport only supports [Github](../../admin-guide.mdx#github-oauth-20) as
+  This guide requires a commercial edition of Teleport. The Teleport Open Source Edition only supports [Github](../../admin-guide.mdx#github-oauth-20) as
   an SSO provider.
 </Admonition>
 
@@ -113,7 +112,7 @@ spec:
 **Export access-plugin cert**
 
 Teleport Plugin uses the `access-plugin` role and user to perform the approval.
-We export the identify files, using tctl auth sign.
+We export the identify files, using `tctl auth sign`.
 
 ```bash
 $ tctl auth sign --format=tls --user=access-plugin --out=auth --ttl=720h
@@ -126,9 +125,9 @@ Teleport will generate `auth.crt`, `auth.key`, and `auth.cas` - a certificate, a
 <Tabs>
 <TabItem label="Download">
   ```bash
-  $ curl -L https://get.gravitational.com/teleport-mattermost-v(=teleport.version=)-linux-amd64-bin.tar.gz
-  $ tar -xzf teleport-mattermost-v(=teleport.version=)-linux-amd64-bin.tar.gz
-  $ cd teleport-mattermost
+  $ curl -L https://get.gravitational.com/teleport-access-mattermost-v(=teleport.version=)-linux-amd64-bin.tar.gz
+  $ tar -xzf teleport-access-mattermost-v(=teleport.version=)-linux-amd64-bin.tar.gz
+  $ cd teleport-access-mattermost
   $ ./install
   ```
 </TabItem>
@@ -149,7 +148,7 @@ Teleport will generate `auth.crt`, `auth.key`, and `auth.cas` - a certificate, a
 $ teleport-mattermost configure > /etc/teleport-mattermost.toml
 ```
 
-Update the config with Teleport address, Mattermost URL and a bot token.
+Update the config with Teleport address, Mattermost URL, and a bot token.
 
 ```toml
 # example Mattermost configuration TOML file
@@ -163,15 +162,16 @@ root_cas = "/var/lib/teleport/plugins/mattermost/auth.cas"   # Teleport cluster 
 [mattermost]
 url = "https://mattermost.example.com" # Mattermost Server URL
 token = "api-token"                    # Mattermost Bot OAuth token
+recipients = [team/channel]            # Mattermost Team or Channel to notify of new requests
 
 [log]
 output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/mattermost.log"
 severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
 ```
 
-## Dual Authorization
+## Dual authorization
 
-Alice and Ivan are reviewers - they can approve requests for assuming role `dbadmin`.
+Alice and Ivan are reviewers - they can approve requests since they have the role `dbadmin`.
 Bob is a devops and can assume `dbadmin` role if two members of the `reviewer` role
 approved the request.
 
@@ -211,8 +211,8 @@ spec:
       'type': 'db'
 ```
 
-Example below creates local users Alice, Ivan and Bob.
-Bob does not have a role `dbadmin` assigned to him, but can create an access request for it.
+The example below creates local users Alice, Ivan, and Bob.
+Bob does not have a role `dbadmin` assigned to him but can create an access request for it.
 
 ```bash
 $ tctl users add bob@example.com --roles=devops
@@ -220,7 +220,7 @@ $ tctl users add alice@example.com --roles=reviewer
 $ tctl users add ivan@example.com --roles=reviewer
 ```
 
-## Access Requests Flow
+## Access requests flow
 
 Bob can create an access request for the `dbadmin` role in the Web UI or CLI:
 
@@ -268,8 +268,7 @@ Bob can also assume granted access request roles using Web UI:
 
 **Cert errors**
 
-You may be getting certificate errors if Teleport's auth server is missing
-address in the server certificate:
+You may be getting certificate errors if Teleport's auth server is missing an address in the server certificate:
 
 ```bash
 authentication handshake failed: x509: cannot validate certificate for 127.0.0.1 because it doesn't contain any IP SANs
@@ -279,7 +278,7 @@ authentication handshake failed: x509: cannot validate certificate for 127.0.0.1
 x509: certificate is valid for,*.teleport.cluster.local, teleport.cluster.local, not example.com
 ```
 
-To fix the problem, update the auth service with public address and restart Teleport:
+To fix the problem, update the auth service with a public address, and restart Teleport:
 
 ```yaml
 auth_service:
