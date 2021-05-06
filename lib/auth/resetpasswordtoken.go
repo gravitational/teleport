@@ -138,8 +138,8 @@ func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateResetPa
 			Code: events.ResetPasswordTokenCreateCode,
 		},
 		UserMetadata: events.UserMetadata{
-			User:         clientUsername(ctx),
-			Impersonator: clientImpersonator(ctx),
+			User:         ClientUsername(ctx),
+			Impersonator: ClientImpersonator(ctx),
 		},
 		ResourceMetadata: events.ResourceMetadata{
 			Name:    req.Name,
@@ -253,11 +253,13 @@ func (s *Server) newTOTPKey(user string) (*otp.Key, *totp.GenerateOpts, error) {
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+	clusterName, err := s.GetClusterName()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 
 	opts := totp.GenerateOpts{
-		// TODO(awly): use proxy public addr as "Issuer", to distinguish
-		// between TOTP keys for different clusters.
-		Issuer:      "Teleport",
+		Issuer:      clusterName.GetClusterName(),
 		AccountName: accountName,
 		Period:      30, // seconds
 		Digits:      otp.DigitsSix,

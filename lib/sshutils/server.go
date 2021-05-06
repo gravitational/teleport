@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@ package sshutils
 import (
 	"bytes"
 	"context"
-	"crypto/subtle"
 	"encoding/json"
 	"io"
 	"net"
@@ -38,6 +37,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -392,6 +392,19 @@ func (s *Server) trackConnections(delta int32) int32 {
 	return atomic.AddInt32(&s.conns, delta)
 }
 
+var (
+	proxyConnectionLimitHitCount = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: teleport.MetricProxyConnectionLimitHit,
+			Help: "Number of times the proxy connection limit was exceeded",
+		},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(proxyConnectionLimitHitCount)
+}
+
 // HandleConnection is called every time an SSH server accepts a new
 // connection from a client.
 //
@@ -408,6 +421,9 @@ func (s *Server) HandleConnection(conn net.Conn) {
 		log.Errorf(err.Error())
 	}
 	if err := s.limiter.AcquireConnection(remoteAddr); err != nil {
+		if trace.IsLimitExceeded(err) {
+			proxyConnectionLimitHitCount.Inc()
+		}
 		log.Errorf(err.Error())
 		conn.Close()
 		return
@@ -440,7 +456,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 		return
 	}
 	// Connection successfully initiated
-	s.log.Debugf("Incoming connection %v -> %v vesion: %v.",
+	s.log.Debugf("Incoming connection %v -> %v version: %v.",
 		sconn.RemoteAddr(), sconn.LocalAddr(), string(sconn.ClientVersion()))
 
 	// will be called when the connection is closed
@@ -601,13 +617,6 @@ func validateHostSigner(fips bool, signer ssh.Signer) error {
 
 type PublicKeyFunc func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error)
 type PasswordFunc func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error)
-
-// KeysEqual is constant time compare of the keys to avoid timing attacks
-func KeysEqual(ak, bk ssh.PublicKey) bool {
-	a := ssh.Marshal(ak)
-	b := ssh.Marshal(bk)
-	return (len(a) == len(b) && subtle.ConstantTimeCompare(a, b) == 1)
-}
 
 // HandshakePayload structure is sent as a JSON blob by the teleport
 // proxy to every SSH server who identifies itself as Teleport server

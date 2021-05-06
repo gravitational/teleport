@@ -184,6 +184,8 @@ const (
 	AccessRequestCreateEvent = "access_request.create"
 	// AccessRequestUpdateEvent is emitted when a request's state is updated.
 	AccessRequestUpdateEvent = "access_request.update"
+	// AccessRequestReviewEvent is emitted when a review is applied to a request.
+	AccessRequestReviewEvent = "access_request.review"
 	// AccessRequestDelegator is used by teleport plugins to indicate the identity
 	// which caused them to update state.
 	AccessRequestDelegator = "delegator"
@@ -191,6 +193,15 @@ const (
 	AccessRequestState = "state"
 	// AccessRequestID is the ID of an access request.
 	AccessRequestID = "id"
+
+	// BillingCardCreateEvent is emitted when a user creates a new credit card.
+	BillingCardCreateEvent = "billing.create_card"
+	// BillingCardDeleteEvent is emitted when a user deletes a credit card.
+	BillingCardDeleteEvent = "billing.delete_card"
+	// BillingCardUpdateEvent is emitted when a user updates an existing credit card.
+	BillingCardUpdateEvent = "billing.update_card"
+	// BillingInformationUpdateEvent is emitted when a user updates their billing information.
+	BillingInformationUpdateEvent = "billing.update_info"
 
 	// UpdatedBy indicates the user who modified some resource:
 	//  - updating a request state
@@ -344,11 +355,14 @@ const (
 	// AppSessionRequestEvent is an HTTP request and response.
 	AppSessionRequestEvent = "app.session.request"
 
-	// DatabaseSessionStartEvent indicates the start of a database session.
+	// DatabaseSessionStartEvent is emitted when a database client attempts
+	// to connect to a database.
 	DatabaseSessionStartEvent = "db.session.start"
-	// DatabaseSessionEndEvent indicates the end of a database session.
+	// DatabaseSessionEndEvent is emitted when a database client disconnects
+	// from a database.
 	DatabaseSessionEndEvent = "db.session.end"
-	// DatabaseSessionQueryEvent indicates a database query execution.
+	// DatabaseSessionQueryEvent is emitted when a database client executes
+	// a query.
 	DatabaseSessionQueryEvent = "db.session.query"
 
 	// SessionRejectedReasonMaxConnections indicates that a session.rejected event

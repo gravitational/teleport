@@ -97,6 +97,11 @@ type Role interface {
 	// SetAccessRequestConditions sets allow/deny conditions for access requests.
 	SetAccessRequestConditions(RoleConditionType, AccessRequestConditions)
 
+	// GetAccessReviewConditions gets allow/deny conditions for access review.
+	GetAccessReviewConditions(RoleConditionType) AccessReviewConditions
+	// SetAccessReviewConditions sets allow/deny conditions for access review.
+	SetAccessReviewConditions(RoleConditionType, AccessReviewConditions)
+
 	// GetDatabaseLabels gets the map of db labels this role is allowed or denied access to.
 	GetDatabaseLabels(RoleConditionType) Labels
 	// SetDatabaseLabels sets the map of db labels this role is allowed or denied access to.
@@ -339,6 +344,27 @@ func (r *RoleV3) SetAccessRequestConditions(rct RoleConditionType, cond AccessRe
 		r.Spec.Allow.Request = &cond
 	} else {
 		r.Spec.Deny.Request = &cond
+	}
+}
+
+// GetAccessReviewConditions gets conditions for access reviews.
+func (r *RoleV3) GetAccessReviewConditions(rct RoleConditionType) AccessReviewConditions {
+	cond := r.Spec.Deny.ReviewRequests
+	if rct == Allow {
+		cond = r.Spec.Allow.ReviewRequests
+	}
+	if cond == nil {
+		return AccessReviewConditions{}
+	}
+	return *cond
+}
+
+// SetAccessReviewConditions sets allow/deny conditions for access reviews.
+func (r *RoleV3) SetAccessReviewConditions(rct RoleConditionType, cond AccessReviewConditions) {
+	if rct == Allow {
+		r.Spec.Allow.ReviewRequests = &cond
+	} else {
+		r.Spec.Deny.ReviewRequests = &cond
 	}
 }
 
@@ -752,8 +778,7 @@ func (r *Rule) HasResource(resource string) bool {
 	return false
 }
 
-// HasVerb returns true if the rule has verb,
-// this method also matches wildcard
+// HasVerb returns true if the rule has the specified verb.
 func (r *Rule) HasVerb(verb string) bool {
 	for _, v := range r.Verbs {
 		// readnosecrets can be satisfied by having readnosecrets or read

@@ -26,22 +26,26 @@ import (
 // The following constants have been moved to /api/constants/constants.go, and are now
 // imported here for backwards compatibility. DELETE IN 7.0.0
 const (
-	Local                      = constants.Local
-	OIDC                       = constants.OIDC
-	SAML                       = constants.SAML
-	Github                     = constants.Github
-	HumanDateFormatSeconds     = constants.HumanDateFormatSeconds
-	DefaultImplicitRole        = constants.DefaultImplicitRole
-	APIDomain                  = constants.APIDomain
-	CertificateFormatStandard  = constants.CertificateFormatStandard
-	DurationNever              = constants.DurationNever
-	EnhancedRecordingMinKernel = constants.EnhancedRecordingMinKernel
-	EnhancedRecordingCommand   = constants.EnhancedRecordingCommand
-	EnhancedRecordingDisk      = constants.EnhancedRecordingDisk
-	EnhancedRecordingNetwork   = constants.EnhancedRecordingNetwork
-	KeepAliveNode              = constants.KeepAliveNode
-	KeepAliveApp               = constants.KeepAliveApp
-	KeepAliveDatabase          = constants.KeepAliveDatabase
+	Local                        = constants.Local
+	OIDC                         = constants.OIDC
+	SAML                         = constants.SAML
+	Github                       = constants.Github
+	HumanDateFormatSeconds       = constants.HumanDateFormatSeconds
+	DefaultImplicitRole          = constants.DefaultImplicitRole
+	APIDomain                    = constants.APIDomain
+	CertificateFormatStandard    = constants.CertificateFormatStandard
+	DurationNever                = constants.DurationNever
+	EnhancedRecordingMinKernel   = constants.EnhancedRecordingMinKernel
+	EnhancedRecordingCommand     = constants.EnhancedRecordingCommand
+	EnhancedRecordingDisk        = constants.EnhancedRecordingDisk
+	EnhancedRecordingNetwork     = constants.EnhancedRecordingNetwork
+	KeepAliveNode                = constants.KeepAliveNode
+	KeepAliveApp                 = constants.KeepAliveApp
+	KeepAliveDatabase            = constants.KeepAliveDatabase
+	WindowsOS                    = constants.WindowsOS
+	LinuxOS                      = constants.LinuxOS
+	DarwinOS                     = constants.DarwinOS
+	UseOfClosedNetworkConnection = constants.UseOfClosedNetworkConnection
 )
 
 // WebAPIVersion is a current webapi version
@@ -314,15 +318,6 @@ const (
 	// LinuxAdminGID is the ID of the standard adm group on linux
 	LinuxAdminGID = 4
 
-	// LinuxOS is the GOOS constant used for Linux.
-	LinuxOS = "linux"
-
-	// WindowsOS is the GOOS constant used for Microsoft Windows.
-	WindowsOS = "windows"
-
-	// DarwinOS is the GOOS constant for Apple macOS/darwin.
-	DarwinOS = "darwin"
-
 	// DirMaskSharedGroup is the mask for a directory accessible
 	// by the owner and group
 	DirMaskSharedGroup = 0770
@@ -500,6 +495,9 @@ const (
 	// local accounts.
 	TraitInternalPrefix = "internal"
 
+	// TraitExternalPrefix is the role variable prefix that indicates the data comes from an external identity provider.
+	TraitExternalPrefix = "external"
+
 	// TraitLogins is the name the role variable used to store
 	// allowed logins.
 	TraitLogins = "logins"
@@ -650,10 +648,6 @@ const (
 )
 
 const (
-	// UseOfClosedNetworkConnection is a special string some parts of
-	// go standard lib are using that is the only way to identify some errors
-	UseOfClosedNetworkConnection = "use of closed network connection"
-
 	// NodeIsAmbiguous serves as an identifying error string indicating that
 	// the proxy subsystem found multiple nodes matching the specified hostname.
 	NodeIsAmbiguous = "err-node-is-ambiguous"

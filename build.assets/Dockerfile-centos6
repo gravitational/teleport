@@ -24,13 +24,23 @@ RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz && \
      cp etcd-v3.3.9-linux-amd64/etcd* /bin/)
 
-# Install Go.
+# Go 1.16 upgraded to a newer distro for creating their prebuilt binaries, so they no longer work on CentOS 6.
+# As such, we now build from source in the same way as we do for BoringCrypto.
+# 1) Install older binary Go runtime for bootstrapping
+# 2) Get source for the correct Go runtime and compile it with Go bootstrap runtime
+# 3) Erase Go bootstrap runtime and create build directories
+# 4) Print compiled Go version
 ARG RUNTIME
-RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$RUNTIME.linux-amd64.tar.gz | tar xz && \
+ARG GO_BOOTSTRAP_RUNTIME=go1.9.7
+RUN mkdir -p /go-bootstrap && cd /go-bootstrap && curl https://dl.google.com/go/${GO_BOOTSTRAP_RUNTIME}.linux-amd64.tar.gz | tar xz && \
+    mkdir -p /opt && cd /opt && curl -L https://golang.org/dl/${RUNTIME}.src.tar.gz | tar xz && \
+    cd /opt/go/src && GOROOT_BOOTSTRAP=/go-bootstrap/go ./make.bash && \
+    rm -rf /go-bootstrap && \
     mkdir -p /go/src/github.com/gravitational/teleport && \
     chmod a+w /go && \
     chmod a+w /var/lib && \
-    chmod a-w /
+    chmod a-w / && \
+    /opt/go/bin/go version
 
 ENV GOPATH="/go" \
     GOROOT="/opt/go" \

@@ -191,26 +191,26 @@ func (s *PresenceService) upsertServer(ctx context.Context, prefix string, serve
 }
 
 // DeleteAllNodes deletes all nodes in a namespace
-func (s *PresenceService) DeleteAllNodes(namespace string) error {
+func (s *PresenceService) DeleteAllNodes(ctx context.Context, namespace string) error {
 	startKey := backend.Key(nodesPrefix, namespace)
-	return s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
+	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
 
 // DeleteNode deletes node
-func (s *PresenceService) DeleteNode(namespace string, name string) error {
+func (s *PresenceService) DeleteNode(ctx context.Context, namespace string, name string) error {
 	key := backend.Key(nodesPrefix, namespace, name)
-	return s.Delete(context.TODO(), key)
+	return s.Delete(ctx, key)
 }
 
 // GetNodes returns a list of registered servers
-func (s *PresenceService) GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+func (s *PresenceService) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
 	if namespace == "" {
 		return nil, trace.BadParameter("missing namespace value")
 	}
 
 	// Get all items in the bucket.
 	startKey := backend.Key(nodesPrefix, namespace)
-	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -234,7 +234,7 @@ func (s *PresenceService) GetNodes(namespace string, opts ...services.MarshalOpt
 
 // UpsertNode registers node presence, permanently if TTL is 0 or for the
 // specified duration with second resolution if it's >= 1 second.
-func (s *PresenceService) UpsertNode(server services.Server) (*services.KeepAlive, error) {
+func (s *PresenceService) UpsertNode(ctx context.Context, server services.Server) (*services.KeepAlive, error) {
 	if server.GetNamespace() == "" {
 		return nil, trace.BadParameter("missing node namespace")
 	}
@@ -242,7 +242,7 @@ func (s *PresenceService) UpsertNode(server services.Server) (*services.KeepAliv
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	lease, err := s.Put(context.TODO(), backend.Item{
+	lease, err := s.Put(ctx, backend.Item{
 		Key:     backend.Key(nodesPrefix, server.GetNamespace(), server.GetName()),
 		Value:   value,
 		Expires: server.Expiry(),
@@ -444,11 +444,11 @@ func (s *PresenceService) UpsertTrustedCluster(ctx context.Context, trustedClust
 }
 
 // GetTrustedCluster returns a single TrustedCluster by name.
-func (s *PresenceService) GetTrustedCluster(name string) (services.TrustedCluster, error) {
+func (s *PresenceService) GetTrustedCluster(ctx context.Context, name string) (services.TrustedCluster, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing trusted cluster name")
 	}
-	item, err := s.Get(context.TODO(), backend.Key(trustedClustersPrefix, name))
+	item, err := s.Get(ctx, backend.Key(trustedClustersPrefix, name))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -456,9 +456,9 @@ func (s *PresenceService) GetTrustedCluster(name string) (services.TrustedCluste
 }
 
 // GetTrustedClusters returns all TrustedClusters in the backend.
-func (s *PresenceService) GetTrustedClusters() ([]services.TrustedCluster, error) {
+func (s *PresenceService) GetTrustedClusters(ctx context.Context) ([]services.TrustedCluster, error) {
 	startKey := backend.Key(trustedClustersPrefix)
-	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -495,6 +495,7 @@ func (s *PresenceService) UpsertTunnelConnection(conn services.TunnelConnection)
 	if err := conn.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+
 	value, err := services.MarshalTunnelConnection(conn)
 	if err != nil {
 		return trace.Wrap(err)

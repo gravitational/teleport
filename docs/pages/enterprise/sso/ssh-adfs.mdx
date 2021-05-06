@@ -121,7 +121,7 @@ spec:
     max_session_ttl: "1h"
   allow:
     # only allow login as either ubuntu or the 'windowsaccountname' claim
-    logins: [ '{% raw %}{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}{% endraw %}', ubuntu ]
+    logins: [ '{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}', ubuntu ]
     node_labels:
       "access": "relaxed"
 ```
@@ -130,7 +130,7 @@ This role declares:
 
 - Devs are only allowed to login to nodes labelled with `access: relaxed` label.
 - Developers can log in as `ubuntu` user
-- Notice `{% raw %}{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}{% endraw %}` login. It configures Teleport to look at
+- Notice `{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}` login. It configures Teleport to look at
   *"[http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"](http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname")* ADFS claim and use that field as an allowed login for each user.
   Also note the double quotes (`"`) and square brackets (`[]`) around the claim name - these are important.
 - Developers also do not have any "allow rules" i.e. they will not be able to
@@ -139,7 +139,7 @@ This role declares:
 Next, create a SAML connector [resource](../../admin-guide.mdx#resources):
 
 ```yaml
-{!examples/resources/adfs-connector.yaml!}
+(!examples/resources/adfs-connector.yaml!)
 ```
 
 The `acs` field should match the value you set in ADFS earlier and you can

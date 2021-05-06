@@ -357,9 +357,17 @@ type ProxyConfig struct {
 	SSHPublicAddrs []utils.NetAddr
 
 	// TunnelPublicAddrs is a list of the public addresses the proxy advertises
-	// for the tunnel endpoint. The hosts in in PublicAddr are included in the
+	// for the tunnel endpoint. The hosts in PublicAddr are included in the
 	// list of host principals on the TLS and SSH certificate.
 	TunnelPublicAddrs []utils.NetAddr
+
+	// PostgresPublicAddrs is a list of the public addresses the proxy
+	// advertises for Postgres clients.
+	PostgresPublicAddrs []utils.NetAddr
+
+	// MySQLPublicAddrs is a list of the public addresses the proxy
+	// advertises for MySQL clients.
+	MySQLPublicAddrs []utils.NetAddr
 
 	// Kube specifies kubernetes proxy configuration
 	Kube KubeProxyConfig
@@ -503,6 +511,14 @@ type SSHConfig struct {
 
 	// BPF holds BPF configuration for Teleport.
 	BPF *bpf.Config
+
+	// ProxyReverseTunnelFallbackAddr optionall specifies the address of the proxy if reverse tunnel
+	// discovered proxy fails.
+	// This configuration is not exposed directly but can be set from environment via
+	// defaults.ProxyFallbackAddrEnvar.
+	//
+	// See github.com/gravitational/teleport/issues/4141 for details.
+	ProxyReverseTunnelFallbackAddr *utils.NetAddr
 }
 
 // KubeConfig specifies configuration for kubernetes service
@@ -557,14 +573,32 @@ type Database struct {
 	DynamicLabels services.CommandLabels
 	// CACert is an optional database CA certificate.
 	CACert []byte
-	// AWS contains AWS specific settings for RDS/Aurora.
+	// AWS contains AWS specific settings for RDS/Aurora/Redshift databases.
 	AWS DatabaseAWS
+	// GCP contains GCP specific settings for Cloud SQL databases.
+	GCP DatabaseGCP
 }
 
 // DatabaseAWS contains AWS specific settings for RDS/Aurora databases.
 type DatabaseAWS struct {
 	// Region is the cloud region database is running in when using AWS RDS.
 	Region string
+	// Redshift contains Redshift specific settings.
+	Redshift DatabaseAWSRedshift
+}
+
+// DatabaseAWSRedshift contains AWS Redshift specific settings.
+type DatabaseAWSRedshift struct {
+	// ClusterID is the Redshift cluster identifier.
+	ClusterID string
+}
+
+// DatabaseGCP contains GCP specific settings for Cloud SQL databases.
+type DatabaseGCP struct {
+	// ProjectID is the GCP project ID where the database is deployed.
+	ProjectID string
+	// InstanceID is the Cloud SQL instance ID.
+	InstanceID string
 }
 
 // Check validates the database proxy configuration.
@@ -592,6 +626,32 @@ func (d *Database) Check() error {
 				d.Name, err)
 		}
 	}
+	// Validate Redshift specific configuration.
+	if d.AWS.Redshift.ClusterID != "" {
+		if d.AWS.Region == "" {
+			return trace.BadParameter("missing AWS region for Redshift database %q", d.Name)
+		}
+	}
+	// Validate Cloud SQL specific configuration.
+	switch {
+	case d.GCP.ProjectID != "" && d.GCP.InstanceID == "":
+		return trace.BadParameter("missing Cloud SQL instance ID for database %q", d.Name)
+	case d.GCP.ProjectID == "" && d.GCP.InstanceID != "":
+		return trace.BadParameter("missing Cloud SQL project ID for database %q", d.Name)
+	case d.GCP.ProjectID != "" && d.GCP.InstanceID != "":
+		// Only Postgres Cloud SQL instances currently support IAM authentication.
+		// It's a relatively new feature so we'll be able to enable it once it
+		// expands to MySQL as well:
+		//   https://cloud.google.com/sql/docs/postgres/authentication
+		if d.Protocol != defaults.ProtocolPostgres {
+			return trace.BadParameter("Cloud SQL IAM authentication is currently supported only for PostgreSQL databases, can't use database %q with protocol %q", d.Name, d.Protocol)
+		}
+		// TODO(r0mant): See if we can download it automatically similar to RDS:
+		// https://cloud.google.com/sql/docs/postgres/instance-info#rest-v1beta4
+		if len(d.CACert) == 0 {
+			return trace.BadParameter("missing Cloud SQL instance root certificate for database %q", d.Name)
+		}
+	}
 	return nil
 }
 
@@ -613,6 +673,9 @@ type AppsConfig struct {
 type App struct {
 	// Name of the application.
 	Name string
+
+	// Description is the app description.
+	Description string
 
 	// URI is the internal address of the application.
 	URI string

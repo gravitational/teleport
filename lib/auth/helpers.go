@@ -183,7 +183,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+	authPreference, err := types.NewAuthPreferenceFromConfigFile(services.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
 		SecondFactor: constants.SecondFactorOff,
 	})
@@ -662,7 +662,8 @@ func (t *TestTLSServer) NewClient(identity TestIdentity) (*Client, error) {
 	}
 
 	newClient, err := NewClient(client.Config{
-		Addrs: []string{t.Addr().String()},
+		DialInBackground: true,
+		Addrs:            []string{t.Addr().String()},
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
@@ -752,6 +753,37 @@ func CreateUserRoleAndRequestable(clt clt, username string, rolename string) (se
 	requestableRole.SetLogins(services.Allow, []string{rolename})
 	err = clt.UpsertRole(ctx, requestableRole)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return user, nil
+}
+
+// CreateAccessPluginUser creates a user with list/read abilites for access requests, and list/read/update
+// abilities for access plugin data.
+func CreateAccessPluginUser(ctx context.Context, clt clt, username string) (services.User, error) {
+	user, err := services.NewUser(username)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	role := services.RoleForUser(user)
+	rules := role.GetRules(types.Allow)
+	rules = append(rules,
+		types.Rule{
+			Resources: []string{types.KindAccessRequest},
+			Verbs:     []string{types.VerbRead, types.VerbList},
+		},
+		types.Rule{
+			Resources: []string{types.KindAccessPluginData},
+			Verbs:     []string{types.VerbRead, types.VerbList, types.VerbUpdate},
+		},
+	)
+	role.SetRules(types.Allow, rules)
+	role.SetLogins(types.Allow, nil)
+	if err := clt.UpsertRole(ctx, role); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	user.AddRole(role.GetName())
+	if err := clt.UpsertUser(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return user, nil

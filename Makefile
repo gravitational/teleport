@@ -18,6 +18,7 @@ DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
 
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
+ASSETS_BUILDDIR ?= lib/web/build
 BINDIR ?= /usr/local/bin
 DATADIR ?= /usr/local/share/teleport
 ADDFLAGS ?=
@@ -120,7 +121,7 @@ $(BUILDDIR)/tctl:
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport: ensure-webassets
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
@@ -132,12 +133,9 @@ $(BUILDDIR)/tsh:
 # only tsh is built.
 #
 .PHONY:full
-full: all $(BUILDDIR)/webassets.zip
+full: $(ASSETS_BUILDDIR)/webassets.zip
 ifneq ("$(OS)", "windows")
-	@echo "---> Attaching OSS web assets."
-	cat $(BUILDDIR)/webassets.zip >> $(BUILDDIR)/teleport
-	rm -fr $(BUILDDIR)/webassets.zip
-	zip -q -A $(BUILDDIR)/teleport
+	$(MAKE) all WEBASSETS_TAG="webassets_embed"
 endif
 
 #
@@ -146,7 +144,9 @@ endif
 .PHONY:full-ent
 full-ent:
 ifneq ("$(OS)", "windows")
-	@if [ -f e/Makefile ]; then $(MAKE) -C e full; fi
+	@if [ -f e/Makefile ]; then \
+	rm $(ASSETS_BUILDDIR)/webassets.zip; \
+	$(MAKE) -C e full; fi
 endif
 
 #
@@ -176,6 +176,23 @@ else
 	$(MAKE) --no-print-directory release-unix
 endif
 
+# These are aliases used to make build commands uniform.
+.PHONY: release-amd64
+release-amd64:
+	$(MAKE) release ARCH=amd64
+
+.PHONY: release-386
+release-386:
+	$(MAKE) release ARCH=386
+
+.PHONY: release-arm
+release-arm:
+	$(MAKE) release ARCH=arm
+
+.PHONY: release-arm64
+release-arm64:
+	$(MAKE) release ARCH=arm64
+
 #
 # make release-unix - Produces a binary release tarball containing teleport,
 # tctl, and tsh.
@@ -194,7 +211,10 @@ release-unix: clean full
 	tar -czf $(RELEASE).tar.gz teleport
 	rm -rf teleport
 	@echo "---> Created $(RELEASE).tar.gz."
-	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
+	@if [ -f e/Makefile ]; then \
+		rm -fr $(ASSETS_BUILDDIR)/webassets.zip; \
+		$(MAKE) -C e release; \
+	fi
 
 #
 # make release-windows - Produces a binary release tarball containing teleport,
@@ -247,7 +267,7 @@ docs-test-whitespace:
 # Runs all Go/shell tests, called by CI/CD.
 #
 .PHONY: test
-test: test-sh test-go
+test: test-sh test-api test-go
 
 #
 # Runs all Go tests except integration, called by CI/CD.
@@ -262,10 +282,24 @@ test-go: $(VERSRC)
 	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) -cover
 
+# Runs API Go tests. These have to be run separately as the package name is different.
+#
+.PHONY: test-api
+test-api:
+test-api: FLAGS ?= '-race'
+test-api: PACKAGES := $(shell cd api && go list ./...)
+test-api: $(VERSRC)
+	GOMODCACHE=/tmp go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+
 # Find and run all shell script unit tests (using https://github.com/bats-core/bats-core)
 .PHONY: test-sh
 test-sh:
-	@find . -iname "*.bats" -exec dirname {} \; | uniq | xargs -t -L1 bats $(BATSFLAGS)
+	@if ! type bats 2>&1 >/dev/null; then \
+		echo "Not running 'test-sh' target as 'bats' is not installed."; \
+		if [ "$${DRONE}" = "true" ]; then echo "This is a failure when running in CI." && exit 1; fi; \
+		exit 0; \
+	fi; \
+	find . -iname "*.bats" -exec dirname {} \; | uniq | xargs -t -L1 bats $(BATSFLAGS)
 
 #
 # Integration tests. Need a TTY to work.
@@ -295,12 +329,19 @@ integration-root:
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-sh lint-helm lint-go
+lint: lint-sh lint-helm lint-api lint-go
 
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
 lint-go:
 	golangci-lint run -c .golangci.yml $(GO_LINT_FLAGS)
+
+# api is no longer part of the teleport package, so golangci-lint skips it by default
+# GOMODCACHE needs to be set here as api downloads dependencies and cannot write to /go/pkg/mod/cache
+.PHONY: lint-api
+lint-api: GO_LINT_API_FLAGS ?=
+lint-api:
+	cd api && GOMODCACHE=/tmp golangci-lint run -c ../.golangci.yml $(GO_LINT_API_FLAGS)
 
 # TODO(awly): remove the `--exclude` flag after cleaning up existing scripts
 .PHONY: lint-sh
@@ -322,14 +363,21 @@ lint-sh:
 
 # Lints all the Helm charts found in directories under examples/chart and exits on failure
 # If there is a .lint directory inside, the chart gets linted once for each .yaml file in that directory
+# We use yamllint's 'relaxed' configuration as it's more compatible with Helm output and will only error on
+# show-stopping issues. Kubernetes' YAML parser is not particularly fussy.
 .PHONY: lint-helm
 lint-helm:
+	@if ! type yamllint 2>&1 >/dev/null; then \
+		echo "Not running 'lint-helm' target as 'yamllint' is not installed."; \
+		if [ "$${DRONE}" = "true" ]; then echo "This is a failure when running in CI." && exit 1; fi; \
+		exit 0; \
+	fi; \
 	for CHART in $$(find examples/chart -mindepth 1 -maxdepth 1 -type d); do \
 		if [ -d $$CHART/.lint ]; then \
 			for VALUES in $$CHART/.lint/*.yaml; do \
 				echo "$$CHART: $$VALUES"; \
 				helm lint --strict $$CHART -f $$VALUES || exit 1; \
-				helm template test $$CHART -f $$VALUES 1>/dev/null || exit 1; \
+				helm template test $$CHART -f $$VALUES | yamllint -d relaxed - || exit 1; \
 			done \
 		else \
 			helm lint --strict $$CHART || exit 1; \
@@ -355,11 +403,16 @@ tag:
 
 # build/webassets.zip archive contains the web assets (UI) which gets
 # appended to teleport binary
-$(BUILDDIR)/webassets.zip:
+$(ASSETS_BUILDDIR)/webassets.zip: ensure-webassets $(ASSETS_BUILDDIR)
 ifneq ("$(OS)", "windows")
-	@echo "---> Building OSS web assets."
-	cd webassets/teleport/ ; zip -qr ../../$(BUILDDIR)/webassets.zip .
+	@echo "---> Building OSS web assets."; \
+	rm $(ASSETS_BUILDDIR)/webassets.zip; \
+	cd webassets/teleport/ ; zip -qr ../../$@ .
 endif
+
+$(ASSETS_BUILDDIR):
+	mkdir -p $@
+
 
 .PHONY: test-package
 test-package: remove-temp-files
@@ -604,3 +657,8 @@ update-webassets: WEBAPPS_BRANCH ?= 'master'
 update-webassets: TELEPORT_BRANCH ?= 'master'
 update-webassets:
 	build.assets/webapps/update-teleport-webassets.sh -w $(WEBAPPS_BRANCH) -t $(TELEPORT_BRANCH)
+
+# dronegen generates .drone.yml config
+.PHONY: dronegen
+dronegen:
+	go run ./dronegen

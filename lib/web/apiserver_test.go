@@ -44,6 +44,7 @@ import (
 	"golang.org/x/text/encoding/unicode"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -147,6 +148,22 @@ func (s *WebSuite) SetUpTest(c *C) {
 	})
 	c.Assert(err, IsNil)
 	s.server, err = authServer.NewTestTLSServer()
+	c.Assert(err, IsNil)
+	// Register the auth server, since test auth server doesn't start its own
+	// heartbeat.
+	err = authServer.AuthServer.UpsertAuthServer(&services.ServerV2{
+		Kind:    services.KindAuthServer,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Namespace: defaults.Namespace,
+			Name:      "auth",
+		},
+		Spec: services.ServerSpecV2{
+			Addr:     s.server.Listener.Addr().String(),
+			Hostname: "localhost",
+			Version:  teleport.Version,
+		},
+	})
 	c.Assert(err, IsNil)
 
 	// start node
@@ -761,6 +778,8 @@ func (s *WebSuite) TestResolveServerHostPort(c *C) {
 }
 
 func (s *WebSuite) TestNewTerminalHandler(c *C) {
+	ctx := context.Background()
+
 	validNode := services.ServerV2{}
 	validNode.SetName("eca53e45-86a9-11e7-a893-0242ac0a0101")
 	validNode.Spec.Hostname = "nodehostname"
@@ -852,7 +871,7 @@ func (s *WebSuite) TestNewTerminalHandler(c *C) {
 	}
 
 	for _, testCase := range validCases {
-		term, err := NewTerminal(testCase.req, testCase.authProvider, nil)
+		term, err := NewTerminal(ctx, testCase.req, testCase.authProvider, nil)
 		c.Assert(err, IsNil)
 		c.Assert(term.params, DeepEquals, testCase.req)
 		c.Assert(term.hostName, Equals, testCase.expectedHost)
@@ -860,7 +879,7 @@ func (s *WebSuite) TestNewTerminalHandler(c *C) {
 	}
 
 	for _, testCase := range invalidCases {
-		_, err := NewTerminal(testCase.req, testCase.authProvider, nil)
+		_, err := NewTerminal(ctx, testCase.req, testCase.authProvider, nil)
 		c.Assert(err, ErrorMatches, ".*"+testCase.expectedErr+".*")
 	}
 }
@@ -1530,7 +1549,7 @@ func (s *WebSuite) TestPing(c *C) {
 	re, err := wc.Get(context.Background(), wc.Endpoint("webapi", "ping"), url.Values{})
 	c.Assert(err, IsNil)
 
-	var out *client.PingResponse
+	var out *webclient.PingResponse
 	c.Assert(json.Unmarshal(re.Bytes(), &out), IsNil)
 
 	preference, err := s.server.Auth().GetAuthPreference()
@@ -1576,12 +1595,12 @@ func (s *WebSuite) TestMultipleConnectors(c *C) {
 	// hit the ping endpoint to get the auth type and connector name
 	re, err := wc.Get(ctx, wc.Endpoint("webapi", "ping"), url.Values{})
 	c.Assert(err, IsNil)
-	var out *client.PingResponse
+	var out *webclient.PingResponse
 	c.Assert(json.Unmarshal(re.Bytes(), &out), IsNil)
 
 	// make sure the connector name we got back was the first connector
 	// in the backend, in this case it's "bar"
-	oidcConnectors, err := s.server.Auth().GetOIDCConnectors(false)
+	oidcConnectors, err := s.server.Auth().GetOIDCConnectors(ctx, false)
 	c.Assert(err, IsNil)
 	c.Assert(out.Auth.OIDC.Name, Equals, oidcConnectors[0].GetName())
 
@@ -1756,25 +1775,24 @@ func (s *WebSuite) searchEvents(c *C, clt *client.WebClient, query url.Values, f
 }
 
 func (s *WebSuite) TestGetClusterDetails(c *C) {
+	ctx := context.Background()
+
 	site, err := s.proxyTunnel.GetSite(s.server.ClusterName())
 	c.Assert(err, IsNil)
 	c.Assert(site, NotNil)
 
-	cluster, err := ui.GetClusterDetails(site)
+	cluster, err := ui.GetClusterDetails(ctx, site)
 	c.Assert(err, IsNil)
 	c.Assert(cluster.Name, Equals, s.server.ClusterName())
 	c.Assert(cluster.ProxyVersion, Equals, teleport.Version)
 	c.Assert(cluster.PublicURL, Equals, fmt.Sprintf("%v:%v", s.server.ClusterName(), defaults.HTTPListenPort))
 	c.Assert(cluster.Status, Equals, teleport.RemoteClusterStatusOnline)
 	c.Assert(cluster.LastConnected, NotNil)
+	c.Assert(cluster.AuthVersion, Equals, teleport.Version)
 
-	nodes, err := s.proxyClient.GetNodes(defaults.Namespace)
+	nodes, err := s.proxyClient.GetNodes(ctx, defaults.Namespace)
 	c.Assert(err, IsNil)
 	c.Assert(nodes, HasLen, cluster.NodeCount)
-
-	// Expected empty, b/c test auth server doesn't set up
-	// heartbeat which where ServerSpecV2 version would've been set
-	c.Assert(cluster.AuthVersion, Equals, "")
 }
 
 type testModules struct {
@@ -1785,6 +1803,89 @@ func (m *testModules) Features() modules.Features {
 	return modules.Features{
 		App: false, // Explicily turn off application access.
 	}
+}
+
+func TestClusterDatabasesGet(t *testing.T) {
+	env := newWebPack(t, 1)
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com")
+
+	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases")
+	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
+	require.NoError(t, err)
+
+	// No db registered.
+	dbs := []ui.Database{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &dbs))
+	require.Len(t, dbs, 0)
+
+	// Register a database.
+	db := types.NewDatabaseServerV3("test-db-name", map[string]string{"test-field": "test-value"}, types.DatabaseServerSpecV3{
+		Description: "test-description",
+		Protocol:    "test-protocol",
+		URI:         "test-uri",
+		Hostname:    "test-hostname",
+		HostID:      "test-hostID",
+	})
+
+	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), db)
+	require.NoError(t, err)
+
+	re, err = pack.clt.Get(context.Background(), endpoint, url.Values{})
+	require.NoError(t, err)
+
+	dbs = []ui.Database{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &dbs))
+	require.Len(t, dbs, 1)
+	require.EqualValues(t, ui.Database{
+		Name:     "test-db-name",
+		Desc:     "test-description",
+		Protocol: "test-protocol",
+		Type:     types.DatabaseTypeSelfHosted,
+		Labels:   []ui.Label{{Name: "test-field", Value: "test-value"}},
+	}, dbs[0])
+}
+
+func TestClusterKubesGet(t *testing.T) {
+	env := newWebPack(t, 1)
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com")
+
+	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "kubernetes")
+	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
+	require.NoError(t, err)
+
+	// No kube registered.
+	kbs := []ui.Kube{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &kbs))
+	require.Len(t, kbs, 0)
+
+	// Register a kube service.
+	err = env.server.Auth().UpsertKubeService(context.Background(), &services.ServerV2{
+		Metadata: services.Metadata{Name: "test-kube"},
+		Kind:     services.KindKubeService,
+		Version:  services.V2,
+		Spec: services.ServerSpecV2{
+			KubernetesClusters: []*services.KubernetesCluster{{
+				Name:         "test-kube-name",
+				StaticLabels: map[string]string{"test-field": "test-value"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	re, err = pack.clt.Get(context.Background(), endpoint, url.Values{})
+	require.NoError(t, err)
+
+	kbs = []ui.Kube{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &kbs))
+	require.Len(t, kbs, 1)
+	require.EqualValues(t, ui.Kube{
+		Name:   "test-kube-name",
+		Labels: []ui.Label{{Name: "test-field", Value: "test-value"}},
+	}, kbs[0])
 }
 
 // TestApplicationAccessDisabled makes sure application access can be disabled
@@ -1823,7 +1924,7 @@ func TestApplicationAccessDisabled(t *testing.T) {
 
 	endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
 	_, err = pack.clt.PostJSON(context.Background(), endpoint, &CreateAppSessionRequest{
-		FQDN:        "panel.example.com",
+		FQDNHint:    "panel.example.com",
 		PublicAddr:  "panel.example.com",
 		ClusterName: "localhost",
 	})
@@ -1876,7 +1977,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		{
 			inComment: Commentf("Valid request: all fields."),
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDN:        "panel.example.com",
+				FQDNHint:    "panel.example.com",
 				PublicAddr:  "panel.example.com",
 				ClusterName: "localhost",
 			},
@@ -1897,7 +1998,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		{
 			inComment: Commentf("Valid request: only FQDN."),
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDN: "panel.example.com",
+				FQDNHint: "panel.example.com",
 			},
 			outError:    false,
 			outFQDN:     "panel.example.com",
@@ -1920,7 +2021,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		{
 			inComment: Commentf("Invalid application."),
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDN:        "panel.example.com",
+				FQDNHint:    "panel.example.com",
 				PublicAddr:  "invalid.example.com",
 				ClusterName: "localhost",
 			},
@@ -1929,7 +2030,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		{
 			inComment: Commentf("Invalid cluster name."),
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDN:        "panel.example.com",
+				FQDNHint:    "panel.example.com",
 				PublicAddr:  "panel.example.com",
 				ClusterName: "example.com",
 			},
@@ -1938,7 +2039,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		{
 			inComment: Commentf("Malicious request: all fields."),
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDN:        "panel.example.com@malicious.com",
+				FQDNHint:    "panel.example.com@malicious.com",
 				PublicAddr:  "panel.example.com",
 				ClusterName: "localhost",
 			},
@@ -1949,7 +2050,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		{
 			inComment: Commentf("Malicious request: only FQDN."),
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDN: "panel.example.com@malicious.com",
+				FQDNHint: "panel.example.com@malicious.com",
 			},
 			outError: true,
 		},
@@ -2088,7 +2189,7 @@ type authProviderMock struct {
 	server services.ServerV2
 }
 
-func (mock authProviderMock) GetNodes(n string, opts ...services.MarshalOption) ([]services.Server, error) {
+func (mock authProviderMock) GetNodes(ctx context.Context, n string, opts ...services.MarshalOption) ([]services.Server, error) {
 	return []services.Server{&mock.server}, nil
 }
 
@@ -2148,22 +2249,22 @@ func (s *WebSuite) makeTerminal(pack *authPack, opts ...session.ID) (*websocket.
 }
 
 func waitForOutput(stream *terminalStream, substr string) error {
-	tickerCh := time.Tick(250 * time.Millisecond)
 	timeoutCh := time.After(10 * time.Second)
 
 	for {
 		select {
-		case <-tickerCh:
-			out := make([]byte, 100)
-			_, err := stream.Read(out)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if strings.Contains(removeSpace(string(out)), substr) {
-				return nil
-			}
 		case <-timeoutCh:
 			return trace.BadParameter("timeout waiting on terminal for output: %v", substr)
+		default:
+		}
+
+		out := make([]byte, 100)
+		_, err := stream.Read(out)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if strings.Contains(removeSpace(string(out)), substr) {
+			return nil
 		}
 	}
 }
@@ -2171,27 +2272,27 @@ func waitForOutput(stream *terminalStream, substr string) error {
 func (s *WebSuite) waitForRawEvent(ws *websocket.Conn, timeout time.Duration) error {
 	timeoutContext, timeoutCancel := context.WithTimeout(context.Background(), timeout)
 	defer timeoutCancel()
-	doneContext, doneCancel := context.WithCancel(context.Background())
-	defer doneCancel()
+
+	done := make(chan error, 1)
 
 	go func() {
 		for {
-			time.Sleep(250 * time.Millisecond)
-
 			var raw []byte
 			err := websocket.Message.Receive(ws, &raw)
 			if err != nil {
-				continue
+				done <- trace.Wrap(err)
+				return
 			}
 
 			var envelope Envelope
 			err = proto.Unmarshal(raw, &envelope)
 			if err != nil {
-				continue
+				done <- trace.Wrap(err)
+				return
 			}
 
 			if envelope.GetType() == defaults.WebsocketRaw {
-				doneCancel()
+				done <- nil
 				return
 			}
 		}
@@ -2201,8 +2302,8 @@ func (s *WebSuite) waitForRawEvent(ws *websocket.Conn, timeout time.Duration) er
 		select {
 		case <-timeoutContext.Done():
 			return trace.BadParameter("timeout waiting for raw event")
-		case <-doneContext.Done():
-			return nil
+		case err := <-done:
+			return trace.Wrap(err)
 		}
 	}
 }
@@ -2210,23 +2311,23 @@ func (s *WebSuite) waitForRawEvent(ws *websocket.Conn, timeout time.Duration) er
 func (s *WebSuite) waitForResizeEvent(ws *websocket.Conn, timeout time.Duration) error {
 	timeoutContext, timeoutCancel := context.WithTimeout(context.Background(), timeout)
 	defer timeoutCancel()
-	doneContext, doneCancel := context.WithCancel(context.Background())
-	defer doneCancel()
+
+	done := make(chan error, 1)
 
 	go func() {
 		for {
-			time.Sleep(250 * time.Millisecond)
-
 			var raw []byte
 			err := websocket.Message.Receive(ws, &raw)
 			if err != nil {
-				continue
+				done <- trace.Wrap(err)
+				return
 			}
 
 			var envelope Envelope
 			err = proto.Unmarshal(raw, &envelope)
 			if err != nil {
-				continue
+				done <- trace.Wrap(err)
+				return
 			}
 
 			if envelope.GetType() != defaults.WebsocketAudit {
@@ -2236,11 +2337,12 @@ func (s *WebSuite) waitForResizeEvent(ws *websocket.Conn, timeout time.Duration)
 			var e events.EventFields
 			err = json.Unmarshal([]byte(envelope.GetPayload()), &e)
 			if err != nil {
-				continue
+				done <- trace.Wrap(err)
+				return
 			}
 
 			if e.GetType() == events.ResizeEvent {
-				doneCancel()
+				done <- nil
 				return
 			}
 		}
@@ -2250,8 +2352,8 @@ func (s *WebSuite) waitForResizeEvent(ws *websocket.Conn, timeout time.Duration)
 		select {
 		case <-timeoutContext.Done():
 			return trace.BadParameter("timeout waiting for resize event")
-		case <-doneContext.Done():
-			return nil
+		case err := <-done:
+			return trace.Wrap(err)
 		}
 	}
 }
@@ -2339,7 +2441,7 @@ func decodeSessionCookie(t *testing.T, value string) (sessionID string) {
 }
 
 func (r CreateSessionResponse) response() (*CreateSessionResponse, error) {
-	return &CreateSessionResponse{Type: r.Type, Token: r.Token, ExpiresIn: r.ExpiresIn}, nil
+	return &CreateSessionResponse{TokenType: r.TokenType, Token: r.Token, TokenExpiresIn: r.TokenExpiresIn}, nil
 }
 
 func newWebPack(t *testing.T, numProxies int) *webPack {
@@ -2356,6 +2458,23 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	server, err := authServer.NewTestTLSServer()
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, server.Close()) })
+
+	// Register the auth server, since test auth server doesn't start its own
+	// heartbeat.
+	err = authServer.AuthServer.UpsertAuthServer(&services.ServerV2{
+		Kind:    services.KindAuthServer,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Namespace: defaults.Namespace,
+			Name:      "auth",
+		},
+		Spec: services.ServerSpecV2{
+			Addr:     server.Listener.Addr().String(),
+			Hostname: "localhost",
+			Version:  teleport.Version,
+		},
+	})
+	require.NoError(t, err)
 
 	// start auth server
 	certs, err := server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
@@ -2630,8 +2749,8 @@ func (r *proxy) authPackFromResponse(t *testing.T, httpResp *roundtrip.Response)
 
 	session, err := resp.response()
 	require.NoError(t, err)
-	if session.ExpiresIn < 0 {
-		t.Errorf("Expected expiry time to be in the future but got %v", session.ExpiresIn)
+	if session.TokenExpiresIn < 0 {
+		t.Errorf("Expected expiry time to be in the future but got %v", session.TokenExpiresIn)
 	}
 	return &authPack{
 		session: session,

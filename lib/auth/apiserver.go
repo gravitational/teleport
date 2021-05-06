@@ -239,7 +239,8 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/u2f/users/:user/sign", srv.withAuth(srv.u2fSignRequest))
 	srv.GET("/:version/u2f/appid", srv.withAuth(srv.getU2FAppID))
 
-	// Provisioning tokens
+	// Provisioning tokens- Moved to grpc
+	// DELETE IN 8.0
 	srv.GET("/:version/tokens", srv.withAuth(srv.getTokens))
 	srv.GET("/:version/tokens/:token", srv.withAuth(srv.getToken))
 	srv.DELETE("/:version/tokens/:token", srv.withAuth(srv.deleteToken))
@@ -364,7 +365,7 @@ func (s *APIServer) upsertServer(auth services.Presence, role teleport.Role, r *
 			return nil, trace.BadParameter("invalid namespace %q", namespace)
 		}
 		server.SetNamespace(namespace)
-		handle, err := auth.UpsertNode(server)
+		handle, err := auth.UpsertNode(r.Context(), server)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -406,6 +407,7 @@ func (s *APIServer) upsertNodes(auth ClientI, w http.ResponseWriter, r *http.Req
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if !services.IsValidNamespace(req.Namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", req.Namespace)
 	}
@@ -443,7 +445,7 @@ func (s *APIServer) getNodes(auth ClientI, w http.ResponseWriter, r *http.Reques
 		opts = append(opts, services.SkipValidation())
 	}
 
-	servers, err := auth.GetNodes(namespace, opts...)
+	servers, err := auth.GetNodes(r.Context(), namespace, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -456,7 +458,7 @@ func (s *APIServer) deleteAllNodes(auth ClientI, w http.ResponseWriter, r *http.
 	if !services.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
-	err := auth.DeleteAllNodes(namespace)
+	err := auth.DeleteAllNodes(r.Context(), namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -473,7 +475,7 @@ func (s *APIServer) deleteNode(auth ClientI, w http.ResponseWriter, r *http.Requ
 	if name == "" {
 		return nil, trace.BadParameter("missing node name")
 	}
-	err := auth.DeleteNode(namespace, name)
+	err := auth.DeleteNode(r.Context(), namespace, name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -646,11 +648,11 @@ func (s *APIServer) validateTrustedCluster(auth ClientI, w http.ResponseWriter, 
 }
 
 func (s *APIServer) getTrustedCluster(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	return auth.GetTrustedCluster(p.ByName("name"))
+	return auth.GetTrustedCluster(r.Context(), p.ByName("name"))
 }
 
 func (s *APIServer) getTrustedClusters(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	return auth.GetTrustedClusters()
+	return auth.GetTrustedClusters(r.Context())
 }
 
 // deleteTrustedCluster deletes a trusted cluster by name.
@@ -665,7 +667,7 @@ func (s *APIServer) deleteTrustedCluster(auth ClientI, w http.ResponseWriter, r 
 
 // getTokens returns a list of active provisioning tokens. expired (inactive) tokens are not returned
 func (s *APIServer) getTokens(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	tokens, err := auth.GetTokens()
+	tokens, err := auth.GetTokens(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -674,7 +676,7 @@ func (s *APIServer) getTokens(auth ClientI, w http.ResponseWriter, r *http.Reque
 
 // getTokens returns provisioning token by name
 func (s *APIServer) getToken(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	token, err := auth.GetToken(p.ByName("token"))
+	token, err := auth.GetToken(r.Context(), p.ByName("token"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -684,7 +686,7 @@ func (s *APIServer) getToken(auth ClientI, w http.ResponseWriter, r *http.Reques
 // deleteToken deletes (revokes) a token by its value
 func (s *APIServer) deleteToken(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	token := p.ByName("token")
-	if err := auth.DeleteToken(token); err != nil {
+	if err := auth.DeleteToken(r.Context(), token); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message(fmt.Sprintf("Token %v deleted", token)), nil
@@ -759,25 +761,39 @@ func (s *APIServer) u2fSignRequest(auth ClientI, w http.ResponseWriter, r *http.
 	return u2fSignReq, nil
 }
 
-type createWebSessionReq struct {
-	PrevSessionID   string `json:"prev_session_id"`
+type WebSessionReq struct {
+	// User is the user name associated with the session id.
+	User string `json:"user"`
+	// PrevSessionID is the id of current session.
+	PrevSessionID string `json:"prev_session_id"`
+	// AccessRequestID is an optional field that holds the id of an approved access request.
 	AccessRequestID string `json:"access_request_id"`
+	// Switchback is a flag to indicate if user is wanting to switchback from an assumed role
+	// back to their default role.
+	Switchback bool `json:"switchback"`
 }
 
 func (s *APIServer) createWebSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *createWebSessionReq
+	var req WebSessionReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user := p.ByName("user")
+
+	// DELETE IN 8.0: proxy v5 sends request with no user field.
+	// And since proxy v6, request will come with user field set, so grabbing user
+	// by param is not required.
+	if req.User == "" {
+		req.User = p.ByName("user")
+	}
+
 	if req.PrevSessionID != "" {
-		sess, err := auth.ExtendWebSession(user, req.PrevSessionID, req.AccessRequestID)
+		sess, err := auth.ExtendWebSession(req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return sess, nil
 	}
-	sess, err := auth.CreateWebSession(user)
+	sess, err := auth.CreateWebSession(req.User)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1003,7 +1019,7 @@ func (s *APIServer) registerNewAuthServer(auth ClientI, w http.ResponseWriter, r
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err := auth.RegisterNewAuthServer(req.Token)
+	err := auth.RegisterNewAuthServer(r.Context(), req.Token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1297,7 +1313,7 @@ func (s *APIServer) getOIDCConnector(auth ClientI, w http.ResponseWriter, r *htt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connector, err := auth.GetOIDCConnector(p.ByName("id"), withSecrets)
+	connector, err := auth.GetOIDCConnector(r.Context(), p.ByName("id"), withSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1317,7 +1333,7 @@ func (s *APIServer) getOIDCConnectors(auth ClientI, w http.ResponseWriter, r *ht
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connectors, err := auth.GetOIDCConnectors(withSecrets)
+	connectors, err := auth.GetOIDCConnectors(r.Context(), withSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1457,7 +1473,7 @@ func (s *APIServer) getSAMLConnector(auth ClientI, w http.ResponseWriter, r *htt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connector, err := auth.GetSAMLConnector(p.ByName("id"), withSecrets)
+	connector, err := auth.GetSAMLConnector(r.Context(), p.ByName("id"), withSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1477,7 +1493,7 @@ func (s *APIServer) getSAMLConnectors(auth ClientI, w http.ResponseWriter, r *ht
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connectors, err := auth.GetSAMLConnectors(withSecrets)
+	connectors, err := auth.GetSAMLConnectors(r.Context(), withSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1631,7 +1647,7 @@ func (s *APIServer) getGithubConnectors(auth ClientI, w http.ResponseWriter, r *
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connectors, err := auth.GetGithubConnectors(withSecrets)
+	connectors, err := auth.GetGithubConnectors(r.Context(), withSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1657,7 +1673,7 @@ func (s *APIServer) getGithubConnector(auth ClientI, w http.ResponseWriter, r *h
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connector, err := auth.GetGithubConnector(p.ByName("id"), withSecrets)
+	connector, err := auth.GetGithubConnector(r.Context(), p.ByName("id"), withSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2301,6 +2317,7 @@ func (s *APIServer) setClusterAuthPreference(auth ClientI, w http.ResponseWriter
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	cap.SetOrigin(types.OriginDynamic)
 
 	err = auth.SetAuthPreference(cap)
 	if err != nil {

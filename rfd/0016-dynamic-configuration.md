@@ -7,29 +7,28 @@ state: draft
 
 ## What
 
-Some resources like `services.AuthPreference` or `services.ClusterConfig` are
-live representations of certain parts of the `auth_service` configuration
-section.  These resources can be understood to constitute *dynamic*
-configuration of an auth server, as opposed to *static* configuration defined
-by its `teleport.yaml` file.
-
-The current behaviour is that Teleport creates dynamic configuration
-implicitly by deriving it from static configuration during auth server
-initialization. The recent proposals of exposing the related resources via
-`tctl` would however allow the dynamic configuration to be created/updated
-explicitly by the user, independently of static configuration.
-
 This RFD presents several possible scenarios involving the interaction of
-explicitly-managed dynamic and static configuration, including the respective
-design decisions to be made, with the goal of reaching a consensus on the
-configuration workflows to be supported by Teleport.
+explicitly-managed dynamic and static configuration.  Design decisions are made
+as to which branches of these scenarios are to be supported by Teleport.
+Finally, the actual implementation is discussed.
 
 ## Why
 
-1. Automated/programmatic management of Teleport clusters.
+Some resources like `services.AuthPreference` or `services.ClusterConfig` are
+live representations of parts of the `auth_service` configuration section.
+These resources can be understood to constitute *dynamic* configuration of
+an auth server, as opposed to *static* configuration defined by the
+`teleport.yaml` file.
 
-2. Teleport-as-a-service offerings that do not allow direct access
-   to `teleport.yaml` files.
+The current behaviour is that Teleport creates dynamic configuration implicitly
+by deriving it from static configuration during auth server initialization.
+This RFD allows the dynamic configuration to be created/updated explicitly via
+`tctl`, independently of static configuration, for two main reasons:
+
+1. To faciliate automated/programmatic management of Teleport clusters.
+
+2. To add configuration capability to Teleport-as-a-service offerings that do
+   not allow direct access to `teleport.yaml` files.
 
 ## Scenarios
 
@@ -180,33 +179,32 @@ auth server initialization procedure:
 
 ## Implementation
 
-The resource label `origin` is to be used as the key indicator when determining
-the configuration sources and their precedence.
+The resource label `teleport.dev/origin` (below shortened to `origin` for
+brevity) is used as the key indicator when determining the configuration
+sources and their precedence.
 
-The label can be associated with three classes of values:
+The label can be associated with three values:
 
-1. `defaults`: for hard-coded resource objects supplied in lieu of
-   configuration not provided by the user;
-2. `config-file`: for resource objects derived from static configuration
-   provided by the user;
-3. any other string (incl. empty): for resource objects created
-   "dynamically" by the user.
+1. `defaults`: for hard-coded resource objects consisting of default settings;
+2. `config-file`: for resource objects derived from static configuration;
+3. `dynamic`: for resource objects created "dynamically" (e.g. via `tctl`).
 
 The following table captures the ordinary means of performing the "fastest"
 transition between a pair of `origin` values.  The leftmost column is the
 current/source `origin` value of a resource while the top row is the
 desired/target `origin` value:
 
-|    *from \ to*    |        **`defaults`**       |           **`config-file`**          |           **(other)**           |
+|    *from \ to*    |        **`defaults`**       |           **`config-file`**          |          **`dynamic`**          |
 |       :---:       |            :---:            |                 :---:                |              :---:              |
 |   **`defaults`**  |             n/a             | specify in `teleport.yaml` & restart |          `tctl create`          |
-| **`config-file`** | remove from `teleport.yalm` |  change in `teleport.yaml` & restart | `tctl create --force --confirm` |
-|    **(other)**    |        `tctl rm` [?]        | specify in `teleport.yaml` & restart |      `tctl create --force`      |
+| **`config-file`** | remove from `teleport.yaml` |  change in `teleport.yaml` & restart | `tctl create --force --confirm` |
+|   **`dynamic`**   |          `tctl rm`          | specify in `teleport.yaml` & restart |      `tctl create --force`      |
 
-Note that the `origin` label is not reserved or protected in any special way
-by the system and so it can be modified by the same means as other labels.
-User activity can disrupt the intended semantics and cause the label's value to
-cease to be representative of the actual origin or values of a resource.
+The `teleport.dev/origin` label is reserved for system use.  Resources derived
+from `teleport.yaml` are necessarily labelled either as `defaults` (when the
+relevant section is left unspecified) or as `config-file` (when the section is
+explicitly specified).  Auth server API handlers automatically disregard the
+supplied `origin` value and reset it to `dynamic`.
 
 ### Auth server initialization
 
@@ -231,10 +229,10 @@ This logic implies Choices 2.B and 3.B.
    immediately.
 
 2. If called without `--force` and the fetched resource does not have
-   `origin:defaults` then print
+   `origin: defaults` then print an error:
    ```
-   error: non-default cluster auth preference already exists, use -f or --force
-   flag to overwrite
+   non-default cluster auth preference already exists, use -f or --force flag
+   to overwrite
    ```
 
 3. If called with `--force` and the fetched resource does not have `origin:
@@ -242,18 +240,50 @@ This logic implies Choices 2.B and 3.B.
    in the backend.
 
 4. If called with `--force` and the fetched resource has `origin: config-file`
-   then print
+   then print an error:
    ```
-   error: This resource is managed by static configuration. We recommend
-   removing configuration from teleport.yaml, restarting the servers and trying
-   this command again.
+   This resource is managed by static configuration. We recommend removing
+   configuration from teleport.yaml, restarting the servers and trying this
+   command again.
 
-   If you would still like to proceed, re-run the comand with both --force and
+   If you would still like to proceed, re-run the command with both --force and
    --confirm flags.
    ```
 
-   This requires adding support for `--confirm` flag (that works only in
-   conjunction with `--force`).  Invocation with both `--force` and `--confirm`
-   always commits the YAML resource.
+   Invocation with both `--force` and `--confirm` will replace the
+   stored resource with the YAML one until the auth server restart.
 
 This logic implies Choice 5.A and an adaptation of Choice 6.A.
+
+### `tctl rm`
+
+The `tctl rm` subcommand can be used to reset dynamic resources back to their defaults.
+
+1. Fetch the resource currently stored in the backend; on error return
+   immediately.
+
+2. If the fetched resource does not have `origin: config-file`, replace the
+   stored resource with the default one.
+
+3. If the fetched resource has `origin: config-file` then print an error:
+   ```
+   This resource is managed by static configuration. We recommend removing
+   configuration from teleport.yaml and restarting the servers in order to
+   reset the resource to its default.
+   ```
+
+### RBAC verbs
+
+Reading any configuration resource requires the RBAC verb `read`.
+
+Performing any dynamic overwrite of a configuration resource requires the RBAC
+verb `update`.  In addition, if the overwrite is to replace a resource with
+`origin: config-file`, the RBAC verb `create` is also required.
+
+|                                     |     **`read`**     |    **`update`**    |    **`create`**    |
+|                :---:                |        :---:       |        :---:       |        :---:       |
+|            **`tctl get`**           | :heavy_check_mark: |                    |                    |
+|          **`tctl create`**          |                    | :heavy_check_mark: |                    |
+|      **`tctl create --force`**      |                    | :heavy_check_mark: |                    |
+| **`tctl create --force --confirm`** |                    | :heavy_check_mark: | :heavy_check_mark: |
+|            **`tctl rm`**            |                    | :heavy_check_mark: |                    |

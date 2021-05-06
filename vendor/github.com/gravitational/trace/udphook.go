@@ -5,6 +5,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/gravitational/trace/internal"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 )
@@ -68,7 +69,7 @@ func (elk *UDPHook) Fire(e *log.Entry) error {
 	// Make a copy to safely modify
 	entry := e.WithFields(nil)
 	if cursor := findFrame(); cursor != nil {
-		t := newTraceFromFrames(*cursor, nil)
+		t := internal.GetTracesFromCursor(*cursor)
 		entry.Data[FileField] = t.String()
 		entry.Data[FunctionField] = t.Func()
 	}

@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
@@ -109,8 +110,8 @@ type InitConfig struct {
 	// Access is service controlling access to resources
 	Access services.Access
 
-	// DynamicAccess is a service that manages dynamic RBAC.
-	DynamicAccess services.DynamicAccess
+	// DynamicAccessExt is a service that manages dynamic RBAC.
+	DynamicAccessExt services.DynamicAccessExt
 
 	// Events is an event service
 	Events services.Events
@@ -284,11 +285,10 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	log.Infof("Updating cluster configuration: %v.", cfg.StaticTokens)
 
-	err = asrv.SetAuthPreference(cfg.AuthPreference)
+	err = initSetAuthPreference(asrv, cfg.AuthPreference)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Infof("Updating cluster configuration: %v.", cfg.AuthPreference)
 
 	// always create the default namespace
 	err = asrv.UpsertNamespace(services.NewNamespace(defaults.Namespace))
@@ -483,13 +483,65 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	return asrv, nil
 }
 
+func initSetAuthPreference(asrv *Server, newAuthPref services.AuthPreference) error {
+	storedAuthPref, err := asrv.GetAuthPreference()
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedAuthPref, newAuthPref)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if shouldReplace {
+		err = asrv.SetAuthPreference(newAuthPref)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		log.Infof("Updating auth preference: %v.", newAuthPref)
+	}
+	return nil
+}
+
+// shouldInitReplaceResourceWithOrigin determines whether the candidate
+// resource should be used to replace the stored resource during auth server
+// initialization.  Dynamically configured resources must not be overwritten
+// when the corresponding file config is left unspecified (i.e., by defaults).
+func shouldInitReplaceResourceWithOrigin(stored, candidate types.ResourceWithOrigin) (bool, error) {
+	if candidate == nil || (candidate.Origin() != types.OriginDefaults && candidate.Origin() != types.OriginConfigFile) {
+		return false, trace.BadParameter("candidate origin must be either defaults or config-file (this is a bug)")
+	}
+
+	// If there is no resource stored in the backend or it was not dynamically
+	// configured, the candidate resource should be stored in the backend.
+	if stored == nil || stored.Origin() != types.OriginDynamic {
+		return true, nil
+	}
+
+	// If the candidate resource is explicitly configured in the config file,
+	// store this config-file resource in the backend no matter what.
+	if candidate.Origin() == types.OriginConfigFile {
+		// Log a warning when about to overwrite a dynamically configured resource.
+		if stored.Origin() == types.OriginDynamic {
+			log.Warnf("Stored %v resource that was configured dynamically is about to be discarded in favor of explicit file configuration.", stored.GetKind())
+		}
+		return true, nil
+	}
+
+	// The resource in the backend was configured dynamically, and there is no
+	// more authoritative file configuration to replace it.  Keep the stored
+	// dynamic resource.
+	return false, nil
+}
+
 func migrateLegacyResources(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	err := migrateOSS(ctx, asrv)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = migrateRemoteClusters(asrv)
+	err = migrateRemoteClusters(ctx, asrv)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -583,7 +635,7 @@ func migrateOSS(ctx context.Context, asrv *Server) error {
 // Maps admin roles to local OSS admin role.
 func migrateOSSTrustedClusters(ctx context.Context, role types.Role, asrv *Server) (int, error) {
 	migratedTcs := 0
-	tcs, err := asrv.GetTrustedClusters()
+	tcs, err := asrv.GetTrustedClusters(ctx)
 	if err != nil {
 		return migratedTcs, trace.Wrap(err, migrationAbortedMessage)
 	}
@@ -666,7 +718,7 @@ func migrateOSSGithubConns(ctx context.Context, role types.Role, asrv *Server) (
 	migratedConns := 0
 	// Migrate Github's OSS teams_to_logins to teams_to_roles.
 	// To do that, create a new role per connector's teams_to_logins entry
-	conns, err := asrv.GetGithubConnectors(true)
+	conns, err := asrv.GetGithubConnectors(ctx, true)
 	if err != nil {
 		return migratedConns, trace.Wrap(err)
 	}
@@ -694,7 +746,7 @@ func migrateOSSGithubConns(ctx context.Context, role types.Role, asrv *Server) (
 			}
 		}
 		conn.SetTeamsToLogins(newTeams)
-		if err := asrv.UpsertGithubConnector(conn); err != nil {
+		if err := asrv.UpsertGithubConnector(ctx, conn); err != nil {
 			return migratedConns, trace.Wrap(err)
 		}
 		migratedConns++
@@ -925,7 +977,7 @@ func (i *Identity) hostKeyCallback(hostname string, remote net.Addr, key ssh.Pub
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if sshutils.KeysEqual(cert.SignatureKey, pubkey) {
+		if apisshutils.KeysEqual(cert.SignatureKey, pubkey) {
 			return nil
 		}
 	}
@@ -1039,7 +1091,7 @@ func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 		return nil, trace.BadParameter("Cert: missing parameter")
 	}
 
-	cert, err := sshutils.ParseCertificate(certBytes)
+	cert, err := apisshutils.ParseCertificate(certBytes)
 	if err != nil {
 		return nil, trace.BadParameter("failed to parse server certificate: %v", err)
 	}
@@ -1117,7 +1169,7 @@ func ReadLocalIdentity(dataDir string, id IdentityID) (*Identity, error) {
 // This migration adds remote cluster resource migrating from 2.5.0
 // where the presence of remote cluster was identified only by presence
 // of host certificate authority with cluster name not equal local cluster name
-func migrateRemoteClusters(asrv *Server) error {
+func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 	clusterName, err := asrv.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
@@ -1143,7 +1195,7 @@ func migrateRemoteClusters(asrv *Server) error {
 			return trace.Wrap(err)
 		}
 		// the cert authority is associated with trusted cluster
-		_, err = asrv.GetTrustedCluster(certAuthority.GetName())
+		_, err = asrv.GetTrustedCluster(ctx, certAuthority.GetName())
 		if err == nil {
 			log.Debugf("Migrations: trusted cluster resource exists for cert authority %q.", certAuthority.GetName())
 			continue
