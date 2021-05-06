@@ -1592,6 +1592,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 		}
 	} else if cf.CopySpec != nil {
 		for _, location := range cf.CopySpec {
+			// Extract username and host from "username@host:file/path"
 			parts := strings.Split(location, ":")
 			parts = strings.Split(parts[0], "@")
 			partsLength := len(parts)
