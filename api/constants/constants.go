@@ -91,6 +91,12 @@ const (
 
 	// DarwinOS is the GOOS constant for Apple macOS/darwin.
 	DarwinOS = "darwin"
+
+	// UseOfClosedNetworkConnection is a special string some parts of
+	// go standard lib are using that is the only way to identify some errors
+	//
+	// TODO(r0mant): See if we can use net.ErrClosed and errors.Is() instead.
+	UseOfClosedNetworkConnection = "use of closed network connection"
 )
 
 // SecondFactorType is the type of 2FA authentication.
@@ -132,6 +138,9 @@ const (
 const (
 	// SessionKeyDir is the sub-directory where session keys are stored (.tsh/keys).
 	SessionKeyDir = "keys"
+	// SSHDirSuffix is the suffix of the sub-directory where
+	// ssh keys are stored (.tsh/keys/profilename/username-ssh).
+	SSHDirSuffix = "-ssh"
 	// FileNameKnownHosts is a file that stores known hosts.
 	FileNameKnownHosts = "known_hosts"
 	// FileExtTLSCert is the filename extension/suffix of TLS certs
@@ -140,7 +149,8 @@ const (
 	// FileNameTLSCerts is the filename of Cert Authorities stored in a
 	// profile (./tsh/keys/profilename/certs.pem).
 	FileNameTLSCerts = "certs.pem"
-	// FileExtCert is a file extension used for SSH Certificate files.
+	// FileExtCert is a file extension used for SSH Certificate files
+	// (.tsh/keys/profilename/username-ssh/clustername-cert.pub).
 	FileExtSSHCert = "-cert.pub"
 	// FileExtPub is a file extension used for SSH Certificate Authorities
 	// stored in a profile (./tsh/keys/profilename/username.pub).

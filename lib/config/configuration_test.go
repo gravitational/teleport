@@ -21,8 +21,10 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -514,6 +516,11 @@ func TestApplyConfig(t *testing.T) {
 	require.True(t, cfg.Proxy.Enabled)
 	require.Equal(t, "tcp://webhost:3080", cfg.Proxy.WebAddr.FullAddress())
 	require.Equal(t, "tcp://tunnelhost:1001", cfg.Proxy.ReverseTunnelListenAddr.FullAddress())
+	require.Equal(t, "tcp://webhost:3336", cfg.Proxy.MySQLAddr.FullAddress())
+	require.Len(t, cfg.Proxy.PostgresPublicAddrs, 1)
+	require.Equal(t, "tcp://postgres.example:5432", cfg.Proxy.PostgresPublicAddrs[0].FullAddress())
+	require.Len(t, cfg.Proxy.MySQLPublicAddrs, 1)
+	require.Equal(t, "tcp://mysql.example:3306", cfg.Proxy.MySQLPublicAddrs[0].FullAddress())
 
 	u2fCAFromFile, err := ioutil.ReadFile("testdata/u2f_attestation_ca.pem")
 	require.NoError(t, err)
@@ -523,6 +530,7 @@ func TestApplyConfig(t *testing.T) {
 		Metadata: types.Metadata{
 			Name:      "cluster-auth-preference",
 			Namespace: defaults.Namespace,
+			Labels:    map[string]string{types.OriginLabel: types.OriginConfigFile},
 		},
 		Spec: types.AuthPreferenceSpecV2{
 			Type:         teleport.Local,
@@ -569,13 +577,75 @@ func TestApplyConfigNoneEnabled(t *testing.T) {
 	require.NoError(t, err)
 
 	require.False(t, cfg.Auth.Enabled)
-	require.Len(t, cfg.Auth.PublicAddrs, 0)
+	require.Empty(t, cfg.Auth.PublicAddrs)
 	require.False(t, cfg.Proxy.Enabled)
-	require.Len(t, cfg.Proxy.PublicAddrs, 0)
+	require.Empty(t, cfg.Proxy.PublicAddrs)
 	require.False(t, cfg.SSH.Enabled)
-	require.Len(t, cfg.SSH.PublicAddrs, 0)
+	require.Empty(t, cfg.SSH.PublicAddrs)
 	require.False(t, cfg.Apps.Enabled)
 	require.False(t, cfg.Databases.Enabled)
+	require.Empty(t, cfg.Proxy.PostgresPublicAddrs)
+	require.Empty(t, cfg.Proxy.MySQLPublicAddrs)
+}
+
+// TestPostgresPublicAddr makes sure Postgres proxy public address default
+// port logic works correctly.
+func TestPostgresPublicAddr(t *testing.T) {
+	tests := []struct {
+		desc string
+		fc   *FileConfig
+		out  []string
+	}{
+		{
+			desc: "postgres public address with port set",
+			fc: &FileConfig{
+				Proxy: Proxy{
+					WebAddr:            "0.0.0.0:8080",
+					PublicAddr:         []string{"web.example.com:443"},
+					PostgresPublicAddr: []string{"postgres.example.com:5432"},
+				},
+			},
+			out: []string{"postgres.example.com:5432"},
+		},
+		{
+			desc: "when port not set, defaults to web proxy public port",
+			fc: &FileConfig{
+				Proxy: Proxy{
+					WebAddr:            "0.0.0.0:8080",
+					PublicAddr:         []string{"web.example.com:443"},
+					PostgresPublicAddr: []string{"postgres.example.com"},
+				},
+			},
+			out: []string{"postgres.example.com:443"},
+		},
+		{
+			desc: "when port and public addr not set, defaults to web proxy listen port",
+			fc: &FileConfig{
+				Proxy: Proxy{
+					WebAddr:            "0.0.0.0:8080",
+					PostgresPublicAddr: []string{"postgres.example.com"},
+				},
+			},
+			out: []string{"postgres.example.com:8080"},
+		},
+		{
+			desc: "when port and listen/public addrs not set, defaults to web proxy default port",
+			fc: &FileConfig{
+				Proxy: Proxy{
+					PostgresPublicAddr: []string{"postgres.example.com"},
+				},
+			},
+			out: []string{net.JoinHostPort("postgres.example.com", strconv.Itoa(defaults.HTTPListenPort))},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			cfg := service.MakeDefaultConfig()
+			err := applyProxyConfig(test.fc, cfg)
+			require.NoError(t, err)
+			require.EqualValues(t, test.out, utils.NetAddrsToStrings(cfg.Proxy.PostgresPublicAddrs))
+		})
+	}
 }
 
 func TestBackendDefaults(t *testing.T) {
@@ -1335,6 +1405,21 @@ db_service:
     uri: 192.168.1.1
 `,
 			outError: `invalid database "foo" address`,
+		},
+		{
+			desc: "missing Redshift region",
+			inConfigString: `
+db_service:
+  enabled: true
+  databases:
+  - name: foo
+    protocol: postgres
+    uri: 192.168.1.1:5438
+    aws:
+      redshift:
+        cluster_id: cluster-1
+`,
+			outError: `missing AWS region for Redshift database "foo"`,
 		},
 	}
 	for _, tt := range tests {

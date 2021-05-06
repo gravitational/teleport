@@ -93,8 +93,6 @@ type AccessRequest interface {
 	// CheckAndSetDefaults validates the access request and
 	// supplies default values where appropriate.
 	CheckAndSetDefaults() error
-	// Equals checks equality between access request values.
-	Equals(AccessRequest) bool
 }
 
 // NewAccessRequest assembled an AccessRequest resource.
@@ -225,15 +223,6 @@ func (r *AccessRequestV3) GetOriginalRoles() []string {
 	}
 	sort.Strings(roles)
 	return roles
-}
-
-// getThreshold is a helper for getting a threshold by its stored index.
-func (r *AccessRequestV3) getThreshold(tid uint32) (AccessReviewThreshold, error) {
-	idx := int(tid)
-	if len(r.Spec.Thresholds) <= idx {
-		return AccessReviewThreshold{}, trace.Errorf("threshold index '%d' out of range (this is a bug)", tid)
-	}
-	return r.Spec.Thresholds[idx], nil
 }
 
 // GetThresholds gets the review thresholds.
@@ -392,27 +381,7 @@ func (r *AccessRequestV3) String() string {
 	return fmt.Sprintf("AccessRequest(user=%v,roles=%+v)", r.Spec.User, r.Spec.Roles)
 }
 
-// Equals compares two AccessRequests
-func (r *AccessRequestV3) Equals(other AccessRequest) bool {
-	o, ok := other.(*AccessRequestV3)
-	if !ok {
-		return false
-	}
-	if r.GetName() != o.GetName() {
-		return false
-	}
-	return r.Spec.Equals(&o.Spec)
-}
-
-func (t AccessReviewThreshold) Equals(other AccessReviewThreshold) bool {
-	return reflect.DeepEqual(t, other)
-}
-
 func (c AccessReviewConditions) IsZero() bool {
-	return reflect.ValueOf(c).IsZero()
-}
-
-func (c AccessRequestConditions) IsZero() bool {
 	return reflect.ValueOf(c).IsZero()
 }
 
@@ -553,28 +522,6 @@ func (s RequestState) IsResolved() bool {
 	return s.IsApproved() || s.IsDenied()
 }
 
-// Equals compares two AccessRequestSpecs
-func (s *AccessRequestSpecV3) Equals(other *AccessRequestSpecV3) bool {
-	if s.User != other.User {
-		return false
-	}
-	if len(s.Roles) != len(other.Roles) {
-		return false
-	}
-	for i, role := range s.Roles {
-		if role != other.Roles[i] {
-			return false
-		}
-	}
-	if s.Created != other.Created {
-		return false
-	}
-	if s.Expires != other.Expires {
-		return false
-	}
-	return s.State == other.State
-}
-
 // key values for map encoding of request filter
 const (
 	keyID    = "id"
@@ -628,9 +575,4 @@ func (f *AccessRequestFilter) Match(req AccessRequest) bool {
 		return false
 	}
 	return true
-}
-
-// Equals compares two AccessRequestFilters
-func (f *AccessRequestFilter) Equals(o AccessRequestFilter) bool {
-	return f.ID == o.ID && f.User == o.User && f.State == o.State
 }

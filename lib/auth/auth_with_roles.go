@@ -55,7 +55,7 @@ func (a *ServerWithRoles) CloseContext() context.Context {
 }
 
 func (a *ServerWithRoles) actionWithContext(ctx *services.Context, namespace string, resource string, action string) error {
-	return utils.OpaqueAccessDenied(a.context.Checker.CheckAccessToRule(ctx, namespace, resource, action, false))
+	return a.context.Checker.CheckAccessToRule(ctx, namespace, resource, action, false)
 }
 
 type actionConfig struct {
@@ -75,7 +75,7 @@ func (a *ServerWithRoles) action(namespace string, resource string, action strin
 	for _, opt := range opts {
 		opt(&cfg)
 	}
-	return utils.OpaqueAccessDenied(a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, action, cfg.quiet))
+	return a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, action, cfg.quiet)
 }
 
 // currentUserAction is a special checker that allows certain actions for users
@@ -85,10 +85,8 @@ func (a *ServerWithRoles) currentUserAction(username string) error {
 	if hasLocalUserRole(a.context.Checker) && username == a.context.User.GetName() {
 		return nil
 	}
-	return utils.OpaqueAccessDenied(
-		a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User},
-			defaults.Namespace, services.KindUser, services.VerbCreate, true),
-	)
+	return a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User},
+		defaults.Namespace, services.KindUser, services.VerbCreate, true)
 }
 
 // authConnectorAction is a special checker that grants access to auth
@@ -98,7 +96,7 @@ func (a *ServerWithRoles) currentUserAction(username string) error {
 func (a *ServerWithRoles) authConnectorAction(namespace string, resource string, verb string) error {
 	if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, verb, true); err != nil {
 		if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, services.KindAuthConnector, verb, false); err != nil {
-			return utils.OpaqueAccessDenied(err)
+			return trace.Wrap(err)
 		}
 	}
 	return nil
@@ -389,14 +387,14 @@ func (a *ServerWithRoles) UpsertNodes(namespace string, servers []services.Serve
 	return a.authServer.UpsertNodes(namespace, servers)
 }
 
-func (a *ServerWithRoles) UpsertNode(s services.Server) (*services.KeepAlive, error) {
+func (a *ServerWithRoles) UpsertNode(ctx context.Context, s services.Server) (*services.KeepAlive, error) {
 	if err := a.action(s.GetNamespace(), services.KindNode, services.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := a.action(s.GetNamespace(), services.KindNode, services.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.UpsertNode(s)
+	return a.authServer.UpsertNode(ctx, s)
 }
 
 // DELETE IN: 5.1.0
@@ -593,29 +591,29 @@ NextNode:
 }
 
 // DeleteAllNodes deletes all nodes in a given namespace
-func (a *ServerWithRoles) DeleteAllNodes(namespace string) error {
+func (a *ServerWithRoles) DeleteAllNodes(ctx context.Context, namespace string) error {
 	if err := a.action(namespace, services.KindNode, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteAllNodes(namespace)
+	return a.authServer.DeleteAllNodes(ctx, namespace)
 }
 
 // DeleteNode deletes node in the namespace
-func (a *ServerWithRoles) DeleteNode(namespace, node string) error {
+func (a *ServerWithRoles) DeleteNode(ctx context.Context, namespace, node string) error {
 	if err := a.action(namespace, services.KindNode, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteNode(namespace, node)
+	return a.authServer.DeleteNode(ctx, namespace, node)
 }
 
-func (a *ServerWithRoles) GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
 	if err := a.action(namespace, services.KindNode, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Fetch full list of nodes in the backend.
 	startFetch := time.Now()
-	nodes, err := a.authServer.GetNodes(namespace, opts...)
+	nodes, err := a.authServer.GetNodes(ctx, namespace, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -827,11 +825,11 @@ func (a *ServerWithRoles) CreateWebSession(user string) (services.WebSession, er
 // ExtendWebSession creates a new web session for a user based on a valid previous session.
 // Additional roles are appended to initial roles if there is an approved access request.
 // The new session expiration time will not exceed the expiration time of the old session.
-func (a *ServerWithRoles) ExtendWebSession(user, prevSessionID, accessRequestID string) (services.WebSession, error) {
-	if err := a.currentUserAction(user); err != nil {
+func (a *ServerWithRoles) ExtendWebSession(req WebSessionReq) (services.WebSession, error) {
+	if err := a.currentUserAction(req.User); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.ExtendWebSession(user, prevSessionID, accessRequestID, a.context.Identity.GetIdentity())
+	return a.authServer.ExtendWebSession(req, a.context.Identity.GetIdentity())
 }
 
 // GetWebSessionInfo returns the web session for the given user specified with sid.
@@ -1113,11 +1111,17 @@ func (a *ServerWithRoles) GetAccessCapabilities(ctx context.Context, req service
 func (a *ServerWithRoles) GetPluginData(ctx context.Context, filter services.PluginDataFilter) ([]services.PluginData, error) {
 	switch filter.Kind {
 	case services.KindAccessRequest:
-		if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbList); err != nil {
-			return nil, trace.Wrap(err)
+		// for backwards compatibility, we allow list/read against access requests to also grant list/read for
+		// access request related plugin data.
+		if a.action(defaults.Namespace, services.KindAccessRequest, services.VerbList, quietAction(true)) != nil {
+			if err := a.action(defaults.Namespace, types.KindAccessPluginData, services.VerbList); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
-		if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbRead); err != nil {
-			return nil, trace.Wrap(err)
+		if a.action(defaults.Namespace, services.KindAccessRequest, services.VerbRead, quietAction(true)) != nil {
+			if err := a.action(defaults.Namespace, types.KindAccessPluginData, services.VerbRead); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 		return a.authServer.GetPluginData(ctx, filter)
 	default:
@@ -1129,8 +1133,12 @@ func (a *ServerWithRoles) GetPluginData(ctx context.Context, filter services.Plu
 func (a *ServerWithRoles) UpdatePluginData(ctx context.Context, params services.PluginDataUpdateParams) error {
 	switch params.Kind {
 	case services.KindAccessRequest:
-		if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbUpdate); err != nil {
-			return trace.Wrap(err)
+		// for backwards compatibility, we allow update against access requests to also grant update for
+		// access request related plugin data.
+		if a.action(defaults.Namespace, services.KindAccessRequest, services.VerbUpdate, quietAction(true)) != nil {
+			if err := a.action(defaults.Namespace, types.KindAccessPluginData, services.VerbUpdate); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 		return a.authServer.UpdatePluginData(ctx, params)
 	default:
@@ -2206,15 +2214,19 @@ func (a *ServerWithRoles) GetAuthPreference() (services.AuthPreference, error) {
 	return a.authServer.GetAuthPreference()
 }
 
-func (a *ServerWithRoles) SetAuthPreference(cap services.AuthPreference) error {
-	if err := a.action(defaults.Namespace, services.KindClusterAuthPreference, services.VerbCreate); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.action(defaults.Namespace, services.KindClusterAuthPreference, services.VerbUpdate); err != nil {
+func (a *ServerWithRoles) SetAuthPreference(newAuthPref services.AuthPreference) error {
+	storedAuthPref, err := a.authServer.GetAuthPreference()
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.SetAuthPreference(cap)
+	for _, verb := range verbsToReplaceResourceWithOrigin(storedAuthPref) {
+		if err := a.action(defaults.Namespace, services.KindClusterAuthPreference, verb); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return a.authServer.SetAuthPreference(newAuthPref)
 }
 
 // DeleteAuthPreference not implemented: can only be called locally.
@@ -2890,5 +2902,14 @@ func emitSSOLoginFailureEvent(ctx context.Context, emitter events.Emitter, metho
 	if emitErr != nil {
 		log.WithError(err).Warnf("Failed to emit %v login failure event.", method)
 	}
+}
 
+// verbsToReplaceResourceWithOrigin determines the verbs/actions required of a role
+// to replace the resource currently stored in the backend.
+func verbsToReplaceResourceWithOrigin(stored types.ResourceWithOrigin) []string {
+	verbs := []string{types.VerbUpdate}
+	if stored.Origin() == types.OriginConfigFile {
+		verbs = append(verbs, types.VerbCreate)
+	}
+	return verbs
 }

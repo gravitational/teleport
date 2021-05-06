@@ -1,0 +1,287 @@
+---
+title: Dual Authorization
+description: Dual Authorization for SSH and Kubernetes
+---
+
+# Dual Authorization
+
+You can set up Teleport to require require the approval of multiple team members to perform some critical actions.
+Here are the most common scenarios:
+
+- Improve security of your system and prevent one successful phishing attack from compromizing your system.
+- Satisfy FedRamp AC-3 Dual authorization control that requires approval of two authorized individuals.
+
+Let's set up Teleport's access requests to require approval of
+two team members for a privileged role `dbadmin`.
+
+<Admonition
+  type="warning"
+  title="Version Warning"
+>
+  This guide requires a commercial edition of Teleport. The open source
+  edition of Teleport only supports [Github](../../admin-guide.mdx#github-oauth-20) as
+  an SSO provider.
+</Admonition>
+
+## Prerequisites
+
+- Installed [Teleport Enterprise](../../enterprise/introduction.mdx) or [Teleport Cloud](../../cloud/introduction.mdx) >= (=teleport.version=)
+- [Tctl enterprise admin tool](https://goteleport.com/teleport/download) >= (=teleport.version=)
+- Mattermost installed.
+
+<Admonition
+  type="tip"
+  title="Running Mattermost locally with Docker"
+>
+  ```bash
+  docker run --name mattermost-preview -d --publish 8065:8065 --add-host dockerhost:127.0.0.1 mattermost/mattermost-preview
+  ```
+</Admonition>
+
+Verify that your Teleport client is connected:
+
+```bash
+$ tctl status
+Cluster  acme.example.com
+Version  6.0.2
+Host CA  never updated
+User CA  never updated
+Jwt CA   never updated
+CA pin   sha256:e63c7c44be468d37a5b0276b70e9d10b17f24f4be19d6b579810fc94eaa31783
+```
+
+## Setup Teleport Bot
+
+<Tabs>
+<TabItem label="Mattermost">
+
+Enable bot account creation in `System Console -> Integrations`.
+Toggle `Enable Bot Account Creation`.
+
+![Enable bots](../../../img/access-controls/dual-authz/mattermost-0-enable.png)
+
+Go back to your team settings, navigate to `Integrations -> Bot Accounts`. Press `Add Bot Account`.
+
+![Enable bots](../../../img/access-controls/dual-authz/mattermost-1-bot.png)
+
+Add `Post All` permission on the new account.
+
+![Enable bots](../../../img/access-controls/dual-authz/mattermost-2-all-permissions@2x.png)
+
+Create the bot and save the access token.
+
+</TabItem>
+</Tabs>
+
+Create a non-interactive bot `access-plugin` user and role.
+
+```yaml
+kind: user
+metadata:
+  name: access-plugin
+spec:
+  roles: ['access-plugin']
+version: v2
+---
+kind: role
+version: v3
+metadata:
+  name: access-plugin
+spec:
+  allow:
+    rules:
+      - resources: ['access_request']
+        verbs: ['list', 'read']
+      - resources: ['access_plugin_data']
+        verbs: ['update']
+    # teleport currently refuses to issue certs for a user with 0 logins,
+    # this restriction may be lifted in future versions.
+    logins: ['access-plugin-not-used']
+```
+
+<Admonition
+  type="note"
+  title="Creating resources"
+>
+  Here and below follow along and create yaml resources using `tctl create -f`:
+  ```bash
+  $ tctl create -f access.yaml
+  ```
+</Admonition>
+
+
+**Export access-plugin cert**
+
+Teleport Plugin uses the `access-plugin` role and user to perform the approval.
+We export the identify files, using `tctl auth sign`.
+
+```bash
+$ tctl auth sign --format=tls --user=access-plugin --out=auth --ttl=720h
+```
+
+Teleport will generate `auth.crt`, `auth.key`, and `auth.cas` - a certificate, a private key, and a set of CA certs respectively.
+
+**Install the plugin**
+
+<Tabs>
+<TabItem label="Download">
+  ```bash
+  $ curl -L https://get.gravitational.com/teleport-access-mattermost-v(=teleport.version=)-linux-amd64-bin.tar.gz
+  $ tar -xzf teleport-access-mattermost-v(=teleport.version=)-linux-amd64-bin.tar.gz
+  $ cd teleport-access-mattermost
+  $ ./install
+  ```
+</TabItem>
+<TabItem label="From Source">
+  To install from source you need `git` and `go >= (=teleport.golang=)` installed.
+
+  ```bash
+  # Checkout teleport-plugins
+  $ git clone https://github.com/gravitational/teleport-plugins.git
+  $ cd teleport-plugins/access/mattermost
+  $ make
+  ```
+</TabItem>
+</Tabs>
+
+
+```bash
+$ teleport-mattermost configure > /etc/teleport-mattermost.toml
+```
+
+Update the config with Teleport address, Mattermost URL, and a bot token.
+
+```toml
+# example Mattermost configuration TOML file
+[teleport]
+# For Teleport Cloud you can point to the proxy: "example.teleport.sh:443"
+auth_server = "teleport.example.com:3025"  # Teleport Auth Server GRPC API address
+client_key = "/var/lib/teleport/plugins/mattermost/auth.key" # Teleport GRPC client secret key
+client_crt = "/var/lib/teleport/plugins/mattermost/auth.crt" # Teleport GRPC client certificate
+root_cas = "/var/lib/teleport/plugins/mattermost/auth.cas"   # Teleport cluster CA certs
+
+[mattermost]
+url = "https://mattermost.example.com" # Mattermost Server URL
+token = "api-token"                    # Mattermost Bot OAuth token
+recipients = [team/channel]            # Mattermost Team or Channel to notify of new requests
+
+[log]
+output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/mattermost.log"
+severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
+```
+
+## Dual Authorization
+
+Alice and Ivan are reviewers - they can approve requests for assuming role `dbadmin`.
+Bob is a devops and can assume `dbadmin` role if two members of the `reviewer` role
+approved the request.
+
+Create `dbadmin`, `reviewer` and `devops` roles:
+
+```yaml
+kind: role
+version: v3
+metadata:
+  name: reviewer
+spec:
+  allow:
+    review_requests:
+      roles: ['dbadmin']
+---
+kind: role
+version: v3
+metadata:
+  name: devops
+spec:
+  allow:
+    request:
+      roles: ['dbadmin']
+      thresholds:
+        - approve: 2
+          deny: 1
+---
+kind: role
+version: v3
+metadata:
+  name: dbadmin
+spec:
+  allow:
+    logins: ['root']
+    node_labels:
+      'env': 'prod'
+      'type': 'db'
+```
+
+Example below creates local users Alice, Ivan and Bob.
+Bob does not have a role `dbadmin` assigned to him, but can create an access request for it.
+
+```bash
+$ tctl users add bob@example.com --roles=devops
+$ tctl users add alice@example.com --roles=reviewer
+$ tctl users add ivan@example.com --roles=reviewer
+```
+
+## Access Requests Flow
+
+Bob can create an access request for the `dbadmin` role in the Web UI or CLI:
+
+<Tabs>
+<TabItem label="Web UI">
+  ![Mattermost-Request](../../../img/access-controls/dual-authz/teleport-4-bob-request.png)
+</TabItem>
+<TabItem label="Terminal">
+  ```bash
+  # Bob has to set valid emails of Alice and Ivan matching in Mattermost.
+  tsh request create --roles=dbadmin --reviewers=alice@example.com,ivan@example.com
+  ```
+</TabItem>
+</Tabs>
+
+Chatbot will notify both Alice and Ivan:
+
+![Mattermost-Request](../../../img/access-controls/dual-authz/mattermost-5-request.png)
+
+Alice and Ivan can review and approve request using Web UI or CLI:
+
+<Tabs>
+<TabItem label="Web UI">
+![Teleport-Approve](../../../img/access-controls/dual-authz/teleport-6-ivan-approve.png)
+</TabItem>
+<TabItem label="CLI">
+  ```bash
+  $ tsh request list
+  ID                                   User             Roles   Created (UTC)       Status
+  ------------------------------------ ---------------  ------- ------------------- ------- 
+  9c721e54-b049-4ef8-a7f6-c777aa066764 bob@example.com  dbadmin 03 Apr 21 03:58 UTC PENDING
+
+  $tsh request review --approve --reason="hello" 9c721e54-b049-4ef8-a7f6-c777aa066764
+  Successfully submitted review.  Request state: APPROVED
+  ```
+</TabItem>
+</Tabs>
+
+If Bob has created a request using CLI, he will assume it once it has been approved.
+Bob can also assume granted access request roles using Web UI:
+
+![Teleport Assume](../../../img/access-controls/dual-authz/teleport-7-bob-assume.png)
+
+## Troubleshooting
+
+**Cert errors**
+
+You may be getting certificate errors if Teleport's auth server is missing an address in the server certificate:
+
+```bash
+authentication handshake failed: x509: cannot validate certificate for 127.0.0.1 because it doesn't contain any IP SANs
+```
+
+```bash
+x509: certificate is valid for,*.teleport.cluster.local, teleport.cluster.local, not example.com
+```
+
+To fix the problem, update the auth service with a public address, and restart Teleport:
+
+```yaml
+auth_service:
+  public_addr: ['localhost:3025', 'example.com:3025']
+```

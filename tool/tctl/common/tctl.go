@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/config"
@@ -259,7 +260,7 @@ func findReverseTunnel(ctx context.Context, addrs []utils.NetAddr, insecureTLS b
 	for _, addr := range addrs {
 		// In insecure mode, any certificate is accepted. In secure mode the hosts
 		// CAs are used to validate the certificate on the proxy.
-		resp, err := apiclient.Find(ctx, addr.String(), insecureTLS, nil)
+		resp, err := webclient.Find(ctx, addr.String(), insecureTLS, nil)
 		if err == nil {
 			return tunnelAddr(addr, resp.Proxy)
 		}
@@ -273,7 +274,7 @@ func findReverseTunnel(ctx context.Context, addrs []utils.NetAddr, insecureTLS b
 //  2. SSH Proxy Public Address.
 //  3. HTTP Proxy Public Address.
 //  4. Tunnel Listen Address.
-func tunnelAddr(webAddr utils.NetAddr, settings apiclient.ProxySettings) (string, error) {
+func tunnelAddr(webAddr utils.NetAddr, settings webclient.ProxySettings) (string, error) {
 	// Extract the port the tunnel server is listening on.
 	netAddr, err := utils.ParseHostPortAddr(settings.SSH.TunnelListenAddr, defaults.SSHProxyTunnelListenPort)
 	if err != nil {
@@ -384,7 +385,7 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServiceClientCo
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		authConfig.SSH, err = key.ClientSSHConfig()
+		authConfig.SSH, err = key.ProxyClientSSHConfig(nil)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -439,7 +440,7 @@ func loadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServi
 		return nil, trace.BadParameter("your credentials have expired, please login using `tsh login`")
 	}
 
-	log.Debugf("Found active profile: %v %v.", profile.ProxyURL, profile.Username)
+	log.WithFields(log.Fields{"proxy": profile.ProxyURL.String(), "user": profile.Username}).Debugf("Found active profile.")
 
 	c := client.MakeDefaultConfig()
 	if err := c.LoadProfile("", proxyAddr); err != nil {
@@ -450,9 +451,19 @@ func loadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServi
 		return nil, trace.Wrap(err)
 	}
 	webProxyHost, _ := c.WebProxyHostPort()
-	key, err := keyStore.GetKey(webProxyHost, c.Username)
+	idx := client.KeyIndex{ProxyHost: webProxyHost, Username: c.Username, ClusterName: profile.Cluster}
+	key, err := keyStore.GetKey(idx, client.WithSSHCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Auth config can be created only using a key associated with the root cluster.
+	rootCluster, err := key.RootClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if profile.Cluster != rootCluster {
+		return nil, trace.BadParameter("your credentials are for cluster %q, please run `tsh login %q` to log in to the root cluster", profile.Cluster, rootCluster)
 	}
 
 	authConfig := &AuthServiceClientConfig{}
@@ -461,7 +472,7 @@ func loadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServi
 		return nil, trace.Wrap(err)
 	}
 	authConfig.TLS.InsecureSkipVerify = ccf.Insecure
-	authConfig.SSH, err = client.ProxyClientSSHConfig(key, keyStore)
+	authConfig.SSH, err = key.ProxyClientSSHConfig(keyStore)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

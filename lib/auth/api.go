@@ -32,7 +32,7 @@ import (
 type Announcer interface {
 	// UpsertNode registers node presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
-	UpsertNode(s services.Server) (*services.KeepAlive, error)
+	UpsertNode(ctx context.Context, s services.Server) (*services.KeepAlive, error)
 
 	// UpsertProxy registers proxy presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
@@ -83,7 +83,7 @@ type ReadAccessPoint interface {
 	GetNamespace(name string) (*services.Namespace, error)
 
 	// GetNodes returns a list of registered servers for this cluster.
-	GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error)
+	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error)
 
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]services.Server, error)
@@ -225,8 +225,8 @@ func (w *Wrapper) Close() error {
 }
 
 // UpsertNode is part of auth.AccessPoint implementation
-func (w *Wrapper) UpsertNode(s services.Server) (*services.KeepAlive, error) {
-	return w.NoCache.UpsertNode(s)
+func (w *Wrapper) UpsertNode(ctx context.Context, s services.Server) (*services.KeepAlive, error) {
+	return w.NoCache.UpsertNode(ctx, s)
 }
 
 // UpsertAuthServer is part of auth.AccessPoint implementation

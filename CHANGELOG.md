@@ -1,5 +1,94 @@
 # Changelog
 
+## 6.2
+
+This release of teleport contains minor features and bugfixes.
+
+* Changed DynamoDB events backend indexing strategy. [#6583](https://github.com/gravitational/teleport/pull/6583)
+  Warning! This will trigger a data migration on the first start after upgrade. For optimal performance perform this migration with only one auth server online. It may take some time and progress will be periodically written to the auth server log. Once Teleport starts and is accessible via Web UI, the rest of the cluster may be started.
+
+## 6.1.4
+
+This release of Teleport contains multiple bug fixes.
+
+* Added additional Prometheus Metrics. [#6511](https://github.com/gravitational/teleport/pull/6511)
+* Updated the TLS handshake timeout to 5 seconds to avoid timeout issues on large clusters. [#6692](https://github.com/gravitational/teleport/pull/6692)
+* Fixed issue that caused non-interactive SSH output to show up in logs. [#6683](https://github.com/gravitational/teleport/pull/6683)
+* Fixed two issues that could cause Teleport to panic upon startup. [#6431](https://github.com/gravitational/teleport/pull/6431) [#5712](https://github.com/gravitational/teleport/pull/5712)
+
+## 6.1.3
+
+This release of Teleport contains a bug fix.
+
+* Added support for PROXY protocol to Database Access (MySQL). [#6517](https://github.com/gravitational/teleport/issues/6517)
+
+## 6.1.2
+
+This release of Teleport contains a new feature. 
+
+* Added log formatting and support to enable timestamps for logs. [#5898](https://github.com/gravitational/teleport/pull/5898)
+
+## 6.1.1
+
+This release of Teleport contains a bug fix.
+
+* Fixed an issue where DEB builds were not published to the [Teleport DEB repository](https://deb.releases.teleport.dev/).
+
+## 6.1.0
+
+Teleport 6.1 contains multiple new features, improvements, and bug fixes.
+
+## New Features
+
+### U2F for Kubernetes and SSH sessions
+
+Added support for U2F authentication on every SSH and Kubernetes "connection" (a single `tsh ssh` or `kubectl` call). This is an advanced security feature that protects users against compromises of their on-disk Teleport certificates. Per-session MFA can be enforced cluster-wide or only for some specific roles.
+
+For more details see [Per-Session MFA](https://goteleport.com/docs/access-controls/guides/per-session-mfa) documentation or [RFD 14](https://github.com/gravitational/teleport/blob/master/rfd/0014-session-2FA.md) and [RFD 15](https://github.com/gravitational/teleport/blob/master/rfd/0015-2fa-management.md) for technical details.
+
+### Dual Authorization Workflows
+
+Added ability to request multiple users to review and approve access requests.
+
+See [#5071](https://github.com/gravitational/teleport/pull/5071) for technical details.
+
+## Improvements 
+
+* Added the ability to propagate SSO claims to PAM modules. [#6158](https://github.com/gravitational/teleport/pull/6158)
+* Added support for cluster routing to reduce latency to leaf clusters. [RFD 21](https://github.com/gravitational/teleport/blob/master/rfd/0021-cluster-routing.md)
+* Added support for Google Cloud SQL to Database Access. [#6090](https://github.com/gravitational/teleport/pull/6090)
+* Added support CLI credential issuance for Application Access. [#5918](https://github.com/gravitational/teleport/pull/5918)
+* Added support for Encrypted SAML Assertions. [#5598](https://github.com/gravitational/teleport/pull/5598)
+* Added support for user impersonation. [#6073](https://github.com/gravitational/teleport/pull/6073)
+
+## Fixes
+
+* Fixed interoperability issues with `gpg-agent`. [RFD 18](http://github.com/gravitational/teleport/blob/master/rfd/0018-agent-loading.md)
+* Fixed websocket support in Application Access. [#6028](https://github.com/gravitational/teleport/pull/6028)
+* Fixed file argument issues with `tsh play`. [#1580](https://github.com/gravitational/teleport/issues/1580)
+* Fixed `utmp` regressions that caused issues in LXC containers. [#6256](https://github.com/gravitational/teleport/pull/6256)
+
+## 6.0.3
+
+This release of Teleport contains a bug fix.
+
+* Fixed a issue that caused high network on deployments with many leaf Trusted Clusters. [#6263](https://github.com/gravitational/teleport/pull/6263)
+
+## 6.0.2
+
+This release of Teleport contains bug fixes and adds new default roles.
+
+* Fixed an issue with proxy web endpoint resetting connection when run with `--insecure-no-tls` flag. [#5923](https://github.com/gravitational/teleport/pull/5923)
+* Introduced role presets: `auditor`, `editor` and `access`. [#5968](https://github.com/gravitational/teleport/pull/5968)
+* Added ability to inline `google_service_account` field into Google Workspace OIDC connector. [#5563](http://github.com/gravitational/teleport/pull/5563)
+
+## 6.0.1
+
+This release of Teleport contains multiple bug fixes.
+
+* Fixed issue that caused ACME default configuration to fail with `TLS-ALPN-01` challenge. [#5839](https://github.com/gravitational/teleport/pull/5839)
+* Fixed regression in ADFS integration. [#5880](https://github.com/gravitational/teleport/pull/5880)
+
 ## 6.0.0
 
 Teleport 6.0 is a major release with new features, functionality, and bug fixes.
@@ -451,7 +540,7 @@ This addition to Teleport helps customers obtain AC-10 control. We now provide t
 
 ###### `max_connections`
 
-This value is the total number of concurrent sessions within a cluster to nodes running Teleport. This value is applied at a per user level. If you set `max_connections` to 1, a `tsh` user would only be able to `tsh ssh` into one node at a time.
+This value is the total number of concurrent sessions within a cluster to nodes running Teleport. This value is applied at a per user level. If you set `max_connections` to `1`, a `tsh` user would only be able to `tsh ssh` into one node at a time.
 
 ###### `max_sessions` per connection
 
@@ -799,7 +888,7 @@ This release of Teleport contains bug fixes and improvements.
 
 This release of Teleport contains bug fixes and minor usability improvements.
 
-* New build command for client-only (tsh) .pkg builds. [#3159](https://github.com/gravitational/teleport/pull/3159)
+* New build command for client-only (`tsh`) .pkg builds. [#3159](https://github.com/gravitational/teleport/pull/3159)
 * Added support for etcd password auth. [#3234](https://github.com/gravitational/teleport/pull/3234)
 * Added third-party s3 support. [#3234](https://github.com/gravitational/teleport/pull/3234)
 * Fixed an issue where access-request event system fails when cache is enabled. [#3223](https://github.com/gravitational/teleport/pull/3223)
@@ -926,7 +1015,7 @@ This is a major Teleport release with a focus on stability and bug fixes.
 * Support use of a path for `auth_token` in `teleport.yaml`. [#2515](https://github.com/gravitational/teleport/issues/2515)
 * Implement ProxyJump compatibility. [#2543](https://github.com/gravitational/teleport/issues/2543)
 * Audit logs should show roles. [#2823](https://github.com/gravitational/teleport/issues/2823)
-* Allow tsh to go background and without executing remote command. [#2297](https://github.com/gravitational/teleport/issues/2297)
+* Allow `tsh` to go background and without executing remote command. [#2297](https://github.com/gravitational/teleport/issues/2297)
 * Provide a high level tool to backup and restore the cluster state. [#2480](https://github.com/gravitational/teleport/issues/2480)
 * Investigate nodes using stale list when connecting to proxies (discovery protocol). [#2832](https://github.com/gravitational/teleport/issues/2832)
 
@@ -934,7 +1023,7 @@ This is a major Teleport release with a focus on stability and bug fixes.
 
 * Proxy can hang due to invalid OIDC connector. [#2690](https://github.com/gravitational/teleport/issues/2690)
 * Proper `-D` flag parsing. [#2663](https://github.com/gravitational/teleport/issues/2663)
-* tsh status does not show correct cluster name. [#2671](https://github.com/gravitational/teleport/issues/2671)
+* `tsh` status does not show correct cluster name. [#2671](https://github.com/gravitational/teleport/issues/2671)
 * Teleport truncates MOTD with PAM. [#2477](https://github.com/gravitational/teleport/issues/2477)
 * Miscellaneous fixes around error handling and reporting.
 
@@ -1002,7 +1091,7 @@ This release of Teleport contains two bug fixes.
 
 ### Description
 
-* Fixed issue where new versions of tsh could not connect to older clusters. [#2969](https://github.com/gravitational/teleport/pull/2969)
+* Fixed issue where new versions of `tsh` could not connect to older clusters. [#2969](https://github.com/gravitational/teleport/pull/2969)
 * Fixed trait encoding to be more robust. [#2970](https://github.com/gravitational/teleport/pull/2970)
 
 ## 4.0.6
@@ -1036,7 +1125,7 @@ This release of Teleport contains multiple bug fixes.
 
 * Fixed issue that caused processes to be spawned with an incorrect GID. [#2791](https://github.com/gravitational/teleport/pull/2791)
 * Fixed host certificate principal generation to only include hosts or IP addresses. [#2790](https://github.com/gravitational/teleport/pull/2790)
-* Fixed issue preventing tsh 4.0 from connection to 3.2 clusters. [#2784](https://github.com/gravitational/teleport/pull/2784)
+* Fixed issue preventing `tsh` 4.0 from connection to 3.2 clusters. [#2784](https://github.com/gravitational/teleport/pull/2784)
 
 ## 4.0.0
 
@@ -1107,7 +1196,7 @@ This release of Teleport contains a bug fix.
 
 This release of Teleport contains two bug fixes.
 
-* Fixed issue where new versions of tsh could not connect to older clusters. [#2969](https://github.com/gravitational/teleport/pull/2969)
+* Fixed issue where new versions of `tsh` could not connect to older clusters. [#2969](https://github.com/gravitational/teleport/pull/2969)
 * Fixed trait encoding to be more robust. [#2970](https://github.com/gravitational/teleport/pull/2970)
 
 ## 3.2.9
@@ -1137,7 +1226,7 @@ This release of Teleport contains a new feature.
 
 #### Changes
 
-* Added `--bind-addr` to force tsh to bind to a specific port during SSO login. [#2620](https://github.com/gravitational/teleport/issues/2620)
+* Added `--bind-addr` to force `tsh` to bind to a specific port during SSO login. [#2620](https://github.com/gravitational/teleport/issues/2620)
 
 ## 3.2
 
@@ -1155,7 +1244,7 @@ This release of Teleport contains a bug fix.
 
 This release of Teleport contains two bug fixes.
 
-* Fixed issue where new versions of tsh could not connect to older clusters. [#2969](https://github.com/gravitational/teleport/pull/2969)
+* Fixed issue where new versions of `tsh` could not connect to older clusters. [#2969](https://github.com/gravitational/teleport/pull/2969)
 * Fixed trait encoding to be more robust. [#2970](https://github.com/gravitational/teleport/pull/2970)
 
 ## 3.1.11
@@ -1872,9 +1961,9 @@ This release focus was to increase Teleport user experience in the following are
 
 #### Bug Fixes
 
-* Proper handling of `ENV_SUPATH` from login.defs [#1004](https://github.com/gravitational/teleport/pull/1004)
+* Proper handling of `ENV_SUPATH` from `login.defs` [#1004](https://github.com/gravitational/teleport/pull/1004)
 * Reverse tunnels would periodically lose connectivity. [#1156](https://github.com/gravitational/teleport/issues/1156)
-* tsh now stores user identities in a format compatible with OpenSSH. [1171](https://github.com/gravitational/teleport/issues/1171).
+* `tsh` now stores user identities in a format compatible with OpenSSH. [1171](https://github.com/gravitational/teleport/issues/1171).
 
 ## 2.2.7
 
@@ -2053,7 +2142,7 @@ v1.3.1 is a maintenance release which fixes a few issues found in 1.3
 ### Bugfixes
 
 * Teleport session recorder can skip characters.
-* U2F was enabled by default in "demo mode" if teleport.yaml file was missing.
+* U2F was enabled by default in "demo mode" if `teleport.yaml` file was missing.
 
 ### Improvements
 
@@ -2066,7 +2155,7 @@ This release includes several major new features and it's recommended for produc
 ### Features
 
 * Support for hardware U2F keys for 2nd factor authentication.
-* CLI client profiles: tsh can now remember its --proxy setting.
+* CLI client profiles: `tsh` can now remember its `--proxy` setting.
 * tctl auth sign command to allow administrators to generate user session keys
 * Web UI is now served directly from the executable. There is no more need for web
   assets in `/usr/local/share/teleport`
@@ -2093,7 +2182,7 @@ This is a maintenance release meant to be a drop-in upgrade of previous versions
 ### Changes
 
 * User experience improvements: nicer error messages
-* Better compatibility with ssh command: -t flag can be used to force allocation of TTY
+* Better compatibility with ssh command: `-t` flag can be used to force allocation of TTY
 
 ## 1.0.5
 
@@ -2112,7 +2201,7 @@ certificates did not work correctly in this release due to #529
 ## 1.0.4
 
 This release only includes the addition of the ability to specify non-standard
-HTTPS port for Teleport proxy for tsh --proxy flag.
+HTTPS port for Teleport proxy for `tsh --proxy` flag.
 
 ## 1.0.3
 

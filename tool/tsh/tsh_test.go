@@ -30,7 +30,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
@@ -41,6 +41,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/trace"
 
 	"github.com/stretchr/testify/require"
 )
@@ -82,14 +84,48 @@ func (p *cliModules) IsBoringBinary() bool {
 	return false
 }
 
+func TestFailedLogin(t *testing.T) {
+	os.RemoveAll(profile.FullProfilePath(""))
+	t.Cleanup(func() {
+		os.RemoveAll(profile.FullProfilePath(""))
+	})
+
+	connector := mockConnector(t)
+
+	_, proxyProcess := makeTestServers(t, connector)
+
+	proxyAddr, err := proxyProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	// build a mock SSO login function to patch into tsh
+	loginFailed := trace.AccessDenied("login failed")
+	ssoLogin := func(ctx context.Context, connectorID string, pub []byte, protocol string) (*auth.SSHLoginResponse, error) {
+		return nil, loginFailed
+	}
+
+	err = Run([]string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", connector.GetName(),
+		"--proxy", proxyAddr.String(),
+	}, cliOption(func(cf *CLIConf) error {
+		cf.mockSSOLogin = client.SSOLoginFunc(ssoLogin)
+		return nil
+	}))
+	require.ErrorIs(t, err, loginFailed)
+}
+
 func TestOIDCLogin(t *testing.T) {
-	os.RemoveAll(apiclient.FullProfilePath(""))
+	os.RemoveAll(profile.FullProfilePath(""))
+	t.Cleanup(func() {
+		os.RemoveAll(profile.FullProfilePath(""))
+	})
 
 	modules.SetModules(&cliModules{})
-	defer os.RemoveAll(apiclient.FullProfilePath(""))
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	t.Cleanup(cancel)
 
 	// set up an initial role with `request_access: always` in order to
 	// trigger automatic post-login escalation.
@@ -111,17 +147,9 @@ func TestOIDCLogin(t *testing.T) {
 
 	alice, err := types.NewUser("alice@example.com")
 	require.NoError(t, err)
-
 	alice.SetRoles([]string{"populist"})
 
-	// connector must exist, but does not need to be functional since we
-	// are going to mock the actual login operation.
-	connector := types.NewOIDCConnector("auth.example.com", types.OIDCConnectorSpecV2{
-		IssuerURL:   "https://auth.example.com",
-		RedirectURL: "https://cluster.example.com",
-		ClientID:    "fake-client",
-	})
-	require.NoError(t, connector.CheckAndSetDefaults())
+	connector := mockConnector(t)
 
 	authProcess, proxyProcess := makeTestServers(t, populist, dictator, connector, alice)
 
@@ -130,32 +158,6 @@ func TestOIDCLogin(t *testing.T) {
 
 	proxyAddr, err := proxyProcess.ProxyWebAddr()
 	require.NoError(t, err)
-
-	// build a mock SSO login function to patch into tsh
-	ssoLogin := func(ctx context.Context, connectorID string, pub []byte, protocol string) (*auth.SSHLoginResponse, error) {
-		// generate certificates for our user
-		sshCert, tlsCert, err := authServer.GenerateUserTestCerts(
-			pub, alice.GetName(), time.Hour,
-			teleport.CertificateFormatStandard,
-			"localhost",
-		)
-		require.NoError(t, err)
-
-		// load CA cert
-		authority, err := authServer.GetCertAuthority(services.CertAuthID{
-			Type:       services.HostCA,
-			DomainName: "localhost",
-		}, false)
-		require.NoError(t, err)
-
-		// build login response
-		return &auth.SSHLoginResponse{
-			Username:    alice.GetName(),
-			Cert:        sshCert,
-			TLSCert:     tlsCert,
-			HostSigners: auth.AuthoritiesToTrustedCerts([]services.CertAuthority{authority}),
-		}, nil
-	}
 
 	didAutoRequest := atomic.NewBool(false)
 
@@ -195,7 +197,8 @@ func TestOIDCLogin(t *testing.T) {
 		"--proxy", proxyAddr.String(),
 		"--user", "alice", // explicitly use wrong name
 	}, cliOption(func(cf *CLIConf) error {
-		cf.mockSSOLogin = client.SSOLoginFunc(ssoLogin)
+		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
+		cf.SiteName = "localhost"
 		return nil
 	}))
 
@@ -209,8 +212,70 @@ func TestOIDCLogin(t *testing.T) {
 	// request to be generated.
 }
 
+func TestRelogin(t *testing.T) {
+	os.RemoveAll(profile.FullProfilePath(""))
+	t.Cleanup(func() {
+		os.RemoveAll(profile.FullProfilePath(""))
+	})
+
+	connector := mockConnector(t)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"admin"})
+
+	authProcess, proxyProcess := makeTestServers(t, connector, alice)
+
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+
+	proxyAddr, err := proxyProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	err = Run([]string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", connector.GetName(),
+		"--proxy", proxyAddr.String(),
+	}, cliOption(func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
+		return nil
+	}))
+	require.NoError(t, err)
+
+	err = Run([]string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--proxy", proxyAddr.String(),
+		"localhost",
+	})
+	require.NoError(t, err)
+
+	err = Run([]string{"logout"})
+	require.NoError(t, err)
+
+	err = Run([]string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", connector.GetName(),
+		"--proxy", proxyAddr.String(),
+		"localhost",
+	}, cliOption(func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
+		return nil
+	}))
+	require.NoError(t, err)
+}
+
 func TestMakeClient(t *testing.T) {
-	os.RemoveAll(apiclient.FullProfilePath(""))
+	os.RemoveAll(profile.FullProfilePath(""))
+	t.Cleanup(func() {
+		os.RemoveAll(profile.FullProfilePath(""))
+	})
+
 	var conf CLIConf
 
 	// empty config won't work:
@@ -377,7 +442,6 @@ func TestIdentityRead(t *testing.T) {
 }
 
 func TestOptions(t *testing.T) {
-
 	tests := []struct {
 		inOptions  []string
 		outError   bool
@@ -508,7 +572,70 @@ func TestFormatConnectCommand(t *testing.T) {
 			require.Equal(t, test.command, formatConnectCommand(cluster, test.db))
 		})
 	}
+}
 
+// TestReadClusterFlag tests that cluster environment flag is read in correctly.
+func TestReadClusterFlag(t *testing.T) {
+	var tests = []struct {
+		desc          string
+		inCLIConf     CLIConf
+		inSiteName    string
+		inClusterName string
+		outSiteName   string
+	}{
+		{
+			desc:          "nothing set",
+			inCLIConf:     CLIConf{},
+			inSiteName:    "",
+			inClusterName: "",
+			outSiteName:   "",
+		},
+		{
+			desc:          "TELEPORT_SITE set",
+			inCLIConf:     CLIConf{},
+			inSiteName:    "a.example.com",
+			inClusterName: "",
+			outSiteName:   "a.example.com",
+		},
+		{
+			desc:          "TELEPORT_CLUSTER set",
+			inCLIConf:     CLIConf{},
+			inSiteName:    "",
+			inClusterName: "b.example.com",
+			outSiteName:   "b.example.com",
+		},
+		{
+			desc:          "TELEPORT_SITE and TELEPORT_CLUSTER set, prefer TELEPORT_CLUSTER",
+			inCLIConf:     CLIConf{},
+			inSiteName:    "c.example.com",
+			inClusterName: "d.example.com",
+			outSiteName:   "d.example.com",
+		},
+		{
+			desc: "TELEPORT_SITE and TELEPORT_CLUSTER and CLI flag is set, prefer CLI",
+			inCLIConf: CLIConf{
+				SiteName: "e.example.com",
+			},
+			inSiteName:    "f.example.com",
+			inClusterName: "g.example.com",
+			outSiteName:   "e.example.com",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			readClusterFlag(&tt.inCLIConf, func(envName string) string {
+				switch envName {
+				case siteEnvVar:
+					return tt.inSiteName
+				case clusterEnvVar:
+					return tt.inClusterName
+				default:
+					return ""
+				}
+			})
+			require.Equal(t, tt.outSiteName, tt.inCLIConf.SiteName)
+		})
+	}
 }
 
 func makeTestServers(t *testing.T, bootstrap ...services.Resource) (auth *service.TeleportProcess, proxy *service.TeleportProcess) {
@@ -593,66 +720,41 @@ func makeTestServers(t *testing.T, bootstrap ...services.Resource) (auth *servic
 	return auth, proxy
 }
 
-// TestReadClusterFlag tests that cluster environment flag is read in correctly.
-func TestReadClusterFlag(t *testing.T) {
-	var tests = []struct {
-		desc          string
-		inCLIConf     CLIConf
-		inSiteName    string
-		inClusterName string
-		outSiteName   string
-	}{
-		{
-			desc:          "nothing set",
-			inCLIConf:     CLIConf{},
-			inSiteName:    "",
-			inClusterName: "",
-			outSiteName:   "",
-		},
-		{
-			desc:          "TELEPORT_SITE set",
-			inCLIConf:     CLIConf{},
-			inSiteName:    "a.example.com",
-			inClusterName: "",
-			outSiteName:   "a.example.com",
-		},
-		{
-			desc:          "TELEPORT_CLUSTER set",
-			inCLIConf:     CLIConf{},
-			inSiteName:    "",
-			inClusterName: "b.example.com",
-			outSiteName:   "b.example.com",
-		},
-		{
-			desc:          "TELEPORT_SITE and TELEPORT_CLUSTER set, prefer TELEPORT_CLUSTER",
-			inCLIConf:     CLIConf{},
-			inSiteName:    "c.example.com",
-			inClusterName: "d.example.com",
-			outSiteName:   "d.example.com",
-		},
-		{
-			desc: "TELEPORT_SITE and TELEPORT_CLUSTER and CLI flag is set, prefer CLI",
-			inCLIConf: CLIConf{
-				SiteName: "e.example.com",
-			},
-			inSiteName:    "f.example.com",
-			inClusterName: "g.example.com",
-			outSiteName:   "e.example.com",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.desc, func(t *testing.T) {
-			readClusterFlag(&tt.inCLIConf, func(envName string) string {
-				switch envName {
-				case siteEnvVar:
-					return tt.inSiteName
-				case clusterEnvVar:
-					return tt.inClusterName
-				default:
-					return ""
-				}
-			})
-			require.Equal(t, tt.outSiteName, tt.inCLIConf.SiteName)
-		})
+func mockConnector(t *testing.T) types.OIDCConnector {
+	// Connector need not be functional since we are going to mock the actual
+	// login operation.
+	connector := types.NewOIDCConnector("auth.example.com", types.OIDCConnectorSpecV2{
+		IssuerURL:   "https://auth.example.com",
+		RedirectURL: "https://cluster.example.com",
+		ClientID:    "fake-client",
+	})
+	require.NoError(t, connector.CheckAndSetDefaults())
+	return connector
+}
+
+func mockSSOLogin(t *testing.T, authServer *auth.Server, user types.User) client.SSOLoginFunc {
+	return func(ctx context.Context, connectorID string, pub []byte, protocol string) (*auth.SSHLoginResponse, error) {
+		// generate certificates for our user
+		sshCert, tlsCert, err := authServer.GenerateUserTestCerts(
+			pub, user.GetName(), time.Hour,
+			teleport.CertificateFormatStandard,
+			"localhost",
+		)
+		require.NoError(t, err)
+
+		// load CA cert
+		authority, err := authServer.GetCertAuthority(services.CertAuthID{
+			Type:       services.HostCA,
+			DomainName: "localhost",
+		}, false)
+		require.NoError(t, err)
+
+		// build login response
+		return &auth.SSHLoginResponse{
+			Username:    user.GetName(),
+			Cert:        sshCert,
+			TLSCert:     tlsCert,
+			HostSigners: auth.AuthoritiesToTrustedCerts([]services.CertAuthority{authority}),
+		}, nil
 	}
 }

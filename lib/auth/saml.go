@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"io/ioutil"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -123,7 +125,7 @@ func (a *Server) getSAMLProvider(conn services.SAMLConnector) (*saml2.SAMLServic
 	defer a.lock.Unlock()
 
 	providerPack, ok := a.samlProviders[conn.GetName()]
-	if ok && providerPack.connector.Equals(conn) {
+	if ok && cmp.Equal(providerPack.connector, conn) {
 		return providerPack.provider, nil
 	}
 	delete(a.samlProviders, conn.GetName())
@@ -422,6 +424,7 @@ func (a *Server) validateSAMLResponse(samlResponse string) (*samlAuthResponse, e
 			Roles:      user.GetRoles(),
 			Traits:     user.GetTraits(),
 			SessionTTL: params.sessionTTL,
+			LoginTime:  a.clock.Now().UTC(),
 		})
 		if err != nil {
 			return re, trace.Wrap(err)
