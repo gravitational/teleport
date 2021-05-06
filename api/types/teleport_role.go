@@ -34,8 +34,6 @@ type SystemRoles []SystemRole
 const (
 	// RoleAuth is for teleport auth server (authority, authentication and authorization)
 	RoleAuth SystemRole = "Auth"
-	// RoleWeb is for web access users
-	RoleWeb SystemRole = "Web"
 	// RoleNode is a role for SSH node in the cluster
 	RoleNode SystemRole = "Node"
 	// RoleProxy is a role for SSH proxy in the cluster
@@ -172,7 +170,7 @@ func (r *SystemRole) String() string {
 // if it's ok, false otherwise
 func (r *SystemRole) Check() error {
 	switch *r {
-	case RoleAuth, RoleWeb, RoleNode, RoleApp, RoleDatabase,
+	case RoleAuth, RoleNode, RoleApp, RoleDatabase,
 		RoleAdmin, RoleProvisionToken,
 		RoleTrustedCluster, LegacyClusterTokenType,
 		RoleSignup, RoleProxy, RoleNop, RoleKube:

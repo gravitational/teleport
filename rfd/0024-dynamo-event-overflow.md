@@ -1,6 +1,6 @@
 ---
 authors: Joel Wejdenstal (jwejdenstal@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 24 - DynamoDB Audit Event Overflow Handling

@@ -16,6 +16,14 @@ that protects users against compromises of their on-disk Teleport certificates.
   users](../../admin-guide.mdx#local-connector).
 </Admonition>
 
+<Admonition type="warning">
+  Per-session U2F checks were introduced in Teleport v6.1. To enforce the
+  checks, you must update **all** `teleport` binaries in your deployment. If
+  only Auth and Proxy services are updated, these checks will *not* be properly
+  enforced. Additionally, only v6.1 or newer `tsh` binaries implement
+  per-session U2F checks.
+</Admonition>
+
 ## Prerequisites
 
 - Installed [Teleport](../getting-started.mdx) or [Teleport Cloud](../../cloud/introduction.mdx) >= (=teleport.version=)
@@ -130,13 +138,14 @@ even when logging into `dev1.example.com`.
 
 ## Limitations
 
-There are several limitations for this feature:
-- U2F devices are currently not supported in `tsh` on Windows.
+Current limitations for this feature are:
+
+- U2F devices aren't currently supported in `tsh` on Windows.
 - Only `tsh ssh` supports per-session U2F authentication for SSH (OpenSSH `ssh`
   does not).
 - Only `kubectl` supports per-session U2F authentication for Kubernetes.
-- Database and Application access clients do not support per-session U2F
+- Database and Application access clients don't support per-session U2F
   authentication yet, although cluster and role configuration applies to them.
   If you enable per-session U2F checks cluster-wide, you will not be able to
-  use Database or Application access. We are working on integrating per-session
+  use Database or Application access. We're working on integrating per-session
   U2F checks for these clients.
