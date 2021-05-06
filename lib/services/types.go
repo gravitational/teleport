@@ -318,7 +318,6 @@ var (
 	NewRole          = types.NewRole
 	NewRule          = types.NewRule
 	CopyRulesSlice   = types.CopyRulesSlice
-	RuleSlicesEqual  = types.RuleSlicesEqual
 	NewBool          = types.NewBool
 	NewBoolOption    = types.NewBoolOption
 	BoolDefaultTrue  = types.BoolDefaultTrue
