@@ -410,7 +410,7 @@ func (h *Heartbeat) announce() error {
 			if !ok {
 				return trace.BadParameter("expected services.Server, got %#v", h.current)
 			}
-			keepAlive, err := h.Announcer.UpsertNode(node)
+			keepAlive, err := h.Announcer.UpsertNode(h.cancelCtx, node)
 			if err != nil {
 				return trace.Wrap(err)
 			}
