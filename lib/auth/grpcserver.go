@@ -1730,7 +1730,7 @@ func (g *GRPCServer) DeleteMFADevice(stream proto.AuthService_DeleteMFADeviceSer
 		case *types.MFADevice_U2F:
 			numU2FDevs++
 		default:
-			log.Warningf("Unknown MFA device type: %T", d.Device)
+			return trail.ToGRPC(trace.BadParameter("unknown MFA device type: %T", d.Device))
 		}
 	}
 	for _, d := range devs {
@@ -1744,11 +1744,11 @@ func (g *GRPCServer) DeleteMFADevice(stream proto.AuthService_DeleteMFADeviceSer
 		switch authPref.GetSecondFactor() {
 		case constants.SecondFactorOff, constants.SecondFactorOptional: // MFA is not required, allow deletion
 		case constants.SecondFactorOTP:
-			if numTOTPDevs == 1 {
+			if _, ok := d.Device.(*types.MFADevice_Totp); ok && numTOTPDevs == 1 {
 				return trail.ToGRPC(trace.BadParameter("cannot delete the last OTP device for this user; add a replacement device first to avoid getting locked out"))
 			}
 		case constants.SecondFactorU2F:
-			if numU2FDevs == 1 {
+			if _, ok := d.Device.(*types.MFADevice_U2F); ok && numU2FDevs == 1 {
 				return trail.ToGRPC(trace.BadParameter("cannot delete the last U2F device for this user; add a replacement device first to avoid getting locked out"))
 			}
 		case constants.SecondFactorOn:
