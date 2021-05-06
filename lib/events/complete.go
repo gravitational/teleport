@@ -57,13 +57,13 @@ func (cfg *UploadCompleterConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter Uploader")
 	}
 	if cfg.GracePeriod == 0 {
-		cfg.GracePeriod = defaults.UploadGracePeriod
+		cfg.GracePeriod = 1 * time.Minute //defaults.UploadGracePeriod
 	}
 	if cfg.Component == "" {
 		cfg.Component = teleport.ComponentAuth
 	}
 	if cfg.CheckPeriod == 0 {
-		cfg.CheckPeriod = defaults.LowResPollingPeriod
+		cfg.CheckPeriod = 1 * time.Minute //defaults.LowResPollingPeriod
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -192,32 +192,18 @@ func (u *UploadCompleter) emitSessionEndEvent(ctx context.Context, uploadData Up
 
 	// Set variables
 	if sessionStart.GetType() == SessionStartEvent {
-		if _, ok := sessionStart[SessionServerHostname]; ok {
-			serverID = sessionStart[SessionServerHostname].(string)
-		}
-		if _, ok := sessionStart[SessionClusterName]; ok {
-			clusterName = sessionStart[SessionClusterName].(string)
-		}
-		if _, ok := sessionStart[SessionServerHostname]; ok {
-			hostname = sessionStart[SessionServerHostname].(string)
-		}
-		if _, ok := sessionStart[EventNamespace]; ok {
-			namespace = sessionStart[EventNamespace].(string)
-		}
-		if _, ok := sessionStart[SessionServerAddr]; ok {
-			serverAddr = sessionStart[SessionServerAddr].(string)
-		}
-		if _, ok := sessionStart[EventUser]; ok {
-			user = sessionStart[EventUser].(string)
-		}
-		if _, ok := sessionStart[EventLogin]; ok {
-			login = sessionStart[EventLogin].(string)
-		}
-		if _, ok := sessionStart[TerminalSize]; ok {
+		serverID = sessionStart.GetString(SessionServerHostname)
+		clusterName = sessionStart.GetString(SessionClusterName)
+		hostname = sessionStart.GetString(SessionServerHostname)
+		namespace = sessionStart.GetString(EventNamespace)
+		serverAddr = sessionStart.GetString(SessionServerAddr)
+		user = sessionStart.GetString(EventUser)
+		login = sessionStart.GetString(EventLogin)
+		if terminalSize := sessionStart.GetString(TerminalSize); terminalSize != "" {
 			interactive = true
 		}
 	} else {
-		return trace.BadParameter("session start does not exist")
+		return trace.BadParameter("invalid session, session start is not the first event")
 	}
 
 	// Get last event to get session end time
@@ -264,18 +250,10 @@ func getParticipants(sessionEvents []EventFields) []string {
 	var participants []string
 	for _, event := range sessionEvents {
 		if event.GetType() == SessionJoinEvent || event.GetType() == SessionStartEvent {
-			if _, ok := event[EventUser]; ok {
-				participants = append(participants, event[EventUser].(string))
-			}
+			participant := event.GetString(EventUser)
+			participants = append(participants, participant)
+
 		}
 	}
 	return participants
-}
-
-func parseTime(s string) (time.Time, error) {
-	t, err := time.Parse(time.RFC3339, s)
-	if err != nil {
-		return time.Time{}, err
-	}
-	return t, nil
 }
