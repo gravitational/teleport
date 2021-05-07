@@ -304,33 +304,37 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 		Credentials:         kubeStatus.credentials,
 	}
 
-	if cf.executablePath != "" {
-		v.Exec = &kubeconfig.ExecValues{
-			TshBinaryPath:     cf.executablePath,
-			TshBinaryInsecure: cf.InsecureSkipVerify,
-			KubeClusters:      kubeStatus.kubeClusters,
-		}
+	if cf.executablePath == "" {
+		// Don't know tsh path.
+		// Fall back to the old kubeconfig, with static credentials from v.Credentials.
+		return v, nil
+	}
 
-		// Only switch the current context if kube-cluster is explicitly set on the command line.
-		if cf.KubernetesCluster != "" {
-			if !utils.SliceContainsStr(kubeStatus.kubeClusters, cf.KubernetesCluster) {
-				return nil, trace.BadParameter("kubernetes cluster %q is not registered in this teleport cluster; you can list registered kubernetes clusters using 'tsh kube ls'", cf.KubernetesCluster)
-			}
-			v.Exec.SelectCluster = cf.KubernetesCluster
-		}
-
+	if len(kubeStatus.kubeClusters) == 0 {
 		// If there are no registered k8s clusters, we may have an older teleport cluster.
 		// Fall back to the old kubeconfig, with static credentials from v.Credentials.
-		if len(v.Exec.KubeClusters) == 0 {
-			log.Debug("Disabling exec plugin mode for kubeconfig because this Teleport cluster has no Kubernetes clusters.")
-			v.Exec = nil
+		log.Debug("Disabling exec plugin mode for kubeconfig because this Teleport cluster has no Kubernetes clusters.")
+		return v, nil
+	}
+
+	v.Exec = &kubeconfig.ExecValues{
+		TshBinaryPath:     cf.executablePath,
+		TshBinaryInsecure: cf.InsecureSkipVerify,
+		KubeClusters:      kubeStatus.kubeClusters,
+	}
+
+	// Only switch the current context if kube-cluster is explicitly set on the command line.
+	if cf.KubernetesCluster != "" {
+		if !utils.SliceContainsStr(kubeStatus.kubeClusters, cf.KubernetesCluster) {
+			return nil, trace.BadParameter("Kubernetes cluster %q is not registered in this Teleport cluster; you can list registered Kubernetes clusters using 'tsh kube ls'.", cf.KubernetesCluster)
 		}
+		v.Exec.SelectCluster = cf.KubernetesCluster
 	}
 	return v, nil
 }
 
 // updateKubeConfig adds Teleport configuration to the users's kubeconfig based on the CLI
-// parameters and the the kubernetes services in the current Teleport cluster.
+// parameters and the kubernetes services in the current Teleport cluster.
 func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient) error {
 	// Fetch proxy's advertised ports to check for k8s support.
 	if _, err := tc.Ping(cf.Context); err != nil {
