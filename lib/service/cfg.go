@@ -32,6 +32,7 @@ import (
 	"golang.org/x/net/http/httpguts"
 	"k8s.io/apimachinery/pkg/util/validation"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -489,6 +490,9 @@ type AuthConfig struct {
 	// ClusterConfig stores cluster level configuration.
 	ClusterConfig services.ClusterConfig
 
+	// NetworkingConfig stores cluster networking configuration.
+	NetworkingConfig types.ClusterNetworkingConfig
+
 	// LicenseFile is a full path to the license file
 	LicenseFile string
 
@@ -842,6 +846,7 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	cfg.Auth.StaticTokens = services.DefaultStaticTokens()
 	cfg.Auth.ClusterConfig = services.DefaultClusterConfig()
+	cfg.Auth.NetworkingConfig = types.DefaultClusterNetworkingConfig()
 	cfg.Auth.Preference = services.DefaultAuthPreference()
 	defaults.ConfigureLimiter(&cfg.Auth.Limiter)
 	cfg.Auth.LicenseFile = filepath.Join(cfg.DataDir, defaults.LicenseFile)
