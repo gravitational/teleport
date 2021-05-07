@@ -704,7 +704,6 @@ dateLoop:
 			}
 			g.WithFields(log.Fields{"duration": time.Since(start), "items": len(out.Items)}).Debugf("Query completed.")
 
-		itemLoop:
 			for _, item := range out.Items {
 				var e event
 				if err := dynamodbattribute.UnmarshalMap(item, &e); err != nil {
@@ -719,7 +718,7 @@ dateLoop:
 				for i := range eventFilter {
 					if fields.GetString(events.EventType) == eventFilter[i] {
 						accepted = true
-						break itemLoop
+						break
 					}
 				}
 				if accepted || !doFilter {
