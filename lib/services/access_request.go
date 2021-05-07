@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
@@ -606,7 +608,7 @@ func insertAnnotations(annotations map[string][]string, conditions AccessRequest
 		// variable interpolation syntax they contain.
 	ApplyTraits:
 		for _, v := range vals {
-			applied, err := applyValueTraits(v, traits)
+			applied, err := ApplyValueTraits(v, traits)
 			if err != nil {
 				// skip values that failed variable expansion
 				continue ApplyTraits
@@ -1049,7 +1051,7 @@ func (c *thresholdCollector) pushThreshold(t types.AccessReviewThreshold) (uint3
 
 	// don't bother double-storing equivalent thresholds
 	for i, threshold := range c.Thresholds {
-		if t.Equals(threshold) {
+		if cmp.Equal(t, threshold) {
 			return uint32(i), nil
 		}
 	}
