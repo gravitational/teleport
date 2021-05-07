@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package proto provides protobuff api specification for Teleport Auth servers and clients.
+// Package proto provides protobuf api specification for Teleport Auth servers and clients.
 package proto
 
 import (
