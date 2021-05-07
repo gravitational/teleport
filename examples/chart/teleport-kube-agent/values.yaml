@@ -58,6 +58,26 @@ podSecurityPolicy:
 labels: {}
 
 ################################################################
+# Database services that use certificates and other files 
+# volumes and volume mounts.
+################################################################
+
+
+# Volume and volume mounts used for any of the service configuration 
+serviceVolumes: []
+serviceVolumeMounts: []
+
+
+################################################################
+# Environment variables that are needed such as cloudsql 
+# GOOGLE_APPLICATION_CREDENTIALS file or
+# other services.  The file should be made available from volumes.
+################################################################
+environmentVariables: []
+#  - name: GOOGLE_APPLICATION_CREDENTIALS
+ #   value: "/var/lib/googlecred/teleport-db.json"
+
+################################################################
 # Values that you shouldn't need to change.
 ################################################################
 

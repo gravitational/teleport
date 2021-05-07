@@ -26,6 +26,10 @@ spec:
       containers:
       - name: "teleport"
         image: "{{ if .Values.enterprise }}{{ .Values.enterpriseImage }}{{ else }}{{ .Values.image }}{{ end }}:{{ .teleportVersion }}"
+{{- if .Values.environmentVariables }}
+        env:
+{{ toYaml .Values.environmentVariables | indent 8 }}
+{{- end }}          
         args:
         - "--diag-addr=0.0.0.0:3000"
         {{- if .Values.insecureSkipProxyTLSVerify }}
@@ -66,6 +70,9 @@ spec:
           readOnly: true
         - mountPath: /var/lib/teleport
           name: "data"
+{{- if .Values.serviceVolumeMounts }}
+{{ toYaml .Values.serviceVolumeMounts | indent 8 }}
+{{- end }}          
       volumes:
       - name: "config"
         configMap:
@@ -75,4 +82,7 @@ spec:
           secretName: {{ .Values.secretName }}
       - name: "data"
         emptyDir: {}
+{{- if .Values.serviceVolumes }}
+{{ toYaml .Values.serviceVolumes | indent 6 }}
+{{- end }}            
       serviceAccountName: {{ .Values.serviceAccountName }}
