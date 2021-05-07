@@ -18,8 +18,7 @@ package services
 
 import (
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services/roleset"
-	"github.com/gravitational/teleport/lib/services/ruleset"
+	"github.com/gravitational/teleport/lib/services/accesschecker"
 )
 
 // The following types, functions, and constants have been moved to /api/types, and are now imported here
@@ -513,29 +512,27 @@ const (
 	VerbRotate                    = types.VerbRotate
 )
 
-type (
-	Context       = ruleset.Context
-	EmptyResource = ruleset.EmptyResource
-	RuleSet       = ruleset.RuleSet
-)
-
 const (
-	UserIdentifier            = ruleset.UserIdentifier
-	ResourceIdentifier        = ruleset.ResourceIdentifier
-	ImpersonateRoleIdentifier = ruleset.ImpersonateRoleIdentifier
-	ImpersonateUserIdentifier = ruleset.ImpersonateUserIdentifier
+	UserIdentifier            = accesschecker.UserIdentifier
+	ResourceIdentifier        = accesschecker.ResourceIdentifier
+	ImpersonateRoleIdentifier = accesschecker.ImpersonateRoleIdentifier
+	ImpersonateUserIdentifier = accesschecker.ImpersonateUserIdentifier
 )
 
 var (
-	ResourceNameExpr      = ruleset.ResourceNameExpr
-	CertAuthorityTypeExpr = ruleset.CertAuthorityTypeExpr
+	ResourceNameExpr      = accesschecker.ResourceNameExpr
+	CertAuthorityTypeExpr = accesschecker.CertAuthorityTypeExpr
+	ErrSessionMFARequired = accesschecker.ErrSessionMFARequired
 )
 
 type (
-	RoleSet               = roleset.RoleSet
-	DatabaseLabelsMatcher = roleset.DatabaseLabelsMatcher
-	DatabaseUserMatcher   = roleset.DatabaseUserMatcher
-	AccessMFAParams       = roleset.AccessMFAParams
-	DatabaseNameMatcher   = roleset.DatabaseNameMatcher
-	AccessChecker         = roleset.AccessChecker
+	Context               = accesschecker.Context
+	EmptyResource         = accesschecker.EmptyResource
+	RuleSet               = accesschecker.RuleSet
+	RoleSet               = accesschecker.RoleSet
+	DatabaseLabelsMatcher = accesschecker.DatabaseLabelsMatcher
+	DatabaseUserMatcher   = accesschecker.DatabaseUserMatcher
+	AccessMFAParams       = accesschecker.AccessMFAParams
+	DatabaseNameMatcher   = accesschecker.DatabaseNameMatcher
+	AccessChecker         = accesschecker.AccessChecker
 )

@@ -14,17 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package roleset
+package accesschecker
 
 import (
 	"fmt"
 	"testing"
 
 	"github.com/gravitational/teleport/api/types"
-	. "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/gravitational/trace"
+
 	"github.com/stretchr/testify/require"
 )
 

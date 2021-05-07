@@ -36,8 +36,8 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/accesschecker"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/services/ruleset"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -843,7 +843,7 @@ func CreateUserAndRoleWithoutRoles(clt clt, username string, allowedLogins []str
 	}
 
 	role := services.RoleForUser(user)
-	set := ruleset.MakeRuleSet(role.GetRules(services.Allow))
+	set := accesschecker.MakeRuleSet(role.GetRules(services.Allow))
 	delete(set, services.KindRole)
 	role.SetRules(services.Allow, set.Slice())
 	role.SetLogins(services.Allow, []string{user.GetName()})

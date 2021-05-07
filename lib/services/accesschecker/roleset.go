@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package roleset
+package accesschecker
 
 import (
 	"fmt"
@@ -23,10 +23,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	//lint:ignore SA1004
-	. "github.com/gravitational/teleport/api/types"
+
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services/ruleset"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
 
@@ -61,7 +59,7 @@ func NewImplicitRole() Role {
 			},
 			Allow: RoleConditions{
 				Namespaces: []string{defaults.Namespace},
-				Rules:      CopyRulesSlice(ruleset.DefaultImplicitRules),
+				Rules:      CopyRulesSlice(DefaultImplicitRules),
 			},
 		},
 	}
@@ -82,7 +80,7 @@ type AccessChecker interface {
 	CheckAccessToRemoteCluster(cluster RemoteCluster) error
 
 	// CheckAccessToRule checks access to a rule within a namespace.
-	CheckAccessToRule(context ruleset.RuleContext, namespace string, rule string, verb string, silent bool) error
+	CheckAccessToRule(context RuleContext, namespace string, rule string, verb string, silent bool) error
 
 	// CheckLoginDuration checks if role set can login up to given duration and
 	// returns a combined list of allowed logins.
@@ -162,22 +160,6 @@ func FromSpec(name string, spec RoleSpecV3) (RoleSet, error) {
 	}
 
 	return NewRoleSet(role), nil
-}
-
-// RW is a shortcut that returns all verbs.
-func RW() []string {
-	return []string{VerbList, VerbCreate, VerbRead, VerbUpdate, VerbDelete}
-}
-
-// RO is a shortcut that returns read only verbs that provide access to secrets.
-func RO() []string {
-	return []string{VerbList, VerbRead}
-}
-
-// ReadNoSecrets is a shortcut that returns read only verbs that do not
-// provide access to secrets.
-func ReadNoSecrets() []string {
-	return []string{VerbList, VerbReadNoSecrets}
 }
 
 // NewRoleSet returns new RoleSet based on the roles
@@ -1223,12 +1205,12 @@ func (set RoleSet) String() string {
 // CheckAccessToRule checks if the RoleSet provides access in the given
 // namespace to the specified resource and verb.
 // silent controls whether the access violations are logged.
-func (set RoleSet) CheckAccessToRule(ctx ruleset.RuleContext, namespace string, resource string, verb string, silent bool) error {
-	whereParser, err := ruleset.NewWhereParser(ctx)
+func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource string, verb string, silent bool) error {
+	whereParser, err := NewWhereParser(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	actionsParser, err := ruleset.NewActionsParser(ctx)
+	actionsParser, err := NewActionsParser(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1236,7 +1218,7 @@ func (set RoleSet) CheckAccessToRule(ctx ruleset.RuleContext, namespace string, 
 	for _, role := range set {
 		matchNamespace, _ := MatchNamespace(role.GetNamespaces(Deny), ProcessNamespace(namespace))
 		if matchNamespace {
-			matched, err := ruleset.MakeRuleSet(role.GetRules(Deny)).Match(whereParser, actionsParser, resource, verb)
+			matched, err := MakeRuleSet(role.GetRules(Deny)).Match(whereParser, actionsParser, resource, verb)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -1256,7 +1238,7 @@ func (set RoleSet) CheckAccessToRule(ctx ruleset.RuleContext, namespace string, 
 	for _, role := range set {
 		matchNamespace, _ := MatchNamespace(role.GetNamespaces(Allow), ProcessNamespace(namespace))
 		if matchNamespace {
-			match, err := ruleset.MakeRuleSet(role.GetRules(Allow)).Match(whereParser, actionsParser, resource, verb)
+			match, err := MakeRuleSet(role.GetRules(Allow)).Match(whereParser, actionsParser, resource, verb)
 			if err != nil {
 				return trace.Wrap(err)
 			}

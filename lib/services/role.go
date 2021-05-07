@@ -30,8 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/services/roleset"
-	"github.com/gravitational/teleport/lib/services/ruleset"
+	"github.com/gravitational/teleport/lib/services/accesschecker"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
@@ -88,10 +87,6 @@ var DefaultCertAuthorityRules = []Rule{
 	NewRule(KindReverseTunnel, RO()),
 	NewRule(KindCertAuthority, ReadNoSecrets()),
 }
-
-// ErrSessionMFARequired is returned by AccessChecker when access to a resource
-// requires an MFA check.
-var ErrSessionMFARequired = trace.AccessDenied("access to resource requires MFA")
 
 // RoleNameForUser returns role name associated with a user.
 func RoleNameForUser(name string) string {
@@ -338,7 +333,7 @@ func ValidateRole(r Role) error {
 // validateRule parses the where and action fields to validate the rule.
 func validateRule(r Rule) error {
 	if len(r.Where) != 0 {
-		parser, err := ruleset.NewWhereParser(&Context{})
+		parser, err := accesschecker.NewWhereParser(&Context{})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -349,7 +344,7 @@ func validateRule(r Rule) error {
 	}
 
 	if len(r.Actions) != 0 {
-		parser, err := ruleset.NewActionsParser(&Context{})
+		parser, err := accesschecker.NewActionsParser(&Context{})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -370,7 +365,7 @@ func FromSpec(name string, spec RoleSpecV3) (RoleSet, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return roleset.NewRoleSet(role), nil
+	return accesschecker.NewRoleSet(role), nil
 }
 
 // RW is a shortcut that returns all verbs.
@@ -695,7 +690,7 @@ func FetchRoles(roleNames []string, access RoleGetter, traits map[string][]strin
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return roleset.NewRoleSet(roleList...), nil
+	return accesschecker.NewRoleSet(roleList...), nil
 }
 
 // isFormatOld returns true if roles and traits were not found in the

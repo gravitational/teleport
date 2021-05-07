@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/roleset"
+	"github.com/gravitational/teleport/lib/services/accesschecker"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -1437,7 +1437,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		return nil, trace.Wrap(err)
 	}
 	// add implicit roles to the set and build a checker
-	checker := roleset.NewRoleSet(parsedRoles...)
+	checker := accesschecker.NewRoleSet(parsedRoles...)
 
 	switch {
 	case a.hasBuiltinRole(string(teleport.RoleAdmin)):
