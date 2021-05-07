@@ -1669,6 +1669,11 @@ func (c *Client) DeleteAuthPreference(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// GetClusterNetworkingConfig gets cluster networking configuration.
+func (c *Client) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+	return c.APIClient.GetClusterNetworkingConfig(ctx)
+}
+
 // GetLocalClusterName returns local cluster name
 func (c *Client) GetLocalClusterName() (string, error) {
 	return c.GetDomainName()

@@ -45,6 +45,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -1156,8 +1157,12 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 	t.AddUserWithRole(username, role)
 
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		SessionRecording:      tc.recordingMode,
-		LocalAuth:             services.NewBool(true),
+		SessionRecording: tc.recordingMode,
+		LocalAuth:        services.NewBool(true),
+	})
+	c.Assert(err, check.IsNil, comment)
+
+	netConfig, err := types.NewClusterNetworkingConfig(types.ClusterNetworkingConfigSpecV2{
 		SessionControlTimeout: services.Duration(tc.sessCtlTimeout),
 	})
 	c.Assert(err, check.IsNil, comment)
@@ -1165,6 +1170,7 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 	cfg := s.defaultServiceConfig()
 	cfg.Auth.Enabled = true
 	cfg.Auth.ClusterConfig = clusterConfig
+	cfg.Auth.NetworkingConfig = netConfig
 	cfg.Proxy.DisableWebService = true
 	cfg.Proxy.DisableWebInterface = true
 	cfg.Proxy.Enabled = true
