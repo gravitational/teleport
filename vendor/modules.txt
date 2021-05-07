@@ -277,8 +277,11 @@ github.com/gravitational/roundtrip
 ## explicit
 github.com/gravitational/teleport/api/client
 github.com/gravitational/teleport/api/client/proto
+github.com/gravitational/teleport/api/client/webclient
 github.com/gravitational/teleport/api/constants
 github.com/gravitational/teleport/api/defaults
+github.com/gravitational/teleport/api/identityfile
+github.com/gravitational/teleport/api/profile
 github.com/gravitational/teleport/api/types
 github.com/gravitational/teleport/api/types/events
 github.com/gravitational/teleport/api/types/wrappers
