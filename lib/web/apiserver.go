@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -84,6 +85,9 @@ type Handler struct {
 	// sshPort specifies the SSH proxy port extracted
 	// from configuration
 	sshPort string
+
+	// clusterFeatures contain flags for supported and unsupported features.
+	clusterFeatures proto.Features
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -157,6 +161,9 @@ type Config struct {
 	// in the cache before getting purged after it has expired.
 	// Defaults to cachedSessionLingeringThreshold if unspecified.
 	cachedSessionLingeringThreshold *time.Duration
+
+	// ClusterFeatures contains flags for supported/unsupported features.
+	ClusterFeatures proto.Features
 }
 
 type RewritingHandler struct {
@@ -197,9 +204,10 @@ func (h *RewritingHandler) Close() error {
 func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	const apiPrefix = "/" + teleport.WebAPIVersion
 	h := &Handler{
-		cfg:   cfg,
-		log:   newPackageLogger(),
-		clock: clockwork.NewRealClock(),
+		cfg:             cfg,
+		log:             newPackageLogger(),
+		clock:           clockwork.NewRealClock(),
+		clusterFeatures: cfg.ClusterFeatures,
 	}
 
 	for _, o := range opts {
@@ -284,7 +292,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.GET("/webapi/sites/:site/namespaces/:namespace/nodes", h.WithClusterAuth(h.siteNodesGet))
 
 	// Get applications.
-	h.GET("/webapi/sites/:site/apps", h.WithClusterAuth(h.siteAppsGet))
+	h.GET("/webapi/sites/:site/apps", h.WithClusterAuth(h.clusterAppsGet))
 
 	// active sessions handlers
 	h.GET("/webapi/sites/:site/namespaces/:namespace/connect", h.WithClusterAuth(h.siteNodeConnect))       // connect to an active session (via websocket)
@@ -304,6 +312,12 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 	// web context
 	h.GET("/webapi/sites/:site/context", h.WithClusterAuth(h.getUserContext))
+
+	// Database access handlers.
+	h.GET("/webapi/sites/:site/databases", h.WithClusterAuth(h.clusterDatabasesGet))
+
+	// Kube access handlers.
+	h.GET("/webapi/sites/:site/kubernetes", h.WithClusterAuth(h.clusterKubesGet))
 
 	// OIDC related callback handlers
 	h.GET("/webapi/oidc/login/web", h.WithRedirect(h.oidcLoginWeb))
@@ -501,7 +515,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	userContext, err := ui.NewUserContext(user, roleset)
+	userContext, err := ui.NewUserContext(user, roleset, h.clusterFeatures)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -519,7 +533,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		SuggestedReviewers: res.SuggestedReviewers,
 	}
 
-	userContext.Cluster, err = ui.GetClusterDetails(site)
+	userContext.Cluster, err = ui.GetClusterDetails(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1631,7 +1645,7 @@ func (h *Handler) siteNodesGet(w http.ResponseWriter, r *http.Request, p httprou
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	servers, err := clt.GetNodes(namespace, services.SkipValidation())
+	servers, err := clt.GetNodes(r.Context(), namespace, services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1700,7 +1714,7 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	term, err := NewTerminal(*req, clt, ctx)
+	term, err := NewTerminal(r.Context(), *req, clt, ctx)
 	if err != nil {
 		h.log.WithError(err).Error("Unable to create terminal.")
 		return nil, trace.Wrap(err)
@@ -1740,7 +1754,7 @@ func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	if req.Session.ServerID != "" {
-		servers, err := clt.GetNodes(namespace, services.SkipValidation())
+		servers, err := clt.GetNodes(r.Context(), namespace, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

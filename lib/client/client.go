@@ -519,7 +519,7 @@ func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace str
 		return nil, trace.Wrap(err)
 	}
 
-	siteNodes, err := site.GetNodes(namespace, services.SkipValidation())
+	siteNodes, err := site.GetNodes(ctx, namespace, services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

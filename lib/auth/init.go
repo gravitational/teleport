@@ -475,7 +475,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 
 	if !cfg.SkipPeriodicOperations {
 		log.Infof("Auth server is running periodic operations.")
-		go asrv.runPeriodicOperations()
+		go asrv.runPeriodicOperations(ctx)
 	} else {
 		log.Infof("Auth server is skipping periodic operations.")
 	}
