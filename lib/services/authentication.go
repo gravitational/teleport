@@ -19,7 +19,6 @@ limitations under the License.
 package services
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -51,37 +50,6 @@ func ValidateLocalAuthSecrets(l *LocalAuthSecrets) error {
 		mfaNames[d.Metadata.Name] = struct{}{}
 	}
 	return nil
-}
-
-// LocalAuthSecretsEquals checks equality (nil safe).
-func LocalAuthSecretsEquals(l *LocalAuthSecrets, other *LocalAuthSecrets) bool {
-	if (l == nil) || (other == nil) {
-		return l == other
-	}
-	if !bytes.Equal(l.PasswordHash, other.PasswordHash) {
-		return false
-	}
-	if len(l.MFA) != len(other.MFA) {
-		return false
-	}
-	mfa := make(map[string]*types.MFADevice, len(l.MFA))
-	for i, d := range l.MFA {
-		mfa[d.Id] = l.MFA[i]
-	}
-	mfaOther := make(map[string]*types.MFADevice, len(other.MFA))
-	for i, d := range other.MFA {
-		mfaOther[d.Id] = other.MFA[i]
-	}
-	for id, d := range mfa {
-		od, ok := mfaOther[id]
-		if !ok {
-			return false
-		}
-		if !mfaDeviceEquals(d, od) {
-			return false
-		}
-	}
-	return true
 }
 
 // NewTOTPDevice creates a TOTP MFADevice from the given key.
@@ -124,59 +92,6 @@ func validateTOTPDevice(d *types.TOTPDevice) error {
 		return trace.BadParameter("TOTPDevice missing Key field")
 	}
 	return nil
-}
-
-func mfaDeviceEquals(d, other *types.MFADevice) bool {
-	if (d == nil) || (other == nil) {
-		return d == other
-	}
-	if d.Kind != other.Kind {
-		return false
-	}
-	if d.SubKind != other.SubKind {
-		return false
-	}
-	if d.Version != other.Version {
-		return false
-	}
-	if d.Metadata.Name != other.Metadata.Name {
-		return false
-	}
-	if d.Id != other.Id {
-		return false
-	}
-	if !d.AddedAt.Equal(other.AddedAt) {
-		return false
-	}
-	// Ignore LastUsed, it's a very dynamic field.
-	if !totpDeviceEquals(d.GetTotp(), other.GetTotp()) {
-		return false
-	}
-	if !u2fDeviceEquals(d.GetU2F(), other.GetU2F()) {
-		return false
-	}
-	return true
-}
-
-func totpDeviceEquals(d, other *types.TOTPDevice) bool {
-	if (d == nil) || (other == nil) {
-		return d == other
-	}
-	return d.Key == other.Key
-}
-
-func u2fDeviceEquals(d, other *types.U2FDevice) bool {
-	if (d == nil) || (other == nil) {
-		return d == other
-	}
-	if !bytes.Equal(d.KeyHandle, other.KeyHandle) {
-		return false
-	}
-	if !bytes.Equal(d.PubKey, other.PubKey) {
-		return false
-	}
-	// Ignore the counter, it's a very dynamic value.
-	return true
 }
 
 // AuthPreferenceSpecSchemaTemplate is JSON schema for AuthPreferenceSpec

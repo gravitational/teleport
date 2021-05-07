@@ -334,7 +334,7 @@ func (h *Heartbeat) fetch() error {
 			h.reset(HeartbeatStateAnnounce)
 			return nil
 		}
-		result := services.Compare(h.current, server)
+		result := services.CompareServers(h.current, server)
 		// server update happened, time to announce
 		if result == services.Different {
 			h.current = server
@@ -352,7 +352,7 @@ func (h *Heartbeat) fetch() error {
 			h.setState(HeartbeatStateKeepAlive)
 			return nil
 		}
-		result := services.Compare(h.current, server)
+		result := services.CompareServers(h.current, server)
 		// server update happened, move to announce
 		if result == services.Different {
 			h.current = server
