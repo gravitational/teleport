@@ -543,12 +543,12 @@ creating new user roles or connecting trusted clusters.
 By default, `tctl` connects to a local Auth server, meaning it will fail if you 
 attempt to run `tctl` on a non-`auth` node.
 
-However it can also connect to a remote auth server if an identity file and Auth/Proxy
+However it can also connect to a remote Auth server if an identity file and Auth/Proxy
 server IP address are provided. 
 
 <Admonition type="note">
   Note that when a `tctl` command is run locally on an Auth server, the audit logs will 
-  show that it was performed by the auth server itself. To properly audit admin actions
+  show that it was performed by the Auth server itself. To properly audit admin actions
   at scale, it is important to close off direct access to the Auth server and ensure
   that admins connect remotely using identity files instead. 
 </Admonition>
@@ -561,7 +561,7 @@ server IP address are provided.
 | `-c, --config` | `/etc/teleport.yaml` | **string** filepath | Path to a configuration file |
 | `--auth-server` | none | **string** IP | `tctl` attempts to connect to a specific auth/proxy address instead of local auth |
 | `-i, --identity` | none | **string** filepath | Path to an identity file, must be provided to make remote connections to auth |
-| `-i, --insecure` | none | none | Do not verify server's certificate and host name. Use only in test environments |
+| `--insecure` | none | none | Do not verify server's certificate and host name. Use only in test environments |
 
 ### tctl  help
 
