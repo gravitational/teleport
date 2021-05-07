@@ -606,6 +606,26 @@ func (a *ServerWithRoles) DeleteNode(ctx context.Context, namespace, node string
 	return a.authServer.DeleteNode(ctx, namespace, node)
 }
 
+// GetNode gets a node by name and namespace.
+func (a *ServerWithRoles) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
+	if err := a.action(namespace, services.KindNode, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	node, err := a.authServer.GetCache().GetNode(ctx, namespace, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Run node through filter to check if it's for the connected identity.
+	if filteredNodes, err := a.filterNodes([]types.Server{node}); err != nil {
+		return nil, trace.Wrap(err)
+	} else if len(filteredNodes) == 0 {
+		return nil, trace.NotFound("not found")
+	}
+
+	return node, nil
+}
+
 func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
 	if err := a.action(namespace, services.KindNode, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
