@@ -352,6 +352,11 @@ func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
 	_, err = s.PresenceS.UpsertNode(ctx, srv)
 	c.Assert(err, check.IsNil)
 
+	node, err := s.PresenceS.GetNode(ctx, srv.Metadata.Namespace, srv.GetName())
+	c.Assert(err, check.IsNil)
+	srv.SetResourceID(node.GetResourceID())
+	fixtures.DeepCompare(c, node, srv)
+
 	out, err = s.PresenceS.GetNodes(ctx, srv.Metadata.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
