@@ -20,7 +20,6 @@ require (
 	github.com/coreos/go-oidc v0.0.4
 	github.com/coreos/go-semver v0.3.0
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
-	github.com/davecgh/go-spew v1.1.1
 	github.com/docker/spdystream v0.0.0-20170912183627-bc6354cbbc29 // indirect
 	github.com/dustin/go-humanize v1.0.0
 	github.com/flynn/hid v0.0.0-20190502022136-f1b9b6cc019a // indirect
@@ -57,7 +56,7 @@ require (
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/kr/pty v1.1.8
-	github.com/kylelemons/godebug v1.1.0
+	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/mailgun/lemma v0.0.0-20170619173223-4214099fb348
 	github.com/mailgun/metrics v0.0.0-20150124003306-2b3c4565aafd // indirect
 	github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f // indirect

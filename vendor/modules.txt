@@ -155,7 +155,6 @@ github.com/coreos/pkg/timeutil
 # github.com/creack/pty v1.1.11
 github.com/creack/pty
 # github.com/davecgh/go-spew v1.1.1
-## explicit
 github.com/davecgh/go-spew/spew
 # github.com/dgrijalva/jwt-go v3.2.0+incompatible
 github.com/dgrijalva/jwt-go
@@ -355,7 +354,6 @@ github.com/kr/pty
 github.com/kr/text
 # github.com/kylelemons/godebug v1.1.0
 ## explicit
-github.com/kylelemons/godebug/diff
 # github.com/mailgun/lemma v0.0.0-20170619173223-4214099fb348
 ## explicit
 github.com/mailgun/lemma/random
