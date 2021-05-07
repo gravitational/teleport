@@ -29,7 +29,7 @@ spec:
 {{- if .Values.environmentVariables }}
         env:
 {{ toYaml .Values.environmentVariables | indent 8 }}
-{{- end }}          
+{{- end }}
         args:
         - "--diag-addr=0.0.0.0:3000"
         {{- if .Values.insecureSkipProxyTLSVerify }}
@@ -72,7 +72,7 @@ spec:
           name: "data"
 {{- if .Values.serviceVolumeMounts }}
 {{ toYaml .Values.serviceVolumeMounts | indent 8 }}
-{{- end }}          
+{{- end }}
       volumes:
       - name: "config"
         configMap:
@@ -84,5 +84,5 @@ spec:
         emptyDir: {}
 {{- if .Values.serviceVolumes }}
 {{ toYaml .Values.serviceVolumes | indent 6 }}
-{{- end }}            
+{{- end }}
       serviceAccountName: {{ .Values.serviceAccountName }}
