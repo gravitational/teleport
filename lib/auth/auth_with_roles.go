@@ -2254,6 +2254,30 @@ func (a *ServerWithRoles) DeleteAuthPreference(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// GetClusterNetworkingConfig gets cluster networking configuration.
+func (a *ServerWithRoles) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+	if err := a.action(defaults.Namespace, types.KindClusterNetworkingConfig, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetClusterNetworkingConfig(ctx, opts...)
+}
+
+// SetClusterNetworkingConfig sets cluster networking configuration.
+func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, netConfig types.ClusterNetworkingConfig) error {
+	if err := a.action(defaults.Namespace, services.KindClusterConfig, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindClusterConfig, services.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.SetClusterNetworkingConfig(ctx, netConfig)
+}
+
+// DeleteClusterNetworkingConfig not implemented: can only be called locally.
+func (a *ServerWithRoles) DeleteClusterNetworkingConfig(ctx context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 // DeleteAllTokens not implemented: can only be called locally.
 func (a *ServerWithRoles) DeleteAllTokens() error {
 	return trace.NotImplemented(notImplementedMessage)

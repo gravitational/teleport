@@ -102,11 +102,14 @@ func TestAuthenticate(t *testing.T) {
 	t.Parallel()
 
 	cc, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		ClientIdleTimeout:     services.NewDuration(time.Hour),
 		DisconnectExpiredCert: true,
 	})
 	require.NoError(t, err)
-	ap := &mockAccessPoint{clusterConfig: cc}
+	nc, err := types.NewClusterNetworkingConfig(types.ClusterNetworkingConfigSpecV2{
+		ClientIdleTimeout: services.NewDuration(time.Hour),
+	})
+	require.NoError(t, err)
+	ap := &mockAccessPoint{clusterConfig: cc, netConfig: nc}
 
 	user, err := services.NewUser("user-a")
 	require.NoError(t, err)
@@ -757,12 +760,17 @@ type mockAccessPoint struct {
 	auth.AccessPoint
 
 	clusterConfig services.ClusterConfig
+	netConfig     types.ClusterNetworkingConfig
 	kubeServices  []services.Server
 	cas           map[string]types.CertAuthority
 }
 
 func (ap mockAccessPoint) GetClusterConfig(...services.MarshalOption) (services.ClusterConfig, error) {
 	return ap.clusterConfig, nil
+}
+
+func (ap mockAccessPoint) GetClusterNetworkingConfig(context.Context, ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+	return ap.netConfig, nil
 }
 
 func (ap mockAccessPoint) GetKubeServices(ctx context.Context) ([]services.Server, error) {

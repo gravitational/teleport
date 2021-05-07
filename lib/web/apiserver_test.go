@@ -965,16 +965,23 @@ func (s *WebSuite) TestTerminal(c *C) {
 }
 
 func (s *WebSuite) TestWebsocketPingLoop(c *C) {
-	// change cluster default config for keep alive interval to be ran faster
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
 		SessionRecording:    services.RecordAtNode,
 		ProxyChecksHostKeys: services.HostKeyCheckYes,
-		KeepAliveInterval:   services.NewDuration(250 * time.Millisecond),
 		LocalAuth:           services.NewBool(true),
 	})
 	c.Assert(err, IsNil)
 
 	err = s.server.Auth().SetClusterConfig(clusterConfig)
+	c.Assert(err, IsNil)
+
+	// Change cluster networking config for keep alive interval to be run faster.
+	netConfig, err := types.NewClusterNetworkingConfig(types.ClusterNetworkingConfigSpecV2{
+		KeepAliveInterval: services.NewDuration(250 * time.Millisecond),
+	})
+	c.Assert(err, IsNil)
+
+	err = s.server.Auth().SetClusterNetworkingConfig(context.TODO(), netConfig)
 	c.Assert(err, IsNil)
 
 	ws, err := s.makeTerminal(s.authPack(c, "foo"))

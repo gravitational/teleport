@@ -116,6 +116,8 @@ type TestAuthServer struct {
 
 // NewTestAuthServer returns new instances of Auth server
 func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
+	ctx := context.Background()
+
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -123,7 +125,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		TestAuthServerConfig: cfg,
 	}
 	b, err := memory.New(memory.Config{
-		Context:   context.Background(),
+		Context:   ctx,
 		Clock:     cfg.Clock,
 		EventsOff: false,
 	})
@@ -173,6 +175,11 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	err = srv.AuthServer.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	err = srv.AuthServer.SetClusterConfig(services.DefaultClusterConfig())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -206,8 +213,6 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	ctx := context.Background()
 
 	// create the default role
 	err = srv.AuthServer.UpsertRole(ctx, services.NewAdminRole())
