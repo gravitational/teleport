@@ -2351,6 +2351,29 @@ func (g *GRPCServer) DeleteToken(ctx context.Context, req *types.ResourceRequest
 	return &empty.Empty{}, nil
 }
 
+// GetNode retrieves a node by name and namespace.
+func (g *GRPCServer) GetNode(ctx context.Context, req *types.ResourceInNamespaceRequest) (*types.ServerV2, error) {
+	if req.Namespace == "" {
+		return nil, trail.ToGRPC(trace.BadParameter("missing parameter namespace"))
+	}
+	if req.Name == "" {
+		return nil, trail.ToGRPC(trace.BadParameter("missing parameter name"))
+	}
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	node, err := auth.ServerWithRoles.GetNode(ctx, req.Namespace, req.Name)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	serverV2, ok := node.(*types.ServerV2)
+	if !ok {
+		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected node type: %T", node))
+	}
+	return serverV2, nil
+}
+
 // GetNodes retrieves all nodes in the given namespace.
 func (g *GRPCServer) GetNodes(ctx context.Context, req *types.ResourcesInNamespaceRequest) (*types.ServerV2List, error) {
 	auth, err := g.authenticate(ctx)

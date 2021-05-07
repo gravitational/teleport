@@ -808,6 +808,8 @@ service AuthService {
     // WatchEvents returns a new stream of cluster events
     rpc WatchEvents(Watch) returns (stream Event);
 
+    // GetNode retrieves a node described by the given request.
+    rpc GetNode(types.ResourceInNamespaceRequest) returns (types.ServerV2);
     // GetNodes retrieves all nodes.
     rpc GetNodes(types.ResourcesInNamespaceRequest) returns (types.ServerV2List);
     // UpsertNode upserts a node in a backend.

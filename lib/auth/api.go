@@ -82,6 +82,9 @@ type ReadAccessPoint interface {
 	// GetNamespace returns namespace by name
 	GetNamespace(name string) (*services.Namespace, error)
 
+	// GetNode returns a node by name and namespace.
+	GetNode(ctx context.Context, namespace, name string) (services.Server, error)
+
 	// GetNodes returns a list of registered servers for this cluster.
 	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error)
 
