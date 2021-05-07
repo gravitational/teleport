@@ -246,7 +246,6 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 		services.RoleSpecV3{
 			Allow: services.RoleConditions{
 				Namespaces: []string{services.Wildcard},
-				AppLabels:  services.Labels{services.Wildcard: []string{services.Wildcard}},
 				Rules: []services.Rule{
 					services.NewRule(services.KindNode, services.RO()),
 					services.NewRule(services.KindProxy, services.RO()),
@@ -384,12 +383,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 				role.String(),
 				services.RoleSpecV3{
 					Allow: services.RoleConditions{
-						Namespaces:       []string{services.Wildcard},
-						AppLabels:        services.Labels{services.Wildcard: []string{services.Wildcard}},
-						ClusterLabels:    services.Labels{services.Wildcard: []string{services.Wildcard}},
-						DatabaseLabels:   services.Labels{services.Wildcard: []string{services.Wildcard}},
-						KubernetesLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
-						NodeLabels:       services.Labels{services.Wildcard: []string{services.Wildcard}},
+						Namespaces: []string{services.Wildcard},
 						Rules: []services.Rule{
 							services.NewRule(services.KindProxy, services.RW()),
 							services.NewRule(services.KindOIDCRequest, services.RW()),
@@ -446,12 +440,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 			role.String(),
 			services.RoleSpecV3{
 				Allow: services.RoleConditions{
-					Namespaces:       []string{services.Wildcard},
-					AppLabels:        services.Labels{services.Wildcard: []string{services.Wildcard}},
-					ClusterLabels:    services.Labels{services.Wildcard: []string{services.Wildcard}},
-					DatabaseLabels:   services.Labels{services.Wildcard: []string{services.Wildcard}},
-					KubernetesLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
-					NodeLabels:       services.Labels{services.Wildcard: []string{services.Wildcard}},
+					Namespaces: []string{services.Wildcard},
 					Rules: []services.Rule{
 						services.NewRule(services.KindProxy, services.RW()),
 						services.NewRule(services.KindOIDCRequest, services.RW()),
@@ -522,13 +511,8 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 					MaxSessionTTL: services.MaxDuration(),
 				},
 				Allow: services.RoleConditions{
-					Namespaces:       []string{services.Wildcard},
-					Logins:           []string{},
-					AppLabels:        services.Labels{services.Wildcard: []string{services.Wildcard}},
-					ClusterLabels:    services.Labels{services.Wildcard: []string{services.Wildcard}},
-					DatabaseLabels:   services.Labels{services.Wildcard: []string{services.Wildcard}},
-					KubernetesLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
-					NodeLabels:       services.Labels{services.Wildcard: []string{services.Wildcard}},
+					Namespaces: []string{services.Wildcard},
+					Logins:     []string{},
 					Rules: []services.Rule{
 						services.NewRule(services.Wildcard, services.RW()),
 					},
@@ -739,10 +723,51 @@ type BuiltinRoleSet struct {
 	services.RoleSet
 }
 
+func (set BuiltinRoleSet) CheckAccessToApp(login string, app *services.App, mfa services.AccessMFAParams) error {
+	// Backwards compatibility - label checks don't apply to builtin roles.
+	// MFA doesn't apply to builtin roles.
+	// TODO: add more restrictive authorization for builtin roles.
+	return nil
+}
+
+func (set BuiltinRoleSet) CheckAccessToDatabase(server types.DatabaseServer, mfa services.AccessMFAParams, matchers ...services.RoleMatcher) error {
+	// Backwards compatibility - label checks don't apply to builtin roles.
+	// MFA doesn't apply to builtin roles.
+	// TODO: add more restrictive authorization for builtin roles.
+	return nil
+}
+
+func (set BuiltinRoleSet) CheckAccessToKubernetes(namespace string, kube *services.KubernetesCluster, mfa services.AccessMFAParams) error {
+	// Backwards compatibility - label checks don't apply to builtin roles.
+	// MFA doesn't apply to builtin roles.
+	// TODO: add more restrictive authorization for builtin roles.
+	return nil
+}
+
+func (set BuiltinRoleSet) CheckAccessToRemoteCluster(rc services.RemoteCluster) error {
+	// Backwards compatibility - label checks don't apply to builtin roles.
+	// TODO: add more restrictive authorization for builtin roles.
+	return nil
+}
+
+func (set BuiltinRoleSet) CheckAccessToServer(login string, s types.Server, mfa services.AccessMFAParams) error {
+	// Backwards compatibility - label checks don't apply to builtin roles.
+	// MFA doesn't apply to builtin roles.
+	// TODO: add more restrictive authorization for builtin roles.
+	return nil
+}
+
 // RemoteBuiltinRoleSet wraps a services.RoleSet. The type is used to determine if
 // the role is a remote builtin or not.
 type RemoteBuiltinRoleSet struct {
 	services.RoleSet
+}
+
+func (set RemoteBuiltinRoleSet) CheckAccessToApp(login string, app *services.App, mfa services.AccessMFAParams) error {
+	// Backwards compatibility - label checks don't apply to builtin roles.
+	// MFA doesn't apply to builtin roles.
+	// TODO: add more restrictive authorization for builtin roles.
+	return nil
 }
 
 // LocalUserRoleSet wraps a services.RoleSet. This type is used to determine
