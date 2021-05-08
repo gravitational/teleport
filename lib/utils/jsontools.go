@@ -18,14 +18,14 @@ package utils
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"reflect"
 	"unicode"
 
 	"github.com/gravitational/trace"
 	jsoniter "github.com/json-iterator/go"
-
-	"github.com/ghodss/yaml"
+	"gopkg.in/yaml.v3"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
@@ -38,7 +38,11 @@ func ToJSON(data []byte) ([]byte, error) {
 	if hasJSONPrefix(data) {
 		return data, nil
 	}
-	return yaml.YAMLToJSON(data)
+	o := make(map[string]interface{})
+	if err := yaml.Unmarshal(data, &o); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return json.Marshal(o)
 }
 
 var jsonPrefix = []byte("{")
