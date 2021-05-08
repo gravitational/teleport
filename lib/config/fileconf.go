@@ -98,13 +98,12 @@ func ReadFromString(configString string) (*FileConfig, error) {
 // ReadConfig reads Teleport configuration from reader in YAML format
 func ReadConfig(reader io.Reader) (*FileConfig, error) {
 	// read & parse YAML config:
-	bytes, err := ioutil.ReadAll(reader)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed reading Teleport configuration")
-	}
 	var fc FileConfig
 
-	if err := yaml.UnmarshalStrict(bytes, &fc); err != nil {
+	dec := yaml.NewDecoder(reader)
+	dec.KnownFields(true)
+
+	if err := dec.Decode(&fc); err != nil {
 		// Remove all newlines in the YAML error, to avoid escaping when printing.
 		return nil, trace.BadParameter("failed parsing the config file: %s", strings.Replace(err.Error(), "\n", "", -1))
 	}
