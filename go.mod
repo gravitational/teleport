@@ -53,7 +53,6 @@ require (
 	github.com/jonboulle/clockwork v0.2.2
 	github.com/json-iterator/go v1.1.10
 	github.com/julienschmidt/httprouter v1.3.0
-	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/kr/pty v1.1.8
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/mailgun/lemma v0.0.0-20170619173223-4214099fb348

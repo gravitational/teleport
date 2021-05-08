@@ -339,9 +339,6 @@ github.com/jstemmer/go-junit-report/parser
 # github.com/julienschmidt/httprouter v1.3.0
 ## explicit
 github.com/julienschmidt/httprouter
-# github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
-## explicit
-github.com/kardianos/osext
 # github.com/kr/pretty v0.2.1
 github.com/kr/pretty
 # github.com/kr/pty v1.1.8
