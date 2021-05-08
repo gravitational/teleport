@@ -31,8 +31,7 @@ require (
 	github.com/golang/protobuf v1.4.3
 	github.com/google/btree v1.0.0
 	github.com/google/go-cmp v0.5.4
-	github.com/google/gops v0.3.14
-	github.com/google/uuid v1.2.0
+	github.com/google/uuid v1.2.0 // indirect
 	github.com/gorilla/handlers v1.5.1 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect

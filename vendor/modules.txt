@@ -223,11 +223,6 @@ github.com/google/go-cmp/cmp/internal/function
 github.com/google/go-cmp/cmp/internal/value
 # github.com/google/gofuzz v1.1.0
 github.com/google/gofuzz
-# github.com/google/gops v0.3.14
-## explicit
-github.com/google/gops/agent
-github.com/google/gops/internal
-github.com/google/gops/signal
 # github.com/google/uuid v1.2.0
 ## explicit
 github.com/google/uuid
