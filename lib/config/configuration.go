@@ -1342,9 +1342,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	}
 
 	// apply --disable-wtmp-utmp flag
-	if clf.DisableWtmpUtmp {
-		cfg.DisableWtmpUtmp = clf.DisableWtmpUtmp
-	}
+	cfg.DisableWtmpUtmp = clf.DisableWtmpUtmp
 
 	// apply --token flag:
 	if _, err := cfg.ApplyToken(clf.AuthToken); err != nil {
