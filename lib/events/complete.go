@@ -143,7 +143,7 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 		u.log.Debugf("Completed upload %v.", upload)
 		completed++
 		uploadData := u.cfg.Uploader.GetUploadMetadata(upload.SessionID)
-		err = u.emitSessionEndEvent(ctx, uploadData)
+		err = u.ensureSessionEndEvent(ctx, uploadData)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -175,7 +175,7 @@ func (u *UploadCompleter) Close() error {
 	return nil
 }
 
-func (u *UploadCompleter) emitSessionEndEvent(ctx context.Context, uploadData UploadMetadata) error {
+func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData UploadMetadata) error {
 	var serverID, clusterName, user, login, hostname, namespace, serverAddr string
 	var interactive bool
 
@@ -187,23 +187,30 @@ func (u *UploadCompleter) emitSessionEndEvent(ctx context.Context, uploadData Up
 	if len(sessionEvents) == 0 {
 		return nil
 	}
+
+	// Return if session.end event already exists
+	for _, event := range sessionEvents {
+		if event.GetType() == SessionEndEvent {
+			return nil
+		}
+	}
+
 	// Session start event is the first of session events
 	sessionStart := sessionEvents[0]
+	if sessionStart.GetType() != SessionStartEvent {
+		return trace.BadParameter("invalid session, session start is not the first event")
+	}
 
 	// Set variables
-	if sessionStart.GetType() == SessionStartEvent {
-		serverID = sessionStart.GetString(SessionServerHostname)
-		clusterName = sessionStart.GetString(SessionClusterName)
-		hostname = sessionStart.GetString(SessionServerHostname)
-		namespace = sessionStart.GetString(EventNamespace)
-		serverAddr = sessionStart.GetString(SessionServerAddr)
-		user = sessionStart.GetString(EventUser)
-		login = sessionStart.GetString(EventLogin)
-		if terminalSize := sessionStart.GetString(TerminalSize); terminalSize != "" {
-			interactive = true
-		}
-	} else {
-		return trace.BadParameter("invalid session, session start is not the first event")
+	serverID = sessionStart.GetString(SessionServerHostname)
+	clusterName = sessionStart.GetString(SessionClusterName)
+	hostname = sessionStart.GetString(SessionServerHostname)
+	namespace = sessionStart.GetString(EventNamespace)
+	serverAddr = sessionStart.GetString(SessionServerAddr)
+	user = sessionStart.GetString(EventUser)
+	login = sessionStart.GetString(EventLogin)
+	if terminalSize := sessionStart.GetString(TerminalSize); terminalSize != "" {
+		interactive = true
 	}
 
 	// Get last event to get session end time
@@ -255,5 +262,5 @@ func getParticipants(sessionEvents []EventFields) []string {
 
 		}
 	}
-	return participants
+	return utils.Deduplicate(participants)
 }
