@@ -17,7 +17,7 @@ The `teleport-cluster` Helm chart is used to configure a Teleport cluster. It ru
 | `auth_service` | Authenticates users and hosts, and issues certificates | [Auth documentation](../../architecture/authentication.mdx)
 | `proxy_service`| Runs the externally-facing parts of a Teleport cluster, such as the web UI, SSH proxy and reverse tunnel service | [Proxy documentation](../../architecture/proxy.mdx) |
 
-The `teleport-cluster` chart can be deployed in four different modes. We provide a detailed guide for each mode:
+The `teleport-cluster` chart can be deployed in four different modes. Get started with a guide for each mode:
 
 | `chartMode` | Guide |
 | - | - |
@@ -30,33 +30,17 @@ This reference details available values for the `teleport-cluster` chart.
 
 ## `clusterName`
 
-| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
-| - | - | - | - |
-| `string` | `nil` | ❌ | `auth_service.cluster_name`, `proxy_service.public_addr` |
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `string` | `nil` | When `chartMode` is `aws`, `gcp` or `standalone` | `auth_service.cluster_name`, `proxy_service.public_addr` | ✅ |
 
 `clusterName` controls the name used to refer to the Teleport cluster, along with the externally-facing public address to use to access it.
-
-<Admonition type="warning" title="Potential mandatory value">
-  This value must be set when `chartMode` is set to `aws`, `gcp` or `standalone`.
-</Admonition>
 
 <Admonition type="note">
   If using a fully qualified domain name as your `clusterName`, you will also need to configure the DNS provider for this domain to point
   to the external load balancer address of your Teleport cluster.
 
-  Whether an IP or hostname is provided as an external address for the load balancer varies according to provider.
-
-  For example, GKE uses an IP address:
-  ```shell
-  $ kubectl --namespace teleport get service/teleport -o jsonpath='{.status.loadBalancer.ingress[*].ip}'
-  35.203.56.38
-  ```
-
-  While EKS uses a hostname:
-  ```shell
-  $ kubectl --namespace teleport get service/teleport -o jsonpath='{.status.loadBalancer.ingress[*].hostname}'
-  a5f22a02798f541e58c6641c1b158ea3-1989279894.us-east-1.elb.amazonaws.com
-  ```
+  (!docs/pages/kubernetes-access/helm/includes/kubernetes-externaladdress.mdx!)
 
   You will need to manually add DNS records pointing `teleport.example.com` and `*.teleport.example.com` to either the IP or hostname
   of the Kubernetes load balancer.
@@ -76,7 +60,7 @@ Setting `enterprise` to `true` will use the Teleport Enterprise image.
 
 You will also need to download your Enterprise license from the Teleport dashboard and add it as a Kubernetes secret to use this:
 
-```
+```bash
 kubectl --namespace teleport create secret generic license --from-file=/path/to/downloaded/license.pem
 ```
 
@@ -87,7 +71,7 @@ kubectl --namespace teleport create secret generic license --from-file=/path/to/
 <Admonition type="note">
   The file added to the secret must be called `license.pem`. If you have renamed it, you can specify the filename to use in the secret creation command:
 
-  ```shell
+  ```bash
   kubectl --namespace teleport create secret generic license --from-file=license.pem=/path/to/downloaded/this-is-my-teleport-license.pem
   ```
 </Admonition>
@@ -205,7 +189,7 @@ By default, Teleport charts also install a [`podSecurityPolicy`](https://github.
 
 To disable this, you can set `enabled` to `false`.
 
-[Kubernetes concepts: `podSecurityPolicy`](https://kubernetes.io/docs/concepts/policy/pod-security-policy/)
+[Kubernetes reference](https://kubernetes.io/docs/concepts/policy/pod-security-policy/)
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -273,9 +257,9 @@ Teleport's RBAC policies to define access rules for the cluster.
 | - | - | - |
 | `string` | `nil` | ✅ |
 
-The default is left blank, which will automatically create a `PersistentVolumeClaim` to use for Teleport storage in `standalone` mode.
+`standalone.existingClaimName` can be used to provide the name of a pre-existing `PersistentVolumeClaim` to use if desired.
 
-If you would like to use a pre-existing `PersistentVolumeClaim`, you can specify its name here.
+The default is left blank, which will automatically create a `PersistentVolumeClaim` to use for Teleport storage in `standalone` mode.
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -384,7 +368,7 @@ Set to a number higher than `1` for a high availability mode where multiple Tele
 | - | - | - |
 | `bool` | `false` | ✅ (when using HA storage) |
 
-See [Kubernetes concepts: node affinity](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#node-affinity)
+[Kubernetes reference](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#node-affinity)
 
 Setting `highAvailability.requireAntiAffinity` to `true` will use `requiredDuringSchedulingIgnoredDuringExecution` to require that multiple
 Teleport pods must not be scheduled on the same physical host.
@@ -431,7 +415,7 @@ cluster deployed in HA mode.
   You must install and configure `cert-manager` in your Kubernetes cluster yourself.
 
   See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/kubernetes/#option-2-install-crds-as-part-of-the-helm-release)
-  and the relevant sections of the [AWS](./guides/aws.mdx#install-and-configure-cert-manager) and [GCP](./guides/gcp.mdx#install-and-configure-cert-manager) guides for more information.
+  and the relevant sections of the [AWS](./guides/aws.mdx#step-4-install-and-configure-cert-manager) and [GCP](./guides/gcp.mdx#step-4-install-and-configure-cert-manager) guides for more information.
 </Admonition>
 
 ### `highAvailability.certManager.issuerName`
@@ -440,13 +424,13 @@ cluster deployed in HA mode.
 | - | - | - | - |
 | `string` | `nil` | ❌ | None |
 
-Sets the name of the `cert-manager` `Issuer` or `ClusterIssuer` to use for to use for issuing certificates.
+Sets the name of the `cert-manager` `Issuer` or `ClusterIssuer` to use for issuing certificates.
 
 <Admonition type="note" title="Configuring an Issuer">
   You must install configure an appropriate `Issuer` supporting a DNS01 challenge yourself.
 
   Please see the [cert-manager DNS01 docs](https://cert-manager.io/docs/configuration/acme/dns01/#supported-dns01-providers) and the relevant sections
-  of the [AWS](./guides/aws.mdx#install-and-configure-cert-manager) and [GCP](./guides/gcp.mdx#install-and-configure-cert-manager) guides for more information.
+  of the [AWS](./guides/aws.mdx#step-4-install-and-configure-cert-manager) and [GCP](./guides/gcp.mdx#step-4-install-and-configure-cert-manager) guides for more information.
 </Admonition>
 
 <Tabs>
@@ -569,7 +553,7 @@ The default is `INFO`, which is recommended in production.
 | - | - | - |
 | `object` | `{}` | ✅ |
 
-Kubernetes reference: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+[Kubernetes reference](https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity)
 
 Kubernetes affinity to set for pod assignments.
 
@@ -606,7 +590,7 @@ Kubernetes affinity to set for pod assignments.
 | - | - | - | - |
 | `object` | `{}` | ❌ | None |
 
-Kubernetes reference: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
 
 Kubernetes annotations which should be applied to the `ConfigMap` created by the chart.
 
@@ -640,7 +624,7 @@ Kubernetes annotations which should be applied to the `ConfigMap` created by the
 | - | - | - |
 | `object` | `{}` | ✅  |
 
-Kubernetes reference: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
 
 Kubernetes annotations which should be applied to the `Deployment` created by the chart.
 
@@ -669,7 +653,7 @@ Kubernetes annotations which should be applied to the `Deployment` created by th
 | - | - | - |
 | `object` | `{}` | ✅  |
 
-Kubernetes reference: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
 
 Kubernetes annotations which should be applied to each `Pod` created by the chart.
 
@@ -698,7 +682,7 @@ Kubernetes annotations which should be applied to each `Pod` created by the char
 | - | - | - |
 | `object` | `{}` | ✅  |
 
-Kubernetes reference: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
 
 Kubernetes annotations which should be applied to the `Service` created by the chart.
 
@@ -749,7 +733,7 @@ A list of extra arguments to pass to the `teleport start` command when running a
 | - | - | - |
 | `list` | `[]` | ✅  |
 
-Kubernetes reference: https://kubernetes.io/docs/concepts/storage/volumes/
+[Kubernetes reference](https://kubernetes.io/docs/concepts/storage/volumes/)
 
 A list of extra Kubernetes `Volumes` which should be available to any `Pod` created by the chart. These volumes
 will also be available to any `initContainers` configured by the chart.
@@ -777,7 +761,7 @@ will also be available to any `initContainers` configured by the chart.
 | - | - | - |
 | `list` | `[]` | ✅  |
 
-Kubernetes reference: https://kubernetes.io/docs/concepts/storage/volumes/
+[Kubernetes reference](https://kubernetes.io/docs/concepts/storage/volumes/)
 
 A list of extra Kubernetes volume mounts which should be mounted into any `Pod` created by the chart. These volume
 mounts will also be mounted into any `initContainers` configured by the chart.
@@ -804,7 +788,7 @@ mounts will also be mounted into any `initContainers` configured by the chart.
 | - | - | - |
 | `string` | `IfNotPresent` | ✅  |
 
-Kubernetes reference: https://kubernetes.io/docs/concepts/containers/images/#updating-images
+[Kubernetes reference](https://kubernetes.io/docs/concepts/containers/images/#updating-images)
 
 Allows the `imagePullPolicy` for any pods created by the chart to be overridden.
 
@@ -827,7 +811,7 @@ Allows the `imagePullPolicy` for any pods created by the chart to be overridden.
 | - | - | - |
 | `list` | `[]` | ✅  |
 
-Kubernetes reference: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
+[Kubernetes reference](https://kubernetes.io/docs/concepts/workloads/pods/init-containers/)
 
 A list of `initContainers` which will be run before the main Teleport container in any pod created by the chart.
 
@@ -855,7 +839,7 @@ A list of `initContainers` which will be run before the main Teleport container 
 | - | - | - |
 | `object` | `{}` | ✅  |
 
-Kubernetes reference: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+[Kubernetes reference](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
 
 Resource requests/limits which should be configured for each container inside the pod. These resource limits
 will also be applied to `initContainers`.
@@ -883,7 +867,7 @@ will also be applied to `initContainers`.
 | - | - | - |
 | `list` | `[]` | ✅  |
 
-Kubernetes reference: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+[Kubernetes reference](https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/)
 
 Kubernetes Tolerations to set for pod assignment.
 
@@ -964,24 +948,20 @@ If you specify a role here, you may also need to specify some other settings whi
 
 ## `authToken`
 
-| Type | Default value |
-| - | - |
-| `string` | `nil` |
-
-<Admonition type="warning" title="Mandatory value">
-  This value must be set to run the chart.
-</Admonition>
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `nil` | Yes |
 
 `authToken` provides a Teleport join token which will be used to join the Teleport agent to a Teleport cluster.
 
 This value **must** be provided for the chart to work. The token that you use must also be valid for every Teleport service that you
 are trying to add with the `teleport-kube-agent` chart. Here are a few examples:
 
-| Services | Service Name | `tctl tokens add` example | `teleport.yaml` Static token example |
+| Services | Service Name | `tctl tokens add` example | `teleport.yaml` static token example |
 | - | - | - | - |
-| Kubernetes | `kube` | `tctl tokens add --type=kube` | `"kube:jB5dNpoozvHX3pWvDOvxoj2mu0Of99U8"` |
-| Kubernetes, Application | `kube,app` | `tctl tokens add --type=kube,app` | `"kube,app:2wPfsali3mZywt3w2APITYHL09FdYCti"` |
-| Kubernetes, Application, Database | `kube,app,db` | `tctl tokens add --type=kube,app,db` | `"kube,app,db:mTS7sUX7ytAr8jklJ37IGEVIa6etNivq"` |
+| Kubernetes | `kube` | `tctl tokens add --type=kube` | `"kube:<replace-with-actual-token>"` |
+| Kubernetes, Application | `kube,app` | `tctl tokens add --type=kube,app` | `"kube,app:<replace-with-actual-token>"` |
+| Kubernetes, Application, Database | `kube,app,db` | `tctl tokens add --type=kube,app,db` | `"kube,app,db:<replace-with-actual-token>"` |
 
 <Admonition type="note">
   When you use a token, all of the services that it provides **must** be used.
@@ -999,25 +979,21 @@ fail to join the Teleport cluster.
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
-  authToken: jB5dNpoozvHX3pWvDOvxoj2mu0Of99U8
+  authToken: <replace-with-actual-token>
   ```
   </TabItem>
   <TabItem label="--set">
   ```bash
-  --set authToken=jB5dNpoozvHX3pWvDOvxoj2mu0Of99U8
+  --set authToken=<replace-with-actual-token>
   ```
   </TabItem>
 </Tabs>
 
 ## `proxyAddr`
 
-| Type | Default value |
-| - | - |
-| `string` | `nil` |
-
-<Admonition type="warning" title="Mandatory value">
-  This value must be set to run the chart.
-</Admonition>
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `nil` | Yes |
 
 `proxyAddr` provides the public-facing Teleport proxy endpoint which should be used to join the cluster. This is the same URL that is used
 to access the web UI of your Teleport cluster. It is the same as the value configured for `proxy_service.public_addr` in a traditional
@@ -1033,13 +1009,9 @@ Here are a few examples:
 
 ## `kubeClusterName`
 
-| Type | Default value |
-| - | - |
-| `string` | `nil` |
-
-<Admonition type="note" title="Potential mandatory value">
-  This value must be set when the `kube` service/role is specified in the chart's `roles`.
-</Admonition>
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `nil` | When `kube` chart role is used |
 
 `kubeClusterName` sets the name used for the Kubernetes cluster proxied by the Teleport agent. This name will be shown to Teleport users
 connecting to the cluster.
@@ -1059,13 +1031,9 @@ connecting to the cluster.
 
 ## `apps`
 
-| Type | Default value |
-| - | - |
-| `list` | `[]` |
-
-<Admonition type="note" title="Potential mandatory value">
-  This value must be set when the `app` service/role is specified in the chart's `roles`.
-</Admonition>
+| Type | Default value | Required? |
+| - | - | - |
+| `list` | `[]` | When `app` chart role is used? |
 
 `apps` is a YAML list object detailing the applications that should be proxied by Teleport Application access.
 
@@ -1113,13 +1081,9 @@ You can specify multiple apps by adding additional list elements.
 
 ## `databases`
 
-| Type | Default value |
-| - | - |
-| `list` | `[]` |
-
-<Admonition type="note" title="Potential mandatory value">
-  This value must be set when the `db` service/role is specified in the chart's `roles`.
-</Admonition>
+| Type | Default value | Required? |
+| - | - | - |
+| `list` | `[]` | When `db` chart role is used |
 
 `databases` is a YAML list object detailing the databases that should be proxied by Teleport Database access.
 
@@ -1249,7 +1213,7 @@ By default, Teleport charts also install a [`podSecurityPolicy`](https://github.
 
 To disable this, you can set `enabled` to `false`.
 
-[Kubernetes concepts: `podSecurityPolicy`](https://kubernetes.io/docs/concepts/policy/pod-security-policy/)
+[Kubernetes reference](https://kubernetes.io/docs/concepts/policy/pod-security-policy/)
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -1357,16 +1321,15 @@ Set to a number higher than `1` for a high availability mode where multiple Tele
 
 ## `clusterRoleName`
 
-<Admonition type="note">
-  Most users will not need to change this.
-</Admonition>
-
 | Type | Default value |
 | - | - |
 | `string` | `teleport-kube-agent` |
 
-
 `clusterRoleName` is the name of the Kubernetes `ClusterRole` used by the `teleport-kube-agent` chart's `ServiceAccount`.
+
+<Admonition type="note">
+  Most users will not need to change this.
+</Admonition>
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -1444,10 +1407,10 @@ If you set this to a blank value, the chart will not attempt to create the secre
 existing `teleport-kube-agent-join-token` secret. This allows you to configure this secret externally and avoid having a plaintext
 join token stored in your Teleport chart values.
 
-To create your own join token secret, you can use a command like this (replacing the join token with a valid token for your cluster):
+To create your own join token secret, you can use a command like this:
 
 ```bash
-kubectl --namespace teleport create secret generic teleport-kube-agent-join-token --from-literal=auth-token=D4Z280P1mHiY78bKcfTGNKN52Gg5wc8q
+kubectl --namespace teleport create secret generic teleport-kube-agent-join-token --from-literal=auth-token=<replace-with-actual-token>
 ```
 
 <Admonition type="note">
@@ -1500,12 +1463,12 @@ The default is `INFO`, which is recommended in production.
 | - | - | - |
 | `object` | `{}` | ✅ |
 
-Kubernetes reference: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+[Kubernetes reference](https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity)
 
 Kubernetes affinity to set for pod assignments.
 
 <Admonition type="note">
-  You cannot set both `affinity` and `highAvailability.requireAntiAffinity` as they conflict with each other. Only set one or the other.
+  You cannot set both `affinity` and `highAvailability.requireAntiAffinity` as they conflict with each other.
 </Admonition>
 
 <Tabs>
@@ -1537,7 +1500,7 @@ Kubernetes affinity to set for pod assignments.
 | - | - | - | - |
 | `object` | `{}` | ❌ | None |
 
-Kubernetes reference: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
 
 Kubernetes annotations which should be applied to the `ConfigMap` created by the chart.
 
@@ -1571,7 +1534,7 @@ Kubernetes annotations which should be applied to the `ConfigMap` created by the
 | - | - | - |
 | `object` | `{}` | ✅  |
 
-Kubernetes reference: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
 
 Kubernetes annotations which should be applied to the `Deployment` created by the chart.
 
@@ -1600,7 +1563,7 @@ Kubernetes annotations which should be applied to the `Deployment` created by th
 | - | - | - |
 | `object` | `{}` | ✅  |
 
-Kubernetes reference: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
 
 Kubernetes annotations which should be applied to each `Pod` created by the chart.
 
@@ -1629,7 +1592,7 @@ Kubernetes annotations which should be applied to each `Pod` created by the char
 | - | - | - |
 | `list` | `[]` | ✅  |
 
-Kubernetes reference: https://kubernetes.io/docs/concepts/storage/volumes/
+[Kubernetes reference](https://kubernetes.io/docs/concepts/storage/volumes/)
 
 A list of extra Kubernetes `Volumes` which should be available to any `Pod` created by the chart. These volumes
 will also be available to any `initContainers` configured by the chart.
@@ -1657,7 +1620,7 @@ will also be available to any `initContainers` configured by the chart.
 | - | - | - |
 | `list` | `[]` | ✅  |
 
-Kubernetes reference: https://kubernetes.io/docs/concepts/storage/volumes/
+[Kubernetes reference](https://kubernetes.io/docs/concepts/storage/volumes/)
 
 A list of extra Kubernetes volume mounts which should be mounted into any `Pod` created by the chart. These volume
 mounts will also be mounted into any `initContainers` configured by the chart.
@@ -1684,7 +1647,7 @@ mounts will also be mounted into any `initContainers` configured by the chart.
 | - | - | - |
 | `string` | `IfNotPresent` | ✅  |
 
-Kubernetes reference: https://kubernetes.io/docs/concepts/containers/images/#updating-images
+[Kubernetes reference](https://kubernetes.io/docs/concepts/containers/images/#updating-images)
 
 Allows the `imagePullPolicy` for any pods created by the chart to be overridden.
 
@@ -1707,7 +1670,7 @@ Allows the `imagePullPolicy` for any pods created by the chart to be overridden.
 | - | - | - |
 | `list` | `[]` | ✅  |
 
-Kubernetes reference: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
+[Kubernetes reference](https://kubernetes.io/docs/concepts/workloads/pods/init-containers/)
 
 A list of `initContainers` which will be run before the main Teleport container in any pod created by the chart.
 
@@ -1735,7 +1698,7 @@ A list of `initContainers` which will be run before the main Teleport container 
 | - | - | - |
 | `object` | `{}` | ✅  |
 
-Kubernetes reference: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+[Kubernetes reference](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
 
 Resource requests/limits which should be configured for each container inside the pod. These resource limits
 will also be applied to `initContainers`.
@@ -1763,7 +1726,7 @@ will also be applied to `initContainers`.
 | - | - | - |
 | `list` | `[]` | ✅  |
 
-Kubernetes reference: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+[Kubernetes reference](https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/)
 
 Kubernetes Tolerations to set for pod assignment.
 

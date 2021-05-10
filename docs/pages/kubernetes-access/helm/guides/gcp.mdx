@@ -6,30 +6,9 @@ description: Install and configure an HA Teleport cluster using a Google Cloud G
 In this guide, we'll go through how to set up a highly-available Teleport cluster with multiple replicas in Kubernetes
 using Teleport Helm charts and Google Cloud Platform products (Firestore and Google Cloud Storage).
 
-### Install Helm
+(!docs/pages/kubernetes-access/helm/includes/helm-install.mdx!)
 
-Teleport's charts require the use of Helm version 3. You can [install Helm 3 by following these instructions](https://helm.sh/docs/intro/install/).
-
-Throughout this guide, we will assume that you have the `helm` and `kubectl` binaries available in your `PATH`:
-
-```bash
-$ helm version
-version.BuildInfo{Version:"v3.4.2"}
-
-$ kubectl version
-Client Version: version.Info{Major:"1", Minor:"17+"}
-Server Version: version.Info{Major:"1", Minor:"17+"}
-```
-
-### Add the Teleport Helm chart repository
-
-To allow Helm to install charts which are hosted in the Teleport Helm repository, use `helm repo add`:
-
-```bash
-helm repo add teleport https://charts.releases.teleport.dev
-```
-
-### Google Cloud IAM configuration
+### Step 3: Google Cloud IAM configuration
 
 For Teleport to be able to create the Firestore collections, indexes and the Google Cloud storage bucket it needs,
 you'll need to configure a Google Cloud service account with permissions to use these services.
@@ -40,27 +19,39 @@ Go to the "Roles" section of Google Cloud IAM & Admin.
 
 1. Click the "Create Role" button at the top.
 
-![Roles section](../../../../img/helm/gcp/1-roles@1.5x.png)
+<Figure align="left" bordered caption="Roles section">
+  ![Roles section](../../../../img/helm/gcp/1-roles@1.5x.png)
+</Figure>
 
 2. Fill in the details of a "Storage Bucket Creator" role (we suggest using the name `storage-bucket-creator-role`)
 
-![Create role](../../../../img/helm/gcp/2-createrole@1.5x.png)
+<Figure align="left" bordered caption="Create role">
+  ![Create role](../../../../img/helm/gcp/2-createrole@1.5x.png)
+</Figure>
 
 3. Click the "Add Permissions" button.
 
-![Storage bucket creator role](../../../../img/helm/gcp/3-addpermissions@1.5x.png)
+<Figure align="left" bordered caption="Storage bucket creator role">
+  ![Storage bucket creator role](../../../../img/helm/gcp/3-addpermissions@1.5x.png)
+</Figure>
 
 4. Use the "Filter" box to enter `storage.buckets.create` and select it in the list.
 
-![Filter the list](../../../../img/helm/gcp/4-storagebucketscreate@1.5x.png)
+<Figure align="left" bordered caption="Filter the list">
+  ![Filter the list](../../../../img/helm/gcp/4-storagebucketscreate@1.5x.png)
+</Figure>
 
 5. Check the `storage.buckets.create` permission in the list and click the "Add" button to add it to the role.
 
-![Select storage.buckets.create](../../../../img/helm/gcp/5-select@1.5x.png)
+<Figure align="left" bordered caption="Select storage.buckets.create">
+  ![Select storage.buckets.create](../../../../img/helm/gcp/5-select@1.5x.png)
+</Figure>
 
 6. Once all these settings are entered successfully, click the "Create" button.
 
-![Create role](../../../../img/helm/gcp/6-createrole@1.5x.png)
+<Figure align="left" bordered caption="Create role">
+  ![Create role](../../../../img/helm/gcp/6-createrole@1.5x.png)
+</Figure>
 
 #### Create an IAM role granting Cloud DNS permissions
 
@@ -68,18 +59,25 @@ Go to the "Roles" section of Google Cloud IAM & Admin.
 
 1. Click the "Create Role" button at the top.
 
-![Roles section](../../../../img/helm/gcp/1-roles@1.5x.png)
+<Figure align="left" bordered caption="Roles section">
+  ![Roles section](../../../../img/helm/gcp/1-roles@1.5x.png)
+</Figure>
 
 2. Fill in the details of a "DNS Updater" role (we suggest using the name `dns-updater-role`)
 
-![Create role](../../../../img/helm/gcp/13-dns-createrole@1.5x.png)
+<Figure align="left" bordered caption="Create role">
+  ![Create role](../../../../img/helm/gcp/13-dns-createrole@1.5x.png)
+</Figure>
 
 3. Click the "Add Permissions" button.
 
-![DNS updater role](../../../../img/helm/gcp/3-addpermissions@1.5x.png)
+<Figure align="left" bordered caption="DNS updater role">
+  ![DNS updater role](../../../../img/helm/gcp/3-addpermissions@1.5x.png)
+</Figure>
 
-4. Use the "Filter" box to find each of the following permissions in the list and add it
-(you can type things like `dns.resourceRecordSets.*` to quickly filter the list):
+
+4. Use the "Filter" box to find each of the following permissions in the list and add it.
+You can type things like `dns.resourceRecordSets.*` to quickly filter the list.
 
 ```console
 dns.resourceRecordSets.create
@@ -94,7 +92,9 @@ dns.managedZones.list
 
 5. Once all these settings are entered successfully, click the "Create" button.
 
-![Add DNS permissions](../../../../img/helm/gcp/14-dns-permissions-create@1.5x.png)
+<Figure align="left" bordered caption="Add DNS permissions">
+  ![Add DNS permissions](../../../../img/helm/gcp/14-dns-permissions-create@1.5x.png)
+</Figure>
 
 #### Create a service account for the Teleport Helm chart
 
@@ -108,11 +108,16 @@ Go to the "Service Accounts" section of Google Cloud IAM & Admin.
 
 1. Click the "Create Service Account" button at the top.
 
-![Create service account](../../../../img/helm/gcp/7-serviceaccounts@1.5x.png)
+<Figure align="left" bordered caption="Create service account">
+  ![Create service account](../../../../img/helm/gcp/7-serviceaccounts@1.5x.png)
+</Figure>
 
 2. Enter details for the service account (we recommend using the name `teleport-helm`) and click the "Create" button.
 
-![Enter service account details](../../../../img/helm/gcp/8-createserviceaccount@1.5x.png)
+<Figure align="left" bordered caption="Enter service account details">
+  ![Enter service account details](../../../../img/helm/gcp/8-createserviceaccount@1.5x.png)
+</Figure>
+
 
 3. In the "Grant this service account access to project" section, add these four roles:
 
@@ -124,7 +129,9 @@ Go to the "Service Accounts" section of Google Cloud IAM & Admin.
 | Storage Object Creator | Allows writing of Google Cloud storage objects |
 | Storage Object Viewer | Allows reading of Google Cloud storage objects |
 
-![Add roles](../../../../img/helm/gcp/9-addroles@1.5x.png)
+<Figure align="left" bordered caption="Add roles">
+  ![Add roles](../../../../img/helm/gcp/9-addroles@1.5x.png)
+</Figure>
 
 4. Click the "continue" button to save these settings, then click the "create" button to create the service account.
 
@@ -134,16 +141,23 @@ Go back to the "Service Accounts" view in Google Cloud IAM & Admin.
 
 1. Click on the `teleport-helm` service account that you just created.
 
-![Click on the service account](../../../../img/helm/gcp/10-serviceaccountdetails@1.5x.png)
+<Figure align="left" bordered caption="Click on the service account">
+  ![Click on the service account](../../../../img/helm/gcp/10-serviceaccountdetails@1.5x.png)
+</Figure>
 
 2. Click the "Keys" tab at the top and click "Add Key". Choose "JSON" and click "Create".
 
-![Create JSON key](../../../../img/helm/gcp/11-createkey.png)
+<Figure align="left" bordered caption="Create JSON key">
+  ![Create JSON key](../../../../img/helm/gcp/11-createkey.png)
+</Figure>
 
 3. The JSON private key will be downloaded to your computer. Take note of the filename (`bens-demos-24150b1a0a7f.json` in this example)
    as you will need it shortly.
 
-![Private key saved](../../../../img/helm/gcp/12-privatekey@1.5x.png)
+<Figure align="left" bordered caption="Private key saved">
+  ![Private key saved](../../../../img/helm/gcp/12-privatekey@1.5x.png)
+</Figure>
+
 
 #### Create the Kubernetes secret containing the JSON private key for the service account
 
@@ -168,7 +182,7 @@ kubectl --namespace teleport create secret generic teleport-gcp-credentials --fr
  The credentials file stored in any secret used must have the key name `gcp-credentials.json`.
 </Admonition>
 
-### Install and configure `cert-manager`
+### Step 4: Install and configure cert-manager
 
 Reference: [`cert-manager` docs](https://cert-manager.io/docs/)
 
@@ -236,7 +250,7 @@ After you have created the `Issuer` and updated the values, add it to your clust
 kubectl --namespace teleport create -f gcp-issuer.yaml
 ```
 
-### Set values to configure the cluster
+### Step 5: Set values to configure the cluster
 
 There are two different ways to configure the `teleport-cluster` Helm chart to use `gcp` mode - using a `values.yaml` file or using `--set`
 on the command line.
@@ -317,7 +331,7 @@ NAME                                  DESIRED   CURRENT   READY   AGE
 replicaset.apps/teleport-b64dd8849    2         2         2       7m16s
 ```
 
-### Set up DNS
+### Step 6: Set up DNS
 
 You'll need to set up two DNS `A` records: `teleport.example.com` for the web UI, and `*.teleport.example.com`
 for web apps using [application access](../../../application-access/introduction.mdx).
@@ -326,23 +340,23 @@ Here's how to do this using Google Cloud DNS:
 
 ```bash
 # Change these parameters if you altered them above
-$ NAMESPACE=teleport
-$ RELEASE_NAME=teleport
+NAMESPACE=teleport
+RELEASE_NAME=teleport
 
-$ MYIP=$(kubectl --namespace ${NAMESPACE?} get service/${RELEASE_NAME?} -o jsonpath='{.status.loadBalancer.ingress[*].ip}')
-$ MYZONE="myzone"
-$ MYDNS="teleport.example.com"
+MYIP=$(kubectl --namespace ${NAMESPACE?} get service/${RELEASE_NAME?} -o jsonpath='{.status.loadBalancer.ingress[*].ip}')
+MYZONE="myzone"
+MYDNS="teleport.example.com"
 
-$ gcloud dns record-sets transaction start --zone="${MYZONE?}"
-$ gcloud dns record-sets transaction add ${MYIP?} --name="${MYDNS?}" --ttl="300" --type="A" --zone="${MYZONE?}"
-$ gcloud dns record-sets transaction add ${MYIP?} --name="*.${MYDNS?}" --ttl="300" --type="A" --zone="${MYZONE?}"
-$ gcloud dns record-sets transaction describe --zone="${MYZONE?}"
-$ gcloud dns record-sets transaction execute --zone="${MYZONE?}"
+gcloud dns record-sets transaction start --zone="${MYZONE?}"
+gcloud dns record-sets transaction add ${MYIP?} --name="${MYDNS?}" --ttl="300" --type="A" --zone="${MYZONE?}"
+gcloud dns record-sets transaction add ${MYIP?} --name="*.${MYDNS?}" --ttl="300" --type="A" --zone="${MYZONE?}"
+gcloud dns record-sets transaction describe --zone="${MYZONE?}"
+gcloud dns record-sets transaction execute --zone="${MYZONE?}"
 ```
 
-### Create a Teleport user
+### Step 7: Create a Teleport user
 
-At this point, you'll still need to create a user to be able to log into Teleport. This needs to be done on the Teleport auth server,
+Create a user to be able to log into Teleport. This needs to be done on the Teleport auth server,
 so we can run the command using `kubectl`:
 
 ```bash
@@ -355,15 +369,10 @@ NOTE: Make sure teleport.example.com:443 points at a Teleport proxy which users 
 
 Load the user creation link to create a password and set up 2-factor authentication for the Teleport user via the web UI.
 
-You can follow our [Getting Started with Teleport guide](../../../getting-started.mdx#step-2-create-a-teleport-user-and-set-up-two-factor-authentication) to finish setting up your
-Teleport cluster.
-
 #### High availability
 
 In this guide, we have configured 2 replicas. This can be changed after cluster creation by altering the `highAvailability.replicaCount`
 value [using `helm upgrade` as detailed below](#upgrading-the-cluster-after-deployment).
-
-See the [high availability section of our Helm chart reference](../reference.mdx#highavailability) for more details on high availability.
 
 ### Upgrading the cluster after deployment
 
@@ -413,10 +422,18 @@ To uninstall the `teleport-cluster` chart, use `helm uninstall <release-name>`. 
 helm --namespace teleport uninstall teleport
 ```
 
-#### Uninstalling `cert-manager`
+#### Uninstalling cert-manager
 
 If you want to remove the `cert-manager` installation later, you can use this command:
 
 ```bash
 helm --namespace cert-manager uninstall cert-manager
 ```
+
+### Next steps
+
+You can follow our [Getting Started with Teleport guide](../../../getting-started.mdx#step-2-create-a-teleport-user-and-set-up-two-factor-authentication) to finish setting up your
+Teleport cluster.
+
+See the [high availability section of our Helm chart reference](../reference.mdx#highavailability) for more details on high availability.
+

@@ -1,9 +1,9 @@
 ---
-title: Migrating from an older version of the teleport Helm chart
-description: How to migrate a Teleport cluster using the older teleport helm chart to the teleport-cluster Helm chart
+title: Migrating from a legacy version of the teleport Helm chart
+description: How to migrate a Teleport cluster using the legacy teleport helm chart to the teleport-cluster Helm chart
 ---
 
-In this guide, we'll detail a way to migrate an existing Teleport cluster using the older `teleport` Helm chart
+In this guide, we'll detail a way to migrate an existing Teleport cluster using the legacy `teleport` Helm chart
 to use the newer `teleport-cluster` Helm chart instead.
 
 <Admonition type="warning">
@@ -13,32 +13,9 @@ to use the newer `teleport-cluster` Helm chart instead.
   consider [following a different guide](../guides.mdx) and storing your cluster's data in AWS DynamoDB or Google Cloud Firestore.
 </Admonition>
 
-### Install Helm
+(!docs/pages/kubernetes-access/helm/includes/helm-install.mdx!)
 
-Teleport's charts require the use of Helm version 3. You can [install Helm 3 by following these instructions](https://helm.sh/docs/intro/install/).
-
-Throughout this guide, we will assume that you have the `helm` and `kubectl` binaries available in your `PATH`:
-
-```bash
-$ helm version
-version.BuildInfo{Version:"v3.4.2"}
-
-$ kubectl version
-Client Version: version.Info{Major:"1", Minor:"17+"}
-Server Version: version.Info{Major:"1", Minor:"17+"}
-```
-
-### Add the Teleport Helm chart repository
-
-To allow Helm to install charts which are hosted in the Teleport Helm repository, use `helm repo add`:
-
-```bash
-helm repo add teleport https://charts.releases.teleport.dev
-```
-
-## Migrating from the `teleport` chart to `teleport-cluster`
-
-### Get the Teleport configuration file from your existing cluster
+### Step 3: Get the Teleport configuration file from your existing cluster
 
 <Admonition type="tip" title="Teleport storage in AWS or GCP">
   If your Teleport cluster's database is currently stored in AWS DynamoDB or Google Cloud Firestore rather than
@@ -102,7 +79,7 @@ $ kubectl --namespace teleport-cluster create configmap teleport --from-file=tel
 configmap/teleport created
 ```
 
-### Extracting the contents of Teleport's database
+### Step 4: Extracting the contents of Teleport's database
 
 <Admonition type="note" title="Note on namespacing">
   If you migrate your existing data, the `cluster_name` which is configured in `teleport.yaml` must stay the same.
@@ -133,7 +110,7 @@ Add the backup to your new `teleport-cluster` namespace as a secret:
 kubectl --namespace teleport-cluster create secret generic bootstrap --from-file=backup.yaml
 ```
 
-### Start the new cluster with your old config file and backup
+### Step 5: Start the new cluster with your old config file and backup
 
 We will start the new cluster and bootstrap it using the backup of your cluster's data. Once this step is complete and the cluster is working,
 we'll modify the deployment to remove references to the backup data, and remove it from Kubernetes for security.
@@ -199,25 +176,13 @@ replicaset.apps/teleport-5cf46ddf5f   2         2         2       4m21s
   You'll need to change the existing DNS record for your `teleport` chart installation to point to your new `teleport-cluster`
   chart installation. You should point the DNS record to the external IP or hostname of the Kubernetes load balancer.
 
-  Whether an IP or hostname is provided as an external address for the load balancer varies according to provider.
-
-  For example, GKE uses an IP address:
-  ```bash
-  $ kubectl --namespace teleport-cluster get service/teleport -o jsonpath='{.status.loadBalancer.ingress[*].ip}'
-  35.203.56.38
-  ```
-
-  While EKS uses a hostname:
-  ```bash
-  $ kubectl --namespace teleport-cluster get service/teleport -o jsonpath='{.status.loadBalancer.ingress[*].hostname}'
-  a5f22a02798f541e58c6641c1b158ea3-1989279894.us-east-1.elb.amazonaws.com
-  ```
+  (!docs/pages/kubernetes-access/helm/includes/kubernetes-externaladdress.mdx!)
 
   For testing, you can access the load balancer's IP or hostname directly. You may need to accept insecure warnings in your
   browser to view the page successfully.
 </Admonition>
 
-### Remove the bootstrap data and update the chart deployment
+### Step 6: Remove the bootstrap data and update the chart deployment
 
 Once you've tested your new Teleport cluster and you're confident that your data has been migrated successfully,
 you should redeploy the chart without your backup data mounted for security.

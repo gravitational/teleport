@@ -6,30 +6,9 @@ description: Install and configure an HA Teleport cluster using an AWS EKS clust
 In this guide, we'll go through how to set up a highly-available Teleport cluster with multiple replicas in Kubernetes
 using Teleport Helm charts and AWS products (DynamoDB and S3).
 
-### Install Helm
+(!docs/pages/kubernetes-access/helm/includes/helm-install.mdx!)
 
-Teleport's charts require the use of Helm version 3. You can [install Helm 3 by following these instructions](https://helm.sh/docs/intro/install/).
-
-Throughout this guide, we will assume that you have the `helm` and `kubectl` binaries available in your `PATH`:
-
-```bash
-$ helm version
-version.BuildInfo{Version:"v3.4.2"}
-
-$ kubectl version
-Client Version: version.Info{Major:"1", Minor:"17+"}
-Server Version: version.Info{Major:"1", Minor:"17+"}
-```
-
-### Add the Teleport Helm chart repository
-
-To allow Helm to install charts which are hosted in the Teleport Helm repository, use `helm repo add`:
-
-```bash
-helm repo add teleport https://charts.releases.teleport.dev
-```
-
-### Set up AWS IAM configuration
+### Step 3: Set up AWS IAM configuration
 
 For Teleport to be able to create the DynamoDB tables, indexes and the S3 storage bucket it needs,
 you'll need to configure AWS IAM policies to allow access.
@@ -144,7 +123,7 @@ You'll need to replace these values in the policy example below:
 
 #### Route53 IAM policy
 
-This policy allows `cert-manager` to use DNS01 challenges to provision TLS certificates for your Teleport cluster.
+This policy allows `cert-manager` to use DNS01 Let's Encrypt challenges to provision TLS certificates for your Teleport cluster.
 
 You'll need to replace these values in the policy example below:
 
@@ -173,7 +152,7 @@ You'll need to replace these values in the policy example below:
 }
 ```
 
-### Install and configure `cert-manager`
+### Step 4: Install and configure cert-manager
 
 Reference: [`cert-manager` docs](https://cert-manager.io/docs/)
 
@@ -235,7 +214,7 @@ After you have created the `Issuer` and updated the values, add it to your clust
 kubectl --namespace teleport create -f aws-issuer.yaml
 ```
 
-### Set values to configure the cluster
+### Step 5: Set values to configure the cluster
 
 There are two different ways to configure the `teleport-cluster` Helm chart to use `aws` mode - using a `values.yaml` file, or using `--set`
 on the command line.
@@ -316,7 +295,7 @@ NAME                                  DESIRED   CURRENT   READY   AGE
 replicaset.apps/teleport-5cf46ddf5f   2         2         2       4m21s
 ```
 
-### Set up DNS
+### Step 6: Set up DNS
 
 You'll need to set up two DNS `A` records: `teleport.example.com` for the web UI, and `*.teleport.example.com`
 for web apps using [application access](../../../application-access/introduction.mdx).
@@ -325,35 +304,35 @@ Here's how to do this in a hosted zone with AWS Route 53:
 
 ```bash
 # Change these parameters if you altered them above
-$ NAMESPACE=teleport
-$ RELEASE_NAME=teleport
+NAMESPACE=teleport
+RELEASE_NAME=teleport
 
 # Tip for finding AWS zone id by the domain name (replace your namespace)
-$ MYIP=$(kubectl --namespace ${NAMESPACE?} get service/${RELEASE_NAME?} -o jsonpath='{.status.loadBalancer.ingress[*].hostname}')
-$ MYZONE_DNS="example.com"
-$ MYZONE=$(aws route53 list-hosted-zones-by-name --dns-name=${MYZONE_DNS?} | jq -r '.HostedZones[0].Id' | sed s_/hostedzone/__)
+MYIP=$(kubectl --namespace ${NAMESPACE?} get service/${RELEASE_NAME?} -o jsonpath='{.status.loadBalancer.ingress[*].hostname}')
+MYZONE_DNS="example.com"
+MYZONE=$(aws route53 list-hosted-zones-by-name --dns-name=${MYZONE_DNS?} | jq -r '.HostedZones[0].Id' | sed s_/hostedzone/__)
 
-$ MYDNS="teleport.example.com"
+MYDNS="teleport.example.com"
 
 # Create a JSON file changeset for AWS.
-$ jq -n --arg ip ${MYIP?} --arg dns ${MYDNS?} '{"Comment": "Create records", "Changes": [
+jq -n --arg ip ${MYIP?} --arg dns ${MYDNS?} '{"Comment": "Create records", "Changes": [
   {"Action": "CREATE", "ResourceRecordSet": {"Name": $dns, "Type": "A", "TTL": 300, "ResourceRecords": [{ "Value": $ip}]}},
   {"Action": "CREATE", "ResourceRecordSet": {"Name": ("*." + $dns), "Type": "A", "TTL": 300, "ResourceRecords": [{ "Value": $ip}]}}
   ]}' > myrecords.json
 
 # Review records before applying.
-$ cat myrecords.json | jq
+cat myrecords.json | jq
 # Apply the records and capture change id
-$ CHANGEID=$(aws route53 change-resource-record-sets --hosted-zone-id ${MYZONE?} --change-batch file://myrecords.json | jq -r '.ChangeInfo.Id')
+CHANGEID=$(aws route53 change-resource-record-sets --hosted-zone-id ${MYZONE?} --change-batch file://myrecords.json | jq -r '.ChangeInfo.Id')
 
 # Verify that change has been applied
-$ aws route53 get-change --id ${CHANGEID?} | jq '.ChangeInfo.Status'
+aws route53 get-change --id ${CHANGEID?} | jq '.ChangeInfo.Status'
 "INSYNC"
 ```
 
-### Create a Teleport user
+### Step 7: Create a Teleport user
 
-At this point, you'll still need to create a user to be able to log into Teleport. This needs to be done on the Teleport auth server,
+Create a user to be able to log into Teleport. This needs to be done on the Teleport auth server,
 so we can run the command using `kubectl`:
 
 ```bash
@@ -366,15 +345,10 @@ NOTE: Make sure teleport.example.com:443 points at a Teleport proxy which users 
 
 Load the user creation link to create a password and set up 2-factor authentication for the Teleport user via the web UI.
 
-You can follow our [Getting Started with Teleport guide](../../../getting-started.mdx#step-2-create-a-teleport-user-and-set-up-two-factor-authentication) to finish setting up your
-Teleport cluster.
-
 #### High availability
 
 In this guide, we have configured 2 replicas. This can be changed after cluster creation by altering the `highAvailability.replicaCount`
 value [using `helm upgrade` as detailed below](#upgrading-the-cluster-after-deployment).
-
-See the [high availability section of our Helm chart reference](../reference.mdx#highavailability) for more details on high availability.
 
 ### Upgrading the cluster after deployment
 
@@ -422,10 +396,17 @@ To uninstall the `teleport-cluster` chart, use `helm uninstall <release-name>`. 
 helm --namespace teleport uninstall teleport
 ```
 
-#### Uninstalling `cert-manager`
+#### Uninstalling cert-manager
 
 If you want to remove the `cert-manager` installation later, you can use this command:
 
 ```bash
 helm --namespace cert-manager uninstall cert-manager
 ```
+
+### Next steps
+
+You can follow our [Getting Started with Teleport guide](../../../getting-started.mdx#step-2-create-a-teleport-user-and-set-up-two-factor-authentication) to finish setting up your
+Teleport cluster.
+
+See the [high availability section of our Helm chart reference](../reference.mdx#highavailability) for more details on high availability.
