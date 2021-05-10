@@ -418,6 +418,7 @@ func (a *Server) validateSAMLResponse(samlResponse string) (*samlAuthResponse, e
 			Roles:      user.GetRoles(),
 			Traits:     user.GetTraits(),
 			SessionTTL: params.sessionTTL,
+			LoginTime:  a.clock.Now().UTC(),
 		})
 		if err != nil {
 			return re, trace.Wrap(err)

@@ -769,7 +769,7 @@ func (a *AuthenticationConfig) Parse() (services.AuthPreference, error) {
 		}
 	}
 
-	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+	ap, err := types.NewAuthPreferenceFromConfigFile(services.AuthPreferenceSpecV2{
 		Type:              a.Type,
 		SecondFactor:      a.SecondFactor,
 		ConnectorName:     a.ConnectorName,
@@ -1008,6 +1008,8 @@ type App struct {
 type Rewrite struct {
 	// Redirect is a list of hosts that should be rewritten to the public address.
 	Redirect []string `yaml:"redirect"`
+	// Headers is a list of extra headers to inject in the request.
+	Headers []string `yaml:"headers,omitempty"`
 }
 
 // Proxy is a `proxy_service` section of the config file:

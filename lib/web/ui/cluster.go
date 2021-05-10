@@ -17,6 +17,7 @@ limitations under the License.
 package ui
 
 import (
+	"context"
 	"sort"
 	"time"
 
@@ -84,13 +85,13 @@ func NewClustersFromRemote(remoteClusters []services.RemoteCluster) ([]Cluster, 
 }
 
 // GetClusterDetails retrieves and sets details about a cluster
-func GetClusterDetails(site reversetunnel.RemoteSite) (*Cluster, error) {
+func GetClusterDetails(ctx context.Context, site reversetunnel.RemoteSite) (*Cluster, error) {
 	clt, err := site.CachingAccessPoint()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	nodes, err := clt.GetNodes(defaults.Namespace)
+	nodes, err := clt.GetNodes(ctx, defaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

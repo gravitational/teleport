@@ -374,6 +374,7 @@ func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, erro
 			Roles:      user.GetRoles(),
 			Traits:     user.GetTraits(),
 			SessionTTL: params.sessionTTL,
+			LoginTime:  a.clock.Now().UTC(),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
