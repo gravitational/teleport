@@ -435,6 +435,11 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 		return nil, trace.Wrap(err)
 	}
 
+	netConfig, err := f.cfg.CachingAuthClient.GetClusterNetworkingConfig(f.ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// adjust session ttl to the smaller of two values: the session
 	// ttl requested in tsh or the session ttl for the role.
 	sessionTTL := roles.AdjustSessionTTL(time.Hour)
@@ -530,7 +535,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	}
 
 	authCtx := &authContext{
-		clientIdleTimeout: roles.AdjustClientIdleTimeout(clusterConfig.GetClientIdleTimeout()),
+		clientIdleTimeout: roles.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
 		sessionTTL:        sessionTTL,
 		Context:           ctx,
 		kubeGroups:        utils.StringsSet(kubeGroups),

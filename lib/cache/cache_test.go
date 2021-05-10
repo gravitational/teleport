@@ -839,6 +839,17 @@ func (s *CacheSuite) TestClusterConfig(c *check.C) {
 	p := s.newPackForAuth(c)
 	defer p.Close()
 
+	// DELETE IN 8.0.0
+	err := p.clusterConfigS.SetClusterNetworkingConfig(context.TODO(), types.DefaultClusterNetworkingConfig())
+	c.Assert(err, check.IsNil)
+
+	select {
+	case event := <-p.eventsC:
+		c.Assert(event.Type, check.Equals, EventProcessed)
+	case <-time.After(time.Second):
+		c.Fatalf("timeout waiting for event")
+	}
+
 	// update cluster config to record at the proxy
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
 		SessionRecording: services.RecordAtProxy,
