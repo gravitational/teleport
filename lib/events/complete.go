@@ -238,7 +238,7 @@ func (u *UploadCompleter) emitSessionEndEvent(ctx context.Context, uploadData Up
 
 	// Check and set event fields
 	if err = checkAndSetEventFields(sessionEndEvent, u.cfg.Clock, utils.NewRealUID(), clusterName); err != nil {
-		trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	if err = u.cfg.AuditLog.EmitAuditEvent(ctx, sessionEndEvent); err != nil {
 		return trace.Wrap(err)
