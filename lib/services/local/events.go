@@ -66,6 +66,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch services.Watch) (s
 			parser = newStaticTokensParser()
 		case services.KindClusterConfig:
 			parser = newClusterConfigParser()
+		case types.KindClusterNetworkingConfig:
+			parser = newClusterNetworkingConfigParser()
 		case types.KindClusterAuthPreference:
 			parser = newAuthPreferenceParser()
 		case services.KindClusterName:
@@ -378,6 +380,41 @@ func (p *clusterConfigParser) parse(event backend.Event) (services.Resource, err
 			return nil, trace.Wrap(err)
 		}
 		return clusterConfig, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newClusterNetworkingConfigParser() *clusterNetworkingConfigParser {
+	return &clusterNetworkingConfigParser{
+		baseParser: baseParser{matchPrefix: backend.Key(clusterConfigPrefix, networkingPrefix)},
+	}
+}
+
+type clusterNetworkingConfigParser struct {
+	baseParser
+}
+
+func (p *clusterNetworkingConfigParser) parse(event backend.Event) (services.Resource, error) {
+	switch event.Type {
+	case backend.OpDelete:
+		h, err := resourceHeader(event, types.KindClusterNetworkingConfig, services.V2, 0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		h.SetName(types.MetaNameClusterNetworkingConfig)
+		return h, nil
+	case backend.OpPut:
+		clusterNetworkingConfig, err := services.UnmarshalClusterNetworkingConfig(
+			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+			services.SkipValidation(),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return clusterNetworkingConfig, nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

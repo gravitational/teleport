@@ -70,7 +70,7 @@ type (
 	RoleOptions                        = types.RoleOptions
 	RoleConditions                     = types.RoleConditions
 	AccessRequestConditions            = types.AccessRequestConditions
-	AccessRequestClaimMapping          = types.AccessRequestClaimMapping
+	AccessRequestClaimMapping          = types.ClaimMapping
 	Rule                               = types.Rule
 	BoolValue                          = types.BoolValue
 	UserV2                             = types.UserV2
@@ -318,7 +318,6 @@ var (
 	NewRole          = types.NewRole
 	NewRule          = types.NewRule
 	CopyRulesSlice   = types.CopyRulesSlice
-	RuleSlicesEqual  = types.RuleSlicesEqual
 	NewBool          = types.NewBool
 	NewBoolOption    = types.NewBoolOption
 	BoolDefaultTrue  = types.BoolDefaultTrue

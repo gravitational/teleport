@@ -33,6 +33,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
@@ -40,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -253,8 +253,13 @@ func (c *SessionContext) GetUser() string {
 
 // extendWebSession creates a new web session for this user
 // based on the previous session
-func (c *SessionContext) extendWebSession(accessRequestID string) (services.WebSession, error) {
-	session, err := c.clt.ExtendWebSession(c.user, c.session.GetName(), accessRequestID)
+func (c *SessionContext) extendWebSession(accessRequestID string, switchback bool) (services.WebSession, error) {
+	session, err := c.clt.ExtendWebSession(auth.WebSessionReq{
+		User:            c.user,
+		PrevSessionID:   c.session.GetName(),
+		AccessRequestID: accessRequestID,
+		Switchback:      switchback,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -729,9 +734,9 @@ func (s *sessionCache) newSessionContextFromSession(session services.WebSession)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	userClient, err := auth.NewTLSClient(auth.ClientConfig{
-		Addrs: s.authServers,
-		TLS:   tlsConfig,
+	userClient, err := auth.NewClient(apiclient.Config{
+		Addrs:       utils.NetAddrsToStrings(s.authServers),
+		Credentials: []apiclient.Credentials{apiclient.LoadTLS(tlsConfig)},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

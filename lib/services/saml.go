@@ -139,11 +139,11 @@ func GetSAMLServiceProvider(sc SAMLConnector, clock clockwork.Clock) (*saml2.SAM
 			for _, samlCert := range kd.KeyInfo.X509Data.X509Certificates {
 				certData, err := base64.StdEncoding.DecodeString(strings.TrimSpace(samlCert.Data))
 				if err != nil {
-					return nil, trace.Wrap(err)
+					return nil, trace.Wrap(err, "failed to decode certificate defined in entity_descriptor")
 				}
 				cert, err := x509.ParseCertificate(certData)
 				if err != nil {
-					return nil, trace.Wrap(err, "failed to parse certificate in metadata")
+					return nil, trace.Wrap(err, "failed to parse certificate defined in entity_descriptor")
 				}
 				certStore.Roots = append(certStore.Roots, cert)
 			}
@@ -153,7 +153,7 @@ func GetSAMLServiceProvider(sc SAMLConnector, clock clockwork.Clock) (*saml2.SAM
 	if sc.GetCert() != "" {
 		cert, err := tlsca.ParseCertificatePEM([]byte(sc.GetCert()))
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "failed to parse certificate defined in cert")
 		}
 		certStore.Roots = append(certStore.Roots, cert)
 	}
@@ -163,7 +163,7 @@ func GetSAMLServiceProvider(sc SAMLConnector, clock clockwork.Clock) (*saml2.SAM
 
 	signingKeyStore, err := utils.ParseSigningKeyStorePEM(sc.GetSigningKeyPair().PrivateKey, sc.GetSigningKeyPair().Cert)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "failed to parse certificate defined in signing_key_pair")
 	}
 
 	// The encryption keystore here is defaulted to the value of the signing keystore
@@ -174,7 +174,7 @@ func GetSAMLServiceProvider(sc SAMLConnector, clock clockwork.Clock) (*saml2.SAM
 	if encryptionKeyPair != nil {
 		encryptionKeyStore, err = utils.ParseSigningKeyStorePEM(encryptionKeyPair.PrivateKey, encryptionKeyPair.Cert)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "failed to parse certificate defined in assertion_key_pair")
 		}
 	}
 
@@ -246,9 +246,10 @@ var SAMLConnectorSpecV2Schema = fmt.Sprintf(`{
 		"type": "array",
 		"items": %v
 	  },
-	  "signing_key_pair": %v
+	  "signing_key_pair": %v,
+	  "assertion_key_pair": %v
 	}
-  }`, AttributeMappingSchema, SigningKeyPairSchema)
+  }`, AttributeMappingSchema, SigningKeyPairSchema, SigningKeyPairSchema)
 
 // AttributeMappingSchema is JSON schema for claim mapping
 var AttributeMappingSchema = `{

@@ -69,6 +69,7 @@ Teleport needs to assign groups to users. Configure the application with some pa
 exposed as SAML attribute statements:
 
 ![Configure APP](../../../img/sso/onelogin/onelogin-saml-3.png)
+
 ![Configure APP](../../../img/sso/onelogin/onelogin-saml-4.png)
 
 <Admonition
@@ -94,7 +95,7 @@ Now, create a SAML connector [resource](../../admin-guide.mdx#resources).
 Write down this template as `onelogin-connector.yaml`:
 
 ```yaml
-{!examples/resources/onelogin-connector.yaml!}
+(!examples/resources/onelogin-connector.yaml!)
 ```
 
 To fill in the fields, open `SSO` tab:
@@ -158,7 +159,7 @@ spec:
   options:
     max_session_ttl: "24h"
   allow:
-    logins: [ "{% raw %}{{external.username}}{% endraw %}", ubuntu ]
+    logins: [ "{{external.username}}", ubuntu ]
     node_labels:
       access: relaxed
 ```

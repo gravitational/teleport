@@ -21,12 +21,16 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -512,6 +516,54 @@ func TestApplyConfig(t *testing.T) {
 	require.True(t, cfg.Proxy.Enabled)
 	require.Equal(t, "tcp://webhost:3080", cfg.Proxy.WebAddr.FullAddress())
 	require.Equal(t, "tcp://tunnelhost:1001", cfg.Proxy.ReverseTunnelListenAddr.FullAddress())
+	require.Equal(t, "tcp://webhost:3336", cfg.Proxy.MySQLAddr.FullAddress())
+	require.Len(t, cfg.Proxy.PostgresPublicAddrs, 1)
+	require.Equal(t, "tcp://postgres.example:5432", cfg.Proxy.PostgresPublicAddrs[0].FullAddress())
+	require.Len(t, cfg.Proxy.MySQLPublicAddrs, 1)
+	require.Equal(t, "tcp://mysql.example:3306", cfg.Proxy.MySQLPublicAddrs[0].FullAddress())
+
+	u2fCAFromFile, err := ioutil.ReadFile("testdata/u2f_attestation_ca.pem")
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cfg.Auth.Preference, &types.AuthPreferenceV2{
+		Kind:    types.KindClusterAuthPreference,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name:      "cluster-auth-preference",
+			Namespace: defaults.Namespace,
+			Labels:    map[string]string{types.OriginLabel: types.OriginConfigFile},
+		},
+		Spec: types.AuthPreferenceSpecV2{
+			Type:         teleport.Local,
+			SecondFactor: constants.SecondFactorOTP,
+			U2F: &types.U2F{
+				AppID:  "app-id",
+				Facets: []string{"https://localhost:3080"},
+				DeviceAttestationCAs: []string{
+					string(u2fCAFromFile),
+					`-----BEGIN CERTIFICATE-----
+MIIDFzCCAf+gAwIBAgIDBAZHMA0GCSqGSIb3DQEBCwUAMCsxKTAnBgNVBAMMIFl1
+YmljbyBQSVYgUm9vdCBDQSBTZXJpYWwgMjYzNzUxMCAXDTE2MDMxNDAwMDAwMFoY
+DzIwNTIwNDE3MDAwMDAwWjArMSkwJwYDVQQDDCBZdWJpY28gUElWIFJvb3QgQ0Eg
+U2VyaWFsIDI2Mzc1MTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAMN2
+cMTNR6YCdcTFRxuPy31PabRn5m6pJ+nSE0HRWpoaM8fc8wHC+Tmb98jmNvhWNE2E
+ilU85uYKfEFP9d6Q2GmytqBnxZsAa3KqZiCCx2LwQ4iYEOb1llgotVr/whEpdVOq
+joU0P5e1j1y7OfwOvky/+AXIN/9Xp0VFlYRk2tQ9GcdYKDmqU+db9iKwpAzid4oH
+BVLIhmD3pvkWaRA2H3DA9t7H/HNq5v3OiO1jyLZeKqZoMbPObrxqDg+9fOdShzgf
+wCqgT3XVmTeiwvBSTctyi9mHQfYd2DwkaqxRnLbNVyK9zl+DzjSGp9IhVPiVtGet
+X02dxhQnGS7K6BO0Qe8CAwEAAaNCMEAwHQYDVR0OBBYEFMpfyvLEojGc6SJf8ez0
+1d8Cv4O/MA8GA1UdEwQIMAYBAf8CAQEwDgYDVR0PAQH/BAQDAgEGMA0GCSqGSIb3
+DQEBCwUAA4IBAQBc7Ih8Bc1fkC+FyN1fhjWioBCMr3vjneh7MLbA6kSoyWF70N3s
+XhbXvT4eRh0hvxqvMZNjPU/VlRn6gLVtoEikDLrYFXN6Hh6Wmyy1GTnspnOvMvz2
+lLKuym9KYdYLDgnj3BeAvzIhVzzYSeU77/Cupofj093OuAswW0jYvXsGTyix6B3d
+bW5yWvyS9zNXaqGaUmP3U9/b6DlHdDogMLu3VLpBB9bm5bjaKWWJYgWltCVgUbFq
+Fqyi4+JE014cSgR57Jcu3dZiehB6UtAPgad9L5cNvua/IWRmm+ANy3O2LH++Pyl8
+SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
+-----END CERTIFICATE-----
+`,
+				},
+			},
+		},
+	}))
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
@@ -525,13 +577,75 @@ func TestApplyConfigNoneEnabled(t *testing.T) {
 	require.NoError(t, err)
 
 	require.False(t, cfg.Auth.Enabled)
-	require.Len(t, cfg.Auth.PublicAddrs, 0)
+	require.Empty(t, cfg.Auth.PublicAddrs)
 	require.False(t, cfg.Proxy.Enabled)
-	require.Len(t, cfg.Proxy.PublicAddrs, 0)
+	require.Empty(t, cfg.Proxy.PublicAddrs)
 	require.False(t, cfg.SSH.Enabled)
-	require.Len(t, cfg.SSH.PublicAddrs, 0)
+	require.Empty(t, cfg.SSH.PublicAddrs)
 	require.False(t, cfg.Apps.Enabled)
 	require.False(t, cfg.Databases.Enabled)
+	require.Empty(t, cfg.Proxy.PostgresPublicAddrs)
+	require.Empty(t, cfg.Proxy.MySQLPublicAddrs)
+}
+
+// TestPostgresPublicAddr makes sure Postgres proxy public address default
+// port logic works correctly.
+func TestPostgresPublicAddr(t *testing.T) {
+	tests := []struct {
+		desc string
+		fc   *FileConfig
+		out  []string
+	}{
+		{
+			desc: "postgres public address with port set",
+			fc: &FileConfig{
+				Proxy: Proxy{
+					WebAddr:            "0.0.0.0:8080",
+					PublicAddr:         []string{"web.example.com:443"},
+					PostgresPublicAddr: []string{"postgres.example.com:5432"},
+				},
+			},
+			out: []string{"postgres.example.com:5432"},
+		},
+		{
+			desc: "when port not set, defaults to web proxy public port",
+			fc: &FileConfig{
+				Proxy: Proxy{
+					WebAddr:            "0.0.0.0:8080",
+					PublicAddr:         []string{"web.example.com:443"},
+					PostgresPublicAddr: []string{"postgres.example.com"},
+				},
+			},
+			out: []string{"postgres.example.com:443"},
+		},
+		{
+			desc: "when port and public addr not set, defaults to web proxy listen port",
+			fc: &FileConfig{
+				Proxy: Proxy{
+					WebAddr:            "0.0.0.0:8080",
+					PostgresPublicAddr: []string{"postgres.example.com"},
+				},
+			},
+			out: []string{"postgres.example.com:8080"},
+		},
+		{
+			desc: "when port and listen/public addrs not set, defaults to web proxy default port",
+			fc: &FileConfig{
+				Proxy: Proxy{
+					PostgresPublicAddr: []string{"postgres.example.com"},
+				},
+			},
+			out: []string{net.JoinHostPort("postgres.example.com", strconv.Itoa(defaults.HTTPListenPort))},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			cfg := service.MakeDefaultConfig()
+			err := applyProxyConfig(test.fc, cfg)
+			require.NoError(t, err)
+			require.EqualValues(t, test.out, utils.NetAddrsToStrings(cfg.Proxy.PostgresPublicAddrs))
+		})
+	}
 }
 
 func TestBackendDefaults(t *testing.T) {
@@ -1291,6 +1405,21 @@ db_service:
     uri: 192.168.1.1
 `,
 			outError: `invalid database "foo" address`,
+		},
+		{
+			desc: "missing Redshift region",
+			inConfigString: `
+db_service:
+  enabled: true
+  databases:
+  - name: foo
+    protocol: postgres
+    uri: 192.168.1.1:5438
+    aws:
+      redshift:
+        cluster_id: cluster-1
+`,
+			outError: `missing AWS region for Redshift database "foo"`,
 		},
 	}
 	for _, tt := range tests {

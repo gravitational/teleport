@@ -45,7 +45,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster servic
 	var existingCluster services.TrustedCluster
 	if trustedCluster.GetName() != "" {
 		var err error
-		if existingCluster, err = a.Presence.GetTrustedCluster(trustedCluster.GetName()); err == nil {
+		if existingCluster, err = a.Presence.GetTrustedCluster(ctx, trustedCluster.GetName()); err == nil {
 			exists = true
 		}
 	}
@@ -147,8 +147,8 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster servic
 			Code: events.TrustedClusterCreateCode,
 		},
 		UserMetadata: events.UserMetadata{
-			User:         clientUsername(ctx),
-			Impersonator: clientImpersonator(ctx),
+			User:         ClientUsername(ctx),
+			Impersonator: ClientImpersonator(ctx),
 		},
 		ResourceMetadata: events.ResourceMetadata{
 			Name: trustedCluster.GetName(),
@@ -221,8 +221,8 @@ func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
 			Code: events.TrustedClusterDeleteCode,
 		},
 		UserMetadata: events.UserMetadata{
-			User:         clientUsername(ctx),
-			Impersonator: clientImpersonator(ctx),
+			User:         ClientUsername(ctx),
+			Impersonator: ClientImpersonator(ctx),
 		},
 		ResourceMetadata: events.ResourceMetadata{
 			Name: name,
@@ -376,12 +376,12 @@ func (a *Server) GetRemoteCluster(clusterName string) (services.RemoteCluster, e
 
 func (a *Server) updateRemoteClusterStatus(remoteCluster services.RemoteCluster) error {
 	ctx := context.TODO()
-	clusterConfig, err := a.GetClusterConfig()
+	netConfig, err := a.GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	keepAliveCountMax := clusterConfig.GetKeepAliveCountMax()
-	keepAliveInterval := clusterConfig.GetKeepAliveInterval()
+	keepAliveCountMax := netConfig.GetKeepAliveCountMax()
+	keepAliveInterval := netConfig.GetKeepAliveInterval()
 
 	// fetch tunnel connections for the cluster to update runtime status
 	connections, err := a.GetTunnelConnections(remoteCluster.GetName())

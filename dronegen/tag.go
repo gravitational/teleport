@@ -137,16 +137,13 @@ func tagPipelines() []pipeline {
 	// regular tarball builds
 	for _, arch := range []string{"amd64", "386", "arm", "arm64"} {
 		for _, fips := range []bool{false, true} {
-			if (arch == "386" || arch == "arm") && fips {
-				// FIPS mode not supported on i386 or ARM
+			if arch != "amd64" && fips {
+				// FIPS mode only supported on linux/amd64
 				continue
 			}
 			ps = append(ps, tagPipeline(buildType{os: "linux", arch: arch, fips: fips}))
 
-			if arch == "arm" || arch == "arm64" {
-				// TODO(gus): support needs to be added upstream for building ARM/ARM64 packages first
-				continue
-			}
+			// RPM/DEB package builds
 			for _, packageType := range []string{rpmPackage, debPackage} {
 				ps = append(ps, tagPackagePipeline(packageType, buildType{os: "linux", arch: arch, fips: fips}))
 			}
@@ -206,6 +203,7 @@ func tagPipeline(b buildType) pipeline {
 			},
 			Commands: tagCheckoutCommands(b.fips),
 		},
+		waitForDockerStep(),
 		{
 			Name:        "Build artifacts",
 			Image:       "docker",
@@ -345,6 +343,7 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			},
 			Commands: tagCheckoutCommands(b.fips),
 		},
+		waitForDockerStep(),
 		{
 			Name:  "Download artifacts from S3",
 			Image: "amazon/aws-cli",

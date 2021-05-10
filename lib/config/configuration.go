@@ -507,11 +507,18 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		SessionRecording:      fc.Auth.SessionRecording,
 		ProxyChecksHostKeys:   fc.Auth.ProxyChecksHostKeys,
 		Audit:                 *auditConfig,
-		ClientIdleTimeout:     fc.Auth.ClientIdleTimeout,
 		DisconnectExpiredCert: fc.Auth.DisconnectExpiredCert,
+		LocalAuth:             localAuth,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Set cluster networking configuration from file configuration.
+	cfg.Auth.NetworkingConfig, err = types.NewClusterNetworkingConfig(types.ClusterNetworkingConfigSpecV2{
+		ClientIdleTimeout:     fc.Auth.ClientIdleTimeout,
 		KeepAliveInterval:     fc.Auth.KeepAliveInterval,
 		KeepAliveCountMax:     fc.Auth.KeepAliveCountMax,
-		LocalAuth:             localAuth,
 		SessionControlTimeout: fc.Auth.SessionControlTimeout,
 	})
 	if err != nil {
@@ -686,6 +693,34 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.Proxy.TunnelPublicAddrs = addrs
 	}
+	if len(fc.Proxy.PostgresPublicAddr) != 0 {
+		// Postgres proxy is multiplexed on the web proxy port. If the port is
+		// not specified here explicitly, prefer defaults in the following
+		// order, depending on what's set:
+		//   1. Web proxy public port
+		//   2. Web proxy listen port
+		//   3. Web proxy default listen port
+		defaultPort := cfg.Proxy.WebAddr.Port(defaults.HTTPListenPort)
+		if len(cfg.Proxy.PublicAddrs) != 0 {
+			defaultPort = cfg.Proxy.PublicAddrs[0].Port(defaults.HTTPListenPort)
+		}
+		addrs, err := utils.AddrsFromStrings(fc.Proxy.PostgresPublicAddr, defaultPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.PostgresPublicAddrs = addrs
+	}
+	if len(fc.Proxy.MySQLPublicAddr) != 0 {
+		if fc.Proxy.MySQLAddr == "" {
+			return trace.BadParameter("mysql_listen_addr must be set when mysql_public_addr is set")
+		}
+		// MySQL proxy is listening on a separate port.
+		addrs, err := utils.AddrsFromStrings(fc.Proxy.MySQLPublicAddr, defaults.MySQLListenPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.MySQLPublicAddrs = addrs
+	}
 
 	acme, err := fc.Proxy.ACME.Parse()
 	if err != nil {
@@ -698,7 +733,7 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 }
 
 // applySSHConfig applies file configuration for the "ssh_service" section.
-func applySSHConfig(fc *FileConfig, cfg *service.Config) error {
+func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	if fc.SSH.ListenAddress != "" {
 		addr, err := utils.ParseHostPortAddr(fc.SSH.ListenAddress, int(defaults.SSHServerListenPort))
 		if err != nil {
@@ -758,6 +793,13 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	if fc.SSH.BPF != nil {
 		cfg.SSH.BPF = fc.SSH.BPF.Parse()
+	}
+
+	if proxyAddr := os.Getenv(defaults.TunnelPublicAddrEnvar); proxyAddr != "" {
+		cfg.SSH.ProxyReverseTunnelFallbackAddr, err = utils.ParseHostPortAddr(proxyAddr, defaults.SSHProxyTunnelListenPort)
+		if err != nil {
+			return trace.Wrap(err, "invalid reverse tunnel address format %q", proxyAddr)
+		}
 	}
 
 	return nil
@@ -847,6 +889,9 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 			CACert:        caBytes,
 			AWS: service.DatabaseAWS{
 				Region: database.AWS.Region,
+				Redshift: service.DatabaseAWSRedshift{
+					ClusterID: database.AWS.Redshift.ClusterID,
+				},
 			},
 			GCP: service.DatabaseGCP{
 				ProjectID:  database.GCP.ProjectID,
@@ -899,8 +944,15 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 			InsecureSkipVerify: application.InsecureSkipVerify,
 		}
 		if application.Rewrite != nil {
+			// Parse http rewrite headers if there are any.
+			headers, err := service.ParseHeaders(application.Rewrite.Headers)
+			if err != nil {
+				return trace.Wrap(err, "failed to parse headers rewrite configuration for app %q",
+					application.Name)
+			}
 			app.Rewrite = &service.Rewrite{
 				Redirect: application.Rewrite.Redirect,
+				Headers:  headers,
 			}
 		}
 		if err := app.Check(); err != nil {

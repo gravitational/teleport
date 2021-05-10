@@ -334,7 +334,7 @@ func (h *Heartbeat) fetch() error {
 			h.reset(HeartbeatStateAnnounce)
 			return nil
 		}
-		result := services.Compare(h.current, server)
+		result := services.CompareServers(h.current, server)
 		// server update happened, time to announce
 		if result == services.Different {
 			h.current = server
@@ -352,7 +352,7 @@ func (h *Heartbeat) fetch() error {
 			h.setState(HeartbeatStateKeepAlive)
 			return nil
 		}
-		result := services.Compare(h.current, server)
+		result := services.CompareServers(h.current, server)
 		// server update happened, move to announce
 		if result == services.Different {
 			h.current = server
@@ -410,7 +410,7 @@ func (h *Heartbeat) announce() error {
 			if !ok {
 				return trace.BadParameter("expected services.Server, got %#v", h.current)
 			}
-			keepAlive, err := h.Announcer.UpsertNode(node)
+			keepAlive, err := h.Announcer.UpsertNode(h.cancelCtx, node)
 			if err != nil {
 				return trace.Wrap(err)
 			}

@@ -18,22 +18,27 @@ package auth
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/julienschmidt/httprouter"
 	"github.com/stretchr/testify/require"
 )
 
 func TestUpsertServer(t *testing.T) {
 	t.Parallel()
+
+	ctx := context.Background()
 	const remoteAddr = "request-remote-addr"
 
 	tests := []struct {
@@ -127,9 +132,9 @@ func TestUpsertServer(t *testing.T) {
 				allServers = append(allServers, servers...)
 			}
 			addServers(s.GetAuthServers())
-			addServers(s.GetNodes(defaults.Namespace))
+			addServers(s.GetNodes(ctx, defaults.Namespace))
 			addServers(s.GetProxies())
-			require.Empty(t, cmp.Diff(allServers, []services.Server{tt.wantServer}))
+			require.Empty(t, cmp.Diff(allServers, []services.Server{tt.wantServer}, cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 		})
 	}
 }

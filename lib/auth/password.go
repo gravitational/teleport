@@ -436,7 +436,7 @@ func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, toke
 		if secondFactor == constants.SecondFactorOTP {
 			return trace.BadParameter("user %q sent a U2F registration during password reset but cluster only allows OTP for second factor", username)
 		}
-		_, err = cap.GetU2F()
+		cfg, err := cap.GetU2F()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -448,6 +448,7 @@ func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, toke
 			Resp:                   *req.U2FRegisterResponse,
 			Storage:                s.Identity,
 			Clock:                  s.GetClock(),
+			AttestationCAs:         cfg.DeviceAttestationCAs,
 		})
 		return trace.Wrap(err)
 	}

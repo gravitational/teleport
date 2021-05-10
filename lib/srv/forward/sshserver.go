@@ -27,6 +27,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -38,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/proxy"
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
@@ -434,7 +434,7 @@ func (s *Server) Serve() {
 	config.KeyExchanges = s.kexAlgorithms
 	config.MACs = s.macAlgorithms
 
-	clusterConfig, err := s.GetAccessPoint().GetClusterConfig()
+	netConfig, err := s.GetAccessPoint().GetClusterNetworkingConfig(s.Context())
 	if err != nil {
 		s.log.Errorf("Unable to fetch cluster config: %v.", err)
 		return
@@ -497,8 +497,8 @@ func (s *Server) Serve() {
 			s.sconn,
 			s.remoteClient,
 		},
-		Interval:     clusterConfig.GetKeepAliveInterval(),
-		MaxCount:     clusterConfig.GetKeepAliveCountMax(),
+		Interval:     netConfig.GetKeepAliveInterval(),
+		MaxCount:     netConfig.GetKeepAliveCountMax(),
 		CloseContext: ctx,
 		CloseCancel:  func() { s.connectionContext.Close() },
 	})
@@ -566,7 +566,7 @@ func (s *Server) newRemoteClient(systemLogin string) (*ssh.Client, error) {
 	// the correct host. It must occur in the list of principals presented by
 	// the remote server.
 	dstAddr := net.JoinHostPort(s.address, "0")
-	client, err := proxy.NewClientConnWithDeadline(s.targetConn, dstAddr, clientConfig)
+	client, err := apisshutils.NewClientConnWithDeadline(s.targetConn, dstAddr, clientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

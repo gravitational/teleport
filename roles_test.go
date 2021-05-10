@@ -9,7 +9,7 @@ func TestRolesCheck(t *testing.T) {
 	}{
 		{roles: []Role{}, wantErr: false},
 		{roles: []Role{RoleAuth}, wantErr: false},
-		{roles: []Role{RoleAuth, RoleWeb, RoleNode, RoleProxy, RoleAdmin, RoleProvisionToken, RoleTrustedCluster, LegacyClusterTokenType, RoleSignup, RoleNop}, wantErr: false},
+		{roles: []Role{RoleAuth, RoleNode, RoleProxy, RoleAdmin, RoleProvisionToken, RoleTrustedCluster, LegacyClusterTokenType, RoleSignup, RoleNop}, wantErr: false},
 		{roles: []Role{RoleAuth, RoleNode, RoleAuth}, wantErr: true},
 		{roles: []Role{Role("unknown")}, wantErr: true},
 	}

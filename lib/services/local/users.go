@@ -25,6 +25,8 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
@@ -273,7 +275,7 @@ func (s *IdentityService) GetUserByOIDCIdentity(id services.ExternalIdentity) (s
 	}
 	for _, u := range users {
 		for _, uid := range u.GetOIDCIdentities() {
-			if uid.Equals(&id) {
+			if cmp.Equal(uid, &id) {
 				return u, nil
 			}
 		}
@@ -290,7 +292,7 @@ func (s *IdentityService) GetUserBySAMLIdentity(id services.ExternalIdentity) (s
 	}
 	for _, u := range users {
 		for _, uid := range u.GetSAMLIdentities() {
-			if uid.Equals(&id) {
+			if cmp.Equal(uid, &id) {
 				return u, nil
 			}
 		}
@@ -306,7 +308,7 @@ func (s *IdentityService) GetUserByGithubIdentity(id services.ExternalIdentity) 
 	}
 	for _, u := range users {
 		for _, uid := range u.GetGithubIdentities() {
-			if uid.Equals(&id) {
+			if cmp.Equal(uid, &id) {
 				return u, nil
 			}
 		}
@@ -668,7 +670,7 @@ func (s *IdentityService) GetU2FSignChallenge(user string) (*u2f.Challenge, erro
 }
 
 // UpsertOIDCConnector upserts OIDC Connector
-func (s *IdentityService) UpsertOIDCConnector(connector services.OIDCConnector) error {
+func (s *IdentityService) UpsertOIDCConnector(ctx context.Context, connector services.OIDCConnector) error {
 	if err := connector.Check(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -682,7 +684,7 @@ func (s *IdentityService) UpsertOIDCConnector(connector services.OIDCConnector) 
 		Expires: connector.Expiry(),
 		ID:      connector.GetResourceID(),
 	}
-	_, err = s.Put(context.TODO(), item)
+	_, err = s.Put(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -690,21 +692,21 @@ func (s *IdentityService) UpsertOIDCConnector(connector services.OIDCConnector) 
 }
 
 // DeleteOIDCConnector deletes OIDC Connector by name
-func (s *IdentityService) DeleteOIDCConnector(name string) error {
+func (s *IdentityService) DeleteOIDCConnector(ctx context.Context, name string) error {
 	if name == "" {
 		return trace.BadParameter("missing parameter name")
 	}
-	err := s.Delete(context.TODO(), backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, name))
+	err := s.Delete(ctx, backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, name))
 	return trace.Wrap(err)
 }
 
 // GetOIDCConnector returns OIDC connector data, parameter 'withSecrets'
 // includes or excludes client secret from return results
-func (s *IdentityService) GetOIDCConnector(name string, withSecrets bool) (services.OIDCConnector, error) {
+func (s *IdentityService) GetOIDCConnector(ctx context.Context, name string, withSecrets bool) (services.OIDCConnector, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing parameter name")
 	}
-	item, err := s.Get(context.TODO(), backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, name))
+	item, err := s.Get(ctx, backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("OpenID connector '%v' is not configured", name)
@@ -724,9 +726,9 @@ func (s *IdentityService) GetOIDCConnector(name string, withSecrets bool) (servi
 }
 
 // GetOIDCConnectors returns registered connectors, withSecrets adds or removes client secret from return results
-func (s *IdentityService) GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, error) {
+func (s *IdentityService) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]services.OIDCConnector, error) {
 	startKey := backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix)
-	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -805,7 +807,7 @@ func (s *IdentityService) CreateSAMLConnector(connector services.SAMLConnector) 
 }
 
 // UpsertSAMLConnector upserts SAML Connector
-func (s *IdentityService) UpsertSAMLConnector(connector services.SAMLConnector) error {
+func (s *IdentityService) UpsertSAMLConnector(ctx context.Context, connector services.SAMLConnector) error {
 	if err := services.ValidateSAMLConnector(connector); err != nil {
 		return trace.Wrap(err)
 	}
@@ -818,7 +820,7 @@ func (s *IdentityService) UpsertSAMLConnector(connector services.SAMLConnector) 
 		Value:   value,
 		Expires: connector.Expiry(),
 	}
-	_, err = s.Put(context.TODO(), item)
+	_, err = s.Put(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -826,21 +828,21 @@ func (s *IdentityService) UpsertSAMLConnector(connector services.SAMLConnector) 
 }
 
 // DeleteSAMLConnector deletes SAML Connector by name
-func (s *IdentityService) DeleteSAMLConnector(name string) error {
+func (s *IdentityService) DeleteSAMLConnector(ctx context.Context, name string) error {
 	if name == "" {
 		return trace.BadParameter("missing parameter name")
 	}
-	err := s.Delete(context.TODO(), backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, name))
+	err := s.Delete(ctx, backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, name))
 	return trace.Wrap(err)
 }
 
 // GetSAMLConnector returns SAML connector data,
 // withSecrets includes or excludes secrets from return results
-func (s *IdentityService) GetSAMLConnector(name string, withSecrets bool) (services.SAMLConnector, error) {
+func (s *IdentityService) GetSAMLConnector(ctx context.Context, name string, withSecrets bool) (services.SAMLConnector, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing parameter name")
 	}
-	item, err := s.Get(context.TODO(), backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, name))
+	item, err := s.Get(ctx, backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("SAML connector %q is not configured", name)
@@ -864,9 +866,9 @@ func (s *IdentityService) GetSAMLConnector(name string, withSecrets bool) (servi
 
 // GetSAMLConnectors returns registered connectors
 // withSecrets includes or excludes private key values from return results
-func (s *IdentityService) GetSAMLConnectors(withSecrets bool) ([]services.SAMLConnector, error) {
+func (s *IdentityService) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]services.SAMLConnector, error) {
 	startKey := backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix)
-	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -948,7 +950,7 @@ func (s *IdentityService) CreateGithubConnector(connector services.GithubConnect
 }
 
 // UpsertGithubConnector creates or updates a Github connector
-func (s *IdentityService) UpsertGithubConnector(connector services.GithubConnector) error {
+func (s *IdentityService) UpsertGithubConnector(ctx context.Context, connector services.GithubConnector) error {
 	if err := connector.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -962,7 +964,7 @@ func (s *IdentityService) UpsertGithubConnector(connector services.GithubConnect
 		Expires: connector.Expiry(),
 		ID:      connector.GetResourceID(),
 	}
-	_, err = s.Put(context.TODO(), item)
+	_, err = s.Put(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -970,9 +972,9 @@ func (s *IdentityService) UpsertGithubConnector(connector services.GithubConnect
 }
 
 // GetGithubConnectors returns all configured Github connectors
-func (s *IdentityService) GetGithubConnectors(withSecrets bool) ([]services.GithubConnector, error) {
+func (s *IdentityService) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]services.GithubConnector, error) {
 	startKey := backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix)
-	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -991,11 +993,11 @@ func (s *IdentityService) GetGithubConnectors(withSecrets bool) ([]services.Gith
 }
 
 // GetGithubConnectot returns a particular Github connector
-func (s *IdentityService) GetGithubConnector(name string, withSecrets bool) (services.GithubConnector, error) {
+func (s *IdentityService) GetGithubConnector(ctx context.Context, name string, withSecrets bool) (services.GithubConnector, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing parameter name")
 	}
-	item, err := s.Get(context.TODO(), backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, name))
+	item, err := s.Get(ctx, backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("github connector %q is not configured", name)
@@ -1013,11 +1015,11 @@ func (s *IdentityService) GetGithubConnector(name string, withSecrets bool) (ser
 }
 
 // DeleteGithubConnector deletes the specified connector
-func (s *IdentityService) DeleteGithubConnector(name string) error {
+func (s *IdentityService) DeleteGithubConnector(ctx context.Context, name string) error {
 	if name == "" {
 		return trace.BadParameter("missing parameter name")
 	}
-	return trace.Wrap(s.Delete(context.TODO(), backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, name)))
+	return trace.Wrap(s.Delete(ctx, backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, name)))
 }
 
 // CreateGithubAuthRequest creates a new auth request for Github OAuth2 flow

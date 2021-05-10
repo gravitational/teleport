@@ -46,6 +46,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: true},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindClusterAuthPreference},
 		{Kind: services.KindStaticTokens},
 		{Kind: services.KindToken},
@@ -77,6 +78,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: false},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindClusterAuthPreference},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
@@ -105,6 +107,7 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: false},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindNamespace},
@@ -131,6 +134,7 @@ func ForOldRemoteProxy(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: false},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindNamespace},
@@ -154,6 +158,7 @@ func ForNode(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: false},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindClusterAuthPreference},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
@@ -173,6 +178,7 @@ func ForKubernetes(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: false},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindClusterAuthPreference},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
@@ -190,6 +196,7 @@ func ForApps(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: false},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindClusterAuthPreference},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
@@ -208,6 +215,7 @@ func ForDatabases(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: false},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindClusterAuthPreference},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
@@ -364,7 +372,7 @@ type readGuard struct {
 	provisioner   services.Provisioner
 	users         services.UsersService
 	access        services.Access
-	dynamicAccess services.DynamicAccess
+	dynamicAccess services.DynamicAccessCore
 	presence      services.Presence
 	appSession    services.AppSession
 	webSession    types.WebSessionInterface
@@ -411,7 +419,7 @@ type Config struct {
 	// Access is an access service
 	Access services.Access
 	// DynamicAccess is a dynamic access service
-	DynamicAccess services.DynamicAccess
+	DynamicAccess services.DynamicAccessCore
 	// Presence is a presence service
 	Presence services.Presence
 	// AppSession holds application sessions.
@@ -974,30 +982,30 @@ func (c *Cache) GetStaticTokens() (services.StaticTokens, error) {
 }
 
 // GetTokens returns all active (non-expired) provisioning tokens
-func (c *Cache) GetTokens(opts ...services.MarshalOption) ([]services.ProvisionToken, error) {
+func (c *Cache) GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]services.ProvisionToken, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.provisioner.GetTokens(services.AddOptions(opts, services.SkipValidation())...)
+	return rg.provisioner.GetTokens(ctx, services.AddOptions(opts, services.SkipValidation())...)
 }
 
 // GetToken finds and returns token by ID
-func (c *Cache) GetToken(name string) (services.ProvisionToken, error) {
+func (c *Cache) GetToken(ctx context.Context, name string) (services.ProvisionToken, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
-	token, err := rg.provisioner.GetToken(name)
+	token, err := rg.provisioner.GetToken(ctx, name)
 	if trace.IsNotFound(err) && rg.IsCacheRead() {
 		// release read lock early
 		rg.Release()
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
-		if token, err := c.Config.Provisioner.GetToken(name); err == nil {
+		if token, err := c.Config.Provisioner.GetToken(ctx, name); err == nil {
 			return token, nil
 		}
 	}
@@ -1012,6 +1020,16 @@ func (c *Cache) GetClusterConfig(opts ...services.MarshalOption) (services.Clust
 	}
 	defer rg.Release()
 	return rg.clusterConfig.GetClusterConfig(services.AddOptions(opts, services.SkipValidation())...)
+}
+
+// GetClusterNetworkingConfig gets ClusterNetworkingConfig from the backend.
+func (c *Cache) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.clusterConfig.GetClusterNetworkingConfig(ctx, services.AddOptions(opts, services.SkipValidation())...)
 }
 
 // GetClusterName gets the name of the cluster from the backend.
@@ -1074,14 +1092,24 @@ func (c *Cache) GetNamespaces() ([]services.Namespace, error) {
 	return rg.presence.GetNamespaces()
 }
 
-// GetNodes is a part of auth.AccessPoint implementation
-func (c *Cache) GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+// GetNode finds and returns a node by name and namespace.
+func (c *Cache) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.presence.GetNodes(namespace, opts...)
+	return rg.presence.GetNode(ctx, namespace, name)
+}
+
+// GetNodes is a part of auth.AccessPoint implementation
+func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.presence.GetNodes(ctx, namespace, opts...)
 }
 
 // GetAuthServers returns a list of registered servers
