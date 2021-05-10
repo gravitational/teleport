@@ -7,6 +7,9 @@ data:
     teleport:
       auth_token: "/etc/teleport-secrets/auth-token"
       auth_servers: ["{{ required "proxyAddr is required in chart values" .Values.proxyAddr }}"]
+      {{- if .Values.caPin }}
+      ca_pin: "{{ .Values.caPin }}"
+      {{- end }}
       log:
         severity: {{ .Values.logLevel }}
         output: stderr
