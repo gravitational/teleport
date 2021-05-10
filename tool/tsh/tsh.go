@@ -702,7 +702,7 @@ func onLogin(cf *CLIConf) error {
 		// in case if nothing is specified, re-fetch kube clusters and print
 		// current status
 		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.IdentityFileOut == "":
-			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
+			if err := updateKubeConfig(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
 			printProfiles(cf.Debug, profile, profiles)
@@ -710,7 +710,7 @@ func onLogin(cf *CLIConf) error {
 		// in case if parameters match, re-fetch kube clusters and print
 		// current status
 		case host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "":
-			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
+			if err := updateKubeConfig(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
 			printProfiles(cf.Debug, profile, profiles)
@@ -720,7 +720,7 @@ func onLogin(cf *CLIConf) error {
 		// for the same proxy
 		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && cf.SiteName != "":
 			// trigger reissue, preserving any active requests.
-			err = tc.ReissueUserCerts(cf.Context, client.ReissueParams{
+			err = tc.ReissueUserCerts(cf.Context, client.CertCacheKeep, client.ReissueParams{
 				AccessRequests: profile.ActiveRequests.AccessRequests,
 				RouteToCluster: cf.SiteName,
 			})
@@ -730,7 +730,7 @@ func onLogin(cf *CLIConf) error {
 			if err := tc.SaveProfile("", true); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
+			if err := updateKubeConfig(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
 			return trace.Wrap(onStatus(cf))
@@ -741,7 +741,7 @@ func onLogin(cf *CLIConf) error {
 			if err := executeAccessRequest(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
+			if err := updateKubeConfig(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
 			return trace.Wrap(onStatus(cf))
@@ -803,7 +803,7 @@ func onLogin(cf *CLIConf) error {
 
 	// If the proxy is advertising that it supports Kubernetes, update kubeconfig.
 	if tc.KubeProxyAddr != "" {
-		if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
+		if err := updateKubeConfig(cf, tc); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -814,7 +814,7 @@ func onLogin(cf *CLIConf) error {
 	}
 
 	if autoRequest && cf.DesiredRoles == "" {
-		var reason, auto bool
+		var requireReason, auto bool
 		var prompt string
 		roleNames, err := key.CertRoles()
 		if err != nil {
@@ -830,7 +830,7 @@ func onLogin(cf *CLIConf) error {
 				if err != nil {
 					return trace.Wrap(err)
 				}
-				reason = reason || role.GetOptions().RequestAccess.RequireReason()
+				requireReason = requireReason || role.GetOptions().RequestAccess.RequireReason()
 				auto = auto || role.GetOptions().RequestAccess.ShouldAutoRequest()
 				if prompt == "" {
 					prompt = role.GetOptions().RequestPrompt
@@ -842,7 +842,7 @@ func onLogin(cf *CLIConf) error {
 			logoutErr := tc.Logout()
 			return trace.NewAggregate(err, logoutErr)
 		}
-		if reason && cf.RequestReason == "" {
+		if requireReason && cf.RequestReason == "" {
 			msg := "--request-reason must be specified"
 			if prompt != "" {
 				msg = msg + ", prompt=" + prompt
@@ -1736,8 +1736,9 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	}
 
 	// If agent forwarding was specified on the command line enable it.
-	if cf.ForwardAgent || options.ForwardAgent {
-		c.ForwardAgent = true
+	c.ForwardAgent = options.ForwardAgent
+	if cf.ForwardAgent {
+		c.ForwardAgent = client.ForwardAgentYes
 	}
 
 	// If the caller does not want to check host keys, pass in a insecure host
@@ -2083,13 +2084,13 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...strin
 	if params.RouteToCluster == "" {
 		params.RouteToCluster = profile.Cluster
 	}
-	if err := tc.ReissueUserCerts(cf.Context, params); err != nil {
+	if err := tc.ReissueUserCerts(cf.Context, client.CertCacheDrop, params); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := tc.SaveProfile("", true); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
+	if err := updateKubeConfig(cf, tc); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
