@@ -606,6 +606,26 @@ func (a *ServerWithRoles) DeleteNode(ctx context.Context, namespace, node string
 	return a.authServer.DeleteNode(ctx, namespace, node)
 }
 
+// GetNode gets a node by name and namespace.
+func (a *ServerWithRoles) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
+	if err := a.action(namespace, services.KindNode, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	node, err := a.authServer.GetCache().GetNode(ctx, namespace, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Run node through filter to check if it's for the connected identity.
+	if filteredNodes, err := a.filterNodes([]types.Server{node}); err != nil {
+		return nil, trace.Wrap(err)
+	} else if len(filteredNodes) == 0 {
+		return nil, trace.NotFound("not found")
+	}
+
+	return node, nil
+}
+
 func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
 	if err := a.action(namespace, services.KindNode, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
@@ -2231,6 +2251,30 @@ func (a *ServerWithRoles) SetAuthPreference(newAuthPref services.AuthPreference)
 
 // DeleteAuthPreference not implemented: can only be called locally.
 func (a *ServerWithRoles) DeleteAuthPreference(context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// GetClusterNetworkingConfig gets cluster networking configuration.
+func (a *ServerWithRoles) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+	if err := a.action(defaults.Namespace, types.KindClusterNetworkingConfig, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetClusterNetworkingConfig(ctx, opts...)
+}
+
+// SetClusterNetworkingConfig sets cluster networking configuration.
+func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, netConfig types.ClusterNetworkingConfig) error {
+	if err := a.action(defaults.Namespace, services.KindClusterConfig, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindClusterConfig, services.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.SetClusterNetworkingConfig(ctx, netConfig)
+}
+
+// DeleteClusterNetworkingConfig not implemented: can only be called locally.
+func (a *ServerWithRoles) DeleteClusterNetworkingConfig(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 

@@ -274,7 +274,7 @@ func (a *LocalKeyAgent) GetCoreKey() (*Key, error) {
 // AddHostSignersToCache takes a list of CAs whom we trust. This list is added to a database
 // of "seen" CAs.
 //
-// Every time we connect to a new host, we'll request its certificaate to be signed by one
+// Every time we connect to a new host, we'll request its certificate to be signed by one
 // of these trusted CAs.
 //
 // Why do we trust these CAs? Because we received them from a trusted Teleport Proxy.

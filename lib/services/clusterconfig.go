@@ -37,8 +37,6 @@ func DefaultClusterConfig() ClusterConfig {
 		Spec: ClusterConfigSpecV3{
 			SessionRecording:    RecordAtNode,
 			ProxyChecksHostKeys: HostKeyCheckYes,
-			KeepAliveInterval:   NewDuration(defaults.KeepAliveInterval),
-			KeepAliveCountMax:   int64(defaults.KeepAliveCountMax),
 			LocalAuth:           NewBool(true),
 		},
 	}
