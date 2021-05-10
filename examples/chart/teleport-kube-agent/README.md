@@ -16,6 +16,7 @@ To use it, you will need:
   - this chart does not currently support dynamic join tokens; please [file an
     issue](https://github.com/gravitational/teleport/issues/new?labels=type%3A+feature+request&template=feature_request.md)
     if you require support for dynamic tokens
+- a [ca pin](https://goteleport.com/teleport/docs/admin-guide/#adding-nodes-to-the-cluster) for this Teleport cluster (optional but reccomended for production)
 
 ## Combining roles
 
@@ -46,7 +47,8 @@ $ helm install teleport-kube-agent . \
   --set roles=kube \
   --set proxyAddr=${PROXY_ENDPOINT?} \
   --set authToken=${JOIN_TOKEN?} \
-  --set kubeClusterName=${KUBERNETES_CLUSTER_NAME?}
+  --set kubeClusterName=${KUBERNETES_CLUSTER_NAME?} \
+  --set caPin=${CA_PIN?} # optional, but reccomended for validating cluster certificates
 ```
 
 Set the values in the above command as appropriate for your setup.
