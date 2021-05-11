@@ -1019,9 +1019,6 @@ func (l *AuditLog) auditDirs() ([]string, error) {
 // SearchEvents finds events. Results show up sorted by date (newest first),
 // limit is used when set to value > 0
 func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string, limit int) ([]EventFields, error) {
-	var events []EventFields
-	var err error
-
 	l.log.Debugf("SearchEvents(%v, %v, query=%v, limit=%v)", fromUTC, toUTC, query, limit)
 	if limit <= 0 {
 		limit = defaults.EventsIterationLimit
@@ -1030,22 +1027,15 @@ func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string, limit in
 		return nil, trace.BadParameter("limit %v exceeds max iteration limit %v", limit, defaults.MaxIterationLimit)
 	}
 	if l.ExternalLog != nil {
-		events, err = l.ExternalLog.SearchEvents(fromUTC, toUTC, query, limit)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		events, err = l.getLocalLog().SearchEvents(fromUTC, toUTC, query, limit)
-		if err != nil {
-			return nil, err
-		}
+		return l.ExternalLog.SearchEvents(fromUTC, toUTC, query, limit)
 	}
-	return FilterSessionEndEvents(events)
+	return l.getLocalLog().SearchEvents(fromUTC, toUTC, query, limit)
 }
 
 // SearchSessionEvents searches for session related events. Used to find completed sessions.
 func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int) ([]EventFields, error) {
 	l.log.Debugf("SearchSessionEvents(%v, %v, %v)", fromUTC, toUTC, limit)
+
 	if l.ExternalLog != nil {
 		return l.ExternalLog.SearchSessionEvents(fromUTC, toUTC, limit)
 	}

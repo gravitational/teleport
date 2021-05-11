@@ -31,7 +31,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -531,40 +530,6 @@ func (l *FileLog) findInFile(fn string, query url.Values, total *int, limit int)
 		}
 	}
 	return retval, nil
-}
-
-// FilterSessionEndEvents filters out session end events where session recording type is off
-func FilterSessionEndEvents(events []EventFields) ([]EventFields, error) {
-	filtered := make([]EventFields, 0)
-	unrecordedSessionIDs := make([]string, 0)
-	for _, ef := range events {
-		// If event type is session.start, check to see if the recording type is off
-		if ef.GetType() == SessionStartEvent {
-			if sessionRecordingType, found := ef[SessionRecordingType]; found {
-				if sessionRecordingType == services.RecordOff {
-					sessionID, ok := ef[SessionEventID].(string)
-					if !ok {
-						return filtered, trace.BadParameter("session ID is not of type string")
-					}
-					unrecordedSessionIDs = append(unrecordedSessionIDs, sessionID)
-				}
-			}
-			// If event type is session.end, check to see if session ID is in the unrecorded sid slice
-		} else if ef.GetType() == SessionEndEvent {
-			if _, found := ef[SessionEventID]; !found {
-				return filtered, trace.BadParameter("session ID not found")
-			}
-			sessionID, ok := ef[SessionEventID].(string)
-			if !ok {
-				return filtered, trace.BadParameter("session ID is not of type string")
-			}
-			if utils.SliceContainsStr(unrecordedSessionIDs, sessionID) {
-				continue
-			}
-		}
-		filtered = append(filtered, ef)
-	}
-	return filtered, nil
 }
 
 type eventFile struct {
