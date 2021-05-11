@@ -24,6 +24,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -440,7 +442,7 @@ func TestRoleParse(t *testing.T) {
 				}
 			} else {
 				require.NoError(t, err)
-				require.True(t, role.Equals(&tc.role))
+				require.True(t, cmp.Equal(role, &tc.role))
 
 				err := ValidateRole(role)
 				require.NoError(t, err)
@@ -450,7 +452,7 @@ func TestRoleParse(t *testing.T) {
 
 				role2, err := UnmarshalRole(out)
 				require.NoError(t, err)
-				require.True(t, role2.Equals(&tc.role))
+				require.True(t, cmp.Equal(role2, &tc.role))
 			}
 		})
 	}

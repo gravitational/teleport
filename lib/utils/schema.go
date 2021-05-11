@@ -34,7 +34,6 @@ func UnmarshalWithSchema(schemaDefinition string, object interface{}, data []byt
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	raw := map[string]interface{}{}
 	if err := json.Unmarshal(jsonData, &raw); err != nil {
 		return trace.Wrap(err)

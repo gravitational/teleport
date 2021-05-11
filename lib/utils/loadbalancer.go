@@ -116,7 +116,7 @@ func (l *LoadBalancer) RemoveBackend(b NetAddr) error {
 	defer l.Unlock()
 	l.currentIndex = -1
 	for i := range l.backends {
-		if l.backends[i].Equals(b) {
+		if l.backends[i] == b {
 			l.backends = append(l.backends[:i], l.backends[i+1:]...)
 			l.dropConnections(b)
 			return nil
