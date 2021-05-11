@@ -235,7 +235,7 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, cachePolicy Cert
 		}
 	}
 
-	req, err := proxy.prepareUserCertsRequest(params, key, false)
+	req, err := proxy.prepareUserCertsRequest(params, key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -250,18 +250,25 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, cachePolicy Cert
 		return nil, trace.Wrap(err)
 	}
 
-	key.Cert = certs.SSH
-	key.TLSCert = certs.TLS
-	if params.KubernetesCluster != "" {
+	key.ClusterName = params.RouteToCluster
+
+	// Only update the parts of key that match the usage.
+	//
+	// This prevents us from overwriting the top-level key.TLSCert with
+	// usage-restricted certificates.
+	switch params.usage() {
+	case proto.UserCertsRequest_All:
+		key.Cert = certs.SSH
+		key.TLSCert = certs.TLS
+	case proto.UserCertsRequest_SSH:
+		key.Cert = certs.SSH
+	case proto.UserCertsRequest_App:
+		key.AppTLSCerts[params.RouteToApp.Name] = certs.TLS
+	case proto.UserCertsRequest_Database:
+		key.DBTLSCerts[params.RouteToDatabase.ServiceName] = certs.TLS
+	case proto.UserCertsRequest_Kubernetes:
 		key.KubeTLSCerts[params.KubernetesCluster] = certs.TLS
 	}
-	if params.RouteToDatabase.ServiceName != "" {
-		key.DBTLSCerts[params.RouteToDatabase.ServiceName] = certs.TLS
-	}
-	if params.RouteToApp.Name != "" {
-		key.AppTLSCerts[params.RouteToApp.Name] = certs.TLS
-	}
-	key.ClusterName = params.RouteToCluster
 	return key, nil
 }
 
@@ -349,7 +356,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	}
 	defer stream.CloseSend()
 
-	initReq, err := proxy.prepareUserCertsRequest(params, key, true)
+	initReq, err := proxy.prepareUserCertsRequest(params, key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -405,19 +412,10 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	return key, nil
 }
 
-func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key, withUsage bool) (*proto.UserCertsRequest, error) {
+func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key) (*proto.UserCertsRequest, error) {
 	tlsCert, err := key.TeleportTLSCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// withUsage is used by MFA cert issue requests.
-	// TODO: After the primary TLS certificate isn't rewritten with every
-	// reissue, all cert requests should include proper usage information.
-	// See https://github.com/gravitational/teleport/issues/6161
-	usage := proto.UserCertsRequest_All
-	if withUsage {
-		usage = params.usage()
 	}
 
 	if len(params.AccessRequests) == 0 {
@@ -442,7 +440,7 @@ func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key
 		RouteToDatabase:   params.RouteToDatabase,
 		RouteToApp:        params.RouteToApp,
 		NodeName:          params.NodeName,
-		Usage:             usage,
+		Usage:             params.usage(),
 		Format:            proxy.teleportClient.CertificateFormat,
 	}, nil
 }
