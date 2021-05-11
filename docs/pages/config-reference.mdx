@@ -384,6 +384,12 @@ proxy_service:
     # optional: set a different public address for kubernetes access
     kube_public_addr: kube.example.com:3026
 
+    # To acquire a TLS certificate via ACME 
+    # also set using the 'teleport configure --acme ...' command.
+    acme:
+      enabled: "yes"
+      email: example@example.com
+
 # This section configures the 'application service'
 app_service:
     # Turns 'app' role on. Default is 'no'
