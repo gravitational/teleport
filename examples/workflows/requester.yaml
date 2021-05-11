@@ -1,0 +1,9 @@
+kind: role
+metadata:
+  name: requester
+spec:
+  allow:
+    request:
+      roles:
+        - admin
+version: v3

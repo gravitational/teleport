@@ -1,0 +1,11 @@
+# Teleport Auth/Proxy address
+addr = "proxy.example.com:3080"
+
+# Teleport identity file with TLS/SSH certificates.
+identity_file = "access-plugin-identity"
+
+# whitelist determines which users' requests will be approved.
+whitelist = [
+    "alice",
+    "bob",
+]

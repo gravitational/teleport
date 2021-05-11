@@ -1,0 +1,16 @@
+kind: user
+metadata:
+  name: access-plugin
+spec:
+  roles: ['access-plugin']
+version: v2
+---
+kind: role
+metadata:
+  name: access-plugin
+spec:
+  allow:
+    rules:
+      - resources: ['access_request']
+        verbs: ['list','read','update'] # Note that you can not provide the update permission to the Slack plugin in notify_only mode.
+version: v3
