@@ -1,5 +1,5 @@
 ---
-title: Server Access Getting Started Guide | Teleport Docs
+title: Server Access Getting Started Guide
 description: How to use Teleport Server Access with SSH.
 ---
 
@@ -37,13 +37,7 @@ Teleport [Nodes](../../architecture/nodes.mdx) have three modes: *Auth*, *Proxy*
   bordered
   caption="Example cluster arrangement"
 >
-  <Image
-    alt=""
-    height="265"
-    src="../../../img/proxy-web.svg"
-    unoptimized
-    width="581"
-  />
+  ![Example cluster arrangement](../../../img/proxy-web.svg)
 </Figure>
 
 The diagram above demonstrates a common cluster arrangement with three independent nodes acting in a single, dedicated, mode each.
@@ -83,15 +77,8 @@ To link an SSH Node with an existing `auth.example.com` cluster:
      bordered
      caption="Both Nodes in the Web UI"
    >
-     <Image
-       alt=""
-       height="265"
-       src="../../../img/server-access/teleport_ui.png"
-       unoptimized
-       width="581"
-     />
+     ![Both Nodes in the Web UI](../../../img/server-access/teleport_ui.png)
    </Figure>
-
 
 ## Connect to a cluster using tsh ssh without OpenSSH
 

@@ -1,5 +1,5 @@
 ---
-title: Server Access Getting Started Guide | Teleport Docs
+title: Server Access Getting Started Guide
 description: Getting started with Teleport Server Access.
 ---
 
@@ -48,9 +48,7 @@ The steps below involve:
    | Port | Service | Description |
    | - | - | - |
    | 3023 | Proxy | SSH port clients connect to. A proxy will forward this connection to port `#3022` on the destination Node. |
-   | 3025 | Auth | SSH port used by the Auth Service to serve its API to other Nodes in a cluster. |
-   | 3080 | Proxy | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Web UI. |
-   | 443 | Browser | Used to access the Teleport Web UI through a browser with HTTPS. |
+   | 443 | Browser | Used to access the Teleport Web UI through a browser with HTTPS. Also used to obtain an ACME TLS (SSL) certificate. |
    | 22 | Cloud Provider | Used to initially access, configure, and provision your cloud instances. We'll configure and launch our instances then demonstrate how to use the `tsh` tool and Teleport in SSH mode thereafter. |
 
    ii. Add an `A` record in your domain registrar entry for the `tele` subdomain:
@@ -60,15 +58,9 @@ The steps below involve:
    <Figure
      align="center"
      bordered
-     caption="Subdomain and IP mapping"
+     aption="Subdomain and IP mapping"
    >
-     <Image
-       alt=""
-       height="265"
-       src="../../img/server-access/subdomains.png"
-       unoptimized
-       width="581"
-     />
+     ![Subdomain and IP mapping](../../img/server-access/subdomains.png)
    </Figure>
 
    iii. The second instance is configured to host a private SSH Node accessible only indirectly via the *Bastion Host*:
@@ -76,7 +68,6 @@ The steps below involve:
    | Port | Service | Description |
    | - | - | - |
    | 3023 | Proxy | SSH port clients connect to. A proxy will forward this connection to port `#3022` on the destination Node. |
-   | 3080 | Proxy | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Web UI. |
    | 22 | Cloud Provider | Used to initially access, configure, and provision your cloud instances. We'll configure and launch our instances then demonstrate how to use the `tsh` tool and Teleport in SSH mode thereafter. |
 
    iv. For a complete list of ports used by Teleport, read [The Admin Guide](../admin-guide.mdx#ports).
@@ -202,13 +193,7 @@ Your browser does not support the video tag.
      bordered
      aption="Both Nodes in the Web UI"
    >
-     <Image
-       alt=""
-       height="265"
-       src="../../img/server-access/teleport_ui.png"
-       unoptimized
-       width="581"
-     />
+     ![Both Nodes in the Web UI](../../img/server-access/teleport_ui.png)
    </Figure>
 
 3. Let's improve our security according to the *Bastion* pattern:
