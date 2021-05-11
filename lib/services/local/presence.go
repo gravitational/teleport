@@ -162,7 +162,6 @@ func (s *PresenceService) getServers(ctx context.Context, kind, prefix string) (
 	for i, item := range result.Items {
 		server, err := services.UnmarshalServer(
 			item.Value, kind,
-			services.SkipValidation(),
 			services.WithResourceID(item.ID),
 			services.WithExpires(item.Expires),
 		)
@@ -219,7 +218,6 @@ func (s *PresenceService) GetNode(ctx context.Context, namespace, name string) (
 		types.KindNode,
 		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),
-		services.SkipValidation(),
 	)
 }
 
