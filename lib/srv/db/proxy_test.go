@@ -87,7 +87,7 @@ func TestProxyClientDisconnectDueToIdleConnection(t *testing.T) {
 	go testCtx.startHandlingConnections()
 
 	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"root"}, []string{types.Wildcard})
-	setConfigClientIdleTimoutAndDisconnectExpiredCert(t, testCtx.authServer, idleClientTimeout)
+	setConfigClientIdleTimoutAndDisconnectExpiredCert(ctx, t, testCtx.authServer, idleClientTimeout)
 
 	mysql, err := testCtx.mysqlClient("alice", "mysql", "root")
 	require.NoError(t, err)
@@ -115,7 +115,7 @@ func TestProxyClientDisconnectDueToCertExpiration(t *testing.T) {
 	go testCtx.startHandlingConnections()
 
 	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"root"}, []string{types.Wildcard})
-	setConfigClientIdleTimoutAndDisconnectExpiredCert(t, testCtx.authServer, time.Hour*24)
+	setConfigClientIdleTimoutAndDisconnectExpiredCert(ctx, t, testCtx.authServer, time.Hour*24)
 
 	mysql, err := testCtx.mysqlClient("alice", "mysql", "root")
 	require.NoError(t, err)
@@ -131,16 +131,17 @@ func TestProxyClientDisconnectDueToCertExpiration(t *testing.T) {
 	require.Error(t, err)
 }
 
-func setConfigClientIdleTimoutAndDisconnectExpiredCert(t *testing.T, auth *auth.Server, timeout time.Duration) {
+func setConfigClientIdleTimoutAndDisconnectExpiredCert(ctx context.Context, t *testing.T, auth *auth.Server, timeout time.Duration) {
 	clusterConfig, err := auth.GetClusterConfig()
 	require.NoError(t, err)
-	cnc, err := types.NewClusterNetworkingConfig(types.ClusterNetworkingConfigSpecV2{
-		ClientIdleTimeout: types.Duration(timeout),
-	})
-	require.NoError(t, err)
 	clusterConfig.SetDisconnectExpiredCert(true)
-	err = clusterConfig.SetNetworkingConfig(cnc)
-	require.NoError(t, err)
+	clusterConfig.ClearLegacyFields()
 	err = auth.SetClusterConfig(clusterConfig)
+	require.NoError(t, err)
+
+	netConfig, err := auth.GetClusterNetworkingConfig(ctx)
+	require.NoError(t, err)
+	netConfig.SetClientIdleTimeout(timeout)
+	err = auth.SetClusterNetworkingConfig(ctx, netConfig)
 	require.NoError(t, err)
 }
