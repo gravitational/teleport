@@ -736,7 +736,21 @@ func (set BuiltinRoleSet) CheckAccessToApp(login string, app *services.App, mfa 
 	return nil
 }
 
+func (set RemoteBuiltinRoleSet) CheckAccessToApp(login string, app *services.App, mfa services.AccessMFAParams) error {
+	// Backwards compatibility - label checks don't apply to builtin roles.
+	// MFA doesn't apply to builtin roles.
+	// TODO: add more restrictive authorization for builtin roles.
+	return nil
+}
+
 func (set BuiltinRoleSet) CheckAccessToDatabase(server types.DatabaseServer, mfa services.AccessMFAParams, matchers ...services.RoleMatcher) error {
+	// Backwards compatibility - label checks don't apply to builtin roles.
+	// MFA doesn't apply to builtin roles.
+	// TODO: add more restrictive authorization for builtin roles.
+	return nil
+}
+
+func (set RemoteBuiltinRoleSet) CheckAccessToDatabase(server types.DatabaseServer, mfa services.AccessMFAParams, matchers ...services.RoleMatcher) error {
 	// Backwards compatibility - label checks don't apply to builtin roles.
 	// MFA doesn't apply to builtin roles.
 	// TODO: add more restrictive authorization for builtin roles.
@@ -767,13 +781,6 @@ func (set BuiltinRoleSet) CheckAccessToServer(login string, s types.Server, mfa 
 // the role is a remote builtin or not.
 type RemoteBuiltinRoleSet struct {
 	services.RoleSet
-}
-
-func (set RemoteBuiltinRoleSet) CheckAccessToApp(login string, app *services.App, mfa services.AccessMFAParams) error {
-	// Backwards compatibility - label checks don't apply to builtin roles.
-	// MFA doesn't apply to builtin roles.
-	// TODO: add more restrictive authorization for builtin roles.
-	return nil
 }
 
 // LocalUserRoleSet wraps a services.RoleSet. This type is used to determine
