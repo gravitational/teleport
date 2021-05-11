@@ -1139,7 +1139,8 @@ func CollectOptions(opts ...Option) Options {
 	return suiteOpts
 }
 
-// ClusterConfig tests cluster configuration
+// ClusterConfig tests cluster configuration.
+// TODO in 8.0.0: Test only the individual resources.
 func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
 		Region:           "us-west-1",
@@ -1175,11 +1176,7 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	err = s.ConfigS.SetAuthPreference(authPref)
 	c.Assert(err, check.IsNil)
 
-	config, err := types.NewClusterConfig(types.ClusterConfigSpecV3{
-		ClusterID: "27",
-	})
-	c.Assert(err, check.IsNil)
-
+	config := services.DefaultClusterConfig()
 	err = s.ConfigS.SetClusterConfig(config)
 	c.Assert(err, check.IsNil)
 
@@ -1202,12 +1199,15 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 
 	_, err = s.ConfigS.GetClusterConfig()
 	fixtures.ExpectNotFound(c, err)
+}
 
+// ClusterName tests cluster name.
+func (s *ServicesTestSuite) ClusterName(c *check.C, opts ...Option) {
 	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterID:   "27",
 		ClusterName: "example.com",
 	})
 	c.Assert(err, check.IsNil)
-
 	err = s.ConfigS.SetClusterName(clusterName)
 	c.Assert(err, check.IsNil)
 

@@ -490,9 +490,14 @@ message ClusterNameSpecV2 {
     // ClusterName is the name of the cluster. Changing this value once the
     // cluster is setup can and will cause catastrophic problems.
     string ClusterName = 1 [ (gogoproto.jsontag) = "cluster_name" ];
+
+    // ClusterID is the unique cluster ID that is set once during the first
+    // auth server startup.
+    string ClusterID = 2 [ (gogoproto.jsontag) = "cluster_id" ];
 }
 
 // ClusterConfigV3 implements the ClusterConfig interface.
+// DELETE IN 8.0.0
 message ClusterConfigV3 {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;
@@ -511,7 +516,7 @@ message ClusterConfigV3 {
 
 // ClusterConfigSpecV3 is the actual data we care about for ClusterConfig.
 message ClusterConfigSpecV3 {
-    reserved 1, 3, 5, 6, 7, 8, 9, 10;
+    reserved 1, 3, 5 to 10;
 
     // ClusterID is the unique cluster ID that is set once during the first auth
     // server startup.

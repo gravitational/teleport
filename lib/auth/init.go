@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
@@ -260,23 +259,6 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	err = initSetAuthPreference(asrv, cfg.AuthPreference)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// set cluster level config on the backend and then force a sync of the cache.
-	clusterConfig, err := asrv.GetClusterConfig()
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-	// init a unique cluster ID, it must be set once only during the first
-	// start so if it's already there, reuse it
-	if clusterConfig != nil && clusterConfig.GetClusterID() != "" {
-		cfg.ClusterConfig.SetClusterID(clusterConfig.GetClusterID())
-	} else {
-		cfg.ClusterConfig.SetClusterID(uuid.New())
-	}
-	err = asrv.SetClusterConfig(cfg.ClusterConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -617,6 +599,10 @@ func migrateLegacyResources(ctx context.Context, cfg InitConfig, asrv *Server) e
 	}
 
 	if err := migrateMFADevices(ctx, asrv); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := migrateClusterID(ctx, asrv); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1370,6 +1356,33 @@ func migrateMFADevices(ctx context.Context, asrv *Server) error {
 		if err := asrv.UpsertUser(user); err != nil {
 			return trace.Wrap(err)
 		}
+	}
+
+	return nil
+}
+
+// DELETE IN: 8.0.0
+// migrateClusterID moves the cluster ID information
+// from ClusterConfig to ClusterName.
+func migrateClusterID(ctx context.Context, asrv *Server) error {
+	clusterConfig, err := asrv.ClusterConfiguration.GetClusterConfig()
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+
+	clusterName, err := asrv.ClusterConfiguration.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	log.Debugf("Migrating cluster ID %q from ClusterConfig to ClusterName.", clusterConfig.GetLegacyClusterID())
+
+	clusterName.SetClusterID(clusterConfig.GetLegacyClusterID())
+	if err := asrv.ClusterConfiguration.UpsertClusterName(clusterName); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil

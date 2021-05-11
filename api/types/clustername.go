@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 
 	"github.com/gravitational/trace"
+	"github.com/pborman/uuid"
 )
 
 // ClusterName defines the name of the cluster. This is a configuration
@@ -35,6 +36,11 @@ type ClusterName interface {
 	SetClusterName(string)
 	// GetClusterName gets the name of the cluster.
 	GetClusterName() string
+
+	// SetClusterID sets the ID of the cluster.
+	SetClusterID(string)
+	// GetClusterID gets the ID of the cluster.
+	GetClusterID() string
 }
 
 // NewClusterName is a convenience wrapper to create a ClusterName resource.
@@ -127,6 +133,16 @@ func (c *ClusterNameV2) GetClusterName() string {
 	return c.Spec.ClusterName
 }
 
+// SetClusterID sets the ID of the cluster.
+func (c *ClusterNameV2) SetClusterID(id string) {
+	c.Spec.ClusterID = id
+}
+
+// GetClusterID gets the ID of the cluster.
+func (c *ClusterNameV2) GetClusterID() string {
+	return c.Spec.ClusterID
+}
+
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.
 func (c *ClusterNameV2) CheckAndSetDefaults() error {
 	// make sure we have defaults for all metadata fields
@@ -142,10 +158,14 @@ func (c *ClusterNameV2) CheckAndSetDefaults() error {
 		return trace.BadParameter("cluster name is required")
 	}
 
+	if c.Spec.ClusterID == "" {
+		c.Spec.ClusterID = uuid.New()
+	}
+
 	return nil
 }
 
 // String represents a human readable version of the cluster name.
 func (c *ClusterNameV2) String() string {
-	return fmt.Sprintf("ClusterName(%v)", c.Spec.ClusterName)
+	return fmt.Sprintf("ClusterName(%v, ID=%v)", c.Spec.ClusterName, c.Spec.ClusterID)
 }

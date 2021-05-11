@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/sshutils"
 
@@ -412,7 +413,7 @@ func TestClusterID(t *testing.T) {
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cc, err := authServer.GetClusterConfig()
+	cc, err := authServer.GetClusterName()
 	require.NoError(t, err)
 	clusterID := cc.GetClusterID()
 	require.NotEqual(t, clusterID, "")
@@ -422,7 +423,7 @@ func TestClusterID(t *testing.T) {
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cc, err = authServer.GetClusterConfig()
+	cc, err = authServer.GetClusterName()
 	require.NoError(t, err)
 	require.Equal(t, cc.GetClusterID(), clusterID)
 }
@@ -827,6 +828,32 @@ func TestMigrateOSS(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, mappings, out.GetTeamsToLogins())
 	})
+}
+
+func TestMigrateClusterID(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	as := newTestAuthServer(ctx, t)
+
+	const legacyClusterID = "legacy-cluster-id"
+	clusterConfig, err := types.NewClusterConfig(types.ClusterConfigSpecV3{
+		ClusterID: legacyClusterID,
+	})
+	require.NoError(t, err)
+	err = as.ClusterConfiguration.(*local.ClusterConfigurationService).ForceSetClusterConfig(clusterConfig)
+	require.NoError(t, err)
+
+	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterName: "localhost",
+	})
+	require.NoError(t, err)
+	require.NoError(t, as.SetClusterName(clusterName))
+
+	require.NoError(t, migrateClusterID(ctx, as))
+
+	clusterName, err = as.GetClusterName()
+	require.NoError(t, err)
+	require.Equal(t, legacyClusterID, clusterName.GetClusterID())
 }
 
 func setupConfig(t *testing.T) InitConfig {
