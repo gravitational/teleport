@@ -299,8 +299,12 @@ func (a *AuditTestSuite) TestSessionRecordingOff(c *check.C) {
 	found, _, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), defaults.Namespace, nil, 0, "")
 	c.Assert(err, check.IsNil)
 	c.Assert(found, check.HasLen, 3)
-	c.Assert(found[0].GetString(EventLogin), check.Equals, username)
-	c.Assert(found[1].GetString(EventLogin), check.Equals, username)
+	eventA, okA := found[0].(*SessionStart)
+	eventB, okB := found[0].(*SessionEnd)
+	c.Assert(okA, check.Equals, true)
+	c.Assert(okB, check.Equals, true)
+	c.Assert(eventA.Login, check.Equals, username)
+	c.Assert(eventB.Login, check.Equals, username)
 
 	// inspect the session log for "200", should have two events
 	history, err := alog.GetSessionEvents(defaults.Namespace, session.ID(sessionID), 0, true)

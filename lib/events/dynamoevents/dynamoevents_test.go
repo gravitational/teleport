@@ -84,6 +84,10 @@ func (s *DynamoeventsSuite) SetUpTest(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
+func (s *DynamoeventsSuite) TestPagination(c *check.C) {
+	s.TestPagination(c)
+}
+
 func (s *DynamoeventsSuite) TestSessionEventsCRUD(c *check.C) {
 	s.SessionEventsCRUD(c)
 

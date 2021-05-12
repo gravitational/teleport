@@ -1299,13 +1299,13 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 				Time:       time.Now().UTC().UnixNano(),
 				EventIndex: 0,
 				EventType:  events.SessionStartEvent,
-				Data:       marshal(events.EventFields{events.EventLogin: "alice", "val": "three"}),
+				Data:       marshal(events.EventFields{events.EventLogin: "alice"}),
 			},
 			{
 				Time:       time.Now().UTC().UnixNano(),
 				EventIndex: 1,
 				EventType:  events.SessionEndEvent,
-				Data:       marshal(events.EventFields{events.EventLogin: "alice", "val": "three"}),
+				Data:       marshal(events.EventFields{events.EventLogin: "alice"}),
 			},
 		},
 		Version: events.V3,
@@ -1360,9 +1360,11 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 	c.Assert(len(history), check.Equals, 2)
 	var found bool
 	for _, event := range history {
-		if event.GetString(events.SessionEventID) == string(anotherSessionID) {
+		realEvent, ok := event.(*events.SessionEnd)
+		c.Assert(ok, check.Equals, true)
+		if realEvent.GetSessionID() == string(anotherSessionID) {
 			found = true
-			c.Assert(event.GetString("val"), check.Equals, "three")
+			c.Assert(realEvent.Login, check.Equals, "alice")
 		}
 	}
 	c.Assert(found, check.Equals, true)

@@ -98,7 +98,7 @@ func (s *EventsSuite) EventPagination(c *check.C) {
 	}
 
 	toTime := baseTime.Add(time.Hour)
-	var arr []events.EventFields
+	var arr []events.AuditEvent
 	var err error
 	var checkpoint string
 
@@ -106,8 +106,9 @@ func (s *EventsSuite) EventPagination(c *check.C) {
 		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 1, checkpoint)
 		c.Assert(err, check.IsNil)
 		c.Assert(arr, check.HasLen, 1)
-		eventName := arr[0].GetString(events.EventUser)
-		c.Assert(name, check.Equals, eventName)
+		event, ok := arr[0].(*events.UserLogin)
+		c.Assert(ok, check.Equals, true)
+		c.Assert(name, check.Equals, event.User)
 	}
 }
 
@@ -157,11 +158,11 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// read the session event
-	history, err = s.Log.GetSessionEvents(defaults.Namespace, sessionID, 0, false)
+	historyEvents, err := s.Log.GetSessionEvents(defaults.Namespace, sessionID, 0, false)
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.HasLen, 2)
-	c.Assert(history[0].GetString(events.EventType), check.Equals, events.SessionStartEvent)
-	c.Assert(history[1].GetString(events.EventType), check.Equals, events.SessionEndEvent)
+	c.Assert(historyEvents[0].GetString(events.EventType), check.Equals, events.SessionStartEvent)
+	c.Assert(historyEvents[1].GetString(events.EventType), check.Equals, events.SessionEndEvent)
 
 	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, "")
 	c.Assert(err, check.IsNil)
