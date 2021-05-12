@@ -1309,7 +1309,7 @@ func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, nam
 		return nil, "", trail.FromGRPC(err)
 	}
 
-	decodedEvents := make([]events.AuditEvent, len(response.Items))
+	decodedEvents := make([]events.AuditEvent, 0, len(response.Items))
 	for _, rawEvent := range response.Items {
 		event, err := events.FromOneOf(*rawEvent)
 		if err != nil {
@@ -1335,7 +1335,7 @@ func (c *Client) SearchSessionEvents(ctx context.Context, fromUTC time.Time, toU
 		return nil, "", trail.FromGRPC(err)
 	}
 
-	decodedEvents := make([]events.AuditEvent, len(response.Items))
+	decodedEvents := make([]events.AuditEvent, 0, len(response.Items))
 	for _, rawEvent := range response.Items {
 		event, err := events.FromOneOf(*rawEvent)
 		if err != nil {

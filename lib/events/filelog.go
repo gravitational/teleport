@@ -233,7 +233,7 @@ func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, event
 	// auth servers.
 	sort.Sort(ByTimeAndIndex(dynamicEvents))
 
-	events := make([]AuditEvent, 0)
+	events := make([]AuditEvent, 0, len(dynamicEvents))
 	for _, dynamicEvent := range dynamicEvents {
 		event, err := FromEventFields(dynamicEvent)
 		if err != nil {

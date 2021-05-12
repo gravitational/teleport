@@ -776,7 +776,7 @@ dateLoop:
 		}
 	}
 
-	eventArr := make([]events.AuditEvent, len(values))
+	eventArr := make([]events.AuditEvent, 0, len(values))
 	for _, fields := range values {
 		event, err := events.FromEventFields(fields)
 		if err != nil {

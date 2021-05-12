@@ -2526,7 +2526,7 @@ func (g *GRPCServer) GetEvents(ctx context.Context, req *proto.GetEventsRequest)
 
 	var res *proto.Events = &proto.Events{}
 
-	encodedEvents := make([]*apievents.OneOf, len(rawEvents))
+	encodedEvents := make([]*apievents.OneOf, 0, len(rawEvents))
 
 	for _, rawEvent := range rawEvents {
 		event, err := events.ToOneOf(rawEvent)
@@ -2555,7 +2555,7 @@ func (g *GRPCServer) GetSessionEvents(ctx context.Context, req *proto.GetSession
 
 	var res *proto.Events = &proto.Events{}
 
-	encodedEvents := make([]*apievents.OneOf, len(rawEvents))
+	encodedEvents := make([]*apievents.OneOf, 0, len(rawEvents))
 
 	for _, rawEvent := range rawEvents {
 		event, err := events.ToOneOf(rawEvent)
