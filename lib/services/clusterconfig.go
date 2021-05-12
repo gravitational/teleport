@@ -19,24 +19,9 @@ package services
 import (
 	"github.com/gravitational/trace"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
-
-// DefaultClusterConfig is used as the default cluster configuration when
-// one is not specified (record at node).
-func DefaultClusterConfig() types.ClusterConfig {
-	return &types.ClusterConfigV3{
-		Kind:    types.KindClusterConfig,
-		Version: types.V3,
-		Metadata: types.Metadata{
-			Name:      types.MetaNameClusterConfig,
-			Namespace: apidefaults.Namespace,
-		},
-		Spec: types.ClusterConfigSpecV3{},
-	}
-}
 
 // UnmarshalClusterConfig unmarshals the ClusterConfig resource from JSON.
 func UnmarshalClusterConfig(bytes []byte, opts ...MarshalOption) (types.ClusterConfig, error) {
@@ -71,6 +56,10 @@ func UnmarshalClusterConfig(bytes []byte, opts ...MarshalOption) (types.ClusterC
 
 // MarshalClusterConfig marshals the ClusterConfig resource to JSON.
 func MarshalClusterConfig(clusterConfig types.ClusterConfig, opts ...MarshalOption) ([]byte, error) {
+	if err := clusterConfig.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -78,9 +67,6 @@ func MarshalClusterConfig(clusterConfig types.ClusterConfig, opts ...MarshalOpti
 
 	switch clusterConfig := clusterConfig.(type) {
 	case *types.ClusterConfigV3:
-		if version := clusterConfig.GetVersion(); version != types.V3 {
-			return nil, trace.BadParameter("mismatched cluster config version %v and type %T", version, clusterConfig)
-		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

@@ -20,8 +20,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
-
 	"github.com/gravitational/trace"
 )
 
@@ -39,20 +37,11 @@ type ClusterName interface {
 
 // NewClusterName is a convenience wrapper to create a ClusterName resource.
 func NewClusterName(spec ClusterNameSpecV2) (ClusterName, error) {
-	cn := ClusterNameV2{
-		Kind:    KindClusterName,
-		Version: V2,
-		Metadata: Metadata{
-			Name:      MetaNameClusterName,
-			Namespace: defaults.Namespace,
-		},
-		Spec: spec,
-	}
+	cn := &ClusterNameV2{Spec: spec}
 	if err := cn.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return &cn, nil
+	return cn, nil
 }
 
 // GetVersion returns resource version
@@ -127,15 +116,18 @@ func (c *ClusterNameV2) GetClusterName() string {
 	return c.Spec.ClusterName
 }
 
+// setStaticFields sets static resource header and metadata fields.
+func (c *ClusterNameV2) setStaticFields() {
+	c.Kind = KindClusterName
+	c.Version = V2
+	c.Metadata.Name = MetaNameClusterName
+}
+
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.
 func (c *ClusterNameV2) CheckAndSetDefaults() error {
-	// make sure we have defaults for all metadata fields
-	err := c.Metadata.CheckAndSetDefaults()
-	if err != nil {
+	c.setStaticFields()
+	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
-	}
-	if c.Version == "" {
-		c.Version = V2
 	}
 
 	if c.Spec.ClusterName == "" {

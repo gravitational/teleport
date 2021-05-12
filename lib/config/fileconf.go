@@ -945,7 +945,10 @@ func (t *ReverseTunnel) ConvertAndValidate() (types.ReverseTunnel, error) {
 		t.Addresses[i] = addr.String()
 	}
 
-	out := types.NewReverseTunnel(t.DomainName, t.Addresses)
+	out, err := types.NewReverseTunnel(t.DomainName, t.Addresses)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := services.ValidateReverseTunnel(out); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -977,10 +980,13 @@ type Authority struct {
 
 // Parse reads values and returns parsed CertAuthority
 func (a *Authority) Parse() (types.CertAuthority, types.Role, error) {
-	ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        a.Type,
 		ClusterName: a.DomainName,
 	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 
 	// transform old allowed logins into roles
 	role := services.RoleForCertAuthority(ca)
@@ -1075,7 +1081,7 @@ func (o *OIDCConnector) Parse() (types.OIDCConnector, error) {
 		})
 	}
 
-	v2 := types.NewOIDCConnector(o.ID, types.OIDCConnectorSpecV2{
+	v2, err := types.NewOIDCConnector(o.ID, types.OIDCConnectorSpecV2{
 		IssuerURL:     o.IssuerURL,
 		ClientID:      o.ClientID,
 		ClientSecret:  o.ClientSecret,
@@ -1084,10 +1090,13 @@ func (o *OIDCConnector) Parse() (types.OIDCConnector, error) {
 		Scope:         o.Scope,
 		ClaimsToRoles: mappings,
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	v2.SetACR(o.ACR)
 	v2.SetProvider(o.Provider)
-	if err := v2.Check(); err != nil {
+	if err := v2.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return v2, nil

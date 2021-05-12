@@ -64,11 +64,11 @@ func (s *KeepAlive) GetType() string {
 
 // CheckAndSetDefaults validates this KeepAlive value and sets default values
 func (s *KeepAlive) CheckAndSetDefaults() error {
-	if s.IsEmpty() {
-		return trace.BadParameter("invalid keep alive, missing lease ID and resource name")
-	}
 	if s.Namespace == "" {
 		s.Namespace = defaults.Namespace
+	}
+	if s.IsEmpty() {
+		return trace.BadParameter("invalid keep alive, missing lease ID and resource name")
 	}
 	return nil
 }

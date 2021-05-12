@@ -445,7 +445,7 @@ func NewAppServer(name string, internalAddr string, publicAddr string) *types.Se
 		},
 		Spec: types.ServerSpecV2{
 			Apps: []*types.App{
-				&types.App{
+				{
 					Name:       name,
 					URI:        internalAddr,
 					PublicAddr: publicAddr,
@@ -559,13 +559,15 @@ func (s *ServicesTestSuite) WebSessionCRUD(c *check.C) {
 	c.Assert(trace.IsNotFound(err), check.Equals, true, check.Commentf("%#v", err))
 
 	dt := s.Clock.Now().Add(1 * time.Minute)
-	ws := types.NewWebSession("sid1", types.KindWebSession, types.KindWebSession,
+	ws, err := types.NewWebSession("sid1", types.KindWebSession,
 		types.WebSessionSpecV2{
 			User:    "user1",
 			Pub:     []byte("pub123"),
 			Priv:    []byte("priv123"),
 			Expires: dt,
 		})
+	c.Assert(err, check.IsNil)
+
 	err = s.WebS.WebSessions().Upsert(context.TODO(), ws)
 	c.Assert(err, check.IsNil)
 
@@ -573,13 +575,15 @@ func (s *ServicesTestSuite) WebSessionCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.DeepEquals, ws)
 
-	ws1 := types.NewWebSession("sid1", types.KindWebSession, types.KindWebSession,
+	ws1, err := types.NewWebSession("sid1", types.KindWebSession,
 		types.WebSessionSpecV2{
 			User:    "user1",
 			Pub:     []byte("pub321"),
 			Priv:    []byte("priv321"),
 			Expires: dt,
 		})
+	c.Assert(err, check.IsNil)
+
 	err = s.WebS.WebSessions().Upsert(context.TODO(), ws1)
 	c.Assert(err, check.IsNil)
 

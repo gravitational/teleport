@@ -703,9 +703,12 @@ func (a *Server) deactivateCertAuthority(t types.TrustedCluster) error {
 // createReverseTunnel will create a services.ReverseTunnel givenin the
 // services.TrustedCluster resource.
 func (a *Server) createReverseTunnel(t types.TrustedCluster) error {
-	reverseTunnel := types.NewReverseTunnel(
+	reverseTunnel, err := types.NewReverseTunnel(
 		t.GetName(),
 		[]string{t.GetReverseTunnelAddress()},
 	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	return trace.Wrap(a.UpsertReverseTunnel(reverseTunnel))
 }

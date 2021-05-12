@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
@@ -89,17 +88,12 @@ type CertAuthority interface {
 }
 
 // NewCertAuthority returns new cert authority
-func NewCertAuthority(spec CertAuthoritySpecV2) CertAuthority {
-	return &CertAuthorityV2{
-		Kind:    KindCertAuthority,
-		Version: V2,
-		SubKind: string(spec.Type),
-		Metadata: Metadata{
-			Name:      spec.ClusterName,
-			Namespace: defaults.Namespace,
-		},
-		Spec: spec,
+func NewCertAuthority(spec CertAuthoritySpecV2) (CertAuthority, error) {
+	ca := &CertAuthorityV2{Spec: spec}
+	if err := ca.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
 	}
+	return ca, nil
 }
 
 // GetVersion returns resource version
@@ -355,26 +349,35 @@ func (ca *CertAuthorityV2) SetSigningAlg(alg CertAuthoritySpecV2_SigningAlgType)
 	ca.Spec.SigningAlg = alg
 }
 
+// setStaticFields sets static resource header and metadata fields.
+func (ca *CertAuthorityV2) setStaticFields() {
+	ca.Kind = KindCertAuthority
+	ca.Version = V2
+	ca.Metadata.Name = ca.Spec.ClusterName
+}
+
 // CheckAndSetDefaults checks and set default values for any missing fields.
 func (ca *CertAuthorityV2) CheckAndSetDefaults() error {
-	err := ca.Metadata.CheckAndSetDefaults()
-	if err != nil {
+	ca.setStaticFields()
+	if err := ca.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if ca.Version == "" {
-		ca.Version = V2
+
+	if ca.SubKind == "" {
+		ca.SubKind = string(ca.Spec.Type)
 	}
 
-	if err = ca.ID().Check(); err != nil {
+	if err := ca.ID().Check(); err != nil {
 		return trace.Wrap(err)
 	}
 
 	switch ca.GetType() {
 	case UserCA, HostCA, JWTSigner:
-		return nil
 	default:
 		return trace.BadParameter("invalid CA type %q", ca.GetType())
 	}
+
+	return nil
 }
 
 const (

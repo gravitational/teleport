@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
 
 	"github.com/gravitational/trace"
 )
@@ -56,12 +55,9 @@ type Semaphore interface {
 // these acquire parameters.
 func (s *AcquireSemaphoreRequest) ConfigureSemaphore() (Semaphore, error) {
 	sem := SemaphoreV3{
-		Kind:    KindSemaphore,
 		SubKind: s.SemaphoreKind,
-		Version: V3,
 		Metadata: Metadata{
-			Name:      s.SemaphoreName,
-			Namespace: defaults.Namespace,
+			Name: s.SemaphoreName,
 		},
 	}
 	sem.SetExpiry(s.Expires)
@@ -278,16 +274,19 @@ func (c *SemaphoreV3) String() string {
 		c.SubKind, c.Metadata.Name, c.leaseCount())
 }
 
+// setStaticFields sets static resource header and metadata fields.
+func (c *SemaphoreV3) setStaticFields() {
+	c.Kind = KindSemaphore
+	c.Version = V3
+}
+
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.
 func (c *SemaphoreV3) CheckAndSetDefaults() error {
-	// make sure we have defaults for all metadata fields
-	err := c.Metadata.CheckAndSetDefaults()
-	if err != nil {
+	c.setStaticFields()
+	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if c.Version == "" {
-		c.Version = V3
-	}
+
 	// While theoretically there are scenarios with non-expiring semaphores
 	// however the flow don't need them right now, and they add a lot of edge
 	// cases, so the code does not support them.

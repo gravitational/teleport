@@ -44,18 +44,13 @@ type ResetPasswordTokenSecrets interface {
 // NewResetPasswordTokenSecrets creates an instance of ResetPasswordTokenSecrets.
 func NewResetPasswordTokenSecrets(tokenID string) (ResetPasswordTokenSecrets, error) {
 	secrets := ResetPasswordTokenSecretsV3{
-		Kind:    KindResetPasswordTokenSecrets,
-		Version: V3,
 		Metadata: Metadata{
 			Name: tokenID,
 		},
 	}
-
-	err := secrets.CheckAndSetDefaults()
-	if err != nil {
-		return &ResetPasswordTokenSecretsV3{}, trace.Wrap(err)
+	if err := secrets.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
 	}
-
 	return &secrets, nil
 }
 
@@ -151,13 +146,17 @@ func (u *ResetPasswordTokenSecretsV3) SetSubKind(s string) {
 	u.SubKind = s
 }
 
+// setStaticFields sets static resource header and metadata fields.
+func (u *ResetPasswordTokenSecretsV3) setStaticFields() {
+	u.Kind = KindResetPasswordTokenSecrets
+	u.Version = V3
+}
+
 // CheckAndSetDefaults checks and set default values for any missing fields.
 func (u ResetPasswordTokenSecretsV3) CheckAndSetDefaults() error {
+	u.setStaticFields()
 	if err := u.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
-	}
-	if u.Version == "" {
-		u.Version = V3
 	}
 	return nil
 }

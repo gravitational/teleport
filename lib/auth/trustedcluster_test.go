@@ -9,7 +9,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
@@ -112,7 +111,7 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Serve
 	require.NoError(t, a.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig()))
 	require.NoError(t, a.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig()))
 	require.NoError(t, a.SetAuthPreference(types.DefaultAuthPreference()))
-	require.NoError(t, a.SetClusterConfig(services.DefaultClusterConfig()))
+	require.NoError(t, a.SetClusterConfig(types.DefaultClusterConfig()))
 
 	return a
 }

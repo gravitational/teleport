@@ -86,6 +86,28 @@ type Server interface {
 	DeepCopy() Server
 }
 
+// NewServer creates an instance of Server.
+func NewServer(name, kind string, spec ServerSpecV2) (Server, error) {
+	return NewServerWithLabels(name, kind, spec, map[string]string{})
+}
+
+// NewServerWithLabels is a convenience method to create
+// ServerV2 with a specific map of labels.
+func NewServerWithLabels(name, kind string, spec ServerSpecV2, labels map[string]string) (Server, error) {
+	server := &ServerV2{
+		Kind: kind,
+		Metadata: Metadata{
+			Name:   name,
+			Labels: labels,
+		},
+		Spec: spec,
+	}
+	if err := server.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return server, nil
+}
+
 // GetVersion returns resource version
 func (s *ServerV2) GetVersion() string {
 	return s.Version
@@ -302,18 +324,20 @@ func LabelsAsString(static map[string]string, dynamic map[string]CommandLabelV2)
 	return strings.Join(labels, ",")
 }
 
+// setStaticFields sets static resource header and metadata fields.
+func (s *ServerV2) setStaticFields() {
+	s.Version = V2
+}
+
 // CheckAndSetDefaults checks and set default values for any missing fields.
 func (s *ServerV2) CheckAndSetDefaults() error {
 	// TODO(awly): default s.Metadata.Expiry if not set (use
 	// defaults.ServerAnnounceTTL).
-
-	err := s.Metadata.CheckAndSetDefaults()
-	if err != nil {
+	s.setStaticFields()
+	if err := s.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if s.Version == "" {
-		s.Version = V2
-	}
+
 	if s.Kind == "" {
 		return trace.BadParameter("server Kind is empty")
 	}

@@ -112,14 +112,15 @@ func TestEncryptedSAML(t *testing.T) {
 		PrivateKey: fixtures.EncryptionKeyPEM,
 	}
 
-	connector := types.NewSAMLConnector("spongebob", types.SAMLConnectorSpecV2{
-		Cert: signingKeypair.Cert,
+	connector, err := types.NewSAMLConnector("spongebob", types.SAMLConnectorSpecV2{
+		Cert:                     signingKeypair.Cert,
+		Issuer:                   "http://idp.example.com/metadata.php",
+		SSO:                      "nil",
+		AssertionConsumerService: "http://sp.example.com/demo1/index.php?acs",
+		EntityDescriptor:         EntityDescriptor,
 	})
+	require.NoError(t, err)
 
-	connector.SetEntityDescriptor(EntityDescriptor)
-	connector.SetIssuer("http://idp.example.com/metadata.php")
-	connector.SetSSO("nil")
-	connector.SetAssertionConsumerService("http://sp.example.com/demo1/index.php?acs")
 	connector.SetSigningKeyPair(signingKeypair)
 	connector.SetEncryptionKeyPair(encryptionKeypair)
 

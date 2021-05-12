@@ -35,21 +35,24 @@ import (
 )
 
 func TestServerKeyAuth(t *testing.T) {
-	ca := testauthority.New()
-	priv, pub, err := ca.GenerateKeyPair("")
+	ta := testauthority.New()
+	priv, pub, err := ta.GenerateKeyPair("")
+	require.NoError(t, err)
+
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:         types.HostCA,
+		ClusterName:  "cluster-name",
+		SigningKeys:  [][]byte{priv},
+		CheckingKeys: [][]byte{pub},
+		Roles:        nil,
+		SigningAlg:   types.CertAuthoritySpecV2_RSA_SHA2_256,
+	})
 	require.NoError(t, err)
 
 	s := &server{
 		log: testlog.FailureOnly(t),
 		localAccessPoint: mockAccessPoint{
-			ca: types.NewCertAuthority(types.CertAuthoritySpecV2{
-				Type:         types.HostCA,
-				ClusterName:  "cluster-name",
-				SigningKeys:  [][]byte{priv},
-				CheckingKeys: [][]byte{pub},
-				Roles:        nil,
-				SigningAlg:   types.CertAuthoritySpecV2_RSA_SHA2_256,
-			}),
+			ca: ca,
 		},
 	}
 	con := mockSSHConnMetadata{}
@@ -62,7 +65,7 @@ func TestServerKeyAuth(t *testing.T) {
 		{
 			desc: "host cert",
 			key: func() ssh.PublicKey {
-				rawCert, err := ca.GenerateHostCert(services.HostCertParams{
+				rawCert, err := ta.GenerateHostCert(services.HostCertParams{
 					PrivateCASigningKey: priv,
 					CASigningAlg:        defaults.CASignatureAlgorithm,
 					PublicHostKey:       pub,
@@ -87,7 +90,7 @@ func TestServerKeyAuth(t *testing.T) {
 		{
 			desc: "user cert",
 			key: func() ssh.PublicKey {
-				rawCert, err := ca.GenerateUserCert(services.UserCertParams{
+				rawCert, err := ta.GenerateUserCert(services.UserCertParams{
 					PrivateCASigningKey: priv,
 					CASigningAlg:        defaults.CASignatureAlgorithm,
 					PublicUserKey:       pub,
