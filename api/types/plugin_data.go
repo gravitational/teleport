@@ -236,19 +236,3 @@ func (f *PluginDataFilter) Match(data PluginData) bool {
 	}
 	return true
 }
-
-// Equals compares two PluginDataEntries
-func (d *PluginDataEntry) Equals(other *PluginDataEntry) bool {
-	if other == nil {
-		return false
-	}
-	if len(d.Data) != len(other.Data) {
-		return false
-	}
-	for key, val := range d.Data {
-		if other.Data[key] != val {
-			return false
-		}
-	}
-	return true
-}

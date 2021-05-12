@@ -352,6 +352,11 @@ func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
 	_, err = s.PresenceS.UpsertNode(ctx, srv)
 	c.Assert(err, check.IsNil)
 
+	node, err := s.PresenceS.GetNode(ctx, srv.Metadata.Namespace, srv.GetName())
+	c.Assert(err, check.IsNil)
+	srv.SetResourceID(node.GetResourceID())
+	fixtures.DeepCompare(c, node, srv)
+
 	out, err = s.PresenceS.GetNodes(ctx, srv.Metadata.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
@@ -1119,7 +1124,6 @@ func CollectOptions(opts ...Option) Options {
 // ClusterConfig tests cluster configuration
 func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	config, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		ClientIdleTimeout:     services.NewDuration(17 * time.Second),
 		DisconnectExpiredCert: services.NewBool(true),
 		ClusterID:             "27",
 		SessionRecording:      services.RecordAtProxy,
@@ -1133,12 +1137,21 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	})
 	c.Assert(err, check.IsNil)
 
+	// DELETE IN 8.0.0
+	netConfig, err := types.NewClusterNetworkingConfig(types.ClusterNetworkingConfigSpecV2{
+		ClientIdleTimeout: services.NewDuration(17 * time.Second),
+	})
+	c.Assert(err, check.IsNil)
+	err = s.ConfigS.SetClusterNetworkingConfig(context.TODO(), netConfig)
+	c.Assert(err, check.IsNil)
+
 	err = s.ConfigS.SetClusterConfig(config)
 	c.Assert(err, check.IsNil)
 
 	gotConfig, err := s.ConfigS.GetClusterConfig()
 	c.Assert(err, check.IsNil)
 	config.SetResourceID(gotConfig.GetResourceID())
+	config.SetNetworkingConfig(netConfig)
 	fixtures.DeepCompare(c, config, gotConfig)
 
 	// Some parts (e.g. auth server) will not function
@@ -1178,6 +1191,24 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	c.Assert(err, check.IsNil)
 	clusterName.SetResourceID(gotName.GetResourceID())
 	fixtures.DeepCompare(c, clusterName, gotName)
+}
+
+// ClusterNetworkingConfig tests cluster networking configuration.
+func (s *ServicesTestSuite) ClusterNetworkingConfig(c *check.C) {
+	netConfig, err := types.NewClusterNetworkingConfig(types.ClusterNetworkingConfigSpecV2{
+		ClientIdleTimeout: types.NewDuration(17 * time.Second),
+		KeepAliveCountMax: 3000,
+	})
+	c.Assert(err, check.IsNil)
+
+	err = s.ConfigS.SetClusterNetworkingConfig(context.TODO(), netConfig)
+	c.Assert(err, check.IsNil)
+
+	gotNetConfig, err := s.ConfigS.GetClusterNetworkingConfig(context.TODO())
+	c.Assert(err, check.IsNil)
+
+	c.Assert(gotNetConfig.GetClientIdleTimeout(), check.Equals, 17*time.Second)
+	c.Assert(gotNetConfig.GetKeepAliveCountMax(), check.Equals, int64(3000))
 }
 
 // sem wrapper is a helper for overriding the keepalive
