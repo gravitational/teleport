@@ -45,11 +45,12 @@ We will need to determine the labels on the node itself, the role's defined allo
 
 Fact | Example | Interpretation
 --- | --- | ---
-HasRole(user, role) | HasRole(jean, dev) | User 'jean' has role 'dev'
-NodeHasSSHLabel(node, label_key, label_value) | NodeHasSSHLabel(node-1, environment, staging) | SSH node 'node-1' has the label 'environment:staging'
-RoleAllowedSSHLabel(role, label_key, label_value) | RoleAllowedSSHLabel(dev, environment, staging) | Role 'dev' is allowed access to SSH nodes with label 'environment:staging'
-RoleDeniedSSHLabel(role, label_key, label_value) | RoleDeniedSSHLabel(bad, environment, production) | Role 'bad' is denied access to SSH nodes with label 'environment:production'
-RoleHasSSHLogin(role, login) | RoleHasSSHLogin(admin, root) | Role 'admin' can login as os user 'root' to SSH nodes
+`HasRole(user, role)` | `HasRole(jean, dev)` | User 'jean' has role 'dev'
+`NodeHasLabel(node, label_key, label_value)` | `NodeHasLabel(node-1, environment, staging)` | SSH node 'node-1' has the label 'environment:staging'
+`RoleAllowsNodeLabel(role, label_key, label_value)` | `RoleAllowsNodeLabel(dev, environment, staging)` | Role 'dev' is allowed access to SSH nodes with label 'environment:staging'
+`RoleDeniesNodeLabel(role, label_key, label_value)` | `RoleDeniesNodeLabel(bad, environment, production)` | Role 'bad' is denied access to SSH nodes with label 'environment:production'
+`RoleAllowsLogin(role, login)` | `RoleAllowsLogin(admin, root)` | Role 'admin' can login as os user 'root' to SSH nodes
+`RoleDeniesLogin(role, login)` | `RoleDeniesLogin(dev, root)` | Role 'dev' cannot login as os user 'root' to SSH nodes
 
 These facts are then used within rules to answer questions. The facts themselves can also be queried, for example HasRole(jean, Role)? will return all the roles that user 'jean' has where the term 'Role' represents an arbitrary variable and 'jean' is a constant.
 
@@ -63,32 +64,41 @@ HasRole(jean, admin).
 means that Jean has roles 'dev', 'cloud', and 'admin'. Similarly, this representation also applies to labels and logins for roles and nodes.
 
 ### Rules
-Rules are sentences that allow us to infer new facts from existing ones. We can combine multiple rules to create new rules. The most important question for the role tester is whether a user can access a given node as an os user, and we will define this as HasAccess(User, Login, Node). Other rules will provide other contextually related facts that will help answer this overarching question.
+Rules are sentences that allow us to infer new facts from existing ones. We can combine multiple rules to create new rules. The most important question for the role tester is whether a user can access a given node as an os user, and we will define this as HasAccess(User, Login, Node). Other rules will provide other contextually related facts that will help answer this overarching question. I have grouped the rules based on what their queries would mean so it is more clear what each rule is defining.
 
+***Does the given role allow or deny access to a node?***
 Rule | Logical interpretation
 --- | ---
-HasAllowedSSHLabel(Role, Node, Key, Value) :- RoleAllowedSSHLabel(Role, Key, Value), NodeHasSSHLabel(Node, Key, Value) | If the role has allow labels and the node has the same labels, then the role allows access to the node
-HasDeniedSSHLabel(Role, Node, Key, Value) :- RoleDeniedSSHLabel(Role, Key, Value), NodeHasSSHLabel(Node, Key, Value) | If the role has deny labels and the node has the same labels, then the role denies access to the node
-HasRolePath(User, Login, Node) :- HasRole(User, Role), HasAllowedSSHLabel(Role, Node, Key, Value), RoleHasSSHLogin(Role, Login) | If the user has a role and the role allows access to the node and the role has a login, then the user has a role that gives them access to the node as login
-HasDeniedRolePath(User, Node) :- HasRole(User, Role), HasDeniedSSHLabel(Role, Node, Key, Value) | If the user has a role and the role denies access to the node, then the user has a role that denies them access to the node
-HasAccess(User, Login, Node) :- HasRolePath(User, Login, Node), not(HasDeniedRolePath(User, Node)) | If the user has a role that gives them access to the node as login and there are no roles denying access to the node, then the user has access to the node as login
-RoleAllowed(User, Role, Node) :- HasRole(User, Role), HasAllowedSSHLabel(Role, Node, Key, Value) | If the user has a role and the role allows access to the node, then that specific role gives the user access to node
-RoleDenied(User, Role, Node) :- HasRole(User, Role), HasDeniedSSHLabel(Role, Node, Key, Value) | If the user has a role and the role denies access to the node, then that specific role denies the user access to node
+`HasAllowNodeLabel(Role, Node, Key, Value) :- RoleAllowsNodeLabel(Role, Key, Value), NodeHasLabel(Node, Key, Value)` | If the role has allow labels and the node has the same labels, then the role allows access to the node
+`HasDenyNodeLabel(Role, Node, Key, Value) :- RoleDeniesNodeLabel(Role, Key, Value), NodeHasLabel(Node, Key, Value)` | If the role has deny labels and the node has the same labels, then the role denies access to the node
+
+***Does the given user have access to a node as an os user?***
+Rule | Logical interpretation
+--- | ---
+`HasAllowRole(User, Login, Node) :- HasRole(User, Role), HasAllowNodeLabel(Role, Node, Key, Value), RoleAllowsLogin(Role, Login), not(RoleDeniesLogin(Role, Login))` | If the user has a role and the role allows access to the node and the role has a login that is not denied, then the user has a role that gives them access to the node as login
+`HasDenyRole(User, Node) :- HasRole(User, Role), HasDenyNodeLabel(Role, Node, Key, Value)` | If the user has a role and the role denies access to the node, then the user has a role that denies them access to the node
+`HasAccess(User, Login, Node) :- HasAllowRole(User, Login, Node), not(HasDenyRole(User, Node))` | If the user has a role that gives them access to the node as login and there are no roles denying access to the node, then the user has access to the node as login
+
+***Which roles allow or deny a user access to a given node?***
+Rule | Logical interpretation
+--- | ---
+`AllowRoles(User, Role, Node) :- HasRole(User, Role), HasAllowNodeLabel(Role, Node, Key, Value)` | If the user has a role and the role allows access to the node, then that specific role gives the user access to node
+`DenyRoles(User, Role, Node) :- HasRole(User, Role), HasDenyNodeLabel(Role, Node, Key, Value)` | If the user has a role and the role denies access to the node, then that specific role denies the user access to node
 
 Rules can be thought of as a simple implication between the body (the part after :-) and the head (the part before :-) where if body is true, then it implies the head.
 
 ### Examples
-Some common questions are listed below. It is important to note that if we provide variables instead of constants to the queries, we will get a list of term values for the variable based on the facts that exist or are inferred. For example, HasAccess(jean, root, Node)? will return all the SSH nodes that user 'jean' has access to as 'root'. Similarly, the queries RoleAllowed? and RoleDenied? can be used in this way to get the corresponding roles that deny/allow a user access to a specific SSH node.
+Some common questions are listed below. It is important to note that if we provide variables instead of constants to the queries, we will get a list of term values for the variable based on the facts that exist or are inferred. For example, HasAccess(jean, root, Node)? will return all the SSH nodes that user 'jean' has access to as 'root'. Similarly, the queries AllowRoles? and DenyRoles? can be used in this way to get the corresponding roles that deny/allow a user access to a specific SSH node.
 
 Example | Query interpretation
 --- | ---
-HasAllowedSSHLabel(dev, node-1, environment, staging)? | Does the role 'dev' allow access to SSH node 'node-1' given the label 'environment:staging'?
-HasDeniedSSHLabel(bad, node-1, environment, production)? | Does the role 'bad' deny access to SSH node 'node-1' given the label 'environment:production'?
-HasRolePath(jean, root, node-1)? | Does the user 'jean' have a role that gives them access to SSH node 'node-1' as 'root'?
-HasDeniedRolePath(jean, node-1)? | Does the user 'jean' have a role that denies them access to SSH node 'node-1'?
-HasAccess(jean, root, node-1)? | Does user 'jean' have access to SSH node 'node-1' as 'root'?
-HasAccess(jean, root, Node)? | Which SSH nodes does user 'jean' have access to as 'root'?
-HasAccess(jean, Login, Node)? | Which SSH nodes does user 'jean' have access to?
-RoleAllowed(jean, Role, node-1)? | Which roles allow user 'jean' to access SSH node 'node-1'?
-RoleDenied(jean, Role, node-1)? | Which roles deny user 'jean' to access SSH node 'node-1'?
-RoleDenied(jean, Role, Node)? | Which nodes are user 'jean' denied access to? (will be returned as Role/Node pairs)
+`HasAllowNodeLabel(dev, node-1, environment, staging)?` | Does the role 'dev' allow access to SSH node 'node-1' given the label 'environment:staging'?
+`HasDenyNodeLabel(bad, node-1, environment, production)?` | Does the role 'bad' deny access to SSH node 'node-1' given the label 'environment:production'?
+`HasAllowRole(jean, root, node-1)?` | Does the user 'jean' have a role that gives them access to SSH node 'node-1' as 'root'?
+`HasDenyRole(jean, node-1)?` | Does the user 'jean' have a role that denies them access to SSH node 'node-1'?
+`HasAccess(jean, root, node-1)?` | Does user 'jean' have access to SSH node 'node-1' as 'root'?
+`HasAccess(jean, root, Node)?` | Which SSH nodes does user 'jean' have access to as 'root'?
+`HasAccess(jean, Login, Node)?` | Which SSH nodes does user 'jean' have access to?
+`AllowRoles(jean, Role, node-1)?` | Which roles allow user 'jean' to access SSH node 'node-1'?
+`DenyRoles(jean, Role, node-1)?` | Which roles deny user 'jean' to access SSH node 'node-1'?
+`DenyRoles(jean, Role, Node)?` | Which nodes are user 'jean' denied access to? (will be returned as Role/Node pairs)
