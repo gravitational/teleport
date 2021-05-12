@@ -17,8 +17,6 @@ limitations under the License.
 package utils
 
 import (
-	"fmt"
-
 	"github.com/gravitational/trace"
 
 	"github.com/coreos/go-semver/semver"
@@ -27,24 +25,21 @@ import (
 // CheckVersions compares client and server versions and makes sure that the
 // client version is greater than or equal to the minimum version supported
 // by the server.
-func CheckVersions(clientVersion string, minClientVersion string) error {
+func CheckVersions(clientVersion, minClientVersion string) error {
 	clientSemver, err := semver.NewVersion(clientVersion)
 	if err != nil {
-		return trace.Wrap(err,
-			"unsupported version format, need semver format: %q, e.g 1.0.0", clientVersion)
+		return trace.Wrap(err, "unsupported version format, need semver format: %q, e.g 1.0.0", clientVersion)
 	}
 
 	minClientSemver, err := semver.NewVersion(minClientVersion)
 	if err != nil {
-		return trace.Wrap(err,
-			"unsupported version format, need semver format: %q, e.g 1.0.0", minClientVersion)
+		return trace.Wrap(err, "unsupported version format, need semver format: %q, e.g 1.0.0", minClientVersion)
 	}
 
 	if clientSemver.Compare(*minClientSemver) < 0 {
-		errorMessage := fmt.Sprintf("minimum client version supported by the server "+
-			"is %v. Please upgrade the client, downgrade the server, or use the "+
-			"--skip-version-check flag to by-pass this check.", minClientVersion)
-		return trace.BadParameter(errorMessage)
+		return trace.BadParameter(`Detected potentially incompatible client and server versions.
+Minimum client version supported by the server is %v but you are using %v.
+Please upgrade tsh to %v or newer or use the --skip-version-check flag to bypass this check.`, minClientVersion, clientVersion, minClientVersion)
 	}
 
 	return nil
