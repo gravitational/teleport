@@ -118,6 +118,9 @@ const (
 	// session occurred on.
 	SessionServerLabels = "server_labels"
 
+	// SessionClusterName is the cluster name that the session occurred in
+	SessionClusterName = "cluster_name"
+
 	// SessionByteOffset is the number of bytes written to session stream since
 	// the beginning
 	SessionByteOffset = "offset"

@@ -17,6 +17,7 @@ limitations under the License.
 package client
 
 import (
+	"context"
 	"crypto/subtle"
 	"fmt"
 	"io"
@@ -273,7 +274,7 @@ func (a *LocalKeyAgent) GetCoreKey() (*Key, error) {
 // AddHostSignersToCache takes a list of CAs whom we trust. This list is added to a database
 // of "seen" CAs.
 //
-// Every time we connect to a new host, we'll request its certificaate to be signed by one
+// Every time we connect to a new host, we'll request its certificate to be signed by one
 // of these trusted CAs.
 //
 // Why do we trust these CAs? Because we received them from a trusted Teleport Proxy.
@@ -392,7 +393,9 @@ func (a *LocalKeyAgent) defaultHostPromptFunc(host string, key ssh.PublicKey, wr
 	var err error
 	ok := false
 	if !a.noHosts[host] {
-		ok, err = prompt.Confirmation(writer, reader,
+		cr := prompt.NewContextReader(reader)
+		defer cr.Close()
+		ok, err = prompt.Confirmation(context.Background(), writer, cr,
 			fmt.Sprintf("The authenticity of host '%s' can't be established. Its public key is:\n%s\nAre you sure you want to continue?",
 				host,
 				ssh.MarshalAuthorizedKey(key),
