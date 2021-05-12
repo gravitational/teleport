@@ -459,7 +459,7 @@ func (l *Log) GetSessionEvents(namespace string, sid session.ID, after int, inlc
 	return values, nil
 }
 
-func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]events.EventFields, string, error) {
+func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]events.AuditEvent, string, error) {
 	g := l.WithFields(log.Fields{"From": fromUTC, "To": toUTC, "Namespace": namespace, "EventTypes": eventTypes, "Limit": limit, "StartKey": startKey})
 	doFilter := len(eventTypes) > 0
 
@@ -526,12 +526,22 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 		}
 	}
 	sort.Sort(events.ByTimeAndIndex(values))
-	return values, fmt.Sprintf("%d", lastKey), nil
+
+	eventArr := make([]events.AuditEvent, len(values))
+	for _, fields := range values {
+		event, err := events.FromEventFields(fields)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		eventArr = append(eventArr, event)
+	}
+
+	return eventArr, fmt.Sprintf("%d", lastKey), nil
 }
 
 // SearchSessionEvents returns session related events only. This is used to
 // find completed session.
-func (l *Log) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]events.EventFields, string, error) {
+func (l *Log) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]events.AuditEvent, string, error) {
 	// only search for specific event types
 	query := []string{
 		events.SessionStartEvent,

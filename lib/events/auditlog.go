@@ -1016,7 +1016,7 @@ func (l *AuditLog) auditDirs() ([]string, error) {
 	return out, nil
 }
 
-func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType []string, limit int, startKey string) ([]EventFields, string, error) {
+func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType []string, limit int, startKey string) ([]AuditEvent, string, error) {
 	l.log.Debugf("SearchEvents(%v, %v, namespace=%v, eventType=%v, limit=%v)", fromUTC, toUTC, namespace, eventType, limit)
 	if limit <= 0 {
 		limit = defaults.EventsIterationLimit
@@ -1030,7 +1030,7 @@ func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, even
 	return l.localLog.SearchEvents(fromUTC, toUTC, namespace, eventType, limit, startKey)
 }
 
-func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) ([]EventFields, string, error) {
+func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) ([]AuditEvent, string, error) {
 	l.log.Debugf("SearchSessionEvents(%v, %v, %v)", fromUTC, toUTC, limit)
 
 	if l.ExternalLog != nil {
@@ -1219,11 +1219,11 @@ func (a *closedLogger) GetSessionEvents(namespace string, sid session.ID, after 
 	return nil, trace.NotImplemented(loggerClosedMessage)
 }
 
-func (a *closedLogger) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType []string, limit int, startKey string) ([]EventFields, string, error) {
+func (a *closedLogger) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType []string, limit int, startKey string) ([]AuditEvent, string, error) {
 	return nil, "", trace.NotImplemented(loggerClosedMessage)
 }
 
-func (a *closedLogger) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]EventFields, string, error) {
+func (a *closedLogger) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]AuditEvent, string, error) {
 	return nil, "", trace.NotImplemented(loggerClosedMessage)
 }
 

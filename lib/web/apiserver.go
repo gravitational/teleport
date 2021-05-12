@@ -1864,6 +1864,19 @@ func (h *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httpr
 
 const maxStreamBytes = 5 * 1024 * 1024
 
+func toArrayFields(rawEvents []events.AuditEvent) ([]events.EventFields, error) {
+	el := make([]events.EventFields, 0, len(rawEvents))
+	for _, event := range rawEvents {
+		els, err := events.ToEventFields(event)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		el = append(el, els)
+	}
+
+	return el, nil
+}
+
 // clusterSearchSessionEvents allows to search for session events on a cluster
 //
 // GET /v1/webapi/sites/:site/events
@@ -1904,10 +1917,16 @@ func (h *Handler) clusterSearchSessionEvents(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	el, _, err := clt.SearchSessionEvents(from, to, defaults.EventsIterationLimit, "")
+	rawEvents, _, err := clt.SearchSessionEvents(from, to, defaults.EventsIterationLimit, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	el, err := toArrayFields(rawEvents)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return eventsListGetResponse{Events: el}, nil
 }
 
@@ -1946,11 +1965,17 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 		eventTypes = strings.Split(include, ";")
 	}
 
-	fields, _, err := clt.SearchEvents(from, to, defaults.Namespace, eventTypes, limit, "")
+	rawEvents, _, err := clt.SearchEvents(from, to, defaults.Namespace, eventTypes, limit, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return eventsListGetResponse{Events: fields}, nil
+
+	el, err := toArrayFields(rawEvents)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return eventsListGetResponse{Events: el}, nil
 }
 
 // queryTime parses the query string parameter with the specified name as a

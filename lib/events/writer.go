@@ -110,7 +110,7 @@ func (w *WriterLog) GetSessionEvents(namespace string, sid session.ID, after int
 //
 // The only mandatory requirement is a date range (UTC). Results must always
 // show up sorted by date (newest first)
-func (w *WriterLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) (events []EventFields, lastKey string, err error) {
+func (w *WriterLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) (events []AuditEvent, lastKey string, err error) {
 	return nil, "", trace.NotImplemented("not implemented")
 }
 
@@ -120,7 +120,7 @@ func (w *WriterLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eve
 //
 // Event types to filter can be specified and pagination is handled by an iterator key that allows
 // a query to be resumed.
-func (w *WriterLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) (events []EventFields, lastKey string, err error) {
+func (w *WriterLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) (events []AuditEvent, lastKey string, err error) {
 	return nil, "", trace.NotImplemented("not implemented")
 }
 

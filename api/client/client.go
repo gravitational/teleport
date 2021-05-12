@@ -20,7 +20,6 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"io"
 	"net"
 	"sync"
@@ -1295,7 +1294,7 @@ func (c *Client) DeleteAllNodes(ctx context.Context, namespace string) error {
 }
 
 // SearchEvents allows searching for events with a full pagination support.
-func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]map[string]interface{}, string, error) {
+func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]events.AuditEvent, string, error) {
 	request := &proto.GetEventsRequest{
 		Namespace:  namespace,
 		StartDate:  fromUTC,
@@ -1310,16 +1309,20 @@ func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, nam
 		return nil, "", trail.FromGRPC(err)
 	}
 
-	var decodedEvents []map[string]interface{}
-	if err := json.Unmarshal(response.Items, &decodedEvents); err != nil {
-		return nil, "", trace.Wrap(err)
+	decodedEvents := make([]events.AuditEvent, len(response.Items))
+	for _, rawEvent := range response.Items {
+		event, err := events.FromOneOf(*rawEvent)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		decodedEvents = append(decodedEvents, event)
 	}
 
 	return decodedEvents, response.LastKey, nil
 }
 
 // SearchSessionEvents allows searching for session events with a full pagination support.
-func (c *Client) SearchSessionEvents(ctx context.Context, fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]map[string]interface{}, string, error) {
+func (c *Client) SearchSessionEvents(ctx context.Context, fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]events.AuditEvent, string, error) {
 	request := &proto.GetSessionEventsRequest{
 		StartDate: fromUTC,
 		EndDate:   toUTC,
@@ -1332,9 +1335,13 @@ func (c *Client) SearchSessionEvents(ctx context.Context, fromUTC time.Time, toU
 		return nil, "", trail.FromGRPC(err)
 	}
 
-	var decodedEvents []map[string]interface{}
-	if err := json.Unmarshal(response.Items, &decodedEvents); err != nil {
-		return nil, "", trace.Wrap(err)
+	decodedEvents := make([]events.AuditEvent, len(response.Items))
+	for _, rawEvent := range response.Items {
+		event, err := events.FromOneOf(*rawEvent)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		decodedEvents = append(decodedEvents, event)
 	}
 
 	return decodedEvents, response.LastKey, nil

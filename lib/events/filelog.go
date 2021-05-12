@@ -194,7 +194,7 @@ func (l *FileLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
 	return nil
 }
 
-func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]EventFields, string, error) {
+func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]AuditEvent, string, error) {
 	l.Debugf("SearchEvents(%v, %v, namespace=%v, eventType=%v, limit=%v)", fromUTC, toUTC, namespace, eventTypes, limit)
 	if limit <= 0 {
 		limit = defaults.EventsIterationLimit
@@ -215,14 +215,14 @@ func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, event
 	var total int
 	var lastKey string
 	// search within each file:
-	events := make([]EventFields, 0)
+	dynamicEvents := make([]EventFields, 0)
 	for i := range filtered {
 		var found []EventFields
 		found, lastKey, foundStart, err = l.findInFile(filtered[i].path, eventTypes, &total, limit, startKey, foundStart)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
-		events = append(events, found...)
+		dynamicEvents = append(dynamicEvents, found...)
 		if limit > 0 && total >= limit {
 			break
 		}
@@ -231,11 +231,21 @@ func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, event
 	// in case if events are associated with the same session, to make
 	// sure that events are not displayed out of order in case of multiple
 	// auth servers.
-	sort.Sort(ByTimeAndIndex(events))
+	sort.Sort(ByTimeAndIndex(dynamicEvents))
+
+	events := make([]AuditEvent, 0)
+	for _, dynamicEvent := range dynamicEvents {
+		event, err := FromEventFields(dynamicEvent)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		events = append(events, event)
+	}
+
 	return events, lastKey, nil
 }
 
-func (l *FileLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) ([]EventFields, string, error) {
+func (l *FileLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) ([]AuditEvent, string, error) {
 	l.Debugf("SearchSessionEvents(%v, %v, %v)", fromUTC, toUTC, limit)
 
 	// only search for specific event types
@@ -253,11 +263,11 @@ func (l *FileLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, start
 	// filter out 'session end' events that do not
 	// have a corresponding 'session start' event
 	started := make(map[string]struct{}, len(events)/2)
-	filtered := make([]EventFields, 0, len(events))
+	filtered := make([]AuditEvent, 0, len(events))
 	for i := range events {
 		event := events[i]
-		eventType := event[EventType]
-		sessionID := event.GetString(SessionEventID)
+		eventType := event.GetType()
+		sessionID := GetSessionID(event)
 		if sessionID == "" {
 			continue
 		}

@@ -2899,7 +2899,7 @@ func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFAReq
 }
 
 // SearchEvents allows searching audit events with pagination support.
-func (a *ServerWithRoles) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) (events []events.EventFields, lastKey string, err error) {
+func (a *ServerWithRoles) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) (events []events.AuditEvent, lastKey string, err error) {
 	if err := a.action(defaults.Namespace, services.KindEvent, services.VerbList); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -2913,7 +2913,7 @@ func (a *ServerWithRoles) SearchEvents(fromUTC, toUTC time.Time, namespace strin
 }
 
 // SearchSessionEvents allows searching session audit events with pagination support.
-func (a *ServerWithRoles) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) (events []events.EventFields, lastKey string, err error) {
+func (a *ServerWithRoles) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) (events []events.AuditEvent, lastKey string, err error) {
 	if err := a.action(defaults.Namespace, services.KindEvent, services.VerbList); err != nil {
 		return nil, "", trace.Wrap(err)
 	}

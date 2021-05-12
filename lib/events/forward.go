@@ -242,13 +242,13 @@ func (l *Forwarder) GetSessionEvents(namespace string, sid session.ID, after int
 //
 // The only mandatory requirement is a date range (UTC). Results must always
 // show up sorted by date (newest first)
-func (l *Forwarder) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType []string, limit int, startKey string) ([]EventFields, string, error) {
+func (l *Forwarder) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType []string, limit int, startKey string) ([]AuditEvent, string, error) {
 	return l.ForwardTo.SearchEvents(fromUTC, toUTC, namespace, eventType, limit, startKey)
 }
 
 // SearchSessionEvents returns session related events only. This is used to
 // find completed session.
-func (l *Forwarder) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]EventFields, string, error) {
+func (l *Forwarder) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]AuditEvent, string, error) {
 	return l.ForwardTo.SearchSessionEvents(fromUTC, toUTC, limit, startKey)
 }
 

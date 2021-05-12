@@ -833,7 +833,7 @@ message GetSessionEventsRequest {
 }
 
 message Events {
-    bytes Items = 1;
+    repeated events.OneOf Items = 1;
     // the key of the last event if the returned set did not contain all events found i.e limit <
     // actual amount. this is the key clients can supply in another API request to continue fetching
     // events from the previous last position

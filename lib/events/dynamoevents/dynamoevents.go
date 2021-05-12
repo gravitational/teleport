@@ -658,7 +658,7 @@ type checkpointKey struct {
 //
 // The only mandatory requirement is a date range (UTC). Results must always
 // show up sorted by date (newest first)
-func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]events.EventFields, string, error) {
+func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]events.AuditEvent, string, error) {
 	var checkpoint checkpointKey
 
 	// If a checkpoint key is provided, unmarshal it so we can work with it's parts.
@@ -776,7 +776,16 @@ dateLoop:
 		}
 	}
 
-	return values, string(lastKey), nil
+	eventArr := make([]events.AuditEvent, len(values))
+	for _, fields := range values {
+		event, err := events.FromEventFields(fields)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		eventArr = append(eventArr, event)
+	}
+
+	return eventArr, string(lastKey), nil
 }
 
 // Used in tests to check full backend data.
@@ -900,7 +909,7 @@ dateLoop:
 
 // SearchSessionEvents returns session related events only. This is used to
 // find completed session.
-func (l *Log) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]events.EventFields, string, error) {
+func (l *Log) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]events.AuditEvent, string, error) {
 	// only search for specific event types
 	query := []string{
 		events.SessionStartEvent,
