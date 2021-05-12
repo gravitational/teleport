@@ -285,6 +285,11 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		return nil, nil, trace.Wrap(err)
 	}
 
+	netConfig, err := srv.GetAccessPoint().GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
 	cancelContext, cancel := context.WithCancel(ctx)
 
 	child := &ServerContext{
@@ -297,7 +302,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		ClusterName:       parent.ServerConn.Permissions.Extensions[utils.CertTeleportClusterName],
 		ClusterConfig:     clusterConfig,
 		Identity:          identityContext,
-		clientIdleTimeout: identityContext.RoleSet.AdjustClientIdleTimeout(clusterConfig.GetClientIdleTimeout()),
+		clientIdleTimeout: identityContext.RoleSet.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
 		cancelContext:     cancelContext,
 		cancel:            cancel,
 	}
@@ -725,6 +730,13 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 
 			result, err := expr.Interpolate(traits)
 			if err != nil {
+				// If the trait isn't passed by the IdP due to misconfiguration
+				// we fallback to setting a value which will indicate this.
+				if trace.IsNotFound(err) {
+					log.Warnf("Attempted to interpolate custom PAM environment with external trait %[1]q but received SAML response does not contain claim %[1]q", expr.Name())
+					continue
+				}
+
 				return nil, trace.Wrap(err)
 			}
 

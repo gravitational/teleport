@@ -166,6 +166,9 @@ func eventFromGRPC(in proto.Event) (*types.Event, error) {
 	} else if r := in.GetDatabaseServer(); r != nil {
 		out.Resource = r
 		return &out, nil
+	} else if r := in.GetClusterNetworkingConfig(); r != nil {
+		out.Resource = r
+		return &out, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", in.Resource)
 	}
