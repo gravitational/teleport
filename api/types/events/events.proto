@@ -326,6 +326,9 @@ message SessionEnd {
 
     // InitialCommand is the command used to start this session.
     repeated string InitialCommand = 13 [ (gogoproto.jsontag) = "initial_command,omitempty" ];
+
+    // SessionRecording is the type of session recording.
+    string SessionRecording = 14 [ (gogoproto.jsontag) = "session_recording,omitempty" ];
 }
 
 // BPFMetadata is a common BPF process metadata

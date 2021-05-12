@@ -913,6 +913,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 				KubernetesClusterMetadata: ctx.eventClusterMeta(),
 				KubernetesPodMetadata:     eventPodMeta,
 				InitialCommand:            request.cmd,
+				SessionRecording:          ctx.clusterConfig.GetSessionRecording(),
 			}
 			if err := emitter.EmitAuditEvent(f.ctx, sessionEndEvent); err != nil {
 				f.log.WithError(err).Warn("Failed to emit session end event.")
