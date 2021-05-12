@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/services"
@@ -87,6 +88,10 @@ func (s *ServicesSuite) SetUpTest(c *check.C) {
 			})
 		},
 	}
+
+	// DELETE IN 8.0.0
+	err = s.suite.ConfigS.SetClusterNetworkingConfig(context.TODO(), types.DefaultClusterNetworkingConfig())
+	c.Assert(err, check.IsNil)
 }
 
 func (s *ServicesSuite) TearDownTest(c *check.C) {

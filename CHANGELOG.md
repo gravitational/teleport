@@ -2,10 +2,12 @@
 
 ## 6.2
 
-This release of teleport contains minor features and bugfixes.
+This release of teleport contains multiple features and bugfixes.
 
 * Changed DynamoDB events backend indexing strategy. [#6583](https://github.com/gravitational/teleport/pull/6583)
   Warning! This will trigger a data migration on the first start after upgrade. For optimal performance perform this migration with only one auth server online. It may take some time and progress will be periodically written to the auth server log. Once Teleport starts and is accessible via Web UI, the rest of the cluster may be started.
+* Stopped changing current kubectl context by default during `tsh login`. [#6721](https://github.com/gravitational/teleport/pull/6721)
+  Use `tsh login --kube-cluster=<kube cluster>` or `tsh kube login <kube cluster>` to change your current kubectl context.
 
 ## 6.1.4
 
