@@ -195,6 +195,7 @@ export type RawEvents = {
       kubernetes_cluster: string;
       kubernetes_pod_namespace: string;
       kubernetes_pod_name: string;
+      session_recording: 'off' | 'node' | 'proxy' | 'node-sync' | 'proxy-sync';
     }
   >;
   [CodeEnum.SESSION_LEAVE]: RawEvent<

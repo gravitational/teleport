@@ -92,7 +92,11 @@ export default function TypeCell(props) {
   };
 
   // use button for interactive ssh sessions
-  if (event.code === CodeEnum.SESSION_END && event.raw.interactive) {
+  if (
+    event.code === CodeEnum.SESSION_END &&
+    event.raw.interactive &&
+    event.raw.session_recording !== 'off'
+  ) {
     return (
       <Cell>
         <StyledEventType>

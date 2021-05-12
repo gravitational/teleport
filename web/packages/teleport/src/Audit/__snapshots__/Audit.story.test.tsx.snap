@@ -446,12 +446,12 @@ exports[`loaded 1`] = `
         </strong>
          - 
         <strong>
-          42
+          35
         </strong>
          
         of 
         <strong>
-          42
+          35
         </strong>
       </div>
       <div
@@ -509,6 +509,118 @@ exports[`loaded 1`] = `
         </tr>
       </thead>
       <tbody>
+        <tr>
+          <td>
+            <div
+              class="c14"
+            >
+              <span
+                class="c4 c15 icon icon-terminal c4 c15"
+                color="light"
+                font-size="3"
+              />
+              Session Ended
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [root] has ended an interactive session lasting a few seconds [5ef7244c-0f7b-4f57-80b0-26a79f960aae] on node [im-a-nodename]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2021-05-12 01:26:22
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c16"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c14"
+            >
+              <a
+                href="/web/cluster/localhost/session/941a4c65-c6cd-11ea-9bef-482ae3513733"
+                style="text-decoration: none;"
+                target="_blank"
+                title="Open Session Player"
+              >
+                <span
+                  class="c4 c15 icon icon-terminal c17"
+                  color="light"
+                  font-size="3"
+                />
+              </a>
+              Session Ended
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [root] has ended an interactive session lasting 2 minutes [941a4c65-c6cd-11ea-9bef-482ae3513733] on node [im-a-nodename]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2021-05-12 01:26:22
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c16"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c14"
+            >
+              <span
+                class="c4 c15 icon icon-terminal c4 c15"
+                color="light"
+                font-size="3"
+              />
+              Session Ended
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [root] has ended a non-interactive session [9febab45-6491-11e9-80a1-427cfde50f5a] on node [node-hostname] 
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2021-05-12 01:26:22
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c16"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
         <tr>
           <td>
             <div
@@ -846,48 +958,6 @@ exports[`loaded 1`] = `
             style="min-width: 120px;"
           >
             2020-10-30 17:28:14
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c16"
-              kind="border"
-              width="87px"
-            >
-              Details
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <div
-              class="c14"
-            >
-              <a
-                href="/web/cluster/localhost/session/941a4c65-c6cd-11ea-9bef-482ae3513733"
-                style="text-decoration: none;"
-                target="_blank"
-                title="Open Session Player"
-              >
-                <span
-                  class="c4 c15 icon icon-terminal c17"
-                  color="light"
-                  font-size="3"
-                />
-              </a>
-              Session Ended
-            </div>
-          </td>
-          <td
-            style="word-break: break-word;"
-          >
-            User [root] has ended an interactive session lasting 2 minutes [941a4c65-c6cd-11ea-9bef-482ae3513733] on node [im-a-nodename]
-          </td>
-          <td
-            style="min-width: 120px;"
-          >
-            2020-07-15 19:03:05
           </td>
           <td
             align="right"
@@ -1397,76 +1467,6 @@ exports[`loaded 1`] = `
               class="c14"
             >
               <span
-                class="c4 c15 icon icon-get_app c4 c15"
-                color="light"
-                font-size="3"
-              />
-              SCP Download
-            </div>
-          </td>
-          <td
-            style="word-break: break-word;"
-          >
-            User [admin@example.com] downloaded a file [~/fsdfsdfsdfsdfs] from node [172.31.28.130:3022]
-          </td>
-          <td
-            style="min-width: 120px;"
-          >
-            2019-04-22 19:41:23
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c16"
-              kind="border"
-              width="87px"
-            >
-              Details
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <div
-              class="c14"
-            >
-              <span
-                class="c4 c15 icon icon-terminal c4 c15"
-                color="light"
-                font-size="3"
-              />
-              User Joined
-            </div>
-          </td>
-          <td
-            style="word-break: break-word;"
-          >
-            User [admin@example.com] has joined the session [56408539-6536-11e9-80a1-427cfde50f5a]
-          </td>
-          <td
-            style="min-width: 120px;"
-          >
-            2019-04-22 19:39:52
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c16"
-              kind="border"
-              width="87px"
-            >
-              Details
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <div
-              class="c14"
-            >
-              <span
                 class="c4 c15 icon icon-terminal c4 c15"
                 color="light"
                 font-size="3"
@@ -1518,76 +1518,6 @@ exports[`loaded 1`] = `
             style="min-width: 120px;"
           >
             2019-04-22 19:39:52
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c16"
-              kind="border"
-              width="87px"
-            >
-              Details
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <div
-              class="c14"
-            >
-              <span
-                class="c4 c15 icon icon-terminal c4 c15"
-                color="light"
-                font-size="3"
-              />
-              Terminal Resize
-            </div>
-          </td>
-          <td
-            style="word-break: break-word;"
-          >
-            User [admin@example.com] resized the session [56408539-6536-11e9-80a1-427cfde50f5a] terminal
-          </td>
-          <td
-            style="min-width: 120px;"
-          >
-            2019-04-22 19:39:52
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c16"
-              kind="border"
-              width="87px"
-            >
-              Details
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <div
-              class="c14"
-            >
-              <span
-                class="c4 c15 icon icon-terminal c4 c15"
-                color="light"
-                font-size="3"
-              />
-              Session Started
-            </div>
-          </td>
-          <td
-            style="word-break: break-word;"
-          >
-            User [admin@example.com] has started a session [56408539-6536-11e9-80a1-427cfde50f5a]
-          </td>
-          <td
-            style="min-width: 120px;"
-          >
-            2019-04-22 19:39:26
           </td>
           <td
             align="right"
@@ -1751,76 +1681,6 @@ exports[`loaded 1`] = `
                 color="light"
                 font-size="3"
               />
-              Local Login Failed
-            </div>
-          </td>
-          <td
-            style="word-break: break-word;"
-          >
-            Local user [fsdfsdf] login failed [user(name="fsdfsdf") not found]
-          </td>
-          <td
-            style="min-width: 120px;"
-          >
-            2019-04-22 18:06:32
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c16"
-              kind="border"
-              width="87px"
-            >
-              Details
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <div
-              class="c14"
-            >
-              <span
-                class="c4 c15 icon icon-info_outline c4 c15"
-                color="light"
-                font-size="3"
-              />
-              Auth Attempt Failed
-            </div>
-          </td>
-          <td
-            style="word-break: break-word;"
-          >
-            User [admin@example.com] failed auth attempt: ssh: principal "fsdfdsf" not in the set of valid principals for given certificate: ["root"]
-          </td>
-          <td
-            style="min-width: 120px;"
-          >
-            2019-04-22 02:09:06
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c16"
-              kind="border"
-              width="87px"
-            >
-              Details
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <div
-              class="c14"
-            >
-              <span
-                class="c4 c15 icon icon-info_outline c4 c15"
-                color="light"
-                font-size="3"
-              />
               Auth Attempt Failed
             </div>
           </td>
@@ -1868,111 +1728,6 @@ exports[`loaded 1`] = `
             style="min-width: 120px;"
           >
             2019-04-22 00:49:03
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c16"
-              kind="border"
-              width="87px"
-            >
-              Details
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <div
-              class="c14"
-            >
-              <span
-                class="c4 c15 icon icon-info_outline c4 c15"
-                color="light"
-                font-size="3"
-              />
-              Local Login
-            </div>
-          </td>
-          <td
-            style="word-break: break-word;"
-          >
-            Local user [admin@example.com] successfully logged in
-          </td>
-          <td
-            style="min-width: 120px;"
-          >
-            2019-04-22 00:49:03
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c16"
-              kind="border"
-              width="87px"
-            >
-              Details
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <div
-              class="c14"
-            >
-              <span
-                class="c4 c15 icon icon-terminal c4 c15"
-                color="light"
-                font-size="3"
-              />
-              Session Ended
-            </div>
-          </td>
-          <td
-            style="word-break: break-word;"
-          >
-            User [admin@example.com] has ended a non-interactive session [9febab45-6491-11e9-80a1-427cfde50f5a] on node [node-hostname] 
-          </td>
-          <td
-            style="min-width: 120px;"
-          >
-            2019-04-22 00:00:51
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c16"
-              kind="border"
-              width="87px"
-            >
-              Details
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <div
-              class="c14"
-            >
-              <span
-                class="c4 c15 icon icon-terminal c4 c15"
-                color="light"
-                font-size="3"
-              />
-              Session Ended
-            </div>
-          </td>
-          <td
-            style="word-break: break-word;"
-          >
-            User [admin@example.com] has ended a non-interactive session [9febab45-6491-11e9-80a1-427cfde50f5a] on node [undefined] 
-          </td>
-          <td
-            style="min-width: 120px;"
-          >
-            2019-04-22 00:00:51
           </td>
           <td
             align="right"

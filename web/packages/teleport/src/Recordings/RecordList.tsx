@@ -41,7 +41,12 @@ export default function RecordList(props: Props) {
   // sort and filter
   const data = React.useMemo(() => {
     const rows = events
-      .filter(e => e.code === 'T2004I' && e.raw.interactive)
+      .filter(
+        e =>
+          e.code === 'T2004I' &&
+          e.raw.interactive &&
+          e.raw.session_recording !== 'off'
+      )
       .map(makeRows(clusterId));
 
     const filtered = rows.filter(obj =>
@@ -128,7 +133,7 @@ const makeRows = (clusterId: string) => (event: SessionEnd) => {
   let hostname = raw.server_hostname || 'N/A';
   // For Kubernetes sessions, put the full pod name as 'hostname'.
   if (raw.proto === 'kube') {
-    hostname = raw.kubernetes_cluster + '/' + raw.kubernetes_pod_namespace + '/' + raw.kubernetes_pod_name;
+    hostname = `${raw.kubernetes_cluster}/${raw.kubernetes_pod_namespace}/${raw.kubernetes_pod_name}`;
   }
 
   return {

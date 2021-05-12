@@ -104,6 +104,7 @@ const events = [
     server_hostname: 'peach-node',
     interactive: true,
   },
+  // should not be rendered b/c session_recording is off
   {
     code: 'T2004I',
     ei: 10,
@@ -117,5 +118,6 @@ const events = [
     server_id: 'serverId',
     server_hostname: 'pear-node',
     interactive: true,
+    session_recording: 'off',
   },
 ];
