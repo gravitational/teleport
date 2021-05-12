@@ -46,6 +46,8 @@ We will need to determine the labels on the node itself, the role's defined allo
 Fact | Example | Interpretation
 --- | --- | ---
 `HasRole(user, role)` | `HasRole(jean, dev)` | User 'jean' has role 'dev'
+`HasLoginTrait(user)` | `HasLoginTrait(jean)` | User 'jean' has a login trait
+`HasTrait(user, trait_key, trait_value)` | `HasTrait(jean, login, dev)` | User 'jean' has the login trait 'dev'
 `NodeHasLabel(node, label_key, label_value)` | `NodeHasLabel(node-1, environment, staging)` | SSH node 'node-1' has the label 'environment:staging'
 `RoleAllowsNodeLabel(role, label_key, label_value)` | `RoleAllowsNodeLabel(dev, environment, staging)` | Role 'dev' is allowed access to SSH nodes with label 'environment:staging'
 `RoleDeniesNodeLabel(role, label_key, label_value)` | `RoleDeniesNodeLabel(bad, environment, production)` | Role 'bad' is denied access to SSH nodes with label 'environment:production'
@@ -75,7 +77,8 @@ Rule | Logical interpretation
 ***Does the given user have access to a node as an os user?***
 Rule | Logical interpretation
 --- | ---
-`HasAllowRole(User, Login, Node) :- HasRole(User, Role), HasAllowNodeLabel(Role, Node, Key, Value), RoleAllowsLogin(Role, Login), not(RoleDeniesLogin(Role, Login))` | If the user has a role and the role allows access to the node and the role has a login that is not denied, then the user has a role that gives them access to the node as login
+`HasAllowRole(User, Login, Node) :- HasRole(User, Role), HasAllowNodeLabel(Role, Node, Key, Value), RoleAllowsLogin(Role, Login), not(RoleDeniesLogin(Role, Login)), not(HasLoginTrait(User))` | If the user has a role, the role allows access to the node, the role has a login that is not denied and the user does not have a defined login trait, then the user has a role that gives them access to the node as login
+`HasAllowRole(User, Login, Node) :- HasRole(User, Role), HasAllowNodeLabel(Role, Node, Key, Value), HasTrait(User, login, Login), not(RoleDeniesLogin(Role, Login))` | If the user has a role, the role allows access to the node and the user has a defined login trait that is not denied, then the user has a role that gives them access to the node as login
 `HasDenyRole(User, Node) :- HasRole(User, Role), HasDenyNodeLabel(Role, Node, Key, Value)` | If the user has a role and the role denies access to the node, then the user has a role that denies them access to the node
 `HasAccess(User, Login, Node) :- HasAllowRole(User, Login, Node), not(HasDenyRole(User, Node))` | If the user has a role that gives them access to the node as login and there are no roles denying access to the node, then the user has access to the node as login
 
