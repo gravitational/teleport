@@ -296,7 +296,7 @@ func (a *AuditTestSuite) TestSessionRecordingOff(c *check.C) {
 	upload(c, uploadDir, fakeClock, alog)
 
 	// get all events from the audit log, should have two session event and one upload event
-	found, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), "", 0)
+	found, _, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), defaults.Namespace, nil, 0, "")
 	c.Assert(err, check.IsNil)
 	c.Assert(found, check.HasLen, 3)
 	c.Assert(found[0].GetString(EventLogin), check.Equals, username)
@@ -371,7 +371,7 @@ func (a *AuditTestSuite) TestLogRotation(c *check.C) {
 		c.Assert(err, check.IsNil)
 		c.Assert(string(bytes), check.Equals, contents)
 
-		found, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), "", 0)
+		found, _, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), defaults.Namespace, nil, 0, "")
 		c.Assert(err, check.IsNil)
 		c.Assert(found, check.HasLen, 1)
 	}

@@ -20,6 +20,7 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"io"
 	"net"
 	"sync"
@@ -1291,6 +1292,52 @@ func (c *Client) DeleteAllNodes(ctx context.Context, namespace string) error {
 	}
 	_, err := c.grpc.DeleteAllNodes(ctx, &types.ResourcesInNamespaceRequest{Namespace: namespace}, c.callOpts...)
 	return trail.FromGRPC(err)
+}
+
+// SearchEvents allows searching for events with a full pagination support.
+func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]map[string]interface{}, string, error) {
+	request := &proto.GetEventsRequest{
+		Namespace:  namespace,
+		StartDate:  fromUTC,
+		EndDate:    toUTC,
+		EventTypes: eventTypes,
+		Limit:      int32(limit),
+		StartKey:   startKey,
+	}
+
+	response, err := c.grpc.GetEvents(ctx, request)
+	if err != nil {
+		return nil, "", trail.FromGRPC(err)
+	}
+
+	var decodedEvents []map[string]interface{}
+	if err := json.Unmarshal(response.Items, &decodedEvents); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return decodedEvents, response.LastKey, nil
+}
+
+// SearchSessionEvents allows searching for session events with a full pagination support.
+func (c *Client) SearchSessionEvents(ctx context.Context, fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]map[string]interface{}, string, error) {
+	request := &proto.GetSessionEventsRequest{
+		StartDate: fromUTC,
+		EndDate:   toUTC,
+		Limit:     int32(limit),
+		StartKey:  startKey,
+	}
+
+	response, err := c.grpc.GetSessionEvents(ctx, request)
+	if err != nil {
+		return nil, "", trail.FromGRPC(err)
+	}
+
+	var decodedEvents []map[string]interface{}
+	if err := json.Unmarshal(response.Items, &decodedEvents); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return decodedEvents, response.LastKey, nil
 }
 
 // GetClusterNetworkingConfig gets cluster networking configuration.

@@ -79,6 +79,38 @@ type EventsSuite struct {
 	QueryDelay time.Duration
 }
 
+// EventPagination covers event search pagination.
+func (s *EventsSuite) EventPagination(c *check.C) {
+	// 2019-05-10 14:43:0 GMT
+	// This serves no special purpose except to make querying easier.
+	baseTime := time.Unix(1557499380, 0)
+
+	names := []string{"bob", "jack", "daisy", "evan"}
+
+	for i, name := range names {
+		err := s.Log.EmitAuditEventLegacy(events.UserLocalLoginE, events.EventFields{
+			events.LoginMethod:        events.LoginMethodSAML,
+			events.AuthAttemptSuccess: true,
+			events.EventUser:          name,
+			events.EventTime:          baseTime.Add(time.Second * time.Duration(i)),
+		})
+		c.Assert(err, check.IsNil)
+	}
+
+	toTime := baseTime.Add(time.Hour)
+	var arr []events.EventFields
+	var err error
+	var checkpoint string
+
+	for _, name := range names {
+		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, defaults.Namespace, nil, 1, checkpoint)
+		c.Assert(err, check.IsNil)
+		c.Assert(arr, check.HasLen, 1)
+		eventName := arr[0].GetString(events.EventUser)
+		c.Assert(name, check.Equals, eventName)
+	}
+}
+
 // SessionEventsCRUD covers session events
 func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 	// Bob has logged in
@@ -95,7 +127,7 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 		time.Sleep(s.QueryDelay)
 	}
 
-	history, err := s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), "", 100)
+	history, _, err := s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), defaults.Namespace, nil, 100, "")
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.HasLen, 1)
 
@@ -131,11 +163,11 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 	c.Assert(history[0].GetString(events.EventType), check.Equals, events.SessionStartEvent)
 	c.Assert(history[1].GetString(events.EventType), check.Equals, events.SessionEndEvent)
 
-	history, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100)
+	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, "")
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.HasLen, 2)
 
-	history, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour-time.Second), 100)
+	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour-time.Second), 100, "")
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.HasLen, 1)
 }

@@ -21,7 +21,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -195,36 +194,33 @@ func (l *FileLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
 	return nil
 }
 
-// SearchEvents finds events. Results show up sorted by date (newest first),
-// limit is used when set to value > 0
-func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, query string, limit int) ([]EventFields, error) {
-	l.Debugf("SearchEvents(%v, %v, query=%v, limit=%v)", fromUTC, toUTC, query, limit)
+func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]EventFields, string, error) {
+	l.Debugf("SearchEvents(%v, %v, namespace=%v, eventType=%v, limit=%v)", fromUTC, toUTC, namespace, eventTypes, limit)
 	if limit <= 0 {
 		limit = defaults.EventsIterationLimit
 	}
 	if limit > defaults.EventsMaxIterationLimit {
-		return nil, trace.BadParameter("limit %v exceeds max iteration limit %v", limit, defaults.MaxIterationLimit)
+		return nil, "", trace.BadParameter("limit %v exceeds max iteration limit %v", limit, defaults.MaxIterationLimit)
 	}
 	// how many days of logs to search?
 	days := int(toUTC.Sub(fromUTC).Hours() / 24)
 	if days < 0 {
-		return nil, trace.BadParameter("invalid days")
-	}
-	queryVals, err := url.ParseQuery(query)
-	if err != nil {
-		return nil, trace.BadParameter("invalid query")
+		return nil, "", trace.BadParameter("invalid days")
 	}
 	filtered, err := l.matchingFiles(fromUTC, toUTC)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
+	foundStart := startKey == ""
 	var total int
+	var lastKey string
 	// search within each file:
 	events := make([]EventFields, 0)
 	for i := range filtered {
-		found, err := l.findInFile(filtered[i].path, queryVals, &total, limit)
+		var found []EventFields
+		found, lastKey, foundStart, err = l.findInFile(filtered[i].path, eventTypes, &total, limit, startKey, foundStart)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, "", trace.Wrap(err)
 		}
 		events = append(events, found...)
 		if limit > 0 && total >= limit {
@@ -236,27 +232,22 @@ func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, query string, limit int
 	// sure that events are not displayed out of order in case of multiple
 	// auth servers.
 	sort.Sort(ByTimeAndIndex(events))
-	return events, nil
+	return events, lastKey, nil
 }
 
-// SearchSessionEvents searches for session related events. Used to find completed sessions.
-func (l *FileLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int) ([]EventFields, error) {
+func (l *FileLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) ([]EventFields, string, error) {
 	l.Debugf("SearchSessionEvents(%v, %v, %v)", fromUTC, toUTC, limit)
 
 	// only search for specific event types
-	query := url.Values{}
-	query[EventType] = []string{
-		SessionStartEvent,
-		SessionEndEvent,
-	}
+	eventTypes := []string{SessionStartEvent, SessionEndEvent}
 
 	// because of the limit and distributed nature of auth server event
 	// logs, some events can be fetched with session end event and without
 	// session start event. to fix this, the code below filters out the events without
 	// start event to guarantee that all events in the range will get fetched
-	events, err := l.SearchEvents(fromUTC, toUTC, query.Encode(), limit)
+	events, lastKey, err := l.SearchEvents(fromUTC, toUTC, "default", eventTypes, limit, startKey)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, lastKey, trace.Wrap(err)
 	}
 
 	// filter out 'session end' events that do not
@@ -281,7 +272,7 @@ func (l *FileLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int) ([]Ev
 		}
 	}
 
-	return filtered, nil
+	return filtered, lastKey, nil
 }
 
 // Close closes the audit log, which inluces closing all file handles and releasing
@@ -474,22 +465,16 @@ func parseFileTime(filename string) (time.Time, error) {
 
 // findInFile scans a given log file and returns events that fit the criteria
 // This simplistic implementation ONLY SEARCHES FOR EVENT TYPE(s)
-//
-// You can pass multiple types like "event=session.start&event=session.end"
-func (l *FileLog) findInFile(fn string, query url.Values, total *int, limit int) ([]EventFields, error) {
-	l.Debugf("Called findInFile(%s, %v).", fn, query)
+func (l *FileLog) findInFile(fn string, eventFilter []string, total *int, limit int, startKey string, foundStart bool) ([]EventFields, string, bool, error) {
+	l.Debugf("Called findInFile(%s, %v).", fn, eventFilter)
 	retval := make([]EventFields, 0)
-
-	eventFilter, ok := query[EventType]
-	if !ok && len(query) > 0 {
-		return nil, nil
-	}
+	var lastKey string
 	doFilter := len(eventFilter) > 0
 
 	// open the log file:
 	lf, err := os.OpenFile(fn, os.O_RDONLY, 0)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", false, trace.Wrap(err)
 	}
 	defer lf.Close()
 
@@ -521,15 +506,22 @@ func (l *FileLog) findInFile(fn string, query url.Values, total *int, limit int)
 				break
 			}
 		}
-		if accepted || !doFilter {
+
+		id := ef.GetString(EventID)
+		if id == startKey {
+			foundStart = true
+		}
+
+		if (accepted || !doFilter) && foundStart {
 			retval = append(retval, ef)
+			lastKey = id
 			*total++
 			if limit > 0 && *total >= limit {
 				break
 			}
 		}
 	}
-	return retval, nil
+	return retval, lastKey, foundStart, nil
 }
 
 type eventFile struct {

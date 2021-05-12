@@ -235,22 +235,21 @@ func (l *Forwarder) GetSessionEvents(namespace string, sid session.ID, after int
 	return l.ForwardTo.GetSessionEvents(namespace, sid, after, includePrintEvents)
 }
 
-// SearchEvents is a flexible way to find  The format of a query string
-// depends on the implementing backend. A recommended format is urlencoded
-// (good enough for Lucene/Solr)
+// SearchEvents is a flexible way to find events.
 //
-// Pagination is also defined via backend-specific query format.
+// Event types to filter can be specified and pagination is handled by an iterator key that allows
+// a query to be resumed.
 //
 // The only mandatory requirement is a date range (UTC). Results must always
 // show up sorted by date (newest first)
-func (l *Forwarder) SearchEvents(fromUTC, toUTC time.Time, query string, limit int) ([]EventFields, error) {
-	return l.ForwardTo.SearchEvents(fromUTC, toUTC, query, limit)
+func (l *Forwarder) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType []string, limit int, startKey string) ([]EventFields, string, error) {
+	return l.ForwardTo.SearchEvents(fromUTC, toUTC, namespace, eventType, limit, startKey)
 }
 
 // SearchSessionEvents returns session related events only. This is used to
 // find completed session.
-func (l *Forwarder) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int) ([]EventFields, error) {
-	return l.ForwardTo.SearchSessionEvents(fromUTC, toUTC, limit)
+func (l *Forwarder) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]EventFields, string, error) {
+	return l.ForwardTo.SearchSessionEvents(fromUTC, toUTC, limit, startKey)
 }
 
 // WaitForDelivery waits for resources to be released and outstanding requests to
