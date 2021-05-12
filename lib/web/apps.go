@@ -38,8 +38,8 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-// siteAppsGet returns a list of applications in a form the UI can present.
-func (h *Handler) siteAppsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+// clusterAppsGet returns a list of applications in a form the UI can present.
+func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	appClusterName := p.ByName("site")
 
 	// Get a list of application servers.
