@@ -78,6 +78,9 @@ message Event {
         // ClusterNetworkingConfig is a resource for cluster networking configuration.
         types.ClusterNetworkingConfigV2 ClusterNetworkingConfig = 20
             [ (gogoproto.jsontag) = "cluster_networking_config,omitempty" ];
+        // AuthPreference is the cluster authentication preference.
+        types.AuthPreferenceV2 AuthPreference = 21
+            [ (gogoproto.jsontag) = "auth_preference,omitempty" ];
     }
 }
 

@@ -401,6 +401,10 @@ func eventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_ClusterNetworkingConfig{
 			ClusterNetworkingConfig: r,
 		}
+	case *types.AuthPreferenceV2:
+		out.Resource = &proto.Event_AuthPreference{
+			AuthPreference: r,
+		}
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
 	}
