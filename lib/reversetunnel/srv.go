@@ -258,11 +258,11 @@ func NewServer(cfg Config) (Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	clusterConfig, err := cfg.LocalAccessPoint.GetClusterConfig()
+	netConfig, err := cfg.LocalAccessPoint.GetClusterNetworkingConfig(cfg.Context)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	offlineThreshold := time.Duration(clusterConfig.GetKeepAliveCountMax()) * clusterConfig.GetKeepAliveInterval()
+	offlineThreshold := time.Duration(netConfig.GetKeepAliveCountMax()) * netConfig.GetKeepAliveInterval()
 
 	ctx, cancel := context.WithCancel(cfg.Context)
 

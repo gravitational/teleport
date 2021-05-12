@@ -46,6 +46,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: true},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindClusterAuthPreference},
 		{Kind: services.KindStaticTokens},
 		{Kind: services.KindToken},
@@ -77,6 +78,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: false},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindClusterAuthPreference},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
@@ -105,6 +107,7 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: false},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindNamespace},
@@ -131,6 +134,7 @@ func ForOldRemoteProxy(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: false},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindNamespace},
@@ -154,6 +158,7 @@ func ForNode(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: false},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindClusterAuthPreference},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
@@ -173,6 +178,7 @@ func ForKubernetes(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: false},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindClusterAuthPreference},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
@@ -190,6 +196,7 @@ func ForApps(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: false},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindClusterAuthPreference},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
@@ -208,6 +215,7 @@ func ForDatabases(cfg Config) Config {
 		{Kind: services.KindCertAuthority, LoadSecrets: false},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
+		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindClusterAuthPreference},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
@@ -1021,6 +1029,16 @@ func (c *Cache) GetClusterConfig(opts ...services.MarshalOption) (services.Clust
 	return rg.clusterConfig.GetClusterConfig(services.AddOptions(opts, services.SkipValidation())...)
 }
 
+// GetClusterNetworkingConfig gets ClusterNetworkingConfig from the backend.
+func (c *Cache) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.clusterConfig.GetClusterNetworkingConfig(ctx, services.AddOptions(opts, services.SkipValidation())...)
+}
+
 // GetClusterName gets the name of the cluster from the backend.
 func (c *Cache) GetClusterName(opts ...services.MarshalOption) (services.ClusterName, error) {
 	rg, err := c.read()
@@ -1079,6 +1097,16 @@ func (c *Cache) GetNamespaces() ([]services.Namespace, error) {
 	}
 	defer rg.Release()
 	return rg.presence.GetNamespaces()
+}
+
+// GetNode finds and returns a node by name and namespace.
+func (c *Cache) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.presence.GetNode(ctx, namespace, name)
 }
 
 // GetNodes is a part of auth.AccessPoint implementation

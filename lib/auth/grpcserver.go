@@ -35,10 +35,10 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 
 	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -390,6 +390,10 @@ func eventToGRPC(in types.Event) (*proto.Event, error) {
 	case *types.DatabaseServerV3:
 		out.Resource = &proto.Event_DatabaseServer{
 			DatabaseServer: r,
+		}
+	case *types.ClusterNetworkingConfigV2:
+		out.Resource = &proto.Event_ClusterNetworkingConfig{
+			ClusterNetworkingConfig: r,
 		}
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
@@ -1723,7 +1727,7 @@ func (g *GRPCServer) DeleteMFADevice(stream proto.AuthService_DeleteMFADeviceSer
 		case *types.MFADevice_U2F:
 			numU2FDevs++
 		default:
-			log.Warningf("Unknown MFA device type: %T", d.Device)
+			return trail.ToGRPC(trace.BadParameter("unknown MFA device type: %T", d.Device))
 		}
 	}
 	for _, d := range devs {
@@ -1737,11 +1741,11 @@ func (g *GRPCServer) DeleteMFADevice(stream proto.AuthService_DeleteMFADeviceSer
 		switch authPref.GetSecondFactor() {
 		case constants.SecondFactorOff, constants.SecondFactorOptional: // MFA is not required, allow deletion
 		case constants.SecondFactorOTP:
-			if numTOTPDevs == 1 {
+			if _, ok := d.Device.(*types.MFADevice_Totp); ok && numTOTPDevs == 1 {
 				return trail.ToGRPC(trace.BadParameter("cannot delete the last OTP device for this user; add a replacement device first to avoid getting locked out"))
 			}
 		case constants.SecondFactorU2F:
-			if numU2FDevs == 1 {
+			if _, ok := d.Device.(*types.MFADevice_U2F); ok && numU2FDevs == 1 {
 				return trail.ToGRPC(trace.BadParameter("cannot delete the last U2F device for this user; add a replacement device first to avoid getting locked out"))
 			}
 		case constants.SecondFactorOn:
@@ -2345,6 +2349,29 @@ func (g *GRPCServer) DeleteToken(ctx context.Context, req *types.ResourceRequest
 	return &empty.Empty{}, nil
 }
 
+// GetNode retrieves a node by name and namespace.
+func (g *GRPCServer) GetNode(ctx context.Context, req *types.ResourceInNamespaceRequest) (*types.ServerV2, error) {
+	if req.Namespace == "" {
+		return nil, trail.ToGRPC(trace.BadParameter("missing parameter namespace"))
+	}
+	if req.Name == "" {
+		return nil, trail.ToGRPC(trace.BadParameter("missing parameter name"))
+	}
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	node, err := auth.ServerWithRoles.GetNode(ctx, req.Namespace, req.Name)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	serverV2, ok := node.(*types.ServerV2)
+	if !ok {
+		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected node type: %T", node))
+	}
+	return serverV2, nil
+}
+
 // GetNodes retrieves all nodes in the given namespace.
 func (g *GRPCServer) GetNodes(ctx context.Context, req *types.ResourcesInNamespaceRequest) (*types.ServerV2List, error) {
 	auth, err := g.authenticate(ctx)
@@ -2409,6 +2436,35 @@ func (g *GRPCServer) DeleteAllNodes(ctx context.Context, req *types.ResourcesInN
 		return nil, trail.ToGRPC(err)
 	}
 	if err = auth.ServerWithRoles.DeleteAllNodes(ctx, req.Namespace); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// GetClusterNetworkingConfig gets cluster networking configuration.
+func (g *GRPCServer) GetClusterNetworkingConfig(ctx context.Context, _ *empty.Empty) (*types.ClusterNetworkingConfigV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	netConfig, err := auth.ServerWithRoles.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	netConfigV2, ok := netConfig.(*types.ClusterNetworkingConfigV2)
+	if !ok {
+		return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", netConfig))
+	}
+	return netConfigV2, nil
+}
+
+// SetClusterNetworkingConfig sets cluster networking configuration.
+func (g *GRPCServer) SetClusterNetworkingConfig(ctx context.Context, netConfig *types.ClusterNetworkingConfigV2) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err = auth.ServerWithRoles.SetClusterNetworkingConfig(ctx, netConfig); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 	return &empty.Empty{}, nil

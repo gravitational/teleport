@@ -18,7 +18,6 @@ package local
 
 import (
 	"context"
-	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -64,6 +63,13 @@ func (s *ClusterConfigurationSuite) TestClusterConfig(c *check.C) {
 		ConfigS: clusterConfig,
 	}
 	suite.ClusterConfig(c)
+}
+
+func (s *ClusterConfigurationSuite) TestClusterNetworkingConfig(c *check.C) {
+	suite := &suite.ServicesTestSuite{
+		ConfigS: NewClusterConfigurationService(s.bk),
+	}
+	suite.ClusterNetworkingConfig(c)
 }
 
 func (s *ClusterConfigurationSuite) TestStaticTokens(c *check.C) {
@@ -153,7 +159,6 @@ audit_events_uri: 'dynamodb://audit_table_name'
 func (s *ClusterConfigurationSuite) TestClusterConfigMarshal(c *check.C) {
 	// signle audit_events uri value
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		ClientIdleTimeout:     services.NewDuration(17 * time.Second),
 		DisconnectExpiredCert: services.NewBool(true),
 		ClusterID:             "27",
 		SessionRecording:      services.RecordAtProxy,
@@ -176,7 +181,6 @@ func (s *ClusterConfigurationSuite) TestClusterConfigMarshal(c *check.C) {
 
 	// multiple events uri values
 	clusterConfig, err = services.NewClusterConfig(services.ClusterConfigSpecV3{
-		ClientIdleTimeout:     services.NewDuration(17 * time.Second),
 		DisconnectExpiredCert: services.NewBool(true),
 		ClusterID:             "27",
 		SessionRecording:      services.RecordAtProxy,

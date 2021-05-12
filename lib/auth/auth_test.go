@@ -29,6 +29,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -111,6 +112,9 @@ func (s *AuthSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	err = s.a.SetAuthPreference(authPreference)
+	c.Assert(err, IsNil)
+
+	err = s.a.SetClusterNetworkingConfig(context.TODO(), types.DefaultClusterNetworkingConfig())
 	c.Assert(err, IsNil)
 
 	err = s.a.SetClusterConfig(services.DefaultClusterConfig())
@@ -886,12 +890,12 @@ func (s *AuthSuite) TestUpsertDeleteRoleEventsEmitted(c *C) {
 
 	roleRetrieved, err := s.a.GetRole(ctx, "test")
 	c.Assert(err, IsNil)
-	c.Assert(roleRetrieved.Equals(roleTest), Equals, true)
+	c.Assert(cmp.Diff(roleRetrieved, roleTest, cmpopts.IgnoreFields(types.Metadata{}, "ID")), Equals, "")
 
 	// test update role
 	err = s.a.upsertRole(ctx, roleTest)
 	c.Assert(err, IsNil)
-	c.Assert(roleRetrieved.Equals(roleTest), Equals, true)
+	c.Assert(cmp.Diff(roleRetrieved, roleTest, cmpopts.IgnoreFields(types.Metadata{}, "ID")), Equals, "")
 	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.RoleCreatedEvent)
 	c.Assert(s.mockEmitter.LastEvent().(*events.RoleCreate).Name, Equals, "test")
 	s.mockEmitter.Reset()
