@@ -1,5 +1,14 @@
 # Changelog
 
+## 6.1.5
+
+This release of Teleport contains multiple bug fixes.
+
+* Added additional Prometheus Metrics. [#6511](https://github.com/gravitational/teleport/pull/6511)
+* Updated the TLS handshake timeout to 5 seconds to avoid timeout issues on large clusters. [#6692](https://github.com/gravitational/teleport/pull/6692)
+* Fixed issue that caused non-interactive SSH output to show up in logs. [#6683](https://github.com/gravitational/teleport/pull/6683)
+* Fixed two issues that could cause Teleport to panic upon startup. [#6431](https://github.com/gravitational/teleport/pull/6431) [#5712](https://github.com/gravitational/teleport/pull/5712)
+
 ## 6.1.3
 
 This release of Teleport contains a bug fix.
