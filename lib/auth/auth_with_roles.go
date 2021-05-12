@@ -387,14 +387,14 @@ func (a *ServerWithRoles) UpsertNodes(namespace string, servers []services.Serve
 	return a.authServer.UpsertNodes(namespace, servers)
 }
 
-func (a *ServerWithRoles) UpsertNode(s services.Server) (*services.KeepAlive, error) {
+func (a *ServerWithRoles) UpsertNode(ctx context.Context, s services.Server) (*services.KeepAlive, error) {
 	if err := a.action(s.GetNamespace(), services.KindNode, services.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := a.action(s.GetNamespace(), services.KindNode, services.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.UpsertNode(s)
+	return a.authServer.UpsertNode(ctx, s)
 }
 
 // DELETE IN: 5.1.0
@@ -591,29 +591,49 @@ NextNode:
 }
 
 // DeleteAllNodes deletes all nodes in a given namespace
-func (a *ServerWithRoles) DeleteAllNodes(namespace string) error {
+func (a *ServerWithRoles) DeleteAllNodes(ctx context.Context, namespace string) error {
 	if err := a.action(namespace, services.KindNode, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteAllNodes(namespace)
+	return a.authServer.DeleteAllNodes(ctx, namespace)
 }
 
 // DeleteNode deletes node in the namespace
-func (a *ServerWithRoles) DeleteNode(namespace, node string) error {
+func (a *ServerWithRoles) DeleteNode(ctx context.Context, namespace, node string) error {
 	if err := a.action(namespace, services.KindNode, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteNode(namespace, node)
+	return a.authServer.DeleteNode(ctx, namespace, node)
 }
 
-func (a *ServerWithRoles) GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+// GetNode gets a node by name and namespace.
+func (a *ServerWithRoles) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
+	if err := a.action(namespace, services.KindNode, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	node, err := a.authServer.GetCache().GetNode(ctx, namespace, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Run node through filter to check if it's for the connected identity.
+	if filteredNodes, err := a.filterNodes([]types.Server{node}); err != nil {
+		return nil, trace.Wrap(err)
+	} else if len(filteredNodes) == 0 {
+		return nil, trace.NotFound("not found")
+	}
+
+	return node, nil
+}
+
+func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
 	if err := a.action(namespace, services.KindNode, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Fetch full list of nodes in the backend.
 	startFetch := time.Now()
-	nodes, err := a.authServer.GetNodes(namespace, opts...)
+	nodes, err := a.authServer.GetNodes(ctx, namespace, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2214,19 +2234,47 @@ func (a *ServerWithRoles) GetAuthPreference() (services.AuthPreference, error) {
 	return a.authServer.GetAuthPreference()
 }
 
-func (a *ServerWithRoles) SetAuthPreference(cap services.AuthPreference) error {
-	if err := a.action(defaults.Namespace, services.KindClusterAuthPreference, services.VerbCreate); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.action(defaults.Namespace, services.KindClusterAuthPreference, services.VerbUpdate); err != nil {
+func (a *ServerWithRoles) SetAuthPreference(newAuthPref services.AuthPreference) error {
+	storedAuthPref, err := a.authServer.GetAuthPreference()
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.SetAuthPreference(cap)
+	for _, verb := range verbsToReplaceResourceWithOrigin(storedAuthPref) {
+		if err := a.action(defaults.Namespace, services.KindClusterAuthPreference, verb); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return a.authServer.SetAuthPreference(newAuthPref)
 }
 
 // DeleteAuthPreference not implemented: can only be called locally.
 func (a *ServerWithRoles) DeleteAuthPreference(context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// GetClusterNetworkingConfig gets cluster networking configuration.
+func (a *ServerWithRoles) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+	if err := a.action(defaults.Namespace, types.KindClusterNetworkingConfig, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetClusterNetworkingConfig(ctx, opts...)
+}
+
+// SetClusterNetworkingConfig sets cluster networking configuration.
+func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, netConfig types.ClusterNetworkingConfig) error {
+	if err := a.action(defaults.Namespace, services.KindClusterConfig, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindClusterConfig, services.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.SetClusterNetworkingConfig(ctx, netConfig)
+}
+
+// DeleteClusterNetworkingConfig not implemented: can only be called locally.
+func (a *ServerWithRoles) DeleteClusterNetworkingConfig(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -2898,5 +2946,14 @@ func emitSSOLoginFailureEvent(ctx context.Context, emitter events.Emitter, metho
 	if emitErr != nil {
 		log.WithError(err).Warnf("Failed to emit %v login failure event.", method)
 	}
+}
 
+// verbsToReplaceResourceWithOrigin determines the verbs/actions required of a role
+// to replace the resource currently stored in the backend.
+func verbsToReplaceResourceWithOrigin(stored types.ResourceWithOrigin) []string {
+	verbs := []string{types.VerbUpdate}
+	if stored.Origin() == types.OriginConfigFile {
+		verbs = append(verbs, types.VerbCreate)
+	}
+	return verbs
 }

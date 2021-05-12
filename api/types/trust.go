@@ -38,6 +38,9 @@ const (
 	JWTSigner CertAuthType = "jwt"
 )
 
+// CertAuthTypes lists all certificate authority types.
+var CertAuthTypes = []CertAuthType{HostCA, UserCA, JWTSigner}
+
 // Check checks if certificate authority type value is correct
 func (c CertAuthType) Check() error {
 	if c != HostCA && c != UserCA && c != JWTSigner {

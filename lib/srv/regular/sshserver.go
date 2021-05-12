@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 )
 
@@ -815,6 +816,19 @@ func (s *Server) serveAgent(ctx *srv.ServerContext) error {
 	return nil
 }
 
+var (
+	userSessionLimitHitCount = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: teleport.MetricUserMaxConcurrentSessionsHit,
+			Help: "Number of times a user exceeded their max concurrent ssh connections",
+		},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(userSessionLimitHitCount)
+}
+
 // HandleRequest processes global out-of-band requests. Global out-of-band
 // requests are processed in order (this way the originator knows which
 // request we are responding to). If Teleport does not support the request
@@ -862,14 +876,14 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 		return ctx, nil
 	}
 
-	cfg, err := s.authService.GetClusterConfig()
+	netConfig, err := s.authService.GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		return ctx, trace.Wrap(err)
 	}
 
 	lock, err := services.AcquireSemaphoreLock(ctx, services.SemaphoreLockConfig{
 		Service: s.authService,
-		Expiry:  cfg.GetSessionControlTimeout(),
+		Expiry:  netConfig.GetSessionControlTimeout(),
 		Params: services.AcquireSemaphoreRequest{
 			SemaphoreKind: services.SemaphoreKindConnection,
 			SemaphoreName: identityContext.TeleportUser,
@@ -880,6 +894,7 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 	if err != nil {
 		if strings.Contains(err.Error(), teleport.MaxLeases) {
 			// user has exceeded their max concurrent ssh connections.
+			userSessionLimitHitCount.Inc()
 			if err := s.EmitAuditEvent(s.ctx, &events.SessionReject{
 				Metadata: events.Metadata{
 					Type: events.SessionRejectedEvent,
@@ -1190,10 +1205,10 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 
 	ch = scx.TrackActivity(ch)
 
-	clusterConfig, err := s.GetAccessPoint().GetClusterConfig()
+	netConfig, err := s.GetAccessPoint().GetClusterNetworkingConfig(ctx)
 	if err != nil {
-		log.Errorf("Unable to fetch cluster config: %v.", err)
-		writeStderr(ch, "Unable to fetch cluster configuration.")
+		log.Errorf("Unable to fetch cluster networking config: %v.", err)
+		writeStderr(ch, "Unable to fetch cluster networking configuration.")
 		return
 	}
 
@@ -1204,8 +1219,8 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 		Conns: []srv.RequestSender{
 			scx.ServerConn,
 		},
-		Interval:     clusterConfig.GetKeepAliveInterval(),
-		MaxCount:     clusterConfig.GetKeepAliveCountMax(),
+		Interval:     netConfig.GetKeepAliveInterval(),
+		MaxCount:     netConfig.GetKeepAliveCountMax(),
 		CloseContext: ctx,
 		CloseCancel:  scx.CancelFunc(),
 	})
@@ -1524,6 +1539,13 @@ func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionCo
 		}
 	}
 
+	netConfig, err := s.GetAccessPoint().GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		log.Errorf("Unable to fetch cluster networking config: %v.", err)
+		writeStderr(ch, "Unable to fetch cluster networking configuration.")
+		return
+	}
+
 	// The keep-alive loop will keep pinging the remote server and after it has
 	// missed a certain number of keep-alive requests it will cancel the
 	// closeContext which signals the server to shutdown.
@@ -1531,8 +1553,8 @@ func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionCo
 		Conns: []srv.RequestSender{
 			scx.ServerConn,
 		},
-		Interval:     clusterConfig.GetKeepAliveInterval(),
-		MaxCount:     clusterConfig.GetKeepAliveCountMax(),
+		Interval:     netConfig.GetKeepAliveInterval(),
+		MaxCount:     netConfig.GetKeepAliveCountMax(),
 		CloseContext: ctx,
 		CloseCancel:  scx.CancelFunc(),
 	})

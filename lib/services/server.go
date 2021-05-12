@@ -19,6 +19,7 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -38,24 +39,22 @@ const (
 	Different = iota
 )
 
-// Compare compares two provided resources.
-func Compare(a, b Resource) int {
+// CompareServers compares two provided servers.
+func CompareServers(a, b Resource) int {
 	if serverA, ok := a.(Server); ok {
 		if serverB, ok := b.(Server); ok {
-			return CompareServers(serverA, serverB)
+			return compareServers(serverA, serverB)
 		}
 	}
 	if dbA, ok := a.(types.DatabaseServer); ok {
 		if dbB, ok := b.(types.DatabaseServer); ok {
-			return CompareDatabaseServers(dbA, dbB)
+			return compareDatabaseServers(dbA, dbB)
 		}
 	}
 	return Different
 }
 
-// CompareServers returns difference between two server
-// objects, Equal (0) if identical, OnlyTimestampsDifferent(1) if only timestamps differ, Different(2) otherwise
-func CompareServers(a, b Server) int {
+func compareServers(a, b Server) int {
 	if a.GetKind() != b.GetKind() {
 		return Different
 	}
@@ -84,7 +83,7 @@ func CompareServers(a, b Server) int {
 	if !utils.StringMapsEqual(a.GetLabels(), b.GetLabels()) {
 		return Different
 	}
-	if !CmdLabelMapsEqual(a.GetCmdLabels(), b.GetCmdLabels()) {
+	if !cmp.Equal(a.GetCmdLabels(), b.GetCmdLabels()) {
 		return Different
 	}
 	if !a.Expiry().Equal(b.Expiry()) {
@@ -94,58 +93,16 @@ func CompareServers(a, b Server) int {
 		return Different
 	}
 
-	// If this server is proxying applications, compare them to make sure they match.
-	if a.GetKind() == KindAppServer {
-		return CompareApps(a.GetApps(), b.GetApps())
+	if !cmp.Equal(a.GetApps(), b.GetApps()) {
+		return Different
 	}
-
 	if !cmp.Equal(a.GetKubernetesClusters(), b.GetKubernetesClusters()) {
 		return Different
 	}
-
 	return Equal
 }
 
-// CompareApps compares two slices of apps and returns if they are equal or
-// different.
-func CompareApps(a []*App, b []*App) int {
-	if len(a) != len(b) {
-		return Different
-	}
-	for i := range a {
-		if a[i].Name != b[i].Name {
-			return Different
-		}
-		if a[i].URI != b[i].URI {
-			return Different
-		}
-		if a[i].PublicAddr != b[i].PublicAddr {
-			return Different
-		}
-		if !utils.StringMapsEqual(a[i].StaticLabels, b[i].StaticLabels) {
-			return Different
-		}
-		if !CmdLabelMapsEqual(
-			V2ToLabels(a[i].DynamicLabels),
-			V2ToLabels(b[i].DynamicLabels)) {
-			return Different
-		}
-		if (a[i].Rewrite == nil && b[i].Rewrite != nil) ||
-			(a[i].Rewrite != nil && b[i].Rewrite == nil) {
-			return Different
-		}
-		if a[i].Rewrite != nil && b[i].Rewrite != nil {
-			if !utils.StringSlicesEqual(a[i].Rewrite.Redirect, b[i].Rewrite.Redirect) {
-				return Different
-			}
-		}
-	}
-	return Equal
-}
-
-// CompareDatabaseServers returns whether the two provided database servers
-// are equal or different.
-func CompareDatabaseServers(a, b types.DatabaseServer) int {
+func compareDatabaseServers(a, b types.DatabaseServer) int {
 	if a.GetKind() != b.GetKind() {
 		return Different
 	}
@@ -165,7 +122,7 @@ func CompareDatabaseServers(a, b types.DatabaseServer) int {
 	if !utils.StringMapsEqual(a.GetStaticLabels(), b.GetStaticLabels()) {
 		return Different
 	}
-	if !CmdLabelMapsEqual(a.GetDynamicLabels(), b.GetDynamicLabels()) {
+	if !cmp.Equal(a.GetDynamicLabels(), b.GetDynamicLabels()) {
 		return Different
 	}
 	if !a.Expiry().Equal(b.Expiry()) {
@@ -178,24 +135,6 @@ func CompareDatabaseServers(a, b types.DatabaseServer) int {
 		return Different
 	}
 	return Equal
-}
-
-// CmdLabelMapsEqual compares two maps with command labels,
-// returns true if label sets are equal
-func CmdLabelMapsEqual(a, b map[string]CommandLabel) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for key, val := range a {
-		val2, ok := b[key]
-		if !ok {
-			return false
-		}
-		if !val.Equals(val2) {
-			return false
-		}
-	}
-	return true
 }
 
 // CommandLabels is a set of command labels
@@ -288,16 +227,30 @@ const ServerSpecV2Schema = `{
 		  "type": "object",
 		  "additionalProperties": false,
 		  "properties": {
-			  "name": {"type": "string"},
-			  "description": {"type": "string"},
-			  "uri": {"type": "string"},
-			  "public_addr": {"type": "string"},
-			  "insecure_skip_verify": {"type": "boolean"},
-			  "rewrite": {
+			"name": {"type": "string"},
+			"description": {"type": "string"},
+			"uri": {"type": "string"},
+			"public_addr": {"type": "string"},
+			"insecure_skip_verify": {"type": "boolean"},
+			"rewrite": {
 			  "type": "object",
 			  "additionalProperties": false,
 			  "properties": {
-				"redirect": {"type": ["array"], "items": {"type": "string"}}
+			    "redirect": {
+			      "type": ["array", "null"],
+			      "items": {"type": "string"}
+			    },
+			    "headers": {
+			      "type": ["array", "null"],
+			      "items": {
+			        "type": "object",
+			        "additionalProperties": false,
+			        "properties": {
+			          "name": {"type": "string"},
+			          "value": {"type": "string"}
+			        }
+			      }
+			    }
 			  }
 			},
 			"labels": {
@@ -316,7 +269,7 @@ const ServerSpecV2Schema = `{
 				  "additionalProperties": false,
 				  "required": ["command"],
 				  "properties": {
-					  "command": {"type": "array", "items": {"type": "string"}},
+					"command": {"type": "array", "items": {"type": "string"}},
 					"period": {"type": "string"},
 					"result": {"type": "string"}
 				  }
@@ -497,4 +450,10 @@ func MarshalServers(s []Server) ([]byte, error) {
 	}
 
 	return bytes, nil
+}
+
+// NodeHasMissedKeepAlives checks if node has missed its keep alive
+func NodeHasMissedKeepAlives(s Server) bool {
+	serverExpiry := s.Expiry()
+	return serverExpiry.Before(time.Now().Add(defaults.ServerAnnounceTTL - (defaults.ServerKeepAliveTTL * 2)))
 }

@@ -560,7 +560,7 @@ func (a *AuthenticationConfig) Parse() (services.AuthPreference, error) {
 		}
 	}
 
-	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+	ap, err := types.NewAuthPreferenceFromConfigFile(services.AuthPreferenceSpecV2{
 		Type:              a.Type,
 		SecondFactor:      a.SecondFactor,
 		ConnectorName:     a.ConnectorName,
@@ -723,7 +723,7 @@ type Database struct {
 	StaticLabels map[string]string `yaml:"static_labels,omitempty"`
 	// DynamicLabels is a list of database dynamic labels.
 	DynamicLabels []CommandLabel `yaml:"dynamic_labels,omitempty"`
-	// AWS contains AWS specific settings for RDS/Aurora databases.
+	// AWS contains AWS specific settings for RDS/Aurora/Redshift databases.
 	AWS DatabaseAWS `yaml:"aws"`
 	// GCP contains GCP specific settings for Cloud SQL databases.
 	GCP DatabaseGCP `yaml:"gcp"`
@@ -733,6 +733,14 @@ type Database struct {
 type DatabaseAWS struct {
 	// Region is a cloud region for RDS/Aurora database endpoint.
 	Region string `yaml:"region,omitempty"`
+	// Redshift contains Redshift specific settings.
+	Redshift DatabaseAWSRedshift `yaml:"redshift"`
+}
+
+// DatabaseAWSRedshift contains AWS Redshift specific settings.
+type DatabaseAWSRedshift struct {
+	// ClusterID is the Redshift cluster identifier.
+	ClusterID string `yaml:"cluster_id,omitempty"`
 }
 
 // DatabaseGCP contains GCP specific settings for Cloud SQL databases.
@@ -791,6 +799,8 @@ type App struct {
 type Rewrite struct {
 	// Redirect is a list of hosts that should be rewritten to the public address.
 	Redirect []string `yaml:"redirect"`
+	// Headers is a list of extra headers to inject in the request.
+	Headers []string `yaml:"headers,omitempty"`
 }
 
 // Proxy is a `proxy_service` section of the config file:

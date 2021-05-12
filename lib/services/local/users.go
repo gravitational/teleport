@@ -25,6 +25,8 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
@@ -273,7 +275,7 @@ func (s *IdentityService) GetUserByOIDCIdentity(id services.ExternalIdentity) (s
 	}
 	for _, u := range users {
 		for _, uid := range u.GetOIDCIdentities() {
-			if uid.Equals(&id) {
+			if cmp.Equal(uid, &id) {
 				return u, nil
 			}
 		}
@@ -290,7 +292,7 @@ func (s *IdentityService) GetUserBySAMLIdentity(id services.ExternalIdentity) (s
 	}
 	for _, u := range users {
 		for _, uid := range u.GetSAMLIdentities() {
-			if uid.Equals(&id) {
+			if cmp.Equal(uid, &id) {
 				return u, nil
 			}
 		}
@@ -306,7 +308,7 @@ func (s *IdentityService) GetUserByGithubIdentity(id services.ExternalIdentity) 
 	}
 	for _, u := range users {
 		for _, uid := range u.GetGithubIdentities() {
-			if uid.Equals(&id) {
+			if cmp.Equal(uid, &id) {
 				return u, nil
 			}
 		}

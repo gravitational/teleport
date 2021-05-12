@@ -90,6 +90,16 @@ func ValidateAgentKeyOption(supplied string) error {
 	return trace.BadParameter("invalid value %q, must be one of %v", supplied, AllAddKeysOptions)
 }
 
+// AgentForwardingMode  describes how the user key agent will be forwarded
+// to a remote machine, if at all.
+type AgentForwardingMode int
+
+const (
+	ForwardAgentNo AgentForwardingMode = iota
+	ForwardAgentYes
+	ForwardAgentLocal
+)
+
 var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentClient,
 })
@@ -202,7 +212,7 @@ type Config struct {
 	Agent agent.Agent
 
 	// ForwardAgent is used by the client to request agent forwarding from the server.
-	ForwardAgent bool
+	ForwardAgent AgentForwardingMode
 
 	// AuthMethods are used to login into the cluster. If specified, the client will
 	// use them in addition to certs stored in its local agent (from disk)
@@ -1068,7 +1078,7 @@ func (tc *TeleportClient) LoadKeyForClusterWithReissue(ctx context.Context, clus
 		return trace.Wrap(err)
 	}
 	// Reissuing also loads the new key.
-	err = tc.ReissueUserCerts(ctx, ReissueParams{RouteToCluster: clusterName})
+	err = tc.ReissueUserCerts(ctx, CertCacheKeep, ReissueParams{RouteToCluster: clusterName})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1131,14 +1141,14 @@ func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient
 
 // ReissueUserCerts issues new user certs based on params and stores them in
 // the local key agent (usually on disk in ~/.tsh).
-func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, params ReissueParams) error {
+func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, cachePolicy CertCachePolicy, params ReissueParams) error {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
 
-	return proxyClient.ReissueUserCerts(ctx, params)
+	return proxyClient.ReissueUserCerts(ctx, cachePolicy, params)
 }
 
 // IssueUserCertsWithMFA issues a single-use SSH or TLS certificate for
@@ -1157,9 +1167,12 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	}
 	defer proxyClient.Close()
 
-	return proxyClient.IssueUserCertsWithMFA(ctx, params, func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-		return PromptMFAChallenge(ctx, proxyAddr, c, "")
-	})
+	key, err := proxyClient.IssueUserCertsWithMFA(ctx, params,
+		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+			return PromptMFAChallenge(ctx, proxyAddr, c, "")
+		})
+
+	return key, err
 }
 
 // CreateAccessRequest registers a new access request with the auth server.
@@ -1397,7 +1410,7 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 	serverID := session.Parties[0].ServerID
 
 	// find a server address by its ID
-	nodes, err := site.GetNodes(namespace, services.SkipValidation())
+	nodes, err := site.GetNodes(ctx, namespace, services.SkipValidation())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2294,7 +2307,8 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 	// If version checking was requested and the server advertises a minimum version.
 	if tc.CheckVersions && pr.MinClientVersion != "" {
 		if err := utils.CheckVersions(teleport.Version, pr.MinClientVersion); err != nil {
-			return nil, trace.Wrap(err)
+			fmt.Printf("\nWARNING: %v\n", err)
+			fmt.Printf("Future versions of tsh will fail when incompatible versions are detected.\n\n")
 		}
 	}
 

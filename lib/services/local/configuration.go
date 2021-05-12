@@ -19,11 +19,27 @@ package local
 import (
 	"context"
 
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 )
+
+var (
+	clusterNameNotFound = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: teleport.MetricClusterNameNotFound,
+			Help: "Number of times a cluster name was not found",
+		},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(clusterNameNotFound)
+}
 
 // ClusterConfigurationService is responsible for managing cluster configuration.
 type ClusterConfigurationService struct {
@@ -42,6 +58,7 @@ func (s *ClusterConfigurationService) GetClusterName(opts ...services.MarshalOpt
 	item, err := s.Get(context.TODO(), backend.Key(clusterConfigPrefix, namePrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
+			clusterNameNotFound.Inc()
 			return nil, trace.NotFound("cluster name not found")
 		}
 		return nil, trace.Wrap(err)
@@ -222,6 +239,28 @@ func (s *ClusterConfigurationService) DeleteClusterConfig() error {
 
 // SetClusterConfig sets services.ClusterConfig on the backend.
 func (s *ClusterConfigurationService) SetClusterConfig(c services.ClusterConfig) error {
+	// For backwards compatibility, update the supplied ClusterConfig with the
+	// networking values that are now stored in the ClusterNetworkingConfig
+	// resource, or vice versa.
+	// DELETE IN 8.0.0
+	if c.HasNetworkingConfig() {
+		netConfig, err := c.GetNetworkingConfig()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := s.SetClusterNetworkingConfig(context.TODO(), netConfig); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		netConfig, err := s.GetClusterNetworkingConfig(context.TODO(), services.SkipValidation())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := c.SetNetworkingConfig(netConfig); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	value, err := services.MarshalClusterConfig(c)
 	if err != nil {
 		return trace.Wrap(err)
@@ -241,6 +280,52 @@ func (s *ClusterConfigurationService) SetClusterConfig(c services.ClusterConfig)
 	return nil
 }
 
+// GetClusterNetworkingConfig fetches the cluster networking config
+// from the backend and return them.
+func (s *ClusterConfigurationService) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, networkingPrefix))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("cluster networking config not found")
+		}
+		return nil, trace.Wrap(err)
+	}
+	return services.UnmarshalClusterNetworkingConfig(item.Value, append(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
+}
+
+// SetClusterNetworkingConfig sets the cluster networking config
+// on the backend.
+func (s *ClusterConfigurationService) SetClusterNetworkingConfig(ctx context.Context, netConfig types.ClusterNetworkingConfig) error {
+	value, err := services.MarshalClusterNetworkingConfig(netConfig)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:   backend.Key(clusterConfigPrefix, networkingPrefix),
+		Value: value,
+		ID:    netConfig.GetResourceID(),
+	}
+
+	_, err = s.Put(ctx, item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// DeleteClusterNetworkingConfig deletes ClusterNetworkingConfig from the backend.
+func (s *ClusterConfigurationService) DeleteClusterNetworkingConfig(ctx context.Context) error {
+	err := s.Delete(ctx, backend.Key(clusterConfigPrefix, networkingPrefix))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("cluster networking config not found")
+		}
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 const (
 	clusterConfigPrefix = "cluster_configuration"
 	namePrefix          = "name"
@@ -248,4 +333,5 @@ const (
 	authPrefix          = "authentication"
 	preferencePrefix    = "preference"
 	generalPrefix       = "general"
+	networkingPrefix    = "networking"
 )
