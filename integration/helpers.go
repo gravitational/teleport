@@ -1162,6 +1162,11 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		sshProxyAddr = net.JoinHostPort(proxyHost, strconv.Itoa(cfg.Proxy.SSHPort))
 	}
 
+	fwdAgentMode := client.ForwardAgentNo
+	if cfg.ForwardAgent {
+		fwdAgentMode = client.ForwardAgentYes
+	}
+
 	cconf := &client.Config{
 		Username:           cfg.Login,
 		Host:               cfg.Host,
@@ -1170,7 +1175,7 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		InsecureSkipVerify: true,
 		KeysDir:            keyDir,
 		SiteName:           cfg.Cluster,
-		ForwardAgent:       cfg.ForwardAgent,
+		ForwardAgent:       fwdAgentMode,
 		Labels:             cfg.Labels,
 		WebProxyAddr:       webProxyAddr,
 		SSHProxyAddr:       sshProxyAddr,

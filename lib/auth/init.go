@@ -137,6 +137,9 @@ type InitConfig struct {
 	// ClusterConfig holds cluster level configuration.
 	ClusterConfig services.ClusterConfig
 
+	// ClusterNetworkingConfig holds cluster networking configuration.
+	ClusterNetworkingConfig types.ClusterNetworkingConfig
+
 	// SkipPeriodicOperations turns off periodic operations
 	// used in tests that don't need periodc operations.
 	SkipPeriodicOperations bool
@@ -231,6 +234,11 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 		log.Infof("Created reverse tunnel: %v.", tunnel)
+	}
+
+	err = asrv.SetClusterNetworkingConfig(ctx, cfg.ClusterNetworkingConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// set cluster level config on the backend and then force a sync of the cache.
