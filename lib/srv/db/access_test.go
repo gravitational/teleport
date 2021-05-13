@@ -267,7 +267,7 @@ func TestAccessDisabled(t *testing.T) {
 	// Try to connect to the database as this user.
 	_, err := testCtx.postgresClient(ctx, userName, "postgres", dbUser, dbName)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "this Teleport cluster doesn't support database access")
+	require.Contains(t, err.Error(), "this Teleport cluster is not licensed for database access")
 }
 
 type testContext struct {
