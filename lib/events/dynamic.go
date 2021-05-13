@@ -17,6 +17,7 @@ limitations under the License.
 package events
 
 import (
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
@@ -29,7 +30,317 @@ import (
 // This is mainly used to convert from the backend format used by
 // our various event backends.
 func FromEventFields(fields EventFields) (AuditEvent, error) {
-	panic("unimplemented")
+	data, err := json.Marshal(fields)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	eventType := fields.GetString(EventType)
+
+	switch eventType {
+	case SessionPrintEvent:
+		var e events.SessionPrint
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case SessionStartEvent:
+		var e events.SessionStart
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case SessionEndEvent:
+		var e events.SessionEnd
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case SessionUploadEvent:
+		var e events.SessionUpload
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case SessionJoinEvent:
+		var e events.SessionJoin
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case SessionLeaveEvent:
+		var e events.SessionLeave
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case SessionDataEvent:
+		var e events.SessionData
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case ClientDisconnectEvent:
+		var e events.ClientDisconnect
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case UserLoginEvent:
+		var e events.UserLogin
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case UserDeleteEvent:
+		var e events.UserDelete
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case UserCreateEvent:
+		var e events.UserCreate
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case UserPasswordChangeEvent:
+		var e events.UserPasswordChange
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case AccessRequestCreateEvent:
+		var e events.AccessRequestCreate
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case AccessRequestUpdateEvent:
+		var e events.AccessRequestCreate
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case BillingCardCreateEvent:
+		var e events.BillingCardCreate
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case BillingCardUpdateEvent:
+		var e events.BillingCardCreate
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case BillingCardDeleteEvent:
+		var e events.BillingCardDelete
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case BillingInformationUpdateEvent:
+		var e events.BillingInformationUpdate
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case ResetPasswordTokenCreateEvent:
+		var e events.ResetPasswordTokenCreate
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case ExecEvent:
+		var e events.Exec
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case SubsystemEvent:
+		var e events.Subsystem
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case X11ForwardEvent:
+		var e events.X11Forward
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case PortForwardEvent:
+		var e events.PortForward
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case AuthAttemptEvent:
+		var e events.AuthAttempt
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case SCPEvent:
+		var e events.SCP
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case ResizeEvent:
+		var e events.Resize
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case SessionCommandEvent:
+		var e events.SessionCommand
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case SessionDiskEvent:
+		var e events.SessionDisk
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case SessionNetworkEvent:
+		var e events.SessionNetwork
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case RoleCreatedEvent:
+		var e events.RoleCreate
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case RoleDeletedEvent:
+		var e events.RoleDelete
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case TrustedClusterCreateEvent:
+		var e events.TrustedClusterCreate
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case TrustedClusterDeleteEvent:
+		var e events.TrustedClusterDelete
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case TrustedClusterTokenCreateEvent:
+		var e events.TrustedClusterTokenCreate
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case GithubConnectorCreatedEvent:
+		var e events.GithubConnectorCreate
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case GithubConnectorDeletedEvent:
+		var e events.GithubConnectorDelete
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case OIDCConnectorCreatedEvent:
+		var e events.OIDCConnectorCreate
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case OIDCConnectorDeletedEvent:
+		var e events.OIDCConnectorDelete
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case SAMLConnectorCreatedEvent:
+		var e events.SAMLConnectorCreate
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case SAMLConnectorDeletedEvent:
+		var e events.SAMLConnectorDelete
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case SessionRejectedEvent:
+		var e events.SessionReject
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case AppSessionStartEvent:
+		var e events.AppSessionStart
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case AppSessionChunkEvent:
+		var e events.AppSessionChunk
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case AppSessionRequestEvent:
+		var e events.AppSessionRequest
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case DatabaseSessionStartEvent:
+		var e events.DatabaseSessionStart
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case DatabaseSessionEndEvent:
+		var e events.DatabaseSessionEnd
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case DatabaseSessionQueryEvent:
+		var e events.DatabaseSessionQuery
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case KubeRequestEvent:
+		var e events.KubeRequest
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case MFADeviceAddEvent:
+		var e events.MFADeviceAdd
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case MFADeviceDeleteEvent:
+		var e events.MFADeviceDelete
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	default:
+		return nil, trace.BadParameter("unknown event type: %v", eventType)
+	}
 }
 
 // GetSessionID pulls the session ID from the events that have a
