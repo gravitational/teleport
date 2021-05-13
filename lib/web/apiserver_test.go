@@ -1936,7 +1936,7 @@ func TestApplicationAccessDisabled(t *testing.T) {
 		ClusterName: "localhost",
 	})
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "this Teleport cluster doesn't support application access")
+	require.Contains(t, err.Error(), "this Teleport cluster is not licensed for application access")
 }
 
 // TestCreateAppSession verifies that an existing session to the Web UI can
