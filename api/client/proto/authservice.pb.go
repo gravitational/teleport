@@ -69,11 +69,22 @@ func (Operation) EnumDescriptor() ([]byte, []int) {
 type UserCertsRequest_CertUsage int32
 
 const (
-	UserCertsRequest_All        UserCertsRequest_CertUsage = 0
-	UserCertsRequest_SSH        UserCertsRequest_CertUsage = 1
+	// All means a request for both SSH and TLS certificates for the
+	// overall user session. These certificates are not specific to any SSH
+	// node, Kubernetes cluster, database or web app.
+	UserCertsRequest_All UserCertsRequest_CertUsage = 0
+	// SSH means a request for an SSH certificate for access to a specific
+	// SSH node, as specified by NodeName.
+	UserCertsRequest_SSH UserCertsRequest_CertUsage = 1
+	// Kubernetes means a request for a TLS certificate for access to a
+	// specific Kubernetes cluster, as specified by KubernetesCluster.
 	UserCertsRequest_Kubernetes UserCertsRequest_CertUsage = 2
-	UserCertsRequest_Database   UserCertsRequest_CertUsage = 3
-	UserCertsRequest_App        UserCertsRequest_CertUsage = 4
+	// Database means a request for a TLS certificate for access to a
+	// specific database, as specified by RouteToDatabase.
+	UserCertsRequest_Database UserCertsRequest_CertUsage = 3
+	// App means a request for a TLS certificate for access to a specific
+	// web app, as specified by RouteToApp.
+	UserCertsRequest_App UserCertsRequest_CertUsage = 4
 )
 
 var UserCertsRequest_CertUsage_name = map[int32]string{

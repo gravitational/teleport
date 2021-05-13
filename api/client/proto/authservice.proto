@@ -149,10 +149,21 @@ message UserCertsRequest {
     string NodeName = 9 [ (gogoproto.jsontag) = "node_name,omitempty" ];
 
     enum CertUsage {
+        // All means a request for both SSH and TLS certificates for the
+        // overall user session. These certificates are not specific to any SSH
+        // node, Kubernetes cluster, database or web app.
         All = 0;
+        // SSH means a request for an SSH certificate for access to a specific
+        // SSH node, as specified by NodeName.
         SSH = 1;
+        // Kubernetes means a request for a TLS certificate for access to a
+        // specific Kubernetes cluster, as specified by KubernetesCluster.
         Kubernetes = 2;
+        // Database means a request for a TLS certificate for access to a
+        // specific database, as specified by RouteToDatabase.
         Database = 3;
+        // App means a request for a TLS certificate for access to a specific
+        // web app, as specified by RouteToApp.
         App = 4;
     }
     // CertUsage limits the resulting user certificate to a single protocol.
