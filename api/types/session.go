@@ -57,12 +57,8 @@ type WebSession interface {
 	Resource
 	// GetShortName returns visible short name used in logging
 	GetShortName() string
-	// GetName returns session name
-	GetName() string
 	// GetUser returns the user this session is associated with
 	GetUser() string
-	// SetName sets session name
-	SetName(string)
 	// SetUser sets user associated with this session
 	SetUser(string)
 	// GetPub is returns public certificate signed by auth server
@@ -88,12 +84,8 @@ type WebSession interface {
 	SetLoginTime(time.Time)
 	// WithoutSecrets returns copy of the web session but without private keys
 	WithoutSecrets() WebSession
-	// CheckAndSetDefaults checks and set default values for any missing fields.
-	CheckAndSetDefaults() error
 	// String returns string representation of the session.
 	String() string
-	// Expiry is the expiration time for this resource.
-	Expiry() time.Time
 }
 
 // NewWebSession returns new instance of the web session based on the V2 spec
@@ -356,8 +348,6 @@ type WebToken interface {
 	// Resource represents common properties for all resources.
 	Resource
 
-	// CheckAndSetDefaults checks and set default values for any missing fields.
-	CheckAndSetDefaults() error
 	// GetToken returns the token value
 	GetToken() string
 	// SetToken sets the token value

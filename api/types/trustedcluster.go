@@ -62,8 +62,6 @@ type TrustedCluster interface {
 	GetReverseTunnelAddress() string
 	// SetReverseTunnelAddress sets the address of the reverse tunnel.
 	SetReverseTunnelAddress(string)
-	// CheckAndSetDefaults checks and set default values for missing fields.
-	CheckAndSetDefaults() error
 	// CanChangeStateTo checks the TrustedCluster can transform into another.
 	CanChangeStateTo(TrustedCluster) error
 }
