@@ -24,6 +24,7 @@ import (
 	"io"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -31,8 +32,10 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
@@ -40,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 )
 
@@ -69,6 +73,10 @@ type ProxyServerConfig struct {
 	Tunnel reversetunnel.Server
 	// TLSConfig is the proxy server TLS configuration.
 	TLSConfig *tls.Config
+	// Audit Event emitter.
+	Emitter events.Emitter
+	// Clock to override clock in tests.
+	Clock clockwork.Clock
 }
 
 // CheckAndSetDefaults validates the config and sets default values.
@@ -87,6 +95,9 @@ func (c *ProxyServerConfig) CheckAndSetDefaults() error {
 	}
 	if c.TLSConfig == nil {
 		return trace.BadParameter("missing TLSConfig")
+	}
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
 	}
 	return nil
 }
@@ -210,49 +221,56 @@ func (s *ProxyServer) mysqlProxy() *mysql.Proxy {
 // decoded from the client certificate by auth.Middleware.
 //
 // Implements common.Service.
-func (s *ProxyServer) Connect(ctx context.Context, user, database string) (net.Conn, error) {
-	authContext, err := s.authorize(ctx, user, database)
+func (s *ProxyServer) Connect(ctx context.Context, user, database string) (net.Conn, *auth.Context, error) {
+	proxyContext, err := s.authorize(ctx, user, database)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
-	tlsConfig, err := s.getConfigForServer(ctx, authContext.identity, authContext.server)
+	tlsConfig, err := s.getConfigForServer(ctx, proxyContext.identity, proxyContext.server)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
-	serviceConn, err := authContext.cluster.Dial(reversetunnel.DialParams{
+	serviceConn, err := proxyContext.cluster.Dial(reversetunnel.DialParams{
 		From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: "@db-proxy"},
 		To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
-		ServerID: fmt.Sprintf("%v.%v", authContext.server.GetHostID(), authContext.cluster.GetName()),
+		ServerID: fmt.Sprintf("%v.%v", proxyContext.server.GetHostID(), proxyContext.cluster.GetName()),
 		ConnType: types.DatabaseTunnel,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	// Upgrade the connection so the client identity can be passed to the
 	// remote server during TLS handshake. On the remote side, the connection
 	// received from the reverse tunnel will be handled by tls.Server.
 	serviceConn = tls.Client(serviceConn, tlsConfig)
-	return serviceConn, nil
+	return serviceConn, proxyContext.authContext, nil
 }
 
 // Proxy starts proxying all traffic received from database client between
 // this proxy and Teleport database service over reverse tunnel.
 //
 // Implements common.Service.
-func (s *ProxyServer) Proxy(ctx context.Context, clientConn, serviceConn io.ReadWriteCloser) error {
+func (s *ProxyServer) Proxy(ctx context.Context, authContext *auth.Context, clientConn net.Conn, serviceConn io.ReadWriteCloser) error {
+	tc, err := s.monitorConn(ctx, authContext, clientConn)
+	if err != nil {
+		clientConn.Close()
+		serviceConn.Close()
+		return trace.Wrap(err)
+	}
+
 	errCh := make(chan error, 2)
 	go func() {
 		defer s.log.Debug("Stop proxying from client to service.")
 		defer serviceConn.Close()
-		defer clientConn.Close()
-		_, err := io.Copy(serviceConn, clientConn)
+		defer tc.Close()
+		_, err := io.Copy(serviceConn, tc)
 		errCh <- err
 	}()
 	go func() {
 		defer s.log.Debug("Stop proxying from service to client.")
 		defer serviceConn.Close()
-		defer clientConn.Close()
-		_, err := io.Copy(clientConn, serviceConn)
+		defer tc.Close()
+		_, err := io.Copy(tc, serviceConn)
 		errCh <- err
 	}()
 	var errs []error
@@ -270,6 +288,57 @@ func (s *ProxyServer) Proxy(ctx context.Context, clientConn, serviceConn io.Read
 	return trace.NewAggregate(errs...)
 }
 
+func (s *ProxyServer) monitorConn(ctx context.Context, authContext *auth.Context, conn net.Conn) (net.Conn, error) {
+	checker := authContext.Checker
+	certExpires := authContext.Identity.GetIdentity().Expires
+
+	clusterConfig, err := s.cfg.AuthClient.GetClusterConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	netConfig, err := s.cfg.AuthClient.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var disconnectCertExpired time.Time
+	if !certExpires.IsZero() && checker.AdjustDisconnectExpiredCert(clusterConfig.GetDisconnectExpiredCert()) {
+		disconnectCertExpired = certExpires
+	}
+
+	idleTimeout := authContext.Checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
+	if disconnectCertExpired.IsZero() && idleTimeout == 0 {
+		return conn, nil
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	tc := &srv.TrackingReadConn{
+		Conn:   conn,
+		Clock:  clockwork.NewRealClock(),
+		Ctx:    ctx,
+		Cancel: cancel,
+	}
+
+	mon, err := srv.NewMonitor(srv.MonitorConfig{
+		DisconnectExpiredCert: disconnectCertExpired,
+		ClientIdleTimeout:     idleTimeout,
+		Conn:                  tc,
+		Tracker:               tc,
+		Context:               ctx,
+		Clock:                 s.cfg.Clock,
+		ServerID:              string(teleport.RoleProxy),
+		TeleportUser:          authContext.User.GetName(),
+		Emitter:               s.cfg.Emitter,
+		Entry:                 s.log,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	go mon.Start()
+	return tc, nil
+}
+
 // proxyContext contains parameters for a database session being proxied.
 type proxyContext struct {
 	// identity is the authorized client identity.
@@ -278,6 +347,8 @@ type proxyContext struct {
 	cluster reversetunnel.RemoteSite
 	// server is a database server that has the requested database.
 	server types.DatabaseServer
+	// authContext is a context of authenticated user.
+	authContext *auth.Context
 }
 
 func (s *ProxyServer) authorize(ctx context.Context, user, database string) (*proxyContext, error) {
@@ -294,9 +365,10 @@ func (s *ProxyServer) authorize(ctx context.Context, user, database string) (*pr
 	}
 	s.log.Debugf("Will proxy to database %q on server %s.", server.GetName(), server)
 	return &proxyContext{
-		identity: identity,
-		cluster:  cluster,
-		server:   server,
+		identity:    identity,
+		cluster:     cluster,
+		server:      server,
+		authContext: authContext,
 	}, nil
 }
 

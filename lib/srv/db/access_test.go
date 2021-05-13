@@ -287,6 +287,8 @@ type testContext struct {
 	postgres map[string]testPostgres
 	// mysql is a collection of MySQL databases the test uses.
 	mysql map[string]testMySQL
+	// clock to override clock in tests.
+	clock clockwork.FakeClock
 }
 
 // testPostgres represents a single proxied Postgres database.
@@ -399,6 +401,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		hostID:      uuid.New(),
 		postgres:    make(map[string]testPostgres),
 		mysql:       make(map[string]testMySQL),
+		clock:       clockwork.NewFakeClockAt(time.Now()),
 	}
 	t.Cleanup(func() { testCtx.Close() })
 
@@ -431,6 +434,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	clusterConfig, err := authServer.AuthServer.GetClusterConfig()
 	require.NoError(t, err)
 	clusterConfig.SetSessionRecording(types.RecordAtNodeSync)
+
 	err = authServer.AuthServer.SetClusterConfig(clusterConfig)
 	require.NoError(t, err)
 
@@ -472,6 +476,9 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		},
 	}
 
+	// Create test audit events emitter.
+	testCtx.emitter = newTestEmitter()
+
 	// Create database proxy server.
 	testCtx.proxyServer, err = NewProxyServer(ctx, ProxyServerConfig{
 		AuthClient:  proxyAuthClient,
@@ -479,11 +486,10 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		Authorizer:  proxyAuthorizer,
 		Tunnel:      tunnel,
 		TLSConfig:   tlsConfig,
+		Emitter:     testCtx.emitter,
+		Clock:       testCtx.clock,
 	})
 	require.NoError(t, err)
-
-	// Create test audit events emitter.
-	testCtx.emitter = newTestEmitter()
 
 	// Unauthenticated GCP IAM client so we don't try to initialize a real one.
 	gcpIAM, err := gcpcredentials.NewIamCredentialsClient(ctx,

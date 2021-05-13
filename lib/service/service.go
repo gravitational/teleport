@@ -2809,6 +2809,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Authorizer:  authorizer,
 				Tunnel:      tsrv,
 				TLSConfig:   tlsConfig,
+				Emitter:     asyncEmitter,
 			})
 		if err != nil {
 			return trace.Wrap(err)
