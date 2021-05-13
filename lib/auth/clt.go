@@ -1733,7 +1733,7 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateResetPa
 
 // GetAppServers gets all application servers.
 func (c *Client) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
-	resp, err := c.APIClient.GetAppServers(ctx, namespace, false)
+	resp, err := c.APIClient.GetAppServers(ctx, namespace)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -1743,7 +1743,7 @@ func (c *Client) GetAppServers(ctx context.Context, namespace string, opts ...se
 
 // GetDatabaseServers returns all registered database proxy servers.
 func (c *Client) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
-	resp, err := c.APIClient.GetDatabaseServers(ctx, namespace, false)
+	resp, err := c.APIClient.GetDatabaseServers(ctx, namespace)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
