@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -1450,13 +1451,14 @@ func (s *IntSuite) twoClustersTunnel(c *check.C, now time.Time, proxyRecordMode 
 
 	// The known_hosts file should have two certificates, the way bytes.Split
 	// works that means the output will be 3 (2 certs + 1 empty).
-	buffer, err := ioutil.ReadFile(filepath.Join(tc.KeysDir, "known_hosts"))
+	buffer, err := ioutil.ReadFile(keypaths.KnownHostsPath(tc.KeysDir))
 	c.Assert(err, check.IsNil)
 	parts := bytes.Split(buffer, []byte("\n"))
 	c.Assert(parts, check.HasLen, 3)
 
 	// The certs.pem file should have 2 certificates.
-	buffer, err = ioutil.ReadFile(filepath.Join(tc.KeysDir, "keys", Host, "certs.pem"))
+
+	buffer, err = ioutil.ReadFile(keypaths.TLSCAsPath(tc.KeysDir, Host))
 	c.Assert(err, check.IsNil)
 	roots := x509.NewCertPool()
 	ok := roots.AppendCertsFromPEM(buffer)
