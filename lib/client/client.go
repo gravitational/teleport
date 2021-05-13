@@ -153,14 +153,25 @@ type ReissueParams struct {
 func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
 	switch {
 	case p.NodeName != "":
+		// SSH means a request for an SSH certificate for access to a specific
+		// SSH node, as specified by NodeName.
 		return proto.UserCertsRequest_SSH
 	case p.KubernetesCluster != "":
+		// Kubernetes means a request for a TLS certificate for access to a
+		// specific Kubernetes cluster, as specified by KubernetesCluster.
 		return proto.UserCertsRequest_Kubernetes
 	case p.RouteToDatabase.ServiceName != "":
+		// Database means a request for a TLS certificate for access to a
+		// specific database, as specified by RouteToDatabase.
 		return proto.UserCertsRequest_Database
 	case p.RouteToApp.Name != "":
+		// App means a request for a TLS certificate for access to a specific
+		// web app, as specified by RouteToApp.
 		return proto.UserCertsRequest_App
 	default:
+		// All means a request for both SSH and TLS certificates for the
+		// overall user session. These certificates are not specific to any SSH
+		// node, Kubernetes cluster, database or web app.
 		return proto.UserCertsRequest_All
 	}
 }
@@ -252,7 +263,9 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, cachePolicy Cert
 
 	key.ClusterName = params.RouteToCluster
 
-	// Only update the parts of key that match the usage.
+	// Only update the parts of key that match the usage. See the docs on
+	// proto.UserCertsRequest_CertUsage for which certificates match which
+	// usage.
 	//
 	// This prevents us from overwriting the top-level key.TLSCert with
 	// usage-restricted certificates.
