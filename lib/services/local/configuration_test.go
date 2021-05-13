@@ -66,8 +66,11 @@ func (s *ClusterConfigurationSuite) TestClusterConfig(c *check.C) {
 }
 
 func (s *ClusterConfigurationSuite) TestClusterNetworkingConfig(c *check.C) {
+	clusterConfig, err := NewClusterConfigurationService(s.bk)
+	c.Assert(err, check.IsNil)
+
 	suite := &suite.ServicesTestSuite{
-		ConfigS: NewClusterConfigurationService(s.bk),
+		ConfigS: clusterConfig,
 	}
 	suite.ClusterNetworkingConfig(c)
 }
