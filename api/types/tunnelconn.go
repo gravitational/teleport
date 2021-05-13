@@ -46,8 +46,6 @@ type TunnelConnection interface {
 	SetType(TunnelType)
 	// Check checks tunnel for errors
 	Check() error
-	// CheckAndSetDefaults checks and set default values for any missing fields.
-	CheckAndSetDefaults() error
 	// String returns user friendly representation of this connection
 	String() string
 	// Clone returns a copy of this tunnel connection

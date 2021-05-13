@@ -90,9 +90,6 @@ type AccessRequest interface {
 	GetSuggestedReviewers() []string
 	// SetSuggestedReviewers sets the suggested reviewer list.
 	SetSuggestedReviewers([]string)
-	// CheckAndSetDefaults validates the access request and
-	// supplies default values where appropriate.
-	CheckAndSetDefaults() error
 }
 
 // NewAccessRequest assembled an AccessRequest resource.
