@@ -19,7 +19,9 @@ limitations under the License.
 package modules
 
 import (
+	"crypto/sha256"
 	"fmt"
+	"reflect"
 	"runtime"
 	"sync"
 
@@ -116,8 +118,13 @@ func (p *defaultModules) Features() Features {
 	}
 }
 
-// (p *defaultModules) IsBoringBinary() implemented in the appropriate
-// is_boring_binary_(fips|non_fips).go file
+func (p *defaultModules) IsBoringBinary() bool {
+	// Check the package name for one of the boring primitives, if the package
+	// path is from BoringCrypto, we know this binary was compiled against the
+	// dev.boringcrypto branch of Go.
+	hash := sha256.New()
+	return reflect.TypeOf(hash).Elem().PkgPath() == "crypto/internal/boring"
+}
 
 var (
 	mutex   sync.Mutex
