@@ -267,7 +267,10 @@ func (l *FileLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, start
 	for i := range events {
 		event := events[i]
 		eventType := event.GetType()
-		sessionID := GetSessionID(event)
+		sessionID, err := GetSessionID(event)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
 		if sessionID == "" {
 			continue
 		}
