@@ -80,7 +80,7 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequest) (*proto.DatabaseCSRResponse, error) {
 	if !modules.GetModules().Features().DB {
 		return nil, trace.AccessDenied(
-			"this Teleport cluster doesn't support database access, please contact the cluster administrator")
+			"this Teleport cluster isn't license for database access, please contact the cluster administrator")
 	}
 
 	log.Debugf("Signing database CSR for cluster %v.", req.ClusterName)
