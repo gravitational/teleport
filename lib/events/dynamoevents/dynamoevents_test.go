@@ -85,7 +85,7 @@ func (s *DynamoeventsSuite) SetUpTest(c *check.C) {
 }
 
 func (s *DynamoeventsSuite) TestPagination(c *check.C) {
-	s.TestPagination(c)
+	s.EventPagination(c)
 }
 
 func (s *DynamoeventsSuite) TestSessionEventsCRUD(c *check.C) {

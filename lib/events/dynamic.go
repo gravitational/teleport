@@ -355,7 +355,7 @@ func GetSessionID(event AuditEvent) (string, error) {
 }
 
 // ToEventFields converts from the typed interface-style event representation
-// to the old dynamic map style representation in order to provide outer compatability
+// to the old dynamic map style representation in order to provide outer compatibility
 // with existing public API routes when the backend is updated with the typed events.
 func ToEventFields(event AuditEvent) (EventFields, error) {
 	encoded, err := utils.FastMarshal(event)
