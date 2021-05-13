@@ -216,6 +216,12 @@ message ServerV2 {
     ServerSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
+// ServerV2List is a list of servers.
+message ServerV2List {
+    // Servers is a list of servers.
+    repeated ServerV2 Servers = 1;
+}
+
 // ServerSpecV2 is a specification for V2 Server
 message ServerSpecV2 {
     reserved 8;
@@ -276,7 +282,18 @@ message App {
 message Rewrite {
     // Redirect defines a list of hosts which will be rewritten to the public
     // address of the application if they occur in the "Location" header.
-    repeated string Redirect = 1 [ (gogoproto.jsontag) = "redirect" ];
+    repeated string Redirect = 1 [ (gogoproto.jsontag) = "redirect,omitempty" ];
+    // Headers is a list of headers to inject when passing the request over
+    // to the application.
+    repeated Header Headers = 2 [ (gogoproto.jsontag) = "headers,omitempty" ];
+}
+
+// Header represents a single http header passed over to the proxied application.
+message Header {
+    // Name is the http header name.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+    // Value is the http header value.
+    string Value = 2 [ (gogoproto.jsontag) = "value" ];
 }
 
 // CommandLabelV2 is a label that has a value as a result of the
@@ -414,7 +431,7 @@ message ProvisionTokenV2 {
 // ProvisionTokenV2List is a list of provisioning tokens.
 message ProvisionTokenV2List {
     // ProvisionTokens is a list of provisioning tokens.
-    repeated types.ProvisionTokenV2 ProvisionTokens = 1;
+    repeated ProvisionTokenV2 ProvisionTokens = 1;
 }
 
 // ProvisionTokenSpecV2 is a specification for V2 token
@@ -1767,6 +1784,20 @@ message ResourcesWithSecretsRequest {
     bool WithSecrets = 1 [ (gogoproto.jsontag) = "with_secrets,omitempty" ];
 }
 
+// ResourcesInNamespaceRequest is a request relating to a named resource in the given namespace.
+message ResourceInNamespaceRequest {
+    // Name is the name of the resource.
+    string Name = 1;
+    // Namespace is the namespace of resources.
+    string Namespace = 2;
+}
+
+// ResourcesInNamespaceRequest is a request relating to resources in the given namespace.
+message ResourcesInNamespaceRequest {
+    // Namespace is the namespace of resources.
+    string Namespace = 1;
+}
+
 // OIDCConnectorV2 represents an OIDC connector.
 message OIDCConnectorV2 {
     // Kind is a resource kind.
@@ -1784,7 +1815,7 @@ message OIDCConnectorV2 {
 // OIDCConnectorV2List is a list of OIDC connectors.
 message OIDCConnectorV2List {
     // OIDCConnectors is a list of OIDC connectors.
-    repeated types.OIDCConnectorV2 OIDCConnectors = 1;
+    repeated OIDCConnectorV2 OIDCConnectors = 1;
 }
 
 // OIDCConnectorSpecV2 is an OIDC connector specification.
@@ -1843,7 +1874,7 @@ message SAMLConnectorV2 {
 // SAMLConnectorV2List is a list of SAML connectors.
 message SAMLConnectorV2List {
     // SAMLConnectors is a list of SAML connectors.
-    repeated types.SAMLConnectorV2 SAMLConnectors = 1;
+    repeated SAMLConnectorV2 SAMLConnectors = 1;
 }
 
 // SAMLConnectorSpecV2 is a SAML connector specification.
@@ -1918,7 +1949,7 @@ message GithubConnectorV3 {
 // GithubConnectorV3List is a list of Github connectors.
 message GithubConnectorV3List {
     // GithubConnectors is a list of Github connectors.
-    repeated types.GithubConnectorV3 GithubConnectors = 1;
+    repeated GithubConnectorV3 GithubConnectors = 1;
 }
 
 // GithubConnectorSpecV3 is a Github connector specification.
@@ -1968,7 +1999,7 @@ message TrustedClusterV2 {
 // TrustedClusterV2List is a list of trusted cluster.
 message TrustedClusterV2List {
     // TrustedClusters is a list of trusted cluster.
-    repeated types.TrustedClusterV2 TrustedClusters = 1;
+    repeated TrustedClusterV2 TrustedClusters = 1;
 }
 
 // TrustedClusterSpecV2 is a Trusted Cluster specification.
