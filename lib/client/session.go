@@ -208,13 +208,13 @@ func (ns *NodeSession) createServerSession() (*ssh.Session, error) {
 func selectKeyAgent(tc *TeleportClient) agent.Agent {
 	switch tc.ForwardAgent {
 	case ForwardAgentYes:
-		log.Debugf("Selecting System Key Agent")
+		log.Debugf("Selecting system key agent.")
 		return tc.localAgent.sshAgent
 	case ForwardAgentLocal:
-		log.Debugf("Selecting local Teleport Key Agent")
+		log.Debugf("Selecting local Teleport key agent.")
 		return tc.localAgent.Agent
 	default:
-		log.Debugf("No Key Agent selected")
+		log.Debugf("No Key Agent selected.")
 		return nil
 	}
 }
