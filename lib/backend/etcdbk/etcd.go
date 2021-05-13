@@ -108,6 +108,11 @@ var (
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
 		},
 	)
+
+	prometheusCollectors = []prometheus.Collector{
+		writeLatencies, txLatencies, batchReadLatencies,
+		readLatencies, writeRequests, txRequests, batchReadRequests, readRequests,
+	}
 )
 
 type EtcdBackend struct {
@@ -169,10 +174,7 @@ var _ backend.Backend = &EtcdBackend{}
 
 // New returns new instance of Etcd-powered backend
 func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
-	var err error
-
-	err = utils.RegisterPrometheusCollectors(writeLatencies, txLatencies, batchReadLatencies,
-		readLatencies, writeRequests, txRequests, batchReadRequests, readRequests)
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

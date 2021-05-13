@@ -52,13 +52,12 @@ var (
 			Help: "Number of times there was a certificate mismatch",
 		},
 	)
+
+	prometheusCollectors = []prometheus.Collector{failedLoginCount, certificateMismatchCount}
 )
 
-// AuthHandlers are common authorization and authentication related handlers
-// used by the regular and forwarding server.
-type AuthHandlers struct {
-	*log.Entry
-
+// HandlerConfig is the configuration for an application handler.
+type AuthHandlerConfig struct {
 	// Server is the services.Server in the backend.
 	Server Server
 
@@ -81,31 +80,27 @@ type AuthHandlers struct {
 	Clock clockwork.Clock
 }
 
+// AuthHandlers are common authorization and authentication related handlers
+// used by the regular and forwarding server.
+type AuthHandlers struct {
+	*log.Entry
+
+	c *AuthHandlerConfig
+}
+
 // NewAuthHandlers initializes authorization and authentication handlers
-func NewAuthHandlers(
-	server Server,
-	component string,
-	accessPoint auth.AccessPoint,
-	fips bool,
-	emitter events.Emitter,
-	clock clockwork.Clock,
-) (*AuthHandlers, error) {
-	err := utils.RegisterPrometheusCollectors(failedLoginCount, certificateMismatchCount)
+func NewAuthHandlers(config *AuthHandlerConfig) (*AuthHandlers, error) {
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &AuthHandlers{
+		c: config,
 		Entry: log.WithFields(log.Fields{
-			trace.Component:       component,
+			trace.Component:       config.Component,
 			trace.ComponentFields: log.Fields{},
 		}),
-		Server:      server,
-		Component:   component,
-		AccessPoint: accessPoint,
-		FIPS:        fips,
-		Emitter:     emitter,
-		Clock:       clock,
 	}, nil
 }
 
@@ -117,7 +112,7 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		Login:        sconn.User(),
 	}
 
-	clusterName, err := h.AccessPoint.GetClusterName()
+	clusterName, err := h.c.AccessPoint.GetClusterName()
 	if err != nil {
 		return IdentityContext{}, trace.Wrap(err)
 	}
@@ -164,7 +159,7 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext) error {
 		userErrorMessage := "port forwarding not allowed"
 
 		// Emit port forward failure event
-		if err := h.Emitter.EmitAuditEvent(h.Server.Context(), &events.PortForward{
+		if err := h.c.Emitter.EmitAuditEvent(h.c.Server.Context(), &events.PortForward{
 			Metadata: events.Metadata{
 				Type: events.PortForwardEvent,
 				Code: events.PortForwardFailureCode,
@@ -230,7 +225,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	// only failed attempts are logged right now
 	recordFailedLogin := func(err error) {
 		failedLoginCount.Inc()
-		if err := h.Emitter.EmitAuditEvent(h.Server.Context(), &events.AuthAttempt{
+		if err := h.c.Emitter.EmitAuditEvent(h.c.Server.Context(), &events.AuthAttempt{
 			Metadata: events.Metadata{
 				Type: events.AuthAttemptEvent,
 				Code: events.AuthAttemptFailureCode,
@@ -256,15 +251,15 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	// issued by Teleport, and check the certificate metadata (principals,
 	// timestamp, etc). Fallback to keys is not supported.
 	clock := time.Now
-	if h.Clock != nil {
-		clock = h.Clock.Now
+	if h.c.Clock != nil {
+		clock = h.c.Clock.Now
 	}
 	certChecker := utils.CertChecker{
 		CertChecker: ssh.CertChecker{
 			IsUserAuthority: h.IsUserAuthority,
 			Clock:           clock,
 		},
-		FIPS: h.FIPS,
+		FIPS: h.c.FIPS,
 	}
 	permissions, err := certChecker.Authenticate(conn, key)
 	if err != nil {
@@ -274,7 +269,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	}
 	log.Debugf("Successfully authenticated")
 
-	clusterName, err := h.AccessPoint.GetClusterName()
+	clusterName, err := h.c.AccessPoint.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -291,7 +286,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 
 	// check if the user has permission to log into the node.
 	switch {
-	case h.Component == teleport.ComponentForwardingNode:
+	case h.c.Component == teleport.ComponentForwardingNode:
 		err = h.canLoginWithoutRBAC(cert, clusterName.GetClusterName(), teleportUser, conn.User())
 	default:
 		err = h.canLoginWithRBAC(cert, clusterName.GetClusterName(), teleportUser, conn.User())
@@ -319,7 +314,7 @@ func (h *AuthHandlers) HostKeyAuth(addr string, remote net.Addr, key ssh.PublicK
 			IsHostAuthority: h.IsHostAuthority,
 			HostKeyFallback: h.hostKeyCallback,
 		},
-		FIPS: h.FIPS,
+		FIPS: h.c.FIPS,
 	}
 	err := certChecker.CheckHostKey(addr, remote, key)
 	if err != nil {
@@ -332,7 +327,7 @@ func (h *AuthHandlers) HostKeyAuth(addr string, remote net.Addr, key ssh.PublicK
 // strict host key checking is disabled.
 func (h *AuthHandlers) hostKeyCallback(hostname string, remote net.Addr, key ssh.PublicKey) error {
 	// If strict host key checking is enabled, reject host key fallback.
-	clusterConfig, err := h.AccessPoint.GetClusterConfig()
+	clusterConfig, err := h.c.AccessPoint.GetClusterConfig()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -400,7 +395,7 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 		return trace.Wrap(err)
 	}
 
-	ap, err := h.AccessPoint.GetAuthPreference()
+	ap, err := h.c.AccessPoint.GetAuthPreference()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -411,7 +406,7 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 	}
 
 	// check if roles allow access to server
-	if err := roles.CheckAccessToServer(osUser, h.Server.GetInfo(), mfaParams); err != nil {
+	if err := roles.CheckAccessToServer(osUser, h.c.Server.GetInfo(), mfaParams); err != nil {
 		return trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
 			teleportUser, ca.GetClusterName(), osUser, clusterName, err)
 	}
@@ -426,11 +421,11 @@ func (h *AuthHandlers) fetchRoleSet(cert *ssh.Certificate, ca services.CertAutho
 	if clusterName == ca.GetClusterName() {
 		// Extract roles and traits either from the certificate or from
 		// services.User and create a services.RoleSet with all runtime roles.
-		roles, traits, err := services.ExtractFromCertificate(h.AccessPoint, cert)
+		roles, traits, err := services.ExtractFromCertificate(h.c.AccessPoint, cert)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		roleset, err = services.FetchRoles(roles, h.AccessPoint, traits)
+		roleset, err = services.FetchRoles(roles, h.c.AccessPoint, traits)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -458,7 +453,7 @@ func (h *AuthHandlers) fetchRoleSet(cert *ssh.Certificate, ca services.CertAutho
 		// Keep backwards-compatible behavior and set it in addition to the
 		// traits extracted from the certificate.
 		traits[teleport.TraitLogins] = cert.ValidPrincipals
-		roleset, err = services.FetchRoles(roleNames, h.AccessPoint, traits)
+		roleset, err = services.FetchRoles(roleNames, h.c.AccessPoint, traits)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -470,7 +465,7 @@ func (h *AuthHandlers) fetchRoleSet(cert *ssh.Certificate, ca services.CertAutho
 // Certificate Authority and returns it.
 func (h *AuthHandlers) authorityForCert(caType services.CertAuthType, key ssh.PublicKey) (services.CertAuthority, error) {
 	// get all certificate authorities for given type
-	cas, err := h.AccessPoint.GetCertAuthorities(caType, false)
+	cas, err := h.c.AccessPoint.GetCertAuthorities(caType, false)
 	if err != nil {
 		h.Warnf("%v", trace.DebugReport(err))
 		return nil, trace.Wrap(err)
@@ -514,5 +509,5 @@ func (h *AuthHandlers) authorityForCert(caType services.CertAuthType, key ssh.Pu
 
 // isProxy returns true if it's a regular SSH proxy.
 func (h *AuthHandlers) isProxy() bool {
-	return h.Component == teleport.ComponentProxy
+	return h.c.Component == teleport.ComponentProxy
 }

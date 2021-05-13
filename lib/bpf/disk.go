@@ -74,9 +74,7 @@ type open struct {
 // startOpen will compile, load, start, and pull events off the perf buffer
 // for the BPF program.
 func startOpen(closeContext context.Context, pageCount int) (*open, error) {
-	var err error
-
-	err = utils.RegisterPrometheusCollectors(lostDiskEvents)
+	err := utils.RegisterPrometheusCollectors(lostDiskEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -77,9 +77,7 @@ type exec struct {
 // startExec will compile, load, start, and pull events off the perf buffer
 // for the BPF program.
 func startExec(closeContext context.Context, pageCount int) (*exec, error) {
-	var err error
-
-	err = utils.RegisterPrometheusCollectors(lostCommandEvents)
+	err := utils.RegisterPrometheusCollectors(lostCommandEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

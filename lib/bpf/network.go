@@ -106,9 +106,7 @@ type conn struct {
 }
 
 func startConn(closeContext context.Context, pageCount int) (*conn, error) {
-	var err error
-
-	err = utils.RegisterPrometheusCollectors(lostNetworkEvents)
+	err := utils.RegisterPrometheusCollectors(lostNetworkEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

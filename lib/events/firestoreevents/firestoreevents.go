@@ -90,6 +90,11 @@ var (
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
 		},
 	)
+
+	prometheusCollectors = []prometheus.Collector{
+		writeRequests, batchWriteRequests, batchReadRequests,
+		writeLatencies, batchWriteLatencies, batchReadLatencies,
+	}
 )
 
 const (
@@ -258,8 +263,7 @@ type event struct {
 // New returns new instance of Firestore backend.
 // It's an implementation of backend API's NewFunc
 func New(cfg EventsConfig) (*Log, error) {
-	err := utils.RegisterPrometheusCollectors(writeRequests, batchWriteRequests, batchReadRequests,
-		writeLatencies, batchWriteLatencies, batchReadLatencies)
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

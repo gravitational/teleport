@@ -69,6 +69,8 @@ var (
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
 		},
 	)
+
+	prometheusCollectors = []prometheus.Collector{uploadRequests, downloadRequests, uploadLatencies, downloadLatencies}
 )
 
 const (
@@ -185,7 +187,7 @@ func DefaultNewHandler(cfg Config) (*Handler, error) {
 
 // NewHandler returns a new handler with specific context, cancelFunc, and client
 func NewHandler(ctx context.Context, cancelFunc context.CancelFunc, cfg Config, client *storage.Client) (*Handler, error) {
-	err := utils.RegisterPrometheusCollectors(uploadRequests, downloadRequests, uploadLatencies, downloadLatencies)
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

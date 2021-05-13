@@ -94,6 +94,8 @@ var (
 			Help: "Number of times emitting audit event failed.",
 		},
 	)
+
+	prometheusCollectors = []prometheus.Collector{auditOpenFiles, auditDiskUsed, auditFailedDisk, AuditFailedEmit}
 )
 
 // AuditLog is a new combined facility to record Teleport events and
@@ -228,7 +230,7 @@ func (a *AuditLogConfig) CheckAndSetDefaults() error {
 // a given directory. Session recording can be disabled by setting
 // recordSessions to false.
 func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
-	err := utils.RegisterPrometheusCollectors(auditOpenFiles, auditDiskUsed, auditFailedDisk, AuditFailedEmit)
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

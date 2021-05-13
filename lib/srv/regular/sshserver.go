@@ -576,17 +576,18 @@ func New(addr utils.NetAddr,
 	}
 
 	// add in common auth handlers
-	s.authHandlers = &srv.AuthHandlers{
-		Entry: logrus.WithFields(logrus.Fields{
-			trace.Component:       component,
-			trace.ComponentFields: logrus.Fields{},
-		}),
+	authHandlerConfig := srv.AuthHandlerConfig{
 		Server:      s,
 		Component:   component,
 		AccessPoint: s.authService,
 		FIPS:        s.fips,
 		Emitter:     s.StreamEmitter,
 		Clock:       s.clock,
+	}
+
+	s.authHandlers, err = srv.NewAuthHandlers(&authHandlerConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// common term handlers

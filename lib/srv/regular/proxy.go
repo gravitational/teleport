@@ -56,6 +56,8 @@ var ( // failedConnectingToNode counts failed attempts to connect to a node
 			Help: "Number of failed attempts to connect to a node",
 		},
 	)
+
+	prometheusCollectors = []prometheus.Collector{proxiedSessions, failedConnectingToNode}
 )
 
 // proxySubsys implements an SSH subsystem for proxying listening sockets from
@@ -168,7 +170,7 @@ func (p *proxySubsysRequest) SetDefaults() {
 // a port forwarding request, used to implement ProxyJump feature in proxy
 // and reuse the code
 func newProxySubsys(ctx *srv.ServerContext, srv *Server, req proxySubsysRequest) (*proxySubsys, error) {
-	err := utils.RegisterPrometheusCollectors(proxiedSessions, failedConnectingToNode)
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

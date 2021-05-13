@@ -73,8 +73,7 @@ type ServerOption func(*Server)
 
 // NewServer creates and configures a new Server instance
 func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
-	err := utils.RegisterPrometheusCollectors(generateRequestsCount, generateThrottledRequestsCount,
-		generateRequestsCurrent, generateRequestsLatencies, UserLoginCount, heartbeatsMissedByAuth)
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -226,6 +225,11 @@ var (
 			Help: "Number of hearbeats missed by auth server",
 		},
 	)
+
+	prometheusCollectors = []prometheus.Collector{
+		generateRequestsCount, generateThrottledRequestsCount,
+		generateRequestsCurrent, generateRequestsLatencies, UserLoginCount, heartbeatsMissedByAuth,
+	}
 )
 
 // Server keeps the cluster together. It acts as a certificate authority (CA) for

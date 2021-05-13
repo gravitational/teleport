@@ -77,10 +77,7 @@ type Reporter struct {
 
 // NewReporter returns a new Reporter.
 func NewReporter(cfg ReporterConfig) (*Reporter, error) {
-	err := utils.RegisterPrometheusCollectors(watchers, watcherQueues, requests, writeRequests,
-		writeRequestsFailed, batchWriteRequests, batchWriteRequestsFailed, readRequests,
-		readRequestsFailed, batchReadRequests, batchReadRequestsFailed, writeLatencies,
-		batchWriteLatencies, batchReadLatencies, readLatencies)
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -466,4 +463,11 @@ var (
 		},
 		[]string{teleport.ComponentLabel},
 	)
+
+	prometheusCollectors = []prometheus.Collector{
+		watchers, watcherQueues, requests, writeRequests,
+		writeRequestsFailed, batchWriteRequests, batchWriteRequestsFailed, readRequests,
+		readRequestsFailed, batchReadRequests, batchReadRequestsFailed, writeLatencies,
+		batchWriteLatencies, batchReadLatencies, readLatencies,
+	}
 )
