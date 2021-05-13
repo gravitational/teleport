@@ -51,9 +51,6 @@ type ClusterConfig interface {
 	// SetProxyChecksHostKeys gets if the proxy will check host keys.
 	SetProxyChecksHostKeys(string)
 
-	// CheckAndSetDefaults checks and set default values for missing fields.
-	CheckAndSetDefaults() error
-
 	// GetAuditConfig returns audit settings
 	GetAuditConfig() AuditConfig
 
