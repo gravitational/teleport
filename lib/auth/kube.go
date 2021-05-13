@@ -63,7 +63,7 @@ type KubeCSRResponse struct {
 func (s *Server) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	if !modules.GetModules().Features().Kubernetes {
 		return nil, trace.AccessDenied(
-			"this teleport cluster does not support kubernetes, please contact system administrator for support")
+			"this Teleport cluster is not licensed for kubernetes,, please contact system administrator for support")
 	}
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
