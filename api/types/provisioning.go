@@ -40,8 +40,6 @@ type ProvisionToken interface {
 	V1() *ProvisionTokenV1
 	// String returns user friendly representation of the resource
 	String() string
-	// CheckAndSetDefaults checks parameters and sets default values
-	CheckAndSetDefaults() error
 }
 
 // NewProvisionToken returns a new instance of provision token resource
