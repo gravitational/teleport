@@ -163,7 +163,14 @@ func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
 	case p.RouteToDatabase.ServiceName != "":
 		// Database means a request for a TLS certificate for access to a
 		// specific database, as specified by RouteToDatabase.
-		return proto.UserCertsRequest_Database
+
+		// DELETE IN 7.0
+		// Database certs have to be requested with CertUsage All because
+		// pre-7.0 servers do not accept usage-restricted certificates.
+		//
+		// In 7.0 clients, we can expect the server to be 7.0+ and set this to
+		// proto.UserCertsRequest_Database again.
+		return proto.UserCertsRequest_All
 	case p.RouteToApp.Name != "":
 		// App means a request for a TLS certificate for access to a specific
 		// web app, as specified by RouteToApp.
@@ -273,6 +280,14 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, cachePolicy Cert
 	case proto.UserCertsRequest_All:
 		key.Cert = certs.SSH
 		key.TLSCert = certs.TLS
+
+		// DELETE IN 7.0
+		// Database certs have to be requested with CertUsage All because
+		// pre-7.0 servers do not accept usage-restricted certificates.
+		if params.RouteToDatabase.ServiceName != "" {
+			key.DBTLSCerts[params.RouteToDatabase.ServiceName] = certs.TLS
+		}
+
 	case proto.UserCertsRequest_SSH:
 		key.Cert = certs.SSH
 	case proto.UserCertsRequest_App:
