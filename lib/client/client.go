@@ -153,14 +153,32 @@ type ReissueParams struct {
 func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
 	switch {
 	case p.NodeName != "":
+		// SSH means a request for an SSH certificate for access to a specific
+		// SSH node, as specified by NodeName.
 		return proto.UserCertsRequest_SSH
 	case p.KubernetesCluster != "":
+		// Kubernetes means a request for a TLS certificate for access to a
+		// specific Kubernetes cluster, as specified by KubernetesCluster.
 		return proto.UserCertsRequest_Kubernetes
 	case p.RouteToDatabase.ServiceName != "":
-		return proto.UserCertsRequest_Database
+		// Database means a request for a TLS certificate for access to a
+		// specific database, as specified by RouteToDatabase.
+
+		// DELETE IN 7.0
+		// Database certs have to be requested with CertUsage All because
+		// pre-7.0 servers do not accept usage-restricted certificates.
+		//
+		// In 7.0 clients, we can expect the server to be 7.0+ and set this to
+		// proto.UserCertsRequest_Database again.
+		return proto.UserCertsRequest_All
 	case p.RouteToApp.Name != "":
+		// App means a request for a TLS certificate for access to a specific
+		// web app, as specified by RouteToApp.
 		return proto.UserCertsRequest_App
 	default:
+		// All means a request for both SSH and TLS certificates for the
+		// overall user session. These certificates are not specific to any SSH
+		// node, Kubernetes cluster, database or web app.
 		return proto.UserCertsRequest_All
 	}
 }
@@ -235,7 +253,7 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, cachePolicy Cert
 		}
 	}
 
-	req, err := proxy.prepareUserCertsRequest(params, key, false)
+	req, err := proxy.prepareUserCertsRequest(params, key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -250,18 +268,35 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, cachePolicy Cert
 		return nil, trace.Wrap(err)
 	}
 
-	key.Cert = certs.SSH
-	key.TLSCert = certs.TLS
-	if params.KubernetesCluster != "" {
+	key.ClusterName = params.RouteToCluster
+
+	// Only update the parts of key that match the usage. See the docs on
+	// proto.UserCertsRequest_CertUsage for which certificates match which
+	// usage.
+	//
+	// This prevents us from overwriting the top-level key.TLSCert with
+	// usage-restricted certificates.
+	switch params.usage() {
+	case proto.UserCertsRequest_All:
+		key.Cert = certs.SSH
+		key.TLSCert = certs.TLS
+
+		// DELETE IN 7.0
+		// Database certs have to be requested with CertUsage All because
+		// pre-7.0 servers do not accept usage-restricted certificates.
+		if params.RouteToDatabase.ServiceName != "" {
+			key.DBTLSCerts[params.RouteToDatabase.ServiceName] = certs.TLS
+		}
+
+	case proto.UserCertsRequest_SSH:
+		key.Cert = certs.SSH
+	case proto.UserCertsRequest_App:
+		key.AppTLSCerts[params.RouteToApp.Name] = certs.TLS
+	case proto.UserCertsRequest_Database:
+		key.DBTLSCerts[params.RouteToDatabase.ServiceName] = certs.TLS
+	case proto.UserCertsRequest_Kubernetes:
 		key.KubeTLSCerts[params.KubernetesCluster] = certs.TLS
 	}
-	if params.RouteToDatabase.ServiceName != "" {
-		key.DBTLSCerts[params.RouteToDatabase.ServiceName] = certs.TLS
-	}
-	if params.RouteToApp.Name != "" {
-		key.AppTLSCerts[params.RouteToApp.Name] = certs.TLS
-	}
-	key.ClusterName = params.RouteToCluster
 	return key, nil
 }
 
@@ -349,7 +384,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	}
 	defer stream.CloseSend()
 
-	initReq, err := proxy.prepareUserCertsRequest(params, key, true)
+	initReq, err := proxy.prepareUserCertsRequest(params, key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -405,19 +440,10 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	return key, nil
 }
 
-func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key, withUsage bool) (*proto.UserCertsRequest, error) {
+func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key) (*proto.UserCertsRequest, error) {
 	tlsCert, err := key.TeleportTLSCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// withUsage is used by MFA cert issue requests.
-	// TODO: After the primary TLS certificate isn't rewritten with every
-	// reissue, all cert requests should include proper usage information.
-	// See https://github.com/gravitational/teleport/issues/6161
-	usage := proto.UserCertsRequest_All
-	if withUsage {
-		usage = params.usage()
 	}
 
 	if len(params.AccessRequests) == 0 {
@@ -442,7 +468,7 @@ func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key
 		RouteToDatabase:   params.RouteToDatabase,
 		RouteToApp:        params.RouteToApp,
 		NodeName:          params.NodeName,
-		Usage:             usage,
+		Usage:             params.usage(),
 		Format:            proxy.teleportClient.CertificateFormat,
 	}, nil
 }
