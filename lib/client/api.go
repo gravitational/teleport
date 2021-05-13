@@ -363,9 +363,6 @@ type ProfileStatus struct {
 	// kubernetes cluster.
 	KubeEnabled bool
 
-	// KubeCluster is the name of the kubernetes cluster used by this profile.
-	KubeCluster string
-
 	// KubeUsers are the kubernetes users used by this profile.
 	KubeUsers []string
 
@@ -621,7 +618,6 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 		Traits:         traits,
 		ActiveRequests: activeRequests,
 		KubeEnabled:    profile.KubeProxyAddr != "",
-		KubeCluster:    tlsID.KubernetesCluster,
 		KubeUsers:      tlsID.KubernetesUsers,
 		KubeGroups:     tlsID.KubernetesGroups,
 		Databases:      databases,
