@@ -822,7 +822,7 @@ type ParsedProxyHost struct {
 // and returns the parsed components.
 //
 // There are several "default" ports that the Web Proxy service may use, and if the port is not
-// specified in the supplied
+// specified in the supplied proxyHost string
 //
 // If a definitive answer is not possible (e.g.  no proxy port is specified in
 // the supplied string), ParseProxyHost() will supply default versions and flag
