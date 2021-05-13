@@ -39,8 +39,6 @@ type ResetPasswordTokenSecrets interface {
 	GetOTPKey() string
 	// SetOTPKey sets OTP Key
 	SetOTPKey(string)
-	// CheckAndSetDefaults checks and set default values for any missing fields.
-	CheckAndSetDefaults() error
 }
 
 // NewResetPasswordTokenSecrets creates an instance of ResetPasswordTokenSecrets.

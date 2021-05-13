@@ -517,11 +517,18 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		SessionRecording:      fc.Auth.SessionRecording,
 		ProxyChecksHostKeys:   fc.Auth.ProxyChecksHostKeys,
 		Audit:                 *auditConfig,
-		ClientIdleTimeout:     fc.Auth.ClientIdleTimeout,
 		DisconnectExpiredCert: fc.Auth.DisconnectExpiredCert,
+		LocalAuth:             localAuth,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Set cluster networking configuration from file configuration.
+	cfg.Auth.NetworkingConfig, err = types.NewClusterNetworkingConfig(types.ClusterNetworkingConfigSpecV2{
+		ClientIdleTimeout:     fc.Auth.ClientIdleTimeout,
 		KeepAliveInterval:     fc.Auth.KeepAliveInterval,
 		KeepAliveCountMax:     fc.Auth.KeepAliveCountMax,
-		LocalAuth:             localAuth,
 		SessionControlTimeout: fc.Auth.SessionControlTimeout,
 	})
 	if err != nil {
@@ -947,8 +954,15 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 			InsecureSkipVerify: application.InsecureSkipVerify,
 		}
 		if application.Rewrite != nil {
+			// Parse http rewrite headers if there are any.
+			headers, err := service.ParseHeaders(application.Rewrite.Headers)
+			if err != nil {
+				return trace.Wrap(err, "failed to parse headers rewrite configuration for app %q",
+					application.Name)
+			}
 			app.Rewrite = &service.Rewrite{
 				Redirect: application.Rewrite.Redirect,
+				Headers:  headers,
 			}
 		}
 		if err := app.Check(); err != nil {
