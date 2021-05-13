@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/srv/app"
+	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/stretchr/testify/require"
@@ -83,6 +84,7 @@ func TestDefaultConfig(t *testing.T) {
 	ssh := config.SSH
 	require.Equal(t, ssh.Limiter.MaxConnections, int64(defaults.LimiterMaxConnections))
 	require.Equal(t, ssh.Limiter.MaxNumberOfUsers, defaults.LimiterMaxConcurrentUsers)
+	require.Equal(t, ssh.AllowTCPForwarding, regular.SSHPortForwardingModeAll)
 
 	// proxy section
 	proxy := config.Proxy

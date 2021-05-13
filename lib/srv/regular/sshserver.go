@@ -59,6 +59,23 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// SSHPortForwardingMode encodes a port forwarding mode.
+type SSHPortForwardingMode int
+
+const (
+	// SSHPortForwardingModeAll indicates both local and remote port forwarding
+	// is allowed
+	SSHPortForwardingModeAll SSHPortForwardingMode = iota
+
+	// SSHPortForwardingMode indicates that only local (i.e. forwarding
+	// connections from the client out to the Internet) is allowed.
+	SSHPortForwardingModeLocal
+
+	// SSHPortForwardingModeNone indicates that no port forwarding of any kind
+	// is allowed.
+	SSHPortForwardingModeNone
+)
+
 var (
 	log = logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.ComponentNode,
@@ -172,6 +189,10 @@ type Server struct {
 
 	// wtmpPath is the path to the user accounting log.
 	wtmpPath string
+
+	// portForwardingMode is the TCP port forwarding mode allowed
+	// port by this server.
+	portForwardingMode SSHPortForwardingMode
 }
 
 // GetClock returns server clock implementation
@@ -502,6 +523,13 @@ func SetOnHeartbeat(fn func(error)) ServerOption {
 	}
 }
 
+func SetPortForwardingMode(mode SSHPortForwardingMode) ServerOption {
+	return func(s *Server) error {
+		s.portForwardingMode = mode
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func New(addr utils.NetAddr,
 	hostname string,
@@ -639,6 +667,9 @@ func New(addr utils.NetAddr,
 		return nil, trace.Wrap(err)
 	}
 	s.heartbeat = heartbeat
+
+	log.Warnf("******************** NEWSERVER @%p IN PROXY MODE: %v", s, s.proxyMode)
+
 	return s, nil
 }
 
@@ -947,6 +978,8 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 
 // HandleNewChan is called when new channel is opened
 func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionContext, nch ssh.NewChannel) {
+	s.Logger.Warnf("******************** HANDLENEWCHAN (%v) @ %p->%p", s.portForwardingMode, s, s.srv)
+
 	identityContext, err := s.authHandlers.CreateIdentityContext(ccx.ServerConn)
 	if err != nil {
 		rejectChannel(nch, ssh.Prohibited, fmt.Sprintf("Unable to create identity from connection: %v", err))
@@ -954,7 +987,9 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 	}
 
 	channelType := nch.ChannelType()
+	s.Logger.Warnf("******************** ChanType %v", channelType)
 	if s.proxyMode {
+		s.Logger.Warnf("******************** IN Proxy Mode")
 		switch channelType {
 		// Channels of type "direct-tcpip", for proxies, it's equivalent
 		// of teleport proxy: subsystem
@@ -991,6 +1026,8 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 		}
 	}
 
+	s.Logger.Warnf("******************** NOT IN Proxy Mode")
+
 	switch channelType {
 	// Channels of type "session" handle requests that are involved in running
 	// commands on a server, subsystem requests, and agent forwarding.
@@ -1022,7 +1059,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 					Reason:  events.SessionRejectedReasonMaxSessions,
 					Maximum: max,
 				}); err != nil {
-					log.WithError(err).Warn("Failed to emit sesion reject event.")
+					log.WithError(err).Warn("Failed to emit session reject event.")
 				}
 				rejectChannel(nch, ssh.Prohibited, fmt.Sprintf("too many session channels for user %q (max=%d)", identityContext.TeleportUser, max))
 				return
@@ -1064,6 +1101,22 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 	}
 }
 
+// NodeAllowsPortForward checks if this SSH service is allowed forward TCP
+// connections for the client.
+func (s *Server) NodeAllowsPortForward() bool {
+	// Because we do not support remote port forwarding (i.e. from the Internet
+	// back to the client), the values `SSHPortForwardingModeAll` and
+	// `SSHPortForwardingModeLocal` are effectively synonyms.
+	s.Logger.Warnf("************ Checking if node allows port forwarding: %v\n", s.portForwardingMode)
+	switch s.portForwardingMode {
+	case SSHPortForwardingModeAll, SSHPortForwardingModeLocal:
+		return true
+
+	default:
+		return false
+	}
+}
+
 // handleDirectTCPIPRequest handles port forwarding requests.
 func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.ConnectionContext, identityContext srv.IdentityContext, channel ssh.Channel, req *sshutils.DirectTCPIPReq) {
 	// Create context for this channel. This context will be closed when
@@ -1082,6 +1135,12 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 	defer scx.Close()
 
 	channel = scx.TrackActivity(channel)
+
+	// Check if this node allows port forwarding at all
+	if !s.NodeAllowsPortForward() {
+		writeStderr(channel, "Node does not allow port forwarding")
+		return
+	}
 
 	// Check if the role allows port forwarding for this user.
 	err = s.authHandlers.CheckPortForward(scx.DstAddr, scx)

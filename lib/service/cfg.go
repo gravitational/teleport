@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app"
+	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -535,6 +536,10 @@ type SSHConfig struct {
 	//
 	// See github.com/gravitational/teleport/issues/4141 for details.
 	ProxyReverseTunnelFallbackAddr *utils.NetAddr
+
+	// AllowTCPForwarding describes what port forwarding mechanisms the SSH service
+	// is allowed to offer. Defaults to SSHPortForwardingModeAll
+	AllowTCPForwarding regular.SSHPortForwardingMode
 }
 
 // KubeConfig specifies configuration for kubernetes service
