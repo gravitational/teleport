@@ -100,7 +100,7 @@ func New(ctx context.Context, cfg Config) (clt *Client, err error) {
 }
 
 // newClient constructs a new client.
-func newClient(cfg Config, dialer ContextDialer, tlsConfig *tls.Config) (clt *Client) {
+func newClient(cfg Config, dialer ContextDialer, tlsConfig *tls.Config) *Client {
 	return &Client{
 		c:          cfg,
 		dialer:     dialer,
@@ -277,8 +277,13 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	dialOptions := append(
 		c.c.DialOpts,
 		grpc.WithContextDialer(c.grpcDialer()),
-		grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConfig)),
 	)
+
+	// Only set transportCredentials if tlsConfig is set. This makes it possible
+	// to explicitly provide gprc.WithInsecure in the client's dial options.
+	if c.tlsConfig != nil {
+		dialOptions = append(dialOptions, grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConfig)))
+	}
 
 	var err error
 	if c.conn, err = grpc.DialContext(dialContext, addr, dialOptions...); err != nil {
