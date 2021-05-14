@@ -372,6 +372,7 @@ func (a *AuditTestSuite) TestLogRotation(c *check.C) {
 		bytes, err := ioutil.ReadFile(logfile)
 		c.Assert(err, check.IsNil)
 		contents, err := json.Marshal(event)
+		contents = append(contents, '\n')
 		c.Assert(err, check.IsNil)
 		c.Assert(string(bytes), check.Equals, string(contents))
 
