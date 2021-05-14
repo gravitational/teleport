@@ -114,6 +114,9 @@ func (s *AuthSuite) SetUpTest(c *C) {
 	err = s.a.SetAuthPreference(authPreference)
 	c.Assert(err, IsNil)
 
+	err = s.a.SetClusterNetworkingConfig(context.TODO(), types.DefaultClusterNetworkingConfig())
+	c.Assert(err, IsNil)
+
 	err = s.a.SetClusterConfig(services.DefaultClusterConfig())
 	c.Assert(err, IsNil)
 

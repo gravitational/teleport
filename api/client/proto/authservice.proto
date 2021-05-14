@@ -75,6 +75,9 @@ message Event {
         types.WebSessionV2 WebSession = 18 [ (gogoproto.jsontag) = "web_session,omitempty" ];
         // WebToken is a web token.
         types.WebTokenV3 WebToken = 19 [ (gogoproto.jsontag) = "web_token,omitempty" ];
+        // ClusterNetworkingConfig is a resource for cluster networking configuration.
+        types.ClusterNetworkingConfigV2 ClusterNetworkingConfig = 20
+            [ (gogoproto.jsontag) = "cluster_networking_config,omitempty" ];
     }
 }
 
@@ -1035,4 +1038,9 @@ service AuthService {
     rpc UpsertToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
     // DeleteToken deletes an existing token in a backend described by the given request.
     rpc DeleteToken(types.ResourceRequest) returns (google.protobuf.Empty);
+
+    // GetClusterNetworkingConfig gets cluster networking configuration.
+    rpc GetClusterNetworkingConfig(google.protobuf.Empty) returns (types.ClusterNetworkingConfigV2);
+    // SetClusterNetworkingConfig sets cluster networking configuration.
+    rpc SetClusterNetworkingConfig(types.ClusterNetworkingConfigV2) returns (google.protobuf.Empty);
 }

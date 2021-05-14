@@ -1698,13 +1698,13 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	clusterConfig, err := authAccessPoint.GetClusterConfig()
+	netConfig, err := authAccessPoint.GetClusterNetworkingConfig(h.cfg.Context)
 	if err != nil {
-		h.log.WithError(err).Debug("Unable to fetch cluster config.")
+		h.log.WithError(err).Debug("Unable to fetch cluster networking config.")
 		return nil, trace.Wrap(err)
 	}
 
-	req.KeepAliveInterval = clusterConfig.GetKeepAliveInterval()
+	req.KeepAliveInterval = netConfig.GetKeepAliveInterval()
 	req.Namespace = namespace
 	req.ProxyHostPort = h.ProxyHostPort()
 	req.Cluster = site.GetName()
@@ -2460,7 +2460,6 @@ func parseSSORequestParams(r *http.Request) (*ssoRequestParams, error) {
 	connectorID := query.Get("connector_id")
 	if connectorID == "" {
 		return nil, trace.BadParameter("missing connector_id query parameter")
-
 	}
 
 	csrfToken, err := csrf.ExtractTokenFromCookie(r)
