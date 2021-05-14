@@ -12,7 +12,6 @@ This guide introduces some of these common scenarios and how to interact with Te
 1. Creating a Teleport Auth Node cluster we'll add a Teleport SSH Node to.
 2. SSH into the cluster using Teleport.
 3. Introspecting the cluster using Teleport features.
-4. Create a simple Go client to interact with the Teleport API.
 
 <Admonition type="tip" title="Tip">
   This guide also demonstrates how to configure Teleport Nodes into the *Bastion* pattern so that [only a single Node can be accessed publically](https://goteleport.com/blog/ssh-bastion-host/). 
@@ -33,19 +32,7 @@ This guide introduces some of these common scenarios and how to interact with Te
 - A Two-Factor Authentication app (such as Authy or Google Authenticator).
 - Teleport (=teleport.version=) installed locally.
 
-## Overview
-
-The first four steps are visualized below since they involve using multiple terminals and instances:
-
-<Figure
-  align="center"
-  bordered
-  caption="Getting Started overview"
->
-  ![Getting Started overview](../../img/server-access/getting-started-overview.svg)
-</Figure>
-
-## Step 1/5. Create a cluster
+## Step 1/4. Create a cluster
 
 1. Create two new instances of your desired Linux distribution (such as Ubuntu 20.05, CentOS 8.0-1905, or Debian 10).
 
@@ -153,39 +140,15 @@ The first four steps are visualized below since they involve using multiple term
 
    Next, we'll create a *join token* to add and start the second Node.
 
-## Step 2/5. Add a Node to the cluster
+## Step 2/4. Add a Node to the cluster
 
-1. Create a *join token* to add the second Node to the `tele.example.com` cluster. In a second, *Bastion Host*, terminal run the following command:
+1. Create a *join token* to add the second Node to the `tele.example.com` cluster. In a *Bastion Host* terminal run the following command:
 
-   <Tabs>
-     <TabItem label="Create a token">
-      ```bash
-      # Let's save the token to a file
-      sudo tctl tokens add --type=node > token.file
-      ```
-     </TabItem>
-
-     <TabItem label="token.file">
-     ```bash
-     The invite token: 05e3346ea255c609d4747655439e2a5e
-     This token will expire in 60 minutes
-
-     Run this on the new node to join the cluster:
-
-     > teleport start \
-     --roles=node \
-     --token=05e3346ea255c609d4747655439e2a5e \
-     --ca-pin=sha256:14b144e13d98d2f53acf5730046127752f4aa21ce6071055b540a4d2145c306f \
-     --auth-server=172.31.41.144:3025
-
-     Please note:
-
-     - This invitation token will expire in 60 minutes
-     - 172.31.41.144:3025 must be reachable from the new node
-     ```
-     </TabItem>
-   </Tabs>
-
+   ```bash
+   # Let's save the token to a file
+   sudo tctl tokens add --type=node | grep -oP '(?<=token:\s).*' > token.file
+   ```
+ 
    Each Teleport Node can be configured into SSH mode (Teleport Node) and run as an enhanced SSH server. "Node" mode specifies that the Teleport Node will act and join as an SSH server.  
    
    `> token.file` indicates that you'd like to save the output to a file name `token.file`.
@@ -232,7 +195,7 @@ The first four steps are visualized below since they involve using multiple term
      ![Both Nodes in the Web UI](../../img/server-access/teleport_ui.png)
    </Figure>
 
-## Step 3/5. SSH into the server
+## Step 3/4. SSH into the server
 
 Now, that we've got our cluster up and running, let's see how easy it is to connect to our two Nodes. 
 
@@ -242,7 +205,7 @@ We can use `tsh` to SSH into the cluster:
 
    ```bash
    # Log in through tsh
-   tsh login --proxy=tele.example.com:443 --user=tele-admin
+   sudo tsh login --proxy=tele.example.com:443 --user=tele-admin
    ```
    
    You'll be prompted to supply the password and One Time Passcode we set up previously.
@@ -266,7 +229,7 @@ We can use `tsh` to SSH into the cluster:
 
    ```bash
    # Display cluster resources
-   tsh ls
+   sudo tsh ls
    ```
 
    The *Bastion Host* Node is located on the bottom line below:
@@ -282,7 +245,7 @@ We can use `tsh` to SSH into the cluster:
 
    ```bash
    # Use tsh to ssh into a Node
-   tsh ssh root@ip-172-31-41-144
+   sudo tsh ssh root@ip-172-31-41-144
    ```
 
    Now, they can:
@@ -308,7 +271,7 @@ We can use `tsh` to SSH into the cluster:
   </TabItem>
 </Tabs>
 
-## Step 4/5. Use tsh and the universal resource catalog to introspect the cluster
+## Step 4/4. Use tsh and the unified resource catalog to introspect the cluster
 
 1. Now, `tele-admin` has the ability to SSH into other Nodes within the cluster, traverse the Linux file system, and execute commands.
 
@@ -322,7 +285,7 @@ We can use `tsh` to SSH into the cluster:
    sudo tctl nodes ls
    ```
 
-   It displays the universal resource catalog with all queried resources in one view: 
+   It displays the unified resource catalog with all queried resources in one view: 
    
    ```bash
    Nodename         UUID                                 Address        Labels                                
@@ -335,7 +298,7 @@ We can use `tsh` to SSH into the cluster:
 
    ```bash
    # Query all Nodes with a label
-   tsh ssh root@env=example
+   sudo tsh ssh root@env=example
    ```
 
    - Customized labels can be defined in your `teleport.yaml` configuration file or during Node creation.  
@@ -346,122 +309,27 @@ We can use `tsh` to SSH into the cluster:
 
    ```bash
    # Run the ls command on all Nodes with a label
-   tsh ssh root@env=example ls
+   sudo tsh ssh root@env=example ls
    ``` 
    
    will execute the `ls` command on each Node displaying the contents of each to the screen.
 
-## Step 5/5. Connect to the Teleport API
-
-<Figure
-  align="center"
-  bordered
-  caption="Teleport API"
->
-  ![Teleport API](../../img/server-access/api.svg)
-</Figure>
-
-Let's connect to the Teleport API using a simple role-based authentication method and Go client:
-
-1. Open a terminal to `tele.example.com`.
-
-2. Create a user `api-admin` with the built-in role `admin`: 
-
-   ```bash
-   # Create a new user for the API client
-   sudo tctl users add api-user --roles=admin
-   ```
-
-3. Within the same terminal login as `api-admin`: 
-   
-   ```bash
-   # Login in as the API user
-   tsh login --user=api-user --proxy=tele.example.com:443
-   ```
-   
-   This will save and load `api-admin`'s `tsh` profile automatically within the Go client.
-
-4. Install `Go 1.16+` (`sudo snap go --classic` on AWS Ubuntu). Then:
-
-   ```bash
-   mkdir client-demo && cd client-demo
-   go mod init client-demo
-   go get github.com/gravitational/teleport/api/client
-   ```
-   
-5. Create a file `main.go` with the following command, modifying the `Addrs` strings as needed:
-
-   ```bash
-   cat > main.go << 'EOF'
-   package main
-
-   import (
-      "context"
-      "log"
-      "github.com/gravitational/teleport/api/client"
-   )
-
-   func main() {
-      ctx := context.Background()
-
-      clt, err := client.New(ctx, client.Config{
-         Addrs: []string{
-            "tele.example.com:443",
-            "tele.example.com:3025",
-            "tele.example.com:3024",
-            "tele.example.com:3080",
-        },
-         Credentials: []client.Credentials{
-            client.LoadProfile("", ""),
-         },
-      })
-
-      if err != nil {
-         log.Fatalf("Failed to create client: %v", err)
-      }
-
-      defer clt.Close()
-
-      resp, err := clt.Ping(ctx)
-
-      if err != nil {
-         log.Fatalf("Failed to ping server: %v", err)
-      }
-
-      log.Printf("Example success!")
-      log.Printf("Server response: %s", resp)
-      log.Printf("Server version: %s", resp.ServerVersion)
-   }
-   EOF
-   ```
-
-6. Execute: `go run main.go`. On success, it will display the following:
-
-   ```bash
-   2021/05/06 17:37:09 Example success!
-   2021/05/06 17:37:09 Server response: {tele.go-teleport.com 6.1.5 Kubernetes:true App:true DB:true  tele.go-teleport.com:443 {}  %!s(int32=0)}
-   2021/05/06 17:37:09 Server version: 6.1.5  
-   ```
-
-   Note the client `resp` object which contains configuration information.
-
-Review the `client` [pkg.go reference documentation](https://pkg.go.dev/github.com/gravitational/teleport/api/client) for more information about working with the Teleport API programmatically.
-
 ## Conclusion
 
-We previously configured our Linux instances to leave port `22` open to easily configure and install Teleport. Feel free to compare Teleport SSH to your usual `ssh` commands.
+<Admonition type="tip" title="Note">
+   We previously configured our Linux instances to leave port `22` open to easily configure and install Teleport. Feel free to compare Teleport SSH to your usual `ssh` commands.
 
-If you'd like to further experiment with using Teleport according to the *Bastion* pattern:
+   If you'd like to further experiment with using Teleport according to the *Bastion* pattern:
 
-- Close port `22` on your second, private, Linux instance now that your Node is configured and running.  
-- Optionally close port `22` on your *Bastion Host*.  
-- You'll be able to fully connect to both the *Bastion Host* and the private instance using `tsh ssh`.  
+   - Close port `22` on your second, private, Linux instance now that your Node is configured and running.  
+   - Optionally close port `22` on your *Bastion Host*.  
+   - You'll be able to fully connect to both the *Bastion Host* and the private instance using `tsh ssh`.  
+</Admonition>
 
-To further recap, this Getting Started Guide walked through:
+To recap, this Getting Started Guide described:
 
 1. How to set up and add an SSH Node to a cluster.
 2. Connect to the cluster using `tsh` to manage and introspect resources.
-3. How to connect to the Teleport API programmatically.
 
 Feel free to shut down, clean up, and delete your resources or use them in further Getting Started exercises.
 
@@ -474,6 +342,6 @@ Feel free to shut down, clean up, and delete your resources or use them in furth
 ## Resources
 
 - [Announcing Teleport SSH Server](https://goteleport.com/blog/announcing-teleport-ssh-server/)  
-- [How to SSH Properly](https://goteleport.com/blog/how-to-ssh-properly/)  
+- [How to SSH properly](https://goteleport.com/blog/how-to-ssh-properly/)  
 - Consider whether [OpenSSH or Teleport SSH](https://goteleport.com/blog/openssh-vs-teleport/) is right for you.  
 - Learn about [Teleconsole](https://goteleport.com/blog/instant-ssh-github/) built on Teleport 
