@@ -60,6 +60,16 @@ $ tsh login --proxy=myinstance.teleport.sh:443
 $ tctl status
 ```
 You must use the enterprise version of `tctl`. 
+
+### Why am I getting `permission denied` errors when using `tctl`?
+
+If you have a local file `/etc/teleport.yaml` on your machine `tctl` will attempt to use the local cluster. Prefix your commands with `TELEPORT_CONFIG_FILE=` so it will  not attempt to use that Teleport configuration file.
+
+```bash
+$ TELEPORT_CONFIG_FILE= tctl tokens add --type=node
+```
+
+
 ### Are dynamic node tokens available?
 
 After [connecting](#how-can-i-access-the-tctl-admin-tool) `tctl` to Teleport Cloud, users can generate
