@@ -382,7 +382,7 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 		process.deleteKeyPair(role, reason)
 	}
 
-	process.log.Infof("%v has obtained credentials to connect to cluster.", role)
+	process.log.Infof("%v has obtained credentials to connect to the cluster.", role)
 	var connector *Connector
 	if role == teleport.RoleAdmin || role == teleport.RoleAuth {
 		connector = &Connector{
@@ -423,7 +423,7 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	process.log.Infof("The process has successfully wrote credentials and state of %v to disk.", role)
+	process.log.Infof("The process successfully wrote the credentials and state of %v to the disk.", role)
 	return connector, nil
 }
 
