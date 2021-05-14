@@ -37,8 +37,6 @@ const SemaphoreKindConnection = "connection"
 type Semaphore interface {
 	// Resource contains common resource values
 	Resource
-	// CheckAndSetDefaults checks and sets default parameters
-	CheckAndSetDefaults() error
 	// Contains checks if lease is member of this semaphore.
 	Contains(lease SemaphoreLease) bool
 	// Acquire attempts to acquire a lease with this semaphore.
