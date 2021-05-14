@@ -301,7 +301,7 @@ func (a *AuditTestSuite) TestSessionRecordingOff(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(found, check.HasLen, 3)
 	eventA, okA := found[0].(*SessionStart)
-	eventB, okB := found[0].(*SessionEnd)
+	eventB, okB := found[1].(*SessionEnd)
 	c.Assert(okA, check.Equals, true)
 	c.Assert(okB, check.Equals, true)
 	c.Assert(eventA.Login, check.Equals, username)
