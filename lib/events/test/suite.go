@@ -81,9 +81,8 @@ type EventsSuite struct {
 
 // EventPagination covers event search pagination.
 func (s *EventsSuite) EventPagination(c *check.C) {
-	// 2019-05-10 14:43:0 GMT
 	// This serves no special purpose except to make querying easier.
-	baseTime := time.Unix(1557499380, 0)
+	baseTime := time.Date(2019, time.May, 10, 14, 43, 0, 0, time.UTC)
 
 	names := []string{"bob", "jack", "daisy", "evan"}
 

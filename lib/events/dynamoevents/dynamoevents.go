@@ -659,125 +659,17 @@ type checkpointKey struct {
 // The only mandatory requirement is a date range (UTC). Results must always
 // show up sorted by date (newest first)
 func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]events.AuditEvent, string, error) {
-	var checkpoint checkpointKey
+	rawEvents, lastKey, err := l.searchEventsRaw(fromUTC, toUTC, namespace, eventTypes, limit, startKey)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
 
-	// If a checkpoint key is provided, unmarshal it so we can work with it's parts.
-	if startKey != "" {
-		if err := json.Unmarshal([]byte(startKey), &checkpoint); err != nil {
+	eventArr := make([]events.AuditEvent, 0, len(rawEvents))
+	for _, rawEvent := range rawEvents {
+		var fields events.EventFields
+		if err := utils.FastUnmarshal([]byte(rawEvent.Fields), fields); err != nil {
 			return nil, "", trace.Wrap(err)
 		}
-	}
-
-	var values []events.EventFields
-	dates := daysBetween(fromUTC, toUTC)
-	query := "CreatedAtDate = :date AND CreatedAt BETWEEN :start and :end"
-	g := l.WithFields(log.Fields{"From": fromUTC, "To": toUTC, "Namespace": namespace, "EventTypes": eventTypes, "Limit": limit, "StartKey": startKey})
-	var left int64
-	if limit != 0 {
-		left = int64(limit)
-	} else {
-		left = math.MaxInt64
-	}
-	doFilter := len(eventTypes) > 0
-
-	// Resume scanning at the correct date. We need to do this because we send individual queries per date
-	// and you can't resume a query with the wrong iterator checkpoint.
-	//
-	// We need to perform a guard check on the length of `dates` here in case a query is submitted with
-	// `toUTC` occurring before `fromUTC`.
-	if checkpoint.Date != "" && len(dates) > 0 {
-		for dates[0] != checkpoint.Date {
-			dates = dates[1:]
-		}
-	}
-
-	// This is the main query loop, here we send individual queries for each date and
-	// we stop if we hit `limit` or process all dates, whichever comes first.
-dateLoop:
-	for _, date := range dates {
-		checkpoint.Date = date
-
-		attributes := map[string]interface{}{
-			":date":  date,
-			":start": fromUTC.Unix(),
-			":end":   toUTC.Unix(),
-		}
-
-		attributeValues, err := dynamodbattribute.MarshalMap(attributes)
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-
-		for {
-			input := dynamodb.QueryInput{
-				KeyConditionExpression:    aws.String(query),
-				TableName:                 aws.String(l.Tablename),
-				ExpressionAttributeValues: attributeValues,
-				IndexName:                 aws.String(indexTimeSearchV2),
-				ExclusiveStartKey:         checkpoint.Iterator,
-				Limit:                     aws.Int64(left),
-			}
-
-			start := time.Now()
-			out, err := l.svc.Query(&input)
-			if err != nil {
-				return nil, "", trace.Wrap(err)
-			}
-			g.WithFields(log.Fields{"duration": time.Since(start), "items": len(out.Items)}).Debugf("Query completed.")
-			checkpoint.Iterator = out.LastEvaluatedKey
-
-			for _, item := range out.Items {
-				var e event
-				if err := dynamodbattribute.UnmarshalMap(item, &e); err != nil {
-					return nil, "", trace.WrapWithMessage(err, "failed to unmarshal event")
-				}
-				var fields events.EventFields
-				data := []byte(e.Fields)
-				if err := json.Unmarshal(data, &fields); err != nil {
-					return nil, "", trace.BadParameter("failed to unmarshal event %v", err)
-				}
-				accepted := false
-				for i := range eventTypes {
-					if fields.GetString(events.EventType) == eventTypes[i] {
-						accepted = true
-						break
-					}
-				}
-				if accepted || !doFilter {
-					values = append(values, fields)
-					left--
-					if left == 0 {
-						break dateLoop
-					}
-				}
-			}
-
-			if len(checkpoint.Iterator) == 0 {
-				continue dateLoop
-			}
-		}
-	}
-
-	// When no events are left we set the checkpoint to null
-	if len(values) == 0 {
-		checkpoint = checkpointKey{}
-	}
-
-	// Sort the events since Dynamo does not guarantee ordering with the used query.
-	sort.Sort(events.ByTimeAndIndex(values))
-
-	var lastKey []byte
-	var err error
-
-	if len(values) > 0 {
-		lastKey, err = json.Marshal(&checkpoint)
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-	}
-
-	eventArr := make([]events.AuditEvent, 0, len(values))
-	for _, fields := range values {
 		event, err := events.FromEventFields(fields)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
@@ -785,10 +677,34 @@ dateLoop:
 		eventArr = append(eventArr, event)
 	}
 
-	return eventArr, string(lastKey), nil
+	sort.Sort(ByTimeAndIndex(eventArr))
+	return eventArr, lastKey, nil
 }
 
-// Used in tests to check full backend data.
+// ByTimeAndIndex sorts events by time
+// and if there are several session events with the same session
+// by event index, regardless of the time
+type ByTimeAndIndex []events.AuditEvent
+
+func (f ByTimeAndIndex) Len() int {
+	return len(f)
+}
+
+func (f ByTimeAndIndex) Less(i, j int) bool {
+	itime := f[i].GetTime()
+	jtime := f[j].GetTime()
+	if itime.Equal(jtime) && events.GetSessionID(f[i]) == events.GetSessionID(f[j]) {
+		return f[i].GetIndex() < f[j].GetIndex()
+	}
+	return itime.Before(jtime)
+}
+
+func (f ByTimeAndIndex) Swap(i, j int) {
+	f[i], f[j] = f[j], f[i]
+}
+
+// searchEventsRaw is a low level function for searching for events. This is kept
+// seperate from the SearchEvents function in order to allow tests to grab more metadata.
 func (l *Log) searchEventsRaw(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]event, string, error) {
 	var checkpoint checkpointKey
 
