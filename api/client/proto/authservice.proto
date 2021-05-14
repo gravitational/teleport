@@ -833,13 +833,17 @@ message GetEventsRequest {
 }
 
 message GetSessionEventsRequest {
-    // Oldest date of returned events
+    // StartDate is the oldest date of returned events
     google.protobuf.Timestamp StartDate = 1
         [ (gogoproto.stdtime) = true, (gogoproto.nullable) = false ];
-    // Newest date of returned events
+    // EndDate is the newest date of returned events
     google.protobuf.Timestamp EndDate = 2
         [ (gogoproto.stdtime) = true, (gogoproto.nullable) = false ];
+    // Limit is the maximum amount of events to retrieve.
     int32 Limit = 3;
+    // StartKey is used to resume a query in order to enable pagination.
+    // If the previous response had LastKey set then this should be
+    // set to its value. Otherwise leave empty.
     string StartKey = 4;
 }
 
