@@ -359,14 +359,9 @@ func GetSessionID(event AuditEvent) string {
 // to the old dynamic map style representation in order to provide outer compatibility
 // with existing public API routes when the backend is updated with the typed events.
 func ToEventFields(event AuditEvent) (EventFields, error) {
-	encoded, err := utils.FastMarshal(event)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	var fields EventFields
-	if err := json.Unmarshal(encoded, &fields); err != nil {
-		return nil, trace.BadParameter("failed to unmarshal event %v", err)
+	if err := utils.ObjectToStruct(event, fields); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return fields, nil
