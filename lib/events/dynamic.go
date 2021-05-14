@@ -360,7 +360,7 @@ func GetSessionID(event AuditEvent) string {
 // with existing public API routes when the backend is updated with the typed events.
 func ToEventFields(event AuditEvent) (EventFields, error) {
 	var fields EventFields
-	if err := utils.ObjectToStruct(event, fields); err != nil {
+	if err := utils.ObjectToStruct(event, &fields); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
