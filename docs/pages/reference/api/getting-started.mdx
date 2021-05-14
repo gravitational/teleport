@@ -24,7 +24,7 @@ Create a new user for the client to impersonate.
 ```bash
 # Run this directly on your auth server
 # Add user and login via web proxy
-tctl users add api-user --roles=admin
+sudo tctl users add api-user --roles=admin
 ```
 
 <Admonition type="note">
@@ -37,7 +37,7 @@ Login as the newly created user with `tsh`.
 
 ```bash
 # generate tsh profile
-tsh login --user=api-user
+sudo tsh login --user=api-user --proxy=tele.example.com:443
 ```
 
 The [profile Credentials loader](https://pkg.go.dev/github.com/gravitational/teleport/api/client#LoadProfile)
@@ -53,9 +53,10 @@ go mod init client-demo
 go get github.com/gravitational/teleport/api/client
 ```
 
-Add the following code to a new `main.go` file.
+Create a file `main.go` with the following command, modifying the `Addrs` strings as needed:
 
-```go
+```bash
+cat > main.go << 'EOF'
 package main
 
 import (
@@ -69,21 +70,35 @@ func main() {
 	ctx := context.Background()
 
 	clt, err := client.New(ctx, client.Config{
+        Addrs: []string{
+            "tele.example.com:443",
+            "tele.example.com:3025",
+            "tele.example.com:3024",
+            "tele.example.com:3080",
+        },
 		Credentials: []client.Credentials{
 			client.LoadProfile("", ""),
 		},
 	})
+
 	if err != nil {
 		log.Fatalf("failed to create client: %v", err)
 	}
+
 	defer clt.Close()
 
 	resp, err := clt.Ping(ctx)
+
 	if err != nil {
 		log.Fatalf("failed to ping server: %v", err)
 	}
-	log.Printf("server version: %s", resp.ServerVersion)
+	
+	log.Printf("Example success!")
+	log.Printf("Example server response: %s", resp)
+	log.Printf("Server version: %s", resp.ServerVersion)
+	log.Printf("Learn more about the client pkg.go at https://pkg.go.dev/github.com/gravitational/teleport/api/client")
 }
+EOF
 ```
 
 Now you can run the program which will connect the client to the Teleport Auth server and fetch the server version.
@@ -94,6 +109,6 @@ go run main.go
 
 ## Next Steps
 
-- Read about the [API architecture](./architecture.mdx) for a more in depth look at the API client.
-- Visit the `client` package's [pkg.go.dev](https://pkg.go.dev/github.com/gravitational/teleport/api/client) for easy to navigate code oriented documentation.
+- Read about Teleport [API architecture](./architecture.mdx) for a more in depth look at the API client.
+- Review the `client` [pkg.go reference documentation](https://pkg.go.dev/github.com/gravitational/teleport/api/client) for more information about working with the Teleport API programmatically.
 - Familiarize yourself with the [admin manual](../../admin-guide.mdx) to make the best use of the API.
