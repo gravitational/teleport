@@ -17,13 +17,15 @@ func TestNewResourceItemOIDC(t *testing.T) {
 metadata:
   name: oidcName
 spec:
-  client_id: ""
+  client_id: client-id
   client_secret: ""
   issuer_url: ""
   redirect_url: ""
 version: v2
 `
-	oidcConn := types.NewOIDCConnector("oidcName", types.OIDCConnectorSpecV2{})
+	oidcConn, err := types.NewOIDCConnector("oidcName", types.OIDCConnectorSpecV2{ClientID: "client-id"})
+	require.NoError(t, err)
+
 	item, err := ui.NewResourceItem(oidcConn)
 	require.Nil(t, err)
 	require.Equal(t, item, &ui.ResourceItem{
@@ -39,27 +41,31 @@ func TestNewResourceItemSAML(t *testing.T) {
 metadata:
   name: samlName
 spec:
-  acs: ""
+  acs: service
   attributes_to_roles: null
-  audience: ""
+  audience: service
   cert: ""
   display: ""
-  entity_descriptor: ""
+  entity_descriptor: descriptor
   entity_descriptor_url: ""
   issuer: ""
-  service_provider_issuer: ""
+  service_provider_issuer: service
   sso: ""
 version: v2
 `
-	samlConn := types.NewSAMLConnector("samlName", types.SAMLConnectorSpecV2{})
+	samlConn, err := types.NewSAMLConnector("samlName", types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "service",
+		EntityDescriptor:         "descriptor",
+	})
+	require.NoError(t, err)
 	item, err := ui.NewResourceItem(samlConn)
 	require.Nil(t, err)
-	require.Equal(t, item, &ui.ResourceItem{
+	require.Equal(t, &ui.ResourceItem{
 		ID:      "saml:samlName",
 		Kind:    types.KindSAMLConnector,
 		Name:    "samlName",
 		Content: contents,
-	})
+	}, item)
 }
 
 func TestGetAuthConnectors(t *testing.T) {
@@ -67,15 +73,21 @@ func TestGetAuthConnectors(t *testing.T) {
 
 	m := &mockedResourceAPIGetter{}
 	m.mockGetGithubConnectors = func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
-		connector := types.NewGithubConnector("githubName", types.GithubConnectorSpecV3{})
+		connector, err := types.NewGithubConnector("githubName", types.GithubConnectorSpecV3{})
+		require.NoError(t, err)
 		return []types.GithubConnector{connector}, nil
 	}
 	m.mockGetSAMLConnectors = func(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error) {
-		connector := types.NewSAMLConnector("samlName", types.SAMLConnectorSpecV2{})
+		connector, err := types.NewSAMLConnector("samlName", types.SAMLConnectorSpecV2{
+			AssertionConsumerService: "service",
+			EntityDescriptor:         "descriptor",
+		})
+		require.NoError(t, err)
 		return []types.SAMLConnector{connector}, nil
 	}
 	m.mockGetOIDCConnectors = func(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error) {
-		connector := types.NewOIDCConnector("oidcName", types.OIDCConnectorSpecV2{})
+		connector, err := types.NewOIDCConnector("oidcName", types.OIDCConnectorSpecV2{ClientID: "client-id"})
+		require.NoError(t, err)
 		return []types.OIDCConnector{connector}, nil
 	}
 
@@ -96,15 +108,6 @@ func TestUpsertSAMLConnector(t *testing.T) {
 	m.mockGetSAMLConnector = func(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error) {
 		return nil, trace.NotFound("")
 	}
-
-	// Test bad request kind.
-	invalidKind := `kind: invalid-kind
-metadata:
-  name: test`
-	conn, err := upsertSAMLConnector(context.Background(), m, invalidKind, "")
-	require.Nil(t, conn)
-	require.True(t, trace.IsBadParameter(err))
-	require.Contains(t, err.Error(), "kind")
 
 	goodContent := `kind: saml
 version: v2

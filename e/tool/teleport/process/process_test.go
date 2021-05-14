@@ -7,7 +7,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -48,8 +47,8 @@ func TestMissingLicenseError(t *testing.T) {
 					"path": t.TempDir(),
 				},
 			},
-			ClusterConfig: services.DefaultClusterConfig(),
-			StaticTokens:  services.DefaultStaticTokens(),
+			ClusterConfig: types.DefaultClusterConfig(),
+			StaticTokens:  types.DefaultStaticTokens(),
 			NoAudit:       true,
 			Preference:    authPreference,
 			SSHAddr:       *utils.MustParseAddr("tcp://127.0.0.1:0"),
