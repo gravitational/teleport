@@ -61,8 +61,8 @@ type RequestEvent struct {
 	Request Request
 }
 
-// NewRequestWatcher creates a new RequestWatcher using the given client and filter.
-func NewRequestWatcher(ctx context.Context, clt *client.Client, filter Filter) (RequestWatcher, error) {
+// newRequestWatcher creates a new RequestWatcher using the given client and filter.
+func newRequestWatcher(ctx context.Context, clt *client.Client, filter Filter) (RequestWatcher, error) {
 	eventWatcher, err := clt.NewWatcher(ctx,
 		types.Watch{
 			Kinds: []types.WatchKind{

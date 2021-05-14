@@ -54,8 +54,12 @@ func NewPlugin(ctx context.Context, name string, client *client.Client) *Plugin 
 
 // WatchRequests registers a new watcher for pending access requests.
 func (p *Plugin) WatchRequests(ctx context.Context, filter Filter) (RequestWatcher, error) {
-	return NewRequestWatcher(ctx, p.client, filter)
+	return newRequestWatcher(ctx, p.client, filter)
+}
 
+// Close closes the plugin's underlying client.
+func (p *Plugin) Close() error {
+	return p.client.Close()
 }
 
 // CreateRequest creates a new Request for the given user to access the given role(s).
