@@ -38,9 +38,6 @@ type RemoteCluster interface {
 	// SetLastHeartbeat sets last heartbeat of the cluster
 	SetLastHeartbeat(t time.Time)
 
-	// CheckAndSetDefaults checks and sets default values
-	CheckAndSetDefaults() error
-
 	// SetMetadata sets remote cluster metatada
 	SetMetadata(Metadata)
 }

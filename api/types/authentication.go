@@ -63,10 +63,6 @@ type AuthPreference interface {
 	// require an MFA check.
 	GetRequireSessionMFA() bool
 
-	// CheckAndSetDefaults sets and default values and then
-	// verifies the constraints for AuthPreference.
-	CheckAndSetDefaults() error
-
 	// String represents a human readable version of authentication settings.
 	String() string
 }
