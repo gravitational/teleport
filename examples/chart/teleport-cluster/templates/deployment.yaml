@@ -46,7 +46,7 @@ spec:
         podAntiAffinity:
         {{- if .Values.highAvailability.requireAntiAffinity }}
         requiredDuringSchedulingIgnoredDuringExecution:
-        {{- else if and (gt (int .Values.highAvailability.replicaCount) 1) (not (eq .Values.chartMode "standalone")) }}
+        {{- else if gt (int .Values.highAvailability.replicaCount) 1) }}
         preferredDuringSchedulingIgnoredDuringExecution:
         {{- end }}
         - weight: 50
