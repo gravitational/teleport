@@ -339,7 +339,7 @@ func FromEventFields(fields EventFields) (AuditEvent, error) {
 		}
 		return &e, nil
 	default:
-		return nil, trace.BadParameter("unknown event type: %q", eventType)
+		return nil, trace.BadParameter("unknown event type: %q", fields)
 	}
 }
 
