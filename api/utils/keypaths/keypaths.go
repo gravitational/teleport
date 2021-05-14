@@ -50,7 +50,7 @@ const (
 // Here's the file layout of all these keypaths.
 // ~/.tsh/							 --> default base directory
 // ├── known_hosts                   --> trusted certificate authorities (their keys) in a format similar to known_hosts
-// └── keys
+// └── keys							 --> session keys directory
 //    ├── one.example.com            --> Proxy hostname
 //    │   ├── certs.pem              --> TLS CA certs for the Teleport CA
 //    │   ├── foo                    --> RSA Private Key for user "foo"
@@ -59,25 +59,26 @@ const (
 //    │   ├── foo-ssh                --> SSH certs for user "foo"
 //    │   │   ├── root-cert.pub      --> SSH cert for Teleport cluster "root"
 //    │   │   └── leaf-cert.pub      --> SSH cert for Teleport cluster "leaf"
-//    │   ├── foo-kube               --> Kubernetes certs for user "foo"
-//    │   │   ├── root               --> Kubernetes certs for Teleport cluster "root"
-//    │   │   │   ├── kubeA-x509.pem --> TLS cert for Kubernetes cluster "kubeA"
-//    │   │   │   └── kubeB-x509.pem --> TLS cert for Kubernetes cluster "kubeB"
-//    │   │   └── leaf               --> Kubernetes certs for Teleport cluster "leaf"
-//    │   │       └── kubeC-x509.pem --> TLS cert for Kubernetes cluster "kubeC"
-//    │   └── foo-db                 --> Database access certs for user "foo"
-//    │       ├── root               --> Database access certs for cluster "root"
-//    │       │   ├── dbA-x509.pem   --> TLS cert for database service "dbA"
-//    │       │   └── dbB-x509.pem   --> TLS cert for database service "dbB"
-//    │       └── leaf               --> Database access certs for cluster "leaf"
-//    │           └── dbC-x509.pem   --> TLS cert for database service "dbC"
-//    └── two.example.com
-//        ├── certs.pem
-//        ├── bar
-//        ├── bar.pub
-//        ├── bar-x509.pem
-//        └── bar-ssh
-//            └── clusterA-cert.pub
+//    │   ├── foo-app                --> Database access certs for user "foo"
+//    │   │   ├── root               --> Database access certs for cluster "root"
+//    │   │   │   ├── appA-x509.pem  --> TLS cert for app service "appA"
+//    │   │   │   └── appB-x509.pem  --> TLS cert for app service "appB"
+//    │   │   └── leaf               --> Database access certs for cluster "leaf"
+//    │   │       └── appC-x509.pem  --> TLS cert for app service "appC"
+//    │   ├── foo-db                 --> Database access certs for user "foo"
+//    │   │   ├── root               --> Database access certs for cluster "root"
+//    │   │   │   ├── dbA-x509.pem   --> TLS cert for database service "dbA"
+//    │   │   │   └── dbB-x509.pem   --> TLS cert for database service "dbB"
+//    │   │   └── leaf               --> Database access certs for cluster "leaf"
+//    │   │       └── dbC-x509.pem   --> TLS cert for database service "dbC"
+//    │   └── foo-kube               --> Kubernetes certs for user "foo"
+//    │       ├── root               --> Kubernetes certs for Teleport cluster "root"
+//    │       │   ├── kubeA-x509.pem --> TLS cert for Kubernetes cluster "kubeA"
+//    │       │   └── kubeB-x509.pem --> TLS cert for Kubernetes cluster "kubeB"
+//    │       └── leaf               --> Kubernetes certs for Teleport cluster "leaf"
+//    │           └── kubeC-x509.pem --> TLS cert for Kubernetes cluster "kubeC"
+//    └── two.example.com			 --> Additional proxy host entries follow the same format
+//		  ...
 
 // KeyDir returns the path to the keys directory.
 //
@@ -101,7 +102,8 @@ func KnownHostsPath(baseDir string) string {
 // <baseDir>/keys/<proxy>
 func ProxyKeyDir(baseDir, proxy string) string {
 	return filepath.Join(
-		KeyDir(baseDir),
+		baseDir,
+		sessionKeyDir,
 		proxy,
 	)
 }
@@ -112,7 +114,9 @@ func ProxyKeyDir(baseDir, proxy string) string {
 // <baseDir>/keys/<proxy>/<username>.
 func UserKeyPath(baseDir, proxy, username string) string {
 	return filepath.Join(
-		ProxyKeyDir(baseDir, proxy),
+		baseDir,
+		sessionKeyDir,
+		proxy,
 		username,
 	)
 }
@@ -123,7 +127,9 @@ func UserKeyPath(baseDir, proxy, username string) string {
 // <baseDir>/keys/<proxy>/<username>-x509.pem
 func TLSCertPath(baseDir, proxy, username string) string {
 	return filepath.Join(
-		ProxyKeyDir(baseDir, proxy),
+		baseDir,
+		sessionKeyDir,
+		proxy,
 		username+fileExtTLSCert,
 	)
 }
@@ -134,7 +140,9 @@ func TLSCertPath(baseDir, proxy, username string) string {
 // <baseDir>/keys/<proxy>/<username>.pub
 func SSHCAsPath(baseDir, proxy, username string) string {
 	return filepath.Join(
-		ProxyKeyDir(baseDir, proxy),
+		baseDir,
+		sessionKeyDir,
+		proxy,
 		username+fileExtPub,
 	)
 }
@@ -152,7 +160,9 @@ func TLSCAsPath(baseDir, proxy string) string {
 // <baseDir>/keys/<proxy>/<username>-ssh
 func SSHDir(baseDir, proxy, username string) string {
 	return filepath.Join(
-		ProxyKeyDir(baseDir, proxy),
+		baseDir,
+		sessionKeyDir,
+		proxy,
 		username+sshDirSuffix,
 	)
 }
@@ -163,7 +173,10 @@ func SSHDir(baseDir, proxy, username string) string {
 // <baseDir>/keys/<proxy>/<username>-ssh/<cluster>-cert.pub
 func SSHCertPath(baseDir, proxy, username, cluster string) string {
 	return filepath.Join(
-		SSHDir(baseDir, proxy, username),
+		baseDir,
+		sessionKeyDir,
+		proxy,
+		username+sshDirSuffix,
 		cluster+fileExtSSHCert,
 	)
 }
@@ -174,7 +187,9 @@ func SSHCertPath(baseDir, proxy, username, cluster string) string {
 // <baseDir>/keys/<proxy>/<username>-app
 func AppDir(baseDir, proxy, username string) string {
 	return filepath.Join(
-		ProxyKeyDir(baseDir, proxy),
+		baseDir,
+		sessionKeyDir,
+		proxy,
 		username+appDirSuffix,
 	)
 }
@@ -185,7 +200,10 @@ func AppDir(baseDir, proxy, username string) string {
 // <baseDir>/keys/<proxy>/<username>-app/<cluster>
 func AppCertDir(baseDir, proxy, username, cluster string) string {
 	return filepath.Join(
-		ProxyKeyDir(baseDir, proxy),
+		baseDir,
+		sessionKeyDir,
+		proxy,
+		username+appDirSuffix,
 		cluster,
 	)
 }
@@ -196,7 +214,11 @@ func AppCertDir(baseDir, proxy, username, cluster string) string {
 // <baseDir>/keys/<proxy>/<username>-app/<cluster>/<appname>-x509.pem
 func AppCertPath(baseDir, proxy, username, cluster, appname string) string {
 	return filepath.Join(
-		AppCertDir(baseDir, proxy, username, cluster),
+		baseDir,
+		sessionKeyDir,
+		proxy,
+		username+appDirSuffix,
+		cluster,
 		appname+fileExtTLSCert,
 	)
 }
@@ -207,7 +229,9 @@ func AppCertPath(baseDir, proxy, username, cluster, appname string) string {
 // <baseDir>/keys/<proxy>/<username>-db
 func DatabaseDir(baseDir, proxy, username string) string {
 	return filepath.Join(
-		ProxyKeyDir(baseDir, proxy),
+		baseDir,
+		sessionKeyDir,
+		proxy,
 		username+dbDirSuffix,
 	)
 }
@@ -218,7 +242,10 @@ func DatabaseDir(baseDir, proxy, username string) string {
 // <baseDir>/keys/<proxy>/<username>-db/<cluster>
 func DatabaseCertDir(baseDir, proxy, username, cluster string) string {
 	return filepath.Join(
-		DatabaseDir(baseDir, proxy, username),
+		baseDir,
+		sessionKeyDir,
+		proxy,
+		username+dbDirSuffix,
 		cluster,
 	)
 }
@@ -229,7 +256,11 @@ func DatabaseCertDir(baseDir, proxy, username, cluster string) string {
 // <baseDir>/keys/<proxy>/<username>-db/<cluster>/<dbname>-x509.pem
 func DatabaseCertPath(baseDir, proxy, username, cluster, dbname string) string {
 	return filepath.Join(
-		DatabaseCertDir(baseDir, proxy, username, cluster),
+		baseDir,
+		sessionKeyDir,
+		proxy,
+		username+dbDirSuffix,
+		cluster,
 		dbname+fileExtTLSCert,
 	)
 }
@@ -240,7 +271,9 @@ func DatabaseCertPath(baseDir, proxy, username, cluster, dbname string) string {
 // <baseDir>/keys/<proxy>/<username>-kube
 func KubeDir(baseDir, proxy, username string) string {
 	return filepath.Join(
-		ProxyKeyDir(baseDir, proxy),
+		baseDir,
+		sessionKeyDir,
+		proxy,
 		username+kubeDirSuffix,
 	)
 }
@@ -251,7 +284,10 @@ func KubeDir(baseDir, proxy, username string) string {
 // <baseDir>/keys/<proxy>/<username>-kube/<cluster>
 func KubeCertDir(baseDir, proxy, username, cluster string) string {
 	return filepath.Join(
-		KubeDir(baseDir, proxy, username),
+		baseDir,
+		sessionKeyDir,
+		proxy,
+		username+kubeDirSuffix,
 		cluster,
 	)
 }
@@ -262,7 +298,11 @@ func KubeCertDir(baseDir, proxy, username, cluster string) string {
 // <baseDir>/keys/<proxy>/<username>-kube/<cluster>/<kubename>-x509.pem
 func KubeCertPath(baseDir, proxy, username, cluster, kubename string) string {
 	return filepath.Join(
-		KubeCertDir(baseDir, proxy, username, cluster),
+		baseDir,
+		sessionKeyDir,
+		proxy,
+		username+kubeDirSuffix,
+		cluster,
 		kubename+fileExtTLSCert,
 	)
 }
