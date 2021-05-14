@@ -339,19 +339,20 @@ func FromEventFields(fields EventFields) (AuditEvent, error) {
 		}
 		return &e, nil
 	default:
-		return nil, trace.BadParameter("unknown event type: %v", eventType)
+		return nil, trace.BadParameter("unknown event type: %q", eventType)
 	}
 }
 
 // GetSessionID pulls the session ID from the events that have a
 // SessionMetadata. For other events an empty string is returned.
-func GetSessionID(event AuditEvent) (string, error) {
-	fields, err := ToEventFields(event)
-	if err != nil {
-		return "", trace.Wrap(err)
+func GetSessionID(event AuditEvent) string {
+	var sessionID string
+
+	if g, ok := event.(SessionMetadataGetter); ok {
+		sessionID = g.GetSessionID()
 	}
 
-	return fields.GetString(SessionEventID), nil
+	return sessionID
 }
 
 // ToEventFields converts from the typed interface-style event representation
