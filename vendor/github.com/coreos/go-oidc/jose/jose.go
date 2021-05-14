@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -65,6 +66,30 @@ const (
 )
 
 type JOSEHeader map[string]string
+
+func (a *JOSEHeader) UnmarshalJSON(b []byte) error {
+	var s map[string]interface{}
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+
+	out := make(map[string]string)
+	for k, v := range s {
+		switch v.(type) {
+		case int:
+			out[k] = strconv.Itoa(v.(int))
+		case float64:
+			out[k] = fmt.Sprint(v.(float64))
+		case string:
+			out[k] = v.(string)
+		default:
+			return fmt.Errorf("unknown type %T", v)
+		}
+	}
+
+	*a = out
+	return nil
+}
 
 func (j JOSEHeader) Validate() error {
 	if _, exists := j[HeaderKeyAlgorithm]; !exists {
