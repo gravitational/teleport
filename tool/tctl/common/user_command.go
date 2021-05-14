@@ -42,12 +42,12 @@ type UserCommand struct {
 	login         string
 	allowedLogins []string
 	createRoles   []string
+	kubeUsers     string
+	kubeGroups    string
 
 	// DELETE IN (7.0)
 	// We keep legacy flags used in tctl users add --k8s-users command
 	legacyAllowedLogins string
-	kubeUsers           string
-	kubeGroups          string
 
 	ttl time.Duration
 
