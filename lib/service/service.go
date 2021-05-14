@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
@@ -1156,33 +1157,34 @@ func (process *TeleportProcess) initAuthService() error {
 
 	// first, create the AuthServer
 	authServer, err := auth.Init(auth.InitConfig{
-		Backend:              b,
-		Authority:            cfg.Keygen,
-		ClusterConfiguration: cfg.ClusterConfiguration,
-		ClusterConfig:        cfg.Auth.ClusterConfig,
-		ClusterName:          cfg.Auth.ClusterName,
-		AuthServiceName:      cfg.Hostname,
-		DataDir:              cfg.DataDir,
-		HostUUID:             cfg.HostUUID,
-		NodeName:             cfg.Hostname,
-		Authorities:          cfg.Auth.Authorities,
-		Resources:            cfg.Auth.Resources,
-		ReverseTunnels:       cfg.ReverseTunnels,
-		Trust:                cfg.Trust,
-		Presence:             cfg.Presence,
-		Events:               cfg.Events,
-		Provisioner:          cfg.Provisioner,
-		Identity:             cfg.Identity,
-		Access:               cfg.Access,
-		StaticTokens:         cfg.Auth.StaticTokens,
-		Roles:                cfg.Auth.Roles,
-		AuthPreference:       cfg.Auth.Preference,
-		OIDCConnectors:       cfg.OIDCConnectors,
-		AuditLog:             process.auditLog,
-		CipherSuites:         cfg.CipherSuites,
-		CASigningAlg:         cfg.CASignatureAlgorithm,
-		Emitter:              checkingEmitter,
-		Streamer:             events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
+		Backend:                 b,
+		Authority:               cfg.Keygen,
+		ClusterConfiguration:    cfg.ClusterConfiguration,
+		ClusterConfig:           cfg.Auth.ClusterConfig,
+		ClusterNetworkingConfig: cfg.Auth.NetworkingConfig,
+		ClusterName:             cfg.Auth.ClusterName,
+		AuthServiceName:         cfg.Hostname,
+		DataDir:                 cfg.DataDir,
+		HostUUID:                cfg.HostUUID,
+		NodeName:                cfg.Hostname,
+		Authorities:             cfg.Auth.Authorities,
+		Resources:               cfg.Auth.Resources,
+		ReverseTunnels:          cfg.ReverseTunnels,
+		Trust:                   cfg.Trust,
+		Presence:                cfg.Presence,
+		Events:                  cfg.Events,
+		Provisioner:             cfg.Provisioner,
+		Identity:                cfg.Identity,
+		Access:                  cfg.Access,
+		StaticTokens:            cfg.Auth.StaticTokens,
+		Roles:                   cfg.Auth.Roles,
+		AuthPreference:          cfg.Auth.Preference,
+		OIDCConnectors:          cfg.OIDCConnectors,
+		AuditLog:                process.auditLog,
+		CipherSuites:            cfg.CipherSuites,
+		CASigningAlg:            cfg.CASignatureAlgorithm,
+		Emitter:                 checkingEmitter,
+		Streamer:                events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -2291,7 +2293,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 	case cfg.Proxy.DisableWebService && cfg.Proxy.DisableReverseTunnel:
 		process.log.Debugf("Setup Proxy: Reverse tunnel proxy and web proxy are disabled.")
 		return &listeners, nil
-	case cfg.Proxy.ReverseTunnelListenAddr.Equals(cfg.Proxy.WebAddr) && !cfg.Proxy.DisableTLS:
+	case cfg.Proxy.ReverseTunnelListenAddr == cfg.Proxy.WebAddr && !cfg.Proxy.DisableTLS:
 		process.log.Debugf("Setup Proxy: Reverse tunnel proxy and web proxy listen on the same port, multiplexing is on.")
 		listener, err := process.importOrCreateListener(listenerProxyTunnelAndWeb, cfg.Proxy.WebAddr.Addr)
 		if err != nil {
@@ -3036,6 +3038,13 @@ func (process *TeleportProcess) initApps() {
 			if app.Rewrite != nil {
 				a.Rewrite = &services.Rewrite{
 					Redirect: app.Rewrite.Redirect,
+				}
+				for _, header := range app.Rewrite.Headers {
+					a.Rewrite.Headers = append(a.Rewrite.Headers,
+						&types.Header{
+							Name:  header.Name,
+							Value: header.Value,
+						})
 				}
 			}
 

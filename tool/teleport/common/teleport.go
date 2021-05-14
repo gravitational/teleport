@@ -189,8 +189,12 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 	// Create default configuration.
 	conf = service.MakeDefaultConfig()
 
-	// If FIPS mode is specified update defaults to be FIPS appropriate.
+	// If FIPS mode is specified update defaults to be FIPS appropriate and
+	// cross-validate the current config.
 	if ccf.FIPS {
+		if ccf.InsecureMode {
+			utils.FatalError(trace.BadParameter("--insecure not allowed in FIPS mode"))
+		}
 		service.ApplyFIPSDefaults(conf)
 	}
 

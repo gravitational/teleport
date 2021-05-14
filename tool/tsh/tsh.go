@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -284,6 +285,8 @@ func Run(args []string, opts ...cliOption) error {
 	var cf CLIConf
 	utils.InitLogger(utils.LoggingForCLI, logrus.WarnLevel)
 
+	moduleCfg := modules.GetModules()
+
 	// configure CLI argument parser:
 	app := utils.InitCLIParser("tsh", "TSH: Teleport Authentication Gateway Client").Interspersed(false)
 	app.Flag("login", "Remote host login").Short('l').Envar(loginEnvVar).StringVar(&cf.NodeLogin)
@@ -299,7 +302,14 @@ func Run(args []string, opts ...cliOption) error {
 	app.Flag("identity", "Identity file").Short('i').StringVar(&cf.IdentityFileIn)
 	app.Flag("compat", "OpenSSH compatibility flag").Hidden().StringVar(&cf.Compatibility)
 	app.Flag("cert-format", "SSH certificate format").StringVar(&cf.CertificateFormat)
-	app.Flag("insecure", "Do not verify server's certificate and host name. Use only in test environments").Default("false").BoolVar(&cf.InsecureSkipVerify)
+
+	if !moduleCfg.IsBoringBinary() {
+		// The user is *never* allowed to do this in FIPS mode.
+		app.Flag("insecure", "Do not verify server's certificate and host name. Use only in test environments").
+			Default("false").
+			BoolVar(&cf.InsecureSkipVerify)
+	}
+
 	app.Flag("auth", "Specify the type of authentication connector to use.").Envar(authEnvVar).StringVar(&cf.AuthConnector)
 	app.Flag("namespace", "Namespace of the cluster").Default(defaults.Namespace).Hidden().StringVar(&cf.Namespace)
 	app.Flag("gops", "Start gops endpoint on a given address").Hidden().BoolVar(&cf.Gops)
@@ -693,7 +703,7 @@ func onLogin(cf *CLIConf) error {
 		// in case if nothing is specified, re-fetch kube clusters and print
 		// current status
 		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.IdentityFileOut == "":
-			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
+			if err := updateKubeConfig(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
 			printProfiles(cf.Debug, profile, profiles)
@@ -701,7 +711,7 @@ func onLogin(cf *CLIConf) error {
 		// in case if parameters match, re-fetch kube clusters and print
 		// current status
 		case host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "":
-			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
+			if err := updateKubeConfig(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
 			printProfiles(cf.Debug, profile, profiles)
@@ -721,7 +731,7 @@ func onLogin(cf *CLIConf) error {
 			if err := tc.SaveProfile("", true); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
+			if err := updateKubeConfig(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
 			return trace.Wrap(onStatus(cf))
@@ -732,7 +742,7 @@ func onLogin(cf *CLIConf) error {
 			if err := executeAccessRequest(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
+			if err := updateKubeConfig(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
 			return trace.Wrap(onStatus(cf))
@@ -794,7 +804,7 @@ func onLogin(cf *CLIConf) error {
 
 	// If the proxy is advertising that it supports Kubernetes, update kubeconfig.
 	if tc.KubeProxyAddr != "" {
-		if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
+		if err := updateKubeConfig(cf, tc); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1729,8 +1739,9 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	}
 
 	// If agent forwarding was specified on the command line enable it.
-	if cf.ForwardAgent || options.ForwardAgent {
-		c.ForwardAgent = true
+	c.ForwardAgent = options.ForwardAgent
+	if cf.ForwardAgent {
+		c.ForwardAgent = client.ForwardAgentYes
 	}
 
 	// If the caller does not want to check host keys, pass in a insecure host
@@ -1892,8 +1903,8 @@ func printStatus(debug bool, p *client.ProfileStatus, isActive bool) {
 	fmt.Printf("  Logins:             %v\n", strings.Join(p.Logins, ", "))
 	if p.KubeEnabled {
 		fmt.Printf("  Kubernetes:         enabled\n")
-		if p.KubeCluster != "" {
-			fmt.Printf("  Kubernetes cluster: %q\n", p.KubeCluster)
+		if kubeCluster := selectedKubeCluster(p.Cluster); kubeCluster != "" {
+			fmt.Printf("  Kubernetes cluster: %q\n", kubeCluster)
 		}
 		if len(p.KubeUsers) > 0 {
 			fmt.Printf("  Kubernetes users:   %v\n", strings.Join(p.KubeUsers, ", "))
@@ -2038,7 +2049,7 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...strin
 	if err := tc.SaveProfile("", true); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
+	if err := updateKubeConfig(cf, tc); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

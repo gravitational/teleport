@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
 
@@ -60,8 +62,6 @@ type TrustedCluster interface {
 	GetReverseTunnelAddress() string
 	// SetReverseTunnelAddress sets the address of the reverse tunnel.
 	SetReverseTunnelAddress(string)
-	// CheckAndSetDefaults checks and set default values for missing fields.
-	CheckAndSetDefaults() error
 	// CanChangeStateTo checks the TrustedCluster can transform into another.
 	CanChangeStateTo(TrustedCluster) error
 }
@@ -251,7 +251,7 @@ func (c *TrustedClusterV2) CanChangeStateTo(t TrustedCluster) error {
 	if !utils.StringSlicesEqual(c.GetRoles(), t.GetRoles()) {
 		return immutableFieldErr("roles")
 	}
-	if !c.GetRoleMap().Equals(t.GetRoleMap()) {
+	if !cmp.Equal(c.GetRoleMap(), t.GetRoleMap()) {
 		return immutableFieldErr("role_map")
 	}
 
@@ -271,32 +271,8 @@ func (c *TrustedClusterV2) String() string {
 		c.Spec.Enabled, c.Spec.Roles, c.Spec.Token, c.Spec.ProxyAddress, c.Spec.ReverseTunnelAddress)
 }
 
-// Equals checks if the two role mappings are equal.
-func (r RoleMapping) Equals(o RoleMapping) bool {
-	if r.Remote != o.Remote {
-		return false
-	}
-	if !utils.StringSlicesEqual(r.Local, r.Local) {
-		return false
-	}
-	return true
-}
-
 // RoleMap is a list of mappings
 type RoleMap []RoleMapping
-
-// Equals checks if the two role maps are equal.
-func (r RoleMap) Equals(o RoleMap) bool {
-	if len(r) != len(o) {
-		return false
-	}
-	for i := range r {
-		if !r[i].Equals(o[i]) {
-			return false
-		}
-	}
-	return true
-}
 
 // SortedTrustedCluster sorts clusters by name
 type SortedTrustedCluster []TrustedCluster

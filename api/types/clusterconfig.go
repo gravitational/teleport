@@ -51,26 +51,11 @@ type ClusterConfig interface {
 	// SetProxyChecksHostKeys gets if the proxy will check host keys.
 	SetProxyChecksHostKeys(string)
 
-	// CheckAndSetDefaults checks and set default values for missing fields.
-	CheckAndSetDefaults() error
-
 	// GetAuditConfig returns audit settings
 	GetAuditConfig() AuditConfig
 
 	// SetAuditConfig sets audit config
 	SetAuditConfig(AuditConfig)
-
-	// GetClientIdleTimeout returns client idle timeout setting
-	GetClientIdleTimeout() time.Duration
-
-	// SetClientIdleTimeout sets client idle timeout setting
-	SetClientIdleTimeout(t time.Duration)
-
-	// GetSessionControlTimeout gets the session control timeout.
-	GetSessionControlTimeout() time.Duration
-
-	// SetSessionControlTimeout sets the session control timeout.
-	SetSessionControlTimeout(t time.Duration)
 
 	// GetDisconnectExpiredCert returns disconnect expired certificate setting
 	GetDisconnectExpiredCert() bool
@@ -78,27 +63,23 @@ type ClusterConfig interface {
 	// SetDisconnectExpiredCert sets disconnect client with expired certificate setting
 	SetDisconnectExpiredCert(bool)
 
-	// GetKeepAliveInterval gets the keep-alive interval for server to client
-	// connections.
-	GetKeepAliveInterval() time.Duration
-
-	// SetKeepAliveInterval sets the keep-alive interval for server to client
-	// connections.
-	SetKeepAliveInterval(t time.Duration)
-
-	// GetKeepAliveCountMax gets the number of missed keep-alive messages before
-	// the server disconnects the client.
-	GetKeepAliveCountMax() int64
-
-	// SetKeepAliveCountMax sets the number of missed keep-alive messages before
-	// the server disconnects the client.
-	SetKeepAliveCountMax(c int64)
-
 	// GetLocalAuth gets if local authentication is allowed.
 	GetLocalAuth() bool
 
 	// SetLocalAuth sets if local authentication is allowed.
 	SetLocalAuth(bool)
+
+	// HasNetworkingConfig returns true if embedded networking configuration is set.
+	// DELETE IN 8.0.0
+	HasNetworkingConfig() bool
+
+	// GetNetworkingConfig returns embedded networking configuration.
+	// DELETE IN 8.0.0
+	GetNetworkingConfig() (ClusterNetworkingConfig, error)
+
+	// SetNetworkingConfig sets embedded networking configuration.
+	// DELETE IN 8.0.0
+	SetNetworkingConfig(ClusterNetworkingConfig) error
 
 	// Copy creates a copy of the resource and returns it.
 	Copy() ClusterConfig
@@ -224,26 +205,6 @@ func (c *ClusterConfigV3) SetAuditConfig(cfg AuditConfig) {
 	c.Spec.Audit = cfg
 }
 
-// GetClientIdleTimeout returns client idle timeout setting
-func (c *ClusterConfigV3) GetClientIdleTimeout() time.Duration {
-	return c.Spec.ClientIdleTimeout.Duration()
-}
-
-// SetClientIdleTimeout sets client idle timeout setting
-func (c *ClusterConfigV3) SetClientIdleTimeout(d time.Duration) {
-	c.Spec.ClientIdleTimeout = Duration(d)
-}
-
-// GetSessionControlTimeout gets the session control timeout.
-func (c *ClusterConfigV3) GetSessionControlTimeout() time.Duration {
-	return c.Spec.SessionControlTimeout.Duration()
-}
-
-// SetSessionControlTimeout sets the session control timeout.
-func (c *ClusterConfigV3) SetSessionControlTimeout(d time.Duration) {
-	c.Spec.SessionControlTimeout = Duration(d)
-}
-
 // GetDisconnectExpiredCert returns disconnect expired certificate setting
 func (c *ClusterConfigV3) GetDisconnectExpiredCert() bool {
 	return c.Spec.DisconnectExpiredCert.Value()
@@ -252,28 +213,6 @@ func (c *ClusterConfigV3) GetDisconnectExpiredCert() bool {
 // SetDisconnectExpiredCert sets disconnect client with expired certificate setting
 func (c *ClusterConfigV3) SetDisconnectExpiredCert(b bool) {
 	c.Spec.DisconnectExpiredCert = NewBool(b)
-}
-
-// GetKeepAliveInterval gets the keep-alive interval.
-func (c *ClusterConfigV3) GetKeepAliveInterval() time.Duration {
-	return c.Spec.KeepAliveInterval.Duration()
-}
-
-// SetKeepAliveInterval sets the keep-alive interval.
-func (c *ClusterConfigV3) SetKeepAliveInterval(t time.Duration) {
-	c.Spec.KeepAliveInterval = Duration(t)
-}
-
-// GetKeepAliveCountMax gets the number of missed keep-alive messages before
-// the server disconnects the client.
-func (c *ClusterConfigV3) GetKeepAliveCountMax() int64 {
-	return c.Spec.KeepAliveCountMax
-}
-
-// SetKeepAliveCountMax sets the number of missed keep-alive messages before
-// the server disconnects the client.
-func (c *ClusterConfigV3) SetKeepAliveCountMax(m int64) {
-	c.Spec.KeepAliveCountMax = m
 }
 
 // GetLocalAuth gets if local authentication is allowed.
@@ -313,15 +252,32 @@ func (c *ClusterConfigV3) CheckAndSetDefaults() error {
 		return trace.BadParameter("proxy_checks_host_keys must be one of: %v", strings.Join(all, ","))
 	}
 
-	// Set the keep-alive interval and max missed keep-alives before the
-	// client is disconnected.
-	if c.Spec.KeepAliveInterval.Duration() == 0 {
-		c.Spec.KeepAliveInterval = NewDuration(defaults.KeepAliveInterval)
-	}
-	if c.Spec.KeepAliveCountMax == 0 {
-		c.Spec.KeepAliveCountMax = int64(defaults.KeepAliveCountMax)
-	}
+	return nil
+}
 
+// HasNetworkingConfig returns true if embedded networking configuration is set.
+// DELETE IN 8.0.0
+func (c *ClusterConfigV3) HasNetworkingConfig() bool {
+	return c.Spec.ClusterNetworkingConfigSpecV2 != nil
+}
+
+// GetNetworkingConfig returns embedded networking configuration.
+// DELETE IN 8.0.0
+func (c *ClusterConfigV3) GetNetworkingConfig() (ClusterNetworkingConfig, error) {
+	if c.Spec.ClusterNetworkingConfigSpecV2 == nil {
+		return nil, trace.BadParameter("ClusterNetworkingConfigSpec is not set")
+	}
+	return NewClusterNetworkingConfig(*c.Spec.ClusterNetworkingConfigSpecV2)
+}
+
+// SetNetworkingConfig sets embedded networking configuration.
+// DELETE IN 8.0.0
+func (c *ClusterConfigV3) SetNetworkingConfig(netConfig ClusterNetworkingConfig) error {
+	netConfigV2, ok := netConfig.(*ClusterNetworkingConfigV2)
+	if !ok {
+		return trace.BadParameter("unexpected type %T", netConfig)
+	}
+	c.Spec.ClusterNetworkingConfigSpecV2 = &netConfigV2.Spec
 	return nil
 }
 

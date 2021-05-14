@@ -90,6 +90,16 @@ func ValidateAgentKeyOption(supplied string) error {
 	return trace.BadParameter("invalid value %q, must be one of %v", supplied, AllAddKeysOptions)
 }
 
+// AgentForwardingMode  describes how the user key agent will be forwarded
+// to a remote machine, if at all.
+type AgentForwardingMode int
+
+const (
+	ForwardAgentNo AgentForwardingMode = iota
+	ForwardAgentYes
+	ForwardAgentLocal
+)
+
 var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentClient,
 })
@@ -202,7 +212,7 @@ type Config struct {
 	Agent agent.Agent
 
 	// ForwardAgent is used by the client to request agent forwarding from the server.
-	ForwardAgent bool
+	ForwardAgent AgentForwardingMode
 
 	// AuthMethods are used to login into the cluster. If specified, the client will
 	// use them in addition to certs stored in its local agent (from disk)
@@ -351,9 +361,6 @@ type ProfileStatus struct {
 	// KubeEnabled is true when this profile is configured to connect to a
 	// kubernetes cluster.
 	KubeEnabled bool
-
-	// KubeCluster is the name of the kubernetes cluster used by this profile.
-	KubeCluster string
 
 	// KubeUsers are the kubernetes users used by this profile.
 	KubeUsers []string
@@ -615,7 +622,6 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 		Traits:         traits,
 		ActiveRequests: activeRequests,
 		KubeEnabled:    profile.KubeProxyAddr != "",
-		KubeCluster:    tlsID.KubernetesCluster,
 		KubeUsers:      tlsID.KubernetesUsers,
 		KubeGroups:     tlsID.KubernetesGroups,
 		Databases:      databases,
@@ -2297,7 +2303,8 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 	// If version checking was requested and the server advertises a minimum version.
 	if tc.CheckVersions && pr.MinClientVersion != "" {
 		if err := utils.CheckVersions(teleport.Version, pr.MinClientVersion); err != nil {
-			return nil, trace.Wrap(err)
+			fmt.Printf("\nWARNING: %v\n", err)
+			fmt.Printf("Future versions of tsh will fail when incompatible versions are detected.\n\n")
 		}
 	}
 
