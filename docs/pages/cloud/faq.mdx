@@ -63,7 +63,7 @@ You must use the enterprise version of `tctl`.
 
 ### Why am I getting `permission denied` errors when using `tctl`?
 
-If you have a local file `/etc/teleport.yaml` on your machine `tctl` will attempt to use the local cluster. Set the environment variable `TELEPORT_CONFIG_FILE=` to `""` so it will not attempt to use that Teleport configuration file.
+If you have a local file `/etc/teleport.yaml` on your machine `tctl` will attempt to use the local cluster. Set the environment variable `TELEPORT_CONFIG_FILE` to `""` so it will not attempt to use that Teleport configuration file.
 
 ```bash
 $ export TELEPORT_CONFIG_FILE=""
