@@ -704,7 +704,7 @@ func (f ByTimeAndIndex) Swap(i, j int) {
 }
 
 // searchEventsRaw is a low level function for searching for events. This is kept
-// seperate from the SearchEvents function in order to allow tests to grab more metadata.
+// separate from the SearchEvents function in order to allow tests to grab more metadata.
 func (l *Log) searchEventsRaw(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]event, string, error) {
 	var checkpoint checkpointKey
 
