@@ -46,7 +46,7 @@ TELEPORT_BINARY_DIR="/usr/local/bin"
 TELEPORT_BINARY_LIST="teleport tctl tsh"
 TELEPORT_CONFIG_PATH="/etc/teleport.yaml"
 TELEPORT_DATA_DIR="/var/lib/teleport"
-TELEPORT_DOCS_URL="https://gravitational.com/teleport/docs"
+TELEPORT_DOCS_URL="https://goteleport.com/docs/"
 TELEPORT_FORMAT=""
 
 # initialise variables (because set -u disallows unbound variables)
@@ -366,7 +366,7 @@ download() {
             log_important "Checksum of the downloaded file did not validate correctly"
             log_important "Expected: ${SHA_EXPECTED}"
             log_important "Got: ${SHA_ACTUAL}"
-            log_important "Try rerunning this script from the start. If the issue persists, contact Gravitational Support."
+            log_important "Try rerunning this script from the start. If the issue persists, contact Teleport Support."
             exit 1
         fi
     else
@@ -491,7 +491,7 @@ print_welcome_message() {
         fi
         log_only ""
         log_only "You can see this node connected in the Teleport web UI or 'tsh ls' with the name '${NODENAME}'"
-        log_only "Find more details on how to use Teleport here: https://gravitational.com/teleport/docs/user-manual/"
+        log_only "Find more details on how to use Teleport here: https://goteleport.com/docs/user-manual/"
     else
         log_important "The Teleport service was installed, but it does not appear to have started successfully."
         if is_using_systemd; then
@@ -500,7 +500,7 @@ print_welcome_message() {
         elif is_macos_host; then
             log_important "Check Teleport logs in '${MACOS_STDERR_LOG}' and '${MACOS_STDOUT_LOG}'"
         fi
-        log_important "Contact Gravitational support for further assistance."
+        log_important "Contact Teleport Support for further assistance."
     fi
     log_only ""
 }
@@ -805,7 +805,7 @@ fi
 if ! check_teleport_binary; then
     log_important "The Teleport binary could not be found at ${TELEPORT_BINARY_DIR} as expected."
     log_important "This usually means that there was an error during installation."
-    log_important "Check this log for obvious signs of error and contact Gravitational Support"
+    log_important "Check this log for obvious signs of error and contact Teleport Support"
     log_important "for further assistance."
     exit 1
 fi
