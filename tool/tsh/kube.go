@@ -22,12 +22,13 @@ import (
 	"time"
 
 	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -164,12 +165,7 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	var selectedCluster string
-	if kc, err := kubeconfig.Load(""); err != nil {
-		log.WithError(err).Warning("Failed parsing existing kubeconfig")
-	} else {
-		selectedCluster = kubeconfig.KubeClusterFromContext(kc.CurrentContext, currentTeleportCluster)
-	}
+	selectedCluster := selectedKubeCluster(currentTeleportCluster)
 
 	var t asciitable.Table
 	if cf.Quiet {
@@ -187,6 +183,15 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 	fmt.Println(t.AsBuffer().String())
 
 	return nil
+}
+
+func selectedKubeCluster(currentTeleportCluster string) string {
+	kc, err := kubeconfig.Load("")
+	if err != nil {
+		log.WithError(err).Warning("Failed parsing existing kubeconfig")
+		return ""
+	}
+	return kubeconfig.KubeClusterFromContext(kc.CurrentContext, currentTeleportCluster)
 }
 
 type kubeLoginCommand struct {
