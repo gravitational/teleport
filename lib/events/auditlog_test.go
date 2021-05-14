@@ -31,6 +31,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/session"
@@ -355,7 +356,10 @@ func (a *AuditTestSuite) TestLogRotation(c *check.C) {
 		clock.Advance(duration)
 
 		// emit regular event:
-		err = alog.EmitAuditEventLegacy(Event{Name: "user.joined"}, EventFields{"apples?": "yes"})
+		event := &events.Resize{
+			TerminalSize: "10:10",
+		}
+		err = alog.EmitAuditEvent(context.TODO(), event)
 		c.Assert(err, check.IsNil)
 		logfile := alog.localLog.file.Name()
 
@@ -367,13 +371,14 @@ func (a *AuditTestSuite) TestLogRotation(c *check.C) {
 		// read back what's been written:
 		bytes, err := ioutil.ReadFile(logfile)
 		c.Assert(err, check.IsNil)
-		contents := fmt.Sprintf("{\"apples?\":\"yes\",\"event\":\"user.joined\",\"time\":\"%s\",\"uid\":\"%s\"}\n", now.Format(time.RFC3339), fixtures.UUID)
-		c.Assert(string(bytes), check.Equals, contents)
+		contents, err := json.Marshal(event)
+		c.Assert(err, check.IsNil)
+		c.Assert(string(bytes), check.Equals, string(contents))
 
 		// read back the contents using symlink
 		bytes, err = ioutil.ReadFile(filepath.Join(alog.localLog.SymlinkDir, SymlinkFilename))
 		c.Assert(err, check.IsNil)
-		c.Assert(string(bytes), check.Equals, contents)
+		c.Assert(string(bytes), check.Equals, string(contents))
 
 		found, _, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), defaults.Namespace, nil, 0, "")
 		c.Assert(err, check.IsNil)
