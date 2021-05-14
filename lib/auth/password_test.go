@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -70,6 +71,9 @@ func (s *PasswordSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	err = s.a.SetClusterName(clusterName)
+	c.Assert(err, IsNil)
+
+	err = s.a.SetClusterNetworkingConfig(context.TODO(), types.DefaultClusterNetworkingConfig())
 	c.Assert(err, IsNil)
 
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{

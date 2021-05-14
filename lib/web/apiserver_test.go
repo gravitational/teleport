@@ -778,6 +778,8 @@ func (s *WebSuite) TestResolveServerHostPort(c *C) {
 }
 
 func (s *WebSuite) TestNewTerminalHandler(c *C) {
+	ctx := context.Background()
+
 	validNode := services.ServerV2{}
 	validNode.SetName("eca53e45-86a9-11e7-a893-0242ac0a0101")
 	validNode.Spec.Hostname = "nodehostname"
@@ -869,7 +871,7 @@ func (s *WebSuite) TestNewTerminalHandler(c *C) {
 	}
 
 	for _, testCase := range validCases {
-		term, err := NewTerminal(testCase.req, testCase.authProvider, nil)
+		term, err := NewTerminal(ctx, testCase.req, testCase.authProvider, nil)
 		c.Assert(err, IsNil)
 		c.Assert(term.params, DeepEquals, testCase.req)
 		c.Assert(term.hostName, Equals, testCase.expectedHost)
@@ -877,7 +879,7 @@ func (s *WebSuite) TestNewTerminalHandler(c *C) {
 	}
 
 	for _, testCase := range invalidCases {
-		_, err := NewTerminal(testCase.req, testCase.authProvider, nil)
+		_, err := NewTerminal(ctx, testCase.req, testCase.authProvider, nil)
 		c.Assert(err, ErrorMatches, ".*"+testCase.expectedErr+".*")
 	}
 }
@@ -963,16 +965,23 @@ func (s *WebSuite) TestTerminal(c *C) {
 }
 
 func (s *WebSuite) TestWebsocketPingLoop(c *C) {
-	// change cluster default config for keep alive interval to be ran faster
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
 		SessionRecording:    services.RecordAtNode,
 		ProxyChecksHostKeys: services.HostKeyCheckYes,
-		KeepAliveInterval:   services.NewDuration(250 * time.Millisecond),
 		LocalAuth:           services.NewBool(true),
 	})
 	c.Assert(err, IsNil)
 
 	err = s.server.Auth().SetClusterConfig(clusterConfig)
+	c.Assert(err, IsNil)
+
+	// Change cluster networking config for keep alive interval to be run faster.
+	netConfig, err := types.NewClusterNetworkingConfig(types.ClusterNetworkingConfigSpecV2{
+		KeepAliveInterval: services.NewDuration(250 * time.Millisecond),
+	})
+	c.Assert(err, IsNil)
+
+	err = s.server.Auth().SetClusterNetworkingConfig(context.TODO(), netConfig)
 	c.Assert(err, IsNil)
 
 	ws, err := s.makeTerminal(s.authPack(c, "foo"))
@@ -1773,11 +1782,13 @@ func (s *WebSuite) searchEvents(c *C, clt *client.WebClient, query url.Values, f
 }
 
 func (s *WebSuite) TestGetClusterDetails(c *C) {
+	ctx := context.Background()
+
 	site, err := s.proxyTunnel.GetSite(s.server.ClusterName())
 	c.Assert(err, IsNil)
 	c.Assert(site, NotNil)
 
-	cluster, err := ui.GetClusterDetails(site)
+	cluster, err := ui.GetClusterDetails(ctx, site)
 	c.Assert(err, IsNil)
 	c.Assert(cluster.Name, Equals, s.server.ClusterName())
 	c.Assert(cluster.ProxyVersion, Equals, teleport.Version)
@@ -1786,7 +1797,7 @@ func (s *WebSuite) TestGetClusterDetails(c *C) {
 	c.Assert(cluster.LastConnected, NotNil)
 	c.Assert(cluster.AuthVersion, Equals, teleport.Version)
 
-	nodes, err := s.proxyClient.GetNodes(defaults.Namespace)
+	nodes, err := s.proxyClient.GetNodes(ctx, defaults.Namespace)
 	c.Assert(err, IsNil)
 	c.Assert(nodes, HasLen, cluster.NodeCount)
 }
@@ -1799,6 +1810,89 @@ func (m *testModules) Features() modules.Features {
 	return modules.Features{
 		App: false, // Explicily turn off application access.
 	}
+}
+
+func TestClusterDatabasesGet(t *testing.T) {
+	env := newWebPack(t, 1)
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com")
+
+	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases")
+	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
+	require.NoError(t, err)
+
+	// No db registered.
+	dbs := []ui.Database{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &dbs))
+	require.Len(t, dbs, 0)
+
+	// Register a database.
+	db := types.NewDatabaseServerV3("test-db-name", map[string]string{"test-field": "test-value"}, types.DatabaseServerSpecV3{
+		Description: "test-description",
+		Protocol:    "test-protocol",
+		URI:         "test-uri",
+		Hostname:    "test-hostname",
+		HostID:      "test-hostID",
+	})
+
+	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), db)
+	require.NoError(t, err)
+
+	re, err = pack.clt.Get(context.Background(), endpoint, url.Values{})
+	require.NoError(t, err)
+
+	dbs = []ui.Database{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &dbs))
+	require.Len(t, dbs, 1)
+	require.EqualValues(t, ui.Database{
+		Name:     "test-db-name",
+		Desc:     "test-description",
+		Protocol: "test-protocol",
+		Type:     types.DatabaseTypeSelfHosted,
+		Labels:   []ui.Label{{Name: "test-field", Value: "test-value"}},
+	}, dbs[0])
+}
+
+func TestClusterKubesGet(t *testing.T) {
+	env := newWebPack(t, 1)
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com")
+
+	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "kubernetes")
+	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
+	require.NoError(t, err)
+
+	// No kube registered.
+	kbs := []ui.Kube{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &kbs))
+	require.Len(t, kbs, 0)
+
+	// Register a kube service.
+	err = env.server.Auth().UpsertKubeService(context.Background(), &services.ServerV2{
+		Metadata: services.Metadata{Name: "test-kube"},
+		Kind:     services.KindKubeService,
+		Version:  services.V2,
+		Spec: services.ServerSpecV2{
+			KubernetesClusters: []*services.KubernetesCluster{{
+				Name:         "test-kube-name",
+				StaticLabels: map[string]string{"test-field": "test-value"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	re, err = pack.clt.Get(context.Background(), endpoint, url.Values{})
+	require.NoError(t, err)
+
+	kbs = []ui.Kube{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &kbs))
+	require.Len(t, kbs, 1)
+	require.EqualValues(t, ui.Kube{
+		Name:   "test-kube-name",
+		Labels: []ui.Label{{Name: "test-field", Value: "test-value"}},
+	}, kbs[0])
 }
 
 // TestApplicationAccessDisabled makes sure application access can be disabled
@@ -2102,7 +2196,7 @@ type authProviderMock struct {
 	server services.ServerV2
 }
 
-func (mock authProviderMock) GetNodes(n string, opts ...services.MarshalOption) ([]services.Server, error) {
+func (mock authProviderMock) GetNodes(ctx context.Context, n string, opts ...services.MarshalOption) ([]services.Server, error) {
 	return []services.Server{&mock.server}, nil
 }
 

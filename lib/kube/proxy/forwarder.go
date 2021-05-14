@@ -435,6 +435,11 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 		return nil, trace.Wrap(err)
 	}
 
+	netConfig, err := f.cfg.CachingAuthClient.GetClusterNetworkingConfig(f.ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// adjust session ttl to the smaller of two values: the session
 	// ttl requested in tsh or the session ttl for the role.
 	sessionTTL := roles.AdjustSessionTTL(time.Hour)
@@ -530,7 +535,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	}
 
 	authCtx := &authContext{
-		clientIdleTimeout: roles.AdjustClientIdleTimeout(clusterConfig.GetClientIdleTimeout()),
+		clientIdleTimeout: roles.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
 		sessionTTL:        sessionTTL,
 		Context:           ctx,
 		kubeGroups:        utils.StringsSet(kubeGroups),
@@ -790,6 +795,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			KubernetesClusterMetadata: ctx.eventClusterMeta(),
 			KubernetesPodMetadata:     eventPodMeta,
 			InitialCommand:            request.cmd,
+			SessionRecording:          ctx.clusterConfig.GetSessionRecording(),
 		}
 		if err := emitter.EmitAuditEvent(f.ctx, sessionStartEvent); err != nil {
 			f.log.WithError(err).Warn("Failed to emit event.")
@@ -907,6 +913,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 				KubernetesClusterMetadata: ctx.eventClusterMeta(),
 				KubernetesPodMetadata:     eventPodMeta,
 				InitialCommand:            request.cmd,
+				SessionRecording:          ctx.clusterConfig.GetSessionRecording(),
 			}
 			if err := emitter.EmitAuditEvent(f.ctx, sessionEndEvent); err != nil {
 				f.log.WithError(err).Warn("Failed to emit session end event.")

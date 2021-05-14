@@ -64,8 +64,6 @@ type User interface {
 	GetTraits() map[string][]string
 	// GetTraits sets the trait map for this user used to populate role variables.
 	SetTraits(map[string][]string)
-	// CheckAndSetDefaults checks and set default values for any missing fields.
-	CheckAndSetDefaults() error
 }
 
 // NewUser creates new empty user
@@ -306,11 +304,6 @@ func (c CreatedBy) String() string {
 // String returns debug friendly representation of this identity
 func (i *ExternalIdentity) String() string {
 	return fmt.Sprintf("OIDCIdentity(connectorID=%v, username=%v)", i.ConnectorID, i.Username)
-}
-
-// Equals returns true if this identity equals to passed one
-func (i *ExternalIdentity) Equals(other *ExternalIdentity) bool {
-	return i.ConnectorID == other.ConnectorID && i.Username == other.Username
 }
 
 // Check returns nil if all parameters are great, err otherwise

@@ -271,3 +271,19 @@ The `tctl rm` subcommand can be used to reset dynamic resources back to their de
    configuration from teleport.yaml and restarting the servers in order to
    reset the resource to its default.
    ```
+
+### RBAC verbs
+
+Reading any configuration resource requires the RBAC verb `read`.
+
+Performing any dynamic overwrite of a configuration resource requires the RBAC
+verb `update`.  In addition, if the overwrite is to replace a resource with
+`origin: config-file`, the RBAC verb `create` is also required.
+
+|                                     |     **`read`**     |    **`update`**    |    **`create`**    |
+|                :---:                |        :---:       |        :---:       |        :---:       |
+|            **`tctl get`**           | :heavy_check_mark: |                    |                    |
+|          **`tctl create`**          |                    | :heavy_check_mark: |                    |
+|      **`tctl create --force`**      |                    | :heavy_check_mark: |                    |
+| **`tctl create --force --confirm`** |                    | :heavy_check_mark: | :heavy_check_mark: |
+|            **`tctl rm`**            |                    | :heavy_check_mark: |                    |

@@ -117,7 +117,7 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 	start.Flag("config-string",
 		"Base64 encoded configuration string").Hidden().Envar(defaults.ConfigEnvar).
 		StringVar(&ccf.ConfigString)
-	start.Flag("labels", "List of labels for this node").StringVar(&ccf.Labels)
+	start.Flag("labels", "Comma-separated list of labels for this node, for example env=dev,app=web").StringVar(&ccf.Labels)
 	start.Flag("diag-addr",
 		"Start diagnostic prometheus and healthz endpoint.").Hidden().StringVar(&ccf.DiagnosticAddr)
 	start.Flag("permit-user-env",
@@ -189,8 +189,12 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 	// Create default configuration.
 	conf = service.MakeDefaultConfig()
 
-	// If FIPS mode is specified update defaults to be FIPS appropriate.
+	// If FIPS mode is specified update defaults to be FIPS appropriate and
+	// cross-validate the current config.
 	if ccf.FIPS {
+		if ccf.InsecureMode {
+			utils.FatalError(trace.BadParameter("--insecure not allowed in FIPS mode"))
+		}
 		service.ApplyFIPSDefaults(conf)
 	}
 

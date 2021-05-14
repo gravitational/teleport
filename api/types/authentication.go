@@ -63,10 +63,6 @@ type AuthPreference interface {
 	// require an MFA check.
 	GetRequireSessionMFA() bool
 
-	// CheckAndSetDefaults sets and default values and then
-	// verifies the constraints for AuthPreference.
-	CheckAndSetDefaults() error
-
 	// String represents a human readable version of authentication settings.
 	String() string
 }
@@ -230,7 +226,7 @@ func (c *AuthPreferenceV2) SetConnectorName(cn string) {
 // GetU2F gets the U2F configuration settings.
 func (c *AuthPreferenceV2) GetU2F() (*U2F, error) {
 	if c.Spec.U2F == nil {
-		return nil, trace.NotFound("U2F configuration not found")
+		return nil, trace.NotFound("U2F is not configured in this cluster, please contact your administrator and ask them to follow https://goteleport.com/docs/access-controls/guides/u2f/")
 	}
 	return c.Spec.U2F, nil
 }

@@ -65,11 +65,6 @@ func (a *NetAddr) Port(defaultPort int) int {
 	return porti
 }
 
-// Equals returns true if address is equal to other
-func (a *NetAddr) Equals(other NetAddr) bool {
-	return a.Addr == other.Addr && a.AddrNetwork == other.AddrNetwork && a.Path == other.Path
-}
-
 // IsLocal returns true if this is a local address
 func (a *NetAddr) IsLocal() bool {
 	host, _, err := net.SplitHostPort(a.Addr)
