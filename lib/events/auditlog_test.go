@@ -134,7 +134,7 @@ func (a *AuditTestSuite) TestSessionsOnOneAuthServer(c *check.C) {
 		ServerID:       teleport.ComponentUpload,
 		DataDir:        uploadDir,
 		RecordSessions: true,
-		ForwardTo:      alog,
+		IAuditLog:      alog,
 		Clock:          fakeClock,
 	})
 	c.Assert(err, check.IsNil)
@@ -254,7 +254,7 @@ func (a *AuditTestSuite) TestSessionRecordingOff(c *check.C) {
 		ServerID:       teleport.ComponentUpload,
 		DataDir:        uploadDir,
 		RecordSessions: false,
-		ForwardTo:      alog,
+		IAuditLog:      alog,
 		Clock:          fakeClock,
 	})
 	c.Assert(err, check.IsNil)
@@ -499,7 +499,7 @@ func (a *AuditTestSuite) forwardAndUpload(c *check.C, fakeClock clockwork.Clock,
 		ServerID:       "upload",
 		DataDir:        uploadDir,
 		RecordSessions: true,
-		ForwardTo:      alog,
+		IAuditLog:      alog,
 	})
 	c.Assert(err, check.IsNil)
 

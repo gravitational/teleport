@@ -1255,7 +1255,7 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 		ServerID:       teleport.ComponentUpload,
 		DataDir:        uploadDir,
 		RecordSessions: true,
-		ForwardTo:      clt,
+		IAuditLog:      clt,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -1288,7 +1288,7 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 		ServerID:       teleport.ComponentUpload,
 		DataDir:        uploadDir,
 		RecordSessions: true,
-		ForwardTo:      clt,
+		IAuditLog:      clt,
 	})
 	c.Assert(err, check.IsNil)
 	err = clt.PostSessionSlice(events.SessionSlice{
