@@ -70,12 +70,12 @@ func main() {
 	ctx := context.Background()
 
 	clt, err := client.New(ctx, client.Config{
-        Addrs: []string{
-            "tele.example.com:443",
-            "tele.example.com:3025",
-            "tele.example.com:3024",
-            "tele.example.com:3080",
-        },
+		Addrs: []string{
+			"tele.example.com:443",
+			"tele.example.com:3025",
+			"tele.example.com:3024",
+			"tele.example.com:3080",
+ 		},
 		Credentials: []client.Credentials{
 			client.LoadProfile("", ""),
 		},
