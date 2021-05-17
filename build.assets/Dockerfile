@@ -71,7 +71,6 @@ RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$RUNT
 
 ENV GOPATH="/go" \
     GOROOT="/opt/go" \
-    GOMODCACHE="/tmp/gomodcache" \
     PATH="$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
 
 # Install meta-linter.
