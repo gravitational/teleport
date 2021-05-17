@@ -120,7 +120,7 @@ const session = {
     return this._timeLeft() < RENEW_TOKEN_TIME;
   },
 
-  _renewToken(req: RenewSessionRequest) {
+  _renewToken(req: RenewSessionRequest = {}) {
     this._setAndBroadcastIsRenewing(true);
     return api
       .post(cfg.getRenewTokenUrl(), req)
