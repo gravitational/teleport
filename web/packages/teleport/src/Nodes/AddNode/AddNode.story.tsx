@@ -21,42 +21,50 @@ export default {
   title: 'Teleport/Nodes/Add',
 };
 
-export const Loaded = () => <AddNode {...sample.props} />;
+export const Loaded = () => <AddNode {...props} />;
 
 export const Processing = () => (
-  <AddNode {...sample.props} attempt={{ status: 'processing' }} />
+  <AddNode {...props} attempt={{ status: 'processing' }} />
 );
 
 export const Failed = () => (
   <AddNode
-    {...sample.props}
+    {...props}
     attempt={{ status: 'failed', statusText: 'some error message' }}
   />
 );
 
-export const Manually = () => (
-  <AddNode {...sample.props} automatic={false} canCreateToken={false} />
+export const ManuallyLocal = () => (
+  <AddNode {...props} automatic={false} canCreateToken={false} />
 );
 
-const sample = {
-  props: {
-    onClose() {
-      return null;
-    },
-    createJoinToken() {
-      return Promise.resolve(null);
-    },
-    user: 'sam',
-    automatic: true,
-    setAutomatic: () => null,
-    version: '5.0.0-dev',
-    isEnterprise: true,
-    canCreateToken: true,
-    script: 'some bash script',
-    expiry: '4 hours',
-    attempt: {
-      status: 'success',
-      statusText: '',
-    } as any,
+export const ManuallySSO = () => (
+  <AddNode
+    {...props}
+    automatic={false}
+    canCreateToken={false}
+    isAuthTypeLocal={false}
+  />
+);
+
+const props = {
+  isAuthTypeLocal: true,
+  onClose() {
+    return null;
   },
+  createJoinToken() {
+    return Promise.resolve(null);
+  },
+  user: 'sam',
+  automatic: true,
+  setAutomatic: () => null,
+  version: '5.0.0-dev',
+  isEnterprise: true,
+  canCreateToken: true,
+  script: 'some bash script',
+  expiry: '4 hours',
+  attempt: {
+    status: 'success',
+    statusText: '',
+  } as any,
 };

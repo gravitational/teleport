@@ -40,6 +40,7 @@ export function AddApp({
   attempt,
   automatic,
   setAutomatic,
+  isAuthTypeLocal,
 }: State & Props) {
   return (
     <Dialog
@@ -78,7 +79,12 @@ export function AddApp({
           />
         )}
         {!automatic && (
-          <Manually user={user} onClose={onClose} version={version} />
+          <Manually
+            user={user}
+            onClose={onClose}
+            version={version}
+            isAuthTypeLocal={isAuthTypeLocal}
+          />
         )}
       </Flex>
     </Dialog>

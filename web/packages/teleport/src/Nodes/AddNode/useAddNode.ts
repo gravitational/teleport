@@ -23,6 +23,7 @@ export default function useAddNode(ctx: TeleportContext) {
   const canCreateToken = ctx.storeUser.getTokenAccess().create;
   const version = ctx.storeUser.state.cluster.authVersion;
   const user = ctx.storeUser.state.username;
+  const isAuthTypeLocal = !ctx.storeUser.isSso();
   const [automatic, setAutomatic] = useState(true);
   const [script, setScript] = useState('');
   const [expiry, setExpiry] = useState('');
@@ -50,6 +51,7 @@ export default function useAddNode(ctx: TeleportContext) {
     attempt,
     version,
     user,
+    isAuthTypeLocal,
   };
 }
 

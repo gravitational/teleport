@@ -15,15 +15,36 @@
  */
 
 import React from 'react';
-import * as stories from './AddApp.story';
-import { render } from 'design/utils/testing';
+import {
+  Created,
+  Loaded,
+  Failed,
+  ManuallySSO,
+  ManuallyLocal,
+} from './AddApp.story';
+import { render, screen } from 'design/utils/testing';
 
-test('loaded', async () => {
-  const { getByTestId } = render(<stories.Loaded />);
-  expect(getByTestId('Modal')).toMatchSnapshot();
+test('render automatic tab', async () => {
+  render(<Loaded />);
+  expect(screen.getByTestId('Modal')).toMatchSnapshot();
 });
 
-test('created', async () => {
-  const { getByTestId } = render(<stories.Created />);
-  expect(getByTestId('Modal')).toMatchSnapshot();
+test('render failed automatic tab', async () => {
+  render(<Failed />);
+  expect(screen.getByTestId('Modal')).toMatchSnapshot();
+});
+
+test('render automatic tab on created state', async () => {
+  render(<Created />);
+  expect(screen.getByTestId('Modal')).toMatchSnapshot();
+});
+
+test('render manual tab with local user', async () => {
+  render(<ManuallyLocal />);
+  expect(screen.getByTestId('Modal')).toMatchSnapshot();
+});
+
+test('render manual tab with sso user', async () => {
+  render(<ManuallySSO />);
+  expect(screen.getByTestId('Modal')).toMatchSnapshot();
 });

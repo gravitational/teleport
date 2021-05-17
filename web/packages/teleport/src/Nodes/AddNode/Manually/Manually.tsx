@@ -20,12 +20,17 @@ import cfg from 'teleport/config';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import * as links from 'teleport/services/links';
 
-export default function Manually({ user, version, ...styles }: Props) {
+export default function Manually({ user, version, isAuthTypeLocal }: Props) {
   const { hostname, port } = window.document.location;
   const host = `${hostname}:${port || '443'}`;
+  let tshLoginCmd = `tsh login --proxy=${host}`;
+
+  if (isAuthTypeLocal) {
+    tshLoginCmd = `${tshLoginCmd} --auth=local --user=${user}`;
+  }
 
   return (
-    <Box {...styles}>
+    <>
       <Box mb={4}>
         <Text bold as="span">
           Step 1
@@ -48,10 +53,7 @@ export default function Manually({ user, version, ...styles }: Props) {
           Step 2
         </Text>
         {' - Login to Teleport'}
-        <TextSelectCopy
-          mt="2"
-          text={`tsh login --proxy=${host} --auth=${cfg.getAuthType()} --user=${user}`}
-        />
+        <TextSelectCopy mt="2" text={tshLoginCmd} />
       </Box>
       <Box mb={4}>
         <Text bold as="span">
@@ -70,13 +72,12 @@ export default function Manually({ user, version, ...styles }: Props) {
           text={`teleport start --roles=node --token=[generated-join-token] --auth-server=${host} `}
         />
       </Box>
-    </Box>
+    </>
   );
 }
 
 type Props = {
   user: string;
   version: string;
-  // handles styles
-  [key: string]: any;
+  isAuthTypeLocal: boolean;
 };

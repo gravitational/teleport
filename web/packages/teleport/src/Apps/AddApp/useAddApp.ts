@@ -23,6 +23,7 @@ export default function useAddApp(ctx: TeleportContext) {
   const canCreateToken = ctx.storeUser.getTokenAccess().create;
   const user = ctx.storeUser.state.username;
   const version = ctx.storeUser.state.cluster.authVersion;
+  const isAuthTypeLocal = !ctx.storeUser.isSso();
   const [automatic, setAutomatic] = useState(true);
   const [cmd, setCmd] = useState('');
   const [expires, setExpires] = useState('');
@@ -46,6 +47,7 @@ export default function useAddApp(ctx: TeleportContext) {
     attempt,
     automatic,
     setAutomatic,
+    isAuthTypeLocal,
   };
 }
 

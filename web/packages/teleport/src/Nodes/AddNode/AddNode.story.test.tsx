@@ -15,11 +15,25 @@
  */
 
 import React from 'react';
-import { Loaded } from './AddNode.story';
-import { render } from 'design/utils/testing';
+import { Loaded, Failed, ManuallyLocal, ManuallySSO } from './AddNode.story';
+import { render, screen } from 'design/utils/testing';
 
-test('success state', async () => {
-  const { getByTestId, findByText } = render(<Loaded />);
-  await findByText(/automatic/i);
-  expect(getByTestId('Modal')).toMatchSnapshot();
+test('render automatic tab', async () => {
+  render(<Loaded />);
+  expect(screen.getByTestId('Modal')).toMatchSnapshot();
+});
+
+test('render failed automatic tab', async () => {
+  render(<Failed />);
+  expect(screen.getByTestId('Modal')).toMatchSnapshot();
+});
+
+test('render manual tab with local user', async () => {
+  render(<ManuallyLocal />);
+  expect(screen.getByTestId('Modal')).toMatchSnapshot();
+});
+
+test('render manual tab with sso user', async () => {
+  render(<ManuallySSO />);
+  expect(screen.getByTestId('Modal')).toMatchSnapshot();
 });

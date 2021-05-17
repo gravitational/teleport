@@ -44,6 +44,7 @@ export function AddNode({
   setAutomatic,
   version,
   attempt,
+  isAuthTypeLocal,
 }: Props & State) {
   return (
     <Dialog
@@ -82,7 +83,13 @@ export function AddNode({
               mb={3}
             />
           )}
-          {!automatic && <Manually user={user} version={version} />}
+          {!automatic && (
+            <Manually
+              user={user}
+              version={version}
+              isAuthTypeLocal={isAuthTypeLocal}
+            />
+          )}
         </DialogContent>
         <DialogFooter>
           <ButtonSecondary onClick={onClose}>Close</ButtonSecondary>

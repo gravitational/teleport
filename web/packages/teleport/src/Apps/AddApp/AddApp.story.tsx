@@ -22,52 +22,45 @@ export default {
 };
 
 export const Created = () => (
-  <AddApp {...sample.props} attempt={{ status: 'success' }} />
+  <AddApp {...props} attempt={{ status: 'success' }} />
 );
 
 export const Loaded = () => {
-  return <AddApp {...sample.props} cmd="" />;
+  return <AddApp {...props} cmd="" />;
 };
 
 export const Processing = () => (
-  <AddApp {...sample.props} attempt={{ status: 'processing' }} />
+  <AddApp {...props} attempt={{ status: 'processing' }} />
 );
 
 export const Failed = () => (
   <AddApp
-    {...sample.props}
+    {...props}
     attempt={{ status: 'failed', statusText: 'some error message' }}
   />
 );
 
-export const Manually = () => (
-  <AddApp
-    {...sample.props}
-    automatic={false}
-    attempt={{ status: 'failed', statusText: 'some error message' }}
-  />
+export const ManuallyLocal = () => <AddApp {...props} automatic={false} />;
+
+export const ManuallySSO = () => (
+  <AddApp {...props} automatic={false} isAuthTypeLocal={false} />
 );
 
-const sample = {
-  props: {
-    user: 'sam',
-    automatic: true,
-    setAutomatic: () => null,
-    createToken: () => Promise.resolve(true),
-    onClose() {
-      return null;
-    },
-    createJoinToken() {
-      return Promise.resolve(null);
-    },
-    version: '5.0.0-dev',
-    cmd: `sudo bash -c "$(curl -fsSL 'http://localhost/scripts/86/install-app.sh?name=test&uri=http://myapp/')"`,
-    canCreateToken: true,
-    expires: '1 hour',
-    reset: () => null,
-    attempt: {
-      status: '',
-      statusText: '',
-    } as any,
-  },
+const props = {
+  isAuthTypeLocal: true,
+  user: 'sam',
+  automatic: true,
+  setAutomatic: () => null,
+  createToken: () => Promise.resolve(true),
+  onClose: () => null,
+  createJoinToken: () => Promise.resolve(null),
+  version: '5.0.0-dev',
+  cmd: `sudo bash -c "$(curl -fsSL 'http://localhost/scripts/86/install-app.sh?name=test&uri=http://myapp/')"`,
+  canCreateToken: true,
+  expires: '1 hour',
+  reset: () => null,
+  attempt: {
+    status: '',
+    statusText: '',
+  } as any,
 };
