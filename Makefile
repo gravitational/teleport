@@ -363,8 +363,9 @@ lint-sh:
 
 # Lints all the Helm charts found in directories under examples/chart and exits on failure
 # If there is a .lint directory inside, the chart gets linted once for each .yaml file in that directory
-# We use yamllint's 'relaxed' configuration as it's more compatible with Helm output and will only error on
+# We inherit yamllint's 'relaxed' configuration as it's more compatible with Helm output and will only error on
 # show-stopping issues. Kubernetes' YAML parser is not particularly fussy.
+# If errors are found, the file is printed with line numbers to aid in debugging.
 .PHONY: lint-helm
 lint-helm:
 	@if ! type yamllint 2>&1 >/dev/null; then \
@@ -373,16 +374,21 @@ lint-helm:
 		exit 0; \
 	fi; \
 	for CHART in $$(find examples/chart -mindepth 1 -maxdepth 1 -type d); do \
-		if [ -d $$CHART/.lint ]; then \
-			for VALUES in $$CHART/.lint/*.yaml; do \
-				echo "$$CHART: $$VALUES"; \
-				helm lint --strict $$CHART -f $$VALUES || exit 1; \
-				helm template test $$CHART -f $$VALUES | yamllint -d relaxed - || exit 1; \
+		if [ -d $${CHART}/.lint ]; then \
+			for VALUES in $${CHART}/.lint/*.yaml; do \
+				export HELM_TEMP=$$(mktemp); \
+				echo -n "Using values from '$${VALUES}': "; \
+				yamllint -c examples/chart/.lint-config.yaml $${VALUES} || { cat -En $${VALUES}; exit 1; }; \
+				helm lint --strict $${CHART} -f $${VALUES} || exit 1; \
+				helm template test $${CHART} -f $${VALUES} 1>$${HELM_TEMP} || exit 1; \
+				yamllint -c examples/chart/.lint-config.yaml $${HELM_TEMP} || { cat -En $${HELM_TEMP}; exit 1; }; \
 			done \
 		else \
-			helm lint --strict $$CHART || exit 1; \
-			helm template test $$CHART 1>/dev/null || exit 1; \
-		fi \
+			export HELM_TEMP=$$(mktemp); \
+			helm lint --strict $${CHART} || exit 1; \
+			helm template test $${CHART} 1>$${HELM_TEMP} || exit 1; \
+			yamllint -c examples/chart/.lint-config.yaml $${HELM_TEMP} || { cat -En $${HELM_TEMP}; exit 1; }; \
+		fi; \
 	done
 
 # This rule triggers re-generation of version.go and gitref.go if Makefile changes

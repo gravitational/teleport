@@ -34,8 +34,6 @@ import (
 type Role interface {
 	// Resource provides common resource methods.
 	Resource
-	// CheckAndSetDefaults checks and set default values for any missing fields.
-	CheckAndSetDefaults() error
 
 	// GetOptions gets role options.
 	GetOptions() RoleOptions

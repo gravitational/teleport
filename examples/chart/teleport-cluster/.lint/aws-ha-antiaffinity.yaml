@@ -1,0 +1,12 @@
+clusterName: test-aws-cluster
+chartMode: aws
+aws:
+  region: us-west-2
+  backendTable: test-dynamodb-backend-table
+  auditLogTable: test-dynamodb-auditlog-table
+  sessionRecordingBucket: test-s3-session-storage-bucket
+highAvailability:
+  replicaCount: 3
+  requireAntiAffinity: true
+labels:
+  env: aws
