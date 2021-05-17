@@ -1864,7 +1864,7 @@ func (h *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httpr
 
 const maxStreamBytes = 5 * 1024 * 1024
 
-func toArrayFields(rawEvents []events.AuditEvent) ([]events.EventFields, error) {
+func toFieldsSlice(rawEvents []events.AuditEvent) ([]events.EventFields, error) {
 	el := make([]events.EventFields, 0, len(rawEvents))
 	for _, event := range rawEvents {
 		els, err := events.ToEventFields(event)
@@ -1922,7 +1922,7 @@ func (h *Handler) clusterSearchSessionEvents(w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	el, err := toArrayFields(rawEvents)
+	el, err := toFieldsSlice(rawEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1970,7 +1970,7 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
-	el, err := toArrayFields(rawEvents)
+	el, err := toFieldsSlice(rawEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

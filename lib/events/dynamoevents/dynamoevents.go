@@ -677,20 +677,19 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 		eventArr = append(eventArr, event)
 	}
 
-	sort.Sort(ByTimeAndIndex(eventArr))
+	sort.Sort(byTimeAndIndex(eventArr))
 	return eventArr, lastKey, nil
 }
 
 // ByTimeAndIndex sorts events by time
-// and if there are several session events with the same session
-// by event index, regardless of the time
-type ByTimeAndIndex []events.AuditEvent
+// and if there are several session events with the same session by event index.
+type byTimeAndIndex []events.AuditEvent
 
-func (f ByTimeAndIndex) Len() int {
+func (f byTimeAndIndex) Len() int {
 	return len(f)
 }
 
-func (f ByTimeAndIndex) Less(i, j int) bool {
+func (f byTimeAndIndex) Less(i, j int) bool {
 	itime := f[i].GetTime()
 	jtime := f[j].GetTime()
 	if itime.Equal(jtime) && events.GetSessionID(f[i]) == events.GetSessionID(f[j]) {
@@ -699,7 +698,7 @@ func (f ByTimeAndIndex) Less(i, j int) bool {
 	return itime.Before(jtime)
 }
 
-func (f ByTimeAndIndex) Swap(i, j int) {
+func (f byTimeAndIndex) Swap(i, j int) {
 	f[i], f[j] = f[j], f[i]
 }
 
