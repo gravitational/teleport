@@ -1,0 +1,8 @@
+clusterName: test-standalone-cluster
+chartMode: standalone
+standalone:
+  existingClaimName: teleport-storage
+acme: true
+acmeEmail: test@email.com
+labels:
+  env: standalone
