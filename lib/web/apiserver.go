@@ -749,6 +749,8 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 
 	authProviders := []ui.WebConfigAuthProvider{}
 	secondFactor := constants.SecondFactorOff
+	authType := constants.Local
+	localAuthEnabled := true
 
 	// get all OIDC connectors
 	oidcConnectors, err := h.cfg.ProxyClient.GetOIDCConnectors(r.Context(), false)
@@ -798,6 +800,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		h.log.WithError(err).Error("Cannot retrieve AuthPreferences.")
 	} else {
 		secondFactor = cap.GetSecondFactor()
+		authType = cap.GetType()
 	}
 
 	// disable joining sessions if proxy session recording is enabled
@@ -807,13 +810,14 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		h.log.WithError(err).Error("Cannot retrieve ClusterConfig.")
 	} else {
 		canJoinSessions = services.IsRecordAtProxy(clsCfg.GetSessionRecording()) == false
+		localAuthEnabled = clsCfg.GetLocalAuth()
 	}
 
 	authSettings := ui.WebConfigAuthSettings{
 		Providers:        authProviders,
 		SecondFactor:     secondFactor,
-		LocalAuthEnabled: clsCfg.GetLocalAuth(),
-		AuthType:         cap.GetType(),
+		LocalAuthEnabled: localAuthEnabled,
+		AuthType:         authType,
 	}
 
 	webCfg := ui.WebConfig{
