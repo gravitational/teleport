@@ -49,6 +49,17 @@
             { "title": "Migration", "slug": "/kubernetes-access/guides/migration/" }
           ]
         },
+        {
+          "title": "Helm Guides",
+          "slug": "/kubernetes-access/helm/guides/",
+          "entries": [
+            { "title": "AWS EKS Cluster", "slug": "/kubernetes-access/helm/guides/aws/" },
+            { "title": "Google Cloud GKE Cluster", "slug": "/kubernetes-access/helm/guides/gcp/" },
+            { "title": "Customize Deployment config", "slug": "/kubernetes-access/helm/guides/custom/" },
+            { "title": "Migrating from older charts", "slug": "/kubernetes-access/helm/guides/migration/" }
+          ]
+        },
+        { "title": "Helm Chart reference", "slug": "/kubernetes-access/helm/reference/" },
         { "title": "Access Controls", "slug": "/kubernetes-access/controls/" }
       ]
     },
@@ -88,7 +99,7 @@
           "entries": [
             { "title": "Role Templates", "slug": "/access-controls/guides/role-templates/" },
             { "title": "Second Factor - U2F", "slug": "/access-controls/guides/u2f/" },
-            { "title": "Per-session MFA", "slug": "/access-controls/guides/per-session-mfa/" },            
+            { "title": "Per-session MFA", "slug": "/access-controls/guides/per-session-mfa/" },
             { "title": "Dual Authorization", "slug": "/access-controls/guides/dual-authz/" },
             { "title": "Impersonation", "slug": "/access-controls/guides/impersonation/" }
           ]
@@ -113,7 +124,7 @@
         { "title": "IBM", "slug": "/ibm-cloud-guide/" },
         { "title": "OpenSSH Guide", "slug": "/openssh-teleport/" }
       ]
-    },    
+    },
     {
       "icon": "building",
       "title": "Teleport Enterprise",
@@ -136,7 +147,7 @@
       "icon": "cloud",
       "title": "Cloud",
       "entries": [
-        { "title": "Introduction", "slug": "/cloud/introduction/" },        
+        { "title": "Introduction", "slug": "/cloud/introduction/" },
         { "title": "Getting Started", "slug": "/cloud/getting-started/" },
         { "title": "Architecture", "slug": "/cloud/architecture/" },
         { "title": "FAQ", "slug": "/cloud/faq/" }
@@ -172,7 +183,7 @@
         { "title": "YAML", "slug": "/config-reference/" },
         { "title": "CLI", "slug": "/cli-docs/" },
         { "title": "Metrics", "slug": "/metrics-logs-reference/" },
-        { 
+        {
           "title": "API",
           "slug": "/reference/api/",
           "entries": [
@@ -186,6 +197,13 @@
   ],
   "variables": {
     "version": "6.1",
+    "helm": {
+      "version": "3.4.2"
+    },
+    "kubernetes": {
+      "major_version": "1",
+      "minor_version": "17"
+    },
     "teleport": {
       "version": "6.1.0",
       "golang": "1.16",
@@ -193,7 +211,8 @@
         "version": "6.1.0"
       },
       "latest_oss_docker_image": "quay.io/gravitational/teleport:6.1",
-      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:6.1"
+      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:6.1",
+      "helm_repo_url": "https://charts.releases.teleport.dev"
     }
   },
   "redirects": [
