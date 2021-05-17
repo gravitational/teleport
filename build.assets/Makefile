@@ -191,7 +191,7 @@ grpc: buildbox
 clean:
 	docker image rm --force $(BUILDBOX)
 	docker image rm --force $(DOCSBOX)
-	GOMODCACHE=/tmp/gomodcache go clean -modcache
+	GOMODCACHE=$(GOMODCACHE) go clean -modcache
 
 #
 # Runs tests inside a build container
