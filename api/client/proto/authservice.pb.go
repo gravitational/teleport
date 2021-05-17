@@ -5907,15 +5907,17 @@ func (*SingleUseUserCert) XXX_OneofWrappers() []interface{} {
 type GetEventsRequest struct {
 	// Namespace, if not set, defaults to 'default'
 	Namespace string `protobuf:"bytes,1,opt,name=Namespace,proto3" json:"Namespace,omitempty"`
-	// Oldest date of returned events
+	// StartDate is the oldest date of returned events
 	StartDate time.Time `protobuf:"bytes,2,opt,name=StartDate,proto3,stdtime" json:"StartDate"`
-	// Newest date of returned events
+	// EndDate is the newest date of returned events
 	EndDate time.Time `protobuf:"bytes,3,opt,name=EndDate,proto3,stdtime" json:"EndDate"`
 	// EventTypes is optional, if not set, returns all events
 	EventTypes []string `protobuf:"bytes,4,rep,name=EventTypes,proto3" json:"EventTypes,omitempty"`
-	// Maximum amount of events returned
+	// Limit is the maximum amount of events returned
 	Limit int32 `protobuf:"varint,5,opt,name=Limit,proto3" json:"Limit,omitempty"`
-	// When supplied the search will resume from the last key
+	// StartKey is used to resume a query in order to enable pagination.
+	// If the previous response had LastKey set then this should be
+	// set to its value. Otherwise leave empty.
 	StartKey             string   `protobuf:"bytes,6,opt,name=StartKey,proto3" json:"StartKey,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -5998,15 +6000,19 @@ func (m *GetEventsRequest) GetStartKey() string {
 }
 
 type GetSessionEventsRequest struct {
-	// Oldest date of returned events
+	// StartDate is the oldest date of returned events
 	StartDate time.Time `protobuf:"bytes,1,opt,name=StartDate,proto3,stdtime" json:"StartDate"`
-	// Newest date of returned events
-	EndDate              time.Time `protobuf:"bytes,2,opt,name=EndDate,proto3,stdtime" json:"EndDate"`
-	Limit                int32     `protobuf:"varint,3,opt,name=Limit,proto3" json:"Limit,omitempty"`
-	StartKey             string    `protobuf:"bytes,4,opt,name=StartKey,proto3" json:"StartKey,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
-	XXX_unrecognized     []byte    `json:"-"`
-	XXX_sizecache        int32     `json:"-"`
+	// EndDate is the newest date of returned events
+	EndDate time.Time `protobuf:"bytes,2,opt,name=EndDate,proto3,stdtime" json:"EndDate"`
+	// Limit is the maximum amount of events to retrieve.
+	Limit int32 `protobuf:"varint,3,opt,name=Limit,proto3" json:"Limit,omitempty"`
+	// StartKey is used to resume a query in order to enable pagination.
+	// If the previous response had LastKey set then this should be
+	// set to its value. Otherwise leave empty.
+	StartKey             string   `protobuf:"bytes,4,opt,name=StartKey,proto3" json:"StartKey,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *GetSessionEventsRequest) Reset()         { *m = GetSessionEventsRequest{} }
@@ -6071,6 +6077,7 @@ func (m *GetSessionEventsRequest) GetStartKey() string {
 }
 
 type Events struct {
+	// Items is a list of typed gRPC formatted audit events.
 	Items []*events.OneOf `protobuf:"bytes,1,rep,name=Items,proto3" json:"Items,omitempty"`
 	// the key of the last event if the returned set did not contain all events found i.e limit <
 	// actual amount. this is the key clients can supply in another API request to continue fetching
