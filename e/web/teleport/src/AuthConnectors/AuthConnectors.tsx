@@ -78,7 +78,7 @@ export function AuthConnectors(props: State) {
             <Text typography="subtitle1" mb={3}>
               Authentication connectors allow Teleport to authenticate users via
               an external identity source such as Okta, Active Directory,
-              Github, etc. This authentication method is frequently called
+              GitHub, etc. This authentication method is frequently called
               single sign-on (SSO).
             </Text>
             <Text typography="subtitle1" mb={2}>

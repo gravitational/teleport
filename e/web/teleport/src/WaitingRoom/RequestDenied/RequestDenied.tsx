@@ -20,7 +20,7 @@ export default function RequestDenied({ reason }: Props) {
       <DialogContent>
         {reason && <Alert kind="danger" children={reason} />}
         <Text mb={3}>
-          Your request has been denied, please contact your administrator for
+          Your request has been denied. Please contact your administrator for
           more information.
         </Text>
       </DialogContent>
