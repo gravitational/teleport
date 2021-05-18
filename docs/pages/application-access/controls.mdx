@@ -10,7 +10,8 @@ description: Role-based access control (RBAC) for Teleport Application Access
 Teleport Application Access uses labels to control access to the proxied
 web applications.
 
-An application can be assigned static and dynamic labels via configuration:
+Teleport administrators can assign static and dynamic labels to apps using
+configuration:
 
 ```yaml
 apps:
@@ -20,8 +21,8 @@ apps:
   labels:
     env: "prod"
     group: "metrics"
-  # Dynamic labels periodically execute a command and use its output
-  # as a label value.
+  # Teleport periodically executes commands in dynamic labels and uses the
+  # commands output in label values.
   commands:
   - name: "arch"
     command: ["uname", "-p"]
@@ -30,7 +31,7 @@ apps:
 
 ## Configuring Application Labels in Roles
 
-Teleport administrators can configure roles to allow or deny user's access to
+Teleport administrators can configure roles to allow or deny users' access to
 applications with specific labels using `app_labels` property.
 
 For example, this role will grant access to all applications from the group

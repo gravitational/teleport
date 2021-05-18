@@ -10,23 +10,29 @@ description: How to configure Teleport Database Access with AWS Redshift Postgre
 Collect a few pieces of information about your Redshift cluster which you'll
 need to configure access.
 
-- Cluster identifier can be found on the `General information` panel:
+**Get cluster identifier from the `General information` panel:**
 
-![Redshift Cluster ID](../../../img/database-access/guides/redshift/cluster-id@2x.png)
+<Figure align="center" bordered caption="Redshift cluster ID">
+![Redshift cluster ID](../../../img/database-access/guides/redshift/cluster-id@2x.png)
+</Figure>
 
-- Cluster endpoint can also be copied from the `General information` panel:
+**Copy cluster endpoint from the `General information` panel:**
 
-![Redshift Cluster Endpoint](../../../img/database-access/guides/redshift/cluster-endpoint@2x.png)
+<Figure align="center" bordered caption="Redshift cluster endpoint">
+![Redshift cluster endpoint](../../../img/database-access/guides/redshift/cluster-endpoint@2x.png)
+</Figure>
 
 You'll only need the `host:port` portion of the endpoint.
 
-- Database user name and database name.
+**Take note of database user name and database name you will use to connect.**
 
 If you haven't created any database users, default database admin user name and
-maintenance database can be found on the `Database configurations` panel of the
+maintenance database are displayed on the `Database configurations` panel of the
 `Properties` tab:
 
-![Redshift Cluster User/Database](../../../img/database-access/guides/redshift/cluster-user-db@2x.png)
+<Figure align="center" bordered caption="Redshift cluster user/database">
+![Redshift cluster user/database](../../../img/database-access/guides/redshift/cluster-user-db@2x.png)
+</Figure>
 
 ## Create IAM Policy
 

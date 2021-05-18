@@ -8,12 +8,12 @@ description: Frequently asked questions about Teleport Database Access
 ## Which database protocols does Teleport Database Access support?
 
 Teleport Database Access currently supports PostgreSQL and MySQL protocols, with
-MongoDB protocol support coming in [Teleport 7.0](../preview/upcoming-releases.mdx#teleport-70-stockholm)
-slated for July 15th, 2021 release.
+MongoDB protocol support coming in [Teleport 7.0](../preview/upcoming-releases.mdx#teleport-70-stockholm).
 
-For PostgreSQL and MySQL, both self-hosted and cloud-hosted versions (such as
-AWS RDS, Aurora, Redshift and GCP Cloud SQL) are supported. See available
-[guides](./guides.mdx) for all supported configurations.
+For PostgreSQL and MySQL, both self-hosted and cloud-hosted versions such as AWS
+RDS, Aurora (except for Serverless version which doesn't support IAM auth),
+Redshift and GCP Cloud SQL are supported. See available [guides](./guides.mdx)
+for all supported configurations.
 
 ## Which PostgreSQL protocol features are not supported?
 
@@ -28,10 +28,10 @@ The following PostgreSQL protocol features aren't currently supported:
 
 ## Can database clients use public address different from web public address?
 
-Set `postgres_public_addr` and `mysql_public_addr` proxy configuration fields to
-public addresses over which respective database clients should connect. See
-[Proxy Configuration](./reference/configuration.mdx#proxy-configuration) for
-more details.
+Teleport administrators can set `postgres_public_addr` and `mysql_public_addr`
+proxy configuration fields to public addresses over which respective database
+clients should connect. See [Proxy Configuration](./reference/configuration.mdx#proxy-configuration)
+for more details.
 
 This is useful when Teleport web proxy UI is running behind an L7 load balancer
 (e.g. ALB in AWS) in which case PostgreSQL/MySQL proxy need to be exposed on a
@@ -49,9 +49,8 @@ are also instructions for configuring select [graphical clients](./guides/gui-cl
 ## When will you support X database?
 
 We're focusing on PostgreSQL and MySQL initially, and adding MongoDB support in
-[Teleport 7.0](../preview/upcoming-releases.mdx#teleport-70-stockholm) slated
-for July 15th, 2021 release, but also planning to support more databases in
-future based on the customer demand.
+[Teleport 7.0](../preview/upcoming-releases.mdx#teleport-70-stockholm), but also
+planning to support more databases in future based on the customer demand.
 
 See if the database you're interested in has already been requested among
 [Github issues](https://github.com/gravitational/teleport/labels/database-access)
