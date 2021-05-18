@@ -116,14 +116,14 @@ func (l *AuditLog) GetSessionEvents(namespace string, sid session.ID, after int,
 	return events, trace.Wrap(err)
 }
 
-func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string, limit int) ([]events.EventFields, error) {
-	events, err := l.Inner.SearchEvents(fromUTC, toUTC, query, limit)
-	return events, trace.Wrap(err)
+func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]events.AuditEvent, string, error) {
+	events, lastKey, err := l.Inner.SearchEvents(fromUTC, toUTC, namespace, eventTypes, limit, startKey)
+	return events, lastKey, trace.Wrap(err)
 }
 
-func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int) ([]events.EventFields, error) {
-	events, err := l.Inner.SearchSessionEvents(fromUTC, toUTC, limit)
-	return events, trace.Wrap(err)
+func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) ([]events.AuditEvent, string, error) {
+	events, lastKey, err := l.Inner.SearchSessionEvents(fromUTC, toUTC, limit, startKey)
+	return events, lastKey, trace.Wrap(err)
 }
 
 func (l *AuditLog) WaitForDelivery(ctx context.Context) error {
