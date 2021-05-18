@@ -1,6 +1,6 @@
 ---
 authors: Russell Jones (rjones@goteleport.com), Andrej Tokarcik (andrej@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 21 - Cluster Routing
@@ -17,7 +17,7 @@ Teleport supports this use case.
 
 Users can run `tsh login clusterName` to obtain a certificate with `RouteToCluster` set to a leaf cluster then use `tsh ssh -J clusterName serverName` to bypass the root cluster. However, switching between multiple leaf clusters is cumbersome as `tsh login clusterName` has to be issued each time the user wishes to switch between clusters. It also makes working on multiple clusters concurrently almost impossible.
 
-## Original Solution: jumphost address to cluster name
+## Original Proposal: jumphost address to cluster name
 
 The behavior of `tsh ssh -J` would be changed to request a certificate re-issue for the target cluster if the proxy address does not match the root proxy address (saved in the profile).
 
@@ -31,7 +31,7 @@ This would allow users to use `tsh ssh -J clusterName serverName` to work on mul
 
 2. The re-issue request itself is impacted by the `-J` override since `-J` sets the proxy address not only for SSH node connections but also for more general Auth API requests. Hence, if the usual [`TeleportClient.ReissueUserCerts`](https://github.com/gravitational/teleport/blob/026d3419c2454163678de9b43d5c69b81702fb7f/lib/client/api.go#L1092) were called, it would send this [request to the jumphost](https://github.com/gravitational/teleport/blob/026d3419c2454163678de9b43d5c69b81702fb7f/lib/client/api.go#L1910-L1921) (i.e., leaf proxy) instead of to the root proxy. (Even though apparently deliberate, this behavior may be confusing. One would expect only `--proxy` to be applicable to such requests, not `-J`.)
 
-## Improvement: cluster name inferred from jumphost cert
+## Actual Implementation: cluster name inferred from jumphost cert
 
 To address Problem 1, we should not use the jumphost address as such to establish the cluster name. Instead, the host certificate presented while connceting to the jumphost should be analyzed and if it indeed belongs to a Teleport proxy, it should come with an [extension containing its cluster name](https://github.com/gravitational/teleport/blob/026d3419c2454163678de9b43d5c69b81702fb7f/lib/auth/native/native.go#L225). From that it should be reliably known which `RouteToCluster` value is expected of the user certificate, and request its re-issue if it is not available.
 

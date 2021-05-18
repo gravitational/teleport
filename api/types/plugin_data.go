@@ -35,9 +35,6 @@ type PluginData interface {
 	Entries() map[string]*PluginDataEntry
 	// Update attempts to apply an update.
 	Update(params PluginDataUpdateParams) error
-	// CheckAndSetDefaults validates the plugin data
-	// and supplies default values where appropriate.
-	CheckAndSetDefaults() error
 }
 
 // NewPluginData configures a new PluginData instance associated

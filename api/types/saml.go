@@ -43,8 +43,6 @@ type SAMLConnector interface {
 	// GetTraitMappings converts gets all attribute mappings in the
 	// generic trait mapping format.
 	GetTraitMappings() TraitMappingSet
-	// Check checks SAML connector for errors
-	CheckAndSetDefaults() error
 	// SetIssuer sets issuer
 	SetIssuer(issuer string)
 	// GetIssuer returns issuer
