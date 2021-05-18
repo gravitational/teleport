@@ -78,8 +78,6 @@ type DatabaseServer interface {
 	IsRedshift() bool
 	// IsCloudSQL returns true if this is a Cloud SQL database.
 	IsCloudSQL() bool
-	// CheckAndSetDefaults checks and set default values for any missing fields.
-	CheckAndSetDefaults() error
 	// Copy returns a copy of this database server object.
 	Copy() DatabaseServer
 }

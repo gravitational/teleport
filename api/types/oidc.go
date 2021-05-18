@@ -59,8 +59,6 @@ type OIDCConnector interface {
 	GetTraitMappings() TraitMappingSet
 	// Check checks OIDC connector for errors
 	Check() error
-	// CheckAndSetDefaults checks and set default values for any missing fields.
-	CheckAndSetDefaults() error
 	// SetClientSecret sets client secret to some value
 	SetClientSecret(secret string)
 	// SetClientID sets id for authentication client (in our case it's our Auth server)
