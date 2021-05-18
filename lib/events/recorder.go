@@ -121,7 +121,7 @@ func NewForwardRecorder(cfg ForwardRecorderConfig) (*ForwardRecorder, error) {
 		DataDir:        cfg.DataDir,
 		RecordSessions: cfg.RecordSessions,
 		Namespace:      cfg.Namespace,
-		ForwardTo:      cfg.ForwardTo,
+		IAuditLog:      cfg.ForwardTo,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
