@@ -11,11 +11,15 @@ import (
 )
 
 func main() {
-	executedCommand, config := common.Run(common.Options{
+	app, executedCommand, config := common.Run(common.Options{
 		Args:     os.Args[1:],
 		InitOnly: true,
 	})
-	if executedCommand == "start" {
+	startCmd := app.GetCommand("start")
+	appStartCmd := app.GetCommand("app").GetCommand("start")
+	dbStartCmd := app.GetCommand("db").GetCommand("start")
+	switch executedCommand {
+	case startCmd.FullCommand(), appStartCmd.FullCommand(), dbStartCmd.FullCommand():
 		if err := service.Run(context.TODO(), *config, process.NewTeleport); err != nil {
 			utils.FatalError(err)
 		}
