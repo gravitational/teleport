@@ -28,7 +28,7 @@ This guide introduces some of these common scenarios and how to interact with Te
 ## Prerequisites
 
 - Two instances of your favorite Linux environment (such as Ubuntu 20.05, CentOS 8.0-1905, or Debian 10).
-- A registered Doman Name with an available subdomain like `tele.example.com`.
+- A registered Domain Name with an available subdomain like `tele.example.com`.
 - A Two-Factor Authentication app (such as Authy or Google Authenticator).
 - Teleport (=teleport.version=) installed locally.
 
@@ -59,13 +59,12 @@ This guide introduces some of these common scenarios and how to interact with Te
 
    | Port | Service | Description |
    | - | - | - |
-   | 3023 | Proxy | SSH port clients connect to. A proxy will forward this connection to port `#3022` on the destination Node. |
    | 22 | Cloud Provider | Used to initially access, configure, and provision your cloud instances. We'll configure and launch our instances then demonstrate how to use the `tsh` tool and Teleport in SSH mode thereafter. |
 
 2. Install Teleport on each instance.
 
    <Admonition type="warning" title="Warning">
-    The examples below may include the use of the `sudo` keyword to make following each step easier when creating resources from scratch. However, we generally discourage the use of `sudo` in real-world production environments per the *Principle of Least Privilege* (POLP). 
+    The examples below may include the use of the `sudo` keyword to make following each step easier when creating resources from scratch. However, we generally discourage the use of `sudo` in customer-facing production environments per the *Principle of Least Privilege* (POLP). 
    </Admonition>
 
    <Tabs>
@@ -119,7 +118,7 @@ This guide introduces some of these common scenarios and how to interact with Te
 
 3. Configure Teleport on the *Bastion Host*.
 
-   Teleport will now automatically acquire an ACME-compliant TLS certificate. 
+   Teleport will now automatically acquire an X.509 certificate using the ACME protocol. 
 
    ```bash
    # Configure Teleport with TLS certs
@@ -205,7 +204,7 @@ We can use `tsh` to SSH into the cluster:
 
    ```bash
    # Log in through tsh
-   sudo tsh login --proxy=tele.example.com:443 --user=tele-admin
+   tsh login --proxy=tele.example.com:443 --user=tele-admin
    ```
    
    You'll be prompted to supply the password and One Time Passcode we set up previously.
@@ -229,7 +228,7 @@ We can use `tsh` to SSH into the cluster:
 
    ```bash
    # Display cluster resources
-   sudo tsh ls
+   tsh ls
    ```
 
    The *Bastion Host* Node is located on the bottom line below:
@@ -245,7 +244,7 @@ We can use `tsh` to SSH into the cluster:
 
    ```bash
    # Use tsh to ssh into a Node
-   sudo tsh ssh root@ip-172-31-41-144
+   tsh ssh root@ip-172-31-41-144
    ```
 
    Now, they can:
@@ -298,7 +297,7 @@ We can use `tsh` to SSH into the cluster:
 
    ```bash
    # Query all Nodes with a label
-   sudo tsh ssh root@env=example
+   tsh ssh root@env=example
    ```
 
    - Customized labels can be defined in your `teleport.yaml` configuration file or during Node creation.  
@@ -309,7 +308,7 @@ We can use `tsh` to SSH into the cluster:
 
    ```bash
    # Run the ls command on all Nodes with a label
-   sudo tsh ssh root@env=example ls
+   tsh ssh root@env=example ls
    ``` 
    
    will execute the `ls` command on each Node displaying the contents of each to the screen.

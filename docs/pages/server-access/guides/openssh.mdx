@@ -17,15 +17,18 @@ existing SSH implementations, such as OpenSSH. This section will cover:
   cluster.
 
 <Admonition
-  type="warning"
-  title="Warning"
+  type="note"
+  title="Note"
 >
-  The minimum OpenSSH version which will work with Teleport is version 6.9.
-  You can view your OpenSSH version with `ssh -V`.
+  OpenSSH 6.9 is the minimum OpenSSH version compatible with Teleport. View your OpenSSH version with the command: 
+  
+  ```bash
+  ssh -V
+  ```
 </Admonition>
 
 <Admonition type="warning" title="Warning">
-  The examples below may include the use of the `sudo` keyword to make following each step easier when creating resources from scratch. However, we generally discourage the use of `sudo` in **real-world production environments** per the *Principle of Least Privilege* (POLP). 
+  The examples below may include the use of the `sudo` keyword to make following each step easier when creating resources from scratch. However, we generally discourage the use of `sudo` in customer-facing production environments per the *Principle of Least Privilege* (POLP). 
 </Admonition>
 
 ### Follow along with our video guide
@@ -66,7 +69,7 @@ Teleport OpenSSH supports:
 - IPv4 `ubuntu@184.45.45.30`
 - IPv6 `root@2001:db8::2`
 
-## Setting up OpenSSH Recording Proxy Mode
+## Set up OpenSSH Recording Proxy Mode
 
 The first step is install and setup Teleport, we recommend starting with our [Getting Started Guide](../../getting-started.mdx) and [Admin Manual](../../admin-guide.mdx).
 
@@ -167,7 +170,7 @@ into any `sshd` node in the cluster and the session will be recorded.
 
 ```bash
 # tsh ssh to use default ssh port:22
-sudo tsh ssh --port=22 user@host.example.com
+tsh ssh --port=22 user@host.example.com
 # Example for a Amazon EC2 Host
 # tsh ssh --port=22 ec2-user@ec2-54-EXAMPLE.us-west-2.compute.amazonaws.com
 ```
@@ -201,7 +204,7 @@ logging in:
 
 ```bsh
 # Login as Joe
-sudo tsh login --proxy=proxy.example.com --user=joe
+tsh login --proxy=proxy.example.com --user=joe
 # see if the certificate is present (look for "teleport:joe") at the end of the cert
 sudo ssh-add -L
 ```
@@ -217,7 +220,7 @@ sudo ssh-add -L
   environment variable with `tsh`.
 </Admonition>
 
-## Using OpenSSH Client
+## Use OpenSSH Client
 
 It is possible to use the OpenSSH client `ssh` to connect to nodes within a
 Teleport cluster. Teleport supports SSH subsystems and includes a `proxy` subsystem that can be used like `netcat` is with `ProxyCommand` to connect
@@ -256,7 +259,7 @@ Teleport proxy:
 
 ```bash
 sudo eval `ssh-agent`
-sudo tsh --proxy=root.example.com login
+tsh --proxy=root.example.com login
 ```
 
 `ssh-agent` will print environment variables into the console. Either `eval` the
@@ -312,7 +315,7 @@ To connect to the OpenSSH server via `tsh`, add `--port=<ssh port>` with the `ts
 Example ssh to `database.work.example.com` as `root` with an OpenSSH server on port 22 via `tsh`:
 
 ```bash
-sudo tsh ssh --port=22 dev@database.root.example.com
+tsh ssh --port=22 dev@database.root.example.com
 ```
 
 <Admonition
