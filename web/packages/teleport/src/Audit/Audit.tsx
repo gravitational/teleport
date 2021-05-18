@@ -63,12 +63,17 @@ export function Audit(props: ReturnType<typeof useAuditEvents>) {
           onChange={setRange}
         />
       </FeatureHeader>
-      <Flex mb={4} alignItems="center" flex="0 0 auto" justifyContent="flex-start">
-        <InputSearch  mr="3" onChange={setSearchValue} />
+      <Flex
+        mb={4}
+        alignItems="center"
+        flex="0 0 auto"
+        justifyContent="flex-start"
+      >
+        <InputSearch mr="3" onChange={setSearchValue} />
       </Flex>
       {overflow && (
         <Danger>
-          Number of events retrieved for specified date range has exceeded the
+          number of events retrieved for specified date range has exceeded the
           maximum limit of {maxLimit} events
         </Danger>
       )}

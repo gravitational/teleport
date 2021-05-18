@@ -84,10 +84,10 @@ export default function Manually({
           <Link
             href={'https://goteleport.com/teleport/docs/application-access/'}
             target="_blank"
-            mr="2"
           >
             here
           </Link>
+          .
         </Box>
       </DialogContent>
       <DialogFooter>

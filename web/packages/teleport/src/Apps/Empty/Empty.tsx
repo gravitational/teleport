@@ -46,7 +46,7 @@ export default function Empty(props: Props) {
           <Text as="span" bold>
             {props.clusterId}
           </Text>
-          " cluster
+          " cluster.
         </Text>
       </Box>
     );

@@ -40,7 +40,7 @@ test('login with auth2faType: disabled', () => {
     />
   );
 
-  fireEvent.change(getByPlaceholderText(/user name/i), {
+  fireEvent.change(getByPlaceholderText(/username/i), {
     target: { value: 'username' },
   });
   fireEvent.change(getByPlaceholderText(/password/i), {
@@ -76,7 +76,7 @@ test('login with auth2faType: OTP', () => {
   );
 
   // fill form
-  fireEvent.change(getByPlaceholderText(/user name/i), {
+  fireEvent.change(getByPlaceholderText(/username/i), {
     target: { value: 'username' },
   });
   fireEvent.change(getByPlaceholderText(/password/i), {

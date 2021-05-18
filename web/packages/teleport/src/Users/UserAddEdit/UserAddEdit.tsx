@@ -87,8 +87,8 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
               <Alert kind="danger" children={attempt.statusText} />
             )}
             <FieldInput
-              label="User Name"
-              rule={requiredField('User name is required')}
+              label="Username"
+              rule={requiredField('Username is required')}
               autoFocus
               value={name}
               onChange={e => onChangeName(e.target.value)}

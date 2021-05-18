@@ -45,7 +45,7 @@ test('login with username/password', async () => {
   expect(auth.login).not.toHaveBeenCalled();
 
   // fill form
-  const username = getByPlaceholderText(/user name/i);
+  const username = getByPlaceholderText(/username/i);
   const password = getByPlaceholderText(/password/i);
   fireEvent.change(username, { target: { value: 'username' } });
   fireEvent.change(password, { target: { value: '123' } });
@@ -67,7 +67,7 @@ test('login with U2F', async () => {
   expect(auth.loginWithU2f).not.toHaveBeenCalled();
 
   // fill form
-  const username = getByPlaceholderText(/user name/i);
+  const username = getByPlaceholderText(/username/i);
   const password = getByPlaceholderText(/password/i);
   fireEvent.change(username, { target: { value: 'username' } });
   fireEvent.change(password, { target: { value: '123' } });
@@ -125,7 +125,7 @@ test('login with 2fa set to "optional", select option: u2f', async () => {
   expect(screen.queryAllByLabelText(/two factor token/i)).toHaveLength(0);
 
   // fill form
-  const username = screen.getByPlaceholderText(/user name/i);
+  const username = screen.getByPlaceholderText(/username/i);
   const password = screen.getByPlaceholderText(/password/i);
   fireEvent.change(username, { target: { value: 'username' } });
   fireEvent.change(password, { target: { value: '123' } });
@@ -150,7 +150,7 @@ test('login with 2fa set to "optional", select option: totp', async () => {
   screen.getByText(/totp/i);
 
   // fill form
-  const username = screen.getByPlaceholderText(/user name/i);
+  const username = screen.getByPlaceholderText(/username/i);
   const password = screen.getByPlaceholderText(/password/i);
   fireEvent.change(username, { target: { value: 'username' } });
   fireEvent.change(password, { target: { value: '123' } });

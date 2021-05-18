@@ -26,11 +26,15 @@ export default function TwoFAData({ auth2faType, qr }: Props) {
   // Temporary hack: if cluster supports all 2FA types, require the user to
   // sign up with OTP. We should ideally let the user choose a different 2FA
   // method when there's engineering capacity to build this.
-  if (auth2faType === 'otp' || auth2faType === 'on' || auth2faType === 'optional') {
+  if (
+    auth2faType === 'otp' ||
+    auth2faType === 'on' ||
+    auth2faType === 'optional'
+  ) {
     return (
       <div>
         <Text typography="paragraph2" mb={3}>
-          Scan the bar code with Google Authenticator to generate a two factor
+          Scan the bar code with Google Authenticator to generate a two-factor
           token.
         </Text>
         <img width="152" src={imgSrc} style={{ border: '8px solid' }} />
@@ -56,8 +60,8 @@ export default function TwoFAData({ auth2faType, qr }: Props) {
         </Text>
         <Box color="text.primary">
           <Text typography="paragraph2" mb={3}>
-            Press the button on the U2F key after you press the create account
-            button
+            Press the button on the U2F key after you press the{' '}
+            <b>CREATE ACCOUNT</b> button.
           </Text>
           <Text typography="paragraph2" mb={3}>
             <Link color="light" target="_blank" href={U2F_HELP_URL}>

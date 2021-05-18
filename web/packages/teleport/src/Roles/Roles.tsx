@@ -80,7 +80,7 @@ export function Roles(props: State) {
             style={{ flexShrink: 0 }}
           >
             <Text typography="h6" mb={3} caps>
-              Role based access control
+              Role-based access control
             </Text>
             <Text typography="subtitle1" mb={3}>
               Kubernetes and SSH authentication in one place. A Teleport role
@@ -135,7 +135,7 @@ function Directions() {
       >
         YAML format
       </Link>
-      . YAML is sensitive to white space, please be careful.
+      . YAML is sensitive to white space, so please be careful.
     </>
   );
 }

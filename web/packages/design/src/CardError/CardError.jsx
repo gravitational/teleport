@@ -96,7 +96,7 @@ export const LoginFailed = ({ message, loginUrl }) => (
       message={message}
       desc={
         <Text typography="paragraph" textAlign="center">
-          <HyperLink href={loginUrl}>Please attempt to log in again</HyperLink>
+          <HyperLink href={loginUrl}>Please attempt to log in again.</HyperLink>
         </Text>
       }
     />

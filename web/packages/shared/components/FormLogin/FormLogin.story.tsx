@@ -29,6 +29,7 @@ const props = {
   onLoginWithSso: () => null,
   onLoginWithU2f: () => null,
   onLogin: () => null,
+  clearAttempt: () => null,
 };
 
 export default {

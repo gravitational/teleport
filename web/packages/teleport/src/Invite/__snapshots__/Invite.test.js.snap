@@ -306,7 +306,7 @@ exports[`teleport/components/Invite should render form with token requirement wh
               class="c7"
               font-size="0"
             >
-              Two factor token
+              two-factor token
             </label>
             <input
               autocomplete="off"
@@ -333,7 +333,7 @@ exports[`teleport/components/Invite should render form with token requirement wh
           <div
             class="c13"
           >
-            Scan the bar code with Google Authenticator to generate a two factor token.
+            Scan the bar code with Google Authenticator to generate a two-factor token.
           </div>
           <img
             src="data:image/png;base64,undefined"
@@ -663,7 +663,7 @@ exports[`teleport/components/Invite should render form with token requirement wh
               class="c7"
               font-size="0"
             >
-              Two factor token
+              two-factor token
             </label>
             <input
               autocomplete="off"
@@ -690,7 +690,7 @@ exports[`teleport/components/Invite should render form with token requirement wh
           <div
             class="c13"
           >
-            Scan the bar code with Google Authenticator to generate a two factor token.
+            Scan the bar code with Google Authenticator to generate a two-factor token.
           </div>
           <img
             src="data:image/png;base64,undefined"

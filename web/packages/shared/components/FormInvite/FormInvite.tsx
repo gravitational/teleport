@@ -49,7 +49,8 @@ export default function FormInvite(props: Props) {
   // Temporary hack: if cluster supports all 2FA types, require the user to
   // sign up with OTP. We should ideally let the user choose a different 2FA
   // method when there's engineering capacity to build this.
-  const otpEnabled = auth2faType === 'otp' || auth2faType === 'on' || auth2faType === 'optional';
+  const otpEnabled =
+    auth2faType === 'otp' || auth2faType === 'on' || auth2faType === 'optional';
   const u2fEnabled = auth2faType === 'u2f';
   const secondFactorEnabled = otpEnabled || u2fEnabled;
   const { isProcessing, isFailed, message } = attempt;
@@ -106,7 +107,7 @@ export default function FormInvite(props: Props) {
               {otpEnabled && (
                 <Flex flexDirection="row">
                   <FieldInput
-                    label="Two factor token"
+                    label="two-factor token"
                     rule={requiredToken}
                     autoComplete="off"
                     width="50%"
@@ -132,7 +133,7 @@ export default function FormInvite(props: Props) {
                   width="100%"
                   textAlign="center"
                 >
-                  Insert your U2F key and press the button on the key
+                  Insert your U2F key and press the button on the key.
                 </Text>
               )}
             </Box>

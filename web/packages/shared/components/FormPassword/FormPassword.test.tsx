@@ -111,7 +111,7 @@ test('prop auth2faType: OTP form', async () => {
   fireEvent.change(getByPlaceholderText(placeholdCurrPass), inputVal);
   fireEvent.change(getByPlaceholderText(placeholdNewPass), inputVal);
   fireEvent.change(getByPlaceholderText(placeholdConfirm), inputVal);
-  fireEvent.change(getByPlaceholderText(/otp token/i), inputVal);
+  fireEvent.change(getByPlaceholderText(/123 456/i), inputVal);
 
   // test the correct cb is called when submitting
   await wait(() => fireEvent.click(getByText(btnSubmitText)));
@@ -126,7 +126,7 @@ test('prop auth2faType: OTP form', async () => {
   expect(getByPlaceholderText(placeholdCurrPass)).toHaveAttribute('value', '');
   expect(getByPlaceholderText(placeholdNewPass)).toHaveAttribute('value', '');
   expect(getByPlaceholderText(placeholdConfirm)).toHaveAttribute('value', '');
-  expect(getByPlaceholderText(/otp token/i)).toHaveAttribute('value', '');
+  expect(getByPlaceholderText(/123 456/i)).toHaveAttribute('value', '');
 });
 
 test('prop auth2faType: U2f form with mocked error', async () => {

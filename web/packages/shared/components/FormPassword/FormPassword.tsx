@@ -129,7 +129,7 @@ function FormPassword(props: Props) {
               <Box width="50%">
                 {mfaType.value === 'otp' && (
                   <FieldInput
-                    label="Two factor token"
+                    label="two-factor token"
                     rule={requiredToken}
                     autoComplete="off"
                     value={token}
@@ -143,13 +143,13 @@ function FormPassword(props: Props) {
           )}
           {otpEnabled && (
             <FieldInput
-              label="2nd factor token"
+              label="two-factor token"
               rule={requiredToken}
               width="50%"
               value={token}
               onChange={e => setToken(e.target.value)}
               type="text"
-              placeholder="OTP Token"
+              placeholder="123 456"
             />
           )}
           <FieldInput
@@ -196,7 +196,7 @@ function Status({ attempt, isU2F }: StatusProps) {
   if (waitForU2fKeyResponse) {
     return (
       <Alerts.Info>
-        Insert your U2F key and press the button on the key
+        Insert your U2F key and press the button on the key.
       </Alerts.Info>
     );
   }

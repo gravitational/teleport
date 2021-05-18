@@ -137,7 +137,7 @@ export default function LoginForm(props: Props) {
                 autoFocus
                 value={user}
                 onChange={e => setUser(e.target.value)}
-                placeholder="User name"
+                placeholder="Username"
               />
               <FieldInput
                 rule={requiredField('Password is required')}
@@ -163,7 +163,7 @@ export default function LoginForm(props: Props) {
                   <Box width="50%">
                     {mfaType.value === 'otp' && (
                       <FieldInput
-                        label="Two factor token"
+                        label="two-factor token"
                         rule={requiredToken}
                         autoComplete="off"
                         value={token}
@@ -174,7 +174,7 @@ export default function LoginForm(props: Props) {
                     )}
                     {mfaType.value === 'u2f' && isProcessing && (
                       <Text typography="body2" mb={1}>
-                        Insert your U2F key and press the button on the key
+                        Insert your U2F key and press the button on the key.
                       </Text>
                     )}
                   </Box>
@@ -183,7 +183,7 @@ export default function LoginForm(props: Props) {
               {otpEnabled && (
                 <Flex flexDirection="row">
                   <FieldInput
-                    label="Two factor token"
+                    label="two-factor token"
                     rule={requiredToken}
                     autoComplete="off"
                     width="50%"
@@ -211,7 +211,7 @@ export default function LoginForm(props: Props) {
                   width="100%"
                   textAlign="center"
                 >
-                  Insert your U2F key and press the button on the key
+                  Insert your U2F key and press the button on the key.
                 </Text>
               )}
             </FlexBordered>

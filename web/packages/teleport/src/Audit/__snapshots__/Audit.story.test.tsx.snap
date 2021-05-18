@@ -2126,7 +2126,7 @@ exports[`overflow 1`] = `
     class="c8"
     kind="danger"
   >
-    Number of events retrieved for specified date range has exceeded the maximum limit of 
+    number of events retrieved for specified date range has exceeded the maximum limit of 
     9999
      events
   </div>

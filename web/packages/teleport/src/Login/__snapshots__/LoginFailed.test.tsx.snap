@@ -103,7 +103,7 @@ exports[`callback error message 1`] = `
         class="c5"
         href="/web/login"
       >
-        Please attempt to log in again
+        Please attempt to log in again.
       </a>
     </div>
   </div>
@@ -213,7 +213,7 @@ exports[`default error message 1`] = `
         class="c5"
         href="/web/login"
       >
-        Please attempt to log in again
+        Please attempt to log in again.
       </a>
     </div>
   </div>

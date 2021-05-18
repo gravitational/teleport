@@ -124,8 +124,8 @@ const Info = props => (
     </Text>
     <Text typography="subtitle1" mb={3}>
       Trusted Clusters allow Teleport administrators to connect multiple
-      clusters together and establish trust between them. Users of trusted
-      clusters can seamlessly access the nodes of the cluster from the root
+      clusters together and establish trust between them. Users of Trusted
+      Clusters can seamlessly access the nodes of the cluster from the root
       cluster.
     </Text>
     <Text typography="subtitle1" mb={2}>
@@ -137,7 +137,7 @@ const Info = props => (
       >
         view our documentation
       </Link>{' '}
-      to learn more about trusted clusters.
+      to learn more about Trusted Clusters.
     </Text>
   </Box>
 );
