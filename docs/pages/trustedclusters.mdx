@@ -468,7 +468,7 @@ Once established, to fully remove a trust relationship between two clusters, do
 the following:
 
 - Remove the relationship from the leaf cluster: `tctl rm tc/root.example.com` (`tc` = trusted cluster)
-- Remove the relationship from the root cluster: `tctl rm lc/leaf.example.com`.
+- Remove the relationship from the root cluster: `tctl rm rc/leaf.example.com` (`rc` = remote cluster)
 
 ### Remove Leaf Cluster relationship from the root
 
