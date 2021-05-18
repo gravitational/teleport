@@ -95,6 +95,7 @@ export default function getFeatures() {
   return [
     new OSS.FeatureNodes(),
     new OSS.FeatureApps(),
+    new OSS.FeatureKubes(),
     new OSS.FeatureSessions(),
     new OSS.FeatureRecordings(),
     new OSS.FeatureAudit(),
