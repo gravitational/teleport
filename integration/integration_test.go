@@ -1509,12 +1509,12 @@ func (s *IntSuite) twoClustersTunnel(c *check.C, now time.Time, proxyRecordMode 
 		stopCh := time.After(5 * time.Second)
 
 		// only look for exec events
-		execQuery := fmt.Sprintf("%s=%s", events.EventType, events.ExecEvent)
+		eventTypes := []string{events.ExecEvent}
 
 		for {
 			select {
 			case <-tickCh:
-				eventsInSite, err := site.SearchEvents(now, now.Add(1*time.Hour), execQuery, 0)
+				eventsInSite, _, err := site.SearchEvents(now, now.Add(1*time.Hour), defaults.Namespace, eventTypes, 0, "")
 				if err != nil {
 					return trace.Wrap(err)
 				}
