@@ -98,6 +98,20 @@ message ClusterAuthPreference {
 }
 ```
 
+No configuration value should be stored in more than one location in the backend.
+Consequently, after the proposed transition has fully taken place,
+there will be no `ClusterConfig` resource to be stored in the backend.
+
+#### Backward compatibility
+
+Updating the `ClusterConfig` resource using the `SetClusterConfig` endpoint -- exposed as part of the Auth server HTTP/JSON API, but not really used in the wild -- will not be supported anymore.
+
+To fulfill the obligation of backward compatibility with respect to older Teleport components, reading of `ClusterConfig` will remain supported:
+
+1. `GetClusterConfig` is to populate the legacy `ClusterConfig` structure with data obtained from the other configuration resources.
+2. To ensure proper cache propagation, updates to the other configuration resources that contain fields previously belonging to `ClusterConfig` will trigger a `ClusterConfig` event in addition to the event of their own kind.
+3. `ClusterConfig` events will be populated with data obtained from the other configuration resources.
+
 ### (Teleport Cloud only) Restricting to a subset of values of a field
 
 Certain field values should not be available for configuring by Cloud users.
