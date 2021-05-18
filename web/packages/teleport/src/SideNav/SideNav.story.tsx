@@ -67,6 +67,13 @@ const defaultProps = {
       title: 'Applications',
     },
     {
+      items: [],
+      route: '/web/cluster/one/kubes',
+      Icon: Icons.Kubernetes,
+      exact: true,
+      title: 'Kubernetes',
+    },
+    {
       title: 'Team',
       Icon: Icons.Users,
       items: [

@@ -280,6 +280,17 @@ exports[`rendering of SideNav 1`] = `
         />
         Applications
       </a>
+      <a
+        class="c4"
+        href="/web/cluster/one/kubes"
+      >
+        <span
+          class="c5 icon icon-kubernetes sc-AxjAm c6"
+          color="inherit"
+          font-size="16px"
+        />
+        Kubernetes
+      </a>
       <button
         class="c7 actives"
       >

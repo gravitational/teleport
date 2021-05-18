@@ -55,6 +55,7 @@ export interface Acl {
   users: Access;
   tokens: Access;
   appServers: Access;
+  kubeServers: Access;
   accessRequests: Access;
   billing: Access;
 }

@@ -53,6 +53,10 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.acl.appServers;
   }
 
+  getKubeServerAccess() {
+    return this.state.acl.kubeServers;
+  }
+
   getTokenAccess() {
     return this.state.acl.tokens;
   }

@@ -27,6 +27,7 @@ export default function makeAcl(json): Acl {
   const events = json.events || defaultAccess;
   const users = json.users || defaultAccess;
   const appServers = json.appServers || defaultAccess;
+  const kubeServers = json.kubeServers || defaultAccess;
   const tokens = json.tokens || defaultAccess;
   const accessRequests = json.accessRequests || defaultAccess;
   const billing = json.billing || defaultAccess;
@@ -40,6 +41,7 @@ export default function makeAcl(json): Acl {
     events,
     users,
     appServers,
+    kubeServers,
     tokens,
     accessRequests,
     billing,

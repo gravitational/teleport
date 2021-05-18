@@ -68,6 +68,7 @@ const cfg = {
     loginErrorCallback: '/web/msg/error/login/callback',
     userInvite: '/web/invite/:tokenId',
     userReset: '/web/reset/:tokenId',
+    kubernetes: '/web/cluster/:clusterId/kubernetes',
     // whitelist sso handlers
     oidcHandler: '/v1/webapi/oidc/*',
     samlHandler: '/v1/webapi/saml/*',
@@ -101,6 +102,7 @@ const cfg = {
     ttyWsAddr:
       'wss://:fqdm/v1/webapi/sites/:clusterId/connect?access_token=:token&params=:params',
     terminalSessionPath: '/v1/webapi/sites/:clusterId/sessions/:sid?',
+    kubernetesPath: '/v1/webapi/sites/:clusterId/kubernetes',
 
     usersPath: '/v1/webapi/users',
     usersDelete: '/v1/webapi/users/:username',
@@ -241,6 +243,10 @@ const cfg = {
     return cfg.baseUrl + generatePath(route, { tokenId });
   },
 
+  getKubernetesRoute(clusterId: string) {
+    return generatePath(cfg.routes.kubernetes, { clusterId });
+  },
+
   getUsersUrl() {
     return cfg.api.usersPath;
   },
@@ -285,6 +291,10 @@ const cfg = {
 
   getRolesUrl(name?: string) {
     return generatePath(cfg.api.rolesPath, { name });
+  },
+
+  getKubernetesUrl(clusterId: string) {
+    return generatePath(cfg.api.kubernetesPath, { clusterId });
   },
 
   init(backendConfig = {}) {

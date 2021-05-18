@@ -33,6 +33,13 @@ export const userContext = makeUserContext({
       list: true,
       read: true,
     },
+    kubeServers: {
+      list: true,
+      read: true,
+      edit: false,
+      create: false,
+      remove: false,
+    },
     sessions: {
       list: true,
       read: true,
