@@ -15,9 +15,10 @@ limitations under the License.
 */
 
 import React from 'react';
-import Text from '../Text';
+import { Label } from 'design';
 import { StyledTable, StyledEmptyIndicator } from './StyledTable';
-import * as Icons from './../Icon/Icon';
+import Text from '../Text';
+import * as Icons from '../Icon/Icon';
 
 /**
  * Sort indicator used by SortHeaderCell
@@ -170,6 +171,16 @@ const TextCell = props => {
   return <Cell {...rest}>{data[rowIndex][columnKey]}</Cell>;
 };
 
+const renderLabelCell = labels => {
+  const $labels = labels.map(label => (
+    <Label mb="1" mr="1" key={label} kind="secondary">
+      {label}
+    </Label>
+  ));
+
+  return <Cell>{$labels}</Cell>;
+};
+
 class SortHeaderCell extends React.Component {
   onSortChange = e => {
     e.preventDefault();
@@ -225,6 +236,7 @@ export {
   Table,
   Cell,
   TextCell,
+  renderLabelCell,
   SortHeaderCell,
   SortIndicator,
   SortTypes,

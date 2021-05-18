@@ -80,4 +80,8 @@ export default class StoreUserContext extends Store<UserContext> {
   getBillingAccess() {
     return this.state.acl.billing;
   }
+
+  getDatabaseAccess() {
+    return this.state.acl.dbServers;
+  }
 }

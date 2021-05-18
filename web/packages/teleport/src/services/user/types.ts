@@ -58,6 +58,7 @@ export interface Acl {
   kubeServers: Access;
   accessRequests: Access;
   billing: Access;
+  dbServers: Access;
 }
 
 export interface User {

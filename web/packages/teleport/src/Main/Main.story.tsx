@@ -26,6 +26,7 @@ import { nodes } from 'teleport/Nodes/fixtures';
 import { events } from 'teleport/Audit/fixtures';
 import { sessions } from 'teleport/Sessions/fixtures';
 import { apps } from 'teleport/Apps/fixtures';
+import { databases } from 'teleport/Databases/fixtures';
 import { userContext } from './fixtures';
 import { kubes } from 'teleport/Kubes/fixtures';
 
@@ -66,6 +67,7 @@ function useMainStory() {
     ctx.sshService.fetchSessions = () => Promise.resolve(sessions);
     ctx.appService.fetchApps = () => Promise.resolve(apps);
     ctx.kubeService.fetchKubernetes = () => Promise.resolve(kubes);
+    ctx.databaseService.fetchDatabases = () => Promise.resolve(databases);
     ctx.storeUser.setState(userContext);
     getFeatures().forEach(f => f.register(ctx));
     return ctx;

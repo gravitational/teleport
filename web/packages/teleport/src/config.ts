@@ -53,6 +53,7 @@ const cfg = {
     nodes: '/web/cluster/:clusterId/nodes',
     sessions: '/web/cluster/:clusterId/sessions',
     recordings: '/web/cluster/:clusterId/recordings',
+    databases: '/web/cluster/:clusterId/databases',
     users: '/web/users',
     console: '/web/cluster/:clusterId/console',
     consoleNodes: '/web/cluster/:clusterId/console/nodes',
@@ -95,6 +96,7 @@ const cfg = {
     u2fChangePassChallengePath: '/v1/webapi/u2f/password/changerequest',
     u2fSessionPath: '/v1/webapi/u2f/sessions',
     nodesPath: '/v1/webapi/sites/:clusterId/nodes',
+    databasesPath: `/v1/webapi/sites/:clusterId/databases`,
     siteSessionPath: '/v1/webapi/sites/:siteId/sessions',
     sessionEventsPath: '/v1/webapi/sites/:siteId/sessions/:sid/events',
     siteEventSessionFilterPath: `/v1/webapi/sites/:siteId/sessions`,
@@ -153,6 +155,10 @@ const cfg = {
 
   getNodesRoute(clusterId: string) {
     return generatePath(cfg.routes.nodes, { clusterId });
+  },
+
+  getDatabasesRoute(clusterId: string) {
+    return generatePath(cfg.routes.databases, { clusterId });
   },
 
   getNodeJoinTokenUrl() {
@@ -261,6 +267,10 @@ const cfg = {
 
   getClusterNodesUrl(clusterId: string) {
     return generatePath(cfg.api.nodesPath, { clusterId });
+  },
+
+  getDatabasesUrl(clusterId: string) {
+    return generatePath(cfg.api.databasesPath, { clusterId });
   },
 
   getApplicationsUrl(clusterId: string) {

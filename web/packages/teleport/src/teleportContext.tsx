@@ -25,6 +25,7 @@ import ResourceService from './services/resources';
 import userService from './services/user';
 import appService from './services/apps';
 import KubeService from './services/kube';
+import DatabaseService from './services/databases';
 
 class TeleportContext implements types.Context {
   // stores
@@ -44,6 +45,7 @@ class TeleportContext implements types.Context {
   appService = appService;
   kubeService = new KubeService();
 
+  databaseService = new DatabaseService();
   isEnterprise = cfg.isEnterprise;
 
   init() {
@@ -64,6 +66,7 @@ class TeleportContext implements types.Context {
       applications: userContext.getAppServerAccess().list,
       kubernetes: userContext.getKubeServerAccess().list,
       billing: userContext.getBillingAccess().list,
+      databases: userContext.getDatabaseAccess().list,
     };
   }
 }

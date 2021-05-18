@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,29 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import {
-  Column,
-  Table,
-  Cell,
-  TextCell,
-  renderLabelCell,
-  SortHeaderCell,
-  SortIndicator,
-  SortTypes,
-  EmptyIndicator,
-} from './Table';
-
-import TablePaged from './Paged';
-
-export {
-  Column,
-  Table,
-  TablePaged,
-  Cell,
-  TextCell,
-  renderLabelCell,
-  SortHeaderCell,
-  SortIndicator,
-  SortTypes,
-  EmptyIndicator,
-};
+import Databases from './Databases';
+export default Databases;

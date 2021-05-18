@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,29 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import {
-  Column,
-  Table,
-  Cell,
-  TextCell,
-  renderLabelCell,
-  SortHeaderCell,
-  SortIndicator,
-  SortTypes,
-  EmptyIndicator,
-} from './Table';
+import { map } from 'lodash';
+import api from 'teleport/services/api';
+import cfg from 'teleport/config';
+import makeDatabase from './makeDatabase';
 
-import TablePaged from './Paged';
+class DatabaseService {
+  fetchDatabases(clusterId?: string) {
+    return api
+      .get(cfg.getDatabasesUrl(clusterId))
+      .then(json => map(json, makeDatabase));
+  }
+}
 
-export {
-  Column,
-  Table,
-  TablePaged,
-  Cell,
-  TextCell,
-  renderLabelCell,
-  SortHeaderCell,
-  SortIndicator,
-  SortTypes,
-  EmptyIndicator,
-};
+export default DatabaseService;

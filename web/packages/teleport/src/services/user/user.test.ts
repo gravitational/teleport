@@ -127,6 +127,13 @@ test('undefined values in context response gives proper default values', async (
         create: false,
         remove: false,
       },
+      dbServers: {
+        list: false,
+        read: false,
+        edit: false,
+        create: false,
+        remove: false,
+      },
     },
     cluster: {
       clusterId: 'aws',

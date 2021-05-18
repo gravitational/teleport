@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,29 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import {
-  Column,
-  Table,
-  Cell,
-  TextCell,
-  renderLabelCell,
-  SortHeaderCell,
-  SortIndicator,
-  SortTypes,
-  EmptyIndicator,
-} from './Table';
+export interface Database {
+  name: string;
+  desc: string;
+  title: string;
+  protocol: DbProtocol;
+  tags: string[];
+}
 
-import TablePaged from './Paged';
-
-export {
-  Column,
-  Table,
-  TablePaged,
-  Cell,
-  TextCell,
-  renderLabelCell,
-  SortHeaderCell,
-  SortIndicator,
-  SortTypes,
-  EmptyIndicator,
-};
+export type DbType = 'redshift' | 'rds' | 'gcp' | 'self-hosted';
+export type DbProtocol = 'postgres' | 'mysql';

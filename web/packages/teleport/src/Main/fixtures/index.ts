@@ -85,6 +85,13 @@ export const userContext = makeUserContext({
       create: true,
       remove: true,
     },
+    dbServers: {
+      list: true,
+      read: true,
+      edit: true,
+      create: true,
+      remove: true,
+    },
   },
   cluster: {
     name: 'aws',

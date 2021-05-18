@@ -30,6 +30,7 @@ import Users from './Users';
 import Roles from './Roles';
 import Recordings from './Recordings';
 import AuthConnectors from './AuthConnectors';
+import Databases from './Databases';
 
 export class FeatureClusters {
   getTopNavTitle() {
@@ -407,11 +408,42 @@ export class FeatureTrust {
   }
 }
 
+export class FeatureDatabases {
+  getTopNavTitle() {
+    return '';
+  }
+
+  route = {
+    title: 'Databases',
+    path: cfg.routes.databases,
+    exact: true,
+    component: Databases,
+  };
+
+  register(ctx: Ctx) {
+    if (!ctx.getFeatureFlags().databases) {
+      return;
+    }
+
+    ctx.storeNav.addSideItem({
+      title: 'Databases',
+      Icon: Icons.Database,
+      exact: true,
+      getLink(clusterId: string) {
+        return cfg.getDatabasesRoute(clusterId);
+      },
+    });
+
+    ctx.features.push(this);
+  }
+}
+
 export default function getFeatures() {
   return [
     new FeatureNodes(),
     new FeatureApps(),
     new FeatureKubes(),
+    new FeatureDatabases(),
     new FeatureSessions(),
     new FeatureRecordings(),
     new FeatureAudit(),

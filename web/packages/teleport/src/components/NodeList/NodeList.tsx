@@ -18,13 +18,13 @@ import React from 'react';
 import styled from 'styled-components';
 import { sortBy } from 'lodash';
 import isMatch from 'design/utils/match';
-import { Label } from 'design';
 import {
   Column,
   SortHeaderCell,
   Cell,
   TextCell,
   SortTypes,
+  renderLabelCell,
 } from 'design/DataTable';
 import Table from 'design/DataTable/Paged';
 import MenuSshLogin, { LoginItem } from 'shared/components/MenuSshLogin';
@@ -36,7 +36,7 @@ function NodeList(props: Props) {
     searchValue,
     onLoginMenuOpen,
     onLoginSelect,
-    pageSize = 100,
+    pageSize = 20,
   } = props;
   const [sortDir, setSortDir] = React.useState<Record<string, string>>({
     hostname: SortTypes.DESC,
@@ -154,18 +154,6 @@ const LoginCell: React.FC<Required<{
   );
 };
 
-export function LabelCell(props) {
-  const { rowIndex, data } = props;
-  const { tags } = data[rowIndex];
-  const $labels = tags.map(label => (
-    <Label mb="1" mr="1" key={label} kind="secondary">
-      {`${label}`}
-    </Label>
-  ));
-
-  return <Cell>{$labels}</Cell>;
-}
-
 function AddressCell(props) {
   const { rowIndex, data, ...rest } = props;
   const { addr, tunnel } = data[rowIndex] as Node;
@@ -179,6 +167,12 @@ function renderTunnel() {
       title="This node is connected to cluster through reverse tunnel"
     >{`⟵ tunnel`}</span>
   );
+}
+
+function LabelCell(props) {
+  const { rowIndex, data } = props;
+  const { tags = [] } = data[rowIndex];
+  return renderLabelCell(tags);
 }
 
 const StyledTable = styled(Table)`
