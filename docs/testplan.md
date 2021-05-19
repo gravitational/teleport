@@ -711,6 +711,7 @@ and non interactive tsh bench loads.
   - [ ] `tsh play <chunk-id>` can fetch and print a session chunk archive.
 - [ ] Verify JWT using [verify-jwt.go](https://github.com/gravitational/teleport/blob/master/examples/jwt/verify-jwt.go).
 - [ ] Verify RBAC.
+- [ ] Verify [CLI access](https://goteleport.com/docs/application-access/guides/api-access/) with `tsh app login`.
 
 ## Database Access
 
@@ -719,11 +720,15 @@ and non interactive tsh bench loads.
   - [ ] Self-hosted MySQL.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
+  - [ ] AWS Redshift Postgres.
+  - [ ] GCP Cloud SQL Postgres.
 - [ ] Connect to a database within a remote cluster via a trusted cluster.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
+  - [ ] AWS Redshift Postgres.
+  - [ ] GCP Cloud SQL Postgres.
 - [ ] Verify audit events.
   - [ ] `db.session.start` is emitted when you connect.
   - [ ] `db.session.end` is emitted when you disconnect.
