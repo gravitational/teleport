@@ -91,14 +91,13 @@ This token will expire in {{.minutes}} minutes.
 
 Fill out and run this command on a node to start proxying the database:
 
-> teleport start \
-   --roles={{.roles}} \
+> teleport db start \
    --token={{.token}} \
    --ca-pin={{.ca_pin}} \
    --auth-server={{.auth_server}} \
-   --db-name={{.db_name}} \
-   --db-protocol={{.db_protocol}} \
-   --db-uri={{.db_uri}}
+   --name={{.db_name}} \
+   --protocol={{.db_protocol}} \
+   --uri={{.db_uri}}
 
 Please note:
 

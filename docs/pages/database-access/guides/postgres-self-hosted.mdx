@@ -154,13 +154,12 @@ You can start Teleport database service without configuration file, using a
 CLI command:
 
 ```sh
-$ teleport start \
-   --roles=db \
+$ teleport db start \
    --token=/tmp/token \
    --auth-server=teleport.example.com:3080 \
-   --db-name=test \
-   --db-protocol=postgres \
-   --db-uri=postgres.example.com:5432 \
+   --name=test \
+   --protocol=postgres \
+   --uri=postgres.example.com:5432 \
    --labels=env=dev
 ```
 

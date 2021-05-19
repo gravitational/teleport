@@ -313,15 +313,20 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 		comment := check.Commentf(tt.comment)
 		makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
 			clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-				SessionRecording: tt.inRecordLocation,
-				Audit:            services.AuditConfig{AuditSessionsURI: tt.auditSessionsURI},
-				LocalAuth:        services.NewBool(true),
+				Audit:     services.AuditConfig{AuditSessionsURI: tt.auditSessionsURI},
+				LocalAuth: services.NewBool(true),
+			})
+			c.Assert(err, check.IsNil, comment)
+
+			recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+				Mode: tt.inRecordLocation,
 			})
 			c.Assert(err, check.IsNil, comment)
 
 			tconf := s.defaultServiceConfig()
 			tconf.Auth.Enabled = true
 			tconf.Auth.ClusterConfig = clusterConfig
+			tconf.Auth.SessionRecordingConfig = recConfig
 			tconf.Proxy.Enabled = true
 			tconf.Proxy.DisableWebService = true
 			tconf.Proxy.DisableWebInterface = true
@@ -1157,8 +1162,7 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 	t.AddUserWithRole(username, role)
 
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		SessionRecording: tc.recordingMode,
-		LocalAuth:        services.NewBool(true),
+		LocalAuth: services.NewBool(true),
 	})
 	c.Assert(err, check.IsNil, comment)
 
@@ -1167,10 +1171,16 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 	})
 	c.Assert(err, check.IsNil, comment)
 
+	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+		Mode: tc.recordingMode,
+	})
+	c.Assert(err, check.IsNil, comment)
+
 	cfg := s.defaultServiceConfig()
 	cfg.Auth.Enabled = true
 	cfg.Auth.ClusterConfig = clusterConfig
 	cfg.Auth.NetworkingConfig = netConfig
+	cfg.Auth.SessionRecordingConfig = recConfig
 	cfg.Proxy.DisableWebService = true
 	cfg.Proxy.DisableWebInterface = true
 	cfg.Proxy.Enabled = true
@@ -1380,9 +1390,8 @@ func (s *IntSuite) twoClustersTunnel(c *check.C, now time.Time, proxyRecordMode 
 	a.AddUser(username, []string{username})
 	b.AddUser(username, []string{username})
 
-	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		SessionRecording: proxyRecordMode,
-		LocalAuth:        services.NewBool(true),
+	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+		Mode: proxyRecordMode,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -1395,7 +1404,7 @@ func (s *IntSuite) twoClustersTunnel(c *check.C, now time.Time, proxyRecordMode 
 
 	bcfg := s.defaultServiceConfig()
 	bcfg.Auth.Enabled = true
-	bcfg.Auth.ClusterConfig = clusterConfig
+	bcfg.Auth.SessionRecordingConfig = recConfig
 	bcfg.Proxy.Enabled = true
 	bcfg.Proxy.DisableWebService = true
 	bcfg.Proxy.DisableWebInterface = true
@@ -2941,15 +2950,14 @@ func (s *IntSuite) TestExternalClient(c *check.C) {
 	for _, tt := range tests {
 		// Create a Teleport instance with auth, proxy, and node.
 		makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
-			clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-				SessionRecording: tt.inRecordLocation,
-				LocalAuth:        services.NewBool(true),
+			recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+				Mode: tt.inRecordLocation,
 			})
 			c.Assert(err, check.IsNil)
 
 			tconf := s.defaultServiceConfig()
 			tconf.Auth.Enabled = true
-			tconf.Auth.ClusterConfig = clusterConfig
+			tconf.Auth.SessionRecordingConfig = recConfig
 
 			tconf.Proxy.Enabled = true
 			tconf.Proxy.DisableWebService = true
@@ -3036,15 +3044,14 @@ func (s *IntSuite) TestControlMaster(c *check.C) {
 
 		// Create a Teleport instance with auth, proxy, and node.
 		makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
-			clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-				SessionRecording: tt.inRecordLocation,
-				LocalAuth:        services.NewBool(true),
+			recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+				Mode: tt.inRecordLocation,
 			})
 			c.Assert(err, check.IsNil)
 
 			tconf := s.defaultServiceConfig()
 			tconf.Auth.Enabled = true
-			tconf.Auth.ClusterConfig = clusterConfig
+			tconf.Auth.SessionRecordingConfig = recConfig
 
 			tconf.Proxy.Enabled = true
 			tconf.Proxy.DisableWebService = true
@@ -3107,17 +3114,17 @@ func (s *IntSuite) TestProxyHostKeyCheck(c *check.C) {
 	defer tr.Stop()
 
 	var tests = []struct {
-		inHostKeyCheck string
+		inHostKeyCheck bool
 		outError       bool
 	}{
 		// disable host key checking, should be able to connect
 		{
-			services.HostKeyCheckNo,
+			false,
 			false,
 		},
 		// enable host key checking, should NOT be able to connect
 		{
-			services.HostKeyCheckYes,
+			true,
 			true,
 		},
 	}
@@ -3136,16 +3143,15 @@ func (s *IntSuite) TestProxyHostKeyCheck(c *check.C) {
 
 		// create a teleport instance with auth, proxy, and node
 		makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
-			clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-				SessionRecording:    services.RecordAtProxy,
-				ProxyChecksHostKeys: tt.inHostKeyCheck,
-				LocalAuth:           services.NewBool(true),
+			recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+				Mode:                services.RecordAtProxy,
+				ProxyChecksHostKeys: types.NewBoolOption(tt.inHostKeyCheck),
 			})
 			c.Assert(err, check.IsNil)
 
 			tconf := s.defaultServiceConfig()
 			tconf.Auth.Enabled = true
-			tconf.Auth.ClusterConfig = clusterConfig
+			tconf.Auth.SessionRecordingConfig = recConfig
 
 			tconf.Proxy.Enabled = true
 			tconf.Proxy.DisableWebService = true
@@ -3188,15 +3194,14 @@ func (s *IntSuite) TestAuditOff(c *check.C) {
 
 	// create a teleport instance with auth, proxy, and node
 	makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
-		clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-			SessionRecording: services.RecordOff,
-			LocalAuth:        services.NewBool(true),
+		recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+			Mode: services.RecordOff,
 		})
 		c.Assert(err, check.IsNil)
 
 		tconf := s.defaultServiceConfig()
 		tconf.Auth.Enabled = true
-		tconf.Auth.ClusterConfig = clusterConfig
+		tconf.Auth.SessionRecordingConfig = recConfig
 
 		tconf.Proxy.Enabled = true
 		tconf.Proxy.DisableWebService = true
@@ -4325,16 +4330,15 @@ func (s *IntSuite) TestList(c *check.C) {
 
 	// Create and start a Teleport cluster with auth, proxy, and node.
 	makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
-		clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-			SessionRecording: services.RecordOff,
-			LocalAuth:        services.NewBool(true),
+		recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+			Mode: services.RecordOff,
 		})
 		c.Assert(err, check.IsNil)
 
 		tconf := s.defaultServiceConfig()
 		tconf.Hostname = "server-01"
 		tconf.Auth.Enabled = true
-		tconf.Auth.ClusterConfig = clusterConfig
+		tconf.Auth.SessionRecordingConfig = recConfig
 		tconf.Proxy.Enabled = true
 		tconf.Proxy.DisableWebService = true
 		tconf.Proxy.DisableWebInterface = true
@@ -4473,16 +4477,15 @@ func (s *IntSuite) TestCmdLabels(c *check.C) {
 
 	// Create and start a Teleport cluster with auth, proxy, and node.
 	makeConfig := func() *service.Config {
-		clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-			SessionRecording: services.RecordOff,
-			LocalAuth:        services.NewBool(true),
+		recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+			Mode: services.RecordOff,
 		})
 		c.Assert(err, check.IsNil)
 
 		tconf := s.defaultServiceConfig()
 		tconf.Hostname = "server-01"
 		tconf.Auth.Enabled = true
-		tconf.Auth.ClusterConfig = clusterConfig
+		tconf.Auth.SessionRecordingConfig = recConfig
 		tconf.Proxy.Enabled = true
 		tconf.Proxy.DisableWebService = false
 		tconf.Proxy.DisableWebInterface = true
@@ -4641,9 +4644,8 @@ func (s *IntSuite) TestBPFInteractive(c *check.C) {
 
 		// Create and start a Teleport cluster.
 		makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
-			clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-				SessionRecording: tt.inSessionRecording,
-				LocalAuth:        services.NewBool(true),
+			recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+				Mode: tt.inSessionRecording,
 			})
 			c.Assert(err, check.IsNil)
 
@@ -4653,7 +4655,7 @@ func (s *IntSuite) TestBPFInteractive(c *check.C) {
 			// Configure Auth.
 			tconf.Auth.Preference.SetSecondFactor("off")
 			tconf.Auth.Enabled = true
-			tconf.Auth.ClusterConfig = clusterConfig
+			tconf.Auth.SessionRecordingConfig = recConfig
 
 			// Configure Proxy.
 			tconf.Proxy.Enabled = true
@@ -4769,9 +4771,8 @@ func (s *IntSuite) TestBPFExec(c *check.C) {
 
 		// Create and start a Teleport cluster.
 		makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
-			clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-				SessionRecording: tt.inSessionRecording,
-				LocalAuth:        services.NewBool(true),
+			recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+				Mode: tt.inSessionRecording,
 			})
 			c.Assert(err, check.IsNil)
 
@@ -4781,7 +4782,7 @@ func (s *IntSuite) TestBPFExec(c *check.C) {
 			// Configure Auth.
 			tconf.Auth.Preference.SetSecondFactor("off")
 			tconf.Auth.Enabled = true
-			tconf.Auth.ClusterConfig = clusterConfig
+			tconf.Auth.SessionRecordingConfig = recConfig
 
 			// Configure Proxy.
 			tconf.Proxy.Enabled = true
@@ -4851,9 +4852,8 @@ func (s *IntSuite) TestBPFSessionDifferentiation(c *check.C) {
 
 	// Create and start a Teleport cluster.
 	makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
-		clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-			SessionRecording: services.RecordAtNode,
-			LocalAuth:        services.NewBool(true),
+		recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+			Mode: services.RecordAtNode,
 		})
 		c.Assert(err, check.IsNil)
 
@@ -4863,7 +4863,7 @@ func (s *IntSuite) TestBPFSessionDifferentiation(c *check.C) {
 		// Configure Auth.
 		tconf.Auth.Preference.SetSecondFactor("off")
 		tconf.Auth.Enabled = true
-		tconf.Auth.ClusterConfig = clusterConfig
+		tconf.Auth.SessionRecordingConfig = recConfig
 
 		// Configure Proxy.
 		tconf.Proxy.Enabled = true
