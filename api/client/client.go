@@ -1370,3 +1370,9 @@ func (c *Client) SetClusterNetworkingConfig(ctx context.Context, netConfig types
 func (c *Client) DeleteClusterNetworkingConfig(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
+
+// ResetAuthPreference resets cluster auth preference to defaults.
+func (c *Client) ResetAuthPreference(ctx context.Context) error {
+	_, err := c.grpc.ResetAuthPreference(ctx, &empty.Empty{})
+	return trail.FromGRPC(err)
+}

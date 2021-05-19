@@ -25,16 +25,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"google.golang.org/grpc"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 
 	"cloud.google.com/go/storage"
+	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/api/option"
+	"google.golang.org/grpc"
 
-	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -69,14 +69,9 @@ var (
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
 		},
 	)
-)
 
-func init() {
-	prometheus.MustRegister(uploadRequests)
-	prometheus.MustRegister(downloadRequests)
-	prometheus.MustRegister(uploadLatencies)
-	prometheus.MustRegister(downloadLatencies)
-}
+	prometheusCollectors = []prometheus.Collector{uploadRequests, downloadRequests, uploadLatencies, downloadLatencies}
+)
 
 const (
 	// endpointPropertyKey
@@ -115,7 +110,6 @@ type Config struct {
 
 // SetFromURL sets values on the Config from the supplied URI
 func (cfg *Config) SetFromURL(url *url.URL) error {
-
 	kmsKeyNameParamString := url.Query().Get(kmsKeyName)
 	if len(kmsKeyNameParamString) > 0 {
 		cfg.KMSKeyName = kmsKeyNameParamString
@@ -193,6 +187,11 @@ func DefaultNewHandler(cfg Config) (*Handler, error) {
 
 // NewHandler returns a new handler with specific context, cancelFunc, and client
 func NewHandler(ctx context.Context, cancelFunc context.CancelFunc, cfg Config, client *storage.Client) (*Handler, error) {
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

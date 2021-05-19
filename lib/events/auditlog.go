@@ -94,15 +94,9 @@ var (
 			Help: "Number of times emitting audit event failed.",
 		},
 	)
-)
 
-func init() {
-	// Metrics have to be registered to be exposed.
-	prometheus.MustRegister(auditOpenFiles)
-	prometheus.MustRegister(auditDiskUsed)
-	prometheus.MustRegister(auditFailedDisk)
-	prometheus.MustRegister(AuditFailedEmit)
-}
+	prometheusCollectors = []prometheus.Collector{auditOpenFiles, auditDiskUsed, auditFailedDisk, AuditFailedEmit}
+)
 
 // AuditLog is a new combined facility to record Teleport events and
 // sessions. It implements IAuditLog
@@ -236,6 +230,11 @@ func (a *AuditLogConfig) CheckAndSetDefaults() error {
 // a given directory. Session recording can be disabled by setting
 // recordSessions to false.
 func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1193,8 +1192,7 @@ func (l *LegacyHandler) Download(ctx context.Context, sessionID session.ID, writ
 
 const loggerClosedMessage = "the logger has been closed"
 
-type closedLogger struct {
-}
+type closedLogger struct{}
 
 func (a *closedLogger) EmitAuditEventLegacy(e Event, f EventFields) error {
 	return trace.NotImplemented(loggerClosedMessage)

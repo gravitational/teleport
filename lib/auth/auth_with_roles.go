@@ -2210,6 +2210,7 @@ func (a *ServerWithRoles) SetStaticTokens(s services.StaticTokens) error {
 	return a.authServer.SetStaticTokens(s)
 }
 
+// GetAuthPreference gets cluster auth preference.
 func (a *ServerWithRoles) GetAuthPreference() (services.AuthPreference, error) {
 	if err := a.action(defaults.Namespace, services.KindClusterAuthPreference, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
@@ -2218,6 +2219,7 @@ func (a *ServerWithRoles) GetAuthPreference() (services.AuthPreference, error) {
 	return a.authServer.GetAuthPreference()
 }
 
+// SetAuthPreference sets cluster auth preference.
 func (a *ServerWithRoles) SetAuthPreference(newAuthPref services.AuthPreference) error {
 	storedAuthPref, err := a.authServer.GetAuthPreference()
 	if err != nil {
@@ -2231,6 +2233,23 @@ func (a *ServerWithRoles) SetAuthPreference(newAuthPref services.AuthPreference)
 	}
 
 	return a.authServer.SetAuthPreference(newAuthPref)
+}
+
+// ResetAuthPreference resets cluster auth preference to defaults.
+func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
+	storedAuthPref, err := a.authServer.GetAuthPreference()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if storedAuthPref.Origin() == types.OriginConfigFile {
+		return trace.BadParameter("config-file configuration cannot be reset")
+	}
+
+	if err := a.action(defaults.Namespace, services.KindClusterAuthPreference, services.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.SetAuthPreference(types.DefaultAuthPreference())
 }
 
 // DeleteAuthPreference not implemented: can only be called locally.

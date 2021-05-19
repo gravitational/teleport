@@ -24,25 +24,19 @@ import (
 	"context"
 
 	"github.com/gravitational/teleport"
-
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
 	"github.com/iovisor/gobpf/bcc"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-var (
-	lostNetworkEvents = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: teleport.MetricLostNetworkEvents,
-			Help: "Number of lost network events.",
-		},
-	)
+var lostNetworkEvents = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Name: teleport.MetricLostNetworkEvents,
+		Help: "Number of lost network events.",
+	},
 )
-
-func init() {
-	prometheus.MustRegister(lostNetworkEvents)
-}
 
 // rawConn4Event is sent by the eBPF program that Teleport pulls off the perf
 // buffer.
@@ -112,7 +106,10 @@ type conn struct {
 }
 
 func startConn(closeContext context.Context, pageCount int) (*conn, error) {
-	var err error
+	err := utils.RegisterPrometheusCollectors(lostNetworkEvents)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	e := &conn{
 		closeContext: closeContext,
