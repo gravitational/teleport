@@ -71,10 +71,6 @@ type License interface {
 
 	// GetAccountID returns Account ID
 	GetAccountID() string
-
-	// CheckAndSetDefaults sets and default values and then
-	// verifies the constraints for License.
-	CheckAndSetDefaults() error
 }
 
 // NewLicense is a convenience method to to create LicenseV3.

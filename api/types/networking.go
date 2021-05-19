@@ -57,10 +57,6 @@ type ClusterNetworkingConfig interface {
 
 	// SetSessionControlTimeout sets the session control timeout.
 	SetSessionControlTimeout(t time.Duration)
-
-	// CheckAndSetDefaults sets and default values and then
-	// verifies the constraints for ClusterNetworkingConfig.
-	CheckAndSetDefaults() error
 }
 
 // NewClusterNetworkingConfig is a convenience method to create ClusterNetworkingConfigV2.

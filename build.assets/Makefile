@@ -315,7 +315,7 @@ release-windows: buildbox
 #
 .PHONY: docsbox
 docsbox:
-	docker pull $(DOCSBOX) || true
+	if ! docker inspect --type=image $(DOCSBOX) 2>&1 >/dev/null; then docker pull $(DOCSBOX) || true; fi
 
 .PHONY: test-docs
 test-docs: DOCS_VERSION := $(shell grep -E ^VERSION $(MAKEFILE_ROOT_DIR)/Makefile | cut -d= -f2 | cut -d. -f1-2)

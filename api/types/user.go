@@ -64,8 +64,6 @@ type User interface {
 	GetTraits() map[string][]string
 	// GetTraits sets the trait map for this user used to populate role variables.
 	SetTraits(map[string][]string)
-	// CheckAndSetDefaults checks and set default values for any missing fields.
-	CheckAndSetDefaults() error
 }
 
 // NewUser creates new empty user

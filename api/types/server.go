@@ -81,8 +81,6 @@ type Server interface {
 	MatchAgainst(labels map[string]string) bool
 	// LabelsString returns a comma separated string with all node's labels
 	LabelsString() string
-	// CheckAndSetDefaults checks and set default values for any missing fields.
-	CheckAndSetDefaults() error
 
 	// DeepCopy creates a clone of this server value
 	DeepCopy() Server
