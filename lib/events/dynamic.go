@@ -104,6 +104,14 @@ func FromEventFields(fields EventFields) (AuditEvent, error) {
 			return nil, trace.Wrap(err)
 		}
 		return &e, nil
+	case UserUpdatedEvent:
+		// note: user.update is a custom code applied on top of the same data as the user.create event
+		//       and they are thus functionally identical. There exists no direct gRPC version of user.update.
+		var e events.UserCreate
+		if err := utils.FastUnmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
 	case UserPasswordChangeEvent:
 		var e events.UserPasswordChange
 		if err := utils.FastUnmarshal(data, &e); err != nil {
