@@ -96,6 +96,66 @@ func CreateUploaderDir(dir string) error {
 	return nil
 }
 
+// TestServer defines the set of server components for a test
+type TestServer struct {
+	TLS        *TestTLSServer
+	AuthServer *TestAuthServer
+}
+
+// TestServerConfig defines the configuration for all server components
+type TestServerConfig struct {
+	// Auth specifies the auth server configuration
+	Auth TestAuthServerConfig
+	// TLS optionally specifies the configuration for the TLS server.
+	// If unspecified, will be generated automatically
+	TLS *TestTLSServerConfig
+}
+
+// NewTestServer creates a new test server configuration
+func NewTestServer(cfg TestServerConfig) (*TestServer, error) {
+	authServer, err := NewTestAuthServer(cfg.Auth)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var tlsServer *TestTLSServer
+	if cfg.TLS != nil {
+		tlsServer, err = NewTestTLSServer(*cfg.TLS)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		tlsServer, err = authServer.NewTestTLSServer()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return &TestServer{
+		AuthServer: authServer,
+		TLS:        tlsServer,
+	}, nil
+}
+
+// Auth returns the underlying auth server instance
+func (a *TestServer) Auth() *Server {
+	return a.AuthServer.AuthServer
+}
+
+func (a *TestServer) NewClient(identity TestIdentity) (*Client, error) {
+	return a.TLS.NewClient(identity)
+}
+
+func (a *TestServer) ClusterName() string {
+	return a.TLS.ClusterName()
+}
+
+// Shutdown stops this server instance gracefully
+func (a *TestServer) Shutdown(ctx context.Context) error {
+	return trace.NewAggregate(
+		a.TLS.Shutdown(ctx),
+		a.AuthServer.Close(),
+	)
+}
+
 // TestAuthServer is auth server using local filesystem backend
 // and test certificate authority key generation that speeds up
 // keygen by using the same private key
@@ -252,9 +312,9 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 
 func (a *TestAuthServer) Close() error {
 	return trace.NewAggregate(
+		a.AuthServer.Close(),
 		a.Backend.Close(),
 		a.AuditLog.Close(),
-		a.AuthServer.Close(),
 	)
 }
 
@@ -693,6 +753,18 @@ func (t *TestTLSServer) Start() error {
 // Close closes the listener and HTTP server
 func (t *TestTLSServer) Close() error {
 	err := t.TLSServer.Close()
+	if t.Listener != nil {
+		t.Listener.Close()
+	}
+	if t.AuthServer.Backend != nil {
+		t.AuthServer.Backend.Close()
+	}
+	return err
+}
+
+// Shutdown closes the listener and HTTP server gracefully
+func (t *TestTLSServer) Shutdown(ctx context.Context) error {
+	err := t.TLSServer.Shutdown(ctx)
 	if t.Listener != nil {
 		t.Listener.Close()
 	}

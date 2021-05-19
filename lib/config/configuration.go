@@ -114,6 +114,8 @@ type CommandLineFlags struct {
 
 	// DatabaseName is the name of the database to proxy.
 	DatabaseName string
+	// DatabaseDescription is a free-form database description.
+	DatabaseDescription string
 	// DatabaseProtocol is the type of the proxied database e.g. postgres or mysql.
 	DatabaseProtocol string
 	// DatabaseURI is the address to connect to the proxied database.
@@ -122,6 +124,12 @@ type CommandLineFlags struct {
 	DatabaseCACertFile string
 	// DatabaseAWSRegion is an optional database cloud region e.g. when using AWS RDS.
 	DatabaseAWSRegion string
+	// DatabaseAWSRedshiftClusterID is Redshift cluster identifier.
+	DatabaseAWSRedshiftClusterID string
+	// DatabaseGCPProjectID is GCP Cloud SQL project identifier.
+	DatabaseGCPProjectID string
+	// DatabaseGCPInstanceID is GCP Cloud SQL instance identifier.
+	DatabaseGCPInstanceID string
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -1238,6 +1246,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		}
 		db := service.Database{
 			Name:          clf.DatabaseName,
+			Description:   clf.DatabaseDescription,
 			Protocol:      clf.DatabaseProtocol,
 			URI:           clf.DatabaseURI,
 			StaticLabels:  staticLabels,
@@ -1245,6 +1254,13 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			CACert:        caBytes,
 			AWS: service.DatabaseAWS{
 				Region: clf.DatabaseAWSRegion,
+				Redshift: service.DatabaseAWSRedshift{
+					ClusterID: clf.DatabaseAWSRedshiftClusterID,
+				},
+			},
+			GCP: service.DatabaseGCP{
+				ProjectID:  clf.DatabaseGCPProjectID,
+				InstanceID: clf.DatabaseGCPInstanceID,
 			},
 		}
 		if err := db.Check(); err != nil {
