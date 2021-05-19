@@ -509,10 +509,10 @@ the CA of the cluster. This allows users to explore cluster membership and size:
 ```bash
 tctl nodes ls
 
-Node Name     Node ID                                  Address            Labels
----------     -------                                  -------            ------
-turing        d52527f9-b260-41d0-bb5a-e23b0cfe0f8f     10.1.0.5:3022      distro:ubuntu
-dijkstra      c9s93fd9-3333-91d3-9999-c9s93fd98f43     10.1.0.6:3022      distro:debian
+# Node Name     Node ID                                  Address            Labels
+# ---------     -------                                  -------            ------
+# turing        d52527f9-b260-41d0-bb5a-e23b0cfe0f8f     10.1.0.5:3022      distro:ubuntu
+# dijkstra      c9s93fd9-3333-91d3-9999-c9s93fd98f43     10.1.0.6:3022      distro:debian
 ```
 
 ### Untrusted auth servers
@@ -554,7 +554,7 @@ sudo teleport start \
 or via `/etc/teleport.yaml` on a node:
 
 ```yaml
-teleport:
+sudo teleport:
   auth_token: "1ac590d36493acdaa2387bc1c492db1a"
   ca_pin: "sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1"
   auth_servers:
@@ -589,11 +589,11 @@ outstanding tokens, run this command:
 ```bash
 tctl tokens ls
 
-Token                                Role       Expiry Time (UTC)
------                                ----       -----------------
-eoKoh0caiw6weoGupahgh6Wuo7jaTee2     Proxy      never
-696c0471453e75882ff70a761c1a8bfa     Node       17 May 16 03:51 UTC
-6fc5545ab78c2ea978caabef9dbd08a5     Signup     17 May 16 04:24 UTC
+# Token                                Role       Expiry Time (UTC)
+# -----                                ----       -----------------
+# eoKoh0caiw6weoGupahgh6Wuo7jaTee2     Proxy      never
+# 696c0471453e75882ff70a761c1a8bfa     Node       17 May 16 03:51 UTC
+# 6fc5545ab78c2ea978caabef9dbd08a5     Signup     17 May 16 04:24 UTC
 ```
 
 In this example, the first token has a "never" expiry date because it is a
