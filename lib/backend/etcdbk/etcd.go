@@ -251,6 +251,14 @@ func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
 		return nil, trace.Wrap(err)
 	}
 	go b.asyncWatch()
+	// Wait for watch goroutine to start to avoid data races around the config
+	// struct in tests.
+	select {
+	case <-watchStarted.Done():
+	case <-ctx.Done():
+		b.Close()
+		return nil, trace.Wrap(ctx.Err())
+	}
 
 	// Wrap backend in a input sanitizer and return it.
 	return b, nil
@@ -296,6 +304,7 @@ func (b *EtcdBackend) Clock() clockwork.Clock {
 
 func (b *EtcdBackend) Close() error {
 	b.cancel()
+	<-b.watchDone
 	b.buf.Close()
 	return b.client.Close()
 }
