@@ -554,7 +554,7 @@ sudo teleport start \
 or via `/etc/teleport.yaml` on a node:
 
 ```yaml
-sudo teleport:
+teleport:
   auth_token: "1ac590d36493acdaa2387bc1c492db1a"
   ca_pin: "sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1"
   auth_servers:
@@ -881,7 +881,7 @@ Every resource in Teleport has three required fields:
 - `Version` - The version of the resource format
 
 Everything else is resource-specific and any component of a Teleport cluster can
-be manipulated with just 3 CLI commands:
+be manipulated with just three CLI commands:
 
 | Command | Description | Examples |
 | - | - | - |
@@ -945,7 +945,7 @@ Here's the list of resources currently exposed via [`tctl`](cli-docs.mdx#tctl) :
 | node | A registered SSH node. The same record is displayed via `tctl nodes ls` |
 | cluster | A trusted cluster. See [here](#trusted-clusters) for more details on connecting clusters together. |
 | role | A role assumed by users. The Teleport Open Source Edition only includes one role: "admin", but Enterprise teleport users can define their own roles. |
-| connector | Authentication connectors for [single sign-on](enterprise/sso/ssh-sso.mdx) (SSO) for SAML, OIDC and Github. |
+| connector | Authentication connectors for [Single Sign-On](enterprise/sso/ssh-sso.mdx) (SSO) for SAML, OIDC and Github. |
 
 **Examples:**
 
@@ -989,7 +989,7 @@ The concept of trusted clusters allows Teleport administrators to connect
 multiple clusters and establish trust between them. Trusted clusters
 allow users of one cluster to seamlessly SSH into the nodes of another cluster without having to "hop" between proxy servers. Moreover, users don't even need to have a direct connection to other clusters' proxy servers. Trusted clusters also have their own restrictions on user access.
 
-To learn more about Trusted Clusters please visit our [Trusted Cluster Guide](trustedclusters.mdx)
+To learn more about Trusted Clusters please visit our [Trusted Cluster Guide](trustedclusters.mdx).
 
 ## Github OAuth 2.0
 
@@ -1008,7 +1008,7 @@ auth_service:
       type: github
 ```
 
-Next step is to define a Github connector:
+Next, define a Github connector:
 
 ```yaml
 # Create a file called github.yaml:
