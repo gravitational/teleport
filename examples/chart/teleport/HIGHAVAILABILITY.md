@@ -44,7 +44,7 @@ extraAuthVolumeMounts:
 
 ### Configuring Multiple Instances of Teleport
 
-A High Availability deployment of Teleport will typically have at least 2 proxy and 2 auth service instances.  SSH service is typically not enabled on these instances.  To enable separate deployments of the auth and auth services follow these steps.
+A High Availability deployment of Teleport will typically have at least two proxy and two auth service instances. SSH service is typically not enabled on these instances. To enable separate deployments of the auth and auth services follow these steps.
 
 1. In the configuration section set the `highAvailability` to true.  Also confirm the auth public address and Service Type.
 ```yaml
