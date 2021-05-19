@@ -28,7 +28,7 @@ func TestInput(t *testing.T) {
 	t.Parallel()
 
 	out, in := io.Pipe()
-	defer out.Close()
+	t.Cleanup(func() { out.Close() })
 	write := func(t *testing.T, s string) {
 		_, err := in.Write([]byte(s))
 		require.NoError(t, err)
