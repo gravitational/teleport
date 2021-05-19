@@ -24,25 +24,19 @@ import (
 	"context"
 
 	"github.com/gravitational/teleport"
-
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
 	"github.com/iovisor/gobpf/bcc"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-var (
-	lostDiskEvents = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: teleport.MetricLostDiskEvents,
-			Help: "Number of lost disk events.",
-		},
-	)
+var lostDiskEvents = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Name: teleport.MetricLostDiskEvents,
+		Help: "Number of lost disk events.",
+	},
 )
-
-func init() {
-	prometheus.MustRegister(lostDiskEvents)
-}
 
 // rawOpenEvent is sent by the eBPF program that Teleport pulls off the perf
 // buffer.
@@ -80,7 +74,10 @@ type open struct {
 // startOpen will compile, load, start, and pull events off the perf buffer
 // for the BPF program.
 func startOpen(closeContext context.Context, pageCount int) (*open, error) {
-	var err error
+	err := utils.RegisterPrometheusCollectors(lostDiskEvents)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	e := &open{
 		closeContext: closeContext,

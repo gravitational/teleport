@@ -109,19 +109,12 @@ var (
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
 		},
 	)
-)
 
-func init() {
-	// Metrics have to be registered to be exposed:
-	prometheus.MustRegister(writeLatencies)
-	prometheus.MustRegister(txLatencies)
-	prometheus.MustRegister(batchReadLatencies)
-	prometheus.MustRegister(readLatencies)
-	prometheus.MustRegister(writeRequests)
-	prometheus.MustRegister(txRequests)
-	prometheus.MustRegister(batchReadRequests)
-	prometheus.MustRegister(readRequests)
-}
+	prometheusCollectors = []prometheus.Collector{
+		writeLatencies, txLatencies, batchReadLatencies,
+		readLatencies, writeRequests, txRequests, batchReadRequests, readRequests,
+	}
+)
 
 type EtcdBackend struct {
 	backend.NoMigrations
@@ -182,7 +175,11 @@ var _ backend.Backend = &EtcdBackend{}
 
 // New returns new instance of Etcd-powered backend
 func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
-	var err error
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if params == nil {
 		return nil, trace.BadParameter("missing etcd configuration")
 	}

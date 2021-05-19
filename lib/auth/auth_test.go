@@ -671,8 +671,7 @@ func (s *AuthSuite) TestGenerateTokenEventsEmitted(c *C) {
 }
 
 func (s *AuthSuite) TestValidateACRValues(c *C) {
-
-	var tests = []struct {
+	tests := []struct {
 		inIDToken     string
 		inACRValue    string
 		inACRProvider string
@@ -1105,12 +1104,15 @@ func TestEmitSSOLoginFailureEvent(t *testing.T) {
 			UserMessage: "some error",
 		},
 	})
-
 }
 
 func newTestServices(t *testing.T) Services {
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
+
+	clusterConfig, err := local.NewClusterConfigurationService(bk)
+	require.NoError(t, err)
+
 	return Services{
 		Trust:                local.NewCAService(bk),
 		Presence:             local.NewPresenceService(bk),
@@ -1118,7 +1120,7 @@ func newTestServices(t *testing.T) Services {
 		Identity:             local.NewIdentityService(bk),
 		Access:               local.NewAccessService(bk),
 		DynamicAccessExt:     local.NewDynamicAccessService(bk),
-		ClusterConfiguration: local.NewClusterConfigurationService(bk),
+		ClusterConfiguration: clusterConfig,
 		Events:               local.NewEventsService(bk),
 		IAuditLog:            events.NewDiscardAuditLog(),
 	}
