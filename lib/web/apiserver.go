@@ -1371,10 +1371,8 @@ type renewSessionRequest struct {
 //   - default (none set): create new session with currently assigned roles
 func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	req := renewSessionRequest{}
-	if r.Body != http.NoBody {
-		if err := httplib.ReadJSON(r, &req); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if req.AccessRequestID != "" && req.Switchback {
@@ -1864,6 +1862,19 @@ func (h *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httpr
 
 const maxStreamBytes = 5 * 1024 * 1024
 
+func toFieldsSlice(rawEvents []events.AuditEvent) ([]events.EventFields, error) {
+	el := make([]events.EventFields, 0, len(rawEvents))
+	for _, event := range rawEvents {
+		els, err := events.ToEventFields(event)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		el = append(el, els)
+	}
+
+	return el, nil
+}
+
 // clusterSearchSessionEvents allows to search for session events on a cluster
 //
 // GET /v1/webapi/sites/:site/events
@@ -1904,10 +1915,16 @@ func (h *Handler) clusterSearchSessionEvents(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	el, err := clt.SearchSessionEvents(from, to, defaults.EventsIterationLimit)
+	rawEvents, _, err := clt.SearchSessionEvents(from, to, defaults.EventsIterationLimit, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	el, err := toFieldsSlice(rawEvents)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return eventsListGetResponse{Events: el}, nil
 }
 
@@ -1936,19 +1953,27 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	query := url.Values{}
-	if include := values.Get("include"); include != "" {
-		query[events.EventType] = strings.Split(include, ";")
-	}
 	clt, err := ctx.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	fields, err := clt.SearchEvents(from, to, query.Encode(), limit)
+
+	var eventTypes []string
+	if include := values.Get("include"); include != "" {
+		eventTypes = strings.Split(include, ";")
+	}
+
+	rawEvents, _, err := clt.SearchEvents(from, to, defaults.Namespace, eventTypes, limit, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return eventsListGetResponse{Events: fields}, nil
+
+	el, err := toFieldsSlice(rawEvents)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return eventsListGetResponse{Events: el}, nil
 }
 
 // queryTime parses the query string parameter with the specified name as a
