@@ -44,20 +44,20 @@ spec:
           {{- toYaml .Values.affinity | nindent 8 }}
         {{- else }}
         podAntiAffinity:
-        {{- if .Values.highAvailability.requireAntiAffinity }}
-        requiredDuringSchedulingIgnoredDuringExecution:
-        {{- else if gt (int .Values.highAvailability.replicaCount) 1 }}
-        preferredDuringSchedulingIgnoredDuringExecution:
-        {{- end }}
-        - weight: 50
-          podAffinityTerm:
-            labelSelector:
-              matchExpressions:
-              - key: app
-                operator: In
-                values:
-                - {{ .Release.Name }}
-            topologyKey: "kubernetes.io/hostname"
+          {{- if .Values.highAvailability.requireAntiAffinity }}
+          requiredDuringSchedulingIgnoredDuringExecution:
+          {{- else if gt (int .Values.highAvailability.replicaCount) 1 }}
+          preferredDuringSchedulingIgnoredDuringExecution:
+          {{- end }}
+          - weight: 50
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - {{ .Release.Name }}
+              topologyKey: "kubernetes.io/hostname"
         {{- end }}
       {{- end }}
       {{- if .Values.tolerations }}
