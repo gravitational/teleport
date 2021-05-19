@@ -55,7 +55,7 @@ func ExamplePlugin() {
 
 	// The plugin can also be used to watch for new Request events.
 	watcher, err := plugin.WatchRequests(ctx, types.AccessRequestFilter{})
-	if err := plugin.UpdatePluginData(ctx, req.GetName(), pluginData, nil); err != nil {
+	if err != nil {
 		log.Fatalf("failed to create watcher: %v", err)
 	}
 

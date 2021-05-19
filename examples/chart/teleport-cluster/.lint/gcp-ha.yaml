@@ -1,0 +1,11 @@
+clusterName: test-gcp-cluster
+chartMode: gcp
+gcp:
+  projectId: gcpproj-123456
+  backendTable: test-teleport-firestore-storage-collection
+  auditLogTable: test-teleport-firestore-auditlog-collection
+  sessionRecordingBucket: test-gcp-session-storage-bucket
+highAvailability:
+  replicaCount: 3
+labels:
+  env: gcp

@@ -99,21 +99,21 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 		return nil, trace.AccessDenied("missing authentication context")
 	}
 	userI := ctx.Value(ContextUser)
-	authContext, err := a.fromUser(userI)
+	authContext, err := a.fromUser(ctx, userI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return authContext, nil
 }
 
-func (a *authorizer) fromUser(userI interface{}) (*Context, error) {
+func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context, error) {
 	switch user := userI.(type) {
 	case LocalUser:
 		return a.authorizeLocalUser(user)
 	case RemoteUser:
 		return a.authorizeRemoteUser(user)
 	case BuiltinRole:
-		return a.authorizeBuiltinRole(user)
+		return a.authorizeBuiltinRole(ctx, user)
 	case RemoteBuiltinRole:
 		return a.authorizeRemoteBuiltinRole(user)
 	default:
@@ -229,12 +229,12 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*Context, error) {
 }
 
 // authorizeBuiltinRole authorizes builtin role
-func (a *authorizer) authorizeBuiltinRole(r BuiltinRole) (*Context, error) {
-	config, err := r.GetClusterConfig()
+func (a *authorizer) authorizeBuiltinRole(ctx context.Context, r BuiltinRole) (*Context, error) {
+	recConfig, err := r.GetSessionRecordingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return contextForBuiltinRole(r, config)
+	return contextForBuiltinRole(r, recConfig)
 }
 
 func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, error) {
@@ -257,6 +257,8 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 					services.NewRule(services.KindReverseTunnel, services.RO()),
 					services.NewRule(services.KindTunnelConnection, services.RO()),
 					services.NewRule(services.KindClusterConfig, services.RO()),
+					services.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+					services.NewRule(types.KindSessionRecordingConfig, services.RO()),
 					services.NewRule(services.KindKubeService, services.RO()),
 					// this rule allows remote proxy to update the cluster's certificate authorities
 					// during certificates renewal
@@ -289,7 +291,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 }
 
 // GetCheckerForBuiltinRole returns checkers for embedded builtin role
-func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.ClusterConfig, role teleport.Role) (services.RoleSet, error) {
+func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordingConfig, role teleport.Role) (services.RoleSet, error) {
 	switch role {
 	case teleport.RoleAuth:
 		return services.FromSpec(
@@ -324,6 +326,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 						services.NewRule(services.KindTunnelConnection, services.RO()),
 						services.NewRule(services.KindClusterConfig, services.RO()),
 						services.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+						services.NewRule(types.KindSessionRecordingConfig, services.RO()),
 						services.NewRule(services.KindClusterAuthPreference, services.RO()),
 						services.NewRule(services.KindSemaphore, services.RW()),
 					},
@@ -347,6 +350,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 						services.NewRule(services.KindTunnelConnection, services.RO()),
 						services.NewRule(services.KindClusterConfig, services.RO()),
 						services.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+						services.NewRule(types.KindSessionRecordingConfig, services.RO()),
 						services.NewRule(services.KindClusterAuthPreference, services.RO()),
 						services.NewRule(services.KindAppServer, services.RW()),
 						services.NewRule(services.KindWebSession, services.RO()),
@@ -373,6 +377,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 						services.NewRule(services.KindTunnelConnection, services.RO()),
 						services.NewRule(services.KindClusterConfig, services.RO()),
 						services.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+						services.NewRule(types.KindSessionRecordingConfig, services.RO()),
 						services.NewRule(services.KindClusterAuthPreference, services.RO()),
 						services.NewRule(types.KindDatabaseServer, services.RW()),
 					},
@@ -381,7 +386,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 	case teleport.RoleProxy:
 		// if in recording mode, return a different set of permissions than regular
 		// mode. recording proxy needs to be able to generate host certificates.
-		if services.IsRecordAtProxy(clusterConfig.GetSessionRecording()) {
+		if services.IsRecordAtProxy(recConfig.GetMode()) {
 			return services.FromSpec(
 				role.String(),
 				services.RoleSpecV3{
@@ -409,6 +414,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 							services.NewRule(services.KindClusterAuthPreference, services.RO()),
 							services.NewRule(services.KindClusterConfig, services.RO()),
 							services.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+							services.NewRule(types.KindSessionRecordingConfig, services.RO()),
 							services.NewRule(services.KindClusterName, services.RO()),
 							services.NewRule(services.KindStaticTokens, services.RO()),
 							services.NewRule(services.KindTunnelConnection, services.RW()),
@@ -468,6 +474,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 						services.NewRule(services.KindClusterAuthPreference, services.RO()),
 						services.NewRule(services.KindClusterConfig, services.RO()),
 						services.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+						services.NewRule(types.KindSessionRecordingConfig, services.RO()),
 						services.NewRule(services.KindClusterName, services.RO()),
 						services.NewRule(services.KindStaticTokens, services.RO()),
 						services.NewRule(services.KindTunnelConnection, services.RW()),
@@ -548,6 +555,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 						services.NewRule(services.KindCertAuthority, services.ReadNoSecrets()),
 						services.NewRule(services.KindClusterConfig, services.RO()),
 						services.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+						services.NewRule(types.KindSessionRecordingConfig, services.RO()),
 						services.NewRule(services.KindClusterAuthPreference, services.RO()),
 						services.NewRule(services.KindUser, services.RO()),
 						services.NewRule(services.KindRole, services.RO()),
@@ -560,8 +568,8 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 	return nil, trace.NotFound("%q is not recognized", role.String())
 }
 
-func contextForBuiltinRole(r BuiltinRole, clusterConfig services.ClusterConfig) (*Context, error) {
-	checker, err := GetCheckerForBuiltinRole(r.ClusterName, clusterConfig, r.Role)
+func contextForBuiltinRole(r BuiltinRole, recConfig types.SessionRecordingConfig) (*Context, error) {
+	checker, err := GetCheckerForBuiltinRole(r.ClusterName, recConfig, r.Role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -683,8 +691,8 @@ func (i WrapIdentity) GetIdentity() tlsca.Identity {
 
 // BuiltinRole is the role of the Teleport service.
 type BuiltinRole struct {
-	// GetClusterConfig fetches cluster configuration.
-	GetClusterConfig GetClusterConfigFunc
+	// GetSessionRecordingConfig fetches session recording configuration.
+	GetSessionRecordingConfig GetSessionRecordingConfigFunc
 
 	// Role is the builtin role this username is associated with
 	Role teleport.Role
@@ -808,5 +816,5 @@ func (r RemoteUser) GetIdentity() tlsca.Identity {
 	return r.Identity
 }
 
-// GetClusterConfigFunc returns a cached services.ClusterConfig.
-type GetClusterConfigFunc func(opts ...services.MarshalOption) (services.ClusterConfig, error)
+// GetSessionRecordingConfigFunc returns a SessionRecordingConfig.
+type GetSessionRecordingConfigFunc func(context.Context, ...services.MarshalOption) (types.SessionRecordingConfig, error)
