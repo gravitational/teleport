@@ -1996,22 +1996,6 @@ func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, aft
 	return a.alog.GetSessionEvents(namespace, sid, afterN, includePrintEvents)
 }
 
-func (a *ServerWithRoles) SearchEvents(from, to time.Time, query string, limit int) ([]events.EventFields, error) {
-	if err := a.action(defaults.Namespace, services.KindEvent, services.VerbList); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.alog.SearchEvents(from, to, query, limit)
-}
-
-func (a *ServerWithRoles) SearchSessionEvents(from, to time.Time, limit int) ([]events.EventFields, error) {
-	if err := a.action(defaults.Namespace, services.KindSession, services.VerbList); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.alog.SearchSessionEvents(from, to, limit)
-}
-
 // GetNamespaces returns a list of namespaces
 func (a *ServerWithRoles) GetNamespaces() ([]services.Namespace, error) {
 	if err := a.action(defaults.Namespace, services.KindNamespace, services.VerbList); err != nil {
@@ -2912,6 +2896,34 @@ func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFAReq
 		return nil, trace.AccessDenied("only a user role can call IsMFARequired, got %T", a.context.Checker)
 	}
 	return a.authServer.isMFARequired(ctx, a.context.Checker, req)
+}
+
+// SearchEvents allows searching audit events with pagination support.
+func (a *ServerWithRoles) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) (events []events.AuditEvent, lastKey string, err error) {
+	if err := a.action(defaults.Namespace, services.KindEvent, services.VerbList); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	events, lastKey, err = a.alog.SearchEvents(fromUTC, toUTC, namespace, eventTypes, limit, startKey)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return events, lastKey, nil
+}
+
+// SearchSessionEvents allows searching session audit events with pagination support.
+func (a *ServerWithRoles) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) (events []events.AuditEvent, lastKey string, err error) {
+	if err := a.action(defaults.Namespace, services.KindSession, services.VerbList); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	events, lastKey, err = a.alog.SearchSessionEvents(fromUTC, toUTC, limit, startKey)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return events, lastKey, nil
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

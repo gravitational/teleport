@@ -17,6 +17,7 @@ limitations under the License.
 package srv
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -353,6 +354,7 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 			Interactive:       true,
 			StartTime:         start,
 			EndTime:           end,
+			SessionRecording:  party.ctx.ClusterConfig.GetSessionRecording(),
 		}
 		if err := sess.recorder.EmitAuditEvent(s.srv.Context(), sessionEndEvent); err != nil {
 			s.log.WithError(err).Warn("Failed to emit session end event.")
@@ -526,6 +528,9 @@ type session struct {
 	// hasEnhancedRecording returns true if this session has enhanced session
 	// recording events associated.
 	hasEnhancedRecording bool
+
+	// serverCtx is used to control clean up of internal resources
+	serverCtx context.Context
 }
 
 // newSession creates a new session with a given ID within a given context.
@@ -597,6 +602,7 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		closeC:       make(chan bool),
 		lingerTTL:    defaults.SessionIdlePeriod,
 		startTime:    startTime,
+		serverCtx:    ctx.srv.Context(),
 	}
 	return sess, nil
 }
@@ -635,10 +641,10 @@ func (s *session) Close() error {
 			if s.term != nil {
 				s.term.Close()
 			}
+			if s.recorder != nil {
+				s.recorder.Close(s.serverCtx)
+			}
 			close(s.closeC)
-
-			// close all writers in our multi-writer
-			s.writer.Close()
 		}()
 	})
 	return nil
@@ -763,7 +769,8 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		ConnectionMetadata: events.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 		},
-		TerminalSize: params.Serialize(),
+		TerminalSize:     params.Serialize(),
+		SessionRecording: ctx.ClusterConfig.GetSessionRecording(),
 	}
 
 	// Local address only makes sense for non-tunnel nodes.
@@ -907,6 +914,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		ConnectionMetadata: events.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 		},
+		SessionRecording: ctx.ClusterConfig.GetSessionRecording(),
 	}
 	// Local address only makes sense for non-tunnel nodes.
 	if !ctx.srv.UseTunnel() {
@@ -1005,8 +1013,9 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 			Participants: []string{
 				ctx.Identity.TeleportUser,
 			},
-			StartTime: start,
-			EndTime:   end,
+			StartTime:        start,
+			EndTime:          end,
+			SessionRecording: ctx.ClusterConfig.GetSessionRecording(),
 		}
 		if err := s.recorder.EmitAuditEvent(ctx.srv.Context(), sessionEndEvent); err != nil {
 			ctx.WithError(err).Warn("Failed to emit session end event.")
@@ -1325,18 +1334,6 @@ func (m *multiWriter) Write(p []byte) (n int, err error) {
 		}
 	}
 	return len(p), nil
-}
-
-func (m *multiWriter) Close() error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	for writerName, writer := range m.writers {
-		logrus.Debugf("Closing session writer: %v.", writerName)
-		if closer, ok := writer.WriteCloser.(io.Closer); ok {
-			closer.Close()
-		}
-	}
-	return nil
 }
 
 func (m *multiWriter) getRecentWrites() []byte {
