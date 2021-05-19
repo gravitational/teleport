@@ -104,6 +104,12 @@ func FromEventFields(fields EventFields) (AuditEvent, error) {
 			return nil, trace.Wrap(err)
 		}
 		return &e, nil
+	case UserUpdatedEvent:
+		var e events.UserCreate
+		if err := utils.FastUnmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
 	case UserPasswordChangeEvent:
 		var e events.UserPasswordChange
 		if err := utils.FastUnmarshal(data, &e); err != nil {
