@@ -972,13 +972,12 @@ func (s *WebSuite) TestTerminal(c *C) {
 }
 
 func (s *WebSuite) TestWebsocketPingLoop(c *C) {
+	ctx := context.Background()
+
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		SessionRecording:    services.RecordAtNode,
-		ProxyChecksHostKeys: services.HostKeyCheckYes,
-		LocalAuth:           services.NewBool(true),
+		LocalAuth: services.NewBool(true),
 	})
 	c.Assert(err, IsNil)
-
 	err = s.server.Auth().SetClusterConfig(clusterConfig)
 	c.Assert(err, IsNil)
 
@@ -987,8 +986,15 @@ func (s *WebSuite) TestWebsocketPingLoop(c *C) {
 		KeepAliveInterval: services.NewDuration(250 * time.Millisecond),
 	})
 	c.Assert(err, IsNil)
-
 	err = s.server.Auth().SetClusterNetworkingConfig(context.TODO(), netConfig)
+	c.Assert(err, IsNil)
+
+	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+		Mode:                services.RecordAtNode,
+		ProxyChecksHostKeys: services.NewBoolOption(true),
+	})
+	c.Assert(err, IsNil)
+	err = s.server.Auth().SetSessionRecordingConfig(ctx, recConfig)
 	c.Assert(err, IsNil)
 
 	ws, err := s.makeTerminal(s.authPack(c, "foo"))

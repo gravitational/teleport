@@ -1781,6 +1781,11 @@ func (c *Client) CreateAuditStream(ctx context.Context, sid session.ID) (events.
 	return c.APIClient.CreateAuditStream(ctx, string(sid))
 }
 
+// GetSessionRecordingConfig gets session recording configuration.
+func (c *Client) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
+	return c.APIClient.GetSessionRecordingConfig(ctx)
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if

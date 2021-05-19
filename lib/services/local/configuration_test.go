@@ -19,6 +19,7 @@ package local
 import (
 	"context"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -87,21 +88,19 @@ func (s *ClusterConfigurationSuite) TestStaticTokens(c *check.C) {
 
 func (s *ClusterConfigurationSuite) TestSessionRecording(c *check.C) {
 	// don't allow invalid session recording values
-	_, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		SessionRecording: "foo",
+	_, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+		Mode: "foo",
 	})
 	c.Assert(err, check.NotNil)
 
 	// default is to record at the node
-	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{})
+	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{})
 	c.Assert(err, check.IsNil)
-	recordingType := clusterConfig.GetSessionRecording()
-	c.Assert(recordingType, check.Equals, services.RecordAtNode)
+	c.Assert(recConfig.GetMode(), check.Equals, services.RecordAtNode)
 
 	// update sessions to be recorded at the proxy and check again
-	clusterConfig.SetSessionRecording(services.RecordAtProxy)
-	recordingType = clusterConfig.GetSessionRecording()
-	c.Assert(recordingType, check.Equals, services.RecordAtProxy)
+	recConfig.SetMode(services.RecordAtProxy)
+	c.Assert(recConfig.GetMode(), check.Equals, services.RecordAtProxy)
 }
 
 func (s *ClusterConfigurationSuite) TestAuditConfig(c *check.C) {
@@ -164,7 +163,6 @@ func (s *ClusterConfigurationSuite) TestClusterConfigMarshal(c *check.C) {
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
 		DisconnectExpiredCert: services.NewBool(true),
 		ClusterID:             "27",
-		SessionRecording:      services.RecordAtProxy,
 		Audit: services.AuditConfig{
 			Region:           "us-west-1",
 			Type:             "dynamodb",
@@ -186,7 +184,6 @@ func (s *ClusterConfigurationSuite) TestClusterConfigMarshal(c *check.C) {
 	clusterConfig, err = services.NewClusterConfig(services.ClusterConfigSpecV3{
 		DisconnectExpiredCert: services.NewBool(true),
 		ClusterID:             "27",
-		SessionRecording:      services.RecordAtProxy,
 		Audit: services.AuditConfig{
 			Region:           "us-west-1",
 			Type:             "dynamodb",

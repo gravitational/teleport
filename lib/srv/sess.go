@@ -352,7 +352,7 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 			Interactive:       true,
 			StartTime:         start,
 			EndTime:           end,
-			SessionRecording:  party.ctx.ClusterConfig.GetSessionRecording(),
+			SessionRecording:  party.ctx.SessionRecordingConfig.GetMode(),
 		}
 		if err := sess.recorder.EmitAuditEvent(s.srv.Context(), sessionEndEvent); err != nil {
 			s.log.WithError(err).Warn("Failed to emit session end event.")
@@ -432,7 +432,7 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 	// If sessions are being recorded at the proxy, sessions can not be shared.
 	// In that situation, PTY size information does not need to be propagated
 	// back to all clients and we can return right away.
-	if services.IsRecordAtProxy(ctx.ClusterConfig.GetSessionRecording()) {
+	if services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
 		return nil
 	}
 
@@ -667,7 +667,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 
 	// Nodes discard events in cases when proxies are already recording them.
 	if s.registry.srv.Component() == teleport.ComponentNode &&
-		services.IsRecordAtProxy(ctx.ClusterConfig.GetSessionRecording()) {
+		services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
 		s.recorder = &events.DiscardStream{}
 	} else {
 		streamer, err := s.newStreamer(ctx)
@@ -683,7 +683,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 			SessionID:    s.id,
 			Namespace:    ctx.srv.GetNamespace(),
 			ServerID:     ctx.srv.HostUUID(),
-			RecordOutput: ctx.ClusterConfig.GetSessionRecording() != services.RecordOff,
+			RecordOutput: ctx.SessionRecordingConfig.GetMode() != services.RecordOff,
 			Component:    teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
 			ClusterName:  ctx.ClusterName,
 		})
@@ -768,7 +768,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 		},
 		TerminalSize:     params.Serialize(),
-		SessionRecording: ctx.ClusterConfig.GetSessionRecording(),
+		SessionRecording: ctx.SessionRecordingConfig.GetMode(),
 	}
 
 	// Local address only makes sense for non-tunnel nodes.
@@ -862,7 +862,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 
 	// Nodes discard events in cases when proxies are already recording them.
 	if s.registry.srv.Component() == teleport.ComponentNode &&
-		services.IsRecordAtProxy(ctx.ClusterConfig.GetSessionRecording()) {
+		services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
 		s.recorder = &events.DiscardStream{}
 	} else {
 		streamer, err := s.newStreamer(ctx)
@@ -878,7 +878,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 			Clock:        ctx.srv.GetClock(),
 			Namespace:    ctx.srv.GetNamespace(),
 			ServerID:     ctx.srv.HostUUID(),
-			RecordOutput: ctx.ClusterConfig.GetSessionRecording() != services.RecordOff,
+			RecordOutput: ctx.SessionRecordingConfig.GetMode() != services.RecordOff,
 			Component:    teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
 			ClusterName:  ctx.ClusterName,
 		})
@@ -912,7 +912,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		ConnectionMetadata: events.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 		},
-		SessionRecording: ctx.ClusterConfig.GetSessionRecording(),
+		SessionRecording: ctx.SessionRecordingConfig.GetMode(),
 	}
 	// Local address only makes sense for non-tunnel nodes.
 	if !ctx.srv.UseTunnel() {
@@ -1013,7 +1013,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 			},
 			StartTime:        start,
 			EndTime:          end,
-			SessionRecording: ctx.ClusterConfig.GetSessionRecording(),
+			SessionRecording: ctx.SessionRecordingConfig.GetMode(),
 		}
 		if err := s.recorder.EmitAuditEvent(ctx.srv.Context(), sessionEndEvent); err != nil {
 			ctx.WithError(err).Warn("Failed to emit session end event.")
@@ -1049,7 +1049,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 // directly to the auth server and blocks if the events can not be received,
 // async streamer buffers the events to disk and uploads the events later
 func (s *session) newStreamer(ctx *ServerContext) (events.Streamer, error) {
-	mode := ctx.ClusterConfig.GetSessionRecording()
+	mode := ctx.SessionRecordingConfig.GetMode()
 	if services.IsRecordSync(mode) {
 		s.log.Debugf("Using sync streamer for session %v.", s.id)
 		return ctx.srv, nil
@@ -1160,7 +1160,7 @@ func (s *session) exportParticipants() []string {
 func (s *session) heartbeat(ctx *ServerContext) {
 	// If sessions are being recorded at the proxy, an identical version of this
 	// goroutine is running in the proxy, which means it does not need to run here.
-	if services.IsRecordAtProxy(ctx.ClusterConfig.GetSessionRecording()) &&
+	if services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) &&
 		s.registry.srv.Component() == teleport.ComponentNode {
 		return
 	}
