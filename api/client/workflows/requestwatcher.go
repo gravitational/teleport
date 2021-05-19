@@ -26,24 +26,9 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// RequestWatcher is a stream watcher for Teleport access requests.
-type RequestWatcher interface {
-	// WaitInit waits for the Init operation to complete
-	// or returns an error if the watcher fails to init.
-	WaitInit(ctx context.Context) error
-	// Events returns a channel of RequestEvents.
-	Events() <-chan RequestEvent
-	// Done returns a channel that is closed when the watcher is done.
-	Done() <-chan struct{}
-	// Error returns the last error of the requestWatcher.
-	Error() error
-	// close the watcher.
-	Close() error
-}
-
-// requestWatcher is a thin wrapper around types.Watcher
+// RequestWatcher is a thin wrapper around types.Watcher
 // used for watching access request events.
-type requestWatcher struct {
+type RequestWatcher struct {
 	types.Watcher
 	initC   chan struct{}
 	eventsC chan RequestEvent
@@ -51,17 +36,17 @@ type requestWatcher struct {
 	err     error
 }
 
-// RequestEvent is a request event.
+// RequestEvent is an access request event.
 type RequestEvent struct {
 	// Type is the operation type of the event.
+	// Possible values are types.OpPut and types.OpDelete
 	Type types.OpType
-	// Request is the payload of the event. If Type
-	// is OpDelete, only the ID field will be filled.
+	// Request is the payload of the event.
 	Request types.AccessRequest
 }
 
 // newRequestWatcher creates a new RequestWatcher using the given client and filter.
-func newRequestWatcher(ctx context.Context, clt *client.Client, filter types.AccessRequestFilter) (RequestWatcher, error) {
+func newRequestWatcher(ctx context.Context, clt *client.Client, filter types.AccessRequestFilter) (*RequestWatcher, error) {
 	eventWatcher, err := clt.NewWatcher(ctx,
 		types.Watch{
 			Kinds: []types.WatchKind{
@@ -76,7 +61,7 @@ func newRequestWatcher(ctx context.Context, clt *client.Client, filter types.Acc
 		return nil, trace.Wrap(err)
 	}
 
-	w := &requestWatcher{
+	w := &RequestWatcher{
 		Watcher: eventWatcher,
 		initC:   make(chan struct{}),
 		eventsC: make(chan RequestEvent),
@@ -87,7 +72,7 @@ func newRequestWatcher(ctx context.Context, clt *client.Client, filter types.Acc
 
 // receiveEvents receives events from the client stream and sends
 // the associated RequestEvents to the requestWatcher's eventC channel.
-func (w *requestWatcher) receiveEvents() {
+func (w *RequestWatcher) receiveEvents() {
 	for event := range w.Watcher.Events() {
 		switch event.Type {
 		case types.OpPut, types.OpDelete:
@@ -113,14 +98,14 @@ func (w *requestWatcher) receiveEvents() {
 		select {
 		case w.eventsC <- reqEvent:
 		case <-w.Done():
+			close(w.eventsC)
 		}
-
 	}
 }
 
-// WaitInit waits for the Init operation to complete
-// or returns an error if the watcher or context is done.
-func (w *requestWatcher) WaitInit(ctx context.Context) error {
+// WaitInit waits for the Init operation to complete or
+// returns an error if the watcher or context closes first.
+func (w *RequestWatcher) WaitInit(ctx context.Context) error {
 	select {
 	case <-w.initC:
 		return nil
@@ -132,12 +117,12 @@ func (w *requestWatcher) WaitInit(ctx context.Context) error {
 }
 
 // Events returns a channel of RequestEvents.
-func (w *requestWatcher) Events() <-chan RequestEvent {
+func (w *RequestWatcher) Events() <-chan RequestEvent {
 	return w.eventsC
 }
 
-// Error returns the last error of the requestWatcher.
-func (w *requestWatcher) Error() error {
+// Error returns the last error of the RequestWatcher.
+func (w *RequestWatcher) Error() error {
 	w.emux.Lock()
 	defer w.emux.Unlock()
 	if w.err != nil {
@@ -146,8 +131,8 @@ func (w *requestWatcher) Error() error {
 	return w.Watcher.Error()
 }
 
-// setError sets the requestWatcher error.
-func (w *requestWatcher) setError(err error) {
+// setError sets the RequestWatcher error.
+func (w *RequestWatcher) setError(err error) {
 	w.emux.Lock()
 	defer w.emux.Unlock()
 	w.err = err

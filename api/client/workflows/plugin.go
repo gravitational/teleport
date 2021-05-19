@@ -29,22 +29,26 @@ import (
 )
 
 // Plugin is a management plugin for Teleport access request.
-// It can be used to create, retrieve, or update requests.
-//
-// It can also be used to watch for request events from a event stream from the
-// Auth server. This can be useful for integrating with external tools.
-// We have already integrated with some popular external tools using this Plugin.
-// See https://goteleport.com/docs/enterprise/workflow/#integrating-with-an-external-tool.
 //
 // Plugin must have a client with an open connection to a Teleport Auth server in
-// order to function See pkg.go.dev/github.com/gravitational/teleport/api/client
+// order to function. See pkg.go.dev/github.com/gravitational/teleport/api/client
 // for Teleport client documentation.
+//
+// Plugin is stateless, meaning it does not store any of its own data. This
+// allows a Plugin to be restarted, stopped, etc. at any time. Plugin data can
+// however be stored directly on requests using the PluginData methods.
+//
+// Plugin can watch for request events from an event stream from the Auth server.
+// This can be used to automatically resolve access requests based on custom logic or external tools.
+// We have already integrated with some popular external tools using this Plugin.
+// See https://goteleport.com/docs/enterprise/workflow/#integrating-with-an-external-tool.
 type Plugin struct {
 	client *client.Client
 	name   string
 }
 
 // NewPlugin creates a new plugin using the given client and plugin name.
+// The plugin's name is used for auditing and to store plugin data on requests.
 func NewPlugin(ctx context.Context, name string, client *client.Client) *Plugin {
 	return &Plugin{
 		client: client,
@@ -52,14 +56,9 @@ func NewPlugin(ctx context.Context, name string, client *client.Client) *Plugin 
 	}
 }
 
-// WatchRequests registers a new watcher for pending access requests.
-func (p *Plugin) WatchRequests(ctx context.Context, filter types.AccessRequestFilter) (RequestWatcher, error) {
+// WatchRequests registers a new watcher for access requests.
+func (p *Plugin) WatchRequests(ctx context.Context, filter types.AccessRequestFilter) (*RequestWatcher, error) {
 	return newRequestWatcher(ctx, p.client, filter)
-}
-
-// Close closes the plugin's underlying client.
-func (p *Plugin) Close() error {
-	return p.client.Close()
 }
 
 // CreateRequest creates a new Request for the given user to access the given role(s).
@@ -97,7 +96,8 @@ func (p *Plugin) GetRequest(ctx context.Context, reqID string) (types.AccessRequ
 	return reqs[0], nil
 }
 
-// SetRequestState updates the state of a request.
+// SetRequestState updates the state of a request. The request's delegator will be set as
+// "[plugin.name]:[delegator]" and can be used to audit request state change events.
 func (p *Plugin) SetRequestState(ctx context.Context, reqID string, delegator string, params types.AccessRequestUpdate) error {
 	ctx = utils.WithDelegator(ctx, fmt.Sprintf("%s:%s", p.name, delegator))
 	err := p.client.SetAccessRequestState(ctx, types.AccessRequestUpdate{
@@ -111,9 +111,11 @@ func (p *Plugin) SetRequestState(ctx context.Context, reqID string, delegator st
 }
 
 // PluginDataMap is custom user data associated with an access request.
+// It can be used to store arbitrary plugin data directly on requests.
 type PluginDataMap map[string]string
 
-// GetPluginData fetches plugin data of the specific request.
+// GetPluginData fetches plugin data of the specific request. This can be used
+// to retrieve plugin data that was previously stored on the request.
 func (p *Plugin) GetPluginData(ctx context.Context, reqID string) (PluginDataMap, error) {
 	pluginDatas, err := p.client.GetPluginData(ctx, types.PluginDataFilter{
 		Kind:     types.KindAccessRequest,
@@ -136,6 +138,7 @@ func (p *Plugin) GetPluginData(ctx context.Context, reqID string) (PluginDataMap
 }
 
 // UpdatePluginData updates plugin data of the specific request comparing it with a previous value.
+// If expect is provided and it doesn't match the plugin data presently stored on the backend, the request will fail.
 func (p *Plugin) UpdatePluginData(ctx context.Context, reqID string, set PluginDataMap, expect PluginDataMap) error {
 	err := p.client.UpdatePluginData(ctx, types.PluginDataUpdateParams{
 		Kind:     types.KindAccessRequest,
