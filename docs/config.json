@@ -30,7 +30,24 @@
             { "title": "API Access", "slug": "/application-access/guides/api-access/" }
           ]
         },
+        { "title": "Access Controls", "slug": "/application-access/controls/" },
         { "title": "Reference", "slug": "/application-access/reference/" }
+      ]
+    },
+    {
+      "icon": "server",
+      "title": "Server Access",
+      "entries": [
+        { "title": "Introduction", "slug": "/server-access/introduction/" },
+        { "title": "Getting Started", "slug": "/server-access/getting-started/" },
+        {
+          "title": "Guides",
+          "slug": "/server-access/guides/",
+          "entries": [
+            { "title": "Using Teleport with PAM", "slug": "/server-access/guides/ssh-pam/" },
+            { "title": "OpenSSH Guide", "slug": "/server-access/guides/openssh/" }
+          ]
+        }
       ]
     },
     {
@@ -75,15 +92,24 @@
           "entries": [
             { "title": "AWS RDS/Aurora PostgreSQL", "slug": "/database-access/guides/postgres-aws/" },
             { "title": "AWS RDS/Aurora MySQL", "slug": "/database-access/guides/mysql-aws/" },
+            { "title": "AWS Redshift PostgreSQL", "slug": "/database-access/guides/postgres-redshift/" },
             { "title": "GCP Cloud SQL PostgreSQL", "slug": "/database-access/guides/postgres-cloudsql/" },
             { "title": "Self-Hosted PostgreSQL", "slug": "/database-access/guides/postgres-self-hosted/" },
             { "title": "Self-Hosted MySQL", "slug": "/database-access/guides/mysql-self-hosted/" },
             { "title": "Database GUI Clients", "slug": "/database-access/guides/gui-clients/" }
           ]
         },
-        { "title": "RBAC", "slug": "/database-access/rbac/" },
+        { "title": "Access Controls", "slug": "/database-access/rbac/" },
         { "title": "Architecture", "slug": "/database-access/architecture/" },
-        { "title": "Reference", "slug": "/database-access/reference/" },
+        {
+          "title": "Reference",
+          "slug": "/database-access/reference/",
+          "entries": [
+            { "title": "Configuration", "slug": "/database-access/reference/configuration/" },
+            { "title": "CLI", "slug": "/database-access/reference/cli/" },
+            { "title": "Audit Events", "slug": "/database-access/reference/audit/" }
+          ]
+        },
         { "title": "FAQ", "slug": "/database-access/faq/" }
       ]
     },
@@ -121,8 +147,7 @@
       "entries": [
         { "title": "AWS", "slug": "/aws-oss-guide/" },
         { "title": "GCP", "slug": "/gcp-guide/" },
-        { "title": "IBM", "slug": "/ibm-cloud-guide/" },
-        { "title": "OpenSSH Guide", "slug": "/openssh-teleport/" }
+        { "title": "IBM", "slug": "/ibm-cloud-guide/" }
       ]
     },
     {
@@ -134,7 +159,7 @@
           "title": "Quick Start Guide",
           "slug": "/enterprise/quickstart-enterprise/"
         },
-        { "title": "Single sign-on (SSO)", "slug": "/enterprise/sso/ssh-sso/" },
+        { "title": "Single Sign-On (SSO)", "slug": "/enterprise/sso/ssh-sso/" },
         { "title": "Access Requests", "slug": "/enterprise/workflow/" },
         {
           "title": "FedRAMP for SSH & K8s",
@@ -172,8 +197,7 @@
         {
           "title": "BPF Session Recording",
           "slug": "/features/enhanced-session-recording/"
-        },
-        { "title": "Using Teleport with PAM", "slug": "/features/ssh-pam/" }
+        }
       ]
     },
     {
@@ -259,6 +283,16 @@
     {
       "source": "/kubernetes-ssh/",
       "destination": "/kubernetes-access/",
+      "permanent": true
+    },
+    {
+      "source": "/features/ssh-pam/",
+      "destination": "/server-access/guides/ssh-pam/",
+      "permanent": true
+    },
+    {
+      "source": "/openssh-teleport/",
+      "destination": "/server-access/guides/openssh/",
       "permanent": true
     }
   ]
