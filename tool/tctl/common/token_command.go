@@ -184,7 +184,6 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 		fmt.Printf(appMessage,
 			token,
 			int(c.ttl.Minutes()),
-			strings.ToLower(roles.String()),
 			token,
 			caPin,
 			proxies[0].GetPublicAddr(),
@@ -209,7 +208,6 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 			map[string]interface{}{
 				"token":       token,
 				"minutes":     c.ttl.Minutes(),
-				"roles":       strings.ToLower(roles.String()),
 				"ca_pin":      caPin,
 				"auth_server": proxies[0].GetPublicAddr(),
 				"db_name":     c.dbName,

@@ -278,6 +278,18 @@ For main, test with admin role that has access to all resources.
   - [ ] Verify clicking on `Regenerate` button regenerates token value in bash command
   - [ ] Verify using the bash command successfully adds the application (refresh app list)
 
+#### Databases
+- [ ] Verify that all dbs registered are shown
+- [ ] Verify that clicking on connect button renders a dialogue on manual instructions with Step 2 login value matching the row's NAME column
+- [ ] Verify that clicking on `Add Database` button renders dialogue for manual instructions:
+  - [ ] Verify selecting different options on Step 4 changes Step 5 commands
+- [ ] Verify using search bar works
+
+#### Kubernetes
+- [ ] Verify that all kubes registered are shown
+- [ ] Verify that clicking on connect button renders a dialogue on manual instructions with Step 2 login value matching the row's NAME column
+- [ ] Verify using search bar works
+
 #### Active Sessions
 - [ ] Verify that "empty" state is handled
 - [ ] Verify that it displays the session when session is active
@@ -560,7 +572,7 @@ spec:
     max_session_ttl: 8h0m0s
 version: v3
 ```
-- [ ] Verify that a user has access only to: "Servers", "Applications", "Active Sessions", "Access Requests" and "Manage Clusters"
+- [ ] Verify that a user has access only to: "Servers", "Applications", "Databases", "Kubernetes", "Active Sessions", "Access Requests" and "Manage Clusters"
 - [ ] Verify there is no `Add Server` button in Server view
 - [ ] Verify there is no `Add Application` button in Applications view
 - [ ] Verify only `Nodes` and `Apps` are listed under `options` button in `Manage Clusters`
