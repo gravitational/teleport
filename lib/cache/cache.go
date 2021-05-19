@@ -48,6 +48,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: services.KindClusterConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindClusterAuthPreference},
+		{Kind: types.KindSessionRecordingConfig},
 		{Kind: services.KindStaticTokens},
 		{Kind: services.KindToken},
 		{Kind: services.KindUser},
@@ -80,6 +81,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: services.KindClusterConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindClusterAuthPreference},
+		{Kind: types.KindSessionRecordingConfig},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindNamespace},
@@ -108,6 +110,7 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
 		{Kind: types.KindClusterNetworkingConfig},
+		{Kind: types.KindSessionRecordingConfig},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindNamespace},
@@ -135,6 +138,7 @@ func ForOldRemoteProxy(cfg Config) Config {
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
 		{Kind: types.KindClusterNetworkingConfig},
+		{Kind: types.KindSessionRecordingConfig},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindNamespace},
@@ -160,6 +164,7 @@ func ForNode(cfg Config) Config {
 		{Kind: services.KindClusterConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindClusterAuthPreference},
+		{Kind: types.KindSessionRecordingConfig},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		// Node only needs to "know" about default
@@ -180,6 +185,7 @@ func ForKubernetes(cfg Config) Config {
 		{Kind: services.KindClusterConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindClusterAuthPreference},
+		{Kind: types.KindSessionRecordingConfig},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindNamespace, Name: defaults.Namespace},
@@ -198,6 +204,7 @@ func ForApps(cfg Config) Config {
 		{Kind: services.KindClusterConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindClusterAuthPreference},
+		{Kind: types.KindSessionRecordingConfig},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindProxy},
@@ -217,6 +224,7 @@ func ForDatabases(cfg Config) Config {
 		{Kind: services.KindClusterConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: services.KindClusterAuthPreference},
+		{Kind: types.KindSessionRecordingConfig},
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindProxy},
@@ -1298,4 +1306,14 @@ func (c *Cache) GetAuthPreference() (services.AuthPreference, error) {
 	}
 	defer rg.Release()
 	return rg.clusterConfig.GetAuthPreference()
+}
+
+// GetSessionRecordingConfig gets session recording configuration.
+func (c *Cache) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.clusterConfig.GetSessionRecordingConfig(ctx, services.AddOptions(opts, services.SkipValidation())...)
 }

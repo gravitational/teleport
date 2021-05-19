@@ -76,6 +76,9 @@ func (s *PasswordSuite) SetUpTest(c *C) {
 	err = s.a.SetClusterNetworkingConfig(context.TODO(), types.DefaultClusterNetworkingConfig())
 	c.Assert(err, IsNil)
 
+	err = s.a.SetSessionRecordingConfig(context.TODO(), types.DefaultSessionRecordingConfig())
+	c.Assert(err, IsNil)
+
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
 		LocalAuth: services.NewBool(true),
 	})

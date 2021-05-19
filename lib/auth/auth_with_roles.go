@@ -2267,10 +2267,10 @@ func (a *ServerWithRoles) GetClusterNetworkingConfig(ctx context.Context, opts .
 
 // SetClusterNetworkingConfig sets cluster networking configuration.
 func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, netConfig types.ClusterNetworkingConfig) error {
-	if err := a.action(defaults.Namespace, services.KindClusterConfig, services.VerbCreate); err != nil {
+	if err := a.action(defaults.Namespace, types.KindClusterNetworkingConfig, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.action(defaults.Namespace, services.KindClusterConfig, services.VerbUpdate); err != nil {
+	if err := a.action(defaults.Namespace, types.KindClusterNetworkingConfig, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.SetClusterNetworkingConfig(ctx, netConfig)
@@ -2278,6 +2278,30 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, netCon
 
 // DeleteClusterNetworkingConfig not implemented: can only be called locally.
 func (a *ServerWithRoles) DeleteClusterNetworkingConfig(ctx context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// GetSessionRecordingConfig gets session recording configuration.
+func (a *ServerWithRoles) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
+	if err := a.action(defaults.Namespace, types.KindSessionRecordingConfig, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetSessionRecordingConfig(ctx, opts...)
+}
+
+// SetSessionRecordingConfig sets session recording configuration.
+func (a *ServerWithRoles) SetSessionRecordingConfig(ctx context.Context, recConfig types.SessionRecordingConfig) error {
+	if err := a.action(defaults.Namespace, types.KindSessionRecordingConfig, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, types.KindSessionRecordingConfig, services.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.SetSessionRecordingConfig(ctx, recConfig)
+}
+
+// DeleteSessionRecordingConfig not implemented: can only be called locally.
+func (a *ServerWithRoles) DeleteSessionRecordingConfig(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
