@@ -30,6 +30,7 @@
             { "title": "API Access", "slug": "/application-access/guides/api-access/" }
           ]
         },
+        { "title": "Access Controls", "slug": "/application-access/controls/" },
         { "title": "Reference", "slug": "/application-access/reference/" }
       ]
     },
@@ -75,15 +76,24 @@
           "entries": [
             { "title": "AWS RDS/Aurora PostgreSQL", "slug": "/database-access/guides/postgres-aws/" },
             { "title": "AWS RDS/Aurora MySQL", "slug": "/database-access/guides/mysql-aws/" },
+            { "title": "AWS Redshift PostgreSQL", "slug": "/database-access/guides/postgres-redshift/" },
             { "title": "GCP Cloud SQL PostgreSQL", "slug": "/database-access/guides/postgres-cloudsql/" },
             { "title": "Self-Hosted PostgreSQL", "slug": "/database-access/guides/postgres-self-hosted/" },
             { "title": "Self-Hosted MySQL", "slug": "/database-access/guides/mysql-self-hosted/" },
             { "title": "Database GUI Clients", "slug": "/database-access/guides/gui-clients/" }
           ]
         },
-        { "title": "RBAC", "slug": "/database-access/rbac/" },
+        { "title": "Access Controls", "slug": "/database-access/rbac/" },
         { "title": "Architecture", "slug": "/database-access/architecture/" },
-        { "title": "Reference", "slug": "/database-access/reference/" },
+        {
+          "title": "Reference",
+          "slug": "/database-access/reference/",
+          "entries": [
+            { "title": "Configuration", "slug": "/database-access/reference/configuration/" },
+            { "title": "CLI", "slug": "/database-access/reference/cli/" },
+            { "title": "Audit Events", "slug": "/database-access/reference/audit/" }
+          ]
+        },
         { "title": "FAQ", "slug": "/database-access/faq/" }
       ]
     },

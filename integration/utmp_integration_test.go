@@ -52,8 +52,7 @@ var wildcardAllow = services.Labels{
 type SrvCtx struct {
 	srv        *regular.Server
 	signer     ssh.Signer
-	server     *auth.TestTLSServer
-	testServer *auth.TestAuthServer
+	server     *auth.TestServer
 	clock      clockwork.FakeClock
 	nodeClient *auth.Client
 	nodeID     string
@@ -152,26 +151,25 @@ func newSrvCtx(t *testing.T) *SrvCtx {
 	s := &SrvCtx{}
 
 	t.Cleanup(func() {
-		if s.server != nil {
-			require.NoError(t, s.server.Close())
-		}
 		if s.srv != nil {
 			require.NoError(t, s.srv.Close())
+		}
+		if s.server != nil {
+			require.NoError(t, s.server.Shutdown(context.Background()))
 		}
 	})
 
 	s.clock = clockwork.NewFakeClock()
 	tempdir := t.TempDir()
 
-	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
-		ClusterName: "localhost",
-		Dir:         tempdir,
-		Clock:       s.clock,
-	})
+	var err error
+	s.server, err = auth.NewTestServer(auth.TestServerConfig{
+		Auth: auth.TestAuthServerConfig{
+			ClusterName: "localhost",
+			Dir:         tempdir,
+			Clock:       s.clock,
+		}})
 	require.NoError(t, err)
-	s.server, err = authServer.NewTestTLSServer()
-	require.NoError(t, err)
-	s.testServer = authServer
 
 	// set up host private key and certificate
 	certs, err := s.server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
@@ -266,7 +264,7 @@ func newUpack(s *SrvCtx, username string, allowedLogins []string, allowedLabels 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ucert, err := s.testServer.GenerateUserCert(upub, user.GetName(), 5*time.Minute, teleport.CertificateFormatStandard)
+	ucert, err := s.server.AuthServer.GenerateUserCert(upub, user.GetName(), 5*time.Minute, teleport.CertificateFormatStandard)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
