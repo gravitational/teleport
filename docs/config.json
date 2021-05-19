@@ -221,8 +221,8 @@
         "version": "6.1.0"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "quay.io/gravitational/teleport:7.0",
-      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:7.0"
+      "latest_oss_docker_image": "quay.io/gravitational/teleport:7",
+      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:7"
     }
   },
   "redirects": [
