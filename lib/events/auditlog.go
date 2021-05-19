@@ -94,15 +94,9 @@ var (
 			Help: "Number of times emitting audit event failed.",
 		},
 	)
-)
 
-func init() {
-	// Metrics have to be registered to be exposed.
-	prometheus.MustRegister(auditOpenFiles)
-	prometheus.MustRegister(auditDiskUsed)
-	prometheus.MustRegister(auditFailedDisk)
-	prometheus.MustRegister(AuditFailedEmit)
-}
+	prometheusCollectors = []prometheus.Collector{auditOpenFiles, auditDiskUsed, auditFailedDisk, AuditFailedEmit}
+)
 
 // AuditLog is a new combined facility to record Teleport events and
 // sessions. It implements IAuditLog
@@ -236,6 +230,11 @@ func (a *AuditLogConfig) CheckAndSetDefaults() error {
 // a given directory. Session recording can be disabled by setting
 // recordSessions to false.
 func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1016,30 +1015,28 @@ func (l *AuditLog) auditDirs() ([]string, error) {
 	return out, nil
 }
 
-// SearchEvents finds events. Results show up sorted by date (newest first),
-// limit is used when set to value > 0
-func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string, limit int) ([]EventFields, error) {
-	l.log.Debugf("SearchEvents(%v, %v, query=%v, limit=%v)", fromUTC, toUTC, query, limit)
+func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType []string, limit int, startKey string) ([]AuditEvent, string, error) {
+	g := l.log.WithFields(log.Fields{"namespace": namespace, "eventType": eventType, "limit": limit})
+	g.Debugf("SearchEvents(%v, %v)", fromUTC, toUTC)
 	if limit <= 0 {
 		limit = defaults.EventsIterationLimit
 	}
 	if limit > defaults.EventsMaxIterationLimit {
-		return nil, trace.BadParameter("limit %v exceeds max iteration limit %v", limit, defaults.MaxIterationLimit)
+		return nil, "", trace.BadParameter("limit %v exceeds max iteration limit %v", limit, defaults.MaxIterationLimit)
 	}
 	if l.ExternalLog != nil {
-		return l.ExternalLog.SearchEvents(fromUTC, toUTC, query, limit)
+		return l.ExternalLog.SearchEvents(fromUTC, toUTC, namespace, eventType, limit, startKey)
 	}
-	return l.getLocalLog().SearchEvents(fromUTC, toUTC, query, limit)
+	return l.localLog.SearchEvents(fromUTC, toUTC, namespace, eventType, limit, startKey)
 }
 
-// SearchSessionEvents searches for session related events. Used to find completed sessions.
-func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int) ([]EventFields, error) {
+func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) ([]AuditEvent, string, error) {
 	l.log.Debugf("SearchSessionEvents(%v, %v, %v)", fromUTC, toUTC, limit)
 
 	if l.ExternalLog != nil {
-		return l.ExternalLog.SearchSessionEvents(fromUTC, toUTC, limit)
+		return l.ExternalLog.SearchSessionEvents(fromUTC, toUTC, limit, startKey)
 	}
-	return l.getLocalLog().SearchSessionEvents(fromUTC, toUTC, limit)
+	return l.localLog.SearchSessionEvents(fromUTC, toUTC, limit, startKey)
 }
 
 // getLocalLog returns the local (file based) audit log.
@@ -1193,45 +1190,46 @@ func (l *LegacyHandler) Download(ctx context.Context, sessionID session.ID, writ
 	return l.cfg.Handler.Download(ctx, sessionID, writer)
 }
 
-type closedLogger struct {
-}
+const loggerClosedMessage = "the logger has been closed"
+
+type closedLogger struct{}
 
 func (a *closedLogger) EmitAuditEventLegacy(e Event, f EventFields) error {
-	return trace.NotImplemented("the logger has been closed")
+	return trace.NotImplemented(loggerClosedMessage)
 }
 
 func (a *closedLogger) EmitAuditEvent(ctx context.Context, e AuditEvent) error {
-	return trace.NotImplemented("the logger has been closed")
+	return trace.NotImplemented(loggerClosedMessage)
 }
 
 func (a *closedLogger) PostSessionSlice(s SessionSlice) error {
-	return trace.NotImplemented("the logger has been closed")
+	return trace.NotImplemented(loggerClosedMessage)
 }
 
 func (a *closedLogger) UploadSessionRecording(r SessionRecording) error {
-	return trace.NotImplemented("the logger has been closed")
+	return trace.NotImplemented(loggerClosedMessage)
 }
 
 func (a *closedLogger) GetSessionChunk(namespace string, sid session.ID, offsetBytes int, maxBytes int) ([]byte, error) {
-	return nil, trace.NotImplemented("the logger has been closed")
+	return nil, trace.NotImplemented(loggerClosedMessage)
 }
 
 func (a *closedLogger) GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]EventFields, error) {
-	return nil, trace.NotImplemented("the logger has been closed")
+	return nil, trace.NotImplemented(loggerClosedMessage)
 }
 
-func (a *closedLogger) SearchEvents(fromUTC, toUTC time.Time, query string, limit int) ([]EventFields, error) {
-	return nil, trace.NotImplemented("the logger has been closed")
+func (a *closedLogger) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType []string, limit int, startKey string) ([]AuditEvent, string, error) {
+	return nil, "", trace.NotImplemented(loggerClosedMessage)
 }
 
-func (a *closedLogger) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int) ([]EventFields, error) {
-	return nil, trace.NotImplemented("the logger has been closed")
+func (a *closedLogger) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]AuditEvent, string, error) {
+	return nil, "", trace.NotImplemented(loggerClosedMessage)
 }
 
 func (a *closedLogger) WaitForDelivery(context.Context) error {
-	return trace.NotImplemented("the logger has been closed")
+	return trace.NotImplemented(loggerClosedMessage)
 }
 
 func (a *closedLogger) Close() error {
-	return trace.NotImplemented("the logger has been closed")
+	return trace.NotImplemented(loggerClosedMessage)
 }

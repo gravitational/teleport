@@ -649,6 +649,9 @@ init-submodules-e: init-webapps-submodules-e
 
 .PHONY: update-vendor
 update-vendor:
+	# update modules in api/
+	cd api && go mod tidy
+	# update modules in root directory
 	go mod tidy
 	go mod vendor
 	# delete the vendored api package. In its place
