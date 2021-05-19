@@ -6,10 +6,10 @@ package workflows_test
 import (
 	"context"
 	"log"
-	"time"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/workflows"
+	"github.com/gravitational/teleport/api/types"
 )
 
 var ctx = context.Background()
@@ -37,8 +37,8 @@ func ExampleNewPlugin() {
 
 func ExamplePlugin_WatchRequests() {
 	// Register a watcher for pending access requests.
-	watcher, err := plugin.WatchRequests(ctx, workflows.Filter{
-		State: workflows.StatePending,
+	watcher, err := plugin.WatchRequests(ctx, types.AccessRequestFilter{
+		State: types.RequestState_PENDING,
 	})
 	if err != nil {
 		log.Fatalf("failed to create watcher: %v", err)
@@ -46,7 +46,7 @@ func ExamplePlugin_WatchRequests() {
 	defer watcher.Close()
 
 	// you can wait for the watcher to init to catch initialization errors.
-	if err := watcher.WaitInit(ctx, time.Second); err != nil {
+	if err := watcher.WaitInit(ctx); err != nil {
 		log.Fatalf("watcher failed to init: %v", err)
 	}
 
@@ -64,7 +64,7 @@ func ExamplePlugin_WatchRequests() {
 
 func ExampleRequestWatcher() {
 	// you can wait for the watcher to init to catch initialization errors.
-	if err := watcher.WaitInit(ctx, time.Second); err != nil {
+	if err := watcher.WaitInit(ctx); err != nil {
 		log.Fatalf("watcher failed to init: %v", err)
 	}
 	defer watcher.Close()
@@ -84,7 +84,7 @@ func ExampleRequestWatcher() {
 
 func ExampleRequestWatcher_WaitInit() {
 	// you can wait for the watcher to init to catch initialization errors.
-	if err := watcher.WaitInit(ctx, time.Second); err != nil {
+	if err := watcher.WaitInit(ctx); err != nil {
 		log.Fatalf("watcher failed to init: %v", err)
 	}
 	defer watcher.Close()

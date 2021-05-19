@@ -19,7 +19,6 @@ package workflows
 import (
 	"context"
 	"sync"
-	"time"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
@@ -31,7 +30,7 @@ import (
 type RequestWatcher interface {
 	// WaitInit waits for the Init operation to complete
 	// or returns an error if the watcher fails to init.
-	WaitInit(ctx context.Context, timeout time.Duration) error
+	WaitInit(ctx context.Context) error
 	// Events returns a channel of RequestEvents.
 	Events() <-chan RequestEvent
 	// Done returns a channel that is closed when the watcher is done.
@@ -55,14 +54,14 @@ type requestWatcher struct {
 // RequestEvent is a request event.
 type RequestEvent struct {
 	// Type is the operation type of the event.
-	Type OpType
+	Type types.OpType
 	// Request is the payload of the event. If Type
 	// is OpDelete, only the ID field will be filled.
-	Request Request
+	Request types.AccessRequest
 }
 
 // newRequestWatcher creates a new RequestWatcher using the given client and filter.
-func newRequestWatcher(ctx context.Context, clt *client.Client, filter Filter) (RequestWatcher, error) {
+func newRequestWatcher(ctx context.Context, clt *client.Client, filter types.AccessRequestFilter) (RequestWatcher, error) {
 	eventWatcher, err := clt.NewWatcher(ctx,
 		types.Watch{
 			Kinds: []types.WatchKind{
@@ -89,43 +88,42 @@ func newRequestWatcher(ctx context.Context, clt *client.Client, filter Filter) (
 // receiveEvents receives events from the client stream and sends
 // the associated RequestEvents to the requestWatcher's eventC channel.
 func (w *requestWatcher) receiveEvents() {
-	for {
-		event := <-w.Watcher.Events()
-		var req Request
+	for event := range w.Watcher.Events() {
 		switch event.Type {
+		case types.OpPut, types.OpDelete:
 		case types.OpInit:
 			close(w.initC)
 			continue
-		case types.OpPut:
-			r, ok := event.Resource.(types.AccessRequest)
-			if !ok {
-				w.setError(trace.Errorf("unexpected resource type %T", event.Resource))
-				return
-			}
-			req = requestFromAccessRequest(r)
-		case types.OpDelete:
-			req = Request{
-				ID: event.Resource.GetName(),
-			}
 		default:
 			w.setError(trace.Errorf("unexpected event op type %s", event.Type))
 			return
 		}
-		w.eventsC <- RequestEvent{
+
+		req, ok := event.Resource.(types.AccessRequest)
+		if !ok {
+			w.setError(trace.Errorf("unexpected resource type %T", event.Resource))
+			return
+		}
+
+		reqEvent := RequestEvent{
 			Type:    event.Type,
 			Request: req,
 		}
+
+		select {
+		case w.eventsC <- reqEvent:
+		case <-w.Done():
+		}
+
 	}
 }
 
 // WaitInit waits for the Init operation to complete
-// or returns an error if the watcher fails to init.
-func (w *requestWatcher) WaitInit(ctx context.Context, timeout time.Duration) error {
+// or returns an error if the watcher or context is done.
+func (w *requestWatcher) WaitInit(ctx context.Context) error {
 	select {
 	case <-w.initC:
 		return nil
-	case <-time.After(timeout):
-		return trace.ConnectionProblem(nil, "requestWatcher initialization timed out")
 	case <-w.Done():
 		return w.Error()
 	case <-ctx.Done():

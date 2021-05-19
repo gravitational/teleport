@@ -53,7 +53,7 @@ func NewPlugin(ctx context.Context, name string, client *client.Client) *Plugin 
 }
 
 // WatchRequests registers a new watcher for pending access requests.
-func (p *Plugin) WatchRequests(ctx context.Context, filter Filter) (RequestWatcher, error) {
+func (p *Plugin) WatchRequests(ctx context.Context, filter types.AccessRequestFilter) (RequestWatcher, error) {
 	return newRequestWatcher(ctx, p.client, filter)
 }
 
@@ -63,46 +63,42 @@ func (p *Plugin) Close() error {
 }
 
 // CreateRequest creates a new Request for the given user to access the given role(s).
-func (p *Plugin) CreateRequest(ctx context.Context, user string, roles ...string) (Request, error) {
+func (p *Plugin) CreateRequest(ctx context.Context, user string, roles ...string) (types.AccessRequest, error) {
 	req, err := types.NewAccessRequest(uuid.New(), user, roles...)
-	if err != nil {
-		return Request{}, trace.Wrap(err)
-	}
-	if err = p.client.CreateAccessRequest(ctx, req); err != nil {
-		return Request{}, trace.Wrap(err)
-	}
-	return requestFromAccessRequest(req), nil
-}
-
-// GetRequests loads all requests which match the provided filter.
-func (p *Plugin) GetRequests(ctx context.Context, filter Filter) ([]Request, error) {
-	accessRequests, err := p.client.GetAccessRequests(ctx, filter)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var reqs []Request
-	for _, ar := range accessRequests {
-		reqs = append(reqs, requestFromAccessRequest(ar))
+	if err = p.client.CreateAccessRequest(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return req, nil
+}
+
+// GetRequests loads all requests which match the provided filter.
+func (p *Plugin) GetRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
+	reqs, err := p.client.GetAccessRequests(ctx, filter)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	return reqs, nil
 }
 
 // GetRequest loads a request matching ID.
-func (p *Plugin) GetRequest(ctx context.Context, reqID string) (Request, error) {
-	reqs, err := p.GetRequests(ctx, Filter{
+func (p *Plugin) GetRequest(ctx context.Context, reqID string) (types.AccessRequest, error) {
+	reqs, err := p.GetRequests(ctx, types.AccessRequestFilter{
 		ID: reqID,
 	})
 	if err != nil {
-		return Request{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if len(reqs) < 1 {
-		return Request{}, trace.NotFound("no request matching %q", reqID)
+		return nil, trace.NotFound("no request matching %q", reqID)
 	}
 	return reqs[0], nil
 }
 
 // SetRequestState updates the state of a request.
-func (p *Plugin) SetRequestState(ctx context.Context, reqID string, delegator string, params RequestUpdate) error {
+func (p *Plugin) SetRequestState(ctx context.Context, reqID string, delegator string, params types.AccessRequestUpdate) error {
 	ctx = utils.WithDelegator(ctx, fmt.Sprintf("%s:%s", p.name, delegator))
 	err := p.client.SetAccessRequestState(ctx, types.AccessRequestUpdate{
 		RequestID:   reqID,
@@ -113,6 +109,9 @@ func (p *Plugin) SetRequestState(ctx context.Context, reqID string, delegator st
 	})
 	return trace.Wrap(err)
 }
+
+// PluginDataMap is custom user data associated with an access request.
+type PluginDataMap map[string]string
 
 // GetPluginData fetches plugin data of the specific request.
 func (p *Plugin) GetPluginData(ctx context.Context, reqID string) (PluginDataMap, error) {
