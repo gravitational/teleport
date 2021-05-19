@@ -73,6 +73,11 @@ type ServerOption func(*Server)
 
 // NewServer creates and configures a new Server instance
 func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if cfg.Trust == nil {
 		cfg.Trust = local.NewCAService(cfg.Backend)
 	}
@@ -92,7 +97,11 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.DynamicAccessExt = local.NewDynamicAccessService(cfg.Backend)
 	}
 	if cfg.ClusterConfiguration == nil {
-		cfg.ClusterConfiguration = local.NewClusterConfigurationService(cfg.Backend)
+		clusterConfig, err := local.NewClusterConfigurationService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cfg.ClusterConfiguration = clusterConfig
 	}
 	if cfg.Events == nil {
 		cfg.Events = local.NewEventsService(cfg.Backend)
@@ -216,6 +225,11 @@ var (
 			Help: "Number of hearbeats missed by auth server",
 		},
 	)
+
+	prometheusCollectors = []prometheus.Collector{
+		generateRequestsCount, generateThrottledRequestsCount,
+		generateRequestsCurrent, generateRequestsLatencies, UserLoginCount, heartbeatsMissedByAuth,
+	}
 )
 
 // Server keeps the cluster together. It acts as a certificate authority (CA) for
@@ -532,6 +546,7 @@ type certRequestOption func(*certRequest)
 func certRequestMFAVerified(mfaID string) certRequestOption {
 	return func(r *certRequest) { r.mfaVerified = mfaID }
 }
+
 func certRequestClientIP(ip string) certRequestOption {
 	return func(r *certRequest) { r.clientIP = ip }
 }
@@ -2565,14 +2580,4 @@ func isHTTPS(u string) error {
 	}
 
 	return nil
-}
-
-func init() {
-	// Metrics have to be registered to be exposed:
-	prometheus.MustRegister(generateRequestsCount)
-	prometheus.MustRegister(generateThrottledRequestsCount)
-	prometheus.MustRegister(generateRequestsCurrent)
-	prometheus.MustRegister(generateRequestsLatencies)
-	prometheus.MustRegister(UserLoginCount)
-	prometheus.MustRegister(heartbeatsMissedByAuth)
 }
