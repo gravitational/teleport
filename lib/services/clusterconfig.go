@@ -35,9 +35,7 @@ func DefaultClusterConfig() ClusterConfig {
 			Namespace: defaults.Namespace,
 		},
 		Spec: ClusterConfigSpecV3{
-			SessionRecording:    RecordAtNode,
-			ProxyChecksHostKeys: HostKeyCheckYes,
-			LocalAuth:           NewBool(true),
+			LocalAuth: NewBool(true),
 		},
 	}
 }
@@ -52,16 +50,6 @@ func AuditConfigFromObject(in interface{}) (*AuditConfig, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &cfg, nil
-}
-
-// IsRecordAtProxy returns true if recording is sync or async at proxy
-func IsRecordAtProxy(mode string) bool {
-	return mode == RecordAtProxy || mode == RecordAtProxySync
-}
-
-// IsRecordSync returns true if recording is sync or async for proxy or node
-func IsRecordSync(mode string) bool {
-	return mode == RecordAtProxySync || mode == RecordAtNodeSync
 }
 
 // ShouldUploadSessions returns whether audit config
@@ -79,7 +67,7 @@ const ClusterConfigSpecSchemaTemplate = `{
 		"type": "string"
 	  },
 	  "proxy_checks_host_keys": {
-		"type": "string"
+		"anyOf": [{"type": "string"}, { "type": "boolean"}]
 	  },
 	  "cluster_id": {
 		"type": "string"
