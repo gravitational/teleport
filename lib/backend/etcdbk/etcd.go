@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/coreos/go-semver/semver"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
@@ -45,6 +44,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/gravitational/teleport"
 )
 
 var (
@@ -213,11 +214,10 @@ func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
 		buf:              buf,
 	}
 
+	// Check that the etcd nodes are at least the minimum version supported
 	if err = b.reconnect(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// Check that the etcd nodes are at least the minimum version supported
 	timeout, cancel := context.WithTimeout(ctx, time.Second*3*time.Duration(len(cfg.Nodes)))
 	defer cancel()
 	for _, n := range cfg.Nodes {
@@ -233,6 +233,13 @@ func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
 				status.Version, n, teleport.MinimumEtcdVersion)
 		}
 	}
+
+	// Reconnect the etcd client to work around a data race in their code.
+	// Upstream fix: https://github.com/etcd-io/etcd/pull/12992
+	if err = b.reconnect(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	go b.asyncWatch()
 
 	// Wrap backend in a input sanitizer and return it.
 	return b, nil
@@ -289,6 +296,12 @@ func (b *EtcdBackend) CloseWatchers() {
 }
 
 func (b *EtcdBackend) reconnect(ctx context.Context) error {
+	if b.client != nil {
+		if err := b.client.Close(); err != nil {
+			b.Entry.WithError(err).Warning("Failed closing existing etcd client on reconnect.")
+		}
+	}
+
 	tlsConfig := utils.TLSConfig(nil)
 
 	if b.cfg.TLSCertFile != "" {
@@ -337,7 +350,6 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	b.client = clt
-	go b.asyncWatch()
 	return nil
 }
 
