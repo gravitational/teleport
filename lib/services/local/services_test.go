@@ -65,6 +65,9 @@ func (s *ServicesSuite) SetUpTest(c *check.C) {
 	eventsService := NewEventsService(s.bk)
 	presenceService := NewPresenceService(s.bk)
 
+	clusterConfig, err := NewClusterConfigurationService(s.bk)
+	c.Assert(err, check.IsNil)
+
 	s.suite = &suite.ServicesTestSuite{
 		CAS:           NewCAService(s.bk),
 		PresenceS:     presenceService,
@@ -73,7 +76,7 @@ func (s *ServicesSuite) SetUpTest(c *check.C) {
 		Access:        NewAccessService(s.bk),
 		EventsS:       eventsService,
 		ChangesC:      make(chan interface{}),
-		ConfigS:       NewClusterConfigurationService(s.bk),
+		ConfigS:       clusterConfig,
 		Clock:         clock,
 		NewProxyWatcher: func() (*services.ProxyWatcher, error) {
 			return services.NewProxyWatcher(services.ProxyWatcherConfig{

@@ -553,7 +553,14 @@ func New(config Config) (*Cache, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	wrapper := backend.NewWrapper(config.Backend)
+
+	clusterConfigCache, err := local.NewClusterConfigurationService(wrapper)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	ctx, cancel := context.WithCancel(config.Context)
 	cs := &Cache{
 		wrapper:            wrapper,
@@ -563,7 +570,7 @@ func New(config Config) (*Cache, error) {
 		generation:         atomic.NewUint64(0),
 		initC:              make(chan struct{}),
 		trustCache:         local.NewCAService(wrapper),
-		clusterConfigCache: local.NewClusterConfigurationService(wrapper),
+		clusterConfigCache: clusterConfigCache,
 		provisionerCache:   local.NewProvisioningService(wrapper),
 		usersCache:         local.NewIdentityService(wrapper),
 		accessCache:        local.NewAccessService(wrapper),
