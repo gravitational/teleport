@@ -193,16 +193,17 @@ func TestAppAccessClientCert(t *testing.T) {
 // even when the cluster is in proxy recording mode.
 func TestAppAccessForwardModes(t *testing.T) {
 	// Create cluster, user, sessions, and credentials package.
+	ctx := context.Background()
 	pack := setup(t)
 
 	// Update root and leaf clusters to record sessions at the proxy.
-	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		SessionRecording: services.RecordAtProxy,
+	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+		Mode: services.RecordAtProxy,
 	})
 	require.NoError(t, err)
-	err = pack.rootCluster.Process.GetAuthServer().SetClusterConfig(clusterConfig)
+	err = pack.rootCluster.Process.GetAuthServer().SetSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
-	err = pack.leafCluster.Process.GetAuthServer().SetClusterConfig(clusterConfig)
+	err = pack.leafCluster.Process.GetAuthServer().SetSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
 
 	// Requests to root and leaf cluster are successful.

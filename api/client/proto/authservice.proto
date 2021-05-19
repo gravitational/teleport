@@ -78,6 +78,9 @@ message Event {
         // ClusterNetworkingConfig is a resource for cluster networking configuration.
         types.ClusterNetworkingConfigV2 ClusterNetworkingConfig = 20
             [ (gogoproto.jsontag) = "cluster_networking_config,omitempty" ];
+        // SessionRecordingConfigV2 is a resource for session recording configuration.
+        types.SessionRecordingConfigV2 SessionRecordingConfig = 21
+            [ (gogoproto.jsontag) = "session_recording_config,omitempty" ];
     }
 }
 
@@ -1097,6 +1100,14 @@ service AuthService {
     rpc GetClusterNetworkingConfig(google.protobuf.Empty) returns (types.ClusterNetworkingConfigV2);
     // SetClusterNetworkingConfig sets cluster networking configuration.
     rpc SetClusterNetworkingConfig(types.ClusterNetworkingConfigV2) returns (google.protobuf.Empty);
+
+    // GetSessionRecordingConfig gets session recording configuration.
+    rpc GetSessionRecordingConfig(google.protobuf.Empty) returns (types.SessionRecordingConfigV2);
+    // SetSessionRecordingConfig sets session recording configuration.
+    rpc SetSessionRecordingConfig(types.SessionRecordingConfigV2) returns (google.protobuf.Empty);
+
+    // ResetAuthPreference resets cluster auth preference to defaults.
+    rpc ResetAuthPreference(google.protobuf.Empty) returns (google.protobuf.Empty);
 
     // Out-of-session request for audit events.
     rpc GetEvents(GetEventsRequest) returns (Events);
