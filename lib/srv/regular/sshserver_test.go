@@ -70,14 +70,13 @@ type SrvSuite struct {
 	up          *upack
 	signer      ssh.Signer
 	user        string
-	server      *auth.TestTLSServer
 	proxyClient *auth.Client
 	proxyID     string
 	nodeClient  *auth.Client
 	nodeID      string
 	adminClient *auth.Client
-	testServer  *auth.TestAuthServer
 	clock       clockwork.FakeClock
+	server      *auth.TestServer
 }
 
 // teleportTestUser is additional user used for tests
@@ -113,15 +112,14 @@ func (s *SrvSuite) SetUpTest(c *C) {
 
 	s.clock = clockwork.NewFakeClock()
 
-	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
-		ClusterName: "localhost",
-		Dir:         c.MkDir(),
-		Clock:       s.clock,
+	s.server, err = auth.NewTestServer(auth.TestServerConfig{
+		Auth: auth.TestAuthServerConfig{
+			ClusterName: "localhost",
+			Dir:         c.MkDir(),
+			Clock:       s.clock,
+		},
 	})
 	c.Assert(err, IsNil)
-	s.server, err = authServer.NewTestTLSServer()
-	c.Assert(err, IsNil)
-	s.testServer = authServer
 
 	// create proxy client used in some tests
 	s.proxyID = uuid.New()
@@ -224,11 +222,11 @@ func (s *SrvSuite) TearDownTest(c *C) {
 	if s.clt != nil {
 		c.Assert(s.clt.Close(), IsNil)
 	}
-	if s.server != nil {
-		c.Assert(s.server.Close(), IsNil)
-	}
 	if s.srv != nil {
 		c.Assert(s.srv.Close(), IsNil)
+	}
+	if s.server != nil {
+		c.Assert(s.server.Shutdown(context.Background()), IsNil)
 	}
 }
 
@@ -722,6 +720,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Assert(reverseTunnelServer.Start(), IsNil)
+	defer reverseTunnelServer.Close()
 
 	proxy, err := New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
@@ -891,6 +890,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 	logger.WithField("tun-addr", reverseTunnelAddress.String()).Info("Created reverse tunnel server.")
 
 	c.Assert(reverseTunnelServer.Start(), IsNil)
+	defer reverseTunnelServer.Close()
 
 	proxy, err := New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
@@ -998,6 +998,9 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 	})
 	c.Assert(err, IsNil)
 
+	c.Assert(reverseTunnelServer.Start(), IsNil)
+	defer reverseTunnelServer.Close()
+
 	proxy, err := New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		s.server.ClusterName(),
@@ -1016,6 +1019,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
+	defer proxy.Close()
 
 	// set up SSH client using the user private key for signing
 	up, err := s.newUpack(s.user, []string{s.user}, wildcardAllow)
@@ -1506,7 +1510,7 @@ func (s *SrvSuite) newUpack(username string, allowedLogins []string, allowedLabe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ucert, err := s.testServer.GenerateUserCert(upub, user.GetName(), 5*time.Minute, teleport.CertificateFormatStandard)
+	ucert, err := s.server.AuthServer.GenerateUserCert(upub, user.GetName(), 5*time.Minute, teleport.CertificateFormatStandard)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

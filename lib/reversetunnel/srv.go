@@ -555,11 +555,13 @@ func (s *server) Start() error {
 
 func (s *server) Close() error {
 	s.cancel()
+	s.proxyWatcher.Close()
 	return s.srv.Close()
 }
 
 func (s *server) Shutdown(ctx context.Context) error {
 	s.cancel()
+	s.proxyWatcher.Close()
 	return s.srv.Shutdown(ctx)
 }
 

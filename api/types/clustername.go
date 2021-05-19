@@ -35,9 +35,6 @@ type ClusterName interface {
 	SetClusterName(string)
 	// GetClusterName gets the name of the cluster.
 	GetClusterName() string
-
-	// CheckAndSetDefaults checks and set default values for missing fields.
-	CheckAndSetDefaults() error
 }
 
 // NewClusterName is a convenience wrapper to create a ClusterName resource.
