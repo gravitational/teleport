@@ -145,8 +145,8 @@ type volumeRef struct {
 
 type step struct {
 	Name        string           `yaml:"name"`
-	Image       string           `yaml:"image"`
-	Commands    []string         `yaml:"commands"`
+	Image       string           `yaml:"image,omitempty"`
+	Commands    []string         `yaml:"commands,omitempty"`
 	Environment map[string]value `yaml:"environment,omitempty"`
 	Volumes     []volumeRef      `yaml:"volumes,omitempty"`
 	Settings    map[string]value `yaml:"settings,omitempty"`

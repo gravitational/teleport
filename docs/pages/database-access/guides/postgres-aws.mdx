@@ -3,7 +3,7 @@ title: Database Access with PostgreSQL on AWS
 description: How to configure Teleport Database Access with AWS RDS/Aurora PostgreSQL
 ---
 
-# PostgreSQL on AWS
+# AWS RDS/Aurora PostgreSQL
 
 ## Enable IAM Authentication
 
@@ -13,6 +13,11 @@ can be enabled with the following steps.
 Open [Amazon RDS console](https://console.aws.amazon.com/rds/) and create a new
 database instance with IAM authentication enabled, or modify an existing one to
 turn it on. Make sure to use PostgreSQL database type.
+
+<Admonition type="note"  title="Aurora Serverless">
+  Aurora Serverless does not support IAM authentication at the time of this
+  writing so it can't be used with Database Access.
+</Admonition>
 
 See [Enabling and disabling IAM database authentication](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.Enabling.html)
 for more information.
@@ -152,14 +157,13 @@ For a quick try-out, Teleport database service doesn't require a configuration
 file and can be launched using a single CLI command:
 
 ```sh
-$ teleport start \
-   --roles=db \
+$ teleport db start \
    --token=/tmp/token \
    --auth-server=teleport.example.com:3080 \
-   --db-name=aurora \
-   --db-protocol=postgres \
-   --db-uri=postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432 \
-   --db-aws-region=us-east-1 \
+   --name=aurora \
+   --protocol=postgres \
+   --uri=postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432 \
+   --aws-region=us-east-1 \
    --labels=env=dev
 ```
 

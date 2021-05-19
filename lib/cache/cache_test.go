@@ -839,6 +839,17 @@ func (s *CacheSuite) TestClusterConfig(c *check.C) {
 	p := s.newPackForAuth(c)
 	defer p.Close()
 
+	// DELETE IN 8.0.0
+	err := p.clusterConfigS.SetClusterNetworkingConfig(context.TODO(), types.DefaultClusterNetworkingConfig())
+	c.Assert(err, check.IsNil)
+
+	select {
+	case event := <-p.eventsC:
+		c.Assert(event.Type, check.Equals, EventProcessed)
+	case <-time.After(time.Second):
+		c.Fatalf("timeout waiting for event")
+	}
+
 	// update cluster config to record at the proxy
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
 		SessionRecording: services.RecordAtProxy,
@@ -1218,14 +1229,16 @@ func (s *CacheSuite) TestTunnelConnections(c *check.C) {
 
 // TestNodes tests nodes cache
 func (s *CacheSuite) TestNodes(c *check.C) {
+	ctx := context.Background()
+
 	p := s.newPackForProxy(c)
 	defer p.Close()
 
 	server := suite.NewServer(services.KindNode, "srv1", "127.0.0.1:2022", defaults.Namespace)
-	_, err := p.presenceS.UpsertNode(server)
+	_, err := p.presenceS.UpsertNode(ctx, server)
 	c.Assert(err, check.IsNil)
 
-	out, err := p.presenceS.GetNodes(defaults.Namespace)
+	out, err := p.presenceS.GetNodes(ctx, defaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 	srv := out[0]
@@ -1237,7 +1250,7 @@ func (s *CacheSuite) TestNodes(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	out, err = p.cache.GetNodes(defaults.Namespace)
+	out, err = p.cache.GetNodes(ctx, defaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 
@@ -1248,10 +1261,10 @@ func (s *CacheSuite) TestNodes(c *check.C) {
 	srv.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
 	srv.SetAddr("127.0.0.2:2033")
 
-	lease, err := p.presenceS.UpsertNode(srv)
+	lease, err := p.presenceS.UpsertNode(ctx, srv)
 	c.Assert(err, check.IsNil)
 
-	out, err = p.presenceS.GetNodes(defaults.Namespace)
+	out, err = p.presenceS.GetNodes(ctx, defaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 	srv = out[0]
@@ -1263,7 +1276,7 @@ func (s *CacheSuite) TestNodes(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	out, err = p.cache.GetNodes(defaults.Namespace)
+	out, err = p.cache.GetNodes(ctx, defaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 
@@ -1283,7 +1296,7 @@ func (s *CacheSuite) TestNodes(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	out, err = p.cache.GetNodes(defaults.Namespace)
+	out, err = p.cache.GetNodes(ctx, defaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 
@@ -1291,7 +1304,7 @@ func (s *CacheSuite) TestNodes(c *check.C) {
 	srv.SetExpiry(lease.Expires)
 	fixtures.DeepCompare(c, srv, out[0])
 
-	err = p.presenceS.DeleteAllNodes(defaults.Namespace)
+	err = p.presenceS.DeleteAllNodes(ctx, defaults.Namespace)
 	c.Assert(err, check.IsNil)
 
 	select {
@@ -1300,7 +1313,7 @@ func (s *CacheSuite) TestNodes(c *check.C) {
 		c.Fatalf("timeout waiting for event")
 	}
 
-	out, err = p.cache.GetNodes(defaults.Namespace)
+	out, err = p.cache.GetNodes(ctx, defaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 0)
 }

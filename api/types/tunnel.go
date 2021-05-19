@@ -43,8 +43,6 @@ type ReverseTunnel interface {
 	GetDialAddrs() []string
 	// Check checks tunnel for errors
 	Check() error
-	// CheckAndSetDefaults checks and set default values for any missing fields.
-	CheckAndSetDefaults() error
 }
 
 // NewReverseTunnel returns new version of reverse tunnel

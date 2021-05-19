@@ -59,8 +59,6 @@ type OIDCConnector interface {
 	GetTraitMappings() TraitMappingSet
 	// Check checks OIDC connector for errors
 	Check() error
-	// CheckAndSetDefaults checks and set default values for any missing fields.
-	CheckAndSetDefaults() error
 	// SetClientSecret sets client secret to some value
 	SetClientSecret(secret string)
 	// SetClientID sets id for authentication client (in our case it's our Auth server)
@@ -115,7 +113,7 @@ func (o *OIDCConnectorV2) SetPrompt(p string) {
 
 // GetPrompt returns OIDC prompt value,
 // * if not set, default to select_account for backwards compatibility
-// * if set to OIDCPromptNone, it will be omitted
+// * if set to none, it will be omitted
 // * and any other non empty value, pass it as is
 func (o *OIDCConnectorV2) GetPrompt() string {
 	if o.Spec.Prompt == "" {

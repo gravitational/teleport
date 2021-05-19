@@ -176,6 +176,8 @@ type TestAuthServer struct {
 
 // NewTestAuthServer returns new instances of Auth server
 func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
+	ctx := context.Background()
+
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -183,7 +185,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		TestAuthServerConfig: cfg,
 	}
 	b, err := memory.New(memory.Config{
-		Context:   context.Background(),
+		Context:   ctx,
 		Clock:     cfg.Clock,
 		EventsOff: false,
 	})
@@ -233,6 +235,11 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	err = srv.AuthServer.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	err = srv.AuthServer.SetClusterConfig(services.DefaultClusterConfig())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -243,7 +250,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+	authPreference, err := types.NewAuthPreferenceFromConfigFile(services.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
 		SecondFactor: constants.SecondFactorOff,
 	})
@@ -266,8 +273,6 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	ctx := context.Background()
 
 	// create the default role
 	err = srv.AuthServer.UpsertRole(ctx, services.NewAdminRole())
@@ -825,6 +830,37 @@ func CreateUserRoleAndRequestable(clt clt, username string, rolename string) (se
 	requestableRole.SetLogins(services.Allow, []string{rolename})
 	err = clt.UpsertRole(ctx, requestableRole)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return user, nil
+}
+
+// CreateAccessPluginUser creates a user with list/read abilites for access requests, and list/read/update
+// abilities for access plugin data.
+func CreateAccessPluginUser(ctx context.Context, clt clt, username string) (services.User, error) {
+	user, err := services.NewUser(username)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	role := services.RoleForUser(user)
+	rules := role.GetRules(types.Allow)
+	rules = append(rules,
+		types.Rule{
+			Resources: []string{types.KindAccessRequest},
+			Verbs:     []string{types.VerbRead, types.VerbList},
+		},
+		types.Rule{
+			Resources: []string{types.KindAccessPluginData},
+			Verbs:     []string{types.VerbRead, types.VerbList, types.VerbUpdate},
+		},
+	)
+	role.SetRules(types.Allow, rules)
+	role.SetLogins(types.Allow, nil)
+	if err := clt.UpsertRole(ctx, role); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	user.AddRole(role.GetName())
+	if err := clt.UpsertUser(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return user, nil

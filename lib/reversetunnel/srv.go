@@ -259,11 +259,11 @@ func NewServer(cfg Config) (Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	clusterConfig, err := cfg.LocalAccessPoint.GetClusterConfig()
+	netConfig, err := cfg.LocalAccessPoint.GetClusterNetworkingConfig(cfg.Context)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	offlineThreshold := time.Duration(clusterConfig.GetKeepAliveCountMax()) * clusterConfig.GetKeepAliveInterval()
+	offlineThreshold := time.Duration(netConfig.GetKeepAliveCountMax()) * netConfig.GetKeepAliveInterval()
 
 	ctx, cancel := context.WithCancel(cfg.Context)
 
@@ -887,7 +887,7 @@ func (s *server) upsertRemoteCluster(conn net.Conn, sshConn *ssh.ServerConn) (*r
 func (s *server) GetSites() ([]RemoteSite, error) {
 	s.RLock()
 	defer s.RUnlock()
-	out := make([]RemoteSite, 0, len(s.remoteSites)+len(s.localSites)+len(s.clusterPeers))
+	out := make([]RemoteSite, 0, len(s.localSites)+len(s.remoteSites)+len(s.clusterPeers))
 	for i := range s.localSites {
 		out = append(out, s.localSites[i])
 	}
@@ -925,14 +925,14 @@ func (s *server) getRemoteClusters() []*remoteSite {
 func (s *server) GetSite(name string) (RemoteSite, error) {
 	s.RLock()
 	defer s.RUnlock()
-	for i := range s.remoteSites {
-		if s.remoteSites[i].GetName() == name {
-			return s.remoteSites[i], nil
-		}
-	}
 	for i := range s.localSites {
 		if s.localSites[i].GetName() == name {
 			return s.localSites[i], nil
+		}
+	}
+	for i := range s.remoteSites {
+		if s.remoteSites[i].GetName() == name {
+			return s.remoteSites[i], nil
 		}
 	}
 	for i := range s.clusterPeers {

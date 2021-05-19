@@ -23,11 +23,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/utils"
-
-	"github.com/gravitational/trace"
-
 	"github.com/gogo/protobuf/proto"
+	"github.com/gravitational/trace"
 )
 
 // Server represents a Node, Proxy or Auth server in a Teleport cluster
@@ -84,8 +81,6 @@ type Server interface {
 	MatchAgainst(labels map[string]string) bool
 	// LabelsString returns a comma separated string with all node's labels
 	LabelsString() string
-	// CheckAndSetDefaults checks and set default values for any missing fields.
-	CheckAndSetDefaults() error
 
 	// DeepCopy creates a clone of this server value
 	DeepCopy() Server
@@ -354,23 +349,6 @@ type CommandLabel interface {
 	GetCommand() []string
 	// Clone returns label copy
 	Clone() CommandLabel
-	// Equals returns true if label is equal to the other one
-	// false otherwise
-	Equals(CommandLabel) bool
-}
-
-// Equals returns true if labels are equal, false otherwise
-func (c *CommandLabelV2) Equals(other CommandLabel) bool {
-	if c.GetPeriod() != other.GetPeriod() {
-		return false
-	}
-	if c.GetResult() != other.GetResult() {
-		return false
-	}
-	if !utils.StringSlicesEqual(c.GetCommand(), other.GetCommand()) {
-		return false
-	}
-	return true
 }
 
 // Clone returns non-shallow copy of the label

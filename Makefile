@@ -144,7 +144,9 @@ endif
 .PHONY:full-ent
 full-ent:
 ifneq ("$(OS)", "windows")
-	@if [ -f e/Makefile ]; then $(MAKE) -C e full; fi
+	@if [ -f e/Makefile ]; then \
+	rm $(ASSETS_BUILDDIR)/webassets.zip; \
+	$(MAKE) -C e full; fi
 endif
 
 #
@@ -210,7 +212,7 @@ release-unix: clean full
 	rm -rf teleport
 	@echo "---> Created $(RELEASE).tar.gz."
 	@if [ -f e/Makefile ]; then \
-		rm -fr $(WEBASSETS_BUILDDIR)/webassets.zip; \
+		rm -fr $(ASSETS_BUILDDIR)/webassets.zip; \
 		$(MAKE) -C e release; \
 	fi
 
@@ -265,7 +267,7 @@ docs-test-whitespace:
 # Runs all Go/shell tests, called by CI/CD.
 #
 .PHONY: test
-test: test-sh test-go
+test: test-sh test-api test-go
 
 #
 # Runs all Go tests except integration, called by CI/CD.
@@ -280,10 +282,24 @@ test-go: $(VERSRC)
 	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) -cover
 
+# Runs API Go tests. These have to be run separately as the package name is different.
+#
+.PHONY: test-api
+test-api:
+test-api: FLAGS ?= '-race'
+test-api: PACKAGES := $(shell cd api && go list ./...)
+test-api: $(VERSRC)
+	GOMODCACHE=/tmp go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+
 # Find and run all shell script unit tests (using https://github.com/bats-core/bats-core)
 .PHONY: test-sh
 test-sh:
-	@find . -iname "*.bats" -exec dirname {} \; | uniq | xargs -t -L1 bats $(BATSFLAGS)
+	@if ! type bats 2>&1 >/dev/null; then \
+		echo "Not running 'test-sh' target as 'bats' is not installed."; \
+		if [ "$${DRONE}" = "true" ]; then echo "This is a failure when running in CI." && exit 1; fi; \
+		exit 0; \
+	fi; \
+	find . -iname "*.bats" -exec dirname {} \; | uniq | xargs -t -L1 bats $(BATSFLAGS)
 
 #
 # Integration tests. Need a TTY to work.
@@ -313,12 +329,19 @@ integration-root:
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-sh lint-helm lint-go
+lint: lint-sh lint-helm lint-api lint-go
 
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
 lint-go:
 	golangci-lint run -c .golangci.yml $(GO_LINT_FLAGS)
+
+# api is no longer part of the teleport package, so golangci-lint skips it by default
+# GOMODCACHE needs to be set here as api downloads dependencies and cannot write to /go/pkg/mod/cache
+.PHONY: lint-api
+lint-api: GO_LINT_API_FLAGS ?=
+lint-api:
+	cd api && GOMODCACHE=/tmp golangci-lint run -c ../.golangci.yml $(GO_LINT_API_FLAGS)
 
 # TODO(awly): remove the `--exclude` flag after cleaning up existing scripts
 .PHONY: lint-sh
@@ -340,19 +363,32 @@ lint-sh:
 
 # Lints all the Helm charts found in directories under examples/chart and exits on failure
 # If there is a .lint directory inside, the chart gets linted once for each .yaml file in that directory
+# We inherit yamllint's 'relaxed' configuration as it's more compatible with Helm output and will only error on
+# show-stopping issues. Kubernetes' YAML parser is not particularly fussy.
+# If errors are found, the file is printed with line numbers to aid in debugging.
 .PHONY: lint-helm
 lint-helm:
+	@if ! type yamllint 2>&1 >/dev/null; then \
+		echo "Not running 'lint-helm' target as 'yamllint' is not installed."; \
+		if [ "$${DRONE}" = "true" ]; then echo "This is a failure when running in CI." && exit 1; fi; \
+		exit 0; \
+	fi; \
 	for CHART in $$(find examples/chart -mindepth 1 -maxdepth 1 -type d); do \
-		if [ -d $$CHART/.lint ]; then \
-			for VALUES in $$CHART/.lint/*.yaml; do \
-				echo "$$CHART: $$VALUES"; \
-				helm lint --strict $$CHART -f $$VALUES || exit 1; \
-				helm template test $$CHART -f $$VALUES 1>/dev/null || exit 1; \
+		if [ -d $${CHART}/.lint ]; then \
+			for VALUES in $${CHART}/.lint/*.yaml; do \
+				export HELM_TEMP=$$(mktemp); \
+				echo -n "Using values from '$${VALUES}': "; \
+				yamllint -c examples/chart/.lint-config.yaml $${VALUES} || { cat -en $${VALUES}; exit 1; }; \
+				helm lint --strict $${CHART} -f $${VALUES} || exit 1; \
+				helm template test $${CHART} -f $${VALUES} 1>$${HELM_TEMP} || exit 1; \
+				yamllint -c examples/chart/.lint-config.yaml $${HELM_TEMP} || { cat -en $${HELM_TEMP}; exit 1; }; \
 			done \
 		else \
-			helm lint --strict $$CHART || exit 1; \
-			helm template test $$CHART 1>/dev/null || exit 1; \
-		fi \
+			export HELM_TEMP=$$(mktemp); \
+			helm lint --strict $${CHART} || exit 1; \
+			helm template test $${CHART} 1>$${HELM_TEMP} || exit 1; \
+			yamllint -c examples/chart/.lint-config.yaml $${HELM_TEMP} || { cat -en $${HELM_TEMP}; exit 1; }; \
+		fi; \
 	done
 
 # This rule triggers re-generation of version.go and gitref.go if Makefile changes
@@ -373,14 +409,16 @@ tag:
 
 # build/webassets.zip archive contains the web assets (UI) which gets
 # appended to teleport binary
-$(ASSETS_BUILDDIR)/webassets.zip: | $(ASSETS_BUILDDIR)
+$(ASSETS_BUILDDIR)/webassets.zip: ensure-webassets $(ASSETS_BUILDDIR)
 ifneq ("$(OS)", "windows")
-	@echo "---> Building OSS web assets."
+	@echo "---> Building OSS web assets."; \
+	rm $(ASSETS_BUILDDIR)/webassets.zip; \
 	cd webassets/teleport/ ; zip -qr ../../$@ .
 endif
 
 $(ASSETS_BUILDDIR):
 	mkdir -p $@
+
 
 .PHONY: test-package
 test-package: remove-temp-files
@@ -611,6 +649,9 @@ init-submodules-e: init-webapps-submodules-e
 
 .PHONY: update-vendor
 update-vendor:
+	# update modules in api/
+	cd api && go mod tidy
+	# update modules in root directory
 	go mod tidy
 	go mod vendor
 	# delete the vendored api package. In its place

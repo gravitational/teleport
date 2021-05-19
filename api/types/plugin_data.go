@@ -35,9 +35,6 @@ type PluginData interface {
 	Entries() map[string]*PluginDataEntry
 	// Update attempts to apply an update.
 	Update(params PluginDataUpdateParams) error
-	// CheckAndSetDefaults validates the plugin data
-	// and supplies default values where appropriate.
-	CheckAndSetDefaults() error
 }
 
 // NewPluginData configures a new PluginData instance associated
@@ -231,22 +228,6 @@ func (f *PluginDataFilter) Match(data PluginData) bool {
 	}
 	if f.Plugin != "" {
 		if _, ok := data.Entries()[f.Plugin]; !ok {
-			return false
-		}
-	}
-	return true
-}
-
-// Equals compares two PluginDataEntries
-func (d *PluginDataEntry) Equals(other *PluginDataEntry) bool {
-	if other == nil {
-		return false
-	}
-	if len(d.Data) != len(other.Data) {
-		return false
-	}
-	for key, val := range d.Data {
-		if other.Data[key] != val {
 			return false
 		}
 	}

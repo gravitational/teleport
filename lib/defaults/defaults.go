@@ -132,6 +132,10 @@ const (
 	// for the response headers to arrive
 	ReadHeadersTimeout = time.Second
 
+	// HandshakeReadDeadline is the default time to wait for the client during
+	// the TLS handshake.
+	HandshakeReadDeadline = 5 * time.Second
+
 	// SignupTokenTTL is a default TTL for a web signup one time token
 	SignupTokenTTL = time.Hour
 
@@ -500,7 +504,7 @@ var (
 	DataDir = "/var/lib/teleport"
 
 	// StartRoles is default roles teleport assumes when started via 'start' command
-	StartRoles = []string{RoleProxy, RoleNode, RoleAuthService, RoleApp}
+	StartRoles = []string{RoleProxy, RoleNode, RoleAuthService, RoleApp, RoleDatabase}
 
 	// ETCDPrefix is default key in ETCD clustered configurations
 	ETCDPrefix = "/teleport"
@@ -511,6 +515,9 @@ var (
 	// ConfigFileEnvar is the name of the environment variable used to specify a path to
 	// the Teleport configuration file that tctl reads on use
 	ConfigFileEnvar = "TELEPORT_CONFIG_FILE"
+
+	// TunnelPublicAddrEnvar optionally specifies the alternative reverse tunnel address.
+	TunnelPublicAddrEnvar = "TELEPORT_TUNNEL_PUBLIC_ADDR"
 
 	// LicenseFile is the default name of the license file
 	LicenseFile = "license.pem"

@@ -49,8 +49,8 @@ func pushPipelines() []pipeline {
 	var ps []pipeline
 	for _, arch := range []string{"amd64", "386", "arm", "arm64"} {
 		for _, fips := range []bool{false, true} {
-			if (arch == "386" || arch == "arm") && fips {
-				// FIPS mode not supported on i386/ARM
+			if arch != "amd64" && fips {
+				// FIPS mode only supported on linux/amd64
 				continue
 			}
 			ps = append(ps, pushPipeline(buildType{os: "linux", arch: arch, fips: fips}))
@@ -104,6 +104,7 @@ func pushPipeline(b buildType) pipeline {
 			},
 			Commands: pushCheckoutCommands(b.fips),
 		},
+		waitForDockerStep(),
 		{
 			Name:        "Build artifacts",
 			Image:       "docker",

@@ -60,6 +60,10 @@ const (
 	// KindPluginData is a PluginData resource
 	KindPluginData = "plugin_data"
 
+	// KindAccessPluginData is a resource directive that applies
+	// only to plugin data associated with access requests.
+	KindAccessPluginData = "access_plugin_data"
+
 	// KindOIDC is OIDC connector resource
 	KindOIDC = "oidc"
 
@@ -141,11 +145,18 @@ const (
 	// KindClusterConfig is the resource that holds cluster level configuration.
 	KindClusterConfig = "cluster_config"
 
-	// KindSemaphore is the resource that provides distributed semaphore functionality
-	KindSemaphore = "semaphore"
-
 	// MetaNameClusterConfig is the exact name of the cluster config singleton resource.
 	MetaNameClusterConfig = "cluster-config"
+
+	// KindClusterNetworkingConfig is the resource that holds cluster networking configuration.
+	KindClusterNetworkingConfig = "cluster_networking_config"
+
+	// MetaNameClusterNetworkingConfig is the exact name of the singleton resource holding
+	// cluster networking configuration.
+	MetaNameClusterNetworkingConfig = "cluster-networking-config"
+
+	// KindSemaphore is the resource that provides distributed semaphore functionality
+	KindSemaphore = "semaphore"
 
 	// KindClusterName is a type of configuration resource that contains the cluster name.
 	KindClusterName = "cluster_name"
@@ -204,6 +215,9 @@ const (
 	V1 = "v1"
 )
 
+// WebSessionSubKinds lists subkinds of web session resources
+var WebSessionSubKinds = []string{KindAppSession, KindWebSession}
+
 const (
 	// VerbList is used to list all objects. Does not imply the ability to read a single object.
 	VerbList = "list"
@@ -228,8 +242,26 @@ const (
 	VerbRotate = "rotate"
 )
 
-// WebSessionSubKinds lists subkinds of web session resources
-var WebSessionSubKinds = []string{KindAppSession, KindWebSession}
+const (
+	// OriginLabel is a resource metadata label name used to identify a source
+	// that the resource originates from.
+	OriginLabel = "teleport.dev/origin"
+
+	// OriginConfigFile is an origin value indicating that the resource was
+	// constructed as a default value.
+	OriginDefaults = "defaults"
+
+	// OriginConfigFile is an origin value indicating that the resource is
+	// derived from static configuration.
+	OriginConfigFile = "config-file"
+
+	// OriginDynamic is an origin value indicating that the resource was
+	// committed as dynamic configuration.
+	OriginDynamic = "dynamic"
+)
+
+// OriginValues lists all possible origin values.
+var OriginValues = []string{OriginDefaults, OriginConfigFile, OriginDynamic}
 
 const (
 	// RecordAtNode is the default. Sessions are recorded at Teleport nodes.

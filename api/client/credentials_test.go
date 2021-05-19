@@ -26,7 +26,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/identityfile"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 
 	"github.com/stretchr/testify/require"
@@ -62,18 +63,18 @@ func TestLoadIdentityFile(t *testing.T) {
 
 	// Write identity file to disk.
 	path := filepath.Join(t.TempDir(), "file")
-	idFile := &IdentityFile{
+	idFile := &identityfile.IdentityFile{
 		PrivateKey: keyPEM,
-		Certs: Certs{
+		Certs: identityfile.Certs{
 			TLS: tlsCert,
 			SSH: sshCert,
 		},
-		CACerts: CACerts{
+		CACerts: identityfile.CACerts{
 			TLS: [][]byte{tlsCACert},
 			SSH: [][]byte{sshCACert},
 		},
 	}
-	err := WriteIdentityFile(idFile, path)
+	err := identityfile.Write(idFile, path)
 	require.NoError(t, err)
 
 	// Load identity file from disk.
@@ -134,39 +135,24 @@ func TestLoadProfile(t *testing.T) {
 
 	// Write identity file to disk.
 	dir := t.TempDir()
-	name := "proxy"
-	p := &Profile{
-		WebProxyAddr: "proxy:3080",
+	name := "proxy.example.com"
+	p := &profile.Profile{
+		WebProxyAddr: "proxy.example.com:3080",
+		SiteName:     "example.com",
 		Username:     "testUser",
 		Dir:          dir,
 	}
 
-	// Save profile to a file.
-	err := p.SaveToDir(dir, true)
-	require.NoError(t, err)
-
-	// Write keys to disk.
-	keyDir := filepath.Join(dir, constants.SessionKeyDir)
-	err = os.MkdirAll(keyDir, 0700)
-	require.NoError(t, err)
-	userKeyDir := filepath.Join(keyDir, p.Name())
-	os.MkdirAll(userKeyDir, 0700)
-	require.NoError(t, err)
-	keyPath := filepath.Join(userKeyDir, p.Username)
-	err = ioutil.WriteFile(keyPath, []byte(keyPEM), 0600)
-	require.NoError(t, err)
-	tlsCertPath := filepath.Join(userKeyDir, p.Username+constants.FileExtTLSCert)
-	err = ioutil.WriteFile(tlsCertPath, []byte(tlsCert), 0600)
-	require.NoError(t, err)
-	tlsCasPath := filepath.Join(userKeyDir, constants.FileNameTLSCerts)
-	err = ioutil.WriteFile(tlsCasPath, []byte(tlsCACert), 0600)
-	require.NoError(t, err)
-	sshCertPath := filepath.Join(userKeyDir, p.Username+constants.FileExtSSHCert)
-	err = ioutil.WriteFile(sshCertPath, []byte(sshCert), 0600)
-	require.NoError(t, err)
-	sshCasPath := filepath.Join(dir, constants.FileNameKnownHosts)
-	err = ioutil.WriteFile(sshCasPath, []byte(sshCACert), 0600)
-	require.NoError(t, err)
+	// Save profile and keys to disk.
+	require.NoError(t, p.SaveToDir(dir, true))
+	require.NoError(t, os.MkdirAll(p.KeyDir(), 0700))
+	require.NoError(t, os.MkdirAll(p.UserKeyDir(), 0700))
+	require.NoError(t, os.MkdirAll(p.SSHDir(), 0700))
+	require.NoError(t, ioutil.WriteFile(p.KeyPath(), keyPEM, 0600))
+	require.NoError(t, ioutil.WriteFile(p.TLSCertPath(), tlsCert, 0600))
+	require.NoError(t, ioutil.WriteFile(p.TLSCAsPath(), tlsCACert, 0600))
+	require.NoError(t, ioutil.WriteFile(p.SSHCertPath(), sshCert, 0600))
+	require.NoError(t, ioutil.WriteFile(p.SSHCAsPath(), sshCACert, 0600))
 
 	// Load profile from disk.
 	creds := LoadProfile(dir, name)
@@ -199,14 +185,14 @@ func getExpectedTLSConfig(t *testing.T) *tls.Config {
 	pool := x509.NewCertPool()
 	require.True(t, pool.AppendCertsFromPEM(tlsCACert))
 
-	return configure(&tls.Config{
+	return configureTLS(&tls.Config{
 		Certificates: []tls.Certificate{cert},
 		RootCAs:      pool,
 	})
 }
 
 func getExpectedSSHConfig(t *testing.T) *ssh.ClientConfig {
-	config, err := sshutils.SSHClientConfig(sshCert, keyPEM, [][]byte{sshCACert})
+	config, err := sshutils.ProxyClientSSHConfig(sshCert, keyPEM, [][]byte{sshCACert})
 	require.NoError(t, err)
 
 	return config

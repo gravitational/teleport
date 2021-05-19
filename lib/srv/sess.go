@@ -354,6 +354,7 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 			Interactive:       true,
 			StartTime:         start,
 			EndTime:           end,
+			SessionRecording:  party.ctx.ClusterConfig.GetSessionRecording(),
 		}
 		if err := sess.recorder.EmitAuditEvent(s.srv.Context(), sessionEndEvent); err != nil {
 			s.log.WithError(err).Warn("Failed to emit session end event.")
@@ -768,7 +769,8 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		ConnectionMetadata: events.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 		},
-		TerminalSize: params.Serialize(),
+		TerminalSize:     params.Serialize(),
+		SessionRecording: ctx.ClusterConfig.GetSessionRecording(),
 	}
 
 	// Local address only makes sense for non-tunnel nodes.
@@ -912,6 +914,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		ConnectionMetadata: events.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 		},
+		SessionRecording: ctx.ClusterConfig.GetSessionRecording(),
 	}
 	// Local address only makes sense for non-tunnel nodes.
 	if !ctx.srv.UseTunnel() {
@@ -1010,8 +1013,9 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 			Participants: []string{
 				ctx.Identity.TeleportUser,
 			},
-			StartTime: start,
-			EndTime:   end,
+			StartTime:        start,
+			EndTime:          end,
+			SessionRecording: ctx.ClusterConfig.GetSessionRecording(),
 		}
 		if err := s.recorder.EmitAuditEvent(ctx.srv.Context(), sessionEndEvent); err != nil {
 			ctx.WithError(err).Warn("Failed to emit session end event.")

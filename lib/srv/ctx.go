@@ -22,6 +22,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -39,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/parse"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -283,6 +285,11 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		return nil, nil, trace.Wrap(err)
 	}
 
+	netConfig, err := srv.GetAccessPoint().GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
 	cancelContext, cancel := context.WithCancel(ctx)
 
 	child := &ServerContext{
@@ -295,7 +302,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		ClusterName:       parent.ServerConn.Permissions.Extensions[utils.CertTeleportClusterName],
 		ClusterConfig:     clusterConfig,
 		Identity:          identityContext,
-		clientIdleTimeout: identityContext.RoleSet.AdjustClientIdleTimeout(clusterConfig.GetClientIdleTimeout()),
+		clientIdleTimeout: identityContext.RoleSet.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
 		cancelContext:     cancelContext,
 		cancel:            cancel,
 	}
@@ -676,24 +683,77 @@ func (c *ServerContext) String() string {
 	return fmt.Sprintf("ServerContext(%v->%v, user=%v, id=%v)", c.ServerConn.RemoteAddr(), c.ServerConn.LocalAddr(), c.ServerConn.User(), c.id)
 }
 
-// ExecCommand takes a *ServerContext and extracts the parts needed to create
-// an *execCommand which can be re-sent to Teleport.
-func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
-	var pamEnabled bool
-	var pamServiceName string
-	var pamUseAuth bool
+func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
+	// PAM should be disabled.
+	if c.srv.Component() != teleport.ComponentNode {
+		return nil, nil
+	}
 
-	// If this code is running on a node, check if PAM is enabled or not.
-	if c.srv.Component() == teleport.ComponentNode {
-		conf, err := c.srv.GetPAM()
+	localPAMConfig, err := c.srv.GetPAM()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// We use nil/empty to figure out if PAM is disabled later.
+	if !localPAMConfig.Enabled {
+		return nil, nil
+	}
+
+	// If the identity has roles, extract the role names.
+	var roleNames []string
+	if len(c.Identity.RoleSet) > 0 {
+		roleNames = c.Identity.RoleSet.RoleNames()
+	}
+
+	// Fill in the environment variables from the config and interpolate them if needed.
+	environment := make(map[string]string)
+	environment["TELEPORT_USERNAME"] = c.Identity.TeleportUser
+	environment["TELEPORT_LOGIN"] = c.Identity.Login
+	environment["TELEPORT_ROLES"] = strings.Join(roleNames, " ")
+	if localPAMConfig.Environment != nil {
+		user, err := c.srv.GetAccessPoint().GetUser(c.Identity.TeleportUser, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		pamEnabled = conf.Enabled
-		pamServiceName = conf.ServiceName
-		pamUseAuth = conf.UsePAMAuth
+
+		traits := user.GetTraits()
+
+		for key, value := range localPAMConfig.Environment {
+			expr, err := parse.NewExpression(value)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			if expr.Namespace() != teleport.TraitExternalPrefix && expr.Namespace() != parse.LiteralNamespace {
+				return nil, trace.BadParameter("PAM environment interpolation only supports external traits, found %q", value)
+			}
+
+			result, err := expr.Interpolate(traits)
+			if err != nil {
+				// If the trait isn't passed by the IdP due to misconfiguration
+				// we fallback to setting a value which will indicate this.
+				if trace.IsNotFound(err) {
+					log.Warnf("Attempted to interpolate custom PAM environment with external trait %[1]q but received SAML response does not contain claim %[1]q", expr.Name())
+					continue
+				}
+
+				return nil, trace.Wrap(err)
+			}
+
+			environment[key] = strings.Join(result, " ")
+		}
 	}
 
+	return &PAMConfig{
+		UsePAMAuth:  localPAMConfig.UsePAMAuth,
+		ServiceName: localPAMConfig.ServiceName,
+		Environment: environment,
+	}, nil
+}
+
+// ExecCommand takes a *ServerContext and extracts the parts needed to create
+// an *execCommand which can be re-sent to Teleport.
+func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 	// If the identity has roles, extract the role names.
 	var roleNames []string
 	if len(c.Identity.RoleSet) > 0 {
@@ -720,6 +780,11 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	pamConfig, err := getPAMConfig(c)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Create the execCommand that will be sent to the child process.
 	return &ExecCommand{
 		Command:               command,
@@ -731,9 +796,7 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		RequestType:           requestType,
 		PermitUserEnvironment: c.srv.PermitUserEnvironment(),
 		Environment:           buildEnvironment(c),
-		PAM:                   pamEnabled,
-		ServiceName:           pamServiceName,
-		UsePAMAuth:            pamUseAuth,
+		PAMConfig:             pamConfig,
 		IsTestStub:            c.IsTestStub,
 		UaccMetadata:          *uaccMetadata,
 	}, nil

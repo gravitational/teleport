@@ -137,6 +137,9 @@ type InitConfig struct {
 	// ClusterConfig holds cluster level configuration.
 	ClusterConfig services.ClusterConfig
 
+	// ClusterNetworkingConfig holds cluster networking configuration.
+	ClusterNetworkingConfig types.ClusterNetworkingConfig
+
 	// SkipPeriodicOperations turns off periodic operations
 	// used in tests that don't need periodc operations.
 	SkipPeriodicOperations bool
@@ -233,6 +236,11 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		log.Infof("Created reverse tunnel: %v.", tunnel)
 	}
 
+	err = asrv.SetClusterNetworkingConfig(ctx, cfg.ClusterNetworkingConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// set cluster level config on the backend and then force a sync of the cache.
 	clusterConfig, err := asrv.GetClusterConfig()
 	if err != nil && !trace.IsNotFound(err) {
@@ -285,11 +293,10 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	log.Infof("Updating cluster configuration: %v.", cfg.StaticTokens)
 
-	err = asrv.SetAuthPreference(cfg.AuthPreference)
+	err = initSetAuthPreference(asrv, cfg.AuthPreference)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Infof("Updating cluster configuration: %v.", cfg.AuthPreference)
 
 	// always create the default namespace
 	err = asrv.UpsertNamespace(services.NewNamespace(defaults.Namespace))
@@ -482,6 +489,58 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	return asrv, nil
+}
+
+func initSetAuthPreference(asrv *Server, newAuthPref services.AuthPreference) error {
+	storedAuthPref, err := asrv.GetAuthPreference()
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedAuthPref, newAuthPref)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if shouldReplace {
+		err = asrv.SetAuthPreference(newAuthPref)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		log.Infof("Updating auth preference: %v.", newAuthPref)
+	}
+	return nil
+}
+
+// shouldInitReplaceResourceWithOrigin determines whether the candidate
+// resource should be used to replace the stored resource during auth server
+// initialization.  Dynamically configured resources must not be overwritten
+// when the corresponding file config is left unspecified (i.e., by defaults).
+func shouldInitReplaceResourceWithOrigin(stored, candidate types.ResourceWithOrigin) (bool, error) {
+	if candidate == nil || (candidate.Origin() != types.OriginDefaults && candidate.Origin() != types.OriginConfigFile) {
+		return false, trace.BadParameter("candidate origin must be either defaults or config-file (this is a bug)")
+	}
+
+	// If there is no resource stored in the backend or it was not dynamically
+	// configured, the candidate resource should be stored in the backend.
+	if stored == nil || stored.Origin() != types.OriginDynamic {
+		return true, nil
+	}
+
+	// If the candidate resource is explicitly configured in the config file,
+	// store this config-file resource in the backend no matter what.
+	if candidate.Origin() == types.OriginConfigFile {
+		// Log a warning when about to overwrite a dynamically configured resource.
+		if stored.Origin() == types.OriginDynamic {
+			log.Warnf("Stored %v resource that was configured dynamically is about to be discarded in favor of explicit file configuration.", stored.GetKind())
+		}
+		return true, nil
+	}
+
+	// The resource in the backend was configured dynamically, and there is no
+	// more authoritative file configuration to replace it.  Keep the stored
+	// dynamic resource.
+	return false, nil
 }
 
 func migrateLegacyResources(ctx context.Context, cfg InitConfig, asrv *Server) error {
