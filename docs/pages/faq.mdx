@@ -35,7 +35,7 @@ section of the Admin Manual.
 
 ### Can individual nodes create reverse tunnels to a proxy server without creating a new cluster?
 
-This has been a long standing [request](https://github.com/gravitational/teleport/issues/803) of Teleport and
+This has been a long-standing [request](https://github.com/gravitational/teleport/issues/803) of Teleport and
 it has been fixed with Teleport 4.0. Once you've upgraded your Teleport Cluster, change the node config
 option `--auth-server` to point to web proxy address (this would be `public_addr` and `web_listen_addr`
 in file configuration). As defined in [Adding a node located behind NAT - Teleport Node Tunneling](admin-guide.mdx#adding-a-node-located-behind-nat)
@@ -57,7 +57,7 @@ recommended hardware for the Proxy and Auth server. If you plan to connect more 
 
 ## Which version of Teleport is supported?
 
-Teleport provides security critical support for the current and two previous releases. With our typical release cadence this means a releases is usually supported for 9 months.
+Teleport provides security-critical support for the current and two previous releases. With our typical release cadence, this means a release is usually supported for 9 months.
 
 | Release | Long Term Support | Release Date | Min tsh version |
 | - | - | - | - |
@@ -72,17 +72,17 @@ Teleport provides security critical support for the current and two previous rel
 **How should I upgrade my cluster?**
 
 Please follow our standard guidelines for [upgrading](admin-guide.mdx#upgrading-teleport).
-We recommend that the Auth Server should be upgraded first, and proxy is bumped after.
+We recommend that the Auth Server should be upgraded first, and the proxy bumped thereafter.
 
 ### Does Web UI support copy and paste?
 
-Yes. You can copy-and-paste using a mouse. If you prefer a keyboard, Teleport employs
+Yes. You can copy and paste using a mouse. If you prefer a keyboard, Teleport employs
 `tmux`-like "prefix" mode. To enter prefix mode, use the `Ctrl`+`A` keyboard shortcut.
 
 While in prefix mode, you can press `Ctrl`+`V` to paste, or enter text selection
 mode by pressing `[`. When in text selection mode:
 
-- Move around using the keys `h`,`j`,`k`, and `l`.
+- Move around using the keys `h`, `j`, `k`, and `l`.
 - Select text by toggling `space`.
 - And, copy it via `Ctrl`+`C`.
 
@@ -90,7 +90,7 @@ mode by pressing `[`. When in text selection mode:
 
 Please refer to the [Ports](admin-guide.mdx#ports) section of the Admin Manual.
 
-### Does Teleport support authentication via OAuth, SAML or Active Directory?
+### Does Teleport support authentication via OAuth, SAML, or Active Directory?
 
 Gravitational offers this feature for the [Enterprise versions of Teleport](enterprise/introduction.mdx).
 
@@ -112,11 +112,9 @@ You can read more in the [Teleport Enterprise section of the docs](enterprise/in
 
 ### Does Teleport send any data to Gravitational?
 
-The open source edition of Teleport does not send any information to
+The Open-Source Edition of Teleport does not send any information to
 Gravitational and can be used on servers without internet access. The
-commercial versions of Teleport may or may not be configured to send anonymized
-information to Gravitational, depending on the license purchased. This
-information contains the following:
+commercial versions of Teleport may or may not be configured to send anonymized information to Gravitational, depending on the license purchased. This information contains the following:
 
 - Anonymized user ID: SHA256 hash of a username with a randomly generated prefix.
 - Anonymized server ID: SHA256 hash of a server IP with a randomly generated prefix.

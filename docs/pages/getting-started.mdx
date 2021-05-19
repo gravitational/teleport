@@ -1,20 +1,20 @@
 ---
 title: Getting Started
-description: Getting started with Teleport - identity-aware, multi-protocol access proxy for SSH, HTTPS, Kubernetes and more.
+description: Getting started with Teleport - identity-aware, multi-protocol access proxy for SSH, HTTPS, Kubernetes, and more.
 ---
 
 This tutorial will guide you through the steps needed to install and run
 Teleport (=teleport.version=) on Linux machines.
 
-### Prerequisites
+## Prerequisites
 
-- A Linux machine with ports `3023`, `3024`, `3025` and `443` open.
+- A Linux machine with ports `3023`, `3024`, `3025`, and `443` open.
 - A registered domain name.
 - A two-factor authenticator app.
 - An SSH client like OpenSSH.
 - Around 20 minutes to complete; half of this may be waiting for DNS propagation.
 
-### Follow along with our video guide
+## Follow along with our video guide
 
 <iframe
   width="712"
@@ -25,7 +25,7 @@ Teleport (=teleport.version=) on Linux machines.
   allowFullScreen
 />
 
-## Step 1: Install Teleport on a Linux host
+## Step 1/4. Install Teleport on a Linux host
 
 <Tabs>
   <TabItem label="Amazon Linux 2/RHEL (RPM)">
@@ -78,22 +78,22 @@ Teleport (=teleport.version=) on Linux machines.
 
 Take a look at the [Installation Guide](installation.mdx) for more options.
 
-## Step 1b: Configure Teleport
+### Configure Teleport
 
 Generate a configuration file for Teleport using `teleport configure`.
 
 Acme turns on automatic TLS certificates from [Let's Encrypt](https://letsencrypt.org).
-Set up email to receive updates from Let's Encrypt, and use a valid DNS name for a cluster name.
+Set up an email to receive updates from Let's Encrypt, and use a valid DNS name for a cluster name.
 
 ```bash
-$ sudo teleport configure --acme --acme-email=your-email@example.com --cluster-name=tele.example.com -o file
-Wrote config to file "/etc/teleport.yaml". Now you can start the server. Happy Teleporting!
+sudo teleport configure --acme --acme-email=your-email@example.com --cluster-name=tele.example.com -o file
+# Wrote config to file "/etc/teleport.yaml". Now you can start the server. Happy Teleporting!
 ```
 
-## Step 1c: Configure domain name and obtain TLS certificates using Let's Encrypt
+### Configure domain name and obtain TLS certificates using Let's Encrypt
 
-Teleport requires a secure public endpoint for the Teleport UI and for end users to connect to.
-To get started setup two `A` records for `tele.example.com` and `*.tele.example.com`
+Teleport requires a secure public endpoint for the Teleport UI and for end-users to connect to.
+To get started, set up two `A` records for `tele.example.com` and `*.tele.example.com`
 pointing to the IP/FQDN of the machine with Teleport installed.
 
 <Admonition
@@ -114,9 +114,10 @@ sudo teleport start
 ```
 
 You can access Teleport's Web UI on port `443`.
+
 Replace `tele.example.com` with your domain: `https://tele.example.com/`
 
-## Step 2: Create a Teleport user and set up two-factor authentication
+## Step 2/4. Create a Teleport user and set up two-factor authentication
 
 In this example, we'll create a new Teleport user `teleport-admin` which is allowed to log into
 SSH hosts as any of the principals `root`, `ubuntu` or `ec2-user`.
@@ -126,9 +127,8 @@ SSH hosts as any of the principals `root`, `ubuntu` or `ec2-user`.
 sudo tctl users add teleport-admin --roles=editor,access --logins=root,ubuntu,ec2-user
 ```
 
-Teleport will always enforce the use of two-factor authentication by default. It supports one-time
-passwords (OTP) and hardware tokens (U2F). This quick start will use OTP - you'll need an OTP-compatible
-app which can scan a QR code.
+Teleport will always enforce the use of two-factor authentication by default. It supports One-Time
+Passwords (OTP) and hardware tokens (U2F). This quick start will use OTP - you'll need an OTP-compatible app that can scan a QR code.
 
 Here's a selection of compatible two-factor authentication apps:
 
@@ -145,14 +145,13 @@ Here's a selection of compatible two-factor authentication apps:
   The OS users that you specify (`root`, `ubuntu` and `ec2-user` in our examples) must exist!
   On Linux, if a user does not already exist, you can create it with `adduser <login>`. If you
   do not have the permission to create new users on the Linux host, run
-  `tctl users add teleport $(whoami)` to explicitly allow Teleport to authenticate as the user
-  that you are currently logged in as. If you do not map to an existing OS user,
+  `tctl users add teleport $(whoami)` to explicitly allow Teleport to authenticate as the user that you have currently logged in as. If you do not map to an existing OS user,
   you will get authentication errors later on in this tutorial!
 </Admonition>
 
 ![Teleport UI Dashboard](../img/quickstart/teleport-nodes.png)
 
-## Step 2a: Install a Teleport client locally
+### Install a Teleport client locally
 
 <Tabs>
   <TabItem label="Mac">
@@ -184,25 +183,25 @@ Here's a selection of compatible two-factor authentication apps:
     tar -xzf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
     cd teleport
     sudo ./install
-    Teleport binaries have been copied to /usr/local/bin
-    To configure the systemd service for Teleport take a look at examples/systemd/README.mdx
+    # Teleport binaries have been copied to /usr/local/bin
+    # To configure the systemd service for Teleport take a look at examples/systemd/README.mdx
     ```
   </TabItem>
 </Tabs>
 
-## Step 3: Log in using tsh
+## Step 3/4. Log in using tsh
 
 `tsh` is our client tool. It helps you log into Teleport clusters and obtain short-lived credentials. It can also be used to
-list servers, applications and Kubernetes clusters registered with Teleport.
+list servers, applications, and Kubernetes clusters registered with Teleport.
 
-Login to receive short-lived certificates from Teleport:
+Log in to receive short-lived certificates from Teleport:
 
 ```bash
 # Replace teleport.example.com:443 with your Teleport cluster's public address as configured above.
 tsh login --proxy=teleport.example.com:443 --user=teleport-admin
 ```
 
-## Step 4: Have fun with Teleport!
+## Step 4/4. Have fun with Teleport!
 
 Congrats! You've completed setting up Teleport! Now, feel free to have fun and explore the many features Teleport has to offer.
 
@@ -309,7 +308,7 @@ Add a new application:
   </TabItem>
 </Tabs>
 
-### Guides
+## Guides
 
 Check out our collection of step-by-step guides for common Teleport tasks.
 

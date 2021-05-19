@@ -1,6 +1,6 @@
 ---
 title: Teleport Production Guide
-description: How to configure SSH and Kubernetes access with SSO on AWS, GCE and your own infrastructure.
+description: How to configure SSH and Kubernetes access with SSO on AWS, GCE, and your own infrastructure.
 h1: Production Guide
 ---
 
@@ -16,7 +16,7 @@ This guide provides more in-depth details for running Teleport in Production.
 - Read through the [Installation Guide](installation.mdx) to see the available packages and binaries available.
 - Read the CLI Docs for [`teleport`](cli-docs.mdx#teleport)
 
-## Designing Your Cluster
+## Designing your cluster
 
 Before installing anything there are a few things you should think about.
 
@@ -30,7 +30,7 @@ Before installing anything there are a few things you should think about.
 - Which users, ([Roles or ClusterRoles](https://kubernetes.io/docs/reference/access-authn-authz/rbac/) on k8s) are set up on the existing system?
   - Can you add new users or Roles yourself or do you need to work with a system administrator?
 
-## Firewall Configuration
+## Firewall configuration
 
 Teleport services listen on several ports. This table shows the default port numbers.
 
@@ -38,7 +38,7 @@ Teleport services listen on several ports. This table shows the default port num
 | - | - | - | - | - |
 | `3080` | Proxy | HTTPS port clients connect to. Used to authenticate `tsh` users and web users into the cluster. | Allow inbound connections from HTTP and SSH clients. | Allow outbound connections to HTTP and SSH clients. |
 | `3023` | Proxy | SSH port clients connect to after authentication. A proxy will forward this connection to port `3022` on the destination node. | Allow inbound traffic from SSH clients. | Allow outbound traffic to SSH clients. |
-| `3022` | Node | SSH port to the Node Service. This is Teleport's equivalent of port `22` for SSH. | Allow inbound traffic from proxy host. | Allow outbound traffic to the proxy host. |
+| `3022` | Node | SSH port to the Node Service. This is Teleport's equivalent of port `22` for SSH. | Allow inbound traffic from the proxy host. | Allow outbound traffic to the proxy host. |
 | `3025` | Auth | SSH port used by the Auth Service to serve its Auth API to other nodes in a cluster. | Allow inbound connections from all cluster nodes. | Allow outbound traffic to cluster nodes. |
 | `3024` | Proxy | SSH port used to create "reverse SSH tunnels" from behind-firewall environments into a trusted proxy server. | {/* TODO */} | {/* TODO */} |
 | `3026` | Kubernetes | Port used for `kubectl` to access Teleport | {/* TODO */} | {/* TODO */} |
@@ -51,13 +51,11 @@ Teleport services listen on several ports. This table shows the default port num
 
 We have a detailed [installation guide](installation.mdx) which shows how to
 install all available binaries or [install from
-source](installation.mdx#installing-from-source). Reference that guide to learn
-the best way to install Teleport for your system and the come back here to
-finish your production install.
+source](installation.mdx#installing-from-source). Reference that guide to learn the best way to install Teleport for your system, then return to finish your production install.
 
-### Filesystem Layout
+### Filesystem layout
 
-By default a Teleport node has the following files present. The location of all
+By default, a Teleport node has the following files present. The location of all
 of them is configurable.
 
 | Default path | Purpose |
@@ -68,26 +66,24 @@ of them is configurable.
 | `/usr/local/bin/tsh` | Teleport CLI client tool. It is needed on any node that needs to connect to the cluster. |
 | `/var/lib/teleport` | Teleport data directory. Nodes keep their keys and certificates there. Auth servers store the audit log and the cluster keys there, but the audit log storage can be further configured via `auth_service` section in the config file. |
 
-## Running Teleport in Production
+## Running Teleport in production
 
-### Systemd Unit File
+### Systemd unit file
 
 In production, we recommend starting teleport daemon via an init system like
-`systemd`. If systemd and unit files are new to you, check out [this helpful guide](https://www.digitalocean.com/community/tutorials/understanding-systemd-units-and-unit-files). Here's an example systemd unit file for the Teleport [Proxy, Node and Auth Service](https://github.com/gravitational/teleport/tree/master/examples/systemd/production).
+`systemd`. If systemd and unit files are new to you, check out [this helpful guide](https://www.digitalocean.com/community/tutorials/understanding-systemd-units-and-unit-files). Here's an example systemd unit file for the Teleport [Proxy, Node, and Auth Service](https://github.com/gravitational/teleport/tree/master/examples/systemd/production).
 
 There are a couple of important things to notice about this file:
 
-1. The start command in the unit file specifies `--config` as a file and there
-   are very few flags passed to the `teleport` binary. Most of the configuration
+1. The start command in the unit file specifies `--config` as a file and there are very few flags passed to the `teleport` binary. Most of the configuration
    for Teleport should be done in the [configuration file](admin-guide.mdx#configuration).
 2. The **ExecReload** command allows admins to run `systemctl reload teleport`.
    This will attempt to perform a graceful restart of Teleport **but it only works if
    network-based backend storage like [DynamoDB](admin-guide.mdx#using-dynamodb) or
    [etc 3.3](admin-guide.mdx#using-etcd) is configured**. Graceful Restarts will
-   fork a new process to handle new incoming requests and leave the old daemon
-   process running until existing clients disconnect.
+   fork a new process to handle new incoming requests and leave the old daemon process running until existing clients disconnect.
 
-### Start the Teleport Service
+### Start the Teleport service
 
 You can start Teleport via systemd unit by enabling the `.service` file
 with the `systemctl` tool.
@@ -98,24 +94,24 @@ $ cd /etc/systemd/system
 
 # Use your text editor of choice to create the .service file
 # Here we use vim
-$ vi teleport.service
+vi teleport.service
 
-# use the file linked above as is, or customize as needed
+# Use the file linked above as is or customize as needed
 # save the file
-$ systemctl enable teleport
-$ systemctl start teleport
+systemctl enable teleport
+systemctl start teleport
 
-# show the status of the unit
-$ systemctl status teleport
+# Show the status of the unit
+systemctl status teleport
 
-# follow tail of service logs
-$ journalctl -fu teleport
+# Follow the tail of service logs
+journalctl -fu teleport
 
 # If you modify teleport.service later you will need to
 # reload the systemctl daemon and reload teleport
 # to apply your changes
-$ systemctl daemon-reload
-$ systemctl reload teleport
+systemctl daemon-reload
+systemctl reload teleport
 ```
 
 You can also perform restarts or upgrades by sending `kill` signals
@@ -128,13 +124,13 @@ to a Teleport daemon manually.
 | `USR2` | Forks a new Teleport daemon to serve new connections. |
 | `HUP` | Forks a new Teleport daemon to serve new connections **and** initiates the graceful shutdown of the existing process when there are no more clients connected to it. This is the signal sent to trigger a graceful restart. |
 
-### Adding Nodes to the Cluster
+### Adding Nodes to the cluster
 
 We've written a dedicated guide on [Adding Nodes to your
 Cluster](admin-guide.mdx#adding-nodes-to-the-cluster) which shows how to generate or set join tokens and
 use them to add nodes.
 
-## Security Considerations
+## Security considerations
 
 ### SSL/TLS for Teleport Proxy
 
@@ -167,8 +163,7 @@ https_keypairs:
 ```
 
 If you already have a certificate these should be uploaded to the Teleport Proxy and
-can be set via `https_key_file` and `https_cert_file`. Make sure any certificates
-files uploaded contain a full certificate chain, complete with any intermediate
+can be set via `https_key_file` and `https_cert_file`. Make sure any certificate files uploaded contain a full certificate chain, complete with any intermediate
 certificates required - this [guide](https://www.digicert.com/ssl-support/pem-ssl-creation.htm) may help.
 
 ```yaml
@@ -177,7 +172,7 @@ proxy_service:
     # Turns 'proxy' role on. Default is 'yes'
     enabled: yes
 
-    # The DNS name the proxy HTTPS endpoint as accessible by cluster users.
+    # The DNS names the proxy HTTPS endpoint as accessible by cluster users.
     # Defaults to the proxy's hostname if not specified. If running multiple
     # proxies behind a load balancer, this name must point to the load balancer
     # (see public_addr section below)
@@ -208,7 +203,7 @@ See [Teleport Proxy HA](admin-guide.mdx#teleport-proxy-high-availability) for mo
   /* TODO SSL for Webproxy & Auth Section */
 }
 
-### CA Pinning
+### CA pinning
 
 Teleport nodes use the HTTPS protocol to offer the join tokens to the auth
 server. In a zero-trust environment, you must assume that an attacker can
@@ -222,7 +217,7 @@ is a hashed value of its private key, i.e. it cannot be forged by an attacker.
 To get the current CA pin run the following code on the auth server:
 
 ```bash
-$ tctl status
+sudo tctl status
 Cluster  staging.example.com
 User CA  never updated
 Host CA  never updated
@@ -235,7 +230,7 @@ for the first time, i.e. when they join a cluster:
 Via CLI:
 
 ```bash
-$ teleport start \
+sudo teleport start \
    --roles=node \
    --token=1ac590d36493acdaa2387bc1c492db1a \
    --ca-pin=sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1 \
@@ -256,8 +251,7 @@ teleport:
   type="warning"
   title="Warning"
 >
-  If a CA pin is not provided, Teleport node will join a cluster but it will
-  print a `WARN` message (warning) into its standard error output.
+  If a CA pin is not provided, the Teleport Node will join a cluster but it will print a `WARN` message (warning) into its standard error output.
 </Admonition>
 
 <Admonition
@@ -268,9 +262,9 @@ teleport:
   rotation by executing `tctl auth rotate`.
 </Admonition>
 
-### Secure Data Storage
+### Secure data storage
 
-By default the `teleport` daemon uses the local directory `/var/lib/teleport` to
+By default, the `teleport` daemon uses the local directory `/var/lib/teleport` to
 store its data. This applies to any role or service including `auth`, `node`, or `proxy`.
 While an `auth` node hosts the most sensitive data you will want to prevent
 unauthorized access to this directory. Make sure that regular/non-admin users
@@ -278,15 +272,15 @@ do not have access to this folder, particularly on the `auth` server. Change
 the ownership of the directory with [`chown`](https://linuxize.com/post/linux-chown-command/)
 
 ```bash
-$ sudo teleport start
+sudo teleport start
 ```
 
 If you are logged in as `root` you may want to create a new OS-level user first.
 On Linux, create a new user called `<username>` with the following commands:
 
 ```bash
-$ adduser <username>
-$ su <username>
+adduser <username>
+su <username>
 ```
 
 {
