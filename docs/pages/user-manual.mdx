@@ -223,7 +223,7 @@ jenkins user and storing it in a `jenkins.pem` file, which can be later used wit
 
 ```bash
 # To be executed on a Teleport auth server
-sudo tctl auth sign --ttl=87600h --user=jenkins --out=jenkins.pem
+sudo tctl auth sign --ttl=1h--user=jenkins --out=jenkins.pem
 ```
 
 [CLI Docs - tctl auth sign](cli-docs.mdx#tctl-auth-sign)
