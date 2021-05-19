@@ -103,23 +103,25 @@ func (w *WriterLog) GetSessionEvents(namespace string, sid session.ID, after int
 	return nil, trace.NotImplemented("not implemented")
 }
 
-// SearchEvents is a flexible way to find events. The format of a query string
-// depends on the implementing backend. A recommended format is urlencoded
-// (good enough for Lucene/Solr)
+// SearchEvents is a flexible way to find events.
 //
-// Pagination is also defined via backend-specific query format.
+// Event types to filter can be specified and pagination is handled by an iterator key that allows
+// a query to be resumed.
 //
 // The only mandatory requirement is a date range (UTC). Results must always
 // show up sorted by date (newest first)
-func (w *WriterLog) SearchEvents(fromUTC, toUTC time.Time, query string, limit int) ([]EventFields, error) {
-	return nil, trace.NotImplemented("not implemented")
+func (w *WriterLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) (events []AuditEvent, lastKey string, err error) {
+	return nil, "", trace.NotImplemented("not implemented")
 }
 
-// SearchSessionEvents returns session related events only. This is used to
-// find completed session.
-func (w *WriterLog) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int) ([]EventFields, error) {
-	return nil, trace.NotImplemented("not implemented")
-
+// SearchSessionEvents is a flexible way to find session events.
+// Only session events are returned by this function.
+// This is used to find completed session.
+//
+// Event types to filter can be specified and pagination is handled by an iterator key that allows
+// a query to be resumed.
+func (w *WriterLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, startKey string) (events []AuditEvent, lastKey string, err error) {
+	return nil, "", trace.NotImplemented("not implemented")
 }
 
 // WaitForDelivery waits for resources to be released and outstanding requests to

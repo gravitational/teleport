@@ -511,18 +511,11 @@ message ClusterConfigV3 {
 
 // ClusterConfigSpecV3 is the actual data we care about for ClusterConfig.
 message ClusterConfigSpecV3 {
-    reserved 5, 7, 8, 10;
-
-    // SessionRecording controls where (or if) the session is recorded.
-    string SessionRecording = 1 [ (gogoproto.jsontag) = "session_recording" ];
+    reserved 1, 3, 5, 7, 8, 10;
 
     // ClusterID is the unique cluster ID that is set once during the first auth
     // server startup.
     string ClusterID = 2 [ (gogoproto.jsontag) = "cluster_id" ];
-
-    // ProxyChecksHostKeys is used to control if the proxy will check host keys
-    // when in recording mode.
-    string ProxyChecksHostKeys = 3 [ (gogoproto.jsontag) = "proxy_checks_host_keys" ];
 
     // Audit is a section with audit config
     AuditConfig Audit = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "audit" ];
@@ -535,7 +528,12 @@ message ClusterConfigSpecV3 {
     // LocalAuth is true if local authentication is enabled.
     bool LocalAuth = 9 [ (gogoproto.jsontag) = "local_auth", (gogoproto.casttype) = "Bool" ];
 
+    // DELETE IN 8.0.0
     ClusterNetworkingConfigSpecV2 NetworkingConfig = 11
+        [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "", (gogoproto.embed) = true ];
+
+    // DELETE IN 8.0.0
+    LegacySessionRecordingConfigSpec SessionRecordingConfig = 12
         [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "", (gogoproto.embed) = true ];
 }
 
@@ -618,6 +616,46 @@ message ClusterNetworkingConfigSpecV2 {
     // server before it begins terminating controlled sessions.
     int64 SessionControlTimeout = 4
         [ (gogoproto.jsontag) = "session_control_timeout", (gogoproto.casttype) = "Duration" ];
+}
+
+// SessionRecordingConfigV2 contains session recording configuration.
+message SessionRecordingConfigV2 {
+    // Kind is a resource kind
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is a resource version
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is resource metadata
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is a SessionRecordingConfig specification
+    SessionRecordingConfigSpecV2 Spec = 5
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// SessionRecordingConfigSpecV2 is the actual data we care about
+// for SessionRecordingConfig.
+message SessionRecordingConfigSpecV2 {
+    // Mode controls where (or if) the session is recorded.
+    string Mode = 1 [ (gogoproto.jsontag) = "mode" ];
+
+    // ProxyChecksHostKeys is used to control if the proxy will check host keys
+    // when in recording mode.
+    BoolValue ProxyChecksHostKeys = 2 [
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "proxy_checks_host_keys",
+        (gogoproto.customtype) = "BoolOption"
+    ];
+}
+
+// LegacySessionRecordingConfigSpec facilitates a backward compatible transition
+// from ClusterConfig to standalone SessionRecordingConfig.
+// SessionRecordingConfigSpecV2 itself is not usable for this purpose because
+// of different jsontags.
+// DELETE IN 8.0.0
+message LegacySessionRecordingConfigSpec {
+    string Mode = 1 [ (gogoproto.jsontag) = "session_recording" ];
+    string ProxyChecksHostKeys = 2 [ (gogoproto.jsontag) = "proxy_checks_host_keys" ];
 }
 
 // AuthPreferenceV2 implements the AuthPreference interface.
