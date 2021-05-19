@@ -95,6 +95,10 @@ func (s *ServicesSuite) SetUpTest(c *check.C) {
 	// DELETE IN 8.0.0
 	err = s.suite.ConfigS.SetClusterNetworkingConfig(context.TODO(), types.DefaultClusterNetworkingConfig())
 	c.Assert(err, check.IsNil)
+
+	// DELETE IN 8.0.0
+	err = s.suite.ConfigS.SetSessionRecordingConfig(context.TODO(), types.DefaultSessionRecordingConfig())
+	c.Assert(err, check.IsNil)
 }
 
 func (s *ServicesSuite) TearDownTest(c *check.C) {

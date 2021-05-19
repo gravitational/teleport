@@ -2100,7 +2100,7 @@ func (a *Server) GetAllTunnelConnections(opts ...services.MarshalOption) (conns 
 
 // CreateAuditStream creates audit event stream
 func (a *Server) CreateAuditStream(ctx context.Context, sid session.ID) (events.Stream, error) {
-	streamer, err := a.modeStreamer()
+	streamer, err := a.modeStreamer(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2109,7 +2109,7 @@ func (a *Server) CreateAuditStream(ctx context.Context, sid session.ID) (events.
 
 // ResumeAuditStream resumes the stream that has been created
 func (a *Server) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (events.Stream, error) {
-	streamer, err := a.modeStreamer()
+	streamer, err := a.modeStreamer(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2117,15 +2117,14 @@ func (a *Server) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID
 }
 
 // modeStreamer creates streamer based on the event mode
-func (a *Server) modeStreamer() (events.Streamer, error) {
-	clusterConfig, err := a.GetClusterConfig()
+func (a *Server) modeStreamer(ctx context.Context) (events.Streamer, error) {
+	recConfig, err := a.GetSessionRecordingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	mode := clusterConfig.GetSessionRecording()
 	// In sync mode, auth server forwards session control to the event log
 	// in addition to sending them and data events to the record storage.
-	if services.IsRecordSync(mode) {
+	if services.IsRecordSync(recConfig.GetMode()) {
 		return events.NewTeeStreamer(a.streamer, a.emitter), nil
 	}
 	// In async mode, clients submit session control events
