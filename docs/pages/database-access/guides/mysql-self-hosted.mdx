@@ -155,13 +155,12 @@ For a quick try-out, Teleport database service doesn't require a configuration
 file and can be launched using a single CLI command:
 
 ```sh
-$ teleport start --debug \
-   --roles=db \
+$ teleport db start \
    --token=/tmp/token \
    --auth-server=teleport.example.com:3080 \
-   --db-name=test \
-   --db-protocol=mysql \
-   --db-uri=mysql.example.com:3306 \
+   --name=test \
+   --protocol=mysql \
+   --uri=mysql.example.com:3306 \
    --labels=env=dev
 ```
 
