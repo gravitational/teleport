@@ -3,18 +3,20 @@
 ################################################################
 
 # Join token for the cluster.
-authToken:
+# Leave empty if the secret "teleport-kube-agent-join-token"
+# has been created before and contains a valid join token
+authToken: ""
 # Address of the teleport proxy with port (usually :3080).
-proxyAddr:
+proxyAddr: ""
 # Comma-separated list of roles to enable (any of: kube,db,app)
-roles:
+roles: "kube"
 
 ################################################################
 # Values that must be provided if Kubernetes access is enabled.
 ################################################################
 
 # Name for this kubernetes cluster to be used by teleport users.
-kubeClusterName:
+kubeClusterName: ""
 
 ################################################################
 # Values that must be provided if Application access is enabled.
@@ -24,7 +26,7 @@ kubeClusterName:
 # apps:
 #  - name: grafana
 #    uri: http://localhost:3000
-apps:
+apps: []
 
 ################################################################
 # Values that must be provided if Database access is enabled.
@@ -35,7 +37,7 @@ apps:
 #  - name: aurora
 #    uri: "postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432"
 #    protocol: "postgres"
-databases:
+databases: []
 
 ################################################################
 # Values that you may need to change.
@@ -72,3 +74,59 @@ clusterRoleBindingName: teleport-kube-agent
 serviceAccountName: teleport-kube-agent
 # Name of the Secret to store the teleport join token.
 secretName: teleport-kube-agent-join-token
+# Log level for the Teleport process.
+# Available log levels are: DEBUG, INFO, WARNING, ERROR.
+# The default is INFO, which is recommended in production.
+# DEBUG is useful during first-time setup or to see more detailed logs for debugging.
+logLevel: INFO
+
+##################################
+# Extra Kubernetes configuration #
+##################################
+
+# Affinity for pod assignment
+# https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+affinity: {}
+
+# Kubernetes annotations to apply
+# https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+annotations:
+  # Annotations for the ConfigMap
+  config: {}
+  # Annotations for the Deployment
+  deployment: {}
+  # Annotations for each Pod in the Deployment
+  pod: {}
+
+# Extra volumes to mount into the Teleport pods
+# https://kubernetes.io/docs/concepts/storage/volumes/
+extraVolumes: []
+#- name: myvolume
+#  secret:
+#    secretName: testSecret
+
+# Extra volume mounts corresponding to the volumes mounted above
+extraVolumeMounts: []
+#- name: myvolume
+#  path: /path/on/host
+
+# Allow the imagePullPolicy to be overridden
+imagePullPolicy: IfNotPresent
+
+# A list of initContainers to run before each Teleport pod starts
+# https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
+initContainers: []
+#- name: "teleport-init"
+#  image: "alpine"
+#  args: ["echo test"]
+
+# Resources to request for each pod in the deployment
+# https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+resources: {}
+#  requests:
+#    cpu: "1"
+#    memory: "2Gi"
+
+# Tolerations for pod assignment
+# https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+tolerations: []
