@@ -167,12 +167,11 @@ func (s *localSite) DialAuthServer() (conn net.Conn, err error) {
 func (s *localSite) Dial(params DialParams) (net.Conn, error) {
 	// If the proxy is in recording mode and a SSH connection is being requested,
 	// use the agent to dial and build an in-memory forwarding server.
-	clusterConfig, err := s.accessPoint.GetClusterConfig()
+	recConfig, err := s.accessPoint.GetSessionRecordingConfig(s.srv.Context)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if params.ConnType == services.NodeTunnel &&
-		services.IsRecordAtProxy(clusterConfig.GetSessionRecording()) {
+	if params.ConnType == services.NodeTunnel && services.IsRecordAtProxy(recConfig.GetMode()) {
 		return s.dialWithAgent(params)
 	}
 

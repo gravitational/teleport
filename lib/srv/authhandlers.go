@@ -17,6 +17,7 @@ limitations under the License.
 package srv
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"time"
@@ -324,11 +325,11 @@ func (h *AuthHandlers) HostKeyAuth(addr string, remote net.Addr, key ssh.PublicK
 // strict host key checking is disabled.
 func (h *AuthHandlers) hostKeyCallback(hostname string, remote net.Addr, key ssh.PublicKey) error {
 	// If strict host key checking is enabled, reject host key fallback.
-	clusterConfig, err := h.c.AccessPoint.GetClusterConfig()
+	recConfig, err := h.c.AccessPoint.GetSessionRecordingConfig(context.TODO())
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if clusterConfig.GetProxyChecksHostKeys() == services.HostKeyCheckYes {
+	if recConfig.GetProxyChecksHostKeys() {
 		return trace.AccessDenied("remote host presented a public key, expected a host certificate")
 	}
 

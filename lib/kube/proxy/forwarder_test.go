@@ -109,7 +109,11 @@ func TestAuthenticate(t *testing.T) {
 		ClientIdleTimeout: services.NewDuration(time.Hour),
 	})
 	require.NoError(t, err)
-	ap := &mockAccessPoint{clusterConfig: cc, netConfig: nc}
+	ap := &mockAccessPoint{
+		clusterConfig:   cc,
+		netConfig:       nc,
+		recordingConfig: types.DefaultSessionRecordingConfig(),
+	}
 
 	user, err := services.NewUser("user-a")
 	require.NoError(t, err)
@@ -439,7 +443,7 @@ func TestAuthenticate(t *testing.T) {
 
 			require.Empty(t, cmp.Diff(gotCtx, tt.wantCtx,
 				cmp.AllowUnexported(authContext{}, teleportClusterClient{}),
-				cmpopts.IgnoreFields(authContext{}, "clientIdleTimeout", "sessionTTL", "Context", "clusterConfig", "disconnectExpiredCert"),
+				cmpopts.IgnoreFields(authContext{}, "clientIdleTimeout", "sessionTTL", "Context", "recordingConfig", "disconnectExpiredCert"),
 				cmpopts.IgnoreFields(teleportClusterClient{}, "dial", "isRemoteClosed"),
 			))
 		})
@@ -759,10 +763,11 @@ func (s mockRemoteSite) GetName() string { return s.name }
 type mockAccessPoint struct {
 	auth.AccessPoint
 
-	clusterConfig services.ClusterConfig
-	netConfig     types.ClusterNetworkingConfig
-	kubeServices  []services.Server
-	cas           map[string]types.CertAuthority
+	clusterConfig   services.ClusterConfig
+	netConfig       types.ClusterNetworkingConfig
+	recordingConfig types.SessionRecordingConfig
+	kubeServices    []services.Server
+	cas             map[string]types.CertAuthority
 }
 
 func (ap mockAccessPoint) GetClusterConfig(...services.MarshalOption) (services.ClusterConfig, error) {
@@ -771,6 +776,10 @@ func (ap mockAccessPoint) GetClusterConfig(...services.MarshalOption) (services.
 
 func (ap mockAccessPoint) GetClusterNetworkingConfig(context.Context, ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
 	return ap.netConfig, nil
+}
+
+func (ap mockAccessPoint) GetSessionRecordingConfig(context.Context, ...services.MarshalOption) (types.SessionRecordingConfig, error) {
+	return ap.recordingConfig, nil
 }
 
 func (ap mockAccessPoint) GetKubeServices(ctx context.Context) ([]services.Server, error) {
