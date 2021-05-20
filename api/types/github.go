@@ -31,8 +31,6 @@ type GithubConnector interface {
 	ResourceWithSecrets
 	// SetMetadata sets object metadata
 	SetMetadata(meta Metadata)
-	// CheckAndSetDefaults validates the connector and sets some defaults
-	CheckAndSetDefaults() error
 	// GetClientID returns the connector client ID
 	GetClientID() string
 	// SetClientID sets the connector client ID

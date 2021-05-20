@@ -410,7 +410,7 @@ type Auth struct {
 
 	// ProxyChecksHostKeys is used when the proxy is in recording mode and
 	// determines if the proxy will check the host key of the client or not.
-	ProxyChecksHostKeys string `yaml:"proxy_checks_host_keys,omitempty"`
+	ProxyChecksHostKeys *types.BoolOption `yaml:"proxy_checks_host_keys,omitempty"`
 
 	// LicenseFile is a path to the license file. The path can be either absolute or
 	// relative to the global data dir
@@ -799,6 +799,8 @@ type App struct {
 type Rewrite struct {
 	// Redirect is a list of hosts that should be rewritten to the public address.
 	Redirect []string `yaml:"redirect"`
+	// Headers is a list of extra headers to inject in the request.
+	Headers []string `yaml:"headers,omitempty"`
 }
 
 // Proxy is a `proxy_service` section of the config file:

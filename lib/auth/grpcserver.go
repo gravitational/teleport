@@ -51,6 +51,13 @@ import (
 	_ "google.golang.org/grpc/encoding/gzip"
 )
 
+var heartbeatConnectionsReceived = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Name: teleport.MetricHeartbeatConnectionsReceived,
+		Help: "Number of times auth received a heartbeat connection",
+	},
+)
+
 // GRPCServer is GPRC Auth Server API
 type GRPCServer struct {
 	*logrus.Entry
@@ -65,19 +72,6 @@ func (g *GRPCServer) GetServer() (*grpc.Server, error) {
 	}
 
 	return g.server, nil
-}
-
-var (
-	heartbeatConnectionsReceived = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: teleport.MetricHeartbeatConnectionsReceived,
-			Help: "Number of times auth received a heartbeat connection",
-		},
-	)
-)
-
-func init() {
-	prometheus.MustRegister(heartbeatConnectionsReceived)
 }
 
 // EmitAuditEvent emits audit event
@@ -396,6 +390,14 @@ func eventToGRPC(in types.Event) (*proto.Event, error) {
 	case *types.DatabaseServerV3:
 		out.Resource = &proto.Event_DatabaseServer{
 			DatabaseServer: r,
+		}
+	case *types.ClusterNetworkingConfigV2:
+		out.Resource = &proto.Event_ClusterNetworkingConfig{
+			ClusterNetworkingConfig: r,
+		}
+	case *types.SessionRecordingConfigV2:
+		out.Resource = &proto.Event_SessionRecordingConfig{
+			SessionRecordingConfig: r,
 		}
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
@@ -2351,6 +2353,29 @@ func (g *GRPCServer) DeleteToken(ctx context.Context, req *types.ResourceRequest
 	return &empty.Empty{}, nil
 }
 
+// GetNode retrieves a node by name and namespace.
+func (g *GRPCServer) GetNode(ctx context.Context, req *types.ResourceInNamespaceRequest) (*types.ServerV2, error) {
+	if req.Namespace == "" {
+		return nil, trail.ToGRPC(trace.BadParameter("missing parameter namespace"))
+	}
+	if req.Name == "" {
+		return nil, trail.ToGRPC(trace.BadParameter("missing parameter name"))
+	}
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	node, err := auth.ServerWithRoles.GetNode(ctx, req.Namespace, req.Name)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	serverV2, ok := node.(*types.ServerV2)
+	if !ok {
+		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected node type: %T", node))
+	}
+	return serverV2, nil
+}
+
 // GetNodes retrieves all nodes in the given namespace.
 func (g *GRPCServer) GetNodes(ctx context.Context, req *types.ResourcesInNamespaceRequest) (*types.ServerV2List, error) {
 	auth, err := g.authenticate(ctx)
@@ -2420,6 +2445,76 @@ func (g *GRPCServer) DeleteAllNodes(ctx context.Context, req *types.ResourcesInN
 	return &empty.Empty{}, nil
 }
 
+// GetClusterNetworkingConfig gets cluster networking configuration.
+func (g *GRPCServer) GetClusterNetworkingConfig(ctx context.Context, _ *empty.Empty) (*types.ClusterNetworkingConfigV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	netConfig, err := auth.ServerWithRoles.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	netConfigV2, ok := netConfig.(*types.ClusterNetworkingConfigV2)
+	if !ok {
+		return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", netConfig))
+	}
+	return netConfigV2, nil
+}
+
+// SetClusterNetworkingConfig sets cluster networking configuration.
+func (g *GRPCServer) SetClusterNetworkingConfig(ctx context.Context, netConfig *types.ClusterNetworkingConfigV2) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err = auth.ServerWithRoles.SetClusterNetworkingConfig(ctx, netConfig); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// GetSessionRecordingConfig gets session recording configuration.
+func (g *GRPCServer) GetSessionRecordingConfig(ctx context.Context, _ *empty.Empty) (*types.SessionRecordingConfigV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	recConfig, err := auth.ServerWithRoles.GetSessionRecordingConfig(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	recConfigV2, ok := recConfig.(*types.SessionRecordingConfigV2)
+	if !ok {
+		return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", recConfig))
+	}
+	return recConfigV2, nil
+}
+
+// SetSessionRecordingConfig sets session recording configuration.
+func (g *GRPCServer) SetSessionRecordingConfig(ctx context.Context, recConfig *types.SessionRecordingConfigV2) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err = auth.ServerWithRoles.SetSessionRecordingConfig(ctx, recConfig); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// ResetAuthPreference resets cluster auth preference to defaults.
+func (g *GRPCServer) ResetAuthPreference(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err = auth.ServerWithRoles.ResetAuthPreference(ctx); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
 type grpcContext struct {
 	*Context
 	*ServerWithRoles
@@ -2456,6 +2551,64 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 	}, nil
 }
 
+// GetEvents searches for events on the backend and sends them back in a response.
+func (g *GRPCServer) GetEvents(ctx context.Context, req *proto.GetEventsRequest) (*proto.Events, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	rawEvents, lastkey, err := auth.ServerWithRoles.SearchEvents(req.StartDate, req.EndDate, req.Namespace, req.EventTypes, int(req.Limit), req.StartKey)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	var res *proto.Events = &proto.Events{}
+
+	encodedEvents := make([]*apievents.OneOf, 0, len(rawEvents))
+
+	for _, rawEvent := range rawEvents {
+		event, err := events.ToOneOf(rawEvent)
+		if err != nil {
+			return nil, trail.ToGRPC(err)
+		}
+		encodedEvents = append(encodedEvents, event)
+	}
+
+	res.Items = encodedEvents
+	res.LastKey = lastkey
+	return res, nil
+}
+
+// GetEvents searches for session events on the backend and sends them back in a response.
+func (g *GRPCServer) GetSessionEvents(ctx context.Context, req *proto.GetSessionEventsRequest) (*proto.Events, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	rawEvents, lastkey, err := auth.ServerWithRoles.SearchSessionEvents(req.StartDate, req.EndDate, int(req.Limit), req.StartKey)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	var res *proto.Events = &proto.Events{}
+
+	encodedEvents := make([]*apievents.OneOf, 0, len(rawEvents))
+
+	for _, rawEvent := range rawEvents {
+		event, err := events.ToOneOf(rawEvent)
+		if err != nil {
+			return nil, trail.ToGRPC(err)
+		}
+		encodedEvents = append(encodedEvents, event)
+	}
+
+	res.Items = encodedEvents
+	res.LastKey = lastkey
+	return res, nil
+}
+
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration
@@ -2486,6 +2639,11 @@ func (cfg *GRPCServerConfig) CheckAndSetDefaults() error {
 
 // NewGRPCServer returns a new instance of GRPC server
 func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
+	err := utils.RegisterPrometheusCollectors(heartbeatConnectionsReceived)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

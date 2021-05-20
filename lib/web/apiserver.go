@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -84,6 +85,9 @@ type Handler struct {
 	// sshPort specifies the SSH proxy port extracted
 	// from configuration
 	sshPort string
+
+	// clusterFeatures contain flags for supported and unsupported features.
+	clusterFeatures proto.Features
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -157,6 +161,9 @@ type Config struct {
 	// in the cache before getting purged after it has expired.
 	// Defaults to cachedSessionLingeringThreshold if unspecified.
 	cachedSessionLingeringThreshold *time.Duration
+
+	// ClusterFeatures contains flags for supported/unsupported features.
+	ClusterFeatures proto.Features
 }
 
 type RewritingHandler struct {
@@ -197,9 +204,10 @@ func (h *RewritingHandler) Close() error {
 func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	const apiPrefix = "/" + teleport.WebAPIVersion
 	h := &Handler{
-		cfg:   cfg,
-		log:   newPackageLogger(),
-		clock: clockwork.NewRealClock(),
+		cfg:             cfg,
+		log:             newPackageLogger(),
+		clock:           clockwork.NewRealClock(),
+		clusterFeatures: cfg.ClusterFeatures,
 	}
 
 	for _, o := range opts {
@@ -507,7 +515,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	userContext, err := ui.NewUserContext(user, roleset)
+	userContext, err := ui.NewUserContext(user, roleset, h.clusterFeatures)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -740,7 +748,6 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	httplib.SetWebConfigHeaders(w.Header())
 
 	authProviders := []ui.WebConfigAuthProvider{}
-	secondFactor := constants.SecondFactorOff
 
 	// get all OIDC connectors
 	oidcConnectors, err := h.cfg.ProxyClient.GetOIDCConnectors(r.Context(), false)
@@ -784,28 +791,40 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		})
 	}
 
-	// get second factor type
+	// get auth type & second factor type
+	authType := constants.Local
+	secondFactor := constants.SecondFactorOff
 	cap, err := h.cfg.ProxyClient.GetAuthPreference()
 	if err != nil {
 		h.log.WithError(err).Error("Cannot retrieve AuthPreferences.")
 	} else {
+		authType = cap.GetType()
 		secondFactor = cap.GetSecondFactor()
 	}
 
-	// disable joining sessions if proxy session recording is enabled
-	var canJoinSessions = true
+	// determine if local auth is allowed
+	localAuth := true
 	clsCfg, err := h.cfg.ProxyClient.GetClusterConfig()
 	if err != nil {
 		h.log.WithError(err).Error("Cannot retrieve ClusterConfig.")
 	} else {
-		canJoinSessions = services.IsRecordAtProxy(clsCfg.GetSessionRecording()) == false
+		localAuth = clsCfg.GetLocalAuth()
+	}
+
+	// disable joining sessions if proxy session recording is enabled
+	canJoinSessions := true
+	recCfg, err := h.cfg.ProxyClient.GetSessionRecordingConfig(r.Context())
+	if err != nil {
+		h.log.WithError(err).Error("Cannot retrieve SessionRecordingConfig.")
+	} else {
+		canJoinSessions = services.IsRecordAtProxy(recCfg.GetMode()) == false
 	}
 
 	authSettings := ui.WebConfigAuthSettings{
 		Providers:        authProviders,
 		SecondFactor:     secondFactor,
-		LocalAuthEnabled: clsCfg.GetLocalAuth(),
-		AuthType:         cap.GetType(),
+		LocalAuthEnabled: localAuth,
+		AuthType:         authType,
 	}
 
 	webCfg := ui.WebConfig{
@@ -1363,10 +1382,8 @@ type renewSessionRequest struct {
 //   - default (none set): create new session with currently assigned roles
 func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	req := renewSessionRequest{}
-	if r.Body != http.NoBody {
-		if err := httplib.ReadJSON(r, &req); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if req.AccessRequestID != "" && req.Switchback {
@@ -1690,13 +1707,13 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	clusterConfig, err := authAccessPoint.GetClusterConfig()
+	netConfig, err := authAccessPoint.GetClusterNetworkingConfig(h.cfg.Context)
 	if err != nil {
-		h.log.WithError(err).Debug("Unable to fetch cluster config.")
+		h.log.WithError(err).Debug("Unable to fetch cluster networking config.")
 		return nil, trace.Wrap(err)
 	}
 
-	req.KeepAliveInterval = clusterConfig.GetKeepAliveInterval()
+	req.KeepAliveInterval = netConfig.GetKeepAliveInterval()
 	req.Namespace = namespace
 	req.ProxyHostPort = h.ProxyHostPort()
 	req.Cluster = site.GetName()
@@ -1856,6 +1873,19 @@ func (h *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httpr
 
 const maxStreamBytes = 5 * 1024 * 1024
 
+func toFieldsSlice(rawEvents []events.AuditEvent) ([]events.EventFields, error) {
+	el := make([]events.EventFields, 0, len(rawEvents))
+	for _, event := range rawEvents {
+		els, err := events.ToEventFields(event)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		el = append(el, els)
+	}
+
+	return el, nil
+}
+
 // clusterSearchSessionEvents allows to search for session events on a cluster
 //
 // GET /v1/webapi/sites/:site/events
@@ -1896,10 +1926,16 @@ func (h *Handler) clusterSearchSessionEvents(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	el, err := clt.SearchSessionEvents(from, to, defaults.EventsIterationLimit)
+	rawEvents, _, err := clt.SearchSessionEvents(from, to, defaults.EventsIterationLimit, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	el, err := toFieldsSlice(rawEvents)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return eventsListGetResponse{Events: el}, nil
 }
 
@@ -1928,19 +1964,27 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	query := url.Values{}
-	if include := values.Get("include"); include != "" {
-		query[events.EventType] = strings.Split(include, ";")
-	}
 	clt, err := ctx.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	fields, err := clt.SearchEvents(from, to, query.Encode(), limit)
+
+	var eventTypes []string
+	if include := values.Get("include"); include != "" {
+		eventTypes = strings.Split(include, ";")
+	}
+
+	rawEvents, _, err := clt.SearchEvents(from, to, defaults.Namespace, eventTypes, limit, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return eventsListGetResponse{Events: fields}, nil
+
+	el, err := toFieldsSlice(rawEvents)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return eventsListGetResponse{Events: el}, nil
 }
 
 // queryTime parses the query string parameter with the specified name as a
@@ -2452,7 +2496,6 @@ func parseSSORequestParams(r *http.Request) (*ssoRequestParams, error) {
 	connectorID := query.Get("connector_id")
 	if connectorID == "" {
 		return nil, trace.BadParameter("missing connector_id query parameter")
-
 	}
 
 	csrfToken, err := csrf.ExtractTokenFromCookie(r)

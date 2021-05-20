@@ -399,7 +399,7 @@ func TestCASigningAlg(t *testing.T) {
 
 func TestMigrateMFADevices(t *testing.T) {
 	ctx := context.Background()
-	as := newTestAuthServer(t)
+	as := newTestAuthServer(ctx, t)
 	clock := clockwork.NewFakeClock()
 	as.SetClock(clock)
 
@@ -502,7 +502,7 @@ func TestPresets(t *testing.T) {
 		services.NewPresetAuditorRole()}
 
 	t.Run("EmptyCluster", func(t *testing.T) {
-		as := newTestAuthServer(t)
+		as := newTestAuthServer(ctx, t)
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
@@ -522,7 +522,7 @@ func TestPresets(t *testing.T) {
 
 	// Makes sure that existing role with the same name is not modified
 	t.Run("ExistingRole", func(t *testing.T) {
-		as := newTestAuthServer(t)
+		as := newTestAuthServer(ctx, t)
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
@@ -552,7 +552,7 @@ func TestMigrateOSS(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("EmptyCluster", func(t *testing.T) {
-		as := newTestAuthServer(t)
+		as := newTestAuthServer(ctx, t)
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
@@ -574,7 +574,7 @@ func TestMigrateOSS(t *testing.T) {
 	})
 
 	t.Run("User", func(t *testing.T) {
-		as := newTestAuthServer(t)
+		as := newTestAuthServer(ctx, t)
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
@@ -599,7 +599,7 @@ func TestMigrateOSS(t *testing.T) {
 
 	t.Run("TrustedCluster", func(t *testing.T) {
 		clusterName := "test.localhost"
-		as := newTestAuthServer(t, clusterName)
+		as := newTestAuthServer(ctx, t, clusterName)
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
@@ -660,7 +660,7 @@ func TestMigrateOSS(t *testing.T) {
 	})
 
 	t.Run("GithubConnector", func(t *testing.T) {
-		as := newTestAuthServer(t)
+		as := newTestAuthServer(ctx, t)
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
@@ -743,16 +743,18 @@ func setupConfig(t *testing.T) InitConfig {
 	require.NoError(t, err)
 
 	return InitConfig{
-		DataDir:                tempDir,
-		HostUUID:               "00000000-0000-0000-0000-000000000000",
-		NodeName:               "foo",
-		Backend:                bk,
-		Authority:              testauthority.New(),
-		ClusterConfig:          services.DefaultClusterConfig(),
-		ClusterName:            clusterName,
-		StaticTokens:           services.DefaultStaticTokens(),
-		AuthPreference:         services.DefaultAuthPreference(),
-		SkipPeriodicOperations: true,
+		DataDir:                 tempDir,
+		HostUUID:                "00000000-0000-0000-0000-000000000000",
+		NodeName:                "foo",
+		Backend:                 bk,
+		Authority:               testauthority.New(),
+		ClusterConfig:           services.DefaultClusterConfig(),
+		ClusterNetworkingConfig: types.DefaultClusterNetworkingConfig(),
+		SessionRecordingConfig:  types.DefaultSessionRecordingConfig(),
+		ClusterName:             clusterName,
+		StaticTokens:            services.DefaultStaticTokens(),
+		AuthPreference:          services.DefaultAuthPreference(),
+		SkipPeriodicOperations:  true,
 	}
 }
 
