@@ -1,0 +1,17 @@
+authToken: auth-token
+proxyAddr: proxy.example.com:3080
+roles: kube
+kubeClusterName: test-kube-cluster
+initContainers:
+- name: "teleport-init"
+  image: "alpine"
+  args: ["echo test"]
+# These are just sample values to test the chart.
+# They are not intended to be guidelines or suggestions for running teleport.
+resources:
+  limits:
+    cpu: 2
+    memory: 4Gi
+  requests:
+    cpu: 1
+    memory: 2Gi

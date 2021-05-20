@@ -1,7 +1,7 @@
 image:
   repository: quay.io/gravitational/teleport-ent
   # This tag reflects the version of Teleport to deploy
-  tag: "5"
+  tag: "6"
   pullPolicy: IfNotPresent
   # Optionally specify an array of imagePullSecrets.
   # Secrets must be manually created in the namespace.
