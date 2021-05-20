@@ -36,14 +36,14 @@ import (
 
 type ResourceCollection interface {
 	writeText(w io.Writer) error
-	resources() []services.Resource
+	resources() []types.Resource
 }
 
 type roleCollection struct {
-	roles []services.Role
+	roles []types.Role
 }
 
-func (r *roleCollection) resources() (res []services.Resource) {
+func (r *roleCollection) resources() (res []types.Resource) {
 	for _, resource := range r.roles {
 		res = append(res, resource)
 	}
@@ -70,7 +70,7 @@ type namespaceCollection struct {
 	namespaces []types.Namespace
 }
 
-func (n *namespaceCollection) resources() (r []services.Resource) {
+func (n *namespaceCollection) resources() (r []types.Resource) {
 	for _, resource := range n.namespaces {
 		r = append(r, &resource)
 	}
@@ -102,7 +102,7 @@ func printMetadataLabels(labels map[string]string) string {
 	return strings.Join(pairs, ",")
 }
 
-func printNodeLabels(labels services.Labels) string {
+func printNodeLabels(labels types.Labels) string {
 	pairs := []string{}
 	for key, values := range labels {
 		if key == services.Wildcard {
@@ -114,10 +114,10 @@ func printNodeLabels(labels services.Labels) string {
 }
 
 type serverCollection struct {
-	servers []services.Server
+	servers []types.Server
 }
 
-func (s *serverCollection) resources() (r []services.Resource) {
+func (s *serverCollection) resources() (r []types.Resource) {
 	for _, resource := range s.servers {
 		r = append(r, resource)
 	}
@@ -136,10 +136,10 @@ func (s *serverCollection) writeText(w io.Writer) error {
 }
 
 type userCollection struct {
-	users []services.User
+	users []types.User
 }
 
-func (u *userCollection) resources() (r []services.Resource) {
+func (u *userCollection) resources() (r []types.Resource) {
 	for _, resource := range u.users {
 		r = append(r, resource)
 	}
@@ -156,10 +156,10 @@ func (u *userCollection) writeText(w io.Writer) error {
 }
 
 type authorityCollection struct {
-	cas []services.CertAuthority
+	cas []types.CertAuthority
 }
 
-func (a *authorityCollection) resources() (r []services.Resource) {
+func (a *authorityCollection) resources() (r []types.Resource) {
 	for _, resource := range a.cas {
 		r = append(r, resource)
 	}
@@ -175,7 +175,7 @@ func (a *authorityCollection) writeText(w io.Writer) error {
 				fingerprint = fmt.Sprintf("<bad key: %v>", err)
 			}
 			var roles string
-			if a.GetType() == services.HostCA {
+			if a.GetType() == types.HostCA {
 				roles = "N/A"
 			} else {
 				roles = fmt.Sprintf("%v", a.CombinedMapping())
@@ -193,10 +193,10 @@ func (a *authorityCollection) writeText(w io.Writer) error {
 }
 
 type reverseTunnelCollection struct {
-	tunnels []services.ReverseTunnel
+	tunnels []types.ReverseTunnel
 }
 
-func (r *reverseTunnelCollection) resources() (res []services.Resource) {
+func (r *reverseTunnelCollection) resources() (res []types.Resource) {
 	for _, resource := range r.tunnels {
 		res = append(res, resource)
 	}
@@ -215,10 +215,10 @@ func (r *reverseTunnelCollection) writeText(w io.Writer) error {
 }
 
 type oidcCollection struct {
-	connectors []services.OIDCConnector
+	connectors []types.OIDCConnector
 }
 
-func (c *oidcCollection) resources() (r []services.Resource) {
+func (c *oidcCollection) resources() (r []types.Resource) {
 	for _, resource := range c.connectors {
 		r = append(r, resource)
 	}
@@ -237,10 +237,10 @@ func (c *oidcCollection) writeText(w io.Writer) error {
 }
 
 type samlCollection struct {
-	connectors []services.SAMLConnector
+	connectors []types.SAMLConnector
 }
 
-func (c *samlCollection) resources() (r []services.Resource) {
+func (c *samlCollection) resources() (r []types.Resource) {
 	for _, resource := range c.connectors {
 		r = append(r, resource)
 	}
@@ -257,12 +257,12 @@ func (c *samlCollection) writeText(w io.Writer) error {
 }
 
 type connectorsCollection struct {
-	oidc   []services.OIDCConnector
-	saml   []services.SAMLConnector
-	github []services.GithubConnector
+	oidc   []types.OIDCConnector
+	saml   []types.SAMLConnector
+	github []types.GithubConnector
 }
 
-func (c *connectorsCollection) resources() (r []services.Resource) {
+func (c *connectorsCollection) resources() (r []types.Resource) {
 	for _, resource := range c.oidc {
 		r = append(r, resource)
 	}
@@ -316,10 +316,10 @@ func (c *connectorsCollection) writeText(w io.Writer) error {
 }
 
 type trustedClusterCollection struct {
-	trustedClusters []services.TrustedCluster
+	trustedClusters []types.TrustedCluster
 }
 
-func (c *trustedClusterCollection) resources() (r []services.Resource) {
+func (c *trustedClusterCollection) resources() (r []types.Resource) {
 	for _, resource := range c.trustedClusters {
 		r = append(r, resource)
 	}
@@ -344,10 +344,10 @@ func (c *trustedClusterCollection) writeText(w io.Writer) error {
 }
 
 type githubCollection struct {
-	connectors []services.GithubConnector
+	connectors []types.GithubConnector
 }
 
-func (c *githubCollection) resources() (r []services.Resource) {
+func (c *githubCollection) resources() (r []types.Resource) {
 	for _, resource := range c.connectors {
 		r = append(r, resource)
 	}
@@ -364,7 +364,7 @@ func (c *githubCollection) writeText(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
-func formatTeamsToLogins(mappings []services.TeamMapping) string {
+func formatTeamsToLogins(mappings []types.TeamMapping) string {
 	var result []string
 	for _, m := range mappings {
 		result = append(result, fmt.Sprintf("@%v/%v: %v",
@@ -374,10 +374,10 @@ func formatTeamsToLogins(mappings []services.TeamMapping) string {
 }
 
 type remoteClusterCollection struct {
-	remoteClusters []services.RemoteCluster
+	remoteClusters []types.RemoteCluster
 }
 
-func (c *remoteClusterCollection) resources() (r []services.Resource) {
+func (c *remoteClusterCollection) resources() (r []types.Resource) {
 	for _, resource := range c.remoteClusters {
 		r = append(r, resource)
 	}
@@ -415,10 +415,10 @@ func writeYAML(c ResourceCollection, w io.Writer) error {
 }
 
 type semaphoreCollection struct {
-	sems []services.Semaphore
+	sems []types.Semaphore
 }
 
-func (c *semaphoreCollection) resources() (r []services.Resource) {
+func (c *semaphoreCollection) resources() (r []types.Resource) {
 	for _, resource := range c.sems {
 		r = append(r, resource)
 	}
@@ -439,10 +439,10 @@ func (c *semaphoreCollection) writeText(w io.Writer) error {
 }
 
 type appCollection struct {
-	servers []services.Server
+	servers []types.Server
 }
 
-func (a *appCollection) resources() (r []services.Resource) {
+func (a *appCollection) resources() (r []types.Resource) {
 	for _, resource := range a.servers {
 		r = append(r, resource)
 	}
@@ -454,7 +454,7 @@ func (a *appCollection) writeText(w io.Writer) error {
 	for _, server := range a.servers {
 		for _, app := range server.GetApps() {
 			t.AddRow([]string{
-				app.Name, server.GetName(), app.PublicAddr, app.URI, services.LabelsAsString(app.StaticLabels, app.DynamicLabels),
+				app.Name, server.GetName(), app.PublicAddr, app.URI, types.LabelsAsString(app.StaticLabels, app.DynamicLabels),
 			})
 		}
 	}
@@ -480,10 +480,10 @@ func (a *appCollection) writeYAML(w io.Writer) error {
 }
 
 type authPrefCollection struct {
-	authPrefs []services.AuthPreference
+	authPrefs []types.AuthPreference
 }
 
-func (c *authPrefCollection) resources() (r []services.Resource) {
+func (c *authPrefCollection) resources() (r []types.Resource) {
 	for _, resource := range c.authPrefs {
 		r = append(r, resource)
 	}
@@ -503,7 +503,7 @@ type dbCollection struct {
 	servers []types.DatabaseServer
 }
 
-func (c *dbCollection) resources() (r []services.Resource) {
+func (c *dbCollection) resources() (r []types.Resource) {
 	for _, resource := range c.servers {
 		r = append(r, resource)
 	}

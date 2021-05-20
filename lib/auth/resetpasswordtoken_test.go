@@ -166,7 +166,7 @@ func TestFormatAccountName(t *testing.T) {
 		{
 			description: "proxies with public address",
 			inDebugAuth: &debugAuth{
-				proxies: []services.Server{
+				proxies: []types.Server{
 					&types.ServerV2{
 						Spec: types.ServerSpecV2{
 							PublicAddr: "foo",
@@ -181,7 +181,7 @@ func TestFormatAccountName(t *testing.T) {
 		{
 			description: "proxies with no public address",
 			inDebugAuth: &debugAuth{
-				proxies: []services.Server{
+				proxies: []types.Server{
 					&types.ServerV2{
 						Spec: types.ServerSpecV2{
 							Hostname: "baz",
@@ -218,12 +218,12 @@ func TestFormatAccountName(t *testing.T) {
 }
 
 type debugAuth struct {
-	proxies      []services.Server
+	proxies      []types.Server
 	proxiesError bool
 	clusterName  string
 }
 
-func (s *debugAuth) GetProxies() ([]services.Server, error) {
+func (s *debugAuth) GetProxies() ([]types.Server, error) {
 	if s.proxiesError {
 		return nil, trace.BadParameter("failed to fetch proxies")
 	}

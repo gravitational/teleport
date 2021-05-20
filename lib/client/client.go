@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
@@ -74,7 +73,7 @@ type NodeClient struct {
 // GetSites returns list of the "sites" (AKA teleport clusters) connected to the proxy
 // Each site is returned as an instance of its auth server
 //
-func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
+func (proxy *ProxyClient) GetSites() ([]types.Site, error) {
 	proxySession, err := proxy.Client.NewSession()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -107,7 +106,7 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 		return nil, trace.ConnectionProblem(nil, "timeout")
 	}
 	log.Debugf("Found clusters: %v", stdout.String())
-	var sites []services.Site
+	var sites []types.Site
 	if err := json.Unmarshal(stdout.Bytes(), &sites); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -115,7 +114,7 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 }
 
 // GetLeafClusters returns the leaf/remote clusters.
-func (proxy *ProxyClient) GetLeafClusters(ctx context.Context) ([]services.RemoteCluster, error) {
+func (proxy *ProxyClient) GetLeafClusters(ctx context.Context) ([]types.RemoteCluster, error) {
 	clt, err := proxy.ConnectToRootCluster(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -483,7 +482,7 @@ func (proxy *ProxyClient) RootClusterName() (string, error) {
 }
 
 // CreateAccessRequest registers a new access request with the auth server.
-func (proxy *ProxyClient) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
+func (proxy *ProxyClient) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
 	site, err := proxy.ConnectToCurrentCluster(ctx, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -492,7 +491,7 @@ func (proxy *ProxyClient) CreateAccessRequest(ctx context.Context, req services.
 }
 
 // GetAccessRequests loads all access requests matching the spupplied filter.
-func (proxy *ProxyClient) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]services.AccessRequest, error) {
+func (proxy *ProxyClient) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
 	site, err := proxy.ConnectToCurrentCluster(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -505,7 +504,7 @@ func (proxy *ProxyClient) GetAccessRequests(ctx context.Context, filter types.Ac
 }
 
 // GetRole loads a role resource by name.
-func (proxy *ProxyClient) GetRole(ctx context.Context, name string) (services.Role, error) {
+func (proxy *ProxyClient) GetRole(ctx context.Context, name string) (types.Role, error) {
 	site, err := proxy.ConnectToCurrentCluster(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -518,7 +517,7 @@ func (proxy *ProxyClient) GetRole(ctx context.Context, name string) (services.Ro
 }
 
 // NewWatcher sets up a new event watcher.
-func (proxy *ProxyClient) NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error) {
+func (proxy *ProxyClient) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
 	site, err := proxy.ConnectToCurrentCluster(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -535,11 +534,11 @@ func (proxy *ProxyClient) NewWatcher(ctx context.Context, watch services.Watch) 
 //
 // A server is matched when ALL labels match.
 // If no labels are passed, ALL nodes are returned.
-func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace string, labels map[string]string) ([]services.Server, error) {
+func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace string, labels map[string]string) ([]types.Server, error) {
 	if namespace == "" {
 		return nil, trace.BadParameter(auth.MissingNamespaceError)
 	}
-	nodes := make([]services.Server, 0)
+	nodes := make([]types.Server, 0)
 	site, err := proxy.CurrentClusterAccessPoint(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -560,7 +559,7 @@ func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace str
 }
 
 // GetAppServers returns a list of application servers.
-func (proxy *ProxyClient) GetAppServers(ctx context.Context, namespace string) ([]services.Server, error) {
+func (proxy *ProxyClient) GetAppServers(ctx context.Context, namespace string) ([]types.Server, error) {
 	authClient, err := proxy.CurrentClusterAccessPoint(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1407,7 +1406,7 @@ func (c *NodeClient) Close() error {
 }
 
 // currentCluster returns the connection to the API of the current cluster
-func (proxy *ProxyClient) currentCluster() (*services.Site, error) {
+func (proxy *ProxyClient) currentCluster() (*types.Site, error) {
 	sites, err := proxy.GetSites()
 	if err != nil {
 		return nil, trace.Wrap(err)

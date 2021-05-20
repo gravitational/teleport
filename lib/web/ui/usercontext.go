@@ -35,7 +35,7 @@ type access struct {
 type accessStrategy struct {
 	// Type determines how a user should access teleport resources.
 	// ie: does the user require a request to access resources?
-	Type services.RequestStrategy `json:"type"`
+	Type types.RequestStrategy `json:"type"`
 	// Prompt is the optional dialogue shown to user,
 	// when the access strategy type requires a reason.
 	Prompt string `json:"prompt"`
@@ -148,20 +148,20 @@ func newAccess(roleSet services.RoleSet, ctx *services.Context, kind string) acc
 }
 
 func getAccessStrategy(roleset services.RoleSet) accessStrategy {
-	strategy := services.RequestStrategyOptional
+	strategy := types.RequestStrategyOptional
 	prompt := ""
 
 	for _, role := range roleset {
 		options := role.GetOptions()
 
-		if options.RequestAccess == services.RequestStrategyReason {
-			strategy = services.RequestStrategyReason
+		if options.RequestAccess == types.RequestStrategyReason {
+			strategy = types.RequestStrategyReason
 			prompt = options.RequestPrompt
 			break
 		}
 
-		if options.RequestAccess == services.RequestStrategyAlways {
-			strategy = services.RequestStrategyAlways
+		if options.RequestAccess == types.RequestStrategyAlways {
+			strategy = types.RequestStrategyAlways
 		}
 	}
 
@@ -172,7 +172,7 @@ func getAccessStrategy(roleset services.RoleSet) accessStrategy {
 }
 
 // NewUserContext returns user context
-func NewUserContext(user services.User, userRoles services.RoleSet, features proto.Features) (*UserContext, error) {
+func NewUserContext(user types.User, userRoles services.RoleSet, features proto.Features) (*UserContext, error) {
 	ctx := &services.Context{User: user}
 	sessionAccess := newAccess(userRoles, ctx, services.KindSession)
 	roleAccess := newAccess(userRoles, ctx, services.KindRole)

@@ -51,7 +51,7 @@ import (
 
 // NewTestCA returns new test authority with a test key as a public and
 // signing key
-func NewTestCA(caType services.CertAuthType, clusterName string, privateKeys ...[]byte) *types.CertAuthorityV2 {
+func NewTestCA(caType types.CertAuthType, clusterName string, privateKeys ...[]byte) *types.CertAuthorityV2 {
 	return NewTestCAWithConfig(TestCAConfig{
 		Type:        caType,
 		ClusterName: clusterName,
@@ -63,7 +63,7 @@ func NewTestCA(caType services.CertAuthType, clusterName string, privateKeys ...
 // TestCAConfig defines the configuration for generating
 // a test certificate authority
 type TestCAConfig struct {
-	Type        services.CertAuthType
+	Type        types.CertAuthType
 	ClusterName string
 	PrivateKeys [][]byte
 	Clock       clockwork.Clock
@@ -139,7 +139,7 @@ type ServicesTestSuite struct {
 	ProvisioningS   services.Provisioner
 	WebS            services.Identity
 	ConfigS         services.ClusterConfiguration
-	EventsS         services.Events
+	EventsS         types.Events
 	UsersS          services.UsersService
 	ChangesC        chan interface{}
 	Clock           clockwork.FakeClock
@@ -153,7 +153,7 @@ func (s *ServicesTestSuite) Users() services.UsersService {
 	return s.UsersS
 }
 
-func userSlicesEqual(c *check.C, a []services.User, b []services.User) {
+func userSlicesEqual(c *check.C, a []types.User, b []types.User) {
 	comment := check.Commentf("a: %#v b: %#v", a, b)
 	c.Assert(len(a), check.Equals, len(b), comment)
 	sort.Sort(services.Users(a))
@@ -163,12 +163,12 @@ func userSlicesEqual(c *check.C, a []services.User, b []services.User) {
 	}
 }
 
-func usersEqual(c *check.C, a services.User, b services.User) {
+func usersEqual(c *check.C, a types.User, b types.User) {
 	comment := check.Commentf("a: %#v b: %#v", a, b)
 	c.Assert(services.UsersEquals(a, b), check.Equals, true, comment)
 }
 
-func newUser(name string, roles []string) services.User {
+func newUser(name string, roles []string) types.User {
 	return &types.UserV2{
 		Kind:    services.KindUser,
 		Version: services.V2,
@@ -192,7 +192,7 @@ func (s *ServicesTestSuite) UsersCRUD(c *check.C) {
 
 	u, err = s.WebS.GetUsers(false)
 	c.Assert(err, check.IsNil)
-	userSlicesEqual(c, u, []services.User{newUser("user1", nil), newUser("user2", nil)})
+	userSlicesEqual(c, u, []types.User{newUser("user1", nil), newUser("user2", nil)})
 
 	out, err := s.WebS.GetUser("user1", false)
 	c.Assert(err, check.IsNil)
@@ -213,7 +213,7 @@ func (s *ServicesTestSuite) UsersCRUD(c *check.C) {
 
 	u, err = s.WebS.GetUsers(false)
 	c.Assert(err, check.IsNil)
-	userSlicesEqual(c, u, []services.User{newUser("user2", nil)})
+	userSlicesEqual(c, u, []types.User{newUser("user2", nil)})
 
 	err = s.WebS.DeleteUser(context.TODO(), "user1")
 	fixtures.ExpectNotFound(c, err)
@@ -275,7 +275,7 @@ func (s *ServicesTestSuite) LoginAttempts(c *check.C) {
 }
 
 func (s *ServicesTestSuite) CertAuthCRUD(c *check.C) {
-	ca := NewTestCA(services.UserCA, "example.com")
+	ca := NewTestCA(types.UserCA, "example.com")
 	c.Assert(s.CAS.UpsertCertAuthority(ca), check.IsNil)
 
 	out, err := s.CAS.GetCertAuthority(ca.GetID(), true)
@@ -283,7 +283,7 @@ func (s *ServicesTestSuite) CertAuthCRUD(c *check.C) {
 	ca.SetResourceID(out.GetResourceID())
 	fixtures.DeepCompare(c, out, ca)
 
-	cas, err := s.CAS.GetCertAuthorities(services.UserCA, false)
+	cas, err := s.CAS.GetCertAuthorities(types.UserCA, false)
 	c.Assert(err, check.IsNil)
 	ca2 := *ca
 	ca2.Spec.SigningKeys = nil
@@ -291,11 +291,11 @@ func (s *ServicesTestSuite) CertAuthCRUD(c *check.C) {
 	ca2.Spec.JWTKeyPairs = []types.JWTKeyPair{{PublicKey: ca2.Spec.JWTKeyPairs[0].PublicKey}}
 	fixtures.DeepCompare(c, cas[0], &ca2)
 
-	cas, err = s.CAS.GetCertAuthorities(services.UserCA, true)
+	cas, err = s.CAS.GetCertAuthorities(types.UserCA, true)
 	c.Assert(err, check.IsNil)
 	fixtures.DeepCompare(c, cas[0], ca)
 
-	cas, err = s.CAS.GetCertAuthorities(services.UserCA, true)
+	cas, err = s.CAS.GetCertAuthorities(types.UserCA, true)
 	c.Assert(err, check.IsNil)
 	fixtures.DeepCompare(c, cas[0], ca)
 
@@ -303,15 +303,15 @@ func (s *ServicesTestSuite) CertAuthCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// test compare and swap
-	ca = NewTestCA(services.UserCA, "example.com")
+	ca = NewTestCA(types.UserCA, "example.com")
 	c.Assert(s.CAS.CreateCertAuthority(ca), check.IsNil)
 
 	clock := clockwork.NewFakeClock()
 	newCA := *ca
 	rotation := types.Rotation{
-		State:       services.RotationStateInProgress,
+		State:       types.RotationStateInProgress,
 		CurrentID:   "id1",
-		GracePeriod: services.NewDuration(time.Hour),
+		GracePeriod: types.NewDuration(time.Hour),
 		Started:     clock.Now(),
 	}
 	newCA.SetRotation(rotation)
@@ -361,7 +361,7 @@ func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 	srv.SetResourceID(out[0].GetResourceID())
-	fixtures.DeepCompare(c, out, []services.Server{srv})
+	fixtures.DeepCompare(c, out, []types.Server{srv})
 
 	err = s.PresenceS.DeleteNode(ctx, srv.Metadata.Namespace, srv.GetName())
 	c.Assert(err, check.IsNil)
@@ -382,7 +382,7 @@ func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 	proxy.SetResourceID(out[0].GetResourceID())
-	c.Assert(out, check.DeepEquals, []services.Server{proxy})
+	c.Assert(out, check.DeepEquals, []types.Server{proxy})
 
 	err = s.PresenceS.DeleteProxy(proxy.GetName())
 	c.Assert(err, check.IsNil)
@@ -403,7 +403,7 @@ func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 	auth.SetResourceID(out[0].GetResourceID())
-	c.Assert(out, check.DeepEquals, []services.Server{auth})
+	c.Assert(out, check.DeepEquals, []types.Server{auth})
 
 	// Kubernetes service.
 	out, err = s.PresenceS.GetKubeServices(ctx)
@@ -420,13 +420,13 @@ func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
 	c.Assert(out, check.HasLen, 2)
 	kube1.SetResourceID(out[0].GetResourceID())
 	kube2.SetResourceID(out[1].GetResourceID())
-	c.Assert(out, check.DeepEquals, []services.Server{kube1, kube2})
+	c.Assert(out, check.DeepEquals, []types.Server{kube1, kube2})
 
 	c.Assert(s.PresenceS.DeleteKubeService(ctx, kube1.GetName()), check.IsNil)
 	out, err = s.PresenceS.GetKubeServices(ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
-	c.Assert(out, check.DeepEquals, []services.Server{kube2})
+	c.Assert(out, check.DeepEquals, []types.Server{kube2})
 
 	c.Assert(s.PresenceS.DeleteAllKubeServices(ctx), check.IsNil)
 	out, err = s.PresenceS.GetKubeServices(ctx)
@@ -476,7 +476,7 @@ func (s *ServicesTestSuite) AppServerCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 	server.SetResourceID(out[0].GetResourceID())
-	fixtures.DeepCompare(c, out, []services.Server{server})
+	fixtures.DeepCompare(c, out, []types.Server{server})
 
 	// Remove the application.
 	err = s.PresenceS.DeleteAppServer(ctx, server.Metadata.Namespace, server.GetName())
@@ -515,7 +515,7 @@ func (s *ServicesTestSuite) ReverseTunnelsCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 	tunnel.SetResourceID(out[0].GetResourceID())
-	fixtures.DeepCompare(c, out, []services.ReverseTunnel{tunnel})
+	fixtures.DeepCompare(c, out, []types.ReverseTunnel{tunnel})
 
 	err = s.PresenceS.DeleteReverseTunnel(tunnel.Spec.ClusterName)
 	c.Assert(err, check.IsNil)
@@ -601,7 +601,7 @@ func (s *ServicesTestSuite) TokenCRUD(c *check.C) {
 	_, err := s.ProvisioningS.GetToken(ctx, "token")
 	fixtures.ExpectNotFound(c, err)
 
-	t, err := services.NewProvisionToken("token", teleport.Roles{teleport.RoleAuth, teleport.RoleNode}, time.Time{})
+	t, err := types.NewProvisionToken("token", teleport.Roles{teleport.RoleAuth, teleport.RoleNode}, time.Time{})
 	c.Assert(err, check.IsNil)
 
 	c.Assert(s.ProvisioningS.UpsertToken(ctx, t), check.IsNil)
@@ -628,7 +628,7 @@ func (s *ServicesTestSuite) TokenCRUD(c *check.C) {
 		Roles:   teleport.Roles{teleport.RoleNode, teleport.RoleProxy},
 		Expires: expiry,
 	}
-	v2, err := services.NewProvisionToken(v1.Token, v1.Roles, expiry)
+	v2, err := types.NewProvisionToken(v1.Token, v1.Roles, expiry)
 	c.Assert(err, check.IsNil)
 
 	// Tokens in different version formats are backwards and forwards
@@ -645,11 +645,11 @@ func (s *ServicesTestSuite) TokenCRUD(c *check.C) {
 	fixtures.DeepCompare(c, out, v2)
 
 	// Test delete all tokens
-	t, err = services.NewProvisionToken("token1", teleport.Roles{teleport.RoleAuth, teleport.RoleNode}, time.Time{})
+	t, err = types.NewProvisionToken("token1", teleport.Roles{teleport.RoleAuth, teleport.RoleNode}, time.Time{})
 	c.Assert(err, check.IsNil)
 	c.Assert(s.ProvisioningS.UpsertToken(ctx, t), check.IsNil)
 
-	t, err = services.NewProvisionToken("token2", teleport.Roles{teleport.RoleAuth, teleport.RoleNode}, time.Time{})
+	t, err = types.NewProvisionToken("token2", teleport.Roles{teleport.RoleAuth, teleport.RoleNode}, time.Time{})
 	c.Assert(err, check.IsNil)
 	c.Assert(s.ProvisioningS.UpsertToken(ctx, t), check.IsNil)
 
@@ -681,20 +681,20 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 		},
 		Spec: types.RoleSpecV3{
 			Options: types.RoleOptions{
-				MaxSessionTTL:     services.Duration(time.Hour),
-				PortForwarding:    services.NewBoolOption(true),
+				MaxSessionTTL:     types.Duration(time.Hour),
+				PortForwarding:    types.NewBoolOption(true),
 				CertificateFormat: teleport.CertificateFormatStandard,
 				BPF:               defaults.EnhancedEvents(),
 			},
 			Allow: types.RoleConditions{
 				Logins:           []string{"root", "bob"},
-				NodeLabels:       services.Labels{services.Wildcard: []string{services.Wildcard}},
-				AppLabels:        services.Labels{services.Wildcard: []string{services.Wildcard}},
-				KubernetesLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
-				DatabaseLabels:   services.Labels{services.Wildcard: []string{services.Wildcard}},
+				NodeLabels:       types.Labels{services.Wildcard: []string{services.Wildcard}},
+				AppLabels:        types.Labels{services.Wildcard: []string{services.Wildcard}},
+				KubernetesLabels: types.Labels{services.Wildcard: []string{services.Wildcard}},
+				DatabaseLabels:   types.Labels{services.Wildcard: []string{services.Wildcard}},
 				Namespaces:       []string{defaults.Namespace},
 				Rules: []types.Rule{
-					services.NewRule(services.KindRole, services.RO()),
+					types.NewRule(services.KindRole, services.RO()),
 				},
 			},
 			Deny: types.RoleConditions{
@@ -824,24 +824,24 @@ func (s *ServicesTestSuite) U2FCRUD(c *check.C) {
 
 func (s *ServicesTestSuite) SAMLCRUD(c *check.C) {
 	ctx := context.Background()
-	connector := &services.SAMLConnectorV2{
+	connector := &types.SAMLConnectorV2{
 		Kind:    services.KindSAML,
 		Version: services.V2,
 		Metadata: types.Metadata{
 			Name:      "saml1",
 			Namespace: defaults.Namespace,
 		},
-		Spec: services.SAMLConnectorSpecV2{
+		Spec: types.SAMLConnectorSpecV2{
 			Issuer:                   "http://example.com",
 			SSO:                      "https://example.com/saml/sso",
 			AssertionConsumerService: "https://localhost/acs",
 			Audience:                 "https://localhost/aud",
 			ServiceProviderIssuer:    "https://localhost/iss",
-			AttributesToRoles: []services.AttributeMapping{
+			AttributesToRoles: []types.AttributeMapping{
 				{Name: "groups", Value: "admin", Roles: []string{"admin"}},
 			},
 			Cert: fixtures.SigningCertPEM,
-			SigningKeyPair: &services.AsymmetricKeyPair{
+			SigningKeyPair: &types.AsymmetricKeyPair{
 				PrivateKey: fixtures.SigningKeyPEM,
 				Cert:       fixtures.SigningCertPEM,
 			},
@@ -857,7 +857,7 @@ func (s *ServicesTestSuite) SAMLCRUD(c *check.C) {
 
 	connectors, err := s.WebS.GetSAMLConnectors(ctx, true)
 	c.Assert(err, check.IsNil)
-	fixtures.DeepCompare(c, []services.SAMLConnector{connector}, connectors)
+	fixtures.DeepCompare(c, []types.SAMLConnector{connector}, connectors)
 
 	out2, err := s.WebS.GetSAMLConnector(ctx, connector.GetName(), false)
 	c.Assert(err, check.IsNil)
@@ -867,7 +867,7 @@ func (s *ServicesTestSuite) SAMLCRUD(c *check.C) {
 
 	connectorsNoSecrets, err := s.WebS.GetSAMLConnectors(ctx, false)
 	c.Assert(err, check.IsNil)
-	fixtures.DeepCompare(c, []services.SAMLConnector{&connectorNoSecrets}, connectorsNoSecrets)
+	fixtures.DeepCompare(c, []types.SAMLConnector{&connectorNoSecrets}, connectorsNoSecrets)
 
 	err = s.WebS.DeleteSAMLConnector(ctx, connector.GetName())
 	c.Assert(err, check.IsNil)
@@ -886,7 +886,7 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(c *check.C) {
 	c.Assert(len(out), check.Equals, 0)
 
 	dt := s.Clock.Now()
-	conn, err := services.NewTunnelConnection("conn1", types.TunnelConnectionSpecV2{
+	conn, err := types.NewTunnelConnection("conn1", types.TunnelConnectionSpecV2{
 		ClusterName:   clusterName,
 		ProxyName:     "p1",
 		LastHeartbeat: dt,
@@ -949,19 +949,19 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(c *check.C) {
 
 func (s *ServicesTestSuite) GithubConnectorCRUD(c *check.C) {
 	ctx := context.Background()
-	connector := &services.GithubConnectorV3{
+	connector := &types.GithubConnectorV3{
 		Kind:    services.KindGithubConnector,
 		Version: services.V3,
 		Metadata: types.Metadata{
 			Name:      "github",
 			Namespace: defaults.Namespace,
 		},
-		Spec: services.GithubConnectorSpecV3{
+		Spec: types.GithubConnectorSpecV3{
 			ClientID:     "aaa",
 			ClientSecret: "bbb",
 			RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
 			Display:      "Github",
-			TeamsToLogins: []services.TeamMapping{
+			TeamsToLogins: []types.TeamMapping{
 				{
 					Organization: "gravitational",
 					Team:         "admins",
@@ -981,7 +981,7 @@ func (s *ServicesTestSuite) GithubConnectorCRUD(c *check.C) {
 
 	connectors, err := s.WebS.GetGithubConnectors(ctx, true)
 	c.Assert(err, check.IsNil)
-	fixtures.DeepCompare(c, []services.GithubConnector{connector}, connectors)
+	fixtures.DeepCompare(c, []types.GithubConnector{connector}, connectors)
 
 	out2, err := s.WebS.GetGithubConnector(ctx, connector.GetName(), false)
 	c.Assert(err, check.IsNil)
@@ -991,7 +991,7 @@ func (s *ServicesTestSuite) GithubConnectorCRUD(c *check.C) {
 
 	connectorsNoSecrets, err := s.WebS.GetGithubConnectors(ctx, false)
 	c.Assert(err, check.IsNil)
-	fixtures.DeepCompare(c, []services.GithubConnector{&connectorNoSecrets}, connectorsNoSecrets)
+	fixtures.DeepCompare(c, []types.GithubConnector{&connectorNoSecrets}, connectorsNoSecrets)
 
 	err = s.WebS.DeleteGithubConnector(ctx, connector.GetName())
 	c.Assert(err, check.IsNil)
@@ -1009,7 +1009,7 @@ func (s *ServicesTestSuite) RemoteClustersCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Equals, 0)
 
-	rc, err := services.NewRemoteCluster(clusterName)
+	rc, err := types.NewRemoteCluster(clusterName)
 	c.Assert(err, check.IsNil)
 
 	rc.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
@@ -1051,7 +1051,7 @@ func (s *ServicesTestSuite) RemoteClustersCRUD(c *check.C) {
 
 // AuthPreference tests authentication preference service
 func (s *ServicesTestSuite) AuthPreference(c *check.C) {
-	ap, err := types.NewAuthPreferenceFromConfigFile(services.AuthPreferenceSpecV2{
+	ap, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:         "local",
 		SecondFactor: "otp",
 	})
@@ -1070,7 +1070,7 @@ func (s *ServicesTestSuite) AuthPreference(c *check.C) {
 // SessionRecordingConfig tests session recording configuration.
 func (s *ServicesTestSuite) SessionRecordingConfig(c *check.C) {
 	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
-		Mode: services.RecordAtProxy,
+		Mode: types.RecordAtProxy,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -1080,12 +1080,12 @@ func (s *ServicesTestSuite) SessionRecordingConfig(c *check.C) {
 	gotrecConfig, err := s.ConfigS.GetSessionRecordingConfig(context.TODO())
 	c.Assert(err, check.IsNil)
 
-	c.Assert(gotrecConfig.GetMode(), check.Equals, services.RecordAtProxy)
+	c.Assert(gotrecConfig.GetMode(), check.Equals, types.RecordAtProxy)
 }
 
 func (s *ServicesTestSuite) StaticTokens(c *check.C) {
 	// set static tokens
-	staticTokens, err := services.NewStaticTokens(types.StaticTokensSpecV2{
+	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{
 			{
 				Token:   "tok1",
@@ -1139,8 +1139,8 @@ func CollectOptions(opts ...Option) Options {
 
 // ClusterConfig tests cluster configuration
 func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
-	config, err := services.NewClusterConfig(types.ClusterConfigSpecV3{
-		DisconnectExpiredCert: services.NewBool(true),
+	config, err := types.NewClusterConfig(types.ClusterConfigSpecV3{
+		DisconnectExpiredCert: types.NewBool(true),
 		ClusterID:             "27",
 		Audit: types.AuditConfig{
 			Region:           "us-west-1",
@@ -1154,7 +1154,7 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 
 	// DELETE IN 8.0.0
 	netConfig, err := types.NewClusterNetworkingConfig(types.ClusterNetworkingConfigSpecV2{
-		ClientIdleTimeout: services.NewDuration(17 * time.Second),
+		ClientIdleTimeout: types.NewDuration(17 * time.Second),
 	})
 	c.Assert(err, check.IsNil)
 	err = s.ConfigS.SetClusterNetworkingConfig(context.TODO(), netConfig)
@@ -1162,7 +1162,7 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 
 	// DELETE IN 8.0.0
 	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
-		Mode: services.RecordAtProxy,
+		Mode: types.RecordAtProxy,
 	})
 	c.Assert(err, check.IsNil)
 	err = s.ConfigS.SetSessionRecordingConfig(context.TODO(), recConfig)
@@ -1189,7 +1189,7 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	_, err = s.ConfigS.GetClusterConfig()
 	fixtures.ExpectNotFound(c, err)
 
-	clusterName, err := services.NewClusterName(types.ClusterNameSpecV2{
+	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: "example.com",
 	})
 	c.Assert(err, check.IsNil)
@@ -1238,7 +1238,7 @@ func (s *ServicesTestSuite) ClusterNetworkingConfig(c *check.C) {
 // sem wrapper is a helper for overriding the keepalive
 // method on the semaphore service.
 type semWrapper struct {
-	services.Semaphores
+	types.Semaphores
 	keepAlive func(context.Context, types.SemaphoreLease) error
 }
 
@@ -1269,7 +1269,7 @@ func (s *ServicesTestSuite) SemaphoreFlakiness(c *check.C) {
 		Expiry:   time.Second,
 		TickRate: time.Millisecond * 50,
 		Params: types.AcquireSemaphoreRequest{
-			SemaphoreKind: services.SemaphoreKindConnection,
+			SemaphoreKind: types.SemaphoreKindConnection,
 			SemaphoreName: "alice",
 			MaxLeases:     1,
 		},
@@ -1309,7 +1309,7 @@ func (s *ServicesTestSuite) SemaphoreContention(c *check.C) {
 			Service: s.PresenceS,
 			Expiry:  time.Hour,
 			Params: types.AcquireSemaphoreRequest{
-				SemaphoreKind: services.SemaphoreKindConnection,
+				SemaphoreKind: types.SemaphoreKindConnection,
 				SemaphoreName: "alice",
 				MaxLeases:     locks,
 			},
@@ -1346,7 +1346,7 @@ func (s *ServicesTestSuite) SemaphoreConcurrency(c *check.C) {
 		Service: s.PresenceS,
 		Expiry:  time.Hour,
 		Params: types.AcquireSemaphoreRequest{
-			SemaphoreKind: services.SemaphoreKindConnection,
+			SemaphoreKind: types.SemaphoreKindConnection,
 			SemaphoreName: "alice",
 			MaxLeases:     maxLeases,
 		},
@@ -1384,7 +1384,7 @@ func (s *ServicesTestSuite) SemaphoreLock(c *check.C) {
 		Service: s.PresenceS,
 		Expiry:  time.Hour,
 		Params: types.AcquireSemaphoreRequest{
-			SemaphoreKind: services.SemaphoreKindConnection,
+			SemaphoreKind: types.SemaphoreKindConnection,
 			SemaphoreName: "alice",
 			MaxLeases:     1,
 		},
@@ -1443,12 +1443,12 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 	testCases := []eventTest{
 		{
 			name: "Cert authority with secrets",
-			kind: services.WatchKind{
+			kind: types.WatchKind{
 				Kind:        services.KindCertAuthority,
 				LoadSecrets: true,
 			},
-			crud: func() services.Resource {
-				ca := NewTestCA(services.UserCA, "example.com")
+			crud: func() types.Resource {
+				ca := NewTestCA(types.UserCA, "example.com")
 				c.Assert(s.CAS.UpsertCertAuthority(ca), check.IsNil)
 
 				out, err := s.CAS.GetCertAuthority(*ca.ID(), true)
@@ -1464,12 +1464,12 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 	testCases = []eventTest{
 		{
 			name: "Cert authority without secrets",
-			kind: services.WatchKind{
+			kind: types.WatchKind{
 				Kind:        services.KindCertAuthority,
 				LoadSecrets: false,
 			},
-			crud: func() services.Resource {
-				ca := NewTestCA(services.UserCA, "example.com")
+			crud: func() types.Resource {
+				ca := NewTestCA(types.UserCA, "example.com")
 				c.Assert(s.CAS.UpsertCertAuthority(ca), check.IsNil)
 
 				out, err := s.CAS.GetCertAuthority(*ca.ID(), false)
@@ -1485,12 +1485,12 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 	testCases = []eventTest{
 		{
 			name: "Token",
-			kind: services.WatchKind{
+			kind: types.WatchKind{
 				Kind: services.KindToken,
 			},
-			crud: func() services.Resource {
+			crud: func() types.Resource {
 				expires := time.Now().UTC().Add(time.Hour)
-				t, err := services.NewProvisionToken("token",
+				t, err := types.NewProvisionToken("token",
 					teleport.Roles{teleport.RoleAuth, teleport.RoleNode}, expires)
 				c.Assert(err, check.IsNil)
 
@@ -1505,10 +1505,10 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 		},
 		{
 			name: "Namespace",
-			kind: services.WatchKind{
+			kind: types.WatchKind{
 				Kind: services.KindNamespace,
 			},
-			crud: func() services.Resource {
+			crud: func() types.Resource {
 				ns := types.Namespace{
 					Kind:    services.KindNamespace,
 					Version: services.V2,
@@ -1531,11 +1531,11 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 		},
 		{
 			name: "Static tokens",
-			kind: services.WatchKind{
+			kind: types.WatchKind{
 				Kind: services.KindStaticTokens,
 			},
-			crud: func() services.Resource {
-				staticTokens, err := services.NewStaticTokens(types.StaticTokensSpecV2{
+			crud: func() types.Resource {
+				staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
 					StaticTokens: []types.ProvisionTokenV1{
 						{
 							Token:   "tok1",
@@ -1560,17 +1560,17 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 		},
 		{
 			name: "Role",
-			kind: services.WatchKind{
+			kind: types.WatchKind{
 				Kind: services.KindRole,
 			},
-			crud: func() services.Resource {
-				role, err := services.NewRole("role1", types.RoleSpecV3{
+			crud: func() types.Resource {
+				role, err := types.NewRole("role1", types.RoleSpecV3{
 					Options: types.RoleOptions{
-						MaxSessionTTL: services.Duration(time.Hour),
+						MaxSessionTTL: types.Duration(time.Hour),
 					},
 					Allow: types.RoleConditions{
 						Logins:     []string{"root", "bob"},
-						NodeLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
+						NodeLabels: types.Labels{services.Wildcard: []string{services.Wildcard}},
 					},
 					Deny: types.RoleConditions{},
 				})
@@ -1590,10 +1590,10 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 		},
 		{
 			name: "User",
-			kind: services.WatchKind{
+			kind: types.WatchKind{
 				Kind: services.KindUser,
 			},
-			crud: func() services.Resource {
+			crud: func() types.Resource {
 				user := newUser("user1", []string{"admin"})
 				err := s.Users().UpsertUser(user)
 				c.Assert(err, check.IsNil)
@@ -1607,10 +1607,10 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 		},
 		{
 			name: "Node",
-			kind: services.WatchKind{
+			kind: types.WatchKind{
 				Kind: services.KindNode,
 			},
-			crud: func() services.Resource {
+			crud: func() types.Resource {
 				srv := NewServer(services.KindNode, "srv1", "127.0.0.1:2022", defaults.Namespace)
 
 				_, err := s.PresenceS.UpsertNode(ctx, srv)
@@ -1627,10 +1627,10 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 		},
 		{
 			name: "Proxy",
-			kind: services.WatchKind{
+			kind: types.WatchKind{
 				Kind: services.KindProxy,
 			},
-			crud: func() services.Resource {
+			crud: func() types.Resource {
 				srv := NewServer(services.KindProxy, "srv1", "127.0.0.1:2022", defaults.Namespace)
 
 				err := s.PresenceS.UpsertProxy(srv)
@@ -1647,11 +1647,11 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 		},
 		{
 			name: "Tunnel connection",
-			kind: services.WatchKind{
+			kind: types.WatchKind{
 				Kind: services.KindTunnelConnection,
 			},
-			crud: func() services.Resource {
-				conn, err := services.NewTunnelConnection("conn1", types.TunnelConnectionSpecV2{
+			crud: func() types.Resource {
+				conn, err := types.NewTunnelConnection("conn1", types.TunnelConnectionSpecV2{
 					ClusterName:   "example.com",
 					ProxyName:     "p1",
 					LastHeartbeat: time.Now().UTC(),
@@ -1672,10 +1672,10 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 		},
 		{
 			name: "Reverse tunnel",
-			kind: services.WatchKind{
+			kind: types.WatchKind{
 				Kind: services.KindReverseTunnel,
 			},
-			crud: func() services.Resource {
+			crud: func() types.Resource {
 				tunnel := newReverseTunnel("example.com", []string{"example.com:2023"})
 				c.Assert(s.PresenceS.UpsertReverseTunnel(tunnel), check.IsNil)
 
@@ -1690,11 +1690,11 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 		},
 		{
 			name: "Remote cluster",
-			kind: services.WatchKind{
+			kind: types.WatchKind{
 				Kind: services.KindRemoteCluster,
 			},
-			crud: func() services.Resource {
-				rc, err := services.NewRemoteCluster("example.com")
+			crud: func() types.Resource {
+				rc, err := types.NewRemoteCluster("example.com")
 				rc.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 				c.Assert(err, check.IsNil)
 				c.Assert(s.PresenceS.CreateRemoteCluster(rc), check.IsNil)
@@ -1715,11 +1715,11 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 	testCases = []eventTest{
 		{
 			name: "Namespace with a name",
-			kind: services.WatchKind{
+			kind: types.WatchKind{
 				Kind: services.KindNamespace,
 				Name: "shmest",
 			},
-			crud: func() services.Resource {
+			crud: func() types.Resource {
 				ns := types.Namespace{
 					Kind:    services.KindNamespace,
 					Version: services.V2,
@@ -1749,11 +1749,11 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 	testCases := []eventTest{
 		{
 			name: "Cluster config",
-			kind: services.WatchKind{
+			kind: types.WatchKind{
 				Kind: services.KindClusterConfig,
 			},
-			crud: func() services.Resource {
-				config, err := services.NewClusterConfig(types.ClusterConfigSpecV3{})
+			crud: func() types.Resource {
+				config, err := types.NewClusterConfig(types.ClusterConfigSpecV3{})
 				c.Assert(err, check.IsNil)
 
 				err = s.ConfigS.SetClusterConfig(config)
@@ -1770,11 +1770,11 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 		},
 		{
 			name: "Cluster name",
-			kind: services.WatchKind{
+			kind: types.WatchKind{
 				Kind: services.KindClusterName,
 			},
-			crud: func() services.Resource {
-				clusterName, err := services.NewClusterName(types.ClusterNameSpecV2{
+			crud: func() types.Resource {
+				clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
 					ClusterName: "example.com",
 				})
 				c.Assert(err, check.IsNil)
@@ -1856,7 +1856,7 @@ func (s *ServicesTestSuite) ProxyWatcher(c *check.C) {
 
 func (s *ServicesTestSuite) runEventsTests(c *check.C, testCases []eventTest) {
 	ctx := context.TODO()
-	w, err := s.EventsS.NewWatcher(ctx, services.Watch{
+	w, err := s.EventsS.NewWatcher(ctx, types.Watch{
 		Kinds: eventsTestKinds(testCases),
 	})
 	c.Assert(err, check.IsNil)
@@ -1910,12 +1910,12 @@ skiploop:
 
 type eventTest struct {
 	name string
-	kind services.WatchKind
-	crud func() services.Resource
+	kind types.WatchKind
+	crud func() types.Resource
 }
 
-func eventsTestKinds(tests []eventTest) []services.WatchKind {
-	out := make([]services.WatchKind, len(tests))
+func eventsTestKinds(tests []eventTest) []types.WatchKind {
+	out := make([]types.WatchKind, len(tests))
 	for i, tc := range tests {
 		out[i] = tc.kind
 	}
@@ -1923,7 +1923,7 @@ func eventsTestKinds(tests []eventTest) []services.WatchKind {
 }
 
 // ExpectResource expects a Put event of a certain resource
-func ExpectResource(c *check.C, w services.Watcher, timeout time.Duration, resource services.Resource) {
+func ExpectResource(c *check.C, w types.Watcher, timeout time.Duration, resource types.Resource) {
 	timeoutC := time.After(timeout)
 waitLoop:
 	for {
@@ -1952,7 +1952,7 @@ waitLoop:
 }
 
 // ExpectDeleteResource expects a delete event of a certain kind
-func ExpectDeleteResource(c *check.C, w services.Watcher, timeout time.Duration, resource services.Resource) {
+func ExpectDeleteResource(c *check.C, w types.Watcher, timeout time.Duration, resource types.Resource) {
 	timeoutC := time.After(timeout)
 waitLoop:
 	for {

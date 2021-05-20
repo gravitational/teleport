@@ -40,7 +40,7 @@ func TestCreateSAMLUser(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	clusterName, err := services.NewClusterName(types.ClusterNameSpecV2{
+	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: "me.localhost",
 	})
 	require.NoError(t, err)
@@ -112,7 +112,7 @@ func TestEncryptedSAML(t *testing.T) {
 		PrivateKey: fixtures.EncryptionKeyPEM,
 	}
 
-	connector := services.NewSAMLConnector("spongebob", types.SAMLConnectorSpecV2{
+	connector := types.NewSAMLConnector("spongebob", types.SAMLConnectorSpecV2{
 		Cert: signingKeypair.Cert,
 	})
 

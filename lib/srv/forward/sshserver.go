@@ -390,7 +390,7 @@ func (s Server) GetBPF() bpf.BPF {
 }
 
 // GetInfo returns a services.Server that represents this server.
-func (s *Server) GetInfo() services.Server {
+func (s *Server) GetInfo() types.Server {
 	return &types.ServerV2{
 		Kind:    services.KindNode,
 		Version: services.V2,

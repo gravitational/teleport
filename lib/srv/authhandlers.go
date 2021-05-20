@@ -25,6 +25,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
@@ -125,7 +126,7 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 	if certificate.ValidBefore != 0 {
 		identity.CertValidBefore = time.Unix(int64(certificate.ValidBefore), 0)
 	}
-	certAuthority, err := h.authorityForCert(services.UserCA, certificate.SignatureKey)
+	certAuthority, err := h.authorityForCert(types.UserCA, certificate.SignatureKey)
 	if err != nil {
 		return IdentityContext{}, trace.Wrap(err)
 	}
@@ -342,7 +343,7 @@ func (h *AuthHandlers) hostKeyCallback(hostname string, remote net.Addr, key ssh
 // IsUserAuthority is called during checking the client key, to see if the
 // key used to sign the certificate was a Teleport CA.
 func (h *AuthHandlers) IsUserAuthority(cert ssh.PublicKey) bool {
-	if _, err := h.authorityForCert(services.UserCA, cert); err != nil {
+	if _, err := h.authorityForCert(types.UserCA, cert); err != nil {
 		return false
 	}
 
@@ -353,7 +354,7 @@ func (h *AuthHandlers) IsUserAuthority(cert ssh.PublicKey) bool {
 // presents. It make sure that the key used to sign the host certificate was a
 // Teleport CA.
 func (h *AuthHandlers) IsHostAuthority(cert ssh.PublicKey, address string) bool {
-	if _, err := h.authorityForCert(services.HostCA, cert); err != nil {
+	if _, err := h.authorityForCert(types.HostCA, cert); err != nil {
 		h.log.Debugf("Unable to find SSH host CA: %v.", err)
 		return false
 	}
@@ -367,7 +368,7 @@ func (h *AuthHandlers) canLoginWithoutRBAC(cert *ssh.Certificate, clusterName st
 	h.log.Debugf("Checking permissions for (%v,%v) to login to node without RBAC checks.", teleportUser, osUser)
 
 	// check if the ca that signed the certificate is known to the cluster
-	_, err := h.authorityForCert(services.UserCA, cert.SignatureKey)
+	_, err := h.authorityForCert(types.UserCA, cert.SignatureKey)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -382,7 +383,7 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 	h.log.Debugf("Checking permissions for (%v,%v) to login to node with RBAC checks.", teleportUser, osUser)
 
 	// get the ca that signd the users certificate
-	ca, err := h.authorityForCert(services.UserCA, cert.SignatureKey)
+	ca, err := h.authorityForCert(types.UserCA, cert.SignatureKey)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -413,7 +414,7 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 }
 
 // fetchRoleSet fetches the services.RoleSet assigned to a Teleport user.
-func (h *AuthHandlers) fetchRoleSet(cert *ssh.Certificate, ca services.CertAuthority, teleportUser string, clusterName string) (services.RoleSet, error) {
+func (h *AuthHandlers) fetchRoleSet(cert *ssh.Certificate, ca types.CertAuthority, teleportUser string, clusterName string) (services.RoleSet, error) {
 	// for local users, go and check their individual permissions
 	var roleset services.RoleSet
 	if clusterName == ca.GetClusterName() {
@@ -461,7 +462,7 @@ func (h *AuthHandlers) fetchRoleSet(cert *ssh.Certificate, ca services.CertAutho
 
 // authorityForCert checks if the certificate was signed by a Teleport
 // Certificate Authority and returns it.
-func (h *AuthHandlers) authorityForCert(caType services.CertAuthType, key ssh.PublicKey) (services.CertAuthority, error) {
+func (h *AuthHandlers) authorityForCert(caType types.CertAuthType, key ssh.PublicKey) (types.CertAuthority, error) {
 	// get all certificate authorities for given type
 	cas, err := h.c.AccessPoint.GetCertAuthorities(caType, false)
 	if err != nil {
@@ -470,7 +471,7 @@ func (h *AuthHandlers) authorityForCert(caType services.CertAuthType, key ssh.Pu
 	}
 
 	// find the one that signed our certificate
-	var ca services.CertAuthority
+	var ca types.CertAuthority
 	for i := range cas {
 		checkers, err := sshutils.GetCheckers(cas[i])
 		if err != nil {

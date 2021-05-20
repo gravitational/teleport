@@ -123,7 +123,7 @@ func insertNodes(ctx context.Context, t assert.TestingT, svc services.Presence, 
 
 // benchmarkGetNodes runs GetNodes b.N times.
 func benchmarkGetNodes(ctx context.Context, b *testing.B, svc services.Presence, nodeCount int, opts ...services.MarshalOption) {
-	var nodes []services.Server
+	var nodes []types.Server
 	var err error
 	for i := 0; i < b.N; i++ {
 		nodes, err = svc.GetNodes(ctx, defaults.Namespace, opts...)

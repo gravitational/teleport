@@ -633,7 +633,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 
 	// if user did not provide auth domain name, use this host's name
 	if cfg.Auth.Enabled && cfg.Auth.ClusterName == nil {
-		cfg.Auth.ClusterName, err = services.NewClusterName(types.ClusterNameSpecV2{
+		cfg.Auth.ClusterName, err = types.NewClusterName(types.ClusterNameSpecV2{
 			ClusterName: cfg.Hostname,
 		})
 		if err != nil {
@@ -1064,7 +1064,7 @@ func (process *TeleportProcess) initAuthService() error {
 		// check if session recording has been disabled. note, we will continue
 		// logging audit events, we just won't record sessions.
 		recordSessions := true
-		if cfg.Auth.SessionRecordingConfig.GetMode() == services.RecordOff {
+		if cfg.Auth.SessionRecordingConfig.GetMode() == types.RecordOff {
 			recordSessions = false
 
 			warningMessage := "Warning: Teleport session recording have been turned off. " +
@@ -1346,7 +1346,7 @@ func (process *TeleportProcess) initAuthService() error {
 		Context:   process.ExitContext(),
 		Component: teleport.ComponentAuth,
 		Announcer: authServer,
-		GetServerInfo: func() (services.Resource, error) {
+		GetServerInfo: func() (types.Resource, error) {
 			srv := types.ServerV2{
 				Kind:    services.KindAuthServer,
 				Version: services.V2,
@@ -1673,7 +1673,7 @@ func (process *TeleportProcess) initSSH() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if recConfig.GetMode() == services.RecordOff && cfg.SSH.BPF.Enabled {
+		if recConfig.GetMode() == types.RecordOff && cfg.SSH.BPF.Enabled {
 			return trace.BadParameter("session recording is disabled at the cluster " +
 				"level. To enable enhanced session recording, enable session recording at " +
 				"the cluster level, then restart Teleport.")
@@ -1696,7 +1696,7 @@ func (process *TeleportProcess) initSSH() error {
 		}
 
 		// make sure the namespace exists
-		namespace := services.ProcessNamespace(cfg.SSH.Namespace)
+		namespace := types.ProcessNamespace(cfg.SSH.Namespace)
 		_, err = authClient.GetNamespace(namespace)
 		if err != nil {
 			if trace.IsNotFound(err) {
@@ -3043,7 +3043,7 @@ func (process *TeleportProcess) initApps() {
 				URI:                app.URI,
 				PublicAddr:         publicAddr,
 				StaticLabels:       app.StaticLabels,
-				DynamicLabels:      services.LabelsToV2(app.DynamicLabels),
+				DynamicLabels:      types.LabelsToV2(app.DynamicLabels),
 				InsecureSkipVerify: app.InsecureSkipVerify,
 			}
 			if app.Rewrite != nil {
@@ -3306,7 +3306,7 @@ func validateConfig(cfg *Config) error {
 		cfg.PollingPeriod = defaults.LowResPollingPeriod
 	}
 
-	cfg.SSH.Namespace = services.ProcessNamespace(cfg.SSH.Namespace)
+	cfg.SSH.Namespace = types.ProcessNamespace(cfg.SSH.Namespace)
 
 	return nil
 }

@@ -33,10 +33,10 @@ import (
 // Getter returns a list of registered apps and the local cluster name.
 type Getter interface {
 	// GetAppServers returns a list of app servers
-	GetAppServers(context.Context, string, ...services.MarshalOption) ([]services.Server, error)
+	GetAppServers(context.Context, string, ...services.MarshalOption) ([]types.Server, error)
 
 	// GetClusterName returns cluster name
-	GetClusterName(opts ...services.MarshalOption) (services.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 }
 
 // Match will match an application with the passed in matcher function. Matcher
@@ -49,14 +49,14 @@ type Getter interface {
 //
 // In the future this function should be updated to keep state on application
 // servers that are down and to not route requests to that server.
-func Match(ctx context.Context, authClient Getter, fn Matcher) (*types.App, services.Server, error) {
+func Match(ctx context.Context, authClient Getter, fn Matcher) (*types.App, types.Server, error) {
 	servers, err := authClient.GetAppServers(ctx, defaults.Namespace)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
 	var am []*types.App
-	var sm []services.Server
+	var sm []types.Server
 
 	for _, server := range servers {
 		for _, app := range server.GetApps() {
@@ -99,7 +99,7 @@ func MatchName(name string) Matcher {
 // cluster, this method will always return "acme" running within the root
 // cluster. Always supply public address and cluster name to deterministically
 // resolve an application.
-func ResolveFQDN(ctx context.Context, clt Getter, tunnel reversetunnel.Tunnel, proxyDNSNames []string, fqdn string) (*types.App, services.Server, string, error) {
+func ResolveFQDN(ctx context.Context, clt Getter, tunnel reversetunnel.Tunnel, proxyDNSNames []string, fqdn string) (*types.App, types.Server, string, error) {
 	// Try and match FQDN to public address of application within cluster.
 	application, server, err := Match(ctx, clt, MatchPublicAddr(fqdn))
 	if err == nil {

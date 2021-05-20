@@ -516,7 +516,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 			return targetCluster.DialTCP(reversetunnel.DialParams{
 				From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
 				To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: addr},
-				ConnType: services.KubeTunnel,
+				ConnType: types.KubeTunnel,
 				ServerID: serverID,
 			})
 		}
@@ -535,7 +535,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 			return localCluster.DialTCP(reversetunnel.DialParams{
 				From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
 				To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: addr},
-				ConnType: services.KubeTunnel,
+				ConnType: types.KubeTunnel,
 				ServerID: serverID,
 			})
 		}
@@ -734,7 +734,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			SessionID:    sessionID,
 			ServerID:     f.cfg.ServerID,
 			Namespace:    f.cfg.Namespace,
-			RecordOutput: ctx.recordingConfig.GetMode() != services.RecordOff,
+			RecordOutput: ctx.recordingConfig.GetMode() != types.RecordOff,
 			Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
 			ClusterName:  f.cfg.ClusterName,
 		})
@@ -1401,7 +1401,7 @@ func (f *Forwarder) newClusterSessionSameCluster(ctx authContext) (*clusterSessi
 		return f.newClusterSessionLocal(ctx)
 	}
 	// Validate that the requested kube cluster is registered.
-	var endpoints []services.Server
+	var endpoints []types.Server
 outer:
 	for _, s := range kubeServices {
 		for _, k := range s.GetKubernetesClusters() {
@@ -1470,7 +1470,7 @@ func (f *Forwarder) newClusterSessionLocal(ctx authContext) (*clusterSession, er
 	return sess, nil
 }
 
-func (f *Forwarder) newClusterSessionDirect(ctx authContext, kubeService services.Server) (*clusterSession, error) {
+func (f *Forwarder) newClusterSessionDirect(ctx authContext, kubeService types.Server) (*clusterSession, error) {
 	f.log.WithFields(log.Fields{
 		"kubernetes_service.name": kubeService.GetName(),
 		"kubernetes_service.addr": kubeService.GetAddr(),
@@ -1685,7 +1685,7 @@ func (f *Forwarder) requestCertificate(ctx authContext) (*tls.Config, error) {
 func (f *Forwarder) kubeClusters() []*types.KubernetesCluster {
 	var dynLabels map[string]types.CommandLabelV2
 	if f.cfg.DynamicLabels != nil {
-		dynLabels = services.LabelsToV2(f.cfg.DynamicLabels.Get())
+		dynLabels = types.LabelsToV2(f.cfg.DynamicLabels.Get())
 	}
 
 	res := make([]*types.KubernetesCluster, 0, len(f.creds))

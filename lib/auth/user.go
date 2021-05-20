@@ -35,7 +35,7 @@ import (
 )
 
 // CreateUser inserts a new user entry in a backend.
-func (s *Server) CreateUser(ctx context.Context, user services.User) error {
+func (s *Server) CreateUser(ctx context.Context, user types.User) error {
 	if user.GetCreatedBy().IsEmpty() {
 		user.SetCreatedBy(types.CreatedBy{
 			User: types.UserRef{Name: ClientUsername(ctx)},
@@ -80,7 +80,7 @@ func (s *Server) CreateUser(ctx context.Context, user services.User) error {
 }
 
 // UpdateUser updates an existing user in a backend.
-func (s *Server) UpdateUser(ctx context.Context, user services.User) error {
+func (s *Server) UpdateUser(ctx context.Context, user types.User) error {
 	if err := s.Identity.UpdateUser(ctx, user); err != nil {
 		return trace.Wrap(err)
 	}
@@ -115,7 +115,7 @@ func (s *Server) UpdateUser(ctx context.Context, user services.User) error {
 }
 
 // UpsertUser updates a user.
-func (s *Server) UpsertUser(user services.User) error {
+func (s *Server) UpsertUser(user types.User) error {
 	err := s.Identity.UpsertUser(user)
 	if err != nil {
 		return trace.Wrap(err)

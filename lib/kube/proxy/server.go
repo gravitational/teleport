@@ -251,7 +251,7 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 
 // GetServerInfo returns a services.Server object for heartbeats (aka
 // presence).
-func (t *TLSServer) GetServerInfo() (services.Resource, error) {
+func (t *TLSServer) GetServerInfo() (types.Resource, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 

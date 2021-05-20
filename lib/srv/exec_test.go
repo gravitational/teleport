@@ -88,7 +88,7 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	bk, err := lite.NewWithConfig(ctx, lite.Config{Path: c.MkDir()})
 	c.Assert(err, check.IsNil)
 
-	clusterName, err := services.NewClusterName(types.ClusterNameSpecV2{
+	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: "localhost",
 	})
 	c.Assert(err, check.IsNil)
@@ -104,7 +104,7 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// set static tokens
-	staticTokens, err := services.NewStaticTokens(types.StaticTokensSpecV2{
+	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{},
 	})
 	c.Assert(err, check.IsNil)
@@ -475,7 +475,7 @@ func (f *fakeServer) GetClock() clockwork.Clock {
 	return nil
 }
 
-func (f *fakeServer) GetInfo() services.Server {
+func (f *fakeServer) GetInfo() types.Server {
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "localhost"

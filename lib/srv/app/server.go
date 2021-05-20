@@ -74,7 +74,7 @@ type Config struct {
 	GetRotation RotationGetter
 
 	// Server contains the list of applications that will be proxied.
-	Server services.Server
+	Server types.Server
 
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)
@@ -128,7 +128,7 @@ type Server struct {
 	closeFunc    context.CancelFunc
 
 	mu     sync.RWMutex
-	server services.Server
+	server types.Server
 
 	httpServer *http.Server
 	tlsConfig  *tls.Config
@@ -187,7 +187,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 			continue
 		}
 		dl, err := labels.NewDynamic(s.closeContext, &labels.DynamicConfig{
-			Labels: services.V2ToLabels(a.DynamicLabels),
+			Labels: types.V2ToLabels(a.DynamicLabels),
 			Log:    s.log,
 		})
 		if err != nil {
@@ -229,7 +229,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 
 // GetServerInfo returns a services.Server representing the application. Used
 // in heartbeat code.
-func (s *Server) GetServerInfo() (services.Resource, error) {
+func (s *Server) GetServerInfo() (types.Resource, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -240,7 +240,7 @@ func (s *Server) GetServerInfo() (services.Resource, error) {
 		if !ok {
 			continue
 		}
-		a.DynamicLabels = services.LabelsToV2(dl.Get())
+		a.DynamicLabels = types.LabelsToV2(dl.Get())
 	}
 	s.server.SetApps(apps)
 

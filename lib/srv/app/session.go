@@ -132,7 +132,7 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 		SessionID:    session_pkg.ID(chunkID),
 		Namespace:    defaults.Namespace,
 		ServerID:     s.c.Server.GetName(),
-		RecordOutput: recConfig.GetMode() != services.RecordOff,
+		RecordOutput: recConfig.GetMode() != types.RecordOff,
 		Component:    teleport.ComponentApp,
 		ClusterName:  clusterName.GetClusterName(),
 	})

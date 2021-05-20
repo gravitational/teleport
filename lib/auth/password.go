@@ -37,7 +37,7 @@ type ChangePasswordWithTokenRequest struct {
 }
 
 // ChangePasswordWithToken changes password with token
-func (s *Server) ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (services.WebSession, error) {
+func (s *Server) ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (types.WebSession, error) {
 	user, err := s.changePasswordWithToken(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -346,7 +346,7 @@ func (s *Server) getOTPType(user string) (teleport.OTPType, error) {
 	return teleport.HOTP, nil
 }
 
-func (s *Server) changePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (services.User, error) {
+func (s *Server) changePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (types.User, error) {
 	// Get cluster configuration and check if local auth is allowed.
 	clusterConfig, err := s.GetClusterConfig()
 	if err != nil {
@@ -398,7 +398,7 @@ func (s *Server) changePasswordWithToken(ctx context.Context, req ChangePassword
 	return user, nil
 }
 
-func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, token services.ResetPasswordToken) error {
+func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, token types.ResetPasswordToken) error {
 	username := token.GetUser()
 	cap, err := s.GetAuthPreference()
 	if err != nil {

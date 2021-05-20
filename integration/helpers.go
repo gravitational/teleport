@@ -112,10 +112,10 @@ type TeleInstance struct {
 }
 
 type User struct {
-	Username      string          `json:"username"`
-	AllowedLogins []string        `json:"logins"`
-	Key           *client.Key     `json:"key"`
-	Roles         []services.Role `json:"-"`
+	Username      string       `json:"username"`
+	AllowedLogins []string     `json:"logins"`
+	Key           *client.Key  `json:"key"`
+	Roles         []types.Role `json:"-"`
 }
 
 type InstanceSecrets struct {
@@ -253,10 +253,10 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 }
 
 // GetRoles returns a list of roles to initiate for this secret
-func (s *InstanceSecrets) GetRoles() []services.Role {
-	var roles []services.Role
+func (s *InstanceSecrets) GetRoles() []types.Role {
+	var roles []types.Role
 	for _, ca := range s.GetCAs() {
-		if ca.GetType() != services.UserCA {
+		if ca.GetType() != types.UserCA {
 			continue
 		}
 		role := services.RoleForCertAuthority(ca)
@@ -269,9 +269,9 @@ func (s *InstanceSecrets) GetRoles() []services.Role {
 // GetCAs return an array of CAs stored by the secrets object. In i
 // case we always return hard-coded userCA + hostCA (and they share keys
 // for simplicity)
-func (s *InstanceSecrets) GetCAs() []services.CertAuthority {
+func (s *InstanceSecrets) GetCAs() []types.CertAuthority {
 	hostCA := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:         services.HostCA,
+		Type:         types.HostCA,
 		ClusterName:  s.SiteName,
 		SigningKeys:  [][]byte{s.PrivKey},
 		CheckingKeys: [][]byte{s.PubKey},
@@ -281,7 +281,7 @@ func (s *InstanceSecrets) GetCAs() []services.CertAuthority {
 	hostCA.SetTLSKeyPairs([]types.TLSKeyPair{{Cert: s.TLSCACert, Key: s.PrivKey}})
 
 	userCA := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:         services.UserCA,
+		Type:         types.UserCA,
 		ClusterName:  s.SiteName,
 		SigningKeys:  [][]byte{s.PrivKey},
 		CheckingKeys: [][]byte{s.PubKey},
@@ -290,7 +290,7 @@ func (s *InstanceSecrets) GetCAs() []services.CertAuthority {
 	})
 	userCA.SetTLSKeyPairs([]types.TLSKeyPair{{Cert: s.TLSCACert, Key: s.PrivKey}})
 
-	return []services.CertAuthority{hostCA, userCA}
+	return []types.CertAuthority{hostCA, userCA}
 }
 
 func (s *InstanceSecrets) AllowedLogins() []string {
@@ -301,14 +301,14 @@ func (s *InstanceSecrets) AllowedLogins() []string {
 	return logins
 }
 
-func (s *InstanceSecrets) AsTrustedCluster(token string, roleMap services.RoleMap) services.TrustedCluster {
-	return &services.TrustedClusterV2{
+func (s *InstanceSecrets) AsTrustedCluster(token string, roleMap types.RoleMap) types.TrustedCluster {
+	return &types.TrustedClusterV2{
 		Kind:    services.KindTrustedCluster,
 		Version: services.V2,
 		Metadata: types.Metadata{
 			Name: s.SiteName,
 		},
-		Spec: services.TrustedClusterSpecV2{
+		Spec: types.TrustedClusterSpecV2{
 			Token:                token,
 			Enabled:              true,
 			ProxyAddress:         s.WebProxyAddr,
@@ -395,7 +395,7 @@ type UserCreds struct {
 	// Key is user client key and certificate
 	Key client.Key
 	// HostCA is a trusted host certificate authority
-	HostCA services.CertAuthority
+	HostCA types.CertAuthority
 }
 
 // SetupUserCreds sets up user credentials for client
@@ -412,10 +412,10 @@ func SetupUserCreds(tc *client.TeleportClient, proxyHost string, creds UserCreds
 }
 
 // SetupUser sets up user in the cluster
-func SetupUser(process *service.TeleportProcess, username string, roles []services.Role) error {
+func SetupUser(process *service.TeleportProcess, username string, roles []types.Role) error {
 	ctx := context.TODO()
 	auth := process.GetAuthServer()
-	teleUser, err := services.NewUser(username)
+	teleUser, err := types.NewUser(username)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -425,7 +425,7 @@ func SetupUser(process *service.TeleportProcess, username string, roles []servic
 
 		// allow tests to forward agent, still needs to be passed in client
 		roleOptions := role.GetOptions()
-		roleOptions.ForwardAgent = services.NewBool(true)
+		roleOptions.ForwardAgent = types.NewBool(true)
 		role.SetOptions(roleOptions)
 
 		err = auth.UpsertRole(ctx, role)
@@ -475,8 +475,8 @@ func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ca, err := a.GetCertAuthority(services.CertAuthID{
-		Type:       services.HostCA,
+	ca, err := a.GetCertAuthority(types.CertAuthID{
+		Type:       types.HostCA,
 		DomainName: clusterName.GetClusterName(),
 	}, false)
 	if err != nil {
@@ -509,13 +509,13 @@ func (i *TeleInstance) GenerateConfig(trustedSecrets []*InstanceSecrets, tconf *
 	tconf.DataDir = dataDir
 	tconf.UploadEventsC = i.UploadEventsC
 	tconf.CachePolicy.Enabled = true
-	tconf.Auth.ClusterName, err = services.NewClusterName(types.ClusterNameSpecV2{
+	tconf.Auth.ClusterName, err = types.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: i.Secrets.SiteName,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tconf.Auth.StaticTokens, err = services.NewStaticTokens(types.StaticTokensSpecV2{
+	tconf.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{
 			{
 				Roles: []teleport.Role{
@@ -539,8 +539,8 @@ func (i *TeleInstance) GenerateConfig(trustedSecrets []*InstanceSecrets, tconf *
 		tconf.Auth.Roles = append(tconf.Auth.Roles, trusted.GetRoles()...)
 		tconf.Identities = append(tconf.Identities, trusted.GetIdentity())
 		if trusted.ListenAddr != "" {
-			tconf.ReverseTunnels = []services.ReverseTunnel{
-				services.NewReverseTunnel(trusted.SiteName, []string{trusted.ListenAddr}),
+			tconf.ReverseTunnels = []types.ReverseTunnel{
+				types.NewReverseTunnel(trusted.SiteName, []string{trusted.ListenAddr}),
 			}
 		}
 	}
@@ -620,7 +620,7 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 	auth := i.Process.GetAuthServer()
 
 	for _, user := range i.Secrets.Users {
-		teleUser, err := services.NewUser(user.Username)
+		teleUser, err := types.NewUser(user.Username)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -632,7 +632,7 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 
 			// allow tests to forward agent, still needs to be passed in client
 			roleOptions := role.GetOptions()
-			roleOptions.ForwardAgent = services.NewBool(true)
+			roleOptions.ForwardAgent = types.NewBool(true)
 			role.SetOptions(roleOptions)
 
 			err = auth.UpsertRole(ctx, role)
@@ -1024,10 +1024,10 @@ func (i *TeleInstance) Reset() (err error) {
 }
 
 // AddUserUserWithRole adds user with one or many assigned roles
-func (i *TeleInstance) AddUserWithRole(username string, roles ...services.Role) *User {
+func (i *TeleInstance) AddUserWithRole(username string, roles ...types.Role) *User {
 	user := &User{
 		Username: username,
-		Roles:    make([]services.Role, len(roles)),
+		Roles:    make([]types.Role, len(roles)),
 	}
 	copy(user.Roles, roles)
 	i.Secrets.Users[username] = user

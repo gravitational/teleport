@@ -24,7 +24,7 @@ import (
 )
 
 //MarshalPluginData marshals the PluginData resource to JSON.
-func MarshalPluginData(pluginData PluginData, opts ...MarshalOption) ([]byte, error) {
+func MarshalPluginData(pluginData types.PluginData, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -49,7 +49,7 @@ func MarshalPluginData(pluginData PluginData, opts ...MarshalOption) ([]byte, er
 }
 
 // UnmarshalPluginData unmarshals the PluginData resource from JSON.
-func UnmarshalPluginData(raw []byte, opts ...MarshalOption) (PluginData, error) {
+func UnmarshalPluginData(raw []byte, opts ...MarshalOption) (types.PluginData, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)

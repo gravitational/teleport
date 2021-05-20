@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/pborman/uuid"
@@ -46,9 +45,9 @@ func TestLabels(t *testing.T) { check.TestingT(t) }
 func (s *LabelSuite) TestSync(c *check.C) {
 	// Create dynamic labels and sync right away.
 	l, err := NewDynamic(context.Background(), &DynamicConfig{
-		Labels: map[string]services.CommandLabel{
+		Labels: map[string]types.CommandLabel{
 			"foo": &types.CommandLabelV2{
-				Period:  services.NewDuration(1 * time.Second),
+				Period:  types.NewDuration(1 * time.Second),
 				Command: []string{"expr", "1", "+", "3"},
 			},
 		},
@@ -63,9 +62,9 @@ func (s *LabelSuite) TestSync(c *check.C) {
 func (s *LabelSuite) TestStart(c *check.C) {
 	// Create dynamic labels and setup async update.
 	l, err := NewDynamic(context.Background(), &DynamicConfig{
-		Labels: map[string]services.CommandLabel{
+		Labels: map[string]types.CommandLabel{
 			"foo": &types.CommandLabelV2{
-				Period:  services.NewDuration(1 * time.Second),
+				Period:  types.NewDuration(1 * time.Second),
 				Command: []string{"expr", "1", "+", "3"},
 			},
 		},
@@ -90,9 +89,9 @@ func (s *LabelSuite) TestStart(c *check.C) {
 func (s *LabelSuite) TestInvalidCommand(c *check.C) {
 	// Create invalid labels and sync right away.
 	l, err := NewDynamic(context.Background(), &DynamicConfig{
-		Labels: map[string]services.CommandLabel{
+		Labels: map[string]types.CommandLabel{
 			"foo": &types.CommandLabelV2{
-				Period:  services.NewDuration(1 * time.Second),
+				Period:  types.NewDuration(1 * time.Second),
 				Command: []string{uuid.New()}},
 		},
 	})

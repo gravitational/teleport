@@ -24,7 +24,7 @@ import (
 )
 
 // UnmarshalResetPasswordToken unmarshals the ResetPasswordToken resource from JSON.
-func UnmarshalResetPasswordToken(bytes []byte, opts ...MarshalOption) (ResetPasswordToken, error) {
+func UnmarshalResetPasswordToken(bytes []byte, opts ...MarshalOption) (types.ResetPasswordToken, error) {
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing resource data")
 	}
@@ -41,6 +41,6 @@ func UnmarshalResetPasswordToken(bytes []byte, opts ...MarshalOption) (ResetPass
 }
 
 // MarshalResetPasswordToken marshals the ResetPasswordToken resource to JSON.
-func MarshalResetPasswordToken(token ResetPasswordToken, opts ...MarshalOption) ([]byte, error) {
+func MarshalResetPasswordToken(token types.ResetPasswordToken, opts ...MarshalOption) ([]byte, error) {
 	return utils.FastMarshal(token)
 }

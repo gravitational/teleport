@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
@@ -145,7 +144,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	//
 	// PublicAddr and ClusterName will get encoded within the certificate and
 	// used for request routing.
-	ws, err := authClient.CreateAppSession(r.Context(), services.CreateAppSessionRequest{
+	ws, err := authClient.CreateAppSession(r.Context(), types.CreateAppSessionRequest{
 		Username:    ctx.GetUser(),
 		PublicAddr:  result.PublicAddr,
 		ClusterName: result.ClusterName,
@@ -238,7 +237,7 @@ type resolveAppResult struct {
 func (h *Handler) resolveApp(ctx context.Context, clt app.Getter, proxy reversetunnel.Tunnel, params resolveAppParams) (*resolveAppResult, error) {
 	var (
 		app            *types.App
-		server         services.Server
+		server         types.Server
 		appClusterName string
 		err            error
 	)
@@ -270,7 +269,7 @@ func (h *Handler) resolveApp(ctx context.Context, clt app.Getter, proxy reverset
 
 // resolveDirect takes a public address and cluster name and exactly resolves
 // the application and the server on which it is running.
-func (h *Handler) resolveDirect(ctx context.Context, proxy reversetunnel.Tunnel, publicAddr string, clusterName string) (*types.App, services.Server, string, error) {
+func (h *Handler) resolveDirect(ctx context.Context, proxy reversetunnel.Tunnel, publicAddr string, clusterName string) (*types.App, types.Server, string, error) {
 	clusterClient, err := proxy.GetSite(clusterName)
 	if err != nil {
 		return nil, nil, "", trace.Wrap(err)
@@ -291,7 +290,7 @@ func (h *Handler) resolveDirect(ctx context.Context, proxy reversetunnel.Tunnel,
 
 // resolveFQDN makes a best effort attempt to resolve FQDN to an application
 // running within a root or leaf cluster.
-func (h *Handler) resolveFQDN(ctx context.Context, clt app.Getter, proxy reversetunnel.Tunnel, fqdn string) (*types.App, services.Server, string, error) {
+func (h *Handler) resolveFQDN(ctx context.Context, clt app.Getter, proxy reversetunnel.Tunnel, fqdn string) (*types.App, types.Server, string, error) {
 	return app.ResolveFQDN(ctx, clt, proxy, []string{h.proxyDNSName()}, fqdn)
 }
 

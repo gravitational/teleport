@@ -24,7 +24,7 @@ import (
 )
 
 // UnmarshalRemoteCluster unmarshals the RemoteCluster resource from JSON.
-func UnmarshalRemoteCluster(bytes []byte, opts ...MarshalOption) (RemoteCluster, error) {
+func UnmarshalRemoteCluster(bytes []byte, opts ...MarshalOption) (types.RemoteCluster, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -56,7 +56,7 @@ func UnmarshalRemoteCluster(bytes []byte, opts ...MarshalOption) (RemoteCluster,
 }
 
 // MarshalRemoteCluster marshals the RemoteCluster resource to JSON.
-func MarshalRemoteCluster(remoteCluster RemoteCluster, opts ...MarshalOption) ([]byte, error) {
+func MarshalRemoteCluster(remoteCluster types.RemoteCluster, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -39,7 +39,7 @@ import (
 // backend with the identity of the caller used to generate the certificate.
 // The certificate is used for all access requests, which is where access
 // control is enforced.
-func (s *Server) CreateAppSession(ctx context.Context, req services.CreateAppSessionRequest, user services.User, identity tlsca.Identity, checker services.AccessChecker) (services.WebSession, error) {
+func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest, user types.User, identity tlsca.Identity, checker services.AccessChecker) (types.WebSession, error) {
 	if !modules.GetModules().Features().App {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster doesn't support application access, please contact the cluster administrator")
@@ -88,7 +88,7 @@ func (s *Server) CreateAppSession(ctx context.Context, req services.CreateAppSes
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	session := services.NewWebSession(sessionID, services.KindWebSession, services.KindAppSession, types.WebSessionSpecV2{
+	session := types.NewWebSession(sessionID, services.KindWebSession, services.KindAppSession, types.WebSessionSpecV2{
 		User:    req.Username,
 		Priv:    privateKey,
 		Pub:     certs.ssh,
@@ -106,7 +106,7 @@ func (s *Server) CreateAppSession(ctx context.Context, req services.CreateAppSes
 // WaitForAppSession will block until the requested application session shows up in the
 // cache or a timeout occurs.
 func WaitForAppSession(ctx context.Context, sessionID, user string, ap AccessPoint) error {
-	_, err := ap.GetAppSession(ctx, services.GetAppSessionRequest{SessionID: sessionID})
+	_, err := ap.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: sessionID})
 	if err == nil {
 		return nil
 	}
@@ -115,9 +115,9 @@ func WaitForAppSession(ctx context.Context, sessionID, user string, ap AccessPoi
 		logger.WithError(err).Debug("Failed to query application session.")
 	}
 	// Establish a watch on application session.
-	watcher, err := ap.NewWatcher(ctx, services.Watch{
+	watcher, err := ap.NewWatcher(ctx, types.Watch{
 		Name: teleport.ComponentAppProxy,
-		Kinds: []services.WatchKind{
+		Kinds: []types.WatchKind{
 			{
 				Kind:    services.KindWebSession,
 				SubKind: services.KindAppSession,
@@ -130,7 +130,7 @@ func WaitForAppSession(ctx context.Context, sessionID, user string, ap AccessPoi
 		return trace.Wrap(err)
 	}
 	defer watcher.Close()
-	matchEvent := func(event services.Event) (services.Resource, error) {
+	matchEvent := func(event types.Event) (types.Resource, error) {
 		if event.Type == backend.OpPut &&
 			event.Resource.GetKind() == services.KindWebSession &&
 			event.Resource.GetSubKind() == services.KindAppSession &&
@@ -143,7 +143,7 @@ func WaitForAppSession(ctx context.Context, sessionID, user string, ap AccessPoi
 	if err != nil {
 		logger.WithError(err).Warn("Failed to wait for application session.")
 		// See again if we maybe missed the event but the session was actually created.
-		if _, err := ap.GetAppSession(ctx, services.GetAppSessionRequest{SessionID: sessionID}); err == nil {
+		if _, err := ap.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: sessionID}); err == nil {
 			return nil
 		}
 	}
@@ -158,8 +158,8 @@ func (s *Server) generateAppToken(username string, roles []string, uri string, e
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	ca, err := s.GetCertAuthority(services.CertAuthID{
-		Type:       services.JWTSigner,
+	ca, err := s.GetCertAuthority(types.CertAuthID{
+		Type:       types.JWTSigner,
 		DomainName: clusterName,
 	}, true)
 	if err != nil {
@@ -184,7 +184,7 @@ func (s *Server) generateAppToken(username string, roles []string, uri string, e
 	return token, nil
 }
 
-func (s *Server) createWebSession(ctx context.Context, req types.NewWebSessionRequest) (services.WebSession, error) {
+func (s *Server) createWebSession(ctx context.Context, req types.NewWebSessionRequest) (types.WebSession, error) {
 	// It's safe to extract the roles and traits directly from services.User
 	// because this occurs during the user creation process and services.User
 	// is not fetched from the backend.
@@ -201,7 +201,7 @@ func (s *Server) createWebSession(ctx context.Context, req types.NewWebSessionRe
 	return session, nil
 }
 
-func (s *Server) createSessionCert(user services.User, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster string) ([]byte, []byte, error) {
+func (s *Server) createSessionCert(user types.User, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster string) ([]byte, []byte, error) {
 	// It's safe to extract the roles and traits directly from services.User
 	// because this occurs during the user creation process and services.User
 	// is not fetched from the backend.

@@ -43,7 +43,7 @@ func TestServerKeyAuth(t *testing.T) {
 		log: testlog.FailureOnly(t),
 		localAccessPoint: mockAccessPoint{
 			ca: types.NewCertAuthority(types.CertAuthoritySpecV2{
-				Type:         services.HostCA,
+				Type:         types.HostCA,
 				ClusterName:  "cluster-name",
 				SigningKeys:  [][]byte{priv},
 				CheckingKeys: [][]byte{pub},
@@ -142,9 +142,9 @@ func (mockSSHConnMetadata) RemoteAddr() net.Addr { return &net.TCPAddr{} }
 
 type mockAccessPoint struct {
 	auth.AccessPoint
-	ca services.CertAuthority
+	ca types.CertAuthority
 }
 
-func (ap mockAccessPoint) GetCertAuthority(id services.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (services.CertAuthority, error) {
+func (ap mockAccessPoint) GetCertAuthority(id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
 	return ap.ca, nil
 }

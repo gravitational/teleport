@@ -51,7 +51,7 @@ func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
 		},
 		log: logrus.New(),
 	}
-	user, err := services.NewUser("bob")
+	user, err := types.NewUser("bob")
 	c.Assert(err, check.IsNil)
 	ctx := authContext{
 		teleportCluster: teleportClusterClient{
@@ -101,12 +101,12 @@ func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
 func TestAuthenticate(t *testing.T) {
 	t.Parallel()
 
-	cc, err := services.NewClusterConfig(types.ClusterConfigSpecV3{
+	cc, err := types.NewClusterConfig(types.ClusterConfigSpecV3{
 		DisconnectExpiredCert: true,
 	})
 	require.NoError(t, err)
 	nc, err := types.NewClusterNetworkingConfig(types.ClusterNetworkingConfigSpecV2{
-		ClientIdleTimeout: services.NewDuration(time.Hour),
+		ClientIdleTimeout: types.NewDuration(time.Hour),
 	})
 	require.NoError(t, err)
 	ap := &mockAccessPoint{
@@ -115,7 +115,7 @@ func TestAuthenticate(t *testing.T) {
 		recordingConfig: types.DefaultSessionRecordingConfig(),
 	}
 
-	user, err := services.NewUser("user-a")
+	user, err := types.NewUser("user-a")
 	require.NoError(t, err)
 
 	tun := mockRevTunnel{
@@ -145,7 +145,7 @@ func TestAuthenticate(t *testing.T) {
 		kubernetesCluster string
 		haveKubeCreds     bool
 		tunnel            reversetunnel.Server
-		kubeServices      []services.Server
+		kubeServices      []types.Server
 
 		wantCtx     *authContext
 		wantErr     bool
@@ -351,7 +351,7 @@ func TestAuthenticate(t *testing.T) {
 			kubernetesCluster: "foo",
 			haveKubeCreds:     true,
 			tunnel:            tun,
-			kubeServices: []services.Server{&types.ServerV2{
+			kubeServices: []types.Server{&types.ServerV2{
 				Spec: types.ServerSpecV2{
 					KubernetesClusters: []*types.KubernetesCluster{{
 						Name: "foo",
@@ -585,7 +585,7 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 		ctx:               context.TODO(),
 		activeRequests:    make(map[string]context.Context),
 	}
-	user, err := services.NewUser("bob")
+	user, err := types.NewUser("bob")
 	c.Assert(err, check.IsNil)
 
 	c.Log("newClusterSession for a local cluster without kubeconfig")
@@ -763,14 +763,14 @@ func (s mockRemoteSite) GetName() string { return s.name }
 type mockAccessPoint struct {
 	auth.AccessPoint
 
-	clusterConfig   services.ClusterConfig
+	clusterConfig   types.ClusterConfig
 	netConfig       types.ClusterNetworkingConfig
 	recordingConfig types.SessionRecordingConfig
-	kubeServices    []services.Server
+	kubeServices    []types.Server
 	cas             map[string]types.CertAuthority
 }
 
-func (ap mockAccessPoint) GetClusterConfig(...services.MarshalOption) (services.ClusterConfig, error) {
+func (ap mockAccessPoint) GetClusterConfig(...services.MarshalOption) (types.ClusterConfig, error) {
 	return ap.clusterConfig, nil
 }
 
@@ -782,7 +782,7 @@ func (ap mockAccessPoint) GetSessionRecordingConfig(context.Context, ...services
 	return ap.recordingConfig, nil
 }
 
-func (ap mockAccessPoint) GetKubeServices(ctx context.Context) ([]services.Server, error) {
+func (ap mockAccessPoint) GetKubeServices(ctx context.Context) ([]types.Server, error) {
 	return ap.kubeServices, nil
 }
 

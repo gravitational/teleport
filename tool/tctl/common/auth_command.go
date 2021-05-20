@@ -14,6 +14,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
@@ -106,7 +107,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 		DurationVar(&a.rotateGracePeriod)
 	a.authRotate.Flag("manual", "Activate manual rotation , set rotation phases manually").BoolVar(&a.rotateManualMode)
 	a.authRotate.Flag("type", "Certificate authority to rotate, rotates both host and user CA by default").StringVar(&a.rotateType)
-	a.authRotate.Flag("phase", fmt.Sprintf("Target rotation phase to set, used in manual rotation, one of: %v", strings.Join(services.RotatePhases, ", "))).StringVar(&a.rotateTargetPhase)
+	a.authRotate.Flag("phase", fmt.Sprintf("Target rotation phase to set, used in manual rotation, one of: %v", strings.Join(types.RotatePhases, ", "))).StringVar(&a.rotateTargetPhase)
 }
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
@@ -131,7 +132,7 @@ func (a *AuthCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 // If --type flag is given, only prints keys for CAs of this type, otherwise
 // prints all keys
 func (a *AuthCommand) ExportAuthorities(client auth.ClientI) error {
-	var typesToExport []services.CertAuthType
+	var typesToExport []types.CertAuthType
 
 	// this means to export TLS authority
 	if a.authType == "tls" {
@@ -140,7 +141,7 @@ func (a *AuthCommand) ExportAuthorities(client auth.ClientI) error {
 			return trace.Wrap(err)
 		}
 		certAuthority, err := client.GetCertAuthority(
-			services.CertAuthID{Type: services.HostCA, DomainName: clusterName},
+			types.CertAuthID{Type: types.HostCA, DomainName: clusterName},
 			a.exportPrivateKeys)
 		if err != nil {
 			return trace.Wrap(err)
@@ -158,13 +159,13 @@ func (a *AuthCommand) ExportAuthorities(client auth.ClientI) error {
 
 	// if no --type flag is given, export all types
 	if a.authType == "" {
-		typesToExport = []services.CertAuthType{services.HostCA, services.UserCA}
+		typesToExport = []types.CertAuthType{types.HostCA, types.UserCA}
 	} else {
-		authType := services.CertAuthType(a.authType)
+		authType := types.CertAuthType(a.authType)
 		if err := authType.Check(); err != nil {
 			return trace.Wrap(err)
 		}
-		typesToExport = []services.CertAuthType{authType}
+		typesToExport = []types.CertAuthType{authType}
 	}
 	localAuthName, err := client.GetDomainName()
 	if err != nil {
@@ -173,7 +174,7 @@ func (a *AuthCommand) ExportAuthorities(client auth.ClientI) error {
 
 	// fetch authorities via auth API (and only take local CAs, ignoring
 	// trusted ones)
-	var authorities []services.CertAuthority
+	var authorities []types.CertAuthority
 	for _, at := range typesToExport {
 		cas, err := client.GetCertAuthorities(at, a.exportPrivateKeys)
 		if err != nil {
@@ -225,9 +226,9 @@ func (a *AuthCommand) ExportAuthorities(client auth.ClientI) error {
 				// export certificate authority in user or host ca format
 				var castr string
 				switch ca.GetType() {
-				case services.UserCA:
+				case types.UserCA:
 					castr, err = userCAFormat(ca, keyBytes)
-				case services.HostCA:
+				case types.HostCA:
 					castr, err = hostCAFormat(ca, keyBytes, client)
 				default:
 					return trace.BadParameter("unknown user type: %q", ca.GetType())
@@ -283,14 +284,14 @@ func (a *AuthCommand) GenerateAndSignKeys(clusterAPI auth.ClientI) error {
 // RotateCertAuthority starts or restarts certificate authority rotation process
 func (a *AuthCommand) RotateCertAuthority(client auth.ClientI) error {
 	req := auth.RotateRequest{
-		Type:        services.CertAuthType(a.rotateType),
+		Type:        types.CertAuthType(a.rotateType),
 		GracePeriod: &a.rotateGracePeriod,
 		TargetPhase: a.rotateTargetPhase,
 	}
 	if a.rotateManualMode {
-		req.Mode = services.RotationModeManual
+		req.Mode = types.RotationModeManual
 	} else {
-		req.Mode = services.RotationModeAuto
+		req.Mode = types.RotationModeAuto
 	}
 	if err := client.RotateCertAuthority(req); err != nil {
 		return err
@@ -331,7 +332,7 @@ func (a *AuthCommand) generateHostKeys(clusterAPI auth.ClientI) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	hostCAs, err := clusterAPI.GetCertAuthorities(services.HostCA, false)
+	hostCAs, err := clusterAPI.GetCertAuthorities(types.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -443,7 +444,7 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 	key.Cert = certs.SSH
 	key.TLSCert = certs.TLS
 
-	hostCAs, err := clusterAPI.GetCertAuthorities(services.HostCA, false)
+	hostCAs, err := clusterAPI.GetCertAuthorities(types.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -574,7 +575,7 @@ func (a *AuthCommand) checkProxyAddr(clusterAPI auth.ClientI) error {
 //    cert-authority AAA... type=user&clustername=cluster-a
 //
 // URL encoding is used to pass the CA type and cluster name into the comment field.
-func userCAFormat(ca services.CertAuthority, keyBytes []byte) (string, error) {
+func userCAFormat(ca types.CertAuthority, keyBytes []byte) (string, error) {
 	return sshutils.MarshalAuthorizedKeysFormat(ca.GetClusterName(), keyBytes)
 }
 
@@ -586,7 +587,7 @@ func userCAFormat(ca services.CertAuthority, keyBytes []byte) (string, error) {
 //    @cert-authority *.cluster-a ssh-rsa AAA... type=host
 //
 // URL encoding is used to pass the CA type and allowed logins into the comment field.
-func hostCAFormat(ca services.CertAuthority, keyBytes []byte, client auth.ClientI) (string, error) {
+func hostCAFormat(ca types.CertAuthority, keyBytes []byte, client auth.ClientI) (string, error) {
 	roles, err := services.FetchRoles(ca.GetRoles(), client, nil)
 	if err != nil {
 		return "", trace.Wrap(err)

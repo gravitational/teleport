@@ -59,7 +59,7 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	role1.SetLogins(services.Deny, []string{"c"})
 	role2.SetLogins(services.Allow, []string{"d"})
 
-	roleSet := []services.Role{role1, role2}
+	roleSet := []types.Role{role1, role2}
 	userContext, err := NewUserContext(user, roleSet, proto.Features{})
 	c.Assert(err, check.IsNil)
 
@@ -82,7 +82,7 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	c.Assert(userContext.ACL.AccessRequests, check.DeepEquals, denied)
 	c.Assert(userContext.ACL.SSHLogins, check.DeepEquals, []string{"a", "b", "d"})
 	c.Assert(userContext.AccessStrategy, check.DeepEquals, accessStrategy{
-		Type:   services.RequestStrategyOptional,
+		Type:   types.RequestStrategyOptional,
 		Prompt: "",
 	})
 	c.Assert(userContext.ACL.Billing, check.DeepEquals, denied)

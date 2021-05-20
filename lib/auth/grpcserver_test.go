@@ -50,7 +50,7 @@ func TestMFADeviceManagement(t *testing.T) {
 	clock := srv.Clock().(clockwork.FakeClock)
 
 	// Enable U2F support.
-	authPref, err := services.NewAuthPreference(types.AuthPreferenceSpecV2{
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
 		SecondFactor: constants.SecondFactorOptional,
 		U2F: &types.U2F{
@@ -545,7 +545,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	clock := srv.Clock()
 
 	// Enable U2F support.
-	authPref, err := services.NewAuthPreference(types.AuthPreferenceSpecV2{
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
 		SecondFactor: constants.SecondFactorOn,
 		U2F: &types.U2F{
@@ -870,7 +870,7 @@ func TestIsMFARequired(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Enable MFA support.
-	authPref, err := services.NewAuthPreference(types.AuthPreferenceSpecV2{
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
 		SecondFactor: constants.SecondFactorOptional,
 		U2F: &types.U2F{
@@ -929,7 +929,7 @@ func TestDeleteLastMFADevice(t *testing.T) {
 	clock := srv.Clock().(clockwork.FakeClock)
 
 	// Enable MFA support.
-	authPref, err := services.NewAuthPreference(types.AuthPreferenceSpecV2{
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
 		SecondFactor: constants.SecondFactorOn,
 		U2F: &types.U2F{

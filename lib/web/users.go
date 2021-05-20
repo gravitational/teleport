@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
 
 	"github.com/gravitational/trace"
@@ -82,7 +81,7 @@ func createUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, e
 		return nil, trace.Wrap(err)
 	}
 
-	user, err := services.NewUser(req.Name)
+	user, err := types.NewUser(req.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -164,13 +163,13 @@ func deleteUser(r *http.Request, params httprouter.Params, m userAPIGetter, user
 
 type userAPIGetter interface {
 	// GetUser returns user by name
-	GetUser(name string, withSecrets bool) (services.User, error)
+	GetUser(name string, withSecrets bool) (types.User, error)
 	// CreateUser creates a new user
-	CreateUser(ctx context.Context, user services.User) error
+	CreateUser(ctx context.Context, user types.User) error
 	// UpdateUser updates a user
-	UpdateUser(ctx context.Context, user services.User) error
+	UpdateUser(ctx context.Context, user types.User) error
 	// GetUsers returns a list of users
-	GetUsers(withSecrets bool) ([]services.User, error)
+	GetUsers(withSecrets bool) ([]types.User, error)
 	// DeleteUser deletes a user by name.
 	DeleteUser(ctx context.Context, user string) error
 }

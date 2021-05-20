@@ -189,7 +189,7 @@ func (rc *ResourceCommand) GetMany(client auth.ClientI) error {
 	if rc.format != teleport.YAML {
 		return trace.BadParameter("mixed resource types only support YAML formatting")
 	}
-	var resources []services.Resource
+	var resources []types.Resource
 	for _, ref := range rc.refs {
 		rc.ref = ref
 		collection, err := rc.getCollection(client)
@@ -502,7 +502,7 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 		if rc.ref.SubKind == "" || rc.ref.Name == "" {
 			return trace.BadParameter(
 				"full semaphore path must be specified (e.g. '%s/%s/alice@example.com')",
-				services.KindSemaphore, services.SemaphoreKindConnection,
+				services.KindSemaphore, types.SemaphoreKindConnection,
 			)
 		}
 		err := client.DeleteSemaphore(ctx, types.SemaphoreFilter{
@@ -679,10 +679,10 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &reverseTunnelCollection{tunnels: []services.ReverseTunnel{tunnel}}, nil
+		return &reverseTunnelCollection{tunnels: []types.ReverseTunnel{tunnel}}, nil
 	case services.KindCertAuthority:
 		if rc.ref.SubKind == "" && rc.ref.Name == "" {
-			var allAuthorities []services.CertAuthority
+			var allAuthorities []types.CertAuthority
 			for _, caType := range types.CertAuthTypes {
 				authorities, err := client.GetCertAuthorities(caType, rc.withSecrets)
 				if err != nil {
@@ -697,7 +697,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &authorityCollection{cas: []services.CertAuthority{authority}}, nil
+		return &authorityCollection{cas: []types.CertAuthority{authority}}, nil
 	case services.KindNode:
 		nodes, err := client.GetNodes(ctx, rc.namespace)
 		if err != nil {
@@ -708,7 +708,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		}
 		for _, node := range nodes {
 			if node.GetName() == rc.ref.Name || node.GetHostname() == rc.ref.Name {
-				return &serverCollection{servers: []services.Server{node}}, nil
+				return &serverCollection{servers: []types.Server{node}}, nil
 			}
 		}
 		return nil, trace.NotFound("node with ID %q not found", rc.ref.Name)
@@ -722,7 +722,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		}
 		for _, server := range servers {
 			if server.GetName() == rc.ref.Name || server.GetHostname() == rc.ref.Name {
-				return &serverCollection{servers: []services.Server{server}}, nil
+				return &serverCollection{servers: []types.Server{server}}, nil
 			}
 		}
 		return nil, trace.NotFound("auth server with ID %q not found", rc.ref.Name)
@@ -736,7 +736,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		}
 		for _, server := range servers {
 			if server.GetName() == rc.ref.Name || server.GetHostname() == rc.ref.Name {
-				return &serverCollection{servers: []services.Server{server}}, nil
+				return &serverCollection{servers: []types.Server{server}}, nil
 			}
 		}
 		return nil, trace.NotFound("proxy with ID %q not found", rc.ref.Name)
@@ -752,7 +752,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &roleCollection{roles: []services.Role{role}}, nil
+		return &roleCollection{roles: []types.Role{role}}, nil
 	case services.KindNamespace:
 		if rc.ref.Name == "" {
 			namespaces, err := client.GetNamespaces()
@@ -778,7 +778,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &trustedClusterCollection{trustedClusters: []services.TrustedCluster{trustedCluster}}, nil
+		return &trustedClusterCollection{trustedClusters: []types.TrustedCluster{trustedCluster}}, nil
 	case services.KindRemoteCluster:
 		if rc.ref.Name == "" {
 			remoteClusters, err := client.GetRemoteClusters()
@@ -791,7 +791,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &remoteClusterCollection{remoteClusters: []services.RemoteCluster{remoteCluster}}, nil
+		return &remoteClusterCollection{remoteClusters: []types.RemoteCluster{remoteCluster}}, nil
 	case services.KindSemaphore:
 		sems, err := client.GetSemaphores(context.TODO(), types.SemaphoreFilter{
 			SemaphoreKind: rc.ref.SubKind,
@@ -811,7 +811,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		}
 		for _, server := range servers {
 			if server.GetName() == rc.ref.Name || server.GetHostname() == rc.ref.Name {
-				return &serverCollection{servers: []services.Server{server}}, nil
+				return &serverCollection{servers: []types.Server{server}}, nil
 			}
 		}
 		return nil, trace.NotFound("kube_service with ID %q not found", rc.ref.Name)
@@ -823,13 +823,13 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		authPrefs := []services.AuthPreference{authPref}
+		authPrefs := []types.AuthPreference{authPref}
 		return &authPrefCollection{authPrefs: authPrefs}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
 
-func getSAMLConnectors(ctx context.Context, client auth.ClientI, name string, withSecrets bool) ([]services.SAMLConnector, error) {
+func getSAMLConnectors(ctx context.Context, client auth.ClientI, name string, withSecrets bool) ([]types.SAMLConnector, error) {
 	if name == "" {
 		connectors, err := client.GetSAMLConnectors(ctx, withSecrets)
 		if err != nil {
@@ -841,10 +841,10 @@ func getSAMLConnectors(ctx context.Context, client auth.ClientI, name string, wi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return []services.SAMLConnector{connector}, nil
+	return []types.SAMLConnector{connector}, nil
 }
 
-func getOIDCConnectors(ctx context.Context, client auth.ClientI, name string, withSecrets bool) ([]services.OIDCConnector, error) {
+func getOIDCConnectors(ctx context.Context, client auth.ClientI, name string, withSecrets bool) ([]types.OIDCConnector, error) {
 	if name == "" {
 		connectors, err := client.GetOIDCConnectors(ctx, withSecrets)
 		if err != nil {
@@ -856,10 +856,10 @@ func getOIDCConnectors(ctx context.Context, client auth.ClientI, name string, wi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return []services.OIDCConnector{connector}, nil
+	return []types.OIDCConnector{connector}, nil
 }
 
-func getGithubConnectors(ctx context.Context, client auth.ClientI, name string, withSecrets bool) ([]services.GithubConnector, error) {
+func getGithubConnectors(ctx context.Context, client auth.ClientI, name string, withSecrets bool) ([]types.GithubConnector, error) {
 	if name == "" {
 		connectors, err := client.GetGithubConnectors(ctx, withSecrets)
 		if err != nil {
@@ -871,7 +871,7 @@ func getGithubConnectors(ctx context.Context, client auth.ClientI, name string, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return []services.GithubConnector{connector}, nil
+	return []types.GithubConnector{connector}, nil
 }
 
 // UpsertVerb generates the correct string form of a verb based on the action taken

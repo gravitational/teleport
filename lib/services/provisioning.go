@@ -29,10 +29,10 @@ import (
 // Provisioner governs adding new nodes to the cluster
 type Provisioner interface {
 	// UpsertToken adds provisioning tokens for the auth server
-	UpsertToken(ctx context.Context, token ProvisionToken) error
+	UpsertToken(ctx context.Context, token types.ProvisionToken) error
 
 	// GetToken finds and returns token by id
-	GetToken(ctx context.Context, token string) (ProvisionToken, error)
+	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
 
 	// DeleteToken deletes provisioning token
 	DeleteToken(ctx context.Context, token string) error
@@ -41,13 +41,13 @@ type Provisioner interface {
 	DeleteAllTokens() error
 
 	// GetTokens returns all non-expired tokens
-	GetTokens(ctx context.Context, opts ...MarshalOption) ([]ProvisionToken, error)
+	GetTokens(ctx context.Context, opts ...MarshalOption) ([]types.ProvisionToken, error)
 }
 
 // MustCreateProvisionToken returns a new valid provision token
 // or panics, used in testes
-func MustCreateProvisionToken(token string, roles types.SystemRoles, expires time.Time) ProvisionToken {
-	t, err := NewProvisionToken(token, roles, expires)
+func MustCreateProvisionToken(token string, roles types.SystemRoles, expires time.Time) types.ProvisionToken {
+	t, err := types.NewProvisionToken(token, roles, expires)
 	if err != nil {
 		panic(err)
 	}
@@ -55,7 +55,7 @@ func MustCreateProvisionToken(token string, roles types.SystemRoles, expires tim
 }
 
 // UnmarshalProvisionToken unmarshals the ProvisionToken resource from JSON.
-func UnmarshalProvisionToken(data []byte, opts ...MarshalOption) (ProvisionToken, error) {
+func UnmarshalProvisionToken(data []byte, opts ...MarshalOption) (types.ProvisionToken, error) {
 	if len(data) == 0 {
 		return nil, trace.BadParameter("missing provision token data")
 	}
@@ -100,7 +100,7 @@ func UnmarshalProvisionToken(data []byte, opts ...MarshalOption) (ProvisionToken
 }
 
 // MarshalProvisionToken marshals the ProvisionToken resource to JSON.
-func MarshalProvisionToken(provisionToken ProvisionToken, opts ...MarshalOption) ([]byte, error) {
+func MarshalProvisionToken(provisionToken types.ProvisionToken, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)

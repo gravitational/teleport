@@ -47,7 +47,7 @@ func (s *ServerSuite) TestServersCompare(c *check.C) {
 		},
 		Spec: types.ServerSpecV2{
 			Addr:      "localhost:3022",
-			CmdLabels: map[string]types.CommandLabelV2{"a": {Period: Duration(time.Minute), Command: []string{"ls", "-l"}}},
+			CmdLabels: map[string]types.CommandLabelV2{"a": {Period: types.Duration(time.Minute), Command: []string{"ls", "-l"}}},
 			Version:   "4.0.0",
 		},
 	}
@@ -67,7 +67,7 @@ func (s *ServerSuite) TestServersCompare(c *check.C) {
 
 	// Command labels are different
 	node2 = *node
-	node2.Spec.CmdLabels = map[string]types.CommandLabelV2{"a": {Period: Duration(time.Minute), Command: []string{"ls", "-lR"}}}
+	node2.Spec.CmdLabels = map[string]types.CommandLabelV2{"a": {Period: types.Duration(time.Minute), Command: []string{"ls", "-lR"}}}
 	c.Assert(CompareServers(node, &node2), check.Equals, Different)
 
 	// Address has changed
@@ -93,11 +93,11 @@ func (s *ServerSuite) TestServersCompare(c *check.C) {
 	// Rotation has changed
 	node2 = *node
 	node2.Spec.Rotation = types.Rotation{
-		State:       RotationStateInProgress,
-		Phase:       RotationPhaseUpdateClients,
+		State:       types.RotationStateInProgress,
+		Phase:       types.RotationPhaseUpdateClients,
 		CurrentID:   "1",
 		Started:     time.Date(2018, 3, 4, 5, 6, 7, 8, time.UTC),
-		GracePeriod: Duration(3 * time.Hour),
+		GracePeriod: types.Duration(3 * time.Hour),
 		LastRotated: time.Date(2017, 2, 3, 4, 5, 6, 7, time.UTC),
 		Schedule: types.RotationSchedule{
 			UpdateClients: time.Date(2018, 3, 4, 5, 6, 7, 8, time.UTC),
@@ -122,7 +122,7 @@ func (s *ServerSuite) TestGuessProxyHostAndVersion(c *check.C) {
 	proxyA.Spec.Hostname = "test-A"
 	proxyA.Spec.Version = "test-A"
 
-	host, version, err = GuessProxyHostAndVersion([]Server{&proxyA})
+	host, version, err = GuessProxyHostAndVersion([]types.Server{&proxyA})
 	c.Assert(host, check.Equals, fmt.Sprintf("%v:%v", proxyA.Spec.Hostname, defaults.HTTPListenPort))
 	c.Assert(version, check.Equals, proxyA.Spec.Version)
 	c.Assert(err, check.IsNil)
@@ -132,7 +132,7 @@ func (s *ServerSuite) TestGuessProxyHostAndVersion(c *check.C) {
 	proxyB.Spec.PublicAddr = "test-B"
 	proxyB.Spec.Version = "test-B"
 
-	host, version, err = GuessProxyHostAndVersion([]Server{&proxyA, &proxyB})
+	host, version, err = GuessProxyHostAndVersion([]types.Server{&proxyA, &proxyB})
 	c.Assert(host, check.Equals, proxyB.Spec.PublicAddr)
 	c.Assert(version, check.Equals, proxyB.Spec.Version)
 	c.Assert(err, check.IsNil)

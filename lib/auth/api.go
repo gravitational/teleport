@@ -32,25 +32,25 @@ import (
 type Announcer interface {
 	// UpsertNode registers node presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
-	UpsertNode(ctx context.Context, s services.Server) (*types.KeepAlive, error)
+	UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error)
 
 	// UpsertProxy registers proxy presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
-	UpsertProxy(s services.Server) error
+	UpsertProxy(s types.Server) error
 
 	// UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
-	UpsertAuthServer(s services.Server) error
+	UpsertAuthServer(s types.Server) error
 
 	// UpsertKubeService registers kubernetes presence, permanently if ttl is 0
 	// or for the specified duration with second resolution if it's >= 1 second
-	UpsertKubeService(context.Context, services.Server) error
+	UpsertKubeService(context.Context, types.Server) error
 
 	// NewKeepAliver returns a new instance of keep aliver
-	NewKeepAliver(ctx context.Context) (services.KeepAliver, error)
+	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
 
 	// UpsertAppServer adds an application server.
-	UpsertAppServer(context.Context, services.Server) (*types.KeepAlive, error)
+	UpsertAppServer(context.Context, types.Server) (*types.KeepAlive, error)
 
 	// UpsertDatabaseServer registers a database proxy server.
 	UpsertDatabaseServer(context.Context, types.DatabaseServer) (*types.KeepAlive, error)
@@ -62,22 +62,22 @@ type ReadAccessPoint interface {
 	io.Closer
 
 	// NewWatcher returns a new event watcher.
-	NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error)
+	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
 	// GetReverseTunnels returns  a list of reverse tunnels
-	GetReverseTunnels(opts ...services.MarshalOption) ([]services.ReverseTunnel, error)
+	GetReverseTunnels(opts ...services.MarshalOption) ([]types.ReverseTunnel, error)
 
 	// GetClusterName returns cluster name
-	GetClusterName(opts ...services.MarshalOption) (services.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterConfig returns cluster level configuration.
-	GetClusterConfig(opts ...services.MarshalOption) (services.ClusterConfig, error)
+	GetClusterConfig(opts ...services.MarshalOption) (types.ClusterConfig, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
 	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
 
 	// GetAuthPreference returns the cluster authentication configuration.
-	GetAuthPreference() (services.AuthPreference, error)
+	GetAuthPreference() (types.AuthPreference, error)
 
 	// GetSessionRecordingConfig returns session recording configuration.
 	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
@@ -89,46 +89,46 @@ type ReadAccessPoint interface {
 	GetNamespace(name string) (*types.Namespace, error)
 
 	// GetNode returns a node by name and namespace.
-	GetNode(ctx context.Context, namespace, name string) (services.Server, error)
+	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
 
 	// GetNodes returns a list of registered servers for this cluster.
-	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error)
+	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
 
 	// GetProxies returns a list of proxy servers registered in the cluster
-	GetProxies() ([]services.Server, error)
+	GetProxies() ([]types.Server, error)
 
 	// GetAuthServers returns a list of auth servers registered in the cluster
-	GetAuthServers() ([]services.Server, error)
+	GetAuthServers() ([]types.Server, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(id services.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (services.CertAuthority, error)
+	GetCertAuthority(id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(caType services.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]services.CertAuthority, error)
+	GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// GetUser returns a services.User for this cluster.
-	GetUser(name string, withSecrets bool) (services.User, error)
+	GetUser(name string, withSecrets bool) (types.User, error)
 
 	// GetUsers returns a list of local users registered with this domain
-	GetUsers(withSecrets bool) ([]services.User, error)
+	GetUsers(withSecrets bool) ([]types.User, error)
 
 	// GetRole returns role by name
-	GetRole(ctx context.Context, name string) (services.Role, error)
+	GetRole(ctx context.Context, name string) (types.Role, error)
 
 	// GetRoles returns a list of roles
-	GetRoles(ctx context.Context) ([]services.Role, error)
+	GetRoles(ctx context.Context) ([]types.Role, error)
 
 	// GetAllTunnelConnections returns all tunnel connections
-	GetAllTunnelConnections(opts ...services.MarshalOption) ([]services.TunnelConnection, error)
+	GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error)
 
 	// GetTunnelConnections returns tunnel connections for a given cluster
-	GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]services.TunnelConnection, error)
+	GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error)
 
 	// GetAppServers gets all application servers.
-	GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error)
+	GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
 
 	// GetAppSession gets an application web session.
-	GetAppSession(context.Context, services.GetAppSessionRequest) (services.WebSession, error)
+	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
 
 	// GetWebSession gets a web session for the given request
 	GetWebSession(context.Context, types.GetWebSessionRequest) (types.WebSession, error)
@@ -137,13 +137,13 @@ type ReadAccessPoint interface {
 	GetWebToken(context.Context, types.GetWebTokenRequest) (types.WebToken, error)
 
 	// GetRemoteClusters returns a list of remote clusters
-	GetRemoteClusters(opts ...services.MarshalOption) ([]services.RemoteCluster, error)
+	GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error)
 
 	// GetRemoteCluster returns a remote cluster by name
-	GetRemoteCluster(clusterName string) (services.RemoteCluster, error)
+	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
 
 	// GetKubeServices returns a list of kubernetes services registered in the cluster
-	GetKubeServices(context.Context) ([]services.Server, error)
+	GetKubeServices(context.Context) ([]types.Server, error)
 
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
@@ -159,10 +159,10 @@ type AccessPoint interface {
 	events.Streamer
 
 	// Semaphores provides semaphore operations
-	services.Semaphores
+	types.Semaphores
 
 	// UpsertTunnelConnection upserts tunnel connection
-	UpsertTunnelConnection(conn services.TunnelConnection) error
+	UpsertTunnelConnection(conn types.TunnelConnection) error
 
 	// DeleteTunnelConnection deletes tunnel connection
 	DeleteTunnelConnection(clusterName, connName string) error
@@ -171,13 +171,13 @@ type AccessPoint interface {
 // AccessCache is a subset of the interface working on the certificate authorities
 type AccessCache interface {
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(id services.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (services.CertAuthority, error)
+	GetCertAuthority(id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(caType services.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]services.CertAuthority, error)
+	GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// GetClusterConfig returns cluster level configuration.
-	GetClusterConfig(opts ...services.MarshalOption) (services.ClusterConfig, error)
+	GetClusterConfig(opts ...services.MarshalOption) (types.ClusterConfig, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
 	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
@@ -186,7 +186,7 @@ type AccessCache interface {
 	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(opts ...services.MarshalOption) (services.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 }
 
 // Cache is a subset of the auth interface hanlding
@@ -195,16 +195,16 @@ type Cache interface {
 	ReadAccessPoint
 
 	// GetStaticTokens gets the list of static tokens used to provision nodes.
-	GetStaticTokens() (services.StaticTokens, error)
+	GetStaticTokens() (types.StaticTokens, error)
 
 	// GetTokens returns all active (non-expired) provisioning tokens
-	GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]services.ProvisionToken, error)
+	GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]types.ProvisionToken, error)
 
 	// GetToken finds and returns token by ID
-	GetToken(ctx context.Context, token string) (services.ProvisionToken, error)
+	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
 
 	// NewWatcher returns a new event watcher
-	NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error)
+	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 }
 
 // NewWrapper returns new access point wrapper
@@ -240,27 +240,27 @@ func (w *Wrapper) Close() error {
 }
 
 // UpsertNode is part of auth.AccessPoint implementation
-func (w *Wrapper) UpsertNode(ctx context.Context, s services.Server) (*types.KeepAlive, error) {
+func (w *Wrapper) UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
 	return w.NoCache.UpsertNode(ctx, s)
 }
 
 // UpsertAuthServer is part of auth.AccessPoint implementation
-func (w *Wrapper) UpsertAuthServer(s services.Server) error {
+func (w *Wrapper) UpsertAuthServer(s types.Server) error {
 	return w.NoCache.UpsertAuthServer(s)
 }
 
 // NewKeepAliver returns a new instance of keep aliver
-func (w *Wrapper) NewKeepAliver(ctx context.Context) (services.KeepAliver, error) {
+func (w *Wrapper) NewKeepAliver(ctx context.Context) (types.KeepAliver, error) {
 	return w.NoCache.NewKeepAliver(ctx)
 }
 
 // UpsertProxy is part of auth.AccessPoint implementation
-func (w *Wrapper) UpsertProxy(s services.Server) error {
+func (w *Wrapper) UpsertProxy(s types.Server) error {
 	return w.NoCache.UpsertProxy(s)
 }
 
 // UpsertTunnelConnection is a part of auth.AccessPoint implementation
-func (w *Wrapper) UpsertTunnelConnection(conn services.TunnelConnection) error {
+func (w *Wrapper) UpsertTunnelConnection(conn types.TunnelConnection) error {
 	return w.NoCache.UpsertTunnelConnection(conn)
 }
 
@@ -285,7 +285,7 @@ func (w *Wrapper) CancelSemaphoreLease(ctx context.Context, lease types.Semaphor
 }
 
 // GetSemaphores returns a list of semaphores matching supplied filter.
-func (w *Wrapper) GetSemaphores(ctx context.Context, filter types.SemaphoreFilter) ([]services.Semaphore, error) {
+func (w *Wrapper) GetSemaphores(ctx context.Context, filter types.SemaphoreFilter) ([]types.Semaphore, error) {
 	return w.NoCache.GetSemaphores(ctx, filter)
 }
 
@@ -295,12 +295,12 @@ func (w *Wrapper) DeleteSemaphore(ctx context.Context, filter types.SemaphoreFil
 }
 
 // UpsertKubeService is part of auth.AccessPoint implementation
-func (w *Wrapper) UpsertKubeService(ctx context.Context, s services.Server) error {
+func (w *Wrapper) UpsertKubeService(ctx context.Context, s types.Server) error {
 	return w.NoCache.UpsertKubeService(ctx, s)
 }
 
 // UpsertAppServer adds an application server.
-func (w *Wrapper) UpsertAppServer(ctx context.Context, server services.Server) (*types.KeepAlive, error) {
+func (w *Wrapper) UpsertAppServer(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
 	return w.NoCache.UpsertAppServer(ctx, server)
 }
 

@@ -204,7 +204,7 @@ func (s *CacheSuite) TestCA(c *check.C) {
 	p := s.newPackForAuth(c)
 	defer p.Close()
 
-	ca := suite.NewTestCA(services.UserCA, "example.com")
+	ca := suite.NewTestCA(types.UserCA, "example.com")
 	c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
 
 	select {
@@ -271,7 +271,7 @@ func (s *CacheSuite) onlyRecentDisconnect(c *check.C) {
 	p := s.newPackForAuth(c)
 	defer p.Close()
 
-	ca := suite.NewTestCA(services.UserCA, "example.com")
+	ca := suite.NewTestCA(types.UserCA, "example.com")
 	c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
 
 	select {
@@ -292,7 +292,7 @@ func (s *CacheSuite) onlyRecentDisconnect(c *check.C) {
 	fixtures.ExpectConnectionProblem(c, err)
 
 	// add modification and expect the resource to recover
-	ca.SetRoleMap(services.RoleMap{types.RoleMapping{Remote: "test", Local: []string{"local-test"}}})
+	ca.SetRoleMap(types.RoleMap{types.RoleMapping{Remote: "test", Local: []string{"local-test"}}})
 	c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
 
 	// now, recover the backend and make sure the
@@ -306,7 +306,7 @@ func (s *CacheSuite) onlyRecentDisconnect(c *check.C) {
 	out, err := p.cache.GetCertAuthority(ca.GetID(), false)
 	c.Assert(err, check.IsNil)
 	ca.SetResourceID(out.GetResourceID())
-	services.RemoveCASecrets(ca)
+	types.RemoveCASecrets(ca)
 	fixtures.DeepCompare(c, ca, out)
 }
 
@@ -317,7 +317,7 @@ func (s *CacheSuite) TestWatchers(c *check.C) {
 	p := s.newPackForAuth(c)
 	defer p.Close()
 
-	w, err := p.cache.NewWatcher(context.TODO(), services.Watch{Kinds: []services.WatchKind{
+	w, err := p.cache.NewWatcher(context.TODO(), types.Watch{Kinds: []types.WatchKind{
 		{
 			Kind: services.KindCertAuthority,
 		},
@@ -338,7 +338,7 @@ func (s *CacheSuite) TestWatchers(c *check.C) {
 		c.Fatalf("Timeout waiting for event.")
 	}
 
-	ca := suite.NewTestCA(services.UserCA, "example.com")
+	ca := suite.NewTestCA(types.UserCA, "example.com")
 	c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
 
 	select {
@@ -435,7 +435,7 @@ func (s *CacheSuite) TestCompletenessInit(c *check.C) {
 
 	// put lots of CAs in the backend
 	for i := 0; i < caCount; i++ {
-		ca := suite.NewTestCA(services.UserCA, fmt.Sprintf("%d.example.com", i))
+		ca := suite.NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
 		c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
 	}
 
@@ -477,7 +477,7 @@ func (s *CacheSuite) TestCompletenessInit(c *check.C) {
 
 		p.backend.SetReadError(nil)
 
-		cas, err := p.cache.GetCertAuthorities(services.UserCA, false)
+		cas, err := p.cache.GetCertAuthorities(types.UserCA, false)
 		// we don't actually care whether the cache ever fully constructed
 		// the CA list.  for the purposes of this test, we just care that it
 		// doesn't return the CA list *unless* it was successfully constructed.
@@ -504,7 +504,7 @@ func (s *CacheSuite) TestCompletenessReset(c *check.C) {
 
 	// put lots of CAs in the backend
 	for i := 0; i < caCount; i++ {
-		ca := suite.NewTestCA(services.UserCA, fmt.Sprintf("%d.example.com", i))
+		ca := suite.NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
 		c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
 	}
 
@@ -532,7 +532,7 @@ func (s *CacheSuite) TestCompletenessReset(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// verify that CAs are immediately available
-	cas, err := p.cache.GetCertAuthorities(services.UserCA, false)
+	cas, err := p.cache.GetCertAuthorities(types.UserCA, false)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(cas), check.Equals, caCount)
 
@@ -543,7 +543,7 @@ func (s *CacheSuite) TestCompletenessReset(c *check.C) {
 		p.backend.SetReadError(nil)
 
 		// load CAs while connection is bad
-		cas, err := p.cache.GetCertAuthorities(services.UserCA, false)
+		cas, err := p.cache.GetCertAuthorities(types.UserCA, false)
 		// we don't actually care whether the cache ever fully constructed
 		// the CA list.  for the purposes of this test, we just care that it
 		// doesn't return the CA list *unless* it was successfully constructed.
@@ -565,7 +565,7 @@ func (s *CacheSuite) TestTombstones(c *check.C) {
 
 	// put lots of CAs in the backend
 	for i := 0; i < caCount; i++ {
-		ca := suite.NewTestCA(services.UserCA, fmt.Sprintf("%d.example.com", i))
+		ca := suite.NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
 		c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
 	}
 
@@ -593,7 +593,7 @@ func (s *CacheSuite) TestTombstones(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// verify that CAs are immediately available
-	cas, err := p.cache.GetCertAuthorities(services.UserCA, false)
+	cas, err := p.cache.GetCertAuthorities(types.UserCA, false)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(cas), check.Equals, caCount)
 
@@ -628,7 +628,7 @@ func (s *CacheSuite) TestTombstones(c *check.C) {
 
 	// verify that CAs are immediately available despite the fact
 	// that the origin state was never available.
-	cas, err = p.cache.GetCertAuthorities(services.UserCA, false)
+	cas, err = p.cache.GetCertAuthorities(types.UserCA, false)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(cas), check.Equals, caCount)
 }
@@ -671,10 +671,10 @@ func (s *CacheSuite) preferRecent(c *check.C) {
 	}))
 	c.Assert(err, check.IsNil)
 
-	_, err = p.cache.GetCertAuthorities(services.UserCA, false)
+	_, err = p.cache.GetCertAuthorities(types.UserCA, false)
 	fixtures.ExpectConnectionProblem(c, err)
 
-	ca := suite.NewTestCA(services.UserCA, "example.com")
+	ca := suite.NewTestCA(types.UserCA, "example.com")
 	// NOTE 1: this could produce event processed
 	// below, based on whether watcher restarts to get the event
 	// or not, which is normal, but has to be accounted below
@@ -688,7 +688,7 @@ func (s *CacheSuite) preferRecent(c *check.C) {
 	c.Assert(err, check.IsNil)
 	ca.SetResourceID(out.GetResourceID())
 	ca.SetExpiry(out.Expiry())
-	services.RemoveCASecrets(ca)
+	types.RemoveCASecrets(ca)
 	fixtures.DeepCompare(c, ca, out)
 
 	// fail again, make sure last recent data is still served
@@ -708,7 +708,7 @@ func (s *CacheSuite) preferRecent(c *check.C) {
 	fixtures.DeepCompare(c, ca, out)
 
 	// add modification and expect the resource to recover
-	ca.SetRoleMap(services.RoleMap{types.RoleMapping{Remote: "test", Local: []string{"local-test"}}})
+	ca.SetRoleMap(types.RoleMap{types.RoleMapping{Remote: "test", Local: []string{"local-test"}}})
 	c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
 
 	// now, recover the backend and make sure the
@@ -732,7 +732,7 @@ func (s *CacheSuite) TestRecovery(c *check.C) {
 	p := s.newPackForAuth(c)
 	defer p.Close()
 
-	ca := suite.NewTestCA(services.UserCA, "example.com")
+	ca := suite.NewTestCA(types.UserCA, "example.com")
 	c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
 
 	select {
@@ -756,7 +756,7 @@ func (s *CacheSuite) TestRecovery(c *check.C) {
 	}
 
 	// add modification and expect the resource to recover
-	ca2 := suite.NewTestCA(services.UserCA, "example2.com")
+	ca2 := suite.NewTestCA(types.UserCA, "example2.com")
 	c.Assert(p.trustS.UpsertCertAuthority(ca2), check.IsNil)
 
 	// wait for watcher to receive an event
@@ -770,7 +770,7 @@ func (s *CacheSuite) TestRecovery(c *check.C) {
 	out, err := p.cache.GetCertAuthority(ca2.GetID(), false)
 	c.Assert(err, check.IsNil)
 	ca2.SetResourceID(out.GetResourceID())
-	services.RemoveCASecrets(ca2)
+	types.RemoveCASecrets(ca2)
 	fixtures.DeepCompare(c, ca2, out)
 }
 
@@ -780,7 +780,7 @@ func (s *CacheSuite) TestTokens(c *check.C) {
 	p := s.newPackForAuth(c)
 	defer p.Close()
 
-	staticTokens, err := services.NewStaticTokens(types.StaticTokensSpecV2{
+	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{
 			{
 				Token:   "static1",
@@ -807,7 +807,7 @@ func (s *CacheSuite) TestTokens(c *check.C) {
 	fixtures.DeepCompare(c, staticTokens, out)
 
 	expires := time.Now().Add(10 * time.Hour).Truncate(time.Second).UTC()
-	token, err := services.NewProvisionToken("token", teleport.Roles{teleport.RoleAuth, teleport.RoleNode}, expires)
+	token, err := types.NewProvisionToken("token", teleport.Roles{teleport.RoleAuth, teleport.RoleNode}, expires)
 	c.Assert(err, check.IsNil)
 
 	err = p.provisionerS.UpsertToken(ctx, token)
@@ -867,7 +867,7 @@ func (s *CacheSuite) TestClusterConfig(c *check.C) {
 	}
 
 	// update cluster config
-	clusterConfig, err := services.NewClusterConfig(types.ClusterConfigSpecV3{
+	clusterConfig, err := types.NewClusterConfig(types.ClusterConfigSpecV3{
 		Audit: types.AuditConfig{
 			AuditEventsURI: []string{"dynamodb://audit_table_name", "file:///home/log"},
 		},
@@ -892,7 +892,7 @@ func (s *CacheSuite) TestClusterConfig(c *check.C) {
 	fixtures.DeepCompare(c, clusterConfig, out)
 
 	// update cluster name resource metadata
-	clusterName, err := services.NewClusterName(types.ClusterNameSpecV2{
+	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: "example.com",
 	})
 	c.Assert(err, check.IsNil)
@@ -921,7 +921,7 @@ func (s *CacheSuite) TestNamespaces(c *check.C) {
 	p := s.newPackForProxy(c)
 	defer p.Close()
 
-	v := services.NewNamespace("universe")
+	v := types.NewNamespace("universe")
 	ns := &v
 	err := p.presenceS.UpsertNamespace(*ns)
 	c.Assert(err, check.IsNil)
@@ -980,7 +980,7 @@ func (s *CacheSuite) TestUsers(c *check.C) {
 	p := s.newPackForProxy(c)
 	defer p.Close()
 
-	user, err := services.NewUser("bob")
+	user, err := types.NewUser("bob")
 	c.Assert(err, check.IsNil)
 	err = p.usersS.UpsertUser(user)
 	c.Assert(err, check.IsNil)
@@ -1040,13 +1040,13 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 	p := s.newPackForNode(c)
 	defer p.Close()
 
-	role, err := services.NewRole("role1", types.RoleSpecV3{
+	role, err := types.NewRole("role1", types.RoleSpecV3{
 		Options: types.RoleOptions{
-			MaxSessionTTL: services.Duration(time.Hour),
+			MaxSessionTTL: types.Duration(time.Hour),
 		},
 		Allow: types.RoleConditions{
 			Logins:     []string{"root", "bob"},
-			NodeLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
+			NodeLabels: types.Labels{services.Wildcard: []string{services.Wildcard}},
 		},
 		Deny: types.RoleConditions{},
 	})
@@ -1108,7 +1108,7 @@ func (s *CacheSuite) TestReverseTunnels(c *check.C) {
 	p := s.newPackForProxy(c)
 	defer p.Close()
 
-	tunnel := services.NewReverseTunnel("example.com", []string{"example.com:2023"})
+	tunnel := types.NewReverseTunnel("example.com", []string{"example.com:2023"})
 	c.Assert(p.presenceS.UpsertReverseTunnel(tunnel), check.IsNil)
 
 	var err error
@@ -1175,7 +1175,7 @@ func (s *CacheSuite) TestTunnelConnections(c *check.C) {
 
 	clusterName := "example.com"
 	hb := time.Now().UTC()
-	conn, err := services.NewTunnelConnection("conn1", types.TunnelConnectionSpecV2{
+	conn, err := types.NewTunnelConnection("conn1", types.TunnelConnectionSpecV2{
 		ClusterName:   clusterName,
 		ProxyName:     "p1",
 		LastHeartbeat: hb,
@@ -1473,7 +1473,7 @@ func (s *CacheSuite) TestRemoteClusters(c *check.C) {
 	defer p.Close()
 
 	clusterName := "example.com"
-	rc, err := services.NewRemoteCluster(clusterName)
+	rc, err := types.NewRemoteCluster(clusterName)
 	c.Assert(err, check.IsNil)
 	c.Assert(p.presenceS.CreateRemoteCluster(rc), check.IsNil)
 
@@ -1710,14 +1710,14 @@ func TestDatabaseServers(t *testing.T) {
 
 type proxyEvents struct {
 	sync.Mutex
-	watchers []services.Watcher
-	events   services.Events
+	watchers []types.Watcher
+	events   types.Events
 }
 
-func (p *proxyEvents) getWatchers() []services.Watcher {
+func (p *proxyEvents) getWatchers() []types.Watcher {
 	p.Lock()
 	defer p.Unlock()
-	out := make([]services.Watcher, len(p.watchers))
+	out := make([]types.Watcher, len(p.watchers))
 	copy(out, p.watchers)
 	return out
 }
@@ -1731,7 +1731,7 @@ func (p *proxyEvents) closeWatchers() {
 	p.watchers = nil
 }
 
-func (p *proxyEvents) NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error) {
+func (p *proxyEvents) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
 	w, err := p.events.NewWatcher(ctx, watch)
 	if err != nil {
 		return nil, trace.Wrap(err)

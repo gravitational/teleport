@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
 
 	"gopkg.in/check.v1"
 )
@@ -52,7 +51,7 @@ func (s *PresenceSuite) TestServerLabels(c *check.C) {
 		Spec: types.ServerSpecV2{
 			CmdLabels: map[string]types.CommandLabelV2{
 				"time": types.CommandLabelV2{
-					Period:  services.NewDuration(time.Second),
+					Period:  types.NewDuration(time.Second),
 					Command: []string{"time"},
 					Result:  "now",
 				},

@@ -46,7 +46,7 @@ import (
 const teleportTestUser = "teleport-test"
 
 // wildcardAllow is used in tests to allow access to all labels.
-var wildcardAllow = services.Labels{
+var wildcardAllow = types.Labels{
 	services.Wildcard: []string{services.Wildcard},
 }
 
@@ -221,7 +221,7 @@ func newSrvCtx(t *testing.T) *SrvCtx {
 			map[string]string{"foo": "bar"},
 			services.CommandLabels{
 				"baz": &types.CommandLabelV2{
-					Period:  services.NewDuration(time.Millisecond),
+					Period:  types.NewDuration(time.Millisecond),
 					Command: []string{"expr", "1", "+", "3"}},
 			},
 		),
@@ -236,23 +236,23 @@ func newSrvCtx(t *testing.T) *SrvCtx {
 	return s
 }
 
-func newUpack(s *SrvCtx, username string, allowedLogins []string, allowedLabels services.Labels) (*upack, error) {
+func newUpack(s *SrvCtx, username string, allowedLogins []string, allowedLabels types.Labels) (*upack, error) {
 	ctx := context.Background()
 	auth := s.server.Auth()
 	upriv, upub, err := auth.GenerateKeyPair("")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user, err := services.NewUser(username)
+	user, err := types.NewUser(username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	role := services.RoleForUser(user)
 	rules := role.GetRules(services.Allow)
-	rules = append(rules, services.NewRule(services.Wildcard, services.RW()))
+	rules = append(rules, types.NewRule(services.Wildcard, services.RW()))
 	role.SetRules(services.Allow, rules)
 	opts := role.GetOptions()
-	opts.PermitX11Forwarding = services.NewBool(true)
+	opts.PermitX11Forwarding = types.NewBool(true)
 	role.SetOptions(opts)
 	role.SetLogins(services.Allow, allowedLogins)
 	role.SetNodeLabels(services.Allow, allowedLabels)

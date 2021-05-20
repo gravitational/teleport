@@ -16,7 +16,7 @@ import (
 type SemaphoreLockConfig struct {
 	// Service is the service against which all semaphore
 	// operations are performed.
-	Service Semaphores
+	Service types.Semaphores
 	// Expiry is an optional lease expiry parameter.
 	Expiry time.Duration
 	// TickRate is the rate at which lease renewals are attempted
@@ -219,7 +219,7 @@ func AcquireSemaphoreLock(ctx context.Context, cfg SemaphoreLockConfig) (*Semaph
 }
 
 // UnmarshalSemaphore unmarshals the Semaphore resource from JSON.
-func UnmarshalSemaphore(bytes []byte, opts ...MarshalOption) (Semaphore, error) {
+func UnmarshalSemaphore(bytes []byte, opts ...MarshalOption) (types.Semaphore, error) {
 	var semaphore types.SemaphoreV3
 
 	if len(bytes) == 0 {
@@ -250,7 +250,7 @@ func UnmarshalSemaphore(bytes []byte, opts ...MarshalOption) (Semaphore, error) 
 }
 
 // MarshalSemaphore marshals the Semaphore resource to JSON.
-func MarshalSemaphore(semaphore Semaphore, opts ...MarshalOption) ([]byte, error) {
+func MarshalSemaphore(semaphore types.Semaphore, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)

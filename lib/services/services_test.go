@@ -74,7 +74,7 @@ func (s *ServicesSuite) TestCommandLabels(c *check.C) {
 	out := l.Clone()
 	c.Assert(out, check.HasLen, 0)
 
-	label := &types.CommandLabelV2{Command: []string{"ls", "-l"}, Period: Duration(time.Second)}
+	label := &types.CommandLabelV2{Command: []string{"ls", "-l"}, Period: types.Duration(time.Second)}
 	l = CommandLabels{"a": label}
 	out = l.Clone()
 
@@ -101,7 +101,7 @@ func (s *ServicesSuite) TestLabelKeyValidation(c *check.C) {
 		{label: "wut?", ok: false},
 	}
 	for _, tt := range tts {
-		c.Assert(IsValidLabelKey(tt.label), check.Equals, tt.ok, check.Commentf("tt=%+v", tt))
+		c.Assert(types.IsValidLabelKey(tt.label), check.Equals, tt.ok, check.Commentf("tt=%+v", tt))
 	}
 }
 
@@ -124,13 +124,13 @@ func TestServerDeepCopy(t *testing.T) {
 			Hostname: "hostname",
 			CmdLabels: map[string]types.CommandLabelV2{
 				"srv-cmd": {
-					Period:  Duration(2 * time.Second),
+					Period:  types.Duration(2 * time.Second),
 					Command: []string{"srv-cmd", "--switch"},
 				},
 			},
 			Rotation: types.Rotation{
 				Started:     now,
-				GracePeriod: Duration(1 * time.Minute),
+				GracePeriod: types.Duration(1 * time.Minute),
 				LastRotated: now.Add(-1 * time.Minute),
 			},
 			Apps: []*types.App{
@@ -139,7 +139,7 @@ func TestServerDeepCopy(t *testing.T) {
 					StaticLabels: map[string]string{"label": "value"},
 					DynamicLabels: map[string]types.CommandLabelV2{
 						"app-cmd": {
-							Period:  Duration(1 * time.Second),
+							Period:  types.Duration(1 * time.Second),
 							Command: []string{"app-cmd", "--app-flag"},
 						},
 					},
@@ -154,7 +154,7 @@ func TestServerDeepCopy(t *testing.T) {
 					StaticLabels: map[string]string{"label": "value"},
 					DynamicLabels: map[string]types.CommandLabelV2{
 						"cmd": {
-							Period:  Duration(1 * time.Second),
+							Period:  types.Duration(1 * time.Second),
 							Command: []string{"cmd", "--flag"},
 						},
 					},
@@ -174,7 +174,7 @@ func TestServerDeepCopy(t *testing.T) {
 	srv2.(*types.ServerV2).Metadata.Labels["foo"] = "bar"
 	srv2.(*types.ServerV2).Spec.CmdLabels = map[string]types.CommandLabelV2{
 		"srv-cmd": {
-			Period:  Duration(3 * time.Second),
+			Period:  types.Duration(3 * time.Second),
 			Command: []string{"cmd", "--flag=value"},
 		},
 	}

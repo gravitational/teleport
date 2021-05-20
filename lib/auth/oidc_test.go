@@ -24,7 +24,6 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
@@ -49,7 +48,7 @@ func (s *OIDCSuite) SetUpSuite(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	clusterName, err := services.NewClusterName(types.ClusterNameSpecV2{
+	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: "me.localhost",
 	})
 	c.Assert(err, check.IsNil)

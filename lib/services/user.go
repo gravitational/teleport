@@ -29,7 +29,7 @@ import (
 )
 
 // ValidateUser validates the User and sets default values
-func ValidateUser(u User) error {
+func ValidateUser(u types.User) error {
 	if err := u.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -42,7 +42,7 @@ func ValidateUser(u User) error {
 }
 
 // UsersEquals checks if the users are equal
-func UsersEquals(u User, other User) bool {
+func UsersEquals(u types.User, other types.User) bool {
 	return cmp.Equal(u, other,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 		cmpopts.SortSlices(func(a, b *types.MFADevice) bool {
@@ -68,7 +68,7 @@ func (la *LoginAttempt) Check() error {
 }
 
 // UnmarshalUser unmarshals the User resource from JSON.
-func UnmarshalUser(bytes []byte, opts ...MarshalOption) (User, error) {
+func UnmarshalUser(bytes []byte, opts ...MarshalOption) (types.User, error) {
 	var h types.ResourceHeader
 	err := json.Unmarshal(bytes, &h)
 	if err != nil {
@@ -103,7 +103,7 @@ func UnmarshalUser(bytes []byte, opts ...MarshalOption) (User, error) {
 }
 
 // MarshalUser marshals the User resource to JSON.
-func MarshalUser(user User, opts ...MarshalOption) ([]byte, error) {
+func MarshalUser(user types.User, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)

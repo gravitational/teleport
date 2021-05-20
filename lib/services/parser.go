@@ -42,7 +42,7 @@ type RuleContext interface {
 	String() string
 	// GetResource returns resource if specified in the context,
 	// if unspecified, returns error.
-	GetResource() (Resource, error)
+	GetResource() (types.Resource, error)
 }
 
 var (
@@ -75,7 +75,7 @@ func NewWhereParser(ctx RuleContext) (predicate.Parser, error) {
 					}
 					return nil, trace.Wrap(err)
 				}
-				ca, ok := resource.(CertAuthority)
+				ca, ok := resource.(types.CertAuthority)
 				if !ok {
 					return "", nil
 				}
@@ -172,10 +172,10 @@ func (l *LogAction) Log(level, format string, args ...interface{}) predicate.Boo
 // Context is a default rule context used in teleport
 type Context struct {
 	// User is currently authenticated user
-	User User
+	User types.User
 	// Resource is an optional resource, in case if the rule
 	// checks access to the resource
-	Resource Resource
+	Resource types.Resource
 }
 
 // String returns user friendly representation of this context
@@ -196,7 +196,7 @@ const (
 
 // GetResource returns resource specified in the context,
 // returns error if not specified.
-func (ctx *Context) GetResource() (Resource, error) {
+func (ctx *Context) GetResource() (types.Resource, error) {
 	if ctx.Resource == nil {
 		return nil, trace.NotFound("resource is not set in the context")
 	}
@@ -207,7 +207,7 @@ func (ctx *Context) GetResource() (Resource, error) {
 func (ctx *Context) GetIdentifier(fields []string) (interface{}, error) {
 	switch fields[0] {
 	case UserIdentifier:
-		var user User
+		var user types.User
 		if ctx.User == nil {
 			user = emptyUser
 		} else {
@@ -215,7 +215,7 @@ func (ctx *Context) GetIdentifier(fields []string) (interface{}, error) {
 		}
 		return predicate.GetFieldByTag(user, teleport.JSON, fields[1:])
 	case ResourceIdentifier:
-		var resource Resource
+		var resource types.Resource
 		if ctx.Resource == nil {
 			resource = emptyResource
 		} else {

@@ -25,10 +25,10 @@ import (
 	"net/http"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -554,13 +554,13 @@ func (a *Middleware) WrapContextWithUser(ctx context.Context, conn *tls.Conn) (c
 // ClientCertPool returns trusted x509 cerificate authority pool
 func ClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, error) {
 	pool := x509.NewCertPool()
-	var authorities []services.CertAuthority
+	var authorities []types.CertAuthority
 	if clusterName == "" {
-		hostCAs, err := client.GetCertAuthorities(services.HostCA, false)
+		hostCAs, err := client.GetCertAuthorities(types.HostCA, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		userCAs, err := client.GetCertAuthorities(services.UserCA, false)
+		userCAs, err := client.GetCertAuthorities(types.UserCA, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -568,13 +568,13 @@ func ClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, err
 		authorities = append(authorities, userCAs...)
 	} else {
 		hostCA, err := client.GetCertAuthority(
-			services.CertAuthID{Type: services.HostCA, DomainName: clusterName},
+			types.CertAuthID{Type: types.HostCA, DomainName: clusterName},
 			false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		userCA, err := client.GetCertAuthority(
-			services.CertAuthID{Type: services.UserCA, DomainName: clusterName},
+			types.CertAuthID{Type: types.UserCA, DomainName: clusterName},
 			false)
 		if err != nil {
 			return nil, trace.Wrap(err)

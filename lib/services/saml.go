@@ -40,7 +40,7 @@ import (
 )
 
 // ValidateSAMLConnector validates the SAMLConnector and sets default values
-func ValidateSAMLConnector(sc SAMLConnector) error {
+func ValidateSAMLConnector(sc types.SAMLConnector) error {
 	if err := sc.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -89,7 +89,7 @@ func ValidateSAMLConnector(sc SAMLConnector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		sc.SetSigningKeyPair(&AsymmetricKeyPair{
+		sc.SetSigningKeyPair(&types.AsymmetricKeyPair{
 			PrivateKey: string(keyPEM),
 			Cert:       string(certPEM),
 		})
@@ -125,7 +125,7 @@ func SAMLAssertionsToTraits(assertions saml2.AssertionInfo) map[string][]string 
 }
 
 // GetSAMLServiceProvider gets the SAMLConnector's service provider
-func GetSAMLServiceProvider(sc SAMLConnector, clock clockwork.Clock) (*saml2.SAMLServiceProvider, error) {
+func GetSAMLServiceProvider(sc types.SAMLConnector, clock clockwork.Clock) (*saml2.SAMLServiceProvider, error) {
 	certStore := dsig.MemoryX509CertificateStore{
 		Roots: []*x509.Certificate{},
 	}
@@ -215,7 +215,7 @@ func GetSAMLServiceProvider(sc SAMLConnector, clock clockwork.Clock) (*saml2.SAM
 }
 
 // UnmarshalSAMLConnector unmarshals the SAMLConnector resource from JSON.
-func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (SAMLConnector, error) {
+func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (types.SAMLConnector, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -227,7 +227,7 @@ func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (SAMLConnector,
 	}
 	switch h.Version {
 	case V2:
-		var c SAMLConnectorV2
+		var c types.SAMLConnectorV2
 		if err := utils.FastUnmarshal(bytes, &c); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
@@ -250,14 +250,14 @@ func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (SAMLConnector,
 }
 
 // MarshalSAMLConnector marshals the SAMLConnector resource to JSON.
-func MarshalSAMLConnector(samlConnector SAMLConnector, opts ...MarshalOption) ([]byte, error) {
+func MarshalSAMLConnector(samlConnector types.SAMLConnector, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	switch samlConnector := samlConnector.(type) {
-	case *SAMLConnectorV2:
+	case *types.SAMLConnectorV2:
 		if version := samlConnector.GetVersion(); version != V2 {
 			return nil, trace.BadParameter("mismatched SAML connector version %v and type %T", version, samlConnector)
 		}

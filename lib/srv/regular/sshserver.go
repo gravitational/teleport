@@ -386,7 +386,7 @@ func SetLabels(staticLabels map[string]string, cmdLabels services.CommandLabels)
 		// so a little defensive cloning is harmless.
 		labelsClone := make(map[string]string, len(staticLabels))
 		for name, label := range staticLabels {
-			if !services.IsValidLabelKey(name) {
+			if !types.IsValidLabelKey(name) {
 				return trace.BadParameter("invalid label key: %q", name)
 			}
 			labelsClone[name] = label
@@ -641,7 +641,7 @@ func New(addr utils.NetAddr,
 }
 
 func (s *Server) getNamespace() string {
-	return services.ProcessNamespace(s.namespace)
+	return types.ProcessNamespace(s.namespace)
 }
 
 func (s *Server) tunnelWithRoles(ctx *srv.ServerContext) reversetunnel.Tunnel {
@@ -728,11 +728,11 @@ func (s *Server) getDynamicLabels() map[string]types.CommandLabelV2 {
 	if s.dynamicLabels == nil {
 		return make(map[string]types.CommandLabelV2)
 	}
-	return services.LabelsToV2(s.dynamicLabels.Get())
+	return types.LabelsToV2(s.dynamicLabels.Get())
 }
 
 // GetInfo returns a services.Server that represents this server.
-func (s *Server) GetInfo() services.Server {
+func (s *Server) GetInfo() types.Server {
 	// Only set the address for non-tunnel nodes.
 	var addr string
 	if !s.useTunnel {
@@ -757,7 +757,7 @@ func (s *Server) GetInfo() services.Server {
 	}
 }
 
-func (s *Server) getServerInfo() (services.Resource, error) {
+func (s *Server) getServerInfo() (types.Resource, error) {
 	server := s.GetInfo()
 	if s.getRotation != nil {
 		rotation, err := s.getRotation(s.getRole())
@@ -888,7 +888,7 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 		Service: s.authService,
 		Expiry:  netConfig.GetSessionControlTimeout(),
 		Params: types.AcquireSemaphoreRequest{
-			SemaphoreKind: services.SemaphoreKindConnection,
+			SemaphoreKind: types.SemaphoreKindConnection,
 			SemaphoreName: identityContext.TeleportUser,
 			MaxLeases:     maxConnections,
 			Holder:        s.uuid,

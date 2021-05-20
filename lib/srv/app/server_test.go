@@ -59,7 +59,7 @@ type Suite struct {
 	tlsServer    *auth.TestTLSServer
 	authClient   *auth.Client
 	appServer    *Server
-	server       services.Server
+	server       types.Server
 	hostCertPool *x509.CertPool
 
 	hostUUID          string
@@ -70,8 +70,8 @@ type Suite struct {
 	testhttp          *httptest.Server
 	clientCertificate tls.Certificate
 
-	user services.User
-	role services.Role
+	user types.User
+	role types.Role
 }
 
 var _ = check.Suite(&Suite{})
@@ -98,12 +98,12 @@ func (s *Suite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Grant the user's role access to the application label "bar: baz".
-	s.role.SetAppLabels(services.Allow, services.Labels{"bar": []string{"baz"}})
+	s.role.SetAppLabels(services.Allow, types.Labels{"bar": []string{"baz"}})
 	err = s.tlsServer.Auth().UpsertRole(context.Background(), s.role)
 	c.Assert(err, check.IsNil)
 
-	rootCA, err := s.tlsServer.Auth().GetCertAuthority(services.CertAuthID{
-		Type:       services.HostCA,
+	rootCA, err := s.tlsServer.Auth().GetCertAuthority(types.CertAuthID{
+		Type:       types.HostCA,
 		DomainName: "root.example.com",
 	}, false)
 	c.Assert(err, check.IsNil)
@@ -139,9 +139,9 @@ func (s *Suite) SetUpTest(c *check.C) {
 	staticLabels := map[string]string{
 		"bar": "baz",
 	}
-	dynamicLabels := map[string]services.CommandLabel{
+	dynamicLabels := map[string]types.CommandLabel{
 		"qux": &types.CommandLabelV2{
-			Period:  services.NewDuration(time.Second),
+			Period:  types.NewDuration(time.Second),
 			Command: []string{"expr", "1", "+", "3"},
 		},
 	}
@@ -161,7 +161,7 @@ func (s *Suite) SetUpTest(c *check.C) {
 					URI:           s.testhttp.URL,
 					PublicAddr:    "foo.example.com",
 					StaticLabels:  staticLabels,
-					DynamicLabels: services.LabelsToV2(dynamicLabels),
+					DynamicLabels: types.LabelsToV2(dynamicLabels),
 				},
 			},
 		},

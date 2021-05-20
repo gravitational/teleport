@@ -42,9 +42,9 @@ type transportConfig struct {
 	accessPoint  auth.AccessPoint
 	cipherSuites []uint16
 	identity     *tlsca.Identity
-	server       services.Server
+	server       types.Server
 	app          *types.App
-	ws           services.WebSession
+	ws           types.WebSession
 	clusterName  string
 }
 
@@ -188,7 +188,7 @@ func dialFunc(c *transportConfig) func(ctx context.Context, network string, addr
 			From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: "@web-proxy"},
 			To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
 			ServerID: fmt.Sprintf("%v.%v", c.server.GetName(), c.identity.RouteToApp.ClusterName),
-			ConnType: services.AppTunnel,
+			ConnType: types.AppTunnel,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -205,8 +205,8 @@ func configureTLS(c *transportConfig) (*tls.Config, error) {
 	// Configure the pool of certificates that will be used to verify the
 	// identity of the server. This allows the client to verify the identity of
 	// the server it is connecting to.
-	ca, err := c.accessPoint.GetCertAuthority(services.CertAuthID{
-		Type:       services.HostCA,
+	ca, err := c.accessPoint.GetCertAuthority(types.CertAuthID{
+		Type:       types.HostCA,
 		DomainName: c.identity.RouteToApp.ClusterName,
 	}, false)
 	if err != nil {

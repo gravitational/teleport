@@ -20,6 +20,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 
 	"github.com/gravitational/trace"
@@ -28,7 +29,7 @@ import (
 const defaultQueueSize = 64
 
 type fanoutEntry struct {
-	kind    WatchKind
+	kind    types.WatchKind
 	watcher *fanoutWatcher
 }
 
@@ -67,7 +68,7 @@ type FanoutEvent struct {
 }
 
 // NewWatcher attaches a new watcher to this fanout instance.
-func (f *Fanout) NewWatcher(ctx context.Context, watch Watch) (Watcher, error) {
+func (f *Fanout) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.closed {
@@ -80,7 +81,7 @@ func (f *Fanout) NewWatcher(ctx context.Context, watch Watch) (Watcher, error) {
 	}
 	if f.init {
 		// fanout is already initialized; emit OpInit immediately.
-		if err := w.emit(Event{Type: backend.OpInit}); err != nil {
+		if err := w.emit(types.Event{Type: backend.OpInit}); err != nil {
 			w.cancel()
 			return nil, trace.Wrap(err)
 		}
@@ -100,7 +101,7 @@ func (f *Fanout) SetInit() {
 	for _, entries := range f.watchers {
 		var remove []*fanoutWatcher
 		for _, entry := range entries {
-			if err := entry.watcher.emit(Event{Type: backend.OpInit}); err != nil {
+			if err := entry.watcher.emit(types.Event{Type: backend.OpInit}); err != nil {
 				entry.watcher.setError(err)
 				remove = append(remove, entry.watcher)
 			}
@@ -113,8 +114,8 @@ func (f *Fanout) SetInit() {
 	f.init = true
 }
 
-func filterEventSecrets(event Event) Event {
-	r, ok := event.Resource.(ResourceWithSecrets)
+func filterEventSecrets(event types.Event) types.Event {
+	r, ok := event.Resource.(types.ResourceWithSecrets)
 	if !ok {
 		return event
 	}
@@ -145,7 +146,7 @@ func (f *Fanout) trySendEvent(e FanoutEvent) {
 
 // Emit broadcasts events to all matching watchers that have been attached
 // to this fanout instance.
-func (f *Fanout) Emit(events ...Event) {
+func (f *Fanout) Emit(events ...types.Event) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if !f.init {
@@ -255,7 +256,7 @@ func (f *Fanout) removeWatcher(w *fanoutWatcher) {
 	}
 }
 
-func newFanoutWatcher(ctx context.Context, f *Fanout, watch Watch) (*fanoutWatcher, error) {
+func newFanoutWatcher(ctx context.Context, f *Fanout, watch types.Watch) (*fanoutWatcher, error) {
 	if len(watch.Kinds) < 1 {
 		return nil, trace.BadParameter("must specify at least one resource kind to watch")
 	}
@@ -266,7 +267,7 @@ func newFanoutWatcher(ctx context.Context, f *Fanout, watch Watch) (*fanoutWatch
 	return &fanoutWatcher{
 		fanout: f,
 		watch:  watch,
-		eventC: make(chan Event, watch.QueueSize),
+		eventC: make(chan types.Event, watch.QueueSize),
 		cancel: cancel,
 		ctx:    ctx,
 	}, nil
@@ -276,13 +277,13 @@ type fanoutWatcher struct {
 	emux   sync.Mutex
 	fanout *Fanout
 	err    error
-	watch  Watch
-	eventC chan Event
+	watch  types.Watch
+	eventC chan types.Event
 	cancel context.CancelFunc
 	ctx    context.Context
 }
 
-func (w *fanoutWatcher) emit(event Event) error {
+func (w *fanoutWatcher) emit(event types.Event) error {
 	select {
 	case <-w.ctx.Done():
 		return trace.Wrap(w.ctx.Err(), "watcher closed")
@@ -293,7 +294,7 @@ func (w *fanoutWatcher) emit(event Event) error {
 	}
 }
 
-func (w *fanoutWatcher) Events() <-chan Event {
+func (w *fanoutWatcher) Events() <-chan types.Event {
 	return w.eventC
 }
 

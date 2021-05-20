@@ -64,7 +64,7 @@ type SessionContext struct {
 	// The store maintains a list of resources between session renewals
 	resources *sessionResources
 	// session refers the web session created for the user.
-	session services.WebSession
+	session types.WebSession
 
 	mu        sync.Mutex
 	remoteClt map[string]auth.ClientI
@@ -199,7 +199,7 @@ func (c *SessionContext) tryRemoteTLSClient(cluster reversetunnel.RemoteSite) (a
 func (c *SessionContext) ClientTLSConfig(clusterName ...string) (*tls.Config, error) {
 	var certPool *x509.CertPool
 	if len(clusterName) == 0 {
-		certAuthorities, err := c.parent.proxyClient.GetCertAuthorities(services.HostCA, false)
+		certAuthorities, err := c.parent.proxyClient.GetCertAuthorities(types.HostCA, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -208,8 +208,8 @@ func (c *SessionContext) ClientTLSConfig(clusterName ...string) (*tls.Config, er
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		certAuthority, err := c.parent.proxyClient.GetCertAuthority(services.CertAuthID{
-			Type:       services.HostCA,
+		certAuthority, err := c.parent.proxyClient.GetCertAuthority(types.CertAuthID{
+			Type:       types.HostCA,
 			DomainName: clusterName[0],
 		}, false)
 		if err != nil {
@@ -253,7 +253,7 @@ func (c *SessionContext) GetUser() string {
 
 // extendWebSession creates a new web session for this user
 // based on the previous session
-func (c *SessionContext) extendWebSession(accessRequestID string, switchback bool) (services.WebSession, error) {
+func (c *SessionContext) extendWebSession(accessRequestID string, switchback bool) (types.WebSession, error) {
 	session, err := c.clt.ExtendWebSession(auth.WebSessionReq{
 		User:            c.user,
 		PrevSessionID:   c.session.GetName(),
@@ -490,7 +490,7 @@ func (s *sessionCache) clearExpiredSessions(ctx context.Context) {
 
 // AuthWithOTP authenticates the specified user with the given password and OTP token.
 // Returns a new web session if successful.
-func (s *sessionCache) AuthWithOTP(user, pass, otpToken string) (services.WebSession, error) {
+func (s *sessionCache) AuthWithOTP(user, pass, otpToken string) (types.WebSession, error) {
 	return s.proxyClient.AuthenticateWebUser(auth.AuthenticateUserRequest{
 		Username: user,
 		Pass:     &auth.PassCreds{Password: []byte(pass)},
@@ -503,7 +503,7 @@ func (s *sessionCache) AuthWithOTP(user, pass, otpToken string) (services.WebSes
 
 // AuthWithoutOTP authenticates the specified user with the given password.
 // Returns a new web session if successful.
-func (s *sessionCache) AuthWithoutOTP(user, pass string) (services.WebSession, error) {
+func (s *sessionCache) AuthWithoutOTP(user, pass string) (types.WebSession, error) {
 	return s.proxyClient.AuthenticateWebUser(auth.AuthenticateUserRequest{
 		Username: user,
 		Pass: &auth.PassCreds{
@@ -516,7 +516,7 @@ func (s *sessionCache) GetMFAAuthenticateChallenge(user, pass string) (*auth.MFA
 	return s.proxyClient.GetMFAAuthenticateChallenge(user, []byte(pass))
 }
 
-func (s *sessionCache) AuthWithU2FSignResponse(user string, response *u2f.AuthenticateChallengeResponse) (services.WebSession, error) {
+func (s *sessionCache) AuthWithU2FSignResponse(user string, response *u2f.AuthenticateChallengeResponse) (types.WebSession, error) {
 	return s.proxyClient.AuthenticateWebUser(auth.AuthenticateUserRequest{
 		Username: user,
 		U2F: &auth.U2FSignResponseCreds{
@@ -729,7 +729,7 @@ func (s *sessionCache) newSessionContext(user, sessionID string) (*SessionContex
 	return s.newSessionContextFromSession(session)
 }
 
-func (s *sessionCache) newSessionContextFromSession(session services.WebSession) (*SessionContext, error) {
+func (s *sessionCache) newSessionContextFromSession(session types.WebSession) (*SessionContext, error) {
 	tlsConfig, err := s.tlsConfig(session.GetTLSCert(), session.GetPriv())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -767,8 +767,8 @@ func (s *sessionCache) newSessionContextFromSession(session services.WebSession)
 }
 
 func (s *sessionCache) tlsConfig(cert, privKey []byte) (*tls.Config, error) {
-	ca, err := s.proxyClient.GetCertAuthority(services.CertAuthID{
-		Type:       services.HostCA,
+	ca, err := s.proxyClient.GetCertAuthority(types.CertAuthID{
+		Type:       types.HostCA,
 		DomainName: s.clusterName,
 	}, false)
 	if err != nil {
@@ -875,9 +875,9 @@ func (h *Handler) waitForWebSession(ctx context.Context, req types.GetWebSession
 		logger.WithError(err).Debug("Failed to query web session.")
 	}
 	// Establish a watch.
-	watcher, err := h.cfg.AccessPoint.NewWatcher(ctx, services.Watch{
+	watcher, err := h.cfg.AccessPoint.NewWatcher(ctx, types.Watch{
 		Name: teleport.ComponentWebProxy,
-		Kinds: []services.WatchKind{
+		Kinds: []types.WatchKind{
 			{
 				Kind:    services.KindWebSession,
 				SubKind: services.KindWebSession,
@@ -889,7 +889,7 @@ func (h *Handler) waitForWebSession(ctx context.Context, req types.GetWebSession
 		return trace.Wrap(err)
 	}
 	defer watcher.Close()
-	matchEvent := func(event services.Event) (services.Resource, error) {
+	matchEvent := func(event types.Event) (types.Resource, error) {
 		if event.Type == backend.OpPut &&
 			event.Resource.GetKind() == services.KindWebSession &&
 			event.Resource.GetSubKind() == services.KindWebSession &&

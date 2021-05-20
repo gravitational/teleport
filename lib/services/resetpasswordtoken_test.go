@@ -35,7 +35,7 @@ func (r *ResetPasswordTokenSuite) TestUnmarshal(c *check.C) {
 	type testCase struct {
 		description string
 		input       string
-		expected    ResetPasswordToken
+		expected    types.ResetPasswordToken
 	}
 
 	testCases := []testCase{

@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/google/go-cmp/cmp"
@@ -41,7 +40,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 	)
 	s := newTestServices(t)
 	// Set up local cluster name in the backend.
-	cn, err := services.NewClusterName(types.ClusterNameSpecV2{
+	cn, err := types.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: localClusterName,
 	})
 	require.NoError(t, err)

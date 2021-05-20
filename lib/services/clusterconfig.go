@@ -26,7 +26,7 @@ import (
 
 // DefaultClusterConfig is used as the default cluster configuration when
 // one is not specified (record at node).
-func DefaultClusterConfig() ClusterConfig {
+func DefaultClusterConfig() types.ClusterConfig {
 	return &types.ClusterConfigV3{
 		Kind:    KindClusterConfig,
 		Version: V3,
@@ -35,7 +35,7 @@ func DefaultClusterConfig() ClusterConfig {
 			Namespace: defaults.Namespace,
 		},
 		Spec: types.ClusterConfigSpecV3{
-			LocalAuth: NewBool(true),
+			LocalAuth: types.NewBool(true),
 		},
 	}
 }
@@ -59,7 +59,7 @@ func ShouldUploadSessions(a types.AuditConfig) bool {
 }
 
 // UnmarshalClusterConfig unmarshals the ClusterConfig resource from JSON.
-func UnmarshalClusterConfig(bytes []byte, opts ...MarshalOption) (ClusterConfig, error) {
+func UnmarshalClusterConfig(bytes []byte, opts ...MarshalOption) (types.ClusterConfig, error) {
 	var clusterConfig types.ClusterConfigV3
 
 	if len(bytes) == 0 {
@@ -90,7 +90,7 @@ func UnmarshalClusterConfig(bytes []byte, opts ...MarshalOption) (ClusterConfig,
 }
 
 // MarshalClusterConfig marshals the ClusterConfig resource to JSON.
-func MarshalClusterConfig(clusterConfig ClusterConfig, opts ...MarshalOption) ([]byte, error) {
+func MarshalClusterConfig(clusterConfig types.ClusterConfig, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)

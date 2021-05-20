@@ -29,8 +29,8 @@ import (
 
 // LatestTunnelConnection returns latest tunnel connection from the list
 // of tunnel connections, if no connections found, returns NotFound error
-func LatestTunnelConnection(conns []TunnelConnection) (TunnelConnection, error) {
-	var lastConn TunnelConnection
+func LatestTunnelConnection(conns []types.TunnelConnection) (types.TunnelConnection, error) {
+	var lastConn types.TunnelConnection
 	for i := range conns {
 		conn := conns[i]
 		if lastConn == nil || conn.GetLastHeartbeat().After(lastConn.GetLastHeartbeat()) {
@@ -45,7 +45,7 @@ func LatestTunnelConnection(conns []TunnelConnection) (TunnelConnection, error) 
 
 // TunnelConnectionStatus returns tunnel connection status based on the last
 // heartbeat time recorded for a connection
-func TunnelConnectionStatus(clock clockwork.Clock, conn TunnelConnection, offlineThreshold time.Duration) string {
+func TunnelConnectionStatus(clock clockwork.Clock, conn types.TunnelConnection, offlineThreshold time.Duration) string {
 	diff := clock.Now().Sub(conn.GetLastHeartbeat())
 	if diff < offlineThreshold {
 		return teleport.RemoteClusterStatusOnline
@@ -55,7 +55,7 @@ func TunnelConnectionStatus(clock clockwork.Clock, conn TunnelConnection, offlin
 
 // UnmarshalTunnelConnection unmarshals TunnelConnection resource from JSON or YAML,
 // sets defaults and checks the schema
-func UnmarshalTunnelConnection(data []byte, opts ...MarshalOption) (TunnelConnection, error) {
+func UnmarshalTunnelConnection(data []byte, opts ...MarshalOption) (types.TunnelConnection, error) {
 	if len(data) == 0 {
 		return nil, trace.BadParameter("missing tunnel connection data")
 	}
@@ -91,7 +91,7 @@ func UnmarshalTunnelConnection(data []byte, opts ...MarshalOption) (TunnelConnec
 }
 
 // MarshalTunnelConnection marshals the TunnelConnection resource to JSON.
-func MarshalTunnelConnection(tunnelConnection TunnelConnection, opts ...MarshalOption) ([]byte, error) {
+func MarshalTunnelConnection(tunnelConnection types.TunnelConnection, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)

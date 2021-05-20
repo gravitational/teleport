@@ -444,15 +444,15 @@ type Auth struct {
 	PublicAddr utils.Strings `yaml:"public_addr,omitempty"`
 
 	// ClientIdleTimeout sets global cluster default setting for client idle timeouts
-	ClientIdleTimeout services.Duration `yaml:"client_idle_timeout,omitempty"`
+	ClientIdleTimeout types.Duration `yaml:"client_idle_timeout,omitempty"`
 
 	// DisconnectExpiredCert provides disconnect expired certificate setting -
 	// if true, connections with expired client certificates will get disconnected
-	DisconnectExpiredCert services.Bool `yaml:"disconnect_expired_cert,omitempty"`
+	DisconnectExpiredCert types.Bool `yaml:"disconnect_expired_cert,omitempty"`
 
 	// SessionControlTimeout specifies the maximum amount of time a node can be out
 	// of contact with the auth server before it starts terminating controlled sessions.
-	SessionControlTimeout services.Duration `yaml:"session_control_timeout,omitempty"`
+	SessionControlTimeout types.Duration `yaml:"session_control_timeout,omitempty"`
 
 	// KubeconfigFile is an optional path to kubeconfig file,
 	// if specified, teleport will use API server address and
@@ -461,7 +461,7 @@ type Auth struct {
 
 	// KeepAliveInterval set the keep-alive interval for server to client
 	// connections.
-	KeepAliveInterval services.Duration `yaml:"keep_alive_interval,omitempty"`
+	KeepAliveInterval types.Duration `yaml:"keep_alive_interval,omitempty"`
 
 	// KeepAliveCountMax set the number of keep-alive messages that can be
 	// missed before the server disconnects the client.
@@ -481,18 +481,18 @@ type TrustedCluster struct {
 
 type ClusterName string
 
-func (c ClusterName) Parse() (services.ClusterName, error) {
+func (c ClusterName) Parse() (types.ClusterName, error) {
 	if string(c) == "" {
 		return nil, nil
 	}
-	return services.NewClusterName(types.ClusterNameSpecV2{
+	return types.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: string(c),
 	})
 }
 
 type StaticTokens []StaticToken
 
-func (t StaticTokens) Parse() (services.StaticTokens, error) {
+func (t StaticTokens) Parse() (types.StaticTokens, error) {
 	staticTokens := []types.ProvisionTokenV1{}
 
 	for _, token := range t {
@@ -503,7 +503,7 @@ func (t StaticTokens) Parse() (services.StaticTokens, error) {
 		staticTokens = append(staticTokens, *st)
 	}
 
-	return services.NewStaticTokens(types.StaticTokensSpecV2{
+	return types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: staticTokens,
 	})
 }
@@ -545,14 +545,14 @@ type AuthenticationConfig struct {
 	RequireSessionMFA bool                       `yaml:"require_session_mfa,omitempty"`
 
 	// LocalAuth controls if local authentication is allowed.
-	LocalAuth *services.Bool `yaml:"local_auth"`
+	LocalAuth *types.Bool `yaml:"local_auth"`
 }
 
-// Parse returns a services.AuthPreference (type, second factor, U2F).
-func (a *AuthenticationConfig) Parse() (services.AuthPreference, error) {
+// Parse returns a types.AuthPreference (type, second factor, U2F).
+func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 	var err error
 
-	var u services.U2F
+	var u types.U2F
 	if a.U2F != nil {
 		u, err = a.U2F.Parse()
 		if err != nil {
@@ -560,7 +560,7 @@ func (a *AuthenticationConfig) Parse() (services.AuthPreference, error) {
 		}
 	}
 
-	ap, err := types.NewAuthPreferenceFromConfigFile(services.AuthPreferenceSpecV2{
+	ap, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:              a.Type,
 		SecondFactor:      a.SecondFactor,
 		ConnectorName:     a.ConnectorName,
@@ -585,8 +585,8 @@ type UniversalSecondFactor struct {
 	DeviceAttestationCAs []string `yaml:"device_attestation_cas"`
 }
 
-func (u *UniversalSecondFactor) Parse() (services.U2F, error) {
-	res := services.U2F{
+func (u *UniversalSecondFactor) Parse() (types.U2F, error) {
+	res := types.U2F{
 		AppID:  u.AppID,
 		Facets: u.Facets,
 	}
@@ -944,7 +944,7 @@ type ReverseTunnel struct {
 }
 
 // ConvertAndValidate returns validated services.ReverseTunnel or nil and error otherwize
-func (t *ReverseTunnel) ConvertAndValidate() (services.ReverseTunnel, error) {
+func (t *ReverseTunnel) ConvertAndValidate() (types.ReverseTunnel, error) {
 	for i := range t.Addresses {
 		addr, err := utils.ParseHostPortAddr(t.Addresses[i], defaults.SSHProxyTunnelListenPort)
 		if err != nil {
@@ -953,7 +953,7 @@ func (t *ReverseTunnel) ConvertAndValidate() (services.ReverseTunnel, error) {
 		t.Addresses[i] = addr.String()
 	}
 
-	out := services.NewReverseTunnel(t.DomainName, t.Addresses)
+	out := types.NewReverseTunnel(t.DomainName, t.Addresses)
 	if err := services.ValidateReverseTunnel(out); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -964,7 +964,7 @@ func (t *ReverseTunnel) ConvertAndValidate() (services.ReverseTunnel, error) {
 // can check and if it has private key stored as well, sign it too
 type Authority struct {
 	// Type is either user or host certificate authority
-	Type services.CertAuthType `yaml:"type"`
+	Type types.CertAuthType `yaml:"type"`
 	// DomainName identifies domain name this authority serves,
 	// for host authorities that means base hostname of all servers,
 	// for user authorities that means organization name
@@ -984,7 +984,7 @@ type Authority struct {
 }
 
 // Parse reads values and returns parsed CertAuthority
-func (a *Authority) Parse() (services.CertAuthority, services.Role, error) {
+func (a *Authority) Parse() (types.CertAuthority, types.Role, error) {
 	ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        a.Type,
 		ClusterName: a.DomainName,
@@ -1064,26 +1064,26 @@ type OIDCConnector struct {
 }
 
 // Parse parses config struct into services connector and checks if it's valid
-func (o *OIDCConnector) Parse() (services.OIDCConnector, error) {
+func (o *OIDCConnector) Parse() (types.OIDCConnector, error) {
 	if o.Display == "" {
 		o.Display = o.ID
 	}
 
-	var mappings []services.ClaimMapping
+	var mappings []types.ClaimMapping
 	for _, c := range o.ClaimsToRoles {
 		var roles []string
 		if len(c.Roles) > 0 {
 			roles = append(roles, c.Roles...)
 		}
 
-		mappings = append(mappings, services.ClaimMapping{
+		mappings = append(mappings, types.ClaimMapping{
 			Claim: c.Claim,
 			Value: c.Value,
 			Roles: roles,
 		})
 	}
 
-	v2 := services.NewOIDCConnector(o.ID, services.OIDCConnectorSpecV2{
+	v2 := types.NewOIDCConnector(o.ID, types.OIDCConnectorSpecV2{
 		IssuerURL:     o.IssuerURL,
 		ClientID:      o.ClientID,
 		ClientSecret:  o.ClientSecret,

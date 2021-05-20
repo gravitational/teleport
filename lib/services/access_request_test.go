@@ -639,7 +639,7 @@ func TestAccessRequestMarshaling(t *testing.T) {
 func TestPluginDataExpectations(t *testing.T) {
 	const rname = "my-resource"
 	const pname = "my-plugin"
-	data, err := NewPluginData(rname, KindAccessRequest)
+	data, err := types.NewPluginData(rname, KindAccessRequest)
 	require.NoError(t, err)
 
 	// Set two keys, expecting them to be unset.
@@ -723,7 +723,7 @@ func TestPluginDataExpectations(t *testing.T) {
 func TestPluginDataFilterMatching(t *testing.T) {
 	const rname = "my-resource"
 	const pname = "my-plugin"
-	data, err := NewPluginData(rname, KindAccessRequest)
+	data, err := types.NewPluginData(rname, KindAccessRequest)
 	require.NoError(t, err)
 
 	var f types.PluginDataFilter

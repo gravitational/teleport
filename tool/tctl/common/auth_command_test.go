@@ -29,20 +29,20 @@ func TestAuthSignKubeconfig(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	clusterName, err := services.NewClusterName(types.ClusterNameSpecV2{
+	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: "example.com",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	remoteCluster, err := services.NewRemoteCluster("leaf.example.com")
+	remoteCluster, err := types.NewRemoteCluster("leaf.example.com")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:         services.HostCA,
+		Type:         types.HostCA,
 		ClusterName:  "example.com",
 		SigningKeys:  nil,
 		CheckingKeys: [][]byte{[]byte("SSH CA cert")},
@@ -53,13 +53,13 @@ func TestAuthSignKubeconfig(t *testing.T) {
 
 	client := mockClient{
 		clusterName:    clusterName,
-		remoteClusters: []services.RemoteCluster{remoteCluster},
+		remoteClusters: []types.RemoteCluster{remoteCluster},
 		userCerts: &proto.Certs{
 			SSH: []byte("SSH cert"),
 			TLS: []byte("TLS cert"),
 		},
-		cas: []services.CertAuthority{ca},
-		proxies: []services.Server{
+		cas: []types.CertAuthority{ca},
+		proxies: []types.Server{
 			&types.ServerV2{
 				Kind:    services.KindNode,
 				Version: services.V2,
@@ -201,31 +201,31 @@ func TestAuthSignKubeconfig(t *testing.T) {
 type mockClient struct {
 	auth.ClientI
 
-	clusterName    services.ClusterName
+	clusterName    types.ClusterName
 	userCerts      *proto.Certs
 	dbCerts        *proto.DatabaseCertResponse
-	cas            []services.CertAuthority
-	proxies        []services.Server
-	remoteClusters []services.RemoteCluster
-	kubeServices   []services.Server
+	cas            []types.CertAuthority
+	proxies        []types.Server
+	remoteClusters []types.RemoteCluster
+	kubeServices   []types.Server
 }
 
-func (c mockClient) GetClusterName(...services.MarshalOption) (services.ClusterName, error) {
+func (c mockClient) GetClusterName(...services.MarshalOption) (types.ClusterName, error) {
 	return c.clusterName, nil
 }
 func (c mockClient) GenerateUserCerts(context.Context, proto.UserCertsRequest) (*proto.Certs, error) {
 	return c.userCerts, nil
 }
-func (c mockClient) GetCertAuthorities(services.CertAuthType, bool, ...services.MarshalOption) ([]services.CertAuthority, error) {
+func (c mockClient) GetCertAuthorities(types.CertAuthType, bool, ...services.MarshalOption) ([]types.CertAuthority, error) {
 	return c.cas, nil
 }
-func (c mockClient) GetProxies() ([]services.Server, error) {
+func (c mockClient) GetProxies() ([]types.Server, error) {
 	return c.proxies, nil
 }
-func (c mockClient) GetRemoteClusters(opts ...services.MarshalOption) ([]services.RemoteCluster, error) {
+func (c mockClient) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
 	return c.remoteClusters, nil
 }
-func (c mockClient) GetKubeServices(context.Context) ([]services.Server, error) {
+func (c mockClient) GetKubeServices(context.Context) ([]types.Server, error) {
 	return c.kubeServices, nil
 }
 func (c mockClient) GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
@@ -234,7 +234,7 @@ func (c mockClient) GenerateDatabaseCert(context.Context, *proto.DatabaseCertReq
 
 func TestCheckKubeCluster(t *testing.T) {
 	const teleportCluster = "local-teleport"
-	clusterName, err := services.NewClusterName(types.ClusterNameSpecV2{
+	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: teleportCluster,
 	})
 	require.NoError(t, err)
@@ -311,7 +311,7 @@ func TestCheckKubeCluster(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			client.kubeServices = []services.Server{&types.ServerV2{
+			client.kubeServices = []types.Server{&types.ServerV2{
 				Spec: types.ServerSpecV2{
 					KubernetesClusters: tt.registeredClusters,
 				},

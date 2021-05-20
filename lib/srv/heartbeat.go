@@ -145,7 +145,7 @@ func NewHeartbeat(cfg HeartbeatConfig) (*Heartbeat, error) {
 }
 
 // GetServerInfoFn is function that returns server info
-type GetServerInfoFn func() (services.Resource, error)
+type GetServerInfoFn func() (types.Resource, error)
 
 // HeartbeatConfig is a heartbeat configuration
 type HeartbeatConfig struct {
@@ -229,7 +229,7 @@ type Heartbeat struct {
 	cancel    context.CancelFunc
 	*log.Entry
 	state     KeepAliveState
-	current   services.Resource
+	current   types.Resource
 	keepAlive *types.KeepAlive
 	// nextAnnounce holds time of the next scheduled announce attempt
 	nextAnnounce time.Time
@@ -239,7 +239,7 @@ type Heartbeat struct {
 	// during which different checks are performed
 	checkTicker clockwork.Ticker
 	// keepAliver sends keep alive updates
-	keepAliver services.KeepAliver
+	keepAliver types.KeepAliver
 	// announceC is event receives an event
 	// whenever new announce has been sent, used in tests
 	announceC chan struct{}
@@ -374,7 +374,7 @@ func (h *Heartbeat) announce() error {
 		// so keep state at announce forever for proxies
 		switch h.Mode {
 		case HeartbeatModeProxy:
-			proxy, ok := h.current.(services.Server)
+			proxy, ok := h.current.(types.Server)
 			if !ok {
 				return trace.BadParameter("expected services.Server, got %#v", h.current)
 			}
@@ -391,7 +391,7 @@ func (h *Heartbeat) announce() error {
 			h.setState(HeartbeatStateAnnounceWait)
 			return nil
 		case HeartbeatModeAuth:
-			auth, ok := h.current.(services.Server)
+			auth, ok := h.current.(types.Server)
 			if !ok {
 				return trace.BadParameter("expected services.Server, got %#v", h.current)
 			}
@@ -406,7 +406,7 @@ func (h *Heartbeat) announce() error {
 			h.setState(HeartbeatStateAnnounceWait)
 			return nil
 		case HeartbeatModeNode:
-			node, ok := h.current.(services.Server)
+			node, ok := h.current.(types.Server)
 			if !ok {
 				return trace.BadParameter("expected services.Server, got %#v", h.current)
 			}
@@ -427,7 +427,7 @@ func (h *Heartbeat) announce() error {
 			h.setState(HeartbeatStateKeepAliveWait)
 			return nil
 		case HeartbeatModeKube:
-			kube, ok := h.current.(services.Server)
+			kube, ok := h.current.(types.Server)
 			if !ok {
 				return trace.BadParameter("expected services.Server, got %#v", h.current)
 			}
@@ -442,7 +442,7 @@ func (h *Heartbeat) announce() error {
 			h.setState(HeartbeatStateAnnounceWait)
 			return nil
 		case HeartbeatModeApp:
-			app, ok := h.current.(services.Server)
+			app, ok := h.current.(types.Server)
 			if !ok {
 				return trace.BadParameter("expected services.Server, got %#v", h.current)
 			}

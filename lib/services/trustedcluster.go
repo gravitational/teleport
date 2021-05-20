@@ -20,13 +20,14 @@ import (
 	"fmt"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 )
 
 // ValidateTrustedCluster checks and sets Trusted Cluster defaults
-func ValidateTrustedCluster(tc TrustedCluster, allowEmptyRolesOpts ...bool) error {
+func ValidateTrustedCluster(tc types.TrustedCluster, allowEmptyRolesOpts ...bool) error {
 	if err := tc.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -53,7 +54,7 @@ func ValidateTrustedCluster(tc TrustedCluster, allowEmptyRolesOpts ...bool) erro
 }
 
 // RoleMapToString prints user friendly representation of role mapping
-func RoleMapToString(r RoleMap) string {
+func RoleMapToString(r types.RoleMap) string {
 	values, err := parseRoleMap(r)
 	if err != nil {
 		return fmt.Sprintf("<failed to parse: %v", err)
@@ -64,7 +65,7 @@ func RoleMapToString(r RoleMap) string {
 	return "<empty>"
 }
 
-func parseRoleMap(r RoleMap) (map[string][]string, error) {
+func parseRoleMap(r types.RoleMap) (map[string][]string, error) {
 	directMatch := make(map[string][]string)
 	for i := range r {
 		roleMap := r[i]
@@ -96,7 +97,7 @@ func parseRoleMap(r RoleMap) (map[string][]string, error) {
 }
 
 // MapRoles maps local roles to remote roles
-func MapRoles(r RoleMap, remoteRoles []string) ([]string, error) {
+func MapRoles(r types.RoleMap, remoteRoles []string) ([]string, error) {
 	_, err := parseRoleMap(r)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -136,12 +137,12 @@ func MapRoles(r RoleMap, remoteRoles []string) ([]string, error) {
 }
 
 // UnmarshalTrustedCluster unmarshals the TrustedCluster resource from JSON.
-func UnmarshalTrustedCluster(bytes []byte, opts ...MarshalOption) (TrustedCluster, error) {
+func UnmarshalTrustedCluster(bytes []byte, opts ...MarshalOption) (types.TrustedCluster, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var trustedCluster TrustedClusterV2
+	var trustedCluster types.TrustedClusterV2
 
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing resource data")
@@ -168,14 +169,14 @@ func UnmarshalTrustedCluster(bytes []byte, opts ...MarshalOption) (TrustedCluste
 }
 
 // MarshalTrustedCluster marshals the TrustedCluster resource to JSON.
-func MarshalTrustedCluster(trustedCluster TrustedCluster, opts ...MarshalOption) ([]byte, error) {
+func MarshalTrustedCluster(trustedCluster types.TrustedCluster, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	switch trustedCluster := trustedCluster.(type) {
-	case *TrustedClusterV2:
+	case *types.TrustedClusterV2:
 		if version := trustedCluster.GetVersion(); version != V2 {
 			return nil, trace.BadParameter("mismatched trusted cluster version %v and type %T", version, trustedCluster)
 		}

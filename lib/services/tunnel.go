@@ -39,7 +39,7 @@ func ValidateReverseTunnel(rt types.ReverseTunnel) error {
 }
 
 // UnmarshalReverseTunnel unmarshals the ReverseTunnel resource from JSON.
-func UnmarshalReverseTunnel(bytes []byte, opts ...MarshalOption) (ReverseTunnel, error) {
+func UnmarshalReverseTunnel(bytes []byte, opts ...MarshalOption) (types.ReverseTunnel, error) {
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing tunnel data")
 	}
@@ -74,7 +74,7 @@ func UnmarshalReverseTunnel(bytes []byte, opts ...MarshalOption) (ReverseTunnel,
 }
 
 // MarshalReverseTunnel marshals the ReverseTunnel resource to JSON.
-func MarshalReverseTunnel(reverseTunnel ReverseTunnel, opts ...MarshalOption) ([]byte, error) {
+func MarshalReverseTunnel(reverseTunnel types.ReverseTunnel, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)

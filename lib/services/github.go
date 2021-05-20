@@ -26,14 +26,14 @@ import (
 )
 
 // UnmarshalGithubConnector unmarshals the GithubConnector resource from JSON.
-func UnmarshalGithubConnector(bytes []byte) (GithubConnector, error) {
+func UnmarshalGithubConnector(bytes []byte) (types.GithubConnector, error) {
 	var h types.ResourceHeader
 	if err := json.Unmarshal(bytes, &h); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	switch h.Version {
 	case V3:
-		var c GithubConnectorV3
+		var c types.GithubConnectorV3
 		if err := utils.FastUnmarshal(bytes, &c); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -47,14 +47,14 @@ func UnmarshalGithubConnector(bytes []byte) (GithubConnector, error) {
 }
 
 // MarshalGithubConnector marshals the GithubConnector resource to JSON.
-func MarshalGithubConnector(githubConnector GithubConnector, opts ...MarshalOption) ([]byte, error) {
+func MarshalGithubConnector(githubConnector types.GithubConnector, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	switch githubConnector := githubConnector.(type) {
-	case *GithubConnectorV3:
+	case *types.GithubConnectorV3:
 		if version := githubConnector.GetVersion(); version != V3 {
 			return nil, trace.BadParameter("mismatched github connector version %v and type %T", version, githubConnector)
 		}

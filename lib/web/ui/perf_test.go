@@ -188,14 +188,14 @@ type mockAccessPoint struct {
 	presence *local.PresenceService
 }
 
-func (m *mockAccessPoint) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+func (m *mockAccessPoint) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
 	return m.presence.GetNodes(ctx, namespace, opts...)
 }
 
-func (m *mockAccessPoint) GetProxies() ([]services.Server, error) {
+func (m *mockAccessPoint) GetProxies() ([]types.Server, error) {
 	return m.presence.GetProxies()
 }
 
-func (m *mockAccessPoint) GetAuthServers() ([]services.Server, error) {
+func (m *mockAccessPoint) GetAuthServers() ([]types.Server, error) {
 	return m.presence.GetAuthServers()
 }

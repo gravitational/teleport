@@ -36,12 +36,12 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 	var tests = []struct {
 		name       string
 		mode       HeartbeatMode
-		makeServer func() services.Resource
+		makeServer func() types.Resource
 	}{
 		{
 			name: "keep alive node",
 			mode: HeartbeatModeNode,
-			makeServer: func() services.Resource {
+			makeServer: func() types.Resource {
 				return &types.ServerV2{
 					Kind:    services.KindNode,
 					Version: services.V2,
@@ -59,7 +59,7 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 		{
 			name: "keep alive app server",
 			mode: HeartbeatModeApp,
-			makeServer: func() services.Resource {
+			makeServer: func() types.Resource {
 				return &types.ServerV2{
 					Kind:    services.KindAppServer,
 					Version: services.V2,
@@ -77,7 +77,7 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 		{
 			name: "keep alive database server",
 			mode: HeartbeatModeDB,
-			makeServer: func() services.Resource {
+			makeServer: func() types.Resource {
 				return &types.DatabaseServerV3{
 					Kind:    types.KindDatabaseServer,
 					Version: types.V3,
@@ -113,7 +113,7 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 				KeepAlivePeriod: 10 * time.Second,
 				ServerTTL:       600 * time.Second,
 				Clock:           clock,
-				GetServerInfo: func() (services.Resource, error) {
+				GetServerInfo: func() (types.Resource, error) {
 					server.SetExpiry(clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
 					return server, nil
 				},
@@ -218,7 +218,7 @@ func TestHeartbeatAnnounce(t *testing.T) {
 				KeepAlivePeriod: 10 * time.Second,
 				ServerTTL:       600 * time.Second,
 				Clock:           clock,
-				GetServerInfo: func() (services.Resource, error) {
+				GetServerInfo: func() (types.Resource, error) {
 					srv := &types.ServerV2{
 						Kind:    tt.kind,
 						Version: services.V2,
@@ -308,7 +308,7 @@ type fakeAnnouncer struct {
 	keepAlivesC chan<- types.KeepAlive
 }
 
-func (f *fakeAnnouncer) UpsertAppServer(ctx context.Context, s services.Server) (*types.KeepAlive, error) {
+func (f *fakeAnnouncer) UpsertAppServer(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
 	f.upsertCalls[HeartbeatModeApp]++
 	if f.err != nil {
 		return nil, f.err
@@ -324,7 +324,7 @@ func (f *fakeAnnouncer) UpsertDatabaseServer(ctx context.Context, s types.Databa
 	return &types.KeepAlive{}, nil
 }
 
-func (f *fakeAnnouncer) UpsertNode(ctx context.Context, s services.Server) (*types.KeepAlive, error) {
+func (f *fakeAnnouncer) UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
 	f.upsertCalls[HeartbeatModeNode]++
 	if f.err != nil {
 		return nil, f.err
@@ -332,22 +332,22 @@ func (f *fakeAnnouncer) UpsertNode(ctx context.Context, s services.Server) (*typ
 	return &types.KeepAlive{}, nil
 }
 
-func (f *fakeAnnouncer) UpsertProxy(s services.Server) error {
+func (f *fakeAnnouncer) UpsertProxy(s types.Server) error {
 	f.upsertCalls[HeartbeatModeProxy]++
 	return f.err
 }
 
-func (f *fakeAnnouncer) UpsertAuthServer(s services.Server) error {
+func (f *fakeAnnouncer) UpsertAuthServer(s types.Server) error {
 	f.upsertCalls[HeartbeatModeAuth]++
 	return f.err
 }
 
-func (f *fakeAnnouncer) UpsertKubeService(ctx context.Context, s services.Server) error {
+func (f *fakeAnnouncer) UpsertKubeService(ctx context.Context, s types.Server) error {
 	f.upsertCalls[HeartbeatModeKube]++
 	return f.err
 }
 
-func (f *fakeAnnouncer) NewKeepAliver(ctx context.Context) (services.KeepAliver, error) {
+func (f *fakeAnnouncer) NewKeepAliver(ctx context.Context) (types.KeepAliver, error) {
 	return f, f.err
 }
 

@@ -26,7 +26,7 @@ import (
 
 // NewPresetEditorRole returns a new pre-defined role for cluster
 // editors who can edit cluster configuration resources.
-func NewPresetEditorRole() Role {
+func NewPresetEditorRole() types.Role {
 	role := &types.RoleV3{
 		Kind:    KindRole,
 		Version: V3,
@@ -38,24 +38,24 @@ func NewPresetEditorRole() Role {
 		Spec: types.RoleSpecV3{
 			Options: types.RoleOptions{
 				CertificateFormat: teleport.CertificateFormatStandard,
-				MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
-				PortForwarding:    NewBoolOption(true),
-				ForwardAgent:      NewBool(true),
+				MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
+				PortForwarding:    types.NewBoolOption(true),
+				ForwardAgent:      types.NewBool(true),
 				BPF:               defaults.EnhancedEvents(),
 			},
 			Allow: types.RoleConditions{
 				Namespaces: []string{defaults.Namespace},
 				Rules: []types.Rule{
-					NewRule(KindUser, RW()),
-					NewRule(KindRole, RW()),
-					NewRule(KindOIDC, RW()),
-					NewRule(KindSAML, RW()),
-					NewRule(KindGithub, RW()),
-					NewRule(KindClusterAuthPreference, RW()),
-					NewRule(KindClusterConfig, RW()),
-					NewRule(KindTrustedCluster, RW()),
-					NewRule(KindRemoteCluster, RW()),
-					NewRule(KindToken, RW()),
+					types.NewRule(KindUser, RW()),
+					types.NewRule(KindRole, RW()),
+					types.NewRule(KindOIDC, RW()),
+					types.NewRule(KindSAML, RW()),
+					types.NewRule(KindGithub, RW()),
+					types.NewRule(KindClusterAuthPreference, RW()),
+					types.NewRule(KindClusterConfig, RW()),
+					types.NewRule(KindTrustedCluster, RW()),
+					types.NewRule(KindRemoteCluster, RW()),
+					types.NewRule(KindToken, RW()),
 				},
 			},
 		},
@@ -65,7 +65,7 @@ func NewPresetEditorRole() Role {
 
 // NewPresetAccessRole creates a role for users who are allowed to initiate
 // interactive sessions.
-func NewPresetAccessRole() Role {
+func NewPresetAccessRole() types.Role {
 	role := &types.RoleV3{
 		Kind:    KindRole,
 		Version: V3,
@@ -77,21 +77,21 @@ func NewPresetAccessRole() Role {
 		Spec: types.RoleSpecV3{
 			Options: types.RoleOptions{
 				CertificateFormat: teleport.CertificateFormatStandard,
-				MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
-				PortForwarding:    NewBoolOption(true),
-				ForwardAgent:      NewBool(true),
+				MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
+				PortForwarding:    types.NewBoolOption(true),
+				ForwardAgent:      types.NewBool(true),
 				BPF:               defaults.EnhancedEvents(),
 			},
 			Allow: types.RoleConditions{
 				Namespaces:       []string{defaults.Namespace},
-				NodeLabels:       Labels{Wildcard: []string{Wildcard}},
-				AppLabels:        Labels{Wildcard: []string{Wildcard}},
-				KubernetesLabels: Labels{Wildcard: []string{Wildcard}},
-				DatabaseLabels:   Labels{Wildcard: []string{Wildcard}},
+				NodeLabels:       types.Labels{Wildcard: []string{Wildcard}},
+				AppLabels:        types.Labels{Wildcard: []string{Wildcard}},
+				KubernetesLabels: types.Labels{Wildcard: []string{Wildcard}},
+				DatabaseLabels:   types.Labels{Wildcard: []string{Wildcard}},
 				DatabaseNames:    []string{teleport.TraitInternalDBNamesVariable},
 				DatabaseUsers:    []string{teleport.TraitInternalDBUsersVariable},
 				Rules: []types.Rule{
-					NewRule(KindEvent, RO()),
+					types.NewRule(KindEvent, RO()),
 				},
 			},
 		},
@@ -105,7 +105,7 @@ func NewPresetAccessRole() Role {
 // NewPresetAuditorRole returns a new pre-defined role for cluster
 // auditor - someone who can review cluster events and replay sessions,
 // but can't initiate interactive sessions or modify configuration.
-func NewPresetAuditorRole() Role {
+func NewPresetAuditorRole() types.Role {
 	role := &types.RoleV3{
 		Kind:    KindRole,
 		Version: V3,
@@ -117,21 +117,21 @@ func NewPresetAuditorRole() Role {
 		Spec: types.RoleSpecV3{
 			Options: types.RoleOptions{
 				CertificateFormat: teleport.CertificateFormatStandard,
-				MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
+				MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
 			},
 			Allow: types.RoleConditions{
 				Namespaces: []string{defaults.Namespace},
 				Rules: []types.Rule{
-					NewRule(KindSession, RO()),
-					NewRule(KindEvent, RO()),
+					types.NewRule(KindSession, RO()),
+					types.NewRule(KindEvent, RO()),
 				},
 			},
 			Deny: types.RoleConditions{
 				Namespaces:       []string{Wildcard},
-				NodeLabels:       Labels{Wildcard: []string{Wildcard}},
-				AppLabels:        Labels{Wildcard: []string{Wildcard}},
-				KubernetesLabels: Labels{Wildcard: []string{Wildcard}},
-				DatabaseLabels:   Labels{Wildcard: []string{Wildcard}},
+				NodeLabels:       types.Labels{Wildcard: []string{Wildcard}},
+				AppLabels:        types.Labels{Wildcard: []string{Wildcard}},
+				KubernetesLabels: types.Labels{Wildcard: []string{Wildcard}},
+				DatabaseLabels:   types.Labels{Wildcard: []string{Wildcard}},
 			},
 		},
 	}

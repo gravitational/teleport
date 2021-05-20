@@ -113,7 +113,7 @@ type Server interface {
 	GetClock() clockwork.Clock
 
 	// GetInfo returns a services.Server that represents this server.
-	GetInfo() services.Server
+	GetInfo() types.Server
 
 	// UseTunnel used to determine if this node has connected to this cluster
 	// using reverse tunnel.
@@ -146,7 +146,7 @@ type IdentityContext struct {
 	Certificate *ssh.Certificate
 
 	// CertAuthority is the Certificate Authority that signed the Certificate.
-	CertAuthority services.CertAuthority
+	CertAuthority types.CertAuthority
 
 	// RoleSet is the roles this Teleport user is associated with. RoleSet is
 	// used to check RBAC permissions.

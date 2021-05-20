@@ -275,7 +275,7 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 	if err != nil {
 		return trail.ToGRPC(err)
 	}
-	servicesWatch := services.Watch{
+	servicesWatch := types.Watch{
 		Name: auth.User.GetName(),
 	}
 	for _, kind := range watch.Kinds {
@@ -533,7 +533,7 @@ func (g *GRPCServer) SetAccessRequestState(ctx context.Context, req *proto.Reque
 	if req.Delegator != "" {
 		ctx = WithDelegator(ctx, req.Delegator)
 	}
-	if err := auth.ServerWithRoles.SetAccessRequestState(ctx, services.AccessRequestUpdate{
+	if err := auth.ServerWithRoles.SetAccessRequestState(ctx, types.AccessRequestUpdate{
 		RequestID:   req.ID,
 		State:       req.State,
 		Reason:      req.Reason,
@@ -565,7 +565,7 @@ func (g *GRPCServer) SubmitAccessReview(ctx context.Context, review *types.Acces
 	return r, nil
 }
 
-func (g *GRPCServer) GetAccessCapabilities(ctx context.Context, req *services.AccessCapabilitiesRequest) (*services.AccessCapabilities, error) {
+func (g *GRPCServer) GetAccessCapabilities(ctx context.Context, req *types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
@@ -1000,7 +1000,7 @@ func (g *GRPCServer) GetAppSession(ctx context.Context, req *proto.GetAppSession
 		return nil, trail.ToGRPC(err)
 	}
 
-	session, err := auth.GetAppSession(ctx, services.GetAppSessionRequest{
+	session, err := auth.GetAppSession(ctx, types.GetAppSessionRequest{
 		SessionID: req.GetSessionID(),
 	})
 	if err != nil {
@@ -1050,7 +1050,7 @@ func (g *GRPCServer) CreateAppSession(ctx context.Context, req *proto.CreateAppS
 		return nil, trail.ToGRPC(err)
 	}
 
-	session, err := auth.CreateAppSession(ctx, services.CreateAppSessionRequest{
+	session, err := auth.CreateAppSession(ctx, types.CreateAppSessionRequest{
 		Username:    req.GetUsername(),
 		PublicAddr:  req.GetPublicAddr(),
 		ClusterName: req.GetClusterName(),
@@ -1075,7 +1075,7 @@ func (g *GRPCServer) DeleteAppSession(ctx context.Context, req *proto.DeleteAppS
 		return nil, trail.ToGRPC(err)
 	}
 
-	if err := auth.DeleteAppSession(ctx, services.DeleteAppSessionRequest{
+	if err := auth.DeleteAppSession(ctx, types.DeleteAppSessionRequest{
 		SessionID: req.GetSessionID(),
 	}); err != nil {
 		return nil, trail.ToGRPC(err)

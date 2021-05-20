@@ -23,10 +23,10 @@ import (
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
 )
 
@@ -64,21 +64,21 @@ func (c *StatusCommand) Status(client auth.ClientI) error {
 	serverVersion := pingRsp.ServerVersion
 	clusterName := pingRsp.ClusterName
 
-	authorities := []services.CertAuthority{}
+	authorities := []types.CertAuthority{}
 
-	hostCAs, err := client.GetCertAuthorities(services.HostCA, false)
+	hostCAs, err := client.GetCertAuthorities(types.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	authorities = append(authorities, hostCAs...)
 
-	userCAs, err := client.GetCertAuthorities(services.UserCA, false)
+	userCAs, err := client.GetCertAuthorities(types.UserCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	authorities = append(authorities, userCAs...)
 
-	jwtKeys, err := client.GetCertAuthorities(services.JWTSigner, false)
+	jwtKeys, err := client.GetCertAuthorities(types.JWTSigner, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}

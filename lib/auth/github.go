@@ -63,7 +63,7 @@ func (a *Server) CreateGithubAuthRequest(req services.GithubAuthRequest) (*servi
 }
 
 // upsertGithubConnector creates or updates a Github connector.
-func (a *Server) upsertGithubConnector(ctx context.Context, connector services.GithubConnector) error {
+func (a *Server) upsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
 	if err := a.Identity.UpsertGithubConnector(ctx, connector); err != nil {
 		return trace.Wrap(err)
 	}
@@ -118,7 +118,7 @@ type GithubAuthResponse struct {
 	// Identity is the external identity
 	Identity types.ExternalIdentity `json:"identity"`
 	// Session is the created web session
-	Session services.WebSession `json:"session,omitempty"`
+	Session types.WebSession `json:"session,omitempty"`
 	// Cert is the generated SSH client certificate
 	Cert []byte `json:"cert,omitempty"`
 	// TLSCert is PEM encoded TLS client certificate
@@ -127,7 +127,7 @@ type GithubAuthResponse struct {
 	Req services.GithubAuthRequest `json:"req"`
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
-	HostSigners []services.CertAuthority `json:"host_signers"`
+	HostSigners []types.CertAuthority `json:"host_signers"`
 }
 
 type githubManager interface {
@@ -296,8 +296,8 @@ func (a *Server) validateGithubAuthCallback(q url.Values) (*githubAuthResponse, 
 		re.auth.TLSCert = tlsCert
 
 		// Return the host CA for this cluster only.
-		authority, err := a.GetCertAuthority(services.CertAuthID{
-			Type:       services.HostCA,
+		authority, err := a.GetCertAuthority(types.CertAuthID{
+			Type:       types.HostCA,
 			DomainName: clusterName.GetClusterName(),
 		}, false)
 		if err != nil {
@@ -337,7 +337,7 @@ type createUserParams struct {
 	sessionTTL time.Duration
 }
 
-func (a *Server) calculateGithubUser(connector services.GithubConnector, claims *services.GithubClaims, request *services.GithubAuthRequest) (*createUserParams, error) {
+func (a *Server) calculateGithubUser(connector types.GithubConnector, claims *types.GithubClaims, request *services.GithubAuthRequest) (*createUserParams, error) {
 	p := createUserParams{
 		connectorName: connector.GetName(),
 		username:      claims.Username,
@@ -368,7 +368,7 @@ func (a *Server) calculateGithubUser(connector services.GithubConnector, claims 
 	return &p, nil
 }
 
-func (a *Server) createGithubUser(p *createUserParams) (services.User, error) {
+func (a *Server) createGithubUser(p *createUserParams) (types.User, error) {
 
 	log.WithFields(logrus.Fields{trace.Component: "github"}).Debugf(
 		"Generating dynamic identity %v/%v with logins: %v.",
@@ -431,7 +431,7 @@ func (a *Server) createGithubUser(p *createUserParams) (services.User, error) {
 
 // populateGithubClaims retrieves information about user and its team
 // memberships by calling Github API using the access token
-func populateGithubClaims(client githubAPIClientI) (*services.GithubClaims, error) {
+func populateGithubClaims(client githubAPIClientI) (*types.GithubClaims, error) {
 	// find out the username
 	user, err := client.getUser()
 	if err != nil {
@@ -453,7 +453,7 @@ func populateGithubClaims(client githubAPIClientI) (*services.GithubClaims, erro
 		return nil, trace.AccessDenied(
 			"list of user teams is empty, did you grant access?")
 	}
-	claims := &services.GithubClaims{
+	claims := &types.GithubClaims{
 		Username:            user.Login,
 		OrganizationToTeams: orgToTeams,
 	}
@@ -462,7 +462,7 @@ func populateGithubClaims(client githubAPIClientI) (*services.GithubClaims, erro
 	return claims, nil
 }
 
-func (a *Server) getGithubOAuth2Client(connector services.GithubConnector) (*oauth2.Client, error) {
+func (a *Server) getGithubOAuth2Client(connector types.GithubConnector) (*oauth2.Client, error) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	config := oauth2.Config{

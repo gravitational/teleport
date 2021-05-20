@@ -175,15 +175,15 @@ func TestRoleParse(t *testing.T) {
 				Spec: types.RoleSpecV3{
 					Options: types.RoleOptions{
 						CertificateFormat: teleport.CertificateFormatStandard,
-						MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
-						PortForwarding:    NewBoolOption(true),
+						MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
+						PortForwarding:    types.NewBoolOption(true),
 						BPF:               defaults.EnhancedEvents(),
 					},
 					Allow: types.RoleConditions{
-						NodeLabels:       Labels{},
-						AppLabels:        Labels{Wildcard: []string{Wildcard}},
-						KubernetesLabels: Labels{Wildcard: []string{Wildcard}},
-						DatabaseLabels:   Labels{Wildcard: []string{Wildcard}},
+						NodeLabels:       types.Labels{},
+						AppLabels:        types.Labels{Wildcard: []string{Wildcard}},
+						KubernetesLabels: types.Labels{Wildcard: []string{Wildcard}},
+						DatabaseLabels:   types.Labels{Wildcard: []string{Wildcard}},
 						Namespaces:       []string{defaults.Namespace},
 					},
 					Deny: types.RoleConditions{
@@ -243,17 +243,17 @@ func TestRoleParse(t *testing.T) {
 				Spec: types.RoleSpecV3{
 					Options: types.RoleOptions{
 						CertificateFormat:     teleport.CertificateFormatStandard,
-						MaxSessionTTL:         NewDuration(20 * time.Hour),
-						PortForwarding:        NewBoolOption(true),
-						ClientIdleTimeout:     NewDuration(17 * time.Minute),
-						DisconnectExpiredCert: NewBool(true),
+						MaxSessionTTL:         types.NewDuration(20 * time.Hour),
+						PortForwarding:        types.NewBoolOption(true),
+						ClientIdleTimeout:     types.NewDuration(17 * time.Minute),
+						DisconnectExpiredCert: types.NewBool(true),
 						BPF:                   defaults.EnhancedEvents(),
 					},
 					Allow: types.RoleConditions{
-						NodeLabels:       Labels{"a": []string{"b"}, "c-d": []string{"e"}},
-						AppLabels:        Labels{"a": []string{"b"}, "c-d": []string{"e"}},
-						KubernetesLabels: Labels{"a": []string{"b"}, "c-d": []string{"e"}},
-						DatabaseLabels:   Labels{"a": []string{"b"}, "c-d": []string{"e"}},
+						NodeLabels:       types.Labels{"a": []string{"b"}, "c-d": []string{"e"}},
+						AppLabels:        types.Labels{"a": []string{"b"}, "c-d": []string{"e"}},
+						KubernetesLabels: types.Labels{"a": []string{"b"}, "c-d": []string{"e"}},
+						DatabaseLabels:   types.Labels{"a": []string{"b"}, "c-d": []string{"e"}},
 						DatabaseNames:    []string{"postgres"},
 						DatabaseUsers:    []string{"postgres"},
 						Namespaces:       []string{"default"},
@@ -324,18 +324,18 @@ func TestRoleParse(t *testing.T) {
 				Spec: types.RoleSpecV3{
 					Options: types.RoleOptions{
 						CertificateFormat:     teleport.CertificateFormatStandard,
-						ForwardAgent:          NewBool(true),
-						MaxSessionTTL:         NewDuration(20 * time.Hour),
-						PortForwarding:        NewBoolOption(true),
-						ClientIdleTimeout:     NewDuration(0),
-						DisconnectExpiredCert: NewBool(false),
+						ForwardAgent:          types.NewBool(true),
+						MaxSessionTTL:         types.NewDuration(20 * time.Hour),
+						PortForwarding:        types.NewBoolOption(true),
+						ClientIdleTimeout:     types.NewDuration(0),
+						DisconnectExpiredCert: types.NewBool(false),
 						BPF:                   defaults.EnhancedEvents(),
 					},
 					Allow: types.RoleConditions{
-						NodeLabels:       Labels{"a": []string{"b"}},
-						AppLabels:        Labels{"a": []string{"b"}},
-						KubernetesLabels: Labels{"c": []string{"d"}},
-						DatabaseLabels:   Labels{"e": []string{"f"}},
+						NodeLabels:       types.Labels{"a": []string{"b"}},
+						AppLabels:        types.Labels{"a": []string{"b"}},
+						KubernetesLabels: types.Labels{"c": []string{"d"}},
+						DatabaseLabels:   types.Labels{"e": []string{"f"}},
 						Namespaces:       []string{"default"},
 						Rules: []types.Rule{
 							{
@@ -393,30 +393,30 @@ func TestRoleParse(t *testing.T) {
 				Spec: types.RoleSpecV3{
 					Options: types.RoleOptions{
 						CertificateFormat:     teleport.CertificateFormatStandard,
-						ForwardAgent:          NewBool(true),
-						MaxSessionTTL:         NewDuration(20 * time.Hour),
-						PortForwarding:        NewBoolOption(true),
-						ClientIdleTimeout:     NewDuration(0),
-						DisconnectExpiredCert: NewBool(false),
+						ForwardAgent:          types.NewBool(true),
+						MaxSessionTTL:         types.NewDuration(20 * time.Hour),
+						PortForwarding:        types.NewBoolOption(true),
+						ClientIdleTimeout:     types.NewDuration(0),
+						DisconnectExpiredCert: types.NewBool(false),
 						BPF:                   defaults.EnhancedEvents(),
 					},
 					Allow: types.RoleConditions{
-						NodeLabels: Labels{
+						NodeLabels: types.Labels{
 							"a":    []string{"b"},
 							"key":  []string{"val"},
 							"key2": []string{"val2", "val3"},
 						},
-						AppLabels: Labels{
+						AppLabels: types.Labels{
 							"a":    []string{"b"},
 							"key":  []string{"val"},
 							"key2": []string{"val2", "val3"},
 						},
-						KubernetesLabels: Labels{
+						KubernetesLabels: types.Labels{
 							"a":    []string{"b"},
 							"key":  []string{"val"},
 							"key2": []string{"val2", "val3"},
 						},
-						DatabaseLabels: Labels{
+						DatabaseLabels: types.Labels{
 							"a":    []string{"b"},
 							"key":  []string{"val"},
 							"key2": []string{"val2", "val3"},
@@ -543,7 +543,7 @@ func TestValidateRole(t *testing.T) {
 // are serialized in format understood by older servers with
 // scalar labels
 func TestLabelCompatibility(t *testing.T) {
-	labels := Labels{
+	labels := types.Labels{
 		"key": []string{"val"},
 	}
 	data, err := json.Marshal(labels)
@@ -557,7 +557,7 @@ func TestLabelCompatibility(t *testing.T) {
 
 func TestCheckAccessToServer(t *testing.T) {
 	type check struct {
-		server    Server
+		server    types.Server
 		hasAccess bool
 		login     string
 	}
@@ -596,10 +596,10 @@ func TestCheckAccessToServer(t *testing.T) {
 			},
 			Spec: types.RoleSpecV3{
 				Options: types.RoleOptions{
-					MaxSessionTTL: Duration(20 * time.Hour),
+					MaxSessionTTL: types.Duration(20 * time.Hour),
 				},
 				Allow: types.RoleConditions{
-					NodeLabels: Labels{Wildcard: []string{Wildcard}},
+					NodeLabels: types.Labels{Wildcard: []string{Wildcard}},
 					Namespaces: []string{Wildcard},
 				},
 			},
@@ -644,7 +644,7 @@ func TestCheckAccessToServer(t *testing.T) {
 			roles: []types.RoleV3{
 				newRole(func(r *types.RoleV3) {
 					r.Spec.Allow.Logins = []string{"admin"}
-					r.Spec.Allow.NodeLabels = Labels{"role": []string{"worker"}}
+					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker"}}
 				}),
 			},
 			checks: []check{
@@ -661,7 +661,7 @@ func TestCheckAccessToServer(t *testing.T) {
 			roles: []types.RoleV3{
 				newRole(func(r *types.RoleV3) {
 					r.Spec.Allow.Logins = []string{"admin"}
-					r.Spec.Allow.NodeLabels = Labels{"role": []string{"worker2", "worker"}}
+					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker2", "worker"}}
 				}),
 			},
 			checks: []check{
@@ -678,7 +678,7 @@ func TestCheckAccessToServer(t *testing.T) {
 			roles: []types.RoleV3{
 				newRole(func(r *types.RoleV3) {
 					r.Spec.Allow.Logins = []string{"admin"}
-					r.Spec.Allow.NodeLabels = Labels{"role": []string{}}
+					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{}}
 				}),
 			},
 			checks: []check{
@@ -696,7 +696,7 @@ func TestCheckAccessToServer(t *testing.T) {
 				newRole(func(r *types.RoleV3) {
 					r.Spec.Allow.Logins = []string{"admin"}
 					r.Spec.Allow.Namespaces = []string{defaults.Namespace}
-					r.Spec.Allow.NodeLabels = Labels{"role": []string{"worker"}}
+					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker"}}
 				}),
 				newRole(func(r *types.RoleV3) {
 					r.Spec.Allow.Logins = []string{"root", "admin"}
@@ -716,7 +716,7 @@ func TestCheckAccessToServer(t *testing.T) {
 			roles: []types.RoleV3{
 				newRole(func(r *types.RoleV3) {
 					r.Spec.Allow.Logins = []string{"admin"}
-					r.Spec.Allow.NodeLabels = Labels{"role": []string{"^db(.*)$"}, "status": []string{"follow*"}}
+					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"^db(.*)$"}, "status": []string{"follow*"}}
 					r.Spec.Allow.Namespaces = []string{namespaceC}
 				}),
 			},
@@ -752,7 +752,7 @@ func TestCheckAccessToServer(t *testing.T) {
 			roles: []types.RoleV3{
 				newRole(func(r *types.RoleV3) {
 					r.Spec.Allow.Logins = []string{"root"}
-					r.Spec.Allow.NodeLabels = Labels{"role": []string{"worker"}}
+					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker"}}
 					r.Spec.Options.RequireSessionMFA = true
 				}),
 				newRole(func(r *types.RoleV3) {
@@ -772,7 +772,7 @@ func TestCheckAccessToServer(t *testing.T) {
 			roles: []types.RoleV3{
 				newRole(func(r *types.RoleV3) {
 					r.Spec.Allow.Logins = []string{"root"}
-					r.Spec.Allow.NodeLabels = Labels{"role": []string{"worker"}}
+					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker"}}
 					r.Spec.Options.RequireSessionMFA = true
 				}),
 				newRole(func(r *types.RoleV3) {
@@ -836,7 +836,7 @@ func TestCheckAccessToServer(t *testing.T) {
 
 func TestCheckAccessToRemoteCluster(t *testing.T) {
 	type check struct {
-		rc        RemoteCluster
+		rc        types.RemoteCluster
 		hasAccess bool
 	}
 	rcA := &types.RemoteClusterV3{
@@ -880,11 +880,11 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 					},
 					Spec: types.RoleSpecV3{
 						Options: types.RoleOptions{
-							MaxSessionTTL: Duration(20 * time.Hour),
+							MaxSessionTTL: types.Duration(20 * time.Hour),
 						},
 						Allow: types.RoleConditions{
 							Logins:        []string{"admin"},
-							ClusterLabels: Labels{"role": []string{"worker2", "worker"}},
+							ClusterLabels: types.Labels{"role": []string{"worker2", "worker"}},
 							Namespaces:    []string{defaults.Namespace},
 						},
 					},
@@ -906,11 +906,11 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 					},
 					Spec: types.RoleSpecV3{
 						Options: types.RoleOptions{
-							MaxSessionTTL: Duration(20 * time.Hour),
+							MaxSessionTTL: types.Duration(20 * time.Hour),
 						},
 						Allow: types.RoleConditions{
 							Logins:        []string{"admin"},
-							ClusterLabels: Labels{Wildcard: []string{Wildcard}},
+							ClusterLabels: types.Labels{Wildcard: []string{Wildcard}},
 							Namespaces:    []string{defaults.Namespace},
 						},
 					},
@@ -932,7 +932,7 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 					},
 					Spec: types.RoleSpecV3{
 						Options: types.RoleOptions{
-							MaxSessionTTL: Duration(20 * time.Hour),
+							MaxSessionTTL: types.Duration(20 * time.Hour),
 						},
 						Allow: types.RoleConditions{
 							Namespaces: []string{defaults.Namespace},
@@ -956,10 +956,10 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 					},
 					Spec: types.RoleSpecV3{
 						Options: types.RoleOptions{
-							MaxSessionTTL: Duration(20 * time.Hour),
+							MaxSessionTTL: types.Duration(20 * time.Hour),
 						},
 						Allow: types.RoleConditions{
-							ClusterLabels: Labels{"role": []string{"worker"}},
+							ClusterLabels: types.Labels{"role": []string{"worker"}},
 							Namespaces:    []string{defaults.Namespace},
 						},
 					},
@@ -971,7 +971,7 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 					},
 					Spec: types.RoleSpecV3{
 						Options: types.RoleOptions{
-							MaxSessionTTL: Duration(20 * time.Hour),
+							MaxSessionTTL: types.Duration(20 * time.Hour),
 						},
 						Allow: types.RoleConditions{
 							Namespaces: []string{defaults.Namespace},
@@ -995,11 +995,11 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 					},
 					Spec: types.RoleSpecV3{
 						Options: types.RoleOptions{
-							MaxSessionTTL: Duration(20 * time.Hour),
+							MaxSessionTTL: types.Duration(20 * time.Hour),
 						},
 						Allow: types.RoleConditions{
 							Logins:        []string{"admin"},
-							ClusterLabels: Labels{"role": []string{}},
+							ClusterLabels: types.Labels{"role": []string{}},
 							Namespaces:    []string{defaults.Namespace},
 						},
 					},
@@ -1021,11 +1021,11 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 					},
 					Spec: types.RoleSpecV3{
 						Options: types.RoleOptions{
-							MaxSessionTTL: Duration(20 * time.Hour),
+							MaxSessionTTL: types.Duration(20 * time.Hour),
 						},
 						Allow: types.RoleConditions{
 							Logins:        []string{"admin"},
-							ClusterLabels: Labels{"role": []string{"worker"}},
+							ClusterLabels: types.Labels{"role": []string{"worker"}},
 							Namespaces:    []string{defaults.Namespace},
 						},
 					},
@@ -1037,11 +1037,11 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 					},
 					Spec: types.RoleSpecV3{
 						Options: types.RoleOptions{
-							MaxSessionTTL: Duration(20 * time.Hour),
+							MaxSessionTTL: types.Duration(20 * time.Hour),
 						},
 						Allow: types.RoleConditions{
 							Logins:        []string{"root", "admin"},
-							ClusterLabels: Labels{Wildcard: []string{Wildcard}},
+							ClusterLabels: types.Labels{Wildcard: []string{Wildcard}},
 							Namespaces:    []string{Wildcard},
 						},
 					},
@@ -1063,11 +1063,11 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 					},
 					Spec: types.RoleSpecV3{
 						Options: types.RoleOptions{
-							MaxSessionTTL: Duration(20 * time.Hour),
+							MaxSessionTTL: types.Duration(20 * time.Hour),
 						},
 						Allow: types.RoleConditions{
 							Logins:        []string{"admin"},
-							ClusterLabels: Labels{"role": []string{"^db(.*)$"}, "status": []string{"follow*"}},
+							ClusterLabels: types.Labels{"role": []string{"^db(.*)$"}, "status": []string{"follow*"}},
 							Namespaces:    []string{defaults.Namespace},
 						},
 					},
@@ -1143,7 +1143,7 @@ func TestCheckRuleAccess(t *testing.T) {
 						Allow: types.RoleConditions{
 							Namespaces: []string{defaults.Namespace},
 							Rules: []types.Rule{
-								NewRule(KindSSHSession, []string{VerbRead}),
+								types.NewRule(KindSSHSession, []string{VerbRead}),
 							},
 						},
 					},
@@ -1166,7 +1166,7 @@ func TestCheckRuleAccess(t *testing.T) {
 						Allow: types.RoleConditions{
 							Namespaces: []string{"system"},
 							Rules: []types.Rule{
-								NewRule(KindSSHSession, []string{VerbRead}),
+								types.NewRule(KindSSHSession, []string{VerbRead}),
 							},
 						},
 					},
@@ -1180,7 +1180,7 @@ func TestCheckRuleAccess(t *testing.T) {
 						Allow: types.RoleConditions{
 							Namespaces: []string{defaults.Namespace},
 							Rules: []types.Rule{
-								NewRule(KindSSHSession, []string{VerbCreate, VerbRead}),
+								types.NewRule(KindSSHSession, []string{VerbCreate, VerbRead}),
 							},
 						},
 					},
@@ -1205,13 +1205,13 @@ func TestCheckRuleAccess(t *testing.T) {
 						Deny: types.RoleConditions{
 							Namespaces: []string{defaults.Namespace},
 							Rules: []types.Rule{
-								NewRule(KindSSHSession, []string{VerbCreate}),
+								types.NewRule(KindSSHSession, []string{VerbCreate}),
 							},
 						},
 						Allow: types.RoleConditions{
 							Namespaces: []string{defaults.Namespace},
 							Rules: []types.Rule{
-								NewRule(KindSSHSession, []string{VerbCreate}),
+								types.NewRule(KindSSHSession, []string{VerbCreate}),
 							},
 						},
 					},
@@ -1504,18 +1504,18 @@ func TestApplyTraits(t *testing.T) {
 	type rule struct {
 		inLogins       []string
 		outLogins      []string
-		inLabels       Labels
-		outLabels      Labels
-		inKubeLabels   Labels
-		outKubeLabels  Labels
+		inLabels       types.Labels
+		outLabels      types.Labels
+		inKubeLabels   types.Labels
+		outKubeLabels  types.Labels
 		inKubeGroups   []string
 		outKubeGroups  []string
 		inKubeUsers    []string
 		outKubeUsers   []string
-		inAppLabels    Labels
-		outAppLabels   Labels
-		inDBLabels     Labels
-		outDBLabels    Labels
+		inAppLabels    types.Labels
+		outAppLabels   types.Labels
+		inDBLabels     types.Labels
+		outDBLabels    types.Labels
 		inDBNames      []string
 		outDBNames     []string
 		inDBUsers      []string
@@ -1743,12 +1743,12 @@ func TestApplyTraits(t *testing.T) {
 				"hello": {"there"},
 			},
 			allow: rule{
-				inLabels:  Labels{`{{external.foo}}`: []string{"{{external.hello}}"}},
-				outLabels: Labels{`bar`: []string{"there"}},
+				inLabels:  types.Labels{`{{external.foo}}`: []string{"{{external.hello}}"}},
+				outLabels: types.Labels{`bar`: []string{"there"}},
 			},
 			deny: rule{
-				inLabels:  Labels{`{{external.hello}}`: []string{"{{external.foo}}"}},
-				outLabels: Labels{`there`: []string{"bar"}},
+				inLabels:  types.Labels{`{{external.hello}}`: []string{"{{external.foo}}"}},
+				outLabels: types.Labels{`there`: []string{"bar"}},
 			},
 		},
 
@@ -1758,12 +1758,12 @@ func TestApplyTraits(t *testing.T) {
 				"foo": {"bar"},
 			},
 			allow: rule{
-				inLabels: Labels{
+				inLabels: types.Labels{
 					`{{external.foo}}`:     []string{"value"},
 					`{{external.missing}}`: []string{"missing"},
 					`missing`:              []string{"{{external.missing}}", "othervalue"},
 				},
-				outLabels: Labels{
+				outLabels: types.Labels{
 					`bar`:     []string{"value"},
 					"missing": []string{"", "othervalue"},
 					"":        []string{"missing"},
@@ -1777,8 +1777,8 @@ func TestApplyTraits(t *testing.T) {
 				"foo": {"bar", "baz"},
 			},
 			allow: rule{
-				inLabels:  Labels{`{{external.foo}}`: []string{"value"}},
-				outLabels: Labels{`bar`: []string{"value"}},
+				inLabels:  types.Labels{`{{external.foo}}`: []string{"value"}},
+				outLabels: types.Labels{`bar`: []string{"value"}},
 			},
 		},
 
@@ -1788,8 +1788,8 @@ func TestApplyTraits(t *testing.T) {
 				"foo": {"bar", "baz"},
 			},
 			allow: rule{
-				inLabels:  Labels{`key`: []string{`{{external.foo}}`}},
-				outLabels: Labels{`key`: []string{"bar", "baz"}},
+				inLabels:  types.Labels{`key`: []string{`{{external.foo}}`}},
+				outLabels: types.Labels{`key`: []string{"bar", "baz"}},
 			},
 		},
 		{
@@ -1798,8 +1798,8 @@ func TestApplyTraits(t *testing.T) {
 				"foo": {"bar", "baz"},
 			},
 			allow: rule{
-				inKubeLabels:  Labels{`key`: []string{`{{external.foo}}`}},
-				outKubeLabels: Labels{`key`: []string{"bar", "baz"}},
+				inKubeLabels:  types.Labels{`key`: []string{`{{external.foo}}`}},
+				outKubeLabels: types.Labels{`key`: []string{"bar", "baz"}},
 			},
 		},
 		{
@@ -1808,8 +1808,8 @@ func TestApplyTraits(t *testing.T) {
 				"foo": {"bar", "baz"},
 			},
 			allow: rule{
-				inAppLabels:  Labels{`key`: []string{`{{external.foo}}`}},
-				outAppLabels: Labels{`key`: []string{"bar", "baz"}},
+				inAppLabels:  types.Labels{`key`: []string{`{{external.foo}}`}},
+				outAppLabels: types.Labels{`key`: []string{"bar", "baz"}},
 			},
 		},
 		{
@@ -1818,8 +1818,8 @@ func TestApplyTraits(t *testing.T) {
 				"foo": {"bar", "baz"},
 			},
 			allow: rule{
-				inDBLabels:  Labels{`key`: []string{`{{external.foo}}`}},
-				outDBLabels: Labels{`key`: []string{"bar", "baz"}},
+				inDBLabels:  types.Labels{`key`: []string{`{{external.foo}}`}},
+				outDBLabels: types.Labels{`key`: []string{"bar", "baz"}},
 			},
 		},
 
@@ -2051,8 +2051,8 @@ func TestBoolOptions(t *testing.T) {
 		// Setting options explicitly off should remain off.
 		{
 			inOptions: types.RoleOptions{
-				ForwardAgent:   NewBool(false),
-				PortForwarding: NewBoolOption(false),
+				ForwardAgent:   types.NewBool(false),
+				PortForwarding: types.NewBoolOption(false),
 			},
 			outCanPortForward:   false,
 			outCanForwardAgents: false,
@@ -2067,8 +2067,8 @@ func TestBoolOptions(t *testing.T) {
 		// Explicitly enabling should enable them.
 		{
 			inOptions: types.RoleOptions{
-				ForwardAgent:   NewBool(true),
-				PortForwarding: NewBoolOption(true),
+				ForwardAgent:   types.NewBool(true),
+				PortForwarding: types.NewBoolOption(true),
 			},
 			outCanPortForward:   true,
 			outCanForwardAgents: true,
@@ -2103,7 +2103,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 		Spec: types.RoleSpecV3{
 			Allow: types.RoleConditions{
 				Namespaces:     []string{defaults.Namespace},
-				DatabaseLabels: Labels{"env": []string{"stage"}},
+				DatabaseLabels: types.Labels{"env": []string{"stage"}},
 				DatabaseNames:  []string{Wildcard},
 				DatabaseUsers:  []string{Wildcard},
 			},
@@ -2118,7 +2118,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 		Spec: types.RoleSpecV3{
 			Allow: types.RoleConditions{
 				Namespaces:     []string{defaults.Namespace},
-				DatabaseLabels: Labels{"env": []string{"prod"}},
+				DatabaseLabels: types.Labels{"env": []string{"prod"}},
 				DatabaseNames:  []string{"test"},
 				DatabaseUsers:  []string{"dev"},
 			},
@@ -2132,7 +2132,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 			},
 			Allow: types.RoleConditions{
 				Namespaces:     []string{defaults.Namespace},
-				DatabaseLabels: Labels{"env": []string{"prod"}},
+				DatabaseLabels: types.Labels{"env": []string{"prod"}},
 				DatabaseNames:  []string{"test"},
 				DatabaseUsers:  []string{"dev"},
 			},
@@ -2260,7 +2260,7 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 		Spec: types.RoleSpecV3{
 			Allow: types.RoleConditions{
 				Namespaces:     []string{defaults.Namespace},
-				DatabaseLabels: Labels{"env": []string{"stage"}},
+				DatabaseLabels: types.Labels{"env": []string{"stage"}},
 				DatabaseUsers:  []string{Wildcard},
 			},
 			Deny: types.RoleConditions{
@@ -2274,7 +2274,7 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 		Spec: types.RoleSpecV3{
 			Allow: types.RoleConditions{
 				Namespaces:     []string{defaults.Namespace},
-				DatabaseLabels: Labels{"env": []string{"prod"}},
+				DatabaseLabels: types.Labels{"env": []string{"prod"}},
 				DatabaseUsers:  []string{"dev"},
 			},
 		},
@@ -2328,7 +2328,7 @@ func TestCheckDatabaseNamesAndUsers(t *testing.T) {
 	roleEmpty := &types.RoleV3{
 		Metadata: types.Metadata{Name: "roleA", Namespace: defaults.Namespace},
 		Spec: types.RoleSpecV3{
-			Options: types.RoleOptions{MaxSessionTTL: Duration(time.Hour)},
+			Options: types.RoleOptions{MaxSessionTTL: types.Duration(time.Hour)},
 			Allow: types.RoleConditions{
 				Namespaces: []string{defaults.Namespace},
 			},
@@ -2337,7 +2337,7 @@ func TestCheckDatabaseNamesAndUsers(t *testing.T) {
 	roleA := &types.RoleV3{
 		Metadata: types.Metadata{Name: "roleA", Namespace: defaults.Namespace},
 		Spec: types.RoleSpecV3{
-			Options: types.RoleOptions{MaxSessionTTL: Duration(2 * time.Hour)},
+			Options: types.RoleOptions{MaxSessionTTL: types.Duration(2 * time.Hour)},
 			Allow: types.RoleConditions{
 				Namespaces:    []string{defaults.Namespace},
 				DatabaseNames: []string{"postgres", "main"},
@@ -2348,7 +2348,7 @@ func TestCheckDatabaseNamesAndUsers(t *testing.T) {
 	roleB := &types.RoleV3{
 		Metadata: types.Metadata{Name: "roleB", Namespace: defaults.Namespace},
 		Spec: types.RoleSpecV3{
-			Options: types.RoleOptions{MaxSessionTTL: Duration(time.Hour)},
+			Options: types.RoleOptions{MaxSessionTTL: types.Duration(time.Hour)},
 			Allow: types.RoleConditions{
 				Namespaces:    []string{defaults.Namespace},
 				DatabaseNames: []string{"metrics"},
@@ -2438,7 +2438,7 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 		Spec: types.RoleSpecV3{
 			Allow: types.RoleConditions{
 				Namespaces:     []string{defaults.Namespace},
-				DatabaseLabels: Labels{Wildcard: []string{Wildcard}},
+				DatabaseLabels: types.Labels{Wildcard: []string{Wildcard}},
 			},
 		},
 	}
@@ -2447,11 +2447,11 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 		Spec: types.RoleSpecV3{
 			Allow: types.RoleConditions{
 				Namespaces:     []string{defaults.Namespace},
-				DatabaseLabels: Labels{"env": []string{"stage"}},
+				DatabaseLabels: types.Labels{"env": []string{"stage"}},
 			},
 			Deny: types.RoleConditions{
 				Namespaces:     []string{defaults.Namespace},
-				DatabaseLabels: Labels{"arch": []string{"amd64"}},
+				DatabaseLabels: types.Labels{"arch": []string{"amd64"}},
 			},
 		},
 	}
@@ -2546,7 +2546,7 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 		Spec: types.RoleSpecV3{
 			Allow: types.RoleConditions{
 				Namespaces:       []string{defaults.Namespace},
-				KubernetesLabels: Labels{Wildcard: []string{Wildcard}},
+				KubernetesLabels: types.Labels{Wildcard: []string{Wildcard}},
 			},
 		},
 	}
@@ -2558,7 +2558,7 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 		Spec: types.RoleSpecV3{
 			Allow: types.RoleConditions{
 				Namespaces: []string{defaults.Namespace},
-				KubernetesLabels: Labels{
+				KubernetesLabels: types.Labels{
 					"foo": utils.Strings{"bar"},
 					"baz": utils.Strings{"qux"},
 				},
@@ -2576,7 +2576,7 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 			},
 			Allow: types.RoleConditions{
 				Namespaces: []string{defaults.Namespace},
-				KubernetesLabels: Labels{
+				KubernetesLabels: types.Labels{
 					"foo": utils.Strings{"bar"},
 					"baz": utils.Strings{"qux"},
 				},
@@ -2602,7 +2602,7 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 		Spec: types.RoleSpecV3{
 			Allow: types.RoleConditions{
 				Namespaces: []string{defaults.Namespace},
-				KubernetesLabels: Labels{
+				KubernetesLabels: types.Labels{
 					"qux": utils.Strings{"baz"},
 					"bar": utils.Strings{"foo"},
 				},
@@ -2766,7 +2766,7 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 			Spec: types.RoleSpecV3{
 				Allow: types.RoleConditions{
 					Logins:     []string{"admin", "one", "two", "three", "four"},
-					NodeLabels: Labels{"a": []string{"b"}},
+					NodeLabels: types.Labels{"a": []string{"b"}},
 				},
 			},
 		})
@@ -2802,8 +2802,8 @@ type userGetter struct {
 	traits map[string][]string
 }
 
-func (f *userGetter) GetUser(name string, _ bool) (User, error) {
-	user, err := NewUser(name)
+func (f *userGetter) GetUser(name string, _ bool) (types.User, error) {
+	user, err := types.NewUser(name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

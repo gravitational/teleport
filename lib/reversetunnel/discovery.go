@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -39,7 +40,7 @@ type discoveryRequest struct {
 	ClusterAddr utils.NetAddr `json:"-"`
 
 	// Proxies is a list of proxies in the cluster sending the discovery request.
-	Proxies []services.Server `json:"proxies"`
+	Proxies []types.Server `json:"proxies"`
 }
 
 func (r discoveryRequest) String() string {

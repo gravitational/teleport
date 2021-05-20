@@ -57,7 +57,7 @@ func (s *PasswordSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	// set cluster name
-	clusterName, err := services.NewClusterName(types.ClusterNameSpecV2{
+	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: "me.localhost",
 	})
 	c.Assert(err, IsNil)
@@ -79,8 +79,8 @@ func (s *PasswordSuite) SetUpTest(c *C) {
 	err = s.a.SetSessionRecordingConfig(context.TODO(), types.DefaultSessionRecordingConfig())
 	c.Assert(err, IsNil)
 
-	clusterConfig, err := services.NewClusterConfig(types.ClusterConfigSpecV3{
-		LocalAuth: services.NewBool(true),
+	clusterConfig, err := types.NewClusterConfig(types.ClusterConfigSpecV3{
+		LocalAuth: types.NewBool(true),
 	})
 	c.Assert(err, IsNil)
 
@@ -88,7 +88,7 @@ func (s *PasswordSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	// set static tokens
-	staticTokens, err := services.NewStaticTokens(types.StaticTokensSpecV2{
+	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{},
 	})
 	c.Assert(err, IsNil)
@@ -240,7 +240,7 @@ func (s *PasswordSuite) TestChangePasswordWithOTP(c *C) {
 }
 
 func (s *PasswordSuite) TestChangePasswordWithToken(c *C) {
-	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
 		SecondFactor: constants.SecondFactorOff,
 	})
@@ -271,7 +271,7 @@ func (s *PasswordSuite) TestChangePasswordWithToken(c *C) {
 }
 
 func (s *PasswordSuite) TestChangePasswordWithTokenOTP(c *C) {
-	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
 		SecondFactor: constants.SecondFactorOTP,
 	})
@@ -308,7 +308,7 @@ func (s *PasswordSuite) TestChangePasswordWithTokenOTP(c *C) {
 }
 
 func (s *PasswordSuite) TestChangePasswordWithTokenErrors(c *C) {
-	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
 		SecondFactor: constants.SecondFactorOTP,
 	})
@@ -416,17 +416,17 @@ func (s *PasswordSuite) prepareForPasswordChange(user string, pass []byte, secon
 		OldPassword: pass,
 	}
 
-	err := s.a.UpsertCertAuthority(suite.NewTestCA(services.UserCA, "me.localhost"))
+	err := s.a.UpsertCertAuthority(suite.NewTestCA(types.UserCA, "me.localhost"))
 	if err != nil {
 		return req, err
 	}
 
-	err = s.a.UpsertCertAuthority(suite.NewTestCA(services.HostCA, "me.localhost"))
+	err = s.a.UpsertCertAuthority(suite.NewTestCA(types.HostCA, "me.localhost"))
 	if err != nil {
 		return req, err
 	}
 
-	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
 		SecondFactor: secondFactorType,
 	})

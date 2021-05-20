@@ -28,6 +28,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -683,7 +684,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 			SessionID:    s.id,
 			Namespace:    ctx.srv.GetNamespace(),
 			ServerID:     ctx.srv.HostUUID(),
-			RecordOutput: ctx.SessionRecordingConfig.GetMode() != services.RecordOff,
+			RecordOutput: ctx.SessionRecordingConfig.GetMode() != types.RecordOff,
 			Component:    teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
 			ClusterName:  ctx.ClusterName,
 		})
@@ -878,7 +879,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 			Clock:        ctx.srv.GetClock(),
 			Namespace:    ctx.srv.GetNamespace(),
 			ServerID:     ctx.srv.HostUUID(),
-			RecordOutput: ctx.SessionRecordingConfig.GetMode() != services.RecordOff,
+			RecordOutput: ctx.SessionRecordingConfig.GetMode() != types.RecordOff,
 			Component:    teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
 			ClusterName:  ctx.ClusterName,
 		})

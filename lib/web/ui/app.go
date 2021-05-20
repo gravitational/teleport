@@ -21,7 +21,6 @@ import (
 	"sort"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 // App describes an application
@@ -41,7 +40,7 @@ type App struct {
 }
 
 // MakeApps creates server application objects
-func MakeApps(localClusterName string, localProxyDNSName string, appClusterName string, appServers []services.Server) []App {
+func MakeApps(localClusterName string, localProxyDNSName string, appClusterName string, appServers []types.Server) []App {
 	result := []App{}
 	for _, server := range appServers {
 		teleApps := server.GetApps()

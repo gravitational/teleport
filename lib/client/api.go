@@ -1031,7 +1031,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	if c.KeyTTL == 0 {
 		c.KeyTTL = defaults.CertDuration
 	}
-	c.Namespace = services.ProcessNamespace(c.Namespace)
+	c.Namespace = types.ProcessNamespace(c.Namespace)
 
 	tc = &TeleportClient{Config: *c}
 
@@ -1141,7 +1141,7 @@ func (tc *TeleportClient) LocalAgent() *LocalKeyAgent {
 func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient) ([]string, error) {
 	var (
 		err    error
-		nodes  []services.Server
+		nodes  []types.Server
 		retval = make([]string, 0)
 	)
 	if tc.Labels != nil && len(tc.Labels) > 0 {
@@ -1210,7 +1210,7 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 }
 
 // CreateAccessRequest registers a new access request with the auth server.
-func (tc *TeleportClient) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
+func (tc *TeleportClient) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1221,7 +1221,7 @@ func (tc *TeleportClient) CreateAccessRequest(ctx context.Context, req services.
 }
 
 // GetAccessRequests loads all access requests matching the supplied filter.
-func (tc *TeleportClient) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]services.AccessRequest, error) {
+func (tc *TeleportClient) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1232,7 +1232,7 @@ func (tc *TeleportClient) GetAccessRequests(ctx context.Context, filter types.Ac
 }
 
 // GetRole loads a role resource by name.
-func (tc *TeleportClient) GetRole(ctx context.Context, name string) (services.Role, error) {
+func (tc *TeleportClient) GetRole(ctx context.Context, name string) (types.Role, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1246,7 +1246,7 @@ func (tc *TeleportClient) GetRole(ctx context.Context, name string) (services.Ro
 // which holds a closer that must be called after the watcher
 // is closed.
 type watchCloser struct {
-	services.Watcher
+	types.Watcher
 	io.Closer
 }
 
@@ -1255,7 +1255,7 @@ func (w watchCloser) Close() error {
 }
 
 // NewWatcher sets up a new event watcher.
-func (tc *TeleportClient) NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error) {
+func (tc *TeleportClient) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1448,7 +1448,7 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	var node services.Server
+	var node types.Server
 	for _, n := range nodes {
 		if n.GetName() == serverID {
 			node = n
@@ -1765,7 +1765,7 @@ func isRemoteDest(name string) bool {
 }
 
 // ListNodes returns a list of nodes connected to a proxy
-func (tc *TeleportClient) ListNodes(ctx context.Context) ([]services.Server, error) {
+func (tc *TeleportClient) ListNodes(ctx context.Context) ([]types.Server, error) {
 	var err error
 	// userhost is specified? that must be labels
 	if tc.Host != "" {
@@ -1786,7 +1786,7 @@ func (tc *TeleportClient) ListNodes(ctx context.Context) ([]services.Server, err
 }
 
 // ListAppServers returns a list of application servers.
-func (tc *TeleportClient) ListAppServers(ctx context.Context) ([]services.Server, error) {
+func (tc *TeleportClient) ListAppServers(ctx context.Context) ([]types.Server, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1827,7 +1827,7 @@ func (tc *TeleportClient) ListDatabaseServers(ctx context.Context) ([]types.Data
 }
 
 // ListAllNodes is the same as ListNodes except that it ignores labels.
-func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]services.Server, error) {
+func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]types.Server, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2358,7 +2358,7 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 
 // GetTrustedCA returns a list of host certificate authorities
 // trusted by the cluster client is authenticated with.
-func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) ([]services.CertAuthority, error) {
+func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) ([]types.CertAuthority, error) {
 	// Connect to the proxy.
 	if !tc.Config.ProxySpecified() {
 		return nil, trace.BadParameter("proxy server is not specified")
@@ -2376,7 +2376,7 @@ func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) 
 	}
 
 	// Get the list of host certificates that this cluster knows about.
-	return clt.GetCertAuthorities(services.HostCA, false)
+	return clt.GetCertAuthorities(types.HostCA, false)
 }
 
 // UpdateTrustedCA connects to the Auth Server and fetches all host certificates
@@ -2554,19 +2554,19 @@ func (tc *TeleportClient) localLogin(ctx context.Context, secondFactor constants
 }
 
 // AddTrustedCA adds a new CA as trusted CA for this client, used in tests
-func (tc *TeleportClient) AddTrustedCA(ca services.CertAuthority) error {
+func (tc *TeleportClient) AddTrustedCA(ca types.CertAuthority) error {
 	if tc.localAgent == nil {
 		return trace.BadParameter("TeleportClient.AddTrustedCA called on a client without localAgent")
 	}
-	err := tc.localAgent.AddHostSignersToCache(auth.AuthoritiesToTrustedCerts([]services.CertAuthority{ca}))
+	err := tc.localAgent.AddHostSignersToCache(auth.AuthoritiesToTrustedCerts([]types.CertAuthority{ca}))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// only host CA has TLS certificates, user CA will overwrite trusted certs
 	// to empty file if called
-	if ca.GetType() == services.HostCA {
-		err = tc.localAgent.SaveTrustedCerts(auth.AuthoritiesToTrustedCerts([]services.CertAuthority{ca}))
+	if ca.GetType() == types.HostCA {
+		err = tc.localAgent.SaveTrustedCerts(auth.AuthoritiesToTrustedCerts([]types.CertAuthority{ca}))
 		if err != nil {
 			return trace.Wrap(err)
 		}
