@@ -12,12 +12,8 @@ export default function useSwitchback(ctx: TeleportContext) {
     text: 'Switch Back',
     func: onSwitchBack,
   });
-  const [sessionExpires] = useState(() =>
-    ctx.storeAccessRequests.getSessionExpiry()
-  );
-  const [assumedRoles] = useState(() =>
-    ctx.storeAccessRequests.getAssumedRoles()
-  );
+
+  const assumedRoles = ctx.storeAccessRequests.getAssumedRoles();
 
   useEffect(() => {
     setDuration();
@@ -43,7 +39,18 @@ export default function useSwitchback(ctx: TeleportContext) {
   }, []);
 
   function setDuration() {
-    const end = moment(sessionExpires);
+    const accessRequestExpiry = ctx.storeAccessRequests.getSessionExpiry();
+
+    // Expiry is retrieved from local storage. When user switches back,
+    // this expiry will be set to null. Checking for this null value before
+    // re-rendering will handle users switching back in one of multiple tabs
+    // opened with the switchback rendered.
+    if (!accessRequestExpiry) {
+      history.reload();
+      return;
+    }
+
+    const end = moment(accessRequestExpiry);
     const start = moment();
     const duration = moment.duration(end.diff(start));
 

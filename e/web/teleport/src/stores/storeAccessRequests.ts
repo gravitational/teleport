@@ -71,7 +71,7 @@ export default class StoreAccessRequests extends Store<State> {
 
   // getAssumedRoles returns a list of all the roles the user is assigned.
   getAssumedRoles() {
-    const assumed = this.state.assumed;
+    const assumed = this.getAssumed();
     let roles = [];
 
     Object.keys(assumed).forEach(key => {
