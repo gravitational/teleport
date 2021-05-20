@@ -103,7 +103,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = tc.ReissueUserCerts(cf.Context, client.ReissueParams{
+	err = tc.ReissueUserCerts(cf.Context, client.CertCacheKeep, client.ReissueParams{
 		RouteToCluster: tc.SiteName,
 		RouteToDatabase: proto.RouteToDatabase{
 			ServiceName: db.ServiceName,
@@ -238,9 +238,15 @@ func onDatabaseConfig(cf *CLIConf) error {
 	}
 	// Postgres proxy listens on web proxy port while MySQL proxy listens on
 	// a separate port due to the specifics of the protocol.
-	host, port := tc.WebProxyHostPort()
-	if database.Protocol == defaults.ProtocolMySQL {
+	var host string
+	var port int
+	switch database.Protocol {
+	case defaults.ProtocolPostgres:
+		host, port = tc.PostgresProxyHostPort()
+	case defaults.ProtocolMySQL:
 		host, port = tc.MySQLProxyHostPort()
+	default:
+		return trace.BadParameter("unknown database protocol: %q", database)
 	}
 	fmt.Printf(`Name:      %v
 Host:      %v

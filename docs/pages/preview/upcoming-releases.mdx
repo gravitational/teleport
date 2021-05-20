@@ -8,20 +8,65 @@ The teleport team delivers a new major release roughly every 3 months.
 
 ## Teleport 6.2 "Buffalo"
 
-The team focuses on cleanup of customer-facing issues and documentation.
+The Core team focuses on cleanup of customer-facing issues and documentation.
+The plugins team catches up with Terraform plugin missed in the previous release
+and updates PagerDuty and Gitlab plugins to use the new API.
 
 ### Release Schedule
 
 | Version | Date | Description |
 | - | - | - |
-| First alpha | April 30th, 2021 | Good for testing and demos. |
-| First beta | May 5th | Deploy on staging. |
-| Release | May 10th, 2021 | Good to go for production. |
+| First alpha | May 7th, 2021 | Good for testing and demos. |
+| First beta | May 14th | Deploy on staging. |
+| Release | May 21st, 2021 | Good to go for production. |
 
 ### Features
 
 You can find the full list of fixes and features in the
 [Github milestone](https://github.com/gravitational/teleport/milestone/55).
+
+## Teleport 7.0 "Stockholm"
+
+The Core team adds support for [hardware security modules - HSM](https://github.com/gravitational/teleport/blob/master/rfd/0025-hsm.md) for managing certificate authorities.
+
+The team improves security with fleet patch upgrades, makes it easier to write access requests
+and adds [Session termination and user locking](https://github.com/gravitational/teleport/issues/3360).
+
+Our engineers are working on improving first-time user experience of `teleport` and `tsh`.
+
+The Database Access team adds MongoDB protocol support.
+
+### Release Schedule
+
+| Version | Date | Description |
+| - | - | - |
+| First alpha | June 1st, 2021 | Good for some testing and demos. |
+| First beta | June 15th | Deploy on staging. |
+| Release | July 15th, 2021 | Good to go for production. |
+
+### Features
+
+You can find the full list of fixes and features in the
+[Github milestone](https://github.com/gravitational/teleport/milestone/54).
+
+## Teleport Cloud "Washington"
+
+The Cloud team improves user experience - adds databases and kubernetes user interfaces
+and wizards, adds downloads page.
+The team improves cloud self service with password recovery and cancellation, adds data export.
+
+### Release Schedule
+
+The cloud team ships the release features as they are ready up to July 15th.
+
+| Version | Date | Description |
+| - | - | - |
+| Wrap up | July 15th, 2021 | Key features deployed. |
+
+### Features
+
+You can find the full list of fixes and features in the
+[Github milestone](https://github.com/gravitational/teleport/milestone/54).
 
 ## Semantic Versioning
 

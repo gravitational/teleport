@@ -93,7 +93,7 @@ func NewExecRequest(ctx *ServerContext, command string) (Exec, error) {
 
 	// When in recording mode, return an *remoteExec which will execute the
 	// command on a remote host. This is used by in-memory forwarding nodes.
-	if services.IsRecordAtProxy(ctx.ClusterConfig.GetSessionRecording()) == true {
+	if services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) == true {
 		return &remoteExec{
 			ctx:     ctx,
 			command: command,
@@ -147,10 +147,9 @@ func (e *localExec) Start(channel ssh.Channel) (*ExecResult, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Connect stdout and stderr to the channel so the user can interact with
-	// the command.
-	e.Cmd.Stderr = io.MultiWriter(os.Stderr, channel.Stderr())
-	e.Cmd.Stdout = io.MultiWriter(os.Stdout, channel)
+	// Connect stdout and stderr to the channel so the user can interact with the command.
+	e.Cmd.Stderr = channel.Stderr()
+	e.Cmd.Stdout = channel
 
 	// Copy from the channel (client input) into stdin of the process.
 	inputWriter, err := e.Cmd.StdinPipe()

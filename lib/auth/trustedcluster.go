@@ -376,12 +376,12 @@ func (a *Server) GetRemoteCluster(clusterName string) (services.RemoteCluster, e
 
 func (a *Server) updateRemoteClusterStatus(remoteCluster services.RemoteCluster) error {
 	ctx := context.TODO()
-	clusterConfig, err := a.GetClusterConfig()
+	netConfig, err := a.GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	keepAliveCountMax := clusterConfig.GetKeepAliveCountMax()
-	keepAliveInterval := clusterConfig.GetKeepAliveInterval()
+	keepAliveCountMax := netConfig.GetKeepAliveCountMax()
+	keepAliveInterval := netConfig.GetKeepAliveInterval()
 
 	// fetch tunnel connections for the cluster to update runtime status
 	connections, err := a.GetTunnelConnections(remoteCluster.GetName())

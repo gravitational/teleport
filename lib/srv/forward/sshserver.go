@@ -289,17 +289,18 @@ func New(c ServerConfig) (*Server, error) {
 	}
 
 	// Common auth handlers.
-	s.authHandlers = &srv.AuthHandlers{
-		Entry: logrus.WithFields(logrus.Fields{
-			trace.Component:       teleport.ComponentForwardingNode,
-			trace.ComponentFields: logrus.Fields{},
-		}),
+	authHandlerConfig := srv.AuthHandlerConfig{
 		Server:      s,
 		Component:   teleport.ComponentForwardingNode,
+		Emitter:     c.Emitter,
 		AccessPoint: c.AuthClient,
 		FIPS:        c.FIPS,
-		Emitter:     c.Emitter,
 		Clock:       c.Clock,
+	}
+
+	s.authHandlers, err = srv.NewAuthHandlers(&authHandlerConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Common term handlers.
@@ -434,7 +435,7 @@ func (s *Server) Serve() {
 	config.KeyExchanges = s.kexAlgorithms
 	config.MACs = s.macAlgorithms
 
-	clusterConfig, err := s.GetAccessPoint().GetClusterConfig()
+	netConfig, err := s.GetAccessPoint().GetClusterNetworkingConfig(s.Context())
 	if err != nil {
 		s.log.Errorf("Unable to fetch cluster config: %v.", err)
 		return
@@ -497,8 +498,8 @@ func (s *Server) Serve() {
 			s.sconn,
 			s.remoteClient,
 		},
-		Interval:     clusterConfig.GetKeepAliveInterval(),
-		MaxCount:     clusterConfig.GetKeepAliveCountMax(),
+		Interval:     netConfig.GetKeepAliveInterval(),
+		MaxCount:     netConfig.GetKeepAliveCountMax(),
 		CloseContext: ctx,
 		CloseCancel:  func() { s.connectionContext.Close() },
 	})

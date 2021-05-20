@@ -35,8 +35,6 @@ type StaticTokens interface {
 	SetStaticTokens([]ProvisionToken)
 	// GetStaticTokens gets the list of static tokens used to provision nodes.
 	GetStaticTokens() []ProvisionToken
-	// CheckAndSetDefaults checks and set default values for missing fields.
-	CheckAndSetDefaults() error
 }
 
 // NewStaticTokens is a convenience wrapper to create a StaticTokens resource.

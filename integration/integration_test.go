@@ -44,7 +44,8 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -73,13 +74,22 @@ import (
 const (
 	HostID = "00000000-0000-0000-0000-000000000000"
 	Site   = "local-site"
-
-	AllocatePortsNum = 600
 )
 
+// ports contains tcp ports allocated for all integration tests.
+var ports utils.PortList
+
+func init() {
+	// Allocate tcp ports for all integration tests. 5000 should be plenty.
+	var err error
+	ports, err = utils.GetFreeTCPPorts(5000, utils.PortStartingNumber)
+	if err != nil {
+		panic(fmt.Sprintf("failed to allocate tcp ports for tests: %v", err))
+	}
+}
+
 type IntSuite struct {
-	ports utils.PortList
-	me    *user.User
+	me *user.User
 	// priv/pub pair to avoid re-generating it
 	priv []byte
 	pub  []byte
@@ -118,10 +128,6 @@ func (s *IntSuite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Find AllocatePortsNum free listening ports to use.
-	s.ports, err = utils.GetFreeTCPPorts(AllocatePortsNum)
-	if err != nil {
-		c.Fatal(err)
-	}
 	s.me, _ = user.Current()
 
 	// close & re-open stdin because 'go test' runs with os.stdin connected to /dev/null
@@ -141,7 +147,7 @@ func (s *IntSuite) TearDownSuite(c *check.C) {
 }
 
 func (s *IntSuite) SetUpTest(c *check.C) {
-	os.RemoveAll(apiclient.FullProfilePath(""))
+	os.RemoveAll(profile.FullProfilePath(""))
 }
 
 // setUpTest configures the specific test identified with the given c.
@@ -256,6 +262,8 @@ func (s *IntSuite) newTeleportWithConfig(c *check.C, logins []string, instanceSe
 // TestAuditOn creates a live session, records a bunch of data through it
 // and then reads it back and compares against simulated reality.
 func (s *IntSuite) TestAuditOn(c *check.C) {
+	ctx := context.Background()
+
 	s.setUpTest(c)
 	defer s.tearDownTest(c)
 
@@ -305,15 +313,20 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 		comment := check.Commentf(tt.comment)
 		makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
 			clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-				SessionRecording: tt.inRecordLocation,
-				Audit:            services.AuditConfig{AuditSessionsURI: tt.auditSessionsURI},
-				LocalAuth:        services.NewBool(true),
+				Audit:     services.AuditConfig{AuditSessionsURI: tt.auditSessionsURI},
+				LocalAuth: services.NewBool(true),
+			})
+			c.Assert(err, check.IsNil, comment)
+
+			recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+				Mode: tt.inRecordLocation,
 			})
 			c.Assert(err, check.IsNil, comment)
 
 			tconf := s.defaultServiceConfig()
 			tconf.Auth.Enabled = true
 			tconf.Auth.ClusterConfig = clusterConfig
+			tconf.Auth.SessionRecordingConfig = recConfig
 			tconf.Proxy.Enabled = true
 			tconf.Proxy.DisableWebService = true
 			tconf.Proxy.DisableWebInterface = true
@@ -324,7 +337,7 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 		defer t.StopAll()
 
 		// Start a node.
-		nodeSSHPort := s.getPorts(1)[0]
+		nodeSSHPort := ports.PopInt()
 		nodeConfig := func() *service.Config {
 			tconf := s.defaultServiceConfig()
 
@@ -351,7 +364,7 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 			for {
 				select {
 				case <-tickCh:
-					nodesInSite, err := site.GetNodes(defaults.Namespace, services.SkipValidation())
+					nodesInSite, err := site.GetNodes(ctx, defaults.Namespace, services.SkipValidation())
 					if err != nil && !trace.IsNotFound(err) {
 						return trace.Wrap(err)
 					}
@@ -678,6 +691,8 @@ func (s *IntSuite) TestInteroperability(c *check.C) {
 // TestUUIDBasedProxy verifies that attempts to proxy to nodes using ambiguous
 // hostnames fails with the correct error, and that proxying by UUID succeeds.
 func (s *IntSuite) TestUUIDBasedProxy(c *check.C) {
+	ctx := context.Background()
+
 	s.setUpTest(c)
 	defer s.tearDownTest(c)
 
@@ -692,7 +707,7 @@ func (s *IntSuite) TestUUIDBasedProxy(c *check.C) {
 	// addNode adds a node to the teleport instance, returning its uuid.
 	// All nodes added this way have the same hostname.
 	addNode := func() (string, error) {
-		nodeSSHPort := s.getPorts(1)[0]
+		nodeSSHPort := ports.PopInt()
 		tconf := s.defaultServiceConfig()
 		tconf.Hostname = Host
 
@@ -728,7 +743,7 @@ func (s *IntSuite) TestUUIDBasedProxy(c *check.C) {
 			for {
 				select {
 				case <-tickCh:
-					nodesInSite, err := site.GetNodes(defaults.Namespace, services.SkipValidation())
+					nodesInSite, err := site.GetNodes(ctx, defaults.Namespace, services.SkipValidation())
 					if err != nil && !trace.IsNotFound(err) {
 						return trace.Wrap(err)
 					}
@@ -775,7 +790,7 @@ func (s *IntSuite) TestInteractiveRegular(c *check.C) {
 	s.verifySessionJoin(c, t)
 }
 
-// TestInteractive covers SSH into shell and joining the same session from another client
+// TestInteractiveReverseTunnel covers SSH into shell and joining the same session from another client
 // against a reversetunnel node.
 func (s *IntSuite) TestInteractiveReverseTunnel(c *check.C) {
 	s.setUpTest(c)
@@ -792,6 +807,69 @@ func (s *IntSuite) TestInteractiveReverseTunnel(c *check.C) {
 	defer t.StopAll()
 
 	s.verifySessionJoin(c, t)
+}
+
+// TestCustomReverseTunnel tests that the SSH node falls back to configured
+// proxy address if it cannot connect via the proxy address from the reverse
+// tunnel discovery query.
+// See https://github.com/gravitational/teleport/issues/4141 for context.
+func (s *IntSuite) TestCustomReverseTunnel(c *check.C) {
+	s.setUpTest(c)
+	defer s.tearDownTest(c)
+
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	// InsecureDevMode needed for IoT node handshake
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	failingListener, err := net.Listen("tcp", "localhost:0")
+	c.Assert(err, check.IsNil)
+	failingAddr := failingListener.Addr().String()
+	failingListener.Close()
+
+	// Create a Teleport instance with Auth/Proxy.
+	conf := s.defaultServiceConfig()
+	conf.Auth.Enabled = true
+	conf.Proxy.Enabled = true
+	conf.Proxy.DisableWebService = false
+	conf.Proxy.DisableWebInterface = true
+	conf.Proxy.DisableDatabaseProxy = true
+	conf.Proxy.TunnelPublicAddrs = []utils.NetAddr{
+		{
+			// Connect on the address that refuses connection on purpose
+			// to test address fallback behavior
+			Addr:        failingAddr,
+			AddrNetwork: "tcp",
+		},
+	}
+	conf.SSH.Enabled = false
+
+	instanceConfig := s.defaultInstanceConfig()
+	instanceConfig.MultiplexProxy = true
+	main := NewInstance(instanceConfig)
+
+	c.Assert(main.CreateEx(nil, conf), check.IsNil)
+	c.Assert(main.Start(), check.IsNil)
+	defer main.StopAll()
+
+	// Create a Teleport instance with a Node.
+	nodeConf := s.defaultServiceConfig()
+	nodeConf.Hostname = Host
+	nodeConf.Token = "token"
+	nodeConf.Auth.Enabled = false
+	nodeConf.Proxy.Enabled = false
+	nodeConf.SSH.Enabled = true
+	nodeConf.SSH.ProxyReverseTunnelFallbackAddr = &utils.NetAddr{
+		// Configure the original proxy address as a fallback so the node is able to connect
+		Addr:        main.Secrets.WebProxyAddr,
+		AddrNetwork: "tcp",
+	}
+
+	// verify the node is able to join the cluster
+	_, err = main.StartReverseTunnelNode(nodeConf)
+	c.Assert(err, check.IsNil)
 }
 
 // verifySessionJoin covers SSH into shell and joining the same session from another client
@@ -1084,15 +1162,25 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 	t.AddUserWithRole(username, role)
 
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		SessionRecording:      tc.recordingMode,
-		LocalAuth:             services.NewBool(true),
+		LocalAuth: services.NewBool(true),
+	})
+	c.Assert(err, check.IsNil, comment)
+
+	netConfig, err := types.NewClusterNetworkingConfig(types.ClusterNetworkingConfigSpecV2{
 		SessionControlTimeout: services.Duration(tc.sessCtlTimeout),
+	})
+	c.Assert(err, check.IsNil, comment)
+
+	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+		Mode: tc.recordingMode,
 	})
 	c.Assert(err, check.IsNil, comment)
 
 	cfg := s.defaultServiceConfig()
 	cfg.Auth.Enabled = true
 	cfg.Auth.ClusterConfig = clusterConfig
+	cfg.Auth.NetworkingConfig = netConfig
+	cfg.Auth.SessionRecordingConfig = recConfig
 	cfg.Proxy.DisableWebService = true
 	cfg.Proxy.DisableWebInterface = true
 	cfg.Proxy.Enabled = true
@@ -1302,9 +1390,8 @@ func (s *IntSuite) twoClustersTunnel(c *check.C, now time.Time, proxyRecordMode 
 	a.AddUser(username, []string{username})
 	b.AddUser(username, []string{username})
 
-	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		SessionRecording: proxyRecordMode,
-		LocalAuth:        services.NewBool(true),
+	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+		Mode: proxyRecordMode,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -1317,7 +1404,7 @@ func (s *IntSuite) twoClustersTunnel(c *check.C, now time.Time, proxyRecordMode 
 
 	bcfg := s.defaultServiceConfig()
 	bcfg.Auth.Enabled = true
-	bcfg.Auth.ClusterConfig = clusterConfig
+	bcfg.Auth.SessionRecordingConfig = recConfig
 	bcfg.Proxy.Enabled = true
 	bcfg.Proxy.DisableWebService = true
 	bcfg.Proxy.DisableWebInterface = true
@@ -1431,12 +1518,12 @@ func (s *IntSuite) twoClustersTunnel(c *check.C, now time.Time, proxyRecordMode 
 		stopCh := time.After(5 * time.Second)
 
 		// only look for exec events
-		execQuery := fmt.Sprintf("%s=%s", events.EventType, events.ExecEvent)
+		eventTypes := []string{events.ExecEvent}
 
 		for {
 			select {
 			case <-tickCh:
-				eventsInSite, err := site.SearchEvents(now, now.Add(1*time.Hour), execQuery, 0)
+				eventsInSite, _, err := site.SearchEvents(now, now.Add(1*time.Hour), defaults.Namespace, eventTypes, 0, "")
 				if err != nil {
 					return trace.Wrap(err)
 				}
@@ -1540,7 +1627,7 @@ func (s *IntSuite) TestHA(c *check.C) {
 	c.Assert(b.Start(), check.IsNil)
 	c.Assert(a.Start(), check.IsNil)
 
-	nodePorts := s.getPorts(3)
+	nodePorts := ports.PopIntSlice(3)
 	sshPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
 	c.Assert(a.StartNodeAndProxy("cluster-a-node", sshPort, proxyWebPort, proxySSHPort), check.IsNil)
 
@@ -1683,8 +1770,9 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 
 	// try and upsert a trusted cluster
 	tryCreateTrustedCluster(c, aux.Process.GetAuthServer(), trustedCluster)
+	waitForTunnelConnections(c, main.Process.GetAuthServer(), clusterAux, 1)
 
-	nodePorts := s.getPorts(3)
+	nodePorts := ports.PopIntSlice(3)
 	sshPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
 	c.Assert(aux.StartNodeAndProxy("aux-node", sshPort, proxyWebPort, proxySSHPort), check.IsNil)
 
@@ -1702,7 +1790,7 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 	// correct nodes that identity aware GetNodes is done in TestList.
 	var nodes []services.Server
 	for i := 0; i < 10; i++ {
-		nodes, err = aux.Process.GetAuthServer().GetNodes(defaults.Namespace, services.SkipValidation())
+		nodes, err = aux.Process.GetAuthServer().GetNodes(ctx, defaults.Namespace, services.SkipValidation())
 		c.Assert(err, check.IsNil)
 		if len(nodes) != 2 {
 			time.Sleep(100 * time.Millisecond)
@@ -1915,7 +2003,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 		ClusterName:    clusterMain,
 		HostID:         HostID,
 		NodeName:       Host,
-		Ports:          s.getPorts(6),
+		Ports:          ports.PopIntSlice(6),
 		Priv:           s.priv,
 		Pub:            s.pub,
 		MultiplexProxy: test.multiplex,
@@ -2018,8 +2106,9 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 
 	// try and upsert a trusted cluster
 	tryCreateTrustedCluster(c, aux.Process.GetAuthServer(), trustedCluster)
+	waitForTunnelConnections(c, main.Process.GetAuthServer(), clusterAux, 1)
 
-	nodePorts := s.getPorts(3)
+	nodePorts := ports.PopIntSlice(3)
 	sshPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
 	c.Assert(aux.StartNodeAndProxy("aux-node", sshPort, proxyWebPort, proxySSHPort), check.IsNil)
 
@@ -2222,6 +2311,7 @@ func (s *IntSuite) TestTrustedTunnelNode(c *check.C) {
 
 	// try and upsert a trusted cluster
 	tryCreateTrustedCluster(c, aux.Process.GetAuthServer(), trustedCluster)
+	waitForTunnelConnections(c, main.Process.GetAuthServer(), clusterAux, 1)
 
 	// Create a Teleport instance with a node that dials back to the aux cluster.
 	tunnelNodeHostname := "cluster-aux-node"
@@ -2253,7 +2343,7 @@ func (s *IntSuite) TestTrustedTunnelNode(c *check.C) {
 	}
 
 	// Wait for both nodes to show up before attempting to dial to them.
-	err = waitForNodeCount(main, clusterAux, 2)
+	err = waitForNodeCount(ctx, main, clusterAux, 2)
 	c.Assert(err, check.IsNil)
 
 	cmd := []string{"echo", "hello world"}
@@ -2318,7 +2408,7 @@ func (s *IntSuite) TestDiscoveryRecovers(c *check.C) {
 	username := s.me.Username
 
 	// create load balancer for main cluster proxies
-	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(s.getPorts(1)[0])))
+	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(ports.PopInt())))
 	lb, err := utils.NewLoadBalancer(context.TODO(), frontend)
 	c.Assert(err, check.IsNil)
 	c.Assert(lb.Listen(), check.IsNil)
@@ -2354,7 +2444,7 @@ func (s *IntSuite) TestDiscoveryRecovers(c *check.C) {
 	// Helper function for adding a new proxy to "main".
 	addNewMainProxy := func(name string) (reversetunnel.Server, ProxyConfig) {
 		c.Logf("adding main proxy %q...", name)
-		nodePorts := s.getPorts(3)
+		nodePorts := ports.PopIntSlice(3)
 		proxyReverseTunnelPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
 		newConfig := ProxyConfig{
 			Name:              name,
@@ -2457,7 +2547,7 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	username := s.me.Username
 
 	// create load balancer for main cluster proxies
-	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(s.getPorts(1)[0])))
+	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(ports.PopInt())))
 	lb, err := utils.NewLoadBalancer(context.TODO(), frontend)
 	c.Assert(err, check.IsNil)
 	c.Assert(lb.Listen(), check.IsNil)
@@ -2491,7 +2581,7 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	}
 
 	// start second proxy
-	nodePorts := s.getPorts(3)
+	nodePorts := ports.PopIntSlice(3)
 	proxyReverseTunnelPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
 	proxyConfig := ProxyConfig{
 		Name:              "cluster-main-proxy",
@@ -2588,7 +2678,7 @@ func (s *IntSuite) TestDiscoveryNode(c *check.C) {
 	defer lib.SetInsecureDevMode(false)
 
 	// Create and start load balancer for proxies.
-	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(s.getPorts(1)[0])))
+	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(ports.PopInt())))
 	lb, err := utils.NewLoadBalancer(context.TODO(), frontend)
 	c.Assert(err, check.IsNil)
 	err = lb.Listen()
@@ -2620,7 +2710,7 @@ func (s *IntSuite) TestDiscoveryNode(c *check.C) {
 	defer main.StopAll()
 
 	// Create a Teleport instance with a Proxy.
-	nodePorts := s.getPorts(3)
+	nodePorts := ports.PopIntSlice(3)
 	proxyReverseTunnelPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
 	proxyConfig := ProxyConfig{
 		Name:              "cluster-main-proxy",
@@ -2757,7 +2847,7 @@ func waitForProxyCount(t *TeleInstance, clusterName string, count int) error {
 }
 
 // waitForNodeCount waits for a certain number of nodes to show up in the remote site.
-func waitForNodeCount(t *TeleInstance, clusterName string, count int) error {
+func waitForNodeCount(ctx context.Context, t *TeleInstance, clusterName string, count int) error {
 	for i := 0; i < 30; i++ {
 		remoteSite, err := t.Tunnel.GetSite(clusterName)
 		if err != nil {
@@ -2767,7 +2857,7 @@ func waitForNodeCount(t *TeleInstance, clusterName string, count int) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		nodes, err := accessPoint.GetNodes(defaults.Namespace)
+		nodes, err := accessPoint.GetNodes(ctx, defaults.Namespace)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2860,15 +2950,14 @@ func (s *IntSuite) TestExternalClient(c *check.C) {
 	for _, tt := range tests {
 		// Create a Teleport instance with auth, proxy, and node.
 		makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
-			clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-				SessionRecording: tt.inRecordLocation,
-				LocalAuth:        services.NewBool(true),
+			recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+				Mode: tt.inRecordLocation,
 			})
 			c.Assert(err, check.IsNil)
 
 			tconf := s.defaultServiceConfig()
 			tconf.Auth.Enabled = true
-			tconf.Auth.ClusterConfig = clusterConfig
+			tconf.Auth.SessionRecordingConfig = recConfig
 
 			tconf.Proxy.Enabled = true
 			tconf.Proxy.DisableWebService = true
@@ -2955,15 +3044,14 @@ func (s *IntSuite) TestControlMaster(c *check.C) {
 
 		// Create a Teleport instance with auth, proxy, and node.
 		makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
-			clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-				SessionRecording: tt.inRecordLocation,
-				LocalAuth:        services.NewBool(true),
+			recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+				Mode: tt.inRecordLocation,
 			})
 			c.Assert(err, check.IsNil)
 
 			tconf := s.defaultServiceConfig()
 			tconf.Auth.Enabled = true
-			tconf.Auth.ClusterConfig = clusterConfig
+			tconf.Auth.SessionRecordingConfig = recConfig
 
 			tconf.Proxy.Enabled = true
 			tconf.Proxy.DisableWebService = true
@@ -3026,17 +3114,17 @@ func (s *IntSuite) TestProxyHostKeyCheck(c *check.C) {
 	defer tr.Stop()
 
 	var tests = []struct {
-		inHostKeyCheck string
+		inHostKeyCheck bool
 		outError       bool
 	}{
 		// disable host key checking, should be able to connect
 		{
-			services.HostKeyCheckNo,
+			false,
 			false,
 		},
 		// enable host key checking, should NOT be able to connect
 		{
-			services.HostKeyCheckYes,
+			true,
 			true,
 		},
 	}
@@ -3046,7 +3134,7 @@ func (s *IntSuite) TestProxyHostKeyCheck(c *check.C) {
 		c.Assert(err, check.IsNil)
 
 		// start a ssh server that presents a host key instead of a certificate
-		nodePort := s.getPorts(1)[0]
+		nodePort := ports.PopInt()
 		sshNode, err := newDiscardServer(Host, nodePort, hostSigner)
 		c.Assert(err, check.IsNil)
 		err = sshNode.Start()
@@ -3055,16 +3143,15 @@ func (s *IntSuite) TestProxyHostKeyCheck(c *check.C) {
 
 		// create a teleport instance with auth, proxy, and node
 		makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
-			clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-				SessionRecording:    services.RecordAtProxy,
-				ProxyChecksHostKeys: tt.inHostKeyCheck,
-				LocalAuth:           services.NewBool(true),
+			recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+				Mode:                services.RecordAtProxy,
+				ProxyChecksHostKeys: types.NewBoolOption(tt.inHostKeyCheck),
 			})
 			c.Assert(err, check.IsNil)
 
 			tconf := s.defaultServiceConfig()
 			tconf.Auth.Enabled = true
-			tconf.Auth.ClusterConfig = clusterConfig
+			tconf.Auth.SessionRecordingConfig = recConfig
 
 			tconf.Proxy.Enabled = true
 			tconf.Proxy.DisableWebService = true
@@ -3107,15 +3194,14 @@ func (s *IntSuite) TestAuditOff(c *check.C) {
 
 	// create a teleport instance with auth, proxy, and node
 	makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
-		clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-			SessionRecording: services.RecordOff,
-			LocalAuth:        services.NewBool(true),
+		recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+			Mode: services.RecordOff,
 		})
 		c.Assert(err, check.IsNil)
 
 		tconf := s.defaultServiceConfig()
 		tconf.Auth.Enabled = true
-		tconf.Auth.ClusterConfig = clusterConfig
+		tconf.Auth.SessionRecordingConfig = recConfig
 
 		tconf.Proxy.Enabled = true
 		tconf.Proxy.DisableWebService = true
@@ -4234,6 +4320,8 @@ func (s *IntSuite) TestWindowChange(c *check.C) {
 
 // TestList checks that the list of servers returned is identity aware.
 func (s *IntSuite) TestList(c *check.C) {
+	ctx := context.Background()
+
 	s.setUpTest(c)
 	defer s.tearDownTest(c)
 
@@ -4242,16 +4330,15 @@ func (s *IntSuite) TestList(c *check.C) {
 
 	// Create and start a Teleport cluster with auth, proxy, and node.
 	makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
-		clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-			SessionRecording: services.RecordOff,
-			LocalAuth:        services.NewBool(true),
+		recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+			Mode: services.RecordOff,
 		})
 		c.Assert(err, check.IsNil)
 
 		tconf := s.defaultServiceConfig()
 		tconf.Hostname = "server-01"
 		tconf.Auth.Enabled = true
-		tconf.Auth.ClusterConfig = clusterConfig
+		tconf.Auth.SessionRecordingConfig = recConfig
 		tconf.Proxy.Enabled = true
 		tconf.Proxy.DisableWebService = true
 		tconf.Proxy.DisableWebInterface = true
@@ -4266,7 +4353,7 @@ func (s *IntSuite) TestList(c *check.C) {
 	defer t.StopAll()
 
 	// Create and start a Teleport node.
-	nodeSSHPort := s.getPorts(1)[0]
+	nodeSSHPort := ports.PopInt()
 	nodeConfig := func() *service.Config {
 		tconf := s.defaultServiceConfig()
 		tconf.Hostname = "server-02"
@@ -4293,7 +4380,7 @@ func (s *IntSuite) TestList(c *check.C) {
 		for {
 			select {
 			case <-tickCh:
-				nodesInCluster, err := clt.GetNodes(defaults.Namespace, services.SkipValidation())
+				nodesInCluster, err := clt.GetNodes(ctx, defaults.Namespace, services.SkipValidation())
 				if err != nil && !trace.IsNotFound(err) {
 					return trace.Wrap(err)
 				}
@@ -4390,16 +4477,15 @@ func (s *IntSuite) TestCmdLabels(c *check.C) {
 
 	// Create and start a Teleport cluster with auth, proxy, and node.
 	makeConfig := func() *service.Config {
-		clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-			SessionRecording: services.RecordOff,
-			LocalAuth:        services.NewBool(true),
+		recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+			Mode: services.RecordOff,
 		})
 		c.Assert(err, check.IsNil)
 
 		tconf := s.defaultServiceConfig()
 		tconf.Hostname = "server-01"
 		tconf.Auth.Enabled = true
-		tconf.Auth.ClusterConfig = clusterConfig
+		tconf.Auth.SessionRecordingConfig = recConfig
 		tconf.Proxy.Enabled = true
 		tconf.Proxy.DisableWebService = false
 		tconf.Proxy.DisableWebInterface = true
@@ -4558,9 +4644,8 @@ func (s *IntSuite) TestBPFInteractive(c *check.C) {
 
 		// Create and start a Teleport cluster.
 		makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
-			clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-				SessionRecording: tt.inSessionRecording,
-				LocalAuth:        services.NewBool(true),
+			recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+				Mode: tt.inSessionRecording,
 			})
 			c.Assert(err, check.IsNil)
 
@@ -4570,7 +4655,7 @@ func (s *IntSuite) TestBPFInteractive(c *check.C) {
 			// Configure Auth.
 			tconf.Auth.Preference.SetSecondFactor("off")
 			tconf.Auth.Enabled = true
-			tconf.Auth.ClusterConfig = clusterConfig
+			tconf.Auth.SessionRecordingConfig = recConfig
 
 			// Configure Proxy.
 			tconf.Proxy.Enabled = true
@@ -4686,9 +4771,8 @@ func (s *IntSuite) TestBPFExec(c *check.C) {
 
 		// Create and start a Teleport cluster.
 		makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
-			clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-				SessionRecording: tt.inSessionRecording,
-				LocalAuth:        services.NewBool(true),
+			recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+				Mode: tt.inSessionRecording,
 			})
 			c.Assert(err, check.IsNil)
 
@@ -4698,7 +4782,7 @@ func (s *IntSuite) TestBPFExec(c *check.C) {
 			// Configure Auth.
 			tconf.Auth.Preference.SetSecondFactor("off")
 			tconf.Auth.Enabled = true
-			tconf.Auth.ClusterConfig = clusterConfig
+			tconf.Auth.SessionRecordingConfig = recConfig
 
 			// Configure Proxy.
 			tconf.Proxy.Enabled = true
@@ -4768,9 +4852,8 @@ func (s *IntSuite) TestBPFSessionDifferentiation(c *check.C) {
 
 	// Create and start a Teleport cluster.
 	makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
-		clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-			SessionRecording: services.RecordAtNode,
-			LocalAuth:        services.NewBool(true),
+		recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+			Mode: services.RecordAtNode,
 		})
 		c.Assert(err, check.IsNil)
 
@@ -4780,7 +4863,7 @@ func (s *IntSuite) TestBPFSessionDifferentiation(c *check.C) {
 		// Configure Auth.
 		tconf.Auth.Preference.SetSecondFactor("off")
 		tconf.Auth.Enabled = true
-		tconf.Auth.ClusterConfig = clusterConfig
+		tconf.Auth.SessionRecordingConfig = recConfig
 
 		// Configure Proxy.
 		tconf.Proxy.Enabled = true
@@ -5034,29 +5117,20 @@ func runCommand(instance *TeleInstance, cmd []string, cfg ClientConfig, attempts
 	return output.String(), nil
 }
 
-// getPorts helper returns a range of unallocated ports available for listening on
-func (s *IntSuite) getPorts(num int) []int {
-	if len(s.ports) < num {
-		panic("do not have enough ports! increase AllocatePortsNum constant")
-	}
-	ports := make([]int, num)
-	for i := range ports {
-		p, _ := strconv.Atoi(s.ports.Pop())
-		ports[i] = p
-	}
-	return ports
+func (s *IntSuite) newTeleportInstance(c *check.C) *TeleInstance {
+	return NewInstance(s.defaultInstanceConfig())
 }
 
-func (s *IntSuite) newTeleportInstance(c *check.C) *TeleInstance {
-	return NewInstance(InstanceConfig{
+func (s *IntSuite) defaultInstanceConfig() InstanceConfig {
+	return InstanceConfig{
 		ClusterName: Site,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.getPorts(6),
+		Ports:       ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
-	})
+	}
 }
 
 func (s *IntSuite) newNamedTeleportInstance(c *check.C, clusterName string) *TeleInstance {
@@ -5064,7 +5138,7 @@ func (s *IntSuite) newNamedTeleportInstance(c *check.C, clusterName string) *Tel
 		ClusterName: clusterName,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.getPorts(6),
+		Ports:       ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
@@ -5189,10 +5263,6 @@ func dumpGoroutineProfile() {
 
 // TestWebProxyInsecure makes sure that proxy endpoint works when TLS is disabled.
 func TestWebProxyInsecure(t *testing.T) {
-	startPort := utils.PortStartingNumber + (4 * AllocatePortsNum) + 1
-	ports, err := utils.GetFreeTCPPorts(AllocatePortsNum, startPort)
-	require.NoError(t, err)
-
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair("")
 	require.NoError(t, err)
 
@@ -5230,4 +5300,118 @@ func TestWebProxyInsecure(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	require.NoError(t, resp.Body.Close())
+}
+
+// TestTraitsPropagation makes sure that user traits are applied properly to
+// roles in root and leaf clusters.
+func TestTraitsPropagation(t *testing.T) {
+	log := testlog.FailureOnly(t)
+
+	privateKey, publicKey, err := testauthority.New().GenerateKeyPair("")
+	require.NoError(t, err)
+
+	// Create root cluster.
+	rc := NewInstance(InstanceConfig{
+		ClusterName: "root.example.com",
+		HostID:      uuid.New(),
+		NodeName:    Host,
+		Ports:       ports.PopIntSlice(6),
+		Priv:        privateKey,
+		Pub:         publicKey,
+		log:         log,
+	})
+
+	// Create leaf cluster.
+	lc := NewInstance(InstanceConfig{
+		ClusterName: "leaf.example.com",
+		HostID:      uuid.New(),
+		NodeName:    Host,
+		Ports:       ports.PopIntSlice(6),
+		Priv:        privateKey,
+		Pub:         publicKey,
+		log:         log,
+	})
+
+	// Make root cluster config.
+	rcConf := service.MakeDefaultConfig()
+	rcConf.DataDir = t.TempDir()
+	rcConf.Auth.Enabled = true
+	rcConf.Auth.Preference.SetSecondFactor("off")
+	rcConf.Proxy.Enabled = true
+	rcConf.Proxy.DisableWebService = true
+	rcConf.Proxy.DisableWebInterface = true
+	rcConf.SSH.Enabled = true
+	rcConf.SSH.Addr.Addr = net.JoinHostPort(rc.Hostname, rc.GetPortSSH())
+	rcConf.SSH.Labels = map[string]string{"env": "integration"}
+
+	// Make leaf cluster config.
+	lcConf := service.MakeDefaultConfig()
+	lcConf.DataDir = t.TempDir()
+	lcConf.Auth.Enabled = true
+	lcConf.Auth.Preference.SetSecondFactor("off")
+	lcConf.Proxy.Enabled = true
+	lcConf.Proxy.DisableWebInterface = true
+	lcConf.SSH.Enabled = true
+	lcConf.SSH.Addr.Addr = net.JoinHostPort(lc.Hostname, lc.GetPortSSH())
+	lcConf.SSH.Labels = map[string]string{"env": "integration"}
+
+	// Create identical user/role in both clusters.
+	me, err := user.Current()
+	require.NoError(t, err)
+
+	role := services.NewAdminRole()
+	role.SetName("test")
+	role.SetLogins(services.Allow, []string{me.Username})
+	// Users created by CreateEx have "testing: integration" trait.
+	role.SetNodeLabels(services.Allow, map[string]utils.Strings{"env": []string{"{{external.testing}}"}})
+
+	rc.AddUserWithRole(me.Username, role)
+	lc.AddUserWithRole(me.Username, role)
+
+	// Establish trust b/w root and leaf.
+	err = rc.CreateEx(lc.Secrets.AsSlice(), rcConf)
+	require.NoError(t, err)
+	err = lc.CreateEx(rc.Secrets.AsSlice(), lcConf)
+	require.NoError(t, err)
+
+	// Start both clusters.
+	require.NoError(t, rc.Start())
+	t.Cleanup(func() {
+		rc.StopAll()
+	})
+	require.NoError(t, lc.Start())
+	t.Cleanup(func() {
+		lc.StopAll()
+	})
+
+	// Update root's certificate authority on leaf to configure role mapping.
+	ca, err := lc.Process.GetAuthServer().GetCertAuthority(services.CertAuthID{
+		Type:       services.UserCA,
+		DomainName: rc.Secrets.SiteName,
+	}, false)
+	require.NoError(t, err)
+	ca.SetRoles(nil) // Reset roles, otherwise they will take precedence.
+	ca.SetRoleMap(services.RoleMap{{Remote: role.GetName(), Local: []string{role.GetName()}}})
+	err = lc.Process.GetAuthServer().UpsertCertAuthority(ca)
+	require.NoError(t, err)
+
+	// Run command in root.
+	outputRoot, err := runCommand(rc, []string{"echo", "hello root"}, ClientConfig{
+		Login:   me.Username,
+		Cluster: "root.example.com",
+		Host:    Loopback,
+		Port:    rc.GetPortSSHInt(),
+	}, 1)
+	require.NoError(t, err)
+	require.Equal(t, "hello root", strings.TrimSpace(outputRoot))
+
+	// Run command in leaf.
+	outputLeaf, err := runCommand(rc, []string{"echo", "hello leaf"}, ClientConfig{
+		Login:   me.Username,
+		Cluster: "leaf.example.com",
+		Host:    Loopback,
+		Port:    lc.GetPortSSHInt(),
+	}, 1)
+	require.NoError(t, err)
+	require.Equal(t, "hello leaf", strings.TrimSpace(outputLeaf))
 }

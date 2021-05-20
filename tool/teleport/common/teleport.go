@@ -35,8 +35,8 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
-
 	log "github.com/sirupsen/logrus"
 )
 
@@ -50,7 +50,7 @@ type Options struct {
 }
 
 // Run inits/starts the process according to the provided options
-func Run(options Options) (executedCommand string, conf *service.Config) {
+func Run(options Options) (app *kingpin.Application, executedCommand string, conf *service.Config) {
 	var err error
 
 	// configure trace's errors to produce full stack traces
@@ -61,7 +61,7 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 	// configure logger for a typical CLI scenario until configuration file is
 	// parsed
 	utils.InitLogger(utils.LoggingForDaemon, log.ErrorLevel)
-	app := utils.InitCLIParser("teleport", "Clustered SSH service. Learn more at https://goteleport.com/teleport")
+	app = utils.InitCLIParser("teleport", "Clustered SSH service. Learn more at https://goteleport.com/teleport")
 
 	// define global flags:
 	var ccf config.CommandLineFlags
@@ -117,7 +117,7 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 	start.Flag("config-string",
 		"Base64 encoded configuration string").Hidden().Envar(defaults.ConfigEnvar).
 		StringVar(&ccf.ConfigString)
-	start.Flag("labels", "List of labels for this node").StringVar(&ccf.Labels)
+	start.Flag("labels", "Comma-separated list of labels for this node, for example env=dev,app=web").StringVar(&ccf.Labels)
 	start.Flag("diag-addr",
 		"Start diagnostic prometheus and healthz endpoint.").Hidden().StringVar(&ccf.DiagnosticAddr)
 	start.Flag("permit-user-env",
@@ -128,33 +128,77 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 		"Start Teleport in FedRAMP/FIPS 140-2 mode.").
 		Default("false").
 		BoolVar(&ccf.FIPS)
+	// All top-level --app-XXX flags are deprecated in favor of
+	// "teleport start app" subcommand.
 	start.Flag("app-name",
-		"Name of the application to start").
+		"Name of the application to start").Hidden().
 		StringVar(&ccf.AppName)
 	start.Flag("app-uri",
-		"Internal address of the application to proxy.").
+		"Internal address of the application to proxy.").Hidden().
 		StringVar(&ccf.AppURI)
 	start.Flag("app-public-addr",
-		"Public address of the application to proxy.").
+		"Public address of the application to proxy.").Hidden().
 		StringVar(&ccf.AppPublicAddr)
+	// All top-level --db-XXX flags are deprecated in favor of
+	// "teleport start db" subcommand.
 	start.Flag("db-name",
-		"Name of the proxied database.").
+		"Name of the proxied database.").Hidden().
 		StringVar(&ccf.DatabaseName)
 	start.Flag("db-protocol",
-		fmt.Sprintf("Proxied database protocol. Supported are: %v.", defaults.DatabaseProtocols)).
+		fmt.Sprintf("Proxied database protocol. Supported are: %v.", defaults.DatabaseProtocols)).Hidden().
 		StringVar(&ccf.DatabaseProtocol)
 	start.Flag("db-uri",
-		"Address the proxied database is reachable at.").
+		"Address the proxied database is reachable at.").Hidden().
 		StringVar(&ccf.DatabaseURI)
 	start.Flag("db-ca-cert",
-		"Database CA certificate path.").
+		"Database CA certificate path.").Hidden().
 		StringVar(&ccf.DatabaseCACertFile)
 	start.Flag("db-aws-region",
-		"AWS region RDS/Aurora database instance is running in.").
+		"AWS region RDS, Aurora or Redshift database instance is running in.").Hidden().
 		StringVar(&ccf.DatabaseAWSRegion)
 
 	// define start's usage info (we use kingpin's "alias" field for this)
 	start.Alias(usageNotes + usageExamples)
+
+	// "teleport app" command and its subcommands
+	appCmd := app.Command("app", "Application proxy service commands.")
+	appStartCmd := appCmd.Command("start", "Start application proxy service.")
+	appStartCmd.Flag("debug", "Enable verbose logging to stderr.").Short('d').BoolVar(&ccf.Debug)
+	appStartCmd.Flag("pid-file", "Full path to the PID file. By default no PID file will be created.").StringVar(&ccf.PIDFile)
+	appStartCmd.Flag("auth-server", fmt.Sprintf("Address of the auth server [%s].", defaults.AuthConnectAddr().Addr)).StringsVar(&ccf.AuthServerAddr)
+	appStartCmd.Flag("token", "Invitation token to register with an auth server [none].").StringVar(&ccf.AuthToken)
+	appStartCmd.Flag("ca-pin", "CA pin to validate the auth server.").StringVar(&ccf.CAPin)
+	appStartCmd.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').ExistingFileVar(&ccf.ConfigFile)
+	appStartCmd.Flag("config-string", "Base64 encoded configuration string.").Hidden().Envar(defaults.ConfigEnvar).StringVar(&ccf.ConfigString)
+	appStartCmd.Flag("labels", "Comma-separated list of labels for this node, for example env=dev,app=web.").StringVar(&ccf.Labels)
+	appStartCmd.Flag("fips", "Start Teleport in FedRAMP/FIPS 140-2 mode.").Default("false").BoolVar(&ccf.FIPS)
+	appStartCmd.Flag("name", "Name of the application to start.").StringVar(&ccf.AppName)
+	appStartCmd.Flag("uri", "Internal address of the application to proxy.").StringVar(&ccf.AppURI)
+	appStartCmd.Flag("public-addr", "Public address of the application to proxy.").StringVar(&ccf.AppPublicAddr)
+	appStartCmd.Alias(appUsageExamples) // We're using "alias" section to display usage examples.
+
+	// "teleport db" command and its subcommands
+	dbCmd := app.Command("db", "Database proxy service commands.")
+	dbStartCmd := dbCmd.Command("start", "Start database proxy service.")
+	dbStartCmd.Flag("debug", "Enable verbose logging to stderr.").Short('d').BoolVar(&ccf.Debug)
+	dbStartCmd.Flag("pid-file", "Full path to the PID file. By default no PID file will be created.").StringVar(&ccf.PIDFile)
+	dbStartCmd.Flag("auth-server", fmt.Sprintf("Address of the auth server [%s].", defaults.AuthConnectAddr().Addr)).StringsVar(&ccf.AuthServerAddr)
+	dbStartCmd.Flag("token", "Invitation token to register with an auth server [none].").StringVar(&ccf.AuthToken)
+	dbStartCmd.Flag("ca-pin", "CA pin to validate the auth server.").StringVar(&ccf.CAPin)
+	dbStartCmd.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').ExistingFileVar(&ccf.ConfigFile)
+	dbStartCmd.Flag("config-string", "Base64 encoded configuration string.").Hidden().Envar(defaults.ConfigEnvar).StringVar(&ccf.ConfigString)
+	dbStartCmd.Flag("labels", "Comma-separated list of labels for this node, for example env=dev,app=web.").StringVar(&ccf.Labels)
+	dbStartCmd.Flag("fips", "Start Teleport in FedRAMP/FIPS 140-2 mode.").Default("false").BoolVar(&ccf.FIPS)
+	dbStartCmd.Flag("name", "Name of the proxied database.").StringVar(&ccf.DatabaseName)
+	dbStartCmd.Flag("description", "Description of the proxied database.").StringVar(&ccf.DatabaseDescription)
+	dbStartCmd.Flag("protocol", fmt.Sprintf("Proxied database protocol. Supported are: %v.", defaults.DatabaseProtocols)).StringVar(&ccf.DatabaseProtocol)
+	dbStartCmd.Flag("uri", "Address the proxied database is reachable at.").StringVar(&ccf.DatabaseURI)
+	dbStartCmd.Flag("ca-cert", "Database CA certificate path.").StringVar(&ccf.DatabaseCACertFile)
+	dbStartCmd.Flag("aws-region", "(Only for RDS, Aurora or Redshift) AWS region RDS, Aurora or Redshift database instance is running in.").StringVar(&ccf.DatabaseAWSRegion)
+	dbStartCmd.Flag("aws-redshift-cluster-id", "(Only for Redshift) Redshift database cluster identifier.").StringVar(&ccf.DatabaseAWSRedshiftClusterID)
+	dbStartCmd.Flag("gcp-project-id", "(Only for Cloud SQL) GCP Cloud SQL project identifier.").StringVar(&ccf.DatabaseGCPProjectID)
+	dbStartCmd.Flag("gcp-instance-id", "(Only for Cloud SQL) GCP Cloud SQL instance identifier.").StringVar(&ccf.DatabaseGCPInstanceID)
+	dbStartCmd.Alias(dbUsageExamples) // We're using "alias" section to display usage examples.
 
 	// define a hidden 'scp' command (it implements server-side implementation of handling
 	// 'scp' requests)
@@ -178,6 +222,7 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 		"Get automatic certificate from Letsencrypt.org using ACME.").BoolVar(&dumpFlags.ACMEEnabled)
 	dump.Flag("acme-email",
 		"Email to receive updates from Letsencrypt.org.").StringVar(&dumpFlags.ACMEEmail)
+	dump.Flag("test", "Path to a configuration file to test.").ExistingFileVar(&dumpFlags.testConfigFile)
 
 	// parse CLI commands+flags:
 	command, err := app.Parse(options.Args)
@@ -188,14 +233,25 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 	// Create default configuration.
 	conf = service.MakeDefaultConfig()
 
-	// If FIPS mode is specified update defaults to be FIPS appropriate.
+	// If FIPS mode is specified update defaults to be FIPS appropriate and
+	// cross-validate the current config.
 	if ccf.FIPS {
+		if ccf.InsecureMode {
+			utils.FatalError(trace.BadParameter("--insecure not allowed in FIPS mode"))
+		}
 		service.ApplyFIPSDefaults(conf)
 	}
 
 	// execute the selected command unless we're running tests
 	switch command {
-	case start.FullCommand():
+	case start.FullCommand(), appStartCmd.FullCommand(), dbStartCmd.FullCommand():
+		// Set appropriate roles for "app" and "db" subcommands.
+		switch command {
+		case appStartCmd.FullCommand():
+			ccf.Roles = defaults.RoleApp
+		case dbStartCmd.FullCommand():
+			ccf.Roles = defaults.RoleDatabase
+		}
 		// configuration merge: defaults -> file-based conf -> CLI conf
 		if err = config.Configure(&ccf, conf); err != nil {
 			utils.FatalError(err)
@@ -219,7 +275,7 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 	if err != nil {
 		utils.FatalError(err)
 	}
-	return command, conf
+	return app, command, conf
 }
 
 // OnStart is the handler for "start" CLI command
@@ -253,10 +309,14 @@ func onStatus() error {
 
 type dumpFlags struct {
 	config.SampleFlags
-	output string
+	output         string
+	testConfigFile string
 }
 
 func (flags *dumpFlags) CheckAndSetDefaults() error {
+	if flags.testConfigFile != "" && flags.output != teleport.SchemeStdout {
+		return trace.BadParameter("only --output or --test can be set, not both")
+	}
 	if flags.output == "" || flags.output == teleport.SchemeFile {
 		flags.output = teleport.SchemeFile + "://" + defaults.ConfigFilePath
 	} else if flags.output == teleport.SchemeStdout {
@@ -270,6 +330,19 @@ func onConfigDump(flags dumpFlags) error {
 	if err := flags.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if flags.testConfigFile != "" {
+		// Test an existing config.
+		_, err := config.ReadFromFile(flags.testConfigFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "FAIL %s\n", flags.testConfigFile)
+			return trace.Wrap(err)
+		}
+		fmt.Fprintf(os.Stderr, "OK %s\n", flags.testConfigFile)
+		return nil
+	}
+
+	// Generate a new config.
 	uri, err := url.Parse(flags.output)
 	if err != nil {
 		return trace.BadParameter("could not parse output value %q, use --output=%q",

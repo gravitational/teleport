@@ -342,26 +342,31 @@ func NewServer(kind, name, addr, namespace string) *services.ServerV2 {
 }
 
 func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
-	ctx := context.TODO()
+	ctx := context.Background()
 	// SSH service.
-	out, err := s.PresenceS.GetNodes(defaults.Namespace)
+	out, err := s.PresenceS.GetNodes(ctx, defaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Equals, 0)
 
 	srv := NewServer(services.KindNode, "srv1", "127.0.0.1:2022", defaults.Namespace)
-	_, err = s.PresenceS.UpsertNode(srv)
+	_, err = s.PresenceS.UpsertNode(ctx, srv)
 	c.Assert(err, check.IsNil)
 
-	out, err = s.PresenceS.GetNodes(srv.Metadata.Namespace)
+	node, err := s.PresenceS.GetNode(ctx, srv.Metadata.Namespace, srv.GetName())
+	c.Assert(err, check.IsNil)
+	srv.SetResourceID(node.GetResourceID())
+	fixtures.DeepCompare(c, node, srv)
+
+	out, err = s.PresenceS.GetNodes(ctx, srv.Metadata.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 	srv.SetResourceID(out[0].GetResourceID())
 	fixtures.DeepCompare(c, out, []services.Server{srv})
 
-	err = s.PresenceS.DeleteNode(srv.Metadata.Namespace, srv.GetName())
+	err = s.PresenceS.DeleteNode(ctx, srv.Metadata.Namespace, srv.GetName())
 	c.Assert(err, check.IsNil)
 
-	out, err = s.PresenceS.GetNodes(srv.Metadata.Namespace)
+	out, err = s.PresenceS.GetNodes(ctx, srv.Metadata.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 0)
 
@@ -1046,7 +1051,7 @@ func (s *ServicesTestSuite) RemoteClustersCRUD(c *check.C) {
 
 // AuthPreference tests authentication preference service
 func (s *ServicesTestSuite) AuthPreference(c *check.C) {
-	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+	ap, err := types.NewAuthPreferenceFromConfigFile(services.AuthPreferenceSpecV2{
 		Type:         "local",
 		SecondFactor: "otp",
 	})
@@ -1060,6 +1065,22 @@ func (s *ServicesTestSuite) AuthPreference(c *check.C) {
 
 	c.Assert(gotAP.GetType(), check.Equals, "local")
 	c.Assert(gotAP.GetSecondFactor(), check.Equals, constants.SecondFactorOTP)
+}
+
+// SessionRecordingConfig tests session recording configuration.
+func (s *ServicesTestSuite) SessionRecordingConfig(c *check.C) {
+	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+		Mode: services.RecordAtProxy,
+	})
+	c.Assert(err, check.IsNil)
+
+	err = s.ConfigS.SetSessionRecordingConfig(context.TODO(), recConfig)
+	c.Assert(err, check.IsNil)
+
+	gotrecConfig, err := s.ConfigS.GetSessionRecordingConfig(context.TODO())
+	c.Assert(err, check.IsNil)
+
+	c.Assert(gotrecConfig.GetMode(), check.Equals, services.RecordAtProxy)
 }
 
 func (s *ServicesTestSuite) StaticTokens(c *check.C) {
@@ -1119,10 +1140,8 @@ func CollectOptions(opts ...Option) Options {
 // ClusterConfig tests cluster configuration
 func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	config, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		ClientIdleTimeout:     services.NewDuration(17 * time.Second),
 		DisconnectExpiredCert: services.NewBool(true),
 		ClusterID:             "27",
-		SessionRecording:      services.RecordAtProxy,
 		Audit: services.AuditConfig{
 			Region:           "us-west-1",
 			Type:             "dynamodb",
@@ -1133,12 +1152,30 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	})
 	c.Assert(err, check.IsNil)
 
+	// DELETE IN 8.0.0
+	netConfig, err := types.NewClusterNetworkingConfig(types.ClusterNetworkingConfigSpecV2{
+		ClientIdleTimeout: services.NewDuration(17 * time.Second),
+	})
+	c.Assert(err, check.IsNil)
+	err = s.ConfigS.SetClusterNetworkingConfig(context.TODO(), netConfig)
+	c.Assert(err, check.IsNil)
+
+	// DELETE IN 8.0.0
+	recConfig, err := types.NewSessionRecordingConfig(types.SessionRecordingConfigSpecV2{
+		Mode: services.RecordAtProxy,
+	})
+	c.Assert(err, check.IsNil)
+	err = s.ConfigS.SetSessionRecordingConfig(context.TODO(), recConfig)
+	c.Assert(err, check.IsNil)
+
 	err = s.ConfigS.SetClusterConfig(config)
 	c.Assert(err, check.IsNil)
 
 	gotConfig, err := s.ConfigS.GetClusterConfig()
 	c.Assert(err, check.IsNil)
 	config.SetResourceID(gotConfig.GetResourceID())
+	config.SetNetworkingConfig(netConfig)
+	config.SetSessionRecordingConfig(recConfig)
 	fixtures.DeepCompare(c, config, gotConfig)
 
 	// Some parts (e.g. auth server) will not function
@@ -1178,6 +1215,24 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	c.Assert(err, check.IsNil)
 	clusterName.SetResourceID(gotName.GetResourceID())
 	fixtures.DeepCompare(c, clusterName, gotName)
+}
+
+// ClusterNetworkingConfig tests cluster networking configuration.
+func (s *ServicesTestSuite) ClusterNetworkingConfig(c *check.C) {
+	netConfig, err := types.NewClusterNetworkingConfig(types.ClusterNetworkingConfigSpecV2{
+		ClientIdleTimeout: types.NewDuration(17 * time.Second),
+		KeepAliveCountMax: 3000,
+	})
+	c.Assert(err, check.IsNil)
+
+	err = s.ConfigS.SetClusterNetworkingConfig(context.TODO(), netConfig)
+	c.Assert(err, check.IsNil)
+
+	gotNetConfig, err := s.ConfigS.GetClusterNetworkingConfig(context.TODO())
+	c.Assert(err, check.IsNil)
+
+	c.Assert(gotNetConfig.GetClientIdleTimeout(), check.Equals, 17*time.Second)
+	c.Assert(gotNetConfig.GetKeepAliveCountMax(), check.Equals, int64(3000))
 }
 
 // sem wrapper is a helper for overriding the keepalive
@@ -1558,13 +1613,13 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 			crud: func() services.Resource {
 				srv := NewServer(services.KindNode, "srv1", "127.0.0.1:2022", defaults.Namespace)
 
-				_, err := s.PresenceS.UpsertNode(srv)
+				_, err := s.PresenceS.UpsertNode(ctx, srv)
 				c.Assert(err, check.IsNil)
 
-				out, err := s.PresenceS.GetNodes(srv.Metadata.Namespace)
+				out, err := s.PresenceS.GetNodes(ctx, srv.Metadata.Namespace)
 				c.Assert(err, check.IsNil)
 
-				err = s.PresenceS.DeleteAllNodes(srv.Metadata.Namespace)
+				err = s.PresenceS.DeleteAllNodes(ctx, srv.Metadata.Namespace)
 				c.Assert(err, check.IsNil)
 
 				return out[0]
