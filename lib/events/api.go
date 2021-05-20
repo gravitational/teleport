@@ -103,6 +103,10 @@ const (
 	// SessionEndTime is the timestamp at which the session ended.
 	SessionEndTime = "session_stop"
 
+	// SessionRecordingType is the type of session recording.
+	// Possible values are node (default), proxy, node-sync, proxy-sync, or off.
+	SessionRecordingType = "session_recording"
+
 	// SessionEnhancedRecording is used to indicate if the recording was an
 	// enhanced recording or not.
 	SessionEnhancedRecording = "enhanced_recording"
@@ -117,6 +121,9 @@ const (
 	// SessionServerLabels are the labels (static and dynamic) of the server the
 	// session occurred on.
 	SessionServerLabels = "server_labels"
+
+	// SessionClusterName is the cluster name that the session occurred in
+	SessionClusterName = "cluster_name"
 
 	// SessionByteOffset is the number of bytes written to session stream since
 	// the beginning
