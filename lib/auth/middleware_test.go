@@ -23,7 +23,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
 
@@ -71,7 +70,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 		}
 		localSystemRole = tlsca.Identity{
 			Username:        "node",
-			Groups:          []string{string(teleport.RoleNode)},
+			Groups:          []string{string(types.RoleNode)},
 			TeleportCluster: localClusterName,
 			Expires:         now,
 		}
@@ -88,7 +87,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 		}
 		remoteSystemRole = tlsca.Identity{
 			Username:        "node",
-			Groups:          []string{string(teleport.RoleNode)},
+			Groups:          []string{string(types.RoleNode)},
 			TeleportCluster: remoteClusterName,
 			Expires:         now,
 		}
@@ -103,8 +102,8 @@ func TestMiddlewareGetUser(t *testing.T) {
 		{
 			desc: "no client cert",
 			wantID: BuiltinRole{
-				Role:        teleport.RoleNop,
-				Username:    string(teleport.RoleNop),
+				Role:        types.RoleNop,
+				Username:    string(types.RoleNop),
 				ClusterName: localClusterName,
 				Identity:    tlsca.Identity{},
 			},
@@ -145,7 +144,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 			}},
 			wantID: BuiltinRole{
 				Username:    localSystemRole.Username,
-				Role:        teleport.RoleNode,
+				Role:        types.RoleNode,
 				ClusterName: localClusterName,
 				Identity:    localSystemRole,
 			},
@@ -190,7 +189,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 			}},
 			wantID: RemoteBuiltinRole{
 				Username:    remoteSystemRole.Username,
-				Role:        teleport.RoleNode,
+				Role:        types.RoleNode,
 				ClusterName: remoteClusterName,
 				Identity:    remoteSystemRole,
 			},

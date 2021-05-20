@@ -169,10 +169,10 @@ func (s *Suite) SetUpTest(c *check.C) {
 	}
 
 	// Create a client with a machine role of RoleApp.
-	s.authClient, err = s.tlsServer.NewClient(auth.TestServerID(teleport.RoleApp, s.hostUUID))
+	s.authClient, err = s.tlsServer.NewClient(auth.TestServerID(types.RoleApp, s.hostUUID))
 	c.Assert(err, check.IsNil)
 
-	serverIdentity, err := auth.NewServerIdentity(s.authServer.AuthServer, s.hostUUID, teleport.RoleApp)
+	serverIdentity, err := auth.NewServerIdentity(s.authServer.AuthServer, s.hostUUID, types.RoleApp)
 	c.Assert(err, check.IsNil)
 	tlsConfig, err := serverIdentity.TLSConfig(nil)
 	c.Assert(err, check.IsNil)
@@ -359,6 +359,6 @@ func (s *Suite) TestRewriteResponse(c *check.C) {
 func (s *Suite) TestSessionClose(c *check.C) {
 }
 
-func testRotationGetter(role teleport.Role) (*types.Rotation, error) {
+func testRotationGetter(role types.SystemRole) (*types.Rotation, error) {
 	return &types.Rotation{}, nil
 }

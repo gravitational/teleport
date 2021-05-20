@@ -39,7 +39,6 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -205,7 +204,7 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 		HostID:              cfg.HostID,
 		NodeName:            cfg.NodeName,
 		ClusterName:         cfg.ClusterName,
-		Roles:               teleport.Roles{teleport.RoleAdmin},
+		Roles:               types.SystemRoles{types.RoleAdmin},
 		TTL:                 24 * time.Hour,
 	})
 	fatalIf(err)
@@ -215,7 +214,7 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 	fatalIf(err)
 	identity := tlsca.Identity{
 		Username: fmt.Sprintf("%v.%v", cfg.HostID, cfg.ClusterName),
-		Groups:   []string{string(teleport.RoleAdmin)},
+		Groups:   []string{string(types.RoleAdmin)},
 	}
 	clock := clockwork.NewRealClock()
 	subject, err := identity.Subject()
@@ -519,12 +518,12 @@ func (i *TeleInstance) GenerateConfig(trustedSecrets []*InstanceSecrets, tconf *
 	tconf.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{
 			{
-				Roles: []teleport.Role{
-					teleport.RoleNode,
-					teleport.RoleProxy,
-					teleport.RoleTrustedCluster,
-					teleport.RoleApp,
-					teleport.RoleDatabase,
+				Roles: []types.SystemRole{
+					types.RoleNode,
+					types.RoleProxy,
+					types.RoleTrustedCluster,
+					types.RoleApp,
+					types.RoleDatabase,
 				},
 				Token: "token",
 			},

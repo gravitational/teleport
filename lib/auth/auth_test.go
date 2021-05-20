@@ -518,7 +518,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(len(btokens), Equals, 0)
 
 	// generate persistent token
-	tok, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleNode}})
+	tok, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}})
 	c.Assert(err, IsNil)
 	c.Assert(len(tok), Equals, 2*TokenLenBytes)
 	tokens, err := s.a.GetTokens(ctx)
@@ -528,15 +528,15 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 
 	roles, _, err := s.a.ValidateToken(tok)
 	c.Assert(err, IsNil)
-	c.Assert(roles.Include(teleport.RoleNode), Equals, true)
-	c.Assert(roles.Include(teleport.RoleProxy), Equals, false)
+	c.Assert(roles.Include(types.RoleNode), Equals, true)
+	c.Assert(roles.Include(types.RoleProxy), Equals, false)
 
 	// unsuccessful registration (wrong role)
 	keys, err := s.a.RegisterUsingToken(RegisterUsingTokenRequest{
 		Token:    tok,
 		HostID:   "bad-host-id",
 		NodeName: "bad-node-name",
-		Role:     teleport.RoleProxy,
+		Role:     types.RoleProxy,
 	})
 	c.Assert(keys, IsNil)
 	c.Assert(err, NotNil)
@@ -544,20 +544,20 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 
 	// generate predefined token
 	customToken := "custom-token"
-	tok, err = s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleNode}, Token: customToken})
+	tok, err = s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}, Token: customToken})
 	c.Assert(err, IsNil)
 	c.Assert(tok, Equals, customToken)
 
 	roles, _, err = s.a.ValidateToken(tok)
 	c.Assert(err, IsNil)
-	c.Assert(roles.Include(teleport.RoleNode), Equals, true)
-	c.Assert(roles.Include(teleport.RoleProxy), Equals, false)
+	c.Assert(roles.Include(types.RoleNode), Equals, true)
+	c.Assert(roles.Include(types.RoleProxy), Equals, false)
 
 	err = s.a.DeleteToken(ctx, customToken)
 	c.Assert(err, IsNil)
 
 	// generate multi-use token with long TTL:
-	multiUseToken, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleProxy}, TTL: time.Hour})
+	multiUseToken, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{types.RoleProxy}, TTL: time.Hour})
 	c.Assert(err, IsNil)
 	_, _, err = s.a.ValidateToken(multiUseToken)
 	c.Assert(err, IsNil)
@@ -567,7 +567,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 		Token:                multiUseToken,
 		HostID:               "once",
 		NodeName:             "node-name",
-		Role:                 teleport.RoleProxy,
+		Role:                 types.RoleProxy,
 		AdditionalPrincipals: []string{"example.com"},
 	})
 	c.Assert(err, IsNil)
@@ -582,7 +582,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 		Token:    multiUseToken,
 		HostID:   "twice",
 		NodeName: "node-name",
-		Role:     teleport.RoleProxy,
+		Role:     types.RoleProxy,
 	})
 	c.Assert(err, IsNil)
 
@@ -592,7 +592,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 		Token:    multiUseToken,
 		HostID:   "late.bird",
 		NodeName: "node-name",
-		Role:     teleport.RoleProxy,
+		Role:     types.RoleProxy,
 	})
 	c.Assert(err, ErrorMatches, `"node-name" \[late.bird\] can not join the cluster with role Proxy, the token is not valid`)
 
@@ -601,7 +601,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 
 	// lets use static tokens now
-	roles = teleport.Roles{teleport.RoleProxy}
+	roles = types.SystemRoles{types.RoleProxy}
 	st, err := types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{{
 			Token:   "static-token-value",
@@ -616,14 +616,14 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 		Token:    "static-token-value",
 		HostID:   "static.host",
 		NodeName: "node-name",
-		Role:     teleport.RoleProxy,
+		Role:     types.RoleProxy,
 	})
 	c.Assert(err, IsNil)
 	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
 		Token:    "static-token-value",
 		HostID:   "wrong.role",
 		NodeName: "node-name",
-		Role:     teleport.RoleAuth,
+		Role:     types.RoleAuth,
 	})
 	c.Assert(err, NotNil)
 	r, _, err := s.a.ValidateToken("static-token-value")
@@ -647,7 +647,7 @@ func (s *AuthSuite) TestBadTokens(c *C) {
 	c.Assert(err, NotNil)
 
 	// tampered
-	tok, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleAuth}})
+	tok, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{types.RoleAuth}})
 	c.Assert(err, IsNil)
 
 	tampered := string(tok[0]+1) + tok[1:]
@@ -658,16 +658,16 @@ func (s *AuthSuite) TestBadTokens(c *C) {
 func (s *AuthSuite) TestGenerateTokenEventsEmitted(c *C) {
 	ctx := context.Background()
 	// test trusted cluster token emit
-	_, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleTrustedCluster}})
+	_, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{types.RoleTrustedCluster}})
 	c.Assert(err, IsNil)
 	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.TrustedClusterTokenCreateEvent)
 	s.mockEmitter.Reset()
 
 	// test emit with multiple roles
-	_, err = s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: teleport.Roles{
-		teleport.RoleNode,
-		teleport.RoleTrustedCluster,
-		teleport.RoleAuth,
+	_, err = s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{
+		types.RoleNode,
+		types.RoleTrustedCluster,
+		types.RoleAuth,
 	}})
 	c.Assert(err, IsNil)
 	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.TrustedClusterTokenCreateEvent)
@@ -804,7 +804,7 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{{
 			Token: "bar",
-			Roles: teleport.Roles{teleport.Role("baz")},
+			Roles: types.SystemRoles{types.SystemRole("baz")},
 		}},
 	})
 	c.Assert(err, IsNil)
@@ -820,7 +820,7 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(st.GetStaticTokens(), DeepEquals, types.ProvisionTokensFromV1([]types.ProvisionTokenV1{{
 		Token: "bar",
-		Roles: teleport.Roles{teleport.Role("baz")},
+		Roles: types.SystemRoles{types.SystemRole("baz")},
 	}}))
 
 	// check second auth server and make sure it also has the correct values
@@ -829,7 +829,7 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(st.GetStaticTokens(), DeepEquals, types.ProvisionTokensFromV1([]types.ProvisionTokenV1{{
 		Token: "bar",
-		Roles: teleport.Roles{teleport.Role("baz")},
+		Roles: types.SystemRoles{types.SystemRole("baz")},
 	}}))
 }
 

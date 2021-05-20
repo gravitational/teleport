@@ -28,7 +28,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
@@ -501,12 +500,12 @@ func TestApplyConfig(t *testing.T) {
 	require.Equal(t, types.ProvisionTokensFromV1([]types.ProvisionTokenV1{
 		{
 			Token:   "xxx",
-			Roles:   teleport.Roles([]teleport.Role{"Proxy", "Node"}),
+			Roles:   types.SystemRoles([]types.SystemRole{"Proxy", "Node"}),
 			Expires: time.Unix(0, 0).UTC(),
 		},
 		{
 			Token:   "yyy",
-			Roles:   teleport.Roles([]teleport.Role{"Auth"}),
+			Roles:   types.SystemRoles([]types.SystemRole{"Auth"}),
 			Expires: time.Unix(0, 0).UTC(),
 		},
 	}), cfg.Auth.StaticTokens.GetStaticTokens())

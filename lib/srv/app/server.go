@@ -44,7 +44,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type RotationGetter func(role teleport.Role) (*types.Rotation, error)
+type RotationGetter func(role types.SystemRole) (*types.Rotation, error)
 
 // Config is the configuration for an application server.
 type Config struct {
@@ -248,7 +248,7 @@ func (s *Server) GetServerInfo() (types.Resource, error) {
 	s.server.SetExpiry(s.c.Clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
 
 	// Update rotation state.
-	rotation, err := s.c.GetRotation(teleport.RoleApp)
+	rotation, err := s.c.GetRotation(types.RoleApp)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			s.log.Warningf("Failed to get rotation state: %v.", err)

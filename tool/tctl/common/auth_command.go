@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -328,7 +327,7 @@ func (a *AuthCommand) generateHostKeys(clusterAPI auth.ClientI) error {
 
 	key.Cert, err = clusterAPI.GenerateHostCert(key.Pub,
 		"", "", principals,
-		clusterName, teleport.Roles{teleport.RoleNode}, 0)
+		clusterName, types.SystemRoles{types.RoleNode}, 0)
 	if err != nil {
 		return trace.Wrap(err)
 	}

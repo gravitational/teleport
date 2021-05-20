@@ -65,7 +65,7 @@ type Config struct {
 	// Authorizer is used to authorize requests coming from proxy.
 	Authorizer auth.Authorizer
 	// GetRotation returns the certificate rotation state.
-	GetRotation func(role teleport.Role) (*types.Rotation, error)
+	GetRotation func(role types.SystemRole) (*types.Rotation, error)
 	// Servers contains a list of database servers this service proxies.
 	Servers types.DatabaseServers
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
@@ -282,7 +282,7 @@ func (s *Server) getServerInfoFunc(server types.DatabaseServer) func() (types.Re
 			server.SetDynamicLabels(labels.Get())
 		}
 		// Update CA rotation state.
-		rotation, err := s.cfg.GetRotation(teleport.RoleDatabase)
+		rotation, err := s.cfg.GetRotation(types.RoleDatabase)
 		if err != nil && !trace.IsNotFound(err) {
 			s.log.WithError(err).Warn("Failed to get rotation state.")
 		} else {

@@ -26,7 +26,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
@@ -47,7 +46,7 @@ import (
 
 // reconnectToAuthService continuously attempts to reconnect to the auth
 // service until succeeds or process gets shut down
-func (process *TeleportProcess) reconnectToAuthService(role teleport.Role) (*Connector, error) {
+func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*Connector, error) {
 	retryTime := defaults.HighResPollingPeriod
 	for {
 		connector, err := process.connectToAuthService(role)
@@ -81,7 +80,7 @@ func (process *TeleportProcess) reconnectToAuthService(role teleport.Role) (*Con
 
 // connectToAuthService attempts to login into the auth servers specified in the
 // configuration and receive credentials.
-func (process *TeleportProcess) connectToAuthService(role teleport.Role) (*Connector, error) {
+func (process *TeleportProcess) connectToAuthService(role types.SystemRole) (*Connector, error) {
 	connector, err := process.connect(role)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -93,7 +92,7 @@ func (process *TeleportProcess) connectToAuthService(role teleport.Role) (*Conne
 	return connector, nil
 }
 
-func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, err error) {
+func (process *TeleportProcess) connect(role types.SystemRole) (conn *Connector, err error) {
 	state, err := process.storage.GetState(role)
 	if err != nil {
 		if !trace.IsNotFound(err) {
@@ -112,7 +111,7 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 	// TODO(klizhentas): REMOVE IN 3.1
 	// this is a migration clutch, used to re-register
 	// in case if identity of the auth server does not have the wildcard cert
-	if role == teleport.RoleAdmin || role == teleport.RoleAuth {
+	if role == types.RoleAdmin || role == types.RoleAuth {
 		if !identity.HasDNSNames([]string{"*." + constants.APIDomain}) {
 			process.log.Debugf("Detected Auth server certificate without wildcard principals: %v, regenerating.", identity.Cert.ValidPrincipals)
 			return process.firstTimeConnect(role)
@@ -126,7 +125,7 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 	case "", types.RotationStateStandby:
 		// The roles of admin and auth are treated in a special way, as in this case
 		// the process does not need TLS clients and can use local auth directly.
-		if role == teleport.RoleAdmin || role == teleport.RoleAuth {
+		if role == types.RoleAdmin || role == types.RoleAuth {
 			return &Connector{
 				ClientIdentity: identity,
 				ServerIdentity: identity,
@@ -147,7 +146,7 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 		case types.RotationPhaseInit:
 			// Both clients and servers are using old credentials,
 			// this phase exists for remote clusters to propagate information about the new CA
-			if role == teleport.RoleAdmin || role == teleport.RoleAuth {
+			if role == types.RoleAdmin || role == types.RoleAuth {
 				return &Connector{
 					ClientIdentity: identity,
 					ServerIdentity: identity,
@@ -169,7 +168,7 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			if role == teleport.RoleAdmin || role == teleport.RoleAuth {
+			if role == types.RoleAdmin || role == types.RoleAuth {
 				return &Connector{
 					ClientIdentity: newIdentity,
 					ServerIdentity: identity,
@@ -191,7 +190,7 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			if role == teleport.RoleAdmin || role == teleport.RoleAuth {
+			if role == types.RoleAdmin || role == types.RoleAuth {
 				return &Connector{
 					ClientIdentity: newIdentity,
 					ServerIdentity: newIdentity,
@@ -211,7 +210,7 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 			// to the old certificate authority-issued credentials,
 			// but the new certificate authority should be trusted
 			// because not all clients can update at the same time.
-			if role == teleport.RoleAdmin || role == teleport.RoleAuth {
+			if role == types.RoleAdmin || role == types.RoleAuth {
 				return &Connector{
 					ClientIdentity: identity,
 					ServerIdentity: identity,
@@ -244,14 +243,14 @@ type KeyPair struct {
 	PublicTLSKey []byte
 }
 
-func (process *TeleportProcess) deleteKeyPair(role teleport.Role, reason string) {
+func (process *TeleportProcess) deleteKeyPair(role types.SystemRole, reason string) {
 	process.keyMutex.Lock()
 	defer process.keyMutex.Unlock()
 	process.log.Debugf("Deleted generated key pair %v %v.", role, reason)
 	delete(process.keyPairs, keyPairKey{role: role, reason: reason})
 }
 
-func (process *TeleportProcess) generateKeyPair(role teleport.Role, reason string) (*KeyPair, error) {
+func (process *TeleportProcess) generateKeyPair(role types.SystemRole, reason string) (*KeyPair, error) {
 	process.keyMutex.Lock()
 	defer process.keyMutex.Unlock()
 
@@ -284,7 +283,7 @@ func (process *TeleportProcess) generateKeyPair(role teleport.Role, reason strin
 // newWatcher returns a new watcher,
 // either using local auth server connection or remote client
 func (process *TeleportProcess) newWatcher(conn *Connector, watch types.Watch) (types.Watcher, error) {
-	if conn.ClientIdentity.ID.Role == teleport.RoleAdmin || conn.ClientIdentity.ID.Role == teleport.RoleAuth {
+	if conn.ClientIdentity.ID.Role == types.RoleAdmin || conn.ClientIdentity.ID.Role == types.RoleAuth {
 		return process.localAuth.NewWatcher(process.ExitContext(), watch)
 	}
 	return conn.Client.NewWatcher(process.ExitContext(), watch)
@@ -294,7 +293,7 @@ func (process *TeleportProcess) newWatcher(conn *Connector, watch types.Watch) (
 // In case if auth servers, the role is 'TeleportAdmin' and instead of using
 // TLS client this method uses the local auth server.
 func (process *TeleportProcess) getCertAuthority(conn *Connector, id types.CertAuthID, loadPrivateKeys bool) (types.CertAuthority, error) {
-	if conn.ClientIdentity.ID.Role == teleport.RoleAdmin || conn.ClientIdentity.ID.Role == teleport.RoleAuth {
+	if conn.ClientIdentity.ID.Role == types.RoleAdmin || conn.ClientIdentity.ID.Role == types.RoleAuth {
 		return process.localAuth.GetCertAuthority(id, loadPrivateKeys)
 	}
 	return conn.Client.GetCertAuthority(id, loadPrivateKeys)
@@ -304,7 +303,7 @@ func (process *TeleportProcess) getCertAuthority(conn *Connector, id types.CertA
 // In case if auth servers, the role is 'TeleportAdmin' and instead of using
 // TLS client this method uses the local auth server.
 func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals []string, dnsNames []string, rotation types.Rotation) (*auth.Identity, error) {
-	if conn.ClientIdentity.ID.Role == teleport.RoleAdmin || conn.ClientIdentity.ID.Role == teleport.RoleAuth {
+	if conn.ClientIdentity.ID.Role == types.RoleAdmin || conn.ClientIdentity.ID.Role == types.RoleAuth {
 		return auth.GenerateIdentity(process.localAuth, conn.ClientIdentity.ID, additionalPrincipals, dnsNames)
 	}
 	const reason = "re-register"
@@ -329,7 +328,7 @@ func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals
 	return identity, nil
 }
 
-func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector, error) {
+func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connector, error) {
 	id := auth.IdentityID{
 		Role:     role,
 		HostUUID: process.Config.HostUUID,
@@ -384,7 +383,7 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 
 	process.log.Infof("%v has obtained credentials to connect to cluster.", role)
 	var connector *Connector
-	if role == teleport.RoleAdmin || role == teleport.RoleAuth {
+	if role == types.RoleAdmin || role == types.RoleAuth {
 		connector = &Connector{
 			ClientIdentity: identity,
 			ServerIdentity: identity,
@@ -822,7 +821,7 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 	directErrLogger := logger.WithError(err)
 
 	// Don't attempt to connect through a tunnel as a proxy or auth server.
-	if identity.ID.Role == teleport.RoleAuth || identity.ID.Role == teleport.RoleProxy {
+	if identity.ID.Role == types.RoleAuth || identity.ID.Role == types.RoleProxy {
 		return nil, trace.Wrap(err)
 	}
 

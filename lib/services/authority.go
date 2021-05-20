@@ -22,7 +22,6 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -201,7 +200,7 @@ type HostCertParams struct {
 	// ClusterName is the name of the cluster within which a node lives
 	ClusterName string
 	// Roles identifies the roles of a Teleport instance
-	Roles teleport.Roles
+	Roles types.SystemRoles
 	// TTL defines how long a certificate is valid for
 	TTL time.Duration
 }

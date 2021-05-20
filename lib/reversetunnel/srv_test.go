@@ -21,7 +21,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -70,7 +69,7 @@ func TestServerKeyAuth(t *testing.T) {
 					HostID:              "host-id",
 					NodeName:            con.User(),
 					ClusterName:         "host-cluster-name",
-					Roles:               teleport.Roles{teleport.RoleNode},
+					Roles:               types.SystemRoles{types.RoleNode},
 				})
 				require.NoError(t, err)
 				key, _, _, _, err := ssh.ParseAuthorizedKey(rawCert)
@@ -80,7 +79,7 @@ func TestServerKeyAuth(t *testing.T) {
 			wantExtensions: map[string]string{
 				extHost:      con.User(),
 				extCertType:  extCertTypeHost,
-				extCertRole:  string(teleport.RoleNode),
+				extCertRole:  string(types.RoleNode),
 				extAuthority: "host-cluster-name",
 			},
 			wantErr: require.NoError,

@@ -24,7 +24,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -43,7 +42,7 @@ func TestUpsertServer(t *testing.T) {
 
 	tests := []struct {
 		desc       string
-		role       teleport.Role
+		role       types.SystemRole
 		reqServer  types.Server
 		wantServer types.Server
 		assertErr  require.ErrorAssertionFunc
@@ -55,7 +54,7 @@ func TestUpsertServer(t *testing.T) {
 				Version:  types.V2,
 				Kind:     types.KindNode,
 			},
-			role: teleport.RoleNode,
+			role: types.RoleNode,
 			wantServer: &types.ServerV2{
 				Metadata: types.Metadata{Name: "test-server", Namespace: defaults.Namespace},
 				Version:  types.V2,
@@ -70,7 +69,7 @@ func TestUpsertServer(t *testing.T) {
 				Version:  types.V2,
 				Kind:     types.KindProxy,
 			},
-			role: teleport.RoleProxy,
+			role: types.RoleProxy,
 			wantServer: &types.ServerV2{
 				Metadata: types.Metadata{Name: "test-server", Namespace: defaults.Namespace},
 				Version:  types.V2,
@@ -85,7 +84,7 @@ func TestUpsertServer(t *testing.T) {
 				Version:  types.V2,
 				Kind:     types.KindAuthServer,
 			},
-			role: teleport.RoleAuth,
+			role: types.RoleAuth,
 			wantServer: &types.ServerV2{
 				Metadata: types.Metadata{Name: "test-server", Namespace: defaults.Namespace},
 				Version:  types.V2,
@@ -100,7 +99,7 @@ func TestUpsertServer(t *testing.T) {
 				Version:  types.V2,
 				Kind:     types.KindNode,
 			},
-			role:      teleport.Role("unknown"),
+			role:      types.SystemRole("unknown"),
 			assertErr: require.Error,
 		},
 	}

@@ -436,7 +436,7 @@ func (a *Server) GetClusterCACert() (*LocalCAResponse, error) {
 
 // GenerateHostCert uses the private key of the CA to sign the public key of the host
 // (along with meta data like host ID, node name, roles, and ttl) to generate a host certificate.
-func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string, principals []string, clusterName string, roles teleport.Roles, ttl time.Duration) ([]byte, error) {
+func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string, principals []string, clusterName string, roles types.SystemRoles, ttl time.Duration) ([]byte, error) {
 	domainName, err := a.GetDomainName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1158,7 +1158,7 @@ type GenerateTokenRequest struct {
 	// Token if provided sets the token value, otherwise will be auto generated
 	Token string `json:"token"`
 	// Roles is a list of roles this token authenticates as
-	Roles teleport.Roles `json:"roles"`
+	Roles types.SystemRoles `json:"roles"`
 	// TTL is a time to live for token
 	TTL time.Duration `json:"ttl"`
 	// Labels sets token labels, e.g. {env: prod, region: us-west}.
@@ -1208,7 +1208,7 @@ func (a *Server) GenerateToken(ctx context.Context, req GenerateTokenRequest) (s
 
 	user := ClientUsername(ctx)
 	for _, role := range req.Roles {
-		if role == teleport.RoleTrustedCluster {
+		if role == types.RoleTrustedCluster {
 			if err := a.emitter.EmitAuditEvent(ctx, &events.TrustedClusterTokenCreate{
 				Metadata: events.Metadata{
 					Type: events.TrustedClusterTokenCreateEvent,
@@ -1248,7 +1248,7 @@ type GenerateServerKeysRequest struct {
 	// NodeName is a user friendly host name
 	NodeName string `json:"node_name"`
 	// Roles is a list of roles assigned to node
-	Roles teleport.Roles `json:"roles"`
+	Roles types.SystemRoles `json:"roles"`
 	// AdditionalPrincipals is a list of additional principals
 	// to include in OpenSSH and X509 certificates
 	AdditionalPrincipals []string `json:"additional_principals"`
@@ -1429,12 +1429,12 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	// HTTPS requests need to specify DNS name that should be present in the
 	// certificate as one of the DNS Names. It is not known in advance,
 	// that is why there is a default one for all certificates
-	if req.Roles.Include(teleport.RoleAuth) || req.Roles.Include(teleport.RoleAdmin) || req.Roles.Include(teleport.RoleProxy) || req.Roles.Include(teleport.RoleKube) || req.Roles.Include(teleport.RoleApp) {
+	if req.Roles.Include(types.RoleAuth) || req.Roles.Include(types.RoleAdmin) || req.Roles.Include(types.RoleProxy) || req.Roles.Include(types.RoleKube) || req.Roles.Include(types.RoleApp) {
 		certRequest.DNSNames = append(certRequest.DNSNames, "*."+constants.APIDomain, constants.APIDomain)
 	}
 	// Unlike additional principals, DNS Names is x509 specific and is limited
 	// to services with TLS endpoints (e.g. auth, proxies, kubernetes)
-	if req.Roles.Include(teleport.RoleAuth) || req.Roles.Include(teleport.RoleAdmin) || req.Roles.Include(teleport.RoleProxy) || req.Roles.Include(teleport.RoleKube) {
+	if req.Roles.Include(types.RoleAuth) || req.Roles.Include(types.RoleAdmin) || req.Roles.Include(types.RoleProxy) || req.Roles.Include(types.RoleKube) {
 		certRequest.DNSNames = append(certRequest.DNSNames, req.DNSNames...)
 	}
 	hostTLSCert, err := tlsAuthority.GenerateCertificate(certRequest)
@@ -1453,7 +1453,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 // ValidateToken takes a provisioning token value and finds if it's valid. Returns
 // a list of roles this token allows its owner to assume and token labels, or an error if the token
 // cannot be found.
-func (a *Server) ValidateToken(token string) (teleport.Roles, map[string]string, error) {
+func (a *Server) ValidateToken(token string) (types.SystemRoles, map[string]string, error) {
 	ctx := context.TODO()
 	tkns, err := a.GetCache().GetStaticTokens()
 	if err != nil {
@@ -1506,7 +1506,7 @@ type RegisterUsingTokenRequest struct {
 	// NodeName is a node name
 	NodeName string `json:"node_name"`
 	// Role is a system role, e.g. Proxy
-	Role teleport.Role `json:"role"`
+	Role types.SystemRole `json:"role"`
 	// Token is an authentication token
 	Token string `json:"token"`
 	// AdditionalPrincipals is a list of additional principals
@@ -1571,7 +1571,7 @@ func (a *Server) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys,
 	keys, err := a.GenerateServerKeys(GenerateServerKeysRequest{
 		HostID:               req.HostID,
 		NodeName:             req.NodeName,
-		Roles:                teleport.Roles{req.Role},
+		Roles:                types.SystemRoles{req.Role},
 		AdditionalPrincipals: req.AdditionalPrincipals,
 		PublicTLSKey:         req.PublicTLSKey,
 		PublicSSHKey:         req.PublicSSHKey,
@@ -1590,7 +1590,7 @@ func (a *Server) RegisterNewAuthServer(ctx context.Context, token string) error 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if !tok.GetRoles().Include(teleport.RoleAuth) {
+	if !tok.GetRoles().Include(types.RoleAuth) {
 		return trace.AccessDenied("role does not match")
 	}
 	if err := a.DeleteToken(ctx, token); err != nil {
@@ -1645,7 +1645,7 @@ func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 	}
 	// convert reset password tokens to machine tokens:
 	for _, t := range resetPasswordTokens {
-		roles := teleport.Roles{teleport.RoleSignup}
+		roles := types.SystemRoles{types.RoleSignup}
 		tok, err := types.NewProvisionToken(t.GetName(), roles, t.Expiry())
 		if err != nil {
 			return nil, trace.Wrap(err)

@@ -104,7 +104,7 @@ func (s *TLSSuite) TestRemoteBuiltinRole(c *check.C) {
 	// without trust, proxy server will get rejected
 	// remote auth server will get rejected because it is not supported
 	remoteProxy, err := remoteServer.NewRemoteClient(
-		TestBuiltin(teleport.RoleProxy), s.server.Addr(), certPool)
+		TestBuiltin(types.RoleProxy), s.server.Addr(), certPool)
 	c.Assert(err, check.IsNil)
 
 	// certificate authority is not recognized, because
@@ -118,7 +118,7 @@ func (s *TLSSuite) TestRemoteBuiltinRole(c *check.C) {
 
 	// re initialize client with trust established.
 	remoteProxy, err = remoteServer.NewRemoteClient(
-		TestBuiltin(teleport.RoleProxy), s.server.Addr(), certPool)
+		TestBuiltin(types.RoleProxy), s.server.Addr(), certPool)
 	c.Assert(err, check.IsNil)
 
 	_, err = remoteProxy.GetNodes(ctx, defaults.Namespace)
@@ -126,7 +126,7 @@ func (s *TLSSuite) TestRemoteBuiltinRole(c *check.C) {
 
 	// remote auth server will get rejected even with established trust
 	remoteAuth, err := remoteServer.NewRemoteClient(
-		TestBuiltin(teleport.RoleAuth), s.server.Addr(), certPool)
+		TestBuiltin(types.RoleAuth), s.server.Addr(), certPool)
 	c.Assert(err, check.IsNil)
 
 	_, err = remoteAuth.GetDomainName()
@@ -213,11 +213,11 @@ func (s *TLSSuite) TestRemoteRotation(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	remoteProxy, err := remoteServer.NewRemoteClient(
-		TestBuiltin(teleport.RoleProxy), s.server.Addr(), certPool)
+		TestBuiltin(types.RoleProxy), s.server.Addr(), certPool)
 	c.Assert(err, check.IsNil)
 
 	remoteAuth, err := remoteServer.NewRemoteClient(
-		TestBuiltin(teleport.RoleAuth), s.server.Addr(), certPool)
+		TestBuiltin(types.RoleAuth), s.server.Addr(), certPool)
 	c.Assert(err, check.IsNil)
 
 	// remote cluster starts rotation
@@ -284,7 +284,7 @@ func (s *TLSSuite) TestRemoteRotation(c *check.C) {
 
 	// newRemoteProxy should be trusted by the auth server
 	newRemoteProxy, err := remoteServer.NewRemoteClient(
-		TestBuiltin(teleport.RoleProxy), s.server.Addr(), certPool)
+		TestBuiltin(types.RoleProxy), s.server.Addr(), certPool)
 	c.Assert(err, check.IsNil)
 
 	_, err = newRemoteProxy.GetNodes(ctx, defaults.Namespace)
@@ -315,7 +315,7 @@ func (s *TLSSuite) TestLocalProxyPermissions(c *check.C) {
 	}, false)
 	c.Assert(err, check.IsNil)
 
-	proxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
+	proxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
 	c.Assert(err, check.IsNil)
 
 	// local proxy can't update local cert authorities
@@ -339,7 +339,7 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 	var ok bool
 
 	// create proxy client
-	proxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
+	proxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
 	c.Assert(err, check.IsNil)
 
 	// client works before rotation is initiated
@@ -374,7 +374,7 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// new clients work as well
-	_, err = s.server.NewClient(TestBuiltin(teleport.RoleProxy))
+	_, err = s.server.NewClient(TestBuiltin(types.RoleProxy))
 	c.Assert(err, check.IsNil)
 
 	// advance rotation by clock
@@ -394,7 +394,7 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// new clients work as well
-	newProxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
+	newProxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
 	c.Assert(err, check.IsNil)
 
 	_, err = newProxy.GetNodes(ctx, defaults.Namespace)
@@ -433,7 +433,7 @@ func (s *TLSSuite) TestAutoFallback(c *check.C) {
 	var ok bool
 
 	// create proxy client just for test purposes
-	proxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
+	proxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
 	c.Assert(err, check.IsNil)
 
 	// client works before rotation is initiated
@@ -489,7 +489,7 @@ func (s *TLSSuite) TestManualRotation(c *check.C) {
 	var ok bool
 
 	// create proxy client just for test purposes
-	proxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
+	proxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
 	c.Assert(err, check.IsNil)
 
 	// client works before rotation is initiated
@@ -535,7 +535,7 @@ func (s *TLSSuite) TestManualRotation(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// new clients work as well
-	newProxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
+	newProxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
 	c.Assert(err, check.IsNil)
 
 	_, err = newProxy.GetNodes(ctx, defaults.Namespace)
@@ -595,7 +595,7 @@ func (s *TLSSuite) TestRollback(c *check.C) {
 	var ok bool
 
 	// create proxy client just for test purposes
-	proxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
+	proxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
 	c.Assert(err, check.IsNil)
 
 	// client works before rotation is initiated
@@ -624,7 +624,7 @@ func (s *TLSSuite) TestRollback(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// new clients work
-	newProxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
+	newProxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
 	c.Assert(err, check.IsNil)
 
 	_, err = newProxy.GetNodes(ctx, defaults.Namespace)
@@ -683,7 +683,7 @@ func (s *TLSSuite) TestRollback(c *check.C) {
 // TestAppTokenRotation checks that JWT tokens can be rotated and tokens can or
 // can not be validated at the appropriate phase.
 func (s *TLSSuite) TestAppTokenRotation(c *check.C) {
-	client, err := s.server.NewClient(TestBuiltin(teleport.RoleApp))
+	client, err := s.server.NewClient(TestBuiltin(types.RoleApp))
 	c.Assert(err, check.IsNil)
 
 	// Create a JWT using the current CA, this will become the "old" CA during
@@ -965,7 +965,7 @@ func (s *TLSSuite) TestServersCRUD(c *check.C) {
 
 // TestAppServerCRUD tests CRUD functionality for services.App using an auth client.
 func (s *TLSSuite) TestAppServerCRUD(c *check.C) {
-	clt, err := s.server.NewClient(TestBuiltin(teleport.RoleApp))
+	clt, err := s.server.NewClient(TestBuiltin(types.RoleApp))
 	c.Assert(err, check.IsNil)
 
 	suite := &suite.ServicesTestSuite{
@@ -1049,7 +1049,7 @@ func (s *TLSSuite) TestTokens(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
 
-	out, err := clt.GenerateToken(ctx, GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleNode}})
+	out, err := clt.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}})
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Not(check.Equals), 0)
 }
@@ -1074,7 +1074,7 @@ func (s *TLSSuite) TestValidateUploadSessionRecording(c *check.C) {
 		},
 	}
 	for _, tt := range tests {
-		clt, err := s.server.NewClient(TestServerID(teleport.RoleNode, serverID))
+		clt, err := s.server.NewClient(TestServerID(types.RoleNode, serverID))
 		c.Assert(err, check.IsNil)
 
 		sessionID := session.NewID()
@@ -1170,7 +1170,7 @@ func (s *TLSSuite) TestValidatePostSessionSlice(c *check.C) {
 		},
 	}
 	for _, tt := range tests {
-		clt, err := s.server.NewClient(TestServerID(teleport.RoleNode, serverID))
+		clt, err := s.server.NewClient(TestServerID(types.RoleNode, serverID))
 		c.Assert(err, check.IsNil)
 
 		date := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
@@ -1428,7 +1428,7 @@ func (s *TLSSuite) TestWebSessionWithoutAccessRequest(c *check.C) {
 	_, _, err = CreateUserAndRole(clt, user, []string{user})
 	c.Assert(err, check.IsNil)
 
-	proxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
+	proxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
 	c.Assert(err, check.IsNil)
 
 	req := AuthenticateUserRequest{
@@ -1491,7 +1491,7 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	c.Assert(newUser.GetRoles(), check.HasLen, 1)
 	c.Assert(newUser.GetRoles(), check.DeepEquals, []string{"user:user2"})
 
-	proxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
+	proxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
 	c.Assert(err, check.IsNil)
 
 	// Create a user to create a web session for.
@@ -1576,7 +1576,7 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 func (s *TLSSuite) TestGetCertAuthority(c *check.C) {
 	ctx := context.Background()
 	// generate server keys for node
-	nodeClt, err := s.server.NewClient(TestIdentity{I: BuiltinRole{Username: "00000000-0000-0000-0000-000000000000", Role: teleport.RoleNode}})
+	nodeClt, err := s.server.NewClient(TestIdentity{I: BuiltinRole{Username: "00000000-0000-0000-0000-000000000000", Role: types.RoleNode}})
 	c.Assert(err, check.IsNil)
 	defer nodeClt.Close()
 
@@ -1878,14 +1878,14 @@ func TestGenerateCerts(t *testing.T) {
 
 	// generate server keys for node
 	hostID := "00000000-0000-0000-0000-000000000000"
-	hostClient, err := srv.NewClient(TestIdentity{I: BuiltinRole{Username: hostID, Role: teleport.RoleNode}})
+	hostClient, err := srv.NewClient(TestIdentity{I: BuiltinRole{Username: hostID, Role: types.RoleNode}})
 	require.NoError(t, err)
 
 	certs, err := hostClient.GenerateServerKeys(
 		GenerateServerKeysRequest{
 			HostID:               hostID,
 			NodeName:             srv.AuthServer.ClusterName,
-			Roles:                teleport.Roles{teleport.RoleNode},
+			Roles:                types.SystemRoles{types.RoleNode},
 			AdditionalPrincipals: []string{"example.com"},
 		})
 	require.NoError(t, err)
@@ -1896,14 +1896,14 @@ func TestGenerateCerts(t *testing.T) {
 
 	// sign server public keys for node
 	hostID = "00000000-0000-0000-0000-000000000000"
-	hostClient, err = srv.NewClient(TestIdentity{I: BuiltinRole{Username: hostID, Role: teleport.RoleNode}})
+	hostClient, err = srv.NewClient(TestIdentity{I: BuiltinRole{Username: hostID, Role: types.RoleNode}})
 	require.NoError(t, err)
 
 	certs, err = hostClient.GenerateServerKeys(
 		GenerateServerKeysRequest{
 			HostID:               hostID,
 			NodeName:             srv.AuthServer.ClusterName,
-			Roles:                teleport.Roles{teleport.RoleNode},
+			Roles:                types.SystemRoles{types.RoleNode},
 			AdditionalPrincipals: []string{"example.com"},
 			PublicSSHKey:         pub,
 			PublicTLSKey:         pubTLS,
@@ -1920,7 +1920,7 @@ func TestGenerateCerts(t *testing.T) {
 			GenerateServerKeysRequest{
 				HostID:   hostID,
 				NodeName: srv.AuthServer.ClusterName,
-				Roles:    teleport.Roles{teleport.RoleAdmin},
+				Roles:    types.SystemRoles{types.RoleAdmin},
 			})
 		require.True(t, trace.IsAccessDenied(err))
 
@@ -1928,7 +1928,7 @@ func TestGenerateCerts(t *testing.T) {
 		_, err = hostClient.GenerateServerKeys(GenerateServerKeysRequest{
 			HostID:   "some-other-host-id",
 			NodeName: srv.AuthServer.ClusterName,
-			Roles:    teleport.Roles{teleport.RoleNode},
+			Roles:    types.SystemRoles{types.RoleNode},
 		})
 		require.True(t, trace.IsAccessDenied(err))
 	})
@@ -2242,7 +2242,7 @@ func TestGenerateCerts(t *testing.T) {
 // TestGenerateAppToken checks the identity of the caller and makes sure only
 // certain roles can request JWT tokens.
 func (s *TLSSuite) TestGenerateAppToken(c *check.C) {
-	authClient, err := s.server.NewClient(TestBuiltin(teleport.RoleAdmin))
+	authClient, err := s.server.NewClient(TestBuiltin(types.RoleAdmin))
 	c.Assert(err, check.IsNil)
 
 	ca, err := authClient.GetCertAuthority(types.CertAuthID{
@@ -2255,22 +2255,22 @@ func (s *TLSSuite) TestGenerateAppToken(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	var tests = []struct {
-		inMachineRole teleport.Role
+		inMachineRole types.SystemRole
 		inComment     check.CommentInterface
 		outError      bool
 	}{
 		{
-			inMachineRole: teleport.RoleNode,
+			inMachineRole: types.RoleNode,
 			inComment:     check.Commentf("nodes should not have the ability to generate tokens"),
 			outError:      true,
 		},
 		{
-			inMachineRole: teleport.RoleProxy,
+			inMachineRole: types.RoleProxy,
 			inComment:     check.Commentf("proxies should not have the ability to generate tokens"),
 			outError:      true,
 		},
 		{
-			inMachineRole: teleport.RoleApp,
+			inMachineRole: types.RoleApp,
 			inComment:     check.Commentf("only apps should have the ability to generate tokens"),
 			outError:      false,
 		},
@@ -2348,7 +2348,7 @@ func (s *TLSSuite) TestCertificateFormat(c *check.C) {
 		err := s.server.Auth().UpsertRole(ctx, userRole)
 		c.Assert(err, check.IsNil)
 
-		proxyClient, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
+		proxyClient, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
 		c.Assert(err, check.IsNil)
 
 		// authentication attempt fails with password auth only
@@ -2378,7 +2378,7 @@ func (s *TLSSuite) TestCertificateFormat(c *check.C) {
 func (s *TLSSuite) TestClusterConfigContext(c *check.C) {
 	ctx := context.Background()
 
-	proxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
+	proxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
 	c.Assert(err, check.IsNil)
 
 	_, pub, err := s.server.Auth().GenerateKeyPair("")
@@ -2388,7 +2388,7 @@ func (s *TLSSuite) TestClusterConfigContext(c *check.C) {
 	// at the nodes not at the proxy
 	_, err = proxy.GenerateHostCert(pub,
 		"a", "b", nil,
-		"localhost", teleport.Roles{teleport.RoleProxy}, 0)
+		"localhost", types.SystemRoles{types.RoleProxy}, 0)
 	fixtures.ExpectAccessDenied(c, err)
 
 	// update cluster config to record at the proxy
@@ -2403,7 +2403,7 @@ func (s *TLSSuite) TestClusterConfigContext(c *check.C) {
 	// host cert because it's in recording mode.
 	_, err = proxy.GenerateHostCert(pub,
 		"a", "b", nil,
-		"localhost", teleport.Roles{teleport.RoleProxy}, 0)
+		"localhost", types.SystemRoles{types.RoleProxy}, 0)
 	c.Assert(err, check.IsNil)
 }
 
@@ -2433,7 +2433,7 @@ func (s *TLSSuite) TestAuthenticateWebUserOTP(c *check.C) {
 	validToken, err := totp.GenerateCode(otpSecret, s.clock.Now())
 	c.Assert(err, check.IsNil)
 
-	proxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
+	proxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
 	c.Assert(err, check.IsNil)
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -2499,7 +2499,7 @@ func (s *TLSSuite) TestLoginAttempts(c *check.C) {
 	_, _, err = CreateUserAndRole(clt, user, []string{user})
 	c.Assert(err, check.IsNil)
 
-	proxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
+	proxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
 	c.Assert(err, check.IsNil)
 
 	err = clt.UpsertPassword(user, pass)
@@ -2699,8 +2699,8 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 	ctx := context.Background()
 	// Generate a token to use.
 	token, err := s.server.AuthServer.AuthServer.GenerateToken(ctx, GenerateTokenRequest{
-		Roles: teleport.Roles{
-			teleport.RoleProxy,
+		Roles: types.SystemRoles{
+			types.RoleProxy,
 		},
 		TTL: time.Hour,
 	})
@@ -2731,7 +2731,7 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 		ID: IdentityID{
 			HostUUID: "once",
 			NodeName: "node-name",
-			Role:     teleport.RoleProxy,
+			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
 		PrivateKey:           priv,
@@ -2749,7 +2749,7 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 		ID: IdentityID{
 			HostUUID: "once",
 			NodeName: "node-name",
-			Role:     teleport.RoleProxy,
+			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
 		PrivateKey:           priv,
@@ -2767,8 +2767,8 @@ func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 	ctx := context.Background()
 	// Generate a token to use.
 	token, err := s.server.AuthServer.AuthServer.GenerateToken(ctx, GenerateTokenRequest{
-		Roles: teleport.Roles{
-			teleport.RoleProxy,
+		Roles: types.SystemRoles{
+			types.RoleProxy,
 		},
 		TTL: time.Hour,
 	})
@@ -2789,7 +2789,7 @@ func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 		ID: IdentityID{
 			HostUUID: "once",
 			NodeName: "node-name",
-			Role:     teleport.RoleProxy,
+			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
 		PrivateKey:           priv,
@@ -2820,7 +2820,7 @@ func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 		ID: IdentityID{
 			HostUUID: "once",
 			NodeName: "node-name",
-			Role:     teleport.RoleProxy,
+			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
 		PrivateKey:           priv,
@@ -2850,7 +2850,7 @@ func (s *TLSSuite) TestEventsNodePresence(c *check.C) {
 	node.SetExpiry(time.Now().Add(2 * time.Second))
 	clt, err := s.server.NewClient(TestIdentity{
 		I: BuiltinRole{
-			Role:     teleport.RoleNode,
+			Role:     types.RoleNode,
 			Username: fmt.Sprintf("%v.%v", node.Metadata.Name, s.server.ClusterName()),
 		},
 	})
@@ -2876,7 +2876,7 @@ func (s *TLSSuite) TestEventsNodePresence(c *check.C) {
 	}
 
 	// upsert node and keep alives will fail for users with no privileges
-	nopClt, err := s.server.NewClient(TestBuiltin(teleport.RoleNop))
+	nopClt, err := s.server.NewClient(TestBuiltin(types.RoleNop))
 	c.Assert(err, check.IsNil)
 	defer nopClt.Close()
 
@@ -2906,7 +2906,7 @@ func (s *TLSSuite) TestEventsNodePresence(c *check.C) {
 // TestEventsPermissions tests events with regards
 // to certificate authority rotation
 func (s *TLSSuite) TestEventsPermissions(c *check.C) {
-	clt, err := s.server.NewClient(TestBuiltin(teleport.RoleNode))
+	clt, err := s.server.NewClient(TestBuiltin(types.RoleNode))
 	c.Assert(err, check.IsNil)
 	defer clt.Close()
 
@@ -2949,22 +2949,22 @@ func (s *TLSSuite) TestEventsPermissions(c *check.C) {
 	testCases := []testCase{
 		{
 			name:     "node role is not authorized to get certificate authority with secret data loaded",
-			identity: TestBuiltin(teleport.RoleNode),
+			identity: TestBuiltin(types.RoleNode),
 			watches:  []types.WatchKind{{Kind: types.KindCertAuthority, LoadSecrets: true}},
 		},
 		{
 			name:     "node role is not authorized to watch static tokens",
-			identity: TestBuiltin(teleport.RoleNode),
+			identity: TestBuiltin(types.RoleNode),
 			watches:  []types.WatchKind{{Kind: types.KindStaticTokens}},
 		},
 		{
 			name:     "node role is not authorized to watch provisioning tokens",
-			identity: TestBuiltin(teleport.RoleNode),
+			identity: TestBuiltin(types.RoleNode),
 			watches:  []types.WatchKind{{Kind: types.KindToken}},
 		},
 		{
 			name:     "nop role is not authorized to watch users and roles",
-			identity: TestBuiltin(teleport.RoleNop),
+			identity: TestBuiltin(types.RoleNop),
 			watches: []types.WatchKind{
 				{Kind: types.KindUser},
 				{Kind: types.KindRole},
@@ -2972,12 +2972,12 @@ func (s *TLSSuite) TestEventsPermissions(c *check.C) {
 		},
 		{
 			name:     "nop role is not authorized to watch cert authorities",
-			identity: TestBuiltin(teleport.RoleNop),
+			identity: TestBuiltin(types.RoleNop),
 			watches:  []types.WatchKind{{Kind: types.KindCertAuthority, LoadSecrets: false}},
 		},
 		{
 			name:     "nop role is not authorized to watch cluster config",
-			identity: TestBuiltin(teleport.RoleNop),
+			identity: TestBuiltin(types.RoleNop),
 			watches:  []types.WatchKind{{Kind: types.KindClusterConfig, LoadSecrets: false}},
 		},
 	}
@@ -3033,7 +3033,7 @@ func (s *TLSSuite) TestEvents(c *check.C) {
 
 // TestEventsClusterConifg test cluster configuration
 func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
-	clt, err := s.server.NewClient(TestBuiltin(teleport.RoleAdmin))
+	clt, err := s.server.NewClient(TestBuiltin(types.RoleAdmin))
 	c.Assert(err, check.IsNil)
 	defer clt.Close()
 
@@ -3078,7 +3078,7 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 		StaticTokens: []types.ProvisionTokenV1{
 			{
 				Token:   "tok1",
-				Roles:   teleport.Roles{teleport.RoleNode},
+				Roles:   types.SystemRoles{types.RoleNode},
 				Expires: time.Now().UTC().Add(time.Hour),
 			},
 		},
@@ -3094,7 +3094,7 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 
 	// create provision token and expect the update event
 	token, err := types.NewProvisionToken(
-		"tok2", teleport.Roles{teleport.RoleProxy}, time.Now().UTC().Add(3*time.Hour))
+		"tok2", types.SystemRoles{types.RoleProxy}, time.Now().UTC().Add(3*time.Hour))
 	c.Assert(err, check.IsNil)
 
 	err = s.server.Auth().UpsertToken(ctx, token)

@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -74,7 +75,7 @@ func (s *AuthSuite) GenerateHostCert(c *check.C) {
 			HostID:              "00000000-0000-0000-0000-000000000000",
 			NodeName:            "auth.example.com",
 			ClusterName:         "example.com",
-			Roles:               teleport.Roles{teleport.RoleAdmin},
+			Roles:               types.SystemRoles{types.RoleAdmin},
 			TTL:                 time.Hour,
 		})
 	c.Assert(err, check.IsNil)

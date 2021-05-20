@@ -600,16 +600,16 @@ func (s *ServicesTestSuite) TokenCRUD(c *check.C) {
 	_, err := s.ProvisioningS.GetToken(ctx, "token")
 	fixtures.ExpectNotFound(c, err)
 
-	t, err := types.NewProvisionToken("token", teleport.Roles{teleport.RoleAuth, teleport.RoleNode}, time.Time{})
+	t, err := types.NewProvisionToken("token", types.SystemRoles{types.RoleAuth, types.RoleNode}, time.Time{})
 	c.Assert(err, check.IsNil)
 
 	c.Assert(s.ProvisioningS.UpsertToken(ctx, t), check.IsNil)
 
 	token, err := s.ProvisioningS.GetToken(ctx, "token")
 	c.Assert(err, check.IsNil)
-	c.Assert(token.GetRoles().Include(teleport.RoleAuth), check.Equals, true)
-	c.Assert(token.GetRoles().Include(teleport.RoleNode), check.Equals, true)
-	c.Assert(token.GetRoles().Include(teleport.RoleProxy), check.Equals, false)
+	c.Assert(token.GetRoles().Include(types.RoleAuth), check.Equals, true)
+	c.Assert(token.GetRoles().Include(types.RoleNode), check.Equals, true)
+	c.Assert(token.GetRoles().Include(types.RoleProxy), check.Equals, false)
 	diff := s.Clock.Now().UTC().Add(defaults.ProvisioningTokenTTL).Second() - token.Expiry().Second()
 	if diff > 1 {
 		c.Fatalf("expected diff to be within one second, got %v instead", diff)
@@ -624,7 +624,7 @@ func (s *ServicesTestSuite) TokenCRUD(c *check.C) {
 	expiry := time.Now().UTC().Add(time.Hour)
 	v1 := &types.ProvisionTokenV1{
 		Token:   "old",
-		Roles:   teleport.Roles{teleport.RoleNode, teleport.RoleProxy},
+		Roles:   types.SystemRoles{types.RoleNode, types.RoleProxy},
 		Expires: expiry,
 	}
 	v2, err := types.NewProvisionToken(v1.Token, v1.Roles, expiry)
@@ -644,11 +644,11 @@ func (s *ServicesTestSuite) TokenCRUD(c *check.C) {
 	fixtures.DeepCompare(c, out, v2)
 
 	// Test delete all tokens
-	t, err = types.NewProvisionToken("token1", teleport.Roles{teleport.RoleAuth, teleport.RoleNode}, time.Time{})
+	t, err = types.NewProvisionToken("token1", types.SystemRoles{types.RoleAuth, types.RoleNode}, time.Time{})
 	c.Assert(err, check.IsNil)
 	c.Assert(s.ProvisioningS.UpsertToken(ctx, t), check.IsNil)
 
-	t, err = types.NewProvisionToken("token2", teleport.Roles{teleport.RoleAuth, teleport.RoleNode}, time.Time{})
+	t, err = types.NewProvisionToken("token2", types.SystemRoles{types.RoleAuth, types.RoleNode}, time.Time{})
 	c.Assert(err, check.IsNil)
 	c.Assert(s.ProvisioningS.UpsertToken(ctx, t), check.IsNil)
 
@@ -1088,7 +1088,7 @@ func (s *ServicesTestSuite) StaticTokens(c *check.C) {
 		StaticTokens: []types.ProvisionTokenV1{
 			{
 				Token:   "tok1",
-				Roles:   teleport.Roles{teleport.RoleNode},
+				Roles:   types.SystemRoles{types.RoleNode},
 				Expires: time.Now().UTC().Add(time.Hour),
 			},
 		},
@@ -1490,7 +1490,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 			crud: func() types.Resource {
 				expires := time.Now().UTC().Add(time.Hour)
 				t, err := types.NewProvisionToken("token",
-					teleport.Roles{teleport.RoleAuth, teleport.RoleNode}, expires)
+					types.SystemRoles{types.RoleAuth, types.RoleNode}, expires)
 				c.Assert(err, check.IsNil)
 
 				c.Assert(s.ProvisioningS.UpsertToken(ctx, t), check.IsNil)
@@ -1538,7 +1538,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 					StaticTokens: []types.ProvisionTokenV1{
 						{
 							Token:   "tok1",
-							Roles:   teleport.Roles{teleport.RoleNode},
+							Roles:   types.SystemRoles{types.RoleNode},
 							Expires: time.Now().UTC().Add(time.Hour),
 						},
 					},

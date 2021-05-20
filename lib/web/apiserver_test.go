@@ -171,7 +171,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	certs, err := s.server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
 		HostID:   hostID,
 		NodeName: s.server.ClusterName(),
-		Roles:    teleport.Roles{teleport.RoleNode},
+		Roles:    types.SystemRoles{types.RoleNode},
 	})
 	c.Assert(err, IsNil)
 
@@ -181,7 +181,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	nodeID := "node"
 	nodeClient, err := s.server.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
-			Role:     teleport.RoleNode,
+			Role:     types.RoleNode,
 			Username: nodeID,
 		},
 	})
@@ -217,7 +217,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	proxyID := "proxy"
 	s.proxyClient, err = s.server.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
-			Role:     teleport.RoleProxy,
+			Role:     types.RoleProxy,
 			Username: proxyID,
 		},
 	})
@@ -1096,7 +1096,7 @@ func (s *WebSuite) TestActiveSessions(c *C) {
 // Tests the code snippet from apiserver.(*Handler).siteSessionGet/siteSessionsGet
 // that tests empty ClusterName and ServerHostname gets set.
 func (s *WebSuite) TestEmptySessionClusterHostnameIsSet(c *C) {
-	nodeClient, err := s.server.NewClient(auth.TestBuiltin(teleport.RoleNode))
+	nodeClient, err := s.server.NewClient(auth.TestBuiltin(types.RoleNode))
 	c.Assert(err, IsNil)
 
 	// Create a session with empty ClusterName.
@@ -2504,7 +2504,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	certs, err := server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
 		HostID:   hostID,
 		NodeName: server.TLS.ClusterName(),
-		Roles:    teleport.Roles{teleport.RoleNode},
+		Roles:    types.SystemRoles{types.RoleNode},
 	})
 	require.NoError(t, err)
 
@@ -2514,7 +2514,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	const nodeID = "node"
 	nodeClient, err := server.TLS.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
-			Role:     teleport.RoleNode,
+			Role:     types.RoleNode,
 			Username: nodeID,
 		},
 	})
@@ -2579,7 +2579,7 @@ func createProxy(t *testing.T, proxyID string, node *regular.Server, authServer 
 	// create reverse tunnel service:
 	client, err := authServer.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
-			Role:     teleport.RoleProxy,
+			Role:     types.RoleProxy,
 			Username: proxyID,
 		},
 	})

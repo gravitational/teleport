@@ -386,7 +386,7 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		keys, err := authServer.GenerateServerKeys(GenerateServerKeysRequest{
 			HostID:   id.Username,
 			NodeName: id.Username,
-			Roles:    teleport.Roles{id.Role},
+			Roles:    types.SystemRoles{id.Role},
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -551,7 +551,7 @@ func NewTestTLSServer(cfg TestTLSServerConfig) (*TestTLSServer, error) {
 	srv := &TestTLSServer{
 		TestTLSServerConfig: cfg,
 	}
-	srv.Identity, err = NewServerIdentity(srv.AuthServer.AuthServer, "test-tls-server", teleport.RoleAuth)
+	srv.Identity, err = NewServerIdentity(srv.AuthServer.AuthServer, "test-tls-server", types.RoleAuth)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -615,11 +615,11 @@ func TestNop() TestIdentity {
 
 // TestAdmin returns TestIdentity for admin user
 func TestAdmin() TestIdentity {
-	return TestBuiltin(teleport.RoleAdmin)
+	return TestBuiltin(types.RoleAdmin)
 }
 
 // TestBuiltin returns TestIdentity for builtin user
-func TestBuiltin(role teleport.Role) TestIdentity {
+func TestBuiltin(role types.SystemRole) TestIdentity {
 	return TestIdentity{
 		I: BuiltinRole{
 			Role:     role,
@@ -629,7 +629,7 @@ func TestBuiltin(role teleport.Role) TestIdentity {
 }
 
 // TestServerID returns a TestIdentity for a node with the passed in serverID.
-func TestServerID(role teleport.Role, serverID string) TestIdentity {
+func TestServerID(role types.SystemRole, serverID string) TestIdentity {
 	return TestIdentity{
 		I: BuiltinRole{
 			Role:     role,
@@ -789,11 +789,11 @@ func (t *TestTLSServer) Stop() error {
 }
 
 // NewServerIdentity generates new server identity, used in tests
-func NewServerIdentity(clt *Server, hostID string, role teleport.Role) (*Identity, error) {
+func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*Identity, error) {
 	keys, err := clt.GenerateServerKeys(GenerateServerKeysRequest{
 		HostID:   hostID,
 		NodeName: hostID,
-		Roles:    teleport.Roles{teleport.RoleAuth},
+		Roles:    types.SystemRoles{types.RoleAuth},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

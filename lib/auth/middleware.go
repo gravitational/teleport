@@ -418,8 +418,8 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 	if len(peers) == 0 {
 		return BuiltinRole{
 			GetSessionRecordingConfig: a.AccessPoint.GetSessionRecordingConfig,
-			Role:                      teleport.RoleNop,
-			Username:                  string(teleport.RoleNop),
+			Role:                      types.RoleNop,
+			Username:                  string(types.RoleNop),
 			ClusterName:               localClusterName.GetClusterName(),
 			Identity:                  tlsca.Identity{},
 		}, nil
@@ -509,9 +509,9 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 	}, nil
 }
 
-func findSystemRole(roles []string) *teleport.Role {
+func findSystemRole(roles []string) *types.SystemRole {
 	for _, role := range roles {
-		systemRole := teleport.Role(role)
+		systemRole := types.SystemRole(role)
 		err := systemRole.Check()
 		if err == nil {
 			return &systemRole

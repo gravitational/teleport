@@ -519,7 +519,7 @@ func (t StaticToken) Parse() (*types.ProvisionTokenV1, error) {
 		return nil, trace.BadParameter("invalid static token spec: %q", t)
 	}
 
-	roles, err := teleport.ParseRoles(parts[0])
+	roles, err := types.ParseTeleportRoles(parts[0])
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

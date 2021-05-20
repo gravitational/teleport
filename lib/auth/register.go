@@ -44,7 +44,7 @@ func LocalRegister(id IdentityID, authServer *Server, additionalPrincipals, dnsN
 	keys, err := authServer.GenerateServerKeys(GenerateServerKeysRequest{
 		HostID:               id.HostUUID,
 		NodeName:             id.NodeName,
-		Roles:                teleport.Roles{id.Role},
+		Roles:                types.SystemRoles{id.Role},
 		AdditionalPrincipals: additionalPrincipals,
 		RemoteAddr:           remoteAddr,
 		DNSNames:             dnsNames,
@@ -387,7 +387,7 @@ func ReRegister(params ReRegisterParams) (*Identity, error) {
 	keys, err := params.Client.GenerateServerKeys(GenerateServerKeysRequest{
 		HostID:               hostID,
 		NodeName:             params.ID.NodeName,
-		Roles:                teleport.Roles{params.ID.Role},
+		Roles:                types.SystemRoles{params.ID.Role},
 		AdditionalPrincipals: params.AdditionalPrincipals,
 		DNSNames:             params.DNSNames,
 		PublicTLSKey:         params.PublicTLSKey,

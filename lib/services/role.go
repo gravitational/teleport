@@ -1017,7 +1017,7 @@ func ExtractTraitsFromCert(cert *ssh.Certificate) (wrappers.Traits, error) {
 func NewRoleSet(roles ...types.Role) RoleSet {
 	// unauthenticated Nop role should not have any privileges
 	// by default, otherwise it is too permissive
-	if len(roles) == 1 && roles[0].GetName() == string(teleport.RoleNop) {
+	if len(roles) == 1 && roles[0].GetName() == string(types.RoleNop) {
 		return roles
 	}
 	return append(roles, NewImplicitRole())

@@ -257,10 +257,10 @@ type TeleportProcess struct {
 	auditLog events.IAuditLog
 
 	// identities of this process (credentials to auth sever, basically)
-	Identities map[teleport.Role]*auth.Identity
+	Identities map[types.SystemRole]*auth.Identity
 
 	// connectors is a list of connected clients and their identities
-	connectors map[teleport.Role]*Connector
+	connectors map[types.SystemRole]*Connector
 
 	// registeredListeners keeps track of all listeners created by the process
 	// used to pass listeners to child processes during live reload
@@ -302,7 +302,7 @@ type TeleportProcess struct {
 }
 
 type keyPairKey struct {
-	role   teleport.Role
+	role   types.SystemRole
 	reason string
 }
 
@@ -380,7 +380,7 @@ func (process *TeleportProcess) getClusterFeatures() proto.Features {
 // GetIdentity returns the process identity (credentials to the auth server) for a given
 // teleport Role. A teleport process can have any combination of 3 roles: auth, node, proxy
 // and they have their own identities
-func (process *TeleportProcess) GetIdentity(role teleport.Role) (i *auth.Identity, err error) {
+func (process *TeleportProcess) GetIdentity(role types.SystemRole) (i *auth.Identity, err error) {
 	var found bool
 
 	process.Lock()
@@ -400,7 +400,7 @@ func (process *TeleportProcess) GetIdentity(role teleport.Role) (i *auth.Identit
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
-		if role == teleport.RoleAdmin {
+		if role == types.RoleAdmin {
 			// for admin identity use local auth server
 			// because admin identity is requested by auth server
 			// itself
@@ -662,8 +662,8 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		Clock:               cfg.Clock,
 		Supervisor:          supervisor,
 		Config:              cfg,
-		Identities:          make(map[teleport.Role]*auth.Identity),
-		connectors:          make(map[teleport.Role]*Connector),
+		Identities:          make(map[types.SystemRole]*auth.Identity),
+		connectors:          make(map[types.SystemRole]*Connector),
 		importedDescriptors: cfg.FileDescriptors,
 		storage:             storage,
 		id:                  processID,
@@ -1194,7 +1194,7 @@ func (process *TeleportProcess) initAuthService() error {
 
 	process.setLocalAuth(authServer)
 
-	connector, err := process.connectToAuthService(teleport.RoleAdmin)
+	connector, err := process.connectToAuthService(types.RoleAdmin)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1301,7 +1301,7 @@ func (process *TeleportProcess) initAuthService() error {
 	process.RegisterFunc("auth.heartbeat.broadcast", func() error {
 		// Heart beat auth server presence, this is not the best place for this
 		// logic, consolidate it into auth package later
-		connector, err := process.connectToAuthService(teleport.RoleAdmin)
+		connector, err := process.connectToAuthService(types.RoleAdmin)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1361,7 +1361,7 @@ func (process *TeleportProcess) initAuthService() error {
 					Version:  teleport.Version,
 				},
 			}
-			state, err := process.storage.GetState(teleport.RoleAdmin)
+			state, err := process.storage.GetState(types.RoleAdmin)
 			if err != nil {
 				if !trace.IsNotFound(err) {
 					log.Warningf("Failed to get rotation state: %v.", err)
@@ -1590,7 +1590,7 @@ func (process *TeleportProcess) newLocalCache(clt auth.ClientI, setupConfig cach
 	return auth.NewWrapper(clt, cache), nil
 }
 
-func (process *TeleportProcess) getRotation(role teleport.Role) (*types.Rotation, error) {
+func (process *TeleportProcess) getRotation(role types.SystemRole) (*types.Rotation, error) {
 	state, err := process.storage.GetState(role)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1625,7 +1625,7 @@ func (process *TeleportProcess) newAsyncEmitter(clt events.Emitter) (*events.Asy
 
 // initSSH initializes the "node" role, i.e. a simple SSH server connected to the auth server.
 func (process *TeleportProcess) initSSH() error {
-	process.registerWithAuthServer(teleport.RoleNode, SSHIdentityEvent)
+	process.registerWithAuthServer(types.RoleNode, SSHIdentityEvent)
 	eventsC := make(chan Event)
 	process.WaitForEvent(process.ExitContext(), SSHIdentityEvent, eventsC)
 
@@ -1885,7 +1885,7 @@ func (process *TeleportProcess) initSSH() error {
 // registerWithAuthServer uses one time provisioning token obtained earlier
 // from the server to get a pair of SSH keys signed by Auth server host
 // certificate authority
-func (process *TeleportProcess) registerWithAuthServer(role teleport.Role, eventName string) {
+func (process *TeleportProcess) registerWithAuthServer(role types.SystemRole, eventName string) {
 	serviceName := strings.ToLower(role.String())
 	process.RegisterCriticalFunc(fmt.Sprintf("register.%v", serviceName), func() error {
 		connector, err := process.reconnectToAuthService(role)
@@ -2109,7 +2109,7 @@ func (process *TeleportProcess) initDiagnosticService() error {
 
 // getAdditionalPrincipals returns a list of additional principals to add
 // to role's service certificates.
-func (process *TeleportProcess) getAdditionalPrincipals(role teleport.Role) ([]string, []string, error) {
+func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole) ([]string, []string, error) {
 	var principals []string
 	var dnsNames []string
 	if process.Config.Hostname != "" {
@@ -2117,7 +2117,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role teleport.Role) ([]s
 	}
 	var addrs []utils.NetAddr
 	switch role {
-	case teleport.RoleProxy:
+	case types.RoleProxy:
 		addrs = append(process.Config.Proxy.PublicAddrs,
 			utils.NetAddr{Addr: string(teleport.PrincipalLocalhost)},
 			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV4)},
@@ -2141,9 +2141,9 @@ func (process *TeleportProcess) getAdditionalPrincipals(role teleport.Role) ([]s
 				}
 			}
 		}
-	case teleport.RoleAuth, teleport.RoleAdmin:
+	case types.RoleAuth, types.RoleAdmin:
 		addrs = process.Config.Auth.PublicAddrs
-	case teleport.RoleNode:
+	case types.RoleNode:
 		// DELETE IN 5.0: We are manually adding HostUUID here in order
 		// to allow UUID based routing to function with older Auth Servers
 		// which don't automatically add UUID to the principal list.
@@ -2161,7 +2161,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role teleport.Role) ([]s
 		} else {
 			addrs = append(addrs, process.Config.SSH.Addr)
 		}
-	case teleport.RoleKube:
+	case types.RoleKube:
 		addrs = append(addrs,
 			utils.NetAddr{Addr: string(teleport.PrincipalLocalhost)},
 			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV4)},
@@ -2169,7 +2169,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role teleport.Role) ([]s
 			utils.NetAddr{Addr: reversetunnel.LocalKubernetes},
 		)
 		addrs = append(addrs, process.Config.Kube.PublicAddrs...)
-	case teleport.RoleApp:
+	case types.RoleApp:
 		principals = append(principals, process.Config.HostUUID)
 	}
 	for _, addr := range addrs {
@@ -2201,7 +2201,7 @@ func (process *TeleportProcess) initProxy() error {
 			return trace.Wrap(err)
 		}
 	}
-	process.registerWithAuthServer(teleport.RoleProxy, ProxyIdentityEvent)
+	process.registerWithAuthServer(types.RoleProxy, ProxyIdentityEvent)
 	process.RegisterCriticalFunc("proxy.init", func() error {
 		eventsC := make(chan Event)
 		process.WaitForEvent(process.ExitContext(), ProxyIdentityEvent, eventsC)
@@ -2946,7 +2946,7 @@ func (process *TeleportProcess) initApps() {
 	// be returned. For this to be successful, credentials to connect to the
 	// Auth Server need to exist on disk or a registration token should be
 	// provided.
-	process.registerWithAuthServer(teleport.RoleApp, AppsIdentityEvent)
+	process.registerWithAuthServer(types.RoleApp, AppsIdentityEvent)
 	eventsCh := make(chan Event)
 	process.WaitForEvent(process.ExitContext(), AppsIdentityEvent, eventsCh)
 

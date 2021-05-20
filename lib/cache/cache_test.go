@@ -24,7 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -784,7 +783,7 @@ func (s *CacheSuite) TestTokens(c *check.C) {
 		StaticTokens: []types.ProvisionTokenV1{
 			{
 				Token:   "static1",
-				Roles:   teleport.Roles{teleport.RoleAuth, teleport.RoleNode},
+				Roles:   types.SystemRoles{types.RoleAuth, types.RoleNode},
 				Expires: time.Now().UTC().Add(time.Hour),
 			},
 		},
@@ -807,7 +806,7 @@ func (s *CacheSuite) TestTokens(c *check.C) {
 	fixtures.DeepCompare(c, staticTokens, out)
 
 	expires := time.Now().Add(10 * time.Hour).Truncate(time.Second).UTC()
-	token, err := types.NewProvisionToken("token", teleport.Roles{teleport.RoleAuth, teleport.RoleNode}, expires)
+	token, err := types.NewProvisionToken("token", types.SystemRoles{types.RoleAuth, types.RoleNode}, expires)
 	c.Assert(err, check.IsNil)
 
 	err = p.provisionerS.UpsertToken(ctx, token)

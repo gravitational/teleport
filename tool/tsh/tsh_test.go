@@ -29,7 +29,6 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
@@ -805,7 +804,7 @@ func makeTestServers(t *testing.T, bootstrap ...types.Resource) (auth *service.T
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	cfg.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{{
-			Roles:   []teleport.Role{teleport.RoleProxy},
+			Roles:   []types.SystemRole{types.RoleProxy},
 			Expires: time.Now().Add(time.Minute),
 			Token:   staticToken,
 		}},

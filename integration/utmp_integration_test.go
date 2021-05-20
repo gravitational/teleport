@@ -23,7 +23,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -177,7 +176,7 @@ func newSrvCtx(t *testing.T) *SrvCtx {
 	certs, err := s.server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
 		HostID:   hostID,
 		NodeName: s.server.ClusterName(),
-		Roles:    teleport.Roles{teleport.RoleNode},
+		Roles:    types.SystemRoles{types.RoleNode},
 	})
 	require.NoError(t, err)
 
@@ -188,7 +187,7 @@ func newSrvCtx(t *testing.T) *SrvCtx {
 	s.nodeID = uuid.New()
 	s.nodeClient, err = s.server.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
-			Role:     teleport.RoleNode,
+			Role:     types.RoleNode,
 			Username: s.nodeID,
 		},
 	})

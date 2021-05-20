@@ -317,7 +317,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 }
 
 // RotationGetter returns rotation state
-type RotationGetter func(role teleport.Role) (*types.Rotation, error)
+type RotationGetter func(role types.SystemRole) (*types.Rotation, error)
 
 // SetUtmpPath is a functional server option to override the user accounting database and log path.
 func SetUtmpPath(utmpPath, wtmpPath string) ServerOption {
@@ -715,11 +715,11 @@ func (s *Server) AdvertiseAddr() string {
 	return net.JoinHostPort(ahost, aport)
 }
 
-func (s *Server) getRole() teleport.Role {
+func (s *Server) getRole() types.SystemRole {
 	if s.proxyMode {
-		return teleport.RoleProxy
+		return types.RoleProxy
 	}
-	return teleport.RoleNode
+	return types.RoleNode
 }
 
 // getDynamicLabels returns all dynamic labels. If no dynamic labels are

@@ -65,7 +65,7 @@ func TestReadIdentity(t *testing.T) {
 		HostID:              "id1",
 		NodeName:            "node-name",
 		ClusterName:         "example.com",
-		Roles:               teleport.Roles{teleport.RoleNode},
+		Roles:               types.SystemRoles{types.RoleNode},
 		TTL:                 0,
 	})
 	require.NoError(t, err)
@@ -73,7 +73,7 @@ func TestReadIdentity(t *testing.T) {
 	id, err := ReadSSHIdentityFromKeyPair(priv, cert)
 	require.NoError(t, err)
 	require.Equal(t, id.ClusterName, "example.com")
-	require.Equal(t, id.ID, IdentityID{HostUUID: "id1.example.com", Role: teleport.RoleNode})
+	require.Equal(t, id.ID, IdentityID{HostUUID: "id1.example.com", Role: types.RoleNode})
 	require.Equal(t, id.CertBytes, cert)
 	require.Equal(t, id.KeyBytes, priv)
 
@@ -87,7 +87,7 @@ func TestReadIdentity(t *testing.T) {
 		HostID:              "id1",
 		NodeName:            "node-name",
 		ClusterName:         "example.com",
-		Roles:               teleport.Roles{teleport.RoleNode},
+		Roles:               types.SystemRoles{types.RoleNode},
 		TTL:                 ttl,
 	})
 	require.NoError(t, err)
@@ -113,7 +113,7 @@ func TestBadIdentity(t *testing.T) {
 		HostID:              "id2",
 		NodeName:            "",
 		ClusterName:         "",
-		Roles:               teleport.Roles{teleport.RoleNode},
+		Roles:               types.SystemRoles{types.RoleNode},
 		TTL:                 0,
 	})
 	require.NoError(t, err)
@@ -129,7 +129,7 @@ func TestBadIdentity(t *testing.T) {
 		HostID:              "example.com",
 		NodeName:            "",
 		ClusterName:         "",
-		Roles:               teleport.Roles{teleport.RoleNode},
+		Roles:               types.SystemRoles{types.RoleNode},
 		TTL:                 0,
 	})
 	require.NoError(t, err)
@@ -145,7 +145,7 @@ func TestBadIdentity(t *testing.T) {
 		HostID:              "example.com",
 		NodeName:            "",
 		ClusterName:         "id1",
-		Roles:               teleport.Roles{teleport.Role("bad role")},
+		Roles:               types.SystemRoles{types.SystemRole("bad role")},
 		TTL:                 0,
 	})
 	require.NoError(t, err)

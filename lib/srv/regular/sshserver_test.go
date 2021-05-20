@@ -127,14 +127,14 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	s.proxyID = uuid.New()
 	s.proxyClient, err = s.server.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
-			Role:     teleport.RoleProxy,
+			Role:     types.RoleProxy,
 			Username: s.proxyID,
 		},
 	})
 	c.Assert(err, IsNil)
 
 	// admin client is for admin actions, e.g. creating new users
-	s.adminClient, err = s.server.NewClient(auth.TestBuiltin(teleport.RoleAdmin))
+	s.adminClient, err = s.server.NewClient(auth.TestBuiltin(types.RoleAdmin))
 	c.Assert(err, IsNil)
 
 	// set up SSH client using the user private key for signing
@@ -145,7 +145,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	certs, err := s.server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
 		HostID:   hostID,
 		NodeName: s.server.ClusterName(),
-		Roles:    teleport.Roles{teleport.RoleNode},
+		Roles:    types.SystemRoles{types.RoleNode},
 	})
 	c.Assert(err, IsNil)
 
@@ -156,7 +156,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	s.nodeID = uuid.New()
 	s.nodeClient, err = s.server.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
-			Role:     teleport.RoleNode,
+			Role:     types.RoleNode,
 			Username: s.nodeID,
 		},
 	})
@@ -695,7 +695,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	proxyKeys, err := s.server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
 		HostID:   hostID,
 		NodeName: s.server.ClusterName(),
-		Roles:    teleport.Roles{teleport.RoleProxy},
+		Roles:    types.SystemRoles{types.RoleProxy},
 	})
 	c.Assert(err, IsNil)
 	proxySigner, err := sshutils.NewSigner(proxyKeys.Key, proxyKeys.Cert)
@@ -1281,7 +1281,7 @@ func (s *SrvSuite) newRawNode(c *C) *rawNode {
 	keys, err := s.server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
 		HostID:               "raw-node",
 		NodeName:             "raw-node",
-		Roles:                teleport.Roles{teleport.RoleNode},
+		Roles:                types.SystemRoles{types.RoleNode},
 		AdditionalPrincipals: []string{hostname},
 		DNSNames:             []string{hostname},
 	})

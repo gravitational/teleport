@@ -636,22 +636,22 @@ func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.N
 		return
 	}
 
-	role := teleport.Role(val)
+	role := types.SystemRole(val)
 	switch role {
 	// Node is dialing back.
-	case teleport.RoleNode:
+	case types.RoleNode:
 		s.handleNewService(role, conn, sconn, nch, types.NodeTunnel)
 	// App is dialing back.
-	case teleport.RoleApp:
+	case types.RoleApp:
 		s.handleNewService(role, conn, sconn, nch, types.AppTunnel)
 	// Kubernetes service is dialing back.
-	case teleport.RoleKube:
+	case types.RoleKube:
 		s.handleNewService(role, conn, sconn, nch, types.KubeTunnel)
 	// Database proxy is dialing back.
-	case teleport.RoleDatabase:
+	case types.RoleDatabase:
 		s.handleNewService(role, conn, sconn, nch, types.DatabaseTunnel)
 	// Proxy is dialing back.
-	case teleport.RoleProxy:
+	case types.RoleProxy:
 		s.handleNewCluster(conn, sconn, nch)
 	// Unknown role.
 	default:
@@ -660,7 +660,7 @@ func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.N
 	}
 }
 
-func (s *server) handleNewService(role teleport.Role, conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel, connType types.TunnelType) {
+func (s *server) handleNewService(role types.SystemRole, conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel, connType types.TunnelType) {
 	cluster, rconn, err := s.upsertServiceConn(conn, sconn, connType)
 	if err != nil {
 		log.Errorf("Failed to upsert %s: %v.", role, err)

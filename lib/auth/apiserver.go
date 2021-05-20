@@ -29,7 +29,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -332,18 +331,18 @@ type upsertServerRawReq struct {
 }
 
 // upsertServer is a common utility function
-func (s *APIServer) upsertServer(auth services.Presence, role teleport.Role, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (s *APIServer) upsertServer(auth services.Presence, role types.SystemRole, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req upsertServerRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	var kind string
 	switch role {
-	case teleport.RoleNode:
+	case types.RoleNode:
 		kind = types.KindNode
-	case teleport.RoleAuth:
+	case types.RoleAuth:
 		kind = types.KindAuthServer
-	case teleport.RoleProxy:
+	case types.RoleProxy:
 		kind = types.KindProxy
 	default:
 		return nil, trace.BadParameter("upsertServer with unknown role: %q", role)
@@ -359,7 +358,7 @@ func (s *APIServer) upsertServer(auth services.Presence, role teleport.Role, r *
 		server.SetExpiry(s.Now().UTC().Add(req.TTL))
 	}
 	switch role {
-	case teleport.RoleNode:
+	case types.RoleNode:
 		namespace := p.ByName("namespace")
 		if !types.IsValidNamespace(namespace) {
 			return nil, trace.BadParameter("invalid namespace %q", namespace)
@@ -370,11 +369,11 @@ func (s *APIServer) upsertServer(auth services.Presence, role teleport.Role, r *
 			return nil, trace.Wrap(err)
 		}
 		return handle, nil
-	case teleport.RoleAuth:
+	case types.RoleAuth:
 		if err := auth.UpsertAuthServer(server); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case teleport.RoleProxy:
+	case types.RoleProxy:
 		if err := auth.UpsertProxy(server); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -427,7 +426,7 @@ func (s *APIServer) upsertNodes(auth ClientI, w http.ResponseWriter, r *http.Req
 
 // upsertNode is called by remote SSH nodes when they ping back into the auth service
 func (s *APIServer) upsertNode(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	return s.upsertServer(auth, teleport.RoleNode, r, p)
+	return s.upsertServer(auth, types.RoleNode, r, p)
 }
 
 // getNodes returns registered SSH nodes
@@ -476,7 +475,7 @@ func (s *APIServer) deleteNode(auth ClientI, w http.ResponseWriter, r *http.Requ
 
 // upsertProxy is called by remote SSH nodes when they ping back into the auth service
 func (s *APIServer) upsertProxy(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	return s.upsertServer(auth, teleport.RoleProxy, r, p)
+	return s.upsertServer(auth, types.RoleProxy, r, p)
 }
 
 // getProxies returns registered proxies
@@ -512,7 +511,7 @@ func (s *APIServer) deleteProxy(auth ClientI, w http.ResponseWriter, r *http.Req
 
 // upsertAuthServer is called by remote Auth servers when they ping back into the auth service
 func (s *APIServer) upsertAuthServer(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	return s.upsertServer(auth, teleport.RoleAuth, r, p)
+	return s.upsertServer(auth, types.RoleAuth, r, p)
 }
 
 // getAuthServers returns registered auth servers
@@ -951,13 +950,13 @@ func (s *APIServer) generateKeyPair(auth ClientI, w http.ResponseWriter, r *http
 }
 
 type generateHostCertReq struct {
-	Key         []byte         `json:"key"`
-	HostID      string         `json:"hostname"`
-	NodeName    string         `json:"node_name"`
-	Principals  []string       `json:"principals"`
-	ClusterName string         `json:"auth_domain"`
-	Roles       teleport.Roles `json:"roles"`
-	TTL         time.Duration  `json:"ttl"`
+	Key         []byte            `json:"key"`
+	HostID      string            `json:"hostname"`
+	NodeName    string            `json:"node_name"`
+	Principals  []string          `json:"principals"`
+	ClusterName string            `json:"auth_domain"`
+	Roles       types.SystemRoles `json:"roles"`
+	TTL         time.Duration     `json:"ttl"`
 }
 
 func (s *APIServer) generateHostCert(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {

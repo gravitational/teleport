@@ -830,7 +830,7 @@ func GenerateIdentity(a *Server, id IdentityID, additionalPrincipals, dnsNames [
 	keys, err := a.GenerateServerKeys(GenerateServerKeysRequest{
 		HostID:               id.HostUUID,
 		NodeName:             id.NodeName,
-		Roles:                teleport.Roles{id.Role},
+		Roles:                types.SystemRoles{id.Role},
 		AdditionalPrincipals: additionalPrincipals,
 		DNSNames:             dnsNames,
 	})
@@ -1003,7 +1003,7 @@ func (i *Identity) hostKeyCallback(hostname string, remote net.Addr, key ssh.Pub
 
 // IdentityID is a combination of role, host UUID, and node name.
 type IdentityID struct {
-	Role     teleport.Role
+	Role     types.SystemRole
 	HostUUID string
 	NodeName string
 }
@@ -1081,7 +1081,7 @@ func ReadTLSIdentityFromKeyPair(keyBytes, certBytes []byte, caCertsBytes [][]byt
 		return nil, trace.BadParameter("misssing cluster name")
 	}
 	identity := &Identity{
-		ID:              IdentityID{HostUUID: id.Username, Role: teleport.Role(id.Groups[0])},
+		ID:              IdentityID{HostUUID: id.Username, Role: types.SystemRole(id.Groups[0])},
 		ClusterName:     clusterName,
 		KeyBytes:        keyBytes,
 		TLSCertBytes:    certBytes,
@@ -1141,7 +1141,7 @@ func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 	if roleString == "" {
 		return nil, trace.BadParameter("misssing cert extension %v", utils.CertExtensionRole)
 	}
-	roles, err := teleport.ParseRoles(roleString)
+	roles, err := types.ParseTeleportRoles(roleString)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
