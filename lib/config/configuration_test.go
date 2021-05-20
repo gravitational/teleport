@@ -224,8 +224,9 @@ func TestConfigReading(t *testing.T) {
 				Rates:          ConnectionRates,
 			},
 			Logger: Log{
-				Output:   "stderr",
-				Severity: "INFO",
+				Output:    "stderr",
+				Severity:  "INFO",
+				Formatter: "fields",
 			},
 			Storage: backend.Config{
 				Type: "bolt",
@@ -902,6 +903,7 @@ func makeConfigFixture() string {
 	conf.Limits.Rates = ConnectionRates
 	conf.Logger.Output = "stderr"
 	conf.Logger.Severity = "INFO"
+	conf.Logger.Formatter = "fields"
 	conf.Storage.Type = "bolt"
 
 	// auth service:
@@ -1604,8 +1606,6 @@ func TestTextFormatter(t *testing.T) {
 				LogFormat: tt.formatConfig,
 			}
 			tt.assertErr(t, formatter.CheckAndSetDefaults())
-
 		})
 	}
-
 }
